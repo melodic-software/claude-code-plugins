@@ -3601,7 +3601,9 @@ def assess(
     merges in flight. The
     config at the base must enable that authority (`enabled_authority`).
 
-    Config at the pull request's base SHA, then authority, identity, the
+    Config at the pull request's base SHA (the default branch head's alone,
+    reported as `baseConfigFallback`, when the base's cannot be parsed), then
+    authority, identity, the
     credential chokepoint, the kill switch, a base that is the default
     branch, the config tightened by the default branch head's
     (`with_default_branch`; `merge.max-in-flight` the head's alone,
@@ -3632,8 +3634,21 @@ def assess(
     base_ref = str(json_object(pr.get("base")).get("ref"))
     base_sha = str(json_object(pr.get("base")).get("sha"))
     config = read_config_at(repo, base_sha)
+    fallback = None
+    if config.error == "config-parse-error":
+        # A base older than the reader's grammar answers to the default branch
+        # head's config alone, never the pull request head's; a head config
+        # that cannot be read or parsed raises, as the base's did.
+        config = _default_branch_config(repo)
+        fallback = (
+            f"{CONFIG_PATH} at {base_sha}: config-parse-error; "
+            f"read at the default branch head {config.base_sha}"
+        )
     if config.error:
         raise PolicyReadError(f"{CONFIG_PATH} at {base_sha}: {config.error}")
+    # The commit whose config history sets the post-merge floor: the base, or
+    # the default branch head the config fell back to.
+    history_sha = config.base_sha
     identity = config.agent_identity
     lane = authority == PR_MERGE
     # A Dependabot pull request in the lane answers to its own switch.
@@ -3642,6 +3657,8 @@ def assess(
         config.dependabot_mode != "enforce" if dependabot_pr else config.report_only
     )
     details: dict[str, Any] = {"baseSha": base_sha, "reportOnly": report_only}
+    if fallback:
+        details["baseConfigFallback"] = fallback
     inputs: dict[str, Any] = {
         "pr": pr,
         "config": config,
@@ -3730,7 +3747,7 @@ def assess(
             repo,
             shared,
             branch=default,
-            base_sha=base_sha,
+            base_sha=history_sha,
             identity=resolved.login,
             self_logins=self_logins,
             lane=lane,
@@ -3760,7 +3777,7 @@ def assess(
         floor = reuse.floor
     else:
         try:
-            floor = merged_since_floor(repo, base_sha, demotion, authority)
+            floor = merged_since_floor(repo, history_sha, demotion, authority)
         except PolicyReadError as exc:
             return replace(stopped, reason=f"post-merge:floor-unreadable: {exc}")
     details["mergedSince"] = floor.isoformat()
@@ -3779,7 +3796,7 @@ def assess(
         and gate.report.get("readable") is True
     ):
         try:
-            config_sha = newest_config_commit(repo, base_sha)
+            config_sha = newest_config_commit(repo, history_sha)
         except PolicyReadError:
             config_sha = None
         if config_sha:
