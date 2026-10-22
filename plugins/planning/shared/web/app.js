@@ -121,7 +121,7 @@
     }
     function setTb(patch) { setPrefs(patch); render(); }
     const claudePref = () => pref("claudeTake", "session");
-    const myTheme = () => { const p = prefs(); return { ...(p.theme ? { mode: p.theme } : {}), ...(p.accent ? { accent: p.accent } : {}) }; };
+    const myTheme = () => { const p = prefs(); return { ...(p.theme ? { mode: p.theme } : {}), ...(p.accent ? { accent: p.accent } : {}), ...(p.palette ? { palette: p.palette } : {}) }; };
     const openRounds = () => new Set(pref("expandedRounds", []));
     const setOpenRounds = set => { setPrefs({ expandedRounds: [...set].sort((a, b) => a - b) }); render(); };
     const following = () => !!pref("follow", false) && Core.state.settings.follow !== false;
@@ -1719,18 +1719,35 @@
     }
     const MODES = [["system", "System"], ["light", "Light"], ["dark", "Dark"]];
     const ACCENTS = [["teal", "Teal"], ["indigo", "Indigo"], ["violet", "Violet"], ["amber", "Amber"]];
-    /** Theme picker: mode buttons and accent swatches; get() returns the current choice, set(patch) saves. */
-    function themePicker(get, set) {
+    const PALETTES = [["default", "Default"], ["midnight", "Midnight"], ["slate", "Slate"], ["paper", "Paper"], ["contrast", "High contrast"]];
+    /** High contrast sets its own accent, so the accent choice waits until another palette is picked. */
+    const fixedAccent = c => c.palette === "contrast";
+    let themePickers = 0;
+    /** Theme picker: mode buttons, accent swatches and palette buttons; get() returns the current choice, set(patch) saves.
+     *  `own`: the viewer's own theme, whose accent High contrast fixes; the owner's default accent still reaches anyone on
+     *  another palette, so it stays live there. */
+    function themePicker(get, set, own = false) {
       const wrap = E("div", "vf-theme");
       const modes = E("div", "vf-seg vf-seg-sm"); modes.setAttribute("role", "group"); modes.setAttribute("aria-label", "Theme");
       const sw = E("div", "vf-swatches"); sw.setAttribute("role", "group"); sw.setAttribute("aria-label", "Accent color");
+      const pals = E("div", "vf-seg vf-seg-sm vf-palettes"); pals.setAttribute("role", "group"); pals.setAttribute("aria-label", "Palette");
+      const why = E("p", "vf-theme-why", "High contrast uses its own accent."); why.id = `vf-theme-why-${++themePickers}`;
       const mb = MODES.map(([k, l]) => { const b = btn("vf-seg-btn", l); b.onclick = () => set({ mode: k }); modes.append(b); return [k, b]; });
-      const ab = ACCENTS.map(([k, l]) => { const b = btn("vf-swatch"); b.dataset.accent = k; b.setAttribute("aria-label", `${l} accent`); b.title = l; b.onclick = () => set({ accent: k }); sw.append(b); return [k, b]; });
-      wrap.append(modes, sw);
-      wrap._paint = () => { const c = get(); for (const [k, b] of mb) b.setAttribute("aria-pressed", String(c.mode === k)); for (const [k, b] of ab) b.setAttribute("aria-pressed", String(c.accent === k)); };
+      const ab = ACCENTS.map(([k, l]) => { const b = btn("vf-swatch"); b.dataset.accent = k; b.setAttribute("aria-label", `${l} accent`); b.title = l; b.onclick = () => { if (!(own && fixedAccent(get()))) set({ accent: k }); }; sw.append(b); return [k, b]; });
+      const pb = PALETTES.map(([k, l]) => { const b = btn("vf-seg-btn", l); b.dataset.palette = k; b.onclick = () => set({ palette: k }); pals.append(b); return [k, b]; });
+      wrap.append(modes, sw, pals, why);
+      wrap._paint = () => {
+        const c = get(), fixed = own && fixedAccent(c);
+        for (const [k, b] of mb) b.setAttribute("aria-pressed", String(c.mode === k));
+        for (const [k, b] of ab) { b.setAttribute("aria-pressed", String(!fixed && c.accent === k)); b.setAttribute("aria-disabled", String(fixed)); }
+        for (const [k, b] of pb) b.setAttribute("aria-pressed", String(c.palette === k));
+        why.hidden = !fixed;
+        // a hidden note that aria-describedby points at is still read, so the link exists only while the note shows
+        if (fixed) sw.setAttribute("aria-describedby", why.id); else sw.removeAttribute("aria-describedby");
+      };
       return wrap;
     }
-    const sessionTheme = () => ({ mode: "system", accent: "teal", ...(st().theme || {}) });
+    const sessionTheme = () => ({ mode: "system", accent: "teal", palette: "default", ...(st().theme || {}) });
     const ownerTheme = themePicker(sessionTheme, patch => Core.saveSettings({ theme: patch }).catch(fail));
     settingsPop.append(E("h3", "vf-pop-sub", "Default theme for everyone"), ownerTheme);
     const newGuestBtn = btn("vf-menu-item vf-menu-plain", "New guest link");
@@ -2266,6 +2283,7 @@
       const d = sessionTheme(), t = myTheme(), mode = t.mode || d.mode, accent = t.accent || d.accent;
       root.dataset.theme = mode === "system" ? (lightOS.matches ? "light" : "dark") : mode;
       root.dataset.accent = accent;
+      root.dataset.palette = t.palette || d.palette;
     }
     /** The Host view has no tab of its own on phones: More stands for it. */
     const paintTabs = () => { for (const [t, b] of Object.entries(tabBtns)) b.setAttribute("aria-current", t === (ui.tab === "host" ? "more" : ui.tab) ? "page" : "false"); };
@@ -3471,7 +3489,7 @@
       msFollow._l.textContent = Core.owner() ? `Follow ${disp(Core.owner().name)}` : "Follow host";
       msFollow._d.textContent = following() ? "On" : "Off";
       msFollow.setAttribute("aria-pressed", String(following()));
-      msSettings._d.textContent = menu.help.settings._d.textContent = Core.me.isOwner ? "Session settings for everyone" : "Your name, accent and devices";
+      msSettings._d.textContent = menu.help.settings._d.textContent = Core.me.isOwner ? "Session settings for everyone" : "Your name, theme and devices";
       const waitingQ = mod ? queueItems(S).length : 0;
       msHost._d.textContent = waitingQ ? `${waitingQ} waiting in the queue` : "Run the session";
       tabBtns.more.setAttribute("aria-expanded", String(ui.pop === moreSheet));
@@ -4943,7 +4961,7 @@
       const k = (b, key) => { b.dataset.k = key; return b; };
       if (c.pinned) parts.unshift(k(ibtn("vf-tbtn vf-icon-btn vf-popx", "x", `Close ${me ? "your card" : `${disp(name)}'s card`}`), "x")); // F11: the one close control
       if (me) {
-        const t = themePicker(() => ({ ...sessionTheme(), ...myTheme() }), patch => { setPrefs({ ...(patch.mode ? { theme: patch.mode } : {}), ...(patch.accent ? { accent: patch.accent } : {}) }); applyTheme(); fillPcard(); });
+        const t = themePicker(() => ({ ...sessionTheme(), ...myTheme() }), patch => { setPrefs({ ...(patch.mode ? { theme: patch.mode } : {}), ...(patch.accent ? { accent: patch.accent } : {}), ...(patch.palette ? { palette: patch.palette } : {}) }); applyTheme(); fillPcard(); }, true);
         t._paint();
         t.querySelectorAll("button").forEach((b, i) => k(b, "t" + i));
         parts.push(E("h3", "vf-pop-sub", "Theme, just for you"), t);
