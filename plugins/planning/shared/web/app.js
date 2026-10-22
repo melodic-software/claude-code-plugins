@@ -5434,7 +5434,8 @@
       if (dlgOpen() || !tour.hidden) return; // a confirm or attach dialog, or the tour, handles its own keys
       // Tab stays inside an open phone sheet, and inside an open panel or the chat while focus is in it.
       const inside = el => !!el && !el.hidden && el.contains(document.activeElement) && el;
-      const sheet = e.key === "Tab" && (activeSheet() || inside(ui.pop));
+      // a popover focused over the modal chat (reactions, the message menu) keeps Tab before the chat does
+      const sheet = e.key === "Tab" && (inside(ui.pop) || activeSheet());
       if (sheet) { trapTab(e, sheet); return; }
       if (e.key === "Escape") {
         if (toast._tag === "alert" && toast.classList.contains("vf-on")) { ui.alertOpen = false; hideToast(); return; } // an urgent pop-up goes first
@@ -8058,7 +8059,7 @@
       // chat
       chat.classList.toggle("vf-off", !s.chat);
       fab.hidden = !s.chat;
-      if (!s.chat && ui.chatOpen) { ui.chatOpen = false; chat.hidden = true; }
+      if (!s.chat && ui.chatOpen) { ui.chatOpen = false; chat.hidden = true; fab.setAttribute("aria-expanded", "false"); syncModal(); } // the page it covered goes live again
       const msgs = S.chat, newest = mark(msgs.at(-1));
       if (ui.seenChat === null && Core.live) ui.seenChat = newest;
       if (ui.chatOpen) ui.seenChat = newest;

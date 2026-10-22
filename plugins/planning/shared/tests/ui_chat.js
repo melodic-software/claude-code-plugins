@@ -360,6 +360,47 @@ async function main() {
       && !document.querySelector(".vf-drawer").hidden && document.querySelector(".vf-drawer").contains(document.activeElement) && !document.querySelector(".vf-body").inert));
     await dock.keyboard.press("Escape");
 
+    // ---------- 1024, modal: a popover opened over the chat keeps Tab inside itself, not the chat ----------
+    const tabWalk = async sel => {
+      const seen = new Set(); let left = null;
+      for (let i = 0; i < 14; i++) {
+        await dock.keyboard.press("Tab");
+        const f = await dock.evaluate(s => { const a = document.activeElement, p = document.querySelector(s);
+          return { inPop: !!p && p.contains(a), key: a?.dataset?.e || a?.textContent?.trim().slice(0, 30) || a?.className }; }, sel);
+        if (!f.inPop) { left = f.key; break; }
+        seen.add(f.key);
+      }
+      return { seen: [...seen], left };
+    };
+    await dock.click(".vf-fab");
+    await until(dock, () => !document.querySelector(".vf-chat").hidden && document.querySelector(".vf-chat").getAttribute("role") === "dialog");
+    await msg.hover();
+    await msg.locator(".vf-mreact-add").click();
+    await until(dock, () => !document.querySelector(".vf-reactpop").hidden);
+    const quick = await dock.evaluate(() => [...document.querySelectorAll(".vf-reactpop .vf-rp-quick .vf-rp-e")].map(b => b.dataset.e));
+    const rp = await tabWalk(".vf-reactpop");
+    ok("1024, modal: Tab in the reaction picker over the chat stays in it, reaching the second emoji and More", !rp.left && rp.seen.includes(quick[1]) && rp.seen.includes("More"), JSON.stringify({ quick, ...rp }));
+    await dock.keyboard.press("Escape");
+    await msg.hover();
+    await msg.locator(".vf-msgmore").click();
+    await until(dock, () => !document.querySelector(".vf-msgmenu").hidden);
+    const items = await dock.evaluate(() => [...document.querySelectorAll(".vf-msgmenu [role=menuitem]")].filter(b => !b.hidden && b.offsetParent).map(b => b.textContent.trim().slice(0, 30)));
+    const mm = await tabWalk(".vf-msgmenu");
+    ok("1024, modal: Tab in the message menu over the chat stays in it, reaching its second item and the last", !mm.left && mm.seen.includes(items[1]) && mm.seen.includes(items.at(-1)), JSON.stringify({ items, ...mm }));
+    await dock.keyboard.press("Escape");
+
+    // ---------- 1024, modal: the host turning chat off frees the page it covered ----------
+    await until(dock, () => !document.querySelector(".vf-chat").hidden);
+    await owner.evaluate(() => window.Core.saveSettings({ chat: false }));
+    const freed = await until(dock, () => document.querySelector(".vf-chat").hidden);
+    const after = await dock.evaluate(() => ({ inert: [...document.querySelectorAll(".vf-top, .vf-body, .vf-tabs, .vf-fab")].filter(e => e.inert).map(e => e.className),
+      role: document.querySelector(".vf-chat").getAttribute("role"), modal: document.querySelector(".vf-chat").getAttribute("aria-modal") }));
+    let clicked = false;
+    try { await dock.locator(".vf-q").first().click({ timeout: 3000 }); clicked = await dock.evaluate(() => !!document.activeElement?.closest(".vf-q")); } catch {}
+    ok("1024, modal: when the host turns chat off, the chat closes, nothing stays inert or a modal dialog, and the page takes a click",
+      freed && after.inert.length === 0 && after.role === null && after.modal === null && clicked, JSON.stringify({ freed, clicked, ...after }));
+    await owner.evaluate(() => window.Core.saveSettings({ chat: true }));
+
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     ok("no page error", rec.errors.filter(m => !/Failed to load resource/.test(m)).length === 0, rec.errors.slice(0, 3).join(" | "));
   } catch (e) {
