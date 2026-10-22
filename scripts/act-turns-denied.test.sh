@@ -3,7 +3,8 @@
 # pr-run-activity files records each permission_denials entry as
 # {tool_name, input} in act-turns.json, keeping the first 20 with denied_total
 # counting all, and the step summary shows each as `tool: input`, then
-# `(+N more)` for any cut. A worst-case read-lane file fits its carry cap. The write file's step writes the summary itself; the read
+# `(+N more)` for any cut. Entries drop from the end until denied serializes to
+# at most 8192 bytes, and a worst-case read-lane file fits its carry cap. The write file's step writes the summary itself; the read
 # file's writes none, and its summary steps (the scan job's, after the leak
 # scan, and issue mode's) render the act-turns.json it wrote. Runs each step's
 # github-script body against a canned execution file with a stub `core` whose
@@ -140,13 +141,41 @@ for (const lane of ["write", "read"]) {
     }
     rmSync(dir, { recursive: true, force: true });
   }
+  for (const [kind, ch] of [["ESC (6 bytes escaped)", "\x1b"], ["CJK (3 UTF-8 bytes)", "漢"]]) {
+    // 100 long denials of a costly character: denied drops entries from the end
+    // until it serializes to at most 8192 bytes, and the summary counts the rest.
+    const many = Array.from({ length: 100 }, () => ({
+      tool_name: "mcp__github_inline_comment__create_inline_comment",
+      tool_input: { command: ch.repeat(1000) },
+    }));
+    const { dir, blocks, turns } = await runActTurns(lane, wf, [result({ permission_denials: many })]);
+    const recorded = turns && JSON.parse(turns);
+    const kept = recorded?.denied ?? [];
+    const bytes = Buffer.byteLength(JSON.stringify(kept), "utf8");
+    say(kept.length > 0 && bytes <= 8192, `${lane}: ${kind} denied keeps ${kept.length} entries in ${bytes} serialized bytes, within 8192`);
+    say(kept.every((d) => d.input === ch.repeat(300)), `${lane}: ${kind} kept entries hold the 300-character input`);
+    say(recorded?.denied_total === 100, `${lane}: ${kind} denied_total stays 100`);
+    for (const [where, shown] of await views(lane, wf, dir, blocks)) {
+      say(shown.includes(`"(+${100 - kept.length} more)"`), `${lane}: ${where} shows "(+${100 - kept.length} more)" for ${kind}`);
+    }
+    rmSync(dir, { recursive: true, force: true });
+  }
+  {
+    // One entry over the budget on its own: its input halves until it fits.
+    const one = [{ tool_name: "x".repeat(7000), tool_input: { command: "\x1b".repeat(300) } }];
+    const { turns } = await runActTurns(lane, wf, [result({ permission_denials: one })]);
+    const kept = (turns && JSON.parse(turns))?.denied ?? [];
+    const bytes = Buffer.byteLength(JSON.stringify(kept), "utf8");
+    say(kept.length === 1 && kept[0].input === "\x1b".repeat(150) && bytes <= 8192,
+      `${lane}: a lone oversized entry keeps its input halved to 150 characters (${bytes} bytes)`);
+  }
   if (lane === "read") {
-    // Worst case: 100 denials and 6 stderr messages, every character one that
-    // JSON escapes to two bytes; the file must fit the 32768-byte carry cap.
+    // Worst case: 100 denials of 6-byte-escaped characters and 6 stderr messages
+    // of 2-byte-escaped ones; the file must fit the 32768-byte carry cap.
     const q = '"';
     const many = Array.from({ length: 100 }, () => ({
       tool_name: "mcp__github_inline_comment__create_inline_comment",
-      tool_input: { command: q.repeat(1000) },
+      tool_input: { command: "\x1b".repeat(1000) },
     }));
     const stderr = { type: "user", message: { content: `<local-command-stderr>${q.repeat(5000)}` } };
     const { dir, turns } = await runActTurns(lane, wf,

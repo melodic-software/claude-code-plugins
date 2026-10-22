@@ -1345,15 +1345,23 @@ jobs:
                 .map((text) => redact(text).slice(0, 2000)),
               // The first 20 calls the permission mode denied, each with its command,
               // file_path, path or pattern, so a denial can be diagnosed; denied_total
-              // counts them all. 20 x (300 input characters, 600 bytes when each is
-              // JSON-escaped, + ~110 bytes of name and keys) is ~14 KB; with the read
-              // file's 4 x 2000-character stderr (16 KB escaped) the file stays under
-              // the 32768-byte cap the read file's scan job carries it under.
-              denied: (result.permission_denials ?? []).slice(0, 20).map((d) => {
-                const i = d?.tool_input ?? {};
-                const input = i.command ?? i.file_path ?? i.path ?? i.pattern ?? null;
-                return { tool_name: String(d?.tool_name ?? ''), input: input == null ? null : redact(String(input)).slice(0, 300) };
-              }),
+              // counts them all. Entries drop from the end until denied serializes
+              // to at most 8192 bytes (a JSON-escaped control character is 6 bytes),
+              // keeping it within the 32768-byte cap the read file's scan job carries
+              // it under; local_command_stderr's own escaped size is tracked in #8942.
+              denied: (() => {
+                const kept = (result.permission_denials ?? []).slice(0, 20).map((d) => {
+                  const i = d?.tool_input ?? {};
+                  const input = i.command ?? i.file_path ?? i.path ?? i.pattern ?? null;
+                  return { tool_name: String(d?.tool_name ?? ''), input: input == null ? null : redact(String(input)).slice(0, 300) };
+                });
+                while (kept.length > 0 && Buffer.byteLength(JSON.stringify(kept), 'utf8') > 8192) {
+                  const last = kept.at(-1);
+                  if (kept.length === 1 && last.input) last.input = last.input.slice(0, last.input.length >> 1);
+                  else kept.pop();
+                }
+                return kept;
+              })(),
               denied_total: (result.permission_denials ?? []).length,
             };
             fs.mkdirSync(REPLY_DIR, { recursive: true });
