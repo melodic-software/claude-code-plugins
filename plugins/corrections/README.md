@@ -8,7 +8,10 @@ mistake it targets and to pass on the current code.
 |---|---|
 | `/corrections:codify "<description>" [#PR]` | Counts how often the mistake recurs, picks the strongest enforcement-ladder rung, places the lesson by scope, and proposes a check proven with `prove-check.sh` |
 
-`codify` counts at 2 occurrences, or at once on a person's direct "codify this". A person's
+`codify` counts at `recurrence.min_occurrences` occurrences (default 2; set it in
+`corrections.yaml` in the convention home, default `docs/conventions`, or `corrections.local.yaml`
+there for yourself), or at once on a
+person's direct "codify this". A person's
 invocation writes the proposal; a model invocation only proposes. It asks before installing any
 blocking check, and reports a check whose proof did not fail on the old ref and pass on the new one as
 unproven.
@@ -16,6 +19,7 @@ unproven.
 | Script | What it does |
 |---|---|
 | `scripts/prove-check.sh` | Runs a proposed check in temporary worktrees at two refs and exits 0 only when it fails at the old ref and passes at the new one |
+| `scripts/codify-settings.mjs` | Prints `recurrence.min_occurrences` and the layer that set it, resolved through the config cascade (schema `schemas/corrections.schema.json`) |
 
 ## prove-check
 

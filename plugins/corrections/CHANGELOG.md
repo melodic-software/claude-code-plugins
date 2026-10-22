@@ -3,6 +3,22 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0] - 2026-10-22
+
+### Changed
+
+- `/corrections:codify` reads its recurrence threshold from the `recurrence.min_occurrences` setting
+  (default 2) instead of a fixed 2, and reports the layer that set it. The team file is
+  `<home>/corrections.yaml`, the personal overlay `<home>/corrections.local.yaml`, `<home>` the
+  convention home (default `docs/conventions`). A person's direct "codify this" still acts at once,
+  whatever the count.
+
+### Added
+
+- `scripts/codify-settings.mjs` and `schemas/corrections.schema.json`, which resolve the setting
+  through the config cascade and print the value and its layer; an invalid value is named on stderr
+  and falls back.
+
 ## [0.4.0] - 2026-10-21
 
 ### Added
