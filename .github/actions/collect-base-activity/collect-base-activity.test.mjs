@@ -58,8 +58,41 @@ const SHELL_DENIED = [
   "Read(//proc/**)",
   `Read(/${WORKSPACE}/.git/**)`,
 ];
-// The deny rules other than the write lanes' shell set.
-const ownDenied = (denied) => denied.filter((rule) => !SHELL_DENIED.includes(rule));
+// The write lanes' git deny rules: all of git, or in merge-base mode, whose
+// skill resolves the merge with git, every form that reads config, reaches a
+// remote, reads a file outside the index or runs a program.
+const WRITE_GIT_DENIED = ["Bash(git *)"];
+const MERGE_BASE_GIT_DENIED = [
+  "Bash(git -*)",
+  "Bash(git config *)",
+  "Bash(git remote *)",
+  "Bash(git ls-remote *)",
+  "Bash(git credential *)",
+  "Bash(git var *)",
+  "Bash(git fetch *)",
+  "Bash(git push *)",
+  "Bash(git pull *)",
+  "Bash(git submodule *)",
+  "Bash(git *--no-i*)",
+  "Bash(git *--out*)",
+  "Bash(git *--git-dir*)",
+  "Bash(git *--work-tree*)",
+  "Bash(git *.git/*)",
+  "Bash(git *--ext*)",
+  "Bash(git *--text*)",
+  "Bash(git blame *)",
+  "Bash(git *--cont*)",
+  "Bash(git grep *)",
+  "Bash(git *--pathspec*)",
+  "Bash(git * /*)",
+  "Bash(git *../*)",
+  "Bash(git *..)",
+  "Bash(git *'*)",
+  'Bash(git *"*)',
+];
+// The deny rules other than the write lanes' shell and git sets.
+const ownDenied = (denied) =>
+  denied.filter((rule) => !SHELL_DENIED.includes(rule) && !WRITE_GIT_DENIED.includes(rule) && !MERGE_BASE_GIT_DENIED.includes(rule));
 
 // The Bash rules other than the commit grant's chmod rule.
 const wrapperRules = (allowed) => allowed.filter((rule) => rule.startsWith("Bash") && rule !== CHMOD_RULE);
@@ -132,7 +165,7 @@ function stage(overrides) {
   // The --allowedTools list itself, split at the top-level commas.
   // claude-code-action reads a `\"` inside the quoted list as a literal quote.
   const allowed = (/--allowedTools "((?:[^"\\]|\\.)*)"/.exec(args)?.[1] ?? "").replaceAll('\\"', '"').split(/,(?![^(]*\))/);
-  const denied = (/--disallowedTools "([^"]*)"/.exec(args)?.[1] ?? "").split(",").filter(Boolean);
+  const denied = ((/--disallowedTools "((?:\\.|[^"\\])*)"/.exec(args)?.[1] ?? "").replaceAll('\\"', '"')).split(",").filter(Boolean);
   const prompt = /^prompt<<(\S+)\n([\s\S]*?)\n\1$/m.exec(text)?.[2] ?? "";
   const plugins = (/^plugins<<(\S+)\n([\s\S]*?)\n\1$/m.exec(text)?.[2] ?? "").split("\n").filter(Boolean);
   const jobEnv = readFileSync(envFile, "utf8");
@@ -197,7 +230,7 @@ test("prepare: merge-base leaves out the commit tool and the instruction to comm
   assert.ok(!args.includes("chmod"), args);
   // Still a writing skill: it edits and stages its resolution.
   assert.match(args, /--allowedTools "Skill\(source-control:resolve-conflicts\),Read\([^)]*\),Edit,Write,Agent,Grep,Glob,Edit\(/);
-  assert.ok(args.includes(`--disallowedTools "WebFetch,WebSearch,${SHELL_DENIED.join(",")}"`), args);
+  assert.ok(args.includes(`--disallowedTools "WebFetch,WebSearch,${MERGE_BASE_GIT_DENIED.map((rule) => rule.replaceAll('"', '\\"')).join(",")},${SHELL_DENIED.join(",")}"`), args);
 });
 
 // pr-run-activity.md, "Skill activities": each listed check runs from the base
@@ -226,7 +259,7 @@ test("a listed check gets a no-argument wrapper that runs the base copy against 
     [`Bash(${wrapper})`],
   );
   assert.ok(args.includes(wrapper), "the system prompt names the check");
-  const denied = (/--disallowedTools "([^"]*)"/.exec(args)?.[1] ?? "").split(",");
+  const denied = ((/--disallowedTools "((?:\\.|[^"\\])*)"/.exec(args)?.[1] ?? "").replaceAll('\\"', '"')).split(",");
   assert.ok(denied.includes(`Edit(/${checksDir}/**)`) && denied.includes(`Write(/${checksDir}/**)`), denied.join(" | "));
   const write = spawnSync("bash", ["-c", 'echo x >>"$1"', "_", wrapper], { encoding: "utf8" });
   assert.notEqual(write.status, 0, "the wrapper is read-only");
@@ -254,6 +287,24 @@ test("a self-check gets the same no-argument wrapper as a check", () => {
     run.stdout.trim(),
     `from=${path.join(checksDir, "scripts", "check-x.sh")} data=${workspace} pwd=${workspace} args=--check`,
   );
+});
+
+// #9096: apply-issue-patch makes each new or changed script executable (the
+// issue row's script-exec-bit), so only an issue lane's patch run tells the
+// checks to judge the tree with that bit set; a run that commits sets it itself.
+const SCRIPT_EXEC_BIT = "export CHECK_AFFECTED_SCRIPT_EXEC_BIT=1";
+test("only an issue lane's patch run gets a wrapper that sets the script exec bit", () => {
+  const issuePatch = withChecks(["scripts/check-x.sh --check"], { EFFECT: "read", CAN_COMMIT: "false", ISSUE_NUMBER: "7" }, { "applied-by": { patch: "apply-issue-patch" } });
+  assert.equal(issuePatch.status, 0, issuePatch.stdout);
+  assert.ok(readFileSync(path.join(issuePatch.checksDir, "bin", "check-x"), "utf8").includes(SCRIPT_EXEC_BIT));
+  for (const [what, overrides, selected] of [
+    ["an issue lane that commits", { ISSUE_NUMBER: "7" }, {}],
+    ["a pull request lane that commits", {}, {}],
+  ]) {
+    const run = withChecks(["scripts/check-x.sh --check"], overrides, selected);
+    assert.equal(run.status, 0, what);
+    assert.ok(!readFileSync(path.join(run.checksDir, "bin", "check-x"), "utf8").includes(SCRIPT_EXEC_BIT), what);
+  }
 });
 
 test("checks and self-checks each get a wrapper, and a script in both fails red", () => {
@@ -1250,6 +1301,15 @@ for (const [name, run] of [
       const expected = rule.replace(WORKSPACE, workspace);
       assert.ok(denied.includes(expected), `${expected} in ${denied.join(" | ")}`);
     }
+  });
+  test(`a write lane denies git, in merge-base mode every form that reaches config, a remote or a file outside the index: ${name}`, () => {
+    const { status, denied } = run();
+    assert.equal(status, 0);
+    const mergeBase = name === "prepare: merge-base";
+    for (const rule of mergeBase ? MERGE_BASE_GIT_DENIED : WRITE_GIT_DENIED) {
+      assert.ok(denied.includes(rule), `${rule} in ${denied.join(" | ")}`);
+    }
+    assert.equal(denied.includes("Bash(git *)"), !mergeBase, denied.join(" | "));
   });
 }
 

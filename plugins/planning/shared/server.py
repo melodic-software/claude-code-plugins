@@ -154,12 +154,13 @@ SUMMARY_PER_MINUTE = 6  # judgment: a page sends one summary each time it hides;
 SUMMARY_BATCH_SECONDS = 600  # judgment: summaries held per batch; long enough that many people's summaries share one
 SUMMARY_BATCH_BYTES = 100_000  # judgment: the most one batch entry holds; a summary past it is counted as dropped
 SUMMARY_MIN_SENDERS = 2  # judgment: a batch is written only once this many guests sent to it (or only the owner did),
-# so its counts and pairs are never one guest's; below it a batch waits for the next, and at shutdown is only counted
-# A summary's count tokens, added up per batch and never left in its pair: a repeat's fingerprint is also on its fault
-# entry, which names the person, and a component's taps (use, rage, dead) are no one's. Any other token with one of
-# these prefixes is dropped, so no text rides along.
+# so its counts and pairs are never one guest's; below it a batch waits for the next, and at shutdown is only counted,
+# except in a session only one guest ever joined (one on one), whose held counts, and no pair, are written at shutdown
+# A summary's count tokens, added up per batch and never left in its pair: a component's taps (use, rage, dead) are no
+# one's. Any other token with one of these prefixes is dropped, so no text rides along; that includes an older page's
+# `rep:<fp>` repeat, whose fingerprint is also on its fault entry, which names the person.
 COUNT_PREFIXES = ("rep:", "use:", "rage:", "dead:")
-COUNT_TOKEN = re.compile(r"(rep:[0-9a-f]{1,16}|(?:use|rage|dead):(?:vf|core)-[a-z-]{1,60})=(\d{1,6})", re.ASCII)
+COUNT_TOKEN = re.compile(r"((?:use|rage|dead):(?:vf|core)-[a-z-]{1,60})=(\d{1,6})", re.ASCII)
 DEVICES = ("phone", "tablet", "computer")  # web/core.js deviceKind(); a summary keeps only this word of its ua
 TUNNEL_POLL = 1.0  # seconds between tunnel checks
 TUNNEL_BACKOFF_MAX = 60.0
@@ -1078,7 +1079,10 @@ class App:
     def flush_summaries(self, stopping=False):
         """One summary-batch entry (README "Logs") for the summaries held since the last, sorted so their arrival order
         is gone too, and their counts; none when there were none. Summaries from 1 to SUMMARY_MIN_SENDERS - 1 guests
-        wait for the next batch, or at shutdown are only counted, as dropped."""
+        wait for the next batch, or at shutdown are only counted, as dropped; when only one guest ever joined the
+        session (one_guest), that batch's counts are written then, and its pairs, one page view's record each, only
+        counted as dropped."""
+        one_guest = stopping and self.one_guest()
         with self._summary_lock:
             self._batch_at = time.monotonic() + SUMMARY_BATCH_SECONDS
             few = 0 < len(self._senders) < SUMMARY_MIN_SENDERS
@@ -1087,9 +1091,15 @@ class App:
             items, counts, dropped = sorted(self._summaries), dict(sorted(self._counts.items())), self._dropped
             self._summaries, self._counts, self._senders, self._summary_bytes, self._dropped = [], collections.Counter(), set(), 0, 0
         if few:
-            items, counts, dropped = [], {}, dropped + len(items)
-        if items or dropped:
+            items, counts, dropped = [], counts if one_guest else {}, dropped + len(items)
+        if items or counts or dropped:
             self.log.info("summary-batch summaries=%d dropped=%d counts=%s data=%s", len(items), dropped, batch_json(counts), batch_json(items))
+
+    def one_guest(self):
+        """True when the session's people (kept in state.json across restarts, waiting ones included) hold exactly one
+        person besides the owner: one on one. Who sent a summary is no test: another guest's page may never have hidden."""
+        with self.session._lock:
+            return sum(1 for p in self.session.state["people"] if p != session.HOST) == 1
 
     def asset_sign(self, pid, exp):
         return hmac.new(self._asset_key, f"{pid}.{exp}".encode(), hashlib.sha256).hexdigest()

@@ -48,7 +48,7 @@ from a completed, successful one. Any other artifact is ignored.
   issue's trusted comments (`_spec_comments`) are the recorded ones by id and
   update time; then allowed only when every linked issue it records was
   written, and last edited if ever, by a User on the trusted list's humans
-  other than the pull request's author, else `verify:untrusted-spec`;
+  (the pull request's author among them), else `verify:untrusted-spec`;
 - otherwise `verify:missing`.
 
 `verify:fail`, `verify:too-old`, `verify:repeated-fail`, `verify:earlier-fail`,
@@ -686,28 +686,19 @@ class Reader:
             run_cache.note(self._humans_at)
         return humans
 
-    def _trusted_actor(self, kind: Any, actor_id: Any, login: Any, author: str) -> bool:
+    def _trusted_actor(self, kind: Any, actor_id: Any) -> bool:
         """The one spec-author filter (resolve-pr.mjs `trusted` is its
-        twin): a User on the trusted list's humans other than the PR author."""
-        return (
-            kind == "User"
-            and actor_id in self._trusted_humans()
-            and author != ""
-            and str(login or "").casefold() != author.casefold()
-        )
+        twin): a User on the trusted list's humans, the PR author included.
+        Bots and Apps, the lanes App among them, never pass."""
+        return kind == "User" and actor_id in self._trusted_humans()
 
-    def _spec_comments(self, comments: list[Any], author: str) -> set[tuple[Any, Any]]:
+    def _spec_comments(self, comments: list[Any]) -> set[tuple[Any, Any]]:
         """The trusted comments, by id and update time: written, and last
         edited if ever, by a trusted actor (`_trusted_actor`)."""
 
         def by(actor: Any) -> bool:
             actor = json_object(actor)
-            return self._trusted_actor(
-                actor.get("__typename"),
-                actor.get("databaseId"),
-                actor.get("login"),
-                author,
-            )
+            return self._trusted_actor(actor.get("__typename"), actor.get("databaseId"))
 
         return {
             (c.get("databaseId"), c.get("updatedAt"))
@@ -728,16 +719,13 @@ class Reader:
             raise _Unreadable(f"#{issue.get('number')}: no spec comment record")
         return {(c["id"], c["updated_at"]) for c in recorded}
 
-    def _trusted_spec(self, record: dict[str, Any], author: str) -> bool:
+    def _trusted_spec(self, record: dict[str, Any]) -> bool:
         """Every linked issue was written, and its body last edited if ever,
-        by a User on the trusted list's humans other than the PR author."""
+        by a User on the trusted list's humans (`_trusted_actor`)."""
 
         def trusted(issue: dict[str, Any], role: str) -> bool:
             return self._trusted_actor(
-                issue.get(f"{role}_type"),
-                issue.get(f"{role}_id"),
-                issue.get(f"{role}_login"),
-                author,
+                issue.get(f"{role}_type"), issue.get(f"{role}_id")
             )
 
         issues = [
@@ -844,7 +832,6 @@ class Reader:
         if now - created > timedelta(days=TOO_OLD_DAYS):
             return Evidence(TOO_OLD, head, (), 0, f"created {created.isoformat()}")
         head_ref = str(json_object(pr.get("head")).get("ref") or "")
-        author = str(json_object(pr.get("user")).get("login") or "")
         commits = self._commits(number, head) | {head}
         verdicts: list[Verdict] = []
         passes: list[tuple[int, str]] = []
@@ -933,7 +920,7 @@ class Reader:
                 )
             else:
                 refusals = {
-                    self._pass_refusal(run_id, name, number, head, author, live)
+                    self._pass_refusal(run_id, name, number, head, live)
                     for run_id, name in passes
                 }
                 refusal = next(
@@ -1059,7 +1046,6 @@ class Reader:
         name: str,
         number: int,
         head: str,
-        author: str,
         live: dict[Any, Any],
     ) -> str | None:
         """One counted pass at the head against the live closing issues."""
@@ -1077,13 +1063,13 @@ class Reader:
             (edited := node.get("lastEditedAt")) is not None
             and postmerge._time(edited) > started
             or self._spec_comments(
-                json_array(json_object(node.get("comments")).get("nodes")), author
+                json_array(json_object(node.get("comments")).get("nodes"))
             )
             != self._recorded_comments(issues[n])
             for n, node in live.items()
         ):
             return SPEC_CHANGED
-        return None if self._trusted_spec(record, author) else UNTRUSTED_SPEC
+        return None if self._trusted_spec(record) else UNTRUSTED_SPEC
 
     def queued_hold(self, number: int) -> str | None:
         """Why a queued entry must leave: no allowing verdict at its live

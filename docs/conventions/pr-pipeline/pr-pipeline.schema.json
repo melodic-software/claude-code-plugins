@@ -921,9 +921,9 @@
           "description": "Git pathspecs of files the pull request checks read but a pull request rarely changes (a registry, an allowlist). When the base changed one since a pull request's merge base, the unattended merge gate updates its branch from the base (a merge, never a rebase) instead of enqueuing it, and enqueues the new head once its checks pass. `scripts/shared-copies.txt` counts only for a pull request whose own changes touch a path it registers. Empty or absent: nothing is updated."
         },
         "verify-authors": {
-          "enum": ["lane", "any"],
+          "enum": ["lane", "lane-or-owner", "any"],
           "default": "lane",
-          "description": "Whose pull requests pr-verify.yml judges. lane: only those the lanes App (agent-identity, a Bot account) opened; any: every author's. The resolver skips on any other value (README.md, Verifier verdict)."
+          "description": "Whose pull requests pr-verify.yml judges. lane: only those the lanes App (agent-identity, a Bot account) opened; lane-or-owner: those and the owner account's (a User matched by account id), whose idle pull requests the pr-merge lane adopts; any: every author's. The resolver skips on any other value (README.md, Verifier verdict)."
         },
         "agent-identity": {
           "type": "string",
