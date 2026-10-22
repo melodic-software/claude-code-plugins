@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { createGitHubApi } from "./dispatch.mjs";
@@ -8,6 +9,12 @@ import { dispatchCiFixes, LIST_QUERY } from "./fix-ci-dispatch.mjs";
 // (.github/standards/trusted-actors/trusted-actors.json; dispatch.mjs).
 const APP = 337595936;
 const ACTIONS = 15368;
+
+// pr-require-checks run 39710654665's latest jobs (recorded, trimmed): two
+// time-limit cancels and a real lint-shell failure. Without lint-shell its
+// failures are infra only.
+const MIXED_JOBS = JSON.parse(readFileSync(new URL("../maintenance-reconcile-lost-runs/fixtures/jobs-39710654665.json", import.meta.url), "utf8")).jobs;
+const INFRA_JOBS = MIXED_JOBS.filter((job) => job.name !== "lint-shell");
 
 const check = (name, conclusion, extra = {}) => ({
   __typename: "CheckRun",
@@ -35,10 +42,19 @@ function pr(number, { checks = [check("ci-status", "FAILURE")], ...overrides } =
   };
 }
 
-function fakeApi({ pages = [[]], cost = 1, workflowRuns = [], failDispatch = new Set(), runIds = new Map() } = {}) {
-  const calls = { list: 0, runs: 0, dispatch: [] };
+function fakeApi({ pages = [[]], cost = 1, workflowRuns = [], failDispatch = new Set(), runIds = new Map(), requiredJobs = new Map() } = {}) {
+  const calls = { list: 0, runs: 0, dispatch: [], jobs: [] };
   return {
     calls,
+    // The latest jobs of the head's pr-require-checks run; a real failure unless the test names the head.
+    async listRequiredRunJobs(sha) {
+      calls.jobs.push(sha);
+      const jobs = requiredJobs.get(sha) ?? MIXED_JOBS;
+      if (jobs instanceof Error) {
+        throw jobs;
+      }
+      return jobs;
+    },
     async listCiFixCandidates({ after }) {
       calls.list += 1;
       const index = after === undefined ? 0 : Number(after);
@@ -238,4 +254,22 @@ test("the adapter sends one query naming the PR, its last commit's check rollup 
   for (const field of ["rateLimit", "cost", "statusCheckRollup", "commits(last: 1)", "databaseId"]) {
     assert.ok(LIST_QUERY.includes(field), field);
   }
+});
+
+test("a head whose ci-status failed on infra only gets no fix-ci run, and takes no place under the cap", async () => {
+  const head = (number) => String(number).padStart(40, "a");
+  const { api, lines, result } = await run({ pages: [[pr(5), pr(6), pr(7)]], requiredJobs: new Map([[head(5), INFRA_JOBS]]) });
+  assert.deepEqual(
+    result.dispatched.map((d) => d.number),
+    [6, 7],
+  );
+  assert.deepEqual(api.calls.jobs, [head(5), head(6), head(7)]);
+  assert.ok(lines.includes("skip fix-ci #5: infra failure, re-run job owns it"));
+});
+
+test("a head whose required run's jobs cannot be read gets no fix-ci run this time", async () => {
+  const head = "5".padStart(40, "a");
+  const { lines, result } = await run({ pages: [[pr(5)]], requiredJobs: new Map([[head, new Error("GET returned 502")]]) });
+  assert.deepEqual(result, { dispatched: [], failed: 0 });
+  assert.ok(lines.some((line) => line.startsWith("::warning::#5: could not read its required run's jobs")));
 });

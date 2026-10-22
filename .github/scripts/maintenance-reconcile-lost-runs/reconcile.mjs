@@ -5,9 +5,14 @@
 // the record: a run at attempt 2 or later was already re-run, by this script
 // or a person, and is never touched again. No model.
 //
-// Two kinds are re-run:
+// Three kinds are re-run:
 // - CI: a CI workflow's newest run on an open PR's current head. These
 //   workflows check no re-runner.
+// - Infra: the same run when it ended failure and every failure is one an
+//   outside outage explains (infra-failure.mjs). Only its failed jobs are
+//   re-run, through rerun-failed-jobs, at attempts 1 and 2 only, each
+//   INFRA_BACKOFF_MINUTES after the attempt ended, and only while npm's and
+//   GitHub's status pages show indicator none.
 // - Lane: a pr-verify run. Its trigger check trusts a re-run github-actions[bot]
 //   starts only through this workflow's record of it, the artifact
 //   rerunRecordName(run id, head SHA) (check-trusted-trigger's README). The
@@ -45,8 +50,15 @@ import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, paginate, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { infraOnly } from "./infra-failure.mjs";
 
 const STATUS_URL = "https://www.githubstatus.com/api/v2/components.json";
+// A failed run's failed jobs are re-run only while both pages show indicator none.
+export const NPM_STATUS_URL = "https://status.npmjs.org/api/v2/status.json";
+export const GITHUB_STATUS_URL = "https://www.githubstatus.com/api/v2/status.json";
+// Minutes after attempt N of a failed run ended before its failed jobs are
+// re-run; past the last entry it is left red. Two re-runs per head at most.
+export const INFRA_BACKOFF_MINUTES = [15, 30];
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SHA = /^[0-9a-f]{40}$/;
 const RECORD = /^reconcile-rerun-[1-9][0-9]{0,19}-2-[0-9a-f]{40}$/;
@@ -111,15 +123,33 @@ function newestByWorkflow(runs) {
 
 const isLost = (r, since) => r.status === "completed" && LOST.has(r.conclusion) && r.run_attempt === 1 && Date.parse(r.created_at) >= since;
 const isLostLane = (r, since) => r.event === "workflow_run" && r.head_branch === "main" && SHA.test(r.head_sha ?? "") && isLost(r, since);
-const lostNow = (item, r, since) => r?.head_sha === item.head && (item.kind === "lane" ? isLostLane(r, since) : isLost(r, since));
+// A failed run whose failed jobs may be re-run now, if its failures are infra only.
+const isRetryable = (r, since, now) =>
+  r.status === "completed" &&
+  r.conclusion === "failure" &&
+  Number.isInteger(r.run_attempt) &&
+  r.run_attempt >= 1 &&
+  r.run_attempt <= INFRA_BACKOFF_MINUTES.length &&
+  Date.parse(r.created_at) >= since &&
+  now - Date.parse(r.updated_at) >= INFRA_BACKOFF_MINUTES[r.run_attempt - 1] * 60_000;
+const lostNow = (item, r, since) => {
+  if (r?.head_sha !== item.head) {
+    return false;
+  }
+  if (item.kind === "infra") {
+    return r.status === "completed" && r.conclusion === "failure" && r.run_attempt === item.attempt;
+  }
+  return item.kind === "lane" ? isLostLane(r, since) : isLost(r, since);
+};
 
-// What one PR's head holds: CI runs to re-run, lost lane runs, and whether a
-// CI re-run is already in flight.
-export function classify(runs, since) {
+// What one PR's head holds: CI runs to re-run, failed CI runs whose failed jobs
+// may be re-run, lost lane runs, and whether a CI re-run is already in flight.
+export function classify(runs, since, now = Date.now()) {
   const newest = newestByWorkflow(runs);
   const ci = newest.filter((r) => CI_WORKFLOWS.has(r.path));
   return {
     rerun: ci.filter((r) => r.event === "pull_request" && isLost(r, since)),
+    failed: ci.filter((r) => r.event === "pull_request" && isRetryable(r, since, now)),
     lane: newest.filter((r) => !CI_WORKFLOWS.has(r.path) && isLost(r, since)),
     inFlight: ci.some((r) => r.status !== "completed" && r.run_attempt > 1),
   };
@@ -147,13 +177,28 @@ async function holdReason(call, repo, runId) {
 
 // Reads every open PR's head and the recorded lanes' runs, and returns the
 // re-runs to make in order, with a record name on each lane re-run.
-async function plan({ repo, call, say, since }) {
+async function plan({ repo, call, say, since, now, readStatus }) {
   const pulls = (await paginate(call, `/repos/${repo}/pulls?state=open&base=main`, 5))
     .filter((p) => p.state === "open" && p.draft !== true && p.base?.ref === "main" && p.head?.repo?.full_name === repo && SHA.test(p.head?.sha ?? ""))
     .sort(byMergeCriticality);
   let failed = 0;
   let inFlight = 0;
   const ready = [];
+  // Read once, on the first infra-only run: why its re-run waits, or "" when npm and GitHub are clear.
+  let upstream;
+  const upstreamHold = async () =>
+    (upstream ??= (async () => {
+      for (const url of [NPM_STATUS_URL, GITHUB_STATUS_URL]) {
+        const indicator = await readStatus(url).then(
+          (page) => page?.status?.indicator,
+          () => "unreadable",
+        );
+        if (indicator !== "none") {
+          return `${new URL(url).host} shows ${indicator ?? "no indicator"}`;
+        }
+      }
+      return "";
+    })());
   const noteFailure = (what, error) => {
     if (error instanceof RateLimited) {
       throw error;
@@ -167,13 +212,32 @@ async function plan({ repo, call, say, since }) {
       if (!Array.isArray(listing?.workflow_runs) || listing.total_count > 100) {
         throw new Error("its run listing is not one complete page");
       }
-      const { rerun, lane, inFlight: busy } = classify(listing.workflow_runs, since);
+      const { rerun, failed: red, lane, inFlight: busy } = classify(listing.workflow_runs, since, now);
       inFlight += busy ? 1 : 0;
       for (const r of lane) {
         say(`#${pull.number}: lane run ${r.id} (${r.path}) ended ${r.conclusion}; a re-run of this lane needs a person`);
       }
-      if (rerun.length > 0 && !busy) {
-        ready.push(rerun.map((r) => ({ kind: "ci", pr: pull.number, id: r.id, path: r.path, conclusion: r.conclusion, head: pull.head.sha })));
+      if (busy) {
+        continue;
+      }
+      const set = rerun.map((r) => ({ kind: "ci", pr: pull.number, id: r.id, path: r.path, conclusion: r.conclusion, head: pull.head.sha }));
+      for (const r of red) {
+        const jobs = await call("GET", `/repos/${repo}/actions/runs/${r.id}/jobs?filter=latest&per_page=100`);
+        if (!Array.isArray(jobs?.jobs) || jobs.total_count > 100) {
+          throw new Error(`run ${r.id}'s job listing is not one complete page`);
+        }
+        if (!infraOnly(jobs.jobs)) {
+          continue;
+        }
+        const hold = await upstreamHold();
+        if (hold) {
+          say(`#${pull.number}: run ${r.id} (${r.path}) failed on infra only; waiting, ${hold}`);
+          continue;
+        }
+        set.push({ kind: "infra", pr: pull.number, id: r.id, path: r.path, conclusion: "failure (infra only)", attempt: r.run_attempt, head: pull.head.sha });
+      }
+      if (set.length > 0) {
+        ready.push(set);
       }
     } catch (error) {
       noteFailure(`#${pull.number}`, error);
@@ -257,7 +321,7 @@ async function act({ repo, call, say, since, sleep, items }) {
   let failed = 0;
   let wrote = false;
   for (const item of items) {
-    const where = item.kind === "ci" ? `#${item.pr}` : "lane";
+    const where = item.kind === "lane" ? "lane" : `#${item.pr}`;
     try {
       if (item.kind === "lane" && item.record !== rerunRecordName(item.id, item.head)) {
         throw new Error("the plan names no record for it");
@@ -267,7 +331,7 @@ async function act({ repo, call, say, since, sleep, items }) {
         say(`${where}: run ${item.id} changed since the listing; left alone`);
         continue;
       }
-      if (item.kind === "ci") {
+      if (item.kind !== "lane") {
         // A push since the listing makes this run obsolete, and re-running it
         // would cancel the new head's CI in the PR's concurrency group.
         const current = await call("GET", `/repos/${repo}/pulls/${item.pr}`);
@@ -280,6 +344,11 @@ async function act({ repo, call, say, since, sleep, items }) {
         await sleep(WRITE_GAP_MS);
       }
       wrote = true;
+      if (item.kind === "infra") {
+        await call("POST", `/repos/${repo}/actions/runs/${item.id}/rerun-failed-jobs`);
+        say(`${where}: re-ran the failed jobs of run ${item.id} (${item.path}) attempt ${item.attempt}, which failed on infra only`);
+        continue;
+      }
       await call("POST", `/repos/${repo}/actions/runs/${item.id}/rerun`);
       say(`${where}: re-ran run ${item.id} (${item.path}), which ended ${item.conclusion}`);
     } catch (error) {
@@ -379,7 +448,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
       write();
       return finish(0);
     }
-    result = await plan({ repo, call, say, since });
+    result = await plan({ repo, call, say, since, now, readStatus });
     if (result.items.some((item) => item.kind === "lane") && !env.RECORD_PATH) {
       throw new Error("RECORD_PATH is not set");
     }

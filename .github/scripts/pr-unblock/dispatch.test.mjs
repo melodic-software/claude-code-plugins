@@ -113,6 +113,9 @@ function fakeApi({
       }
       return checked.has(sha) ? [SUCCESS_RUN] : [];
     },
+    async listRequiredRunJobs() {
+      return [];
+    },
     async listWorkflowRuns(workflow) {
       calls.runs.push(workflow);
       if (workflowRuns instanceof Error) {
@@ -704,6 +707,40 @@ test("the GitHub adapter calls the documented endpoints", async () => {
     requests[3].url,
     "https://api.example/repos/octo/repo/actions/workflows/pr-unblock.yml/runs?event=workflow_dispatch&per_page=100",
   );
+});
+
+test("the required-run jobs read takes the newest pr-require-checks run on the head", async () => {
+  const head = "c".repeat(40);
+  const urls = [];
+  const responses = [
+    {
+      total_count: 3,
+      workflow_runs: [
+        { id: 11, path: ".github/workflows/pr-require-checks.yml", created_at: "2026-10-22T02:00:00Z" },
+        { id: 12, path: ".github/workflows/pr-require-checks.yml", created_at: "2026-10-22T03:00:00Z" },
+        { id: 13, path: ".github/workflows/pr-test-windows.yml", created_at: "2026-10-22T04:00:00Z" },
+      ],
+    },
+    { total_count: 1, jobs: [{ name: "test-node", conclusion: "cancelled" }] },
+    { total_count: 0, workflow_runs: [] },
+  ];
+  const api = createGitHubApi({
+    token: "t0ken",
+    repository: "octo/repo",
+    apiUrl: "https://api.example",
+    graphqlUrl: "https://api.example/graphql",
+    fetch: async (url) => {
+      urls.push(url);
+      return { ok: true, status: 200, json: async () => responses.shift() };
+    },
+  });
+  assert.deepEqual(await api.listRequiredRunJobs(head), [{ name: "test-node", conclusion: "cancelled" }]);
+  assert.deepEqual(urls, [
+    `https://api.example/repos/octo/repo/actions/runs?head_sha=${head}&event=pull_request&per_page=100`,
+    "https://api.example/repos/octo/repo/actions/runs/12/jobs?filter=latest&per_page=100",
+  ]);
+  assert.deepEqual(await api.listRequiredRunJobs(head), []);
+  await assert.rejects(api.listRequiredRunJobs("main"), /not a commit SHA/);
 });
 
 // The record a run leaves: the next run, against the same GitHub state,
