@@ -97,8 +97,12 @@ Precedence, top-down, first hit decides:
    work-class, label-provenance, autonomy, security, merge, sandbox, auto mode, binding, trust,
    ci), matched as whole words. Plugin names that contain a term, such as `context-guard`, refuse
    too: a false positive fails closed.
-3. Any `work-class:` label present → refuse, label left untouched.
-4. A rule matches → admit; otherwise refuse.
+3. Cost hit → refuse: a term in the title or body that names a charge (cost, billing, billed,
+   spend, pricing, paid, subscription, SKU, quota, retention, a larger, hosted or self-hosted
+   runner, macOS minutes), matched as whole words. Work that adds or raises a charge waits for the owner unless an
+   owner-recorded decision already covers it, and that check is a person's, not the evaluator's.
+4. Any `work-class:` label present → refuse, label left untouched.
+5. A rule matches → admit; otherwise refuse.
 
 A rule matches only when every term of the shared predicate holds, each read from provider
 metadata or lane output, never from text an agent controls:
