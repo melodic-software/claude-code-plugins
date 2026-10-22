@@ -9,8 +9,10 @@ Resolves the payload again through Resolve-CheckupPick, the same call that
 numbered the list setup showed, so number N is the Nth ResolvedPick. Every
 number is checked before anything is written: it must be on the list, not
 refused, and of the action it was confirmed for (-Mute numbers mute, -Approve
-numbers approve). Any failure throws and writes nothing. Then each pick goes
-through Set-ApprovalState, mutes first, and its results are returned.
+numbers approve). A number that fails a check throws before anything is
+written. Then each pick goes through Set-ApprovalState, mutes first, and its
+results are returned; each write is its own, so one that throws (a lock
+timeout, an I/O error) can leave the earlier picks written.
 #>
 
 . (Join-Path $PSScriptRoot 'Resolve-CheckupPick.ps1')
