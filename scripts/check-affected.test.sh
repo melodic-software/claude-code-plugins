@@ -237,6 +237,9 @@ printf '#!/usr/bin/env bash\necho hi\n' >"$repo/new-tool"
 run -- --uncommitted
 check "--uncommitted checks an untracked #! file's mode on disk" \
   '[[ $RC == 1 && $ERR == *"FAIL exec-bit"* && $ERR == *"new-tool starts with #!"* ]]'
+run CHECK_AFFECTED_SCRIPT_EXEC_BIT=1 -- --uncommitted
+check "--uncommitted with CHECK_AFFECTED_SCRIPT_EXEC_BIT judges a new #! file as executable, as apply-patch commits it" \
+  '[[ $RC == 0 && $OUT == *"over 1 changed files"* && ! -x $repo/new-tool ]]'
 chmod +x "$repo/new-tool"
 run -- --uncommitted
 check "--uncommitted passes once the file is executable on disk" \
