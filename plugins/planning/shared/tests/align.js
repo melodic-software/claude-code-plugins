@@ -15,7 +15,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const zlib = require("node:zlib");
-const { loadPlaywright, suite } = require("./browser_harness");
+const { loadPlaywright, suite, settled } = require("./browser_harness");
 
 const SIZES = [[390, 844], [768, 1024], [1024, 768], [1440, 900], [2560, 1440]];
 const THEMES = ["dark", "light"];
@@ -158,10 +158,12 @@ async function main() {
           if (i === 0 || v.startsWith("toast")) { await H.reset(); await H.mode("focus"); ok = await VIEWS[v](); }
           if (ok === "skip") break;
           await page.evaluate(t => { window.__expectToast = t; }, v.startsWith("toast"));
-          await page.waitForTimeout(i === 0 ? 250 : 120);
-          await settled(page);
+          // Measured once the page holds still: mid-way through a theme switch's color transitions, a popover's or the
+          // chat panel's background reads as a half-way color the overlap rule cannot call opaque.
+          const still = await settled(page, { rects: true });
           const tag = `${v} ${w}x${h} ${theme}`;
-          const f = ok === false ? [{ rule: "setup", msg: "could not open this view" }] : await check(page, theme);
+          const f = ok === false ? [{ rule: "setup", msg: "could not open this view" }]
+            : [...(still ? [] : [{ rule: "settle", msg: "the page did not hold still in this theme within 10 s" }]), ...await check(page, theme)];
           results.push({ v, size: `${w}x${h}`, theme, fails: f.length });
           if (f.length) {
             const file = path.join(shots, `${v}-${w}x${h}-${theme}.png`);
@@ -196,27 +198,6 @@ async function crowd(s, C) {
     if (!r.ok) throw new Error(`join Guest ${i} -> ${r.status}`);
   }
 }
-
-/** Resolves once the page holds still, so the check measures what a person sees and not a passing frame: fonts
- *  loaded, no finite animation running, and every box in #app the same for two frames in a row (5 s at most). A theme
- *  switch starts color transitions (0.01 ms under reduced motion, still a frame on a busy machine), and mid-way a
- *  popover's or the chat panel's background reads as a half-way color the overlap rule cannot call opaque. */
-const settled = page => page.evaluate(async () => {
-  const frame = () => new Promise(r => requestAnimationFrame(() => r()));
-  const running = () => document.getAnimations().filter(a => a.playState === "running" && a.effect?.getTiming().iterations !== Infinity);
-  const boxes = () => [...document.querySelectorAll("#app *")].map(e => { const r = e.getBoundingClientRect(); return `${r.x},${r.y},${r.width},${r.height}`; }).join("|");
-  await document.fonts.ready;
-  const t0 = performance.now();
-  let last = null, same = 0;
-  while (performance.now() - t0 < 5000) {
-    await Promise.all(running().map(a => a.finished.catch(() => null)));
-    await frame();
-    const now = boxes();
-    same = now === last && !running().length ? same + 1 : 0;
-    if (same >= 2) return;
-    last = now;
-  }
-});
 
 function helpers(page) {
   const clickIn = (sel, text) => page.evaluate(([sel, text]) => {

@@ -10,7 +10,7 @@
 // Expected values come from O114 (no sideways scroll, text wraps in its card, 44 px targets, primary action in thumb
 // reach, menus as bottom sheets) and the texts this suite writes, never from the page.
 "use strict";
-const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, settled, joinAs } = require("./browser_harness");
 
 const q = (id, text) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format: { kind: "text" } });
 const QT = "What should the receipt email say?";
@@ -39,17 +39,17 @@ async function main() {
     await ann.locator("#vf-answer").tap();
     ok("tapping the answer field opens the full-height sheet", await until(ann, () => !!document.querySelector(".vf-composer-sheet")));
     await ann.keyboard.insertText(LONG);
+    const sheetStill = await settled(ann, { rects: true });
     const save = await ann.evaluate(() => {
       const b = document.querySelector(".vf-composer-sheet .vf-sheetsave").getBoundingClientRect(), t = document.querySelector("#vf-answer").getBoundingClientRect(), vv = visualViewport;
       return { under: b.top >= t.bottom - 1, inView: b.bottom <= vv.offsetTop + vv.height + 1, w: b.width, h: b.height };
     });
-    ok("  its Save is under the field, inside the visible screen, in thumb reach, at least 44 px tall", save.under && save.inView && save.h >= 44, JSON.stringify(save));
+    ok("  its Save is under the field, inside the visible screen, in thumb reach, at least 44 px tall", sheetStill && save.under && save.inView && save.h >= 44, JSON.stringify({ still: sheetStill, ...save }));
     await ann.locator(".vf-sheetsave").tap();
     ok("Save sends the long answer", await until(owner, t => (window.Core.snapshot().cards?.Q1 || []).some(c => c.text === t), LONG, 10000));
-    await until(ann, () => !document.querySelector(".vf-composer-sheet"));
-    await ann.waitForTimeout(400);
-
-    const fit = await ann.evaluate(w => {
+    await until(ann, w => !document.querySelector(".vf-composer-sheet") && [...document.querySelectorAll(".vf-alist .vf-card")].some(c => c.textContent.includes(w)), WORD);
+    const still = await settled(ann, { rects: true });
+    const fit = { still, ...await ann.evaluate(w => {
       const se = document.scrollingElement, app = document.getElementById("app"), ta = document.querySelector("#vf-answer");
       const card = [...document.querySelectorAll(".vf-alist .vf-card")].find(c => c.textContent.includes(w));
       const r = card?.getBoundingClientRect();
@@ -62,10 +62,10 @@ async function main() {
       return { page: se.scrollWidth <= innerWidth && app.scrollWidth <= app.clientWidth, field: ta.scrollWidth <= ta.clientWidth + 1, clear, nBtns: btns.length,
         card: !!card && card.scrollWidth <= card.clientWidth + 1 && r.left >= 0 && r.right <= innerWidth,
         cardText: !!card && [...card.querySelectorAll(".vf-rich")].every(e => e.scrollWidth <= e.clientWidth + 1) };
-    }, WORD);
-    ok("after the save nothing on the page scrolls sideways", fit.page, JSON.stringify(fit));
-    ok("  the folded answer field wraps the long answer inside itself, under no button", fit.field && fit.clear, JSON.stringify(fit));
-    ok("  and the answer card holds its text inside its own box, on the screen", fit.card && fit.cardText, JSON.stringify(fit));
+    }, WORD) };
+    ok("after the save nothing on the page scrolls sideways", still && fit.page, JSON.stringify(fit));
+    ok("  the folded answer field wraps the long answer inside itself, under no button", still && fit.field && fit.clear, JSON.stringify(fit));
+    ok("  and the answer card holds its text inside its own box, on the screen", still && fit.card && fit.cardText, JSON.stringify(fit));
 
     // ---------- 44 px tap targets in the question's view ----------
     // a control drawn small with a transparent ring (::after, absolutely placed) counts the ring's size

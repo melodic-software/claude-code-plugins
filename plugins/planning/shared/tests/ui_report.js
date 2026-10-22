@@ -17,7 +17,7 @@
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
-const { loadPlaywright, suite, recorder, until, snap, joinAs, png } = require("./browser_harness");
+const { loadPlaywright, suite, recorder, until, settled, snap, joinAs, png } = require("./browser_harness");
 
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 };
 const DESK = { viewport: { width: 1440, height: 900 } };
@@ -65,11 +65,12 @@ async function main() {
     await pia.locator(".vf-tab", { hasText: "More" }).tap();
     await pia.locator(".vf-msitem", { hasText: "Report a problem" }).tap();
     ok("More opens Report a problem", await until(pia, () => !!document.querySelector(".vf-reportpop:not([hidden])")));
+    const opened = await settled(pia, { rects: true });
     const list = await pia.evaluate(() => {
       const ul = document.querySelector(".vf-reportpop .vf-rep-sent"), r = ul.getBoundingClientRect();
       return { seen: r.height > 0 && r.top < innerHeight, head: ul.previousElementSibling?.textContent, items: [...ul.children].map(li => li.textContent) };
     });
-    ok("\"Sent with this report\" shows before Send", list.seen && list.head === "Sent with this report", JSON.stringify(list));
+    ok("\"Sent with this report\" shows before Send", opened && list.seen && list.head === "Sent with this report", JSON.stringify({ still: opened, ...list }));
     const want = [/^View: /, /^Question: Q1, round 1$/, /^Device: phone, /, /^Screen: 390 × 844; visible 390 × 844 at 1×$/, /^Page version: \w+/, /^Recent errors: /, /^Not sent: /];
     ok("  it lists the view, question and round, device and browser, screen and visible area, build and recent errors", want.every(re => list.items.some(t => re.test(t))), list.items.join(" | "));
     ok("  and nothing anyone wrote", !list.items.join(" ").includes(ANSWER) && !list.items.join(" ").includes(CHAT));
@@ -113,9 +114,7 @@ async function main() {
     await pia.locator("#vf-rep-ta").tap();
     await pia.evaluate(() => window.__kb(true));
     ok("the keyboard comes up", await until(pia, () => "kb" in document.documentElement.dataset));
-    // Measured settled: finite animations done, then two frames.
-    await pia.evaluate(() => Promise.all(document.getAnimations().filter(a => a.effect?.getTiming().iterations !== Infinity).map(a => a.finished.catch(() => null)))
-      .then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))));
+    const still = await settled(pia, { rects: true });
     const fit = await pia.evaluate(() => {
       const vv = visualViewport, sheet = document.querySelector(".vf-reportpop"), out = [];
       for (const sel of ["#vf-rep-ta", ".vf-reportpop button[type=submit]", ".vf-reportpop .vf-asklabel"]) {
@@ -126,7 +125,7 @@ async function main() {
       if (r.left < -0.5 || r.right > innerWidth + 0.5 || sheet.scrollWidth > sheet.clientWidth + 1) out.push(`sheet ${r.left}..${r.right}, content ${sheet.scrollWidth} in ${sheet.clientWidth}`);
       return out;
     });
-    ok("  the field, its label and Send report sit above it, nothing clipped sideways", fit.length === 0, fit.join("; "));
+    ok("  the field, its label and Send report sit above it, nothing clipped sideways", still && fit.length === 0, (still ? "" : "not settled; ") + fit.join("; "));
     await pia.locator("#vf-rep-ta").fill(TEXT);
     await pia.locator(".vf-reportpop button[type=submit]").tap();
     ok("Send report closes the form", await until(pia, () => document.querySelector(".vf-reportpop").hidden));
