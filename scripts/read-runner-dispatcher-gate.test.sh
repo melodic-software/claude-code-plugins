@@ -38,7 +38,7 @@ say(gate["dispatched-workflow"] === ".github/workflows/pr-unblock.yml",
 // current head, since those calls run before any push.
 say(gate["run-dispatcher-workflow"] === ".github/workflows/pr-feedback-dispatch.yml",
   "the gate trusts a pr-feedback-dispatch.yml dispatcher run through its review run");
-say(String(gate["run-dispatcher-upstreams"] ?? "").trim().split(/\s+/).sort().join(" ") ===
+say(String(gate["run-dispatcher-upstreams"] ?? "").split(" ").filter(Boolean).sort().join(" ") ===
   ".github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml",
   "the review run must be one of the two review lanes");
 say(!("expected-upstream-head" in gate), "the gate passes no expected-upstream-head");
