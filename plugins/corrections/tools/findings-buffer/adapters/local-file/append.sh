@@ -31,7 +31,7 @@ trap 'exit 1' HUP INT TERM
 # One program over all lines (-n with inputs): jq's exit status reflects only the
 # last input when each line is its own program, so an early bad line would pass.
 if ! jq -nRc '
-  [inputs | select(test("\\S"))
+  [inputs | select(test("[^[:space:]]"))
     | (try fromjson catch error("not JSON"))
     | if type == "object" and (.obs_id | type) == "string" and (.ts | type) == "string"
       then . else error("not a row") end]
