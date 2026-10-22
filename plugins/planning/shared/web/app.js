@@ -5473,7 +5473,9 @@
     });
     const mqOff = () => { closePop(); closeSheet(); render(); syncModal(); };
     phone.addEventListener("change", mqOff); offs.push(() => phone.removeEventListener("change", mqOff));
-    docked.addEventListener("change", syncModal); offs.push(() => docked.removeEventListener("change", syncModal));
+    // narrowed below 1100px with the chat open, it becomes a modal: focus moves into it (WAI-ARIA APG dialog pattern)
+    const onDock = () => { syncModal(); if (activeSheet() === chat && !chat.contains(document.activeElement)) (coarse.matches ? chatClose : mInput).focus({ preventScroll: true }); };
+    docked.addEventListener("change", onDock); offs.push(() => docked.removeEventListener("change", onDock));
 
     // ---------- requests ----------
     async function saveOpenEdit(li) {

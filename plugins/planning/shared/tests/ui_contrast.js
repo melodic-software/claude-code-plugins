@@ -154,6 +154,9 @@ async function main() {
     await until(owner, () => Object.values(window.Core.state.people || {}).some(p => p.name === "Ann"));
     await owner.evaluate(() => { const m = window.Core.state.chat[0]; window.Core.chatReact(m.id, "👍", true); return window.Core.chat("@Ann welcome, start with the order summary", m.id); });
     await until(owner, () => (window.Core.state.chat || []).length > 1);
+    const ownerName = await owner.evaluate(() => window.Core.snapshot().me.name);
+    await ann.evaluate(n => window.Core.chat(`@${n} the summary goes on the right`), ownerName);
+    await until(owner, () => !!document.querySelector(".vf-bubble .vf-mention-me") || (window.Core.state.chat || []).length > 2);
 
     // ---------- the calculator itself ----------
     const probe = async (fg, bg) => {

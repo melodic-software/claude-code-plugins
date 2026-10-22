@@ -316,6 +316,50 @@ async function main() {
     ok("the panel's x closes it, and focus returns to the chat button, shown again", await until(dock, () => document.querySelector(".vf-chat").hidden
       && document.activeElement === document.querySelector(".vf-fab") && getComputedStyle(document.activeElement).display !== "none"));
 
+    // ---------- below 1100 px the chat is a modal over the page: every chat feature still works in it ----------
+    await dock.click(".vf-fab");
+    await until(dock, () => !document.querySelector(".vf-chat").hidden);
+    await dock.locator(".vf-q").first().focus();
+    await dock.setViewportSize({ width: 1024, height: 900 });
+    ok("narrowed to 1024 with the chat docked and focus in the page, the chat turns modal and focus moves into it", await until(dock, () => document.querySelector(".vf-body").inert
+      && document.querySelector(".vf-chat").getAttribute("role") === "dialog" && document.querySelector(".vf-chat").contains(document.activeElement)));
+    await settled(dock, { rects: true, sel: ".vf-chat" });
+    await dock.click(".vf-minput");
+    await dock.keyboard.type("@Gu");
+    const picked = await until(dock, () => !document.querySelector(".vf-mentions").hidden) && await dock.locator(".vf-mopt", { hasText: "Gus" }).first().click({ timeout: 5000 }).then(() => true, () => false);
+    ok("1024, modal: typing @ opens the mention picker, and a click on Gus puts him in the field", picked && await until(dock, () => document.querySelector(".vf-minput").value.startsWith("@Gus")));
+    await dock.fill(".vf-minput", "");
+    const msg = dock.locator(".vf-msg:not(.vf-msg-mine)", { hasText: "New C" });
+    const menu = async label => { await msg.hover(); await msg.locator(".vf-msgmore").click(); await dock.locator(".vf-msgmenu [role=menuitem]", { hasText: label }).click({ timeout: 5000 }); };
+    await menu("Reply");
+    ok("1024, modal: Reply from the message menu shows its quote above the field", await until(dock, () => !document.querySelector(".vf-mreply").hidden && document.querySelector(".vf-mreply").textContent.includes("New C")));
+    await dock.fill(".vf-minput", "Replying to C");
+    await dock.locator(".vf-minput").press("Enter");
+    ok("  and the reply sends with the quote", await until(dock, () => [...document.querySelectorAll(".vf-mlist .vf-msg")].some(m => m.textContent.includes("Replying to C") && m.querySelector(".vf-mquote:not([hidden])"))));
+    await msg.hover();
+    await msg.locator(".vf-mreact-add").click();
+    await until(dock, () => !document.querySelector(".vf-reactpop").hidden);
+    await dock.locator('.vf-rp-quick .vf-rp-e[data-e="👍"]').click();
+    ok("1024, modal: a reaction picked from the picker shows on the message", await until(dock, () => [...document.querySelectorAll(".vf-mlist .vf-msg")].find(m => m.textContent.includes("New C"))?.querySelector(".vf-mreact")?.textContent.startsWith("👍")));
+    await dock.evaluate(() => { window.__copied = null; navigator.clipboard.writeText = t => { window.__copied = t; return Promise.resolve(); }; });
+    await menu("Copy");
+    ok("1024, modal: Copy in the message menu gives its text", await until(dock, () => window.__copied === "New C"), await dock.evaluate(() => window.__copied));
+    await dock.evaluate(() => { document.querySelector(".vf-mscroll").scrollTop = 0; });
+    await frames(dock);
+    for (const t of ["Late one", "Late two"]) await gus.evaluate(x => window.Core.chat(x), t);
+    ok("1024, modal: scrolled up, new messages wait behind the pill", await until(dock, () => { const p = document.querySelector(".vf-mnew"); return !!p && !p.hidden && p.textContent.startsWith("2 new"); }));
+    await dock.click(".vf-mnew");
+    await menu("Propose");
+    ok("1024, modal: Propose from a message closes the chat and opens the Propose form on a live page", await until(dock, () => document.querySelector(".vf-chat").hidden
+      && !document.querySelector(".vf-proposepop").hidden && !document.querySelector(".vf-body").inert));
+    await dock.keyboard.press("Escape");
+    await dock.click(".vf-fab");
+    await until(dock, () => !document.querySelector(".vf-chat").hidden);
+    await menu("Ask Claude about this");
+    ok("1024, modal: Ask Claude from a message closes the chat and lands in its drawer, focus in it", await until(dock, () => document.querySelector(".vf-chat").hidden
+      && !document.querySelector(".vf-drawer").hidden && document.querySelector(".vf-drawer").contains(document.activeElement) && !document.querySelector(".vf-body").inert));
+    await dock.keyboard.press("Escape");
+
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     ok("no page error", rec.errors.filter(m => !/Failed to load resource/.test(m)).length === 0, rec.errors.slice(0, 3).join(" | "));
   } catch (e) {

@@ -99,7 +99,7 @@ const unsettled = [];
 const settle = async (page, what) => { if (!(await settled(page, { rects: true }))) unsettled.push(what); };
 
 /** Opens one view; resolves to "" or the reason it could not. Phone layouts use the tab bar, wider ones the view switch. */
-async function show(page, view) {
+async function show(page, view, keepChat = false) {
   const tabs = await page.locator(".vf-tabs").isVisible().catch(() => false);
   const tab = label => page.locator(".vf-tab", { hasText: label }).click({ timeout: 5000 });
   // A guest's simple view hides the view switch behind View options; Focus goes back to the simple view after.
@@ -113,7 +113,7 @@ async function show(page, view) {
   };
   try {
     // An open chat sheet makes the rest of a phone page inert, so it closes with Escape, not the chat button.
-    if (await page.locator("section.vf-chat").isVisible().catch(() => false)) {
+    if (!keepChat && await page.locator("section.vf-chat").isVisible().catch(() => false)) {
       await page.keyboard.press("Escape");
       if (!(await until(page, () => !!document.querySelector("section.vf-chat")?.hidden, null, 5000))) return "the open chat did not close";
     }
@@ -138,6 +138,22 @@ async function show(page, view) {
   // Measure the settled layout: an opening sheet slides in with a transform, which counts as overflow mid-flight.
   return (await settled(page, { rects: true })) ? "" : `${view} did not settle`;
 }
+
+/** Visible elements in the page beside the docked chat that reach under it, unless an ancestor clips them first. */
+const underChat = page => page.evaluate(tol => {
+  const lim = document.querySelector(".vf-chat").getBoundingClientRect().left, out = [];
+  for (const el of document.querySelectorAll(".vf-body *")) {
+    const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+    if (r.width <= 1 || r.height <= 1 || cs.visibility === "hidden" || el.closest("[hidden]") || r.right <= lim + tol) continue;
+    let clipped = false;
+    for (let a = el.parentElement; a && a !== document.documentElement; a = a.parentElement) {
+      const ac = getComputedStyle(a);
+      if (ac.overflowX !== "visible" || ac.clipPath !== "none") { if (a.getBoundingClientRect().right <= lim + tol) { clipped = true; break; } }
+    }
+    if (!clipped) out.push(`${el.tagName.toLowerCase()}.${[...el.classList].join(".")} right ${r.right.toFixed(0)} past ${lim.toFixed(0)}`);
+  }
+  return out.slice(0, 6);
+}, TOL);
 
 /** Page and #app scroll extents against the viewport. */
 const extents = page => page.evaluate(() => {
@@ -265,6 +281,27 @@ async function main() {
       await sweep(s, rec, A, `${w}x${h}`, context, ++n);
     }
     for (const [w, h, label] of ZOOMED) await sweep(s, rec, A, label, { viewport: { width: w, height: h }, deviceScaleFactor: 2 }, ++n);
+
+    // ---------- the chat docked at 1100 px (its push breakpoint), the page 720 px beside it: every view fits ----------
+    {
+      const ctx = { viewport: { width: 1100, height: 900 } };
+      const guest = await rec.open(A.localUrl, { context: ctx });
+      await joinAs(guest, "Dock");
+      const owner = await rec.open(A.ownerUrl, { context: ctx });
+      await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
+      const bad = [];
+      for (const p of [guest, owner]) { await p.locator(".vf-fab").click(); await until(p, () => !document.querySelector(".vf-chat").hidden); }
+      for (const [page, view] of [[guest, "focus-choice"], [guest, "focus-text"], [guest, "compare"], [guest, "tree"], [owner, "host"]]) {
+        const why = await show(page, view, true);
+        if (why) { bad.push(`${view}: ${why}`); continue; }
+        if (await page.evaluate(() => document.querySelector(".vf-chat").hidden)) { bad.push(`${view}: the chat closed`); continue; }
+        const e = await extents(page);
+        if (!fits(e)) bad.push(`${view}: ${fmt(e)}`);
+        bad.push(...(await underChat(page)).map(x => `${view}: ${x}`), ...(await overflowing(page)).map(x => `${view}: ${x}`));
+      }
+      ok("1100x900, chat docked: Focus (choice, text), Compare, Tree and Host fit beside it, nothing under the chat or past the viewport", bad.length === 0, bad.join("; "));
+      for (const p of [guest, owner]) await p.context().close();
+    }
 
     // ---------- the phone in Focus: hit areas and horizontal overflow ----------
     const pia = await rec.open(A.localUrl, { context: PHONE });
