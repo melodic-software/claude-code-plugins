@@ -25,6 +25,7 @@ const GATE_SKIP_REASONS = {
   "list-unreadable": "prerequisite-missing",
   fork: "untrusted-trigger",
   "no-pr": "untrusted-trigger",
+  "head-lag": "superseded-sha",
   "bot-actor": "untrusted-trigger",
   "untrusted-actor": "untrusted-trigger",
   "untrusted-author": "untrusted-trigger",
@@ -298,6 +299,15 @@ test("an untrusted-rerunner trigger stop posts failure, not neutral", () => {
   assert.equal(posted(decide(v, i)).conclusion, "failure");
 });
 
+// The gated head is not the branch's current head, and the push that moved
+// the branch is gated by its own run, so the stop is a superseded-sha skip.
+test("a head-lag trigger stop posts neutral with superseded-sha", () => {
+  const { verdict: v, inputs: i } = stoppedAt("head-lag");
+  const report = posted(decide(v, i));
+  assert.equal(report.conclusion, "neutral");
+  assert.match(report.output.summary, /superseded-sha/);
+});
+
 test("a gate reason mapped outside the skip-reason enum posts failure", () => {
   const { verdict: v, inputs: i } = stoppedAt("fork");
   const report = posted(
@@ -543,6 +553,20 @@ test("signedCommits all_verified false posts failure", () => {
     decide(verdict(), inputs({ signedCommits: { all_verified: false } })),
   );
   assert.equal(report.conclusion, "failure");
+});
+
+test("the signed-commit failure says not GitHub-verified only when it names unverified commits", () => {
+  const named = posted(
+    decide(verdict(), inputs({ signedCommits: { all_verified: false, unverified: [HEAD] } })),
+  );
+  assert.equal(named.conclusion, "failure");
+  assert.match(named.output.summary, /not GitHub-verified/);
+  const unnamed = posted(
+    decide(verdict(), inputs({ signedCommits: { all_verified: false, unverified: [] } })),
+  );
+  assert.equal(unnamed.conclusion, "failure");
+  assert.match(unnamed.output.summary, /could not be verified/);
+  assert.doesNotMatch(unnamed.output.summary, /not GitHub-verified/);
 });
 
 test("an act step that did not succeed with no skip to explain it posts failure", () => {

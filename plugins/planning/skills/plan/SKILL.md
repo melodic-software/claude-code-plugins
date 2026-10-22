@@ -80,7 +80,7 @@ Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-plan-outcome.sh" <PLAN.md>` and r
 
 Checked by reading, or by their own script:
 
-- **Every brief acceptance criterion maps to a phase, and no phase does Out-of-scope work**. Walk the Brief's Acceptance criteria and Out-of-scope sections: each criterion lands in at least one phase, and no phase does work the Brief lists as Out-of-scope.
+- **Every brief acceptance criterion maps to a phase, and every phase traces to one**. Walk the Brief's Acceptance criteria and Out-of-scope sections: each criterion lands in at least one phase, no phase does work the Brief lists as Out-of-scope, and every phase and work item serves a criterion or something a criterion needs (a test, a migration, a dead-code removal the `phase_order` step calls for). Cut anything else, or surface it as an Open Decision for the user to keep. Evidence: an agent-built change shipped about 1,900 production lines, about 380 of them beyond the legacy behavior and the ticket's criteria, caught only in review.
 - **Each tag has its own row**. Every tagged decision appears in that table with its what-it-changes column filled; below-bar decisions were interviewed, not decided. The script maps only tags that carry an id; a bare tag passes with a `warning=bare-tag` line, so map those by reading.
 - **Displaced answers are listed at Step 5**. When an interview ledger exists, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" --ledger <ledger>`. It passes when the verdict reports `open=0` and `superseded=N` (exit 1 is expected when N > 0) and every id on the ledger's `| superseded-by-plan |` rows (the verdict prints only the count) appears in the Step 5 "Displaced answers and new external effects" block.
 
@@ -155,6 +155,7 @@ Before formulating, resolve the consumer's standards and load what this task tou
 
 - **Resolve the index** via the "Resolution ladder" section of the plugin's contract binding [`${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md). The ladder (absent-index inference, offer-to-persist, ask-once) lives there, not here. Zero unprompted writes, ever.
 - **Match** the task's surfaces (ecosystems touched, cross-cutting concerns) against the index rows' `Applies when` clues.
+- **Always check for a paved-path row.** Whatever the "Applies when" clues matched, look for the index's `paved-path` row; when the plan touches a concern the file lists, read that entry and cite it as the established way. With no such row, nothing is cited and nothing is reported.
 - **Pull selectively**: only matched files, and within them only the sections this task needs. Never re-pull ambient content (auto-loaded `CLAUDE.md`, fired `.claude/rules` directives). Post-compaction context and a new task both count as NOT ambient. Re-resolve per task.
 - **Depth rides the plan-scale table below**. A trivial plan takes no standards fetch beyond ambient context; larger scales ground the surfaces they touch. There is no grounding flag.
 - **Name provenance** when a personal-layer rule (a `*.local.md` overlay or the user-global layer) materially shapes the plan.

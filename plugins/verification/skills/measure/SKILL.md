@@ -1,5 +1,5 @@
 ---
-description: "Verify a measurable-improvement claim against a baseline captured BEFORE the change. Two metric families (`performance`: wall time, memory, allocations, throughput, latency; `metrics`: complexity, coverage, coupling), each with a `baseline` phase at planning time and a `compare` phase after the change. Never claims improvement without a baseline (no baseline → honest 'cannot quantify'). Use when: 'is it faster', 'before/after', 'prove the improvement', 'did that actually speed it up', 'how much faster is it', 'measure this', 'capture a baseline', 'benchmark before and after', 'did complexity go down'; intent/outcome confirmation stays with /verification:confirm."
+description: "Verify a measurable-improvement claim against a baseline captured BEFORE the change. Two metric families (`performance`: wall time, memory, allocations, throughput, latency; `metrics`: complexity, coverage, coupling), each with a `baseline` phase at planning time and a `compare` phase after the change. Never claims improvement without a baseline (no baseline → honest 'cannot quantify'). Use when: 'is it faster', 'before/after', 'prove the improvement', 'did that actually speed it up', 'how much faster is it', 'measure this', 'capture a baseline', 'benchmark before and after', 'did complexity go down'; applies to a code-shape or metrics claim, or a baseline-and-compare of the change, while a host whose wall-clock spread makes a duration comparison meaningless goes to /performance:snapshot; intent/outcome confirmation stays with /verification:confirm."
 user-invocable: true
 argument-hint: "[performance|metrics] [baseline|compare]"
 disable-model-invocation: false
@@ -66,7 +66,8 @@ Measuring broken code is meaningless, and a baseline captured on a broken tree p
 
 ## Next
 
-/verification:confirm. The outcome report takes the comparison table as its evidence.
+- Confirm the outcome: /verification:confirm. The outcome report takes the comparison table as its evidence.
+- Host whose wall-clock spread makes a duration comparison meaningless: /performance:snapshot.
 
 ## Gotchas
 

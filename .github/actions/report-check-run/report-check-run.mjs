@@ -45,11 +45,15 @@ function readSkipReasons(basePath) {
 }
 
 // The signed-commit step runs unless can-commit is exactly 'false'; when it
-// should have run, anything but 'true' counts as unverified.
+// should have run, anything but 'true' counts as unverified. An empty
+// unverified list means the check could not verify, not that a commit failed.
 const signedCommitsFrom = (env) =>
   env.CAN_COMMIT === "false"
     ? null
-    : { all_verified: env.ALL_VERIFIED === "true" };
+    : {
+        all_verified: env.ALL_VERIFIED === "true",
+        unverified: (env.UNVERIFIED ?? "").split(" ").filter(Boolean),
+      };
 
 export async function main({
   env = process.env,

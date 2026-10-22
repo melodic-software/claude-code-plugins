@@ -10,6 +10,7 @@ export const RED_MAIN_DEFAULTS = Object.freeze({
   "daily-cap": 3,
   "max-culprit-age-hours": 24,
   "confirm-wait-minutes": 40,
+  remedy: "rollback",
 });
 
 const VALID = {
@@ -17,6 +18,7 @@ const VALID = {
   "daily-cap": (value) => Number.isInteger(value) && value >= 0 && value <= 10,
   "max-culprit-age-hours": (value) => Number.isInteger(value) && value >= 1 && value <= 168,
   "confirm-wait-minutes": (value) => Number.isInteger(value) && value >= 0 && value <= 45,
+  remedy: (value) => value === "rollback" || value === "fail-forward",
 };
 
 // Every leaf, each valid set value over its default.
@@ -126,8 +128,12 @@ export const isRevert = (message, labels = []) =>
 
 // Whether the bot may revert the culprit itself, and every guard that sends it
 // to a person instead. Owner and other human merges never auto-revert: only a
-// merge the lanes App put in the merge queue may.
+// merge the lanes App put in the merge queue may. Under the fail-forward
+// remedy nothing is reverted.
 export function decide({ culprit, agentIdentity, config, now, revertsToday, culpritDecided, platformFault, revertApplies }) {
+  if (config.remedy === "fail-forward") {
+    return { decision: "human", reasons: ["the remedy is fail-forward: a person or a fix pull request repairs main"] };
+  }
   const reasons = [];
   if (!agentIdentity || (culprit.enqueuer ?? "").toLowerCase() !== agentIdentity.toLowerCase()) {
     reasons.push(`put in the merge queue by ${culprit.enqueuer || "an unknown actor"}, not the lanes App`);
@@ -220,7 +226,7 @@ export function renderReport({ run, verdict, base, range, attribution, culprit, 
     }
     lines.push("No revert pull request: a person picks the merge from the post-merge record.");
   }
-  if (culprit && decision && revert) {
+  if (culprit && decision) {
     lines.push(
       "",
       `Culprit: \`${culprit.sha}\`${culprit.number ? ` (#${culprit.number})` : ""}, merged ${culprit.mergedAt}, fails where its parent passes.`,
@@ -228,6 +234,8 @@ export function renderReport({ run, verdict, base, range, attribution, culprit, 
     if (decision.reasons.length > 0) {
       lines.push("", "A person decides because:", ...decision.reasons.map((r) => `- ${r}`));
     }
+  }
+  if (revert) {
     lines.push(
       "",
       `The revert it would open${revert.draft ? " (draft)" : ""}:`,

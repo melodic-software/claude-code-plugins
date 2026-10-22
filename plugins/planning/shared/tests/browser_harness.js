@@ -35,6 +35,10 @@ async function upOnSparePort(run) {
     try { return run(await freePort()); } catch (e) { if (tries === 3 || !/Address already in use|is busy/.test(String(e.message))) throw e; }
   }
 }
+/** The guest key of the session in `dir`: a new session has one, and its guest link carries it as #join=. */
+const guestKey = dir => JSON.parse(fs.readFileSync(path.join(dir, "state.json"), "utf8")).session.guestKey;
+const joinKeys = new Map(); // a started session's origin -> its guest key, so a page opened there can join
+
 const fake = path.join(here, "fixtures", process.platform === "win32" ? "fake_cloudflared.py" : "fake-cloudflared.sh");
 
 /** A suite's run: a temp folder, sessions it starts (stopped at the end), and PASS/FAIL lines. */
@@ -47,11 +51,12 @@ function suite(name) {
     return JSON.parse(out.trim().split("\n").filter(l => l.startsWith("{")).pop());
   };
   const apply = (dir, ops) => { const f = path.join(dir, "ops.json"); fs.writeFileSync(f, JSON.stringify({ ops })); return share(dir, "apply", "--file", f); };
-  /** A fresh session on a spare port: {dir, localUrl, ownerUrl}. */
+  /** A fresh session on a spare port: {dir, localUrl, ownerUrl, guestKey}. */
   async function start(slug) {
     const dir = path.join(tmp, "topic", "shared", slug); dirs.push(dir);
     const up = await upOnSparePort(port => share(dir, "ensure-running", "--guest-port", String(port)));
-    return { dir, localUrl: up.localUrl, ownerUrl: fs.readFileSync(up.ownerLinkFile, "utf8").trim() };
+    joinKeys.set(new URL(up.localUrl).origin, guestKey(dir));
+    return { dir, localUrl: up.localUrl, ownerUrl: fs.readFileSync(up.ownerLinkFile, "utf8").trim(), guestKey: guestKey(dir) };
   }
   /** Save bytes in the session's staging folder and add them as an asset; returns its id. */
   function asset(dir, file, bytes) {
@@ -82,8 +87,12 @@ function recorder(browser) {
     if (init) await ctx.addInitScript(init.fn, init.arg);
     return openIn(ctx, url);
   }
-  /** Another tab in the same browser context: it shares the first tab's localStorage, as a second tab does. */
+  /** Another tab in the same browser context: it shares the first tab's localStorage, as a second tab does. A started
+   *  session's page with no fragment gets #join=<its guest key>, as the guest link the host shares has. */
   async function openIn(ctx, url) {
+    const u = new URL(url), key = joinKeys.get(u.origin);
+    if (key && !u.hash) u.hash = `join=${key}`;
+    url = u.href;
     const page = await ctx.newPage();
     page.on("pageerror", e => errors.push(String(e)));
     page.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
@@ -100,6 +109,8 @@ function recorder(browser) {
   return { open, openIn, errors, too, cspViolations };
 }
 
+/** True once fn(arg) is truthy in the page, false on timeout. A predicate that throws ends the wait at once and lands in
+ *  the page errors, so one that can run while the page reloads reads window.Core with ?. (it is unset until core.js runs). */
 const until = (page, fn, arg, timeout = 8000) => page.waitForFunction(fn, arg, { timeout }).then(() => true).catch(() => false);
 const snap = page => page.evaluate(() => window.Core.snapshot());
 
@@ -133,4 +144,4 @@ async function openClaude(page) {
   if ((await t.getAttribute("aria-expanded")) !== "true") await t.click();
   return until(page, () => !document.querySelector(".vf-clbody").hidden);
 }
-module.exports = { loadPlaywright, suite, recorder, until, snap, joinAs, png, upOnSparePort, openClaude };
+module.exports = { loadPlaywright, suite, recorder, until, snap, joinAs, png, upOnSparePort, openClaude, guestKey };

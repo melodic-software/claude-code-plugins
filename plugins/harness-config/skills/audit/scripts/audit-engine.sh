@@ -1453,7 +1453,12 @@ fi
 # Token shapes that never belong in a claim or detail. Used here to redact a
 # hook command and in category F to flag a tracked settings value. Match it under
 # LC_ALL=C: in a UTF-8 locale GNU grep takes quadratic time on a long line here.
-SECRET_RE='gh[pousr]_[A-Za-z0-9]{20,}|ghs_[0-9]+_eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|github_pat_[A-Za-z0-9_]{20,}|eyJ[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{5,}|sk-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|xox[abp]-[A-Za-z0-9-]{10,}'
+# GitHub prefixes from
+# https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
+# and the ghs_ regex GitHub recommends for current and stateless installation tokens from
+# https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/
+# (as of 2026-10-21; recheck when GitHub changes a token format or its recommended regex).
+SECRET_RE='(^|[^A-Za-z0-9_])ghs_[A-Za-z0-9._-]{36,}|ghs_([0-9]+_)?eyJ[A-Za-z0-9._-]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|eyJ[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{5,}|sk-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|xox[abp]-[A-Za-z0-9-]{10,}'
 
 resolve_hook_path() {
   # resolve_hook_path <command> <plugin-path> <var>: the first token, with

@@ -36,12 +36,19 @@ if [[ -z "$base" ]]; then
   exit 2
 fi
 gate_entry::require_base "$base" "error: base ref $base does not resolve to a commit."
+# Compare against the fork point, not the tip of the base: a branch behind its
+# base would otherwise count the base's own later changes as its changes. $base
+# stays the name the messages print.
+if ! mb="$(git merge-base "$base" HEAD)"; then
+  echo "error: 'git merge-base $base HEAD' failed (no common ancestor, or history not fetched deeply enough); refusing to pass without checking." >&2
+  exit 2
+fi
 
 frontmatter_version() {
   awk '/^standards-contract:/ {print $2; exit}'
 }
 
-if git diff --quiet "$base" -- "$src" "$schema"; then
+if git diff --quiet "$mb" -- "$src" "$schema"; then
   echo "Contract unchanged vs $base; no version bumps required."
   exit 0
 fi
@@ -49,7 +56,7 @@ stale=0
 stale_fragment=""
 
 base_contract=""
-if base_src=$(git show "$base:$src" 2>/dev/null); then
+if base_src=$(git show "$mb:$src" 2>/dev/null); then
   base_contract=$(frontmatter_version <<<"$base_src")
 fi
 head_contract=$(frontmatter_version <"$src")
@@ -80,12 +87,12 @@ for copy in "${carriers[@]}"; do
   manifest="plugins/${rest%%/*}/.claude-plugin/plugin.json"
   # A plugin absent at the base ref is new in this change set; its initial
   # release already carries the new contract.
-  base_version=$(git show "$base:$manifest" 2>/dev/null | jq -r '.version // empty' || true)
+  base_version=$(git show "$mb:$manifest" 2>/dev/null | jq -r '.version // empty' || true)
   [[ -n "$base_version" ]] || continue
   head_version=$(jq -r '.version // empty' "$manifest")
   rc=0
   # shellcheck disable=SC2310  # the non-zero return IS the answer; rc 2 exits below
-  changelog_fragments::bump_delivered "$base" "${rest%%/*}" "$base_version" "$head_version" || rc=$?
+  changelog_fragments::bump_delivered "$mb" "${rest%%/*}" "$base_version" "$head_version" || rc=$?
   ((rc < 2)) || exit 2
   # shellcheck disable=SC2310  # the non-zero return IS the answer; bump_delivered already read the list
   if ((rc == 1)) && changelog_fragments::in_mode "${rest%%/*}"; then

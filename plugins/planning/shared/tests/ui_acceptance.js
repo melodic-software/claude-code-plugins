@@ -57,15 +57,17 @@ async function main() {
     // ---------- join dialog ----------
     const gus = await rec.open(A.localUrl);
     await gus.waitForSelector("dialog.core-name[open]");
+    await until(gus, () => !!document.getElementById("core-name-sub")?.textContent.trim()); // the title comes with the first poll
     const parts = await gus.evaluate(() => {
       const d = document.querySelector("dialog.core-name");
       const shown = [...d.querySelectorAll("form > *")].filter(e => e.offsetParent && (e.matches("input, button") || e.textContent.trim()));
       return { shown: shown.map(e => e.matches("input") ? `input:${e.type}` : `${e.localName}:${e.textContent.trim()}`),
+        links: [...d.querySelectorAll("a")].map(a => a.textContent.trim()),
         extra: d.querySelectorAll("a, input[type=checkbox], [role=switch]").length };
     });
-    ok("join dialog: shows only the heading, the invite line, the name prompt, the name box and Join",
-      parts.shown.join("|") === "h2:Join the session|p:You are invited to answer a few questions: Offsite|label:What should everyone call you?|input:text|button:Join"
-      && parts.extra === 0, JSON.stringify(parts));
+    ok("join dialog: shows only the heading, the invite line, the name prompt, the name box, Join and the host's sign-in link",
+      parts.shown.join("|") === "h2:Join the session|p:You are invited to answer a few questions: Offsite|label:What should everyone call you?|input:text|button:Join|a:Are you the host? Sign in with a code"
+      && JSON.stringify(parts.links) === JSON.stringify(["Are you the host? Sign in with a code"]) && parts.extra === 1, JSON.stringify(parts));
     const gusPid = await joinAs(gus, "Gus");
 
     // ---------- refused join: the reason and a retry ----------
@@ -263,6 +265,15 @@ async function main() {
     const own = await hostPane(owner);
     ok("host view: the owner's shows people, the queue, round status, links, goal and Later",
       !!own && ["People", "Queue", "Round", "Links and settings", "Later"].every(k => own.secs.includes(k)) && own.people.includes("Gus") && /Round 1/.test(own.round) && own.goal === GOAL, JSON.stringify(own));
+    // The owner renames a guest from that guest's row; the guest's own page takes the new name.
+    const gusRow = owner.locator(".vf-hpeople .vf-hperson", { has: owner.locator(`[data-pid="${gusPid}"]`) });
+    await gusRow.locator(".vf-pa-rename").click();
+    await gusRow.locator(".vf-hp-rename input").fill("Gustavo");
+    await gusRow.locator(".vf-hp-rename button[type=submit]").click();
+    ok("host view: the owner renames a guest from their row, and the guest's page shows the new name",
+      (await until(owner, p => /Gustavo/.test(document.querySelector(`.vf-hpeople [data-pid="${p}"]`)?.closest("li")?.querySelector(".vf-hp-name")?.textContent || ""), gusPid, 10000))
+      && (await toastHas(owner, /Renamed to Gustavo\./)) && (await until(gus, () => window.Core.snapshot()?.me?.name === "Gustavo", null, 10000)));
+    ok("host view: the owner's own row offers no Rename", await owner.evaluate(() => ![...document.querySelectorAll(".vf-hperson")].some(li => /^You$/.test(li.querySelector(".vf-hp-name")?.textContent || "") && li.querySelector(".vf-pa-rename")?.offsetParent)));
     await owner.evaluate(p => window.Core.setLeader(p, true), piaPid);
     // Until the page shows it, not only knows it: the promotion swaps View options for the view switch, and a click on
     // View options read before that swap waits for a button that is gone.
@@ -270,7 +281,12 @@ async function main() {
     const lead = await hostPane(pia);
     ok("host view: a leader's shows people, the queue, round status, goal and Later",
       !!lead && ["People", "Queue", "Round", "Later"].every(k => lead.secs.includes(k)) && lead.people.includes("Gus") && /Round 1/.test(lead.round) && lead.goal === GOAL, JSON.stringify(lead));
+    ok("host view: a leader's rows offer no Rename", await pia.evaluate(() => document.querySelectorAll(".vf-hperson").length > 0 && ![...document.querySelectorAll(".vf-pa-rename")].some(b => b.offsetParent)));
     ok("host view: a plain guest has none", (await hostPane(gus)) === null && !(await gus.evaluate(() => [...document.querySelectorAll(".vf-msitem")].some(m => m.offsetParent && /Host view/.test(m.textContent)))));
+
+    // ---------- the share popover says what a restart does to the link: a quick tunnel's can change ----------
+    ok("share popover: a quick tunnel's link can change after a restart", await until(owner, () => (document.querySelector(".vf-share .vf-pop-note")?.textContent || "")
+      === "Anyone with this link can join. The link can change after the tunnel restarts."));
 
     // ---------- new tunnel address ----------
     const recFile = path.join(A.dir, ".shared-tunnel.json");

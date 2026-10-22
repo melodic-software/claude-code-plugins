@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
@@ -55,7 +55,7 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-async function check({ api = load(), since = B, routes = routesFrom(api, since), label } = {}) {
+async function check({ api = load(), since = B, routes = routesFrom(api, since), label, log = () => {} } = {}) {
   const outputPath = path.join(dir, "output");
   writeFileSync(outputPath, "");
   const github = fakeGitHub(routes);
@@ -66,9 +66,15 @@ async function check({ api = load(), since = B, routes = routesFrom(api, since),
     GITHUB_OUTPUT: outputPath,
     ...(label === undefined ? {} : { ESCALATION_LABEL: label }),
   };
-  const code = await main({ env, github, log: () => {}, sleep: async () => {} });
-  return { code, outputs: readOutputs(readFileSync(outputPath, "utf8")), github };
+  const sleeps = [];
+  const sleep = async (ms) => {
+    sleeps.push(ms);
+  };
+  const code = await main({ env, github, log, sleep });
+  return { code, outputs: readOutputs(readFileSync(outputPath, "utf8")), github, sleeps };
 }
+
+const HEAD_WAIT_CAP_MS = 60_000;
 
 const COMMENT_FOR_D = [
   "Lane commit check: these commits are not GitHub-verified, so no lane continues on this " +
@@ -326,8 +332,9 @@ test("a truncated comparison falls back to every PR commit", async () => {
   assert.equal(outputs.unverified, `${A} ${D}`);
 });
 
-// Each top-level job of a workflow file with its job-level permissions map and
-// whether it runs claude-code-action. Reads the block layout these files use
+// Each top-level job of a workflow file with its job-level permissions map,
+// whether it runs claude-code-action or this check, and the reusable workflow
+// it calls, if any. Reads the block layout these files use
 // (two-space job keys, a four-space `permissions:` key, six-space entries) and
 // throws on any line inside a permissions map it cannot read, so a new layout
 // fails the test instead of passing it unread.
@@ -349,7 +356,7 @@ function workflowJobs(name) {
     }
     const key = inJobs && /^ {2}([A-Za-z0-9_-]+):\s*$/.exec(line);
     if (key) {
-      job = { permissions: undefined, model: false };
+      job = { permissions: undefined, model: false, signed: false, calls: undefined };
       jobs.set(key[1], job);
       inPermissions = false;
       continue;
@@ -375,6 +382,13 @@ function workflowJobs(name) {
     if (/^\s+(?:-\s+)?uses:\s+["']?anthropics\/claude-code-action@/.test(line)) {
       job.model = true;
     }
+    if (/^\s+(?:-\s+)?uses:\s+["']?\.\/\.base\/\.github\/actions\/check-signed-commits["'\s]/.test(line)) {
+      job.signed = true;
+    }
+    const call = /^ {4}uses:\s+["']?\.\/\.github\/workflows\/([A-Za-z0-9_.-]+\.ya?ml)/.exec(line);
+    if (call) {
+      job.calls = call[1];
+    }
   }
   return jobs;
 }
@@ -396,6 +410,38 @@ for (const file of ["pr-run-activity-write.yml", "pr-run-activity-read.yml"]) {
   });
 }
 
+// The escalation adds a label and a comment with the report job's GITHUB_TOKEN,
+// which needs issues: write (README, "Job contract").
+for (const file of ["pr-run-activity-write.yml", "pr-run-activity-read.yml"]) {
+  test(`${file}: the job that runs this check holds issues: write`, () => {
+    const signed = [...workflowJobs(file)].filter(([, job]) => job.signed);
+    assert.ok(signed.length > 0, "no job runs check-signed-commits");
+    for (const [name, job] of signed) {
+      assert.equal(job.model, false, `${name} also runs the model`);
+      assert.equal(job.permissions?.issues, "write", `${name} lacks issues: write`);
+    }
+  });
+}
+
+// A called job holds no more than its caller grants, and a caller that grants
+// less fails the whole workflow at load, so every caller grants issues: write.
+test("every job calling a runner that runs this check grants issues: write", () => {
+  const runners = new Set(["pr-run-activity-write.yml", "pr-run-activity-read.yml"]);
+  const callers = [];
+  for (const file of readdirSync(path.join(HERE, "../../workflows"))) {
+    if (!/\.ya?ml$/.test(file)) {
+      continue;
+    }
+    for (const [name, job] of workflowJobs(file)) {
+      if (runners.has(job.calls)) {
+        callers.push(`${file}:${name}`);
+        assert.equal(job.permissions?.issues, "write", `${file} job ${name} lacks issues: write`);
+      }
+    }
+  }
+  assert.ok(callers.length > 0, "no job calls either runner");
+});
+
 test("a PR head that never matches its branch fails closed, even for a lane with no commits", async () => {
   const api = overCap(load());
   api.headRef.object.sha = "f".repeat(40);
@@ -408,6 +454,54 @@ test("a PR head that never matches its branch fails closed, even for a lane with
   assert.equal(github.reads.filter((read) => read.endsWith("/pulls/42")).length, 5);
   assert.ok(!github.reads.some((read) => read.includes("/compare/")));
   assert.match(github.writes.at(-1).body.body, /head did not match its branch/);
+});
+
+test("a PR head that never matches its branch reads as could not verify, not as unverified commits", async () => {
+  const api = load();
+  api.headRef.object.sha = "f".repeat(40);
+  for (const commit of api.commits) {
+    commit.commit.verification.verified = true;
+  }
+  const lines = [];
+  const { code, outputs, github } = await check({ api, log: (line) => lines.push(line) });
+  assert.equal(code, 0);
+  assert.equal(outputs["all-verified"], "false");
+  assert.equal(outputs.unverified, "");
+  assert.ok(lines.some((line) => /could not verify/.test(line)));
+  assert.ok(!lines.some((line) => /unverified commits|no comparison from the recorded head/.test(line)));
+  const comment = github.writes.at(-1).body.body;
+  assert.match(comment, /could not be verified/);
+  assert.doesNotMatch(comment, /not GitHub-verified/);
+});
+
+test("a PR head that matches on the second read verifies after one backed-off wait", async () => {
+  const api = load();
+  for (const commit of api.compare.commits) {
+    commit.commit.verification.verified = true;
+  }
+  const routes = routesFrom(api);
+  const pullKey = `GET /repos/${REPOSITORY}/pulls/42`;
+  const pulls = [{ ...api.pull, head: { ...api.pull.head, sha: B } }, api.pull];
+  Object.defineProperty(routes, pullKey, { get: () => pulls.shift(), enumerable: true });
+  const { code, outputs, github, sleeps } = await check({ api, routes });
+  assert.equal(code, 0);
+  assert.equal(outputs["all-verified"], "true");
+  assert.deepEqual(github.writes, []);
+  assert.equal(github.reads.filter((read) => read === pullKey).length, 2);
+  assert.deepEqual(sleeps, [5000]);
+});
+
+test("a PR head that never matches waits a bounded, backed-off time, then could not verify", async () => {
+  const api = load();
+  api.headRef.object.sha = "f".repeat(40);
+  for (const commit of api.commits) {
+    commit.commit.verification.verified = true;
+  }
+  const { outputs, github, sleeps } = await check({ api });
+  assert.equal(outputs["all-verified"], "false");
+  assert.deepEqual(sleeps, [5000, 10_000, 20_000, 25_000]);
+  assert.ok(sleeps.reduce((total, ms) => total + ms, 0) <= HEAD_WAIT_CAP_MS);
+  assert.match(github.writes.at(-1).body.body, /could not be verified/);
 });
 
 test("a PR read that lags the branch is re-read until its head matches", async () => {

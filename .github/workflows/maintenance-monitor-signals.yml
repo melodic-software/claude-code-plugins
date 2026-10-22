@@ -7,7 +7,7 @@ name: maintenance-monitor-signals
 # and tests are in .github/scripts/maintenance-monitor-signals/.
 #
 # It runs no model and holds no lanes App token or secret: the job's own
-# GITHUB_TOKEN reads runs, jobs, annotations, artifacts and pull requests,
+# GITHUB_TOKEN reads runs, jobs, annotations, artifacts, pull requests and issue comments,
 # and writes only issues, so its issues come from github-actions[bot] and
 # start no workflow. Only the schedule and a manual run with no inputs start
 # it, on main. Run, annotation and pull-request text reaches an issue only as

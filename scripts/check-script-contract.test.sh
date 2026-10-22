@@ -103,6 +103,7 @@ REGISTRY=(
   "check-purged-em-dashes.sh|jq|-|-"
   "check-queue-front-matter.sh|-|-|queue_front_matter"
   "check-read-caller-keys.sh|node|-|-"
+  "check-scan-carrier-secret-shadow.sh|gh|o/r|-"
   "check-shell-portability.sh|-|-|-"
   "check-silent-revert.sh|git|--verify-known-incidents|-"
   "check-silent-skips.sh|-|-|-"
@@ -342,11 +343,12 @@ recipe::convention_yaml() { # <clean|violation>
   fixture_tree::build f --sut "$SELF_DIR/check-convention-yaml.sh" --git --label convention-yaml || return 2
   mkdir -p "$f/docs/conventions" "$f/plugins/alpha/schemas" "$f/lib"
   cp "$REPO_ROOT/lib/yaml-subset.awk" "$f/lib/yaml-subset.awk"
+  cp "$REPO_ROOT/lib/resolve-convention-home.sh" "$f/lib/resolve-convention-home.sh"
   printf 'mode: on\n' >"$f/docs/conventions/alpha.yaml"
   [[ "$1" == violation ]] || printf '{}\n' >"$f/plugins/alpha/schemas/alpha.schema.json"
   git_test_config "$f" add -A >/dev/null || return 2
   git_test_config "$f" commit -qm seed >/dev/null || return 2
-  capture run_in "$f" env CHECK_JSONSCHEMA_BIN=true bash scripts/check-convention-yaml.sh --check
+  capture run_in "$f" env -u GITHUB_ACTIONS -u GITHUB_BASE_REF CHECK_JSONSCHEMA_BIN=true bash scripts/check-convention-yaml.sh --check
 }
 
 recipe::adr_numbers() { # <clean|violation>

@@ -30,6 +30,18 @@
       "description": "When on, starting a /planning:interview shared session opens the owner's page in the default browser. Turn off to open it yourself. Default: on.",
       "default": true
     },
+    "tunnel_hostname": {
+      "type": "string",
+      "title": "Shared interview tunnel hostname",
+      "description": "Hostname of a named Cloudflare tunnel for /planning:interview shared sessions (such as interview.example.com), so the guest link survives a restart. Set it on one machine only. Empty (default): a quick tunnel, whose link changes on restart. Setup: shared/README.md.",
+      "default": ""
+    },
+    "tunnel_token_file": {
+      "type": "string",
+      "title": "Shared interview tunnel token file",
+      "description": "Absolute path of a file holding the named tunnel's token, readable only by you; cloudflared reads it, nothing else does. Used only when tunnel_hostname is set. Default: empty.",
+      "default": ""
+    },
     "plan_store": {
       "type": "string",
       "title": "Plan store",

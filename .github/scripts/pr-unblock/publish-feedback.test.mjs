@@ -140,6 +140,13 @@ test("a note of exactly 2000 emoji is accepted and posted", async () => {
   assert.equal(api.posted().length, 1);
 });
 
+test("a note naming a token placeholder and a commit sha is accepted and posted", async () => {
+  const api = fakeApi();
+  const result = await run(api, lines(reply({ note: `The fixture uses ghs_job; see ${FIX}.` })));
+  assert.equal(result.escalationReason, "feedback-disputed");
+  assert.equal(api.posted().length, 1);
+});
+
 test("a VALID reply is posted in the fixed template on its root comment and resolved", async () => {
   const api = fakeApi();
   const result = await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX, note: "Guarded the null case." })));
@@ -334,6 +341,8 @@ const INVALID = [
   ["a note carrying a marker", lines(reply({ note: `done ${ROUND}` }))],
   ["a note closing an HTML comment", lines(reply({ note: "a --> b" }))],
   ["a note carrying a token", lines(reply({ note: `token ghs_${"A".repeat(36)}` }))],
+  ["a note carrying a stateless installation token", lines(reply({ note: `token ${"ghs"}_123456_${Array(3).fill("FAKE-not_a_token".repeat(10)).join(".")}` }))],
+  ["a note carrying a JWT-shaped installation token", lines(reply({ note: `token ${"ghs"}_${Array(3).fill("eyJGAKEnotAtoken".repeat(10)).join(".")}` }))],
   ["a note carrying a control character", lines(reply({ note: "bell \u0007" }))],
   ["a note carrying a direction override", lines(reply({ note: "safe‮evil" }))],
   ["a note carrying a zero-width space", lines(reply({ note: "a​b" }))],
@@ -468,6 +477,37 @@ test("feedback-not-landed, nothing posted: a VALID fix commit that does not chan
   const result = await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX })));
   assert.equal(result.escalationReason, "feedback-not-landed");
   assert.deepEqual(api.posted(), []);
+});
+
+// #8832: the thread sat on the skill's SKILL.md and the fix changed only that
+// skill's evals.
+test("a VALID fix on a SKILL.md thread lands when it changes any file in that skill's directory, not a sibling skill's", async () => {
+  const S = "plugins/discipline/skills/script-the-deterministic-work";
+  const skillRun = JSON.stringify({ ...RUN, threads: [{ ...RUN.threads[0], path: `${S}/SKILL.md` }] });
+  for (const [filename, landed] of [
+    [`${S}/evals/evals.json`, true],
+    [`${S}/reference/notes.md`, true],
+    [`${S}-x/evals/evals.json`, false],
+    ["plugins/discipline/skills/sweep-all/evals/evals.json", false],
+  ]) {
+    const api = fakeApi({
+      compare: { status: "ahead", commits: [{ sha: FIX }], files: [{ filename }] },
+      commits: { [FIX]: { files: [{ filename }] } },
+    });
+    const result = await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX })), skillRun);
+    assert.equal(result.escalationReason, landed ? "" : "feedback-not-landed", filename);
+  }
+});
+
+test("a VALID fix on a thread that is not a SKILL.md still needs its exact path, even in the same directory", async () => {
+  const S = "plugins/discipline/skills/script-the-deterministic-work";
+  const refRun = JSON.stringify({ ...RUN, threads: [{ ...RUN.threads[0], path: `${S}/reference/a.md` }] });
+  const api = fakeApi({
+    compare: { status: "ahead", commits: [{ sha: FIX }], files: [{ filename: `${S}/reference/b.md` }] },
+    commits: { [FIX]: { files: [{ filename: `${S}/reference/b.md` }] } },
+  });
+  const result = await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX })), refRun);
+  assert.equal(result.escalationReason, "feedback-not-landed");
 });
 
 test("feedback-not-landed with no VALID reply when the branch moved onto .github/ or another path", async () => {

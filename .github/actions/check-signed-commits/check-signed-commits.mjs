@@ -6,52 +6,12 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../check-kill-switch/check-kill-switch.mjs";
-import { createGitHub, paginate } from "../check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, paginate, readPull, REPOSITORY } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
-const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
 const SHA = /^[0-9a-f]{40}$/;
 const LISTED_COMMITS_CAP = 250;
-// GET /pulls can lag a push (the promote step's), so the PR is re-read until
-// its head matches the branch ref, at most HEAD_READS times.
-const HEAD_READS = 5;
-const HEAD_READ_DELAY_MS = 2000;
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-// The SHA the PR's head branch points at, or null when it cannot be read.
-async function headRefSha(github, pull) {
-  const repository = pull.head?.repo?.full_name ?? "";
-  const ref = pull.head?.ref;
-  if (!REPOSITORY.test(repository) || typeof ref !== "string" || ref === "") {
-    return null;
-  }
-  const encoded = ref.split("/").map(encodeURIComponent).join("/");
-  try {
-    const sha = (await github("GET", `/repos/${repository}/git/ref/heads/${encoded}`))?.object?.sha;
-    return SHA.test(sha ?? "") ? sha : null;
-  } catch (error) {
-    if (error?.status === 404) {
-      return null;
-    }
-    throw error;
-  }
-}
-
-// The PR, re-read until its head SHA is the branch ref's. `headConfirmed` is
-// false when they never agree: a stale head would hide the lane's commits.
-async function readPull(github, base, prNumber, sleep) {
-  for (let read = 1; ; read += 1) {
-    const pull = await github("GET", `${base}/pulls/${prNumber}`);
-    const refSha = await headRefSha(github, pull);
-    if (refSha !== null && refSha === pull.head?.sha) {
-      return { pull, headConfirmed: true };
-    }
-    if (read === HEAD_READS) {
-      return { pull, headConfirmed: false };
-    }
-    await sleep(HEAD_READ_DELAY_MS);
-  }
-}
 
 // The comparison `sinceSha...headSha` when `sinceSha` is a well-formed SHA
 // GitHub knows as an ancestor of the head; otherwise null. `complete` is false
@@ -103,8 +63,11 @@ function laneCommits(comparison, prCommits, prListComplete) {
 
 function escalationComment({ unverified, sinceIsAncestor, checkable, countKnown, headConfirmed }) {
   const lines = [
-    "Lane commit check: these commits are not GitHub-verified, so no lane continues on this " +
-      "pull request until a human reviews them.",
+    unverified.length > 0
+      ? "Lane commit check: these commits are not GitHub-verified, so no lane continues on this " +
+        "pull request until a human reviews them."
+      : "Lane commit check: the lane's commits could not be verified, so no lane continues on " +
+        "this pull request until a human reviews them.",
   ];
   if (!headConfirmed) {
     lines.push(
@@ -206,14 +169,22 @@ export async function main({ env = process.env, github, log = console.log, sleep
       },
       env.GITHUB_OUTPUT,
     );
-    if (!result.sinceIsAncestor) {
+    if (result.headConfirmed && !result.sinceIsAncestor) {
       log("check-signed-commits: no comparison from the recorded head; checked the PR's commits");
     }
-    log(
-      result.allVerified
-        ? "check-signed-commits: every new commit is verified"
-        : `::warning::check-signed-commits: unverified commits ${result.unverified.join(" ")}`,
-    );
+    if (result.allVerified) {
+      log("check-signed-commits: every new commit is verified");
+    } else if (result.unverified.length > 0) {
+      log(`::warning::check-signed-commits: unverified commits ${result.unverified.join(" ")}`);
+    } else {
+      log(
+        `::warning::check-signed-commits: could not verify the lane's commits (${
+          result.headConfirmed
+            ? "the PR's commits could not all be listed"
+            : "the PR's head never matched its branch"
+        })`,
+      );
+    }
     if (!result.allVerified) {
       try {
         await escalate({ ...target, label: env.ESCALATION_LABEL || "needs-human", result });
