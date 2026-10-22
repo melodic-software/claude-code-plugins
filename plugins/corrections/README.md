@@ -10,8 +10,7 @@ mistake it targets and to pass on the current code.
 
 `codify` counts at `recurrence.min_occurrences` occurrences (default 2; set it in
 `corrections.yaml` in the convention home, default `docs/conventions`, or `corrections.local.yaml`
-there for yourself), or at once on a
-person's direct "codify this". A person's
+there for yourself), or at once on a person's direct "codify this". A person's
 invocation writes the proposal; a model invocation only proposes. It asks before installing any
 blocking check, and reports a check whose proof did not fail on the old ref and pass on the new one as
 unproven.
