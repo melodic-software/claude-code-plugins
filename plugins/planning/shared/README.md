@@ -693,13 +693,13 @@ quoted when it holds a space, so only a newline ends an entry; `logs` splits on 
 |---|---|---|
 | `request` | INFO for 2xx/3xx, WARNING for 4xx, ERROR for 5xx | `method route status ms` and `pid` (the acting person's id, once known); a refusal adds `code field message` (its error body); a 5xx adds `trace`, the last 8000 characters of the traceback of the bug or of the session's refusal where it was raised. The one exception is 503 `busy`, answered before any request is read: `method=- route=- status=503 ms=0.0 code=busy message=...`, no pid, no trace. A `summary` the server takes gets no entry |
 | `client` | WARNING | `pid kind message source route code ua fp`, as the page sent them: a fault |
-| `summary-batch` | INFO | `summaries dropped data`: every `summary` taken since the last batch, written every 10 minutes and when the server stops, if there was one. `data` is a JSON array of `[message, ua]` pairs, sorted, in ASCII with each space as `\u0020`, so it ends the line; `dropped` counts summaries past the batch's 100,000 bytes. No pid, and no time but the batch's |
+| `summary-batch` | INFO | `summaries dropped counts data`: every `summary` taken since the last batch, written every 10 minutes and when the server stops, if there was one and it came from at least 2 guests or only the owner. `counts` is a JSON object of the summaries' `rep:`, `use:`, `rage:` and `dead:` counts added up; `data` is a JSON array of `[message, device]` pairs, the rest of each summary, sorted; both in ASCII with each space as `\u0020`. `dropped` counts summaries past the batch's 100,000 bytes, and at shutdown those from a single guest (see below). No pid, and no time but the batch's |
 
 ```text
 2026-10-17 13:21:56,794 WARNING request method=POST route=/api/person/role status=400 ms=0.5 pid=host code=bad-field field=role message="role must be one of leader, guest."
 2026-10-17 13:21:57,102 ERROR request method=POST route=/api/rename status=500 ms=1.2 pid=pidAnn001 code=state-invalid message="The server could not do that; nothing was written." trace="Traceback (most recent call last):\x0a  File \x22...\x22 ..."
 2026-10-17 13:21:58,330 WARNING client pid=pidAnn001 kind=error message="TypeError: x is undefined" source=/app.js:12 route=/ ua="chrome computer" fp=1a2b3c4d
-2026-10-17 13:30:00,412 INFO summary-batch summaries=1 dropped=0 data=[["pv=0a1b2c3d\u0020lat:/api/vote=0,3,1\u0020rb:/api/vote=1\u0020gap=900\u0020rep:1a2b3c4d=2\u0020inp=184:pointer:vf-vote\u0020lcp=1200:vf-qtext","safari\u0020phone"]]
+2026-10-17 13:30:00,412 INFO summary-batch summaries=2 dropped=0 counts={"dead:vf-pencil":1,"rep:1a2b3c4d":2,"use:vf-vote":5} data=[["pv=0a1b2c3d\u0020lat:/api/vote=0,3,1\u0020rb:/api/vote=1\u0020gap=900\u0020inp=184:pointer:vf-vote\u0020lcp=1200:vf-qtext","phone"],["pv=5e6f7a8b\u0020gap=400","computer"]]
 ```
 
 A pid is no credential. No entry holds a token, secret, guest key, owner link, request body, answer
@@ -726,11 +726,24 @@ so a summary with a time of its own could be matched to them. A summary holds `p
 page's INP counts once; `owner=1` on the owner's page; `lat:<route>` tap-to-answer counts per
 bucket (upper edges 100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000 and 10000 ms, then above),
 measured with `performance.now()`; `rb:<route>` optimistic changes rolled back; `gap`, ms from the
-page showing again to its first good poll; `rep:<fp>` repeats; `inp` (ms, interaction type,
+page showing again to its first good poll; `rep:<fp>` repeats; `use:<control>` taps, `rage:<control>`
+rage taps (the third tap on one control within a second of the first) and `dead:<control>` dead taps (a tap
+after which the page changes nothing, no DOM change and no scroll, for a second; never a link that opens
+elsewhere), counted on a person's taps on buttons, `input` buttons, links, `role=button` and `summary`, a
+disabled control getting no tap; `inp` (ms, interaction type,
 component) and `lcp` (ms, component) from the vendored web-vitals build, the component `-` where
 web-vitals names its target by a selector or an id instead (an element gone before it measured), or `inp=missing`,
 `lcp=missing`, `vitals=missing` where the browser API or the file is missing. What does not fit in
-500 characters waits for the next summary. Nothing is sampled.
+500 characters waits for the next summary. Nothing is sampled. A control is named by its first `vf-` or
+`core-` class (letters and hyphens) that is not a style class such as `vf-btn`, on it or its nearest
+ancestor, never by its text, label or id.
+
+The server keeps only the device word of a summary's `ua` (`phone`, `tablet` or `computer`, else
+`unknown`) and lifts every `rep:`, `use:`, `rage:` and `dead:` token out of the summary into the batch's
+`counts`, dropping one not shaped like a fingerprint or a `vf-`/`core-` class name. A batch is written
+only once at least 2 guests sent summaries to it (or only the owner did): with fewer it waits for the
+next batch, and at shutdown its summaries are only counted as `dropped`. So no pair holds a fingerprint
+or a browser that would match it to a fault entry's pid, and no batch's counts are one guest's.
 
 Never recorded: what anyone types, answers, chat, names, the address or its fragment, text on the
 page, or a credential. Help says so in one line, with a "What this page records" link to the plain
@@ -754,7 +767,8 @@ to the second) and device and browser classes, refusals by route and code (from 
 server's entries), network failures and unanswered actions by route, tap-to-answer p50 and p95 by
 route (the upper edge of the bucket) beside the server's own `ms`, rollbacks and their rate,
 reconnect gaps (over 10 s, worst, by device), layout anomalies by device kind, INP and LCP p75 by
-device with the count of page views missing the API, and how many summaries came in how many
+device with the count of page views missing the API, taps, rage taps and dead taps by control
+(`features`), and how many summaries came in how many
 batches from how many page views, and how many were dropped.
 The owner's own page views stay out of the timings. A summary counts at its batch's time, for
 `--since` and for a fingerprint's last repeat. `logs --errors` leaves batches out.

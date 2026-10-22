@@ -8,7 +8,8 @@
 // where it has no line of its own until the batch that stopping the server writes.
 // No client-log body ever holds the guest's name, typed text, an answer comment or chat. A `telemetry=off` flag an
 // older page left in localStorage is ignored: errors and summaries still send after a reload. A 320 px phone logs a too-wide pane as a layout anomaly naming components
-// only. A page whose web-vitals file is missing still works and says so. A stub web-vitals whose attribution falls
+// only. Taps are counted by the tapped control's class: three quick ones are a rage tap, one that changes nothing a dead
+// tap, and no body holds the control's text, label, title or id. A page whose web-vitals file is missing still works and says so. A stub web-vitals whose attribution falls
 // back to a selector and an id gets "-" sent for both.
 //   node plugins/planning/shared/tests/ui_telemetry.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
@@ -77,9 +78,31 @@ async function main() {
     await guest.locator(".vf-propose").click();
     await guest.locator("#vf-prop-ta").fill(TYPED);
     await guest.keyboard.press("Escape");
-    await guest.locator(".vf-keysbtn").click(); // an interaction for INP
+    await guest.locator(".vf-keysbtn").click(); // an interaction for INP, and one tap on Help
     await guest.keyboard.press("Escape");
-    await guest.waitForTimeout(500);
+    // Three quick taps on a control that answers each one, and one tap on a control that changes nothing. Each carries
+    // text, a label, a title and an id that are never sent: only the class this test gives it names it.
+    await guest.evaluate(() => {
+      for (const [cls, tag, live, top] of [["vf-telemetry-rage", "RAGE", true, 0], ["vf-telemetry-dead", "DEAD", false, 60]]) {
+        const b = document.createElement("button");
+        b.style.cssText = `position:fixed;inset-inline-start:0;inset-block-start:${top}px;z-index:2147483647`;
+        b.type = "button"; b.className = `vf-btn vf-btn-sm ${cls}`; b.id = `${tag}-secret-id`; b.title = `${tag}-SECRET-TITLE`;
+        b.textContent = `${tag}-SECRET-TEXT`; b.setAttribute("aria-label", `${tag}-SECRET-LABEL`);
+        if (live) b.onclick = () => { b.dataset.n = String(Number(b.dataset.n || 0) + 1); };
+        document.body.append(b);
+      }
+      for (let i = 0; i < 3; i++) { // three controls of one kind, like the reaction buttons: one tap each is no rage tap
+        const b = document.createElement("button");
+        b.style.cssText = `position:fixed;inset-inline-start:${200 + 60 * i}px;inset-block-start:0;z-index:2147483647`;
+        b.type = "button"; b.className = "vf-btn vf-telemetry-trio"; b.textContent = String(i);
+        b.onclick = () => { b.dataset.n = "1"; };
+        document.body.append(b);
+      }
+    });
+    await guest.locator(".vf-telemetry-rage").click({ clickCount: 3 });
+    await guest.locator(".vf-telemetry-dead").click();
+    await guest.waitForTimeout(1500); // past the wait that makes a tap dead; the taps below change the page
+    for (const b of await guest.locator(".vf-telemetry-trio").all()) await b.click({ delay: 0 });
 
     const errorsSent = () => parsed(w.bodies).filter(b => b.kind === "error" && b.message?.includes(THROWN));
     ok("the error thrown three times is sent once, with its fingerprint", errorsSent().length === 1 && /^[0-9a-f]{8}$/.test(errorsSent()[0].fp), JSON.stringify(errorsSent()));
@@ -100,6 +123,11 @@ async function main() {
     ok("hiding sends one summary: both picks timed, one rollback, the two repeats", sums.length === 1 && lat === 2 && t1["rb:/api/pick"] === "1" && t1[`rep:${errorsSent()[0]?.fp}`] === "2", sums[0]?.message);
     // A target is a component name, or "-" when web-vitals found no element for it (one removed before it measured).
     ok("  with INP and LCP named by component, never text", /^\d+:(pointer|keyboard):(?:[a-z][\w-]*|-)$/.test(t1.inp || "") && /^\d+:(?:[a-z][\w-]*|-)$/.test(t1.lcp || ""), `${t1.inp} ${t1.lcp}`);
+    ok("  with taps counted by control: Help once, three on the answering control as one rage tap, one dead tap",
+      t1["use:vf-keysbtn"] === "1" && t1["use:vf-telemetry-rage"] === "3" && t1["rage:vf-telemetry-rage"] === "1" && !("dead:vf-telemetry-rage" in t1)
+      && t1["use:vf-telemetry-dead"] === "1" && t1["dead:vf-telemetry-dead"] === "1" && !("rage:vf-telemetry-dead" in t1), sums[0]?.message);
+    ok("  and one quick tap on each of three controls of one kind is no rage tap", t1["use:vf-telemetry-trio"] === "3" && !("rage:vf-telemetry-trio" in t1), sums[0]?.message);
+    ok("  and no body holds a tapped control's text, label, title or id", !w.bodies.some(b => /SECRET|secret-id/.test(b)), w.bodies.filter(b => /SECRET|secret-id/.test(b)).join(" | "));
     ok("  and no pid or name in its body", !("pid" in sums[0]) && !JSON.stringify(sums[0]).includes(pid) && !/owner=/.test(sums[0]?.message || ""), JSON.stringify(sums[0]));
 
     await setVisibility(guest, "visible");
@@ -120,15 +148,16 @@ async function main() {
       const h = document.querySelector(".vf-keys .vf-help-rec");
       return { line: h?.querySelector(".core-rec-line")?.textContent || "", controls: document.querySelectorAll(".vf-keys input[type=checkbox], .vf-keys [role=switch]").length };
     });
-    ok("Help says what the page records, with no switch", /records errors, slow or failed actions and layout problems/.test(help.line)
+    ok("Help says what the page records, with no switch", /records errors, slow or failed actions, layout problems and how often its controls are tapped/.test(help.line)
       && /never records what you type/.test(help.line) && help.controls === 0, JSON.stringify(help));
     await guest.locator(".vf-keys .vf-help-rec a.core-rec-link").click();
     const note = await until(guest, () => !!document.querySelector("dialog.core-records[open]")) && await guest.evaluate(() => {
       const d = document.querySelector("dialog.core-records");
       return { heads: [...d.querySelectorAll("h3")].map(h => h.textContent), items: d.querySelectorAll("li").length, never: d.textContent.includes("What you type"),
+        taps: [...d.querySelectorAll("li")].some(li => /tapped/.test(li.textContent) && /added up for everyone/.test(li.textContent)),
         controls: d.querySelectorAll("input[type=checkbox], [role=switch]").length };
     });
-    ok("  its link opens the plain list of what is and is not recorded, with no switch", !!note && note.heads.join("|") === "Recorded|Never recorded" && note.items >= 8 && note.never && note.controls === 0, JSON.stringify(note));
+    ok("  its link opens the plain list of what is and is not recorded, with no switch", !!note && note.heads.join("|") === "Recorded|Never recorded" && note.items >= 8 && note.taps && note.never && note.controls === 0, JSON.stringify(note));
     await guest.locator("dialog.core-records button").click();
     ok("  which closes", await until(guest, () => !document.querySelector("dialog.core-records")));
     await guest.keyboard.press("Escape");
@@ -248,6 +277,9 @@ async function main() {
     // reload, the page without web-vitals' one and the stub page's two; the guest's two picks, its pick after the reload
     // and the second page's pick make four timed picks; two reconnect gaps; INP from the guest's page and the stub page.
     const sum = s.share(A.dir, "logs", "--summary", "--json");
+    const comp = (k, c) => sum.features?.[k]?.find(x => x.component === c)?.count;
+    ok("logs --summary counts the taps by control: three, one rage tap, one dead tap", comp("use", "vf-telemetry-rage") === 3 && comp("rage", "vf-telemetry-rage") === 1
+      && comp("dead", "vf-telemetry-dead") === 1 && !comp("dead", "vf-telemetry-rage"), JSON.stringify(sum.features));
     ok("logs --summary counts the error, the latency and the rollback", sum.summaries.count === 7 && sum.errors.some(g => g.message.includes(THROWN) && g.count === 3)
       && sum.latency["/api/pick"]?.actions === 4 && sum.latency["/api/pick"]?.rollbacks === 1 && sum.reconnect.count === 2 && sum.inp.pages === 2, JSON.stringify(sum));
   } catch (e) {
