@@ -3098,7 +3098,7 @@
         const S = Core.state;
         if (i.kind === "run" || i.kind === "fail") return openReview("r:" + i.id);
         if (i.kind === "share") { const row = revRows(S).find(r => r.x?.id === i.id); return openReview(row?.key || "x:" + i.id); }
-        return openReview({ report: "f:", merge: "m:", join: "j:" }[i.kind] + i.id);
+        return openReview({ report: "f:", merge: "m:", join: "j:", people: "c:" }[i.kind] + i.id);
       }
       closePop();
       if (i.unread) Core.readInbox([i.key], { [i.key]: i.status }).catch(() => {});
@@ -3186,7 +3186,7 @@
       return { q, ix };
     }
     const CHIP_WORD = { waiting: "Waiting", running: "Running", failed: "Failed", unshared: "Not shared", private: "Just me", shared: "Shared", answered: "Answered",
-      declined: "Declined", picture: "Pictures", file: "Files", report: "Problems", join: "Joins", merge: "Merges", proposal: "Proposals", suggestion: "Suggestions",
+      declined: "Declined", picture: "Pictures", file: "Files", report: "Problems", join: "Joins", merge: "Merges", people: "From Claude", proposal: "Proposals", suggestion: "Suggestions",
       ready: "Rounds", answer: "Answers", question: "Questions for you", mention: "Mentions", reply: "Replies", request: "Requests", round: "New rounds",
       role: "Roles", votes: "Agreement", reaction: "Reactions", discussion: "Discussions", queue: "Queue" };
     /** This tab's filter chips, one per kind of item it holds, with counts; a chip turned off hides its kind, remembered on this device. */
@@ -6645,12 +6645,21 @@
       for (const [qid, lst] of Object.entries(S.suggestions || {})) if (Core.lockOf(qid)) for (const x of lst) if (x.status === "open") out.push({ t: "suggestion", id: "s:" + x.id, ts: x.ts, x, qid });
       if (owner) for (const m of S.mergeRequests || []) out.push({ t: "merge", id: "m:" + m.id, ts: m.ts, m });
       if (owner) for (const j of S.joinRequests || []) out.push({ t: "join", id: "j:" + j.pid, ts: j.ts, j });
+      if (owner) for (const c of S.claudeProposals || []) out.push({ t: "people", id: "c:" + c.id, ts: c.ts, c });
       if (owner) for (const u of S.uploads || []) if (["offered", "accepted", "uploading"].includes(u.status) || (u.status === "done" && u.image && !u.shown && !isMe(u.cid))) out.push({ t: "upload", id: "u:" + u.id, ts: u.ts, u });
       if (owner) for (const f of S.reports || []) out.push({ t: "report", id: "f:" + f.id, ts: f.ts, f });
       if (R.ready && R.status === "open") out.push({ t: "ready", id: "ready:" + R.current, ts: R.ready.ts, ready: R.ready });
       return out.sort((a, b) => a.ts - b.ts);
     }
-    const QT = { request: "Request", proposal: "Proposal", suggestion: "Suggestion", merge: "Merge", upload: "Upload", ready: "Ready to send", join: "Join", report: "Problem" };
+    const QT = { request: "Request", proposal: "Proposal", suggestion: "Suggestion", merge: "Merge", upload: "Upload", ready: "Ready to send", join: "Join", report: "Problem", people: "Claude suggests" };
+    /** Why Claude proposes a merge or an admit, in the host's words (ops.schema.json personReasons). */
+    const WHY_WORD = { "same-name": "the same name", "was-offline": "the earlier one was offline when this one joined", "same-device": "the same kind of device", expected: "you told Claude to expect them" };
+    /** What Claude proposes, why, and for a merge the fix for next time: the earlier person's own link. */
+    const proposalText = c => {
+      const why = `Why: ${c.reasons.map(r => WHY_WORD[r] || r).join("; ")}.${c.note ? ` ${c.note}` : ""}`;
+      return c.kind === "admit" ? `Let ${c.name} in? ${why}`
+        : `${c.name} may be ${c.toName}, back on another device or browser. ${why} Merge moves ${c.name}'s answers, votes and chat to ${c.toName} in one tap, and this browser carries on as ${c.toName}; it cannot be undone. Next time, send ${c.toName} their own link (Use on another device), so they come back as themselves.`;
+    };
     const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th"); // spellchecker:disable-line
     /** " (2nd waiting; phone · Safari)": the join order and what the join said about its device, never more. */
     const joinHint = j => {
@@ -6687,7 +6696,7 @@
       k.chip.textContent = QT[it.t];
       k.chip.className = "vf-chip " + ({ request: "vf-chip-accent", ready: "vf-chip-brass", merge: "vf-chip-quiet", upload: "vf-chip-quiet" }[it.t] || "vf-chip-quiet");
       const person = it.r ? [it.r.cid, it.r.name] : it.i ? [it.i.cid, it.i.name] : it.x ? [it.x.cid, it.x.name] : it.m ? [it.m.from, it.m.fromName] : it.u ? [it.u.cid, it.u.by] : it.f ? [it.f.cid, it.f.name]
-        : it.j ? [it.j.pid, it.j.name] : [it.ready.cid, it.ready.by];
+        : it.j ? [it.j.pid, it.j.name] : it.c ? [it.c.cid, it.c.name] : [it.ready.cid, it.ready.by];
       const wk = person.join("|") + it.ts;
       if (k.who._k !== wk) {
         k.who._k = wk;
@@ -6700,7 +6709,7 @@
       const txt = it.r ? `${KIND_REQ[it.r.kind] || "Request"}: ${it.r.text}` : it.i ? it.i.text : it.x ? it.x.text + (it.x.note ? `\n\nWhy: ${it.x.note}` : "")
         : it.m ? `${it.m.fromName} says they were ${it.m.toName} before. Approve to join them: ${it.m.fromName}'s answers and votes move to ${it.m.toName}.`
         : it.ready ? `${youOr(it.ready.cid, it.ready.by)} marked round ${curRound().current} ready to send.`
-        : it.j ? `Wants to join: ${it.j.name}${joinHint(it.j)}` : it.f ? `${it.f.status === "seen" ? "Seen. " : ""}${it.f.asked ? "Asked Claude. " : ""}${it.f.text}` : "";
+        : it.j ? `Wants to join: ${it.j.name}${joinHint(it.j)}` : it.c ? proposalText(it.c) : it.f ? `${it.f.status === "seen" ? "Seen. " : ""}${it.f.asked ? "Asked Claude. " : ""}${it.f.text}` : "";
       k.text.hidden = !txt;
       if (txt) fillClamp(k.text, "q:" + it.id, txt, `${QT[it.t]} from ${disp(person[1] || "someone")}`, q ? `${q.id}: ${q.text}` : "");
       if (k.up) fillUpRow(k.up, it.u);
@@ -6768,6 +6777,13 @@
         qAct("Decline", "vf-btn-ghost", guarded(() => ({ title: `Turn ${li._it.j.name} away?`, ok: "Decline", body: `${li._it.j.name} is not let in. You can restore them from Settings.` }),
           () => Core.joinAct(li._it.j.pid, "decline").then(() => flash(`${li._it.j.name} was not let in. Restore them from Settings if that was a mistake.`)).catch(fail))),
         qAct("Let in", "vf-btn-primary", () => Core.joinAct(li._it.j.pid, "admit").then(() => flash(`${li._it.j.name} is in.`)).catch(fail)));
+      // Claude only proposes: nothing merges or lets anyone in until the owner taps Merge or Let in here.
+      if (it.t === "people" && owner) {
+        const c = () => li._it.c, act = a => Core.claudeProposalAct(c().id, a);
+        a.push(qAct(it.c.kind === "merge" ? "Not the same person" : "Dismiss", "vf-btn-ghost", () => act("dismiss").then(() => flash("Dismissed.")).catch(fail)));
+        a.push(it.c.kind === "admit" ? qAct("Let in", "vf-btn-primary", () => act("approve").then(() => flash(`${c().name} is in.`)).catch(fail))
+          : qAct("Merge", "vf-btn-primary", () => act("approve").then(() => flash(`Merged into ${c().toName}.`)).catch(fail)));
+      }
       k.acts.replaceChildren(...a);
       k.acts.hidden = !a.length;
     }

@@ -244,6 +244,12 @@
           "maximum": 45,
           "default": 40,
           "description": "Minutes the report waits for the one re-run of a red full run to finish; a run with no finished re-run is not confirmed red."
+        },
+        "remedy": {
+          "type": "string",
+          "enum": ["rollback", "fail-forward"],
+          "default": "rollback",
+          "description": "How a pinned culprit is repaired. rollback: the revert rule decides who reverts it. fail-forward: no revert is planned, and a person or a fix pull request repairs main."
         }
       }
     },
