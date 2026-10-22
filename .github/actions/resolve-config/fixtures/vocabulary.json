@@ -20,6 +20,7 @@
   },
   "verbs": [
     "address",
+    "apply",
     "check",
     "explain",
     "fix",

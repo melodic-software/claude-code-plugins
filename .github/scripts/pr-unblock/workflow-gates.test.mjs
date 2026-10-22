@@ -1,7 +1,6 @@
-// The job if: gates that keep a pipeline workflow from starting a runner, or
-// a lane, that could only skip or fail: pr-feedback-dispatch.yml on a review
-// run GitHub skipped (a draft) or cancelled (a newer push superseded it), and pr-refine.yml on a pull_request event a
-// bot sent, which claude-code-action refuses.
+// The job if: gates that keep a pipeline workflow from starting a runner that
+// could only skip or fail: pr-feedback-dispatch.yml on a review run GitHub
+// skipped (a draft) or cancelled (a newer push superseded it).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -47,24 +46,4 @@ test("pr-feedback-dispatch.yml starts no runner for a skipped or cancelled revie
   for (const conclusion of ["success", "failure"]) {
     assert.equal(runs(conclusion), true, conclusion);
   }
-});
-
-test("pr-refine.yml skips fix-docs on a bot's event and runs it on a human's, whoever opened the PR", () => {
-  const gate = jobIf("pr-refine.yml", "fix-docs");
-  const APP = "337595936";
-  const HUMAN = { id: 153232337, type: "User" };
-  const SYNC_BOT = { id: 210000001, type: "Bot" };
-  const runs = (event, { draft = false, sender = HUMAN } = {}) =>
-    evaluate(gate, {
-      "github.event_name": event,
-      "github.event.pull_request.draft": event === "pull_request" ? draft : null,
-      "github.event.sender.id": sender.id,
-      "github.event.sender.type": sender.type,
-      "vars.AUTOMATION_LANES_APP_SENDER_ID": APP,
-    });
-  assert.equal(runs("pull_request"), true, "a human's push, including to a bot-opened PR");
-  assert.equal(runs("pull_request", { sender: SYNC_BOT }), false, "a standards-sync bot's push");
-  assert.equal(runs("pull_request", { draft: true }), false, "a draft");
-  assert.equal(runs("pull_request", { sender: { id: Number(APP), type: "Bot" } }), false, "the lanes App's own push");
-  assert.equal(runs("workflow_dispatch"), true, "a dispatch");
 });

@@ -1,0 +1,7 @@
+{
+  "name": "branch-cleanup",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

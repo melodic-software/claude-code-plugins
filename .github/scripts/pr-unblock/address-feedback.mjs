@@ -597,6 +597,21 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
     async getCommit(sha) {
       return (await request(`${repo}/commits/${sha}`)).data;
     },
+    // A file's text at `ref` through the raw media type, which serves files
+    // over 1 MB (docs.github.com/en/rest/repos/contents#get-repository-content,
+    // as of 2026-10-21; recheck when that section changes its size limits);
+    // null when the path is absent.
+    async getText(path, ref) {
+      const url = `${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(ref)}`;
+      const response = await fetch(url, { headers: { ...headers, Accept: "application/vnd.github.raw+json" } });
+      if (response.status === 404) {
+        return null;
+      }
+      if (!response.ok) {
+        throw new Error(`GET ${url} returned ${response.status}`);
+      }
+      return response.text();
+    },
     async listThreads(pr) {
       const nodes = [];
       let after = null;

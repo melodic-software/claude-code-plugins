@@ -3,6 +3,20 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.4] - 2026-10-22
+
+### Fixed
+
+- **`block-unresolved-pr-merge` no longer reports a superseded contract-only `ci-status` as failing (#8716).** When a full run is in flight on the head, the contract-only `ci-status` run fails with the annotation `superseded by full run <url>/actions/runs/<id> in flight on <sha>`, and the guard counted that red run as `Failing checks: ci-status`. A failed run whose only failure annotations are that marker for the PR's head and the runner's `Process completed with exit code <n>.` line no longer counts: the named full run's `ci-status` decides, and until that run exists the check is pending, so an immediate merge waits and an auto-merge or merge-queue request goes ahead. Any other failure annotation, such as a contract step's own error, leaves the failure standing. The guard reads annotations only for failed check runs, three at most; a failed read leaves the failure standing.
+
+- A guard row launched through `exec-bash.mjs` now blocks (exit 2) when its bash child crashes or is killed, instead of exiting 1 and letting the tool call through. Every `run-guards.sh` row in `hooks.json` passes the new opt-in `--fail-closed` flag, so a non-zero exit other than 2 (such as 139 from a SIGSEGV), a signal death, or a spawn error denies the call with one stderr line naming the script and the cause. A missing bash still exits 1. Under `--fail-closed` on Windows, where Git Bash reports a signal death as an exit code (2816 for SIGSEGV), the line names the signal.
+
+- **`block-unresolved-pr-merge` no longer refuses a read-only command that names "PR Merge" in prose beside a backtick (#8657).** The backtick refusal matched `pr merge` anywhere in the text, so a `jq` filter testing for "Gated PR Merge" next to a backtick in a `grep` pattern, or a heredoc `gh issue comment --body-file -` body that named the guard and used a backtick, was refused as a merge. A `pr merge` now counts only when the word before `pr` is `gh` once quotes and backslashes are dropped (`gh`, `/usr/bin/gh`, `gh.exe`, `g""h`), or holds a `$` or backtick so the command word cannot be read (`$GH`, `gh${IFS}pr`); those still fail closed. Words bash drops before argv are stepped over first, so empty quotes or a backslash glued to `pr` (`gh ''pr`, `gh \pr`) and a redirection between `gh` and `pr` (`gh 2>&1 pr`, `gh > /dev/null pr`, `gh</dev/null pr`) still read as gh. The REST merge route and GraphQL mutation names still refuse wherever they appear.
+
+### Security
+
+- Secret-pattern detection now blocks a stateless GitHub App installation token (`ghs_` followed by a JWT, with no app id) whose JWT header holds a `-` or `_`, using GitHub's recommended `ghs_` regex.
+
 ## [0.55.3] - 2026-10-20
 
 ### Fixed

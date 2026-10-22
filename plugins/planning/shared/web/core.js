@@ -205,7 +205,7 @@
       const src = lk.source || {}, sug = src.kind === "suggestion" ? (s.suggestions?.[qid] || []).find(x => x.id === src.suggestion) : null;
       const ref = src.kind === "card" ? src.card : src.kind === "edited" && /^[pco]:/.test(src.from || "") ? src.from : sug ? "p:" + sug.pid : "";
       const kind = ref.split(":")[0];
-      view.locks[qid] = { text: plain(src.text || ""), answerCid: authorCid(qid, ref), by: nameOf(lk.by), ts: lk.at, edited: src.kind === "edited", hostEdited: !!src.editedBy,
+      view.locks[qid] = { text: plain(src.text || ""), answerCid: authorCid(qid, ref), by: nameOf(lk.by), ts: lk.at, edited: src.kind === "edited", hostEdited: !!src.editedBy, ...attOf(src),
         name: kind === "c" ? "Claude" : kind === "o" ? "Option" : kind === "p" ? nameOf(ref.split(":")[1]) : "", poll: src.kind === "poll" };
     }
     for (const [qid, lst] of Object.entries(s.suggestions || {})) {
@@ -1114,7 +1114,7 @@
     if (c) c.votes = on ? [...without(c.votes, pid), pid] : without(c.votes, pid);
     // On choice, backing someone's own option moves my one pick there (session.py vote).
     if (on && fmtOf(s, qid).kind === "choice") {
-      s.cards[qid] = cards.filter(x => !(x.kind === "person" && x.pid === pid && (x.pick === "other" || !x.text)));
+      s.cards[qid] = cards.filter(x => !(x.kind === "person" && x.pid === pid && (x.pick === "other" || !(x.text || x.attachments))));
       for (const x of s.cards[qid]) if (x.kind === "person" && x.pid === pid) delete x.pick;
     }
   }
