@@ -31,8 +31,8 @@ Observed behavior: `CLAUDE_PLUGIN_DATA` is present in the environment of command
 Pass both explicitly to the orchestrator, as `$reportRoot` and `$stateRoot` from the roots block. Never write generated state into the plugin's own install directory. A plugin update replaces it.
 
 **Roots block.** Every PowerShell command in this skill is this block, copied unchanged, with the
-command appended to its last line after `; `. Never type a path into a quoted string. Claude Code
-substitutes the three tokens when it loads this file; each value lands on its own line inside a
+command appended to its last line after a semicolon. Never type a path into a quoted string. The
+three tokens are filled in as the pointer below records; each value lands on its own line inside a
 single-quoted here-string, behind a `|` that no closing quote can follow, so no character in a path
 reaches the parser as code. The block applies the resolution table above, including both
 fallbacks. A root holding a line break is not a path: stop and report it.
@@ -42,7 +42,7 @@ $skillRoot, $stateRoot, $reportRoot = @'
 |${CLAUDE_PLUGIN_ROOT}/skills/audit
 |${CLAUDE_PLUGIN_DATA}
 |${user_config.report_dir}
-'@ -split '\r?\n' | ForEach-Object { $_.Substring(1) }; $unset = '^(\$\{|\s*$)'; if ($reportRoot -match $unset) { $reportRoot = Join-Path $env:USERPROFILE 'Documents\MachineHealth' }; if ($stateRoot -match $unset) { Write-Warning 'The plugin data folder did not resolve; state goes under the report root.'; $stateRoot = $reportRoot }
+'@ -split '\r?\n' | ForEach-Object { $_.Substring(1) }; $unset = '^(\$\{|[ 	]*$)'; if ($reportRoot -match $unset) { $reportRoot = Join-Path $env:USERPROFILE 'Documents\MachineHealth' }; if ($stateRoot -match $unset) { Write-Warning 'The plugin data folder did not resolve; state goes under the report root.'; $stateRoot = $reportRoot }
 ```
 
 - **Pointer**: skill content substitution of the plugin paths and of `${user_config.KEY}` is in
@@ -98,7 +98,7 @@ Routing table:
 4. **Invoke the OS orchestrator.** Run through the PowerShell tool the [roots block](#resolving-output-locations-do-this-first) with the command below appended, `weekly` replaced by the run mode, adding `-DryRun` for `--dry-run`:
 
    ```powershell
-   & (Join-Path $skillRoot 'scripts\windows\Invoke-MachineHealthCheck.ps1') -OutputBase $reportRoot -StateBase $stateRoot -RunMode weekly
+   & (Join-Path $skillRoot 'scripts/windows/Invoke-MachineHealthCheck.ps1') -OutputBase $reportRoot -StateBase $stateRoot -RunMode weekly
    ```
 
    The orchestrator dispatches checks under per-check 90s timeouts, collects JSON results, applies the upward-only trend adjustments and the custom-check clamp, and, on non-dry runs, dispatches authorized remediations with before/after logging.
@@ -131,7 +131,7 @@ functions take the record and rebuild it from the state root and the hash.
 2. **Prepare.** On interest, run:
 
    ```powershell
-   . (Join-Path $skillRoot 'scripts\windows\lib\New-ElevatedLaunch.ps1'); $l = New-ElevatedLaunch -OutputBase $reportRoot -StateBase $stateRoot; $l | Format-List; Get-Content -Raw -LiteralPath $l.ScriptPath
+   . (Join-Path $skillRoot 'scripts/windows/lib/New-ElevatedLaunch.ps1'); $l = New-ElevatedLaunch -OutputBase $reportRoot -StateBase $stateRoot; $l | Format-List; Get-Content -Raw -LiteralPath $l.ScriptPath
    ```
 
    It refuses a root holding a control character or a single quote, since the elevated script
@@ -145,16 +145,18 @@ functions take the record and rebuild it from the state root and the hash.
 4. **Launch.** On yes, run as a background command, with `<ScriptSha256>` replaced by the shown hash:
 
    ```powershell
-   . (Join-Path $skillRoot 'scripts\windows\lib\New-ElevatedLaunch.ps1'); Start-ElevatedLaunch -Launch (Get-ElevatedLaunch -StateBase $stateRoot -ScriptSha256 <ScriptSha256>)
+   . (Join-Path $skillRoot 'scripts/windows/lib/New-ElevatedLaunch.ps1'); Start-ElevatedLaunch -Launch (Get-ElevatedLaunch -StateBase $stateRoot -ScriptSha256 <ScriptSha256>)
    ```
 
    and wait for its completion notice, which comes after the owner's UAC answer and every
    admin-gated check. Launch nothing else elevated, and never retry with a changed script: prepare
    again and ask again.
-5. **Import.** When it completes, run as a background command:
+5. **Import.** When it completes, run as a background command, adding `-DryRun` when the audit
+   was a dry run (`--dry-run`, or RunMode `first-run`), so approving the pass never enables a
+   remediation the original run held back:
 
    ```powershell
-   . (Join-Path $skillRoot 'scripts\windows\lib\New-ElevatedLaunch.ps1'); $l = Get-ElevatedLaunch -StateBase $stateRoot -ScriptSha256 <ScriptSha256>; & (Join-Path $skillRoot 'scripts\windows\Invoke-MachineHealthCheck.ps1') -OutputBase $reportRoot -StateBase $stateRoot -RunMode on-demand -ElevatedResultPath $l.ResultPath
+   . (Join-Path $skillRoot 'scripts/windows/lib/New-ElevatedLaunch.ps1'); $l = Get-ElevatedLaunch -StateBase $stateRoot -ScriptSha256 <ScriptSha256>; & (Join-Path $skillRoot 'scripts/windows/Invoke-MachineHealthCheck.ps1') -OutputBase $reportRoot -StateBase $stateRoot -RunMode on-demand -ElevatedResultPath $l.ResultPath
    ```
 
    then summarize as in step 8, naming the checks listed in `latest.json`'s `elevated_checks`, or
