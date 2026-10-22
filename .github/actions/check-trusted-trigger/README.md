@@ -15,7 +15,7 @@ condition 1 and the actor and author parts of condition 2).
 | `event-path` | `${{ github.event_path }}` | The event payload file |
 | `trusted-actors-path` | `.base/.github/standards/trusted-actors/trusted-actors.json` | The list, from the base-SHA checkout |
 | `pr-number` | empty | The PR on `workflow_dispatch`; ignored otherwise |
-| `github-token` | `${{ github.token }}` | Reads this run's own record on every path, and the PR on `workflow_dispatch` and `workflow_run` |
+| `github-token` | `${{ github.token }}` | Reads this run's own record on every path, the PR on `workflow_dispatch` and `workflow_run`, and its branch ref on `workflow_dispatch` |
 | `denied-actor-ids` | empty | Comma- or space-separated user ids that stop the lane with `bot-actor` |
 | `triggering-actor` | `${{ github.triggering_actor }}` | The login that started this run attempt; only routes `github-actions[bot]` to the reconciler check |
 | `dispatcher-run-id` | empty | The dispatcher run that sent a `github-actions[bot]` `workflow_dispatch`; empty keeps today's rules |
@@ -38,7 +38,10 @@ condition 1 and the actor and author parts of condition 2).
 - **`pull_request`.** Same repository when `pull_request.head.repo.full_name` equals the
   repository; a null head repo is a fork. Actor is `sender`.
 - **`workflow_dispatch`.** Fetches the PR named by `pr-number`; a null head repo is a fork.
-  Actor is `sender`.
+  Actor is `sender`. `GET /pulls` can lag a push by minutes, so a same-repository PR is re-read
+  after 5, 10, 20 and 25 s until its `head.sha` equals its branch ref; if they never agree, or
+  the branch ref is missing, the lane stops with `head-lag` rather than gate a stale head; a failed
+  read stops with `no-pr`. A fork's ref is not read.
 - **Dispatcher-sent `workflow_dispatch`.** A dispatch made with `GITHUB_TOKEN` names
   `github-actions[bot]` (id 41898282) as sender, actor and triggering actor, and nothing on the
   run names who started the dispatcher. When `sender.id` is 41898282 and `dispatcher-run-id` is
@@ -193,10 +196,10 @@ that cannot stops it with `untrusted-rerunner`.
 | Output | Values |
 |---|---|
 | `proceed` | `true` or `false` |
-| `reason` | `ok`, `fork`, `no-pr`, `bot-actor`, `untrusted-actor`, `untrusted-rerunner`, `untrusted-author`, `list-unreadable` |
+| `reason` | `ok`, `fork`, `no-pr`, `head-lag`, `bot-actor`, `untrusted-actor`, `untrusted-rerunner`, `untrusted-author`, `list-unreadable` |
 | `pr-number`, `head-ref`, `head-sha`, `base-sha` | The resolved PR; empty unless `proceed` is `true` |
 
-Reasons are checked in the order list and denied ids, event and PR, fork, denied actor, actor,
+Reasons are checked in the order list and denied ids, event and PR, head lag, fork, denied actor, actor,
 re-runner, author. Every failure, including
 an unreadable payload or a failed API call, ends in `proceed=false`, and the step always exits 0.
 Set `CLAUDE_BRANCH` for the model step from `head-ref`, and record `head-sha` before the model runs

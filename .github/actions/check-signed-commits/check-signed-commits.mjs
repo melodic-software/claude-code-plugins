@@ -6,51 +6,13 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../check-kill-switch/check-kill-switch.mjs";
-import { createGitHub, paginate } from "../check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, paginate, readPull } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
 const SHA = /^[0-9a-f]{40}$/;
 const LISTED_COMMITS_CAP = 250;
-// GET /pulls can lag a push by minutes, so the PR is re-read until its head
-// matches the branch ref, after each of these waits in turn (60 s in all).
-const HEAD_READ_DELAYS_MS = [5000, 10_000, 20_000, 25_000];
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-// The SHA the PR's head branch points at, or null when it cannot be read.
-async function headRefSha(github, pull) {
-  const repository = pull.head?.repo?.full_name ?? "";
-  const ref = pull.head?.ref;
-  if (!REPOSITORY.test(repository) || typeof ref !== "string" || ref === "") {
-    return null;
-  }
-  const encoded = ref.split("/").map(encodeURIComponent).join("/");
-  try {
-    const sha = (await github("GET", `/repos/${repository}/git/ref/heads/${encoded}`))?.object?.sha;
-    return SHA.test(sha ?? "") ? sha : null;
-  } catch (error) {
-    if (error?.status === 404) {
-      return null;
-    }
-    throw error;
-  }
-}
-
-// The PR, re-read until its head SHA is the branch ref's. `headConfirmed` is
-// false when they never agree: a stale head would hide the lane's commits.
-async function readPull(github, base, prNumber, sleep) {
-  for (let read = 0; ; read += 1) {
-    const pull = await github("GET", `${base}/pulls/${prNumber}`);
-    const refSha = await headRefSha(github, pull);
-    if (refSha !== null && refSha === pull.head?.sha) {
-      return { pull, headConfirmed: true };
-    }
-    if (read === HEAD_READ_DELAYS_MS.length) {
-      return { pull, headConfirmed: false };
-    }
-    await sleep(HEAD_READ_DELAYS_MS[read]);
-  }
-}
 
 // The comparison `sinceSha...headSha` when `sinceSha` is a well-formed SHA
 // GitHub knows as an ancestor of the head; otherwise null. `complete` is false

@@ -169,12 +169,63 @@ class Stop extends Error {
   }
 }
 
-async function fetchPull(github, repository, number) {
+const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
+// GET /pulls can lag a push by minutes, so the PR is re-read until its head
+// matches the branch ref, after each of these waits in turn (60 s in all).
+const HEAD_READ_DELAYS_MS = [5000, 10_000, 20_000, 25_000];
+
+// The SHA the PR's head branch points at, or null when it cannot be read.
+async function headRefSha(github, pull) {
+  const repository = pull.head?.repo?.full_name ?? "";
+  const ref = pull.head?.ref;
+  if (!REPOSITORY.test(repository) || typeof ref !== "string" || ref === "") {
+    return null;
+  }
+  const encoded = ref.split("/").map(encodeURIComponent).join("/");
   try {
-    return await github("GET", `/repos/${repository}/pulls/${number}`);
+    const sha = (await github("GET", `/repos/${repository}/git/ref/heads/${encoded}`))?.object?.sha;
+    return SHA.test(sha ?? "") ? sha : null;
+  } catch (error) {
+    if (error?.status === 404) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+// The PR, re-read until its head SHA is the branch ref's. `headConfirmed` is
+// false when they never agree, or at once for a PR `confirmable` rejects.
+export async function readPull(github, base, prNumber, sleep, confirmable = () => true) {
+  for (let read = 0; ; read += 1) {
+    const pull = await github("GET", `${base}/pulls/${prNumber}`);
+    if (!confirmable(pull)) {
+      return { pull, headConfirmed: false };
+    }
+    const refSha = await headRefSha(github, pull);
+    if (refSha !== null && refSha === pull.head?.sha) {
+      return { pull, headConfirmed: true };
+    }
+    if (read === HEAD_READ_DELAYS_MS.length) {
+      return { pull, headConfirmed: false };
+    }
+    await sleep(HEAD_READ_DELAYS_MS[read]);
+  }
+}
+
+// A dispatched run's PR, its head confirmed against the branch ref; a fork's
+// is not waited on, since the fork check stops it.
+async function fetchPull(github, repository, number, sleep) {
+  const sameRepo = (pull) => pull.head?.repo?.full_name === repository;
+  let read;
+  try {
+    read = await readPull(github, `/repos/${repository}`, number, sleep, sameRepo);
   } catch {
     throw new Stop("no-pr");
   }
+  if (!read.headConfirmed && sameRepo(read.pull)) {
+    throw new Stop("head-lag");
+  }
+  return read.pull;
 }
 
 // The PR a workflow_run belongs to. An empty `pull_requests` array is not a
@@ -699,7 +750,7 @@ export async function evaluateTrigger({
     if (!PR_NUMBER.test(prNumber ?? "")) {
       throw new Stop("no-pr");
     }
-    pull = await fetchPull(github, repository, prNumber);
+    pull = await fetchPull(github, repository, prNumber, sleep);
   } else if (eventName === "workflow_run") {
     const run = event.workflow_run;
     if (run?.head_repository?.full_name !== repository) {
