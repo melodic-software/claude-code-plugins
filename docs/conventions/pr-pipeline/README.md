@@ -1726,8 +1726,8 @@ and only for attempt 1 of a red `pr-require-checks.yml` run on this repository's
 `failure`, `timed_out`, `cancelled`, `startup_failure` or `action_required`, so a run cancelled
 on a time-budget overrun files its record and fix issues too; only a `failure` reaches this
 report (rule 1). A red run gets its one re-run from pr-merge's `post-merge-dispatch` job when it
-is inside a lane merge's attribution window, or is under 90 minutes old and demotes by the
-affected-set rule; any other red run gets none. Both jobs
+is inside a lane merge's attribution window, or was created within `confirm-wait-minutes` plus
+50 minutes (90 by default) and demotes by the affected-set rule; any other red run gets none. Both jobs
 wait for a re-run for up to `confirm-wait-minutes`, so the record, its fix issues and this report
 follow the merge instead of the next scheduled run. A dispatched red, whether its re-run failed or
 never finished within that wait, files nothing once a newer `pr-require-checks` run on this

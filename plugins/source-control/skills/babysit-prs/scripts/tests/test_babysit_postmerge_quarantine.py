@@ -20,7 +20,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest import mock
 
@@ -117,13 +117,17 @@ class AffectedBase(CheckCase):
         )
         self.affected_calls = patcher.start()
         self.addCleanup(patcher.stop)
-        # merge.quarantine-days at its default (QuarantineDaysConfig reads it).
+        # merge.quarantine-days and red-main.confirm-wait-minutes at their
+        # defaults (QuarantineDaysConfig and ConfirmWaitConfig read them).
         patcher = mock.patch.object(
             pm.policy,
             "read_config_at",
-            return_value=mock.Mock(quarantine_days=policy.QUARANTINE_DAYS),
+            return_value=mock.Mock(
+                quarantine_days=policy.QUARANTINE_DAYS,
+                confirm_wait_minutes=policy.CONFIRM_WAIT_MINUTES,
+            ),
         )
-        patcher.start()
+        self.read_config = patcher.start()
         self.addCleanup(patcher.stop)
         self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
         # The last green full run before the red one, at OTHER_SHA.
@@ -530,8 +534,29 @@ class LaneRerunOutsideAWindow(AffectedBase):
         self.lane_red(bash_log((TOUCHED, False)), run_attempt=2)
         self.assertEqual(self.lane_reruns(self.lane_check()), [])
 
-    def test_a_red_older_than_the_alerts_wait_gets_no_rerun(self) -> None:
-        self.lane_red(bash_log((TOUCHED, False)), created_at="2026-10-12T09:00:00Z")
+    def created(self, minutes_ago: int) -> str:
+        return (self.NOW - timedelta(minutes=minutes_ago)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+
+    def test_a_red_just_inside_the_lookback_is_marked(self) -> None:
+        # The default lookback: confirm-wait-minutes (40) plus 50.
+        self.lane_red(bash_log((TOUCHED, False)), created_at=self.created(89))
+        self.assertEqual(self.lane_reruns(self.lane_check()), [(11, True)])
+
+    def test_a_red_just_outside_the_lookback_gets_no_rerun(self) -> None:
+        self.lane_red(bash_log((TOUCHED, False)), created_at=self.created(91))
+        self.assertEqual(self.lane_reruns(self.lane_check()), [])
+
+    def test_the_lookback_follows_a_raised_confirm_wait(self) -> None:
+        # At 45 the lookback is 95 minutes, so a 91-minute-old red is marked.
+        self.read_config.return_value.confirm_wait_minutes = 45
+        self.lane_red(bash_log((TOUCHED, False)), created_at=self.created(91))
+        self.assertEqual(self.lane_reruns(self.lane_check()), [(11, True)])
+
+    def test_the_lookback_follows_a_lowered_confirm_wait(self) -> None:
+        self.read_config.return_value.confirm_wait_minutes = 10
+        self.lane_red(bash_log((TOUCHED, False)), created_at=self.created(61))
         self.assertEqual(self.lane_reruns(self.lane_check()), [])
 
     def test_a_red_the_lane_did_not_dispatch_gets_no_rerun(self) -> None:
@@ -762,6 +787,38 @@ class QuarantineDaysConfig(unittest.TestCase):
                 config = self.config(f"  quarantine-days: {bad}\n")
                 self.assertEqual(config.quarantine_days, 7)
                 self.assertTrue(any("quarantine-days" in n for n in config.notes))
+
+
+class ConfirmWaitConfig(unittest.TestCase):
+    def config(self, text: str) -> policy.PipelineConfig:
+        return policy.read_config_at(
+            REPO,
+            "a" * 40,
+            file_at=lambda path, sha: text if path == policy.CONFIG_PATH else None,
+        )
+
+    def test_confirm_wait_minutes_is_read_and_defaults_to_40(self) -> None:
+        base = "version: 2\nmerge:\n  rung: C2\n"
+        read = lambda line: self.config(f"{base}red-main:\n{line}")  # noqa: E731
+        self.assertEqual(read("  confirm-wait-minutes: 0\n").confirm_wait_minutes, 0)
+        self.assertEqual(read("  confirm-wait-minutes: 45\n").confirm_wait_minutes, 45)
+        self.assertEqual(self.config(base).confirm_wait_minutes, 40)
+        for bad in ("46", "x", "-1", "07", "4000000"):
+            with self.subTest(bad):
+                config = read(f"  confirm-wait-minutes: {bad}\n")
+                self.assertEqual(config.confirm_wait_minutes, 40)
+                self.assertTrue(any("confirm-wait-minutes" in n for n in config.notes))
+
+    def test_the_repositorys_config_gives_a_90_minute_lane_rerun_lookback(
+        self,
+    ) -> None:
+        root = pathlib.Path(__file__).resolve().parents[6]
+        text = (root / policy.CONFIG_PATH).read_text(encoding="utf-8")
+        ctx = pm._Context("o", "r", IDENTITY, branch_tip="a" * 40)
+        with mock.patch.object(
+            pm.policy, "read_config_at", return_value=self.config(text)
+        ):
+            self.assertEqual(ctx.lane_rerun_lookback(), timedelta(minutes=90))
 
 
 if __name__ == "__main__":

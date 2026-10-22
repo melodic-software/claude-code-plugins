@@ -95,12 +95,13 @@ LANE_RERUN_ARTIFACT = "pr-merge-rerun-"
 LANE_DISPATCH_EVENTS = frozenset({"schedule", "workflow_dispatch", "push"})
 LANE_RERUN_EVENTS = frozenset({"schedule", "workflow_dispatch"})
 # With `--lane-merges-only`, a red attempt 1 of a lane-dispatched full run
-# created this recently, with a newly failing check that demotes
-# (`_Context.regressions`), gets that re-run even when no lane merge it
-# covers is judged. post-merge-demotion-alert.yml waits
-# red-main.confirm-wait-minutes (40) after such a run ends for it; a full run
-# takes about 20 more, and a later re-run changes no filing.
-LANE_RERUN_LOOKBACK = timedelta(minutes=90)
+# created within red-main.confirm-wait-minutes plus this, with a newly failing
+# check that demotes (`_Context.regressions`), gets that re-run even when no
+# lane merge it covers is judged (`_Context.lane_rerun_lookback`).
+# post-merge-demotion-alert.yml waits confirm-wait-minutes after such a run
+# ends for it, and a later re-run changes no filing; this covers the run
+# itself (about 20 minutes) with margin (judgment).
+FULL_RUN_ALLOWANCE = timedelta(minutes=50)
 DISPATCH_DEADLINE = timedelta(hours=6)
 DEMOTION_FILERS = ("github-actions[bot]",)
 HUMAN_GATED_ROLE = "human-gated"
@@ -776,6 +777,9 @@ class _Context:
     # read at the red run's head the first time it is needed).
     now: datetime = field(default_factory=lambda: datetime.now(UTC))
     quarantine_days: int | None = None
+    # `red-main.confirm-wait-minutes` plus FULL_RUN_ALLOWANCE (None: read at
+    # the branch tip the first time it is needed).
+    lane_rerun_window: timedelta | None = None
     # The failed jobs of each attempt by check name, and each job's suites.
     check_jobs: dict[tuple[int, int], dict[str, dict[str, Any]]] = field(
         default_factory=dict
@@ -951,6 +955,14 @@ class _Context:
                 f"{self.owner}/{self.name}", sha
             ).quarantine_days
         return self.quarantine_days
+
+    def lane_rerun_lookback(self) -> timedelta:
+        if self.lane_rerun_window is None:
+            wait = policy.read_config_at(
+                f"{self.owner}/{self.name}", self._branch_tip()
+            ).confirm_wait_minutes
+            self.lane_rerun_window = timedelta(minutes=wait) + FULL_RUN_ALLOWANCE
+        return self.lane_rerun_window
 
     def _quarantine_issues(self) -> dict[str, dict[str, Any]]:
         """Each suite's newest open quarantine issue that a filer opened
@@ -1434,7 +1446,7 @@ def _judge(
 
 def _lane_reruns(ctx: _Context, now: datetime, tally: _Tally) -> list[str]:
     """Mark each red attempt 1 of a lane-dispatched full run created within
-    LANE_RERUN_LOOKBACK, with a newly failing check that demotes, for the
+    `_Context.lane_rerun_lookback`, with a newly failing check that demotes, for the
     lane's one re-run, newest first after any a judged merge marked. A run
     at attempt 2 is never marked again. The probe files no quarantine (the
     alert's `--judge-run` does), and a failed read is a warning, not an
@@ -1447,15 +1459,14 @@ def _lane_reruns(ctx: _Context, now: datetime, tally: _Tally) -> list[str]:
             FULL_RUN_WORKFLOW,
             "workflow_dispatch",
             ctx.branch,
-            now - LANE_RERUN_LOOKBACK,
+            now - ctx.lane_rerun_lookback(),
         )
         for run in sorted(runs, key=lambda r: r.created_at, reverse=True):
             if (
                 run.id not in tally.reruns
                 and run.attempt == 1
-                and run.actor == LANE_DISPATCH_ACTOR
-                and ctx.outcome(run, attributable=True)[0] == RERUN
                 and ctx.lane_dispatched(run)
+                and ctx.outcome(run, attributable=True)[0] == RERUN
                 and ctx.regressions(SIGNAL_DISPATCH, run, run.created_at)
             ):
                 tally.reruns[run.id] = Rerun(
