@@ -163,7 +163,7 @@ class TestStopStatusUrl(Running):
         code, st, _ = share(self.d, "status")
         self.assertEqual(code, 0)
         self.assertEqual((st["running"], st["tunnel"], st["guestUrl"], st["people"]["joined"]), (True, "quick", self.first["guestUrl"], 1))
-        self.assertEqual(sorted(st), ["guestUrl", "intro", "lease", "ok", "people", "queue", "round", "running", "tunnel", "unhandled"])
+        self.assertEqual(sorted(st), ["guestUrl", "intro", "lease", "lives", "ok", "people", "queue", "round", "running", "tunnel", "unhandled"])
 
     def test_status_says_whether_the_intro_is_set_running_or_stopped(self):
         """lane-shared.md Start step 5 reads `intro` from `share.sh status` to know whether to draft one."""
