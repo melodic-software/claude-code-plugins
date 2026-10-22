@@ -146,8 +146,8 @@ Emitted by the orchestrator at the end of every run. Overwrites the previous sna
   "urls_called": ["https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"],
   "duration_seconds": 247,
   "run_stamp": "2026-04-27T130000000Z",
-  "report_path": "X:\\Profile\\Documents\\MachineHealth\\reports\\health-2026-04-27T130000000Z.md",
-  "page_path": "X:\\Profile\\StateBase\\views\\checkup-2026-04-27T130000000Z.html",
+  "report_path": "X:/Profile/Documents/MachineHealth/reports/health-2026-04-27T130000000Z.md",
+  "page_path": "X:/Profile/StateBase/views/checkup-2026-04-27T130000000Z.html",
   "cadence_deferred_count": 0
 }
 ```
