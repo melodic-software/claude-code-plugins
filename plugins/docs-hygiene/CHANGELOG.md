@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [2.0.2] - 2026-10-22
+
+### Fixed
+
+- The derivability followups list names `plugins/ai-briefing/skills/generate/reference/build-pipeline.md`, the directory's current name, instead of the renamed `references/`.
+
 ## [2.0.1] - 2026-10-22
 
 ### Fixed

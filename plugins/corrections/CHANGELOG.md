@@ -3,6 +3,12 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0] - 2026-10-22
+
+### Added
+
+- `/corrections:codify note` appends one observation to the findings buffer, and `/corrections:codify group` reads the buffer and groups its rows by mistake, showing each group's count next to the recurrence threshold. `group` writes nothing.
+
 ## [0.5.0] - 2026-10-22
 
 ### Changed
