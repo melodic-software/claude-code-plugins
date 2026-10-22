@@ -328,6 +328,19 @@ activities:
     reads-untrusted: true
     # The closed issue; the hourly sweep takes none and lists recent closes.
     inputs: [issue]
+  apply-verdict:
+    # After intake triage, writes its verdict as the lanes App: the work-class
+    # label, the Size, Complexity and Uncertainty issue fields, and
+    # `status: ready` or `status: needs-decision`, read from the lane comment
+    # the triage run posted. Never agent-ready. A script, no model.
+    # .github/workflows/intake-triage.yml runs it.
+    script: .github/scripts/intake-triage/apply-verdict.mjs
+    # Labels issues, sets issue fields and edits the lane comment; nothing else.
+    effect: mutate-tracker
+    gating: advisory
+    # Reads the lane comment, which carries model text.
+    reads-untrusted: true
+    inputs: [issue]
 
 lanes:
   # Started by the agent-ready label on an issue (.github/workflows/work-resolve-issue.yml).
@@ -380,6 +393,12 @@ lanes:
     stage: work
     slots:
       - activity: label-unblocked
+  # Started by intake triage on an opened issue or its dispatch
+  # (.github/workflows/intake-triage.yml).
+  intake-triage:
+    stage: intake
+    slots:
+      - activity: apply-verdict
 
 # The model, effort and turn budget of every model run (README.md, Models).
 # Aliases only, never full model IDs. `default` passes no --model, so the

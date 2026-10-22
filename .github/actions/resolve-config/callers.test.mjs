@@ -249,6 +249,54 @@ test("intake-triage.yml: a dispatch runs only from main and passes the gate's id
   }
 });
 
+test("intake-triage.yml: apply-verdict writes as the lanes App only after a triage that ran, for the issue it triaged", () => {
+  const { jobs } = workflow("intake-triage.yml");
+  const job = jobs["apply-verdict"];
+  assert.deepEqual(job.needs, ["born-triaged", "intake-triage"]);
+  assert.deepEqual(job.permissions, { contents: "read", "id-token": "write" });
+  assert.equal(job.concurrency["cancel-in-progress"], false);
+  assert.notEqual(job.concurrency.group, jobs["intake-triage"].concurrency.group, "its own concurrency group");
+  const runs = (result, failed) => evaluate(job.if, { "needs.intake-triage.result": result, "needs.intake-triage.outputs.triage-failed": failed });
+  assert.equal(runs("success", "false"), true);
+  assert.equal(runs("success", ""), true);
+  assert.equal(runs("success", "true"), false, "a triage that did not run writes nothing");
+  assert.equal(runs("failure", "false"), false, "a failed apply writes nothing");
+  assert.equal(runs("skipped", ""), false);
+
+  const gate = jobs["born-triaged"];
+  assert.equal(gate.outputs["started-at"], "${{ steps.started.outputs.at }}");
+  assert.equal(gate.steps[0].id, "started", "the start time is taken before the triage runs");
+
+  const step = (id) => job.steps.find((s) => s.id === id);
+  const checkout = job.steps.find((s) => s.uses?.startsWith("actions/checkout@"));
+  assert.equal(checkout.with.ref, "refs/heads/main");
+  assert.equal(step("who").if, "steps.kill.outputs.proceed == 'true'");
+  assert.match(step("who").run, /apply-verdict\.mjs --check$/);
+  assert.equal(step("config").if, "steps.who.outputs.proceed == 'true'");
+  assert.equal(step("config").with.lane, "intake-triage");
+  assert.equal(step("config").with.activity, "apply-verdict");
+  const token = step("lane-token");
+  assert.equal(token.with.lane, "intake-triage");
+  assert.equal(token.with.activity, "apply-verdict");
+  assert.equal(token.with["issue-number"], "${{ format('{0}', github.event.issue.number || inputs.issue-number) }}");
+  assert.equal(token.with["pr-number"], undefined);
+  const write = job.steps.find((s) => s.name === "Write the verdict");
+  assert.equal(write.env.GH_TOKEN, "${{ steps.lane-token.outputs.token }}");
+  assert.equal(write.env.STARTED_AT, "${{ needs.born-triaged.outputs.started-at }}");
+  assert.equal(write.env.KILL_SWITCH, "${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}");
+  assert.equal(write.run, 'node ".base/$SCRIPT"');
+  assert.deepEqual(stepSecrets(job), []);
+});
+
+test("intake-triage.yml: the model may not apply good first issue or help wanted, and is told the verdict lines", () => {
+  const intake = workflow("intake-triage.yml").jobs["intake-triage"];
+  const allowed = intake.with["allowed-labels"].trim().split("\n");
+  assert.ok(!allowed.includes("good first issue") && !allowed.includes("help wanted"));
+  for (const line of ["Size: Small|Medium|Large", "Complexity: Low|Medium|High", "Uncertainty: Known|Knowable|Unknown", "Flags: none|intent|security|cost"]) {
+    assert.ok(intake.with.instructions.includes(`\n${line}\n`), line);
+  }
+});
+
 test("pr-unblock.yml: report-conflict-status runs only for an unresolved-conflict escalation with a gated head", () => {
   const head = "c".repeat(40);
   const { jobs } = workflow("pr-unblock.yml");
