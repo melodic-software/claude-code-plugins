@@ -22,7 +22,9 @@ name: intake-reenter
 # tools, and never adds `agent-ready`. Passing only trusted comments on a
 # dispatch belongs in ci-workflows' intake-triage workflow.
 on:
-  issue_comment:
+  # Runs from the default branch; the job's `if` drops PR, bot and App
+  # comments, and only the issue and comment numbers reach the script.
+  issue_comment: # zizmor: ignore[dangerous-triggers]
     types: [created]
 
 permissions: {}
