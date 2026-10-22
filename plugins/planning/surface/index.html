@@ -848,8 +848,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       for (const s of secs) {
         const items = s.items.filter(passes);
         if (!items.length && filtering()) continue;
-        const groupsView = S.view === "groups", arch = groupsView ? items.filter(q => stateOf(q) === "arch") : [], liveItems = groupsView ? items.filter(q => stateOf(q) !== "arch") : items;
-        const archOpen = !!arch.length && (lsGet("arch:" + s.key, false) === true || (filtering() && !liveItems.length)); // a filter that matches only archived cards shows them
+        const {live: liveItems, arch, open: archOpen} = archSplit(s, items);
         const li = q => { const pk = s.gid && eligible(q); return "<li" + (pk ? ' class="pickable"' : "") + ">" + (pk ? '<input type="checkbox" class="pick" data-pick="' + esc(q.id) + '" aria-label="Select ' + esc(q.id) + ' to accept"' + (S.pick.has(q.id) ? " checked" : "") + ">" : "") + railItem(q, s, carry, fresh) + "</li>"; };
         const o = lsGet("col:" + s.key, null), coll = s.collapsed && !(filtering() && !(o && o.d === s.done)); // a filter opens a section with no applicable stored toggle that holds a match
         const elig = s.items.filter(q => s.gid ? eligible(q) : op.has(q.id) && eligible(q)), picked = s.gid ? elig.filter(q => S.pick.has(q.id)) : [], aa = s.gid ? 'data-acceptall="' + esc(s.gid) + '"' : s.round ? 'data-acceptround="' + esc(s.round) + '"' : "";
@@ -870,10 +869,15 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     list.scrollTop = top;
     (flashIds || []).forEach(id => list.querySelectorAll('.qbtn[data-q="' + CSS.escape(id) + '"]').forEach(el => el.classList.add("flash")));
   }
+  function archSplit(s, items){ // Groups view draws a section's live cards, then its archived ones behind one row
+    if (S.view !== "groups") return {live: items, arch: [], open: false};
+    const arch = items.filter(q => stateOf(q) === "arch"), live = items.filter(q => stateOf(q) !== "arch");
+    return {live, arch, open: !!arch.length && (lsGet("arch:" + s.key, false) === true || (filtering() && !live.length))}; // a filter that matches only archived cards shows them
+  }
   function railOrder(all){ // all: every question in rail order, so a just-answered question still marks the position
     const keep = id => all || passes(Q[id]);
     if (S.view === "tree") { const t = treeData(), out = [], walk = id => { if (out.includes(id)) return; out.push(id); t.kids[id].forEach(walk); }; t.roots.forEach(walk); return out.filter(keep); }
-    return sections().secs.flatMap(s => s.items.map(q => q.id)).filter(keep);
+    return sections().secs.flatMap(s => { const r = archSplit(s, s.items.filter(q => keep(q.id))); return r.live.concat(all || r.open ? r.arch : []).map(q => q.id); }); // the order the rail draws, without collapsed archived cards
   }
   function revealInRail(id){
     const list = $("railList"), el = list.querySelector(id === SUMMARY ? ".sumbtn" : '.qbtn[data-q="' + CSS.escape(id) + '"]');

@@ -182,6 +182,16 @@ async page => {
     await page.click('.seg [data-view="rounds"]'); await page.waitForTimeout(150);
     ok("#8086: Rounds view still lists the archived card, with no archived row", await page.$eval('.rail-list .qbtn[data-q="X1"]', el => el.classList.contains("archived")) && await page.$(".archtoggle") === null);
     await page.click('.seg [data-view="groups"]'); await page.waitForTimeout(150);
+    // base renders live Q1 Q2 Q3 X2, then the row holding archived X1: j and k follow that order
+    await pick("Q3"); await page.keyboard.press("j"); await page.waitForTimeout(200);
+    const jCollapsed = await sel();
+    ok("#8086: j follows the rail, stepping over the collapsed archived card to the next live one", jCollapsed === "X2" && await page.getAttribute(rowSel, "aria-expanded") === "false", "Q3 -> " + jCollapsed);
+    await page.keyboard.press("k"); await page.waitForTimeout(200);
+    ok("#8086: k steps back the same way", await sel() === "Q3", "X2 -> " + await sel());
+    await page.click(rowSel); await page.waitForTimeout(150);
+    await pick("X2"); await page.keyboard.press("j"); await page.waitForTimeout(200);
+    ok("#8086: with the row open, j from the last live card goes to the archived card under the row", await sel() === "X1", "X2 -> " + await sel());
+    await page.click(rowSel); await page.waitForTimeout(150);
     await page.click(rowSel); await page.waitForTimeout(150);
     ok("AC20: archived question greyed in Groups", await page.$eval('.qbtn[data-q="X1"]', el => el.classList.contains("archived")));
     const live = s.questions.questions.filter(q => !q.archived).length;
