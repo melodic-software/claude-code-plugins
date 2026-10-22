@@ -7,7 +7,8 @@
 //   node plugins/planning/shared/tests/ui_reflinks.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected hrefs come from the issue's two URL forms, https://github.com/<repo>/issues/<N> and
-// https://github.com/<repo>/blob/<commit>/<path>#L<line>, filled with this suite's own repository and SHA.
+// https://github.com/<repo>/blob/<commit>/<path>#L<line> (GitHub's #L<a>-L<b> for a range), filled with this suite's own
+// repository and SHA.
 "use strict";
 const { loadPlaywright, suite, recorder, until, joinAs } = require("./browser_harness");
 
@@ -15,7 +16,7 @@ const REPO = "octo-org/demo", SHA = "0123456789abcdef0123456789abcdef01234567";
 const ISSUE = n => `https://github.com/${REPO}/issues/${n}`;
 const BLOB = (p, line) => `https://github.com/${REPO}/blob/${SHA}/${p}${line ? `#L${line}` : ""}`;
 const URL_IN_TEXT = "https://example.com/docs/a.html#12";
-const CONTEXT = `Background: see #123 and plugins/x.py:10. Also (plugins/w.py), \`plugins/y.py\` and ${URL_IN_TEXT}; not and/or, 1/2.5, /home/u/x.py or example.com/x.html.`;
+const CONTEXT = `Background: see #123 and plugins/x.py:10. Also (plugins/w.py), docs/a.md:3-5, \`plugins/y.py\` and ${URL_IN_TEXT}; not and/or, w/e.g. this, client/server.Then, 1/2.5, /home/u/x.py or example.com/x.html.`;
 const ANSWER = "<b>bold?</b> fixes #7 in plugins/z.md";
 
 /** In the page: the links in the rendered text holding `marker`, and whether that text has a <b> element. */
@@ -49,11 +50,11 @@ async function main() {
     ok("a repository without a commit, set after the page drew the text: #123 links, the path stays plain", JSON.stringify(hrefsOf(r)) === JSON.stringify([ISSUE(123), URL_IN_TEXT]), JSON.stringify(hrefsOf(r)));
 
     s.apply(A.dir, [{ op: "set-repo", repo: REPO, commit: SHA }]);
-    const want = [ISSUE(123), BLOB("plugins/x.py", 10), BLOB("plugins/w.py"), URL_IN_TEXT];
+    const want = [ISSUE(123), BLOB("plugins/x.py", 10), BLOB("plugins/w.py"), `https://github.com/${REPO}/blob/${SHA}/docs/a.md#L3-L5`, URL_IN_TEXT];
     r = await waitHrefs(want);
-    ok("repository and commit: #123, plugins/x.py:10 and (plugins/w.py) link; the code span, the URL and the rest do not", JSON.stringify(hrefsOf(r)) === JSON.stringify(want), JSON.stringify(hrefsOf(r)));
+    ok("repository and commit: #123, plugins/x.py:10, (plugins/w.py) and a line range link; the code span, the URL and the rest do not", JSON.stringify(hrefsOf(r)) === JSON.stringify(want), JSON.stringify(hrefsOf(r)));
     const texts = r ? r.links.map(l => l.text) : [];
-    ok("  each link's text is the reference as written, without the trailing punctuation", JSON.stringify(texts) === JSON.stringify(["#123", "plugins/x.py:10", "plugins/w.py", URL_IN_TEXT]), JSON.stringify(texts));
+    ok("  each link's text is the reference as written, without the trailing punctuation", JSON.stringify(texts) === JSON.stringify(["#123", "plugins/x.py:10", "plugins/w.py", "docs/a.md:3-5", URL_IN_TEXT]), JSON.stringify(texts));
     ok("  every link opens a new tab with rel noopener noreferrer", !!r && r.links.every(l => l.target === "_blank" && l.rel === "noopener noreferrer"));
     ok("  and none sits inside a code span", !!r && r.links.every(l => !l.inCode));
 

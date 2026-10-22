@@ -556,10 +556,11 @@
     }
     // ---------- #N and repository paths: links into the session's repository (set-repo), plain text without one ----------
     const REPO = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/(?!\.\.?$)[A-Za-z0-9._-]{1,100}$/, SHA = /^[0-9a-f]{40}$/;
-    /** `#N` not inside a word, an entity or a path; or a repo-relative path: a dot-free first folder (a leading dot
-     *  allowed, so never a host name), at least one slash and a file with a letter-led extension, optionally `:line`.
+    /** `#N` not inside a word, an entity or a path; or a repo-relative path: a dot-free first folder of 2 or more
+     *  characters (a leading dot allowed, so never a host name or "w/e.g"), at least one slash and a file with a
+     *  lowercase letter-led extension, optionally `:line` or `:line-line`. The repo rule is also in session.py.
      *  Never after a slash, dot, colon, ~ or @, so an absolute, home, drive or relative-to-parent path stays text. */
-    const REF = /(?<![\w&#/])#([1-9]\d{0,6})(?![\w-])|(?<![\w./:@~\\-])(\.?[\w-]+(?:\/\.?[\w-][\w.-]*)*\/\.?[\w-][\w.-]*\.[A-Za-z][A-Za-z0-9]{0,9})(?::([1-9]\d{0,6}))?(?![\w/-]|\.\w)/g;
+    const REF = /(?<![\w&#/])#([1-9]\d{0,6})(?![\w-])|(?<![\w./:@~\\-])(\.?[\w-]{2,}(?:\/\.?[\w-][\w.-]*)*\/\.?[\w-][\w.-]*\.[a-z][a-z0-9]{0,9})(?::([1-9]\d{0,6})(?:-([1-9]\d{0,6}))?)?(?![\w/-]|\.\w)/g;
     const repoOf = () => { const { repo, commit } = Core.state; return REPO.test(repo) ? { repo, commit: SHA.test(commit) ? commit : "" } : null; };
     function refs(parent, s) {
       const at = s.includes("#") || s.includes("/") ? repoOf() : null;
@@ -567,7 +568,7 @@
       let i = 0;
       for (const m of s.matchAll(REF)) {
         const url = m[1] ? `https://github.com/${at.repo}/issues/${m[1]}`
-          : at.commit && `https://github.com/${at.repo}/blob/${at.commit}/${m[2]}${m[3] ? `#L${m[3]}` : ""}`;
+          : at.commit && `https://github.com/${at.repo}/blob/${at.commit}/${m[2]}${m[3] ? `#L${m[3]}${m[4] ? `-L${m[4]}` : ""}` : ""}`;
         if (!url) continue;
         if (m.index > i) withMentions(parent, s.slice(i, m.index));
         parent.append(link(m[0], url));

@@ -4110,6 +4110,12 @@ class TestRepo(SessionCase):
         self.assertEqual(self.refused_ops("bad-field", {"op": "set-repo", "repo": "", "commit": self.SHA}).details["field"], "commit")
         self.assertNotIn("repo", self.disk()["session"])
 
+    def test_a_state_file_with_a_malformed_repo_or_a_commit_without_one_is_refused(self):
+        doc = self.disk()
+        for bad in ({"repo": "octo-org"}, {"repo": self.REPO, "commit": "main"}, {"commit": self.SHA}):
+            self.assertIsNotNone(session.document_error({**doc, "session": {**doc["session"], **bad}}), bad)
+        self.assertIsNone(session.document_error({**doc, "session": {**doc["session"], "repo": self.REPO, "commit": self.SHA}}))
+
     def test_set_repo_rolls_back_with_a_refused_op_in_the_same_apply(self):
         self.refused_ops("wrong-status", {"op": "set-repo", "repo": self.REPO, "commit": self.SHA}, {"op": "ack-round", "round": 1})
         self.assertNotIn("repo", self.disk()["session"])

@@ -75,7 +75,8 @@ designer session and a product owner session), each with its own data dir and li
    dir. `share.sh url --owner` prints it only when the owner asks. When `shareChanged` is true, tell
    the owner the guest link changed and must be shared again.
 4. **Title, goal and round 1.** Write `<data_dir>/ops.json` with `set-title`, `set-goal`, a
-   `set-repo` when the topic lives in a GitHub repository, and an `open-round` holding the first
+   `set-repo` when the topic lives in a public GitHub repository (a private one only once the owner
+   says guests may see its name), and an `open-round` holding the first
    frontier, then run
    `bash '<plugin-root>/shared/share.sh' --dir '<data_dir>' apply --file '<data_dir>/ops.json'`.
    Write the register's `open` rows for the round's questions in the same step.
@@ -131,7 +132,7 @@ against `<plugin-root>/shared/schema/ops.schema.json` before any lands, and all 
 |---|---|---|
 | `set-title`, `set-goal` | `title` / `goal` | Name the session and what it is for |
 | `set-intro` | `intro` | "Why you're here", as the owner confirmed it; empty removes it |
-| `set-repo` | `repo`, `commit` | The GitHub `owner/name` and the full commit SHA the facts were read at, so `#N` and `path:line` in the page's text link; send both again when the commit moves |
+| `set-repo` | `repo`, `commit` | The GitHub `owner/name` and the full commit SHA the facts were read at, a commit already pushed to GitHub, so `#N` and `path:line` in the page's text link; every guest sees the name. Send both again when the commit moves |
 | `open-round` | `questions` (1 to 8), `placements` | Close the round Claude is working on (or start round 1) and open the next |
 | `close-round` | `placements`, `reason` | Close the round without a new one (only placements, or the interview is done) |
 | `ack-round` | `round` | Tell the page Claude has the round |

@@ -246,7 +246,7 @@ def _element(selector):
 
 
 URL = re.compile(r"https?://\S+", re.IGNORECASE)  # a link
-REPO = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}/(?!\.\.?$)[A-Za-z0-9._-]{1,100}")  # a GitHub owner/name; never . or ..
+REPO = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]{0,38}/(?!\.\.?$)[A-Za-z0-9._-]{1,100}")  # a GitHub owner/name, never . or ..; also in state.schema.json and web/app.js
 COMMIT = re.compile(r"[0-9a-f]{40}")  # a full commit SHA, which page links pin
 
 
@@ -511,6 +511,10 @@ def _bad_links_and_assets(doc):
     share = doc["session"]["share"]["url"]
     if share and not URL.fullmatch(share):
         bad.append("session.share.url")
+    sess = doc["session"]
+    bad += [f"session.{k}" for k, pattern in (("repo", REPO), ("commit", COMMIT)) if k in sess and not pattern.fullmatch(sess[k])]
+    if "commit" in sess and "repo" not in sess:
+        bad.append("session.commit")
     for q in doc["questions"]:
         fmt, at = q["format"], f"questions[{q['id']}]"
         checks = [(IMAGE_ASSET, o["image"], f"{at}.format.options.image") for o in fmt.get("options", []) if "image" in o]
