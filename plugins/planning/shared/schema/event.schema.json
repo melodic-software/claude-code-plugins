@@ -536,7 +536,7 @@
                     "type": "object",
                     "required": ["option", "picks"],
                     "additionalProperties": false,
-                    "properties": {"option": {"type": "string"}, "picks": {"type": "integer", "minimum": 0}}
+                    "properties": {"option": {"type": "string"}, "picks": {"type": "integer", "minimum": 0}, "none": {"enum": [true]}}
                   }
                 },
                 "others": {"$ref": "#/$defs/others"},
