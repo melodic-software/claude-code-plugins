@@ -1484,7 +1484,7 @@ Queued work is the open `agent-ready` issues no open lane PR names on its first 
 (`Closes #<n>` or `Refs: #<n>`, as report-outcome writes it), plus the held lane PRs. The lane
 branch is not matched: the search answer carries no head ref. The queued cap is
 `max(limits.admission-factor × lane merges per hour, limits.admission-min-per-hour) ×
-target-lead-time-hours`, with the floor alone when the merged count cannot be read. At or over it,
+merge-rate-window-hours`, with the floor alone when the merged count cannot be read. At or over it,
 on or after `pause-from`, new admissions pause: the step output `admission-open` is `false`, and
 the log and step summary carry one line
 `admission paused: reason=queued queued=<issues> held=<held PRs> cap=<cap>` (a `::notice`

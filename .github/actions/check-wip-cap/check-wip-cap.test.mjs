@@ -186,7 +186,7 @@ test("admissions may reach the admission factor times the merges, no more", asyn
 // open lane PR names on its first body line (`Closes #n` or `Refs: #n`, as
 // report-outcome writes it), plus held lane PRs. The queued cap is
 // max(limits.admission-factor x lane merges per hour, limits.admission-min-per-hour)
-// x wip.target-lead-time-hours. Over it, on or after pause-from, new
+// x wip.merge-rate-window-hours. Over it, on or after pause-from, new
 // admissions pause; runs never pause on it.
 const issues = (...numbers) => numbers.map((number) => ({ number }));
 
@@ -204,17 +204,19 @@ test("queued work is the agent-ready issues no open lane PR names first, plus th
   assert.equal(result.queued_total, 4);
 });
 
-test("the queued cap is max(factor x merges per hour, the floor) x the target lead time", async () => {
+test("the queued cap is max(factor x merges per hour, the floor) x the merge-rate window", async () => {
   const cases = [
-    // 48 merged in 24 h: 2/h x 0.8 = 1.6/h over the floor of 1; x 2 h.
-    [{ merged: 48 }, {}, {}, 3.2],
-    // No merges: the floor of 1/h x 2 h.
-    [{ merged: 0 }, {}, {}, 2],
-    [{ merged: 48 }, { "admission-factor": 1, "admission-min-per-hour": 0 }, {}, 4],
-    [{ merged: 12 }, {}, { "target-lead-time-hours": 8 }, 8],
-    [{ merged: 48 }, { "admission-factor": 0.5 }, { "merge-rate-window-hours": 12 }, 4],
+    // 48 merged in 24 h: 2/h x 0.8 = 1.6/h over the floor of 1; x 24 h.
+    [{ merged: 48 }, {}, {}, 38.4],
+    // No merges: the floor of 1/h x 24 h.
+    [{ merged: 0 }, {}, {}, 24],
+    [{ merged: 48 }, { "admission-factor": 1, "admission-min-per-hour": 0 }, {}, 48],
+    // The target lead time does not size it.
+    [{ merged: 48 }, {}, { "target-lead-time-hours": 8 }, 38.4],
+    // 48 merged in 12 h: 4/h x 0.5 = 2/h; x 12 h.
+    [{ merged: 48 }, { "admission-factor": 0.5 }, { "merge-rate-window-hours": 12 }, 24],
     // No merged count: the floor alone.
-    [{ merged: null }, { "admission-factor": 1 }, {}, 2],
+    [{ merged: null }, { "admission-factor": 1 }, {}, 24],
   ];
   for (const [answers, limits, wip, cap] of cases) {
     const result = status(await read(answers, { windowHours: wip["merge-rate-window-hours"] ?? 24 }), wip, { ...LIMITS, ...limits });
@@ -223,11 +225,13 @@ test("the queued cap is max(factor x merges per hour, the floor) x the target le
 });
 
 test("over the queued cap new admissions pause only on or after pause-from, and runs do not", async () => {
-  // 48 merged: a queued cap of 3.2.
-  const over = await read({ open: [pr({ labels: ["needs-human"] })], merged: 48, queued: issues(1, 2, 3) });
+  // No merges over a 3-hour window: the floor of 1/h x 3 h, a queued cap of 3.
+  const short = { "merge-rate-window-hours": 3 };
+  const over = await read({ open: [pr({ labels: ["needs-human"] })], merged: 0, queued: issues(1, 2) }, { windowHours: 3 });
   for (const [pauseFrom, open] of [["", true], ["2026-10-19", true], ["2026-10-18", false]]) {
-    const result = status(over, { "pause-from": pauseFrom });
-    assert.equal(result.queued_total, 4, pauseFrom);
+    const result = status(over, { ...short, "pause-from": pauseFrom });
+    assert.equal(result.queued_cap, 3, pauseFrom);
+    assert.equal(result.queued_total, 3, pauseFrom);
     assert.equal(result.queued_over, true, pauseFrom);
     assert.equal(result.alert, true, pauseFrom);
     assert.equal(result.admission_open, open, pauseFrom);
@@ -235,12 +239,13 @@ test("over the queued cap new admissions pause only on or after pause-from, and 
     assert.equal(result.admission_room, open ? null : 0, pauseFrom);
     assert.equal(result.paused, false, pauseFrom);
   }
-  const under = status(await read({ merged: 48, queued: issues(1, 2, 3) }), { "pause-from": "2026-10-01" });
+  const under = status(await read({ merged: 0, queued: issues(1, 2) }, { windowHours: 3 }), { ...short, "pause-from": "2026-10-01" });
   assert.equal(under.queued_over, false);
   assert.equal(under.admission_open, true);
-  // 3 queued under 3.2: room for one more.
+  // 2 queued under 3: room for one more.
   assert.equal(under.admission_room, 1);
-  assert.equal(status(await read({ merged: 0 }), { "pause-from": "2026-10-01" }).admission_room, 2);
+  // 48 merged in 24 h: a cap of 38.4, so 3 queued leave room for 36.
+  assert.equal(status(await read({ merged: 48, queued: issues(1, 2, 3) }), { "pause-from": "2026-10-01" }).admission_room, 36);
 });
 
 test("a queued read that fails leaves admissions open and touches no run pause", async () => {
@@ -547,15 +552,16 @@ test("main's warning before pause-from says the pause date is not reached", asyn
 });
 
 test("main pauses new admissions over this repository's queued cap past pause-from, and not the run", async () => {
-  // This repository's limits (factor 0.8, floor 1/h) and lead time of 2 h:
-  // 24 merged is 0.8/h under the floor, so the cap is 2. Three queued issues
-  // and one held PR make 4.
+  // This repository's limits (factor 0.8, floor 1/h) and 24-hour window: 24
+  // merged is 0.8/h under the floor, so the cap is 24. Twenty-three queued
+  // issues and one held PR make 24.
   const open = [pr({ labels: ["needs-human"], body: "Closes #9" })];
-  const over = await runMain({ open, merged: 24, queued: issues(5, 6, 7) }, {}, pastConfig());
+  const queued = issues(...Array.from({ length: 23 }, (_, i) => 100 + i));
+  const over = await runMain({ open, merged: 24, queued }, {}, pastConfig());
   assert.equal(over.capped, "false");
   assert.equal(over.admissionOpen, "false");
-  assert.equal(over.wip.queued_cap, 2);
-  const line = "admission paused: reason=queued queued=3 held=1 cap=2";
+  assert.equal(over.wip.queued_cap, 24);
+  const line = "admission paused: reason=queued queued=23 held=1 cap=24";
   assert.ok(over.logs.includes(`::notice title=admission paused::${line}`), over.logs.join("\n"));
   assert.ok(over.summary.includes(`\n${line}\n`));
   const under = await runMain({ open, merged: 24, queued: [] }, {}, pastConfig());

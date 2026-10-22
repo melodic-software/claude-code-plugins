@@ -141,14 +141,14 @@
           "exclusiveMinimum": 0,
           "maximum": 1,
           "default": 0.8,
-          "description": "Share of the issue lane's merge rate (lanes App PRs merged per hour over wip.merge-rate-window-hours) admitted per hour. The queued cap is the larger of this share and admission-min-per-hour, times wip.target-lead-time-hours."
+          "description": "Share of the issue lane's merge rate (lanes App PRs merged per hour over wip.merge-rate-window-hours) admitted per hour. The queued cap is the larger of this share and admission-min-per-hour, times wip.merge-rate-window-hours."
         },
         "admission-min-per-hour": {
           "type": "number",
           "minimum": 0,
           "maximum": 100,
           "default": 1,
-          "description": "Admissions per hour the queued cap never falls below: it is at least this rate times wip.target-lead-time-hours, so a day with no lane merges cannot hold admissions shut. 0 removes the floor."
+          "description": "Admissions per hour the queued cap never falls below: it is at least this rate times wip.merge-rate-window-hours, so a day with no lane merges cannot hold admissions shut. 0 removes the floor."
         }
       }
     },

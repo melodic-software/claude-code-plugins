@@ -494,7 +494,7 @@ limits:
   turn-cap-restarts: 1
   # Share of the lane's hourly merge rate admitted per hour. The queued cap
   # (check-wip-cap) is the larger of this rate and admission-min-per-hour,
-  # times wip.target-lead-time-hours; at it, past wip.pause-from, new
+  # times wip.merge-rate-window-hours; at it, past wip.pause-from, new
   # agent-ready labels pause.
   admission-factor: 0.8
   # Admissions per hour the queued cap never falls below, so a day with no

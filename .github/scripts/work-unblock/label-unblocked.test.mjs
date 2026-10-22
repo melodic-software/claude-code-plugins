@@ -1898,22 +1898,24 @@ test("a reopened fix issue whose agent-ready the App added is relabeled like a l
 
 // Admission pacing (owner decision 2026-10-21, #8794): at or over the queued
 // cap, on or after wip.pause-from, work-unblock adds no new agent-ready. With
-// the default limits (factor 0.8, floor 1/h) and lead time (2 h), 24 merged
-// lane PRs in 24 h is 0.8/h, under the floor, so the cap is 1 x 2 = 2. A
+// the default limits (factor 0.8, floor 1/h) and window (24 h), 24 merged
+// lane PRs in 24 h is 0.8/h, under the floor, so the cap is 1 x 24 = 24. A
 // deferred issue carries admission-deferred, which each sweep revisits
 // oldest first; restarts and re-fires of admitted issues are never paced.
 const deferredLabel = (n) => `POST /repos/${REPO}/issues/${n}/labels {"labels":["admission-deferred"]}`;
 const undeferred = (n) => `DELETE /repos/${REPO}/issues/${n}/labels/admission-deferred`;
+// n queued issues that no lane PR names.
+const queuedN = (n) => Array.from({ length: n }, (_, i) => 100 + i);
 
 test("at the queued cap past pause-from a newly unblocked issue is deferred, not labeled", async (t) => {
   t.mock.method(console, "log", () => {});
-  const { github, calls } = world({ ...oneDependentWorld(), queuedIssues: [1, 2] });
+  const { github, calls } = world({ ...oneDependentWorld(), queuedIssues: queuedN(24) });
   assert.equal(await main({ env: envFor({}, PAUSING), github }), 0);
   assert.deepEqual(writes(calls), [deferredLabel(20)]);
 });
 
 test("under the queued cap, or before pause-from, a newly unblocked issue is labeled", async () => {
-  for (const [queuedIssues, config] of [[[1], PAUSING], [[1, 2, 3], {}]]) {
+  for (const [queuedIssues, config] of [[queuedN(23), PAUSING], [queuedN(25), {}]]) {
     const { github, calls } = world({ ...oneDependentWorld(), queuedIssues });
     assert.equal(await main({ env: envFor({}, config), github }), 0);
     assert.deepEqual(writes(calls), [labeled(20)], JSON.stringify(queuedIssues));
@@ -1927,7 +1929,7 @@ test("with room for one admission the first ready issue is labeled and the next 
     blocking: [issue(20), issue(21)],
     issues: { 20: issue(20), 21: issue(21) },
     blockedBy: { 20: blocker, 21: blocker },
-    queuedIssues: [1],
+    queuedIssues: queuedN(23),
   });
   assert.equal(await main({ env: envFor({}, PAUSING), github }), 0);
   assert.deepEqual(writes(calls), [labeled(20), deferredLabel(21)]);
@@ -1935,7 +1937,7 @@ test("with room for one admission the first ready issue is labeled and the next 
 
 test("an issue already deferred is not labeled admission-deferred again", async (t) => {
   t.mock.method(console, "log", () => {});
-  const { github, calls } = world({ ...oneDependentWorld(["admission-deferred"]), queuedIssues: [1, 2] });
+  const { github, calls } = world({ ...oneDependentWorld(["admission-deferred"]), queuedIssues: queuedN(24) });
   assert.equal(await main({ env: envFor({}, PAUSING), github }), 0);
   assert.deepEqual(writes(calls), []);
 });
@@ -1952,10 +1954,10 @@ const deferredWorld = ({ labels = ["admission-deferred"], sibling = "closed", qu
 
 test("the sweep admits a deferred issue once under the queued cap, and keeps it deferred at the cap", async (t) => {
   t.mock.method(console, "log", () => {});
-  const under = deferredWorld({ queuedIssues: [1] });
+  const under = deferredWorld({ queuedIssues: queuedN(23) });
   assert.equal(await sweep({ github: under.github }, PAUSING), 0);
   assert.deepEqual(writes(under.calls), [labeled(25), undeferred(25)]);
-  const at = deferredWorld({ queuedIssues: [1, 2] });
+  const at = deferredWorld({ queuedIssues: queuedN(24) });
   assert.equal(await sweep({ github: at.github }, PAUSING), 0);
   assert.deepEqual(writes(at.calls), []);
 });
@@ -1973,7 +1975,7 @@ test("the sweep keeps a held deferred issue deferred and drops the deferral of o
 });
 
 test("at the queued cap a run the WIP cap skipped is still re-fired: runs are never paced", async () => {
-  const { github, actions, calls } = stalledRun({ jobs: WIP_CAPPED, openLanePrs: 1, queuedIssues: [1, 2, 3] });
+  const { github, actions, calls } = stalledRun({ jobs: WIP_CAPPED, openLanePrs: 1, queuedIssues: queuedN(25) });
   assert.equal(await sweep({ github, actions }, PAUSING), 0);
   assert.deepEqual(writes(calls), refired(30));
 });

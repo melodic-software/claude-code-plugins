@@ -21,7 +21,7 @@
 // Queued work is the agent-ready issues no open lane PR names on its first
 // body line, plus the held lane PRs. At or over the queued cap,
 // max(limits.admission-factor x lane merges per hour, limits.admission-min-per-hour)
-// x wip.target-lead-time-hours, on or after wip.pause-from, new admissions
+// x wip.merge-rate-window-hours, on or after wip.pause-from, new admissions
 // (work-unblock adding agent-ready) pause; runs never pause on it, since a
 // queued issue leaves the count only by running. A failed queued read leaves
 // admissions open.
@@ -152,7 +152,7 @@ export function wipStatus({ open, merged, admitted, queued = null }, { limits, w
   const reasons = [wipOver && "wip", heldOver && "held-cap"].filter(Boolean);
   const admission = resolveAdmission(limits);
   const perHour = Math.max(computed ? (admission["admission-factor"] * merged) / window : 0, admission["admission-min-per-hour"]);
-  const queuedCap = Number((perHour * wip["target-lead-time-hours"]).toFixed(9));
+  const queuedCap = Number((perHour * window).toFixed(9));
   const named = new Set(open?.map((pr) => pr.issue) ?? []);
   const queuedIssues = queued === null || open === null ? null : queued.filter((number) => !named.has(number)).length;
   const queuedTotal = queuedIssues === null ? null : queuedIssues + heldCount;

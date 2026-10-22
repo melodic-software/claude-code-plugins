@@ -12,7 +12,7 @@ bump: major
 - check-wip-cap is the one admission pacing gate. It counts queued work (open `agent-ready`
   issues with no hold label that no open lane PR names on its first body line, plus held lane
   PRs) against the queued cap, `max(limits.admission-factor × lane merges per hour,
-  limits.admission-min-per-hour) × wip.target-lead-time-hours`. At or over it, on or after
+  limits.admission-min-per-hour) × wip.merge-rate-window-hours`. At or over it, on or after
   `wip.pause-from`, new admissions pause: the action's new `admission-open` output is `false` and
   it logs `admission paused: reason=queued queued=... held=... cap=...`. Runs never pause on it.
 - work-unblock admits at most the queued cap's room per run. A ready issue past it gets
