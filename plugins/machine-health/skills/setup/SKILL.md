@@ -244,17 +244,17 @@ a yes. Never splice the payload, the note or a label into a command line.
    own message in this conversation is a yes; anything else, or no answer, writes nothing for that
    question.
 5. **Write** the confirmed numbers appended to the [roots block](#resolving-the-state-root),
-   re-resolving the same file. The confirmed mute numbers go in the first list and the confirmed
-   approval numbers in the second, comma-separated; leave a list empty as `@()`. A number whose
-   pick is not that list's action throws, so a mute is never written as an approval or the
-   reverse:
+   re-resolving the same file. The confirmed mute numbers go in `-Mute` and the confirmed approval
+   numbers in `-Approve`, comma-separated; leave a list empty as `@()`. `Write-CheckupPick` checks
+   every number before writing any: one that is off the list, refused, or not that list's action
+   throws and nothing is written, so a mute is never written as an approval or the reverse:
 
    ```powershell
-   . (Join-Path $pluginRoot 'skills/audit/scripts/windows/lib/Resolve-CheckupPick.ps1'); . (Join-Path $pluginRoot 'skills/audit/scripts/windows/lib/Set-ApprovalState.ps1'); $p = @(Resolve-CheckupPick -ViewsDir (Join-Path $stateRoot 'views') -Payload (Get-Content -Raw -LiteralPath $payloadPath)); foreach ($list in @{ Action = 'mute'; N = @(<confirmed mute numbers>) }, @{ Action = 'approve'; N = @(<confirmed approval numbers>) }) { foreach ($n in $list.N) { if ($n -lt 1 -or $n -gt $p.Count) { throw "pick $n is not on the list" }; $k = $p[$n - 1]; if ($k.Refused) { throw "pick $n is refused: $($k.Refused)" }; if ($k.Action -cne $list.Action) { throw "pick $n is not on the $($list.Action) list" }; if ($k.Action -ceq 'mute') { Set-ApprovalState -StateBase $stateRoot -Action mute -CheckId $k.CheckId -FindingKey $k.FindingKey -Label $k.Label -Notes $k.Notes -RunId $k.RunId } else { Set-ApprovalState -StateBase $stateRoot -Action approve -RemediationId $k.RemediationId -Notes $k.Notes -RunId $k.RunId } } }
+   . (Join-Path $pluginRoot 'skills/audit/scripts/windows/lib/Write-CheckupPick.ps1'); Write-CheckupPick -StateBase $stateRoot -Payload (Get-Content -Raw -LiteralPath $payloadPath) -Mute @(<confirmed mute numbers>) -Approve @(<confirmed approval numbers>)
    ```
 
    A mute already present is skipped (`Changed` false). Re-read `mutes.json` and `approvals.json`
-   and confirm each entry landed; a thrown error means that write did not happen.
+   and confirm each entry landed; a thrown error means nothing was written.
 
 ## Output
 

@@ -157,7 +157,7 @@ Describe 'setup SKILL.md command templates' -Tag 'skill' {
                 Expected = @('.', 'ForEach-Object', 'Format-Table', 'Get-Content', 'Join-Path', 'Join-Path', 'Resolve-CheckupPick')
             }
             @{ Name = 'picks write'; Index = 3
-                Expected = @('.', '.', 'Get-Content', 'Join-Path', 'Join-Path', 'Join-Path', 'Resolve-CheckupPick', 'Set-ApprovalState', 'Set-ApprovalState')
+                Expected = @('.', 'Get-Content', 'Join-Path', 'Write-CheckupPick')
             }
         ) {
             $command = if ($Index -eq 0) { '' } else {
