@@ -33,11 +33,19 @@ const IMPOSTOR = { login: "kyle-sexton", id: 9999002, type: "User" };
 
 const fixture = (name) => JSON.parse(readFileSync(path.join(FIXTURES, name), "utf8"));
 
+// The fixture PR's branch ref, which a workflow_dispatch gate reads to confirm
+// the PR's head; unless a test routes it, it points at HEAD_SHA.
+const HEAD_REF_ROUTE = `GET /repos/${REPOSITORY}/git/ref/heads/feat/lane-probe`;
+const HEAD_REF_AT = { ref: "refs/heads/feat/lane-probe", object: { sha: HEAD_SHA, type: "commit" } };
+
 function fakeGitHub(routes) {
   const calls = [];
   const github = async (method, apiPath) => {
     calls.push(`${method} ${apiPath}`);
     const key = `${method} ${apiPath}`;
+    if (key === HEAD_REF_ROUTE && !(key in routes)) {
+      return structuredClone(HEAD_REF_AT);
+    }
     if (!(key in routes)) {
       throw new GitHubError(404, key);
     }
@@ -240,7 +248,7 @@ test("workflow_dispatch: resolves the head ref of a same-repo PR by fetching it"
     prNumber: "42",
   });
   assert.deepEqual(outputs, PROCEED);
-  assert.deepEqual(github.calls, [`GET /repos/${REPOSITORY}/pulls/42`, OWN_ROUTE]);
+  assert.deepEqual(github.calls, [`GET /repos/${REPOSITORY}/pulls/42`, HEAD_REF_ROUTE, OWN_ROUTE]);
 });
 
 test("workflow_dispatch: a fetched PR with a null head repo counts as a fork", async () => {
@@ -256,6 +264,25 @@ test("workflow_dispatch: a fetched PR with a null head repo counts as a fork", a
     }),
     STOPPED("fork"),
   );
+});
+
+test("workflow_dispatch: a fork PR stops with fork without reading its branch or waiting", async () => {
+  const pull = fixture("api-pull-42.json");
+  pull.head.repo = { id: 2, full_name: "stranger/claude-code-plugins", fork: true };
+  const github = fakeGitHub({ [`GET /repos/${REPOSITORY}/pulls/42`]: pull });
+  const sleep = fakeSleep();
+  assert.deepEqual(
+    await gate({
+      eventName: "workflow_dispatch",
+      event: fixture("event-workflow-dispatch.json"),
+      github,
+      prNumber: "42",
+      sleep,
+    }),
+    STOPPED("fork"),
+  );
+  assert.deepEqual(github.calls, [`GET /repos/${REPOSITORY}/pulls/42`]);
+  assert.deepEqual(sleep.waits, []);
 });
 
 test("workflow_dispatch: no PR number stops with no-pr", async () => {
@@ -436,6 +463,7 @@ test("dispatcher: a run created inside a push dispatcher run's window proceeds",
       dispatcherRoute,
       dispatcherRoute,
       pullRoute,
+      HEAD_REF_ROUTE,
       selfRoute,
       tagRoute,
       tipRoute,
@@ -628,7 +656,7 @@ for (const [label, routes] of [
 test("dispatcher: a bot sender with no dispatcher run id keeps today's untrusted-actor", async () => {
   const github = fakeGitHub(dispatcherRoutes());
   assert.deepEqual(await dispatched({ github, dispatcherRunId: "" }), STOPPED("untrusted-actor"));
-  assert.deepEqual(github.calls, [pullRoute]);
+  assert.deepEqual(github.calls, [pullRoute, HEAD_REF_ROUTE]);
 });
 
 test("dispatcher: a malformed dispatcher run id stops before any run read", async () => {
@@ -637,7 +665,7 @@ test("dispatcher: a malformed dispatcher run id stops before any run read", asyn
     await dispatched({ github, dispatcherRunId: `${DISPATCHER_RUN_ID}/../../pulls/1` }),
     STOPPED("untrusted-actor"),
   );
-  assert.deepEqual(github.calls, [pullRoute]);
+  assert.deepEqual(github.calls, [pullRoute, HEAD_REF_ROUTE]);
 });
 
 test("dispatcher: a head_sha that is not a SHA stops before the compare", async () => {
@@ -674,7 +702,7 @@ test("dispatcher: a sender named github-actions[bot] under another id is not the
   event.sender = { ...ACTIONS_BOT, id: 41898283 };
   const github = fakeGitHub(dispatcherRoutes());
   assert.deepEqual(await dispatched({ github, event }), STOPPED("untrusted-actor"));
-  assert.deepEqual(github.calls, [pullRoute]);
+  assert.deepEqual(github.calls, [pullRoute, HEAD_REF_ROUTE]);
 });
 
 test("dispatcher: the dispatcher check is skipped for a listed human sender", async () => {
@@ -682,7 +710,7 @@ test("dispatcher: the dispatcher check is skipped for a listed human sender", as
   event.sender = KYLE;
   const github = fakeGitHub(dispatcherRoutes({ self: { triggering_actor: KYLE } }));
   assert.deepEqual(await dispatched({ github, event, triggeringActor: "kyle-sexton" }), PROCEED);
-  assert.deepEqual(github.calls, [pullRoute, selfRoute]);
+  assert.deepEqual(github.calls, [pullRoute, HEAD_REF_ROUTE, selfRoute]);
 });
 
 test("dispatcher: a dispatched run still needs a listed PR author", async () => {
@@ -1911,6 +1939,76 @@ for (const [label, github] of [
   });
 }
 
+// GET /pulls lags a push by minutes (run 39615724332 on #8870 gated the head
+// the model job had already moved past), so the gate re-reads it until it
+// agrees with the branch ref.
+const pullAt = (sha) => {
+  const pull = fixture("api-pull-42.json");
+  pull.head.sha = sha;
+  return pull;
+};
+
+test("expected upstream head: a pulls read lagging the branch ref is re-read until it shows the pushed head", async () => {
+  const github = afterRoutes(range(laneCommit()));
+  github.routes[pullRoute] = inTurn(pullAt(GATED_SHA), pullAt(GATED_SHA), pullAt(HEAD_SHA));
+  const sleep = fakeSleep();
+  const outputs = await runDispatched({ github, expectedUpstreamHead: GATED_SHA, sleep });
+  assert.equal(outputs["head-sha"], HEAD_SHA);
+  assert.deepEqual(outputs, PROCEED);
+  assert.deepEqual(sleep.waits, [5000, 10_000]);
+  assert.ok(github.calls.includes(afterRoute));
+});
+
+test("expected upstream head: a pulls read that never reaches the branch ref stops with head-lag", async () => {
+  const github = afterRoutes(range(laneCommit()));
+  github.routes[pullRoute] = pullAt(GATED_SHA);
+  const sleep = fakeSleep();
+  assert.deepEqual(
+    await runDispatched({ github, expectedUpstreamHead: GATED_SHA, sleep }),
+    STOPPED("head-lag"),
+  );
+  assert.deepEqual(sleep.waits, [5000, 10_000, 20_000, 25_000]);
+});
+
+const lagDispatch = (routes, sleep) =>
+  gate({
+    eventName: "workflow_dispatch",
+    event: fixture("event-workflow-dispatch.json"),
+    github: fakeGitHub(routes),
+    prNumber: "42",
+    sleep,
+  });
+
+test("workflow_dispatch: a branch ref read failing other than 404 stops with no-pr and no wait", async () => {
+  const sleep = fakeSleep();
+  const outputs = await lagDispatch(
+    { [pullRoute]: fixture("api-pull-42.json"), [HEAD_REF_ROUTE]: new GitHubError(500, "ref") },
+    sleep,
+  );
+  assert.deepEqual(outputs, STOPPED("no-pr"));
+  assert.deepEqual(sleep.waits, []);
+});
+
+test("workflow_dispatch: a missing branch ref waits the whole schedule, then stops with head-lag", async () => {
+  const sleep = fakeSleep();
+  const outputs = await lagDispatch(
+    { [pullRoute]: fixture("api-pull-42.json"), [HEAD_REF_ROUTE]: new GitHubError(404, "ref") },
+    sleep,
+  );
+  assert.deepEqual(outputs, STOPPED("head-lag"));
+  assert.deepEqual(sleep.waits, [5000, 10_000, 20_000, 25_000]);
+});
+
+test("workflow_dispatch: a pulls re-read that fails stops with no-pr", async () => {
+  const sleep = fakeSleep();
+  const outputs = await lagDispatch(
+    { [pullRoute]: inTurn(pullAt(GATED_SHA), new GitHubError(500, "pulls")) },
+    sleep,
+  );
+  assert.deepEqual(outputs, STOPPED("no-pr"));
+  assert.deepEqual(sleep.waits, [5000]);
+});
+
 test("expected upstream head: refused on a push dispatcher and on a human's own dispatch", async () => {
   assert.deepEqual(
     await runDispatched({ github: fakeGitHub(dispatcherRoutes()), expectedUpstreamHead: HEAD_SHA }),
@@ -1962,7 +2060,7 @@ test("workflow_run dispatcher: a listed human's own dispatch is unchanged", asyn
     await runDispatched({ github, event, triggeringActor: "kyle-sexton" }),
     PROCEED,
   );
-  assert.deepEqual(github.calls, [pullRoute, selfRoute]);
+  assert.deepEqual(github.calls, [pullRoute, HEAD_REF_ROUTE, selfRoute]);
 });
 
 // The re-runner is read by id from this run's own record

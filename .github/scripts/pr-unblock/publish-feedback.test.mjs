@@ -479,6 +479,37 @@ test("feedback-not-landed, nothing posted: a VALID fix commit that does not chan
   assert.deepEqual(api.posted(), []);
 });
 
+// #8832: the thread sat on the skill's SKILL.md and the fix changed only that
+// skill's evals.
+test("a VALID fix on a SKILL.md thread lands when it changes any file in that skill's directory, not a sibling skill's", async () => {
+  const S = "plugins/discipline/skills/script-the-deterministic-work";
+  const skillRun = JSON.stringify({ ...RUN, threads: [{ ...RUN.threads[0], path: `${S}/SKILL.md` }] });
+  for (const [filename, landed] of [
+    [`${S}/evals/evals.json`, true],
+    [`${S}/reference/notes.md`, true],
+    [`${S}-x/evals/evals.json`, false],
+    ["plugins/discipline/skills/sweep-all/evals/evals.json", false],
+  ]) {
+    const api = fakeApi({
+      compare: { status: "ahead", commits: [{ sha: FIX }], files: [{ filename }] },
+      commits: { [FIX]: { files: [{ filename }] } },
+    });
+    const result = await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX })), skillRun);
+    assert.equal(result.escalationReason, landed ? "" : "feedback-not-landed", filename);
+  }
+});
+
+test("a VALID fix on a thread that is not a SKILL.md still needs its exact path, even in the same directory", async () => {
+  const S = "plugins/discipline/skills/script-the-deterministic-work";
+  const refRun = JSON.stringify({ ...RUN, threads: [{ ...RUN.threads[0], path: `${S}/reference/a.md` }] });
+  const api = fakeApi({
+    compare: { status: "ahead", commits: [{ sha: FIX }], files: [{ filename: `${S}/reference/b.md` }] },
+    commits: { [FIX]: { files: [{ filename: `${S}/reference/b.md` }] } },
+  });
+  const result = await run(api, lines(reply({ disposition: "VALID", fix_sha: FIX })), refRun);
+  assert.equal(result.escalationReason, "feedback-not-landed");
+});
+
 test("feedback-not-landed with no VALID reply when the branch moved onto .github/ or another path", async () => {
   for (const filename of [".github/actions/x/action.yml", "src/other.js"]) {
     const api = fakeApi({ compare: { status: "ahead", commits: [{ sha: FIX }], files: [{ filename }] } });
