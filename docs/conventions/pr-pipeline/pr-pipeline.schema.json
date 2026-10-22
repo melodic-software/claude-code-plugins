@@ -863,6 +863,13 @@
           "default": 2,
           "description": "Merge-queue removals for failed checks since the pull request's head last changed (a pushed commit or a force push) at which the unattended merge gate stops enqueuing that head: the queue would eject it again on the same commits. A push resets the count."
         },
+        "quarantine-days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30,
+          "default": 7,
+          "description": "Days a quarantine issue excuses its suite's failures outside the merges' affected set from post-merge demotion, counted from when it was filed (README.md, The local babysit lane, Quarantined suites). At most 30, so a flaky suite goes no more than a month without its failures demoting again (judgment) and the date arithmetic stays in range; any other value is 7."
+        },
         "max-verify-fails": {
           "type": "integer",
           "minimum": 1,

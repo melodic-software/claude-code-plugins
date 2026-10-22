@@ -210,7 +210,8 @@
           "additionalProperties": false,
           "properties": {
             "mode": {"enum": ["system", "light", "dark"]},
-            "accent": {"enum": ["teal", "indigo", "violet", "amber"]}
+            "accent": {"enum": ["teal", "indigo", "violet", "amber"]},
+            "palette": {"description": "The whole-page palette; absent is default.", "enum": ["default", "midnight", "slate", "paper", "contrast"]}
           }
         }
       }
@@ -1145,6 +1146,7 @@
         "expandedRounds": {"$ref": "#/$defs/pref"},
         "theme": {"$ref": "#/$defs/pref"},
         "accent": {"$ref": "#/$defs/pref"},
+        "palette": {"$ref": "#/$defs/pref"},
         "follow": {"$ref": "#/$defs/pref"},
         "mute": {"$ref": "#/$defs/pref"},
         "tour": {"$ref": "#/$defs/pref"},
