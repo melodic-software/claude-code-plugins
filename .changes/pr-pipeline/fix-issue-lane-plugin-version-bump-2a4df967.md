@@ -9,3 +9,4 @@ bump: minor
 ### Fixed
 
 - The issue lane can bump a plugin's version again; every other `plugin.json` change stays refused.
+- work-resolve-issue's report-outcome names apply-issue-patch's escalation reason when it refused a done run's patch, instead of saying the run committed nothing.

@@ -675,7 +675,7 @@ export function decide({
         `The run reported done, but apply-issue-patch did not commit its patch (\`${escalation}\`): ${PATCH_REASONS[escalation]}. The run's log names the path or check.`,
       ),
       issueNumber,
-      branch,
+      branch: branch || resumed,
       humanLabel,
       runUrl,
       runId,

@@ -577,6 +577,7 @@ test("a refused patch on a resumed run hands back instead of opening the PR from
   const plan = decideDone({ branch: "", resumed: "work-resolve-issue/issue-77-100-1", checks: { tip: CHECKED_TIP, results: [{ check: FRAGMENTS, exit: 0 }] }, escalation: "patch-protected-path" });
   assert.equal(plan.action, "hand-back");
   assert.ok(plan.comment.includes("`patch-protected-path`"), plan.comment);
+  assert.ok(plan.comment.includes("Partial work is on the branch `work-resolve-issue/issue-77-100-1`"), plan.comment);
 });
 
 test("patch-empty changes no plan: a done run with no commit, a resumed run, or a pushback", () => {
