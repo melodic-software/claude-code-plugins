@@ -181,7 +181,7 @@ jobs:
                              # reviewed-head marker comment
       id-token: write        # OIDC, mints the Claude GitHub App token (required
                              # even with an OAuth/API-key credential)
-    uses: melodic-software/ci-workflows/.github/workflows/pr-review.yml@82ca5ca9be6e18a1addb7986eae15689339aedbc # v0.60.0
+    uses: melodic-software/ci-workflows/.github/workflows/pr-review.yml@2fe38c031867900824c164e33a140a335ed9ecf0 # v0.62.0
     with:
       runner: ubuntu-24.04
       # Empty unless resolve-model succeeded, so a failed job's partial output
