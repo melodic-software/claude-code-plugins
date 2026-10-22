@@ -73,8 +73,11 @@ const api = (dispatched, ciFixPulls = []) => ({
   },
 });
 
-async function run(text, ciFixPulls = []) {
+async function run(text, ciFixPulls = [], tracker = null) {
   const base = baseWith(text);
+  if (tracker !== null) {
+    writeFileSync(join(base, ".work-item-tracker.json"), tracker);
+  }
   const output = join(base, "output");
   writeFileSync(output, "");
   const dispatched = [];
@@ -120,6 +123,20 @@ test("the base config's adoption section lets fix-ci adopt an idle owner PR", as
   const without = LIVE.replace(/^adoption:\n( {2}.*\n)*/m, "");
   assert.doesNotMatch(without, /^adoption:/m);
   assert.deepEqual(await run(without, [owner]), { code: 0, dispatched: ["40"] });
+});
+
+test("the base tracker config's human-gated label holds an adopted PR from fix-ci", async () => {
+  const idle = "2026-10-16T11:00:00Z";
+  const owner = ciFixPull(62);
+  owner.author = { databaseId: 153232337 };
+  owner.updatedAt = idle;
+  owner.commits.nodes[0].commit.committedDate = idle;
+  owner.labels = { nodes: [{ name: "awaiting-owner" }] };
+  const mapped = JSON.stringify({ config: { role_labels: { "human-gated": "awaiting-owner" } } });
+  assert.deepEqual(await run(LIVE, [owner], mapped), { code: 0, dispatched: ["40"] });
+  assert.deepEqual(await run(LIVE, [owner]), { code: 0, dispatched: ["40", "62"] }, "with no tracker file the label is needs-human");
+  // An unreadable tracker config stops fix-ci alone, as a failure.
+  assert.deepEqual(await run(LIVE, [ciFixPull(63)], "{not json"), { code: 1, dispatched: ["40"] });
 });
 
 test("a base config the resolver refuses fails the run before any dispatch", async () => {

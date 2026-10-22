@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { createGitHubApi } from "./dispatch.mjs";
-import { dispatchCiFixes, LIST_QUERY, skipReason } from "./fix-ci-dispatch.mjs";
+import { dispatchCiFixes, humanGatedLabel, LIST_QUERY, skipReason } from "./fix-ci-dispatch.mjs";
 
 // The lanes App bot's user id and the GitHub Actions app id
 // (.github/standards/trusted-actors/trusted-actors.json; dispatch.mjs).
@@ -221,9 +221,9 @@ const NOW = Date.parse("2026-10-22T12:00:00Z");
 const hoursAgo = (hours) => new Date(NOW - hours * 3_600_000).toISOString();
 const ADOPTION = { ownerIds: [OWNER], idleHours: 24 };
 
-function ownerPr(number, { updated = 25, committed = 25, ...overrides } = {}) {
+function ownerPr(number, { updated = 25, committed = 25, committedDate = hoursAgo(committed), ...overrides } = {}) {
   const node = pr(number, { author: { login: "kyle-sexton", databaseId: OWNER }, updatedAt: hoursAgo(updated), ...overrides });
-  node.commits.nodes[0].commit.committedDate = hoursAgo(committed);
+  node.commits.nodes[0].commit.committedDate = committedDate;
   return node;
 }
 
@@ -241,22 +241,55 @@ test("an owner PR active within the idle window is skipped with a reason", () =>
   assert.equal(skipReason(ownerPr(4), options), "");
 });
 
-test("owner drafts, holds, unlisted users and an absent adoption list are left alone", async () => {
-  const pages = [
-    [
-      ownerPr(1, { isDraft: true }),
-      ownerPr(2, { labels: { nodes: [{ name: "do-not-merge" }] } }),
-      ownerPr(3, { labels: { nodes: [{ name: "needs-human" }] } }),
-      ownerPr(4, { body: "Closes #1\n\nHold: until the demo\n" }),
-      ownerPr(5, { author: { login: "octocat", databaseId: 4242 } }),
-      // An unreadable date is not proof of idleness.
-      ownerPr(6, { updatedAt: "not a date" }),
-    ],
+test("owner drafts, holds, unlisted or spoofed users and unreadable dates are left alone, each for its reason", async () => {
+  const options = { base: "main", appSenderId: APP, actionsAppId: ACTIONS, checkName: "pr-unblock / fix-ci", holdLabels: ["do-not-merge", "needs-human"], restarts: 1, adoption: ADOPTION, now: NOW };
+  const unlisted = "not opened by the lanes App or an adoptable owner";
+  const active = "owner PR or its head commit active in the last 24 hour(s)";
+  const cases = [
+    [ownerPr(1, { isDraft: true }), "not a ready same-repository PR into the base"],
+    [ownerPr(2, { labels: { nodes: [{ name: "do-not-merge" }] } }), "held"],
+    [ownerPr(3, { labels: { nodes: [{ name: "needs-human" }] } }), "held"],
+    [ownerPr(4, { body: "Closes #1\n\nHold: until the demo\n" }), "held by a Hold: line"],
+    [ownerPr(5, { author: { login: "octocat", databaseId: 4242 } }), unlisted],
+    // The id decides, never the login.
+    [ownerPr(6, { author: { login: "kyle-sexton", databaseId: 4242 } }), unlisted],
+    [ownerPr(7, { author: null }), unlisted],
+    // An unreadable date is not proof of idleness.
+    [ownerPr(8, { updatedAt: "not a date" }), active],
+    [ownerPr(9, { committedDate: "not a date" }), active],
   ];
-  const { result } = await run({ pages }, { adoption: ADOPTION, now: NOW });
+  for (const [node, reason] of cases) {
+    assert.equal(skipReason(node, options), reason, `#${node.number}`);
+  }
+  const { result } = await run({ pages: [cases.map(([node]) => node)] }, { adoption: ADOPTION, now: NOW });
   assert.deepEqual(result.dispatched, []);
-  const none = await run({ pages: [[ownerPr(7)]] }, { now: NOW });
+  const none = await run({ pages: [[ownerPr(10)]] }, { now: NOW });
   assert.deepEqual(none.result.dispatched, [], "with no adoption list no owner PR is adopted");
+});
+
+test("a listed owner id is adopted whatever its login", async () => {
+  const { result } = await run({ pages: [[ownerPr(11, { author: { login: "someone-else", databaseId: OWNER } })]] }, { adoption: ADOPTION, now: NOW });
+  assert.deepEqual(result.dispatched.map((d) => d.number), [11]);
+});
+
+test("a Hold: line holds an owner PR in any case, after any whitespace, and after a bare CR", () => {
+  const options = { base: "main", appSenderId: APP, actionsAppId: ACTIONS, checkName: "pr-unblock / fix-ci", holdLabels: ["do-not-merge", "needs-human"], restarts: 1, adoption: ADOPTION, now: NOW };
+  for (const body of ["  Hold: demo", "hold: demo", "x\rHold: y", " Hold: z", "\u00a0Hold: nbsp", "Closes #1\r\n\tHOLD: tab"]) {
+    assert.equal(skipReason(ownerPr(12, { body }), options), "held by a Hold: line", JSON.stringify(body));
+  }
+  // Not a line start, or a newline before the word on the same "line": no hold.
+  for (const body of ["Closes #1. Hold: not at a line start", "Holding: no colon after hold", "x\n\nThe word hold: mid-line"]) {
+    assert.equal(skipReason(ownerPr(12, { body }), options), "", JSON.stringify(body));
+  }
+});
+
+test("the human-gated label comes from the tracker config, else needs-human", () => {
+  assert.equal(humanGatedLabel(null), "needs-human");
+  assert.equal(humanGatedLabel('{"config":{"lease_ttl_hours":24}}'), "needs-human");
+  assert.equal(humanGatedLabel('{"config":{"role_labels":{"human-gated":"  human-gated  "}}}'), "human-gated");
+  assert.equal(humanGatedLabel('{"config":{"role_labels":{"human-gated":"   "}}}'), "needs-human");
+  assert.equal(humanGatedLabel('{"config":"x"}'), "needs-human");
+  assert.throws(() => humanGatedLabel("{not json"));
 });
 
 test("lanes App PRs keep their rules: no idle wait, and a Hold: line does not hold them", async () => {

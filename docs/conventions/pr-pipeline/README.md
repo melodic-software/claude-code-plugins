@@ -223,7 +223,8 @@ unappliable patch, or a check the model escalated, goes to `report-escalation`. 
 `pr-unblock-dispatch.yml` run starts `fix-ci`, after the conflict and Dependabot dispatches: one
 GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, lists the non-draft,
 same-repository ones into `main` that the lanes App opened (by bot id), or that an owner in
-[`adoption`](#adoption) opened and left idle, with no `do-not-merge` or `needs-human` label,
+[`adoption`](#adoption) opened and left idle, with no `do-not-merge`, `needs-human` or tracker
+human-gated label,
 whose head's `ci-status` check run from the GitHub Actions app ended `failure`. It dispatches those whose head has no `pr-unblock / fix-ci` run yet (an
 untrusted-trigger skip aside), or only failed ones, at most `limits.fix-ci-restarts` of them,
 and no `fix-ci` run for the PR still queued or going, at most `limits.fix-ci-per-run` per run,
@@ -1514,9 +1515,12 @@ has left them (owner decision Q22, 2026-10-22). This grants the lanes unattended
 person opened. A PR is adopted when all of these hold:
 
 - one of `owner-ids` opened it (the author's numeric user id);
-- it is not a draft, it is a same-repository PR into `main`, and it carries no `do-not-merge` or
-  `needs-human` label;
-- no body line starts with `Hold:`;
+- it is not a draft, it is a same-repository PR into `main`, and it carries no `do-not-merge`,
+  `needs-human` or human-gated label (`config.role_labels["human-gated"]` in the base
+  `.work-item-tracker.json`, as pr-merge resolves it; a tracker file that is not JSON stops
+  fix-ci for the run);
+- no body line starts with `Hold:`, read as babysit reads it: any case, after any non-newline
+  whitespace (NBSP included), with a bare CR also ending a line;
 - its last update (`updatedAt`) and its head commit's committer date are both at least
   `idle-hours` old. Neither one alone is enough.
 

@@ -22,14 +22,14 @@
 // carries to the next run through the Actions cache; the next run skips that
 // head's check-run read, and its UNKNOWN re-queries.
 
-import { appendFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { POLICY_PATH } from "./dependency-classify.mjs";
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
 import { emptyRecord, isHandled, markHandled, pruneRecord, readRecord, writeRecord } from "./dispatch-record.mjs";
 import { runTitle } from "./feedback-dispatch.mjs";
-import { dispatchCiFixes, LIST_QUERY as CI_FIX_QUERY } from "./fix-ci-dispatch.mjs";
+import { DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel, LIST_QUERY as CI_FIX_QUERY } from "./fix-ci-dispatch.mjs";
 import { anyHandles, permanentlyHandles } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 import { readConfig, readPolicy } from "./review-dependency.mjs";
@@ -336,6 +336,19 @@ export async function loadBaseLimits(env) {
   return limitsFromBase({ BASE_PATH: env.BASE_PATH || ".base" });
 }
 
+// The base tracker config's human-gated label, as pr-merge.yml reads it.
+export function baseHumanGatedLabel(env) {
+  let text = null;
+  try {
+    text = readFileSync(`${env.BASE_PATH || ".base"}/.work-item-tracker.json`, "utf8");
+  } catch (error) {
+    if (error.code !== "ENOENT") {
+      throw error;
+    }
+  }
+  return humanGatedLabel(text);
+}
+
 // The base config's `adoption` section as set, the same way.
 export async function loadBaseAdoption(env) {
   const { adoptionFromBase } = await import(
@@ -413,9 +426,17 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
     policy: readPolicy(env.DEPENDABOT_POLICY ?? `.base/${POLICY_PATH}`, log),
     repository: env.GITHUB_REPOSITORY,
   });
-  // A missing lanes App id stops fix-ci alone, as a failure.
+  // A missing lanes App id or an unreadable tracker config stops fix-ci
+  // alone, as a failure.
   let fixes = { dispatched: [], failed: 1 };
-  if (/^[1-9][0-9]*$/.test(env.APP_SENDER_ID ?? "")) {
+  let humanGated = null;
+  try {
+    humanGated = baseHumanGatedLabel(env);
+  } catch (error) {
+    log(`::error::cannot read the human-gated label from the base .work-item-tracker.json (${error.message}); no fix-ci dispatched`);
+  }
+  const appIdSet = /^[1-9][0-9]*$/.test(env.APP_SENDER_ID ?? "");
+  if (humanGated !== null && appIdSet) {
     fixes = await dispatchCiFixes({
       api: client,
       runId: env.GITHUB_RUN_ID,
@@ -424,9 +445,10 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
       maxDispatch: limits["fix-ci-per-run"] ?? 2,
       restarts: limits["fix-ci-restarts"] ?? 1,
       adoption: { ownerIds: adoption["owner-ids"] ?? [], idleHours: adoption["idle-hours"] ?? 24 },
+      holdLabels: [...new Set([...CI_FIX_DEFAULTS.holdLabels, humanGated])],
       now,
     });
-  } else {
+  } else if (!appIdSet) {
     log("::error::APP_SENDER_ID is not the lanes App's user id; no fix-ci dispatched");
   }
   const dispatched = [...conflicts.dispatched, ...reviews.dispatched, ...fixes.dispatched];

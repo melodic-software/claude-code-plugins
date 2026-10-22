@@ -551,7 +551,8 @@ red-main:
 # Owner PRs the lanes adopt (owner decision Q22, 2026-10-22): a non-draft PR
 # one of these accounts opened, with no hold label and no `Hold:` body line,
 # whose last update and head commit are both idle-hours old. fix-ci fixes its
-# failed ci-status and pr-merge merges it under its usual gates.
+# failed ci-status; pr-merge merges it under its usual gates once its adoption
+# path lands.
 adoption:
   # 24: a day with no push, comment or label change means the owner left it.
   idle-hours: 24

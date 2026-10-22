@@ -31,6 +31,21 @@ export const DEFAULTS = Object.freeze({
 
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
 const MAX_PAGES = 20;
+// A body line starting "Hold:", as babysit's BODY_MERGE_HOLD_RE reads it
+// (babysit_merge.py): any case, after any non-newline whitespace, NBSP
+// included, with a bare CR as a line break too.
+const HOLD_LINE = /(?:^|(?<=[\r\n]))[^\S\r\n]*hold:/i;
+
+// The tracker's human-gated label from .work-item-tracker.json's text, as
+// pr-merge.yml resolves it: config.role_labels["human-gated"] trimmed, or
+// needs-human when the file is absent (null) or maps none. Invalid JSON throws.
+export function humanGatedLabel(text) {
+  if (text === null) {
+    return "needs-human";
+  }
+  const label = JSON.parse(text)?.config?.role_labels?.["human-gated"];
+  return typeof label === "string" && label.trim() !== "" ? label.trim() : "needs-human";
+}
 
 export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!, $after: String) {
   rateLimit { cost remaining }
@@ -96,7 +111,7 @@ export function skipReason(node, { base, appSenderId, actionsAppId, checkName, h
   }
   // The lanes App's own PRs carry `Hold: a human merges this`, which holds the
   // merge, not a CI fix; an owner's Hold: line holds the lane off entirely.
-  if (owner && String(node.body ?? "").split("\n").some((line) => line.startsWith("Hold:"))) {
+  if (owner && HOLD_LINE.test(String(node.body ?? ""))) {
     return "held by a Hold: line";
   }
   if (owner && !ownerIdle(node, adoption.idleHours, now)) {
