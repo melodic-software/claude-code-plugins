@@ -7,6 +7,8 @@ mistake it targets and to pass on the current code.
 | Skill | What it does |
 |---|---|
 | `/corrections:codify "<description>" [#PR]` | Counts how often the mistake recurs, picks the strongest enforcement-ladder rung, places the lesson by scope, and proposes a check proven with `prove-check.sh` |
+| `/corrections:codify note "<observation>" [#PR \| <commit>]` | Appends one observation to the findings buffer |
+| `/corrections:codify group [--since <UTC ISO-8601>]` | Reads the buffer and groups its rows by mistake, each group's count next to the threshold; writes nothing |
 
 `codify` counts at `recurrence.min_occurrences` occurrences (default 2; set it in
 `corrections.yaml` in the convention home, default `docs/conventions`, or `corrections.local.yaml`
@@ -52,4 +54,5 @@ Run `scripts/prove-check.test.sh` to exercise it against a fixture repository.
 
 ## Configuration
 
-No `userConfig`. No persistent state. No network.
+No `userConfig`. `note` writes findings-buffer rows, under `.work/buffer/` at the repository root by
+default, gitignored. No network.

@@ -22,6 +22,18 @@ An optional `#PR` after it names the pull request whose pre-fix commit is the ol
 
 - Empty description: print `usage: /corrections:codify "<description>" [#PR]` and STOP.
 
+## Actions
+
+| Action | Does | Steps |
+|---|---|---|
+| `"<description>" [#PR]` (default) | Counts the mistake, picks the rung, proposes and proves the check | Sections 1-6 below |
+| `note "<observation>" [#PR \| <commit>]` | Appends one observation to the findings buffer; never counts, codifies or fixes | [actions/note.md](actions/note.md) |
+| `group [--since <UTC ISO-8601>]` | Read-only: groups buffer rows by mistake and shows each group's count next to the threshold | [actions/group.md](actions/group.md) |
+
+An action runs only when the first word of `$ARGUMENTS` is exactly `note` or `group`, unquoted.
+Anything else, including a quoted description that starts with "note" or "group", is the default
+action. The action word is the only token read as a choice. The rest stays data, as above.
+
 ## 1. Count
 
 Search for earlier occurrences of the described mistake in two places, then report each one counted
@@ -140,12 +152,15 @@ written. End with the question for any blocking install.
 - It does not read review comments from pull requests; the count covers commits and the session.
 - It does not run the `retro` codify mode, `/review:audit-enforceability` or `style`; those keep
   their own counters until a later slice absorbs them.
+- `note` appends one row and does nothing else.
+- `group` writes nothing (no file, no buffer row, no proposal) and runs no proof.
 
 ## Next
 
 - finding-shaped check: /review:audit-enforceability.
 - hook: /harness-config:audit-automation-gaps.
 - make-impossible: /architecture:improve.
+- a group at or over the threshold: /corrections:codify "<the group's mistake>".
 
 ## Gotchas
 
@@ -154,3 +169,5 @@ written. End with the question for any blocking install.
 - **A fix and its check in one commit.** The old ref is the commit before the fix, so a check that
   needs a file the fix adds passes nothing; write the check against the old code's shape.
 - **Occurrences are the same mistake, not the same file.** Count by what went wrong, whatever the path.
+- **Identical notes collapse.** The buffer's `obs_id` ignores `ts`, so the same observation with the
+  same source is kept once. A second occurrence needs its own source.
