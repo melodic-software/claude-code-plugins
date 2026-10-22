@@ -27,6 +27,19 @@ const STOPPED = new Set(["cancelled", "timed_out"]);
 // re-runs its failed jobs; past the last entry it is left red, and fix-ci takes
 // it. Two re-runs per head at most.
 export const INFRA_BACKOFF_MINUTES = [15, 30];
+// An outage loss is re-run within a day; an older one is left to a person (judgment).
+export const LOOKBACK_HOURS = 24;
+
+// True for a failed run whose failed jobs the reconciler re-runs, once its
+// backoff has passed, when its failures are infra only; fix-ci leaves exactly
+// these heads to it.
+export const reconcilerRetries = (run, now) =>
+  run?.status === "completed" &&
+  run.conclusion === "failure" &&
+  Number.isInteger(run.run_attempt) &&
+  run.run_attempt >= 1 &&
+  run.run_attempt <= INFRA_BACKOFF_MINUTES.length &&
+  Date.parse(run.created_at) >= now - LOOKBACK_HOURS * 3_600_000;
 
 // Why the failed job is infra ("time limit", "install", "lost runner"), or "" when it is real.
 export function infraCause(job) {

@@ -16,6 +16,15 @@ const ACTIONS = 15368;
 const MIXED_JOBS = JSON.parse(readFileSync(new URL("../maintenance-reconcile-lost-runs/fixtures/jobs-39710654665.json", import.meta.url), "utf8")).jobs;
 const INFRA_JOBS = MIXED_JOBS.filter((job) => job.name !== "lint-shell");
 
+// A tested pr-require-checks run that failed, an hour before NOW unless named.
+const NOW = Date.parse("2026-10-22T12:00:00Z");
+const tested = (attempt, hoursAgo = 1) => ({
+  status: "completed",
+  conclusion: "failure",
+  run_attempt: attempt,
+  created_at: new Date(NOW - hoursAgo * 3_600_000).toISOString(),
+});
+
 const check = (name, conclusion, extra = {}) => ({
   __typename: "CheckRun",
   name,
@@ -46,11 +55,11 @@ function fakeApi({ pages = [[]], cost = 1, workflowRuns = [], failDispatch = new
   const calls = { list: 0, runs: 0, dispatch: [], jobs: [] };
   return {
     calls,
-    // The head's pr-require-checks run: its attempt and latest jobs; a real
+    // The head's tested pr-require-checks run and its latest jobs; a real
     // failure at attempt 1 unless the test names the head.
     async readRequiredRun(sha) {
       calls.jobs.push(sha);
-      const required = requiredRuns.get(sha) ?? { attempt: 1, jobs: MIXED_JOBS };
+      const required = requiredRuns.get(sha) ?? { run: tested(1), jobs: MIXED_JOBS };
       if (required instanceof Error) {
         throw required;
       }
@@ -88,6 +97,7 @@ async function run(apiOptions, options = {}) {
     appSenderId: APP,
     maxDispatch: 2,
     restarts: 1,
+    now: NOW,
     ...options,
   });
   return { api, lines, result };
@@ -259,7 +269,7 @@ test("the adapter sends one query naming the PR, its last commit's check rollup 
 
 test("a head whose ci-status failed on infra only gets no fix-ci run, and takes no place under the cap", async () => {
   const head = (number) => String(number).padStart(40, "a");
-  const { api, lines, result } = await run({ pages: [[pr(5), pr(6), pr(7)]], requiredRuns: new Map([[head(5), { attempt: 1, jobs: INFRA_JOBS }]]) });
+  const { api, lines, result } = await run({ pages: [[pr(5), pr(6), pr(7)]], requiredRuns: new Map([[head(5), { run: tested(1), jobs: INFRA_JOBS }]]) });
   assert.deepEqual(
     result.dispatched.map((d) => d.number),
     [6, 7],
@@ -279,8 +289,8 @@ test("an infra-only head is the reconciler's for its two re-runs; at attempt 3 f
   // The reconciler re-runs an infra-only run at attempts 1 and 2 only (INFRA_BACKOFF_MINUTES, two entries).
   const head = (number) => String(number).padStart(40, "a");
   const requiredRuns = new Map([
-    [head(5), { attempt: 2, jobs: INFRA_JOBS }],
-    [head(6), { attempt: 3, jobs: INFRA_JOBS }],
+    [head(5), { run: tested(2), jobs: INFRA_JOBS }],
+    [head(6), { run: tested(3), jobs: INFRA_JOBS }],
   ]);
   const { lines, result } = await run({ pages: [[pr(5), pr(6)]], requiredRuns });
   assert.deepEqual(
@@ -288,4 +298,19 @@ test("an infra-only head is the reconciler's for its two re-runs; at attempt 3 f
     [6],
   );
   assert.ok(lines.includes("skip fix-ci #5: infra failure, re-run job owns it"));
+});
+
+test("an infra-only head past the reconciler's 24-hour lookback is fix-ci's", async () => {
+  // The reconciler re-runs only runs created in the last 24 hours (LOOKBACK_HOURS).
+  const head = (number) => String(number).padStart(40, "a");
+  const requiredRuns = new Map([
+    [head(5), { run: tested(1, 25), jobs: INFRA_JOBS }],
+    [head(6), { run: tested(1, 23), jobs: INFRA_JOBS }],
+  ]);
+  const { lines, result } = await run({ pages: [[pr(5), pr(6)]], requiredRuns });
+  assert.deepEqual(
+    result.dispatched.map((d) => d.number),
+    [5],
+  );
+  assert.ok(lines.includes("skip fix-ci #6: infra failure, re-run job owns it"));
 });

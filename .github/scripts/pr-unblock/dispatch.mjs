@@ -314,9 +314,9 @@ export function createGitHubApi({
       );
       return result.check_runs;
     },
-    // fix-ci-dispatch.mjs's infra check: the attempt and latest jobs of the
-    // newest pr-require-checks pull_request run on the head that tested it
-    // (infra-failure.mjs testedRun); attempt 0 and no jobs when there is none.
+    // fix-ci-dispatch.mjs's infra check: the newest pr-require-checks
+    // pull_request run on the head that tested it and its latest jobs
+    // (infra-failure.mjs testedRun); a null run and no jobs when there is none.
     async readRequiredRun(sha) {
       if (!/^[0-9a-f]{40}$/.test(sha)) {
         throw new Error("not a commit SHA");
@@ -332,7 +332,7 @@ export function createGitHubApi({
         }
         return jobs.jobs;
       });
-      return { attempt: tested?.run?.run_attempt ?? 0, jobs: tested?.jobs ?? [] };
+      return { run: tested?.run ?? null, jobs: tested?.jobs ?? [] };
     },
     // The newest workflow_dispatch runs: a run still queued or going is
     // among them, since a dispatcher waits at most minutes behind it.

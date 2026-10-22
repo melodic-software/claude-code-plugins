@@ -50,7 +50,7 @@ import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, paginate, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { INFRA_BACKOFF_MINUTES, infraOnly, testedRun } from "./infra-failure.mjs";
+import { INFRA_BACKOFF_MINUTES, infraOnly, LOOKBACK_HOURS, reconcilerRetries, testedRun } from "./infra-failure.mjs";
 
 const STATUS_URL = "https://www.githubstatus.com/api/v2/components.json";
 // A failed run's failed jobs are re-run only while both pages show indicator none.
@@ -79,8 +79,6 @@ export const RECORDED_LANES = [".github/workflows/pr-verify.yml"];
 export const JUDGE_STEP = "Judge the pull request";
 export const MAX_IN_FLIGHT = 3;
 export const WRITE_GAP_MS = 1000;
-// An outage loss is re-run within a day; an older one is left to a person (judgment).
-export const LOOKBACK_HOURS = 24;
 // Pages of 100 read per status query of a lane's run listing; a listing that
 // does not fit is a failure, never a partial read.
 export const LANE_RUN_PAGES = 5;
@@ -132,14 +130,7 @@ function ciRunsByWorkflow(runs) {
 const isLost = (r, since) => r.status === "completed" && LOST.has(r.conclusion) && r.run_attempt === 1 && Date.parse(r.created_at) >= since;
 const isLostLane = (r, since) => r.event === "workflow_run" && r.head_branch === "main" && SHA.test(r.head_sha ?? "") && isLost(r, since);
 // A failed run whose failed jobs may be re-run now, if its failures are infra only.
-const isRetryable = (r, since, now) =>
-  r.status === "completed" &&
-  r.conclusion === "failure" &&
-  Number.isInteger(r.run_attempt) &&
-  r.run_attempt >= 1 &&
-  r.run_attempt <= INFRA_BACKOFF_MINUTES.length &&
-  Date.parse(r.created_at) >= since &&
-  now - Date.parse(r.updated_at) >= INFRA_BACKOFF_MINUTES[r.run_attempt - 1] * 60_000;
+const isRetryable = (r, now) => reconcilerRetries(r, now) && now - Date.parse(r.updated_at) >= INFRA_BACKOFF_MINUTES[r.run_attempt - 1] * 60_000;
 const lostNow = (item, r, since) => {
   if (r?.head_sha !== item.head) {
     return false;
@@ -247,7 +238,7 @@ async function plan({ repo, call, say, since, now, readStatus }) {
         continue;
       }
       for (const { run: r, jobs } of tested.filter(Boolean)) {
-        if (!jobs || !isRetryable(r, since, now) || !infraOnly(jobs)) {
+        if (!jobs || !isRetryable(r, now) || !infraOnly(jobs)) {
           continue;
         }
         const hold = await upstreamHold();
