@@ -345,13 +345,6 @@ lanes:
         needs:
           - resolve-issue
           - apply-issue-patch
-  pr-refine:
-    stage: refine
-    slots:
-      - activity: fix-docs
-      # Runs after fix-docs, in its own job with its own token.
-      - activity: apply-patch
-        needs: [fix-docs]
   pr-unblock:
     stage: unblock
     slots:
@@ -370,9 +363,12 @@ lanes:
       # Started by pr-unblock-dispatch.yml for lanes App PRs whose ci-status
       # failed.
       - activity: fix-ci
-      # Runs after fix-ci, in its own job with its own token.
+      # Started by pr-unblock-dispatch.yml once per ready PR that changes a
+      # Markdown file.
+      - activity: fix-docs
+      # Runs after fix-ci or fix-docs, in its own job with its own token.
       - activity: apply-patch
-        needs: [fix-ci]
+        needs: [fix-ci, fix-docs]
       # Hands the pull request to a person when any of the others escalates.
       - activity: report-escalation
         needs: [resolve-conflicts, address-feedback, publish-feedback, review-dependency, apply-dependency-verdict, fix-ci, apply-patch]
@@ -507,6 +503,8 @@ limits:
   # a timeout). 1 retries once; a second failure on the same head is a
   # pattern for a person, not a retry.
   fix-ci-restarts: 1
+  # fix-docs runs one pr-unblock-dispatch run starts, matching fix-ci-per-run.
+  fix-docs-per-run: 2
   # The issue lane's WIP cap when the lane merge rate cannot be read; the
   # wip block below derives it otherwise.
   wip-cap: 12

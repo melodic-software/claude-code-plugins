@@ -315,7 +315,7 @@ for (const [path, edit] of [
     });
     const api = fakeApi(fix.repo, fix.head);
     const lines = [];
-    assert.deepEqual(await pushWith(fix, api, { lane: "pr-refine", activity: "fix-docs", log: (line) => lines.push(line) }), {
+    assert.deepEqual(await pushWith(fix, api, { lane: "pr-unblock", activity: "fix-docs", log: (line) => lines.push(line) }), {
       outcome: "escalate",
       escalationReason: "patch-protected-path",
     });
@@ -339,12 +339,12 @@ test("a fix-docs patch of 300 files pushes, and one of 301 escalates patch-inval
   assert.deepEqual(refused.calls, []);
 });
 
-test("a fix-docs patch commits Apply fix-docs on the head with the Lane-Activity: pr-refine/fix-docs trailer", async (t) => {
+test("a fix-docs patch commits Apply fix-docs on the head with the Lane-Activity: pr-unblock/fix-docs trailer", async (t) => {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# fixed\n"));
   const api = fakeApi(fix.repo, fix.head);
-  assert.deepEqual(await pushWith(fix, api, { lane: "pr-refine", activity: "fix-docs" }), { outcome: "pushed", commit: "c".repeat(40), branch: "feat/x" });
+  assert.deepEqual(await pushWith(fix, api, { lane: "pr-unblock", activity: "fix-docs" }), { outcome: "pushed", commit: "c".repeat(40), branch: "feat/x" });
   const { createCommit } = api.calls.find((call) => call.createCommit);
-  assert.equal(createCommit.message, "Apply fix-docs on feat/x\n\nLane-Activity: pr-refine/fix-docs\n");
+  assert.equal(createCommit.message, "Apply fix-docs on feat/x\n\nLane-Activity: pr-unblock/fix-docs\n");
   assert.deepEqual(createCommit.parents, [fix.head]);
 });
 
@@ -554,8 +554,8 @@ test("under the ci-context row a head that moved since the model job skips super
   assert.deepEqual(api.calls, []);
 });
 
-// The default row keeps the moved-head path on purpose: pr-refine has no
-// synchronize trigger, so a skipped fix-docs patch would never run again.
+// The default row keeps the moved-head path on purpose: fix-docs runs once
+// per pull request, so a skipped fix-docs patch would never run again.
 test("only the ci-context row skips a moved head; the other PR rows keep the moved-head path", (t) => {
   const dir = scratch(t);
   writeFileSync(join(dir, "patch.diff"), "diff --git a/x b/x\n");

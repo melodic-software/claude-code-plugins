@@ -111,9 +111,6 @@ lanes:
     stage: refine
     slots:
       - activity: simplify
-      - activity: fix-docs
-      - activity: apply-patch
-        needs: [fix-docs]
   pr-run-checks:
     stage: verify
     slots:
@@ -144,6 +141,9 @@ lanes:
     stage: unblock
     slots:
       - activity: resolve-conflicts
+      - activity: fix-docs
+      - activity: apply-patch
+        needs: [fix-docs]
       - activity: report-escalation
         needs: [resolve-conflicts]
       # Fixing CI and addressing review feedback join this lane as composites

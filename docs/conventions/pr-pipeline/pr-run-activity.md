@@ -609,8 +609,8 @@ Read file, PR mode: a skill runs on ci-workflows'
 job. The caller calls the read file twice, each call with one secret, named for its `role`:
 `pr-unblock.yml`'s `fix-ci` passes only `claude-api-key` (`AUTOMATIONS_CLAUDE_API_KEY`), and
 `fix-ci-subscription` passes only `claude-code-oauth-token`
-(`AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN`); `pr-refine.yml`'s `fix-docs` and `fix-docs-subscription`
-do the same. The second runs only when the first's `lane-class` output
+(`AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN`); its `fix-docs` and `fix-docs-subscription` do the
+same. The second runs only when the first's `lane-class` output
 is `credit-stop` or its `credential-present` is `false`, each compared to that fixed string, and
 passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr>`.
 
@@ -866,7 +866,7 @@ since it could hide a `.github/` path. Residual: a reviewed-head marker confirms
 review run, so any reviewer-bot review on that head is kept.
 
 The head re-read in step 5 applies to every `mutate-branch` activity, not only this mode: a
-pr-refine run whose PR branch moved before the mint now posts neutral `superseded-sha` without a
+pr-unblock run whose PR branch moved before the mint now posts neutral `superseded-sha` without a
 model turn.
 
 ### prepare: dependency-review
@@ -1044,13 +1044,14 @@ of `patch-rules.json`. The caller passes the outputs of whichever `fix-ci` call 
 The run's `escalation-reason` output is the script's reason, else the select step's. The runner
 accepts the script's reasons only in this mode.
 
-In `pr-refine.yml` the same leaf follows `fix-docs`, which has no prepare mode: the caller passes
-no `patch-prepare`, so the script takes the `default` row, and runs the job only on a `written`
-patch. That row refuses the universal set and the `instruction-path` list, escalating
+In `pr-unblock.yml` the same leaf, as the `apply-docs-patch` job, follows `fix-docs`, which has
+no prepare mode: the caller passes no `patch-prepare`, so the script takes the `default` row, and
+runs the job only on a `written` patch. That row refuses the universal set and the `instruction-path` list, escalating
 `patch-protected-path`, caps a patch at 300 paths (`patch-invalid`), takes a moved head with
 `--3way` when the moved commits touch no patched path (`skip-moved-head: false`), and commits
-`Apply fix-docs on <head ref>` with the trailer `Lane-Activity: pr-refine/fix-docs`. The lane has
-no `report-escalation`, so an escalation leaves only the neutral `awaiting-human` check.
+`Apply fix-docs on <head ref>` with the trailer `Lane-Activity: pr-unblock/fix-docs`.
+`report-escalation` does not need `apply-docs-patch` and takes no `patch-*` reason, so an
+escalation leaves only the neutral `awaiting-human` check.
 
 In issue mode the same leaf is `apply-issue-patch`, which runs
 [`apply-patch.mjs`](../../../.github/scripts/apply-patch/apply-patch.mjs) with `PATCH_TARGET=issue`
@@ -1230,10 +1231,9 @@ outputs are sent), so the report job differs:
   decline cannot be told from a forged empty head in the report job, so both take this neutral.
 - pr-unblock passes `fix-ci-context`'s head, not the read runner's `head-sha` output, as
   apply-patch's `patch-head-sha`; apply-patch compares it with the head its own trigger gate reads
-  at apply time and pushes only while the branch is still there. pr-refine has no job that gates
-  the head before `fix-docs`, so it passes no `head-sha` (the report job takes the event's head,
-  or on a dispatch the PR's head it reads) and passes the read runner's `head-sha` output as
-  `patch-head-sha`; apply-patch still applies onto the head its own gate reads and measures the
+  at apply time and pushes only while the branch is still there. No job gates the head before
+  `fix-docs`, so its calls pass no `head-sha` (the report job takes the PR's head it reads) and
+  `apply-docs-patch` passes the read runner's `head-sha` output as `patch-head-sha`; apply-patch still applies onto the head its own gate reads and measures the
   `default` row's refusals from there.
 
 What it trusts:

@@ -13,9 +13,11 @@ name: pr-unblock
 # pr-unblock-dispatch.yml also sends one per review-tier Dependabot PR (a major
 # bump, an action publisher outside the allowlist, a group holding a major, or
 # a red ci-status) whose head has no review yet. fix-ci: pr-unblock-dispatch.yml
-# also sends one per lanes App PR whose ci-status failed. All set
-# dispatcher-run-id; a
-# trusted human may dispatch with pr-number and activity alone. Every job
+# also sends one per lanes App PR whose ci-status failed. fix-docs:
+# pr-unblock-dispatch.yml also sends one per ready PR a person opened that
+# changes a Markdown file and never had a fix-docs run. All set
+# dispatcher-run-id; a trusted human may dispatch with pr-number and activity
+# alone. Every job
 # trusts the default branch tip, since a conflicting PR's base SHA is stale and
 # the dispatchers run from the tip.
 
@@ -35,7 +37,7 @@ on:
         description: What to unblock.
         required: false
         type: choice
-        options: [resolve-conflicts, address-feedback, review-dependency, fix-ci]
+        options: [resolve-conflicts, address-feedback, review-dependency, fix-ci, fix-docs]
         default: resolve-conflicts
       dispatcher-run-id:
         description: The dispatcher run that sent this dispatch; empty for a human dispatch.
@@ -469,6 +471,105 @@ jobs:
       # still at that head.
       patch-head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
       reply-attempt: ${{ needs.fix-ci-subscription.outputs.reply-attempt || needs.fix-ci.outputs.reply-attempt }}
+
+  # fix-docs is three jobs, so no model ever holds a write token. The model
+  # job: a read activity with no write token and no OIDC token in the job that
+  # runs head code. The skill fixes the changed Markdown files; the runner
+  # uploads its uncommitted edits as a patch. It runs on the automations
+  # role's API key alone. Drafts and held PRs skip in the config's
+  # applies-when, before any model turn.
+  fix-docs:
+    if: >-
+      inputs.pr-number != '' && inputs.activity == 'fix-docs'
+      && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
+    with:
+      role: automations
+      lane: pr-unblock
+      activity: fix-docs
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      timeout-minutes: 60
+    secrets:
+      claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+
+  # The subscription fallback, as fix-ci-subscription is for fix-ci: it runs
+  # only when fix-docs's key leg hit a credit stop or its key is empty, reads
+  # only those two outputs, each compared to a fixed string, and holds the
+  # OAuth token alone.
+  fix-docs-subscription:
+    needs: fix-docs
+    if: >-
+      ${{ !cancelled() && (needs.fix-docs.outputs.lane-class == 'credit-stop'
+      || needs.fix-docs.outputs.credential-present == 'false') }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
+    with:
+      role: automations
+      lane: pr-unblock
+      activity: fix-docs
+      fallback: ${{ needs.fix-docs.outputs.lane-class == 'credit-stop' && 'credit-stop' || 'no-key' }}
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      timeout-minutes: 60
+    secrets:
+      claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+
+  # fix-docs's push job: the apply-patch activity under patch-rules.json's
+  # default row (fix-docs has no prepare mode). It runs only on a written
+  # patch: no change is the common case and needs no one. report-escalation
+  # does not need it, so a refused patch posts the pr-unblock / apply-patch
+  # check neutral and labels nothing. The patch and its head come from
+  # whichever call ran the activity; apply-patch still applies onto the head
+  # its own gate reads.
+  apply-docs-patch:
+    needs: [fix-docs, fix-docs-subscription]
+    if: >-
+      ${{ !cancelled() && (needs.fix-docs-subscription.outputs.patch-state || needs.fix-docs.outputs.patch-state) == 'written' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      role: automations
+      lane: pr-unblock
+      activity: apply-patch
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      patch-state: ${{ needs.fix-docs-subscription.outputs.patch-state || needs.fix-docs.outputs.patch-state }}
+      patch-sha256: ${{ needs.fix-docs-subscription.outputs.patch-sha256 || needs.fix-docs.outputs.patch-sha256 }}
+      patch-attempt: ${{ needs.fix-docs-subscription.outputs.patch-attempt || needs.fix-docs.outputs.patch-attempt }}
+      patch-activity: fix-docs
+      patch-head-sha: ${{ needs.fix-docs-subscription.outputs.head-sha || needs.fix-docs.outputs.head-sha }}
+      reply-attempt: ${{ needs.fix-docs-subscription.outputs.reply-attempt || needs.fix-docs.outputs.reply-attempt }}
 
   # GitHub starts no pull_request workflow on a conflicted PR, so a head the
   # lane could not resolve gets no CI and no sign why. This script job, with

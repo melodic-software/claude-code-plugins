@@ -136,6 +136,13 @@
           "default": 1,
           "description": "Further fix-ci dispatches on one PR head after its first fix-ci run ended in failure."
         },
+        "fix-docs-per-run": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20,
+          "default": 2,
+          "description": "fix-docs dispatches one pr-unblock-dispatch run sends at most."
+        },
         "admission-factor": {
           "type": "number",
           "exclusiveMinimum": 0,
