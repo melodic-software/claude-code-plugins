@@ -4435,11 +4435,11 @@ class Session:
         doomed = []
         with self._write_as(pid, "upload-offer") as st:
             person = st["people"][pid]
-            if not st["session"]["settings"]["uploads"]:
-                raise DomainError(403, "uploads-off", "Uploads are off in this session.")
+            owner = pid == HOST
+            if not st["session"]["settings"]["uploads"] and not (avatar and owner):  # the owner's own picture needs no switch
+                raise DomainError(403, "uploads-off", "The host has pictures off in this session." if avatar else "Uploads are off in this session.")
             if qid is not None:
                 qid = self._question(qid)["id"]
-            owner = pid == HOST
             if ext not in GUEST_KINDS and not (owner or person["trusted"]):
                 raise DomainError(415, "file-type", "Guests can send pictures, PDF, text, CSV and Office files.")
             held = [u for u in st["uploads"] if u["status"]["kind"] in UPLOAD_HELD]
@@ -4465,7 +4465,8 @@ class Session:
             shown = [(u["pid"], len(u["thumb"])) for u in st["uploads"] if "thumb" in u]
             if thumb and sum(n for p, n in shown if p == pid) + len(thumb) <= PERSON_THUMB_MAX and sum(n for _, n in shown) + len(thumb) <= SESSION_THUMB_MAX:
                 rec["thumb"] = thumb  # past either bound the offer keeps no preview; the owner sees its icon
-            rec["status"] = {"kind": "accepted", "tmp": self.ids.hex(16)} if owner else {"kind": "offered"}
+            # the owner's own, and a profile picture (small, and shown to others only once approved), need no accept
+            rec["status"] = {"kind": "accepted", "tmp": self.ids.hex(16)} if owner or avatar else {"kind": "offered"}
             st["uploads"].append(rec)
             if not owner:
                 self._queue_note([HOST], pid)

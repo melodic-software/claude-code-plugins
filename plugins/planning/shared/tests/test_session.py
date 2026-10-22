@@ -5823,8 +5823,6 @@ class TestAvatars(UploadCase):
 
     def avatar(self, pid, name="me.png", data=PIC, approve=False):
         uid = self.offer(pid, name, data, avatar=True)["id"]
-        if pid != HOST:
-            self.act("act_on_upload", HOST, {"id": uid, "action": "accept"})
         self.send_all(pid, uid, data)
         if approve:
             self.act("act_on_upload", HOST, {"id": uid, "action": "approve"})
@@ -5833,6 +5831,26 @@ class TestAvatars(UploadCase):
     def shown(self, viewer, pid):
         """The avatar viewer's snapshot lists for pid, else None."""
         return next(p for p in self.s.snapshot(viewer)["people"] if p["pid"] == pid).get("avatar")
+
+    def test_a_guests_offer_is_accepted_at_once_and_stays_hidden_until_approved(self):
+        out = self.offer(self.ann, "me.png", PIC, avatar=True)
+        self.assertEqual(out["status"], "accepted")
+        self.send_all(self.ann, out["id"], PIC)
+        self.assertIsNone(self.shown(self.bo, self.ann))
+        self.assertEqual(self.refused("not-found", "upload_image", self.bo, {"id": out["id"]}).http, 404)
+        self.act("act_on_upload", HOST, {"id": out["id"], "action": "approve"})
+        self.assertEqual(self.shown(self.bo, self.ann), out["id"])
+
+    def test_the_owners_picture_works_with_uploads_off(self):
+        self.act("update_settings", HOST, {"uploads": False})
+        uid = self.avatar(HOST)
+        self.assertEqual(self.shown(self.bo, HOST), uid)
+        self.refused("uploads-off", "offer_upload", HOST, {"file": "a.pdf", "size": len(PDF), "type": ""})
+
+    def test_a_guests_picture_is_refused_with_uploads_off(self):
+        self.act("update_settings", HOST, {"uploads": False})
+        e = self.refused("uploads-off", "offer_upload", self.ann, {"file": "me.png", "size": len(PIC), "type": "image/png", "avatar": True})
+        self.assertEqual((e.http, e.message), (403, "The host has pictures off in this session."))
 
     def test_only_a_png_jpeg_or_webp_of_at_most_256_kb_is_offered_as_one(self):
         gif = {"file": "me.gif", "size": 10, "type": "image/gif", "avatar": True}
@@ -5844,13 +5862,12 @@ class TestAvatars(UploadCase):
         self.refused("bad-field", "offer_upload", self.ann, {**big, "size": 10, "qid": "Q1"})
         for name in ("a.png", "b.jpg", "c.jpeg", "d.webp"):
             out = self.act("offer_upload", self.ann, {**big, "file": name, "size": 256 * 1024})
-            self.assertEqual(out["status"], "offered")
+            self.assertEqual(out["status"], "accepted")
             self.assertTrue(self.upload(out["id"])["avatar"])
 
     def test_its_bytes_must_be_the_kind_its_name_says(self):
         jpeg = b"\xff\xd8\xff\xe0" + bytes(100)
         uid = self.offer(self.ann, "me.png", jpeg, avatar=True)["id"]
-        self.act("act_on_upload", HOST, {"id": uid, "action": "accept"})
         self.assertEqual(self.refused("file-type", "upload_chunk", self.ann, piece_meta(uid, 0, 1, jpeg, jpeg), jpeg).http, 415)
         self.assertEqual(self.upload(uid)["status"]["kind"], "failed")
         self.assertIsNone(self.shown(HOST, self.ann))
@@ -5859,7 +5876,6 @@ class TestAvatars(UploadCase):
 
     def test_more_bytes_than_offered_are_refused(self):
         uid = self.offer(self.ann, "me.png", PIC, avatar=True)["id"]
-        self.act("act_on_upload", HOST, {"id": uid, "action": "accept"})
         self.chunk(self.ann, uid, 0, PIC)
         longer = PIC[SMALL:] + b"x"
         self.assertEqual(self.refused("bad-field", "upload_chunk", self.ann, piece_meta(uid, 1, 2, longer, PIC[:SMALL] + longer), longer).http, 400)
@@ -5904,7 +5920,7 @@ class TestAvatars(UploadCase):
     def test_a_new_offer_withdraws_one_still_on_its_way(self):
         first = self.offer(self.ann, "a.png", PIC, avatar=True)["id"]
         second = self.offer(self.ann, "b.png", PIC, avatar=True)["id"]
-        self.assertEqual((self.upload(first)["status"]["kind"], self.upload(second)["status"]["kind"]), ("withdrawn", "offered"))
+        self.assertEqual((self.upload(first)["status"]["kind"], self.upload(second)["status"]["kind"]), ("withdrawn", "accepted"))
         own = self.offer(HOST, "a.png", PIC, avatar=True)["id"]
         self.chunk(HOST, own, 0, PIC)
         tmp = self.upload(own)["status"]["tmp"]

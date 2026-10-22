@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Profile pictures in a real browser, against `share.sh ensure-running` with the fake cloudflared: a guest picks a
-// picture on their person card; once it arrives they see it on their own avatar at once, and another guest still sees
+// picture on their person card; it needs no accept, and once it arrives they see it on their own avatar at once, and another guest still sees
 // their initials on their color until the owner presses Approve picture on the guest's card; then everyone sees it as a
 // circle crop. Turning Show names off hides it for everyone and brings it back when names show again; removed, the
-// initials show again.
+// initials show again. With Uploads off a guest's card says the host has pictures off; the owner can still add one.
 //   node plugins/planning/shared/tests/ui_avatars.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the owner's decisions (approval as for received pictures, PNG, JPEG or WebP at most
@@ -49,8 +49,7 @@ async function main() {
     await ann.setInputFiles(".vf-pcard .vf-pavatar input[type=file]", { name: "me.png", mimeType: "image/png", buffer: png(320, 200, [40, 120]) });
     ok("her offer is marked as a profile picture", await until(ann, () => (window.Core.snapshot().myUploads || []).some(u => u.avatar), null, 10000));
     const uid = (await snap(ann)).myUploads.find(u => u.avatar).id;
-    await owner.evaluate(id => window.Core.uploadAct(id, "accept"), uid);
-    ok("it arrives", await until(ann, id => window.Core.snapshot().myUploads.some(u => u.id === id && u.status.kind === "done"), uid, 20000));
+    ok("it arrives with no accept from the owner", await until(ann, id => window.Core.snapshot().myUploads.some(u => u.id === id && u.status.kind === "done"), uid, 20000));
     const sent = (await snap(ann)).myUploads.find(u => u.id === uid);
     ok("  redrawn small: at most 256 KB", sent.size <= 256 * 1024, sent.size);
 
@@ -78,6 +77,19 @@ async function main() {
     ok("  and neither does Ann", await noPic(ann, annPid));
     await owner.evaluate(() => window.Core.saveSettings({ showNames: true }));
     ok("with Show names on again Bo sees it again", await hasPic(bo, annPid));
+
+    // ---------- Uploads off: a guest cannot add one, and is told why ----------
+    await owner.evaluate(() => window.Core.saveSettings({ uploads: false }));
+    await until(bo, () => window.Core.state.settings.uploads === false);
+    await bo.click(".vf-people .vf-person-me");
+    await bo.waitForSelector(".vf-pcard .vf-pavatar");
+    ok("with Uploads off Bo's card says the host has pictures off, with no Choose a picture",
+      await until(bo, () => { const b = document.querySelector(".vf-pcard .vf-pavatar"); return !!b && b.textContent.includes("The host has pictures off in this session.") && !b.querySelector("input[type=file]"); }, null, 10000),
+      await bo.textContent(".vf-pcard .vf-pavatar"));
+    await owner.keyboard.press("Escape");
+    await owner.click(".vf-people .vf-person-me");
+    ok("  while the owner's own card still offers Choose a picture",
+      await until(owner, () => !!document.querySelector(".vf-pcard .vf-pavatar input[type=file]"), null, 10000));
 
     // ---------- removed: the initials come back ----------
     await ann.evaluate(id => window.Core.uploadAct(id, "remove"), uid);

@@ -4192,7 +4192,7 @@
       const r = await Core.uploadOffer({ file: file.name, size: file.size, type: file.type.slice(0, 200), ...(qid ? { qid } : {}), ...(thumb ? { thumb } : {}), ...(avatar ? { avatar: true } : {}) });
       up.files.set(r.id, file);
       if (thumb) localPics.set(r.id, thumb);
-      try { await idb.put(r.id, file); flash(owner ? (avatar ? "Your picture is on its way." : "Sending the file to your computer.") : "Offered to the host. The file stays on this device until they accept."); }
+      try { await idb.put(r.id, file); flash(avatar ? "Your picture is on its way." : owner ? "Sending the file to your computer." : "Offered to the host. The file stays on this device until they accept."); }
       catch { up.memOnly.add(r.id); flash("Offered. This browser cannot keep files (private mode?), so keep this tab open until it is sent."); }
       render();
       return r;
@@ -4965,13 +4965,13 @@
       if (done && !done.shown && pid !== "host") say(mine ? "Only you and the host see it until the host approves it." : "Waiting for your approval before others see it.");
       const row = E("div", "vf-crow");
       if (mine) {
-        if (st().uploads) {
+        if (st().uploads || owner) { // the owner's own picture needs no Uploads switch; a guest's does
           const input = E("input"); input.type = "file"; input.accept = "image/png,image/jpeg,image/webp"; input.hidden = true;
           const pick = k(btn("vf-btn vf-btn-ghost vf-btn-sm", done ? "Replace picture" : "Choose a picture"), "avPick");
           pick.onclick = () => input.click();
           input.onchange = () => { const f = input.files?.[0]; input.value = ""; if (f) offerFile(f, "", true).catch(e => flash(e?.error || Core.errorText(e))); };
           row.append(input, pick);
-        } else if (!done) say(owner ? "Turn on Uploads in Settings to add one." : "Uploads are off in this session.");
+        } else say("The host has pictures off in this session.");
       }
       if (!mine && owner && done && !done.shown) {
         const ok = k(btn("vf-btn vf-btn-primary vf-btn-sm vf-upapprove", "Approve picture"), "avOk");

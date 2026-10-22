@@ -645,8 +645,10 @@ does not load.
 A person may show a profile picture on their avatar in place of their initials. They pick it on
 their own person card (Your picture: Choose a picture, Replace picture, Remove picture); the
 browser redraws the middle square at 256 px at most, as WebP where it writes it, else JPEG, and
-offers it with `avatar: true` through the upload path above, so the Uploads switch, the owner's
-accept and the first piece's magic-number check all apply. An avatar offer must name a PNG, JPEG or
+offers it with `avatar: true` through the upload path above, so the first piece's magic-number
+check applies. It needs no accept: it is small, and others see it only once approved. A guest's
+follows the Uploads switch (403 `uploads-off`, "The host has pictures off in this session."); the
+owner's own does not. An avatar offer must name a PNG, JPEG or
 WebP (415 `file-type`), be 256 KB at most (413 `upload-too-large`), and name no `qid`; no post may
 carry it (409 `wrong-status`). Once it arrives it replaces the person's last one, which is removed
 and deleted, and a new offer withdraws one still on its way. Neither event goes to Claude
