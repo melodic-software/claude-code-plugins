@@ -169,7 +169,7 @@ class Stop extends Error {
   }
 }
 
-const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
+export const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
 // GET /pulls can lag a push by minutes, so the PR is re-read until its head
 // matches the branch ref, after each of these waits in turn (60 s in all).
 const HEAD_READ_DELAYS_MS = [5000, 10_000, 20_000, 25_000];

@@ -6,10 +6,9 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../check-kill-switch/check-kill-switch.mjs";
-import { createGitHub, paginate, readPull } from "../check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, paginate, readPull, REPOSITORY } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
-const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
 const SHA = /^[0-9a-f]{40}$/;
 const LISTED_COMMITS_CAP = 250;
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

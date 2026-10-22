@@ -1970,6 +1970,45 @@ test("expected upstream head: a pulls read that never reaches the branch ref sto
   assert.deepEqual(sleep.waits, [5000, 10_000, 20_000, 25_000]);
 });
 
+const lagDispatch = (routes, sleep) =>
+  gate({
+    eventName: "workflow_dispatch",
+    event: fixture("event-workflow-dispatch.json"),
+    github: fakeGitHub(routes),
+    prNumber: "42",
+    sleep,
+  });
+
+test("workflow_dispatch: a branch ref read failing other than 404 stops with no-pr and no wait", async () => {
+  const sleep = fakeSleep();
+  const outputs = await lagDispatch(
+    { [pullRoute]: fixture("api-pull-42.json"), [HEAD_REF_ROUTE]: new GitHubError(500, "ref") },
+    sleep,
+  );
+  assert.deepEqual(outputs, STOPPED("no-pr"));
+  assert.deepEqual(sleep.waits, []);
+});
+
+test("workflow_dispatch: a missing branch ref waits the whole schedule, then stops with head-lag", async () => {
+  const sleep = fakeSleep();
+  const outputs = await lagDispatch(
+    { [pullRoute]: fixture("api-pull-42.json"), [HEAD_REF_ROUTE]: new GitHubError(404, "ref") },
+    sleep,
+  );
+  assert.deepEqual(outputs, STOPPED("head-lag"));
+  assert.deepEqual(sleep.waits, [5000, 10_000, 20_000, 25_000]);
+});
+
+test("workflow_dispatch: a pulls re-read that fails stops with no-pr", async () => {
+  const sleep = fakeSleep();
+  const outputs = await lagDispatch(
+    { [pullRoute]: inTurn(pullAt(GATED_SHA), new GitHubError(500, "pulls")) },
+    sleep,
+  );
+  assert.deepEqual(outputs, STOPPED("no-pr"));
+  assert.deepEqual(sleep.waits, [5000]);
+});
+
 test("expected upstream head: refused on a push dispatcher and on a human's own dispatch", async () => {
   assert.deepEqual(
     await runDispatched({ github: fakeGitHub(dispatcherRoutes()), expectedUpstreamHead: HEAD_SHA }),

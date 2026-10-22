@@ -40,8 +40,9 @@ condition 1 and the actor and author parts of condition 2).
 - **`workflow_dispatch`.** Fetches the PR named by `pr-number`; a null head repo is a fork.
   Actor is `sender`. `GET /pulls` can lag a push by minutes, so a same-repository PR is re-read
   after 5, 10, 20 and 25 s until its `head.sha` equals its branch ref; if they never agree, or
-  the branch ref is missing, the lane stops with `head-lag` rather than gate a stale head; a failed
-  read stops with `no-pr`. A fork's ref is not read.
+  the branch ref is missing, the lane stops with `head-lag` rather than gate a stale head, which
+  `report-check-run` posts as a `superseded-sha` skip, since the push that moved the branch is
+  gated by its own run; a failed read stops with `no-pr`. A fork's ref is not read.
 - **Dispatcher-sent `workflow_dispatch`.** A dispatch made with `GITHUB_TOKEN` names
   `github-actions[bot]` (id 41898282) as sender, actor and triggering actor, and nothing on the
   run names who started the dispatcher. When `sender.id` is 41898282 and `dispatcher-run-id` is
