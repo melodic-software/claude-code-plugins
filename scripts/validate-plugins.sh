@@ -181,24 +181,58 @@ render_validate() {
   return "$status"
 }
 
+validate_one() {
+  echo "=== validate ${1%/} ==="
+  render_validate "$1"
+}
+
+# The per-plugin passes and the mod tests run as background jobs, one
+# per-plugin pass per CPU, with the mod tests beside them. Each job's output is
+# buffered and printed in start order, so the log reads as a serial run.
 failed=0
+buf="$(mktemp -d)" || exit 2
+trap 'rm -rf "$buf"' EXIT
+pids=()
+spawn() {
+  local n=${#pids[@]}
+  "$@" >"$buf/$n.out" 2>"$buf/$n.err" &
+  pids[n]=$!
+}
+# collect <n>: wait for job n, print its output, and fold a failure into failed.
+collect() {
+  wait "${pids[$1]}" || failed=1
+  cat "$buf/$1.out"
+  cat "$buf/$1.err" >&2
+}
+
+mods=-1
+if runs_checked_code "claude plugin test (mods)"; then
+  mods=${#pids[@]}
+  spawn bash "$SCRIPT_DIR/test-plugin-mods.sh"
+fi
+
+width="$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
 dirs=(plugins/*/)
 if ((limited)); then
   dirs=(${only[@]+"${only[@]}"})
   echo "Per-plugin pass limited to ${#only[@]} plugin(s): ${only[*]:-none}"
 fi
+next=${#pids[@]}
 for dir in ${dirs[@]+"${dirs[@]}"}; do
   [[ -d "$dir" ]] || continue
-  echo "=== validate ${dir%/} ==="
-  render_validate "$dir" || failed=1
+  spawn validate_one "$dir"
+  while ((${#pids[@]} - next > width)); do
+    collect $((next++))
+  done
+done
+while ((next < ${#pids[@]})); do
+  collect $((next++))
 done
 
 echo "=== validate --strict (catalog manifest) ==="
 render_validate . --strict || failed=1
 
-if runs_checked_code "claude plugin test (mods)"; then
-  bash "$SCRIPT_DIR/test-plugin-mods.sh" || failed=1
-fi
+((mods < 0)) || collect "$mods"
 
 if [[ $failed -ne 0 ]]; then
   echo "Plugin validation failed." >&2

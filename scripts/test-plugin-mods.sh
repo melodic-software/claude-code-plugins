@@ -54,10 +54,21 @@ if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || ! version_at_least "$versio
   exit 0
 fi
 
+# The mods' tests run in parallel; each one's output is buffered and printed in
+# order.
+buf="$(mktemp -d)" || exit 2
+trap 'rm -rf "$buf"' EXIT
+pids=()
+for i in "${!mods[@]}"; do
+  claude plugin test "${mods[i]}" >"$buf/$i.out" 2>"$buf/$i.err" &
+  pids[i]=$!
+done
 failed=0
-for dir in "${mods[@]}"; do
-  echo "=== claude plugin test $dir ==="
-  claude plugin test "$dir" || failed=1
+for i in "${!mods[@]}"; do
+  echo "=== claude plugin test ${mods[i]} ==="
+  wait "${pids[i]}" || failed=1
+  cat "$buf/$i.out"
+  cat "$buf/$i.err" >&2
 done
 if [[ $failed -ne 0 ]]; then
   echo "Mod tests failed." >&2
