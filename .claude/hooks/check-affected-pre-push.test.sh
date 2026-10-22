@@ -18,6 +18,7 @@
 # it ran and exits with $STUB_RC, so these cases test the hook, not the checks.
 # The cases hold shell source as literal data on purpose.
 # shellcheck disable=SC2016
+# test-scope: .claude/settings.json
 set -uo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2

@@ -1,3 +1,4 @@
+# test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/repo_config_fake.py
 """pr-merge's candidate prefilter: a held candidate never reaches the gate.
 
 A candidate whose listed labels or body carry a hold the gate refuses on is

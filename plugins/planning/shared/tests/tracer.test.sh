@@ -5,6 +5,7 @@
 # sends -> watch.sh prints round-sent -> apply ack-round plus the next open-round -> restart ->
 # the guest link, the people and the answers are intact -> stop leaves nothing running.
 # Credentials reach curl through header files (-H @file), never its command line.
+# test-scope: plugins/planning/.claude-plugin/plugin.json plugins/planning/shared/schema/event.schema.json plugins/planning/shared/schema/question-shape.schema.json plugins/planning/surface/schema/event.schema.json plugins/planning/surface/schema/ops.schema.json plugins/planning/surface/schema/responses.schema.json plugins/planning/surface/schema/visual.schema.json
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 shared=$(cd "$here/.." && pwd)
