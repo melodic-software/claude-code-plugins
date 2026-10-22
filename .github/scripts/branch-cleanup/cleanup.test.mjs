@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { cleanup } from "./cleanup.mjs";
+import { cleanup, client } from "./cleanup.mjs";
 import { linkedIssues } from "./rules.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
@@ -225,7 +225,7 @@ test("a branch whose tip moved, or that gained an open PR, between listing and d
   assert.deepEqual(r.skipped.map((s) => s.name).sort(), ["feat/moved", "feat/reopened"]);
 });
 
-test("a run deletes at most max-deletes-per-run, the rest wait", async () => {
+test("a run deletes at most max-deletes-per-run and leaves the rest unevaluated for the next run", async () => {
   const branches = [];
   const pulls = {};
   for (let i = 1; i <= 4; i += 1) {
@@ -234,8 +234,8 @@ test("a run deletes at most max-deletes-per-run, the rest wait", async () => {
     pulls[name] = [mergedPull(i, sha(String(i)), `2026-0${i}-01T00:00:00Z`)];
   }
   const r = await run(world({ branches, pulls }), { config: { "max-deletes-per-run": 2 } });
-  assert.equal(r.candidates.length, 4);
   assert.deepEqual(r.deletes, [deletePath("feat/b1"), deletePath("feat/b2")]);
+  assert.equal(r.unevaluated, 2);
 });
 
 test("dry-run deletes nothing and writes no ledger line", async () => {
@@ -252,4 +252,28 @@ test("dry-run deletes nothing and writes no ledger line", async () => {
 test("linkedIssues reads same-repository closing and Refs links only", () => {
   const body = `Closes #1, fixes: #2\nResolves ${REPO}#3\nRefs https://github.com/${REPO}/issues/4\nCloses other/repo#5\nsee #6`;
   assert.deepEqual(linkedIssues(body, REPO), [1, 2, 3, 4]);
+});
+
+// The real client over a stubbed fetch, so its call budget applies (#8959
+// review: evaluation spent the whole budget and every delete then failed).
+test("300 deletable branches under a 600-call budget: the run deletes the cap of 25", async (t) => {
+  const branches = [];
+  const pulls = {};
+  for (let i = 1; i <= 300; i += 1) {
+    const name = `feat/old-${i}`;
+    const tip = i.toString(16).padStart(40, "0");
+    branches.push({ name, sha: tip });
+    pulls[name] = [mergedPull(i, tip, OLD)];
+  }
+  const w = world({ branches, pulls });
+  t.mock.method(globalThis, "fetch", async (url, { method }) => {
+    const body = await w.call(method, String(url).slice("https://api.test".length));
+    if (method !== "GET") return new Response(null, { status: 204 });
+    return body === null ? new Response(null, { status: 404 }) : Response.json(body);
+  });
+  const env = { REPOSITORY: REPO, DRY_RUN: "false", CALL_BUDGET: "600", GITHUB_API_URL: "https://api.test" };
+  const call = client(env, { pace: async () => {}, dryRun: false });
+  const result = await cleanup(env, { call, clock: () => NOW, loadConfig: () => ({}), append: () => {}, log: () => {} });
+  assert.equal(result.deleted.length, 25);
+  assert.equal(w.writes.length, 25);
 });

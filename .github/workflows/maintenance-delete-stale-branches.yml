@@ -83,7 +83,8 @@ jobs:
 
       # A workflow token's REST limit is per repository per hour
       # (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api);
-      # 600 calls covers about three reads for each of 200 branches.
+      # cleanup.mjs reserves 4 calls for each of the max-deletes-per-run
+      # deletes and evaluates branches with the rest, stopping at the cap.
       - name: Delete stale branches
         if: steps.kill.outputs.proceed == 'true'
         env:

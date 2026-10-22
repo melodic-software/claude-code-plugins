@@ -5,7 +5,8 @@
 // each delete it re-reads the branch tip and its open pull requests, skips the
 // branch when either changed, and appends the ledger line. In dry-run the
 // client refuses every request but GET, so nothing is written. REST only,
-// paced, within a call budget. No model.
+// paced, within a call budget, of which the deletes' share is reserved before
+// any branch is evaluated. No model.
 //
 // Environment: GITHUB_TOKEN, REPOSITORY, DRY_RUN (`true` or `false`),
 // BASE_PATH (main's checkout), LEDGER_PATH (JSON Lines file), CALL_BUDGET,
@@ -17,12 +18,14 @@ import { pathToFileURL } from "node:url";
 
 import { excluded, laneIssue, lastPull, linkedIssues, resolveBranchCleanup } from "./rules.mjs";
 
+export class BudgetSpent extends Error {}
+
 export function client(env, { pace = () => delay(200), dryRun = true } = {}) {
   let used = 0;
   const budget = Number(env.CALL_BUDGET ?? 600);
-  return async (method, path) => {
+  const call = async (method, path) => {
     if (dryRun && method !== "GET") throw new Error(`dry-run refuses ${method} ${path}`);
-    if (used >= budget) throw new Error(`call budget of ${budget} spent`);
+    if (used >= budget) throw new BudgetSpent(`call budget of ${budget} spent`);
     used += 1;
     await pace();
     const response = await fetch(`${env.GITHUB_API_URL ?? "https://api.github.com"}${path}`, {
@@ -37,6 +40,8 @@ export function client(env, { pace = () => delay(200), dryRun = true } = {}) {
     if (!response.ok) throw new Error(`${method} ${path.split("?")[0]}: HTTP ${response.status}`);
     return response.status === 204 ? null : response.json();
   };
+  call.remaining = () => budget - used;
+  return call;
 }
 
 async function pages(call, path, max = 20) {
@@ -119,6 +124,10 @@ async function stillDeletable(call, { repo, owner }, { name, sha }) {
   return null;
 }
 
+// Calls one delete takes: the tip and the open pull requests from and into
+// the branch re-read (stillDeletable), then the delete.
+const CALLS_PER_DELETE = 4;
+
 const row = (cells) => `| ${cells.map((c) => String(c ?? "").replaceAll("|", "\\|")).join(" | ")} |`;
 
 export async function cleanup(env, { call, clock, loadConfig, append, log = console.log }) {
@@ -127,13 +136,31 @@ export async function cleanup(env, { call, clock, loadConfig, append, log = cons
   const dryRun = env.DRY_RUN !== "false";
   const config = resolveBranchCleanup(loadConfig());
   const owner = repo.split("/")[0];
-  const defaultBranch = (await call("GET", `/repos/${repo}`))?.default_branch;
+  const cap = config["max-deletes-per-run"];
+  // Evaluation gets what the planned deletes leave of the client's budget.
+  const evalLimit = (call.remaining?.() ?? Number.POSITIVE_INFINITY) - cap * CALLS_PER_DELETE;
+  if (evalLimit <= 0) throw new Error(`the call budget does not cover ${cap} deletes and any reads`);
+  let evalUsed = 0;
+  const read = async (method, path) => {
+    if (evalUsed >= evalLimit) throw new BudgetSpent(`the evaluation share of ${evalLimit} calls is spent`);
+    evalUsed += 1;
+    return call(method, path);
+  };
+  const defaultBranch = (await read("GET", `/repos/${repo}`))?.default_branch;
   if (typeof defaultBranch !== "string" || defaultBranch === "") throw new Error("the default branch could not be read");
   const context = { repo, owner, defaultBranch };
 
-  const branches = await pages(call, `/repos/${repo}/branches`);
+  const branches = await pages(read, `/repos/${repo}/branches`);
   const results = [];
-  for (const branch of branches) {
+  // Evaluation stops once the cap is filled or its share is spent; the
+  // branches after that wait for the next run.
+  let unevaluated = 0;
+  let found = 0;
+  for (const [index, branch] of branches.entries()) {
+    if (cap > 0 && found >= cap) {
+      unevaluated = branches.length - index;
+      break;
+    }
     const name = branch.name;
     const sha = branch.commit?.sha;
     const skip = excluded(name, defaultBranch);
@@ -142,14 +169,19 @@ export async function cleanup(env, { call, clock, loadConfig, append, log = cons
       continue;
     }
     try {
-      results.push({ name, sha, ...(await evaluate(call, context, { name, sha, protected: branch.protected })) });
+      const verdict = await evaluate(read, context, { name, sha, protected: branch.protected });
+      if (verdict.verdict === "delete") found += 1;
+      results.push({ name, sha, ...verdict });
     } catch (error) {
+      if (error instanceof BudgetSpent) {
+        unevaluated = branches.length - index;
+        break;
+      }
       results.push({ name, sha, verdict: "report", reason: `a read failed: ${error.message}` });
     }
   }
 
   const candidates = results.filter((r) => r.verdict === "delete");
-  const cap = config["max-deletes-per-run"];
   const planned = candidates.slice(0, cap);
   log(
     `${dryRun ? "dry-run: would delete" : "will delete"} ${planned.length} of ${candidates.length} deletable branch(es) (cap ${cap}); ${branches.length} branch(es) listed`,
@@ -201,8 +233,8 @@ export async function cleanup(env, { call, clock, loadConfig, append, log = cons
       row([`\`${c.name}\``, c.sha.slice(0, 12), c.rule, c.issue ? `#${c.issue}` : "", c.pr ? `#${c.pr}` : ""]),
     ),
   ];
-  if (candidates.length > planned.length) {
-    lines.push("", `${candidates.length - planned.length} more deletable branch(es) wait for the next run (cap ${cap}).`);
+  if (unevaluated > 0) {
+    lines.push("", `${unevaluated} branch(es) not evaluated this run (cap ${cap} reached or call budget spent); the next run continues.`);
   }
   if (skipped.length > 0) {
     lines.push("", "#### Skipped at delete time", "", ...skipped.map((s) => `- \`${s.name}\`: ${s.reason}`));
@@ -217,7 +249,7 @@ export async function cleanup(env, { call, clock, loadConfig, append, log = cons
     "",
     ...results.filter((r) => r.verdict === "keep").map((r) => `- \`${r.name}\`: ${r.reason}`),
   );
-  return { dryRun, results, candidates, planned, deleted, skipped, summary: lines.join("\n") };
+  return { dryRun, results, candidates, planned, deleted, skipped, unevaluated, summary: lines.join("\n") };
 }
 
 async function main(env = process.env) {
