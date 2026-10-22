@@ -1431,7 +1431,10 @@ test("run-claude-cli: web-access any gives a patch skill WebFetch and WebSearch,
     assert.ok(run.deniedTools.includes(rule), `${rule} in ${run.deniedTools.join(" | ")}`);
   }
   assert.equal(run.pluginDirs, ".lane/plugins/source-control\n.lane/plugins/discovery\n.lane/plugins/knowledge");
-  for (const plugin of ["discovery", "knowledge"]) assert.ok(statSync(path.join(run.stageDir, "plugins", plugin)).isDirectory(), plugin);
+  for (const plugin of ["discovery", "knowledge"]) {
+    assert.ok(statSync(path.join(run.stageDir, "plugins", plugin)).isDirectory(), plugin);
+    assert.equal(readFileSync(path.join(run.stageDir, "plugins", plugin, ".mcp.json"), "utf8"), '{"mcpServers":{}}\n', plugin);
+  }
   assert.match(run.preamble, /cite each page you read/);
   assert.ok(!run.allowedTools.some((rule) => rule.startsWith("Bash")), "no docs-script rule");
 });

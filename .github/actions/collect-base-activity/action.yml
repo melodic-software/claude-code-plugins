@@ -275,6 +275,10 @@ runs:
               for research in discovery knowledge; do
                 [ -d "$BASE_PATH/plugins/$research" ] || fail "web-access: the $research plugin is not in the base"
                 [ -d "$STAGE/plugins/$research" ] || cp -R "$BASE_PATH/plugins/$research" "$STAGE/plugins/"
+                # Each plugin dir is an --add-dir too, so it gets the empty
+                # server list the skill's own copy gets.
+                mcp=$STAGE/plugins/$research/.mcp.json
+                [ -e "$mcp" ] || [ -L "$mcp" ] || printf '{"mcpServers":{}}\n' >"$mcp"
                 [ "$research" = "$plugin" ] || plugin_dirs+=(".lane/plugins/$research")
               done
               [ -z "$(find "$STAGE/plugins" -type l -print -quit)" ] || fail "a research plugin holds a symbolic link"
