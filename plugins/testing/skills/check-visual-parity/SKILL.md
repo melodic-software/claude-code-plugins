@@ -87,7 +87,10 @@ Before the first edit of the change:
 1. Launch the app through the route in Step 1 and capture each listed state as one PNG in
    `<memory_dir>/<branch-slug>/visual-parity/baseline/` (`<memory_dir>` is `.work/` unless the
    project's instructions name another root). Name each file for its state, such as
-   `invoice-list-empty.png`. Note the route that captured each state; `compare` must reuse it.
+   `invoice-list-empty.png`. Write the route that captured each state to
+   `<memory_dir>/<branch-slug>/visual-parity/baseline-routes.txt`, one `<image name>: <route>` line per
+   state (`drive`, `playwright` or `harness`), outside the baseline directory so the manifest does not
+   hash it. `compare` reads it there and reuses each route.
 2. Record the manifest:
 
    ```bash
@@ -102,7 +105,7 @@ Before the first edit of the change:
 
 At each green checkpoint:
 
-1. Capture each state through the route that captured its baseline (the Report names it). When
+1. Capture each state through the route that captured its baseline (read it from `baseline-routes.txt`). When
    that route is unavailable now, for example drive reports a capability gap or writes an empty
    PNG, do not fall through to another route: two renderers differ in browser build, font
    rasterisation and scale factor, so the count would measure the renderer change. Stop that
