@@ -224,6 +224,7 @@
         "approveJoins": {"description": "New joins wait for the owner's admit; absent is off.", "type": "boolean"},
         "reviewAnswers": {"description": "Every answer waits for the owner's Share. A new session writes it off; absent (a session from before it) is on.", "type": "boolean"},
         "guestPopups": {"description": "The pop-ups a guest starts with, set by the owner; a guest's own popups pref wins. Absent, all three are on.", "type": "array", "maxItems": 3, "items": {"enum": ["request", "mention", "round"]}},
+        "prototypeTiers": {"description": "The prototype views the session offers guests: screenshots, HTML snapshots, live prototypes, each at most once. Absent, screenshots and HTML snapshots are on and live is off.", "type": "array", "maxItems": 3, "uniqueItems": true, "items": {"enum": ["screenshot", "snapshot", "live"]}},
         "theme": {
           "type": "object",
           "required": ["mode", "accent"],

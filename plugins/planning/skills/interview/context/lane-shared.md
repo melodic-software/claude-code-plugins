@@ -112,6 +112,7 @@ Resolve each key once, before the first `ensure-running`, through the layers in 
 | `shared_session.chat` | `true`, `false` | `true` | `chat` |
 | `shared_session.follow` | `true`, `false` | `true` | `follow` |
 | `shared_session.accent` | `teal`, `indigo`, `violet`, `amber` | `teal` | `theme.accent` |
+| `shared_session.prototype_tiers` | a list of `screenshot`, `snapshot`, `live`, each at most once | `[screenshot, snapshot]` | `prototypeTiers` |
 | userConfig `shared_session_open_browser` | `true`, `false` | `true` | none: adds `--open` |
 | userConfig `tunnel_hostname` | a hostname, or empty | empty | none: `--tunnel-hostname` (a named tunnel) |
 | userConfig `tunnel_token_file` | an absolute path | empty | none: `--tunnel-token-file` |

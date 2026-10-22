@@ -305,10 +305,14 @@ DEFAULT_SETTINGS = {
 }
 # Settings a session gains only once the owner sets one, so a state file written before them stays as
 # it was (and still loads in the build before them) until then.
-OPTIONAL_SETTINGS = {"approveJoins": False, "reviewAnswers": True, "guestPopups": None}
+OPTIONAL_SETTINGS = {"approveJoins": False, "reviewAnswers": True, "guestPopups": None, "prototypeTiers": None}
 # guestPopups: the pop-ups a guest starts with (round 11), set by the owner; a guest's own `popups` pref wins. Absent,
 # all of GUEST_POPUPS are on.
 GUEST_POPUPS = ("request", "mention", "round")
+# prototypeTiers: the prototype views the session offers guests. Absent, screenshots and HTML snapshots are on and live
+# prototypes are off. A view switched off stays in the question; only guests' state and the html asset route drop it.
+PROTOTYPE_TIERS = ("screenshot", "snapshot", "live")
+DEFAULT_PROTOTYPE_TIERS = ("screenshot", "snapshot")
 LAST_SCHEMA_VERSION = 7  # the last versioned build's file; an older one needs that build's migrations first
 # reviewAnswers: every answer waits for the owner's Share. A new session writes it off; a state file from before it lacks
 # it and so keeps that review-first behavior.
@@ -1257,7 +1261,7 @@ class Session:
         self._joins = collections.OrderedDict()  # (guest key, address) -> times of recent joins, least recent first
         self._key_joins = {}  # guest key -> times of recent joins from any address
         self._reported = {}  # pid -> time of their last report, which REPORT_INTERVAL spaces; never persisted
-        self._base_cache = None
+        self._base_cache = self._guest_q_cache = None
         self._chat_touch, self._chat_touches = {}, 0  # message id -> the count of reaction or forward changes at its last one; never persisted
         self._undo = []  # (file, bytes before or None) an apply wrote, put back when the apply is refused
         self.uploads_dir = self.path.parent / "uploads"  # in the private data folder; never under web/ or assets/
@@ -3798,6 +3802,20 @@ class Session:
             self._notify(msg["pid"], "proposal", "Your chat message became a proposal.", actor=pid, msg=mid)
             return {"proposal": prop["id"]}
 
+    def _guest_questions(self):
+        """The questions every guest is sent, built once per rev (every page polls)."""
+        st = self.state
+        if not (self._guest_q_cache and self._guest_q_cache[0] == st["rev"]):
+            self._guest_q_cache = (st["rev"], _guest_questions(st["questions"], prototype_tiers(st["session"]["settings"])))
+        return self._guest_q_cache[1]
+
+    def asset_hidden(self, pid, name):
+        """Whether /assets/<name> is off for `pid`: an html file, which only prototype variants hold, to anyone but the
+        owner while the session's HTML snapshots are off. Pictures are never hidden here: option pictures, references
+        and confirm questions share them."""
+        with self._lock:
+            return pid != HOST and name.endswith(".html") and "snapshot" not in prototype_tiers(self.state["session"]["settings"])
+
     def is_prototype(self, qid):
         """GET /proto/<qid> serves the prototype page only for a prototype question."""
         with self._lock:
@@ -6301,6 +6319,8 @@ class Session:
             own = self._own_view_cards(pid, {p["pid"] for p in base["people"]})
             if own:
                 snap["cards"] = {**base["cards"], **own}
+            if not owner:
+                snap["questions"] = self._guest_questions()
             if owner or any(c["pid"] == pid and "hidden" in c for lst in st["discussions"].values() for c in lst):
                 snap["discussions"] = self._discussions_for(pid, {p["pid"] for p in base["people"]})
             if mode != "full":
@@ -6427,6 +6447,26 @@ class Session:
         return {p: sum(1 for q in qs if self._owes(q, p)) for p in st["people"] if p != HOST and self._active(p)}
 
 
+def prototype_tiers(settings):
+    """The prototype views a session offers: its `prototypeTiers`, or screenshots and HTML snapshots when absent."""
+    return list(settings.get("prototypeTiers", DEFAULT_PROTOTYPE_TIERS))
+
+
+def _guest_questions(questions, tiers):
+    """`questions` as guests see them under `tiers`: a variant's picture leaves while screenshots are off, its html file
+    while snapshots are off. The same list when both are on; otherwise new prototype questions, the rest shared."""
+    off = {t for t in ("screenshot", "snapshot") if t not in tiers}
+    if not off:
+        return questions
+
+    def view(v):
+        tier = "snapshot" if v["asset"].endswith(".html") else "screenshot"
+        return {k: x for k, x in v.items() if k != "asset"} if tier in off else v
+
+    return [{**q, "format": {**q["format"], "variants": [view(v) for v in q["format"]["variants"]]}} if q["format"]["kind"] == "prototype" else q
+            for q in questions]
+
+
 def _settings_patch(settings, patch):
     """Apply a partial Settings object in place after checking every key; returns settings."""
     if not isinstance(patch, dict):
@@ -6441,6 +6481,9 @@ def _settings_patch(settings, patch):
         elif k == "guestPopups":
             if not isinstance(v, list) or any(x not in GUEST_POPUPS for x in v) or len(set(v)) != len(v):
                 raise _bad(k, f"guestPopups is a list of {', '.join(GUEST_POPUPS)}, each at most once.")
+        elif k == "prototypeTiers":
+            if not isinstance(v, list) or any(x not in PROTOTYPE_TIERS for x in v) or len(set(v)) != len(v):
+                raise _bad(k, f"prototypeTiers is a list of {', '.join(PROTOTYPE_TIERS)}, each at most once.")
         elif k in SETTING_VALUES:
             if v not in SETTING_VALUES[k]:
                 raise _bad(k, f"{k} must be one of {', '.join(SETTING_VALUES[k])}.")
@@ -6451,6 +6494,8 @@ def _settings_patch(settings, patch):
             settings["theme"] = {**settings["theme"], **v}
         elif k == "guestPopups":
             settings[k] = [x for x in GUEST_POPUPS if x in v]
+        elif k == "prototypeTiers":
+            settings[k] = [x for x in PROTOTYPE_TIERS if x in v]
         else:
             settings[k] = v
     return settings
