@@ -46,6 +46,9 @@ async page => {
   await page.click('.qbtn[data-q="N1"]'); await page.waitForTimeout(200);
   const refs = await page.evaluate(() => [...document.querySelectorAll("#qhead a, .blk a")].map(a => a.textContent + " " + a.getAttribute("href")));
   ok("bare #N and owner/repo#N in a title and in facts render as issue links", ["#123 https://github.com/o/r/issues/123", "x/y#4 https://github.com/x/y/issues/4"].every(r => refs.filter(x => x === r).length === 2) && !refs.some(r => /#9\b/.test(r)), refs.join(" | "));
+  const dec = await page.evaluate(() => { const t = [...document.querySelectorAll("#choices .choice .t")].find(e => /request/.test(e.textContent)); return t ? {code: [...t.querySelectorAll("code")].map(c => c.textContent), text: t.textContent, bold: [...t.querySelectorAll("b")].map(b => b.textContent), link: [...t.querySelectorAll("a")].map(a => a.textContent + " " + a.getAttribute("href"))} : null; });
+  ok("a Decide row renders backticked code as a code element and shows <b> as text, not markup", !!dec && dec.code.join() === "request" && dec.text.includes("<b>by default</b>") && !dec.bold.includes("by default"), JSON.stringify(dec));
+  ok("a bare issue number in a Decide row renders as an issue link", !!dec && dec.link.join() === "#77 https://github.com/o/r/issues/77", JSON.stringify(dec));
   const n0 = (await events()).length;
   await page.click("#note"); await page.keyboard.type("hello"); await page.keyboard.press("Enter"); await page.keyboard.type("world 1");
   await page.waitForTimeout(300);
@@ -116,12 +119,13 @@ async page => {
   await page.click('.strip [data-panel="notes"]'); await page.waitForTimeout(200);
   if (!(await page.$("#noteText"))) { await page.click('.strip [data-panel="notes"]'); await page.waitForTimeout(200); }
   const n3 = (await events()).length;
-  await page.click("#noteText"); await page.keyboard.type("Side note for Claude"); await page.keyboard.press("Enter");
+  await page.click("#noteText"); await page.keyboard.type("Side note for Claude, see #123"); await page.keyboard.press("Enter");
   ok("plain Enter in a note does not send", (await events()).length === n3);
   await page.keyboard.press("Control+Enter"); await page.waitForTimeout(600);
   const ev4 = await events();
   ok("note sent as event kind note", ev4[ev4.length - 1].kind === "note" && ev4[ev4.length - 1].id === null, ev4[ev4.length - 1].text);
   ok("note shows in the thread", /Side note for Claude/.test(await page.textContent(".nthread")));
+  ok("a bare issue number in a note renders as an issue link", (await page.$$eval(".nthread a", as => as.map(a => a.textContent + " " + a.getAttribute("href")))).includes("#123 https://github.com/o/r/issues/123"));
   ok("a short thread has no jump control and no folded note", !(await page.$("[data-notenewest]")) && !(await page.$("[data-notetoggle]")));
   for (let i = 1; i <= 6; i++) {
     await page.fill("#noteText", "Folding note " + i + (i === 6 ? "\n" + "newest filler line\n".repeat(40) : "\nsecond line " + i));
