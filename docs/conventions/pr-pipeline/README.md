@@ -742,11 +742,11 @@ and its queued entries leave; two different identities, or an unreadable head co
   The hold clears only when the pull request body links an owner decision that covers it: a
   comment on the pull request's closing issue or on the pull request itself, in this repository,
   whose first line starts `**Decision recorded.** Cost:`, written by a User with admin permission
-  who is not the agent identity or one of the gate's own logins, not posted through an App, never
-  edited, and created after the pull request was. A link inside an HTML comment in the body
-  counts for nothing. A push after the decision is an accepted residual: the decision is not
-  bound to a head. The gate reads the linked
-  comments only for a pull request the hold catches, and a failed read leaves the hold. A decision
+  who is not the agent identity or one of the gate's own logins, not posted through an App, and
+  never edited; one on the closing issue must also be created after the pull request was. A link
+  inside an HTML comment in the body counts for nothing. A push after the decision is an accepted
+  residual: the decision is not bound to a head. The gate reads the linked comments only for a
+  pull request the hold catches, and a failed read leaves the hold. A decision
   clears only this reason: a workflow or `docs/conventions/pr-pipeline.yaml` change still sits on
   the HIGH path floor here and waits for a person to merge it. Cite the decision before the
   human-gated label lands; a body edit does not remove that label (only a new head or a person

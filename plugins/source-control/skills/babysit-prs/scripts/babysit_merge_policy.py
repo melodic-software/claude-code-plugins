@@ -1854,6 +1854,11 @@ HTML_COMMENT = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)
 COMMENT_EDITED = "query PolicyCommentEdited($id:ID!){node(id:$id){... on IssueComment{lastEditedAt}}}"
 
 
+def _after(value: Any, opened: datetime | None) -> bool:
+    made = parse_timestamp(value)
+    return made is not None and opened is not None and made > opened
+
+
 def cost_decision(
     repo: str,
     pr: Mapping[str, Any],
@@ -1867,16 +1872,15 @@ def cost_decision(
     this pull request, else None: a comment on its closing issue or on the
     pull request itself in `repo`, by a User with admin permission who is not
     the agent identity, not posted through an App, never edited, and whose
-    first line starts `**Decision recorded.** Cost:`, created after the pull
-    request was (a decision cannot predate the work it covers; an author can
-    forge commit dates, not these). A link inside an HTML
+    first line starts `**Decision recorded.** Cost:`. One on the closing issue
+    counts only when created after the pull request was, so an older decision
+    on the issue cannot cover new work (an author can forge commit dates, not
+    these); one on the pull request postdates it already. A link inside an HTML
     comment, and a comment by a `self_logins` account, count for nothing. A
     read that fails clears nothing."""
     owner, name = _split_repo(repo)
     covered = {pr.get("number"), issue} - {None}
     opened = parse_timestamp(pr.get("created_at"))
-    if opened is None:
-        return None
     excluded = {_login_key(agent_identity)} | {_login_key(x) for x in self_logins}
     body = HTML_COMMENT.sub("", str(pr.get("body") or ""))
     for link in COST_DECISION_LINK.finditer(body):
@@ -1896,8 +1900,10 @@ def cost_decision(
             or not isinstance(login, str)
             or _login_key(login) in excluded
             or not DECISION_LINE.match(str(comment.get("body") or "").lstrip())
-            or (made := parse_timestamp(comment.get("created_at"))) is None
-            or made <= opened
+            or (
+                int(link[3]) != pr.get("number")
+                and not _after(comment.get("created_at"), opened)
+            )
         ):
             continue
         try:

@@ -13,4 +13,4 @@ bump: minor
   a runner that is not a free standard label (any runner off a public repository); and any
   `pr-pipeline.yaml` change beyond comments, blank lines, `description:` and `title:`. The hold
   clears only when the body links an owner's unedited `**Decision recorded.** Cost:` comment on
-  the closing issue or the pull request, created after the pull request.
+  the pull request, or on the closing issue when created after the pull request.

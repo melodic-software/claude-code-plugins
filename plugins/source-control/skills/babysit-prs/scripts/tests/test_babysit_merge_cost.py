@@ -76,6 +76,14 @@ class CostDecision(unittest.TestCase):
         )
         self.assertEqual(self.decide(body=link, comment=comment), link)
 
+    def test_a_decision_on_the_pull_request_needs_no_time_check(self) -> None:
+        link = "https://github.com/owner/repo/pull/99#issuecomment-7"
+        comment = _comment(
+            issue_url="https://api.github.com/repos/owner/repo/issues/99",
+            created_at=None,
+        )
+        self.assertEqual(self.decide(body=link, comment=comment), link)
+
     def test_a_decision_on_another_issue_does_not_cover_it(self) -> None:
         other = "https://github.com/owner/repo/issues/12#issuecomment-7"
         self.assertIsNone(self.decide(body=other))
