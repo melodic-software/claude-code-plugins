@@ -1114,7 +1114,7 @@
     if (c) c.votes = on ? [...without(c.votes, pid), pid] : without(c.votes, pid);
     // On choice, backing someone's own option moves my one pick there (session.py vote).
     if (on && fmtOf(s, qid).kind === "choice") {
-      s.cards[qid] = cards.filter(x => !(x.kind === "person" && x.pid === pid && (x.pick === "other" || !x.text)));
+      s.cards[qid] = cards.filter(x => !(x.kind === "person" && x.pid === pid && (x.pick === "other" || !(x.text || x.attachments))));
       for (const x of s.cards[qid]) if (x.kind === "person" && x.pid === pid) delete x.pick;
     }
   }

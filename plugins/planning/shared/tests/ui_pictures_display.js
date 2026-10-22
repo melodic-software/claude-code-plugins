@@ -5,7 +5,8 @@
 // from before attachments that nothing carried shows under its question to the owner (with Approve picture) and its
 // uploader (with Remove), and to another guest only once approved; the round-ready note names "You" by person, not by name, so a second
 // person of the same name reads the first one's initial; an avatar on a proposal's who line is focusable and opens the
-// person card; and the unread dot, inline link button and counter each use their one class, at the sizes they had.
+// person card; the unread dot, inline link button and counter each use their one class, at the sizes they had; and a
+// picture pasted into an empty answer box and sent is an answer, its card showing the picture.
 //   node plugins/planning/shared/tests/ui_pictures_display.js
 // Needs playwright-core and a Chromium it can launch; without them it prints SKIP and exits 0.
 // Expected values come from the follow-ups (32, B5, B7, F14, F15) and the texts this suite writes, never from the page.
@@ -153,6 +154,18 @@ async function main() {
     await avatar.focus();
     await owner.keyboard.press("Enter");
     ok("  and opens Bo's person card", await until(owner, () => { const c = document.querySelector(".vf-pcard"); return !!c && !c.hidden && c.querySelector(".vf-pc-name")?.textContent === "B"; }));
+
+    // ---------- a picture alone answers a text question: Bo pastes one into his empty box and presses Send ----------
+    await bo.fill("#vf-answer", "");
+    await paste(bo, "#vf-answer");
+    const boPic = await pasted(bo, 0);
+    await owner.evaluate(id => window.Core.uploadAct(id, "accept"), boPic);
+    ok("Bo's pasted picture arrives with his answer box still empty", await until(bo, id => window.Core.snapshot().myUploads.some(u => u.id === id && u.status.kind === "done"), boPic, 20000)
+      && (await bo.inputValue("#vf-answer")) === "");
+    await bo.locator(".vf-composer .vf-sendbtn").click();
+    ok("Send saves his card holding the picture and no text", await until(bo, id => window.Core.snapshot().cards.Q1?.some(c => c.kind === "person" && c.pid === window.Core.snapshot().me.pid
+      && c.text === "" && (c.attachments || []).includes(id)), boPic, 10000), JSON.stringify((await snap(bo)).cards.Q1));
+    ok("  and his card shows the picture", await until(bo, () => !!document.querySelector(".vf-card.vf-mine .vf-attlist .vf-uppic img")?.getAttribute("src")?.startsWith("data:image/"), null, 10000));
 
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     const errs = rec.errors.filter(m => !/Failed to load resource|Failed to fetch|ERR_CONNECTION/.test(m));

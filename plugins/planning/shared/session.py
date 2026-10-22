@@ -589,6 +589,11 @@ def _edited(card):
     return {"edited": True} if "edited" in card else {}
 
 
+def _files(card):
+    """The digest's list of the uploads an answer carries, so one with no text still says what it holds."""
+    return {"attachments": list(card["attachments"])} if "attachments" in card else {}
+
+
 def card_ref(card):
     if card["kind"] == "person":
         return f"p:{card['pid']}" + (f":{card['device']}" if card.get("device") else "")
@@ -2773,7 +2778,8 @@ class Session:
             return {"pass": on}
 
     def answer(self, pid, body):
-        """POST /api/answer: write, edit or (with empty text) clear one's own answer card."""
+        """POST /api/answer: write, edit or clear one's own answer card. Empty text with `attachments` saves a
+        picture-only card; empty text with `attachments` left out or empty clears the card."""
         text = _text(body, "text", empty_ok=True)
         view = _choice(body, "view", VIEWS)
         info = _device_info(body.get("deviceInfo"))
@@ -2801,7 +2807,7 @@ class Session:
                 published = {r["id"] for r in st["results"].get(qid, []) if self._result_shown(r)}
                 if any(c not in published for c in cites):
                     raise _bad("cites", "cites must name results shown on this question.")
-            if not text:
+            if not text and not _body(body).get("attachments"):
                 if mine:
                     self._clear_card(qid, mine)
                 ref = None
@@ -3018,7 +3024,7 @@ class Session:
                 moved = votes.get(pid) not in (None, ref)
                 if q["format"]["kind"] == "choice":  # one pick: backing someone's own option moves it
                     for mine in [c for c in st["cards"][qid] if c["kind"] == "person" and c["pid"] == pid]:
-                        if self._is_other(mine) or not mine["text"]:
+                        if self._is_other(mine) or not (mine["text"] or "attachments" in mine):
                             self._clear_card(qid, mine)
                         else:
                             mine.pop("pick", None)
@@ -4297,12 +4303,23 @@ class Session:
         return min(CHUNK_SIZE, u["size"] - index * CHUNK_SIZE)
 
     def _detach(self, uid):
-        """Take an upload off every answer, message, request, suggestion, proposal and comment that carries it."""
+        """Take an upload off every answer, message, request, suggestion, proposal and comment that carries it. An
+        answer left with no text, pick or file is cleared, as its author's empty answer would be, while its question
+        still takes answers; on a locked question or a round sent to Claude it stays, as answer() would keep it."""
+        emptied = set()
         for _, c in _attaching(self.state):
             if uid in c.get("attachments", []):
                 c["attachments"].remove(uid)
                 if not c["attachments"]:
                     c.pop("attachments")
+                    emptied.add(id(c))
+        for qid, cards in self.state["cards"].items():
+            for c in [c for c in cards if id(c) in emptied and not c["text"] and not {"pick", "picks", "value", "order"} & c.keys()]:
+                try:
+                    self._answerable(self._question(qid))
+                except DomainError:
+                    continue
+                self._clear_card(qid, c)
 
     def _touch_carriers(self, uid):
         """An upload changed how it shows: chat messages carrying it are touched, so a page holding older ones reads
@@ -5151,7 +5168,7 @@ class Session:
         for q in st["questions"]:
             for c in st["cards"].get(q["id"], []):
                 if c["kind"] == "person" and c.get("late") and c["at"] > prev and self._shown(c):
-                    late.append({"id": q["id"], "round": c["late"]["round"], "text": self._said(q, c), **by(c["pid"]), **_edited(c)})
+                    late.append({"id": q["id"], "round": c["late"]["round"], "text": self._said(q, c), **_files(c), **by(c["pid"]), **_edited(c)})
             for pid, mark in st.get("lateActs", {}).get(q["id"], {}).items():
                 if mark["at"] > prev and self._active(pid):
                     late += [{"id": q["id"], "round": mark["round"], **act, **by(pid)} for act in self._late_acts(q, pid)]
@@ -5329,10 +5346,10 @@ class Session:
             labels = self._options(q)  # multi, scale and rank report through _format_outcome, so a pick is one option
             for c in people:
                 picked = labels.get(c.get("pick"))
-                if c["text"] or picked:
+                if c["text"] or picked or "attachments" in c:
                     ref = card_ref(c)
                     endorsers = [st["people"][v]["name"] for v, held in st["reactions"].get(qid, {}).get(ref, {}).items() if v in active and ENDORSING & set(held)]
-                    answers.append({"text": c["text"], **({"picked": picked} if picked else {}), "reactions": self._reaction_counts(qid, ref, active), "endorsedBy": endorsers if names else len(endorsers), **by(c["pid"]), **_edited(c)})
+                    answers.append({"text": c["text"], **({"picked": picked} if picked else {}), **_files(c), "reactions": self._reaction_counts(qid, ref, active), "endorsedBy": endorsers if names else len(endorsers), **by(c["pid"]), **_edited(c)})
             return {"kind": "gathered", "answers": answers} if answers else {"kind": "unanswered"}
         tally = self._tally(qid)
         ranked = []
@@ -5349,7 +5366,7 @@ class Session:
             entry = {"text": self._card_text(q, ref), "votes": tally[ref], "source": source}
             if self._is_other(c):
                 entry["other"] = True
-            ranked.append(((-tally[ref], ref != "c:rec", c.get("at", 0.0), i), {**entry, **(by(c["pid"]) if c["kind"] == "person" else {}), **_edited(c)}))
+            ranked.append(((-tally[ref], ref != "c:rec", c.get("at", 0.0), i), {**entry, **_files(c), **(by(c["pid"]) if c["kind"] == "person" else {}), **_edited(c)}))
         if not ranked:
             return {"kind": "unanswered"}
         ranked.sort(key=lambda pair: pair[0])
