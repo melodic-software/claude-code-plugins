@@ -287,7 +287,7 @@ run_checks() (
     extract_tools "$top" "$mb" "$tmp/tools" || exit 2
   fi
   [[ -x "$script" ]] || exit 2
-  (cd "$data" && bash "$script" 2>&1) || rc=$?
+  (cd "$data" && CHECK_DATA_ROOT="$data" bash "$script" 2>&1) || rc=$?
   exit "$rc"
 )
 
