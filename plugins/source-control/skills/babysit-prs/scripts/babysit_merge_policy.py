@@ -117,11 +117,6 @@ BODY_MERGE_HOLD_RE = re.compile(
 # The label form of the same hold: blocks in every tier, whether or not the
 # autopilot merge tier is engaged. `--block-labels` only adds to it.
 MERGE_HOLD_LABELS = ("do-not-merge",)
-# The owner account, matched by its GitHub account id, never its login (owner
-# decision Q22): `adoption.owner-ids` when absent. Their idle pull requests are
-# adopted by the pr-merge lane (`adoption_refusal`). pr-verify's resolver
-# holds the same id.
-OWNER_ACCOUNT_ID = 153232337
 # `adoption.idle-hours` when absent.
 ADOPTION_IDLE_HOURS = 24
 RUNG_CAP_VARIABLE = "CLAUDE_LANES_MERGE_RUNG_CAP"
@@ -350,8 +345,8 @@ def _concern_values(
     return values
 
 
-def _merge_names(text: str, key: str, section: str = "merge") -> bool:
-    """Whether the top-level `section` mapping holds `key` at all. The shared
+def _merge_names(text: str, key: str) -> bool:
+    """Whether the top-level `merge` mapping holds `key` at all. The shared
     reader prints nothing for an empty or non-scalar value, as for an absent
     key; the document already parsed as the block-style subset."""
     lines = [
@@ -366,7 +361,7 @@ def _merge_names(text: str, key: str, section: str = "merge") -> bool:
         found = entry.match(line)
         indent = len(line) - len(line.lstrip(" "))
         if indent <= base:
-            inside = indent == base and found is not None and found[3] == section
+            inside = indent == base and found is not None and found[3] == "merge"
             child = None
         elif inside and found is not None:
             child = indent if child is None else child
@@ -578,10 +573,9 @@ class PipelineConfig:
     # default branch head's.
     adoption_idle_hours: int | None = ADOPTION_IDLE_HOURS
     # `adoption.owner-ids`: the account ids whose pull requests may be
-    # adopted. Absent is (`OWNER_ACCOUNT_ID`,); a list with an entry that is
-    # not a whole number is empty, which adopts nothing. The default branch
-    # head's.
-    adoption_owner_ids: tuple[int, ...] = (OWNER_ACCOUNT_ID,)
+    # adopted. Absent, null, empty, or a list with an entry that is not a
+    # whole number is empty, which adopts nothing. The default branch head's.
+    adoption_owner_ids: tuple[int, ...] = ()
     # `merge.quarantine-days`: days a quarantined suite's failures on the
     # default branch stop demoting (`babysit_postmerge`). Absent, or anything
     # but a whole number from 1 to `MAX_QUARANTINE_DAYS`, is `QUARANTINE_DAYS`.
@@ -819,8 +813,6 @@ def read_config_at(
             "nothing is adopted"
         )
     owner_ids = tuple(values["adoption.owner-ids"])
-    if not owner_ids and not _merge_names(text, "owner-ids", "adoption"):
-        owner_ids = (str(OWNER_ACCOUNT_ID),)
     if not all(re.fullmatch(r"[1-9][0-9]*", i) for i in owner_ids):
         notes.append(
             f"adoption.owner-ids {list(owner_ids)!r} holds an entry that is not an "

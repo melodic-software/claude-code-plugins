@@ -6,7 +6,7 @@
 // never change to the next run.
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -83,8 +83,9 @@ test("the early re-dispatch keeps the trusted mechanics and skips untrusted even
 
 // Runs the listing step's script against a fake `gh` whose `gh pr list`
 // fails its first `failures` calls and whose owner lookup answers `owner`
-// (null fails it), with `.base` pointing at this checkout.
-const runListing = (failures, owner = "owner-login") => {
+// (null fails it), with `.base` pointing at this checkout, or, given
+// `ownerIds`, at a copy whose `adoption.owner-ids` line reads that.
+const runListing = (failures, owner = "owner-login", ownerIds) => {
   const dir = mkdtempSync(join(tmpdir(), "pr-merge-listing-"));
   try {
     const bin = join(dir, "bin");
@@ -100,7 +101,16 @@ const runListing = (failures, owner = "owner-login") => {
     writeFileSync(join(bin, "sleep"), "#!/usr/bin/env bash\n");
     chmodSync(join(bin, "gh"), 0o755);
     chmodSync(join(bin, "sleep"), 0o755);
-    symlinkSync(root, join(dir, ".base"));
+    if (ownerIds === undefined) {
+      symlinkSync(root, join(dir, ".base"));
+    } else {
+      const conventions = join(dir, ".base/docs/conventions");
+      mkdirSync(conventions, { recursive: true });
+      const config = readFileSync(join(root, "docs/conventions/pr-pipeline.yaml"), "utf8");
+      assert.match(config, /^ {2}owner-ids: .*$/m);
+      writeFileSync(join(conventions, "pr-pipeline.yaml"), config.replace(/^ {2}owner-ids: .*\n/m, ownerIds));
+      symlinkSync(join(root, "plugins"), join(dir, ".base/plugins"));
+    }
     const output = join(dir, "output");
     const result = spawnSync("bash", ["-c", runScript("List the candidate PRs")], {
       cwd: dir,
@@ -150,6 +160,16 @@ test("a failed owner lookup warns and lists the lane's PRs alone", () => {
     assert.equal(run.status, 0, run.stderr);
     assert.match(run.stdout, /^::warning::the owner account's login is unreadable/m);
     assert.equal(run.calls, 1, String(owner));
+    assert.match(run.output, /^count=1$/m);
+  }
+});
+
+test("an absent, null or empty adoption.owner-ids lists no owner account", () => {
+  for (const ownerIds of ["", "  owner-ids:\n", "  owner-ids: []\n"]) {
+    const run = runListing(0, "owner-login", ownerIds);
+    assert.equal(run.status, 0, run.stderr);
+    assert.doesNotMatch(run.args, /^api /m, JSON.stringify(ownerIds));
+    assert.doesNotMatch(run.args, /--author owner-login /, JSON.stringify(ownerIds));
     assert.match(run.output, /^count=1$/m);
   }
 });

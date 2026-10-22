@@ -1,11 +1,10 @@
 # test-scope: .github/scripts/pr-verify/resolve-pr.mjs
-"""The verifier's shared rules agree across languages: the gate's
+"""The verifier's two shared rules agree across languages: the gate's
 (`babysit_verify_evidence`, `babysit_classify`) and the resolver's
 (`.github/scripts/pr-verify/resolve-pr.mjs`, run here under node).
 
 - The dependency managers: the same logins, and the same users matched (a Bot
   account with one of them, never a User named like one).
-- The owner account id whose pull requests the pr-merge lane adopts.
 - The FAIL-counting rule: for each run record, a FAIL counts from any run of
   verifier origin and a PASS only from a completed success. The resolver also
   needs a completed run for a FAIL, so a run still going never stops a new
@@ -29,7 +28,6 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_classify as classify
-import babysit_merge_policy as policy
 import babysit_postmerge as postmerge
 import babysit_verify_evidence as ve
 import test_babysit_verify_evidence as gate
@@ -39,7 +37,7 @@ RESOLVER = (
     / ".github/scripts/pr-verify/resolve-pr.mjs"
 )
 NODE = """
-import { DEPENDENCY_MANAGERS, OWNER_ACCOUNT_ID, countedBy, isDependencyManager } from %s;
+import { DEPENDENCY_MANAGERS, countedBy, isDependencyManager } from %s;
 const { users, runs, repo, onMain } = JSON.parse(process.argv[1]);
 const counted = [];
 for (const { run, verdict } of runs) {
@@ -51,7 +49,7 @@ for (const { run, verdict } of runs) {
   };
   counted.push(await countedBy({ github, repository: repo, runId: 1, verdict, base: "main" }));
 }
-console.log(JSON.stringify({ managers: DEPENDENCY_MANAGERS, owner: OWNER_ACCOUNT_ID, users: users.map(isDependencyManager), counted }));
+console.log(JSON.stringify({ managers: DEPENDENCY_MANAGERS, users: users.map(isDependencyManager), counted }));
 """
 USERS = [
     {"login": login, "type": kind}
@@ -99,9 +97,6 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
                 self.assertEqual(ve.dependency_bot(user), matched)
         self.assertIn(True, answer["users"])
         self.assertIn(False, answer["users"])
-
-    def test_the_owner_account_is_the_same(self) -> None:
-        self.assertEqual(resolver([], [])["owner"], policy.OWNER_ACCOUNT_ID)
 
     def test_a_fail_and_a_pass_count_from_the_same_runs(self) -> None:
         cases = [

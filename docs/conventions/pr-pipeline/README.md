@@ -785,7 +785,7 @@ except six:
   (`closing-issue-changed:<was>><now>`). A pull request into any branch but the default refuses
   `base-not-default:<ref>`, read at eligibility and again before the enqueue; any read that fails
   refuses. An adopted pull request (owner decision Q22) is one an owner account opened, a `User`
-  whose account id is in `adoption.owner-ids` (the owner's id when absent), never matched by
+  whose account id is in `adoption.owner-ids` (absent or empty adopts none), never matched by
   login, that is not a draft, whose `updatedAt` and head commit committer date are both at least
   `adoption.idle-hours` old (24 when absent; an unreadable date is not idle; a value that is not a
   whole number adopts nothing), both settings read at the default branch head, and that no hold
@@ -1136,7 +1136,7 @@ the lanes App opened is: a `Bot` account whose login is `merge.agent-identity`, 
 pr-merge lane decides lane authorship. Any other author's is skipped before the model runs, with
 the reason `author-not-lane` and the step summary line `skipped: author not the lanes App`, since
 only lane-authored pull requests reach the pr-merge lane. `lane-or-owner` also judges the owner
-account's: a `User` whose account id is in `adoption.owner-ids` (the owner's when absent; never
+account's: a `User` whose account id is in `adoption.owner-ids` (absent or empty: none; never
 matched by login), whose idle pull
 requests the pr-merge lane adopts (Eligibility, above); any other author's is skipped with
 `author-not-lane-or-owner`. pr-verify runs when `pr-require-checks` passes, so it judges an owner

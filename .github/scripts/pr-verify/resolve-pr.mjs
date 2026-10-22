@@ -13,8 +13,8 @@
 //   a Bot account whose login is merge.agent-identity, compared as the
 //   pr-merge lane does (babysit_merge_policy._lane_authored); under
 //   `lane-or-owner` that App or an owner account, a User whose id is in
-//   adoption.owner-ids (OWNER_IDS; unset, OWNER_ACCOUNT_ID; never matched by
-//   login), whose PRs the pr-merge lane adopts
+//   adoption.owner-ids (OWNER_IDS; unset, none; never matched by login),
+//   whose PRs the pr-merge lane adopts
 //   once idle (babysit_merge_policy.adoption_refusal); under `any` anyone may
 //   have; any other value judges nothing;
 // - the head has no counted verdict yet: a FAIL at it under this PR's number
@@ -24,8 +24,7 @@
 //   babysit_verify_evidence.py). A run still going or one that uploaded
 //   nothing does not stop a new judgment.
 // The babysit-prs test test_verify_rules_sync.py runs this file to keep
-// DEPENDENCY_MANAGERS, isDependencyManager, countedBy and OWNER_ACCOUNT_ID in
-// step with the gate.
+// DEPENDENCY_MANAGERS, isDependencyManager and countedBy in step with the gate.
 // It also writes the PR's closing issues with their authors and last body
 // editors to SPEC_FILE, and the spec text trusted humans wrote to
 // SPEC_TEXT_FILE (linkedIssues).
@@ -42,12 +41,9 @@ export const VERIFY_PATH = ".github/workflows/pr-verify.yml";
 // babysit_classify.DEPENDENCY_MANAGER_LOGINS: the pr-merge lane refuses these
 // Bot accounts' pull requests before reading a verdict.
 export const DEPENDENCY_MANAGERS = Object.freeze(["dependabot", "dependabot-preview", "renovate", "renovate-bot"]);
-// babysit_merge_policy.OWNER_ACCOUNT_ID: adoption.owner-ids when absent.
-export const OWNER_ACCOUNT_ID = 153232337;
 // The OWNER_IDS value pr-verify.yml reads from adoption.owner-ids, one id per
-// line: unset is the owner's id, and an entry that is not an id adopts none.
-export const ownerIds = (value) => {
-  if (value === undefined) return [OWNER_ACCOUNT_ID];
+// line: unset or empty is none, and an entry that is not an id adopts none.
+export const ownerIds = (value = "") => {
   const ids = value.split(/\s+/).filter(Boolean);
   return ids.every((id) => /^[1-9][0-9]*$/.test(id)) ? ids.map(Number) : [];
 };
@@ -221,7 +217,7 @@ async function linkedIssues(github, repository, number, humans, prAuthor) {
   };
 }
 
-export async function resolvePull({ github, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, ownerIds: owners = [OWNER_ACCOUNT_ID] }) {
+export async function resolvePull({ github, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, ownerIds: owners = [] }) {
   const skip = (reason) => ({ proceed: false, reason });
   if (!RUN_ID.test(String(upstreamRunId))) {
     throw new Error("the upstream run id is not a run id");

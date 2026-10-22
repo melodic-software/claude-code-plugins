@@ -524,11 +524,11 @@ jobs:
             exit 1
           fi
           authors=("app/$slug")
-          # The owner accounts (adoption.owner-ids; absent, the owner's id),
+          # The owner accounts (adoption.owner-ids; absent or null, none),
           # each looked up by account id: the gate adopts their idle pull
           # requests (babysit_merge_policy.adoption_refusal) and checks the id
           # again. A failed lookup lists none of that account's PRs.
-          for owner_id in $(yq '.adoption."owner-ids" // [153232337] | .[]' .base/docs/conventions/pr-pipeline.yaml); do
+          for owner_id in $(yq '.adoption."owner-ids" // [] | .[]' .base/docs/conventions/pr-pipeline.yaml); do
             if [[ $owner_id =~ ^[1-9][0-9]*$ ]] &&
               owner_login=$(gh api "user/$owner_id" --jq .login) &&
               [[ $owner_login =~ ^[A-Za-z0-9][A-Za-z0-9-]*$ ]]; then

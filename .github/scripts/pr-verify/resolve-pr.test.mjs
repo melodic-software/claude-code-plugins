@@ -17,10 +17,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { OWNER_ACCOUNT_ID, main, ownerIds, resolvePull } from "./resolve-pr.mjs";
+import { main, ownerIds, resolvePull } from "./resolve-pr.mjs";
 
 const REPO = "example-org/example-repo";
 const HEAD = "a".repeat(40);
+const OWNER_ID = 153232337;
 const BASE = "b".repeat(40);
 const MAIN = "c".repeat(40);
 const RUN = 5551;
@@ -194,14 +195,14 @@ test("verify-authors any judges a human's PR", async () => {
 });
 
 test("verify-authors lane-or-owner judges the owner account's PRs and the lane's", async () => {
-  const opts = { verifyAuthors: "lane-or-owner" };
+  const opts = { verifyAuthors: "lane-or-owner", ownerIds: [OWNER_ID] };
   assert.equal(await reason({ pulls: [pull()] }, opts), "ok", "lane");
-  const owner = pull({ user: { id: OWNER_ACCOUNT_ID, login: "kyle-sexton", type: "User" } });
+  const owner = pull({ user: { id: OWNER_ID, login: "kyle-sexton", type: "User" } });
   assert.equal(await reason({ pulls: [owner] }, opts), "ok", "owner");
   // Matched by account id, never login.
-  const spoof = pull({ user: { id: OWNER_ACCOUNT_ID + 1, login: "kyle-sexton", type: "User" } });
+  const spoof = pull({ user: { id: OWNER_ID + 1, login: "kyle-sexton", type: "User" } });
   assert.equal(await reason({ pulls: [spoof] }, opts), "author-not-lane-or-owner", "owner login, other id");
-  const botId = pull({ user: { id: OWNER_ACCOUNT_ID, login: "kyle-sexton", type: "Bot" } });
+  const botId = pull({ user: { id: OWNER_ID, login: "kyle-sexton", type: "Bot" } });
   assert.equal(await reason({ pulls: [botId] }, opts), "author-not-lane-or-owner", "a Bot with the id");
   assert.equal(await reason({ pulls: [HUMAN_PR] }, opts), "author-not-lane-or-owner", "another human");
   // A draft stays unjudged.
@@ -212,13 +213,14 @@ test("lane-or-owner reads the owner ids it is given", async () => {
   const opts = { verifyAuthors: "lane-or-owner", ownerIds: [77] };
   const other = pull({ user: { id: 77, login: "other", type: "User" } });
   assert.equal(await reason({ pulls: [other] }, opts), "ok", "a listed id");
-  const owner = pull({ user: { id: OWNER_ACCOUNT_ID, login: "kyle-sexton", type: "User" } });
+  const owner = pull({ user: { id: OWNER_ID, login: "kyle-sexton", type: "User" } });
   assert.equal(await reason({ pulls: [owner] }, opts), "author-not-lane-or-owner", "an unlisted id");
   assert.equal(await reason({ pulls: [owner] }, { ...opts, ownerIds: [] }), "author-not-lane-or-owner", "none");
+  assert.equal(await reason({ pulls: [owner] }, { verifyAuthors: "lane-or-owner" }), "author-not-lane-or-owner", "not given");
 });
 
-test("the owner ids come from adoption.owner-ids, the owner's id when unset", () => {
-  assert.deepEqual(ownerIds(undefined), [OWNER_ACCOUNT_ID]);
+test("the owner ids come from adoption.owner-ids, none when unset", () => {
+  assert.deepEqual(ownerIds(undefined), []);
   assert.deepEqual(ownerIds("5\n77\n"), [5, 77]);
   assert.deepEqual(ownerIds(""), []);
   // An entry that is not an account id adopts nothing.

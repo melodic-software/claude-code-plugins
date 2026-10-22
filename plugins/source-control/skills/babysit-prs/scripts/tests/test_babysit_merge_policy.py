@@ -3184,6 +3184,7 @@ class LaneEligibility(unittest.TestCase):
 
 
 OWNER_LOGIN = "kyle-sexton"
+OWNER_ID = 153232337
 ADOPT_NOW = datetime(2026, 10, 12, 12, tzinfo=UTC)
 IDLE = "2026-10-11T11:00:00Z"  # 25 hours before ADOPT_NOW
 FRESH = "2026-10-11T13:00:00Z"  # 23 hours before ADOPT_NOW
@@ -3198,7 +3199,7 @@ def owner_pr(**changes: Any) -> dict[str, Any]:
         "head": {"sha": HEAD},
         "changed_files": 1,
         "draft": False,
-        "user": {"login": OWNER_LOGIN, "id": policy.OWNER_ACCOUNT_ID, "type": "User"},
+        "user": {"login": OWNER_LOGIN, "id": OWNER_ID, "type": "User"},
         "updated_at": IDLE,
         "labels": [{"name": "enhancement"}],
         "body": "Closes #41\n\nA plain body.",
@@ -3223,7 +3224,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
     def refusal(self, pr: dict[str, Any] | None = None, **kwargs: Any) -> Any:
         args: dict[str, Any] = {
             "idle_hours": 24,
-            "owner_ids": (policy.OWNER_ACCOUNT_ID,),
+            "owner_ids": (OWNER_ID,),
             "human_gated": "needs-human",
             "now": ADOPT_NOW,
         }
@@ -3259,13 +3260,13 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
             with self.subTest(login=login):
                 spoof = {
                     "login": login,
-                    "id": policy.OWNER_ACCOUNT_ID + 1,
+                    "id": OWNER_ID + 1,
                     "type": "User",
                 }
                 self.assertEqual(self.refusal(owner_pr(user=spoof)), "author-not-owner")
 
     def test_the_owner_id_on_a_bot_account_is_not_adopted(self) -> None:
-        user = {"login": OWNER_LOGIN, "id": policy.OWNER_ACCOUNT_ID, "type": "Bot"}
+        user = {"login": OWNER_LOGIN, "id": OWNER_ID, "type": "Bot"}
         self.assertEqual(self.refusal(owner_pr(user=user)), "author-not-owner")
 
     def test_a_recent_update_is_not_adopted(self) -> None:
@@ -3290,7 +3291,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 owner_pr(),
                 unreadable,
                 idle_hours=24,
-                owner_ids=(policy.OWNER_ACCOUNT_ID,),
+                owner_ids=(OWNER_ID,),
                 human_gated="needs-human",
                 now=ADOPT_NOW,
             ),
@@ -3319,7 +3320,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                         pr,
                         unread,
                         idle_hours=24,
-                        owner_ids=(policy.OWNER_ACCOUNT_ID,),
+                        owner_ids=(OWNER_ID,),
                         human_gated="needs-human",
                         now=ADOPT_NOW,
                     )
@@ -3364,7 +3365,7 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
             "denied_paths": LANE_DENIED,
             "agent_identity": IDENTITY,
             "adoption_idle_hours": 24,
-            "adoption_owner_ids": (policy.OWNER_ACCOUNT_ID,),
+            "adoption_owner_ids": (OWNER_ID,),
             "human_gated": "needs-human",
             "now": ADOPT_NOW,
         }
@@ -3438,11 +3439,12 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 self.assertEqual(config.rung, "C2")
                 self.assertEqual(any("idle-hours" in n for n in config.notes), noted)
 
-    def test_owner_ids_default_to_the_owner_and_read_the_setting(self) -> None:
-        owner = (policy.OWNER_ACCOUNT_ID,)
+    def test_owner_ids_read_the_setting_and_absent_adopts_none(self) -> None:
         for text, expected, noted in (
-            (PIPELINE, owner, False),
-            (PIPELINE + "adoption:\n  idle-hours: 24\n", owner, False),
+            (PIPELINE, (), False),
+            (PIPELINE + "adoption:\n  idle-hours: 24\n", (), False),
+            (PIPELINE + "adoption:\n  owner-ids:\n", (), False),
+            (PIPELINE + f"adoption:\n  owner-ids: [{OWNER_ID}]\n", (OWNER_ID,), False),
             (PIPELINE + "adoption:\n  owner-ids: [5, 77]\n", (5, 77), False),
             (PIPELINE + "adoption:\n  owner-ids: []\n", (), False),
             (PIPELINE + "adoption:\n  owner-ids: [5, kyle]\n", (), True),
@@ -3553,7 +3555,10 @@ class LaneAssess(unittest.TestCase):
         return gh
 
     def test_adoption_settings_reach_the_lane_and_the_report(self) -> None:
-        self.unreadable_variables()
+        gh = self.unreadable_variables()
+        gh.rest[f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={SHA}"] = file_payload(
+            LANE_PIPELINE + "adoption:\n  idle-hours: 48\n  owner-ids: [5, 77]\n"
+        )
         lane = self.lane_clear()
         lane.return_value = policy.Eligibility(
             True, None, "C2", 41, adoption="idle-owner:24h"
@@ -3564,8 +3569,8 @@ class LaneAssess(unittest.TestCase):
         self.assertIsNone(result.reason)
         kwargs = lane.call_args.kwargs
         self.assertEqual(kwargs["human_gated"], "awaiting-owner")
-        self.assertEqual(kwargs["adoption_idle_hours"], 24)
-        self.assertEqual(kwargs["adoption_owner_ids"], (policy.OWNER_ACCOUNT_ID,))
+        self.assertEqual(kwargs["adoption_idle_hours"], 48)
+        self.assertEqual(kwargs["adoption_owner_ids"], (5, 77))
         self.assertEqual(result.details["eligibility"]["adoption"], "idle-owner:24h")
 
     def test_an_empty_workflow_cap_allows_the_configured_rung(self) -> None:
