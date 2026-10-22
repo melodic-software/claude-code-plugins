@@ -275,13 +275,26 @@ Describe 'Invoke-MachineHealthCheck run artifacts in latest.json' -Tag 'orchestr
         $script:root = New-MachineHealthTempDir -Prefix 'machine-health-orch-stamp'
         $script:stateBase = Initialize-QuietStateBase (Join-Path $script:root 'state-base')
         $script:outputBase = Join-Path $script:root 'output'
+        # Two checks re-enabled at monthly cadence that ran three days ago: a weekly run defers both.
+        $deferred = @($script:QuietOverlay | ConvertFrom-Json).checks | Select-Object -First 2
+        $overlay = $script:QuietOverlay | ConvertFrom-Json
+        foreach ($c in $overlay.checks | Where-Object { $_.id -in $deferred.id }) {
+            $c.enabled = $true
+            $c | Add-Member -NotePropertyName cadence -NotePropertyValue 'monthly'
+        }
+        $overlay | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $script:stateBase 'catalog\checks.local.jsonc') -Encoding utf8
+        $stateDir = New-Item -ItemType Directory -Path (Join-Path $script:stateBase 'state') -Force
+        @{ run_id = (Get-Date).AddDays(-3).ToString('o'); checks_ran = @($deferred.id) } | ConvertTo-Json -Compress |
+            Set-Content -LiteralPath (Join-Path $stateDir 'history.jsonl') -Encoding utf8
         # th-TH formats dates in the Buddhist calendar (Gregorian 2026 is 2569), so a culture-bound
         # stamp would name this run's files by the wrong year.
         $command = "[cultureinfo]::CurrentCulture = 'th-TH'; & '$script:Orchestrator' -OutputBase '$script:outputBase' " +
-            "-StateBase '$script:stateBase' -RunMode on-demand -DryRun -SkipBanner | Out-Null"
+            "-StateBase '$script:stateBase' -RunMode weekly -DryRun -SkipBanner | Out-Null"
         & pwsh -NoProfile -NonInteractive -Command $command 2>$null
         $script:ExitCode = $LASTEXITCODE
-        $script:Snapshot = Get-Content -Raw -LiteralPath (Join-Path $script:stateBase 'state\latest.json') | ConvertFrom-Json -DateKind String
+        # JsonNode keeps run_id as written; ConvertFrom-Json would turn it into a DateTime.
+        $script:Snapshot = [System.Text.Json.Nodes.JsonNode]::Parse((Get-Content -Raw -LiteralPath (Join-Path $stateDir 'latest.json')))
+        $script:Field = { param($Name) $script:Snapshot[$Name].GetValue[object]().ToString() }
     }
 
     AfterAll {
@@ -290,23 +303,23 @@ Describe 'Invoke-MachineHealthCheck run artifacts in latest.json' -Tag 'orchestr
 
     It 'stamps the run in the Gregorian calendar whatever the current culture' {
         $script:ExitCode | Should -Be 0
-        $script:Snapshot.run_stamp | Should -Match '^\d{4}-\d{2}-\d{2}T\d{9}Z$'
-        $gregorianYear = [DateTimeOffset]::Parse($script:Snapshot.run_id, [Globalization.CultureInfo]::InvariantCulture).UtcDateTime.Year
-        [int]$script:Snapshot.run_stamp.Substring(0, 4) | Should -Be $gregorianYear
+        $stamp = & $script:Field 'run_stamp'
+        $stamp | Should -Match '^\d{4}-\d{2}-\d{2}T\d{9}Z$'
+        $gregorianYear = [DateTimeOffset]::Parse((& $script:Field 'run_id'), [Globalization.CultureInfo]::InvariantCulture).UtcDateTime.Year
+        [int]$stamp.Substring(0, 4) | Should -Be $gregorianYear
     }
 
     It 'records the path of the one report this run wrote' {
         $reports = @(Get-ChildItem -LiteralPath (Join-Path $script:outputBase 'reports') -File)
         $reports.Count | Should -Be 1
-        $script:Snapshot.report_path | Should -BeExactly $reports[0].FullName
+        & $script:Field 'report_path' | Should -BeExactly $reports[0].FullName
     }
 
     It 'records the decision page path under the state root views folder, named by the run stamp' {
-        $script:Snapshot.page_path | Should -BeExactly (Join-Path $script:stateBase "views\checkup-$($script:Snapshot.run_stamp).html")
+        & $script:Field 'page_path' | Should -BeExactly (Join-Path $script:stateBase "views\checkup-$(& $script:Field 'run_stamp').html")
     }
 
     It 'records how many checks cadence deferred' {
-        $script:Snapshot.cadence_deferred_count | Should -BeOfType [long]
-        $script:Snapshot.cadence_deferred_count | Should -Be 0
+        $script:Snapshot['cadence_deferred_count'].GetValue[int]() | Should -Be 2
     }
 }
