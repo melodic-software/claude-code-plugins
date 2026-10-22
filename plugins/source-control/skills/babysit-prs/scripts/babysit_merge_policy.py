@@ -1557,8 +1557,8 @@ class Eligibility:
     adoption: str | None = None
     # An adopted pull request whose author is a person or an App in
     # `adoption.spec-from-body-apps`: its title and body may be its intent,
-    # and its own lines skip the path floor (`own_paths`). Any other App's is
-    # scored whole, like the lanes App's.
+    # and its own lines skip the path floor (`own_paths`). Any other App's
+    # own lines skip it only under `MODEL_APP_OWN`.
     body_is_intent: bool = False
 
 
@@ -3374,13 +3374,21 @@ INSTRUCTION_PATH_RE = re.compile(
 )
 
 
+# A model-driven App's own lines skip the floor only here (owner decision
+# Q14 (c), #9107), still less the paths above.
+MODEL_APP_OWN = ("scripts/**", "plugins/*/scripts/**")
+
+
 def own_paths(
-    repo: str, pr: Mapping[str, Any], changed: Collection[str]
+    repo: str,
+    pr: Mapping[str, Any],
+    changed: Collection[str],
+    only: tuple[str, ...] | None = None,
 ) -> frozenset[str]:
     """The `changed` paths only the author's own commits touched
-    (`foreign_paths`), less `NEVER_FLOOR_EXEMPT` and `INSTRUCTION_PATH_RE`: what the path floor leaves
-    out of an adopted pull request whose author's lines count as its own
-    (`Eligibility.body_is_intent`). Empty when the commits cannot be read."""
+    (`foreign_paths`), less `NEVER_FLOOR_EXEMPT` and `INSTRUCTION_PATH_RE`,
+    and inside `only` when given: what the path floor leaves out of an
+    adopted pull request. Empty when the commits cannot be read."""
     others = foreign_paths(repo, pr, changed)
     if others is None:
         return frozenset()
@@ -3390,6 +3398,7 @@ def own_paths(
         if p not in others
         and not INSTRUCTION_PATH_RE.search(p)
         and not any(glob_match(g, p) for g in NEVER_FLOOR_EXEMPT)
+        and (only is None or any(glob_match(g, p) for g in only))
     )
 
 

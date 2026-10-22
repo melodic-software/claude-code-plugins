@@ -21,8 +21,10 @@ bump: minor
 - A person, whose title and body serve as intent with no closing issue, is a `kind: human` id on
   the trusted list, not any GitHub `User`; the list is read at the default branch head, less the
   lanes App and Dependabot, which are never adopted.
-- The own-lines floor exemption covers only people and `adoption.spec-from-body-apps` Apps; every
-  other App's adopted pull request is scored whole. `.github/standards/**`, `.github/workflows/**`,
+- The own-lines floor exemption covers people and `adoption.spec-from-body-apps` Apps; every
+  other App's adopted pull request (claude[bot], cursor[bot], cursoragent, melodic-ai[bot]) is
+  exempt only for its own lines under top-level `scripts/` and `plugins/*/scripts/` (owner
+  decision Q14 (c)). `.github/standards/**`, `.github/workflows/**`,
   `.github/scripts/**`, `.github/actions/**` and any `CODEOWNERS` are never exempt, nor are the
   merge gate, the review lanes, `docs/conventions/**` and agent permission config (`.claude/`,
   `.claude-plugin/`, `CLAUDE.md`, `AGENTS.md`, `REVIEW.md`, `.mcp.json`, `.lsp.json`,

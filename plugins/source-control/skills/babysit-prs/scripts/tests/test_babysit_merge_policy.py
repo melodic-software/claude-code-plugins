@@ -3854,6 +3854,31 @@ class ForeignPaths(unittest.TestCase):
         with mock.patch.object(policy, "foreign_paths", return_value=None):
             self.assertEqual(policy.own_paths(REPO, owner_pr(), changed), frozenset())
 
+    def test_a_model_app_owns_only_its_script_lines(self) -> None:
+        # Owner decision Q14 (c): top-level scripts/ and plugins/*/scripts/,
+        # less the never-exempt paths.
+        changed = frozenset(
+            {
+                "scripts/x.sh",
+                "plugins/x/scripts/y.py",
+                "Scripts/Z.SH",
+                "plugins/x/skills/s/scripts/y.py",
+                "plugins/x/hooks/scripts/h.sh",
+                "plugins/source-control/skills/babysit-prs/scripts/x.py",
+                ".github/scripts/x.mjs",
+                "plugins/x/.claude-plugin/plugin.json",
+                "docs/x.md",
+            }
+        )
+        user = {"login": "claude[bot]", "id": 209825114, "type": "Bot"}
+        with mock.patch.object(policy, "foreign_paths", return_value=frozenset()):
+            self.assertEqual(
+                policy.own_paths(
+                    REPO, owner_pr(user=user), changed, only=policy.MODEL_APP_OWN
+                ),
+                {"scripts/x.sh", "plugins/x/scripts/y.py", "Scripts/Z.SH"},
+            )
+
     def test_the_instruction_path_twin_matches_thread_scope(self) -> None:
         # One list: the Python twin is the regex thread-scope.mjs defines.
         root = pathlib.Path(__file__).resolve().parents[6]

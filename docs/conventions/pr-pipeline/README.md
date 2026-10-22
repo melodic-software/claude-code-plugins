@@ -1714,8 +1714,9 @@ the verdict records its sha256 (`intent_sha256`), and the gate refuses the pass
 In the pr-merge lane, for an adopted PR a person or a `spec-from-body-apps` App opened, the HIGH
 path floor and the manifest review score only the PR's changed paths that a commit not its
 author's own touched (a lane's fix among them): that author's own lines need no person. Any other
-App's PR (claude[bot], cursor[bot], cursoragent, melodic-ai[bot]) is scored whole, like the lanes
-App's, while staying adoptable for fix-and-merge. `.github/standards/**`, `.github/workflows/**`,
+App's PR (claude[bot], cursor[bot], cursoragent, melodic-ai[bot]) gets that exemption only for its
+own lines under top-level `scripts/` and `plugins/*/scripts/` (owner decision Q14 (c)); its other
+paths score whole, like the lanes App's, while it stays adoptable for fix-and-merge. `.github/standards/**`, `.github/workflows/**`,
 `.github/scripts/**`, `.github/actions/**` and any `CODEOWNERS` always score, whoever wrote them:
 CI runs that code from main with tokens. So do the merge gate
 (`plugins/source-control/skills/babysit-prs/**`), the review lanes (`plugins/review/**`),

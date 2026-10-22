@@ -879,18 +879,39 @@ class LaneMode(Unattended):
             ):
                 _, out = self.lane()
                 self.assertEqual(out["unattended"]["risk"]["score"], score)
-        # A lane PR, or an adopted one a model-driven App opened (S&C B), is
-        # scored whole like the lanes App's own.
-        for eligible in (
-            policy.Eligibility(True, None, "C2", 41),
-            policy.Eligibility(True, None, "C2", 41, adoption="idle-owner:24h"),
+        # A lane PR is scored whole like the lanes App's own.
+        self.lane_eligible = policy.Eligibility(True, None, "C2", 41)
+        with mock.patch.object(
+            policy, "foreign_paths", side_effect=AssertionError("read")
         ):
-            self.lane_eligible = eligible
-            with mock.patch.object(
-                policy, "foreign_paths", side_effect=AssertionError("read")
-            ):
-                _, out = self.lane()
-            self.assertEqual(out["unattended"]["risk"]["score"], "HIGH")
+            _, out = self.lane()
+        self.assertEqual(out["unattended"]["risk"]["score"], "HIGH")
+
+    def test_a_model_app_own_lines_skip_the_floor_only_under_scripts(self) -> None:
+        # Owner decision Q14 (c): a model-driven App's own top-level scripts/
+        # and plugins/*/scripts/ lines need no person; its other floor paths
+        # still score.
+        self.config = dataclasses.replace(self.config, high_path_floor=True)
+        self.lane_eligible = policy.Eligibility(
+            True, None, "C2", 41, adoption="trusted-app"
+        )
+        own, held = (
+            ("scripts/x.md", "plugins/p/scripts/x.md"),
+            ("plugins/p/hooks/x.md", ".github/x.md", "plugins/p/skills/s/scripts/x.md"),
+        )
+        self.files = (
+            tuple(dataclasses.replace(LOW_FILE, path=p) for p in (*own, *held)),
+            True,
+        )
+        with mock.patch.object(policy, "foreign_paths", return_value=frozenset()):
+            _, out = self.lane()
+        scored = {
+            path
+            for r in out["unattended"]["risk"]["reasons"]
+            if r["code"].startswith("high-path:")
+            for path in r["detail"].split(", ")
+        }
+        self.assertEqual(scored, set(held))
 
     def test_the_lane_takes_the_rung_cap_from_the_workflow(self) -> None:
         code, out = self.lane()

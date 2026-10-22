@@ -3045,16 +3045,16 @@ def score_unattended(
             for lane in review_evidence.LANES
         )
     # An adopted pull request's trusted author: the path floor holds only
-    # paths someone else's commits touched, a lane's fix among them.
-    # Only for a person's or a script-written App's adopted pull request; a
-    # model-driven App's is scored whole, like the lanes App's (S&C B).
+    # paths someone else's commits touched, a lane's fix among them. A
+    # model-driven App's own lines count only under `MODEL_APP_OWN` (Q14 (c)).
     own = (
         merge_policy.own_paths(
             repo,
             pr,
             frozenset(p for f in files for p in (f.path, f.previous_path) if p),
+            None if eligible.body_is_intent else merge_policy.MODEL_APP_OWN,
         )
-        if eligible.adoption and eligible.body_is_intent
+        if eligible.adoption
         else frozenset()
     )
     if config.high_path_floor:
