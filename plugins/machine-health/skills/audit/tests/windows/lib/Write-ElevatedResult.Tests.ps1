@@ -115,6 +115,21 @@ Describe 'Write-ElevatedResult' -Tag 'lib' {
         @(Get-ChildItem -LiteralPath $targetDir -Force).Count | Should -Be 0
     }
 
+    It 'refuses a junction swapped in for the parent folder without writing into the same-named file it reaches' {
+        # Only the last path component is opened without following reparse points; a
+        # junction higher up is followed, so the file ID check is what refuses this.
+        $elsewhere = Join-Path $TestDrive "elsewhere-$([guid]::NewGuid())"
+        New-Item -ItemType Directory -Path $elsewhere | Out-Null
+        $decoy = Join-Path $elsewhere 'elevated-result.json'
+        Set-Content -LiteralPath $decoy -Value 'original' -NoNewline
+        Remove-Item -LiteralPath $script:dir -Recurse
+        New-Item -ItemType Junction -Path $script:dir -Target $elsewhere | Out-Null
+
+        { Write-ElevatedResult -Path $script:path -FileId $script:id -Results @($script:SampleResult) } |
+            Should -Throw '*file ID*'
+        Get-Content -LiteralPath $decoy -Raw | Should -BeExactly 'original'
+    }
+
     It 'refuses a missing file and creates none' {
         Remove-Item -LiteralPath $script:path
 

@@ -97,12 +97,13 @@ owner's UAC approval. What each step checks is in
 3. **Show and ask.** Show the owner the full text of the file at `ScriptPath` and the full
    `ScriptSha256`, then ask for an explicit yes in this session. Anything else, or no answer, ends
    the pass. A `-p` run has no one to answer, so it never launches.
-4. **Launch.** On yes, run through the PowerShell tool
+4. **Launch.** On yes, run through the PowerShell tool, as a background command,
    `Start-Process pwsh -Verb RunAs -Wait -ArgumentList '<ArgumentString>'`, passing the returned
    string as one single-quoted literal with every `'` in it doubled. The owner approves the UAC
-   prompt. Launch nothing else elevated, and never retry with a changed script or string: prepare
-   again and ask again.
-5. **Import.** When it returns, run the orchestrator as in step 4 of the procedure with
+   prompt. Wait for the command's completion notice: it covers the owner's answer and every
+   admin-gated check. Launch nothing else elevated, and never retry with a changed script or
+   string: prepare again and ask again.
+5. **Import.** When it completes, run the orchestrator as in step 4 of the procedure with
    `-RunMode on-demand -ElevatedResultPath '<ResultPath>'`, then summarize as in step 8, naming
    the checks listed in `latest.json`'s `elevated_checks`, or the `elevated-pass` result when the
    file was refused.
