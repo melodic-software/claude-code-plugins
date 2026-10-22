@@ -139,7 +139,7 @@ const latestPath = `${work}/latest.json`;
 const views = `${work}/views`;
 mkdirSync(views);
 writeFileSync(latestPath, `﻿${JSON.stringify(latest)}`);
-const args = ["--latest", latestPath, "--views-dir", views, "--run-stamp", stamp, "--remediations", "restart-stopped-service,clear-temp-files"];
+const args = ["--latest", latestPath, "--views-dir", views, "--run-stamp", stamp, "--remediations", "restart-stopped-service,clear-temp-files", "--report", "decision-report.md"];
 const run = spawnSync("node", [builder, ...args], { encoding: "utf8", timeout: 60000 });
 check("a page builds", run.status === 0, run.stderr);
 check("the builder writes exactly the run's three files",
@@ -148,7 +148,7 @@ const page = readFileSync(`${views}/checkup-${stamp}.html`, "utf8");
 const ids = JSON.parse(readFileSync(`${views}/checkup-${stamp}.ids.json`, "utf8"));
 check("the id map names its format and run", ids.format === "checkup-ids/1" && ids.run_id === latest.run_id && /^[0-9a-f]{64}$/.test(ids.page_sha256));
 check("the id map rows match the data step", JSON.stringify(ids.rows) === JSON.stringify(expectedRows));
-check("the run row names the run's report", JSON.parse(readFileSync(`${views}/checkup-${stamp}.json`, "utf8")).run[0].report === `health-${stamp}.md`);
+check("the run row names the run's report", JSON.parse(readFileSync(`${views}/checkup-${stamp}.json`, "utf8")).run[0].report === "decision-report.md");
 for (const suffix of [".html", ".json", ".ids.json"]) {
   check(`no exclusion value reaches checkup-${stamp}${suffix}`, !readFileSync(`${views}/checkup-${stamp}${suffix}`, "utf8").includes(canary));
 }

@@ -2,7 +2,7 @@
 // Build the checkup decision page for one audit run.
 //
 //   build-checkup-view.mjs --latest <state/latest.json> --views-dir <StateBase/views>
-//                          --run-stamp <yyyy-MM-ddTHHmmssfffZ> --remediations <id,id>
+//                          --run-stamp <yyyy-MM-ddTHHmmssfffZ> --remediations <id,id> --report <file name>
 //
 // Reads latest.json and the remediation id list the orchestrator passes, and writes
 // exactly three files into the views folder, which the orchestrator creates:
@@ -142,19 +142,19 @@ function main(argv) {
   for (let i = 0; i < argv.length; i += 2) {
     args[argv[i]] = argv[i + 1];
   }
-  const known = ["--latest", "--views-dir", "--run-stamp", "--remediations"];
+  const known = ["--latest", "--views-dir", "--run-stamp", "--remediations", "--report"];
   const ok =
     known.every((key) => typeof args[key] === "string") &&
     Object.entries(args).every(([key, value]) => known.includes(key) && typeof value === "string" && (value !== "" || key === "--remediations"));
   if (!ok || !STAMP.test(args["--run-stamp"])) {
-    console.error("usage: build-checkup-view.mjs --latest <latest.json> --views-dir <dir> --run-stamp <yyyy-MM-ddTHHmmssfffZ> --remediations <id,id>");
+    console.error("usage: build-checkup-view.mjs --latest <latest.json> --views-dir <dir> --run-stamp <yyyy-MM-ddTHHmmssfffZ> --remediations <id,id> --report <file name>");
     return 2;
   }
   const stamp = args["--run-stamp"];
   let latest;
   let template;
   try {
-    latest = JSON.parse(readFileSync(args["--latest"], "utf8").replace(/^﻿/, ""));
+    latest = JSON.parse(readFileSync(args["--latest"], "utf8").replace(/^\uFEFF/, ""));
     template = readFileSync(new URL("../templates/checkup.html", import.meta.url), "utf8");
   } catch (err) {
     console.error(err.message);
@@ -162,7 +162,7 @@ function main(argv) {
   }
   try {
     const remediations = args["--remediations"].split(",").filter(Boolean);
-    const { data, rows } = toCheckupData(latest, remediations, `health-${stamp}.md`);
+    const { data, rows } = toCheckupData(latest, remediations, args["--report"]);
     const page = buildView({ profile: "interactive", template: withRunChoice(template, stamp), data });
     const base = join(args["--views-dir"], `checkup-${stamp}`);
     const idMap = {

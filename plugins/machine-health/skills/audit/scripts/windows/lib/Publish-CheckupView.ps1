@@ -40,7 +40,8 @@ function Publish-CheckupView {
     New-Item -ItemType Directory -Path $viewsDir -Force | Out-Null
     $build = Invoke-NativeCommand -Name 'node' -ArgumentList @(
         (Join-Path $PSScriptRoot '..\..\build-checkup-view.mjs'), '--latest', $LatestPath, '--views-dir', $viewsDir,
-        '--run-stamp', $RunStamp, '--remediations', (@(Get-RemediationId) -join ','))
+        '--run-stamp', $RunStamp, '--remediations', (@(Get-RemediationId) -join ','),
+        '--report', (Split-Path -Leaf $ReportPath))
     $pagePath = $null
     $pageNote = switch ($build.status) {
         'Absent' {

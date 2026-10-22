@@ -5,7 +5,7 @@ user-invocable: true
 disable-model-invocation: true
 ---
 
-**Arguments.** `[check|apply|picks] [disable=<check>|approve=<remediation>|revoke=<remediation>|unmute=<key>…]`; the full set: `[check|apply] [disable=<check>|deprecate=<check>|demote=<check>|approve=<remediation>|revoke=<remediation>|unmute=<key>]`, or `picks` followed by the pasted `checkup-picks` payload.
+**Arguments.** `[check|apply|picks] [disable=<check>|approve=<remediation>|revoke=<remediation>|unmute=<key>…]`; the full set: `[check|apply|picks] [disable=<check>|deprecate=<check>|demote=<check>|approve=<remediation>|revoke=<remediation>|unmute=<key>]`, or `picks` followed by the pasted `checkup-picks` payload.
 
 ## Purpose
 

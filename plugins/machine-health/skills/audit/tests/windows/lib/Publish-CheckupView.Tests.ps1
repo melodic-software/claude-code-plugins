@@ -79,7 +79,8 @@ Describe 'Publish-CheckupView' -Tag 'lib' {
             $Name -eq 'node' -and $ArgumentList[0] -like '*build-checkup-view.mjs' -and
             (Test-Path -LiteralPath $ArgumentList[0]) -and
             ($ArgumentList[1..6] -join '|') -eq "--latest|$($script:Splat.LatestPath)|--views-dir|$script:Views|--run-stamp|$script:Current" -and
-            $ArgumentList[7] -eq '--remediations' -and $ArgumentList[8] -eq 'clear-temp-files,restart-stopped-service'
+            $ArgumentList[7] -eq '--remediations' -and $ArgumentList[8] -eq 'clear-temp-files,restart-stopped-service' -and
+            $ArgumentList[9] -eq '--report' -and $ArgumentList[10] -eq 'health.md'
         }
     }
 
