@@ -107,7 +107,7 @@ test("pr-unblock.yml: publish-feedback runs exactly when the select job proceede
 test("pr-unblock.yml: apply-feedback-patch runs only on a written patch from either model call, not after a skip or an empty patch", () => {
   const { gate } = jobGate(UNBLOCK, "apply-feedback-patch");
   const runs = (sub, first) =>
-    evaluate(gate, { "needs.address-feedback-subscription.outputs.patch-state": sub, "needs.address-feedback.outputs.patch-state": first });
+    evaluate(gate, { "needs.address-feedback-subscription.outputs.scan-patch-state": sub, "needs.address-feedback.outputs.scan-patch-state": first });
   assert.equal(runs("", "written"), true, "the key call's patch, its subscription call skipped");
   assert.equal(runs("written", ""), true, "the subscription call's patch after a handoff");
   assert.equal(runs("", "empty"), false);

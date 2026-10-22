@@ -79,6 +79,21 @@ git_tree() {
     git -c core.fsmonitor=false -c core.hooksPath=/dev/null -c core.untrackedCache=false --no-optional-locks -C "$workspace" "$@"
 }
 
+# The empty files the CLI's Bash leaves at the top of the checkout under
+# run-claude-cli's environment scrub, which the patch collector leaves out
+# while they are empty and untracked (.github/scripts/read-patch/collect-patch.sh
+# holds the same names): no fix, so no scope check.
+scrub_stubs=(bunfig.toml package.json .npmrc .yarnrc .yarnrc.yml .gitmodules package-lock.json yarn.lock
+  pnpm-lock.yaml .env .env.local .env.development .env.development.local .env.test .env.test.local
+  .env.production .env.production.local)
+is_stub() {
+  local name
+  for name in "${scrub_stubs[@]}"; do
+    [[ $1 == "$name" ]] && [[ ! -L $workspace/$1 && -f $workspace/$1 && ! -s $workspace/$1 ]] && return 0
+  done
+  return 1
+}
+
 cmd_list() {
   jq '.threads' "$threads_file"
 }
@@ -147,13 +162,18 @@ cmd_record() {
 
   # A VALID reply's fix is uncommitted in the working tree: every path the
   # tree changes against the gated head, both sides of a rename, and every
-  # untracked file not ignored, is in a kept thread's scope. The runner keeps
-  # .lane/ out of the tree through .git/info/exclude.
+  # untracked file not ignored but an empty scrub stub, is in a kept thread's
+  # scope. The runner keeps .lane/ out of the tree through .git/info/exclude.
   if [[ $disposition == VALID ]]; then
-    local -a paths
+    local -a paths untracked
     local path
-    mapfile -d '' -t paths < <(git_tree diff --no-ext-diff --no-renames --name-only -z HEAD -- && git_tree ls-files --others --exclude-standard -z)
+    mapfile -d '' -t paths < <(git_tree diff --no-ext-diff --no-renames --name-only -z HEAD --)
     wait "$!" || die 1 "cannot read the working tree's changes"
+    mapfile -d '' -t untracked < <(git_tree ls-files --others --exclude-standard -z)
+    wait "$!" || die 1 "cannot read the working tree's untracked files"
+    for path in "${untracked[@]}"; do
+      is_stub "$path" || paths+=("$path")
+    done
     ((${#paths[@]} < 300)) || die 1 "the working tree changes too many files to check"
     for path in "${paths[@]}"; do
       allowed "$path" || die 1 "the working tree changes $path, which is outside every kept thread's scope or under .github/; nothing is recorded"

@@ -84,8 +84,10 @@ The read file has five `workflow_call` outputs: `head-sha`, as in the write file
 `skill-reply-<lane>-<activity>-<attempt>` artifact when the skill ran. In PR mode it also outputs
 `lane-class`, `credential-present` and `handed-off`, from the launcher and the credential steps,
 never from model text ([Two calls on one credential each](#two-calls-on-one-credential-each)),
-and `feedback-attempt`, set by the scan job alone, the attempt naming a `prepare: review-threads`
-skill's scanned replies ([`prepare: review-threads`](#prepare-review-threads)).
+and, set by the scan job alone, `feedback-attempt`, the attempt naming a `prepare: review-threads`
+skill's scanned replies ([`prepare: review-threads`](#prepare-review-threads)), and
+`scan-patch-state`, `scan-patch-sha256`, `scan-patch-attempt` and `scan-reply-attempt`, the patch
+outputs with no run job fallback, which a caller that takes nothing from a run job reads.
 
 Secrets are passed by name, never `inherit`: `claude-code-oauth-token` (skill activities, both
 files) and, in the read file, `claude-api-key` (a PR-mode skill's first call), one of the two
@@ -848,7 +850,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    `review-threads` skill. The scan job scans it with the reply and the patch and, on a clean
    scan, uploads its scanned copy as `feedback-replies-<lane>-<activity>-<run attempt>`; the read
    file's `feedback-attempt` output, set by the scan job alone, names that attempt.
-4. The push job runs on a written patch from either call. Before the mint it downloads the select
+4. The push job runs on a written patch from either call, read from the calls' `scan-*` outputs,
+   never a run job's. Before the mint it downloads the select
    job's thread file and fails red unless its SHA-256 is the select job's; `apply-patch.mjs` then
    admits only paths in a kept thread's scope (the `kept-threads` rule, `named_paths` included),
    skips `superseded-sha` when the head moved since the select job read it, keeps the

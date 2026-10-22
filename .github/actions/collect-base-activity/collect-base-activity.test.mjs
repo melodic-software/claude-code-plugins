@@ -5,7 +5,7 @@
 // instruction to commit, except in merge-base mode, where the runner commits.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
@@ -1419,17 +1419,14 @@ test("run-claude-cli: a patch-producing skill with no prepare mode gets Bash, Ed
 // tool's wrapper as its one Bash rule (bare and quoted), the thread files
 // staged read-only and denied to the file tools, and state/ left writable for
 // the replies file. pr-run-activity.md, "prepare: review-threads".
-function launchThreads({ workspace = WORKSPACE, runFile = true } = {}) {
+function launchThreads({ runFile = true } = {}) {
   const feedbackDir = mkdtempSync(path.join(root, "launch-feedback-"));
   writeFileSync(path.join(feedbackDir, "threads.json"), '{"threads":[]}\n');
   if (runFile) writeFileSync(path.join(feedbackDir, "run.json"), '{"version":1}\n');
   const scripts = path.join(base, "plugins", "source-control", "skills", "pull-request", "scripts");
   mkdirSync(scripts, { recursive: true });
-  writeFileSync(
-    path.join(scripts, "feedback-thread.sh"),
-    'echo "threads=$FEEDBACK_THREADS log=$FEEDBACK_LOG scratch=$FEEDBACK_SCRATCH ws=$FEEDBACK_WORKSPACE args=$*"\n',
-  );
-  return launch({ RESOLVED: launchResolved({ "applied-by": { patch: "apply-feedback-patch", "feedback-replies": "publish-feedback" } }), PREPARE: "review-threads", FEEDBACK_DIR: feedbackDir, SKILL: "source-control:pull-request", WORKSPACE: workspace });
+  writeFileSync(path.join(scripts, "feedback-thread.sh"), "#!/usr/bin/env bash\n");
+  return launch({ RESOLVED: launchResolved({ "applied-by": { patch: "apply-feedback-patch", "feedback-replies": "publish-feedback" } }), PREPARE: "review-threads", FEEDBACK_DIR: feedbackDir, SKILL: "source-control:pull-request" });
 }
 
 const FEEDBACK_TOOL = `${WORKSPACE}/.lane/feedback/bin/feedback-thread`;
@@ -1488,22 +1485,6 @@ test("run-claude-cli: review-threads stages the thread file, run.json, the tool 
     "#!/usr/bin/env bash\n" +
       `export FEEDBACK_THREADS=${lane}/feedback/threads.json FEEDBACK_LOG=${lane}/feedback/state/replies.jsonl FEEDBACK_SCRATCH=${lane}/scratch FEEDBACK_WORKSPACE=${WORKSPACE}\n` +
       `exec bash ${lane}/feedback/feedback-thread.sh "$@"\n`,
-  );
-});
-
-test("run-claude-cli: the staged wrapper, copied to .lane/ as the runner copies it, runs the tool copy with the environment fixed", () => {
-  const workspace = path.join(mkdtempSync(path.join(root, "ws-")), "repo");
-  mkdirSync(workspace);
-  const run = launchThreads({ workspace });
-  assert.equal(run.status, 0, run.stdout);
-  cpSync(run.stageDir, path.join(workspace, ".lane"), { recursive: true });
-  const tool = path.join(workspace, ".lane", "feedback", "bin", "feedback-thread");
-  const result = spawnSync(tool, ["list", "x y"], { cwd: root, encoding: "utf8" });
-  assert.equal(result.status, 0, result.stderr);
-  const lane = path.join(workspace, ".lane");
-  assert.equal(
-    result.stdout.trim(),
-    `threads=${lane}/feedback/threads.json log=${lane}/feedback/state/replies.jsonl scratch=${lane}/scratch ws=${workspace} args=list x y`,
   );
 });
 

@@ -172,6 +172,26 @@ assert_contains "the tool says the reply job posts it" "$out" "reply job posts i
 run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "a second record on the same thread is refused" 1 "$?"
 assert_eq "the refused second record appends nothing" 1 "$(recorded)"
+# the CLI's empty scrub stubs at the top of the checkout are no fix: an
+# untracked empty one is passed over, one with content is refused
+setup
+echo 'guarded' >"$STUB/ws/src/a.js"
+: >"$STUB/ws/package.json"
+: >"$STUB/ws/.env"
+disposition '{"disposition":"VALID","evidence":["src/a.js:3"],"fix_sha":"","note":"fixed"}'
+run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "untracked empty scrub stubs do not refuse the VALID record" 0 "$?"
+setup
+echo 'guarded' >"$STUB/ws/src/a.js"
+echo 'TOKEN=x' >"$STUB/ws/.env"
+run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "a scrub-stub name with content refuses the VALID record" 1 "$?"
+setup
+echo 'guarded' >"$STUB/ws/src/a.js"
+mkdir -p "$STUB/ws/src/nested" && : >"$STUB/ws/src/nested/package.json"
+run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "an empty stub name below the top of the checkout refuses the VALID record" 1 "$?"
+
 setup
 disposition '{"disposition":"VALID","evidence":["src/a.js:3"],"note":"fix_sha left out"}'
 run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1

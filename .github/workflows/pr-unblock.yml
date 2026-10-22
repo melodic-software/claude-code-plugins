@@ -346,7 +346,7 @@ jobs:
   apply-feedback-patch:
     needs: [address-feedback-select, address-feedback, address-feedback-subscription]
     if: >-
-      ${{ !cancelled() && (needs.address-feedback-subscription.outputs.patch-state || needs.address-feedback.outputs.patch-state) == 'written' }}
+      ${{ !cancelled() && (needs.address-feedback-subscription.outputs.scan-patch-state || needs.address-feedback.outputs.scan-patch-state) == 'written' }}
     permissions:
       contents: read
       pull-requests: read
@@ -364,9 +364,10 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
-      patch-state: ${{ needs.address-feedback-subscription.outputs.patch-state || needs.address-feedback.outputs.patch-state }}
-      patch-sha256: ${{ needs.address-feedback-subscription.outputs.patch-sha256 || needs.address-feedback.outputs.patch-sha256 }}
-      patch-attempt: ${{ needs.address-feedback-subscription.outputs.patch-attempt || needs.address-feedback.outputs.patch-attempt }}
+      # The scan job's outputs alone, never a run job's.
+      patch-state: ${{ needs.address-feedback-subscription.outputs.scan-patch-state || needs.address-feedback.outputs.scan-patch-state }}
+      patch-sha256: ${{ needs.address-feedback-subscription.outputs.scan-patch-sha256 || needs.address-feedback.outputs.scan-patch-sha256 }}
+      patch-attempt: ${{ needs.address-feedback-subscription.outputs.scan-patch-attempt || needs.address-feedback.outputs.scan-patch-attempt }}
       patch-activity: address-feedback
       patch-prepare: review-threads
       # The head the select job read, from a job that ran no head code.
@@ -376,7 +377,7 @@ jobs:
       # true drops the human-gated label from the holds: the select job kept
       # only threads a trusted person with write access asked to fix.
       patch-fix-requested: ${{ needs.address-feedback-select.outputs.fix-requested }}
-      reply-attempt: ${{ needs.address-feedback-subscription.outputs.reply-attempt || needs.address-feedback.outputs.reply-attempt }}
+      reply-attempt: ${{ needs.address-feedback-subscription.outputs.scan-reply-attempt || needs.address-feedback.outputs.scan-reply-attempt }}
 
   # The reply job, a script with no model: it holds pull-requests: write and
   # posts the replies the model job recorded, exactly as written or not at

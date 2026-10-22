@@ -191,6 +191,22 @@ on:
           The run attempt in the artifact name
           skill-reply-<lane>-<activity>-<attempt>, when the skill ran.
         value: ${{ jobs.scan.outputs.reply-attempt || jobs.run.outputs.reply-attempt }}
+      # PR mode, the scan job's alone: the patch outputs above fall back to
+      # the run job's for issue mode, and a PR-mode run job's runner could
+      # forge those, so a caller that gates or applies on a PR-mode patch
+      # takes these.
+      scan-patch-state:
+        description: "PR mode: patch-state as the scan job set it, with no run job fallback."
+        value: ${{ jobs.scan.outputs.patch-state }}
+      scan-patch-sha256:
+        description: "PR mode: patch-sha256 as the scan job set it."
+        value: ${{ jobs.scan.outputs.patch-sha256 }}
+      scan-patch-attempt:
+        description: "PR mode: patch-attempt as the scan job set it."
+        value: ${{ jobs.scan.outputs.patch-attempt }}
+      scan-reply-attempt:
+        description: "PR mode: reply-attempt as the scan job set it."
+        value: ${{ jobs.scan.outputs.reply-attempt }}
       feedback-attempt:
         description: >-
           The run attempt in the artifact name
@@ -510,10 +526,12 @@ jobs:
           # any re-runner, must be listed as a human; the lanes App passes
           # only by applying the caller's app-label.
           denied-actor-ids: ${{ inputs.issue-number != '' && vars.AUTOMATION_LANES_APP_SENDER_ID || '' }}
-          # Issue mode: the App that may apply the label; a feedback dispatch:
-          # the App whose review run vouches. The PR path reads it for nothing
-          # else.
-          lanes-app-id: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          # Issue mode: the App that may apply the label; a dispatched run: the
+          # App whose review run vouches for a pr-feedback-dispatch.yml
+          # dispatch. Any other run passes none.
+          lanes-app-id: >-
+            ${{ (inputs.issue-number != '' || inputs.dispatcher-run-id != '')
+            && vars.AUTOMATION_LANES_APP_SENDER_ID || '' }}
           require-pr: ${{ inputs.issue-number == '' }}
           require-kind: ${{ inputs.issue-number != '' && 'human' || '' }}
           app-label: ${{ inputs.issue-number != '' && inputs.app-label || '' }}
