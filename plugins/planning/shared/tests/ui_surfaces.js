@@ -182,7 +182,7 @@ async function main() {
     b = await beside(owner, ".vf-reactpop", ".vf-msg .vf-mreact-add");
     ok("  and React opens beside its button", b.ok, JSON.stringify(b));
     await owner.keyboard.press("Escape");
-    await owner.click(".vf-fab");
+    await owner.click(".vf-chat-head .vf-icon-btn");
     await gus.waitForTimeout(1100);
     await owner.click(".vf-disc-head");
     await owner.fill(".vf-disc-ta", "A comment to open the menu on");
@@ -206,7 +206,7 @@ async function main() {
     const roMenu = async (open) => { await open(); await until(gus, () => !document.querySelector(".vf-msgmenu").hidden);
       const m = await gus.evaluate(() => [...document.querySelectorAll(".vf-msgmenu [role=menuitem]")].filter(x => !x.hidden).map(x => x.textContent.trim())); await gus.keyboard.press("Escape"); return m; };
     const roChat = await roMenu(async () => { await gus.click(".vf-fab"); const m = gus.locator(".vf-msg", { hasText: "Where does the total go on phones?" }); await m.hover(); await m.locator(".vf-msgmore").click(); });
-    await gus.click(".vf-fab");
+    await gus.click(".vf-chat-head .vf-icon-btn");
     await until(gus, () => document.querySelector(".vf-center").dataset.mode === "tree");
     // An ended session opens guests on the Tree; View options brings back the view switcher, and Focus the Discussion.
     if (!(await gus.locator(".vf-seg-btn", { hasText: "Focus" }).isVisible())) await gus.click(".vf-viewopts");
