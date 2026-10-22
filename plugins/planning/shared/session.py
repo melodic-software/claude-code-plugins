@@ -6114,7 +6114,12 @@ class Session:
         if self._base_cache and self._base_cache[0] == st["rev"]:
             return self._base_cache[1]
         active = {p for p in st["people"] if self._active(p)}
-        cards = {qid: [self._public_card(qid, c, active) for c in lst if self._shown(c)] for qid, lst in st["cards"].items()}
+        # an alternative a state saved before the refusal holds that restates the recommendation folds away, as on the 1:1 page
+        folded = {q["id"]: {a["key"] for a in q["alternatives"] if question_shape.restates(a["text"], q.get("recommendation"))} for q in st["questions"]}
+        cards = {
+            qid: [self._public_card(qid, c, active) for c in lst if self._shown(c) and not (c["kind"] == "claude" and c["key"] in folded.get(qid, ()))]
+            for qid, lst in st["cards"].items()
+        }
         suggestions = {}
         for qid, lst in st["suggestions"].items():
             by = st["suggestionVotes"].get(qid, {})

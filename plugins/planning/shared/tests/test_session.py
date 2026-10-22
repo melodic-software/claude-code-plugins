@@ -1085,6 +1085,17 @@ class TestQuestionParsing(SessionCase):
         self.assertEqual([a.get("restates") for a in q["alternatives"]], [True, None])
         self.assertNotIn("restates", self.question("Q1")["alternatives"][0])
 
+    def test_an_old_state_shows_no_card_for_a_restating_alternative_and_keeps_state_json(self):
+        self.open_round(text_q("Q1"))
+        old = self.disk()
+        old["questions"][0]["alternatives"][0]["text"] = "Recommended for Q1"  # saved before the refusal
+        self.path.write_text(json.dumps(old), encoding="utf-8")
+        before = self.path.read_bytes()
+        s = session.Session.load(self.path, clock=self.clock, ids=self.ids)
+        self.assertEqual([c["ref"] for c in s.snapshot(HOST)["cards"]["Q1"]], ["c:rec", "c:b"])
+        self.assertEqual([session.card_ref(c) for c in s.state["cards"]["Q1"]], ["c:rec", "c:a", "c:b"])
+        self.assertEqual(self.path.read_bytes(), before)
+
     def test_a_choice_question_gets_one_option_card_per_option(self):
         self.open_round(choice_q("Q1"))
         self.assertEqual([session.card_ref(c) for c in self.s.state["cards"]["Q1"]], ["o:opt-1", "o:opt-2", "o:opt-3"])
