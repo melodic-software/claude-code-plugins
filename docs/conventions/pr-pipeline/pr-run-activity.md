@@ -639,10 +639,16 @@ passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr
    (`fix-docs`), and fails red on any other prepare mode with a patch and on `checks`,
    `self-checks` or `verify-scripts`, which have no wrapper there. The no-prepare patch skill gets
    the tools `Read`, `Glob`, `Grep`, `Skill`, `Bash`, `Edit`, `Write` and `Agent`; its allow rules
-   name its skill, `Grep`, `Glob`, `Edit`, `Write` and `Agent` but no `Bash` rule, so Bash runs
-   only what the skill's own frontmatter grants; it adds no deny rule, since the base set already
-   denies `Read(./.git/**)`; and the preamble says to keep scratch files in `.lane/scratch` and leave every change
-   uncommitted. With `web-access` (`domains: any` only; a domain list fails red) it also gets the
+   name its skill, `Grep`, `Glob`, `Edit`, `Write` and `Agent`, and for `ai-slop:audit` each of
+   its scripts by absolute path under `.lane/plugins`, bare and double-quoted, plus
+   `Bash(sha256sum *)` and `Bash(mkdir -p <workspace>/.lane/scratch/*)` for the fix flow's
+   digests; no other `Bash` rule, and the lane does not rely on the skill's frontmatter grants. It
+   adds the deny rules `Bash(git *)`, the `user-scope.sh` script, `NotebookEdit(./.lane/plugins/**)`
+   and the write lanes' shell deny set to the base set, which already denies `Read(./.git/**)`
+   and `Read(//proc/**)`. The preamble says to keep scratch files in `.lane/scratch`, leave every
+   change uncommitted, and run one plain command per call, redirecting only into `.lane/scratch`.
+   The staging step makes `.lane/prompt.md` and `.lane/` itself read-only, so a script's `--out`
+   lands only in `.lane/scratch`. With `web-access` (`domains: any` only; a domain list fails red) it also gets the
    `WebFetch` and `WebSearch` tools, no longer denied, the rules `WebFetch(domain:*)`, `WebSearch`
    and the four research skills, and the `discovery` and `knowledge` plugins staged read-only
    beside its own, one `plugin-dirs` line each. The docs scripts are not staged, so the preamble
