@@ -173,11 +173,21 @@ export function renderReply({ disposition, evidence, fixSha, note }) {
   ].join("\n");
 }
 
+const SKILL_FILE = /^((?:.*\/)?skills\/[^/]+\/)SKILL\.md$/;
+
+// Whether a fix commit's changed files touch a thread's path: the path itself,
+// or for a skill's SKILL.md any file under that skill's directory.
+function touchesThread(changed, threadPath) {
+  const skillDir = SKILL_FILE.exec(threadPath)?.[1];
+  return skillDir === undefined ? changed.includes(threadPath) : changed.some((file) => file.startsWith(skillDir));
+}
+
 // Whenever the PR branch moved since the model job's gated head, or a reply is
 // VALID, that range may change only what inThreadScope allows around the kept
 // threads' paths (run.json, whose SHA-256 the model job's runner recorded), and
 // nothing under .github/. Every VALID fix must be a commit in that range that
-// changes its own thread's path.
+// changes its own thread's path, or for a thread on a skill's SKILL.md any file
+// in that skill's directory (touchesThread).
 async function fixesLanded({ api, run, headSha, replies }) {
   const valid = replies.filter((reply) => reply.disposition === "VALID");
   if (valid.length === 0 && run.head_sha === headSha) {
@@ -202,7 +212,7 @@ async function fixesLanded({ api, run, headSha, replies }) {
   }
   for (const reply of valid) {
     const changed = ((await api.getCommit(reply.fixSha)).files ?? []).map((file) => file.filename);
-    if (!changed.includes(threadPath.get(reply.thread))) {
+    if (!touchesThread(changed, threadPath.get(reply.thread))) {
       return false;
     }
   }

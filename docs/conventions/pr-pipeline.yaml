@@ -544,6 +544,10 @@ red-main:
   # raises no event of its own: 15 to start plus a full run's longest lane
   # (16) plus queue time.
   confirm-wait-minutes: 40
+  # rollback: the revert rule above decides who reverts the culprit.
+  # fail-forward: no revert is planned; a person or a fix pull request
+  # repairs main (owner decision W-51, 2026-10-21).
+  remedy: rollback
 
 merge:
   # The lane treats every PR the lanes App opened for one closing issue as
