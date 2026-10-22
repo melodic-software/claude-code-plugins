@@ -734,6 +734,17 @@ class TestRawRequests(ServerCase):
         self.assertNotIn("\x1b", log)
 
 
+class TestBind(unittest.TestCase):
+    def test_the_listeners_bind_without_looking_up_a_host_name(self):
+        """HTTPServer.server_bind resolves its address with socket.getfqdn, which took about 35 s on a macOS runner:
+        longer than share.py waits for the server to start."""
+        with mock.patch.object(socket, "getfqdn", side_effect=AssertionError("getfqdn called")):
+            app = server.App(tmpdir(self), watch_tunnel=False)
+        self.addCleanup(app.shutdown)
+        self.assertEqual((app.guest.server_name, app.guest.server_port), ("127.0.0.1", app.guest_port))
+        self.assertEqual((app.control.server_name, app.control.server_port), ("127.0.0.1", app.control_port))
+
+
 class TestBusy(unittest.TestCase):
     def test_a_connection_past_the_handler_cap_is_answered_503(self):
         d = tmpdir(self)

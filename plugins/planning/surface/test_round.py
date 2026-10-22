@@ -672,6 +672,38 @@ class TestSharedQuestionShape(DirCase):
                 self.assertRegex(out, "the cap is 500|allows at most 500")
 
 
+class TestStoredLongShort(DirCase):
+    """A stored `short` over the 80 cap, from a session written under the old cap, keeps loading;
+    only a write that sets a new or changed `short` is held to 80."""
+
+    LONG = "x" * 90
+
+    def setUp(self):
+        super().setUp()
+        doc = base_doc()
+        doc["questions"][0]["short"] = self.LONG
+        self.write_doc(doc)
+
+    def test_an_answer_and_a_revise_of_other_fields_are_accepted(self):
+        for args in (
+            ("apply", "--file", self.file("t.json", {"ops": [{"op": "record-terminal", "id": "Q1", "decision": "accept"}]})),
+            ("revise", "Q1", "--title", "New title?", "--facts", "New facts."),
+        ):
+            with self.subTest(args=args[:2]):
+                rc, out, err = self.rp(*args)
+                self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q1")["short"], self.LONG)
+        self.assertEqual(self.q("Q1")["title"], "New title?")
+
+    def test_setting_a_long_short_is_refused(self):
+        for args in (
+            ("revise", "Q2", "--short", self.LONG),
+            ("add", "--file", self.file("q.json", question("Q4", short=self.LONG))),
+        ):
+            with self.subTest(args=args[:2]):
+                self.assertIn("allows at most 80 characters, has 90", self.assert_refused(*args))
+
+
 class TestRecAlternativeCollision(DirCase):
     def test_reply_rec_equal_or_containing_an_alternative_is_refused(self):
         for rec in ("  no.", "Pick no, then ship it"):
