@@ -3262,23 +3262,24 @@ def changed_files(
     )
 
 
+# GitHub's web-flow account, which commits what an App writes through the API.
+WEB_FLOW_ID = 19864447
+
+
 def _own_commit(commit: Mapping[str, Any], user: Mapping[str, Any]) -> bool:
     """Whether a pull request commit is its author's own: GitHub verified
     its signature, its author account is the pull request's author, and,
     for a person, so is its committer. The author account alone comes from
     the git author email, which anyone can set. An App commits through the
-    API, which GitHub's web-flow commits, so its own commits rest on the
-    author and the signature alone: the weaker case."""
+    API, which GitHub's web-flow (`WEB_FLOW_ID`) commits, so its committer
+    may be web-flow or itself: the weaker case."""
     author = json_object(commit.get("author")).get("id")
     committer = json_object(commit.get("committer")).get("id")
     verified = json_object(
         json_object(json_object(commit.get("commit")).get("verification"))
     ).get("verified")
-    return (
-        verified is True
-        and author == user.get("id")
-        and (user.get("type") == "Bot" or committer == author)
-    )
+    allowed = (author, WEB_FLOW_ID) if user.get("type") == "Bot" else (author,)
+    return verified is True and author == user.get("id") and committer in allowed
 
 
 def foreign_paths(
@@ -3322,10 +3323,13 @@ def foreign_paths(
 
 
 # Paths never a trusted author's own, whoever wrote them (S&C review of
-# #9107): who is trusted, what CI runs, and who must review.
+# #9107): who is trusted, what CI runs with tokens (pr-verify runs
+# .github/scripts, actions and standards code from main), and who must review.
 NEVER_FLOOR_EXEMPT = (
-    ".github/standards/trusted-actors/**",
+    ".github/standards/**",
     ".github/workflows/**",
+    ".github/scripts/**",
+    ".github/actions/**",
     "CODEOWNERS",
     "**/CODEOWNERS",
 )

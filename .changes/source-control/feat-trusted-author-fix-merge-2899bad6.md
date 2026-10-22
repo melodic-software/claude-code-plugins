@@ -22,7 +22,8 @@ bump: minor
   the trusted list, not any GitHub `User`; the list is read at the default branch head, less the
   lanes App and Dependabot, which are never adopted.
 - The own-lines floor exemption covers only people and `adoption.spec-from-body-apps` Apps; every
-  other App's adopted pull request is scored whole. The trusted-actor list, workflows and any
-  `CODEOWNERS` are never exempt.
+  other App's adopted pull request is scored whole. `.github/standards/**`, `.github/workflows/**`,
+  `.github/scripts/**`, `.github/actions/**` and any `CODEOWNERS` are never exempt. An App's own
+  commit needs a committer that is the App or GitHub's web-flow.
 - A pass judged on the pull request's title and body records their sha256, and the gate refuses
   it with `verify:spec-changed` once they change.

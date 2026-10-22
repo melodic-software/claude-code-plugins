@@ -3765,6 +3765,10 @@ class ForeignPaths(unittest.TestCase):
         )
         own = self.commit("r1", 337859524, self.WEB_FLOW)
         unsigned = self.commit("r2", 337859524, self.WEB_FLOW, verified=False)
+        # S&C: an App's commit someone else committed is not its own.
+        other = self.commit("r3", 337859524, self.LANES)
+        r3 = {"r3": [{"filename": "scripts/x.sh"}]}
+        self.assertEqual(self.paths([other], r3, app), frozenset({"scripts/x.sh"}))
         files = {"r2": [{"filename": "scripts/x.sh"}]}
         self.assertEqual(self.paths([own], {}, app), frozenset())
         self.assertEqual(
@@ -3803,6 +3807,10 @@ class ForeignPaths(unittest.TestCase):
                 ".github/workflows/x.yml",
                 "CODEOWNERS",
                 "docs/CODEOWNERS",
+                # CI code pr-verify runs from main with tokens.
+                ".github/standards/runner-policy/runner-policy.mjs",
+                ".github/scripts/pr-verify/resolve-pr.mjs",
+                ".github/actions/x/action.yml",
                 "docs/x.md",
             }
         )

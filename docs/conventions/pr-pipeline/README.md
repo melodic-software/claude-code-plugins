@@ -1715,13 +1715,15 @@ In the pr-merge lane, for an adopted PR a person or a `spec-from-body-apps` App 
 path floor and the manifest review score only the PR's changed paths that a commit not its
 author's own touched (a lane's fix among them): that author's own lines need no person. Any other
 App's PR (claude[bot], cursor[bot], cursoragent, melodic-ai[bot]) is scored whole, like the lanes
-App's, while staying adoptable for fix-and-merge. `.github/standards/trusted-actors/**`,
-`.github/workflows/**` and any `CODEOWNERS` always score, whoever wrote them. The lanes App and
+App's, while staying adoptable for fix-and-merge. `.github/standards/**`, `.github/workflows/**`,
+`.github/scripts/**`, `.github/actions/**` and any `CODEOWNERS` always score, whoever wrote them:
+CI runs that code from main with tokens. The lanes App and
 Dependabot are never adopted. A commit is the author's own
 only when GitHub verified its signature and its author account is the PR's author, and, for a
 person, its committer account too; the author account alone comes from the git author email,
 which anyone can set. An App's commits go through the API and GitHub's web-flow commits them, so
-an App's own commits rest on the author account and the signature alone, the weaker case. A merge
+an App's own commit needs the signature, its author account, and a committer that is the App or
+web-flow, the weaker case. A merge
 commit not the author's own scores its files that the PR also changed, so a conflict a lane
 resolves inside a PR-changed file holds while main's other incoming files score nothing. The lanes
 App's own PRs are never adopted and stay scored whole. A commit list or commit that cannot be read
