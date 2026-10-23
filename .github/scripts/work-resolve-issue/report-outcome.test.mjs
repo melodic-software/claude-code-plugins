@@ -1482,11 +1482,12 @@ const LANE_TIP = {
   committer: { login: "web-flow" },
   commit: { committer: { date: "2026-10-16T10:00:00Z" }, verification: { verified: true, reason: "valid" } },
 };
-const branchFact = (name, { aheadBy = 2, tip = LANE_TIP, tipAt = Date.parse("2026-10-16T10:00:00Z"), pulls = [], sha = "a".repeat(40), commits = [LANE_TIP, LANE_TIP] } = {}) => ({
+const branchFact = (name, { aheadBy = 2, behindBy = 0, tip = LANE_TIP, tipAt = Date.parse("2026-10-16T10:00:00Z"), pulls = [], sha = "a".repeat(40), commits = [LANE_TIP, LANE_TIP] } = {}) => ({
   sha,
   commits,
   name,
   aheadBy,
+  behindBy,
   tip,
   tipAt,
   pulls,
@@ -1697,6 +1698,35 @@ test("a marked run's branch with any commit not the lanes App's, or a cut-short 
   }
 });
 
+// A resumed branch carries its base into the runner's whole-branch checks, so
+// one behind main starts fresh from main under a new branch, and the old
+// branch is left for a person to delete.
+test("a marked run's branch behind main, or of unknown distance, starts fresh instead of resuming", () => {
+  for (const behindBy of [1, 865, null]) {
+    const branches = [branchFact(lane(400), { sha: SHA_400, behindBy })];
+    assert.deepEqual(
+      prior({ branches, markers: [marked("stopped", "400")] }),
+      { action: "run", stale: { branch: lane(400), behindBy } },
+      String(behindBy),
+    );
+  }
+});
+
+test("a lanes-App PR open from a lane branch behind main still stops the run", () => {
+  const branches = [branchFact(lane(400), { sha: SHA_400, behindBy: 865, pulls: [pullBy(BOT)] })];
+  assert.equal(prior({ branches, markers: [marked("stopped", "400")] }).action, "stop");
+});
+
+// The fresh run that replaced a stale resume reports under its own run, so
+// the next admission never falls back to the stale branch.
+test("after a fresh run replaced a stale resume, the stale branch is not resumed again", () => {
+  const branches = [branchFact(lane(400), { sha: SHA_400, behindBy: 865 })];
+  for (const outcome of ["stopped", "turn-cap", "pushback"]) {
+    const markers = [marked("stopped", "400"), marked(outcome, "401", "2026-10-23T16:00:00Z")];
+    assert.deepEqual(prior({ branches, markers }), { action: "run" }, outcome);
+  }
+});
+
 test("of a marked run's attempts, the newest is resumed", () => {
   const branches = [branchFact(lane(400, 1), { sha: "1".repeat(40) }), branchFact(lane(400, 2), { sha: "2".repeat(40) })];
   assert.equal(prior({ branches, markers: [marked("turn-cap", "400")] }).tip, "2".repeat(40));
@@ -1709,10 +1739,18 @@ test("an unreported branch is still reused before a marked one is resumed", () =
 
 test("--find-prior names the resumed branch, its tip and the cause, and still runs the model", async () => {
   const comments = [{ user: { login: BOT }, body: "<!-- work-resolve-issue outcome=turn-cap cap=75 run=400 -->", created_at: "2026-10-16T11:00:00Z" }];
-  const comparison = { ahead_by: 1, total_commits: 1, commits: [LANE_TIP] };
+  const comparison = { ahead_by: 1, behind_by: 0, total_commits: 1, commits: [LANE_TIP] };
   const { code, output } = await runPrior({ comments, refs: [refOf(lane(400))], comparison });
   assert.equal(code, 0);
   assert.equal(output, `proceed=true\nskip-reason=\nreuse-branch=\nresume-branch=${lane(400)}\nresume-tip=${"a".repeat(40)}\nresume-cause=turn-cap\n`);
+});
+
+test("--find-prior runs the model fresh, with no resume outputs, when the marked run's branch is behind main", async () => {
+  const comments = [{ user: { login: BOT }, body: "<!-- work-resolve-issue outcome=stopped run=400 -->", created_at: "2026-10-16T11:00:00Z" }];
+  const comparison = { ahead_by: 1, behind_by: 865, total_commits: 1, commits: [LANE_TIP] };
+  const { code, output } = await runPrior({ comments, refs: [refOf(lane(400))], comparison });
+  assert.equal(code, 0);
+  assert.equal(output, "proceed=true\nskip-reason=\nreuse-branch=\n");
 });
 
 test("another issue's lane branches are never this issue's", () => {

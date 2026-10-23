@@ -902,11 +902,15 @@ export function readBranch(dir, issueNumber, key = "branch") {
 //          runs that kept no branch, is turn-cap, stopped, limited or funding
 //          and names a run whose newest lane branch passes the same
 //          tip, commit and PR checks, with every commit ahead of the default
-//          branch verified, by the lanes App, committed by web-flow: the model runs on a new lane branch
-//          made at that branch's tip (`tip`, the sha read), so it continues
-//          the work instead of starting from the default branch;
+//          branch verified, by the lanes App, committed by web-flow, and no
+//          commit behind the default branch: the model runs on a new lane
+//          branch made at that branch's tip (`tip`, the sha read), so it
+//          continues the work instead of starting from the default branch.
+//          A branch behind the default branch would carry its stale base into
+//          the runner's whole-branch checks, so it starts fresh instead
+//          (`stale` names it) and is left as it is;
 //   run    otherwise.
-// `branches` are {name, sha, aheadBy, tip, tipAt, pulls, commits} (commits
+// `branches` are {name, sha, aheadBy, behindBy, tip, tipAt, pulls, commits} (commits
 // from GET /compare, null when the listing is cut short; tip from GET
 // /commits/{sha}, tipAt epoch ms, pulls from
 // GET /pulls?state=all&head=); `closing` the issue's open closing PRs as
@@ -961,6 +965,9 @@ export function findPrior({ issueNumber, repo, bot, humans, branches, closing, m
     RESUMABLE.has(decisive?.outcome) && decisive.run !== ""
       ? lane.find((branch) => branch.match[1] === decisive.run && usable(branch) && allLane(branch))
       : null;
+  if (resume && resume.behindBy !== 0) {
+    return { action: "run", stale: { branch: resume.name, behindBy: resume.behindBy } };
+  }
   return resume ? { action: "resume", branch: resume.name, tip: resume.sha, cause: decisive.outcome } : { action: "run" };
 }
 
@@ -1175,7 +1182,7 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
       // carries no commit list, so it is never resumed.
       const commits =
         Array.isArray(comparison.commits) && comparison.commits.length === comparison.total_commits ? comparison.commits : null;
-      branches.push({ name: ref.name, sha: ref.sha, aheadBy: comparison.ahead_by, tip, tipAt, pulls, commits });
+      branches.push({ name: ref.name, sha: ref.sha, aheadBy: comparison.ahead_by, behindBy: comparison.behind_by, tip, tipAt, pulls, commits });
     }
     const prior = findPrior({ issueNumber, repo: env.GITHUB_REPOSITORY, bot, humans, branches, closing, markers });
     const runs = prior.action === "run" || prior.action === "resume";
@@ -1190,6 +1197,11 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
         }
       : { proceed: "false", "skip-reason": "not-applicable", "reuse-branch": prior.action === "reuse" ? prior.branch : "" };
     appendFileSync(env.GITHUB_OUTPUT, Object.entries(outputs).map(([key, value]) => `${key}=${value}\n`).join(""));
+    if (prior.stale) {
+      console.log(
+        `report-outcome: ${prior.stale.branch} is ${prior.stale.behindBy ?? "an unknown number of"} commits behind the default branch, so the model starts fresh from the default branch instead of resuming it; the branch is left as it is`,
+      );
+    }
     console.log(
       prior.action === "run"
         ? `report-outcome: no earlier run of issue #${issueNumber} left work to report; the model runs`

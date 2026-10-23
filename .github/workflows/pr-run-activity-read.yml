@@ -808,8 +808,9 @@ jobs:
       # holds commits no report handed on (reuse-branch, which report-outcome
       # opens a PR from). Both skip not-applicable. When the newest outcome
       # marker is turn-cap, stopped or limited for a run whose lane branch
-      # passes the same tip check, the model runs on that branch's tip
-      # instead (resume-branch, resume-tip, resume-cause).
+      # passes the same tip check and is not behind the default branch, the
+      # model runs on that branch's tip instead (resume-branch, resume-tip,
+      # resume-cause); a branch behind it starts fresh from the default tip.
       - name: Check for an earlier run's work on the issue
         id: issue-prior
         if: >-
