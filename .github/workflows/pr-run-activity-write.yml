@@ -367,8 +367,7 @@ on:
           repeat-cap or unresolved-conflict; for the
           review-replies script feedback-uncertain, feedback-not-landed or
           feedback-invalid, feedback-partial, feedback-incomplete or
-          feedback-disputed; for dependency-review, before any model turn,
-          dependency-round-cap; for the dependency-verdict script
+          feedback-disputed; for the dependency-verdict script
           dependency-invalid, dependency-fix-not-landed, dependency-config-unreadable,
           dependency-files-truncated, dependency-control-uncited,
           dependency-workflow-held, dependency-fix-refused,
@@ -392,22 +391,6 @@ on:
       head-sha:
         description: The PR head the gate passed, before any push of this run. Set only by runner steps.
         value: ${{ jobs.run.outputs.head-sha }}
-      dependency-round:
-        description: >-
-          `true` once a dependency-review skill ran, so its verdict was
-          uploaded (or the run ended before it could be) and its verdict job
-          must run. Set only by runner steps.
-        value: ${{ jobs.run.outputs.dependency-round }}
-      dependency-run-sha256:
-        description: >-
-          The SHA-256 of the run.json the dependency-review runner step wrote;
-          the caller passes it to the verdict job. Set only by runner steps.
-        value: ${{ jobs.run.outputs.dependency-run-sha256 }}
-      dependency-run-attempt:
-        description: >-
-          The run attempt whose dependency-verdict-<attempt> artifact holds
-          the round's verdict. Set only by runner steps.
-        value: ${{ jobs.run.outputs.dependency-run-attempt }}
 
 permissions: {}
 
@@ -457,15 +440,9 @@ jobs:
       merge-state: ${{ steps.prepare.outputs.merge-state }}
       escalation-reason: >-
         ${{ steps.prepare.outputs.escalation-reason || steps.post.outputs.escalation-reason
-        || steps.dependency-select.outputs.escalation-reason
         || steps.act-script.outputs.escalation-reason || steps.patch-select.outputs.escalation-reason }}
       rung-up: ${{ steps.patch-select.outputs.skip-reason == 'rung-up' }}
       patch-skip-reason: ${{ steps.patch-select.outputs.skip-reason }}
-      dependency-round: >-
-        ${{ steps.config.outputs.prepare == 'dependency-review'
-        && steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome != '' }}
-      dependency-run-sha256: ${{ steps.dependency-collect.outputs.run-sha256 }}
-      dependency-run-attempt: ${{ steps.dependency-collect.outcome == 'success' && github.run_attempt || '' }}
       # The base action's own failure text, so the report names why the run
       # job failed before its act step.
       run-failure: ${{ steps.lane-token.outputs.failure-reason }}
@@ -716,41 +693,6 @@ jobs:
           fi
           echo "sha=${PATCH_RESUME_TIP:-$PATCH_BASE_SHA}" >>"$GITHUB_OUTPUT"
 
-      # dependency-review, before the mint and any model turn, with the job's
-      # read-only token: skips a PR Dependabot did not open or one sorted
-      # `auto` (pr-merge owns those), escalates once the round cap is reached,
-      # or writes the context file the skill reads: the PR's files and
-      # patches, its classification and its body (release notes, data). It
-      # also copies out the base's dependency-classify.mjs with its SHA-256,
-      # which the promote step checks before it imports the copy to judge a
-      # fix: the model's turn can reach both.
-      - name: Select the dependency pull request
-        id: dependency-select
-        if: steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'dependency-review'
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
-          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
-          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
-          DEPENDENCY_DIR: ${{ runner.temp }}/lane-dependency
-          CLASSIFY_BIN: ${{ runner.temp }}/lane-dependency-bin
-          TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
-          # The content rule's ecosystems and directories, read from the base.
-          DEPENDABOT_CONFIG: .base/.github/dependabot.yml
-          # The review-only dependencies, read from the base.
-          DEPENDABOT_POLICY: .base/.github/standards/dependabot-policy/policy.json
-          RESOLVED: ${{ runner.temp }}/resolved-config.json
-        run: |
-          # Before any model turn: no lanes App fix commit of this job is older.
-          echo "started-at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$GITHUB_OUTPUT"
-          mkdir -p "$DEPENDENCY_DIR" "$CLASSIFY_BIN"
-          cp .base/.github/scripts/pr-unblock/dependency-classify.mjs "$CLASSIFY_BIN/dependency-classify.mjs"
-          sum=$(sha256sum <"$CLASSIFY_BIN/dependency-classify.mjs")
-          echo "classify-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
-          DEPENDENCY_REVIEW_ROUNDS=$(jq -r '.loop["dependency-review-rounds"] // empty' "$RESOLVED")
-          export DEPENDENCY_REVIEW_ROUNDS
-          DEPENDENCY_FILE="$DEPENDENCY_DIR/dependency.json" node .base/.github/scripts/pr-unblock/review-dependency.mjs select
-
       # apply-patch, before the mint: the patch and the report the read model
       # job of this workflow run uploaded, each downloaded by that job's
       # attempt, so a re-run of this job alone still finds them. A missing
@@ -894,7 +836,6 @@ jobs:
         id: head-recheck
         if: >-
           steps.config.outputs.applies == 'true' && steps.config.outputs.effect != 'read'
-          && steps.dependency-select.outputs.proceed != 'false'
           && steps.patch-select.outputs.proceed != 'false'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
@@ -1913,23 +1854,6 @@ jobs:
           MERGE_BASE: ${{ steps.config.outputs.prepare == 'merge-base' }}
           COMMIT_OUTCOME: ${{ steps.commit.outcome }}
           COMMIT_SHA: ${{ steps.commit.outputs.commit }}
-          # dependency-review mode moves the PR branch only when every path
-          # the lane branch changes is an npm or pip manifest or lock file
-          # outside .github/ in a directory the base dependabot.yml lists for
-          # its ecosystem, as the base's dependency-classify.mjs decides,
-          # and every commit's message carries [dependabot skip], so
-          # Dependabot may still rebase the PR. A fix it refuses does not
-          # land, and the verdict job hands the PR to a person
-          # (dependency-fix-not-landed).
-          DEPENDENCY_REVIEW: ${{ steps.config.outputs.prepare == 'dependency-review' }}
-          CLASSIFY_SCRIPT: ${{ runner.temp }}/lane-dependency-bin/dependency-classify.mjs
-          CLASSIFY_SHA256: ${{ steps.dependency-select.outputs.classify-sha256 }}
-          # The base dependabot.yml's [ecosystem, directory] pairs, from the
-          # select step before any model turn.
-          CONFIG_PAIRS: ${{ steps.dependency-select.outputs.config-pairs }}
-          # ...and only when the skill's structured verdict is `fix`: commits
-          # made beside any other verdict are discarded.
-          DEPENDENCY_OUTPUT: ${{ steps.config.outputs.prepare == 'dependency-review' && steps.act-skill.outputs.structured_output || '' }}
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
           HOLD_LABELS: ${{ steps.hold-label.outputs.labels }}
           READ_TOKEN: ${{ github.token }}
@@ -1938,8 +1862,7 @@ jobs:
           retries: 0
           script: |
             const { HEAD_SHA, HEAD_REF, LANE_BRANCH, MERGE_BASE, COMMIT_OUTCOME, COMMIT_SHA } = process.env;
-            const { DEPENDENCY_REVIEW, DEPENDENCY_OUTPUT, PR_NUMBER, HOLD_LABELS, READ_TOKEN } = process.env;
-            const { CLASSIFY_SCRIPT, CLASSIFY_SHA256, CONFIG_PAIRS } = process.env;
+            const { PR_NUMBER, HOLD_LABELS, READ_TOKEN } = process.env;
             core.setOutput('skip-reason', '');
             const tip = async (branch) =>
               (await github.request('GET /repos/{owner}/{repo}/git/ref/{ref}', { ...context.repo, ref: `heads/${branch}` }))
@@ -1953,76 +1876,6 @@ jobs:
               if (MERGE_BASE === 'true' && (COMMIT_OUTCOME !== 'success' || !COMMIT_SHA || lane !== COMMIT_SHA)) {
                 core.setFailed(`The lane branch is at ${lane}, not a merge commit the commit step made; the PR branch is not moved`);
                 return;
-              }
-              if (DEPENDENCY_REVIEW === 'true') {
-                let verdict = '';
-                try {
-                  verdict = JSON.parse(DEPENDENCY_OUTPUT || 'null')?.verdict ?? '';
-                } catch {
-                  verdict = '';
-                }
-                if (verdict !== 'fix') {
-                  core.info(`The verdict is ${JSON.stringify(String(verdict).slice(0, 20))}, not fix; the lane's commits (${lane}) are discarded`);
-                  return;
-                }
-                // Imported from the bytes just hashed, so a rewrite after the
-                // check cannot reach the import.
-                const classify = require('fs').readFileSync(CLASSIFY_SCRIPT);
-                if (!CLASSIFY_SHA256 || require('crypto').createHash('sha256').update(classify).digest('hex') !== CLASSIFY_SHA256) {
-                  core.setFailed("dependency-classify.mjs does not match the base's copy; the PR branch is not moved");
-                  return;
-                }
-                const { inFixScope, fixRefusal } = await import(`data:text/javascript;base64,${classify.toString('base64')}`);
-                // Unreadable pairs admit no path.
-                let pairs = [];
-                try {
-                  pairs = JSON.parse(CONFIG_PAIRS || '[]');
-                } catch {
-                  pairs = [];
-                }
-                const { data } = await github.rest.repos.compareCommitsWithBasehead({ ...context.repo, basehead: `${HEAD_SHA}...${lane}` });
-                const bad = data.files.length >= 300 ? ['(300 or more files)'] : data.files
-                  .flatMap((f) => [f.filename, f.previous_filename].filter(Boolean))
-                  .filter((p) => !inFixScope(p, pairs));
-                if (bad.length > 0) {
-                  core.setFailed(`The lane branch changes a path that is not an npm or pip manifest or lock file outside .github/ (${bad.slice(0, 5).join(', ')}); the PR branch is not moved`);
-                  return;
-                }
-                if (data.commits.length >= 250 || data.commits.some((c) => !/\[dependabot skip\]/i.test(c.commit.message))) {
-                  core.setFailed('The lane branch holds a commit without [dependabot skip]; the PR branch is not moved');
-                  return;
-                }
-                // The compare lists names, not modes or content: each file
-                // must be modified in place, a regular file at the lane tip
-                // (read before any content, since a contents read follows a
-                // symbolic link), and changed only by a version change.
-                const trees = new Map();
-                const refusal = await fixRefusal(data.files, pairs, {
-                  entry: async (path) => {
-                    const dir = path.slice(0, Math.max(path.lastIndexOf('/'), 0));
-                    if (!trees.has(dir)) {
-                      const { repository } = await github.graphql(
-                        'query($owner: String!, $name: String!, $expression: String!) { repository(owner: $owner, name: $name) { object(expression: $expression) { ... on Tree { entries { name type mode } } } } }',
-                        { owner: context.repo.owner, name: context.repo.repo, expression: `${lane}:${dir}` },
-                      );
-                      trees.set(dir, repository.object?.entries ?? []);
-                    }
-                    return trees.get(dir).find((e) => e.name === path.slice(dir ? dir.length + 1 : 0));
-                  },
-                  text: async (side, path) => {
-                    try {
-                      const { data: text } = await github.rest.repos.getContent({ ...context.repo, path, ref: side === 'before' ? HEAD_SHA : lane, mediaType: { format: 'raw' } });
-                      return typeof text === 'string' ? text : null;
-                    } catch (error) {
-                      if (error.status === 404) return null;
-                      throw error;
-                    }
-                  },
-                });
-                if (refusal) {
-                  core.setFailed(`The lane branch's fix is not a version change of regular manifest files (${refusal.slice(0, 200)}); the PR branch is not moved`);
-                  return;
-                }
               }
               // A hold or a draft set while the model worked stops the push,
               // as the merge commit step does: the config decided the hold
@@ -2076,85 +1929,6 @@ jobs:
                 .deleteRef({ ...context.repo, ref: `heads/${LANE_BRANCH}` })
                 .catch((error) => core.warning(`Could not delete ${LANE_BRANCH}: ${error.message}`));
             }
-
-      # dependency-review, after any model turn, also after a failed,
-      # cancelled or timed-out skill: this job posts nothing to the PR.
-      # run.json is the runner's own record: the gated head, the select
-      # step's security, config-unreadable and files-truncated flags and
-      # start time, and the skill's structured output (the verdict
-      # JSON, model output, null when absent or unparsable), which the
-      # verdict job validates and acts on.
-      - name: Collect the dependency verdict
-        id: dependency-collect
-        if: >-
-          always() && steps.config.outputs.prepare == 'dependency-review'
-          && steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome != ''
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        env:
-          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
-          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
-          SECURITY: ${{ steps.dependency-select.outputs.security }}
-          CONFIG_UNREADABLE: ${{ steps.dependency-select.outputs.config-unreadable }}
-          FILES_TRUNCATED: ${{ steps.dependency-select.outputs.files-truncated }}
-          STARTED_AT: ${{ steps.dependency-select.outputs.started-at }}
-          # The matched review-only controls a merge verdict must quote.
-          CONTROLS: ${{ steps.dependency-select.outputs.controls }}
-          # The base config's pairs, which bound what a fix may have changed.
-          CONFIG_PAIRS: ${{ steps.dependency-select.outputs.config-pairs }}
-          STRUCTURED_OUTPUT: ${{ steps.act-skill.outputs.structured_output }}
-          OUT_DIR: ${{ runner.temp }}/lane-dependency-out
-        with:
-          retries: 0
-          script: |
-            const fs = require('fs');
-            const { HEAD_SHA, PR_NUMBER, SECURITY, CONFIG_UNREADABLE, FILES_TRUNCATED, STARTED_AT, CONTROLS, CONFIG_PAIRS, STRUCTURED_OUTPUT, OUT_DIR } = process.env;
-            fs.rmSync(OUT_DIR, { recursive: true, force: true });
-            fs.mkdirSync(OUT_DIR);
-            let output = null;
-            try {
-              output = JSON.parse(STRUCTURED_OUTPUT || 'null');
-            } catch {
-              core.warning('the skill returned no parsable structured output; the verdict job escalates');
-            }
-            const run = {
-              version: 1,
-              pr: Number(PR_NUMBER),
-              head_sha: HEAD_SHA,
-              security: SECURITY === 'true',
-              config_unreadable: CONFIG_UNREADABLE === 'true',
-              files_truncated: FILES_TRUNCATED === 'true',
-              started_at: STARTED_AT,
-              // Unreadable controls leave a value the verdict job refuses.
-              controls: (() => {
-                try {
-                  return JSON.parse(CONTROLS);
-                } catch {
-                  return null;
-                }
-              })(),
-              // Unreadable pairs leave a value the verdict job refuses.
-              config: (() => {
-                try {
-                  return JSON.parse(CONFIG_PAIRS);
-                } catch {
-                  return null;
-                }
-              })(),
-              output,
-            };
-            const text = `${JSON.stringify(run)}\n`;
-            fs.writeFileSync(`${OUT_DIR}/run.json`, text);
-            core.setOutput('run-sha256', require('crypto').createHash('sha256').update(text).digest('hex'));
-            core.info(`run.json holds ${text.length} byte(s)`);
-
-      - name: Upload the dependency verdict
-        if: always() && steps.dependency-collect.outcome == 'success'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: dependency-verdict-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/lane-dependency-out/run.json
-          retention-days: 7
-          if-no-files-found: error
 
       # Issue mode, script activity: what the resolve-issue run left. A
       # missing artifact leaves the directory empty, which reads as stopped.
@@ -2366,7 +2140,6 @@ jobs:
             || steps.prepare.outputs.skip-reason || steps.post.outputs.skip-reason
             || steps.commit.outputs.skip-reason || steps.promote.outputs.skip-reason
             || steps.act-script.outputs.skip-reason
-            || steps.dependency-select.outputs.skip-reason
             || steps.patch-select.outputs.skip-reason }}
           ACT_OUTCOME: >-
             ${{ steps.act-skill.outcome == 'skipped' && steps.prepare.outputs.merge-state == 'clean'
