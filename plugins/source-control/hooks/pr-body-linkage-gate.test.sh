@@ -820,7 +820,10 @@ old_negation_trigger_to() {
   done
 }
 
-diff_chomp_inputs=("" $'\xff\n' $'a\xff\n\n' $'\n' $'\n\n\n' "x" $'x\n' $'x\n\n\n' $'\nx' $'a\n\nb\n\n' $'a\r\n' $'  \n \n' $'\n\nx\n')
+diff_chomp_inputs=("" $'\n' $'\n\n\n' "x" $'x\n' $'x\n\n\n' $'\nx' $'a\n\nb\n\n' $'a\r\n' $'  \n \n' $'\n\nx\n')
+# Bytes that are not valid UTF-8 just before the newline run: chomp_to matches
+# bytes in any locale, so `[^\n]` must still match them.
+diff_chomp_inputs+=($'\xff\n' $'a\xff\n\n' $'\xc3\n' $'\xe2\x80\n\n\n')
 # Built without a command substitution, which would itself strip the newlines.
 printf -v diff_nl_run '%300s' ''
 diff_nl_run="${diff_nl_run// /$'\n'}"
