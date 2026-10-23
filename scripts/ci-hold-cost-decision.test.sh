@@ -6,8 +6,9 @@
 # A review lane's `cost` hold is cleared when every lane hold since a trusted
 # person last removed the human-gated label is cost-only, and the pull request
 # body cites the owner's unedited `**Decision recorded.** Cost:` comment on the
-# pull request itself, or (newer than the pull request) on an issue it closes or
-# names on a `Refs:` line. The holds are read from the lanes' check-run notices.
+# pull request itself, or (newer than the pull request) on the one issue GitHub
+# records it as closing; a `Refs:` line or a second closing issue counts for
+# nothing. The holds are read from the lanes' check-run notices.
 # The step then outputs cleared=true and the decision, and takes the label off
 # with one comment citing it. Anything else, an unreadable read included,
 # clears nothing and leaves the hold to the steps after it.
@@ -141,7 +142,7 @@ reset() {
   export STUB_FAIL='' STUB_LABELS='needs-human' LANES_APP_ID="$APP_ID"
   export STUB_ACTORS="{\"actors\":[{\"kind\":\"human\",\"id\":$OWNER_ID},{\"kind\":\"bot\",\"id\":5}]}"
   export STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\"},\"body\":\"Closes #9306\\n\\n- Cost decision: [Q50]($LINK)\"}"
-  export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"nodes":[{"number":9306,"repository":{"nameWithOwner":"o/r"}}]}}}}}'
+  export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"totalCount":1,"nodes":[{"number":9306,"repository":{"nameWithOwner":"o/r"}}]}}}}}'
   STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T13:14:57Z '**Decision recorded.** Cost: accepted.')" '{"111": $c}')"
   export STUB_DECISIONS
   export STUB_EDITED='{"data":{"node":{"lastEditedAt":null}}}'
@@ -242,15 +243,18 @@ reset
 export STUB_EDITED='{"data":{"node":{"lastEditedAt":"2026-10-23T13:30:00Z"}}}'
 expect "an edited decision clears nothing" no no no
 reset
-export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"nodes":[{"number":9306,"repository":{"nameWithOwner":"o/r"}},{"number":9307,"repository":{"nameWithOwner":"o/r"}}]}}}}}'
-expect "a decision on either of two closing issues clears the hold" yes yes yes
-export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"nodes":[{"number":9306,"repository":{"nameWithOwner":"x/r"}}]}}}}}'
+export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"totalCount":2,"nodes":[{"number":9306,"repository":{"nameWithOwner":"o/r"}},{"number":9307,"repository":{"nameWithOwner":"o/r"}}]}}}}}'
+expect "a decision on one of two closing issues clears nothing" no no no
+export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"totalCount":1,"nodes":[{"number":9306,"repository":{"nameWithOwner":"x/r"}}]}}}}}'
 expect "a closing issue in another repository clears nothing" no no no
-export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"nodes":[]}}}}}'
-STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\"},\"body\":\"Refs: #8890, #9306\\n\\n- Cost decision: [Q50]($LINK)\"}"
-expect "a decision on an issue the body names on a Refs line clears the hold" yes yes yes
-STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\"},\"body\":\"See #9306 and o/r#9306.\\n<!--\\nRefs: #9306\\n-->\\nRefs: o/r#9306\\n- Cost decision: [Q50]($LINK)\"}"
-expect "an issue named outside a Refs line, or only in an HTML comment, clears nothing" no no no
+# The exploit: the owner records a cost decision on an unrelated issue, and the
+# author points the body at it. Only GitHub's closing references count.
+export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"totalCount":1,"nodes":[{"number":8890,"repository":{"nameWithOwner":"o/r"}}]}}}}}'
+STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\"},\"body\":\"Closes #8890\\nRefs: #9306\\n\\n- Cost decision: [Q50]($LINK)\"}"
+expect "a decision on an unrelated issue the body names on a Refs line clears nothing" no no no
+export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"totalCount":0,"nodes":[]}}}}}'
+STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\"},\"body\":\"Closes #9306\\n\\n- Cost decision: [Q50]($LINK)\"}"
+expect "a Closes line GitHub does not record as closing clears nothing" no no no
 
 reset
 lanes "[$(hold_note cost,trust-gate)]" '[]'

@@ -3201,7 +3201,7 @@ jobs:
           echo "$msg" >>"$GITHUB_STEP_SUMMARY"
       # A COST HOLD THE OWNER ALREADY DECIDED COMES OFF. A review lane re-holds
       # every new head, so its `cost` hold went back on after the owner had
-      # recorded the cost decision (#9403). This step clears a hold only when all
+      # recorded the cost decision. This step clears a hold only when all
       # of these hold, else it changes nothing and the two steps below judge
       # the label as before:
       # - The window opens at the newest removal of the human-gated label by a
@@ -3218,8 +3218,10 @@ jobs:
       #   as babysit_merge_policy.py's cost_decision reads one: by a User on the
       #   trusted-actor list, not through an App, never edited, first line
       #   `**Decision recorded.** Cost:`, on the pull request itself or (written
-      #   after the pull request) on an issue in this repository that it closes
-      #   or names on a `Refs:` line.
+      #   after the pull request) on the one issue in this repository that
+      #   GitHub records it as closing. A body `Refs:` line or a second closing
+      #   issue counts for nothing, so an owner decision on an unrelated issue
+      #   cannot clear this hold.
       # It then outputs cleared=true and the decision link, and, with the label
       # on, posts one comment citing the decision and removes the label. A
       # GITHUB_TOKEN removal starts no run, so the steps below read the label
@@ -3284,13 +3286,13 @@ jobs:
             | [.string, (.captures[] | .string)] | @tsv' <<<"$pr") || links=
           [ -n "$links" ] || keep "the body links no comment"
           # shellcheck disable=SC2016 # GraphQL variables, not shell
-          closing=$(read_api graphql -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){closingIssuesReferences(first:20){nodes{number repository{nameWithOwner}}}}}}' \
+          closing=$(read_api graphql -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){closingIssuesReferences(first:2){totalCount nodes{number repository{nameWithOwner}}}}}}' \
             -F owner="${repo%%/*}" -F name="${repo#*/}" -F number="$PR_NUMBER") || keep "the closing issues are unreadable"
-          # The issues the pull request closes or names on a `Refs:` line.
-          issues=" $(jq -r --arg repo "$repo" '[.data.repository.pullRequest.closingIssuesReferences.nodes[]
-            | select((.repository.nameWithOwner | ascii_downcase) == ($repo | ascii_downcase)) | .number | tostring] | join(" ")' <<<"$closing" 2>/dev/null) "
-          issues+=" $(jq -r '.body // "" | gsub("<!--[\\s\\S]*?(?:-->|\\z)"; "") | [splits("\r?\n")
-            | select(test("^Refs:\\s")) | scan("(?<![\\w/])#([0-9]+)\\b") | .[0]] | join(" ")' <<<"$pr" 2>/dev/null) "
+          # The one issue in this repository the pull request closes, as babysit's
+          # cost_decision reads it: none when it closes more than one.
+          issues=" $(jq -r --arg repo "$repo" '.data.repository.pullRequest.closingIssuesReferences
+            | select(.totalCount == 1) | .nodes[]
+            | select((.repository.nameWithOwner | ascii_downcase) == ($repo | ascii_downcase)) | .number | tostring' <<<"$closing" 2>/dev/null) "
           opened=$(jq -r '.created_at | fromdateiso8601' <<<"$pr") || keep "the pull request has no creation time"
           decision='' decision_id=''
           while IFS=$'\t' read -r link owner name number id; do
