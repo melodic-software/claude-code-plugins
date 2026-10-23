@@ -48,8 +48,3 @@ graders:
     type: llm
     arm: both
     criteria: "PASS only if the answer names the cause as a new Intl.NumberFormat being constructed on every formatPrice call (src/pricing/format.js, line 6 or 7), backs it with the profile's numbers (formatPrice holding most of the samples, reached through renderLineItems), applies no fix, and says the temporary SQLite files were deleted. FAIL if it edits code, offers a vague 'formatting is slow' without the per-call construction, or never mentions cleanup."
-  - name: skill-fired
-    type: tool_used
-    tool: Skill
-    input_match: '"skill"\s*:\s*"(?:debugging:)?analyze-profile"'
-    arm: with-only

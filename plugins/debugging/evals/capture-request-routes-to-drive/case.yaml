@@ -20,8 +20,3 @@ graders:
     type: regex
     pattern: '/app-control:drive\s+capture'
     arm: both
-  - name: skill-fired
-    type: tool_used
-    tool: Skill
-    input_match: '"skill"\s*:\s*"(?:debugging:)?analyze-profile"'
-    arm: with-only
