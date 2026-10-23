@@ -57,7 +57,11 @@
     "lane": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "workflow", "launcher", "currentSecrets"],
+      "required": ["id", "workflow", "launcher", "triggers", "currentSecrets"],
+      "if": {
+        "properties": { "triggers": { "type": "array", "contains": { "enum": ["pull_request_target", "issues", "workflow_run"] } } }
+      },
+      "then": { "properties": { "gate": true }, "required": ["gate"] },
       "properties": {
         "id": {
           "type": "string",
@@ -72,6 +76,17 @@
         "launcher": {
           "enum": ["run-claude-cli", "claude-code-action", "claude-cli"],
           "description": "What runs Claude for the job: ci-workflows' run-claude-cli action, anthropics/claude-code-action, or the claude CLI called from a run step. Only run-claude-cli takes an API key."
+        },
+        "triggers": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z_]+$" },
+          "description": "The event names under the workflow's on:, the events that start the lane."
+        },
+        "gate": {
+          "enum": ["author", "same-repo"],
+          "description": "How the job stops a run nobody trusted: author, a check-trusted-trigger result it needs or the intake reusable's allowed-author-ids; same-repo, its if: requiring the workflow_run head repository to be this one. Required when a trigger is pull_request_target, issues or workflow_run."
         },
         "currentSecrets": {
           "type": "array",

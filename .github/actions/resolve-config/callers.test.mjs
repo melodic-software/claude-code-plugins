@@ -1053,6 +1053,67 @@ function strayClaudeReaders({ doc, job }, launcher) {
   }
   return stray;
 }
+// Triggers that run a job holding this repository's secrets for an event someone
+// outside it can start, so such a job must show a gate.
+const GATED_TRIGGERS = ["pull_request_target", "issues", "workflow_run"];
+// The event names under a workflow's on:, in its string, list or map form.
+const workflowTriggers = ({ on }) =>
+  (typeof on === "string" ? [on] : Array.isArray(on) ? on : Object.keys(on ?? {})).map((name) => name.toLowerCase()).sort();
+const hasGatedTrigger = (triggers) => triggers.some((name) => GATED_TRIGGERS.includes(name));
+// The top-level && terms of an if:, or none when a top-level || lets a run past them.
+function ifTerms(condition) {
+  if (typeof condition !== "string") return [];
+  const expression = condition.replace(/^\s*\$\{\{([\s\S]*)\}\}\s*$/, "$1").replace(/\s+/g, " ").trim();
+  const terms = [];
+  let depth = 0;
+  let quoted = false;
+  let start = 0;
+  for (let i = 0; i < expression.length; i++) {
+    const c = expression[i];
+    if (c === "'") quoted = !quoted;
+    else if (quoted) continue;
+    else if (c === "(") depth++;
+    else if (c === ")") depth--;
+    else if (depth === 0 && expression.startsWith("||", i)) return [];
+    else if (depth === 0 && expression.startsWith("&&", i)) {
+      terms.push(expression.slice(start, i).trim());
+      start = i + 2;
+      i++;
+    }
+  }
+  return [...terms, expression.slice(start).trim()];
+}
+// The gate shapes the lanes use. same-repo: pr-verify.yml's if: on the
+// workflow_run head repository. author: a needed job's proceed output from
+// check-trusted-trigger run from the default branch (work-resolve-issue.yml's
+// admit), or the pinned intake reusable, whose claude job starts only for a
+// sender in allowed-author-ids (ci-workflows intake-triage.yml, the claude job's
+// if:) and whose other Claude job needs it.
+const SAME_REPO = "github.event.workflow_run.head_repository.full_name == github.repository";
+const TRUSTED_TRIGGER = "./.base/.github/actions/check-trusted-trigger";
+const INTAKE_REUSABLE = /^melodic-software\/ci-workflows\/\.github\/workflows\/intake-triage\.yml@[0-9a-f]{40}$/;
+function jobGates(doc, job) {
+  const gates = new Set();
+  const needs = [job.needs ?? []].flat();
+  for (const term of ifTerms(job.if)) {
+    if (term === SAME_REPO) gates.add("same-repo");
+    const [, need, output] = term.match(/^needs\.([\w-]+)\.outputs\.([\w-]+) == 'true'$/) ?? [];
+    if (!needs.includes(need)) continue;
+    const gateJob = doc.jobs?.[need] ?? {};
+    const [, stepId] = String(gateJob.outputs?.[output] ?? "").match(/^\$\{\{\s*steps\.([\w-]+)\.outputs\.proceed\s*\}\}$/) ?? [];
+    if (stepId && (gateJob.steps ?? []).some((step) => step.id === stepId && step.uses === TRUSTED_TRIGGER)) gates.add("author");
+  }
+  if (INTAKE_REUSABLE.test(String(job.uses ?? "")) && String(job.with?.["allowed-author-ids"] ?? "").trim() !== "") gates.add("author");
+  return [...gates].sort();
+}
+// Each job that holds a Claude credential under a gated trigger, with the gates it shows.
+function gatedTriggerJobs(files = workflowFiles(), load = workflow) {
+  const jobs = new Map();
+  for (const [key, { doc, job }] of claudeSecretJobs(files, load)) {
+    if (hasGatedTrigger(workflowTriggers(doc))) jobs.set(key, jobGates(doc, job));
+  }
+  return jobs;
+}
 
 test("lane-funding.json validates against its schema", () => {
   const validate = new Ajv2020({ allErrors: true, strict: true }).compile(JSON.parse(read("../../lane-funding.schema.json")));
@@ -1141,6 +1202,51 @@ test("the stray-reader check names an extra step and an env that reaches every s
   assert.deepEqual(check({}, { steps: [presence, launcher] }), [], "whether a secret is set is not the secret");
   const value = { ...presence, env: { P: "${{ secrets.REVIEWS_CLAUDE_API_KEY != '' && secrets.REVIEWS_CLAUDE_API_KEY }}" } };
   assert.deepEqual(check({}, { steps: [value, launcher] }), ["step presence"]);
+});
+
+test("each catalog lane names its workflow's triggers, and the gate its job shows", () => {
+  const jobs = claudeSecretJobs();
+  for (const { lane, key } of catalogLanes()) {
+    const { doc, job } = jobs.get(key);
+    assert.deepEqual([...lane.triggers].sort(), workflowTriggers(doc), key);
+    if (lane.gate !== undefined) assert.ok(jobGates(doc, job).includes(lane.gate), `${key} shows no ${lane.gate} gate`);
+  }
+});
+
+test("a pull_request_target, issues or workflow_run job that holds a Claude credential shows an author or same-repo gate", () => {
+  const jobs = gatedTriggerJobs();
+  for (const [key, gates] of jobs) assert.notDeepEqual(gates, [], `${key} holds a Claude credential with no author or same-repo gate`);
+  const gatedLanes = catalogLanes().filter(({ lane }) => hasGatedTrigger(lane.triggers));
+  assert.deepEqual([...jobs.keys()].sort(), gatedLanes.map(({ key }) => key).sort());
+});
+
+test("the trigger-gate check names an ungated job and accepts only the lanes' gate shapes", () => {
+  const launcher = { uses: "anthropics/claude-code-action@abc", with: { claude_code_oauth_token: "${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN }}" } };
+  const admit = (step = { id: "gate", uses: TRUSTED_TRIGGER }) => ({ outputs: { proceed: "${{ steps.gate.outputs.proceed }}" }, steps: [step] });
+  const gates = (on, jobs) => Object.fromEntries(gatedTriggerJobs(["f.yml"], () => ({ on, jobs })));
+  const intake = (uses, ids) => ({ uses, with: { "allowed-author-ids": ids }, secrets: { CLAUDE_CODE_OAUTH_TOKEN: "${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}" } });
+  const PINNED = "melodic-software/ci-workflows/.github/workflows/intake-triage.yml@2fe38c031867900824c164e33a140a335ed9ecf0";
+  const cases = {
+    "ungated issues job": [{ issues: { types: ["labeled"] } }, { run: { steps: [launcher] } }, { "f.yml run": [] }],
+    "ungated pull_request_target job": [{ pull_request_target: {} }, { run: { steps: [launcher] } }, { "f.yml run": [] }],
+    "ungated workflow_run job": [{ workflow_run: {} }, { run: { steps: [launcher] } }, { "f.yml run": [] }],
+    "on: as a string": ["issues", { run: { steps: [launcher] } }, { "f.yml run": [] }],
+    "on: as a list": [["push", "workflow_run"], { run: { steps: [launcher] } }, { "f.yml run": [] }],
+    "same-repo if:": [{ workflow_run: {} }, { run: { if: `github.ref == 'refs/heads/main' && ${SAME_REPO}`, steps: [launcher] } }, { "f.yml run": ["same-repo"] }],
+    "same-repo inside an ||": [{ workflow_run: {} }, { run: { if: `github.event_name == 'push' || ${SAME_REPO}`, steps: [launcher] } }, { "f.yml run": [] }],
+    "same-repo beside a top-level ||": [{ workflow_run: {} }, { run: { if: `${SAME_REPO} && a || b`, steps: [launcher] } }, { "f.yml run": [] }],
+    "check-trusted-trigger in a needed job": [{ issues: {} }, { admit: admit(), run: { needs: ["admit"], if: "needs.admit.outputs.proceed == 'true'", steps: [launcher] } }, { "f.yml run": ["author"] }],
+    "a gate job outside needs": [{ issues: {} }, { admit: admit(), run: { if: "needs.admit.outputs.proceed == 'true'", steps: [launcher] } }, { "f.yml run": [] }],
+    "another action's proceed": [{ issues: {} }, { admit: admit({ id: "gate", uses: "./.base/.github/actions/check-kill-switch" }), run: { needs: "admit", if: "needs.admit.outputs.proceed == 'true'", steps: [launcher] } }, { "f.yml run": [] }],
+    "a gate output compared to false": [{ issues: {} }, { admit: admit(), run: { needs: "admit", if: "needs.admit.outputs.proceed != 'true'", steps: [launcher] } }, { "f.yml run": [] }],
+    "the pinned intake reusable with author ids": [{ issues: {} }, { triage: intake(PINNED, "${{ needs.x.outputs.human-ids }}") }, { "f.yml triage": ["author"] }],
+    "the intake reusable with no author ids": [{ issues: {} }, { triage: intake(PINNED, "") }, { "f.yml triage": [] }],
+    "an intake reusable from another owner": [{ issues: {} }, { triage: intake(PINNED.replace("melodic-software", "someone-else"), "1") }, { "f.yml triage": [] }],
+    "an unpinned intake reusable": [{ issues: {} }, { triage: intake(PINNED.replace(/@.*/, "@main"), "1") }, { "f.yml triage": [] }],
+    "a pull_request job": [{ pull_request: {} }, { run: { steps: [launcher] } }, {}],
+    "a gated trigger with no Claude credential": [{ issues: {} }, { run: { steps: [{ run: "true" }] } }, {}],
+  };
+  for (const [name, [on, jobs, expected]] of Object.entries(cases)) assert.deepEqual(gates(on, jobs), expected, name);
 });
 
 test("each catalog role names its secrets from its prefix, and is keyed only with a run-claude-cli lane", () => {
