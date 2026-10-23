@@ -171,6 +171,9 @@ test("enable-auto-merge asks the broker for its own activity's merge token", () 
   // as report-only; the job must not turn it into `false`.
   assert.match(arm, /REPORT_ONLY=\$\(yq '\.merge\."report-only"' "\$config"\)\n/);
   assert.doesNotMatch(arm, /REPORT_ONLY=false/);
+  // The hold paths come from the config the job resolved.
+  assert.match(arm, /output-path: \$\{\{ runner\.temp \}\}\/resolved-config\.json\n/);
+  assert.match(arm, /\n {10}RESOLVED_CONFIG: \$\{\{ runner\.temp \}\}\/resolved-config\.json\n/);
   const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(arm)[1];
   assert.deepEqual(
     [...block.matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => `${m[1]}: ${m[2]}`),

@@ -1311,6 +1311,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
+          RESOLVED_CONFIG: ${{ runner.temp }}/resolved-config.json
         run: |
           set -euo pipefail
           config=.base/docs/conventions/pr-pipeline.yaml

@@ -22,6 +22,7 @@ const ENV = {
   REPORT_ONLY: "false",
   LANES_BOT_LOGIN: "melodic-automation-lanes[bot]",
   TRACKER_CONFIG: "/nonexistent/.work-item-tracker.json",
+  RESOLVED_CONFIG: fileURLToPath(new URL("./fixtures/enable-auto-merge-resolved.json", import.meta.url)),
 };
 
 const pull = (number, overrides = {}) => ({
@@ -59,6 +60,11 @@ function world(pulls, { failArm = false } = {}) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
+    const listing = /^\/repos\/melodic-software\/claude-code-plugins\/pulls\/([0-9]+)\/files\?per_page=100&page=([0-9]+)$/.exec(path);
+    if (method === "GET" && listing) {
+      const files = pulls.find((candidate) => candidate.number === Number(listing[1]))?.files ?? [{ filename: "plugins/work-items/README.md" }];
+      return files.slice((Number(listing[2]) - 1) * 100, Number(listing[2]) * 100);
+    }
     assert.equal(`${method} ${path}`, "POST /graphql");
     if (body.query === PULLS_QUERY) {
       assert.deepEqual(body.variables, { owner: "melodic-software", name: "claude-code-plugins", after: null });
@@ -75,7 +81,7 @@ function world(pulls, { failArm = false } = {}) {
   };
   const writes = () =>
     calls
-      .filter(({ body }) => body.query !== PULLS_QUERY && body.query !== DETAIL_QUERY)
+      .filter(({ method, body }) => method === "POST" && body.query !== PULLS_QUERY && body.query !== DETAIL_QUERY)
       .map(({ body }) => ({ mutation: body.query === ARM_MUTATION ? "arm" : body.query === DISARM_MUTATION ? "disarm" : "?", ...body.variables }));
   return { github, writes };
 }
@@ -231,7 +237,8 @@ test("report-outcome's own pull request body arms, and its hold and Refs bodies 
   const verdict = (overrides) => {
     const opened = plan(overrides);
     assert.equal(opened.action, "open-pr");
-    return decide(pull(1, { body: opened.body }), { bot: "melodic-automation-lanes", humanGated: "needs-human" }, detail());
+    // Files outside the hold paths, so only the body decides.
+    return decide(pull(1, { body: opened.body }), { bot: "melodic-automation-lanes", humanGated: "needs-human", holdPaths: [".github/**"] }, { ...detail(), files: [] });
   };
   assert.deepEqual(verdict({}), { action: "arm", reason: "no hold" });
   assert.equal(verdict({ humanMerge: true }).action, "none");
@@ -270,14 +277,16 @@ test("an armed pull request a member now vetoes is disarmed", async () => {
 
 test("a pull request whose discussion cannot all be read is not armed", async () => {
   const cut = { totalCount: 101, nodes: [] };
-  const held = (pr) => decide(pull(1), { bot: LANES.login, humanGated: "needs-human" }, { ...detail(), ...pr });
+  const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
+  assert.equal(decide(pull(1), options, { ...detail(), files: [] }).action, "arm");
+  const held = (pr) => decide(pull(1), options, { ...detail(), files: [], ...pr });
   assert.equal(held({ comments: cut }).action, "none");
   assert.equal(held({ reviews: cut }).action, "none");
   assert.equal(held({ reviewThreads: cut }).action, "none");
   assert.equal(held({ reviewThreads: page([{ comments: cut }]) }).action, "none");
   // A read that failed leaves it as it is, armed or not, until the next run.
-  assert.equal(decide(pull(1), { bot: LANES.login, humanGated: "needs-human" }, null).action, "none");
-  assert.equal(decide(pull(1, { autoMergeRequest: {} }), { bot: LANES.login, humanGated: "needs-human" }, null).action, "none");
+  assert.equal(decide(pull(1), options, null).action, "none");
+  assert.equal(decide(pull(1, { autoMergeRequest: {} }), options, null).action, "none");
 });
 
 test("auto-merge a person turned off stays off; one the lanes App turned off is armed again", async () => {
@@ -303,4 +312,26 @@ test("the comment veto agrees with the gate's HUMAN_MERGE_VETO_RE", () => {
     expected,
   );
   assert.ok(expected.includes(true) && expected.includes(false));
+});
+
+// The merge lane's denied paths (report-outcome.readHoldPaths), on the head's
+// files now: report-outcome's Hold: line covers only the files at opening, and
+// a later push can add a held path to a pull request that is already armed.
+test("a pull request whose head now changes a hold path is not armed, or is disarmed", async () => {
+  const { writes } = await run([
+    pull(1, { files: [{ filename: ".github/workflows/x.yml" }] }),
+    pull(2, { autoMergeRequest: {}, files: [{ filename: "plugins/a/README.md" }, { filename: "docs/a.md", previous_filename: ".github/a.md" }] }),
+    pull(3, { files: Array.from({ length: 301 }, (_, index) => ({ filename: `docs/${index}.md` })) }),
+    pull(4, { files: [{ filename: "docs/held.md" }] }),
+    pull(5),
+  ]);
+  assert.deepEqual(writes, [
+    { mutation: "disarm", id: "PR_2" },
+    { mutation: "arm", id: "PR_5", head: HEAD },
+  ]);
+});
+
+test("hold paths that cannot be read arm nothing", async () => {
+  const { writes } = await run([pull(1)], { RESOLVED_CONFIG: "/nonexistent/resolved-config.json" });
+  assert.deepEqual(writes, []);
 });

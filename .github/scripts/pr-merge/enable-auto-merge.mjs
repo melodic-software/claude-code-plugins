@@ -17,6 +17,10 @@
 // - No member vetoes it, the gate's rule (babysit_merge.human_veto_logins): an
 //   OWNER, MEMBER or COLLABORATOR whose newest comment, review or inline
 //   comment with text says "do not merge". A later comment lifts it.
+// - Its head changes no hold path: the merge lane's denied paths
+//   (report-outcome.readHoldPaths), read against the files, renamed-from paths
+//   included, that the head changes now, since a push after report-outcome
+//   wrote its Hold: line can add one.
 // - No person turned its auto-merge off: the newest auto-merge-disabled event
 //   by a user account keeps it off until a person turns it on again.
 // Arming passes the head just read as expectedHeadOid, so a push in between
@@ -32,12 +36,15 @@
 //   LANES_BOT_LOGIN      merge.agent-identity, an App bot login
 //   TRACKER_CONFIG       the base .work-item-tracker.json, for the human-gated
 //                        label (default .base/.work-item-tracker.json)
+//   RESOLVED_CONFIG      the resolve-config output, for the hold paths
 //   GITHUB_API_URL
+import { posix } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { humanGatedLabelFrom } from "../pr-unblock/address-feedback.mjs";
+import { readHoldPaths } from "../work-resolve-issue/report-outcome.mjs";
 
 const REPO = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/;
 const SHA = /^[0-9a-f]{40}$/;
@@ -55,6 +62,9 @@ const CLOSES = /^Closes #[1-9][0-9]*\r?$/;
 // 100 pull requests a page; more than this many open is a listing the run
 // stops on rather than one it reads only part of.
 const MAX_PAGES = 10;
+// Changed files read per pull request, 100 a page; more is a head the run
+// does not arm on.
+const MAX_FILE_PAGES = 3;
 
 export const PULLS_QUERY = `query($owner: String!, $name: String!, $after: String) {
   repository(owner: $owner, name: $name) {
@@ -143,10 +153,39 @@ export function discussionHold(detail) {
   return null;
 }
 
+// Why the head's changed `files` hold it, or null.
+export function pathHold(files, holdPaths) {
+  if (!Array.isArray(holdPaths)) {
+    return "the hold paths could not be read";
+  }
+  if (!Array.isArray(files)) {
+    return "its changed files could not all be read";
+  }
+  const held = files.find((path) => holdPaths.some((glob) => posix.matchesGlob(path, glob)));
+  return held === undefined ? null : `it changes ${held}, a hold path`;
+}
+
+async function changedFiles(github, slug, number) {
+  const paths = [];
+  for (let page = 1; page <= MAX_FILE_PAGES; page += 1) {
+    const rows = await github("GET", `/repos/${slug}/pulls/${number}/files?per_page=100&page=${page}`);
+    if (!Array.isArray(rows)) {
+      return null;
+    }
+    for (const row of rows) {
+      paths.push(String(row?.filename), ...(row?.previous_filename ? [String(row.previous_filename)] : []));
+    }
+    if (rows.length < 100) {
+      return paths;
+    }
+  }
+  return null;
+}
+
 // What to do with one listed pull request: { action: arm | disarm | none, reason }.
 // `detail` is its discussion; undefined means not read yet, and an arm or a
 // keep then waits on it (action `read`).
-export function decide(pull, { bot, humanGated }, detail) {
+export function decide(pull, { bot, humanGated, holdPaths = null }, detail) {
   if (pull.author?.__typename !== "Bot" || pull.author.login !== bot) {
     return { action: "none", reason: "not the lanes App's" };
   }
@@ -168,7 +207,7 @@ export function decide(pull, { bot, humanGated }, detail) {
   if (detail === null) {
     return { action: "none", reason: "its discussion did not read" };
   }
-  const vetoed = discussionHold(detail);
+  const vetoed = pathHold(detail.files, holdPaths) ?? discussionHold(detail);
   if (vetoed !== null) {
     return { action: armed ? "disarm" : "none", reason: vetoed };
   }
@@ -215,20 +254,24 @@ export async function main({ env = process.env, github } = {}) {
     }
     const write = env.REPORT_ONLY === "false";
     const humanGated = humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json");
+    const holdPaths = readHoldPaths(env.RESOLVED_CONFIG ?? "");
     github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     const pulls = await listPulls(github, repo[1], repo[2]);
     let failed = 0;
     for (const pull of pulls) {
-      let { action, reason } = decide(pull, { bot: slug, humanGated });
+      let { action, reason } = decide(pull, { bot: slug, humanGated, holdPaths });
       if (action === "read") {
         let detail = null;
         try {
           const variables = { owner: repo[1], name: repo[2], number: pull.number };
           detail = (await github("POST", "/graphql", { query: DETAIL_QUERY, variables }))?.data?.repository?.pullRequest ?? null;
+          if (detail !== null) {
+            detail = { ...detail, files: await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number) };
+          }
         } catch (error) {
           console.log(`enable-auto-merge: #${pull.number} discussion did not read: ${escapeCommand(error?.message ?? error)}`);
         }
-        ({ action, reason } = decide(pull, { bot: slug, humanGated }, detail));
+        ({ action, reason } = decide(pull, { bot: slug, humanGated, holdPaths }, detail));
       }
       if (action === "none") {
         if (reason !== "not the lanes App's") {

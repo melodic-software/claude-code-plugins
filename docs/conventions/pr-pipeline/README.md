@@ -1021,7 +1021,8 @@ each open lanes App pull request into main from a branch of this repository that
 opens with `Closes #<issue>`, and carries no hold: no `Hold:` line or "do not merge" in its body
 (the gate's own rule), no `do-not-merge` or human-gated label, and no member (owner, member or
 collaborator) whose newest comment, review or inline comment with text says "do not merge" (the
-gate's veto rule; a later comment lifts it). It turns auto-merge off on an armed one that now fails
+gate's veto rule; a later comment lifts it), and whose head changes no path in the lane's
+`merge.diff-check.denied-paths`, read on the files the head changes at each run. It turns auto-merge off on an armed one that now fails
 any of those, and does not turn it back on once a person has turned it off. GitHub then merges the pull request through the merge queue
 once `ci-status` passes. The issue lane finishing (`workflow_run`) wakes it, so a pull request is
 armed right after report-outcome opens it; a listed human's edit, unlabel or ready wakes it too, so
