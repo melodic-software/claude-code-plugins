@@ -765,12 +765,29 @@ def view_pr_fields(
     return cast(dict[str, Any], data), True
 
 
+_archived_by_repo: dict[str, bool] = {}
+
+
 def repository_is_archived(repo: str) -> bool:
     """Whether the repository is archived, over GraphQL or REST.
 
     `gh repo view --json` is GraphQL-backed and 403s alongside `gh pr view`;
-    `GET /repos/{owner}/{repo}` reports the same fact as `.archived`.
+    `GET /repos/{owner}/{repo}` reports the same fact as `.archived`. The
+    answer is kept per process, keyed by the casefolded repository, so a
+    snapshot of N pull requests in one repository reads it once; a failed
+    read is not kept, and the next lookup reads again.
     """
+    key = repo.casefold()
+    if key not in _archived_by_repo:
+        _archived_by_repo[key] = _read_repository_archived(repo)
+    return _archived_by_repo[key]
+
+
+def reset_repository_archived_cache() -> None:
+    _archived_by_repo.clear()
+
+
+def _read_repository_archived(repo: str) -> bool:
     try:
         repository = gh_json_graphql(
             ["repo", "view", repo, "--json", "isArchived"],
