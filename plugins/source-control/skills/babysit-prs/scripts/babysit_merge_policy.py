@@ -2674,8 +2674,9 @@ class AutoMerge:
     head_ref_oid: str | None
     merged_at: str | None
     url: str | None = None
-    # The agent identity landed it, so the wrapper pinned its head; any other
-    # actor has no pin and verifies on the dispatch and canary runs alone.
+    # The agent identity landed it: the gate's enqueue pinned its head, its
+    # native auto-merge (`babysit_postmerge.native_auto_merge`) did not. Any
+    # other actor has no pin and verifies on the dispatch and canary runs alone.
     by_identity: bool = False
     queued: bool = True
 

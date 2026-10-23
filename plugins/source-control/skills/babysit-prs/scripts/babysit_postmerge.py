@@ -15,8 +15,9 @@ warning `unqueued-merge`. It is verified when a green
 dispatch run by the identity on a SHA containing the merge, a green canary
 run on such a SHA, and a matching read-back all exist, and no red full run or
 canary run counted against it first. Only an enqueue by the identity has a
-pinned SHA to read back; any other enqueue verifies on the dispatch and canary
-runs alone. A red full run is attributed after one `rerun-failed-jobs` the
+pinned SHA to read back; any other enqueue, and the identity's own native
+auto-merge (`native_auto_merge`), verifies on the dispatch and canary runs
+alone. A red full run is attributed after one `rerun-failed-jobs` the
 wrapper triggers: red again is a failure, green is a flake. A red full run the
 pr-merge lane dispatched gets that one re-run from pr-merge.yml's own
 `post-merge-dispatch` job, which records it (`_Context.lane_rerun`); with
@@ -491,9 +492,12 @@ MERGED_QUERY = (
     "repository(owner:$o,name:$r){pullRequests(baseRefName:$b,states:MERGED,"
     f"first:{MERGED_PAGE_SIZE},after:$c,orderBy:{{field:UPDATED_AT,direction:DESC}}){{"
     "pageInfo{hasNextPage endCursor} nodes{number url mergedAt updatedAt headRefOid "
-    "mergedBy{__typename login} "
+    "mergedBy{__typename login} author{__typename login} isCrossRepository "
     "mergeCommit{oid} timelineItems(itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT],last:1){nodes{"
-    "... on AddedToMergeQueueEvent{createdAt actor{__typename login} enqueuer{__typename login}}}}}}}}"
+    "... on AddedToMergeQueueEvent{createdAt actor{__typename login} enqueuer{__typename login}}}} "
+    "autoMerge:timelineItems(itemTypes:[AUTO_MERGE_ENABLED_EVENT,AUTO_MERGE_DISABLED_EVENT],last:1){nodes{"
+    "__typename ... on AutoMergeEnabledEvent{createdAt actor{__typename login}} "
+    "... on AutoMergeDisabledEvent{createdAt actor{__typename login}}}}}}}}"
 )
 QUEUE_QUERY = (
     "query PostMergeQueue($o:String!,$r:String!,$b:String!){repository(owner:$o,name:$r){"
@@ -501,6 +505,48 @@ QUEUE_QUERY = (
     "enqueuer{__typename login} pullRequest{id number}}}}}}"
 )
 DEQUEUE_MUTATION = "mutation PostMergeDequeue($id:ID!){dequeuePullRequest(input:{id:$id}){clientMutationId}}"
+
+
+def native_auto_merge(pr: dict[str, Any], merge: AutoMerge, identity: str) -> bool:
+    """Whether the identity's merge landed through GitHub's native auto-merge
+    (`enable-auto-merge.mjs` arms it), which posts no pin: the identity opened
+    the pull request from a branch of this repository, as that script requires,
+    and the newest auto-merge enable or disable event is the identity's enable,
+    made no later than the merge-queue enqueue. An arm under the identity token
+    on anyone else's pull request keeps the pin read-back. The gate disarms an
+    armed auto-merge before it pins and enqueues, and an arm after its enqueue
+    is not what queued the head, so either keeps the pin read-back.
+
+    Residuals: nothing compares a native merge's head with any vetted head.
+    `expectedHeadOid` binds only the head at arm time, and a writer's push
+    after the arm (address-feedback, apply-patch) leaves auto-merge armed, so
+    the later head merges natively. An arm that lands between the gate's
+    disarm check and its enqueue also reads as native and skips that merge's
+    read-back, and so does an arm in the same second as the enqueue: event
+    times have one-second resolution, so the comparison is at or before."""
+    if not merge.by_identity:
+        return False
+    if (
+        _actor_key(pr.get("author")) != identity
+        or pr.get("isCrossRepository") is not False
+    ):
+        return False
+    connection = pr.get("autoMerge")
+    if not is_json_object(connection) or not is_json_array(connection.get("nodes")):
+        raise PostMergeReadError(f"#{merge.number}: no auto-merge events")
+    if not connection["nodes"]:
+        return False
+    event = json_object(connection["nodes"][-1])
+    if event.get("__typename") != "AutoMergeEnabledEvent":
+        return False
+    if _actor_key(event.get("actor")) != identity:
+        return False
+    if not merge.queued:
+        return True
+    queued = json_array(json_object(pr.get("timelineItems")).get("nodes"))
+    return _time(event.get("createdAt")) <= _time(
+        json_object(queued[-1]).get("createdAt")
+    )
 
 
 def _default_branch(owner: str, name: str) -> str:
@@ -1007,7 +1053,7 @@ class _Context:
             self.dispatch_at_cache[commit] = {
                 r.id: r
                 for r in _run_rows(rows, "workflow_dispatch", self.owner, self.name)
-                if r.head_branch == self.branch
+                if r.head_branch == self.branch and self.on_branch(r)
             }
         return self.dispatch_at_cache[commit]
 
@@ -1160,11 +1206,31 @@ class _Context:
                     and r.created_at < run.created_at
                     and r.head_sha != run.head_sha
                 ]
-            green = max(greens, key=lambda r: r.created_at, default=None)
+            green = self._newest_on_branch(greens)
             self.affected_cache[run.id] = (
                 None if green is None else affected_suites(green.head_sha, run.head_sha)
             )
         return self.affected_cache[run.id]
+
+    def on_branch(self, run: Run) -> bool:
+        """Whether `run`'s head commit is on the branch as `refs/heads/`
+        names it. A run's `head_branch` is only a name: a run on a tag named
+        like the branch carries it too, and its commit (and plan script) can
+        be anyone's with write access."""
+        return bool(_FULL_SHA.fullmatch(run.head_sha or "")) and self.contains(
+            run.head_sha, self._branch_tip()
+        )
+
+    def _newest_on_branch(self, runs: list[Run]) -> Run | None:
+        """The newest of `runs` on the branch (`on_branch`)."""
+        return next(
+            (
+                r
+                for r in sorted(runs, key=lambda r: r.created_at, reverse=True)
+                if self.on_branch(r)
+            ),
+            None,
+        )
 
     def _quarantine_days(self, sha: str) -> int:
         if self.quarantine_days is None:
@@ -1224,7 +1290,7 @@ class _Context:
                 and r.head_branch == self.branch
                 and r.status == "completed"
             ]
-            newest = max(runs, key=lambda r: r.created_at, default=None)
+            newest = self._newest_on_branch(runs)
             self.baseline_cache[key] = (
                 None
                 if newest is None
@@ -1651,6 +1717,7 @@ def _judge(
     pinned: str | None,
     now: datetime,
     tally: _Tally,
+    pin_required: bool,
 ) -> MergeState:
     pending: list[str] = []
     failures: list[Failure] = []
@@ -1683,7 +1750,7 @@ def _judge(
         r for r in canaries if ctx.outcome(r, attributable=False)[0] == GREEN
     ]
 
-    if merge.by_identity and pinned is None:
+    if pin_required and pinned is None:
         # A missing or edited pin is pending until the dispatch deadline, then
         # a failure, so a demotion record is filed and a human close restarts
         # the floor instead of the lane holding forever.
@@ -1698,7 +1765,7 @@ def _judge(
             )
         else:
             pending.append("read-back-unrecorded")
-    elif merge.by_identity and pinned != merge.head_ref_oid:
+    elif pin_required and pinned != merge.head_ref_oid:
         failures.append(
             Failure(
                 SIGNAL_READ_BACK,
@@ -1864,6 +1931,9 @@ def _lane_reruns(ctx: _Context, now: datetime, tally: _Tally) -> list[str]:
                 and run.attempt == 1
                 and ctx.outcome(run, attributable=True)[0] == RERUN
                 and ctx.lane_dispatched(run)
+                # Only a run that could be marked pays for the ancestry read,
+                # and one off the branch never reaches the affected set.
+                and ctx.on_branch(run)
                 and ctx.regressions(SIGNAL_DISPATCH, run, run.created_at)
             ):
                 tally.reruns[run.id] = Rerun(
@@ -1909,6 +1979,9 @@ def check(
         owner, name = _split_repo(repo)
         branch = branch or _default_branch(owner, name)
         merges: list[AutoMerge] = []
+        # The identity's merges with a pin to read back: not its native
+        # auto-merges, which verify on the dispatch and canary runs alone.
+        pinned_merges: set[int] = set()
         warnings: list[str] = []
         identity = _login_key(agent_identity)
         for pr in _merged_since(owner, name, branch, merged_since):
@@ -1919,6 +1992,8 @@ def check(
                 warnings.append(derived)
             elif derived is not None:
                 merges.append(derived)
+                if derived.by_identity and not native_auto_merge(pr, derived, identity):
+                    pinned_merges.add(derived.number)
         merges.sort(key=lambda m: (str(m.merged_at), m.number))
         ctx = _Context(
             owner,
@@ -1957,9 +2032,18 @@ def check(
                 floor,
             )
         ]
-        full_runs.sort(key=lambda item: item[1].created_at)
+        # A listing filtered by branch name also returns runs on a tag named
+        # like the branch, whose red would be charged to the merge.
+        full_runs = sorted(
+            (item for item in full_runs if ctx.on_branch(item[1])),
+            key=lambda item: item[1].created_at,
+        )
         canary_runs = sorted(
-            _runs(owner, name, CANARY_WORKFLOW, "push", branch, floor),
+            (
+                r
+                for r in _runs(owner, name, CANARY_WORKFLOW, "push", branch, floor)
+                if ctx.on_branch(r)
+            ),
             key=lambda r: r.created_at,
         )
         states = tuple(
@@ -1968,7 +2052,10 @@ def check(
                 ctx,
                 full_runs=full_runs,
                 canary_runs=canary_runs,
-                pinned=pinned_sha(merge) if pinned_sha and merge.by_identity else None,
+                pinned=pinned_sha(merge)
+                if pinned_sha and merge.number in pinned_merges
+                else None,
+                pin_required=merge.number in pinned_merges,
                 now=now,
                 tally=tally,
             )
