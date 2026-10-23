@@ -383,14 +383,15 @@ def rooted(path):
 
 
 def bash_paths(command):
-    """A Bash command's rooted arguments (a flag never starts at a root), or
-    (None,), which inside() counts as inside, when it has none or does not
+    """A Bash command's rooted arguments, a --flag=/x or VAR=/x value included,
+    or (None,), which inside() counts as inside, when it has none or does not
     parse."""
     try:
         tokens = shlex.split(command) if isinstance(command, str) else []
     except ValueError:
         tokens = []
-    return tuple(t for t in tokens if rooted(t)) or (None,)
+    values = [v for t in tokens for v in (t, t.partition("=")[2])]
+    return tuple(v for v in values if rooted(v)) or (None,)
 
 
 def denials(run):

@@ -418,6 +418,7 @@ class RunValidityTest(unittest.TestCase):
             "cat %s/x" % self.PLUGIN,
             "ls -la /proc %s/skills" % self.PLUGIN,
             "ls /tmp/eval-r2",
+            "grep --file=%s/x /proc/version" % self.PLUGIN,
         ):
             proc = self.denied_second_run("with", 1, root=self.PLUGIN, command=command)
             self.assertVerdict(proc, "INVALID", 1)
