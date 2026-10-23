@@ -1637,8 +1637,7 @@ step under an `outcome=<reason>` marker. What changes from the PR flow:
   and the label alone admits the issue; the re-runner is then the App or a listed human. The
   App's other labels never start a run, and no step of the lane adds `agent-ready`. `check-trusted-base` trusts the
   default branch tip, and that commit is the head the job checks out.
-- `resolve-config` reads the issue's labels now, for the hold labels, and `labeled-after`, the
-  lane's go-live time, from the issue's update time. The read file passes
+- `resolve-config` reads the issue's labels now, for the hold labels. The read file passes
   `applied-by-supported: patch work-outcome`. The write file's token request sends
   `issue_number`.
 - Each issue is worked once. In a skill run, the `issue-prior` step (`report-outcome.mjs
@@ -1703,7 +1702,7 @@ step under an `outcome=<reason>` marker. What changes from the PR flow:
   naming the resumed branch. On `done` it opens a ready (not draft) PR from the branch whose
   body starts `Closes #<n>` (or `Refs: #<n>` when the outcome sets
   `"link": "refs"` because a recorded decision keeps the issue open), puts no label on it (the work class stays on the issue), and adds
-  `Hold: a human merges this` for structural or untrusted-provenance work, for a diff that
+  `Hold: a human merges this` for untrusted-provenance work, for a diff that
   touches a path the merge lane refuses (`merge.diff-check.denied-paths`, read from the run's
   resolved config; unreadable holds every PR), or, while some path is denied, for one too large
   for the compare listing to show whole. It adds the same line when the issue carries `merge: human` whose newest `labeled`

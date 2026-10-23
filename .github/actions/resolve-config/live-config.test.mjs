@@ -254,12 +254,10 @@ test("live config: review-dependency may only write its branch; its verdict job 
   assert.equal(selected("pr-unblock", "apply-dependency-verdict").script, ".github/scripts/pr-unblock/apply-dependency-verdict.mjs");
 });
 
-// An agent-ready label event on an issue. The lane went live at
-// 2026-10-14T19:21:59Z, the labeled-after time in the live config.
+// An agent-ready label event on an issue.
 const ISSUE = {
   event: "labeled",
   labels: ["agent-ready"],
-  labeledAt: "2026-10-20T00:00:00Z",
 };
 
 // Owner decision 2026-10-17: the agent-ready label alone admits the issue;
@@ -289,11 +287,12 @@ test("live config: resolve-issue starts nothing once agent-ready is gone from th
   assert.equal(skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labels: ["bug"] }), "not-applicable");
 });
 
-test("live config: resolve-issue still needs the agent-ready label event after the go-live time", () => {
-  assert.equal(
-    skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labeledAt: "2026-10-14T19:21:58Z" }),
-    "not-applicable",
-  );
+// No go-live cutoff: an issue labeled agent-ready at any time starts a run.
+test("live config: resolve-issue starts on an agent-ready label event, with no label-time cutoff", () => {
+  assert.equal(selected("work-resolve-issue", "resolve-issue", { ...ISSUE, labeledAt: "2026-10-14T19:21:58Z" }).applies, true);
+});
+
+test("live config: resolve-issue still needs the agent-ready label event", () => {
   assert.equal(
     skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, event: "dispatch" }),
     "not-applicable",
