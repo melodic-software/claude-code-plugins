@@ -18,13 +18,10 @@ name: pr-unblock
 # read model job returns a verdict and any fix as a patch, and script jobs
 # push a fix verdict's patch and act on the verdict. fix-ci: pr-unblock-dispatch.yml
 # also sends one per lanes App PR whose ci-status or pr-test-windows run failed
-# past the lost-run reconciler's re-run. fix-docs:
-# pr-unblock-dispatch.yml also sends one per ready PR a person opened that
-# changes a Markdown file and never had a fix-docs run. All set
-# dispatcher-run-id; a trusted human may dispatch with pr-number and activity
-# alone. Every job
-# trusts the default branch tip, since a conflicting PR's base SHA is stale and
-# the dispatchers run from the tip.
+# past the lost-run reconciler's re-run. All set dispatcher-run-id; a trusted
+# human may dispatch with pr-number and activity alone. Every job trusts the
+# default branch tip, since a conflicting PR's base SHA is stale and the
+# dispatchers run from the tip.
 
 # feedback-dispatch.mjs and dispatch.mjs read this title to skip a second
 # dispatch while one for the same activity and PR is still queued or going.
@@ -42,7 +39,7 @@ on:
         description: What to unblock.
         required: false
         type: choice
-        options: [resolve-conflicts, address-feedback, review-dependency, fix-ci, fix-docs]
+        options: [resolve-conflicts, address-feedback, review-dependency, fix-ci]
         default: resolve-conflicts
       dispatcher-run-id:
         description: The dispatcher run that sent this dispatch; empty for a human dispatch.
@@ -1291,136 +1288,6 @@ jobs:
           base-path: .base
           head-sha-fallback: ${{ needs.fix-ci-context.outputs.head-sha }}
           github-token: ${{ github.token }}
-
-  # The PR head fix-docs's report posts its check on, read by a job that runs
-  # no head code, as fix-ci-context's is for fix-ci. Without it the report
-  # trusts only the head read at report time, so a push mid-run posts failure
-  # on the new head.
-  fix-docs-head:
-    if: >-
-      inputs.pr-number != '' && inputs.activity == 'fix-docs'
-      && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions:
-      pull-requests: read
-    outputs:
-      head-sha: ${{ steps.head.outputs.sha }}
-    steps:
-      - name: Read the PR's head SHA
-        id: head
-        env:
-          PR_NUMBER: ${{ inputs.pr-number }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          [[ $PR_NUMBER =~ ^[1-9][0-9]*$ ]] || { echo "::error::pr-number is not a PR number"; exit 1; }
-          sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)
-          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::no PR head SHA read"; exit 1; }
-          echo "sha=$sha" >>"$GITHUB_OUTPUT"
-
-  # fix-docs is four jobs, so no model ever holds a write token. The model
-  # job: a read activity with no write token and no OIDC token in the job that
-  # runs head code. The skill fixes the changed Markdown files; the runner
-  # uploads its uncommitted edits as a patch. It runs on the automations
-  # role's API key alone. Drafts and held PRs skip in the config's
-  # applies-when, before any model turn.
-  fix-docs:
-    needs: fix-docs-head
-    if: >-
-      inputs.pr-number != '' && inputs.activity == 'fix-docs'
-      && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
-    permissions:
-      contents: read
-      pull-requests: read
-      checks: write
-      issues: write
-      id-token: write
-    concurrency:
-      group: pr-pipeline-write-${{ inputs.pr-number }}
-      queue: max
-    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
-    with:
-      role: automations
-      lane: pr-unblock
-      activity: fix-docs
-      pr-number: ${{ inputs.pr-number }}
-      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
-      trusted-base: default-tip
-      head-sha: ${{ needs.fix-docs-head.outputs.head-sha }}
-      post-decline: false
-      timeout-minutes: 60
-    secrets:
-      claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
-      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
-
-  # The subscription fallback, as fix-ci-subscription is for fix-ci: it runs
-  # only when fix-docs's key leg hit a credit stop or its key is empty, reads
-  # only those two outputs, each compared to a fixed string, and holds the
-  # OAuth token alone.
-  fix-docs-subscription:
-    needs: [fix-docs-head, fix-docs]
-    if: >-
-      ${{ !cancelled() && (needs.fix-docs.outputs.lane-class == 'credit-stop'
-      || needs.fix-docs.outputs.credential-present == 'false') }}
-    permissions:
-      contents: read
-      pull-requests: read
-      checks: write
-      issues: write
-      id-token: write
-    concurrency:
-      group: pr-pipeline-write-${{ inputs.pr-number }}
-      queue: max
-    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
-    with:
-      role: automations
-      lane: pr-unblock
-      activity: fix-docs
-      fallback: ${{ needs.fix-docs.outputs.lane-class == 'credit-stop' && 'credit-stop' || 'no-key' }}
-      pr-number: ${{ inputs.pr-number }}
-      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
-      trusted-base: default-tip
-      head-sha: ${{ needs.fix-docs-head.outputs.head-sha }}
-      post-decline: false
-      timeout-minutes: 60
-    secrets:
-      claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
-      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
-
-  # fix-docs's push job: the apply-patch activity under patch-rules.json's
-  # default row (fix-docs has no prepare mode). It runs only on a written
-  # patch: no change is the common case and needs no one. report-escalation
-  # does not need it, so a refused patch posts the pr-unblock / apply-patch
-  # check neutral and labels nothing. The patch and its head come from
-  # whichever call ran the activity; apply-patch still applies onto the head
-  # its own gate reads.
-  apply-docs-patch:
-    needs: [fix-docs, fix-docs-subscription]
-    if: >-
-      ${{ !cancelled() && (needs.fix-docs-subscription.outputs.patch-state || needs.fix-docs.outputs.patch-state) == 'written' }}
-    permissions:
-      contents: read
-      pull-requests: read
-      checks: write
-      issues: write
-      id-token: write
-    concurrency:
-      group: pr-pipeline-write-${{ inputs.pr-number }}
-      queue: max
-    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
-    with:
-      role: automations
-      lane: pr-unblock
-      activity: apply-patch
-      pr-number: ${{ inputs.pr-number }}
-      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
-      trusted-base: default-tip
-      patch-state: ${{ needs.fix-docs-subscription.outputs.patch-state || needs.fix-docs.outputs.patch-state }}
-      patch-sha256: ${{ needs.fix-docs-subscription.outputs.patch-sha256 || needs.fix-docs.outputs.patch-sha256 }}
-      patch-attempt: ${{ needs.fix-docs-subscription.outputs.patch-attempt || needs.fix-docs.outputs.patch-attempt }}
-      patch-activity: fix-docs
-      patch-head-sha: ${{ needs.fix-docs-subscription.outputs.head-sha || needs.fix-docs.outputs.head-sha }}
-      reply-attempt: ${{ needs.fix-docs-subscription.outputs.reply-attempt || needs.fix-docs.outputs.reply-attempt }}
 
   # GitHub starts no pull_request workflow on a conflicted PR, so a head the
   # lane could not resolve gets no CI and no sign why. This script job, with
