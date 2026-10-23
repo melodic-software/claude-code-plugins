@@ -204,6 +204,61 @@ def test_block_redacts_tool_agent_source_and_reason_type_and_keeps_plain_values(
     assert {k: plain[k] for k in ("tool", "source", "reason_type")} == {"tool": "Bash", "source": "config", "reason_type": "rule"}
 
 
+HOOK_DECISION = {"decision": "reject", "source": "hook", "reasonType": "hook"}
+HOOK_TEXT = "Error: PreToolUse:Bash hook error: [guard]: BLOCKED: file write. Use the Write or Edit tool.\n\nThis hook comes from the guardrails@m plugin."
+
+
+def call(use_id: str, name: str, **tool_input) -> dict:
+    return {"type": "assistant", "message": {"content": [{"type": "tool_use", "id": use_id, "name": name, "input": tool_input}]}}
+
+
+def result(use_id: str, *, error: bool = False) -> dict:
+    return {"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": use_id, "is_error": error, "content": "x"}]}}
+
+
+def hook_denial_scan(*records: dict) -> friction_scan.FrictionScan:
+    scan = friction_scan.FrictionScan("/w/repo")
+    scan.start_file("main", None)
+    scan.add(call("t1", "Bash", command="echo hi > a.txt"))
+    scan.add(denial_record(HOOK_TEXT, kind="permission-rule", decision=HOOK_DECISION, use_id="t1"))
+    for record in records:
+        scan.add(record)
+    return scan
+
+
+def test_hook_denial_followed_by_write_records_the_next_tool_and_its_success():
+    scan = hook_denial_scan(call("t2", "Write", file_path="/w/repo/a.txt", content="hi"), result("t2"))
+    assert [(e["next_tool"], e["next_ok"]) for e in scan.events] == [("Write", True)]
+
+
+def test_hook_denial_followed_by_the_same_shell_form_records_a_failed_retry():
+    scan = hook_denial_scan(
+        call("t2", "Bash", command="echo hi > a.txt"),
+        denial_record(HOOK_TEXT, kind="permission-rule", decision=HOOK_DECISION, use_id="t2"),
+    )
+    # The retry is itself a hook denial, so it is a second event with no next call yet.
+    assert [(e["next_tool"], e["next_ok"]) for e in scan.events] == [("Bash", False), (None, None)]
+
+
+def test_hook_denial_with_no_next_call_keeps_the_fields_empty():
+    scan = hook_denial_scan()
+    assert [(e["next_tool"], e["next_ok"]) for e in scan.events] == [(None, None)]
+    block = scan.block(collect.Scrubber(redact.load_redactor(), 200), 200)
+    assert block["events"][0]["next_tool"] is None
+
+
+def test_next_tool_is_read_per_file_and_only_for_hook_denials():
+    scan = hook_denial_scan()
+    scan.start_file("sub", "a")
+    scan.add(call("s1", "Read", file_path="/w/repo/a.txt"))
+    assert scan.events[0]["next_tool"] is None
+    rule = friction_scan.FrictionScan("/w/repo")
+    rule.start_file("main", None)
+    rule.add(call("t1", "Bash", command="git push"))
+    rule.add(denial_record("denied", kind=None, decision={"decision": "reject", "source": "config", "reasonType": "rule"}, use_id="t1"))
+    assert "next_tool" not in rule.events[0]
+
+
 @pytest.mark.parametrize(
     ("decision", "kinds"),
     [

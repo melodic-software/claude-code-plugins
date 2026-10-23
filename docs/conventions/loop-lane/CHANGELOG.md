@@ -5,6 +5,14 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [12.4.0] - 2026-10-22
+
+Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.
+
+- **Scheduled reader.** The "Bookmark per source" row names a tracker comment, read back on the
+  next run (the §4 telemetry carrier), as the interim store for state a cloud routine keeps between
+  runs, and points at the probe tracked in #8991 (#7674).
+
 ## [12.3.0] - 2026-10-21
 
 Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.
