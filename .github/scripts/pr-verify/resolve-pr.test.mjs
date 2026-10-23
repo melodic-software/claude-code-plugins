@@ -390,6 +390,33 @@ test("a FAIL named with this pull request's issues stops a new judgment", async 
   }
 });
 
+// The reason, and how many times the linked-issues query ran.
+async function specReads(setup) {
+  const github = fake(setup);
+  let reads = 0;
+  const counting = async (method, apiPath, body) => {
+    if (apiPath === "/graphql" && body.query.includes("closingIssuesReferences")) reads += 1;
+    return github(method, apiPath, body);
+  };
+  const { reason } = await resolvePull({ github: counting, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
+  return [reason, reads];
+}
+
+test("a head with a verdict named without issues skips before the linked issues are read", async () => {
+  for (const name of [`pr-verify-41-${HEAD}-pass`, `pr-verify-41-${HEAD}-fail`]) {
+    assert.deepEqual(await specReads({ artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77) } }), ["already-judged", 0], name);
+  }
+});
+
+test("a head whose only verdict is a FAIL named with issues skips after one linked-issues read", async () => {
+  const artifacts = [artifact(`pr-verify-41-${HEAD}-fail-i7`, 77)];
+  assert.deepEqual(await specReads({ artifacts, runs: { 77: verifyRun(77) } }), ["already-judged", 1]);
+});
+
+test("an unjudged head reads its linked issues once", async () => {
+  assert.deepEqual(await specReads({}), ["ok", 1]);
+});
+
 test("a verdict named with its head-ref digest stops a new judgment like one without", async () => {
   const pulls = [pull(), pull({ number: 99, state: "closed", head: { sha: HEAD, ref: "feat/other", repo: { full_name: REPO } } })];
   for (const name of [`pr-verify-41-${HEAD}-pass-${REF_DIGEST}`, `pr-verify-99-${HEAD}-fail-${OTHER_DIGEST}`]) {

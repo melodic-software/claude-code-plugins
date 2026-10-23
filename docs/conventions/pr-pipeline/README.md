@@ -1301,8 +1301,9 @@ account type, `verdict`, `summary`, `notes` and `run_id`. The head SHA is the on
 ran on, never the pull request's live head. A model error, an output that fails the schema, a
 summary or note matching a shared credential pattern (`findSecret` in `lib/publish-gate.mjs`), or a run with any permission denial
 uploads nothing, and the run fails. A head that already has a counted verdict from a completed run (a `fail` under any
-pull request number) is not judged again; the resolver reads the pull request's linked issues
-first, so it finds its own `fail` under the name with `-i`, while a `fail` another pull request
+pull request number) is not judged again. The resolver first looks up the names without issues;
+only when none holds a counted verdict does it read the pull request's linked issues, which the
+spec needs anyway, and look up its own `fail` under the name with `-i`. A `fail` another pull request
 left at the same head names issues it never reads, and that head is judged again, which costs a
 run and changes nothing the gate decides. Runs share one concurrency group per pull request and
 head and never cancel a running judgment.

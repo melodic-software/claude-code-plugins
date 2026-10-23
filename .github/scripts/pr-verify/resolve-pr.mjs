@@ -161,23 +161,29 @@ async function pullsOfCommit(github, repository, head) {
 // pull request's head branch (write-verdict.mjs headRefDigest), which doubles
 // the lookups. Once write-verdict writes only digest names, the digest-free
 // lookups are needed only until the last artifact named that way expires
-// (90-day retention), and then go. This PR's FAIL is also looked up with
-// `-i` and its linked issues now (`issues`, write-verdict.mjs artifactName); a
-// FAIL another PR left at the head names issues this run never reads, so its
-// suffixed name is missed and the head is judged again, which costs a run
-// and changes nothing the gate decides.
+// (90-day retention), and then go. Given `issues`, this PR's linked issue
+// numbers, it looks up only this PR's FAIL names with `-i` and those issues
+// (write-verdict.mjs artifactName), so the caller reads the issues only for a
+// head the names without them leave unjudged. A FAIL another PR left at the
+// head names issues this run never reads, so its suffixed name is missed and
+// the head is judged again, which costs a run and changes nothing the gate
+// decides.
 async function judged({ github, repository, number, head, base, refs, issues }) {
   // The digest is hex whatever the branch holds, so any non-empty one is looked up.
   const named = (pr, verdict) => {
     const ref = refs.get(pr);
-    const plain = [`pr-verify-${pr}-${head}-${verdict}`, ...(ref ? [`pr-verify-${pr}-${head}-${verdict}-${headRefDigest(ref)}`] : [])];
-    const suffix = pr === number && verdict === "fail" ? issuesSuffix(issues) : "";
-    return suffix ? [...plain, ...plain.map((name) => name + suffix)] : plain;
+    return [`pr-verify-${pr}-${head}-${verdict}`, ...(ref ? [`pr-verify-${pr}-${head}-${verdict}-${headRefDigest(ref)}`] : [])];
   };
-  const names = [
-    ...["pass", "pass-notes", "fail"].flatMap((verdict) => named(number, verdict)),
-    ...[...refs.keys()].filter((other) => other !== number).flatMap((other) => named(other, "fail")),
-  ];
+  const suffix = issues === undefined ? "" : issuesSuffix(issues);
+  const names =
+    issues === undefined
+      ? [
+          ...["pass", "pass-notes", "fail"].flatMap((verdict) => named(number, verdict)),
+          ...[...refs.keys()].filter((other) => other !== number).flatMap((other) => named(other, "fail")),
+        ]
+      : suffix
+        ? named(number, "fail").map((name) => name + suffix)
+        : [];
   for (const name of names) {
     const [, , , verdict] = NAME.exec(name);
     for (const artifact of await artifactsNamed(github, repository, name)) {
@@ -293,7 +299,10 @@ export async function resolvePull({ github, repository, upstreamRunId, humans, b
       .filter((item) => Number.isSafeInteger(item?.number) && item.number > 0)
       .map((item) => [item.number, String(item.head?.ref ?? "")]),
   );
-  // Read first: this PR's FAIL is named with the issues it records.
+  if (await judged({ github, repository, number: pull.number, head, base, refs })) {
+    return skip("already-judged");
+  }
+  // This PR's FAIL is named with the issues it records, read only now.
   const specRead = await linkedIssues(github, repository, pull.number, humans);
   const issues = specRead.linkedIssues.map((issue) => issue.number);
   if (await judged({ github, repository, number: pull.number, head, base, refs, issues })) {
