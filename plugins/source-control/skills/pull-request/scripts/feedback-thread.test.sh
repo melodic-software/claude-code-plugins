@@ -140,7 +140,11 @@ jq '.pr_paths = ["src/other.js", "src/new.js", ".github/workflows/ci.yml"]' \
   "$STUB/threads.json" >"$STUB/t2" && mv "$STUB/t2" "$STUB/threads.json"
 run check-paths src/other.js >/dev/null 2>&1
 assert_exit "check-paths allows a file pr_paths lists, outside every thread's own scope" 0 "$?"
-for path in src/new.js .github/workflows/ci.yml src/helper.js; do
+ln -s a.js "$STUB/ws/src/link.js"
+fixture_git add -A
+fixture_git commit -q -m link
+jq '.pr_paths += ["src/link.js"]' "$STUB/threads.json" >"$STUB/t2" && mv "$STUB/t2" "$STUB/threads.json"
+for path in src/new.js .github/workflows/ci.yml src/helper.js src/link.js; do
   run check-paths "$path" >/dev/null 2>&1
   assert_exit "check-paths refuses $path with pr_paths set" 1 "$?"
 done

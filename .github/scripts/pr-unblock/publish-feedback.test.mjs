@@ -487,13 +487,14 @@ test("a VALID fix that changes a file its thread's named_paths holds lands; one 
 
 // A finding on one file of the PR fixed in another: run.json's pr_paths
 // carry the PR's files into the thread's scope.
-test("a VALID fix in another file the PR changes, cited as evidence, lands; uncited, not in the PR, new or protected, it does not", async () => {
+test("a VALID fix in another file the PR changes, citing a line it changed, lands; uncited, not in the PR, new or protected, it does not", async () => {
   // The doc and the script, as files the checkout holds.
   const thread = { ...RUN.threads[0], path: "docs/b.md" };
   const script = "src/a.js";
   for (const [label, prPaths, file, landed, evidence = [`${script}:1`]] of [
     ["in the PR", [thread.path, script], { filename: script, status: "modified" }, true],
     ["in the PR, not cited", [thread.path, script], { filename: script, status: "modified" }, false, [`${thread.path}:1`]],
+    ["in the PR, cited outside the fix's hunks", [thread.path, script], { filename: script, status: "modified" }, false, [`${script}:9`]],
     ["not in the PR", [thread.path], { filename: script, status: "modified" }, false],
     ["added by the fix", [thread.path, script], { filename: script, status: "added" }, false],
     ["under .github/workflows/", [thread.path, ".github/workflows/x.yml"], { filename: ".github/workflows/x.yml", status: "modified" }, false],
@@ -501,7 +502,7 @@ test("a VALID fix in another file the PR changes, cited as evidence, lands; unci
   ]) {
     const api = fakeApi({
       compare: { status: "ahead", commits: [fixCommit()], files: [file] },
-      commits: { [FIX]: { files: [file] } },
+      commits: { [FIX]: { files: [{ ...file, patch: "@@ -1,2 +1,3 @@\n x\n+y\n z" }] } },
     });
     const result = await run(api, lines(reply({ disposition: "VALID", evidence })), JSON.stringify({ ...RUN, pr_paths: prPaths, threads: [thread] }));
     assert.equal(result.escalationReason, landed ? "" : "feedback-not-landed", label);
@@ -914,4 +915,13 @@ test("main: a missing replies.jsonl writes the no-model-turn skip and no escalat
 test("no-model-turn is a schema skip reason, so its check posts neutral, not red", () => {
   const schema = JSON.parse(readFileSync(new URL("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json", import.meta.url), "utf8"));
   assert.ok(schema.$defs["skip-reason"].enum.includes("no-model-turn"));
+});
+
+test("lineChanged reads a patch's new-side hunks", async () => {
+  const { lineChanged } = await import("./publish-feedback.mjs");
+  const patch = "@@ -1,2 +1,3 @@\n x\n+y\n z\n@@ -10 +11 @@\n-a\n+b\n@@ -20,2 +21,0 @@\n-c\n-d";
+  for (const [line, want] of [[1, true], [3, true], [4, false], [11, true], [12, false], [21, false]]) {
+    assert.equal(lineChanged(patch, line), want, String(line));
+  }
+  assert.equal(lineChanged(undefined, 1), false);
 });

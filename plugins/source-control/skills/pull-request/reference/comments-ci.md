@@ -31,10 +31,9 @@ The preamble names the tool's path. It is the only shell command this mode runs:
   test file (`test_*.py`, `*_test.py`, `*.test.*`,
   `*.spec.*`) in its path's directory; and each file in its `named_paths`: a file a trusted person
   with write access named in a fix request, in the same `plugins/<p>/` directory, existing at the
-  gated head, and not an instruction path (`CLAUDE.md`, `AGENTS.md`, `.mcp.json`, `.lsp.json`,
-  `.gitmodules`, `CODEOWNERS`, a `.claude` or `.claude-plugin` directory, a plugin's `hooks`,
-  `monitors` or `bin`). Every kept thread's scope also holds each file in the thread file's
-  `pr_paths`, the files the pull request already changes, while the gated head holds it: a
+  gated head, and not an instruction path (`.gitmodules`, `CODEOWNERS`, a `settings*.json`, `package.json`, `package-lock.json` or `requirements*.txt`, at any depth). Every kept thread's scope also holds each
+  file in the thread file's `pr_paths`, the files the pull request already changes, while the
+  gated head holds it as a regular file: a
   finding on one of the PR's files may be fixed in another. A file the fix would create is
   never in `pr_paths`' part of the scope.
 - `record <thread-id> <file>` reads a disposition file from the scratch directory, checks it
@@ -71,7 +70,7 @@ The preamble names the tool's path. It is the only shell command this mode runs:
 
    `VALID` and `INCORRECT` need at least one `path:line` in the checkout, at most 10. A `VALID`
    fix that does not change the thread's own path must cite a line it changed in another of the
-   pull request's files, or its reply does not land. `fix_sha`
+   pull request's files, or its reply does not land, and nor does any other reply in the round. `fix_sha`
    stays empty, or is left out: the reply job finds the commit the push job made. `VALID-defer`
    is VALID (defer). The note is 1-2000 characters of plain prose: no control characters, no HTML
    comment (`<!--`, `-->`), no token, no @-mention. It is posted in a code fence.

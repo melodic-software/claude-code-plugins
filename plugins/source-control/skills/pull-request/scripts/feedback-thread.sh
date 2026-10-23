@@ -50,15 +50,17 @@ scratch_dir=${FEEDBACK_SCRATCH:-} workspace=${FEEDBACK_WORKSPACE:-}
 # CODEOWNERS, a settings*.json, a package manifest or lockfile) and no script
 # or code file, a test file in its directory, or a path in its named_paths
 # (the files a write-access fix request named) in that same plugins/<p>/
-# directory that is no instruction path; or, when the gated head holds it, a
-# file in the thread file's pr_paths (the files the pull request already
+# directory that is no instruction path; or, when the gated head holds it as a
+# regular file, a file in the thread file's pr_paths (the files the pull request already
 # changes, which the select job already held to thread-scope.mjs's
 # prPathsOf). The same rule as
 # .github/scripts/pr-unblock/thread-scope.mjs, which the promote step and
 # the reply job apply.
 allowed() {
-  local tracked=false
-  git_tree cat-file -e "HEAD:$1" 2>/dev/null && tracked=true
+  local tracked=false mode
+  # A regular or executable file at the gated head: no new file, symbolic link or gitlink.
+  mode=$(git_tree ls-tree HEAD -- "$1" 2>/dev/null | cut -d' ' -f1) || mode=""
+  [[ $mode == 100644 || $mode == 100755 ]] && tracked=true
   [[ ! ${1,,} =~ ^\.github/workflows(/|$) && ! $1 =~ (^|/)\.{0,2}(/|$) ]] &&
     jq -e --arg p "$1" --argjson tracked "$tracked" '
       def dir: sub("[^/]*$"; "");
