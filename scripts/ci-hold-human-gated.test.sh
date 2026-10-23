@@ -46,6 +46,11 @@ if [[ "$step" == *"continue-on-error"* ]]; then
 else
   ok "step fails the job on its exit code"
 fi
+if [[ "$step" == *$'\n        id: human_gated\n'* ]]; then
+  ok "step carries the id the hold-lift step reads its outputs by"
+else
+  fail "step lost its human_gated id"
+fi
 if [[ "$step" == *"BASE_SHA: \${{ github.event.pull_request.base.sha }}"* ]]; then
   ok "step reads the tracker config at the base commit, never the head"
 else
@@ -112,8 +117,10 @@ OTHER_BOT="$(hold "$LANE" $'A comment with no hold marker.\nclaude-lane: claude-
 expect() {
   local label="$1" want_rc="$2" want_calls="$3" out rc calls
   : >"$TMP_ROOT/log"
+  : >"$TMP_ROOT/output"
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_LABELS="$4" STUB_FAILS="$5" PR_NUMBER=6419 \
-    GITHUB_REPOSITORY=o/r RUNNER_TEMP="$TMP_ROOT" BASE_SHA="${BASE_SHA-$BASE}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    GITHUB_REPOSITORY=o/r RUNNER_TEMP="$TMP_ROOT" GITHUB_OUTPUT="$TMP_ROOT/output" BASE_SHA="${BASE_SHA-$BASE}" \
+    bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   calls=$(grep -c '/labels' "$TMP_ROOT/log")
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
@@ -136,10 +143,20 @@ APPROVE="Removing the label approves this pull request; ci-status re-runs on the
 
 expect "an unlabeled pull request passes" 0 1 "enhancement,do-not-merge" 0 "#6419 carries no 'needs-human' label."
 if grep -q '/comments' "$TMP_ROOT/log"; then fail "comments are read only when the label is on"; else ok "comments are read only when the label is on"; fi
+if [[ "$(cat "$TMP_ROOT/output")" == $'label=needs-human\nheld=false' ]]; then
+  ok "an unlabeled pull request outputs the label and held=false"
+else
+  fail "an unlabeled pull request's outputs: '$(cat "$TMP_ROOT/output")'"
+fi
 expect "a pull request with no labels passes" 0 1 "" 0
 expect "a label that only contains the name does not hold" 0 1 "needs-human-later,not-needs-human" 0
 expect "needs-human with no hold comment fails without a reason" 1 1 "ci,needs-human" 0 \
   "::error::#6419 carries 'needs-human'. $APPROVE"
+if [[ "$(cat "$TMP_ROOT/output")" == "label=needs-human" ]]; then
+  ok "a held pull request outputs the label and no held=false"
+else
+  fail "a held pull request's outputs: '$(cat "$TMP_ROOT/output")'"
+fi
 
 export STUB_COMMENTS="[$OLD,$NEW,$SPOOF,$NO_FOOTER,$OTHER_BOT]"
 expect "the newest lane hold comment gives the reason, without its footer" 1 1 "needs-human" 0 \
@@ -158,9 +175,19 @@ unset STUB_COMMENTS STUB_COMMENTS_FAIL
 
 expect "a transient label read failure is retried" 1 2 "needs-human" 1
 expect "an unreadable label list fails closed" 1 3 "" 3 "::error::could not read the labels of #6419"
+if grep -q '^held=' "$TMP_ROOT/output"; then
+  fail "an unreadable label list output held"
+else
+  ok "an unreadable label list outputs no held"
+fi
 
 export STUB_TRACKER="$CUSTOM"
 expect "the base tracker's human-gated label holds" 1 1 "owner-call" 0 "::error::#6419 carries 'owner-call'. $APPROVE"
+if grep -qxF 'label=owner-call' "$TMP_ROOT/output"; then
+  ok "the output names the base tracker's label"
+else
+  fail "the output does not name the base tracker's label: '$(cat "$TMP_ROOT/output")'"
+fi
 expect "needs-human does not hold when the tracker names another label" 0 1 "needs-human" 0 "#6419 carries no 'owner-call' label."
 export STUB_TRACKER='{not json'
 expect "an invalid tracker config fails closed" 1 0 "" 0 "::error::cannot read the human-gated role label"

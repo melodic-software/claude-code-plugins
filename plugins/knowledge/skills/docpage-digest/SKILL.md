@@ -74,8 +74,8 @@ traversal), and confirm the resolved work root is still inside `<resolved-root>/
 writing.
 
 **Collision check, before the first write, including the checklist copy.** If
-`<resolved-root>/.work/<slug>/` already exists, read the `Canonical URL` line from its
-`docpage-digest-checklist.md`:
+`<resolved-root>/.work/<slug>/` already exists, read the line starting `- Canonical URL:`
+from its `docpage-digest-checklist.md` (not the template's prose that mentions the field):
 
 - **Same URL** → resume from the first unticked phase.
 - **Different URL, or no URL recorded** → **refuse and stop**, naming both URLs (or the missing
@@ -83,7 +83,7 @@ writing.
   attribute.
 
 So the canonical URL is the first thing a new run writes: copy the template and fill
-`Canonical URL` and the resolved work root *before* fetching, so an interrupted run leaves a root
+the line starting `- Canonical URL:` and the resolved work root *before* fetching, so an interrupted run leaves a root
 the next collision check can identify.
 
 ## Untrusted-source discipline (binding for every phase)
@@ -101,7 +101,7 @@ directly from source text to instruction artifact.
 ## Emit checklist
 
 Copy `templates/checklist.md` into `<work-root>/docpage-digest-checklist.md` at run start, once
-the collision check above has passed, and immediately fill its `Canonical URL` and resolved
+the collision check above has passed, and immediately fill its line starting `- Canonical URL:` and resolved
 work-root lines. Those two are what the next run's collision check reads. Tick each phase as it
 completes; the ticked state is the cross-session resume pointer. On resume, re-read the checklist
 plus `SOURCES.md` and continue from the first unticked phase. An older work root
@@ -166,7 +166,7 @@ explanation), one row per link naming the unit. Its rows sit outside the digest-
 invariant. Navigation, footer, and breadcrumb links are not rows. Read them from the `source.*`
 snapshot already held; nothing is fetched for a link, so recording one is not crawling. The URL
 and link text are page data: quote link text with `|` and newlines escaped, resolve a relative
-link against the checklist's Canonical URL, and keep only `http(s)` URLs on a public host as
+link against the URL on the checklist's `- Canonical URL:` line, and keep only `http(s)` URLs on a public host as
 candidates; any other link is a row the handoff marks `skipped` with that reason.
 
 ## Phase 3. Digest fan-out
@@ -252,7 +252,7 @@ The handoff also carries a relied-on-links table, one row per SOURCES.md relied-
 columns link, relied on by (digest unit and claim citation), disposition, and evidence:
 
 - `covered`: a sibling slice under `<resolved-root>/.work/*/` digests that page, matched on its
-  checklist's `Canonical URL` line, and that checklist ticks Phase 4; an unfinished sibling is
+  checklist's line starting `- Canonical URL:`, and that checklist ticks Phase 4; an unfinished sibling is
   not coverage. Evidence: the slice path.
 - `queued`: an uncovered candidate whose host is the source page's host or one the matched
   profile covers, so it earns its own one-page run. Evidence: the proposed entry text (URL plus one

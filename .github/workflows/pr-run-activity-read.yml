@@ -76,9 +76,11 @@ on:
       fallback:
         description: >-
           PR mode: empty for the first call, which runs on claude-api-key and
-          hands off on a credit stop or an empty key; `credit-stop` or
-          `no-key` for the second, which runs on claude-code-oauth-token and
-          names why in its lane record.
+          hands off on a credit stop or an empty key; `credit-stop`, `no-key`
+          or `handoff` for the second, which runs on claude-code-oauth-token
+          and names why in its lane record. `handoff` says only that the
+          first call posted no check, for a caller that reads that from this
+          run's jobs rather than from the first call's outputs.
         required: false
         type: string
         default: ""
@@ -106,9 +108,10 @@ on:
         description: >-
           The PR head the caller gated in a job that ran no head code (pr-unblock's
           fix-ci-context, fix-docs-head, address-feedback-select or
-          review-dependency-select). The report job
-          posts the check only on it, the event's PR head, or the PR's head read
-          from the API; a run job head-sha that is none of these posts failure
+          review-dependency-select). The run job fails before the head
+          checkout when the head its trigger gate read is another. The report
+          job posts the check on it or the event's PR head; a run job head-sha
+          that is neither, or any run head when neither is set, posts failure
           on the trusted head instead.
         required: false
         type: string
@@ -261,13 +264,13 @@ on:
           escalate, else empty. Only the scan job sets it; the verdict job
           validates the whole file.
         value: ${{ jobs.scan.outputs.dependency-verdict }}
-      scan-refused:
+      scan-collect-refused:
         description: >-
-          PR mode: `patch` when the scan job refused the run's payloads because
-          the patch was over its cap, `output` when it refused them for any
-          other reason, empty when it published them or did not run. Only the
-          scan job sets it.
-        value: ${{ jobs.scan.outputs.refused }}
+          PR mode: `true` when the run's patch collector refused the change
+          (collect-patch.sh exit 3), so no patch left the run; empty
+          otherwise. Only the scan job sets it, from the run's patch-collected
+          output held to its closed set.
+        value: ${{ jobs.scan.outputs.collect-refused }}
       base-sha:
         description: >-
           The trusted base commit the run checked, set before any head code
@@ -497,9 +500,9 @@ jobs:
             fi
           fi
           case "$FALLBACK" in
-            "" | credit-stop | no-key) ;;
+            "" | credit-stop | no-key | handoff) ;;
             *)
-              echo "::error::the fallback input must be empty, credit-stop or no-key"
+              echo "::error::the fallback input must be empty, credit-stop, no-key or handoff"
               exit 1
               ;;
           esac
@@ -590,6 +593,21 @@ jobs:
           require-pr: ${{ inputs.issue-number == '' }}
           require-kind: ${{ inputs.issue-number != '' && 'human' || '' }}
           app-label: ${{ inputs.issue-number != '' && inputs.app-label || '' }}
+
+      # The caller's head-sha came from a job that ran no head code, and its
+      # context, patch and check are bound to it. A trigger gate that read
+      # another head (the PR moved since) fails the run here, before the head
+      # is checked out; the report job then posts failure on the caller's head.
+      - name: Assert the gated head is the caller's
+        if: steps.gate.outputs.proceed == 'true' && inputs.head-sha != ''
+        env:
+          CALLER_HEAD: ${{ inputs.head-sha }}
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+        run: |
+          if [ "$HEAD_SHA" != "$CALLER_HEAD" ]; then
+            echo "::error::the PR head the trigger gate read is not the head the caller gated; a later dispatch reads the new head"
+            exit 1
+          fi
 
       - name: Assert the base is on the default branch
         id: trusted-base
@@ -1245,7 +1263,7 @@ jobs:
           steps.go.outputs.run == 'true' && steps.config.outputs.kind == 'skill'
           && inputs.issue-number != ''
         continue-on-error: ${{ inputs.issue-number != '' }}
-        uses: anthropics/claude-code-action@6b6870e649b5ff408753befeaee5fc7989d4e6a9 # v1.0.258
+        uses: anthropics/claude-code-action@ae68417a745a5df4b2124873632bd73a2255e6f6 # v1.0.259
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
           # MCP subprocesses and gives Bash its own PID namespace, so /proc
@@ -1572,6 +1590,8 @@ jobs:
             && format('{0}/{1} (key {2} hit a credit stop)', inputs.lane, inputs.activity, steps.launch.outputs.key-name)
             || inputs.fallback == 'no-key'
             && format('{0}/{1} (key {2} is empty)', inputs.lane, inputs.activity, steps.launch.outputs.key-name)
+            || inputs.fallback == 'handoff'
+            && format('{0}/{1} (key {2} posted no check)', inputs.lane, inputs.activity, steps.launch.outputs.key-name)
             || format('{0}/{1}', inputs.lane, inputs.activity) }}
           lane-id: ${{ inputs.lane }}
           step-started-at: ${{ steps.key-present.outputs.started-at || steps.token-present.outputs.started-at }}
@@ -1678,10 +1698,17 @@ jobs:
         env:
           HEAD_SHA: ${{ steps.start.outputs.sha }}
           PATCH_DIR: ${{ runner.temp }}/patch
+        # A refusal (exit 3) still fails the step, and sets state refused, so
+        # the scan job can hand the refused change to a person.
         run: |
           rm -rf "$PATCH_DIR"
           mkdir -p "$PATCH_DIR"
-          bash "$RUNNER_TEMP/read-patch/collect-patch.sh" "$HEAD_SHA" "$PATCH_DIR/patch.diff" >>"$GITHUB_OUTPUT"
+          rc=0
+          bash "$RUNNER_TEMP/read-patch/collect-patch.sh" "$HEAD_SHA" "$PATCH_DIR/patch.diff" >>"$GITHUB_OUTPUT" || rc=$?
+          if [ "$rc" = 3 ]; then
+            echo "state=refused" >>"$GITHUB_OUTPUT"
+          fi
+          exit "$rc"
 
       # Each actions/checkout post step runs git in its checkout's path
       # whenever <path>/.git/config is there, as a node step that holds the
@@ -1942,6 +1969,10 @@ jobs:
       dependency-attempt: ${{ steps.dependency-upload.outcome == 'success' && github.run_attempt || '' }}
       dependency-sha256: ${{ steps.dependency-upload.outcome == 'success' && steps.leak-scan.outputs.verdict-sha256 || '' }}
       dependency-verdict: ${{ steps.dependency-upload.outcome == 'success' && steps.leak-scan.outputs.dependency-verdict || '' }}
+      # The run's collector refused the change: from its patch-collected
+      # output, held to its closed set, so a forged one can only hand the
+      # PR to a person.
+      collect-refused: ${{ steps.decode.outputs.collect-refused == 'true' && 'true' || '' }}
       # Set only by this job's own steps: a refused patch over its cap, or
       # any other refusal; a forged run job output can only add one.
       refused: >-
@@ -2060,7 +2091,7 @@ jobs:
               CONFIG_OUTCOME: OUTCOME,
               ACT_OUTCOME: OUTCOME,
               DIRTY_TREE: ['true', 'false'],
-              PATCH_COLLECTED: ['written', 'empty'],
+              PATCH_COLLECTED: ['written', 'empty', 'refused'],
               KILL_REASON: NAME,
               TRIGGER_REASON: NAME,
               GATE_REASON: NAME,
@@ -2124,6 +2155,7 @@ jobs:
               core.setOutput('replies', present.replies ? 'true' : 'false');
               core.setOutput('dependency-verdict', present['dependency-verdict'] ? 'true' : 'false');
               core.setOutput('patch-state', env.PATCH_COLLECTED === 'empty' ? 'empty' : '');
+              core.setOutput('collect-refused', env.PATCH_COLLECTED === 'refused' ? 'true' : 'false');
             } catch (error) {
               core.setFailed(error instanceof Refused ? error.message : `payload-mismatch: the outputs could not be decoded (${error.name}); nothing is published`);
             }
@@ -2563,6 +2595,45 @@ jobs:
           if-no-files-found: error
           overwrite: false
 
+  # PR mode: the scan job's refusal, as an artifact a job that succeeds
+  # uploads. A failed scan fails the caller's job for this whole workflow, and
+  # no documentation says a failed job's outputs reach a workflow_call
+  # caller, so the reply and verdict jobs download this marker by name
+  # instead (address-feedback.mjs scanRefusal). The scan's own result decides
+  # it (a failed or cancelled scan published nothing); the scan's outputs
+  # only name an oversize patch. It reads nothing from the run job, so head
+  # code can only fail the scan or add a marker, either of which hands the
+  # round to a person. always(), since cancelled() is true once the scan was
+  # cancelled, and !cancelled() would skip that arm.
+  scan-refusal:
+    needs: scan
+    if: >-
+      always() && inputs.issue-number == ''
+      && (needs.scan.result == 'failure' || needs.scan.result == 'cancelled')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Write the scan refusal marker
+        env:
+          REFUSED: ${{ needs.scan.outputs.refused == 'patch' && 'patch' || 'output' }}
+          MARKER: ${{ runner.temp }}/scan-refused/scan-refused-${{ github.run_attempt }}${{ inputs.model-rung == '1' && '-rung-up' || '' }}.txt
+        run: |
+          mkdir -p "$(dirname "$MARKER")"
+          echo "$REFUSED" >"$MARKER"
+
+      # overwrite: false, so a second upload of a name this run already holds
+      # fails; the marker already there still escalates.
+      - name: Upload the scan refusal marker
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: scan-refused-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}${{ inputs.model-rung == '1' && '-rung-up' || '' }}
+          path: ${{ runner.temp }}/scan-refused/
+          retention-days: 1
+          if-no-files-found: error
+          overwrite: false
+
   # Issue mode, reuse: the summary pass, in its own job with a read-only
   # GITHUB_TOKEN. It starts only when the run job's issue-prior step named a
   # reused lane branch, so that job ran no model. Every step is
@@ -2716,7 +2787,7 @@ jobs:
         id: summary-run
         if: steps.isolate.outcome == 'success'
         continue-on-error: true
-        uses: anthropics/claude-code-action@6b6870e649b5ff408753befeaee5fc7989d4e6a9 # v1.0.258
+        uses: anthropics/claude-code-action@ae68417a745a5df4b2124873632bd73a2255e6f6 # v1.0.259
         env:
           # As in the run job's skill step.
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
@@ -2855,10 +2926,10 @@ jobs:
 
       # The commit the check is posted on. The run job's head-sha counts only
       # when it equals the gated head: the caller's head-sha input or the
-      # event's PR head, and the PR head just read only when the caller and
-      # the event name none (a head that moved mid-run was never gated). Any
-      # other value or a mismatched PR number posts failure on the trusted
-      # head, never on the run's SHA. With no trusted head nothing is posted
+      # event's PR head. The PR head just read is never a gated head (it may
+      # have moved mid-run), only a target: with no caller or event head, any
+      # run head posts failure on it. Any other value or a mismatched PR
+      # number posts failure on the trusted head, never on the run's SHA. With no trusted head nothing is posted
       # and the step fails. An empty run head (the run stopped before its
       # trigger gate passed) never posts failure, which babysit would read as
       # a merge blocker: after the broker-check job's refusal, which includes
@@ -2902,8 +2973,6 @@ jobs:
           for sha in "$CALLER_HEAD" "$EVENT_HEAD"; do
             if valid "$sha"; then gated+=("$sha"); fi
           done
-          matches=("${gated[@]}")
-          if [ "${#gated[@]}" -eq 0 ] && valid "$API_HEAD"; then matches=("$API_HEAD"); fi
           targets=("${gated[@]}")
           if valid "$API_HEAD"; then targets+=("$API_HEAD"); fi
           if [ "${#targets[@]}" -eq 0 ]; then
@@ -2912,7 +2981,7 @@ jobs:
             exit 1
           fi
           if [ "$PR_MISMATCH" != true ] && [ -n "$RUN_HEAD" ]; then
-            for sha in "${matches[@]}"; do
+            for sha in "${gated[@]}"; do
               if [ "$RUN_HEAD" = "$sha" ]; then
                 out "$sha" false
                 exit 0

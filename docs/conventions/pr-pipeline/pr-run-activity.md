@@ -65,15 +65,15 @@ permissions, and passes no App key.
 | `expected-upstream-head` | `''` | Write file only: for a job after pr-unblock's model job on a `pr-feedback-dispatch.yml` dispatch, the head the select job read, passed to the gate and the broker (step 3) |
 | `review-run-attempt` | `''` | Write file only: with `review-replies`, the select job's `context-attempt` output, which names its `feedback-context-<attempt>` artifact so a re-run of the reply job alone still finds it |
 | `review-replies-attempt` | `''` | Write file only: with `review-replies`, the read file's `feedback-attempt` output, which names the scanned replies artifact |
-| `review-replies-sha256`, `review-patch-state` | `''` | Write file only: with `review-replies`, the same read call's `feedback-sha256` and `scan-patch-state` outputs, which bind the replies' bytes and decide whether missing replies are a `no-model-turn` skip |
+| `review-replies-sha256`, `review-patch-state` | `''` | Write file only: with `review-replies`, the same read call's `feedback-sha256` and `scan-patch-state` outputs, which bind the replies' bytes and, with the scan refusal marker, decide whether missing replies are a `no-model-turn` skip |
 | `feedback-context-attempt`, `feedback-context-sha256` | `''` | Read file only: for [`prepare: review-threads`](#prepare-review-threads), the attempt naming the select job's `feedback-context-<attempt>` artifact and its thread file's SHA-256 |
 | `patch-threads-attempt`, `patch-threads-sha256`, `patch-fix-requested` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch) under the `review-threads` row, the select job's artifact attempt, its thread file's SHA-256 and its `fix-requested` output |
 | `dependency-context-attempt`, `dependency-context-sha256` | `''` | Read file only: for [`prepare: dependency-review`](#prepare-dependency-review), the attempt naming the select job's `dependency-context-<attempt>` artifact and its context file's SHA-256 |
 | `patch-verdict-attempt`, `patch-verdict-sha256` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch) under the `dependency-review` row, the read file's `dependency-attempt` and `dependency-sha256` outputs, which name the scanned verdict and bind its bytes |
 | `dependency-verdict` | `false` | Write file only: for the verdict script of a [`prepare: dependency-review`](#prepare-dependency-review) round, download the select job's `context.json` and the scanned verdict |
 | `dependency-context-attempt`, `dependency-run-sha256`, `dependency-head-sha` | `''` | Write file only: with `dependency-verdict`, the select job's `context-attempt`, `run-sha256` and `head-sha` outputs |
-| `dependency-run-attempt`, `dependency-verdict-sha256`, `dependency-patch-state`, `dependency-scan-refused` | `''` | Write file only: with `dependency-verdict`, the same read call's `dependency-attempt`, `dependency-sha256`, `scan-patch-state` and `scan-refused` outputs |
-| `fallback` | `''` | Read file only, PR mode: `''` for the caller's first call, on `claude-api-key`; `credit-stop` or `no-key` for its fallback call, on `claude-code-oauth-token` ([Two calls on one credential each](#two-calls-on-one-credential-each)); any other value fails red in step 1 |
+| `dependency-run-attempt`, `dependency-verdict-sha256`, `dependency-patch-state` | `''` | Write file only: with `dependency-verdict`, the same read call's `dependency-attempt`, `dependency-sha256` and `scan-patch-state` outputs |
+| `fallback` | `''` | Read file only, PR mode: `''` for the caller's first call, on `claude-api-key`; `credit-stop`, `no-key` or `handoff` for its fallback call, on `claude-code-oauth-token` ([Two calls on one credential each](#two-calls-on-one-credential-each)); any other value fails red in step 1 |
 | `model-rung` | `''` | Read file only: the model rung the activity's profile runs at, resolve-config's `model-rung` (`1` takes its `escalate-to`) |
 | `patch-model-rung` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), the rung the patch's producer ran at; at `0` (or empty) an empty fix-ci patch may skip `rung-up` |
 | `ci-context-attempt`, `ci-context-sha256` | `''` | Read file only: for [`prepare: ci-context`](#prepare-ci-context), the attempt naming the `ci-context-<attempt>` artifact and its file's SHA-256 |
@@ -95,10 +95,19 @@ and, set by the scan job alone, `feedback-attempt` and `feedback-sha256`, the at
 ([`prepare: review-threads`](#prepare-review-threads)); `dependency-attempt`,
 `dependency-sha256` and `dependency-verdict`, the attempt naming a `prepare: dependency-review`
 skill's scanned verdict, its SHA-256 and its `verdict` field held to the four verdicts
-([`prepare: dependency-review`](#prepare-dependency-review)); `scan-refused`, `patch` when the
-scan job refused the run's payloads for a patch over its cap, `output` for any other refusal;
-and `scan-patch-state`, `scan-patch-sha256`, `scan-patch-attempt` and `scan-reply-attempt`, the
+([`prepare: dependency-review`](#prepare-dependency-review)); `scan-collect-refused`, `true` when
+the run's collector refused the change (step 2 of [Patch output mode](#patch-output-mode)); and
+`scan-patch-state`, `scan-patch-sha256`, `scan-patch-attempt` and `scan-reply-attempt`, the
 patch outputs with no run job fallback, which a caller that takes nothing from a run job reads.
+
+A scan refusal is no output: a failed scan fails the caller's job for the whole read file, and a
+failed job's outputs are not documented to reach a `workflow_call` caller. When the scan job fails
+or is cancelled in PR mode, the `scan-refusal` job, which needs the scan job alone, uploads
+`scan-refused-<lane>-<activity>-<attempt>` holding `patch` when the scan refused a patch over its
+cap and `output` otherwise. In the write file, `review-replies` and `dependency-verdict` download
+every such marker for the model call's activity in the run, and the reply and verdict scripts
+read a marker, or a failed download, as the refusal. A forged marker only hands the round to a
+person.
 
 Secrets are passed by name, never `inherit`: `claude-code-oauth-token` (skill activities, both
 files) and, in the read file, `claude-api-key` (a PR-mode skill's first call), one of the two
@@ -600,7 +609,11 @@ set `applied-by`, and an issue-mode activity must set it. The steps:
    a fixed set of names (`package.json`, `.env` and others) that the gated head does not track. A
    name from that set the head does not track that holds anything other than an empty regular
    file makes the collector exit 3 with no patch written: the collect step fails, nothing is
-   collected and `patch-state` stays empty, and the dirty-tree check counts it as dirty.
+   collected and `patch-state` stays empty, and the dirty-tree check counts it as dirty. The
+   collect step sets `state` `refused` on exit 3 alone; the scan job holds the run's
+   `patch-collected` output to `written`, `empty` or `refused` and sets `scan-collect-refused`
+   `true` on `refused`, so a caller can hand the refused change to a person. A forged `refused`
+   can only do that.
 3. A non-empty patch is uploaded as the artifact `patch-<lane>-<activity>-<run attempt>`, holding
    one file, `patch.diff` (7-day retention): in PR mode by the [scan job](#the-scan-job), after
    its scan, in issue mode by the run job. The run's `patch-state` output is then `written`,
@@ -637,10 +650,18 @@ Read file, PR mode: a skill runs on ci-workflows'
 job. The caller calls the read file twice, each call with one secret, named for its `role`:
 `pr-unblock.yml`'s `fix-ci` passes only `claude-api-key` (`AUTOMATIONS_CLAUDE_API_KEY`), and
 `fix-ci-subscription` passes only `claude-code-oauth-token`
-(`AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN`); its `fix-docs` and `fix-docs-subscription`, and its
-`address-feedback` and `address-feedback-subscription`, do the same. The second runs only when the first's `lane-class` output
-is `credit-stop` or its `credential-present` is `false`, each compared to that fixed string, and
-passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr>`.
+(`AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN`); its `fix-docs`, `address-feedback` and
+`review-dependency` calls and their `-subscription` calls do the same. Both queue in
+`pr-pipeline-write-<pr>`. Each fallback call but fix-docs's starts on no first-call output: a
+handoff job (`fix-ci-handoff`, `fix-ci-rung-up-handoff`, `address-feedback-handoff`,
+`review-dependency-handoff`) with only `actions: read` that checks out nothing reads this run's
+jobs through the Actions API once, and the fallback runs unless the first call's
+`<call> / report` job has a `Post the check run` step that succeeded. A failed read runs the
+fallback too. These fallback calls pass `fallback: handoff`, so the lane record says the key
+posted no check, not why: only the run job, which head code can forge, knows whether it was a
+credit stop or an empty key. `fix-docs-subscription` still runs when `fix-docs`'s `lane-class`
+output is `credit-stop` or its `credential-present` is `false`, each compared to that fixed
+string, and passes `fallback: credit-stop` or `no-key`.
 
 1. Before any head code, the run job fails red unless the `role` is lower-case kebab, the model
    route resolves an alias (`default` resolves to none) and the skill is advisory. While sudo
@@ -888,12 +909,15 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    downloads `run.json` from the select job's artifact (`review-run-attempt`) and `replies.jsonl`
    from the scan job's (`review-replies-attempt`), and copies the base's trusted-actors list.
    `publish-feedback.mjs` then:
-   - with no `replies.jsonl`, which the run job can arrange, records the round and: skips
-     `no-model-turn`, escalating nothing, only when the same call's `review-patch-state` is empty
-     and the PR head is still the one in `run.json` (no model turn: a credit stop on both calls, a
-     broker refusal, the kill switch); escalates `feedback-not-landed` when the head moved; and
-     escalates `feedback-invalid` beside a scanned patch. The dispatcher does not dispatch a skipped
-     head again, since its check run is now completed; the next push and review do;
+   - with no `replies.jsonl`, which the run job can arrange, records the round and: escalates
+     `feedback-invalid` when the same call's scan refused its output (its refusal marker) or
+     named replies it uploaded (`review-replies-attempt` or `review-replies-sha256`) that did not
+     arrive; escalates `feedback-not-landed` when the head moved; escalates `feedback-invalid`
+     beside a scanned patch; and otherwise, with the PR head still the one in `run.json`, skips
+     `no-model-turn`, escalating nothing (no model turn: a credit stop on both calls, a broker
+     refusal, the kill switch). The dispatcher dispatches a head whose newest reply job skipped
+     `no-model-turn` again on its next trigger, a review or `pr-verify` run completing at that
+     head; the round cap bounds those retries;
    - refuses a `replies.jsonl` whose SHA-256 is not the scan job's (`review-replies-sha256`) as
      `feedback-invalid`;
    - validates the whole artifact: `run.json` with the select job's SHA-256
@@ -1024,7 +1048,8 @@ warns of a [classifier gap](README.md#classifier-gaps).
    scans it with the rest, uploads it from its copy as
    `dependency-verdict-<lane>-<activity>-<attempt>`, and sets `dependency-attempt`,
    `dependency-sha256` (of the scanned bytes) and `dependency-verdict` (its `verdict` field when it
-   is one of the four, else empty). A refused payload sets `scan-refused`.
+   is one of the four, else empty). A refused payload, or any other scan failure, leaves the
+   `scan-refusal` job's marker.
 4. `apply-dependency-patch` runs when the leg that answered (the fallback call when it ran, else
    the first) handed on a written patch beside a `fix` verdict, every input from that leg's scan
    job. Before the mint the write file downloads the scanned verdict by `patch-verdict-attempt`,
@@ -1052,7 +1077,9 @@ warns of a [classifier gap](README.md#classifier-gaps).
      `dependency-invalid`. With no verdict, the round still counts: it skips `no-model-turn` only
      when the same call's scan handed on no patch, refused nothing, and the PR head is still the
      select job's; a scan that refused an oversize patch escalates `dependency-fix-not-landed`,
-     and any other case `dependency-invalid`;
+     and any other case `dependency-invalid`. The dispatcher dispatches a head whose newest
+     verdict job skipped `no-model-turn` again on its next run, a limit stop aside; the round cap
+     bounds those retries;
    - re-reads the pull request: a closed one gets nothing, unless it is a `close` this job
      started at the reviewed head (its issue or marker is there), which resumes. `merge`,
      `close` and `escalate` need the reviewed head; a moved head skips `superseded-sha` and the
@@ -1109,7 +1136,7 @@ warns of a [classifier gap](README.md#classifier-gaps).
 ### prepare: ci-context
 
 pr-unblock's `fix-ci` fixes a lanes App or [adopted](README.md#adoption) owner pull request's
-failing checks in four jobs, so no model
+failing checks in separate jobs, so no model
 holds a write token: a base job, a read model job in this mode on the automations role's API key,
 its fallback call on the role's OAuth token after a credit stop or with the key empty
 ([Two calls on one credential each](#two-calls-on-one-credential-each)), and an
@@ -1152,9 +1179,17 @@ A `mutate-branch` script leaf, the `apply-patch` job after `fix-ci`, with no mod
 [`apply-patch.mjs`](../../../.github/scripts/apply-patch/apply-patch.mjs) with the `ci-context` row
 of `patch-rules.json`. The caller passes the outputs of whichever `fix-ci` call ran the activity
 ([Two calls on one credential each](#two-calls-on-one-credential-each)): `patch-state`,
-`patch-sha256`, `patch-attempt`, `head-sha` (as `patch-head-sha`) and `reply-attempt`, each as
-`needs.fix-ci-subscription.outputs.<name> || needs.fix-ci.outputs.<name>`, the activity as
-`patch-activity`, and its prepare mode as `patch-prepare` (`ci-context`).
+`patch-sha256`, `patch-attempt` and `reply-attempt` from that call's scan job (`scan-patch-state`
+and the rest), the fallback call's when it ran and the first's otherwise, never a run job's;
+`fix-ci-context`'s head as `patch-head-sha`; the activity as `patch-activity`; and its prepare
+mode as `patch-prepare` (`ci-context`). The job runs on a `written` or `empty` patch, or on that
+call's `scan-collect-refused`, which reaches `select` with no `patch-state` and so escalates
+`ci-fix-invalid`.
+`fix-ci-unreported`, after every fix-ci call, reads this run's jobs as `fix-ci-handoff` does and,
+when a call's broker-check job allowed the lane and no call's report posted, posts fix-ci
+failure on `fix-ci-context`'s head, so fix-ci-dispatch counts the round toward
+`fix-ci-restarts` whatever the calls reported. As in the report job, a kill switch or a broker
+refusal posts nothing.
 
 1. Before the mint, the write file downloads `patch-<lane>-<patch-activity>-<patch-attempt>`
    and the model job's reply, and runs the script's `select` with no token. A gated head other
@@ -1362,9 +1397,10 @@ outputs are sent), so the report job differs:
   run job `pr-number` that names another PR fails closed.
 - It posts on the run job's `head-sha` only when that equals the gated head: the caller's
   `head-sha` input (pr-unblock passes `fix-ci-context`'s) or the event's PR head. The PR head it
-  reads counts only when neither is set, since a head that moved mid-run was never gated. Any
-  other value or a mismatched PR number posts failure on the trusted head and never on the run's
-  SHA. With no trusted head it posts nothing and fails. A handoff skips the report job; the fallback
+  reads is never a gated head, since a head that moved mid-run was never gated: with neither set,
+  any run head is forged and posts failure on it. Any other value or a mismatched PR number posts
+  failure on the trusted head and never on the run's SHA. The run job itself fails before the
+  head checkout when its trigger gate read a head other than a non-empty `head-sha` input. With no trusted head it posts nothing and fails. A handoff skips the report job; the fallback
   call posts that check.
 - An empty run head (the run stopped before its trigger gate passed) never posts failure, which
   babysit reads as a merge blocker. After the kill switch, which the report job reads from its

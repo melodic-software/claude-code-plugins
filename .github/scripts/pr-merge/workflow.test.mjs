@@ -172,8 +172,8 @@ test("enable-auto-merge asks the broker for its own activity's merge token", () 
 });
 
 // The dispatch POST's retry, run under bash against a stub gh that answers
-// each POST in turn from `answers` ({status, headers, body}, or null for no
-// response at all), a stub sleep that logs its seconds and a stub date. The
+// each POST in turn from `answers` ({status, headers, body}, or {stderr} for
+// no response at all, with gh's error text), a stub sleep that logs its seconds and a stub date. The
 // expected waits come from the owner outage rule (at most three attempts;
 // retry-after, else x-ratelimit-reset for a primary limit, else at least
 // 60 s for a secondary one; otherwise a capped full-jitter backoff) and
@@ -203,13 +203,14 @@ function runDispatch(answers, { jobId = "dispatch-full-run", cap, event = "push"
   mkdirSync(join(dir, "bin"));
   answers.forEach((a, i) => {
     const text =
-      a === null
+      a.status === undefined
         ? ""
         : `HTTP/2.0 ${a.status}\n${Object.entries(a.headers)
             .map(([k, v]) => `${k}: ${v}\r\n`)
             .join("")}\r\n${a.body}`;
     writeFileSync(join(dir, `answer-${i + 1}`), text);
-    writeFileSync(join(dir, `code-${i + 1}`), a !== null && a.status.startsWith("200") ? "0" : "1");
+    writeFileSync(join(dir, `stderr-${i + 1}`), a.stderr ?? "");
+    writeFileSync(join(dir, `code-${i + 1}`), a.status?.startsWith("200") ? "0" : "1");
   });
   writeFileSync(
     join(dir, "bin", "gh"),
@@ -217,6 +218,7 @@ function runDispatch(answers, { jobId = "dispatch-full-run", cap, event = "push"
 n=$(($(cat "${dir}/calls" 2>/dev/null || echo 0) + 1)); echo "$n" >"${dir}/calls"
 printf '%s\\n' "$*" >>"${dir}/log"
 cat "${dir}/answer-$n" 2>/dev/null
+cat "${dir}/stderr-$n" >&2 2>/dev/null
 exit "$(cat "${dir}/code-$n" 2>/dev/null || echo 1)"
 `,
     { mode: 0o755 },
@@ -331,14 +333,55 @@ test("a refusal that is no rate limit, and a 5xx, are sent once", () => {
   }
 });
 
-test("no response at all is sent again after a jittered wait inside its bound", () => {
-  const r = runDispatch([null, null, ok(4246)]);
+// gh's errors for a request that never left (Go net/http wording, as gh
+// prints it): a DNS lookup, a refused connection, a failed TLS handshake.
+const unsent = [
+  'Post "https://api.github.com/repos/o/r/actions/workflows/pr-require-checks.yml/dispatches": dial tcp: lookup api.github.com on 127.0.0.53:53: no such host',
+  'Post "https://api.github.com/repos/o/r/actions/workflows/pr-require-checks.yml/dispatches": dial tcp 140.82.112.6:443: connect: connection refused',
+  'Post "https://api.github.com/repos/o/r/actions/workflows/pr-require-checks.yml/dispatches": remote error: tls: handshake failure',
+].map((stderr) => ({ stderr }));
+
+test("a request that never left is sent again after a jittered wait inside its bound", () => {
+  const r = runDispatch([unsent[0], unsent[1], ok(4246)]);
   assert.equal(r.status, 0, r.out);
   assert.equal(r.posts, 3);
   assert.equal(r.slept.length, 2);
   assert.ok(r.slept[0] >= 1 && r.slept[0] <= 10, `${r.slept[0]}`);
   assert.ok(r.slept[1] >= 1 && r.slept[1] <= 20, `${r.slept[1]}`);
   assert.match(r.output, /^run-id=4246$/m);
+  assert.equal(runDispatch([unsent[2], ok(4247)]).posts, 2);
+});
+
+// A reset or a timeout on an open connection may come after GitHub took the
+// request, so the run may exist: stop as on exhaustion.
+test("no response once the request may have been sent is not sent again", () => {
+  for (const stderr of [
+    'Post "https://api.github.com/repos/o/r/actions/workflows/pr-require-checks.yml/dispatches": read tcp 10.1.0.4:51234->140.82.112.6:443: read: connection reset by peer',
+    'Post "https://api.github.com/repos/o/r/actions/workflows/pr-require-checks.yml/dispatches": context deadline exceeded (Client.Timeout exceeded while awaiting headers)',
+    "",
+  ]) {
+    const r = runDispatch([{ stderr }, ok(1)]);
+    assert.equal(r.status, 0, r.out);
+    assert.equal(r.posts, 1, stderr);
+    assert.deepEqual(r.slept, [], stderr);
+    assert.match(r.out, /::warning::no full CI run started .*the request may have been sent; not sent again/, stderr);
+    assert.doesNotMatch(r.output, /run-id=/);
+  }
+});
+
+// post-merge-dispatch's 15 minutes hold its measured steps, the re-run
+// step's read-back after this one, and at most 180 s of waits here (the yaml
+// comment holds the numbers): a 181 s wait is not taken, two 60 s ones are.
+test("post-merge-dispatch takes at most 180 s of waits", () => {
+  const opts = { jobId: "post-merge-dispatch", event: "schedule" };
+  const over = runDispatch([limited({ "Retry-After": "181" }), ok(1)], opts);
+  assert.equal(over.posts, 1);
+  assert.deepEqual(over.slept, []);
+  assert.match(over.out, /a 181s wait does not fit the 180s this job allows/);
+  const secondary = limited({ "Retry-After": "60" });
+  const within = runDispatch([secondary, secondary, ok(4248)], opts);
+  assert.deepEqual(within.slept, [60, 60]);
+  assert.match(within.output, /^run-id=4248$/m);
 });
 
 test("a dispatch that returns no run id is not sent again and records nothing", () => {
