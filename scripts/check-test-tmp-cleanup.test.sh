@@ -24,6 +24,7 @@ MK="mk"'temp'
 write_clean() { printf 'd=$(%s -d)\ntrap '"'"'rm -rf "$d"'"'"' EXIT\n' "$MK" >"$1"; }
 # shellcheck disable=SC2016  # the fixture body must reach the file unexpanded
 write_offender() { printf 'd=$(%s -d)\nrm -rf "$d"\n' "$MK" >"$1"; }
+write_fixture_user() { printf 'fixture_tree::build f\nln -s /usr/bin/%s f/bin/\n' "$MK" >"$1"; }
 write_comment_only() { printf '# uses %s somewhere else\necho hi\n' "$MK" >"$1"; }
 
 # mk_repo <out-var>: a repo with one clean suite, one comment-only suite, and an
@@ -76,6 +77,9 @@ run_case "clean suites pass" 0 ":"
 run_case "an offender not in the baseline fails and is named" 1 \
   "$(declare -f write_offender); MK=$MK; write_offender plugins/p/bad.test.sh" \
   "plugins/p/bad.test.sh"
+
+run_case "a suite cleaned by fixture_tree::build passes" 0 \
+  "$(declare -f write_fixture_user); MK=$MK; write_fixture_user plugins/p/ft.test.sh"
 
 run_case "a baselined offender passes" 0 \
   "$(declare -f write_offender); MK=$MK; write_offender plugins/p/bad.test.sh; printf 'plugins/p/bad.test.sh  # known\n' >scripts/test-tmp-cleanup-baseline.txt"
