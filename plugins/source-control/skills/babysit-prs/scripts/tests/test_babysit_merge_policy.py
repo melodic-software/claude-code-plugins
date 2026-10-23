@@ -6490,6 +6490,13 @@ class FileContents(unittest.TestCase):
         self.assertIsNone(out[2].contents)
         self.assertEqual(len(calls), 2)
 
+    def test_the_trusted_actor_list_is_read_on_both_sides(self) -> None:
+        # The trust-gate hold compares its base and head entries.
+        path = ".github/standards/trusted-actors/trusted-actors.json"
+        texts = {(path, "b" * 40): "old", (path, "c" * 40): "new"}
+        out, _ = self.read([self.changed(path)], texts)
+        self.assertEqual(out[0].contents, ("old", "new"))
+
     def test_a_rename_reads_the_base_at_its_previous_path(self) -> None:
         moved = self.changed(
             ".github/workflows/a.yml",
