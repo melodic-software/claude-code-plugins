@@ -19,6 +19,7 @@ from typing import Any
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_review_evidence as ev
+import babysit_risk as risk
 
 FIXTURES = pathlib.Path(__file__).resolve().parent / "fixtures" / "review_evidence"
 PROBE = json.loads((FIXTURES / "probe_rerun_after_success.json").read_text())
@@ -1631,6 +1632,50 @@ class SeverityTests(Base):
                 result = self.bind(runs, threads=threads)[self.SEC]
                 self.assertEqual(result.open_findings, 1)
                 self.assertEqual(result.blocking_findings, blocking)
+
+    def test_each_severity_holds_or_is_reported_through_the_score(self) -> None:
+        # Q33: only the lane's top tier (CRITICAL, SKILL.md "Reporting") holds;
+        # a line the gate cannot read, a missing one or a word outside the
+        # lane's vocabulary holds too (fail closed). Every finding appears in
+        # the reasons.
+        for severity, held in (
+            ("SUGGESTION", False),
+            ("IMPORTANT", False),
+            ("CRITICAL", True),
+            (None, True),
+            ("LOW", True),
+            ("MEDIUM", True),
+            ("HIGH", True),
+        ):
+            with self.subTest(severity=severity):
+                runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]
+                lanes = tuple(
+                    self.bind(runs, threads=[thread(self.comment(severity))]).values()
+                )
+                result = risk.score(
+                    risk.RiskInput(
+                        work_class="C2",
+                        rung=risk.Rung.C2,
+                        files=(
+                            risk.ChangedFile(
+                                "plugins/foo/a.md", None, "added", 1, 0, True, "100644"
+                            ),
+                        ),  # fmt: skip
+                        files_complete=True,
+                        max_changed_lines=200,
+                        high_paths=(),
+                        lanes=lanes,
+                        blast_radius=None,
+                    )
+                )
+                codes = [r.code for r in result.reasons]
+                self.assertEqual(risk.holds(result), held, result.reasons)
+                self.assertEqual(
+                    codes,
+                    ["security-finding"]
+                    if held
+                    else ["findings:claude-security-review"],
+                )
 
     def test_two_severity_lines_count_as_critical(self) -> None:
         body = self.comment("IMPORTANT").replace(
