@@ -305,6 +305,8 @@ function postMergeRuns(gh, repo, branch, merges, { lane, throughMs }) {
   const byCreated = (a, b) => a.createdMs - b.createdMs;
   // check()'s _Context.on_branch: a run's head_branch is only a name, which a run on a tag named
   // like the branch carries too, so a run counts only when its commit is on refs/heads/<branch>.
+  // Residual: the tip is read here, before the run listings, where check() reads it after them,
+  // so a run on a commit that lands between the two reads is off the branch here alone.
   const ref = gh(`repos/${repo}/git/ref/heads/${branch.split("/").map(encodeURIComponent).join("/")}`);
   const tip = ref?.object?.sha;
   if (!/^[0-9a-f]{40}$/.test(tip ?? "")) throw new PublishError(`refusing to publish: branch ${branch} has no tip commit`);

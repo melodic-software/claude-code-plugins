@@ -80,6 +80,33 @@ test("a red run on a commit off the branch is not charged, as in _Context.on_bra
   assert.deepEqual(red([]).gateFailures.map((g) => [g.number, g.check]), [[1601, `${FULL} workflow_dispatch`]]);
 });
 
+test("a red run on a commit on top of the tip (compare behind) is not charged", () => {
+  // A tag named main one commit past refs/heads/main: compare <run>...<tip> answers behind.
+  const top = shaOf(0xa0fe);
+  const pulls = () => [pr(1602, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })];
+  const result = run({
+    pulls: pulls(),
+    onTop: [top],
+    workflowRuns: {
+      ...verifiedEach(pulls()),
+      [FULL]: [...verifiedEach(pulls())[FULL], wfRun(8, "workflow_dispatch", top, "2026-09-01T00:30:00Z", { conclusion: "failure", actor: LANE })],
+    },
+  });
+  assert.deepEqual([result.events, result.gateFailures], [[], []]);
+});
+
+test("an unreadable branch tip or run ancestry refuses the publish", () => {
+  const pulls = () => [pr(1603, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })];
+  assert.throws(() => run({ pulls: pulls(), tip: null }), (error) => error instanceof PublishError && /has no tip commit/.test(error.message));
+  const odd = shaOf(0xa0fd);
+  const unknown = {
+    pulls: pulls(),
+    unknownCompare: [odd],
+    workflowRuns: { ...verifiedEach(pulls()), [FULL]: [...verifiedEach(pulls())[FULL], wfRun(9, "schedule", odd, "2026-09-01T00:30:00Z")] },
+  };
+  assert.throws(() => run(unknown), (error) => error instanceof PublishError && /whether that run is on main is unknown/.test(error.message));
+});
+
 test("a run created before the merge is not its evidence", () => {
   // Run 3 on #1303's own SHA predates #1303's merge, so it is evidence for #1309 only.
   const result = run({

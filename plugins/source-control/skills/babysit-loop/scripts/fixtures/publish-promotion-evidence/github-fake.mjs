@@ -89,6 +89,9 @@ export const wfRun = (id, event, sha, created, { conclusion = "success", status 
 // default branch's commits oldest first (linear, as a merge-queue branch is), defaulting to the
 // merge commits in merge order.
 // `offBranch`: commits not on the default branch that descend from it, as on a tag named main.
+// `onTop`: commits on top of the branch tip but not on the branch (a tag named main one commit
+// ahead), which a compare against the tip answers `behind`. `unknownCompare`: commits whose
+// compare answers no status. `tip`: what `refs/heads/main` reads, default the last commit.
 // `diverged`: head SHAs a compare reports as diverged. A PR number not in `pulls` answers with the
 // recorded NOT_FOUND response.
 // The lane posts a pin comment on every PR it enqueues and dispatches a full run after every merge
@@ -126,7 +129,7 @@ export const issueItem = (number, created, { pull = false } = {}) => ({
   created_at: created,
   pull_request: pull ? { url: `https://api.github.com/repos/${REPO}/pulls/${number}` } : null,
 });
-export function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}, issueEvents = {}, reviews = {}, issues = {}, workflowRuns: explicitRuns = {}, attempts = {}, history, diverged = [], comments = {}, noDefaultDispatch = false, bumpOnPage2, deletedRuns = [], demotionIssues = [], issueList = [], goneIssues = [], missingIssues = [], discussions = {}, lateRuns = [], offBranch = [] }) {
+export function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}, issueEvents = {}, reviews = {}, issues = {}, workflowRuns: explicitRuns = {}, attempts = {}, history, diverged = [], comments = {}, noDefaultDispatch = false, bumpOnPage2, deletedRuns = [], demotionIssues = [], issueList = [], goneIssues = [], missingIssues = [], discussions = {}, lateRuns = [], offBranch = [], onTop = [], unknownCompare = [], tip }) {
   const defaultDispatch = noDefaultDispatch ? [] : pulls.map((p) => wfRun(900000 + p.graph.number, "workflow_dispatch", p.graph.mergeCommit.oid, later(p.graph.mergedAt, 60), { actor: LANE }));
   const explicitIds = new Set(Object.values(explicitRuns).flat().map((r) => r.id));
   const numbered = (runs) =>
@@ -228,11 +231,13 @@ export function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}
       return { total_count: Math.min(runs.length, 2500), workflow_runs: runs.slice((n - 1) * size, n * size) };
     }
     if ((m = /^actions\/runs\/(\d+)\/attempts\/(\d+)$/.exec(rest))) return attempts[m[1]][m[2]];
-    if (rest === "git/ref/heads/main") return { ref: "refs/heads/main", object: { sha: branch.at(-1) } };
+    if (rest === "git/ref/heads/main") return { ref: "refs/heads/main", object: { sha: tip === undefined ? branch.at(-1) : tip } };
     if ((m = /^compare\/([0-9a-f]{40})\.\.\.([0-9a-f]{40})\?/.exec(rest))) {
       // An off-branch commit (a tag named main) descends from every branch commit and is
       // diverged from the tip.
-      if (offBranch.includes(m[2])) return { ...REC.compare, status: "ahead", ahead_by: 1, total_commits: 1, commits: [] };
+      if (unknownCompare.includes(m[1]) || unknownCompare.includes(m[2])) return { ...REC.compare, status: undefined };
+      if (onTop.includes(m[1])) return { ...REC.compare, status: "behind", ahead_by: 0, total_commits: 0, commits: [] };
+      if (offBranch.includes(m[2]) || onTop.includes(m[2])) return { ...REC.compare, status: "ahead", ahead_by: 1, total_commits: 1, commits: [] };
       if (offBranch.includes(m[1])) return { ...REC.compare, status: "diverged", ahead_by: 0, total_commits: 0, commits: [] };
       const [base, head] = [branch.indexOf(m[1]), branch.indexOf(m[2])];
       assert.ok(base >= 0 && head >= 0, `compare outside the recorded history: ${rest}`);
