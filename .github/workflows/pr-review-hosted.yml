@@ -23,8 +23,9 @@ name: pr-review-hosted
 # no runner input. The job id `pr-review` keeps the check
 # `pr-review / claude-review-status`.
 #
-# This lane is advisory (github-iac ADR 0011: no organization ruleset may make
-# an agentic review a merge prerequisite).
+# No ruleset requires this check. ci-status, the one required check, needs
+# its success on the head and fails while the hold label is on (github-iac
+# ADR 0017).
 
 on:
   pull_request:
@@ -165,7 +166,7 @@ jobs:
       contents: read
       pull-requests: write   # the review, its inline comments and the lane's
                              # reviewed-head marker comment
-    uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@83b739f625b501ad40c65dee7168d836883195e1 # v0.63.1
+    uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@4edeccd87cf60ef539ce5109b78454217d5f2049 # v0.64.0
     with:
       lane: code
       publish: comments
@@ -187,6 +188,16 @@ jobs:
       # Empty, as pr-review.yml's default was: the code lane reviews every
       # change, documentation included.
       docs-only-paths: ''
+      # A hold adds this label and a `claude-lane-hold` marker comment; ci-status
+      # fails while the label is on. The review holds only for its hold
+      # classes; a changed file matching hold-paths holds as trust-gate
+      # whatever the review says. Keep both lists equal in the two callers.
+      hold-label: needs-human
+      hold-paths: |
+        .github/standards/trusted-actors/**
+        .github/actions/check-trusted-trigger/**
+        **/CODEOWNERS
+        **/.gitmodules
     # The reviews role's key runs first; its subscription token only after the
     # key hands off. Named secrets only, never `secrets: inherit`.
     secrets:

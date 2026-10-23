@@ -145,6 +145,38 @@ test("pr-feedback-dispatch.yml posts verifier notes only for a pr-verify run of 
   }
 });
 
+// Every same-repository PR's completed review re-runs its head's ci-status,
+// whatever the branch: ci-status needs both review lanes on the head.
+test("pr-feedback-dispatch.yml re-runs ci-status for a completed review run of a same-repository PR only", () => {
+  const gate = jobIf("pr-feedback-dispatch.yml", "rerun-ci-status");
+  const repo = "melodic-software/claude-code-plugins";
+  const runs = (overrides = {}) =>
+    evaluate(gate, {
+      "github.ref": "refs/heads/main",
+      "github.repository": repo,
+      "github.event.workflow_run.path": ".github/workflows/pr-review-hosted.yml",
+      "github.event.workflow_run.event": "pull_request",
+      "github.event.workflow_run.conclusion": "success",
+      "github.event.workflow_run.repository.full_name": repo,
+      "github.event.workflow_run.head_repository.full_name": repo,
+      ...overrides,
+    });
+  assert.equal(runs(), true);
+  assert.equal(runs({ "github.event.workflow_run.path": ".github/workflows/pr-review-security-hosted.yml" }), true);
+  for (const conclusion of ["failure", "cancelled", "timed_out"]) {
+    assert.equal(runs({ "github.event.workflow_run.conclusion": conclusion }), true, conclusion);
+  }
+  // A draft's review run is skipped: it reviewed nothing.
+  assert.equal(runs({ "github.event.workflow_run.conclusion": "skipped" }), false);
+  assert.equal(runs({ "github.event.workflow_run.path": ".github/workflows/pr-verify.yml" }), false);
+  assert.equal(runs({ "github.event.workflow_run.event": "workflow_dispatch" }), false);
+  assert.equal(runs({ "github.event.workflow_run.event": "push" }), false);
+  assert.equal(runs({ "github.event.workflow_run.head_repository.full_name": "fork/repo" }), false);
+  assert.equal(runs({ "github.ref": "refs/heads/feat/x" }), false);
+  // Not gated on a lanes App branch: a person's PR needs its ci-status re-run too.
+  assert.doesNotMatch(gate, /head_branch/);
+});
+
 const UNBLOCK = "pr-unblock.yml";
 const JOBS = ["address-feedback-select", "address-feedback-not-run", "address-feedback", "address-feedback-subscription", "apply-feedback-patch", "publish-feedback"];
 

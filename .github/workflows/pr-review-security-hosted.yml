@@ -38,9 +38,10 @@ on:
     # `synchronize`, matching the code-review lane: every push is re-reviewed,
     # including the push that resolves a merge conflict (GitHub runs no
     # pull_request workflow while a PR conflicts with its base), narrowed by
-    # the reusable to the files changed since the last completed review. The check
-    # stays advisory: github-iac ADR 0011 forbids any organization ruleset
-    # from making an agentic review a merge or deployment prerequisite.
+    # the reusable to the files changed since the last completed review. No
+    # ruleset requires the check; ci-status, the one required check, needs its
+    # success on the head and fails while the hold label is on (github-iac
+    # ADR 0017).
     #
     # NO `merge_group:`: the reusable runs only on `pull_request`; see
     # melodic-software/ci-workflows#272 before enabling a merge queue.
@@ -171,7 +172,7 @@ jobs:
       contents: read
       pull-requests: write   # the review, its inline comments and the lane's
                              # reviewed-head marker comment
-    uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@83b739f625b501ad40c65dee7168d836883195e1 # v0.63.1
+    uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@4edeccd87cf60ef539ce5109b78454217d5f2049 # v0.64.0
     with:
       lane: security
       publish: comments
@@ -189,6 +190,16 @@ jobs:
         docs/**/*.md
         **/README.md
         **/CHANGELOG.md
+      # A hold adds this label and a `claude-lane-hold` marker comment; ci-status
+      # fails while the label is on. The review holds only for its hold
+      # classes; a changed file matching hold-paths holds as trust-gate
+      # whatever the review says. Keep both lists equal in the two callers.
+      hold-label: needs-human
+      hold-paths: |
+        .github/standards/trusted-actors/**
+        .github/actions/check-trusted-trigger/**
+        **/CODEOWNERS
+        **/.gitmodules
     # The reviews role's key runs first; its subscription token only after the
     # key hands off. Named secrets only, never `secrets: inherit`.
     secrets:

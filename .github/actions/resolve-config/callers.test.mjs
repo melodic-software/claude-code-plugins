@@ -505,7 +505,9 @@ test("pr-unblock.yml: fix-ci is reported neutral when fix-ci-context skips, and 
                     conclusion: calls[0].conclusion.toUpperCase(),
                     title: calls[0].output.title,
                   },
-                ].map((run) => ({ __typename: "CheckRun", checkSuite: { app: { databaseId: 15368 } }, ...run })),
+                ]
+                  .map((run) => ({ __typename: "CheckRun", checkSuite: { app: { databaseId: 15368 } }, ...run }))
+                  .concat({ __typename: "StatusContext", context: "ci-lanes", state: "FAILURE", creator: { login: "github-actions[bot]" } }),
                 pageInfo: { hasNextPage: false },
               },
             },
@@ -3141,7 +3143,9 @@ test("report job: fix-ci-dispatch reads the neutral not-assessed post as the hea
             oid: head,
             statusCheckRollup: {
               contexts: {
-                nodes: [{ name: "ci-status", status: "COMPLETED", conclusion: "FAILURE" }, ...runs].map((run) => ({ __typename: "CheckRun", checkSuite: { app: { databaseId: 15368 } }, ...run })),
+                nodes: [{ name: "ci-status", status: "COMPLETED", conclusion: "FAILURE" }, ...runs]
+                  .map((run) => ({ __typename: "CheckRun", checkSuite: { app: { databaseId: 15368 } }, ...run }))
+                  .concat({ __typename: "StatusContext", context: "ci-lanes", state: "FAILURE", creator: { login: "github-actions[bot]" } }),
                 pageInfo: { hasNextPage: false },
               },
             },

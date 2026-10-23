@@ -551,7 +551,7 @@ test("main records a review-dependency dispatch beside the conflict dispatches",
   assert.equal(output, "run-ids=9130 9131\n");
 });
 
-// A lanes App PR whose head's ci-status failed, as fix-ci-dispatch.mjs lists it.
+// A lanes App PR whose head's lanes failed, as fix-ci-dispatch.mjs lists it.
 const ciFixPull = (number) => {
   const head = String(number).padStart(40, "c");
   return {
@@ -569,7 +569,10 @@ const ciFixPull = (number) => {
             oid: head,
             statusCheckRollup: {
               contexts: {
-                nodes: [{ __typename: "CheckRun", name: "ci-status", status: "COMPLETED", conclusion: "FAILURE", checkSuite: { app: { databaseId: 15368 } } }],
+                nodes: [
+                  { __typename: "CheckRun", name: "ci-status", status: "COMPLETED", conclusion: "FAILURE", checkSuite: { app: { databaseId: 15368 } } },
+                  { __typename: "StatusContext", context: "ci-lanes", state: "FAILURE", creator: { login: "github-actions[bot]" } },
+                ],
               },
             },
           },

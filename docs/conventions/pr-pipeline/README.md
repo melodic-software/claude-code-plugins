@@ -11,6 +11,7 @@
 - [Concurrency](#concurrency)
 - [Outputs and skips](#outputs-and-skips)
 - [Merge authority](#merge-authority)
+- [Review-lane holds](#review-lane-holds)
 - [Trust-root paths](#trust-root-paths)
 - [The lane sweep](#the-lane-sweep)
 - [The monitoring lane](#the-monitoring-lane)
@@ -262,7 +263,9 @@ GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, li
 same-repository ones into `main` that the lanes App opened (by bot id), or that a trusted actor
 opened ([`adoption`](#adoption); a person's once idle), with no `do-not-merge`, `needs-human` or tracker
 human-gated label,
-whose head's `ci-status` check run from the GitHub Actions app ended `failure`. It dispatches those whose head has no `pr-unblock / fix-ci` run yet (an
+whose head's `ci-lanes` commit status from `github-actions[bot]` is `failure` or `error`: the lanes'
+verdict ci-status records, not ci-status itself, which also fails on a hold, a pending review or the
+PR contract, none of which a CI fix mends. It dispatches those whose head has no `pr-unblock / fix-ci` run yet (an
 untrusted-trigger skip aside), or only failed ones, at most `limits.fix-ci-restarts` of them,
 and no `fix-ci` run for the PR still queued or going, at most `limits.fix-ci-per-run` per run,
 lowest number first. Their run ids join the dispatched-runs record. The dispatcher job's
@@ -1360,6 +1363,46 @@ and the base's rules are reused for two minutes, and a failed read is never shar
 enqueue, a default branch or rules a gate took from the file are read again for the branch read,
 and any change holds. An attended gate run reads both fresh. Without the variable nothing is shared.
 
+## Review-lane holds
+
+Both review callers (`pr-review-hosted.yml`, `pr-review-security-hosted.yml`) pass
+`hold-label: needs-human` and the same `hold-paths` to ci-workflows' `pr-review-cli.yml`. Their
+status job adds the label and a `<!-- claude-lane-hold lane=<lane> sha=<head> criteria=<list> -->`
+comment when the review returns a hold, or when a changed file (or a renamed file's old path)
+matches a hold path, which holds as `trust-gate` whatever the review says:
+
+- `.github/standards/trusted-actors/**`
+- `.github/actions/check-trusted-trigger/**`
+- `**/CODEOWNERS`
+- `**/.gitmodules`
+
+No ruleset requires a review check (github-iac ADR 0017); ci-status, the one required check, enforces
+them on every `pull_request` run, contract-only runs included:
+
+- **The label holds.** ci-status fails while the PR carries the human-gated label (`needs-human`
+  unless the base's `.work-item-tracker.json` names another). Removing it approves.
+- **Only a trusted person lifts a review-lane hold.** Once a review lane has posted a hold comment,
+  the first removal of the label after the newest hold comment must be by a `human` of the base's
+  trusted-actor list; a later removal is of a later label, such as an escalation
+  `clear-escalations` lifts. A bot's or anyone else's lift, or none recorded, fails; add the label
+  back and have a trusted person remove it.
+- **Both lanes review the head.** On a ready PR, the newest `pull_request` run of each caller on the
+  head must have a successful status job (`pr-review / claude-review-status`,
+  `pr-review-security / security-review`) whose `Apply the hold` step ran. A summary-mode run or
+  one with no hold label does not count. A pending, failed, cancelled or skipped review fails with
+  the cause named. A lane the kill switch stopped passes (no merge freeze), but a kill-switch job
+  that failed does not. A review skips a fork and a bot outside the caller's
+  `allowed-bot-sender-ids`, so their PRs stay red until a person on the trusted-actor list pushes a
+  commit to the head. Dependabot and the release App are exempt by numeric author id; a draft is
+  exempt.
+
+A review usually finishes after ci-status has read it, so `pr-feedback-dispatch.yml`'s
+`rerun-ci-status` job re-runs the ci-status job of the newest `pr-require-checks` run on the head
+whenever either review caller completes (not when GitHub skipped it) on an open same-repository PR
+still at that head. A ci-status not started yet is left to read the reviews itself; one in progress
+is polled every 60 seconds for at most 10 minutes first. The merge-group run re-checks the labels.
+`fix-ci` keys on `ci-lanes`, so a hold or a pending review never summons it.
+
 ## Trust-root paths
 
 A lane's token grant and the rules it is judged by come from these default-branch paths, so a
@@ -1827,7 +1870,7 @@ check, the security-review lane's findings and every other gate still apply. Dep
 its own tier in pr-merge ([Dependabot pull requests](#dependabot-pull-requests)), and is never
 dispatched `fix-ci`.
 
-An adopted PR whose `ci-status` failed is dispatched `fix-ci` like a lanes App PR, under the same
+An adopted PR whose lanes failed (`ci-lanes`) is dispatched `fix-ci` like a lanes App PR, under the same
 `limits.fix-ci-per-run`, `limits.fix-ci-restarts` and `loop.fix-ci-rounds`. The run still needs
 the author on the trusted-actor list, as every pr-unblock run does. A pushed fix commit updates the
 PR and its head, so the next fix waits another `idle-hours`: a person's PR gets at most one fix
