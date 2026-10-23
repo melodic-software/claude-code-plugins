@@ -177,8 +177,20 @@ test("enable-auto-merge asks the broker for its own activity's merge token", () 
   const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(arm)[1];
   assert.deepEqual(
     [...block.matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => `${m[1]}: ${m[2]}`),
-    ["contents: read", "id-token: write"],
+    ["contents: read", "actions: read", "id-token: write"],
   );
+  // The verifier evidence is read as the gate reads it: the job's
+  // GITHUB_TOKEN for the Actions reads, with the run's head-ref map and
+  // carried run cache.
+  for (const line of [
+    "BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}",
+    "BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json",
+    "BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json",
+  ]) {
+    assert.ok(arm.includes(`\n          ${line}\n`), line);
+  }
+  assert.match(arm, /node \.base\/\.github\/scripts\/pr-merge\/head-ref-map\.mjs read\n/);
+  assert.match(arm, /MAX_VERIFY_FAILS=\$\(yq '\.merge\."max-verify-fails" \/\/ ""' "\$config"\)\n/);
 });
 
 // The dispatch POST's retry, run under bash against a stub gh that answers
