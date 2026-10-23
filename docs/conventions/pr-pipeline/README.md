@@ -1660,10 +1660,13 @@ the pipeline. A role's secrets are `<ROLE>_CLAUDE_API_KEY` and
 `<ROLE>_CLAUDE_CODE_OAUTH_TOKEN`, the role upper-snake, so `issue-lane` gives `ISSUE_LANE_`.
 
 [`.github/lane-funding.json`](../../../.github/lane-funding.json) is the source of truth: each
-role's secrets, whether it is keyed, and each lane's workflow, job, launcher, and the secrets its
-job reads today, which can still be another role's or the bare `CLAUDE_CODE_OAUTH_TOKEN` until
-its wiring moves. `callers.test.mjs` in `.github/actions/resolve-config/` fails when a job that
-reads a Claude secret is missing from the catalog, or reads secrets other than those listed.
+role's secrets, whether it is keyed, and each lane's workflow, job, launcher, triggers, gate, and
+the secrets its job reads today, which can still be another role's or the bare
+`CLAUDE_CODE_OAUTH_TOKEN` until its wiring moves. `callers.test.mjs` in
+`.github/actions/resolve-config/` fails when a job that reads a Claude secret is missing from the
+catalog, or reads secrets other than those listed, and when a job that holds one under
+`pull_request_target`, `issues` or `workflow_run` shows no author gate (check-trusted-trigger in a
+job it needs, or the intake reusable's `allowed-author-ids`) or same-repo gate.
 
 Only a lane on ci-workflows' `run-claude-cli` action gets an API key, so only a role with such a
 lane is keyed; claude-code-action runs take the OAuth token alone, since they are not paid from
