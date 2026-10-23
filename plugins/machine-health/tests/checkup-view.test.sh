@@ -123,6 +123,11 @@ const expectedRows = {
 const { data, rows } = toCheckupData(latest, ["restart-stopped-service", "clear-temp-files"], "health-x.md");
 check("areas sort worst first", data.areas.map((a) => a.title).join(",") === "disk-space,browser-extensions,services,defender-exclusions,<bad id>", data.areas.map((a) => a.title));
 check("the run row names the report it was given", data.run[0].report === "health-x.md", data.run[0].report);
+check("a run without discovery_path has no notes", !Object.hasOwn(data.run[0], "notes"), JSON.stringify(data.run[0]));
+for (const [name, path] of [["a Windows path", "D:\\Reports\\reports\\discovery-2026-10-21T120000000Z.md"], ["a forward-slash path", "D:/Reports/reports/discovery-2026-10-21T120000000Z.md"]]) {
+  const scheduled = toCheckupData({ ...latest, discovery_path: path }, [], "health-x.md").data.run[0];
+  check(`the notes name the discovery file alone, from ${name}`, scheduled.notes === "discovery-2026-10-21T120000000Z.md", scheduled.notes);
+}
 check("an item whose key is not a FindingKey says it cannot be muted", data.areas[1].items[3].detail === "cannot be muted", data.areas[1].items[3].detail);
 check("an exclusion item shows the withheld placeholder and no value",
   data.areas[3].items[0].title === "(exclusion value withheld) path" && !JSON.stringify(data.areas[3]).includes(canary), JSON.stringify(data.areas[3]));
@@ -138,7 +143,8 @@ check("latest.json with no checks array is refused", threw);
 const latestPath = `${work}/latest.json`;
 const views = `${work}/views`;
 mkdirSync(views);
-writeFileSync(latestPath, `﻿${JSON.stringify(latest)}`);
+const notesFile = `discovery-${stamp}.md`;
+writeFileSync(latestPath, `﻿${JSON.stringify({ ...latest, discovery_path: `D:\\Reports\\reports\\${notesFile}` })}`);
 const args = ["--latest", latestPath, "--views-dir", views, "--run-stamp", stamp, "--remediations", "restart-stopped-service,clear-temp-files", "--report", "decision-report.md"];
 const run = spawnSync("node", [builder, ...args], { encoding: "utf8", timeout: 60000 });
 check("a page builds", run.status === 0, run.stderr);
@@ -234,6 +240,8 @@ check("browser: runtime row ids equal the builder's id map rows",
 check("browser: no hostile script or handler ran", (await evaluate("document.title + String(globalThis.pwned)")) === "Machine health checkupundefined");
 check("browser: no remediation row carries an empty line",
   (await evaluate("[...document.querySelectorAll('[data-rv-each=\"remediations\"] > li')].every((li) => li.textContent.trim() !== '' && [...li.querySelectorAll('p, span, strong')].every((e) => e.textContent.trim() !== ''))")) === true);
+check("browser: the header shows the research notes file name",
+  (await evaluate("document.querySelector('header [data-rv-text=\"notes\"]').textContent")) === notesFile);
 check("browser: hostile markup stays text", (await evaluate("document.querySelectorAll('main img, main svg, main b').length")) === 0 &&
   (await evaluate("document.body.textContent.includes('<img src=x')")));
 

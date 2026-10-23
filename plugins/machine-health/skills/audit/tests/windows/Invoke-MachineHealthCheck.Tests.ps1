@@ -322,6 +322,41 @@ Describe 'Invoke-MachineHealthCheck run artifacts in latest.json' -Tag 'orchestr
     It 'records how many checks cadence deferred' {
         $script:Snapshot['cadence_deferred_count'].GetValue[int]() | Should -Be 2
     }
+
+    It 'carries no scheduled-run field and its report names no research notes file without -Scheduled' {
+        $script:Snapshot.AsObject().ContainsKey('new_finding_keys') | Should -BeFalse
+        $script:Snapshot.AsObject().ContainsKey('discovery_path') | Should -BeFalse
+        Get-ChildItem -LiteralPath (Join-Path $script:outputBase 'reports') -File | Get-Content -Raw | Should -Not -Match 'discovery-'
+    }
+}
+
+Describe 'Invoke-MachineHealthCheck -Scheduled' -Tag 'orchestrator' {
+    BeforeAll {
+        $script:root = New-MachineHealthTempDir -Prefix 'machine-health-orch-scheduled'
+        $script:stateBase = Initialize-QuietStateBase (Join-Path $script:root 'state-base')
+        $script:outputBase = Join-Path $script:root 'output'
+        $run = Invoke-OrchestratorProcess -OutputBase $script:outputBase -StateBase $script:stateBase -Extra @('-DryRun', '-Scheduled')
+        $script:ExitCode = $run.ExitCode
+        $script:Snapshot = [System.Text.Json.Nodes.JsonNode]::Parse((Get-Content -Raw -LiteralPath (Join-Path $script:stateBase 'state\latest.json')))
+    }
+
+    AfterAll {
+        Remove-MachineHealthTempDir -Path $script:root
+    }
+
+    It 'writes an empty new_finding_keys array on a run with no previous latest.json' {
+        $script:ExitCode | Should -Be 0
+        $script:Snapshot['new_finding_keys'].ToJsonString() | Should -Be '[]'
+    }
+
+    It 'names the research notes file beside the report, by the run stamp, in latest.json and the report' {
+        $stamp = $script:Snapshot['run_stamp'].GetValue[string]()
+        $expected = Join-Path $script:outputBase "reports\discovery-$stamp.md"
+        $script:Snapshot['discovery_path'].GetValue[string]() | Should -BeExactly $expected
+        $report = Get-Content -Raw -LiteralPath ($script:Snapshot['report_path'].GetValue[string]())
+        $report | Should -Match ([regex]::Escape("``$expected``"))
+        $report.IndexOf('## Newly discovered checks') | Should -BeLessThan $report.IndexOf("discovery-$stamp.md")
+    }
 }
 
 Describe 'Invoke-MachineHealthCheck with a checked TODO.md and no approvals.json' -Tag 'orchestrator' {
