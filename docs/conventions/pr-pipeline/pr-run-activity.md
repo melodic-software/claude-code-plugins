@@ -790,8 +790,10 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    does (a draft or `do-not-merge` skips it), and runs `address-feedback.mjs select` with its
    `GITHUB_TOKEN`. It keeps each unresolved thread whose first comment's review
    the reviewer bot (`claude[bot]` in the base's trusted-actors list, by id) submitted on a head
-   that a `claude-lane-reviewed-head` marker from `github-actions[bot]` names, when every
-   comment is the reviewer bot's; or the lanes App never commented and one comment is a fix
+   that a `claude-lane-reviewed-head` marker from `github-actions[bot]` names, or
+   `github-actions[bot]` submitted there for a verifier note (a first comment by it whose first
+   line is `<!-- pr-verify:fail-note -->`, author `verifier`), when every comment is the reviewer
+   bot's but that note; or the lanes App never commented and one comment is a fix
    request (a line starting `PR-fix lane: please fix this finding`, any case, outside a fenced
    block) by a `human` on that list whose permission on the repository reads `write` or `admin`
    (`GET /repos/{owner}/{repo}/collaborators/{username}/permission`), whose review may be on any

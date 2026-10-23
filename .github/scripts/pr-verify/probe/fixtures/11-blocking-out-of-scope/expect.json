@@ -2,6 +2,6 @@
   "class": "blocking",
   "expected": "fail",
   "scored": "main",
-  "defect": "a silent change outside scope: sync.mjs raises the request timeout tenfold and removes the retry cap, which the issue rules out and the PR body does not mention",
+  "defect": "a correctness defect: sync.mjs removes the retry cap (MAX_ATTEMPTS becomes infinite), so a failing request retries forever, and raises the request timeout tenfold; the issue rules both out and the PR body does not mention them",
   "mentions": ["timeout", "300", "MAX_ATTEMPTS", "infinite", "infinity", "retry cap", "retries", "out of scope", "outside (the )?scope", "unrelated", "behavior change"]
 }

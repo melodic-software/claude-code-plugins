@@ -1,0 +1,7 @@
+{
+  "class": "non-blocking",
+  "expected": "pass-notes",
+  "scored": "main",
+  "defect": "non-blocking: besides the asked-for clean help line, the diff rewords the status help line, which the issue puts out of scope; it is correct and safe, so it is a note, not a fail",
+  "mentions": ["status", "out of scope", "outside (the )?scope", "not asked", "unrelated"]
+}

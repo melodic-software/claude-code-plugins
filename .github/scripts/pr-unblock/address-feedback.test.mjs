@@ -392,6 +392,39 @@ test("a comment whose review another account submitted is dropped", async () => 
   assert.equal(result.decision, "skip");
 });
 
+// verify-notes.mjs posts a pr-verify FAIL's notes as github-actions[bot]
+// review comments whose first line is the verifier note marker.
+const VERIFY_NOTE = "<!-- pr-verify:fail-note -->\nThe pr-verify verifier failed head.";
+const verifierNote = (extra = {}) =>
+  fakeApi({
+    reviewComments: [comment(100, ACTIONS_BOT, { body: VERIFY_NOTE }), ...(extra.replies ?? [])],
+    threads: [thread("PRRT_1", [100, ...(extra.replies ?? []).map((row) => row.id)])],
+    reviews: [{ id: 10, user: { id: extra.reviewer ?? ACTIONS_BOT }, commit_id: HEAD }],
+  });
+
+test("a verifier note on a marker-confirmed head is kept as the verifier's finding", async () => {
+  const result = await run(verifierNote());
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.threads[0].comments, [{ id: 100, author: "verifier", body: VERIFY_NOTE }]);
+});
+
+test("a github-actions[bot] thread without the note marker, or in another account's review, is not kept", async () => {
+  const unmarked = fakeApi({
+    reviewComments: [comment(100, ACTIONS_BOT)],
+    reviews: [{ id: 10, user: { id: ACTIONS_BOT }, commit_id: HEAD }],
+  });
+  assert.equal((await run(unmarked)).decision, "skip");
+  assert.equal((await run(verifierNote({ reviewer: REVIEWER }))).decision, "skip");
+  // The marker from any other author opens nothing.
+  const forged = fakeApi({ reviewComments: [comment(100, HUMAN, { body: VERIFY_NOTE })] });
+  assert.equal((await run(forged)).decision, "skip");
+});
+
+test("a later github-actions[bot] comment on a verifier note is no finding", async () => {
+  const result = await run(verifierNote({ replies: [comment(101, ACTIONS_BOT, { body: VERIFY_NOTE })] }));
+  assert.equal(result.decision, "skip");
+});
+
 test("a thread longer than one comment page is left alone", async () => {
   const big = thread("PRRT_1", [100]);
   big.comments.totalCount = 101;
