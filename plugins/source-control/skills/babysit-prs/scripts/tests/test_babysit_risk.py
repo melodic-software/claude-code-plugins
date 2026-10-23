@@ -14,9 +14,7 @@ import functools
 import pathlib
 import subprocess
 import sys
-import time
 import unittest
-from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
@@ -475,8 +473,43 @@ class EvidenceAndPluginTests(unittest.TestCase):
         self.assertEqual(_codes(result), ("class-contradicted",))
 
 
-class GlobTimingTests(unittest.TestCase):
-    """Spec: each configured glob is judged in under 0.5s, however many stars."""
+class _OverBudget(AssertionError):
+    pass
+
+
+def _glob_work(pattern, path):
+    """Lines of babysit_risk.py that glob_match(pattern, path) runs. Spec
+    (glob_match, _segment_match): the work is bounded by len(pattern) x
+    len(path), so a budget of 4 lines per character pair, about 7x the most
+    any case here runs, fails a super-linear matcher. Counted, never timed, so
+    runner load cannot fail it; past the budget the trace raises, so a
+    regression fails at once instead of running for minutes."""
+    budget = 4 * (len(pattern) + 1) * (len(path) + 1)
+    count = 0
+
+    def local(frame, event, arg):
+        nonlocal count
+        if event == "line":
+            count += 1
+            if count > budget:
+                raise _OverBudget(f"glob_match ran past {budget} lines")
+        return local
+
+    def calls(frame, event, arg):
+        return local if frame.f_code.co_filename == babysit_risk.__file__ else None
+
+    previous = sys.gettrace()
+    sys.settrace(calls)
+    try:
+        matched = babysit_risk.glob_match(pattern, path)
+    finally:
+        sys.settrace(previous)
+    return matched, count
+
+
+class GlobWorkTests(unittest.TestCase):
+    """Spec: each configured glob is judged with work bounded by the pattern
+    and path lengths, however many stars."""
 
     CASES = (
         ("**/" * 9 + "z", "/".join(["a"] * 30) + "/b.md"),
@@ -484,41 +517,32 @@ class GlobTimingTests(unittest.TestCase):
         ("plugins/foo/" + "*a" * 20 + "z", "plugins/foo/" + "a" * 60 + ".md"),
     )
 
-    def test_star_heavy_globs_finish_fast(self):
+    def assertBoundedWork(self, pattern, path):
+        matched, count = _glob_work(pattern, path)
+        # A count of zero means the trace no longer sees the matcher.
+        self.assertGreater(count, 0)
+        return matched
+
+    def test_star_heavy_globs_do_bounded_work(self):
         for glob, path in self.CASES:
             with self.subTest(glob):
-                start = time.perf_counter()
+                self.assertFalse(self.assertBoundedWork(glob, path))
                 result = score(_input(files=(_file(path),), high_paths=(glob,)))
-                self.assertLess(time.perf_counter() - start, 0.5)
                 self.assertEqual(result.score, Risk.LOW)
 
-    def test_star_runs_inside_a_segment_fail_closed_fast(self):
+    def test_star_runs_inside_a_segment_fail_closed_with_bounded_work(self):
         # Spec: '**' inside a segment is not a whole '**' segment: unreadable.
         for stars in (10, 20):
             glob = "plugins/foo/" + "*" * stars + "z"
+            path = "plugins/foo/" + "a" * 40 + ".md"
             with self.subTest(glob):
-                start = time.perf_counter()
-                result = score(
-                    _input(
-                        files=(_file("plugins/foo/" + "a" * 40 + ".md"),),
-                        high_paths=(glob,),
-                    )
-                )
-                self.assertLess(time.perf_counter() - start, 0.5)
+                self.assertBoundedWork(glob, path)
+                result = score(_input(files=(_file(path),), high_paths=(glob,)))
                 self.assertEqual(_codes(result), ("high-path:**",))
 
-    def test_double_star_over_a_very_deep_path_does_linear_work(self):
-        # Spec (glob_match): cost is O(glob segments x path segments). Counted
-        # in segment matches, not seconds, so runner load cannot fail it: the
-        # two plain segments, a and b, are each matched once per path segment
-        # at most.
+    def test_double_star_over_a_very_deep_path_does_bounded_work(self):
         path = "/".join(["a"] * 20_000) + "/x.md"
-        segments = path.count("/") + 1
-        with mock.patch.object(
-            babysit_risk, "_segment_match", wraps=babysit_risk._segment_match
-        ) as matched:
-            self.assertFalse(babysit_risk.glob_match("**/a/**/b", path))
-        self.assertLessEqual(matched.call_count, 2 * segments)
+        self.assertFalse(self.assertBoundedWork("**/a/**/b", path))
         result = score(_input(files=(_file(path),), high_paths=("**/a/**/b",)))
         self.assertEqual(result.score, Risk.LOW)
 
