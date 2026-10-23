@@ -86,10 +86,7 @@ const DEFAULT_RUN = {
   "max-turns": 75,
 };
 
-for (const [lane, activity] of [
-  ["pr-unblock", "resolve-conflicts"],
-  ["pr-unblock", "review-dependency"],
-]) {
+for (const [lane, activity] of [["pr-unblock", "resolve-conflicts"]]) {
   test(`live config: ${lane} / ${activity} keeps no --model and 75 turns`, () => {
     const slot = liveSlot(lane, activity);
     assert.deepEqual(slot.models, { profile: "standard", ...DEFAULT_RUN });
@@ -431,6 +428,14 @@ for (const rung of [2, -1, "1", 0.5]) {
 
 test("live config: a script activity resolves no models", () => {
   assert.equal(liveSlot("pr-unblock", "report-escalation").models, null);
+});
+
+// run-claude-cli needs a model alias (the read runner refuses `default`), so
+// review-dependency routes to verify-pr's profile (plan Q3).
+test("live config: pr-unblock / review-dependency runs opus at 60 turns, the review profile", () => {
+  const slot = liveSlot("pr-unblock", "review-dependency");
+  assert.deepEqual(slot.models, { profile: "review", model: "opus", effort: null, "subagent-model": "inherit", "max-turns": 60 });
+  assert.equal(modelArgs(slot.models), "--model opus --max-turns 60");
 });
 
 test("live config: verify-pr keeps --model opus and 60 turns", () => {

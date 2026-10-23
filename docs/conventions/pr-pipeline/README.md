@@ -217,10 +217,14 @@ dispatches it lists open, non-draft, same-repository Dependabot PRs into `main`,
 at most 2 `review`-tier PRs per run whose head has no `pr-unblock / review-dependency` check run
 from the GitHub Actions app (the untrusted-trigger skip aside). Their run ids join the same
 dispatched-runs record. It has no schedule: the broker accepts a dispatcher run started only by a
-push or a listed human, so a push to `main` or a hand run wakes it. In `pr-unblock.yml`,
-`review-dependency` (the model job, `mutate-branch`) is followed by `apply-dependency-verdict` (a
-script job with no model, `publish-artifact`), which acts on the verdict the model job recorded
-and never merges; the pr-merge lane merges on its `verdict=merge` marker at the current head
+push or a listed human, so a push to `main` or a hand run wakes it. In `pr-unblock.yml`, no
+model holds a write token: `review-dependency-select` (base code only, read-only token) selects
+the pull request or posts its check neutral; `review-dependency` (a `read` skill in
+[patch output mode](pr-run-activity.md#patch-output-mode), on run-claude-cli with the
+subscription fallback) returns its verdict as structured output and leaves a fix as a patch;
+`apply-dependency-patch` (a script, `mutate-branch`) pushes that patch only on a scanned `fix`
+verdict; and `apply-dependency-verdict` (a script, `publish-artifact`) acts on the verdict and
+never merges; the pr-merge lane merges on its `verdict=merge` marker at the current head
 ([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review);
 [ADR 0074](../../adr/0074-review-risky-dependabot-updates-in-a-model-job-and-act-in-a-scripted-job.md)).
 
@@ -490,20 +494,21 @@ trusted base: one row per prepare mode a patch-producing skill uses (`ci-context
 `review-threads`, `dependency-review`, `merge-base`), `default` for one with no prepare mode, and
 `issue` for a patch that goes to a new issue-lane branch made at the run's base or resume tip.
 [`apply-patch.mjs`](../../../.github/scripts/apply-patch/apply-patch.mjs) reads it for fix-ci's,
-fix-docs's, address-feedback's and resolve-issue's patches ([`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)).
+fix-docs's, address-feedback's, review-dependency's and resolve-issue's patches ([`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)).
 [`patch-rules.schema.json`](../../../.github/actions/resolve-config/patch-rules.schema.json) closes
 each row to these keys:
 
 | Key | Holds |
 |---|---|
 | `refuse` | Named refusals; any match refuses the whole patch. |
-| `allow` | What every other changed path must also meet: `any`, `kept-threads` (a path in the scope of a thread the select job kept, its `named_paths` included, read from that job's thread file) or `merge-result` (the blob the base merge leaves there, or a conflicted path left with no conflict markers). |
+| `allow` | What every other changed path must also meet: `any`, `kept-threads` (a path in the scope of a thread the select job kept, its `named_paths` included, read from that job's thread file), `dependency-manifests` (an npm or pip manifest or lock file outside `.github/` in a directory the base `.github/dependabot.yml` lists for its ecosystem) or `merge-result` (the blob the base merge leaves there, or a conflicted path left with no conflict markers). |
 | `max-files` | The most paths one patch may change, or `null`. |
-| `requires` | What the producer's output must say before anything applies: `dependency-verdict: fix`. |
+| `requires` | What the producer's output must say before anything applies: `dependency-verdict: fix`, the scanned verdict's field. |
+| `content-rule` | Optional; what each changed file's bytes must also meet, on the local blobs before any commit is built, escalating as `protected-path`: `dependency-version-change` (`dependency-review`: modified in place, a regular file, changed only by a version, `fixRefusal` in `dependency-classify.mjs`). |
 | `commit` | `parents` (`[head]`, or `[head, base]` for a merge), `message` and `trailer`, with `{ref}`, `{base}`, `{lane}`, `{activity}` and `{issue}` filled in. |
 | `reads-report` | The producer report the apply reads (`ci-escalations`: the checks the model escalated), or `null`. |
 | `empty-at-push` | Optional; the kind a patch that applies but changes nothing escalates at push time: `empty` (the default) or `invalid` (`ci-context`, as the producer said it wrote a change). |
-| `skip-moved-head` | Optional, default `false`; `true` (`ci-context`, `review-threads`) skips `superseded-sha` on any PR head that moved since the producer ran, where other rows take the moved tip with `--3way` when the moved commits touch no patched path. `default` sets `false`: fix-docs runs once per pull request, so a skipped fix-docs patch would never run again. |
+| `skip-moved-head` | Optional, default `false`; `true` (`ci-context`, `review-threads`, `dependency-review`) skips `superseded-sha` on any PR head that moved since the producer ran, where other rows take the moved tip with `--3way` when the moved commits touch no patched path. `default` sets `false`: fix-docs runs once per pull request, so a skipped fix-docs patch would never run again. |
 | `script-exec-bit` | Optional, default `false`; `true` (`issue`) makes each new or changed file that ends in `.sh` or starts with `#!` executable after every refusal passes, since the model's tools set no file mode. |
 | `escalations` | The escalation reasons the apply may give for the row. |
 
@@ -1175,7 +1180,7 @@ The review activity then judges the release as it judges any review-tier pull re
 A pull request whose every reason is a read failure (`unparsed-updates`, `sources-disagree`,
 `dependabot-config-unreadable`, `dependabot-policy-unreadable`, `provenance-unreadable:<name>`)
 is review tier because the classifier could not read it, not because it is risky. The
-review-dependency select step writes a `::warning::classifier gap` naming those reasons, so a
+review-dependency select job writes a `::warning::classifier gap` naming those reasons, so a
 parse bug shows in the run log instead of quietly spending AI reviews; fix the classifier.
 
 ### Verifier verdict

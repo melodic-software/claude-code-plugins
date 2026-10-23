@@ -1,8 +1,8 @@
 // The job if: gates that keep a pipeline workflow from starting a runner that
 // could only skip or fail: pr-feedback-dispatch.yml on a review run GitHub
 // skipped (a draft) or cancelled (a newer push superseded it). And the gates
-// of pr-unblock.yml's address-feedback jobs, which a skipped subscription
-// call or a forged model-call output must not turn.
+// of pr-unblock.yml's address-feedback and review-dependency jobs, which a
+// skipped subscription call or a forged model-call output must not turn.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -146,4 +146,72 @@ test("pr-unblock.yml: apply-feedback-patch runs only on a written patch with rep
   assert.equal(runs("skipped", "", "written", ""), false, "a patch with no replies");
   assert.equal(runs("skipped", "", "empty"), false);
   assert.equal(runs("skipped", "", ""), false);
+});
+
+const DEPENDENCY_JOBS = [
+  "review-dependency-select",
+  "review-dependency-not-run",
+  "review-dependency",
+  "review-dependency-subscription",
+  "apply-dependency-patch",
+  "apply-dependency-verdict",
+];
+
+// As for address-feedback: a job that needs a skipped subscription call and
+// lacks !cancelled() is skipped too, so the push and the verdict would never run.
+test("pr-unblock.yml: every review-dependency job after a model call starts its if: with !cancelled()", () => {
+  const after = DEPENDENCY_JOBS.filter((job) => jobGate(UNBLOCK, job).needs.some((need) => need === "review-dependency" || need === "review-dependency-subscription"));
+  assert.deepEqual(after, ["review-dependency-subscription", "apply-dependency-patch", "apply-dependency-verdict"]);
+  for (const job of [...after, "review-dependency", "review-dependency-not-run"]) {
+    assert.match(jobGate(UNBLOCK, job).gate, /^\$\{\{ !cancelled\(\) && /, job);
+  }
+});
+
+// The verdict job decides on the select job's proceed alone: a hostile model
+// job can forge a handoff, a neutral check or any output of its own, and the
+// round still posts its marker, so the round cap holds.
+test("pr-unblock.yml: apply-dependency-verdict runs exactly when the select job proceeded, whatever a model call reports", () => {
+  const { gate, needs } = jobGate(UNBLOCK, "apply-dependency-verdict");
+  assert.deepEqual(needs, ["review-dependency-select", "review-dependency", "review-dependency-subscription", "apply-dependency-patch"]);
+  // The evaluator refuses any reference left unset: the gate reads nothing else.
+  for (const [proceed, runs] of [["true", true], ["false", false], ["", false]]) {
+    assert.equal(evaluate(gate, { "needs.review-dependency-select.outputs.proceed": proceed }), runs, JSON.stringify(proceed));
+  }
+});
+
+// A select that does not proceed posts the review-dependency check neutral on
+// the head it read, so dependency-dispatch.mjs does not send that head again.
+test("pr-unblock.yml: review-dependency-not-run posts only when the select job decided not to proceed on a head it read", () => {
+  const { gate, needs } = jobGate(UNBLOCK, "review-dependency-not-run");
+  assert.deepEqual(needs, ["review-dependency-select"]);
+  const runs = (proceed, head, activity = "review-dependency") =>
+    evaluate(gate, {
+      "inputs.activity": activity,
+      "needs.review-dependency-select.outputs.proceed": proceed,
+      "needs.review-dependency-select.outputs.head-sha": head,
+    });
+  assert.equal(runs("false", "a".repeat(40)), true);
+  assert.equal(runs("true", "a".repeat(40)), false);
+  assert.equal(runs("", ""), false, "a kill-switch stop reads no head");
+  assert.equal(runs("false", ""), false);
+  assert.equal(runs("false", "a".repeat(40), "fix-ci"), false);
+});
+
+test("pr-unblock.yml: apply-dependency-patch runs only on a written patch beside a fix verdict from the leg that answered", () => {
+  const { gate } = jobGate(UNBLOCK, "apply-dependency-patch");
+  const runs = (subResult, sub, first) =>
+    evaluate(gate, {
+      "needs.review-dependency-subscription.result": subResult,
+      "needs.review-dependency-subscription.outputs.scan-patch-state": sub[0] ?? "",
+      "needs.review-dependency-subscription.outputs.dependency-verdict": sub[1] ?? "",
+      "needs.review-dependency.outputs.scan-patch-state": first[0] ?? "",
+      "needs.review-dependency.outputs.dependency-verdict": first[1] ?? "",
+    });
+  assert.equal(runs("skipped", [], ["written", "fix"]), true, "the key call's fix, its subscription call skipped");
+  assert.equal(runs("success", ["written", "fix"], []), true, "the subscription call's fix after a handoff");
+  assert.equal(runs("success", [], ["written", "fix"]), false, "the key call's fix is not taken once the subscription call ran");
+  assert.equal(runs("success", ["written", ""], ["written", "fix"]), false, "one leg's patch never pairs with the other's verdict");
+  for (const verdict of ["merge", "close", "escalate", ""]) assert.equal(runs("skipped", [], ["written", verdict]), false, verdict);
+  assert.equal(runs("skipped", [], ["empty", "fix"]), false);
+  assert.equal(runs("skipped", [], ["", "fix"]), false);
 });
