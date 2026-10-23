@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/work/src/http/retry.ts",
+            "old_string": "x",
+            "new_string": "y"
+          }
+        }
+      ],
+      "why": "an edit is no shell call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add src/http/retry.ts"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git diff --name-only --diff-filter=U"
+          }
+        }
+      ],
+      "why": "a read-only git call is still a shell call"
+    }
+  ]
+}

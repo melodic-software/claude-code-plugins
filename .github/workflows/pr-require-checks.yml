@@ -3109,13 +3109,14 @@ jobs:
     # (`rate-limit-wait-seconds` on check-contract and aggregate-results), 45 s
     # of own-gate retries, 7 s of status-write retries and the 90 s
     # `rerun-wait-seconds` wait, about four and a half minutes, plus up to
-    # 15 s of retry sleeps for each of the hold-lift step's two reads and
-    # the review-lane step's four, under two minutes, plus the cost-hold step's
-    # reads: one for most pull requests, which stop at the label events; for a
-    # lane-labeled one whose body cites a decision, about eight, and two more per
-    # review run since the window opened, plus the base-config checkout's
-    # fetch (seconds; its retries replace the contents reads' 15 s each).
-    timeout-minutes: 9
+    # 15 s of retry sleeps for each of the hold-lift step's two reads, the
+    # review-lane step's four and the lanes-hold step's eight, about four
+    # minutes, plus the cost-hold step's reads: one for most pull requests,
+    # which stop at the label events; for a lane-labeled one whose body cites a
+    # decision, about eight, and two more per review run since the window
+    # opened, plus the base-config checkout's fetch (seconds; its retries
+    # replace the contents reads' 15 s each).
+    timeout-minutes: 11
     permissions:
       # `yield-to-full-run` lists this workflow's runs on the head SHA, and
       # `rerun-contract-only-siblings` re-runs the red contract-only ones once
@@ -3825,6 +3826,141 @@ jobs:
           fi
           [ "$held" -eq 0 ] || exit 1
           echo "#$pr carries neither 'do-not-merge' nor '$human_gated'."
+      # The lanes-hold step below runs node; pin it to main's .node-version,
+      # as every other Node job is, rather than the runner image's default.
+      - name: Check out main's Node pin
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+          sparse-checkout: .node-version
+          sparse-checkout-cone-mode: false
+      - name: Set up Node
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+      # A LANES APP PULL REQUEST IS HELD BY ITS TEXT TOO. pr-merge.yml's
+      # enable-auto-merge job arms native auto-merge on lanes App pull
+      # requests, which then merge without pr-merge's gate, so this step fails
+      # on the holds that gate honors: a body hold, a member's veto comment,
+      # and a changed file or renamed-from path matching the merge lane's
+      # denied paths (pr-pipeline.yaml merge.diff-check.denied-paths, as main
+      # has it, plus merge-holds.mjs's HOLD_PATH_FLOOR), so a push after arming is
+      # held on its own pull request event; a person on the trusted-actor list
+      # (as main has it) lifts a hold path by approving the head, then re-runs
+      # ci-status. All by the rules in
+      # .github/scripts/pr-merge/merge-holds.mjs,
+      # which this step runs as main has it so a pull request cannot rewrite
+      # its own hold: in the queue at the group's base commit, and on a pull
+      # request event at the live base commit of a pull request into main. A
+      # pull request into any other branch is never armed and is not read, so
+      # it cannot choose a branch whose module runs here with this job's token. On a pull request event and in the merge queue
+      # (the pull request named in the group's ref, as the step above reads
+      # it), the body, comments, reviews and inline comments are read live,
+      # never from the payload a re-run replays, and so are the changed files;
+      # a list shorter than changed_files fails closed. A body edit re-runs this job;
+      # a comment does not, so a veto posted while armed is enforced when the
+      # queue builds the group, and after a veto is lifted ci-status needs a
+      # re-run. Only the lanes App's pull requests are read, by numeric id
+      # (pr-pipeline.yaml merge.agent-identity, as trusted-actors.json lists
+      # it); every other pull request merges through pr-merge's gate or a
+      # person. An unreadable pull request, module, config, file list or
+      # discussion fails closed.
+      # Pinned by scripts/ci-lanes-pr-hold.test.sh, which runs this body.
+      - name: Fail a lanes App pull request its body or a member holds
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+        run: |
+          lanes_app_id=337595936
+          pr=$PR_NUMBER
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            pr=$(sed -nE 's#^(refs/heads/)?gh-readonly-queue/.+/pr-([0-9]+)-[0-9a-f]{40}$#\2#p' <<<"$GITHUB_REF")
+            if [ -z "$pr" ]; then
+              echo "::error::cannot read a pull request number from the merge-group ref '$GITHUB_REF'."
+              exit 1
+            fi
+          fi
+          if [[ ! $pr =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::the pull request number '${pr//%/%25}' is not a number."
+            exit 1
+          fi
+          read_api() {
+            local attempt body
+            for attempt in 1 2 3; do
+              if body=$(gh api "${@:2}"); then
+                printf '%s\n' "$body"
+                return 0
+              fi
+              [ "$attempt" -lt 3 ] || { echo "::error::could not read $1; re-run this run." >&2; return 1; }
+              sleep $((attempt * 5))
+            done
+          }
+          pull=$(read_api "#$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr") || exit 1
+          if ! jq -e '(.user.id | numbers) and (.user.type | strings)' <<<"$pull" >/dev/null; then
+            echo "::error::the author of #$pr could not be read."
+            exit 1
+          fi
+          if ! jq -e --argjson id "$lanes_app_id" '.user.id == $id and .user.type == "Bot"' <<<"$pull" >/dev/null; then
+            echo "#$pr is not the lanes App's; pr-merge's gate or a person reads its holds."
+            exit 0
+          fi
+          BASE_SHA=$GROUP_BASE_SHA
+          if [ "$GITHUB_EVENT_NAME" != merge_group ]; then
+            if [ "$(jq -r '.base.ref' <<<"$pull")" != main ]; then
+              echo "#$pr is not into main, so native auto-merge never arms it."
+              exit 0
+            fi
+            BASE_SHA=$(jq -r '.base.sha' <<<"$pull")
+          fi
+          if [[ ! $BASE_SHA =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
+            exit 1
+          fi
+          module=.github/scripts/pr-merge/merge-holds.mjs
+          read_api "$module at $BASE_SHA" -H 'Accept: application/vnd.github.raw+json' \
+            "repos/$GITHUB_REPOSITORY/contents/$module?ref=$BASE_SHA" >"$RUNNER_TEMP/merge-holds.mjs" || exit 1
+          jq -r '.body // ""' <<<"$pull" >"$RUNNER_TEMP/pr-body.txt"
+          config=docs/conventions/pr-pipeline.yaml
+          read_api "$config at $BASE_SHA" -H 'Accept: application/vnd.github.raw+json' \
+            "repos/$GITHUB_REPOSITORY/contents/$config?ref=$BASE_SHA" >"$RUNNER_TEMP/pr-pipeline.yaml" || exit 1
+          yq -o=json '.merge."diff-check"."denied-paths" // []' "$RUNNER_TEMP/pr-pipeline.yaml" >"$RUNNER_TEMP/denied-paths.json" || {
+            echo "::error::cannot read merge.diff-check.denied-paths from $config at $BASE_SHA."
+            exit 1
+          }
+          read_api "the files of #$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr/files?per_page=100" --paginate \
+            --jq '.[] | [.filename, (.previous_filename // empty)] | @json' >"$RUNNER_TEMP/files.jsonl" || exit 1
+          changed=$(jq -er '.changed_files | numbers' <<<"$pull") || { echo "::error::the changed-file count of #$pr could not be read."; exit 1; }
+          if [ "$(grep -c . "$RUNNER_TEMP/files.jsonl")" -lt "$changed" ]; then
+            echo "::error::GitHub listed fewer files than #$pr changes, so its hold paths cannot be checked; a person merges it."
+            exit 1
+          fi
+          head=$(jq -r '.head.sha' <<<"$pull")
+          if [[ ! $head =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the head of #$pr could not be read."
+            exit 1
+          fi
+          actors=.github/standards/trusted-actors/trusted-actors.json
+          read_api "$actors at $BASE_SHA" -H 'Accept: application/vnd.github.raw+json' \
+            "repos/$GITHUB_REPOSITORY/contents/$actors?ref=$BASE_SHA" >"$RUNNER_TEMP/trusted-actors.json" || exit 1
+          : >"$RUNNER_TEMP/discussion.jsonl"
+          for kind in "issues/$pr/comments" "pulls/$pr/reviews" "pulls/$pr/comments"; do
+            rows=$(read_api "the $kind of #$pr" "repos/$GITHUB_REPOSITORY/$kind?per_page=100" --paginate --jq '.[] | @json') || exit 1
+            [ -z "$rows" ] || printf '%s\n' "$rows" >>"$RUNNER_TEMP/discussion.jsonl"
+          done
+          out=$(node "$RUNNER_TEMP/merge-holds.mjs" "$pr" "$RUNNER_TEMP/pr-body.txt" "$RUNNER_TEMP/discussion.jsonl" \
+            "$RUNNER_TEMP/files.jsonl" "$RUNNER_TEMP/denied-paths.json" "$RUNNER_TEMP/trusted-actors.json" "$head") || {
+            printf '%s\n' "$out"
+            exit 1
+          }
+          # Exit 0 without the module's no-hold line ran no check: fail closed.
+          printf '%s\n' "$out"
+          grep -qxF "#$pr: no body hold, no member veto and no hold path." <<<"$out" || { echo "::error::merge-holds.mjs exited 0 without its verdict."; exit 1; }
       # ORDERED SKIPS ARE CHECKED HERE. A test lane `test-<x>`, or `lint-shell`
       # on its `run_shell` row, skips as a job when `select-tests`'s `run_<x>`
       # row says the change gives it no work. Its

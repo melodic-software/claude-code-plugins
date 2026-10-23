@@ -71,13 +71,25 @@ activities:
   resolve-conflicts:
     skill: source-control:resolve-conflicts
     args: ci                      # no gates; escalates instead of asking
-    prepare: merge-base           # the runner merges the base tip before the skill, commits after
-    effect: mutate-branch
+    prepare: merge-base           # the runner merges the base tip before the skill
+    effect: read                  # no write token: the resolutions leave as a patch
+    applied-by:
+      patch: apply-conflict-patch
     gating: advisory              # ci-status judges the merged tree
     reads-untrusted: true         # reads PR head files
     inputs: [pr, base-sha, head-sha]
     applies-when:
       mergeable: [conflicting]    # a PR that is only behind stays with the merge queue
+      labels-absent: [do-not-merge, needs-human]
+      draft: [false]
+  apply-conflict-patch:           # commits the merge, with the patch, as one merge commit
+    script: .github/scripts/apply-patch/apply-patch.mjs
+    prepare: apply-patch
+    effect: mutate-branch
+    gating: advisory
+    reads-untrusted: true         # reads the patch the model wrote
+    inputs: [pr, head-sha, base-sha]
+    applies-when:
       labels-absent: [do-not-merge, needs-human]
       draft: [false]
   report-escalation:              # labels needs-human with a resume key
@@ -141,11 +153,13 @@ lanes:
     stage: unblock
     slots:
       - activity: resolve-conflicts
+      - activity: apply-conflict-patch
+        needs: [resolve-conflicts]
       - activity: fix-docs
       - activity: apply-patch
         needs: [fix-docs]
       - activity: report-escalation
-        needs: [resolve-conflicts]
+        needs: [resolve-conflicts, apply-conflict-patch]
       # Fixing CI and addressing review feedback join this lane as composites
       # (a `children:` list of leaves) once their designs land.
   pr-merge:
