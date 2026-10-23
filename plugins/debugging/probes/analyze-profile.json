@@ -2,7 +2,7 @@
   "skill": "debugging:analyze-profile",
   "plugin": "debugging",
   "skill_dir": "plugins/debugging/skills/analyze-profile",
-  "ranking_note": "Authored from the before description at commit d2bf4aeeb21944fdee1e6f743c1dd54644152c05, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the sibling debugging skill that reproduces and fixes a failure, and app-control:drive, which records a new artifact. neg-train-07, neg-train-08 and neg-val-05 ask to record a profile with none in hand: they were positives under the before contract and are negatives under the after contract, which routes recording to /app-control:drive capture.",
+  "ranking_note": "Written from the before description at commit d2bf4aeeb21944fdee1e6f743c1dd54644152c05 and committed after the rewrite's first commit; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the sibling debugging skill that reproduces and fixes a failure, and app-control:drive, which records a new artifact. neg-train-07, neg-train-08 and neg-val-05 ask to record a profile with none in hand: they were positives under the before contract and are negatives under the after contract, which routes recording to /app-control:drive capture.",
   "competitors": [
     "debugging:debug",
     "app-control:drive"
