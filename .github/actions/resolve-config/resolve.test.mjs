@@ -829,7 +829,7 @@ test("a lane-rules.json activity grant adds actions read to that activity alone"
   assert.deepEqual(EFFECT_GRANTS.read, READ_GRANT);
 });
 
-test("an activity grant other than actions read on a leaf of its lane is rejected", () => {
+test("an activity grant other than exactly actions read is rejected", () => {
   const grants = [
     null,
     [],
@@ -839,8 +839,7 @@ test("an activity grant other than actions read on a leaf of its lane is rejecte
     { "run-tests": { actions: "read", contents: "write" } },
     { "run-tests": {} },
     { "run-tests": null },
-    { "fix-prose": { actions: "read" } },
-    { "no-such-activity": { actions: "read" } },
+    { "no-such-activity": { actions: "write" } },
   ];
   for (const activityGrants of grants) {
     const overrides = withActivityGrants(activityGrants);
@@ -851,6 +850,16 @@ test("an activity grant other than actions read on a leaf of its lane is rejecte
     assertRejected(
       () => run(fixture("valid.yaml"), { activity: "measure-coverage" }, overrides),
       "lane-grant",
+    );
+  }
+});
+
+test("an activity grant naming an activity the lane does not hold adds nothing", () => {
+  const overrides = withActivityGrants({ "fix-prose": { actions: "read" }, constructor: { actions: "read" } });
+  for (const activity of ["run-tests", "measure-coverage"]) {
+    assert.deepEqual(
+      grantOf(fixture("valid.yaml"), { activity }, overrides),
+      { effect: "read", grant: READ_GRANT },
     );
   }
 });

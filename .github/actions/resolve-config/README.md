@@ -43,8 +43,8 @@ The step fails and writes no file when:
    row in `activity-rules.json` is valid; a missing or malformed file, or a forbidden effect `effect-grants.json` lacks, is rejected
    (`activity-rules`).
 4. A lane's `stage` differs from its `lane-rules.json` row, or the lane has no row; or the row's
-   `activity-grants` maps anything but a leaf of the lane to exactly `{ "actions": "read" }`
-   (`lane-grant`).
+   `activity-grants` maps an activity to anything but exactly `{ "actions": "read" }`
+   (`lane-grant`). A name the lane does not hold adds nothing.
 5. A lane slot's `needs:` names an activity that is not one of the lane's slots
    (`needs-outside-lane`), or a composite child's names one that is not its sibling
    (`needs-not-sibling`).

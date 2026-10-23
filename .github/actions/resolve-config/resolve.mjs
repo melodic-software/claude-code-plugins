@@ -428,7 +428,7 @@ export function loadConfig(files, { configPath }) {
         `lane \`${laneName}\` holds activity \`${repeated}\` more than once; a leaf may appear once in a lane`,
       );
     }
-    checkActivityGrants(laneName, rule["activity-grants"], leaves);
+    checkActivityGrants(laneName, rule["activity-grants"]);
     for (const name of leaves) {
       const activity = doc.activities[name];
       // The lane rule compares strictly, so it must not depend on the schema enum.
@@ -629,16 +629,17 @@ const GRANT_SCOPES = ["contents", "issues", "pull-requests"];
 const GRANT_LEVELS = new Set(["read", "write"]);
 
 // A lane-rules.json row may add `actions: read`, and nothing else, to named
-// leaves of its lane through `activity-grants`; the effect row stays the base.
-function checkActivityGrants(laneName, activityGrants, leaves) {
+// activities of its lane through `activity-grants`; the effect row stays the
+// base. The row serves every config that runs the lane, so a name the lane
+// does not hold adds nothing.
+function checkActivityGrants(laneName, activityGrants) {
   if (activityGrants === undefined) {
     return;
   }
   const valid =
     isObject(activityGrants) &&
     Object.entries(activityGrants).every(
-      ([name, extra]) =>
-        leaves.includes(name) &&
+      ([, extra]) =>
         isObject(extra) &&
         Object.keys(extra).join() === "actions" &&
         extra.actions === "read",
@@ -646,13 +647,15 @@ function checkActivityGrants(laneName, activityGrants, leaves) {
   if (!valid) {
     throw new Rejection(
       "lane-grant",
-      `lane-rules.json row \`${laneName}\` activity-grants must map leaves of the lane to exactly { "actions": "read" }`,
+      `lane-rules.json row \`${laneName}\` activity-grants must map each activity to exactly { "actions": "read" }`,
     );
   }
 }
 
-const activityGrantOf = (laneRules, lane, activity) =>
-  laneRules[lane]?.["activity-grants"]?.[activity] ?? {};
+function activityGrantOf(laneRules, lane, activity) {
+  const grants = Object.hasOwn(laneRules, lane) ? laneRules[lane]["activity-grants"] : undefined;
+  return isObject(grants) && Object.hasOwn(grants, activity) ? grants[activity] : {};
+}
 
 // An empty or partial grant would mint a token with every App permission, so a
 // row must name exactly the three scopes, each read or write.
