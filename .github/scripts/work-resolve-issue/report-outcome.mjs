@@ -4,9 +4,9 @@
 //
 //   done      opens a ready PR from the run's branch: the body starts
 //             `Closes #<issue>`, or `Refs: #<issue>` when the run reports
-//             `"link": "refs"` (a recorded decision keeps the issue open),
-//             which also gives the issue the human-gated label and a
-//             refs-hold comment. The title is the run's Conventional
+//             `"link": "refs"` (a recorded decision keeps the issue open);
+//             the merge lane reads a plain `Refs:` issue as it reads a
+//             closing one. The title is the run's Conventional
 //             Commits title, with any `#` or `/` a space
 //             (else one built from the issue title), and the body carries
 //             the hold line when a human must merge it. The PR gets no label:
@@ -184,12 +184,10 @@ export const limitedMarker = ({ resets, runId, onResumed = false }) =>
 export const turnCapMarker = ({ cap, runId, onResumed = false }) =>
   `<!-- work-resolve-issue outcome=turn-cap${cap ? ` cap=${cap}` : ""}${runId ? ` run=${runId}` : ""}${resumedTag(onResumed)} -->`;
 
-// A Refs PR has no closing issue, so the merge lane never merges it: the issue
-// gets `label` and this comment, whose marker tells work-unblock which hold it
-// may lift once that PR merges.
+// The marker of a refs-hold comment: the App's needs-human hold on the issue
+// of a Refs PR, which work-unblock lifts once that PR merges. report-outcome
+// sets none, since the merge lane merges a plain `Refs:` PR as a closing one.
 export const refsHoldMarker = (pr) => `<!-- work-resolve-issue refs-hold #${pr} -->`;
-export const refsHoldComment = (pr, label) =>
-  `${refsHoldMarker(pr)}\nThe lanes App's pull request #${pr} links this issue with \`Refs:\`, not \`Closes\`, so the merge lane never merges it. report-outcome added \`${label}\` so a person merges or closes it. When it merges, work-unblock removes this \`${label}\` and \`agent-ready\` and adds \`needs-triage\`, so triage decides what work is left. To keep the issue held after the merge, add \`needs-owner-decision\`.`;
 
 // {outcome, resets, run, onResumed} from a comment body that opens with the lane's
 // marker, or null. resets is epoch milliseconds, or null when absent or
@@ -819,7 +817,6 @@ export function decide({
     title: prTitle(outcome.title, issueTitle, issueNumber),
     body,
     branch,
-    refsHold: refs ? humanLabel : null,
   };
 }
 
@@ -1467,11 +1464,6 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         });
       } else {
         console.log(`report-outcome: opened PR #${pull.number} for issue #${issueNumber}`);
-        if (plan.refsHold) {
-          // The label first, so a failed comment still leaves the issue with a person.
-          await github("POST", `${repo}/issues/${issueNumber}/labels`, { labels: [plan.refsHold] });
-          await github("POST", `${repo}/issues/${issueNumber}/comments`, { body: refsHoldComment(pull.number, plan.refsHold) });
-        }
         return 0;
       }
     }

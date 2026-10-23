@@ -60,6 +60,53 @@ test("a red full run on a later SHA containing two merges yields gate-failure fo
   );
 });
 
+test("a red run on a commit off the branch is not charged, as in _Context.on_branch", () => {
+  // A run on a tag named main reports head_branch main; its commit descends from the merge but
+  // is not on refs/heads/main.
+  const off = shaOf(0xa0ff);
+  const pulls = () => [pr(1601, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })];
+  const red = (offBranch) =>
+    run({
+      pulls: pulls(),
+      history: [shaOf(1601), off, shaOf(0xa100)],
+      offBranch,
+      workflowRuns: {
+        ...verifiedEach(pulls()),
+        [FULL]: [...verifiedEach(pulls())[FULL], wfRun(7, "workflow_dispatch", off, "2026-09-01T00:30:00Z", { conclusion: "failure", actor: LANE })],
+      },
+    });
+  assert.deepEqual(red([off]).events, []);
+  // The same run with its commit on the branch is a gate failure.
+  assert.deepEqual(red([]).gateFailures.map((g) => [g.number, g.check]), [[1601, `${FULL} workflow_dispatch`]]);
+});
+
+test("a red run on a commit on top of the tip (compare behind) is not charged", () => {
+  // A tag named main one commit past refs/heads/main: compare <run>...<tip> answers behind.
+  const top = shaOf(0xa0fe);
+  const pulls = () => [pr(1602, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })];
+  const result = run({
+    pulls: pulls(),
+    onTop: [top],
+    workflowRuns: {
+      ...verifiedEach(pulls()),
+      [FULL]: [...verifiedEach(pulls())[FULL], wfRun(8, "workflow_dispatch", top, "2026-09-01T00:30:00Z", { conclusion: "failure", actor: LANE })],
+    },
+  });
+  assert.deepEqual([result.events, result.gateFailures], [[], []]);
+});
+
+test("an unreadable branch tip or run ancestry refuses the publish", () => {
+  const pulls = () => [pr(1603, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })];
+  assert.throws(() => run({ pulls: pulls(), tip: null }), (error) => error instanceof PublishError && /has no tip commit/.test(error.message));
+  const odd = shaOf(0xa0fd);
+  const unknown = {
+    pulls: pulls(),
+    unknownCompare: [odd],
+    workflowRuns: { ...verifiedEach(pulls()), [FULL]: [...verifiedEach(pulls())[FULL], wfRun(9, "schedule", odd, "2026-09-01T00:30:00Z")] },
+  };
+  assert.throws(() => run(unknown), (error) => error instanceof PublishError && /whether that run is on main is unknown/.test(error.message));
+});
+
 test("a run created before the merge is not its evidence", () => {
   // Run 3 on #1303's own SHA predates #1303's merge, so it is evidence for #1309 only.
   const result = run({
@@ -137,6 +184,39 @@ test("a lane-enqueued merge passes only when its unedited lane pin names headRef
   // A merge another bot enqueued is autonomous but not the lane's: it has no pin to read back.
   const bot = [pr(1503, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], merger: "kyle-sexton", timeline: [queued("2026-08-31T23:00:00Z", null, "some-app[bot]")] })];
   assert.deepEqual(gateOf(run({ pulls: bot, workflowRuns: verifiedEach(bot), comments: { 1503: [] } })), PASSED);
+});
+
+test("a lane identity's native auto-merge owes no pin, as in native_auto_merge", () => {
+  const armed = (kind, at, login = LANE) => ({ nodes: [{ __typename: kind, createdAt: at, actor: actorOf(login) }] });
+  const enqueue = [queued("2026-08-31T23:50:00Z", LANE)];
+  const pulls = (autoMerge, extra = {}, timeline = enqueue) => [pr(1505, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], timeline, patch: { autoMerge, ...extra } })];
+  const judge = (autoMerge, extra, lanes = [LANE], timeline = enqueue) => {
+    const result = run({ pulls: pulls(autoMerge, extra, timeline), workflowRuns: verifiedEach(pulls(autoMerge, extra, timeline)), comments: { 1505: [] } }, { laneLogins: lanes });
+    return [gateOf(result), result.events];
+  };
+  const noPin = [FAILED, gateEvents("2026-09-01T06:00:00Z", "C2-auto-merge")];
+  assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z")), [PASSED, []]);
+  assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:50:00Z")), [PASSED, []]);
+  // The gate's disarm, an arm after the enqueue, a person's arm, or no events: the pin stays owed.
+  assert.deepEqual(judge(armed("AutoMergeDisabledEvent", "2026-08-31T23:40:00Z")), noPin);
+  assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:55:00Z")), noPin);
+  assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z", "kyle-sexton")), noPin);
+  // Unreadable auto-merge events refuse the publish, as the check reads them unreadable.
+  assert.throws(() => judge(undefined), (error) => error instanceof PublishError && /no auto-merge events/.test(error.message));
+  // One lane identity opened and armed it, another enqueued it: not one identity's native merge.
+  const lanes = [LANE, "other-lane[bot]"];
+  const byOther = [queued("2026-08-31T23:50:00Z", "other-lane[bot]")];
+  assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z"), {}, lanes, byOther), noPin);
+  // One lane identity opened it and another armed it: not one identity's native merge.
+  const other = "other-lane[bot]";
+  assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z", other), {}, [LANE, other]), noPin);
+  // A lane arm on a pull request the lane did not open from this repository is off the gate.
+  assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z"), { author: actorOf("kyle-sexton") }), noPin);
+  assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z"), { isCrossRepository: true }), noPin);
+  // A red full run after a native merge is still its gate failure.
+  const native = pulls(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z"));
+  const red = run({ pulls: native, workflowRuns: { [FULL]: [wfRun(9, "schedule", shaOf(1505), "2026-09-01T02:00:00Z", { conclusion: "failure" })] }, comments: { 1505: [] } });
+  assert.deepEqual(red.gateFailures.map((g) => [g.number, g.check]), [[1505, `${FULL} schedule`]]);
 });
 
 test("a pin past the 30th comment page is no pin, as in read_pin", () => {

@@ -1,23 +1,23 @@
 name: Log API budget
 description: >
-  Log each named token's REST budget, from the x-ratelimit-* headers of
-  GET /rate_limit, in pr-merge's rate-line shape: one notice and one step
-  summary line per token, and at any phase after `start` a used-since-start
-  count and one `<name>-cost=N` summary line. Never fails the job.
+  At the end of a job, write the hub collector's api-budget notice for each
+  named token, from the rate-limit readings the job's own API responses left
+  in $RUNNER_TEMP/api-budget (api-budget.bash): one per refused (403/429)
+  response and one for the last. GET /rate_limit is never read: it reports a
+  different bucket from the one the job spends. Also writes each line and a
+  `<name>-cost=N` line to the step summary. A token with no reading gets no
+  line. Never fails the job.
 
 inputs:
-  phase:
-    description: "`start` at the top of the job; any other lower-case word (`end`) compares with it."
-    required: true
   tokens:
     description: >
-      One `name token` pair per line, name in lower-case kebab case, such as
-      `github-token` followed by the job token.
+      Token names, space or newline separated, in lower-case kebab case:
+      `github-token` for the job token, `lanes-app` for the lanes App token.
     required: true
 
 outputs:
   costs:
-    description: "At a phase after `start`, the summary's `<name>-cost=N` line; empty at `start`."
+    description: "`<name>-cost=N` for each named token with a reading, `unknown` when its cost is na."
     value: ${{ steps.log.outputs.costs }}
 
 runs:
@@ -27,9 +27,22 @@ runs:
       id: log
       shell: bash
       env:
-        PHASE: ${{ inputs.phase }}
         TOKENS: ${{ inputs.tokens }}
-        STATE_DIR: ${{ runner.temp }}/log-api-budget
       run: |
-        [[ $PHASE =~ ^[a-z]{1,20}$ ]] || { echo "::warning::api-budget: phase is not a lower-case word"; exit 0; }
-        bash "$GITHUB_ACTION_PATH/log-api-budget.sh"
+        # shellcheck source=/dev/null
+        . "$GITHUB_ACTION_PATH/api-budget.bash" || exit 0
+        costs=()
+        for name in $TOKENS; do
+          [[ $name =~ ^[a-z][a-z0-9-]{0,39}$ ]] || { echo "::warning::api-budget: skipped a token name that is not lower-case kebab case"; continue; }
+          lines=$(api_budget_emit "$name")
+          [[ -n $lines ]] || continue
+          printf '%s\n' "$lines"
+          sed 's/^::notice title=api-budget::/api-budget: /' <<<"$lines" >>"$GITHUB_STEP_SUMMARY"
+          cost=${lines##*cost=}
+          costs+=("$name-cost=${cost/na/unknown}")
+        done
+        if ((${#costs[@]} > 0)); then
+          echo "${costs[*]}" >>"$GITHUB_STEP_SUMMARY"
+          echo "costs=${costs[*]}" >>"$GITHUB_OUTPUT"
+        fi
+        exit 0

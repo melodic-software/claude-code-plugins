@@ -417,7 +417,40 @@ def _paginated(
         raise PolicyReadError(f"{label}: {exc}") from exc
 
 
-def _graphql(query: str, label: str, **variables: str | int | None) -> dict[str, Any]:
+def names_nothing(text: Any, field: str) -> bool:
+    """Whether a GraphQL answer says only that `repository.<field>` names
+    nothing: null there, and every error a NOT_FOUND at that path, as GitHub
+    answers `issueOrPullRequest` for a number that is no issue or pull
+    request (a `Refs: #<n>` typo). gh exits nonzero on it."""
+    try:
+        payload = json.loads(text or "")
+    except ValueError:
+        return False
+    if not is_json_object(payload):
+        return False
+    repository = json_object(payload.get("data")).get("repository")
+    errors = payload.get("errors")
+    return (
+        is_json_object(repository)
+        and field in repository
+        and repository[field] is None
+        and is_json_array(errors)
+        and bool(errors)
+        and all(
+            is_json_object(e)
+            and e.get("type") == "NOT_FOUND"
+            and e.get("path") == ["repository", field]
+            for e in errors
+        )
+    )
+
+
+def _graphql(
+    query: str, label: str, missing: str | None = None, **variables: str | int | None
+) -> dict[str, Any]:
+    """The query's data. A NOT_FOUND for `repository.<missing>` alone
+    (`names_nothing`) reads as `missing` an empty object, so a null there
+    without that error stays apart; any other error raises."""
     args = ["api", "graphql", "-f", f"query={query}"]
     for name, value in variables.items():
         if value is not None:
@@ -426,6 +459,8 @@ def _graphql(query: str, label: str, **variables: str | int | None) -> dict[str,
         proc = gh_capture(args)
     except (RuntimeError, ValueError, OSError) as exc:
         raise PolicyReadError(f"{label}: {exc}") from exc
+    if missing and names_nothing(proc.stdout, missing):
+        return {"repository": {missing: {}}}
     if proc.returncode != 0:
         raise PolicyReadError(
             f"{label}: {(proc.stderr or '').strip() or proc.returncode}"
@@ -1519,7 +1554,7 @@ def credential_refusal(identity: str) -> str | None:
 
 ELIGIBILITY = (
     "query PolicyEligibility($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
-    "pullRequest(number:$n){number createdAt lastEditedAt isCrossRepository baseRefName "
+    "pullRequest(number:$n){number body createdAt lastEditedAt isCrossRepository baseRefName "
     "author{__typename login} headRepositoryOwner{login} labels(first:100){totalCount nodes{name}} "
     "closingIssuesReferences(first:10){totalCount nodes{number lastEditedAt "
     "repository{nameWithOwner} labels(first:100){totalCount nodes{name}}}}}}}"
@@ -1726,7 +1761,8 @@ def eligibility(
 
     In order: not a fork; not a dependency manager's; authored by the agent
     identity, or carrying `merge: agent-allowed` from a human; exactly one
-    linked issue, in this repository; a work class whose every `work-class:`
+    linked issue, in this repository (`_linked_issue`: its closing issue, else
+    its one `Refs:` issue); a work class whose every `work-class:`
     label a human applied in person (the agent identity never counts, nor an
     App acting for a human) with no body edit after it, the strictest one
     counting, and no `work-class:` label ever removed by a non-human; and, for
@@ -1756,7 +1792,7 @@ def eligibility(
         )
         if opt_in:
             return Eligibility(False, opt_in)
-        issue, linked = _closing_issue(pr, repo)
+        issue, linked = _linked_issue(pr, repo)
         if linked:
             return Eligibility(False, linked)
         issue_number = issue["number"]
@@ -1797,8 +1833,102 @@ def eligibility(
     return Eligibility(True, None, work_class, issue_number)
 
 
-# `_closing_issue` refusals that mean no closing issue in this repository.
-NO_ISSUE_HERE = ("linked-issues:0", "linked-issue-other-repository")
+def no_issue_here(refusal: str | None) -> bool:
+    """A `_linked_issue` refusal that means no single issue in this
+    repository: no link, another repository's, or `Refs:` lines that name none
+    or several (`refs_issue`)."""
+    return refusal in (
+        "linked-issues:0",
+        "linked-issue-other-repository",
+        REFS_NOT_PLAIN,
+        REFS_NOT_AN_ISSUE,
+    ) or str(refusal).startswith(REFS_SEVERAL)
+
+
+# A `Refs: #<n>` line names the issue a pull request delivers part of
+# without closing it (owner decision 2026-10-23). `resolve-pr.mjs`
+# `refsIssue` holds the same rule; test_verify_rules_sync.py keeps them equal.
+REFS_LINE = re.compile(r"[Rr][Ee][Ff][Ss]:")
+REFS_PLAIN = re.compile(r"Refs:[ \t]*#([1-9][0-9]{0,8})[ \t]*")
+FENCE = re.compile(r" {0,3}(`{3,}|~{3,})")
+LINE_BREAK = re.compile(r"\r\n|\r|\n")
+REFS_NOT_PLAIN = "refs-line-not-plain"
+REFS_SEVERAL = "refs-issues:"
+REFS_NOT_AN_ISSUE = "refs-not-an-issue"
+
+
+def refs_issue(body: Any) -> tuple[int | None, str | None]:
+    """(the issue number, None) when the visible `Refs:` lines of a pull
+    request body name one issue, each as a plain `Refs: #<n>`, else (None,
+    the refusal). A line counts only from its first column, outside an HTML
+    comment and a fenced code block, which a reader does not see as a link.
+    No such line is `linked-issues:0`; a `Refs:` line in any other form
+    (another repository's issue, a URL, two issues on one line, any other
+    case) is `refs-line-not-plain`; two or more numbers are
+    `refs-issues:<count>`."""
+    numbers: set[int] = set()
+    fence = ""
+    for line in LINE_BREAK.split(HTML_COMMENT.sub("", str(body or ""))):
+        marker = FENCE.match(line)
+        if fence:
+            if (
+                marker
+                and marker[1][0] == fence[0]
+                and len(marker[1]) >= len(fence)
+                and not line[marker.end() :].strip(" \t")
+            ):
+                fence = ""
+            continue
+        if marker:
+            fence = marker[1]
+            continue
+        if not REFS_LINE.match(line):
+            continue
+        plain = REFS_PLAIN.fullmatch(line)
+        if not plain:
+            return None, REFS_NOT_PLAIN
+        numbers.add(int(plain[1]))
+    if not numbers:
+        return None, "linked-issues:0"
+    if len(numbers) > 1:
+        return None, f"{REFS_SEVERAL}{len(numbers)}"
+    return numbers.pop(), None
+
+
+REFS_ISSUE = (
+    "query PolicyRefsIssue($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
+    "issueOrPullRequest(number:$n){__typename ... on Issue{number lastEditedAt "
+    "repository{nameWithOwner} labels(first:100){totalCount nodes{name}}}}}}"
+)
+
+
+def _linked_issue(pr: dict[str, Any], repo: str) -> tuple[dict[str, Any], str | None]:
+    """The pull request's issue: its one closing issue (`_closing_issue`),
+    or, when it has no closing issue at all, the one issue its `Refs:` lines
+    name (`refs_issue`), read with the closing issue's fields so every check
+    reads it the same way. A closing issue always wins. GitHub never closes a
+    `Refs:` issue on merge, and nothing here does."""
+    issue, refusal = _closing_issue(pr, repo)
+    if refusal != "linked-issues:0":
+        return issue, refusal
+    number, refusal = refs_issue(pr.get("body"))
+    if number is None:
+        return {}, refusal
+    owner, name = _split_repo(repo)
+    data = _graphql(
+        REFS_ISSUE, f"#{number}", "issueOrPullRequest", o=owner, r=name, n=number
+    )
+    repository = data.get("repository")
+    if not is_json_object(repository):
+        raise PolicyReadError(f"#{number}: the Refs issue answer has no repository")
+    node = repository.get("issueOrPullRequest")
+    if not is_json_object(node):
+        raise PolicyReadError(f"#{number}: the Refs issue answer is empty")
+    if node.get("__typename") != "Issue":
+        return {}, REFS_NOT_AN_ISSUE
+    return _closing_issue(
+        {"closingIssuesReferences": {"totalCount": 1, "nodes": [node]}}, repo
+    )
 
 
 def _closing_issue(pr: dict[str, Any], repo: str) -> tuple[dict[str, Any], str | None]:
@@ -2112,8 +2242,9 @@ def lane_eligibility(
     (`adoption_refusal`, with `adoption_idle_hours`, `adoption_owner_ids`,
     the resolved `human_gated` label and `queued_at_head`; None or empty
     adopts nothing),
-    exactly one closing
-    issue in this repository (the verifier verdict binds to it), and a diff
+    exactly one linked
+    issue in this repository (`_linked_issue`; the verifier verdict binds to
+    it), and a diff
     touching no `merge.diff-check.denied-paths`. Such a pull request is
     class `LANE_CLASS`; no `work-class:` label is read.
     `pr` is the REST record, whose `changed_files` the file listing must
@@ -2149,7 +2280,7 @@ def lane_eligibility(
             if not_adopted:
                 return Eligibility(False, f"not-adopted:{not_adopted}")
             adoption = f"idle-owner:{adoption_idle_hours}h"
-        issue, refusal = _closing_issue(node, repo)
+        issue, refusal = _linked_issue(node, repo)
         if refusal is None:
             issue_number = issue["number"]
         # An adopted pull request closing no issue here is its own intent,
@@ -2159,7 +2290,7 @@ def lane_eligibility(
         # model-written body would be the spec the same run grades itself
         # against, whatever the account's GitHub type.
         body_is_intent = json_object(pr.get("user")).get("id") in spec_from_body_ids
-        if refusal is None or adoption and body_is_intent and refusal in NO_ISSUE_HERE:
+        if refusal is None or adoption and body_is_intent and no_issue_here(refusal):
             refusal = _base_refusal(owner, name, node, shared=True)
         if refusal is None:
             refusal = _denied_path_refusal(
@@ -2570,7 +2701,7 @@ def dependabot_eligibility(
 
 
 def recheck_lane_issue(repo: str, number: int, *, issue: int | None) -> str | None:
-    """The closing issue read again right before the enqueue: it must still
+    """The linked issue read again right before the enqueue: it must still
     be the one, in this repository, that the eligibility read found (`issue`),
     since the verifier verdict binds to it, and the base must still be the
     default branch (`_base_refusal`, read fresh)."""
@@ -2580,8 +2711,8 @@ def recheck_lane_issue(repo: str, number: int, *, issue: int | None) -> str | No
         node = json_object(json_object(data.get("repository")).get("pullRequest"))
         if not node:
             return "pull-request-unreadable"
-        found, refusal = _closing_issue(node, repo)
-        if issue is None and refusal in NO_ISSUE_HERE:
+        found, refusal = _linked_issue(node, repo)
+        if issue is None and no_issue_here(refusal):
             return _base_refusal(owner, name, node)
         if refusal:
             return refusal
@@ -2674,8 +2805,9 @@ class AutoMerge:
     head_ref_oid: str | None
     merged_at: str | None
     url: str | None = None
-    # The agent identity landed it, so the wrapper pinned its head; any other
-    # actor has no pin and verifies on the dispatch and canary runs alone.
+    # The agent identity landed it: the gate's enqueue pinned its head, its
+    # native auto-merge (`babysit_postmerge.native_auto_merge`) did not. Any
+    # other actor has no pin and verifies on the dispatch and canary runs alone.
     by_identity: bool = False
     queued: bool = True
 
