@@ -329,7 +329,14 @@ if grep -q -- --rcfile <<<"$(shellcheck --help 2>&1)"; then
   run -- --uncommitted
   check "--uncommitted lints a changed shell file with the repository's .shellcheckrc" \
     '[[ $RC == 1 && $ERR == *"FAIL shellcheck"* && $ERR == *"SC2292"* && $ERR != *"unrecognized option"* ]]'
-  rm -f "$repo/.shellcheckrc" "$repo/lint-me.sh"
+  rm -f "$repo/lint-me.sh"
+  mkdir -p "$repo/.githooks/guardrails"
+  printf '#!/usr/bin/env bash\nif [ -n "${1:-}" ]; then echo hi; fi\n' >"$repo/.githooks/guardrails/copy.sh"
+  chmod +x "$repo/.githooks/guardrails/copy.sh"
+  run -- --uncommitted
+  check "--uncommitted leaves the plugin-owned .githooks/guardrails copies to the workflow's excluded lint" \
+    '[[ $RC == 0 && $ERR != *"FAIL shellcheck"* ]]'
+  rm -rf "$repo/.shellcheckrc" "$repo/.githooks"
 else
   ok "SKIP --uncommitted shellcheck case (no shellcheck with --rcfile here)"
 fi

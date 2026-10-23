@@ -242,6 +242,9 @@ declare -a md=() sh=() py=() shebang=() plugins=()
 skill_touched=0
 for f in ${changed[@]+"${changed[@]}"}; do
   case "$f" in
+  # Plugin-owned git-hook copies, linted where they are sourced; the workflow's
+  # lint step excludes them too.
+  .githooks/guardrails/*) ;;
   *.md) md+=("$f") ;;
   *.sh | *.bash) sh+=("$f") ;;
   *.py) py+=("$f") ;;
