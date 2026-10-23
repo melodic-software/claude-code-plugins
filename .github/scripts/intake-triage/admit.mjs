@@ -19,6 +19,11 @@
 //   work-unblock counts), and no open pull request in this repository names
 //   the issue;
 // - 9: the author is a listed human or the lanes App;
+// - lane-runnable done-when: no task-list item asks for what an unattended
+//   lane run cannot do (unrunnableCriteria below): a run on a named host or
+//   OS, a paid eval, a run repeated N times, a measurement over time, or a
+//   page on a host outside resolve-issue's web-access domains. The refusal
+//   recommends splitting those items into a needs-human child issue;
 // - 10: check-wip-cap's status: over the queued cap, or with the lane paused
 //   over the WIP or held cap (from wip.pause-from), the issue gets
 //   `admission-deferred`, which work-unblock's hourly sweep admits once there
@@ -74,10 +79,112 @@ export const openPullsNaming = (timeline, repository) =>
     .filter((source) => source?.pull_request && source.state === "open" && here(source.repository_url, repository))
     .map((source) => source.number);
 
+// Done-when items an unattended lane run cannot perform. Each pattern needs
+// an action or a place within one clause of its subject, so an item that only
+// names a host, a threshold or a retention period passes.
+const N = String.raw`(?:\d+|two|three|four|five|seven|ten|fourteen|twenty|thirty|fifty|hundred)`;
+const UNIT = String.raw`(?:hours?|days?|weeks?|months?|nights?)`;
+const UNRUNNABLE = [
+  [
+    "a run on a host the lane is not",
+    /\b(?:on|from|in) (?:a |an |the |another |each )?(?:windows(?: 1[01])?|macos|mac|wsl2?|fleet|physical|desktop|remote|attended) (?:host|machine|workstation|laptop|desktop|box|vm)s?\b/i,
+  ],
+  [
+    "a paid eval",
+    /\b(?:run|execute|launch|start)\b[^,;:]{0,40}\b(?:paid evals?|claude plugin eval\b(?![^,;:]*\b(?:validate|dry[- ]run|no-spend)\b))/i,
+  ],
+  [
+    "a repeated run",
+    new RegExp(
+      String.raw`\b(?:run|execute|repeat|pass(?:es)?|succeed|complete)\b[^,;:]{0,40}\b${N} (?:consecutive|successive|back-to-back|repeated|loaded|parallel) (?:runs?|passes|iterations|sessions|times)\b|\b${N} (?:consecutive|successive|back-to-back|repeated|loaded|parallel) (?:runs?|passes|iterations|sessions) (?:pass|succeed|complete|show|report)`,
+      "i",
+    ),
+  ],
+  [
+    "a measurement over time",
+    {
+      // An observation window, not a duration the lane can read from config:
+      // an expiry or retention period passes.
+      window: new RegExp(
+        [
+          String.raw`\b(?:for|over|across|during) the (?:next|following|coming) (?:${N} )?${UNIT}\b`,
+          String.raw`\b(?:measure|observe|monitor|watch|track)\b[^,;:]{0,60}\b(?:for|over|across|during) (?:a |an |one |${N} )?${UNIT}\b`,
+          String.raw`\b(?:measure|observe|monitor|watch|track|confirm|verify|check)\b[^,;:]{0,60}\bafter (?:a |an |one |${N} )?${UNIT} (?:of (?:use|running|runs|operation|traffic)|that)\b`,
+        ].join("|"),
+        "i",
+      ),
+      retention: /\b(?:expir\w*|keeps?|kept|retain\w*|retention|older than|ttl)\b/i,
+      test(text) {
+        return this.window.test(text) && !this.retention.test(text);
+      },
+    },
+  ],
+];
+// The lane can always reach these; a page elsewhere needs resolve-issue's
+// web access.
+const GITHUB_HOSTS = ["github.com", "api.github.com", "localhost", "127.0.0.1"];
+// An item reads a page only when its clause asks to open or compare against it,
+// not when it names a URL as text to edit.
+const READS_PAGE = /\b(?:read|fetch|open|visit|load|browse|check|confirm|verify|match(?:es)?|compare|against|according|shows?|says|lists?)\b/i;
+const allowedBy = (hosts) => (host) =>
+  hosts.some((entry) => (entry.startsWith("*.") ? host.endsWith(entry.slice(1)) : host === entry));
+// Backtick-free, mention-free, at most 80 characters: issue text
+// quoted back into an App comment.
+const excerpt = (text) => {
+  const plain = text.replaceAll("`", "").replaceAll("@", "@\u200b").trim();
+  return plain.length > 80 ? `${plain.slice(0, 77)}...` : plain;
+};
+
+// [{n, kind, text}] for each task-list item (1-based n) the lane cannot
+// perform. `webHosts` is resolve-issue's web-access domains: "any" skips the
+// URL check, an absent list allows only GitHub and local hosts, and a `*.`
+// entry allows that domain's subdomains. Pure.
+export function unrunnableCriteria(body, taskList, webHosts) {
+  const allowed = webHosts === "any" ? null : allowedBy([...GITHUB_HOSTS, ...(Array.isArray(webHosts) ? webHosts : [])].map((h) => h.toLowerCase()));
+  const items = String(body ?? "")
+    .split("\n")
+    .map((line) => line.trimStart())
+    .filter((line) => line.startsWith(taskList))
+    .map((line) => line.slice(taskList.length));
+  const found = [];
+  items.forEach((text, index) => {
+    let kind = UNRUNNABLE.find(([, pattern]) => pattern.test(text))?.[0];
+    if (!kind && allowed) {
+      // Clauses split on , ; and a colon that does not start ://.
+      const outside = text
+        .split(/[,;]|:(?!\/\/)/)
+        .filter((clause) => READS_PAGE.test(clause))
+        .flatMap((clause) => [...clause.matchAll(/\bhttps?:\/\/([a-z0-9.-]+)/gi)].map((m) => m[1].toLowerCase().replace(/\.+$/, "")))
+        .find((host) => !allowed(host));
+      if (outside) {
+        kind = `a page on ${outside}, outside the lane's web hosts`;
+      }
+    }
+    if (kind) {
+      found.push({ n: index + 1, kind, text: excerpt(text) });
+    }
+  });
+  return { items: items.length, found };
+}
+
+// The refusal reason for unrunnableCriteria's result, with the split it
+// recommends, or null when every item is runnable.
+export function unrunnableReason({ items, found }) {
+  if (found.length === 0) {
+    return null;
+  }
+  const list = found.map(({ n, kind, text }) => `item ${n} (${kind}: "${text}")`).join(", ");
+  const split =
+    found.length === items
+      ? "no done-when item is left for the lane, so a person takes the issue"
+      : "recommended split: keep the other items here as the admissible issue and move these to a needs-human child issue";
+  return `its done-when asks for what an unattended lane run cannot perform: ${list}; ${split}`;
+}
+
 const names = (labels) => (labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
 
 // {verdict: admit | refuse | wait | skip, reasons}. Pure.
-export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, timeline, events, humans, appId, repository }) {
+export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, timeline, events, humans, appId, repository, webHosts }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
@@ -116,6 +223,10 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   const lines = String(issue.body ?? "").split("\n");
   if (!lines.some((line) => line.trimStart().startsWith(rules["task-list"]))) {
     refuse.push(`it has no \`${rules["task-list"]}\` task list to check`);
+  }
+  const unrunnable = unrunnableReason(unrunnableCriteria(issue.body, rules["task-list"], webHosts));
+  if (unrunnable) {
+    refuse.push(unrunnable);
   }
   for (const label of rules["refuse-labels"]) {
     if (labels.includes(label)) {
@@ -176,7 +287,7 @@ async function sayWhy(github, repository, base, text) {
 
 // Reads the issue fresh, decides, and writes. `status` answers check-wip-cap's
 // status for the issue lane. Returns {outcome, reasons}.
-export async function admit({ github, repository, number, verdict, rules, humans, appId, status, log = console.log }) {
+export async function admit({ github, repository, number, verdict, rules, humans, appId, status, webHosts, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
   const blockers = await paginate(github, `${base}/dependencies/blocked_by`);
@@ -202,6 +313,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
     humans,
     appId,
     repository,
+    webHosts,
   });
   const reasons = decision.reasons.join("; ");
   const undefer = async () => {

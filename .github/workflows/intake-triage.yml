@@ -230,7 +230,11 @@ jobs:
           interactions or concurrency.
         - Uncertainty: Known when the approach is clear from the issue, Knowable when reading or
           asking first would settle it, Unknown when only an experiment would.
-        - Flags: intent when the intended outcome is not exact or needs the owner's decision;
+        - Flags: intent when the intended outcome is not exact or needs the owner's decision, or
+          when a done-when item asks for what an unattended lane run cannot do (a run on a named
+          host or OS, a paid eval, a run repeated N times, a measurement over time, or a page on a
+          host outside the issue lane's web access); then recommend a split in your comment: the
+          lane-checkable items stay in this issue, the rest go to a needs-human child issue;
           security only for a very-high security risk, the security review's CRITICAL tier: the
           work would expose a credential or secret, bypass a trust boundary, or open an external
           attack surface (other security-related work gets no flag); cost as COST below describes.
