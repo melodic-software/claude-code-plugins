@@ -330,6 +330,7 @@ jobs:
       # Read a refused lane run's annotations and its PR head's checks. Never
       # write: the gate-check job below writes the check runs.
       checks: read
+      issues: read # the post-merge check's demotion records, read with this job's token
       id-token: write # prove to the token broker which workflow this is
     outputs:
       # `true` when the gate's rows were handed to the gate-check job.
@@ -640,12 +641,14 @@ jobs:
       # (--postmerge-result); a PR that merges during the run is in the
       # gate's own `dispatch` output. The post-merge-dispatch job runs the
       # same check to start the full run an earlier merge needs, so neither a
-      # failed listing nor a long gate loop holds that run back.
+      # failed listing nor a long gate loop holds that run back. Read-only,
+      # so it reads with this job's own token, off the lane App's quota; only
+      # --remediate below needs the lane token.
       - name: Check earlier lane merges
         id: post-merge
         if: steps.lane-token.outputs.token != ''
         env:
-          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -774,10 +777,12 @@ jobs:
         if: steps.candidates.outcome == 'success'
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
-          # Only the verdict reader's Actions calls and the whole-review
-          # request's limit reads use this, as their own GH_TOKEN
-          # (babysit_verify_evidence.py, babysit_whole_review.py); the job
-          # runs main's code alone, never a PR's.
+          # The verdict reader's Actions calls, the review-evidence reads
+          # (timeline, comments, lane runs, attempts, jobs, annotations) and
+          # the whole-review request's limit reads use this, as their own
+          # GH_TOKEN (babysit_verify_evidence.py, babysit_merge.py
+          # _lane_evidence, babysit_whole_review.py); every write keeps the
+          # lane token. The job runs main's code alone, never a PR's.
           BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}
           # At most one whole-review request per run: the first candidate to
           # reach its limits creates this file (babysit_whole_review.py).

@@ -388,6 +388,22 @@ test("a failed lane merge reruns the check with --remediate under the lane token
   assert.match(runScript("Check earlier lane merges"), /^echo "code=\$code" >>"\$GITHUB_OUTPUT"$/m);
 });
 
+// Only --remediate writes, so it alone takes the lane token. The read-only
+// check and the gate's evidence reads spend the job's own token, which this
+// job grants no write.
+test("the read-only post-merge check and the gate's reads use the job's read-only token", () => {
+  assert.match(step("Check earlier lane merges"), /\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n/);
+  assert.doesNotMatch(runScript("Check earlier lane merges"), /--remediate/);
+  assert.match(step("Record a failed lane merge"), /\n {10}GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}\n/);
+  const gate = step("Run the merge gate on each candidate");
+  assert.match(gate, /\n {10}GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}\n/);
+  assert.match(gate, /\n {10}BABYSIT_VERIFY_GH_TOKEN: \$\{\{ github\.token \}\}\n/);
+  const permissions = /\n    permissions:\n([\s\S]*?)\n    [a-z-]+:/.exec(job)[1];
+  const grants = [...permissions.matchAll(/^ {6}([a-z-]+): ([a-z]+)/gm)].map((m) => `${m[1]}: ${m[2]}`);
+  assert.deepEqual(grants.filter((g) => g.endsWith(": write")), ["id-token: write"]);
+  assert.ok(grants.includes("issues: read"), grants.join(", "));
+});
+
 // Runs the record step against a fake python3 that saves its arguments,
 // prints `report` and exits `code`.
 const runRecord = (code, report = { remediation: { errors: [] } }) => {

@@ -2856,10 +2856,18 @@ def _lane_evidence(
     returns False for the pull request's author and every head pusher (commit
     authors and committers, force-push actors): none of them may resolve a
     finding away. A commit with no linked author or committer, or a head with
-    more commits than the list returns, raises `HeadPusherUnproven`. A retargeted base unbinds every lane."""
+    more commits than the list returns, raises `HeadPusherUnproven`. A retargeted base unbinds every lane.
+
+    The timeline, the comments and the lane runs are read under the verdict
+    reader's token when one is set, keeping them off the lane App's quota;
+    every read here is a GET."""
     head = json_object(pr.get("head"))
+    token = os.environ.get(verify_evidence.TOKEN_ENV)
+    read_env = {"GH_TOKEN": token} if token else None
     timeline = fetch_paginated_api(
-        f"repos/{repo}/issues/{number}/timeline?per_page=100", f"#{number} timeline"
+        f"repos/{repo}/issues/{number}/timeline?per_page=100",
+        f"#{number} timeline",
+        env_overrides=read_env,
     )
     commits = pull_request_commits_once(
         repo,
@@ -2899,7 +2907,9 @@ def _lane_evidence(
     excluded.add(str(json_object(pr.get("user")).get("login") or "").casefold())
     excluded.discard("")
     comments = fetch_paginated_api(
-        f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
+        f"repos/{repo}/issues/{number}/comments?per_page=100",
+        f"#{number} comments",
+        env_overrides=read_env,
     )
     try:
         threads: list[Any] | None = fetch_review_threads(
@@ -2913,6 +2923,7 @@ def _lane_evidence(
         str(head.get("ref")),
         review_evidence.LANES.values(),
         str(pr.get("created_at") or ""),
+        read_env,
     )
 
     def human(actor: Any) -> bool:
