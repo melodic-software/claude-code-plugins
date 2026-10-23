@@ -3269,6 +3269,10 @@ jobs:
       #   holds are read from the `claude-lane-hold ... criteria=` notice the
       #   lane's status job records (any attempt, on this branch), never from
       #   the hold comment, which anyone with write access can edit or delete.
+      #   A pull_request run takes its workflow from the pull request, so a
+      #   run whose head changes either review-lane workflow from the base (or
+      #   whose comparison lists 300 files, the API's cap) could forge that
+      #   notice, and keeps the hold.
       # - No lanes App comment was written and no comment was deleted in it: a
       #   lanes App escalation adds no label event to a label already on.
       # - The pull request body, outside HTML comments, links a decision comment
@@ -3372,20 +3376,31 @@ jobs:
           done <<<"$links"
           [ -n "$decision" ] || keep "the body cites no recorded owner cost decision covering it"
           # Every hold a review lane recorded in the window, as {at, criteria}.
-          holds='[]'
+          holds='[]' vetted=''
           while read -r file check; do
             runs=$(read_api "repos/$repo/actions/workflows/$file/runs?event=pull_request&branch=$ref&per_page=100" --paginate) || keep "the $file runs are unreadable"
-            for id in $(jq -nr --argjson since "$since" '[inputs.workflow_runs[] | select((.updated_at | fromdateiso8601) > $since) | .id] | unique[]' <<<"$runs"); do
-              jobs=$(read_api "repos/$repo/actions/runs/$id/jobs?filter=all&per_page=100") || keep "the jobs of run $id are unreadable"
+            while read -r id sha; do
+              [ -n "$id" ] || continue
+              [[ $sha =~ ^[0-9a-f]{40}$ ]] || keep "run $id names no head commit"
+              if [[ " $vetted " != *" $sha "* ]]; then
+                diff=$(read_api "repos/$repo/compare/$BASE_SHA...$sha") || keep "the changes of $sha are unreadable"
+                changed=$(jq -er '[.files[].filename] as $f
+                  | if ($f | length) >= 300 then "too many files"
+                    elif any($f[]; . == ".github/workflows/pr-review-hosted.yml" or . == ".github/workflows/pr-review-security-hosted.yml") then "a review-lane workflow"
+                    else "" end' <<<"$diff") || keep "the changes of $sha do not parse"
+                [ -z "$changed" ] || keep "lane run $id ran on $sha, which changes $changed"
+                vetted+=" $sha"
+              fi
+              jobs=$(read_api "repos/$repo/actions/runs/$id/jobs?filter=all&per_page=100" --paginate) || keep "the jobs of run $id are unreadable"
               for job in $(jq -nr --arg check "$check" --argjson since "$since" '[inputs.jobs[] | select(.name == $check
                 and .completed_at != null and (.completed_at | fromdateiso8601) > $since) | "\(.id)/\(.completed_at)"] | unique[]' <<<"$jobs"); do
-                notes=$(read_api "repos/$repo/check-runs/${job%%/*}/annotations?per_page=100") || keep "the annotations of job ${job%%/*} are unreadable"
+                notes=$(read_api "repos/$repo/check-runs/${job%%/*}/annotations?per_page=100" --paginate) || keep "the annotations of job ${job%%/*} are unreadable"
                 holds=$(jq -nc --argjson holds "$holds" --arg at "${job#*/}" '$holds + [inputs[] | select(.annotation_level == "notice")
                   | .message | select(startswith("claude-lane-hold "))
                   | {at: ($at | fromdateiso8601), criteria: (capture("^claude-lane-hold lane=[a-z-]+ sha=[0-9a-f]{40} criteria=(?<c>[a-z,-]+) label=").c // "unparsed")}]' \
                   <<<"$notes") || keep "the annotations of job ${job%%/*} do not parse"
               done
-            done
+            done < <(jq -nr --argjson since "$since" '[inputs.workflow_runs[] | select((.updated_at | fromdateiso8601) > $since) | "\(.id) \(.head_sha)"] | unique[]' <<<"$runs")
           done <<<'pr-review-hosted.yml pr-review / claude-review-status
           pr-review-security-hosted.yml pr-review-security / security-review'
           comments=$(read_api "repos/$repo/issues/$PR_NUMBER/comments?per_page=100" --paginate) || keep "the comments are unreadable"

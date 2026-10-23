@@ -95,6 +95,7 @@ case "$*" in
   [[ "$*" == *'branch=fix%2Fcost&'* ]] || exit 1
   from "$STUB_RUNS" "$(key workflows "$@")"
   ;;
+*/compare/"$BASE_SHA..."*) failing compare; args="$*"; from "$STUB_COMPARE" "${args##*...}" ;;
 */actions/runs/*/jobs*) failing jobs; from "$STUB_JOBS" "$(key runs "$@")" ;;
 */check-runs/*/annotations*) failing notes; from "$STUB_NOTES" "$(key check-runs "$@")" ;;
 */pulls/6419*) failing pull; printf '%s\n' "$STUB_PR" ;;
@@ -109,6 +110,7 @@ chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep"
 
 BASE=89abcdef0123456789abcdef0123456789abcdef
 HEAD=0123456789abcdef0123456789abcdef01234567
+OLD=fedcba9876543210fedcba9876543210fedcba98
 OWNER_ID=153232337
 APP_ID=777
 LINK='https://github.com/o/r/issues/9306#issuecomment-111'
@@ -131,11 +133,12 @@ hold_note() { note "claude-lane-hold lane=${2:-claude-review} sha=$HEAD criteria
 job() { jq -cn --argjson id "$1" --arg name "$2" --arg at "$3" '{id: $id, name: $name, completed_at: $at}'; }
 # lanes <code-notes> <security-notes>: one run per lane, its status job done at 13:20:30 and 13:21:00.
 lanes() {
-  STUB_RUNS="$(jq -c . <<<'{"pr-review-hosted.yml":{"workflow_runs":[{"id":1,"updated_at":"2026-10-23T13:20:40Z"}]},"pr-review-security-hosted.yml":{"workflow_runs":[{"id":2,"updated_at":"2026-10-23T13:21:10Z"}]}}')"
+  STUB_RUNS="$(jq -c . <<<'{"pr-review-hosted.yml":{"workflow_runs":[{"id":1,"head_sha":"0123456789abcdef0123456789abcdef01234567","updated_at":"2026-10-23T13:20:40Z"}]},"pr-review-security-hosted.yml":{"workflow_runs":[{"id":2,"head_sha":"0123456789abcdef0123456789abcdef01234567","updated_at":"2026-10-23T13:21:10Z"}]}}')"
   STUB_JOBS="$(jq -cn --argjson a "$(job 11 "$CODE_CHECK" 2026-10-23T13:20:30Z)" --argjson b "$(job 21 "$SEC_CHECK" 2026-10-23T13:21:00Z)" \
     '{"1": {jobs: [{id: 10, name: "kill-switch", completed_at: "2026-10-23T13:19:00Z"}, $a]}, "2": {jobs: [$b]}}')"
   STUB_NOTES="$(jq -cn --argjson a "$1" --argjson b "$2" '{"11": $a, "21": $b, "10": []}')"
-  export STUB_RUNS STUB_JOBS STUB_NOTES
+  STUB_COMPARE="$(jq -cn --arg h "$HEAD" --arg o "$OLD" '{($h): {files: [{filename: "README.md"}]}, ($o): {files: []}}')"
+  export STUB_RUNS STUB_JOBS STUB_NOTES STUB_COMPARE
 }
 
 reset() {
@@ -192,6 +195,11 @@ if [[ "$post" == *"$LINK"* && "$post" != *"claude-lane-hold"* && "$post" != *"cl
   ok "the removal comment cites the decision and is not itself a hold"
 else
   fail "the removal comment: '$post'"
+fi
+if grep -q '/jobs?filter=all&per_page=100 --paginate$' "$TMP_ROOT/log" && grep -q '/annotations?per_page=100 --paginate$' "$TMP_ROOT/log"; then
+  ok "the jobs and annotations reads take every page, so a hold notice on page two is seen"
+else
+  fail "the jobs or annotations read is not paginated: '$(grep -E 'jobs|annotations' "$TMP_ROOT/log")'"
 fi
 if [[ "$(grep -n -- '-X POST' "$TMP_ROOT/log" | cut -d: -f1)" -lt "$(grep -n -- '-X DELETE' "$TMP_ROOT/log" | cut -d: -f1)" ]]; then
   ok "the comment is posted before the label comes off"
@@ -275,7 +283,7 @@ export STUB_JOBS STUB_NOTES
 expect "a re-run attempt that held for trust-gate clears nothing" no no no "is not cost-only"
 
 reset
-STUB_RUNS="$(jq -c . <<<'{"pr-review-hosted.yml":{"workflow_runs":[{"id":1,"updated_at":"2026-10-23T13:20:40Z"},{"id":3,"updated_at":"2026-10-23T13:10:10Z"}]},"pr-review-security-hosted.yml":{"workflow_runs":[{"id":2,"updated_at":"2026-10-23T13:21:10Z"}]}}')"
+STUB_RUNS="$(jq -c . <<<'{"pr-review-hosted.yml":{"workflow_runs":[{"id":1,"head_sha":"0123456789abcdef0123456789abcdef01234567","updated_at":"2026-10-23T13:20:40Z"},{"id":3,"head_sha":"fedcba9876543210fedcba9876543210fedcba98","updated_at":"2026-10-23T13:10:10Z"}]},"pr-review-security-hosted.yml":{"workflow_runs":[{"id":2,"head_sha":"0123456789abcdef0123456789abcdef01234567","updated_at":"2026-10-23T13:21:10Z"}]}}')"
 STUB_JOBS="$(jq -c --argjson c "$(job 31 "$CODE_CHECK" 2026-10-23T13:10:00Z)" '. + {"3": {jobs: [$c]}}' <<<"$STUB_JOBS")"
 STUB_NOTES="$(jq -c --argjson c "[$(hold_note trust-gate)]" '. + {"31": $c}' <<<"$STUB_NOTES")"
 export STUB_RUNS STUB_JOBS STUB_NOTES
@@ -317,6 +325,15 @@ if grep -qE 'actions/workflows|check-runs|graphql|/pulls/' "$TMP_ROOT/log"; then
 else
   ok "with no lane label event the step stops before the pull request, run and GraphQL reads"
 fi
+# A pull_request run takes its workflow from the head, so a head that edits a
+# lane workflow could write the cost notice itself.
+reset
+STUB_COMPARE="$(jq -cn --arg h "$HEAD" '{($h): {files: [{filename: ".github/workflows/pr-review-security-hosted.yml"}]}}')"
+expect "a lane run on a head that changes a review-lane workflow clears nothing" no no no "changes a review-lane workflow"
+STUB_COMPARE="$(jq -cn --arg h "$HEAD" '{($h): {files: [range(300) | {filename: "f\(.)"}]}}')"
+expect "a lane run on a head whose comparison hits the file cap clears nothing" no no no "changes too many files"
+STUB_COMPARE="$(jq -cn --arg h "$HEAD" '{($h): {status: "diverged"}}')"
+expect "a comparison with no file list clears nothing" no no no "do not parse"
 reset
 lanes '[]' '[]'
 expect "a label with no recorded hold clears nothing" no no no "no review lane recorded a hold"
@@ -324,7 +341,7 @@ reset
 export LANES_APP_ID=''
 expect "an unset lanes App id clears nothing" no no no
 
-for read in tracker actors events pull runs jobs notes comments deleted closing decision edited; do
+for read in tracker actors events pull runs compare jobs notes comments deleted closing decision edited; do
   reset
   export STUB_FAIL="$read"
   expect "an unreadable $read read clears nothing" no no no
