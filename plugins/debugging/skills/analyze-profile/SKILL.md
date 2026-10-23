@@ -67,6 +67,10 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/analyze-profile/scripts/trace_to_sqlite.py
   --in "<artifact path>" --out "$work/profile.db"
 ```
 
+When `mktemp -d` fails because the temporary directory is read-only, as it can be in a sandbox,
+create the directory under a path the sandbox lists as writable, running `mkdir -p` first when that
+path does not exist yet. Stop only when no writable path is left.
+
 On success it prints the detected format and the row counts. Exit 2 covers a malformed file, a
 file past the converter's size cap, a format it does not support, and an output path that already
 exists; in each case report the stderr line and stop, with no hand-written parser as a fallback.

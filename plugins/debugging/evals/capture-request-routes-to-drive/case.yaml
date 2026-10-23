@@ -3,6 +3,8 @@ name: capture-request-routes-to-drive
 description: A request to profile a running process with no artifact in hand routes the capture to /app-control:drive capture and runs no profiler
 tags: [analyze-profile, routing]
 expected_outcome: The answer says analyze-profile reads an existing profile, trace or heap snapshot and does not record one, routes the recording to /app-control:drive capture with a CPU kind, and asks the user to come back with the file. No profiler, debugger or attach command runs.
+context:
+  scaffold_script: scaffold.sh
 execution:
   prompt: "/debugging:analyze-profile profile this process: our export worker (node workers/export.js orders.json) pins a core at 100% for minutes on every run. We have no profile yet. I'm at my desk; find out why."
   allowed_tools: [Read, Glob, Grep, Skill, Bash]
