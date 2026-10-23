@@ -782,8 +782,8 @@ and its queued entries leave; two different identities, or an unreadable head co
   inside an HTML comment in the body counts for nothing. A push after the decision is an accepted
   residual: the decision is not bound to a head. The gate reads the linked comments only for a
   pull request the hold catches, and a failed read leaves the hold. A decision
-  clears only this reason: a change to a workflow on the HIGH path floor still sits there and
-  waits for a person to merge it. Cite the decision before the
+  clears only this reason: a change that is also on the HIGH path floor still waits for a person
+  to merge it. Cite the decision before the
   human-gated label lands; a body edit does not remove that label (only a new head or a person
   does). Not detected: budgets, billing settings and new paid services outside these files, and
   the shapes [#9241](https://github.com/melodic-software/claude-code-plugins/issues/9241) lists.
@@ -1876,9 +1876,7 @@ author's own touched (a lane's fix among them): that author's own lines need no 
 App's PR (claude[bot], cursor[bot], cursoragent, melodic-ai[bot]) gets that exemption only for its
 own lines under `plugins/*/scripts/` (owner decision Q14 (c)); its other paths score whole, like
 the lanes App's, while it stays adoptable for fix-and-merge. The HIGH path floor always scores,
-whoever wrote it, and so does every file pr-unblock's thread scope names (`INSTRUCTION_PATH` in
-`thread-scope.mjs`, whose Python twin a test holds equal): `.gitmodules`, `CODEOWNERS`,
-`settings*.json` and package manifests. Paths match
+whoever wrote it. Paths match
 case-insensitively. The lanes App and
 Dependabot are never adopted. A commit is the author's own
 only when GitHub verified its signature and its author account is the PR's author, and, for a

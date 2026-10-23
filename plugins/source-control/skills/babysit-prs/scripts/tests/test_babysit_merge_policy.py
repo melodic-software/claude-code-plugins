@@ -18,7 +18,6 @@ import io
 import json
 import os
 import pathlib
-import re
 import shutil
 import subprocess
 import sys
@@ -3856,6 +3855,7 @@ class ForeignPaths(unittest.TestCase):
                 ".github/workflows/pr-merge.yml",
                 ".github/workflows/release-publish-plugins.yml",
                 ".github/actions/check-trusted-trigger/action.yml",
+                ".github/standards/trusted-actors/trusted-actors.json",
                 "CODEOWNERS",
                 "docs/CODEOWNERS",
                 ".claude/settings.json",
@@ -3873,6 +3873,13 @@ class ForeignPaths(unittest.TestCase):
             }
         )
         own = {
+            ".github/workflows/pr-merge.yml",
+            ".github/workflows/release-publish-plugins.yml",
+            ".claude/settings.json",
+            "config/settings.local.json",
+            "package.json",
+            "plugins/x/package-lock.json",
+            ".github/requirements-ci.txt",
             "docs/x.md",
             "plugins/x/skills/y/SKILL.md",
             "AGENTS.md",
@@ -3920,18 +3927,6 @@ class ForeignPaths(unittest.TestCase):
                 ),
                 {"plugins/x/scripts/y.py", "Plugins/X/Scripts/Z.SH"},
             )
-
-    def test_the_instruction_path_twin_matches_thread_scope(self) -> None:
-        # One list: the Python twin is the regex thread-scope.mjs defines.
-        root = pathlib.Path(__file__).resolve().parents[6]
-        source = (root / ".github/scripts/pr-unblock/thread-scope.mjs").read_text(
-            encoding="utf-8"
-        )
-        found = re.search(r"const INSTRUCTION_PATH =\s*/(.+)/(\w*);", source)
-        assert found is not None
-        self.assertEqual(policy.INSTRUCTION_PATH_RE.pattern, found.group(1))
-        self.assertEqual(found.group(2), "i")
-        self.assertTrue(policy.INSTRUCTION_PATH_RE.flags & re.IGNORECASE)
 
     def test_a_merge_commit_scores_its_files_the_pr_changed(self) -> None:
         resolved = self.commit("m1", self.LANES, parents=2)

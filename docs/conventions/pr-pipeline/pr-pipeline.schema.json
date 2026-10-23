@@ -981,7 +981,7 @@
             "high-path-floor": {
               "type": "boolean",
               "default": false,
-              "description": "true scores a diff touching the risk scorer's fixed HIGH path floor (agent permission config, submodules, code owners, package manifests and lockfiles, and the workflows that publish a release or hold id-token: write) HIGH, as it does a plugin or marketplace manifest change that installs or runs something new. Absent or false: only denied-paths count. The local babysit lane always applies the floor."
+              "description": "true scores a diff touching the risk scorer's fixed HIGH path floor (the trusted-actor list, the trusted-trigger check, code owners, submodules and resolve-config) HIGH, as it does a plugin or marketplace manifest change that installs or runs something new. Absent or false: only denied-paths count. The local babysit lane always applies the floor."
             },
             "c2-contradictions": {
               "type": "boolean",

@@ -15,15 +15,13 @@ that override their own behavior are out of scope. A count outside
 0..10**9 is malformed. Each reason code appears once.
 
 The HIGH path floor and the lane table are fixed here, never read from
-configuration. The floor holds only what has an effect outside the repository
-or its review: agent permission config, submodules, code owners, package
-manifests and lockfiles, the workflows that publish a release or hold
-`id-token: write`, and the trusted-trigger check that keeps work from outside
-the org away from their credentials. Everything else, this module, the merge
-gate, the review lanes, hooks, scripts and agent instructions included, merges
-on the two review lanes, which are the gate (owner direction 2026-10-22: the
-review lanes are the only gate, and bots may edit hooks, plugins, skills,
-scripts and workflows), except the trusted-actor widening below. The configured `merge.diff-check.denied-paths` are joined to
+configuration. The floor holds only the takeover set, what could hand the
+repository to someone outside the org: the trusted-actor list and the
+trusted-trigger check that enforces it, code owners, and submodules. Everything
+else, agent permission config, package manifests, workflows, this module, the
+merge gate, the review lanes, hooks, scripts and agent instructions included,
+merges on the two review lanes, which are the gate (owner direction
+2026-10-23), except the cost and trusted-actor holds below. The configured `merge.diff-check.denied-paths` are joined to
 the floor, never in place of it. Every glob matches case-insensitively,
 because a lane host on a case-insensitive filesystem treats `Codeowners` as
 `CODEOWNERS`.
@@ -39,7 +37,8 @@ or repeats a key, holds; an added plugin.json is compared with `{}`.
 A change that adds or widens an entry in the trusted-actor list
 (`TRUSTED_ACTORS_PATH`) rates HIGH as `trust-gate:trusted-actors` in every
 lane, whatever the floor switch and `floor_exempt` say, and waits for the
-owner. Base and head text are compared: only removing entries passes; an
+owner. Base and head text are compared: only removing entries passes this
+check, though with the floor on the list's directory holds anyway; an
 added or changed entry, any other key changed, a side that cannot be read or
 parsed or repeats a key, and an added, removed, renamed or copied file hold.
 
@@ -199,30 +198,14 @@ class RiskResult:
     reasons: tuple[Reason, ...]  # sorted by severity desc, then code
 
 
+# What would hand the repository to someone outside the org: who is trusted
+# (the trusted-actor list and the check that enforces it), who owns review
+# (code owners), and what code is pulled in from elsewhere (submodules).
 HIGH_FLOOR: tuple[str, ...] = (
-    "**/settings*.json",  # agent permission config
-    "**/.gitmodules",
-    "**/CODEOWNERS",
-    # Package manifests and lockfiles: the dependency supply chain.
-    "**/package.json",
-    "**/package-lock.json",
-    "**/requirements*.txt",
-    # Workflows that publish a release or hold `id-token: write`: external
-    # effects and the secrets behind them. The scripts and actions they run
-    # are open to review-gated merge (owner direction 2026-10-22), except the
-    # trusted-trigger check, which implements the outside-org hold the owner
-    # kept.
-    ".github/workflows/release-*.yml",
-    ".github/workflows/intake-triage.yml",
-    ".github/workflows/pr-merge.yml",
-    ".github/workflows/pr-review-hosted.yml",
-    ".github/workflows/pr-review-security-hosted.yml",
-    ".github/workflows/pr-run-activity-read.yml",
-    ".github/workflows/pr-run-activity-write.yml",
-    ".github/workflows/pr-unblock.yml",
-    ".github/workflows/work-resolve-issue.yml",
-    ".github/workflows/work-unblock.yml",
+    ".github/standards/trusted-actors/**",
     ".github/actions/check-trusted-trigger/**",
+    "**/CODEOWNERS",
+    "**/.gitmodules",
 )
 
 # plugin.json keys whose values Claude Code runs or reads as run config.

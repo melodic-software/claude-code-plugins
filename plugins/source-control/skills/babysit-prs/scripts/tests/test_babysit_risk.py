@@ -289,20 +289,11 @@ class HighReasonTests(unittest.TestCase):
 
     def test_floor_paths_are_high(self):
         cases = [
-            (".claude/settings.json", "high-path:**/settings*.json"),
-            ("plugins/foo/settings.local.json", "high-path:**/settings*.json"),
             (".gitmodules", "high-path:**/.gitmodules"),
             (".github/CODEOWNERS", "high-path:**/CODEOWNERS"),
-            ("package.json", "high-path:**/package.json"),
-            ("plugins/foo/package-lock.json", "high-path:**/package-lock.json"),
-            ("plugins/foo/requirements.txt", "high-path:**/requirements*.txt"),
             (
-                ".github/workflows/release-publish-plugins.yml",
-                "high-path:.github/workflows/release-*.yml",
-            ),
-            (
-                ".github/workflows/work-resolve-issue.yml",
-                "high-path:.github/workflows/work-resolve-issue.yml",
+                ".github/standards/trusted-actors/trusted-actors.json",
+                "high-path:.github/standards/trusted-actors/**",
             ),
             (
                 ".github/actions/check-trusted-trigger/action.yml",
@@ -315,6 +306,23 @@ class HighReasonTests(unittest.TestCase):
                 self.assertEqual(result.score, Risk.HIGH)
                 self.assertIn(code, _codes(result))
 
+    def test_paths_off_the_floor_take_no_path_code(self):
+        # Owner direction 2026-10-23: only a takeover path waits for the owner.
+        for path in (
+            ".claude/settings.json",
+            "plugins/foo/settings.local.json",
+            "package.json",
+            "plugins/foo/package-lock.json",
+            "plugins/foo/requirements.txt",
+            ".github/workflows/release-publish-plugins.yml",
+            ".github/workflows/pr-merge.yml",
+            ".github/workflows/pr-review-security-hosted.yml",
+            ".github/workflows/work-resolve-issue.yml",
+        ):
+            with self.subTest(path):
+                codes = _codes(score(_input(files=(_file(path),))))
+                self.assertFalse([c for c in codes if c.startswith("high-path:")])
+
     def test_skill_prose_edit_stays_low(self):
         after = FRONT.replace("Body.", "Body, reworded.")
         result = score(_input(files=(_edit(SKILL, FRONT, after),)))
@@ -323,12 +331,11 @@ class HighReasonTests(unittest.TestCase):
     def test_case_folded_paths_are_high(self):
         cases = [
             (
-                ".GitHub/Workflows/PR-Merge.yml",
-                "high-path:.github/workflows/pr-merge.yml",
+                ".GitHub/Standards/Trusted-Actors/README.MD",
+                "high-path:.github/standards/trusted-actors/**",
             ),
             ("plugins/foo/Codeowners", "high-path:**/CODEOWNERS"),
             (".GITMODULES", "high-path:**/.gitmodules"),
-            ("Package.JSON", "high-path:**/package.json"),
         ]
         for path, code in cases:
             with self.subTest(path):
@@ -366,13 +373,13 @@ class RenameTests(unittest.TestCase):
             _file(
                 "plugins/foo/x.json",
                 status="renamed",
-                previous_path="plugins/foo/package.json",
+                previous_path="plugins/foo/CODEOWNERS",
             ),
         )
         result = score(_input(files=files))
         self.assertEqual(result.score, Risk.HIGH)
         self.assertEqual(
-            _codes(result), ("high-path:**/package.json", "class-contradicted")
+            _codes(result), ("high-path:**/CODEOWNERS", "class-contradicted")
         )
 
     def test_rename_into_a_workflow_takes_the_cost_hold(self):
@@ -418,7 +425,7 @@ class OrderingTests(unittest.TestCase):
             _lane("claude-security-review", open_findings=1),
         )
         files = (
-            _file("package.json"),
+            _file("CODEOWNERS"),
             _file(".gitmodules", has_patch=False),
             _file("plugins/foo/c.md", additions=500),
         )
@@ -429,7 +436,7 @@ class OrderingTests(unittest.TestCase):
             _codes(result),
             (
                 "high-path:**/.gitmodules",
-                "high-path:**/package.json",
+                "high-path:**/CODEOWNERS",
                 "security-finding",
                 "blast-radius-missing",
                 "class-above-rung",
@@ -892,6 +899,10 @@ class MalformedInputTests(unittest.TestCase):
                 ".github/actions/check-trusted-trigger",
                 "high-path:.github/actions/check-trusted-trigger/**",
             ),
+            (
+                ".github/standards/trusted-actors",
+                "high-path:.github/standards/trusted-actors/**",
+            ),
         ):
             with self.subTest(path):
                 result = score(_input(files=(_file(path),)))
@@ -1129,23 +1140,16 @@ def _lane_input(files):
 
 
 class LanePathFloorTests(unittest.TestCase):
-    """The live pr-merge config holds only the external-effect set."""
+    """The live pr-merge config holds only the takeover set."""
 
     def test_the_live_config_has_the_floor_on(self):
         self.assertIs(_lane_config().high_path_floor, True)
 
     def test_the_keep_set_holds(self):
         for path in (
-            ".claude/settings.json",
-            "plugins/foo/.claude/settings.local.json",
             ".gitmodules",
             ".github/CODEOWNERS",
-            "package.json",
-            "plugins/foo/package-lock.json",
-            ".github/requirements-ci.txt",
-            ".github/workflows/release-publish-plugins.yml",
-            ".github/workflows/pr-merge.yml",
-            ".github/workflows/pr-unblock.yml",
+            ".github/standards/trusted-actors/trusted-actors.json",
             ".github/actions/check-trusted-trigger/action.yml",
         ):
             with self.subTest(path):
@@ -1186,6 +1190,14 @@ class LanePathFloorTests(unittest.TestCase):
             ".github/scripts/pr-merge/x.mjs",
             "plugins/foo/evals/case/case.yaml",
             "plugins/foo/evals/case/scaffold.sh",
+            ".claude/settings.json",
+            "plugins/foo/.claude/settings.local.json",
+            "package.json",
+            "plugins/foo/package-lock.json",
+            ".github/requirements-ci.txt",
+            ".github/workflows/release-publish-plugins.yml",
+            ".github/workflows/pr-merge.yml",
+            ".github/workflows/pr-review-security-hosted.yml",
         ):
             with self.subTest(path):
                 result = score(_lane_input((_file(path),)))
@@ -1479,6 +1491,13 @@ class TrustGateTests(unittest.TestCase):
                 result = self._score(after)
                 self.assertEqual(result.score, Risk.LOW, result.reasons)
 
+    def test_a_pure_removal_holds_on_the_floor(self):
+        # The trusted-actor directory is on the floor: with the floor on, even
+        # a removal waits for the owner.
+        result = score(_input(files=(_edit(ACTORS, BASE_ACTORS, _actors(_KYLE)),)))
+        self.assertEqual(result.score, Risk.HIGH)
+        self.assertEqual(_codes(result), ("high-path:.github/standards/trusted-actors/**",))
+
     def test_an_unread_or_structural_change_holds(self):
         cases = (
             _file(ACTORS, contents=None),
@@ -1541,7 +1560,7 @@ class ReviewFlagClassTests(unittest.TestCase):
 
     def test_trust_gate_flag_holds(self):
         widened = _edit(ACTORS, BASE_ACTORS, _actors(_KYLE, _BOT, '{ "id": 3 }'))
-        result = score(_input(files=(widened,)))
+        result = score(_input(files=(widened,), high_floor=False))
         self.assertEqual(_codes(result), (TRUSTED,))
         self.assertTrue(holds(result))
 
