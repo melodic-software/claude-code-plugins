@@ -1152,6 +1152,12 @@ class LanePathFloorTests(unittest.TestCase):
                 result = score(_lane_input((_file(path),)))
                 self.assertEqual(result.score, Risk.HIGH, result.reasons)
 
+    def test_resolve_config_waits_for_the_owner(self):
+        # Owner decision Q51: the token broker runs this code from main.
+        result = score(_lane_input((_file(".github/actions/resolve-config/resolve.mjs"),)))
+        self.assertEqual(result.score, Risk.HIGH, result.reasons)
+        self.assertIn("high-path:.github/actions/resolve-config/**", _codes(result))
+
     def test_instructions_hooks_and_scripts_merge(self):
         # Owner direction 2026-10-22: the review lanes are the gate for these.
         for path in (

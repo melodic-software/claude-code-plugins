@@ -60,6 +60,9 @@ const upstream = (overrides = {}) => ({
   ...overrides,
 });
 
+// The first 16 hex digits of `printf %s <ref> | sha256sum`, for feat/x and feat/other.
+const REF_DIGEST = "79b4cc554b80dca6";
+const OTHER_DIGEST = "3b0035df584451e9";
 const pull = (overrides = {}) => ({
   number: 41,
   state: "open",
@@ -395,7 +398,8 @@ test("a counted verdict at the head from a completed run stops a new judgment", 
 
 test("verdicts are looked up by exact name, never by listing every artifact", async () => {
   const paths = [];
-  const github = fake({ pulls: [pull(), pull({ number: 99, state: "closed" }), pull({ number: 99, state: "closed" })] });
+  const other = { sha: HEAD, ref: "feat/other", repo: { full_name: REPO } };
+  const github = fake({ pulls: [pull(), pull({ number: 99, state: "closed", head: other }), pull({ number: 99, state: "closed", head: other })] });
   const recording = async (method, apiPath, body) => {
     paths.push(apiPath);
     return github(method, apiPath, body);
@@ -404,10 +408,33 @@ test("verdicts are looked up by exact name, never by listing every artifact", as
   const lookups = paths.filter((apiPath) => apiPath.includes("/actions/artifacts"));
   assert.deepEqual(lookups.sort(), [
     `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-fail&per_page=100&page=1`,
+    `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-fail-${REF_DIGEST}&per_page=100&page=1`,
     `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-pass&per_page=100&page=1`,
+    `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-pass-${REF_DIGEST}&per_page=100&page=1`,
     `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-pass-notes&per_page=100&page=1`,
+    `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-pass-notes-${REF_DIGEST}&per_page=100&page=1`,
     `/repos/${REPO}/actions/artifacts?name=pr-verify-99-${HEAD}-fail&per_page=100&page=1`,
+    `/repos/${REPO}/actions/artifacts?name=pr-verify-99-${HEAD}-fail-${OTHER_DIGEST}&per_page=100&page=1`,
   ]);
+});
+
+test("a verdict named with its head-ref digest stops a new judgment like one without", async () => {
+  const pulls = [pull(), pull({ number: 99, state: "closed", head: { sha: HEAD, ref: "feat/other", repo: { full_name: REPO } } })];
+  for (const name of [`pr-verify-41-${HEAD}-pass-${REF_DIGEST}`, `pr-verify-99-${HEAD}-fail-${OTHER_DIGEST}`]) {
+    assert.equal(await reason({ pulls, artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77) } }), "already-judged", name);
+  }
+  // Any branch name is looked up by its digest, whatever characters it holds:
+  // the first 16 hex digits of `printf %s <ref> | sha256sum`.
+  for (const [ref, digest] of [["feat/a+b", "a27da2afd9962004"], ["fix/\u00e9", "8c8a071ad0e51f5e"]]) {
+    const head = { sha: HEAD, ref, repo: { full_name: REPO } };
+    const odd = [pull({ head }), pull({ number: 99, state: "closed", head })];
+    for (const name of [`pr-verify-41-${HEAD}-pass-${digest}`, `pr-verify-99-${HEAD}-fail-${digest}`]) {
+      assert.equal(await reason({ pulls: odd, artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77) } }), "already-judged", name);
+    }
+  }
+  // A digest of another branch is not this pull request's verdict.
+  const foreign = artifact(`pr-verify-41-${HEAD}-pass-${OTHER_DIGEST}`, 77);
+  assert.equal(await reason({ pulls, artifacts: [foreign], runs: { 77: verifyRun(77) } }), "ok");
 });
 
 test("a name with more than one page of artifacts is read to the end", async () => {

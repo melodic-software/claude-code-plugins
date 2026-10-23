@@ -3,9 +3,10 @@
 
 `.github/workflows/pr-verify.yml` judges each pull request head that passes
 PR Require Checks and uploads an artifact named
-`pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>` holding `verdict.json`.
-Only steps of a run can upload its artifacts, so the run record authenticates
-the name. An artifact's run is of verifier origin when it is that file, event
+`pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>-<ref-digest>` holding
+`verdict.json`, the last part `head_ref_digest` of the head branch the file
+records; a verdict uploaded before the digest was added has none. Only steps
+of a run can upload its artifacts, so the run record authenticates the name. An artifact's run is of verifier origin when it is that file, event
 `workflow_run`, on the branch, in this repository with a head in this
 repository, and its head SHA is a full SHA on the branch. A FAIL counts from
 any run of verifier origin, whatever its status or conclusion, since the
@@ -24,7 +25,8 @@ from a completed, successful one. Any other artifact is ignored.
   cannot be read is `verify:unreadable`);
 - a counted FAIL at the head, under any pull request number: `verify:fail`;
 - a counted FAIL at another head of this pull request: its number, one of its
-  commits (`pulls/<n>/commits`), or a verdict recording its head branch:
+  commits (`pulls/<n>/commits`), or a verdict recording its head branch (read
+  from the name's digest, else from its verdict.json):
   `verify:earlier-fail`. Counted PASS or PASS-NOTES verdicts at the
   head whose runs were all created after every such FAIL's run (each
   creation time read fresh from GitHub, which a re-attempt keeps; a missing
@@ -37,7 +39,8 @@ from a completed, successful one. Any other artifact is ignored.
 - a FAIL-named artifact tied to this pull request by number or SHA whose run
   cannot be read: `verify:unreadable`. An untied FAIL whose run cannot be read
   is ignored; an untied FAIL whose run is readable and of verifier origin but
-  whose recorded head branch (its verdict.json) cannot be read is
+  whose name carries no digest and whose recorded head branch (its
+  verdict.json) cannot be read is
   `verify:unreadable`, so one such artifact blocks every pull request until it
   is readable, expires or is deleted;
 - counted PASS or PASS-NOTES verdicts at the head of this pull request, each
@@ -110,7 +113,15 @@ WORKFLOW_PATH = ".github/workflows/pr-verify.yml"
 TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
 TOKEN_ENV = "BABYSIT_VERIFY_GH_TOKEN"
 LISTING_ENV = "BABYSIT_VERIFY_LISTING"
-NAME_RE = re.compile(r"pr-verify-([1-9][0-9]*)-([0-9a-f]{40})-(pass|pass-notes|fail)")
+NAME_RE = re.compile(
+    r"pr-verify-([1-9][0-9]*)-([0-9a-f]{40})-(pass|pass-notes|fail)(?:-([0-9a-f]{16}))?"
+)
+# The head-ref digest in a verdict's name: the first HEAD_REF_DIGEST_HEX hex
+# digits of the SHA-256 of the head branch's UTF-8 bytes. write-verdict.mjs
+# `headRefDigest` is its twin, and tests/test_verify_rules_sync.py compares
+# them. Equal branches always give equal digests, so a collision can only tie
+# a FAIL to a branch it did not judge: it holds, never clears.
+HEAD_REF_DIGEST_HEX = 16
 PASSES = ("pass", "pass-notes")
 # Artifacts last at most 90 days in this repository (the retention maximum,
 # and the repository's setting), so a verdict on an older pull request may be
@@ -349,6 +360,11 @@ def change_digest(diff: str) -> str | None:
     if not changed:
         return None
     return hashlib.sha256(json.dumps(changed).encode("utf-8")).hexdigest()
+
+
+def head_ref_digest(ref: str) -> str:
+    """The digest of `ref` that a verdict's artifact name carries."""
+    return hashlib.sha256(ref.encode("utf-8")).hexdigest()[:HEAD_REF_DIGEST_HEX]
 
 
 def _is_id(value: Any, run_id: int) -> bool:
@@ -955,7 +971,12 @@ class Reader:
                     ignored += 1
                 continue
             failed_by_pr.setdefault(pr_n, set()).add(sha)
-            if not tied:
+            if not tied and match[4] is not None:
+                # The name, which the run authenticates, carries the head
+                # branch the verdict records: no download.
+                if not head_ref or head_ref_digest(head_ref) != match[4]:
+                    continue
+            elif not tied:
                 try:
                     recorded = self._head_ref(run_id, name, item.get("id"), head_ref)
                 except _Unreadable:
