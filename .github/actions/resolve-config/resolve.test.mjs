@@ -804,6 +804,57 @@ test("a resolved grant is frozen and leaves effect-grants.json untouched", () =>
   assert.ok(Object.isFrozen(selected.grant));
 });
 
+const withActivityGrants = (activityGrants, lane = "pr-run-checks") => ({
+  laneRules: {
+    ...LANE_RULES,
+    [lane]: { ...LANE_RULES[lane], "activity-grants": activityGrants },
+  },
+});
+
+test("a lane-rules.json activity grant adds actions read to that activity alone", () => {
+  const overrides = withActivityGrants({ "run-tests": { actions: "read" } });
+  const widened = { ...READ_GRANT, actions: "read" };
+  assert.deepEqual(
+    grantOf(fixture("valid.yaml"), { activity: "run-tests" }, overrides),
+    { effect: "read", grant: widened },
+  );
+  assert.deepEqual(
+    grantOf(fixture("valid.yaml"), { activity: "measure-coverage" }, overrides),
+    { effect: "read", grant: READ_GRANT },
+  );
+  const { selected, lane } = run(fixture("valid.yaml"), { activity: "run-tests" }, overrides);
+  assert.deepEqual(selected.grant, widened);
+  assert.ok(Object.isFrozen(selected.grant));
+  assert.deepEqual(lane.slots.find((slot) => slot.name === "measure-coverage").grant, READ_GRANT);
+  assert.deepEqual(EFFECT_GRANTS.read, READ_GRANT);
+});
+
+test("an activity grant other than actions read on a leaf of its lane is rejected", () => {
+  const grants = [
+    null,
+    [],
+    "actions",
+    { "run-tests": { actions: "write" } },
+    { "run-tests": { contents: "write" } },
+    { "run-tests": { actions: "read", contents: "write" } },
+    { "run-tests": {} },
+    { "run-tests": null },
+    { "fix-prose": { actions: "read" } },
+    { "no-such-activity": { actions: "read" } },
+  ];
+  for (const activityGrants of grants) {
+    const overrides = withActivityGrants(activityGrants);
+    assertRejected(
+      () => grantOf(fixture("valid.yaml"), { activity: "measure-coverage" }, overrides),
+      "lane-grant",
+    );
+    assertRejected(
+      () => run(fixture("valid.yaml"), { activity: "measure-coverage" }, overrides),
+      "lane-grant",
+    );
+  }
+});
+
 test("a non-string effect is rejected even when the schema lets it through", () => {
   const schema = structuredClone(SCHEMA);
   schema.$defs.leaf.properties.effect = {};

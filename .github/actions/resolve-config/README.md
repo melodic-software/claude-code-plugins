@@ -42,7 +42,9 @@ The step fails and writes no file when:
    `activity-rules.json` row forbids, in any lane or none (`forbidden-by-activity`). A leaf with no
    row in `activity-rules.json` is valid; a missing or malformed file, or a forbidden effect `effect-grants.json` lacks, is rejected
    (`activity-rules`).
-4. A lane's `stage` differs from its `lane-rules.json` row, or the lane has no row.
+4. A lane's `stage` differs from its `lane-rules.json` row, or the lane has no row; or the row's
+   `activity-grants` maps anything but a leaf of the lane to exactly `{ "actions": "read" }`
+   (`lane-grant`).
 5. A lane slot's `needs:` names an activity that is not one of the lane's slots
    (`needs-outside-lane`), or a composite child's names one that is not its sibling
    (`needs-not-sibling`).
@@ -131,7 +133,8 @@ slot on the path sets `enabled: false`, `not-applicable-paths` when a `paths` pr
 `events`, `work-classes`, `admission`, `mergeable` or `draft` predicate misses, and `prerequisite-missing` when
 mergeability stayed unknown, in that order when several miss. An enabled slot whose predicate was
 not decided carries `applies` and `skip-reason` null. Its `grant` is the effect's row in
-`effect-grants.json`. The step fails when that row does not set exactly `contents`,
+`effect-grants.json`, plus `actions: read` when its lane's `lane-rules.json` row lists the leaf
+under `activity-grants`. The step fails when that row does not set exactly `contents`,
 `pull-requests` and `issues`, each `read` or `write`, or when an `effect` is not a string: an empty
 grant would mint a token with every App permission.
 
@@ -147,7 +150,7 @@ input makes the reader fetch the PR's files even without a `paths` predicate.
 Step outputs: `enabled` and `slots` (a JSON list of names); with `activity`, also `kind`,
 `effect`, `gating` (`gate` or `advisory`), `skill`, `script`, `profile`, `claude-args`,
 `settings-json`, `max-turns`, `model`, `effort`, `reads-untrusted`, `applies`, `skip-reason`, `contents`,
-`pull-requests`, `issues` and `can-commit` (`false` only when `contents` is `read`), `prepare`
+`pull-requests`, `issues`, `actions` (`read`, or empty when the grant has none) and `can-commit` (`false` only when `contents` is `read`), `prepare`
 only when the leaf sets it, and `issue-dimensions` and `timeout-minutes` only when the slot reads
 issue dimensions. `args` is free text and stays in the file.
 
@@ -169,7 +172,8 @@ and `effort` for that route.
 which fetches `effect-grants.json` and `lane-rules.json` from this repository's default-branch tip
 and decides a lane's App token grant through it. It runs the same file checks as the action
 (rejections 1-11, 13 and 16 above) and the effect-grant check, for one required leaf `activity`, and returns
-`{ effect, grant }`, where `grant` is a frozen copy of the effect's row in `effect-grants.json`. A
+`{ effect, grant }`, where `grant` is a frozen copy of the effect's row in `effect-grants.json` with
+the activity's `activity-grants` entry added. A
 slot whose lane or slot sets `enabled: false` gets no grant: it rejects with `slot-disabled`. It
 decides no `applies-when` predicate, so it takes no facts. `applies-when` is not an authorization
 control: it decides whether a slot runs, never what its token may do. Like `resolve()`, it throws

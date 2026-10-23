@@ -428,6 +428,7 @@ export function loadConfig(files, { configPath }) {
         `lane \`${laneName}\` holds activity \`${repeated}\` more than once; a leaf may appear once in a lane`,
       );
     }
+    checkActivityGrants(laneName, rule["activity-grants"], leaves);
     for (const name of leaves) {
       const activity = doc.activities[name];
       // The lane rule compares strictly, so it must not depend on the schema enum.
@@ -627,9 +628,35 @@ export function changedPathTargets({
 const GRANT_SCOPES = ["contents", "issues", "pull-requests"];
 const GRANT_LEVELS = new Set(["read", "write"]);
 
+// A lane-rules.json row may add `actions: read`, and nothing else, to named
+// leaves of its lane through `activity-grants`; the effect row stays the base.
+function checkActivityGrants(laneName, activityGrants, leaves) {
+  if (activityGrants === undefined) {
+    return;
+  }
+  const valid =
+    isObject(activityGrants) &&
+    Object.entries(activityGrants).every(
+      ([name, extra]) =>
+        leaves.includes(name) &&
+        isObject(extra) &&
+        Object.keys(extra).join() === "actions" &&
+        extra.actions === "read",
+    );
+  if (!valid) {
+    throw new Rejection(
+      "lane-grant",
+      `lane-rules.json row \`${laneName}\` activity-grants must map leaves of the lane to exactly { "actions": "read" }`,
+    );
+  }
+}
+
+const activityGrantOf = (laneRules, lane, activity) =>
+  laneRules[lane]?.["activity-grants"]?.[activity] ?? {};
+
 // An empty or partial grant would mint a token with every App permission, so a
 // row must name exactly the three scopes, each read or write.
-function grantFor(effectGrants, effect) {
+function grantFor(effectGrants, effect, extra = {}) {
   if (typeof effect !== "string" || !Object.hasOwn(effectGrants, effect)) {
     throw new Rejection(
       "effect-grant",
@@ -647,7 +674,7 @@ function grantFor(effectGrants, effect) {
       `effect-grants.json row \`${effect}\` must set exactly ${GRANT_SCOPES.join(", ")}, each read or write`,
     );
   }
-  return Object.freeze({ ...row });
+  return Object.freeze({ ...row, ...extra });
 }
 
 // The owner's model for a role route that resolves to no alias: CI has no
@@ -781,8 +808,9 @@ function resolveSlot(
   models,
   pinnedDimensions,
   rung,
+  extraGrant,
 ) {
-  const grant = grantFor(effectGrants, activity.effect);
+  const grant = grantFor(effectGrants, activity.effect, extraGrant);
   let outcome = { applies: null, skipReason: null };
   if (!enabled) {
     outcome = { applies: false, skipReason: "disabled-by-config" };
@@ -896,7 +924,11 @@ export function resolveGrant(files, { lane, activity, configPath }) {
   }
   return {
     effect: entry.activity.effect,
-    grant: grantFor(files.effectGrants, entry.activity.effect),
+    grant: grantFor(
+      files.effectGrants,
+      entry.activity.effect,
+      activityGrantOf(files.laneRules, lane, activity),
+    ),
   };
 }
 
@@ -974,7 +1006,16 @@ export function resolve(
   const index = selectedIndex(entries, lane, activity);
   const slots = entries.map((entry, i) =>
     // Only the selected slot runs, so only it climbs.
-    resolveSlot(entry, files, facts, decides(i, index), doc.models, pinnedDimensions, i === index ? modelRung : 0),
+    resolveSlot(
+      entry,
+      files,
+      facts,
+      decides(i, index),
+      doc.models,
+      pinnedDimensions,
+      i === index ? modelRung : 0,
+      activityGrantOf(files.laneRules, lane, entry.name),
+    ),
   );
   return {
     version: 1,
