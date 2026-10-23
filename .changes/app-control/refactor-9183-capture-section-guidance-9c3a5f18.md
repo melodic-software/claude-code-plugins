@@ -10,4 +10,5 @@ bump: minor
 
 ### Changed
 
-- The shown-script elevation step now covers a capture on a process the run launched, not only an attach; with no one present that capture is `blocked: capture needs elevation`.
+- The shown-script elevation step now covers a capture on a process the run launched, not only an attach, including a named command that carries an elevation prefix; with no one present that capture is `blocked: capture needs elevation`.
+- "Writing the Capture section" bars elevation prefixes (`sudo`, `doas`, `runas`) in a `## Capture` command, elevates only the recorder against a pid, and says a pid-targeting tool captures a process the run launched without `--attach`.
