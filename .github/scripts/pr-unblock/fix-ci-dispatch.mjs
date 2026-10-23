@@ -31,7 +31,7 @@ export const DEFAULTS = Object.freeze({
   checkName: "pr-unblock / fix-ci",
   // The run whose failure counts: pr-require-checks when ci-status failed,
   // else the advisory pr-test-windows, which ci-status does not aggregate but
-  // the merge gate holds on (PR #9235, run 39867317913).
+  // the merge gate holds on.
   requiredWorkflow: ".github/workflows/pr-require-checks.yml",
   advisoryWorkflow: ".github/workflows/pr-test-windows.yml",
   // The GitHub Actions app, as in dispatch.mjs: only its runs count.

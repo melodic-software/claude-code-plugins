@@ -452,7 +452,7 @@ test("a real failure at attempt 1 is the reconciler's to re-run once; at attempt
 });
 
 // pr-test-windows is not in ci-status, but the merge gate holds a PR on any
-// failing check: PR #9235 sat red on a macOS test_tunnel flake (run 39867317913).
+// failing check, such as a macOS test_tunnel flake.
 test("a failed advisory pr-test-windows run with ci-status green is fix-ci's once its one re-run failed", async () => {
   const head = (number) => String(number).padStart(40, "a");
   const advisory = [check("ci-status", "SUCCESS"), check("test-macos-planning-shared", "FAILURE")];
