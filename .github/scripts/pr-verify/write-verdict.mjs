@@ -1,6 +1,7 @@
 // Checks the verifier's structured output, the last result message of
 // run-claude-cli's execution file, and writes the verdict file that
-// pr-verify.yml uploads as pr-verify-<pr>-<head-sha>-<verdict>. Every reader
+// pr-verify.yml uploads as pr-verify-<pr>-<head-sha>-<verdict>, a FAIL's name
+// followed by `-i` and the issues it records (`artifactName`). Every reader
 // also accepts that name followed by `-<headRefDigest of the head branch>`,
 // which lets the pr-merge lane tie a FAIL to a branch without downloading it;
 // this writer moves to it once the readers have run on main. The output
@@ -176,7 +177,51 @@ export const HEAD_REF_DIGEST_HEX = 16;
 export const headRefDigest = (ref) =>
   createHash("sha256").update(String(ref), "utf8").digest("hex").slice(0, HEAD_REF_DIGEST_HEX);
 
-export const artifactName = (verdict) => `pr-verify-${verdict.pr}-${verdict.head_sha}-${verdict.verdict}`;
+// A FAIL's name ends with `-i` and the numbers of the issues it records,
+// ascending and joined by dots, so the pr-merge gate counts it toward each
+// issue's repeated-fail cap from the artifact listing alone
+// (babysit_verify_evidence.NAME_RE, which takes at most NAMED_ISSUES_MAX).
+export const NAMED_ISSUES_MAX = 10;
+// The `-i` part for issue numbers `numbers`: empty for none, null for more
+// than a name carries.
+export function issuesSuffix(numbers) {
+  const issues = [...new Set(numbers)].sort((a, b) => a - b);
+  if (issues.length > NAMED_ISSUES_MAX) return null;
+  return issues.length === 0 ? "" : `-i${issues.join(".")}`;
+}
+// A verdict's name (babysit_verify_evidence.NAME_RE): the head-ref digest is
+// optional, and so, on a FAIL only, is `-i` with the verdict's issue numbers,
+// ascending, each once, joined by dots (`isVerdictName` checks the order).
+export const NAME = /^pr-verify-([1-9][0-9]{0,9})-([0-9a-f]{40})-(pass(?:-notes)?(?=(?:-[0-9a-f]{16})?$)|fail)(?:-[0-9a-f]{16})?(?:-i([1-9][0-9]{0,9}(?:\.[1-9][0-9]{0,9}){0,9}))?$/;
+// The longest name NAME allows (babysit_verify_evidence.NAME_MAX).
+export const NAME_MAX = 194;
+export function isVerdictName(name) {
+  const match = String(name).length <= NAME_MAX ? NAME.exec(String(name)) : null;
+  const numbers = match?.[4]?.split(".").map(Number) ?? [];
+  return match !== null && numbers.every((n, i) => i === 0 || numbers[i - 1] < n);
+}
+
+// The verdict's artifact name, checked against the readers' pattern before
+// anything uploads: a name no reader takes throws, so the job fails loudly. A
+// FAIL whose issues no name carries (over the cap, or a number the pattern
+// refuses) keeps the plain name, which still counts per pull request and at
+// the head.
+export function artifactName(verdict) {
+  const plain = `pr-verify-${verdict.pr}-${verdict.head_sha}-${verdict.verdict}`;
+  let name = plain;
+  if (verdict.verdict === "fail") {
+    const suffix = issuesSuffix((verdict.linked_issues ?? []).map((issue) => issue.number));
+    if (suffix === null || (suffix && !isVerdictName(plain + suffix))) {
+      console.log(`::warning::the FAIL's issues fit no artifact name, so it is named ${plain}`);
+    } else {
+      name = plain + suffix;
+    }
+  }
+  if (!isVerdictName(name)) {
+    throw new Error(`the artifact name ${name} is one no reader takes`);
+  }
+  return name;
+}
 
 export function main(env = process.env) {
   for (const key of [
@@ -235,8 +280,9 @@ export function main(env = process.env) {
   });
   mkdirSync(env.VERDICT_DIR, { recursive: true });
   writeFileSync(path.join(env.VERDICT_DIR, "verdict.json"), `${JSON.stringify(verdict, null, 2)}\n`);
-  appendFileSync(env.GITHUB_OUTPUT, `name=${artifactName(verdict)}\nverdict=${verdict.verdict}\n`);
-  console.log(`write-verdict: ${artifactName(verdict)}`);
+  const name = artifactName(verdict);
+  appendFileSync(env.GITHUB_OUTPUT, `name=${name}\nverdict=${verdict.verdict}\n`);
+  console.log(`write-verdict: ${name}`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

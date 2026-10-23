@@ -1299,8 +1299,9 @@ over 10 digits, and a name over 194 characters. A name that starts like a `fail`
 the gate refuses `verify:unreadable` when its run is of verifier origin, or is tied to the pull
 request and cannot be read, and pr-feedback-dispatch fails its run. One of verifier origin holds
 every pull request in the repository until its artifact is deleted or expires; deleting it clears
-the hold. The writer adds the issues once the readers have run
-on main. GitHub refuses
+the hold. The writer adds the issues to every `fail` that records one, ascending and once each,
+and checks the name against the readers' pattern before uploading; a `fail` whose issues no name
+carries (more than 10, or a number over 10 digits) keeps the plain name, with a warning. GitHub refuses
 an artifact name holding `"`, `:`, `<`, `>`, `|`, `*`, `?`, `\`, `/`, a carriage return or a
 line feed
 ([`validateArtifactName`](https://github.com/actions/toolkit/blob/main/packages/artifact/src/internal/upload/path-and-artifact-name-validation.ts)),
@@ -1309,7 +1310,13 @@ account type, `verdict`, `summary`, `notes` and `run_id`. The head SHA is the on
 ran on, never the pull request's live head. A model error, an output that fails the schema, a
 summary or note matching a shared credential pattern (`findSecret` in `lib/publish-gate.mjs`), or a run with any permission denial
 uploads nothing, and the run fails. A head that already has a counted verdict from a completed run (a `fail` under any
-pull request number) is not judged again. Runs share one concurrency group per pull request and
+pull request number) is not judged again. The resolver first looks up the names without issues;
+only when none holds a counted verdict does it read the pull request's linked issues, which the
+spec needs anyway, and look up its own `fail` under the name with `-i`. A `fail` another pull request
+left at the same head names issues it never reads, and that head is judged again. So is a head
+whose linked issues a body edit changed after this pull request's `fail` there: the new set names
+another `-i`, so one run follows each change of the issue set. Neither changes what the gate
+decides, since the earlier `fail` stays tied to the pull request and refuses the head. Runs share one concurrency group per pull request and
 head and never cancel a running judgment.
 
 `merge.verify-authors` decides whose pull requests are judged. Under `lane`, the default, only one
@@ -1455,6 +1462,22 @@ A read refused for a rate limit is not retried: the candidate's lanes read `evid
 holds, and the next run reads again. An untied FAIL whose record cannot be read refuses the run's later candidates through `BABYSIT_RUN_CACHE` without another
 download; the next run reads it again. `GITHUB_TOKEN`'s pool is shared with the full-run dispatch and the post-merge checks. Every other call, every write
 included, keeps the lane token. That job checks out only main and runs no pull request code.
+
+The post-merge check's lane records (`pr-merge-dispatched-<id>`, `pr-merge-rerun-<id>-attempt-2`)
+carry from run to run as the `pr-merge-lane-records` artifact
+(`.github/scripts/pr-merge/lane-records.mjs`), read the way the head-ref map is: only from the
+newest scheduled or hand-started `pr-merge.yml` run on main whose head commit is on main, never
+through `actions/cache`. A record it holds is present with no read once its sender run passes the
+check's sender rule again; a carried record decides as a successful read would, and also where
+today's read would fail. Every check of a run adds the records it proves and keeps those at or after
+the lowest floor any check of the run used. A scheduled or hand-started merge job uploads the
+result, keeping each unexpired record whose artifact the run's artifact listing lists unexpired
+under the record's name and sender run. With no listing file (no candidates, or a listing the run
+could not read), unexpired records are carried as they are and pruned on the next run that saves
+a listing; the listing only prunes, and the check still applies expiry and its sender rule to each
+carried record. Deleting a record's artifact therefore does not revoke a carried record at once:
+it stays present until a later upload's listing drops it, and with a listing file that exists but
+cannot be parsed a run uploads nothing, so the next run reads an older file.
 
 pr-merge.yml also names a file in `BABYSIT_RUN_CACHE`, where the run's gate processes share reads
 that are the same for every candidate. The acting login and a credential pass are reused only under
