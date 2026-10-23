@@ -3,6 +3,12 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.3] - 2026-10-23
+
+### Fixed
+
+- `measure-invocation.sh emit-plugin-eval` now allows `Read`, `Glob` and `Grep` beside `Skill` in each emitted `prompt.md`, so an exploratory read is no longer a denial that marks the run INVALID. `reference/invocation-probes.md` notes that emitted runs need `--keep-temp` for the validity gate's trace checks ([#9457](https://github.com/melodic-software/claude-code-plugins/issues/9457)).
+
 ## [0.31.2] - 2026-10-22
 
 ### Changed
