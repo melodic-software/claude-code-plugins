@@ -78,9 +78,9 @@
 //   REUSE_BRANCH        the lane branch --find-prior chose, or empty
 //   ESCALATION_REASON   apply-issue-patch's escalation reason (a PATCH_REASONS
 //                       key), or empty
-//   DIMENSION_SKIP      split-required, research-first, probe-first or
-//                       not-assessed when the issue dimensions skipped the
-//                       run (work-resolve-issue.yml report-skip), else empty
+//   DIMENSION_SKIP      split-required, research-first or probe-first when
+//                       the issue dimensions skipped the run
+//                       (work-resolve-issue.yml report-skip), else empty
 //   REUSE_SUMMARY_DIR   on a reuse, holds the summary pass's reuse-summary.json
 //                       (runner-written issue, branch and tip; model output)
 //   TRACKER_CONFIG      base .work-item-tracker.json, for the human-gated label
@@ -372,9 +372,11 @@ export const DIMENSION_STEPS = {
   "split-required": "Its Size is too large for one run: split it into smaller issues with `/work-items:decompose`.",
   "research-first": "Its Uncertainty says research comes first: plan or research the approach, then set Uncertainty to Known.",
   "probe-first": "Its Uncertainty says only an experiment answers it: run a probe or spike first, then set Uncertainty to Known.",
-  "not-assessed":
-    "Its Size, Complexity and Uncertainty fields are not all set by a listed human or the lanes App: triage it, or set them yourself.",
 };
+
+// Outcomes no run produces now that issue comments may still carry from runs
+// that ran nothing, so prior() passes them over like a dimension skip.
+const RETIRED_SKIPS = new Set(["not-assessed"]);
 
 // A run its issue dimensions skipped before any model turn: the issue goes to
 // a person with the next step, and agent-ready comes off.
@@ -949,7 +951,12 @@ export function findPrior({ issueNumber, repo, bot, humans, branches, closing, m
   // fresh, so deleting a resumed run's branch never falls back to an older one.
   const decisive = [...markers]
     .reverse()
-    .find((marker) => !(marker.onResumed && RESUMABLE.has(marker.outcome)) && !Object.hasOwn(DIMENSION_STEPS, marker.outcome));
+    .find(
+      (marker) =>
+        !(marker.onResumed && RESUMABLE.has(marker.outcome)) &&
+        !Object.hasOwn(DIMENSION_STEPS, marker.outcome) &&
+        !RETIRED_SKIPS.has(marker.outcome),
+    );
   const resume =
     RESUMABLE.has(decisive?.outcome) && decisive.run !== ""
       ? lane.find((branch) => branch.match[1] === decisive.run && usable(branch) && allLane(branch))

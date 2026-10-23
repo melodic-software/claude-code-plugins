@@ -67,7 +67,6 @@ const LIVE_FACTS = {
   workClasses: [],
   mergeable: "conflicting",
   draft: false,
-  labeledAt: "2026-10-16T00:00:00Z",
   // A listed human set the issue Small, Low and Known (the org's option ids).
   fieldValues: [
     { field: 15462270, option: 27053568 },
@@ -154,10 +153,23 @@ for (const [size, complexity, turns, minutes] of [
   });
 }
 
+// A field no listed account set reads as small, medium or known: the run
+// goes ahead at that budget instead of being refused.
+for (const [why, dims, options] of [
+  ["an issue with no Complexity", { size: "small", uncertainty: "known" }, {}],
+  ["an issue with no fields", {}, {}],
+  ["fields an unlisted account set", { size: "medium", complexity: "high", uncertainty: "unknown" }, { setter: UNLISTED }],
+]) {
+  test(`live config: ${why} runs as small, medium, known`, () => {
+    const slot = issueSlot(dims, options);
+    assert.equal(slot.applies, true);
+    assert.equal(slot["issue-dimensions"], "small/medium/known");
+    assert.equal(slot["timeout-minutes"], 7);
+    assert.equal(modelArgs(slot.models), "--max-turns 17");
+  });
+}
+
 for (const [why, dims, options, reason] of [
-  ["an issue with no Complexity", { size: "small", uncertainty: "known" }, {}, "not-assessed"],
-  ["an issue with no fields", {}, {}, "not-assessed"],
-  ["fields an unlisted account set", { size: "small", complexity: "low", uncertainty: "known" }, { setter: UNLISTED }, "not-assessed"],
   ["a large issue", { size: "large", complexity: "low", uncertainty: "known" }, {}, "split-required"],
   ["a knowable issue", { size: "small", complexity: "low", uncertainty: "knowable" }, {}, "research-first"],
   ["an unknown issue", { size: "small", complexity: "low", uncertainty: "unknown" }, {}, "probe-first"],
@@ -258,13 +270,22 @@ for (const complexity of ["low", "medium"]) {
   });
 }
 
-test("live config: an issue with no Complexity keeps the default profile (and is not assessed)", () => {
+test("live config: an issue with no Complexity keeps the default profile and runs at medium's turns", () => {
   const slot = liveIssueSlot({ size: "small", uncertainty: "known" });
-  assert.equal(slot["skip-reason"], "not-assessed");
+  assert.equal(slot.applies, true);
+  assert.equal(slot["issue-dimensions"], "small/medium/known");
   assert.equal(slot.models.profile, "standard");
+  assert.equal(slot.models["max-turns"], 113);
 });
 
-// Knowable runs: the run can research first.
+test("live config: an issue with no fields runs at 113 turns for 50 minutes", () => {
+  const slot = liveIssueSlot({});
+  assert.equal(slot.applies, true);
+  assert.equal(slot["issue-dimensions"], "small/medium/known");
+  assert.equal(slot["timeout-minutes"], 50);
+  assert.equal(slot.models["max-turns"], 113);
+});
+
 test("live config: a Knowable issue runs", () => {
   const slot = liveIssueSlot({ size: "small", complexity: "low", uncertainty: "knowable" });
   assert.equal(slot.applies, true);
@@ -882,7 +903,7 @@ test("main on an issue set Medium, High, Known writes its turn cap, dimensions a
   assert.equal(read.headers["X-GitHub-Api-Version"], "2026-03-10");
 });
 
-test("main refuses an issue whose latest Size setter is unlisted", async () => {
+test("main reads a Size an unlisted account set last as small", async () => {
   const { code, outputs } = await mainOnIssue([
     fieldEvent("IssueFieldAddedEvent", 15462270, LISTED),
     fieldEvent("IssueFieldAddedEvent", 48625720, LISTED),
@@ -890,9 +911,9 @@ test("main refuses an issue whose latest Size setter is unlisted", async () => {
     fieldEvent("IssueFieldChangedEvent", 15462270, UNLISTED),
   ]);
   assert.equal(code, 0);
-  assert.equal(outputs.applies, "false");
-  assert.equal(outputs["skip-reason"], "not-assessed");
-  assert.equal(outputs["issue-dimensions"], "not-assessed");
+  assert.equal(outputs.applies, "true");
+  assert.equal(outputs["issue-dimensions"], "small/high/known");
+  assert.equal(outputs["claude-args"], "--max-turns 28");
 });
 
 test("main fails when the field events answer with GraphQL errors", async () => {
@@ -901,14 +922,15 @@ test("main fails when the field events answer with GraphQL errors", async () => 
   await assert.rejects(() => fieldSetters(github, "o/r", 7), /field events could not be read: Resource not accessible/);
 });
 
-test("main refuses an issue whose field was removed after it was set", async () => {
+test("main reads a field removed after it was set as unset", async () => {
   const { outputs } = await mainOnIssue([
     fieldEvent("IssueFieldAddedEvent", 15462270, LISTED),
     fieldEvent("IssueFieldAddedEvent", 48625720, LISTED),
     fieldEvent("IssueFieldAddedEvent", 48625721, LISTED),
     fieldEvent("IssueFieldRemovedEvent", 48625721, LISTED),
   ]);
-  assert.equal(outputs["skip-reason"], "not-assessed");
+  assert.equal(outputs.applies, "true");
+  assert.equal(outputs["issue-dimensions"], "medium/high/known");
 });
 
 test("main refuses an unknown model-route, and writes no file", async () => {
