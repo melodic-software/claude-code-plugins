@@ -1335,8 +1335,13 @@ The lane token holds no Actions permission, so pr-merge.yml grants its job `acti
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
 records, the download and the compare of a run's head to main (a `contents: read` call). The gate's
 review-evidence reads use it too: the timeline, the comments, and the lane runs with their attempts,
-jobs and annotations. Every other call, every write included, keeps the lane token. That job checks
-out only main and runs no pull request code.
+jobs and annotations, but only while `GITHUB_TOKEN` has at least `merge.read-token-floor` of its
+hourly core limit left (default 0.3, read at the default branch head). Below the floor, or when
+`GET /rate_limit` cannot be read, those reads use the lane token, as they did before; both tokens
+read the same data, so no gate decision changes. The floor is there because `GITHUB_TOKEN`'s pool
+(1,000 an hour per repository) is shared with the full-run dispatch and the post-merge checks: it
+ran out at 05:26Z on 2026-10-23 once these reads moved onto it. Every other call, every write
+included, keeps the lane token. That job checks out only main and runs no pull request code.
 
 pr-merge.yml also names a file in `BABYSIT_RUN_CACHE`, where the run's gate processes share reads
 that are the same for every candidate. The acting login and a credential pass are reused only under

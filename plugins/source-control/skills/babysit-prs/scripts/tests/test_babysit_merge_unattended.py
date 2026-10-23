@@ -812,8 +812,9 @@ class Unattended(unittest.TestCase):
             else self.dependabot_reads[0]
         )
 
-    def _lane_evidence(self, *args: Any) -> Any:
+    def _lane_evidence(self, *args: Any, **kwargs: Any) -> Any:
         self.lane_args = args
+        self.lane_kwargs = kwargs
         if self.lane_error is not None:
             raise self.lane_error
         return self.lanes, self.comments
@@ -1490,7 +1491,7 @@ class LaneMode(Unattended):
     def test_a_read_past_the_candidate_deadline_stops_before_any_write(self) -> None:
         read_on: list[float] = []
 
-        def slow_read(*args: Any) -> Any:
+        def slow_read(*args: Any, **_: Any) -> Any:
             self._command_at(241.0)
             read_on.append(self.now)
             return self.lanes, self.comments
@@ -1506,7 +1507,7 @@ class LaneMode(Unattended):
         self.dequeue.assert_not_called()
 
     def test_the_same_slow_read_without_a_deadline_still_enqueues(self) -> None:
-        def slow_read(*args: Any) -> Any:
+        def slow_read(*args: Any, **_: Any) -> Any:
             self._command_at(10_000.0)
             return self.lanes, self.comments
 
@@ -3026,6 +3027,11 @@ class LaneEvidenceGetsTheChangedPaths(Unattended):
         self.run_main(merge_flag=False)
         self.assertIsNone(self.lane_args[-1])
 
+    def test_the_configured_read_token_floor_reaches_the_lane_evidence(self) -> None:
+        self.config = dataclasses.replace(self.config, read_token_floor=0.75)
+        self.run_main(merge_flag=False)
+        self.assertEqual(self.lane_kwargs, {"read_floor": 0.75})
+
 
 class ReasonsComment(Unattended):
     """MED/HIGH on an eligible pull request: one upserted comment (T14, D15)."""
@@ -3704,13 +3710,22 @@ class HeadPushers(unittest.TestCase):
 class LaneEvidenceReadToken(unittest.TestCase):
     """The gate's review-evidence reads (timeline, comments, lane runs and
     their attempts, jobs and annotations) run under the job's read-only token
-    (`BABYSIT_VERIFY_GH_TOKEN`), off the lane App's quota; each is a GET."""
+    (`BABYSIT_VERIFY_GH_TOKEN`), off the lane App's quota, while that token
+    has `merge.read-token-floor` of its core limit left; each is a GET."""
 
     RUN = 11
     JOB = 21
+    # GET /rate_limit's core bucket for the read token: (remaining, limit),
+    # or None for a read that fails.
+    core: tuple[int, int] | None = (1000, 1000)
 
     def answer(self, args: list[str]) -> Any:
         endpoint = args[1]
+        if endpoint == "rate_limit":
+            assert self.core is not None
+            left, limit = self.core
+            bucket = {"remaining": left, "limit": limit}
+            return {"resources": {"core": bucket, "graphql": bucket}}
         runs = f"repos/owner/repo/actions/runs/{self.RUN}"
         bot = {"login": IDENTITY}
         if endpoint.endswith(f"/pulls/{PR}/commits?per_page=100"):
@@ -3738,13 +3753,22 @@ class LaneEvidenceReadToken(unittest.TestCase):
             return [[]]
         raise AssertionError(f"unexpected gh call: {args}")
 
-    def calls(self, environ: dict[str, str]) -> list[tuple[list[str], Any]]:
+    def calls(
+        self, environ: dict[str, str], **floor: float
+    ) -> list[tuple[list[str], Any]]:
+        return self.read(environ, **floor)[0]
+
+    def read(
+        self, environ: dict[str, str], **floor: float
+    ) -> tuple[list[tuple[list[str], Any]], Any]:
         calls: list[tuple[list[str], Any]] = []
 
         def fake_gh(
             args: list[str], *, env_overrides: Any = None, **_: Any
         ) -> subprocess.CompletedProcess[str]:
             calls.append((args, env_overrides))
+            if args[1] == "rate_limit" and self.core is None:
+                return subprocess.CompletedProcess(args, 1, "", "HTTP 502")
             return subprocess.CompletedProcess(
                 args, 0, json.dumps(self.answer(args)), ""
             )
@@ -3761,13 +3785,31 @@ class LaneEvidenceReadToken(unittest.TestCase):
             mock.patch.object(gh, "_run_gh", side_effect=fake_gh),
             mock.patch.object(merge, "fetch_review_threads", return_value=[]),
         ):
-            merge._lane_evidence(
-                "owner/repo", PR, pr, IDENTITY, frozenset(), lambda login: "write", ()
+            result = merge._lane_evidence(
+                "owner/repo",
+                PR,
+                pr,
+                IDENTITY,
+                frozenset(),
+                lambda login: "write",
+                (),
+                **floor,
             )
-        return calls
+        return calls, result
+
+    def evidence_tokens(self, **floor: float) -> list[Any]:
+        """The env of every evidence read, the limit read and the shared
+        commits read left out."""
+        calls = self.calls({"BABYSIT_VERIFY_GH_TOKEN": "read-tok"}, **floor)
+        return [
+            env
+            for args, env in calls
+            if args[1] != "rate_limit" and not args[1].endswith("/commits?per_page=100")
+        ]
 
     def test_the_evidence_reads_carry_the_read_token_and_are_gets(self) -> None:
         calls = self.calls({"BABYSIT_VERIFY_GH_TOKEN": "read-tok"})
+        calls = [(args, env) for args, env in calls if args[1] != "rate_limit"]
         carried = [args for args, env in calls if env == {"GH_TOKEN": "read-tok"}]
         for args in carried:
             with self.subTest(args[1]):
@@ -3794,6 +3836,60 @@ class LaneEvidenceReadToken(unittest.TestCase):
         calls = self.calls({})
         self.assertEqual(len(calls), 1 + 2 + 2 * 5)
         self.assertEqual([env for _, env in calls], [None] * len(calls))
+
+    # The floor's boundary from the default 0.3 of a 1,000 limit: 300 left
+    # is at the floor and keeps the read token, 299 is under it.
+    def test_at_the_floor_the_evidence_reads_keep_the_read_token(self) -> None:
+        self.core = (300, 1000)
+        tokens = self.evidence_tokens(read_floor=0.3)
+        self.assertEqual(len(tokens), 2 + 2 * 5)
+        self.assertEqual(tokens, [{"GH_TOKEN": "read-tok"}] * len(tokens))
+
+    def test_under_the_floor_the_evidence_reads_use_the_lane_token(self) -> None:
+        self.core = (299, 1000)
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            tokens = self.evidence_tokens(read_floor=0.3)
+        self.assertEqual(len(tokens), 2 + 2 * 5)
+        self.assertEqual(tokens, [None] * len(tokens))
+        self.assertIn("core:299/1000 is under 0.3", stderr.getvalue())
+
+    def test_the_default_floor_is_the_settings_default(self) -> None:
+        self.core = (299, 1000)
+        with contextlib.redirect_stderr(io.StringIO()):
+            tokens = self.evidence_tokens()
+        self.assertEqual(tokens, [None] * len(tokens))
+
+    def test_a_limit_read_that_fails_uses_the_lane_token(self) -> None:
+        self.core = None
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            tokens = self.evidence_tokens(read_floor=0.3)
+        self.assertEqual(len(tokens), 2 + 2 * 5)
+        self.assertEqual(tokens, [None] * len(tokens))
+        self.assertIn("unreadable", stderr.getvalue())
+
+    def test_a_limit_reply_without_its_bucket_uses_the_lane_token(self) -> None:
+        answer = self.answer
+
+        def no_core(args: list[str]) -> Any:
+            return {"resources": {}} if args[1] == "rate_limit" else answer(args)
+
+        self.answer = no_core  # type: ignore[method-assign]
+        with contextlib.redirect_stderr(io.StringIO()):
+            tokens = self.evidence_tokens(read_floor=0.3)
+        self.assertEqual(tokens, [None] * len(tokens))
+
+    def test_the_floor_changes_which_token_reads_not_the_evidence(self) -> None:
+        environ = {"BABYSIT_VERIFY_GH_TOKEN": "read-tok"}
+        self.core = (1000, 1000)
+        _, above = self.read(environ, read_floor=0.3)
+        self.core = (0, 1000)
+        with contextlib.redirect_stderr(io.StringIO()):
+            _, below = self.read(environ, read_floor=0.3)
+        self.assertEqual(above, below)
+        lanes, _ = above
+        self.assertEqual(len(lanes), 2)
 
 
 class CandidateReadsOnce(unittest.TestCase):

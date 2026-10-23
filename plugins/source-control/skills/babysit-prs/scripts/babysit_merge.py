@@ -141,6 +141,7 @@ import functools
 import json
 import os
 import re
+import sys
 import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
@@ -2947,6 +2948,30 @@ class HeadPusherUnproven(Exception):
     """A head commit's pusher cannot be shown not to be a human."""
 
 
+def _evidence_read_env(floor: float) -> dict[str, str] | None:
+    """`env_overrides` for the review-evidence reads: the verdict reader's
+    token while its core bucket has at least `floor` of its limit left, else
+    None, the process (lane) token. Both tokens read the same data, so the
+    choice changes no gate decision. A limit that cannot be read is treated
+    as short; GET /rate_limit spends no budget."""
+    token = os.environ.get(verify_evidence.TOKEN_ENV)
+    if not token:
+        return None
+    env = {"GH_TOKEN": token}
+    try:
+        short = whole_review._short_bucket(env, share=floor, buckets=("core",))
+    except (RuntimeError, KeyError, TypeError, ValueError) as exc:
+        short = f"unreadable ({exc})"
+    if short is None:
+        return env
+    print(
+        f"read-token-floor: {verify_evidence.TOKEN_ENV} core {short} is under"
+        f" {floor}; the review-evidence reads use the lane token",
+        file=sys.stderr,
+    )
+    return None
+
+
 def _lane_evidence(
     repo: str,
     number: int,
@@ -2955,6 +2980,7 @@ def _lane_evidence(
     self_logins: frozenset[str],
     permission: Callable[[str], str | None],
     changed_paths: Sequence[str] | None,
+    read_floor: float = merge_policy.READ_TOKEN_FLOOR,
 ) -> tuple[tuple[LaneEvidence, ...], list[dict[str, Any]]]:
     """Each lane's evidence for the pull request's head, and its comments.
     `changed_paths` is `bind()`'s: None when the changed files are unproven.
@@ -2966,11 +2992,11 @@ def _lane_evidence(
     more commits than the list returns, raises `HeadPusherUnproven`. A retargeted base unbinds every lane.
 
     The timeline, the comments and the lane runs are read under the verdict
-    reader's token when one is set, keeping them off the lane App's quota;
-    every read here is a GET."""
+    reader's token while it has `read_floor` of its core limit left
+    (`_evidence_read_env`), keeping them off the lane App's quota; every read
+    here is a GET."""
     head = json_object(pr.get("head"))
-    token = os.environ.get(verify_evidence.TOKEN_ENV)
-    read_env = {"GH_TOKEN": token} if token else None
+    read_env = _evidence_read_env(read_floor)
     timeline = fetch_paginated_api(
         f"repos/{repo}/issues/{number}/timeline?per_page=100",
         f"#{number} timeline",
@@ -3163,6 +3189,7 @@ def score_unattended(
             [p for f in files for p in (f.path, f.previous_path) if p]
             if complete
             else None,
+            read_floor=config.read_token_floor,
         )
     except HeadPusherUnproven as exc:
         # Fail closed: refused, and its own queued entry leaves.
