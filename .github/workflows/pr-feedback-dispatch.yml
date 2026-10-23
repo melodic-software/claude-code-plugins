@@ -331,15 +331,17 @@ jobs:
             exit 1
             ;;
           esac
-          # read_api <var> <what> <path>: GET <path> into <var>. A primary rate
-          # limit (403 or 429 with x-ratelimit-remaining 0) waits until one
-          # second past x-ratelimit-reset when that fits in what is left of
-          # POLL_LIMIT_SECONDS, shared with the poll below; a reset past it
-          # ends the job green, since the next lane completion re-runs
-          # ci-status. Any other failure is read three times, then fails.
+          # read_api <var> <what> <path>: GET <path> into <var>. A rate limit
+          # (403 or 429) waits retry-after seconds, else, with
+          # x-ratelimit-remaining 0, until one second past x-ratelimit-reset,
+          # both read from the refused response's headers, when the wait fits
+          # in what is left of POLL_LIMIT_SECONDS, shared with the poll below.
+          # A wait past it ends the job green, since the next lane completion
+          # re-runs ci-status. Any other failure is read three times, then
+          # fails.
           waited=0
           read_api() {
-            local attempt out hdr status left reset wait
+            local attempt out hdr status left reset after wait
             for attempt in 1 2 3; do
               if out=$(gh api -i "$3"); then
                 printf -v "$1" '%s' "$(sed '1,/^\r\?$/d' <<<"$out")"
@@ -347,11 +349,18 @@ jobs:
               fi
               hdr=$(sed '/^\r\?$/q' <<<"$out")
               status=$(awk 'NR == 1 { print $2 }' <<<"$hdr")
-              left=$(awk -F': *' 'tolower($1) == "x-ratelimit-remaining" { sub(/\r$/, "", $2); print $2; exit }' <<<"$hdr")
-              reset=$(awk -F': *' 'tolower($1) == "x-ratelimit-reset" { sub(/\r$/, "", $2); print $2; exit }' <<<"$hdr")
-              if [[ $status =~ ^(403|429)$ && $left == 0 && $reset =~ ^[0-9]+$ ]]; then
+              read -r left reset after < <(tr -d '\r' <<<"$hdr" | awk -F': *' '{ h[tolower($1)] = $2 }
+                END { print h["x-ratelimit-remaining"] "-", h["x-ratelimit-reset"] "-", h["retry-after"] "-" }')
+              left=${left%-} reset=${reset%-} after=${after%-}
+              if [[ $status =~ ^(403|429)$ && $after =~ ^[0-9]{1,5}$ ]]; then
+                wait=$((10#$after)) reset=$(($(date +%s) + 10#$after))
+              elif [[ $status =~ ^(403|429)$ && $left == 0 && $reset =~ ^[0-9]{1,10}$ ]]; then
                 wait=$((reset - $(date +%s)))
                 wait=$((wait < 0 ? 1 : wait + 1))
+              else
+                wait=
+              fi
+              if [ -n "$wait" ]; then
                 if [ $((waited + wait)) -gt "$POLL_LIMIT_SECONDS" ]; then
                   echo "::warning::the token's rate limit is spent until $(date -u -d "@$reset" +%H:%M:%SZ), past this job's ${POLL_LIMIT_SECONDS}s cap; the next review lane completion re-runs ci-status."
                   exit 0

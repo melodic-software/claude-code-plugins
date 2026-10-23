@@ -57,7 +57,8 @@ fi
 # one run prints the next line of STUB_RUN_SEQ (the last line once used up).
 # A POST re-run fails when STUB_RERUN_FAIL is set. While STUB_LIMIT_FILE
 # holds a count above 0, a pr-require-checks runs read is refused as a
-# primary rate limit resetting at STUB_RESET, and the count drops by one. The
+# primary rate limit resetting at STUB_RESET (a 429 with retry-after
+# STUB_RETRY_AFTER when that is set), and the count drops by one. The
 # sleep stub logs its seconds.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
@@ -68,7 +69,11 @@ ok200() { printf 'HTTP/2.0 200 OK\r\nX-Ratelimit-Remaining: 9\r\n\r\n%s\n' "$1";
 if [[ -n "${STUB_LIMIT_FILE:-}" && "$*" == *"/actions/workflows/pr-require-checks.yml/runs"* ]] &&
   [[ "$(cat "$STUB_LIMIT_FILE")" -gt 0 ]]; then
   echo $(($(cat "$STUB_LIMIT_FILE") - 1)) >"$STUB_LIMIT_FILE"
-  printf 'HTTP/2.0 403 Forbidden\r\nX-Ratelimit-Remaining: 0\r\nX-Ratelimit-Reset: %s\r\n\r\n{"message":"API rate limit exceeded for installation"}\n' "$STUB_RESET"
+  if [[ -n "${STUB_RETRY_AFTER:-}" ]]; then
+    printf 'HTTP/2.0 429 Too Many Requests\r\nRetry-After: %s\r\n\r\n{"message":"You have exceeded a secondary rate limit"}\n' "$STUB_RETRY_AFTER"
+  else
+    printf 'HTTP/2.0 403 Forbidden\r\nX-Ratelimit-Remaining: 0\r\nX-Ratelimit-Reset: %s\r\n\r\n{"message":"API rate limit exceeded for installation"}\n' "$STUB_RESET"
+  fi
   exit 1
 fi
 case "$*" in
@@ -274,6 +279,9 @@ echo 1 >"$STUB_LIMIT_FILE"
 expect "a rate-limited read waits for the reset, then re-runs" 0 "Rate limited reading the pr-require-checks runs on $HEAD; waiting 120s for the reset."
 check_reran 1 "the read after the reset goes on to the re-run"
 if [[ "$(grep -c '^sleep 120$' "$TMP_ROOT/log")" == 1 ]]; then ok "it slept until one second past the reset"; else fail "sleeps: $(grep '^sleep' "$TMP_ROOT/log" | paste -sd'|')"; fi
+echo 1 >"$STUB_LIMIT_FILE"
+STUB_RETRY_AFTER=30 expect "a retry-after refusal waits that many seconds" 0 "waiting 30s for the reset."
+check_reran 1 "the read after retry-after goes on to the re-run"
 echo 1 >"$STUB_LIMIT_FILE"
 STUB_RESET=1700 expect "a reset past the cap ends green with a warning" 0 "::warning::the token's rate limit is spent until"
 check_reran 0 "nothing is re-run when the reset is past the cap"
