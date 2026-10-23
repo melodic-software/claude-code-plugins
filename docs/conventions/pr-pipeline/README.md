@@ -661,9 +661,14 @@ and its queued entries leave; two different identities, or an unreadable head co
   or no `authority`, the wrapper merges nothing.
 - **Same repository.** The pull request's head is in this repository, never a fork.
 - **Risk score.** A diff the risk scorer rates LOW merges, and so does a MEDIUM one whose every
-  reason is a class or size reason (`class-contradicted`, `blast-radius-missing`, `lines-over`,
-  `files-over`, `no-patch:*`). Every other MEDIUM reason (unbound or missing review evidence, an
-  open claude-review finding, an unread file listing, the rung) and every HIGH one refuse.
+  reason is a class, size or reported-finding reason (`class-contradicted`, `blast-radius-missing`,
+  `lines-over`, `files-over`, `no-patch:*`, `findings:claude-review`,
+  `findings:claude-security-review`). Every other MEDIUM reason (unbound or missing review
+  evidence, an unread file listing, the rung) and every HIGH one refuse.
+- **Review flags.** A review flag holds only for a cost increase (`cost-review-required`), a
+  trusted-actor widening (`trust-gate:trusted-actors`) or a CRITICAL security finding
+  (`security-finding`), owner decisions Q25, Q33 and Q693. Every other open finding, from
+  claude-review or a lower security one, is listed in the reasons and does not hold.
 - **Review evidence.** For each review lane, the newest run of the lane's caller workflow on the
   pinned head SHA concluded success and carries the lane's completion record for that SHA.
 - **Effective rung.** The lowest of `merge.rung`, the `babysit_loop_merge` key in
@@ -711,10 +716,17 @@ and its queued entries leave; two different identities, or an unreadable head co
   `experimental.monitors` value, or a marketplace plugin added, removed, renamed or re-sourced, or
   the marketplace renamed. A removed, renamed or copied manifest, and a side that cannot be read,
   does not parse or repeats a key, holds. That reason waits for a human like any other HIGH one.
-- **Security findings.** The security lane flags; only a CRITICAL finding holds the merge, as
-  `security-finding`. Its inline comments and summary carry the severity lines
+- **Trusted-actor widening.** A change that adds or widens an entry in
+  `.github/standards/trusted-actors/trusted-actors.json` scores HIGH as
+  `trust-gate:trusted-actors` in both lanes and waits for the owner, whatever `high-path-floor`
+  says and whatever an adopted author's own paths leave off the floor. The gate compares the
+  base and head entries: a change that only removes entries merges; an added or changed entry,
+  any other key changed, a side that cannot be read or parsed or repeats a key, and an added,
+  removed, renamed or copied list hold. An owner cost decision does not clear it.
+- **Security findings.** The security lane flags; only a CRITICAL finding, its top tier, holds the
+  merge, as `security-finding`. Its inline comments and summary carry the severity lines
   `/review:security-review` defines, and a finding whose severity the gate cannot read counts as
-  CRITICAL.
+  CRITICAL. Its other open findings are reported as `findings:claude-security-review`.
 - **Cost hold.** A change that could add or raise a charge needs the owner (owner rule,
   2026-10-22). It scores HIGH as `cost-review-required` in both lanes, whatever `high-path-floor`
   says and whatever an adopted author's own paths leave off the floor, and waits for a human like
@@ -868,12 +880,12 @@ except six:
   verdict, both AI review lanes, `ci-status` and the post-merge revert breaker gate the rest. It
   leaves the rest off (owner decision,
   2026-10-17). The local babysit lane ignores these switches and keeps the fixed floor, both
-  caps and the C2 contradictions. The review evidence and the security lane's CRITICAL findings
-  still count.
+  caps and the C2 contradictions. The review evidence, the security lane's CRITICAL findings, the
+  cost hold and the trusted-actor widening hold still count.
 
   What is left with every switch off: a lane pull request may change the merge gate, the
   workflows and their tokens, these lane rules, skills, hooks, agent instructions and CI checks,
-  at any size.
+  at any size; a trusted-actor widening still waits for the owner.
   The brakes that remain are the verifier verdict, the kill switch, the fork and Dependabot
   refusals, lane authorship with one closing issue, the review evidence and the demotion stop;
   setting `merge.report-only` back to true stops every merge. A verdict reads the diff only and runs no changed code, and a pull request
@@ -1398,7 +1410,8 @@ any hand edit or deletion of them. The hosted review callers (`pr-review-hosted.
 `pr-review-security-hosted.yml`) are locally owned, so `/.github/workflows/**` owns them.
 `pr-merge` refuses a PR that touches a path `merge.diff-check.denied-paths` lists and leaves it
 for a human. This repository lists none, so a lane PR touching a trust-root path merges on a
-passing verdict like any other (see the switches above).
+passing verdict like any other (see the switches above), unless it widens the trusted-actor
+list ([Trusted-actor widening](#the-local-babysit-lane)).
 
 ## The lane sweep
 
@@ -1441,8 +1454,10 @@ A fourth job, **triage-sweep**, runs alone every hour and with the daily run, wi
 ([`triage-sweep.mjs`](../../../.github/scripts/maintenance-audit-lane-runs/triage-sweep.mjs)). It
 selects open issues, not pull requests, over an hour old, written by a human on the trusted-actors
 list or by the lanes App, that have no intake comment, no born-triaged marker and no triage, status,
-priority or work-class label. Issues from `github-actions[bot]`, the lane sweep's own included, are
-left out. For each it re-dispatches `intake-triage.yml`, at most 5 a pass, and records the runs in
+priority or work-class label. The `needs-triage` floor label is not a triage label: it lands on open
+whether or not intake runs, so an issue whose intake run failed is still selected; one the sweep
+already filed a hand-off issue for, found by one search of those issues, is skipped unread. Issues from
+`github-actions[bot]`, the lane sweep's own included, are left out. For each it re-dispatches `intake-triage.yml`, at most 5 a pass, and records the runs in
 one comment on the issue; after 2 dispatches leave it untriaged it labels the original
 `needs-triage`, then files one `needs-triage` issue naming the runs. It holds the job's own `GITHUB_TOKEN`
 (`actions: write`, `contents: read`, `issues: write`), never a lanes App token, and stops at 120
@@ -1627,7 +1642,7 @@ cap check (`.github/actions/check-wip-cap`) runs before work-resolve-issue takes
 work-unblock runs it before a re-fire and before adding `agent-ready`. It reads, one request at a
 time and none once `x-ratelimit-remaining` reaches 0, the lanes App's open pull requests, those
 merged in the window, those opened in it, and the open `agent-ready` issues that carry no hold
-label (`needs-human`, `needs-owner-decision`, `status: needs-decision`).
+label (`needs-human`, `needs-owner-decision`, `status: needs-decision`, `status: needs-info`).
 
 | Key | Default | What it sets |
 |---|---|---|

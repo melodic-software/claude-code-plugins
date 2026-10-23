@@ -97,7 +97,7 @@ test("the reads are four serial searches: the lanes App's PRs, then the open age
       `repo:${REPO} is:pr is:open ${AUTHOR}`,
       `repo:${REPO} is:pr is:merged ${AUTHOR} merged:>=2026-10-17T12:00:00Z`,
       `repo:${REPO} is:pr ${AUTHOR} created:>=2026-10-17T12:00:00Z`,
-      `repo:${REPO} is:issue is:open label:agent-ready -label:needs-human -label:needs-owner-decision -label:"status: needs-decision"`,
+      `repo:${REPO} is:issue is:open label:agent-ready -label:needs-human -label:needs-owner-decision -label:"status: needs-decision" -label:"status: needs-info"`,
     ],
   );
 });
