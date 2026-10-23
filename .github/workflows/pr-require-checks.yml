@@ -3552,7 +3552,7 @@ jobs:
       # A LANES APP PULL REQUEST IS HELD BY ITS TEXT TOO. pr-merge.yml's
       # enable-auto-merge job arms native auto-merge on lanes App pull
       # requests, which then merge without pr-merge's gate, so this step fails
-      # on the two text holds that gate honours: a body hold and a member's
+      # on the two text holds that gate honors: a body hold and a member's
       # veto comment, by the rules in .github/scripts/pr-merge/merge-holds.mjs,
       # which this step runs as the base commit has it so a pull request cannot
       # rewrite its own hold. On a pull request event and in the merge queue

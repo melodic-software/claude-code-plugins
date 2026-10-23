@@ -5,7 +5,7 @@
 #
 # Native auto-merge (pr-merge.yml's enable-auto-merge job) merges a lanes App
 # pull request without pr-merge's gate, so ci-status holds it on the two text
-# holds that gate honours: a body hold (a `Hold:` line or "do not merge") and
+# holds that gate honors: a body hold (a `Hold:` line or "do not merge") and
 # a member's newest comment saying not to merge. It reads them live, on a pull
 # request event and in the merge queue, runs the base commit's
 # merge-holds.mjs, and fails closed when it cannot tell.
