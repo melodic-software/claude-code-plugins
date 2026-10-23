@@ -11,6 +11,11 @@
   verifier origin and a PASS only from a completed success. The resolver also
   needs a completed run for a FAIL, so a run still going never stops a new
   judgment (the README's "Verifier verdict"); that is the one difference.
+- The `Refs:` rule: the one issue a pull request body's visible `Refs: #<n>`
+  lines name (`babysit_merge_policy.refs_issue`, resolve-pr's `refsIssue`).
+- The spec kind: the verdict write-verdict.mjs builds from resolve-pr's spec
+  text records `spec_kind`, and the gate allows a pass only when it matches
+  how the issue is linked now (a `Refs:` slice or a closing issue).
 
 The run records are the gate suite's own forgeries and unfinished runs.
 """
@@ -31,6 +36,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_classify as classify
+import babysit_merge_policy as merge_policy
 import babysit_postmerge as postmerge
 import babysit_verify_evidence as ve
 import test_babysit_verify_evidence as gate
@@ -296,6 +302,107 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
                 assert match is not None
                 self.assertEqual(match[3], verdict)
                 self.assertEqual(ve.named_issues(match), issues)
+
+
+REFS_BODIES = [
+    None,
+    "",
+    "Refs: #5",
+    "Refs:#5",
+    "Refs: #5 \t",
+    "Refs: #5\r\nRefs: #5",
+    "Refs: #5\rRefs: #6",
+    "Refs: #5\nRefs: #6",
+    "refs: #5",
+    "REFS: #5",
+    " Refs: #5",
+    "\tRefs: #5",
+    "> Refs: #5",
+    "Refs: #05",
+    "Refs: #0",
+    "Refs: #1234567890",
+    "Refs: #5, #6",
+    "Refs: o/r#5",
+    "Refs: https://github.com/o/r/issues/5",
+    "Refs #5",
+    "<!-- Refs: #5 -->",
+    "<!--\nRefs: #5\n-->\nRefs: #6",
+    "<!-- unclosed\nRefs: #5",
+    "```\nRefs: #5\n```",
+    "```\nRefs: #5\n```\nRefs: #6",
+    "   ```\nRefs: #5",
+    "    ```\nRefs: #5",
+    "~~~~\n~~~\nRefs: #5\n~~~~\nRefs: #6",
+    "````\n```` x\nRefs: #5",
+    "```\n~~~\nRefs: #5\n```\nRefs: #6",
+    "Refs: #5\u2028Refs: #6",
+    "Refs: #5\x0bRefs: #6",
+    "Closes #4\nRefs: #5",
+    # An off-form line beside a plain one still names none.
+    "Refs: #5\nrefs: #6",
+    "Refs: #5\nRefs: o/r#6",
+]
+WRITER = RESOLVER.with_name("write-verdict.mjs")
+KIND_NODE = """
+import { buildVerdict } from %s;
+const { linked, entries } = JSON.parse(process.argv[1]);
+const ids = { pr: "41", headSha: "a".repeat(40), baseSha: "b".repeat(40), runId: "1", headRef: "feat/x" };
+const output = JSON.stringify({ verdict: "pass", summary: "s", notes: [] });
+console.log(JSON.stringify(entries.map((kind) =>
+  buildVerdict({ ...ids, linkedIssues: [linked], output, specText: [{ number: 7, spec_kind: kind, body: "b", comments: [] }] }).spec_kind)));
+"""
+REFS_NODE = """
+import { refsIssue } from %s;
+console.log(JSON.stringify(JSON.parse(process.argv[1]).map(refsIssue)));
+"""
+
+
+@unittest.skipUnless(shutil.which("node"), "node not installed")
+class TheGateAndTheResolverReadRefsAlike(unittest.TestCase):
+    def test_every_body_names_the_same_issue(self) -> None:
+        script = REFS_NODE % json.dumps(RESOLVER.as_uri())
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", script, json.dumps(REFS_BODIES)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        named = json.loads(proc.stdout)
+        for body, js in zip(REFS_BODIES, named, strict=True):
+            with self.subTest(body=body):
+                self.assertEqual(merge_policy.refs_issue(body)[0], js)
+        # Hand-read: the table holds both kinds of answer.
+        self.assertEqual(named[2], 5)
+        self.assertIn(None, named)
+
+
+@unittest.skipUnless(shutil.which("node"), "node not installed")
+class TheGateBindsThePassToTheSpecKindTheWriterRecords(unittest.TestCase):
+    def test_a_pass_allows_only_under_the_link_it_was_judged_for(self) -> None:
+        script = KIND_NODE % json.dumps(WRITER.as_uri())
+        payload = {"linked": gate.TRUSTED_ISSUE, "entries": ["closes", "refs"]}
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", script, json.dumps(payload)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        written = json.loads(proc.stdout)
+        self.assertEqual(written, ["closes", "refs"])
+        for judged, kind in zip(("closes", "refs"), written, strict=True):
+            for linked in ("closes", "refs"):
+                with self.subTest(judged=judged, linked=linked):
+                    fake = gate.passing()
+                    fake.records[gate.named(gate.HEAD, "pass")] = gate.record(
+                        spec_kind=kind
+                    )
+                    if linked == "refs":
+                        fake.closing, fake.body = [], "Refs: #7"
+                        fake.refs = {7: gate.REPO}
+                    refusal = gate.read(fake).refusal
+                    self.assertEqual(
+                        refusal, None if judged == linked else "verify:spec-changed"
+                    )
 
 
 QUEUE_CHECK = RESOLVER.parents[1] / "pr-merge/merge-holds.mjs"

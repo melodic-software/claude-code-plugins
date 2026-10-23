@@ -88,7 +88,7 @@ const verifyRun = (id, overrides = {}) => ({
 
 const artifact = (name, runId, expired = false) => ({ name, expired, workflow_run: { id: runId } });
 
-function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, restFails = false, associated = [] } = {}) {
+function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, restFails = false, associated = [], body: prBody = null, refs = {}, queries = [] } = {}) {
   const github = async (method, apiPath, body) => {
     if (apiPath === `/repos/${REPO}/actions/runs/${RUN}`) return run;
     const listed = /\/commits\/([0-9a-f]+)\/pulls\?per_page=100&page=(\d+)$/.exec(apiPath);
@@ -98,8 +98,18 @@ function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, o
       assert.deepEqual(body.variables, { owner: "example-org", name: "example-repo", oid: HEAD });
       return { data: { repository: { object: { associatedPullRequests: { nodes: associated, pageInfo: { hasNextPage: false } } } } } };
     }
+    if (apiPath === "/graphql" && body.query.includes("issueOrPullRequest")) {
+      queries.push(body.variables.number);
+      const n = body.variables.number;
+      // GitHub's answer for a number that names nothing, as a live read of a
+      // missing number returned it; refs[n] may also be a whole answer.
+      if (!(n in refs)) {
+        return { data: { repository: { issueOrPullRequest: null } }, errors: [{ type: "NOT_FOUND", path: ["repository", "issueOrPullRequest"], message: `Could not resolve to an issue or pull request with the number of ${n}.` }] };
+      }
+      return refs[n]?.answer ?? { data: { repository: { issueOrPullRequest: refs[n] } } };
+    }
     if (apiPath === "/graphql") {
-      return { data: { repository: { pullRequest: { ...edit, closingIssuesReferences: { totalCount: issues.length, nodes: issues } } } } };
+      return { data: { repository: { pullRequest: { ...edit, body: prBody, closingIssuesReferences: { totalCount: issues.length, nodes: issues } } } } };
     }
     const named = /\/actions\/artifacts\?name=([^&]+)&per_page=100&page=(\d+)$/.exec(apiPath);
     if (named) {
@@ -129,7 +139,8 @@ test("a passing same-repository run resolves its one PR at the run's head", asyn
     baseSha: BASE,
     headRef: "feat/x",
     linkedIssues: [LINKED],
-    specText: [{ number: 7, body: "the spec", comments: [] }],
+    specKind: "closes",
+    specText: [{ number: 7, spec_kind: "closes", body: "the spec", comments: [] }],
   });
 });
 
@@ -160,6 +171,88 @@ test("a GraphQL fallback whose only PR is a draft skips as a draft", async () =>
 test("a linked issue in another repository is left out", async () => {
   const foreign = { ...ISSUE, number: 9, repository: { nameWithOwner: "someone/else" } };
   assert.deepEqual((await resolve({ issues: [foreign] })).linkedIssues, []);
+});
+
+// Owner decision 2026-10-23: a PR that closes no issue reads the one issue a
+// plain `Refs: #<n>` line names as its spec, as babysit_merge_policy does.
+const REFS_ISSUE = { __typename: "Issue", ...ISSUE };
+
+test("a PR that closes no issue is judged against the one issue its Refs line names", async () => {
+  const queries = [];
+  const resolved = await resolve({ issues: [], body: "Refs: #7\n\nPart one.", refs: { 7: REFS_ISSUE }, queries });
+  assert.deepEqual(resolved.linkedIssues, [LINKED]);
+  assert.deepEqual(resolved.specText, [{ number: 7, spec_kind: "refs", body: "the spec", comments: [] }]);
+  assert.equal(resolved.specKind, "refs");
+  assert.deepEqual(queries, [7]);
+});
+
+test("a closing issue wins over a Refs line, which is then never read", async () => {
+  const queries = [];
+  const resolved = await resolve({ body: "Refs: #8", refs: { 8: { ...REFS_ISSUE, number: 8 } }, queries });
+  assert.deepEqual(resolved.linkedIssues, [LINKED]);
+  assert.deepEqual(queries, []);
+});
+
+test("a hidden, ambiguous or non-issue Refs line names no spec", async () => {
+  // The kind each link gives the verifier: closes, refs, none, or the PR's own text.
+  assert.equal((await resolve({ body: "Refs: #8" })).specKind, "closes");
+  assert.equal((await resolve({ issues: [] })).specKind, "none");
+  for (const [prBody, refs] of [
+    ["<!-- Refs: #7 -->", { 7: REFS_ISSUE }],
+    ["```\nRefs: #7\n```", { 7: REFS_ISSUE }],
+    ["Refs: #7\nRefs: #8", { 7: REFS_ISSUE }],
+    ["Refs: other/repo#7", { 7: REFS_ISSUE }],
+    ["Refs: #7", { 7: { __typename: "PullRequest" } }],
+    ["Refs: #7", { 7: { ...REFS_ISSUE, repository: { nameWithOwner: "someone/else" } } }],
+  ]) {
+    const resolved = await resolve({ issues: [], body: prBody, refs });
+    assert.deepEqual([resolved.linkedIssues, resolved.specText, resolved.specKind], [[], [], "none"], prBody);
+  }
+});
+
+test("a Refs number that names no issue or pull request names no spec, and any other error stops the run", async () => {
+  const resolved = await resolve({ issues: [], body: "Refs: #99999" });
+  assert.deepEqual([resolved.proceed, resolved.linkedIssues, resolved.specText, resolved.specKind], [true, [], [], "none"]);
+  for (const errors of [
+    [{ type: "RATE_LIMITED", path: ["repository", "issueOrPullRequest"] }],
+    [{ type: "NOT_FOUND", path: ["repository"] }],
+    [{ type: "NOT_FOUND", path: ["repository", "issueOrPullRequest"] }, { type: "INTERNAL" }],
+  ]) {
+    const answer = { data: { repository: { issueOrPullRequest: null } }, errors };
+    await assert.rejects(resolve({ issues: [], body: "Refs: #7", refs: { 7: { answer } } }), /the Refs issue could not be read/, JSON.stringify(errors));
+  }
+  // No errors and no repository, or a null issue without NOT_FOUND, is no
+  // answer, not "no issue".
+  for (const answer of [{ data: {} }, { data: { repository: null } }, {}, { data: { repository: { issueOrPullRequest: null } } }]) {
+    await assert.rejects(resolve({ issues: [], body: "Refs: #7", refs: { 7: { answer } } }), /the Refs issue could not be read/, JSON.stringify(answer));
+  }
+});
+
+// The production helper throws on any GraphQL `errors` unless asked to keep
+// them, so main must read the Refs issue with one that keeps them.
+test("main with the real GitHub helper reads a Refs typo as no linked issue", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-"));
+  const actors = path.join(dir, "trusted-actors.json");
+  writeFileSync(actors, JSON.stringify({ version: 1, actors: [{ id: 100, login: "maintainer", kind: "human" }] }));
+  const env = {
+    GITHUB_TOKEN: "t",
+    GITHUB_REPOSITORY: REPO,
+    GITHUB_OUTPUT: path.join(dir, "out"),
+    UPSTREAM_RUN_ID: String(RUN),
+    SPEC_FILE: path.join(dir, "spec.json"),
+    SPEC_TEXT_FILE: path.join(dir, "spec-text.json"),
+    TRUSTED_ACTORS_PATH: actors,
+    LANE_IDENTITY: LANE,
+  };
+  const github = fake({ issues: [], body: "Refs: #99999" });
+  const fetchImpl = async (url, init) => {
+    const body = init.body === undefined ? undefined : JSON.parse(init.body);
+    const json = await github(init.method, new URL(url).pathname + new URL(url).search, body);
+    return new Response(JSON.stringify(json), { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+  await main(env, { fetchImpl });
+  assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), /^proceed=true\nreason=ok\n/);
+  assert.deepEqual(JSON.parse(readFileSync(env.SPEC_FILE, "utf8")), []);
 });
 
 test("a run that is not a passing pr-require-checks pull_request run of this repository starts nothing", async () => {
@@ -270,7 +363,7 @@ test("a trusted PR with no closing issue here is its own spec, unless a model wr
     specFromBodyApps: [RELEASE],
   };
   const own = (user) => pull({ user, title: "chore: release", body: "Bumps the versions." });
-  const spec = [{ number: 41, source: "pull-request", body: "chore: release\n\nBumps the versions.", comments: [] }];
+  const spec = [{ number: 41, source: "pull-request", spec_kind: "pull-request", body: "chore: release\n\nBumps the versions.", comments: [] }];
   for (const [user, expected] of [
     [{ id: OWNER_ID, login: "kyle-sexton", type: "User" }, spec],
     [{ id: RELEASE, login: "melodic-plugin-release[bot]", type: "Bot" }, spec],
@@ -280,6 +373,7 @@ test("a trusted PR with no closing issue here is its own spec, unless a model wr
   ]) {
     const result = await resolve({ pulls: [own(user)], issues: [] }, opts);
     assert.deepEqual(result.specText, expected, user.login);
+    assert.equal(result.specKind, expected.length ? "pull-request" : "none", user.login);
     assert.deepEqual(result.linkedIssues, [], user.login);
   }
   // S&C D: a body last edited by anyone but its author or a trusted person
@@ -300,7 +394,7 @@ test("a trusted PR with no closing issue here is its own spec, unless a model wr
   }
   // A closing issue here keeps it the spec.
   const result = await resolve({ pulls: [own({ id: OWNER_ID, login: "kyle-sexton", type: "User" })] }, opts);
-  assert.deepEqual(result.specText, [{ number: 7, body: "the spec", comments: [] }]);
+  assert.deepEqual(result.specText, [{ number: 7, spec_kind: "closes", body: "the spec", comments: [] }]);
 });
 
 test("main judges every trusted-actors.json account under lane-or-owner, a Bot included", async (t) => {
@@ -540,7 +634,7 @@ test("the spec text keeps only what trusted humans wrote and last edited", async
     },
   };
   assert.deepEqual((await resolve({ issues: [issue] })).specText, [
-    { number: 7, body: "the spec", comments: ["kept", "edited by the human"] },
+    { number: 7, spec_kind: "closes", body: "the spec", comments: ["kept", "edited by the human"] },
   ]);
   // The gate re-reads the same comments with the same filter, by id and update time.
   assert.deepEqual((await resolve({ issues: [issue] })).linkedIssues[0].spec_comments, [
@@ -560,14 +654,14 @@ test("the spec text keeps only what trusted humans wrote and last edited", async
   const editedBody = { ...issue, lastEditedAt: "2026-10-14T00:00:00Z", editor: lanes };
   assert.equal((await resolve({ issues: [editedBody] })).specText[0].body, null, "a body the lanes App last edited");
   const byAuthor = (await resolve(byMaintainer, { verifyAuthors: "any" })).specText[0];
-  assert.deepEqual(byAuthor, { number: 7, body: "the spec", comments: ["kept", "edited by the human"] }, "a trusted PR author's own text");
+  assert.deepEqual(byAuthor, { number: 7, spec_kind: "closes", body: "the spec", comments: ["kept", "edited by the human"] }, "a trusted PR author's own text");
   const lanesIssue = { ...issue, author: lanes };
   assert.equal((await resolve({ issues: [lanesIssue] })).specText[0].body, null, "an issue the lanes App wrote");
   const strangerIssue = { ...issue, author: stranger, comments: { totalCount: 1, nodes: [comment("by the stranger", stranger)] } };
   const byStranger = { issues: [strangerIssue], pulls: [pull({ user: { id: 999, login: "stranger", type: "User" } })] };
   assert.deepEqual(
     (await resolve(byStranger, { verifyAuthors: "any" })).specText[0],
-    { number: 7, body: null, comments: [] },
+    { number: 7, spec_kind: "closes", body: null, comments: [] },
     "an untrusted PR author's own text",
   );
 });
@@ -610,7 +704,7 @@ test("main writes the outputs, the linked issues and the spec text the workflow 
     `proceed=true\nreason=ok\npr-number=41\nhead-sha=${HEAD}\nbase-sha=${BASE}\nhead-ref=feat/x\n`,
   );
   assert.deepEqual(JSON.parse(readFileSync(spec, "utf8")), [LINKED]);
-  assert.deepEqual(JSON.parse(readFileSync(specText, "utf8")), [{ number: 7, body: "the spec", comments: [] }]);
+  assert.deepEqual(JSON.parse(readFileSync(specText, "utf8")), [{ number: 7, spec_kind: "closes", body: "the spec", comments: [] }]);
 });
 
 test("main reports a human's PR as skipped in the log and the step summary", async (t) => {

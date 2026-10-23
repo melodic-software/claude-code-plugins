@@ -21,9 +21,10 @@ from a completed, successful one. Any other artifact is ignored.
   (tied as in the item after next): `verify:repeated-fail`, whatever a pass
   says, a FAIL at the head included. Before a FAIL at the head or a pass
   decides, FAILs of other pull requests in this repository, open or closed, that close one of its
-  closing issues count too, at their own heads, and so does every FAIL whose
-  name carries one of those issues (a FAIL among them whose run cannot be
-  read is `verify:unreadable`);
+  issues (its closing issues, or its `Refs:` issue) count too, at their own
+  heads, and so does every FAIL whose name carries one of those issues, a
+  `Refs:` pull request's FAILs among them (a FAIL among them whose run cannot
+  be read is `verify:unreadable`);
 - a counted FAIL at the head, under any pull request number: `verify:fail`;
 - a counted FAIL at another head of this pull request: its number, one of its
   commits (`pulls/<n>/commits`), or a verdict recording its head branch (read
@@ -218,16 +219,31 @@ NEEDS_HUMAN = (
     UNTRUSTED_SPEC,
     SPEC_CHANGED,
 )
-CLOSING_QUERY = (
-    "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
-    "pullRequest(number:$n){closingIssuesReferences(first:10){totalCount "
-    "nodes{number lastEditedAt repository{nameWithOwner} "
+ISSUE_FIELDS = (
+    "number lastEditedAt repository{nameWithOwner} "
     "comments(first:100){totalCount nodes{databaseId updatedAt lastEditedAt "
     "author{...actor} editor{...actor}}} "
     "closedByPullRequestsReferences(first:50,includeClosedPrs:true){totalCount "
-    "nodes{number repository{nameWithOwner}}}}}}}}"
+    "nodes{number repository{nameWithOwner}}}"
+)
+# The issue parts `_closing_issues` reads whole: a cut list refuses.
+ISSUE_LISTS = ("comments", "closedByPullRequestsReferences")
+ACTOR_FRAGMENT = (
     "fragment actor on Actor{__typename login "
     "... on User{databaseId} ... on Bot{databaseId}}"
+)
+CLOSING_QUERY = (
+    "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
+    "pullRequest(number:$n){body closingIssuesReferences(first:10){totalCount "
+    f"nodes{{{ISSUE_FIELDS}}}}}}}}}}}{ACTOR_FRAGMENT}"
+)
+# The one issue a `Refs:` line names, when the pull request closes none, and
+# the key `_closing_issues` marks it with.
+REFS_MARK = "refsLink"
+REFS_QUERY = (
+    "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
+    f"issueOrPullRequest(number:$n){{__typename ... on Issue{{{ISSUE_FIELDS}}}}}}}}}"
+    f"{ACTOR_FRAGMENT}"
 )
 
 # A run's standing: unreadable, foreign (not of verifier origin), origin (of
@@ -897,32 +913,61 @@ class Reader:
             for issue in issues
         )
 
+    def _graphql(
+        self, query: str, number: int, what: str, missing: str | None = None
+    ) -> dict[str, Any]:
+        """The query's `repository`. A NOT_FOUND for `missing` alone
+        (`merge_policy.names_nothing`), which gh exits nonzero on, reads as
+        `missing` an empty object, so a null there without that error stays
+        apart; any other error raises `_Unreadable`."""
+        owner, _, name = self.repo.partition("/")
+        args = ["api", "graphql", "-f", f"query={query}"]
+        args += ["-f", f"o={owner}", "-f", f"r={name}", "-F", f"n={number}"]
+        try:
+            proc = postmerge.gh_capture(args)
+        except (RuntimeError, ValueError, OSError) as exc:
+            raise _Unreadable(f"#{number} {what}: {exc}") from exc
+        if missing and merge_policy.names_nothing(proc.stdout, missing):
+            return {missing: {}}
+        if proc.returncode != 0:
+            raise _Unreadable(f"#{number} {what}: {(proc.stderr or '').strip()}")
+        try:
+            payload = json_object(json.loads(proc.stdout))
+        except ValueError as exc:
+            raise _Unreadable(f"#{number} {what}: {exc}") from exc
+        if payload.get("errors"):
+            raise _Unreadable(f"#{number}: the {what} could not be read")
+        repository = json_object(payload.get("data")).get("repository")
+        if not is_json_object(repository):
+            raise _Unreadable(f"#{number}: the {what} answer has no repository")
+        return repository
+
     def _closing_issues(self, number: int) -> dict[Any, Any]:
         """The PR's closing issues in this repository now, each with its
         body's lastEditedAt, read as the resolver reads them
-        (closingIssuesReferences, first 10)."""
-        owner, _, name = self.repo.partition("/")
-        payload = json_object(
-            _read(
-                ["api", "graphql", "-f", f"query={CLOSING_QUERY}"]
-                + ["-f", f"o={owner}", "-f", f"r={name}", "-F", f"n={number}"],
-                f"#{number} closing issues",
-            )
+        (closingIssuesReferences, first 10), or, when it closes none, the one
+        issue its body's `Refs:` lines name (`merge_policy.refs_issue`)."""
+        pull = json_object(
+            self._graphql(CLOSING_QUERY, number, "closing issues").get("pullRequest")
         )
-        refs = json_object(
-            json_object(
-                json_object(json_object(payload.get("data")).get("repository")).get(
-                    "pullRequest"
-                )
-            ).get("closingIssuesReferences")
-        )
+        refs = json_object(pull.get("closingIssuesReferences"))
         nodes = refs.get("nodes")
-        if (
-            payload.get("errors")
-            or not is_json_array(nodes)
-            or refs.get("totalCount") != len(nodes)
-        ):
+        if not is_json_array(nodes) or refs.get("totalCount") != len(nodes):
             raise _Unreadable(f"#{number}: the closing issues could not be read")
+        if refs.get("totalCount") == 0:
+            named, _ = merge_policy.refs_issue(pull.get("body"))
+            if named is not None:
+                node = self._graphql(
+                    REFS_QUERY, named, "Refs issue", "issueOrPullRequest"
+                ).get("issueOrPullRequest")
+                if not is_json_object(node):
+                    raise _Unreadable(f"#{named}: the Refs issue answer is empty")
+                # Marked so the gate can bind a pass to how it was linked.
+                nodes = (
+                    [node | {REFS_MARK: True}]
+                    if node.get("__typename") == "Issue"
+                    else []
+                )
         live = {
             json_object(node).get("number"): json_object(node)
             for node in nodes
@@ -930,7 +975,7 @@ class Reader:
             == self.repo
         }
         for issue in live.values():
-            for part in ("comments", "closedByPullRequestsReferences"):
+            for part in ISSUE_LISTS:
                 listed = json_object(issue.get(part))
                 if not is_json_array(listed.get("nodes")) or listed.get(
                     "totalCount"
@@ -1000,7 +1045,7 @@ class Reader:
         unreadable: str | None = None
         # FAILs of verifier origin by pull request number, and the numbers
         # with a FAIL whose run cannot be read, for the cap's other pull
-        # requests (`_closers`).
+        # requests (`_elsewhere`).
         failed_by_pr: dict[int, set[str]] = {}
         unread_prs: set[int] = set()
         # The same by each issue a FAIL's name carries (`named_issues`).
@@ -1161,11 +1206,12 @@ class Reader:
         failed_by_issue: dict[int, set[str]],
         unread_issues: set[int],
     ) -> tuple[dict[Any, Any], set[str]]:
-        """The live closing issues, and the heads of counted FAILs of the
-        other pull requests that close one of them, and of every counted FAIL
-        whose name carries one of them (`named_issues`), from the listing
-        already read. A FAIL among those whose run cannot be read raises
-        `_Unreadable`."""
+        """The live issues (`_closing_issues`: closing, or the `Refs:` one),
+        and the heads of counted FAILs of the other pull requests that close
+        one of them, and of every counted FAIL whose name carries one of them
+        (`named_issues`: a `Refs:` pull request's FAILs count only so), from
+        the listing already read. A FAIL among those whose run cannot be read
+        raises `_Unreadable`."""
         live = self._closing_issues(number)
         others = self._closers(live) - {number}
         if others & unread_prs or unread_issues & set(live):
@@ -1317,6 +1363,14 @@ class Reader:
             )
             != self._recorded_comments(issues[n])
             for n, node in live.items()
+        ):
+            return SPEC_CHANGED
+        # A `Refs:` issue is judged as a partial slice (write-verdict.mjs
+        # `spec_kind`), so a pass judged that way never covers a pull request
+        # that now closes it, nor the reverse. A record from before the kind
+        # was written judged closing issues.
+        if live and any(n.get(REFS_MARK) for n in live.values()) != (
+            record.get("spec_kind", "closes") == "refs"
         ):
             return SPEC_CHANGED
         # No closing issue, then and now: the verdict judged the pull
