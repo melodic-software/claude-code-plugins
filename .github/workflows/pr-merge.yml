@@ -1200,6 +1200,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
+          LANE_PRS: ${{ steps.mode.outputs.lane-prs }}
         run: node .base/.github/scripts/pr-merge/clear-escalations.mjs
 
       - name: Log the API budget at job end

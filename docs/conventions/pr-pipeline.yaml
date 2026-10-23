@@ -788,8 +788,9 @@ merge:
   # lists, scores and enqueues them. Owner PRs and Dependabot's are gated in
   # both.
   lane-prs: native
-  # A PR merges only with a passing pr-verify.yml verdict at its head. Must be
-  # true at a rung above off: the gate refuses otherwise.
+  # A PR the gate lists merges only with a passing pr-verify.yml verdict at its
+  # head (lane PRs under lane-prs native are not listed). Must be true at a
+  # rung above off: the gate refuses otherwise.
   require-verifier-verdict: true
   # Lane merges in flight at once (queued plus merged and not yet verified).
   # The merge queue tests each PR against the latest base plus the PRs ahead
