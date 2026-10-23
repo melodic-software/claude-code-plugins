@@ -1768,6 +1768,19 @@ class EachRefusalMakesNoMergeCall(Unattended):
             out["unattended"]["reason"], "head-pusher-unproven:aaaaaaaaaaaa"
         )
 
+    def test_a_lane_run_listing_at_the_search_cap_binds_no_lane(self) -> None:
+        # collect_lane_runs raises on a listing at the search cap.
+        self.lane_error = RuntimeError(
+            "pr-review-hosted.yml runs: total_count 1000, 1000 returned, "
+            "at the 1000-run search cap"
+        )
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(
+            {(e["bound"], e["unboundReason"]) for e in out["unattended"]["evidence"]},
+            {(False, "evidence-missing")},
+        )
+
     def test_an_armed_auto_merge_is_disarmed_and_refused(self) -> None:
         self.queue = fixtures._queue_read(required=True, armed=True)
         code, out = self.run_main()
