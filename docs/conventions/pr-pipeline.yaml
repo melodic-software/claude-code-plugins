@@ -24,12 +24,21 @@ activities:
       # alone.
       draft: [false]
   resolve-conflicts:
+    # Resolves the conflicts of merging the default branch's tip into a pull
+    # request. It runs no command and holds no write token: the read runner
+    # merges the base tip before the skill and hands the skill's resolutions
+    # on as a patch, which apply-conflict-patch commits with both parents.
     skill: source-control:resolve-conflicts
     args: ci
-    # The write runner merges the base tip before the skill and commits the
-    # result with both parents after it.
+    # pr-unblock.yml's resolve-conflicts-select job, which runs only base
+    # code, merges the base tip and decides clean, conflicted or escalate
+    # before any model turn; the read runner merges the same base again and
+    # checks it reaches the same conflict tree.
     prepare: merge-base
-    effect: mutate-branch
+    # Edits head files, so no write token: the resolutions leave as a patch.
+    effect: read
+    applied-by:
+      patch: apply-conflict-patch
     # ci-status judges the merged tree.
     gating: advisory
     # Reads PR head files.
@@ -38,6 +47,24 @@ activities:
     applies-when:
       # A PR that is only behind stays with the merge queue.
       mergeable: [conflicting]
+      labels-absent: [do-not-merge, needs-human]
+      draft: [false]
+  apply-conflict-patch:
+    # Merges the base tip resolve-conflicts-select pinned into the head it
+    # gated, applies resolve-conflicts's patch to the conflict tree, and
+    # pushes one merge commit with the head and that base as parents, without
+    # force; a clean merge needs no patch. A script, no model, and it runs no
+    # head code; patch-rules.json's merge-base row admits only marker-free
+    # resolutions of the conflicted paths, and a head that moved since skips.
+    script: .github/scripts/apply-patch/apply-patch.mjs
+    prepare: apply-patch
+    # Pushes the merge to the pull request's branch, nothing else.
+    effect: mutate-branch
+    gating: advisory
+    # Reads the patch the model wrote.
+    reads-untrusted: true
+    inputs: [pr, head-sha, base-sha]
+    applies-when:
       labels-absent: [do-not-merge, needs-human]
       draft: [false]
   address-feedback:
@@ -418,6 +445,10 @@ lanes:
     stage: unblock
     slots:
       - activity: resolve-conflicts
+      # Runs after resolve-conflicts, in its own job with its own token: the
+      # merge commit, with or without the model's patch.
+      - activity: apply-conflict-patch
+        needs: [resolve-conflicts]
       # Started by pr-feedback-dispatch.yml after both review lanes reviewed
       # the head.
       - activity: address-feedback
@@ -446,7 +477,7 @@ lanes:
         needs: [fix-ci, fix-docs]
       # Hands the pull request to a person when any of the others escalates.
       - activity: report-escalation
-        needs: [resolve-conflicts, address-feedback, publish-feedback, review-dependency, apply-dependency-verdict, fix-ci, apply-patch]
+        needs: [resolve-conflicts, apply-conflict-patch, address-feedback, publish-feedback, review-dependency, apply-dependency-verdict, fix-ci, apply-patch]
   pr-merge:
     stage: merge
     slots:
@@ -517,6 +548,8 @@ models:
       max-turns: 75
   default-profile: standard
   routes:
+    # Resolves code conflicts, a fix on code like address-feedback's.
+    resolve-conflicts: code-fix
     address-feedback: code-fix
     # Judges a dependency update against its release notes, as verify-pr
     # judges a pull request against its spec.

@@ -1278,11 +1278,13 @@ test("prepare: review-threads on a non-read skill leaf resolves and is carried o
   assert.equal(runRefine(config, { activity: "simplify", facts: LINT_FACTS }).selected.prepare, "review-threads");
 });
 
-test("prepare on a read skill leaf is rejected", () => {
+// A read merge-base skill must hand its resolutions on as a patch: the schema
+// requires applied-by.patch of it.
+test("prepare on a read skill leaf with no applied-by.patch is rejected", () => {
   const config = withPrepare((doc) => {
     doc.activities.simplify.effect = "read";
   });
-  assertRejected(() => runRefine(config), "invalid-prepare");
+  assertRejected(() => runRefine(config), "invalid-config");
 });
 
 test("prepare on a script leaf, or a value other than merge-base, fails the schema", () => {
@@ -1497,7 +1499,7 @@ function resolveEveryExampleSlot(vocabulary) {
 
 test("the README example validates and resolves for each of its lanes", () => {
   const results = resolveEveryExampleSlot(VOCABULARY);
-  assert.equal(Object.keys(results).length, 15);
+  assert.equal(Object.keys(results).length, 16);
   // The example's models block routes claude to review and leaves the rest
   // on default-profile standard.
   assert.deepEqual(results["pr-review / claude"].models, {
@@ -1521,7 +1523,7 @@ test("the README example validates and resolves for each of its lanes", () => {
       resolveConflicts["reads-untrusted"],
       resolveConflicts.effect,
     ],
-    [true, "merge-base", true, "mutate-branch"],
+    [true, "merge-base", true, "read"],
   );
   assert.deepEqual(resolveConflicts["applies-when"], {
     mergeable: ["conflicting"],
@@ -1530,6 +1532,7 @@ test("the README example validates and resolves for each of its lanes", () => {
   });
   assert.deepEqual(results["pr-unblock / report-escalation"].needs, [
     "resolve-conflicts",
+    "apply-conflict-patch",
   ]);
   assert.equal(
     results["post-merge-sweep-comments / sweep-comments"]["skip-reason"],
@@ -1546,7 +1549,7 @@ test("integration: the README example resolves against the synced standards voca
   const results = resolveEveryExampleSlot(
     JSON.parse(readFileSync(LIVE_VOCABULARY, "utf8")),
   );
-  assert.equal(Object.keys(results).length, 15);
+  assert.equal(Object.keys(results).length, 16);
 });
 
 // applied-by: a read skill names the script activity that applies each thing
@@ -1580,7 +1583,8 @@ test("prepare: a read skill that hands on a patch may set a writing skill's prep
       doc.activities["fix-ci"].prepare = prepare;
       delete doc.activities["fix-ci"]["applied-by"];
     });
-    assertRejected(() => unblock(noPatch), prepare === "merge-base" ? "invalid-prepare" : "invalid-config");
+    // The schema requires applied-by.patch of a read skill in each mode.
+    assertRejected(() => unblock(noPatch), "invalid-config");
   }
   const noReplies = appliedByEdit((doc) => {
     doc.activities["fix-ci"].prepare = "review-threads";

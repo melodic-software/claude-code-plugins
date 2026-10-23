@@ -1333,7 +1333,6 @@ test("run-claude-cli refuses an issue lane, a writing skill, a patch-producing s
     [{ PREPARE: "review-threads" }, /only a read skill/],
     [{ PREPARE: "merge-base" }, /only a read skill/],
     [{ PREPARE: "dependency-review" }, /only a read skill/],
-    [{ RESOLVED: appliedBy, PREPARE: "merge-base" }, /only a read skill/],
     [{ GATING: "gate" }, /a gate skill's verdict is not read from the launcher/],
     [{ RESOLVED: launchResolved({ ...PATCH, checks: ["scripts/check-x.sh --check"] }) }, /checks, self-checks and verify-scripts have no wrapper/],
     [{ RESOLVED: launchResolved({ ...PATCH, "self-checks": ["scripts/check-x.sh"] }) }, /checks, self-checks and verify-scripts have no wrapper/],
@@ -1711,4 +1710,45 @@ test("run-claude-cli: a dependency-review skill with no context file fails red b
   assert.match(run.stdout, /::error::dependency-review: the runner wrote no context file/);
   assert.deepEqual(run.tools, []);
   assert.equal(run.promptFile, "");
+});
+
+// resolve-conflicts on the launcher: Edit, Write and Agent with no Bash, git
+// and the shell read commands denied though no Bash is granted, and the merge
+// context the runner writes after the stage under .lane/merge/ denied to the
+// file tools.
+const MERGE_FILE_DENIED = ["Edit(./.lane/merge/**)", "Write(./.lane/merge/**)", "NotebookEdit(./.lane/merge/**)"];
+
+test("run-claude-cli: a merge-base skill gets Edit, Write and Agent with no Bash, and the merge context denied to the file tools", () => {
+  const run = launch({ RESOLVED: launchResolved({ "applied-by": { patch: "apply-conflict-patch" }, args: "ci" }), PREPARE: "merge-base", SKILL: "source-control:resolve-conflicts" });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(run.tools.toSorted(), ["Agent", "Edit", "Glob", "Grep", "Read", "Skill", "Write"]);
+  assert.deepEqual(run.allowedTools.toSorted(), ["Agent", "Edit", "Edit(./.lane/scratch/**)", "Glob", "Grep", "Skill(source-control:resolve-conflicts)", "Write"].toSorted());
+  for (const rule of [
+    "Bash(git *)",
+    ...SHELL_DENIED.filter((rule) => rule.startsWith("Bash(") || rule === "Read(//proc/**)"),
+    "NotebookEdit(./.lane/plugins/**)",
+    "Edit(./.lane/plugins/**)",
+    "Write(./.lane/plugins/**)",
+    "WebFetch",
+    "WebSearch",
+    ...MERGE_FILE_DENIED,
+    ...GIT_DENIED,
+  ]) {
+    assert.ok(run.deniedTools.includes(rule), `${rule} in ${run.deniedTools.join(" | ")}`);
+  }
+  // A deny rule beats an allow rule: no allowed tool reaches the merge context or .git.
+  assert.ok(!run.allowedTools.some((rule) => rule.startsWith("Bash")), run.allowedTools.join(" | "));
+  assert.ok(run.preamble.includes(`the merge context is ${WORKSPACE}/.lane/merge/conflicts.json`), run.preamble);
+  assert.match(run.preamble, /leave a path you cannot resolve with its conflict markers, and edit no other file/);
+  assert.match(run.preamble, /You run no command and post nothing\./);
+  assert.doesNotMatch(run.preamble, /shell command|commit tool|commit your/i, "no Bash and no commit tool, so no such instruction");
+  assert.equal(run.promptFile, "Call the Skill tool with skill source-control:resolve-conflicts and args ci, then follow the skill instructions to the end.\n");
+  assert.equal(run.args, "", "no claude_args for the launcher");
+});
+
+test("run-claude-cli: a merge-base skill that hands on no patch fails red before any output", () => {
+  const run = launch({ PREPARE: "merge-base", SKILL: "source-control:resolve-conflicts" });
+  assert.notEqual(run.status, 0);
+  assert.match(run.stdout, /only a read skill/);
+  assert.deepEqual(run.tools, []);
 });

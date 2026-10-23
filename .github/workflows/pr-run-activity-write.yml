@@ -280,6 +280,30 @@ on:
         required: false
         type: string
         default: ""
+      patch-merge-base-sha:
+        description: >-
+          apply-patch with patch-prepare merge-base: the default branch commit
+          the caller's select job pinned and merged, the merge commit's second
+          parent; it must be on the default branch.
+        required: false
+        type: string
+        default: ""
+      patch-merge-state:
+        description: >-
+          apply-patch with patch-prepare merge-base: the select job's
+          merge-state, clean (committed with no patch) or conflicted.
+        required: false
+        type: string
+        default: ""
+      patch-conflict-tree:
+        description: >-
+          apply-patch with patch-prepare merge-base: the conflict tree the
+          select job's merge reached. This job merges patch-merge-base-sha into
+          the gated head again and fails red unless it reaches the same state
+          and tree, then applies the patch to that tree.
+        required: false
+        type: string
+        default: ""
       patch-threads-attempt:
         description: >-
           apply-patch with patch-prepare review-threads: the attempt whose
@@ -375,7 +399,11 @@ on:
           ci-fix-empty, ci-fix-invalid or ci-fix-escalated, and from its
           script ci-fix-invalid, ci-fix-protected-path or ci-fix-not-applied;
           for issue-mode apply-patch, patch-empty, patch-invalid,
-          patch-not-applied or patch-protected-path; empty otherwise.
+          patch-not-applied or patch-protected-path; for apply-patch under
+          patch-prepare merge-base, unresolved-conflict, workflow-staged,
+          unexpected-path-staged, conflict-patch-invalid,
+          conflict-patch-not-applied or conflict-patch-protected-path; empty
+          otherwise.
           Set only by runner steps and the base's reply and verdict scripts.
         value: ${{ jobs.run.outputs.escalation-reason }}
       rung-up:
@@ -467,7 +495,7 @@ jobs:
       # counts as succeeded (act-result). The verdict step's ACT_OUTCOME repeats this
       # expression: runner-policy refuses YAML aliases.
       act-outcome: >-
-        ${{ steps.act-skill.outcome == 'skipped' && steps.prepare.outputs.merge-state == 'clean'
+        ${{ steps.config.outputs.prepare == 'merge-base' && steps.act-skill.outcome == 'skipped' && steps.prepare.outputs.merge-state == 'clean'
         && ((steps.post.outputs.escalation-reason != ''
         || steps.commit.outcome == 'success' && steps.promote.outcome == 'success') && 'success' || 'failure')
         || steps.act-result.outputs.outcome == 'success'
@@ -498,6 +526,10 @@ jobs:
           PATCH_BASE_SHA: ${{ inputs.patch-base-sha }}
           PATCH_RESUME_TIP: ${{ inputs.patch-resume-tip }}
           DIMENSION_SKIP: ${{ inputs.dimension-skip }}
+          PATCH_PREPARE: ${{ inputs.patch-prepare }}
+          PATCH_MERGE_BASE_SHA: ${{ inputs.patch-merge-base-sha }}
+          PATCH_MERGE_STATE: ${{ inputs.patch-merge-state }}
+          PATCH_CONFLICT_TREE: ${{ inputs.patch-conflict-tree }}
         run: |
           # Issue mode runs only on the issues event that names that issue,
           # trusting the default branch tip, with none of the PR inputs.
@@ -520,6 +552,17 @@ jobs:
             ! [[ $PATCH_BASE_SHA =~ ^[0-9a-f]{40}$ ]] || ! [[ $PATCH_RESUME_TIP =~ ^([0-9a-f]{40})?$ ]]; }; then
             echo "::error::patch-base-sha and patch-resume-tip are an issue patch's commit ids"
             exit 1
+          fi
+          # The merge inputs go with patch-prepare merge-base, in PR mode: a
+          # pinned base commit, a clean or conflicted state, and its conflict
+          # tree.
+          if [ "$PATCH_PREPARE" = merge-base ] || [ -n "$PATCH_MERGE_BASE_SHA$PATCH_MERGE_STATE$PATCH_CONFLICT_TREE" ]; then
+            if [ "$PATCH_PREPARE" != merge-base ] || [ -n "$ISSUE_NUMBER" ] ||
+              ! [[ $PATCH_MERGE_BASE_SHA =~ ^[0-9a-f]{40}$ && $PATCH_CONFLICT_TREE =~ ^[0-9a-f]{40}$ ]] ||
+              ! [[ $PATCH_MERGE_STATE =~ ^(clean|conflicted)$ ]]; then
+              echo "::error::patch-prepare merge-base needs patch-merge-base-sha, patch-merge-state and patch-conflict-tree, in PR mode, and they go with nothing else"
+              exit 1
+            fi
           fi
           # A dimension skip is one of the four issue-dimension reasons, only in issue mode.
           if [ -n "$DIMENSION_SKIP" ] && { [ -z "$ISSUE_NUMBER" ] ||
@@ -545,6 +588,7 @@ jobs:
             dependency-fix-refused) ;;
             ci-fix-round-cap | ci-fix-empty | ci-fix-invalid | ci-fix-escalated) ;;
             ci-fix-protected-path | ci-fix-not-applied) ;;
+            conflict-patch-invalid | conflict-patch-not-applied | conflict-patch-protected-path) ;;
             patch-empty | patch-invalid | patch-not-applied | patch-protected-path)
               if [ -z "$ISSUE_NUMBER" ]; then
                 echo "::error::a patch-* escalation-reason input is for issue mode only"
@@ -693,6 +737,21 @@ jobs:
           fi
           echo "sha=${PATCH_RESUME_TIP:-$PATCH_BASE_SHA}" >>"$GITHUB_OUTPUT"
 
+      # apply-patch under the merge-base row, before the mint: the base the
+      # select job pinned must be on the default branch.
+      - name: Check the merge patch's pinned base
+        if: >-
+          steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'apply-patch'
+          && inputs.patch-prepare == 'merge-base'
+        env:
+          MERGE_BASE_SHA: ${{ inputs.patch-merge-base-sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if ! git -C .base merge-base --is-ancestor "$MERGE_BASE_SHA" "refs/remotes/origin/$DEFAULT_BRANCH"; then
+            echo "::error::the merge patch's pinned base is not on the default branch"
+            exit 1
+          fi
+
       # apply-patch, before the mint: the patch and the report the read model
       # job of this workflow run uploaded, each downloaded by that job's
       # attempt, so a re-run of this job alone still finds them. A missing
@@ -817,6 +876,8 @@ jobs:
           PATCH_DIR: ${{ runner.temp }}/lane-patch
           REPORT_DIR: ${{ runner.temp }}/lane-patch-report
           MODEL_RUNG: ${{ inputs.patch-model-rung }}
+          # Under the merge-base row: clean commits with no patch.
+          MERGE_STATE: ${{ inputs.patch-merge-state }}
         run: node ".base/$SCRIPT" select
 
       # A read activity belongs in pr-run-activity-read.yml, whose run holds no
@@ -1039,20 +1100,23 @@ jobs:
           COPY: ${{ runner.temp }}/base-script/.trusted-actors.json
         run: cp .base/.github/standards/trusted-actors/trusted-actors.json "$COPY"
 
-      # prepare: merge-base runs the base's merge scripts and the base's
-      # version-bump script, never the head's: copied out here, each with its
-      # SHA-256 as a step output that every later step checks its copy
-      # against before running it. The repeat cap reads loop.no-progress from
-      # the resolved config now, before any head code could rewrite the file.
+      # prepare: merge-base, and apply-patch under the merge-base row, run
+      # the base's merge scripts and the base's version-bump script, never
+      # the head's: copied out here, each with its SHA-256 as a step output
+      # that every later step checks its copy against before running it. The
+      # repeat cap reads loop.no-progress from the resolved config now, before
+      # any head code could rewrite the file.
       - name: Copy the merge scripts from the base
         id: merge-bin
-        if: steps.lane-token.outputs.token != '' && steps.config.outputs.prepare == 'merge-base'
+        if: >-
+          steps.lane-token.outputs.token != '' && (steps.config.outputs.prepare == 'merge-base'
+          || steps.config.outputs.prepare == 'apply-patch' && inputs.patch-prepare == 'merge-base')
         env:
           BIN: ${{ runner.temp }}/merge-base-bin
           RESOLVED: ${{ runner.temp }}/resolved-config.json
         run: |
           mkdir -p "$BIN"
-          for file in .base/.github/scripts/merge-base/{prepare,post,tree-entries}.sh \
+          for file in .base/.github/scripts/merge-base/{prepare,run-prepare,post,tree-entries}.sh \
             .base/plugins/source-control/scripts/resolve-version-bump-conflict.sh; do
             name=$(basename "$file" .sh)
             cp "$file" "$BIN/$name.sh"
@@ -1191,7 +1255,8 @@ jobs:
           # not read as false.
           fetch-depth: >-
             ${{ steps.config.outputs.prepare != 'merge-base'
-            && !(inputs.issue-number != '' && steps.config.outputs.prepare == 'apply-patch') && 1 || 0 }}
+            && !(inputs.issue-number != '' && steps.config.outputs.prepare == 'apply-patch')
+            && !(steps.config.outputs.prepare == 'apply-patch' && inputs.patch-prepare == 'merge-base') && 1 || 0 }}
 
       # The activity judges exactly the commit the check is posted on.
       - name: Assert the head is the gated SHA
@@ -1211,13 +1276,18 @@ jobs:
       # into the gated head without committing, run the base's version-bump
       # script, and decide clean (commit with no model turn), conflicted (the
       # skill resolves) or escalate (awaiting-human, reason for the
-      # report-escalation leaf). Only whitelisted, validated key=value lines
-      # become outputs. The identity is the lanes bot's: git refuses even a
-      # --no-commit merge without one, and the repeat cap counts commits by
-      # that author name.
+      # report-escalation leaf). Under the merge-base row, apply-patch merges
+      # the select job's pinned base instead and fails red unless it reaches
+      # the select job's state and conflict tree; apply-patch.mjs then applies
+      # the patch to that tree. run-prepare.sh takes only whitelisted,
+      # validated key=value lines as outputs. The identity is the lanes bot's:
+      # git refuses even a --no-commit merge without one, and the repeat cap
+      # counts commits by that author name.
       - name: Start the merge of the trusted base
         id: prepare
-        if: steps.lane-token.outputs.token != '' && steps.config.outputs.prepare == 'merge-base'
+        if: >-
+          steps.lane-token.outputs.token != '' && (steps.config.outputs.prepare == 'merge-base'
+          || steps.config.outputs.prepare == 'apply-patch' && inputs.patch-prepare == 'merge-base')
         env:
           GIT_AUTHOR_NAME: melodic-automation-lanes[bot]
           GIT_AUTHOR_EMAIL: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}+melodic-automation-lanes[bot]@users.noreply.github.com
@@ -1230,54 +1300,20 @@ jobs:
           OUT: ${{ runner.temp }}/merge-base-out
           PREPARE_SHA256: ${{ steps.merge-bin.outputs.prepare-sha256 }}
           BUMP_SHA256: ${{ steps.merge-bin.outputs.resolve-version-bump-conflict-sha256 }}
+          RUN_PREPARE_SHA256: ${{ steps.merge-bin.outputs.run-prepare-sha256 }}
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
-          BASE_SHA: ${{ steps.trusted-base.outputs.commit }}
+          BASE_SHA: >-
+            ${{ steps.config.outputs.prepare == 'apply-patch' && inputs.patch-merge-base-sha
+            || steps.trusted-base.outputs.commit }}
+          EXPECT_STATE: ${{ steps.config.outputs.prepare == 'apply-patch' && inputs.patch-merge-state || '' }}
+          EXPECT_TREE: ${{ steps.config.outputs.prepare == 'apply-patch' && inputs.patch-conflict-tree || '' }}
         run: |
-          check() {
-            local sum
-            sum=$(sha256sum <"$1")
-            if [ "${sum%% *}" != "$2" ]; then
-              echo "::error::$1 does not match the SHA-256 recorded when it was copied from the base"
-              exit 1
-            fi
-          }
-          check "$BIN/prepare.sh" "$PREPARE_SHA256"
-          check "$BIN/resolve-version-bump-conflict.sh" "$BUMP_SHA256"
-          # git's merge output names head files, so no line of it may run a
-          # workflow command; commands resume before this step's own lines.
-          token=$(openssl rand -hex 16)
-          echo "::stop-commands::$token"
-          result=$(bash "$BIN/prepare.sh" "$HEAD_SHA" "$BASE_SHA" "$BIN/resolve-version-bump-conflict.sh" "$OUT")
-          echo "::$token::"
-          state="" reason="" skip=""
-          while IFS='=' read -r key value; do
-            case $key in
-              config-sha256 | snapshot-sha256)
-                [[ $value =~ ^[0-9a-f]{64}$ ]] || { echo "::error::prepare.sh printed a malformed $key"; exit 1; }
-                echo "$key=$value" >>"$GITHUB_OUTPUT"
-                ;;
-              attributes-sha256)
-                [[ $value =~ ^([0-9a-f]{64}|absent)$ ]] || { echo "::error::prepare.sh printed a malformed $key"; exit 1; }
-                echo "$key=$value" >>"$GITHUB_OUTPUT"
-                ;;
-              merge-state) state=$value ;;
-              escalation-reason) reason=$value ;;
-              *) echo "::error::prepare.sh printed an unknown key"; exit 1 ;;
-            esac
-          done <<<"$result"
-          case $state:$reason in
-            clean: | conflicted:) ;;
-            escalate:protected-path-conflict | escalate:repeat-cap | escalate:unresolved-conflict)
-              skip=awaiting-human
-              ;;
-            *) echo "::error::prepare.sh printed no valid merge-state and escalation-reason"; exit 1 ;;
-          esac
-          {
-            echo "skip-reason=$skip"
-            echo "merge-state=$state"
-            echo "escalation-reason=$reason"
-          } >>"$GITHUB_OUTPUT"
-          echo "merge-state=$state escalation-reason=$reason"
+          sum=$(sha256sum <"$BIN/run-prepare.sh")
+          if [ "${sum%% *}" != "$RUN_PREPARE_SHA256" ]; then
+            echo "::error::run-prepare.sh does not match the SHA-256 recorded when it was copied from the base"
+            exit 1
+          fi
+          bash "$BIN/run-prepare.sh"
 
       # claude-code-action's commit_files builds each commit on the live tip of
       # CLAUDE_BRANCH with file bytes from this checkout
@@ -2041,6 +2077,16 @@ jobs:
           # Under the dependency-review row: the verdict field of the scanned
           # verdict the check step matched to the scan job's SHA-256.
           DEPENDENCY_VERDICT: ${{ steps.patch-verdict.outputs.verdict }}
+          # Under the merge-base row: the pinned base, the state and conflict
+          # tree the prepare step reached (the select job's, or it failed),
+          # the default branch's name for the message, and the base copy of
+          # tree-entries.sh with its SHA-256.
+          MERGE_BASE_SHA: ${{ inputs.patch-prepare == 'merge-base' && inputs.patch-merge-base-sha || '' }}
+          MERGE_STATE: ${{ inputs.patch-prepare == 'merge-base' && steps.prepare.outputs.merge-state || '' }}
+          CONFLICT_TREE: ${{ inputs.patch-prepare == 'merge-base' && steps.prepare.outputs.conflict-tree || '' }}
+          BASE_REF: ${{ inputs.patch-prepare == 'merge-base' && github.event.repository.default_branch || '' }}
+          TREE_ENTRIES_SCRIPT: ${{ inputs.patch-prepare == 'merge-base' && format('{0}/merge-base-bin/tree-entries.sh', runner.temp) || '' }}
+          TREE_ENTRIES_SHA256: ${{ inputs.patch-prepare == 'merge-base' && steps.merge-bin.outputs.tree-entries-sha256 || '' }}
         run: |
           if [ "$TRACKER_SHA256" = absent ]; then
             if [ -e "$TRACKER_CONFIG" ]; then
@@ -2079,6 +2125,16 @@ jobs:
           escalation=""
           if [ -s "$ESCALATION_REASON_FILE" ]; then
             escalation=$(head -n 1 "$ESCALATION_REASON_FILE" | tr -d '\r')
+            # apply-patch under the merge-base row gives the merge's reasons alone.
+            if [ "$PREPARE:$PATCH_PREPARE" = apply-patch:merge-base ]; then
+              case $escalation in
+                unresolved-conflict | workflow-staged | unexpected-path-staged) ;;
+                conflict-patch-invalid | conflict-patch-not-applied | conflict-patch-protected-path) ;;
+                *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
+              esac
+              echo "escalation-reason=$escalation" >>"$GITHUB_OUTPUT"
+              exit 0
+            fi
             case "$FEEDBACK_REPLIES_DIR:$escalation" in
               ?*:feedback-uncertain | ?*:feedback-not-landed | ?*:feedback-invalid) ;;
               ?*:feedback-partial | ?*:feedback-incomplete | ?*:feedback-disputed) ;;
@@ -2157,7 +2213,7 @@ jobs:
             || steps.act-script.outputs.skip-reason
             || steps.patch-select.outputs.skip-reason }}
           ACT_OUTCOME: >-
-            ${{ steps.act-skill.outcome == 'skipped' && steps.prepare.outputs.merge-state == 'clean'
+            ${{ steps.config.outputs.prepare == 'merge-base' && steps.act-skill.outcome == 'skipped' && steps.prepare.outputs.merge-state == 'clean'
             && ((steps.post.outputs.escalation-reason != ''
             || steps.commit.outcome == 'success' && steps.promote.outcome == 'success') && 'success' || 'failure')
             || steps.act-result.outputs.outcome == 'success'

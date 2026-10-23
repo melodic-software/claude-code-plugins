@@ -86,15 +86,6 @@ const DEFAULT_RUN = {
   "max-turns": 75,
 };
 
-for (const [lane, activity] of [["pr-unblock", "resolve-conflicts"]]) {
-  test(`live config: ${lane} / ${activity} keeps no --model and 75 turns`, () => {
-    const slot = liveSlot(lane, activity);
-    assert.deepEqual(slot.models, { profile: "standard", ...DEFAULT_RUN });
-    assert.equal(modelArgs(slot.models), "--max-turns 75");
-    assert.equal(modelSettings(slot.models), "");
-  });
-}
-
 // models.issue-dimensions: the live config's field and option ids (the org's,
 // 2026-10-18) with fixture budgets in place of its tuning, so a tuning PR is a
 // config-only edit. Turn cap = ceil(base-turns x complexity factor); the
@@ -474,9 +465,9 @@ for (const [route, profile, args] of [
 // (plugins/multi-agent/reference/defaults.yaml): worker's model is inherit and
 // its mechanical workload sonnet, verifier's effort high; the owner's rule
 // sends inherit, and any role route that resolves no alias, to opus.
-// address-feedback runs on run-claude-cli, which cannot pass the default
-// model, so it takes fix-ci's code-fix route.
-for (const activity of ["fix-ci", "address-feedback"]) {
+// address-feedback and resolve-conflicts run on run-claude-cli, which cannot
+// pass the default model, so they take fix-ci's code-fix route.
+for (const activity of ["fix-ci", "address-feedback", "resolve-conflicts"]) {
   test(`live config: ${activity} runs as a worker on code, opus at the verifier's effort, 75 turns`, () => {
     const slot = liveSlot("pr-unblock", activity);
     assert.deepEqual(slot.models, {

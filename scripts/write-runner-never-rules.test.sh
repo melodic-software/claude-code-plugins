@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Structure test: pr-run-activity-write.yml keeps every clause of the
-# resolve-conflicts `never` row in .github/actions/resolve-config/activity-rules.json
-# ("Force-pushes, pushes .github/workflows changes, or runs head code"), and
-# hands the report-escalation script the base's tracker config.
+# apply-conflict-patch `never` row in .github/actions/resolve-config/activity-rules.json
+# ("Runs a model or head code, force-pushes, or pushes a model edit outside the
+# conflicted paths"), and hands the report-escalation script the base's tracker
+# config.
 #
 # Reads the workflow as YAML (the runner-policy `yaml` package, which CI
 # installs for check-read-caller-keys.test.sh) and asserts on step order,
@@ -12,7 +13,7 @@
 #     itself. The backstops are the App's missing `workflows` permission and
 #     ADR 0055's accepted residual, not this file.
 #   - That post.sh detects every workflow change; its own .test.sh owns that.
-# test-scope: .github/workflows/pr-run-activity-write.yml .github/actions/resolve-config/activity-rules.json .github/actions/collect-base-activity/action.yml .github/standards/runner-policy/package.json
+# test-scope: .github/workflows/pr-run-activity-write.yml .github/actions/resolve-config/activity-rules.json .github/actions/collect-base-activity/action.yml .github/scripts/merge-base/run-prepare.sh .github/standards/runner-policy/package.json
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -28,10 +29,13 @@ const YAML = require("yaml");
 
 const say = (good, text) => console.log(`${good ? "ok" : "fail"}\t${text}`);
 const rules = JSON.parse(readFileSync(".github/actions/resolve-config/activity-rules.json", "utf8"));
-const never = rules["resolve-conflicts"]?.never ?? "";
+const never = rules["apply-conflict-patch"]?.never ?? "";
 // The row this suite guards; a reworded row needs this suite reread.
-say(never === "Force-pushes, pushes .github/workflows changes, or runs head code",
-  `the resolve-conflicts never row is the one this suite asserts (got ${JSON.stringify(never)})`);
+say(never === "Runs a model or head code, force-pushes, or pushes a model edit outside the conflicted paths",
+  `the apply-conflict-patch never row is the one this suite asserts (got ${JSON.stringify(never)})`);
+// The merge step runs the base copy of run-prepare.sh, which holds the hash
+// checks, the stopped workflow commands and the escalation set.
+const runPrepare = readFileSync(".github/scripts/merge-base/run-prepare.sh", "utf8");
 
 const wf = YAML.parse(readFileSync(".github/workflows/pr-run-activity-write.yml", "utf8"));
 const steps = wf.jobs.run.steps;
@@ -69,7 +73,8 @@ say(at((s) => s.id === "post") < at((s) => s.id === "commit") && at((s) => s.id 
   "post, commit and promote run in that order");
 say(/tree !== TREE/.test(commit.with?.script ?? ""), "the commit step refuses a tree other than post.sh's");
 const prepare = byId("prepare");
-say(/protected-path-conflict/.test(prepare.run ?? ""), "a conflicted workflow path escalates before any model turn");
+say(/bash "\$BIN\/run-prepare\.sh"/.test(prepare.run ?? "") && /escalate:protected-path-conflict/.test(runPrepare),
+  "a conflicted workflow path escalates before any model turn");
 
 // Clause 3: no head code runs with the write token.
 say(mint >= 0 && checkout > mint, "the lane token is minted before the head checkout");
@@ -93,8 +98,11 @@ for (const id of ["merge-bin", "hold-label", "stage"]) {
 const copy = byId("merge-bin").run ?? "";
 say(/\.base\/\.github\/scripts\/merge-base\//.test(copy) && /\.base\/plugins\/source-control\/scripts\/resolve-version-bump-conflict\.sh/.test(copy)
   && /sha256sum/.test(copy), "the merge scripts and the version-bump script are copied from .base with their SHA-256");
-for (const [id, scripts] of [["prepare", ["prepare", "resolve-version-bump-conflict"]], ["post", ["post"]]]) {
-  const run = byId(id).run ?? "";
+for (const [id, run, scripts] of [
+  ["prepare", byId("prepare").run ?? "", ["run-prepare"]],
+  ["run-prepare.sh", runPrepare, ["prepare", "resolve-version-bump-conflict"]],
+  ["post", byId("post").run ?? "", ["post"]],
+]) {
   for (const name of scripts) {
     const checked = run.search(new RegExp(`(check "\\$BIN/${name}\\.sh"|sha256sum <"\\$BIN/${name}\\.sh")`));
     const runs = run.search(new RegExp(`bash "\\$BIN/prepare\\.sh"|bash "\\$BIN/${name}\\.sh"`));
@@ -207,16 +215,15 @@ say(trackerCheck >= 0 && trackerCheck < script.indexOf('"$RUNNER_TEMP/base-scrip
   "the script step fails on a tracker config whose SHA-256 differs, before running the script");
 
 // Hash checks compare and fail, not merely run.
-const prepRun = byId("prepare").run ?? "";
-say(/check\(\) \{[^}]*sum=\$\(sha256sum <"\$1"\)[^}]*if \[ "\$\{sum%% \*\}" != "\$2" \]; then[^}]*exit 1/s.test(prepRun),
-  "the prepare step's hash check fails on a differing SHA-256");
+say(/check\(\) \{[^}]*sum=\$\(sha256sum <"\$1"\)[^}]*\[\[ \$\{sum%% \*\} == "\$2" \]\] \|\| fail/s.test(runPrepare) && /fail\(\) \{\n[^\n]*::error::[^\n]*\n\s*exit 1/.test(runPrepare)
+  && /if \[ "\$\{sum%% \*\}" != "\$RUN_PREPARE_SHA256" \]; then\n[^\n]*\n\s*exit 1/.test(byId("prepare").run ?? ""),
+  "the prepare step's hash checks fail on a differing SHA-256");
 say(/if \[ "\$\{sum%% \*\}" != "\$POST_SHA256" \]; then\n[^\n]*\n\s*exit 1/.test(post.run ?? ""), // portability-ok: embedded node JavaScript regex, not a shell tool pattern
   "the post step fails on a post.sh whose SHA-256 differs");
 
 // Head file names reach git's output: workflow commands are stopped while a
 // merge script runs, and resumed before the step's own ::error:: lines.
-for (const [id, name] of [["prepare", "prepare"], ["post", "post"]]) {
-  const run = byId(id).run ?? "";
+for (const [id, name, run] of [["prepare", "prepare", runPrepare], ["post", "post", byId("post").run ?? ""]]) {
   const stop = run.indexOf('echo "::stop-commands::$token"');
   const call = run.indexOf(`bash "$BIN/${name}.sh"`);
   const resume = run.indexOf('echo "::$token::"');

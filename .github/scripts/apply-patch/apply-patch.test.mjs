@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 
-import { checkRow, credentialIn, keptThreadsFrom, loadRules, main, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select } from "./apply-patch.mjs";
+import { checkRow, credentialIn, hasConflictMarkers, keptThreadsFrom, loadRules, main, mergeFrom, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select } from "./apply-patch.mjs";
 
 // The registry as committed: the rows these tests hold apply-patch to.
 const REPO_ROOT = join(import.meta.dirname, "../../..");
@@ -717,11 +717,14 @@ test("keptThreadsFrom reads a threads.json's paths and named_paths, and refuses 
   }
 });
 
-test("merge-result throws before any write until merge commits are supported", async (t) => {
-  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
-  const api = fakeApi(fix.repo, fix.head);
-  await assert.rejects(pushWith(fix, api, { row: row("default", { allow: ["merge-result"] }) }), /merge-result is not supported/);
-  assert.deepEqual(api.calls, []);
+test("checkRow holds merge-result and max-blobs to a merge row, and a merge row to merge-result on a pull request", () => {
+  assert.throws(() => checkRow(row("default", { allow: ["merge-result"] })), /allows merge-result or sets max-blobs but does not commit a merge/);
+  assert.throws(() => checkRow(row("default", { "max-blobs": 5 })), /allows merge-result or sets max-blobs but does not commit a merge/);
+  assert.throws(() => checkRow(row("merge-base", { allow: ["any"] })), /does not allow merge-result alone on a pull request/);
+  assert.throws(() => checkRow(row("merge-base", { target: "issue" })), /does not allow merge-result alone on a pull request/);
+  assert.throws(() => checkRow(row("merge-base", { "max-blobs": undefined })), /commits a merge with no max-blobs/);
+  assert.throws(() => checkRow(row("default", { commit: { ...RULES.default.commit, parents: ["base"] } })), /parents this apply-patch does not support/);
+  assert.doesNotThrow(() => checkRow(row("merge-base")));
 });
 
 test("a PR whose head is a fork, or unreadable, throws before any write", async (t) => {
@@ -1400,4 +1403,330 @@ test("patched blobs over 20 MiB in total are refused, each one under the per-blo
   assert.deepEqual(api.calls, []);
   const under = repoWithPatch(t, (repo) => writeFileSync(join(repo, "part.bin"), Buffer.alloc(5 * 1024 * 1024)));
   assert.equal((await pushIssue(under, fakeApi(under.repo, under.head, { labels: READY }))).outcome, "pushed", "exactly 5 MiB passes");
+});
+
+// --- the merge-base row: resolve-conflicts's patch on the conflict tree ---
+
+const PREPARE = join(REPO_ROOT, ".github/scripts/merge-base/prepare.sh");
+const COLLECT = join(REPO_ROOT, ".github/scripts/read-patch/collect-patch.sh");
+const TREE_ENTRIES = join(REPO_ROOT, ".github/scripts/merge-base/tree-entries.sh");
+const TREE_ENTRIES_SHA256 = sha256(readFileSync(TREE_ENTRIES));
+const BOT = {
+  GIT_AUTHOR_NAME: "melodic-automation-lanes[bot]",
+  GIT_AUTHOR_EMAIL: "1+bot@users.noreply.github.com",
+  GIT_COMMITTER_NAME: "melodic-automation-lanes[bot]",
+  GIT_COMMITTER_EMAIL: "1+bot@users.noreply.github.com",
+};
+
+const write = (repo, files) => {
+  for (const [path, text] of Object.entries(files)) {
+    if (text === null) {
+      rmSync(join(repo, path));
+    } else {
+      mkdirSync(join(repo, dirname(path)), { recursive: true });
+      writeFileSync(join(repo, path), text);
+    }
+  }
+};
+
+// A base commit, a PR side and a main side, the base merged into the PR head
+// by the real prepare.sh, and `resolve`'s edits collected from the conflict
+// tree by the real collect-patch.sh, as the read runner does.
+function mergeFixture(t, { base = {}, pr = {}, main: mainSide = {}, resolve = () => {} }) {
+  const repo = scratch(t);
+  git(repo, ["init", "-q", "-b", "main"]);
+  git(repo, ["config", "user.email", "t@example.com"]);
+  git(repo, ["config", "user.name", "t"]);
+  git(repo, ["config", "core.autocrlf", "false"]);
+  write(repo, { "keep.txt": "keep\n", ...base });
+  commitAll(repo, "base");
+  git(repo, ["checkout", "-q", "-b", "pr"]);
+  write(repo, pr);
+  const head = commitAll(repo, "pr side");
+  git(repo, ["checkout", "-q", "main"]);
+  write(repo, mainSide);
+  const baseSha = commitAll(repo, "main side");
+  git(repo, ["checkout", "-q", "--detach", head]);
+  const out = scratch(t);
+  const bump = join(out, "bump.sh");
+  writeFileSync(bump, "#!/usr/bin/env bash\nexit 0\n");
+  const printed = execFileSync("bash", [PREPARE, head, baseSha, bump, join(out, "merge")], {
+    cwd: repo,
+    env: { ...process.env, ...BOT },
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  const value = (key) => new RegExp(`^${key}=(.*)$`, "m").exec(printed)?.[1] ?? "";
+  const state = value("merge-state");
+  const tree = value("conflict-tree");
+  resolve(repo);
+  const patchFile = join(scratch(t), "patch.diff");
+  const collected = execFileSync("bash", [COLLECT, head, patchFile, tree], { cwd: repo, encoding: "utf8" });
+  const patchState = /^state=(.*)$/m.exec(collected)[1];
+  return { repo, head, base: baseSha, tree, state, patchState, patchFile: patchState === "written" ? patchFile : "", sum: /^sha256=(.*)$/m.exec(collected)[1] };
+}
+
+const mergeEnv = (fix, extra = {}) => ({
+  MERGE_BASE_SHA: fix.base,
+  CONFLICT_TREE: fix.tree,
+  MERGE_STATE: fix.state,
+  TREE_ENTRIES_SCRIPT: TREE_ENTRIES,
+  TREE_ENTRIES_SHA256,
+  ...extra,
+});
+const mergePush = (fix, api, { env = {}, ...extra } = {}) =>
+  pushWith(fix, api, {
+    row: row("merge-base"),
+    context: { merge: mergeFrom(mergeEnv(fix, env), { cwd: fix.repo, gitBin: "git" }) },
+    baseRef: "main",
+    lane: "pr-unblock",
+    activity: "resolve-conflicts",
+    ...extra,
+  });
+const CONFLICT = { base: { "a.txt": "one\n" }, pr: { "a.txt": "pr\n" }, main: { "a.txt": "main\n" } };
+const NO_PATCH = { patchFile: "", patchSha256: "" };
+
+test("hasConflictMarkers reads markers of any length from seven, in order, and nothing else", () => {
+  assert.equal(hasConflictMarkers("<<<<<<< HEAD\na\n=======\nb\n>>>>>>> main\n"), true);
+  assert.equal(hasConflictMarkers("<<<<<<<<<< HEAD\r\na\r\n==========\r\nb\r\n>>>>>>>>>>\r\n"), true);
+  assert.equal(hasConflictMarkers("a\n=======\nb\n"), false);
+  assert.equal(hasConflictMarkers(">>>>>>> x\n=======\n<<<<<<< y\n"), false);
+  assert.equal(hasConflictMarkers("<<<<<< short\n======\n>>>>>> short\n"), false);
+});
+
+test("a clean merge commits with no patch, the head and the pinned base as parents, uploading no blob either side holds", async (t) => {
+  const fix = mergeFixture(t, { pr: { "p.txt": "pr\n" }, main: { "m.txt": "main\n", "docs/m2.md": "m2\n" } });
+  assert.deepEqual([fix.state, fix.patchState], ["clean", "empty"]);
+  const api = fakeApi(fix.repo, fix.head);
+  assert.deepEqual(await mergePush(fix, api, NO_PATCH), { outcome: "pushed", commit: "c".repeat(40), branch: "feat/x" });
+  assert.deepEqual(callNames(api), ["getPull", "listLabels", "readBranch", "createTree", "createCommit", "updateRef", "readBranch"]);
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.deepEqual(createCommit, {
+    message: "Merge main into feat/x\n\nLane-Activity: pr-unblock/resolve-conflicts\n",
+    tree: fix.tree,
+    parents: [fix.head, fix.base],
+  });
+  assert.equal(git(fix.repo, ["rev-parse", `${fix.tree}:m.txt`]), git(fix.repo, ["rev-parse", `${fix.base}:m.txt`]));
+  assert.equal(git(fix.repo, ["rev-parse", `${fix.tree}:p.txt`]), git(fix.repo, ["rev-parse", `${fix.head}:p.txt`]));
+  // A patch beside a clean merge is refused.
+  const extra = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "x\n"));
+  assert.deepEqual(await mergePush(fix, fakeApi(fix.repo, fix.head), { patchFile: extra.patchFile, patchSha256: extra.sum }), {
+    outcome: "escalate",
+    escalationReason: "conflict-patch-invalid",
+  });
+});
+
+test("a resolved conflict pushes the resolution on the conflict tree as a merge commit", async (t) => {
+  const fix = mergeFixture(t, { ...CONFLICT, resolve: (repo) => writeFileSync(join(repo, "a.txt"), "pr and main\n") });
+  assert.deepEqual([fix.state, fix.patchState], ["conflicted", "written"]);
+  // The patch holds the resolution alone.
+  const text = readFileSync(fix.patchFile, "utf8");
+  assert.deepEqual([...text.matchAll(/^diff --git a\/(\S+) /gm)].map((m) => m[1]), ["a.txt"]);
+  const api = fakeApi(fix.repo, fix.head);
+  assert.equal((await mergePush(fix, api)).outcome, "pushed");
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.deepEqual(createCommit.parents, [fix.head, fix.base]);
+  assert.equal(git(fix.repo, ["cat-file", "-p", `${createCommit.tree}:a.txt`]), "pr and main");
+  assert.equal(callNames(api).filter((name) => name === "createBlob").length, 1);
+});
+
+test("a conflicted path left with markers escalates unresolved-conflict before any API call", async (t) => {
+  const fix = mergeFixture(t, {
+    base: { "a.txt": "one\n", "b.txt": "one\n" },
+    pr: { "a.txt": "pr\n", "b.txt": "pr\n" },
+    main: { "a.txt": "main\n", "b.txt": "main\n" },
+    resolve: (repo) => writeFileSync(join(repo, "a.txt"), "resolved\n"),
+  });
+  const api = fakeApi(fix.repo, fix.head);
+  assert.deepEqual(await mergePush(fix, api), { outcome: "escalate", escalationReason: "unresolved-conflict" });
+  assert.deepEqual(api.calls, []);
+  // A resolution that writes new marker lines is no resolution either.
+  const marked = mergeFixture(t, { ...CONFLICT, resolve: (repo) => writeFileSync(join(repo, "a.txt"), "<<<<<<< x\npr\n=======\nmain\n>>>>>>> y\n") });
+  assert.deepEqual(await mergePush(marked, fakeApi(marked.repo, marked.head)), { outcome: "escalate", escalationReason: "unresolved-conflict" });
+});
+
+test("a model may delete a conflicted path", async (t) => {
+  const fix = mergeFixture(t, { ...CONFLICT, resolve: (repo) => rmSync(join(repo, "a.txt")) });
+  const api = fakeApi(fix.repo, fix.head);
+  assert.equal((await mergePush(fix, api)).outcome, "pushed");
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.throws(() => git(fix.repo, ["rev-parse", "--verify", "-q", `${createCommit.tree}:a.txt`]));
+});
+
+test("a patch that edits a path outside the conflicted set escalates unexpected-path-staged before any API call", async (t) => {
+  const fix = mergeFixture(t, {
+    ...CONFLICT,
+    resolve: (repo) => write(repo, { "a.txt": "resolved\n", "keep.txt": "a semantic-sweep fix\n" }),
+  });
+  const api = fakeApi(fix.repo, fix.head);
+  assert.deepEqual(await mergePush(fix, api), { outcome: "escalate", escalationReason: "unexpected-path-staged" });
+  assert.deepEqual(api.calls, []);
+});
+
+test("a model-authored workflow or code-owners edit is refused conflict-patch-protected-path before any API call", async (t) => {
+  for (const path of [".github/workflows/ci.yml", "CODEOWNERS"]) {
+    const fix = mergeFixture(t, { ...CONFLICT, resolve: (repo) => write(repo, { "a.txt": "resolved\n", [path]: "x\n" }) });
+    const api = fakeApi(fix.repo, fix.head);
+    assert.deepEqual(await mergePush(fix, api), { outcome: "escalate", escalationReason: "conflict-patch-protected-path" }, path);
+    assert.deepEqual(api.calls, [], path);
+  }
+});
+
+test("a base-side workflow change is admitted only when the merged workflows are exactly the base's", async (t) => {
+  const own = mergeFixture(t, { base: { ".github/workflows/a.yml": "on: push\n" }, pr: { "p.txt": "pr\n" }, main: { ".github/workflows/a.yml": "on: pull_request\n" } });
+  assert.equal((await mergePush(own, fakeApi(own.repo, own.head), NO_PATCH)).outcome, "pushed");
+  // The PR's own diff touches a workflow too: the merged set is not the base's alone.
+  const both = mergeFixture(t, {
+    base: { ".github/workflows/a.yml": "on: push\n", ".github/workflows/b.yml": "on: push\n" },
+    pr: { ".github/workflows/b.yml": "on: workflow_dispatch\n" },
+    main: { ".github/workflows/a.yml": "on: pull_request\n" },
+  });
+  const api = fakeApi(both.repo, both.head);
+  assert.deepEqual(await mergePush(both, api, NO_PATCH), { outcome: "escalate", escalationReason: "workflow-staged" });
+  assert.deepEqual(api.calls, []);
+  // A workflow the head adds would be pushed beside the base's change.
+  const added = mergeFixture(t, {
+    base: { ".github/workflows/a.yml": "on: push\n" },
+    pr: { ".github/workflows/new.yml": "on: push\n" },
+    main: { ".github/workflows/a.yml": "on: pull_request\n" },
+  });
+  assert.deepEqual(await mergePush(added, fakeApi(added.repo, added.head), NO_PATCH), { outcome: "escalate", escalationReason: "workflow-staged" });
+});
+
+test("a patch made on another conflict tree escalates conflict-patch-not-applied", async (t) => {
+  const fix = mergeFixture(t, { ...CONFLICT, resolve: (repo) => writeFileSync(join(repo, "a.txt"), "resolved\n") });
+  const api = fakeApi(fix.repo, fix.head);
+  const headTree = git(fix.repo, ["rev-parse", `${fix.head}^{tree}`]);
+  assert.deepEqual(await mergePush(fix, api, { env: { CONFLICT_TREE: headTree } }), { outcome: "escalate", escalationReason: "conflict-patch-not-applied" });
+  assert.deepEqual(api.calls, []);
+});
+
+test("a merge row with no pinned base, conflict tree, state or base tree-entries.sh throws before any write", async (t) => {
+  const fix = mergeFixture(t, { ...CONFLICT, resolve: (repo) => writeFileSync(join(repo, "a.txt"), "resolved\n") });
+  for (const key of ["MERGE_BASE_SHA", "CONFLICT_TREE", "MERGE_STATE", "TREE_ENTRIES_SCRIPT", "TREE_ENTRIES_SHA256"]) {
+    assert.throws(() => mergeFrom(mergeEnv(fix, { [key]: "" }), { cwd: fix.repo, gitBin: "git" }), new RegExp(key), key);
+  }
+  for (const env of [{ MERGE_BASE_SHA: "main" }, { CONFLICT_TREE: "x" }, { MERGE_STATE: "escalate" }, { MERGE_BASE_SHA: "0".repeat(40) }]) {
+    const api = fakeApi(fix.repo, fix.head);
+    await assert.rejects(mergePush(fix, api, { env }), /merge row needs|not in the checkout/, JSON.stringify(env));
+    assert.deepEqual(api.calls, [], JSON.stringify(env));
+  }
+  // A tree-entries.sh copy that is not the base's never runs.
+  const api = fakeApi(fix.repo, fix.head);
+  await assert.rejects(mergePush(fix, api, { env: { TREE_ENTRIES_SHA256: "0".repeat(64) } }), /tree-entries\.sh does not match/);
+  assert.deepEqual(api.calls, []);
+  await assert.rejects(pushWith(fix, fakeApi(fix.repo, fix.head), { row: row("merge-base"), baseRef: "main", context: {} }), /merge row needs/);
+});
+
+test("under the merge-base row a head that moved since the select job skips superseded-sha before any API call", async (t) => {
+  const fix = mergeFixture(t, { ...CONFLICT, resolve: (repo) => writeFileSync(join(repo, "a.txt"), "resolved\n") });
+  const api = fakeApi(fix.repo, fix.head);
+  assert.deepEqual(await mergePush(fix, api, { patchHeadSha: "b".repeat(40) }), { outcome: "superseded" });
+  assert.deepEqual(api.calls, []);
+});
+
+test("select under the merge-base row: a clean merge proceeds with no patch, an empty patch is unresolved-conflict, and a moved head skips", (t) => {
+  const dir = scratch(t);
+  writeFileSync(join(dir, "patch.diff"), "diff --git a/x b/x\n");
+  const sum = sha256("diff --git a/x b/x\n");
+  const head = "a".repeat(40);
+  const at = (mergeState, patchState, extra = {}) =>
+    select({ row: row("merge-base"), mergeState, patchState, patchSha256: sum, patchHeadSha: head, headSha: head, patchDir: dir, ...extra });
+  assert.deepEqual(at("clean", ""), { proceed: true, skipReason: "", escalationReason: "" });
+  assert.deepEqual(at("clean", "written"), { proceed: false, skipReason: "awaiting-human", escalationReason: "conflict-patch-invalid" });
+  assert.deepEqual(at("conflicted", "written"), { proceed: true, skipReason: "", escalationReason: "" });
+  assert.deepEqual(at("conflicted", "empty"), { proceed: false, skipReason: "awaiting-human", escalationReason: "unresolved-conflict" });
+  assert.deepEqual(at("conflicted", ""), { proceed: false, skipReason: "awaiting-human", escalationReason: "conflict-patch-invalid" });
+  for (const state of ["", "escalate", "Clean"]) {
+    assert.deepEqual(at(state, ""), { proceed: false, skipReason: "awaiting-human", escalationReason: "conflict-patch-invalid" }, state);
+  }
+  assert.deepEqual(at("clean", "", { patchHeadSha: "b".repeat(40) }), { proceed: false, skipReason: "superseded-sha", escalationReason: "" });
+  assert.deepEqual(at("conflicted", "written", { headSha: "b".repeat(40) }), { proceed: false, skipReason: "superseded-sha", escalationReason: "" });
+});
+
+// The Git Data API calls of one merge: 400 base-side files the base already
+// holds upload nothing, two files both sides changed that merged cleanly and
+// the one resolved conflict upload one blob each; the patch is the
+// resolution alone, so max-files counts one path.
+test("a merge with 400 base-side files, 2 clean two-sided merges and 1 resolution makes exactly 3 blobs, 1 tree, 1 commit and 1 ref update", async (t) => {
+  const many = Object.fromEntries(Array.from({ length: 400 }, (_, i) => [`gen/f${i}.txt`, `${i} from main\n`]));
+  const fix = mergeFixture(t, {
+    base: { "a.txt": "one\n", "two/x.txt": "1\n2\n3\n4\n5\n", "two/y.txt": "1\n2\n3\n4\n5\n" },
+    pr: { "a.txt": "pr\n", "two/x.txt": "1 pr\n2\n3\n4\n5\n", "two/y.txt": "1 pr\n2\n3\n4\n5\n" },
+    main: { ...many, "a.txt": "main\n", "two/x.txt": "1\n2\n3\n4\n5 main\n", "two/y.txt": "1\n2\n3\n4\n5 main\n" },
+    resolve: (repo) => writeFileSync(join(repo, "a.txt"), "pr and main\n"),
+  });
+  const api = fakeApi(fix.repo, fix.head);
+  assert.equal((await mergePush(fix, api)).outcome, "pushed");
+  assert.deepEqual(callNames(api), ["getPull", "listLabels", "readBranch", "createBlob", "createBlob", "createBlob", "createTree", "createCommit", "updateRef", "readBranch"]);
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.deepEqual(createCommit.parents, [fix.head, fix.base]);
+  assert.equal(git(fix.repo, ["rev-parse", `${createCommit.tree}:gen/f399.txt`]), git(fix.repo, ["rev-parse", `${fix.base}:gen/f399.txt`]));
+  assert.equal(git(fix.repo, ["cat-file", "-p", `${createCommit.tree}:two/x.txt`]), "1 pr\n2\n3\n4\n5 main");
+  // Patch paths over max-files, or new blobs over max-blobs: nothing is written.
+  const twoConflicts = mergeFixture(t, {
+    base: { "a.txt": "one\n", "b.txt": "one\n" },
+    pr: { "a.txt": "pr\n", "b.txt": "pr\n" },
+    main: { "a.txt": "main\n", "b.txt": "main\n" },
+    resolve: (repo) => write(repo, { "a.txt": "a\n", "b.txt": "b\n" }),
+  });
+  const overFiles = fakeApi(twoConflicts.repo, twoConflicts.head);
+  assert.deepEqual(await mergePush(twoConflicts, overFiles, { row: row("merge-base", { "max-files": 1 }) }), { outcome: "escalate", escalationReason: "conflict-patch-invalid" });
+  assert.deepEqual(overFiles.calls, []);
+  const overBlobs = fakeApi(fix.repo, fix.head);
+  assert.deepEqual(await mergePush(fix, overBlobs, { row: row("merge-base", { "max-blobs": 2 }) }), { outcome: "escalate", escalationReason: "conflict-patch-invalid" });
+  assert.deepEqual(overBlobs.calls, []);
+  assert.deepEqual([RULES["merge-base"]["max-files"], RULES["merge-base"]["max-blobs"]], [300, 300]);
+});
+
+test("a hold or a draft set while the model worked drops the merge uncommitted", async (t) => {
+  const fix = mergeFixture(t, { ...CONFLICT, resolve: (repo) => writeFileSync(join(repo, "a.txt"), "resolved\n") });
+  for (const overrides of [{ labels: [{ name: "needs-human" }] }, { pull: { draft: true, head: { repo: { full_name: "o/r" } } } }]) {
+    const api = fakeApi(fix.repo, fix.head, overrides);
+    assert.deepEqual(await mergePush(fix, api), { outcome: "held" });
+    assert.deepEqual(writes(api), []);
+  }
+});
+
+test("main reads the merge's conflicted paths from the checkout and takes no patch for a clean merge", async (t) => {
+  const fix = mergeFixture(t, { ...CONFLICT, resolve: (repo) => writeFileSync(join(repo, "a.txt"), "resolved\n") });
+  assert.deepEqual([...mergeFrom(mergeEnv(fix), { cwd: fix.repo, gitBin: "git" }).unmerged], ["a.txt"]);
+  const base = scratch(t);
+  mkdirSync(join(base, dirname(RULES_PATH)), { recursive: true });
+  cpSync(join(REPO_ROOT, RULES_PATH), join(base, RULES_PATH));
+  const out = scratch(t);
+  const env = {
+    BASE_DIR: base,
+    PATCH_PREPARE: "merge-base",
+    GH_TOKEN: "t",
+    GITHUB_REPOSITORY: "o/r",
+    PR_NUMBER: "42",
+    HEAD_SHA: fix.head,
+    PATCH_HEAD_SHA: fix.head,
+    HEAD_REF: "feat/x",
+    BASE_REF: "main",
+    LANE: "pr-unblock",
+    PATCH_ACTIVITY: "resolve-conflicts",
+    PATCH_FILE: fix.patchFile,
+    PATCH_SHA256: fix.sum,
+    HOLD_LABELS: "[]",
+    SKIP_REASON_FILE: join(out, "skip"),
+    ESCALATION_REASON_FILE: join(out, "escalation"),
+    GITHUB_OUTPUT: join(out, "output"),
+    ...mergeEnv(fix),
+  };
+  await main([], env, { api: fakeApi(fix.repo, fix.head), cwd: fix.repo, gitBin: "git", log: () => {} });
+  assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), /^commit=c{40}$/m);
+  const clean = mergeFixture(t, { pr: { "p.txt": "pr\n" }, main: { "m.txt": "main\n" } });
+  const cleanEnv = {
+    ...env,
+    HEAD_SHA: clean.head,
+    PATCH_HEAD_SHA: clean.head,
+    PATCH_FILE: join(out, "absent.diff"),
+    PATCH_SHA256: "",
+    GITHUB_OUTPUT: join(out, "clean-output"),
+    ...mergeEnv(clean),
+  };
+  await main([], cleanEnv, { api: fakeApi(clean.repo, clean.head), cwd: clean.repo, gitBin: "git", log: () => {} });
+  assert.match(readFileSync(cleanEnv.GITHUB_OUTPUT, "utf8"), /^commit=c{40}$/m);
 });

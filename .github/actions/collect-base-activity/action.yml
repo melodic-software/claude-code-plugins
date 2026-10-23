@@ -48,7 +48,10 @@ inputs:
     description: >
       The activity's prepare mode from resolve-config, empty for none. With
       `merge-base` the runner commits the staged merge after the skill, so
-      the skill gets neither the commit tool nor the instruction to commit.
+      the skill gets neither the commit tool nor the instruction to commit;
+      on run-claude-cli (a read skill that hands on a patch) it gets Edit and
+      Write but no Bash, and reads the conflicts the runner writes to
+      .lane/merge/ after the merge, read-only and denied to the file tools.
       With `review-threads` (run-claude-cli only) the skill also gets the
       review-thread tool, a read-only wrapper over the base's
       feedback-thread.sh staged under .lane/feedback/ with the thread file the
@@ -84,7 +87,7 @@ inputs:
       $RUNNER_TEMP/lane-stage for the runner to copy to .lane/ after the head
       checkout, and the tool rules name them there. It takes a read skill
       only (ci-context included, and one that hands on a patch with no
-      prepare mode, review-threads or dependency-review), never a gate, an
+      prepare mode, review-threads, dependency-review or merge-base), never a gate, an
       issue lane or an activity with checks, self-checks or verify-scripts.
     required: false
     default: claude-code-action
@@ -234,8 +237,8 @@ runs:
         if [ "$LAUNCHER" = run-claude-cli ]; then
           [ -z "${ISSUE_NUMBER:-}" ] || fail "run-claude-cli: an issue lane runs on claude-code-action"
           { [ "$edits" = read ] && { [ -z "$PREPARE" ] || [ "$PREPARE" = ci-context ]; }; } ||
-            { [ "$edits" = patch ] && { [ -z "$PREPARE" ] || [ "$PREPARE" = review-threads ] || [ "$PREPARE" = dependency-review ]; }; } ||
-            fail "run-claude-cli: only a read skill runs on the launcher, ci-context included, or one that hands on a patch with no prepare mode, review-threads or dependency-review"
+            { [ "$edits" = patch ] && { [ -z "$PREPARE" ] || [ "$PREPARE" = review-threads ] || [ "$PREPARE" = dependency-review ] || [ "$PREPARE" = merge-base ]; }; } ||
+            fail "run-claude-cli: only a read skill runs on the launcher, ci-context included, or one that hands on a patch with no prepare mode, review-threads, dependency-review or merge-base"
           [ "$GATING" = advisory ] || fail "run-claude-cli: a gate skill's verdict is not read from the launcher"
           jq -e '[.selected.checks, .selected["self-checks"], .selected["verify-scripts"]] | all(. == null or . == [])' "$RESOLVED" >/dev/null ||
             fail "run-claude-cli: checks, self-checks and verify-scripts have no wrapper on the launcher"
@@ -298,6 +301,20 @@ runs:
             denied+=("NotebookEdit(./.lane/plugins/**)" "Bash(git *)" "${shell_denied[@]}"
               "Edit(./.lane/dependency/**)" "Write(./.lane/dependency/**)" "NotebookEdit(./.lane/dependency/**)")
             preamble="$preamble Run every step the skill instructions name. Your scratchpad directory is $lane/scratch: put every temporary or state file there. The dependency context file is $lane/dependency/dependency.json. Leave a fix uncommitted in the working tree: the runner turns it into a patch that a later job pushes only on a fix verdict. Your verdict is your structured output; a later job acts on it, and you post nothing."
+          elif [ "$edits" = patch ] && [ "$PREPARE" = merge-base ]; then
+            # merge-base: the runner merges the pinned base before the skill
+            # and writes each conflicted path's versions and history to
+            # .lane/merge/; the skill resolves the conflicted files in place
+            # and runs nothing, so it gets Edit and Write but no Bash, and
+            # git and the shell rules are denied all the same. The merge
+            # context is read-only and denied to the file tools. The runner
+            # measures its edits from the conflict tree, and the push job
+            # admits only marker-free resolutions of the conflicted paths.
+            tools+=(Edit Write Agent)
+            allowed+=(Edit Write Agent "Edit(./.lane/scratch/**)")
+            denied+=("NotebookEdit(./.lane/plugins/**)" "Bash(git *)" "${shell_denied[@]}"
+              "Edit(./.lane/merge/**)" "Write(./.lane/merge/**)" "NotebookEdit(./.lane/merge/**)")
+            preamble="$preamble Run every step the skill instructions name. Your scratchpad directory is $lane/scratch: put every temporary or state file there. The runner has merged the default branch into this checkout without committing; the merge context is $lane/merge/conflicts.json, which lists each conflicted path with the directory under $lane/merge/ holding its base, ours and theirs versions and both sides' history. Resolve each conflicted file in place, leave a path you cannot resolve with its conflict markers, and edit no other file: the runner turns your edits into a patch that a later job commits as the merge. You run no command and post nothing."
           elif [ "$edits" = patch ]; then
             tools+=(Bash Edit Write Agent)
             # A shell redirect is checked against Edit rules for its target

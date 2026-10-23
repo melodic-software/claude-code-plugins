@@ -7,7 +7,10 @@ name: pr-unblock
 #
 # workflow_dispatch only. resolve-conflicts: GitHub runs no pull_request
 # workflow on a conflicting PR, so pr-unblock-dispatch.yml sends one dispatch
-# per conflicting PR after a push to the default branch. address-feedback:
+# per conflicting PR after a push to the default branch; a base job merges the
+# default branch tip into the head and decides, a read model job resolves the
+# conflicts and hands them on as a patch, and a script job commits the merge.
+# address-feedback:
 # pr-feedback-dispatch.yml sends one after a review lane finishes on a lanes App
 # PR with unresolved reviewer-bot threads; a base job keeps the threads, a read
 # model job answers them, and script jobs push its patch and post its replies.
@@ -59,12 +62,223 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  resolve-conflicts:
-    # The per-PR write queue sits on the job behind this if:, so a run that
-    # does nothing, or a dispatch the lanes App sent, never waits in it.
+  # resolve-conflicts is five jobs, so no model ever holds a write token or
+  # runs git. This one runs only base code with a read-only token. Before any
+  # model turn it reads the PR head, resolves the slot (draft, held and
+  # mergeable PRs skip it), pins the default branch tip as the base, checks
+  # out the head with no credentials, and merges the base into it with the
+  # base's prepare.sh, copied out and hashed first: clean (the push job
+  # commits the merge with no model), conflicted (the model resolves) or
+  # escalate (the repeat cap, a protected path, or a conflict no model can
+  # resolve from markers). Every gate, head, base and conflict tree the jobs
+  # after it take comes from here, and every model-call input from a model
+  # call's scan job, never from its run job, whose runner head code could
+  # forge.
+  resolve-conflicts-select:
     if: >-
       inputs.pr-number != '' && inputs.activity == 'resolve-conflicts'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read # check out main and the PR head
+      pull-requests: read # the PR's head and mergeable state
+    outputs:
+      # true only for a conflicted merge; false on a skip, a clean merge or
+      # an escalation; empty when the job stopped before deciding.
+      proceed: >-
+        ${{ steps.prepare.outputs.merge-state == 'conflicted' && 'true'
+        || (steps.slot.outputs.applies == 'false' || steps.prepare.outputs.merge-state != '') && 'false' || '' }}
+      merge-state: ${{ steps.prepare.outputs.merge-state }}
+      head-sha: ${{ steps.head.outputs.sha }}
+      base-sha: ${{ steps.base-sha.outputs.sha }}
+      conflict-tree: ${{ steps.prepare.outputs.conflict-tree }}
+      escalation-reason: ${{ steps.prepare.outputs.escalation-reason }}
+      skip-reason: ${{ steps.slot.outputs.applies == 'false' && steps.slot.outputs.skip-reason || '' }}
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Read the PR head
+        id: head
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr-number }}
+        run: |
+          if ! [[ $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ ]]; then
+            echo "::error::the pr-number input is not a PR number"
+            exit 1
+          fi
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)
+          if ! [[ $sha =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the PR names no head SHA"
+            exit 1
+          fi
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+
+      # As the read runner resolves it: its applies-when decides on the head
+      # just read, before any merge.
+      - name: Resolve the slot
+        id: slot
+        if: steps.head.outcome == 'success'
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          lane: pr-unblock
+          activity: resolve-conflicts
+          base-path: .base
+          output-path: ${{ runner.temp }}/resolved-config.json
+          pr-number: ${{ inputs.pr-number }}
+          head-sha: ${{ steps.head.outputs.sha }}
+          prepare-supported: "true"
+          applied-by-supported: patch
+
+      # The base every merge of this round uses: the default branch tip now,
+      # pinned, so the read runner and the push job merge the same commit
+      # however the branch moves.
+      - name: Pin the base
+        id: base-sha
+        if: steps.slot.outputs.applies == 'true'
+        run: |
+          sha=$(git -C .base rev-parse HEAD)
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the default branch tip is not a commit id"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+
+      # The base's merge scripts and version-bump script, never the head's,
+      # each with its SHA-256, which the merge step checks; the repeat cap
+      # reads loop.no-progress from the resolved config.
+      - name: Copy the merge scripts from the base
+        id: merge-bin
+        if: steps.slot.outputs.applies == 'true'
+        env:
+          BIN: ${{ runner.temp }}/merge-base-bin
+          RESOLVED: ${{ runner.temp }}/resolved-config.json
+        run: |
+          mkdir -p "$BIN"
+          for file in .base/.github/scripts/merge-base/prepare.sh \
+            .base/plugins/source-control/scripts/resolve-version-bump-conflict.sh; do
+            name=$(basename "$file" .sh)
+            cp "$file" "$BIN/$name.sh"
+            sum=$(sha256sum <"$BIN/$name.sh")
+            echo "$name-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
+          done
+          no_progress=$(jq -r '.loop["no-progress"] // empty' "$RESOLVED")
+          if ! [[ $no_progress =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::the resolved config holds no loop.no-progress"
+            exit 1
+          fi
+          echo "no-progress=$no_progress" >>"$GITHUB_OUTPUT"
+
+      # Full history: the merge needs the merge base and the pinned base. No
+      # credentials stay behind, and no head code runs.
+      - name: Check out the PR head
+        if: steps.slot.outputs.applies == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.head.outputs.sha }}
+          path: head
+          fetch-depth: 0
+          persist-credentials: false
+
+      # prepare.sh merges the pinned base without committing, runs the
+      # version-bump script, and decides; only whitelisted, validated
+      # key=value lines become outputs. The identity is the lanes bot's: git
+      # refuses even a --no-commit merge without one, and the repeat cap
+      # counts commits by that author name.
+      - name: Merge the base into the head
+        id: prepare
+        if: steps.slot.outputs.applies == 'true'
+        working-directory: head
+        env:
+          GIT_AUTHOR_NAME: melodic-automation-lanes[bot]
+          GIT_AUTHOR_EMAIL: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}+melodic-automation-lanes[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: melodic-automation-lanes[bot]
+          GIT_COMMITTER_EMAIL: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}+melodic-automation-lanes[bot]@users.noreply.github.com
+          LOOP_NO_PROGRESS: ${{ steps.merge-bin.outputs.no-progress }}
+          # Replace refs from the head's history never stand in for objects.
+          GIT_NO_REPLACE_OBJECTS: "1"
+          BIN: ${{ runner.temp }}/merge-base-bin
+          OUT: ${{ runner.temp }}/merge-base-out
+          PREPARE_SHA256: ${{ steps.merge-bin.outputs.prepare-sha256 }}
+          BUMP_SHA256: ${{ steps.merge-bin.outputs.resolve-version-bump-conflict-sha256 }}
+          HEAD_SHA: ${{ steps.head.outputs.sha }}
+          BASE_SHA: ${{ steps.base-sha.outputs.sha }}
+        run: bash "$GITHUB_WORKSPACE/.base/.github/scripts/merge-base/run-prepare.sh"
+
+  # A select that skipped, merged cleanly, or handed the PR to a person runs
+  # no model job, so no resolve-conflicts check would land on the head and
+  # dispatch.mjs would dispatch it again on every run. This job posts it
+  # neutral on the head the select job read: the slot's skip reason, else
+  # clean-merge (the push job commits it), else awaiting-human. A
+  # kill-switch stop reads no head, and nothing is posted.
+  resolve-conflicts-not-run:
+    needs: resolve-conflicts-select
+    if: >-
+      ${{ !cancelled() && inputs.activity == 'resolve-conflicts'
+      && needs.resolve-conflicts-select.outputs.proceed == 'false'
+      && needs.resolve-conflicts-select.outputs.head-sha != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      checks: write
+      contents: read
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Post the resolve-conflicts check run
+        uses: ./.base/.github/actions/report-check-run # zizmor: ignore[self-repository]
+        with:
+          lane: pr-unblock
+          activity: resolve-conflicts
+          run-result: skipped
+          not-run-reason: >-
+            ${{ needs.resolve-conflicts-select.outputs.skip-reason
+            || needs.resolve-conflicts-select.outputs.merge-state == 'clean' && 'clean-merge'
+            || 'awaiting-human' }}
+          head-sha: ${{ needs.resolve-conflicts-select.outputs.head-sha }}
+          can-commit: "false"
+          base-path: .base
+          head-sha-fallback: ${{ needs.resolve-conflicts-select.outputs.head-sha }}
+          github-token: ${{ github.token }}
+
+  # The model job: a read activity with no write token and no OIDC token in
+  # the job that runs head code. The runner merges the select job's base
+  # again, refuses any conflict tree but the select job's, and gives the
+  # skill the conflicts as read-only files with no git or Bash; the skill
+  # resolves them in place and the runner hands its edits on as a patch
+  # measured from the conflict tree. It runs on the automations role's API
+  # key alone, in the per-PR write queue.
+  resolve-conflicts:
+    needs: resolve-conflicts-select
+    if: ${{ !cancelled() && needs.resolve-conflicts-select.outputs.proceed == 'true' }}
     permissions:
       contents: read
       pull-requests: read
@@ -75,7 +289,7 @@ jobs:
     concurrency:
       group: pr-pipeline-write-${{ inputs.pr-number }}
       queue: max
-    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
       role: automations
       lane: pr-unblock
@@ -83,8 +297,100 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
+      head-sha: ${{ needs.resolve-conflicts-select.outputs.head-sha }}
+      merge-base-sha: ${{ needs.resolve-conflicts-select.outputs.base-sha }}
+      merge-conflict-tree: ${{ needs.resolve-conflicts-select.outputs.conflict-tree }}
+      # The 50-minute launcher step, the CLI install and the merge.
+      timeout-minutes: 60
+    secrets:
+      claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+
+  # The subscription fallback, as fix-ci-subscription is for fix-ci: it runs
+  # only when resolve-conflicts's key leg hit a credit stop or its key is
+  # empty, reads only those two outputs, each compared to a fixed string,
+  # and holds the OAuth token alone. A forged value only adds a second leg.
+  resolve-conflicts-subscription:
+    needs: [resolve-conflicts-select, resolve-conflicts]
+    if: >-
+      ${{ !cancelled() && needs.resolve-conflicts-select.outputs.proceed == 'true'
+      && (needs.resolve-conflicts.outputs.lane-class == 'credit-stop'
+      || needs.resolve-conflicts.outputs.credential-present == 'false') }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
+    with:
+      role: automations
+      lane: pr-unblock
+      activity: resolve-conflicts
+      fallback: ${{ needs.resolve-conflicts.outputs.lane-class == 'credit-stop' && 'credit-stop' || 'no-key' }}
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      head-sha: ${{ needs.resolve-conflicts-select.outputs.head-sha }}
+      merge-base-sha: ${{ needs.resolve-conflicts-select.outputs.base-sha }}
+      merge-conflict-tree: ${{ needs.resolve-conflicts-select.outputs.conflict-tree }}
+      timeout-minutes: 60
     secrets:
       claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+
+  # The push job: apply-patch.mjs under patch-rules.json's merge-base row, a
+  # script with no model that runs no head code. It merges the select job's
+  # pinned base into the head again, refuses any conflict tree but the
+  # select job's, applies the patch to that tree, admits only marker-free
+  # resolutions of the conflicted paths, skips a head that moved since the
+  # select job read it, and pushes one merge commit with the head and the
+  # base as parents, without force. A clean merge commits with no patch; an
+  # empty patch leaves the conflicts to a person (unresolved-conflict). One
+  # leg answers a conflicted round: the fallback call when it ran, else the
+  # first, and every model-call input below is that leg's scan job's.
+  apply-conflict-patch:
+    needs: [resolve-conflicts-select, resolve-conflicts, resolve-conflicts-subscription]
+    if: >-
+      ${{ !cancelled()
+      && (needs.resolve-conflicts-select.outputs.merge-state == 'clean'
+      || needs.resolve-conflicts-select.outputs.proceed == 'true'
+      && ((needs.resolve-conflicts-subscription.result != 'skipped' && needs.resolve-conflicts-subscription.outputs.scan-patch-state || needs.resolve-conflicts-subscription.result == 'skipped' && needs.resolve-conflicts.outputs.scan-patch-state || '') == 'written'
+      || (needs.resolve-conflicts-subscription.result != 'skipped' && needs.resolve-conflicts-subscription.outputs.scan-patch-state || needs.resolve-conflicts-subscription.result == 'skipped' && needs.resolve-conflicts.outputs.scan-patch-state || '') == 'empty')) }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      role: automations
+      lane: pr-unblock
+      activity: apply-conflict-patch
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      # The scan job's outputs alone, never a run job's, from the one leg;
+      # empty for a clean merge, which no model call answered.
+      patch-state: ${{ needs.resolve-conflicts-subscription.result != 'skipped' && needs.resolve-conflicts-subscription.outputs.scan-patch-state || needs.resolve-conflicts-subscription.result == 'skipped' && needs.resolve-conflicts.outputs.scan-patch-state || '' }}
+      patch-sha256: ${{ needs.resolve-conflicts-subscription.result != 'skipped' && needs.resolve-conflicts-subscription.outputs.scan-patch-sha256 || needs.resolve-conflicts-subscription.result == 'skipped' && needs.resolve-conflicts.outputs.scan-patch-sha256 || '' }}
+      patch-attempt: ${{ needs.resolve-conflicts-subscription.result != 'skipped' && needs.resolve-conflicts-subscription.outputs.scan-patch-attempt || needs.resolve-conflicts-subscription.result == 'skipped' && needs.resolve-conflicts.outputs.scan-patch-attempt || '' }}
+      reply-attempt: ${{ needs.resolve-conflicts-subscription.result != 'skipped' && needs.resolve-conflicts-subscription.outputs.scan-reply-attempt || needs.resolve-conflicts-subscription.result == 'skipped' && needs.resolve-conflicts.outputs.scan-reply-attempt || '' }}
+      patch-activity: resolve-conflicts
+      patch-prepare: merge-base
+      # The head, pinned base, merge state and conflict tree the select job
+      # decided on, from a job that ran no head code or model.
+      patch-head-sha: ${{ needs.resolve-conflicts-select.outputs.head-sha }}
+      patch-merge-base-sha: ${{ needs.resolve-conflicts-select.outputs.base-sha }}
+      patch-merge-state: ${{ needs.resolve-conflicts-select.outputs.merge-state }}
+      patch-conflict-tree: ${{ needs.resolve-conflicts-select.outputs.conflict-tree }}
 
   # address-feedback is five jobs, so no model ever holds a write token. This
   # one runs only base code with a read-only token and checks out no PR head.
@@ -1232,14 +1538,17 @@ jobs:
 
   # GitHub starts no pull_request workflow on a conflicted PR, so a head the
   # lane could not resolve gets no CI and no sign why. This script job, with
-  # no model, posts a failing pr-unblock/conflict commit status on that head.
-  # It is the lane's only statuses: write, on its own GITHUB_TOKEN: the lanes
-  # App token the escalation comment uses carries no statuses permission.
+  # no model, posts a failing pr-unblock/conflict commit status on that head,
+  # whether the select job escalated before any model turn or the push job
+  # found a conflict left. It is the lane's only statuses: write, on its own
+  # GITHUB_TOKEN: the lanes App token the escalation comment uses carries no
+  # statuses permission.
   report-conflict-status:
-    needs: resolve-conflicts
+    needs: [resolve-conflicts-select, apply-conflict-patch]
     if: >-
-      ${{ !cancelled() && needs.resolve-conflicts.outputs.escalation-reason == 'unresolved-conflict'
-      && needs.resolve-conflicts.outputs.head-sha != '' }}
+      ${{ !cancelled() && needs.resolve-conflicts-select.outputs.head-sha != ''
+      && (needs.resolve-conflicts-select.outputs.escalation-reason == 'unresolved-conflict'
+      || needs.apply-conflict-patch.outputs.escalation-reason == 'unresolved-conflict') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -1257,14 +1566,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pr-number }}
-          HEAD_SHA: ${{ needs.resolve-conflicts.outputs.head-sha }}
-          ESCALATION_REASON: ${{ needs.resolve-conflicts.outputs.escalation-reason }}
+          HEAD_SHA: ${{ needs.resolve-conflicts-select.outputs.head-sha }}
+          ESCALATION_REASON: unresolved-conflict
           TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: bash .base/.github/scripts/pr-unblock/report-escalation.sh status
 
   report-escalation:
     needs:
-      - resolve-conflicts
+      - resolve-conflicts-select
+      - apply-conflict-patch
       - address-feedback-select
       - publish-feedback
       - review-dependency-select
@@ -1274,7 +1584,8 @@ jobs:
       - apply-patch-rung-up
     # escalation-reason is set only by the write runner's own steps, the
     # base's reply, verdict and apply-patch scripts, and the base scripts of
-    # address-feedback-select, review-dependency-select and fix-ci-context.
+    # resolve-conflicts-select, address-feedback-select,
+    # review-dependency-select and fix-ci-context.
     # At most one escalates: one activity runs per dispatch, a reply, verdict
     # or push job runs only after a select job proceeded, and a select job,
     # or fix-ci-context, escalates only before any model turn. A rung-up stop
@@ -1283,7 +1594,8 @@ jobs:
     # always() branch fires, but the write workflow's run job skips, so no
     # label is applied and ci-status stays red.
     if: >-
-      ${{ (!cancelled() && (needs.resolve-conflicts.outputs.escalation-reason != ''
+      ${{ (!cancelled() && (needs.resolve-conflicts-select.outputs.escalation-reason != ''
+      || needs.apply-conflict-patch.outputs.escalation-reason != ''
       || needs.address-feedback-select.outputs.escalation-reason != ''
       || needs.publish-feedback.outputs.escalation-reason != ''
       || needs.review-dependency-select.outputs.escalation-reason != ''
@@ -1310,7 +1622,8 @@ jobs:
       activity: report-escalation
       pr-number: ${{ inputs.pr-number }}
       escalation-reason: >-
-        ${{ needs.resolve-conflicts.outputs.escalation-reason
+        ${{ needs.resolve-conflicts-select.outputs.escalation-reason
+        || needs.apply-conflict-patch.outputs.escalation-reason
         || needs.address-feedback-select.outputs.escalation-reason
         || needs.publish-feedback.outputs.escalation-reason
         || needs.review-dependency-select.outputs.escalation-reason
