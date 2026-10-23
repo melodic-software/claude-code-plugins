@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.2.1] - 2026-10-23
+
+### Fixed
+
+- The README skills table lists `/harness-ops:prerequisites`, which had no row.
+
 ## [4.2.0] - 2026-10-23
 
 ### Added
