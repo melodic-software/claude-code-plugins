@@ -49,7 +49,8 @@ else
   fail "step lost its cost_hold id"
 fi
 # shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell
-for env in 'BASE_SHA: ${{ github.event.pull_request.base.sha }}' 'HEAD_SHA: ${{ github.event.pull_request.head.sha }}'; do
+for env in 'BASE_SHA: ${{ github.event.pull_request.base.sha }}' 'HEAD_SHA: ${{ github.event.pull_request.head.sha }}' \
+  "BASE_CONFIG: \${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}"; do
   if [[ "$step" == *"$env"* ]]; then ok "step env carries $env"; else fail "step env lacks $env"; fi
 done
 order="$(grep -nE "^  ci-status:$|^      - name: ($NAME|Fail a pull request carrying the human-gated label|Fail a review-lane hold an untrusted account lifted)$" "$WORKFLOW" | cut -d: -f1 | paste -sd' ')"
@@ -67,7 +68,10 @@ else
 fi
 
 # The stub logs its arguments and answers from STUB_* variables; a read whose
-# name is in STUB_FAIL fails. Runs, jobs and annotations come from JSON maps
+# name is in STUB_FAIL fails. The base commit's config is a fixture directory:
+# STUB_TRACKER (absent when unset) and STUB_ACTORS; a `tracker` failure leaves
+# BASE_CONFIG empty, as a failed checkout does, and an `actors` failure leaves
+# the trusted-actor list out of it. Runs, jobs and annotations come from JSON maps
 # keyed by workflow file, run id and check-run id.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
@@ -78,12 +82,6 @@ from() { jq -ce --arg k "$2" '.[$k] // error' <<<"$1" || { echo 'gh: Not Found (
 # The path segment after /<1>/ in the api path argument.
 key() { local a; for a in "${@:2}"; do [[ "$a" == */"$1"/* ]] && { a="${a##*/"$1"/}"; printf '%s' "${a%%[/?]*}"; return; }; done; }
 case "$*" in
-*/contents/.work-item-tracker.json*)
-  failing tracker
-  [[ -n "${STUB_TRACKER+set}" ]] || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
-  printf '%s\n' "$STUB_TRACKER"
-  ;;
-*/contents/.github/standards/trusted-actors/*) failing actors; printf '%s\n' "$STUB_ACTORS" ;;
 *'-X DELETE'*/labels/*) failing delete ;;
 */issues/6419/labels*) failing labels; [[ -z "$STUB_LABELS" ]] || tr ',' '\n' <<<"$STUB_LABELS" ;;
 */issues/6419/events*) failing events; printf '%s\n' "$STUB_EVENTS" ;;
@@ -165,18 +163,25 @@ lifted() {
 
 # expect <label> <want-cleared: yes|no> <want-delete: yes|no> <want-post: yes|no> [want-out]
 expect() {
-  local label="$1" out rc cleared deleted posted
+  local label="$1" out rc cleared deleted posted config="$TMP_ROOT/base-config"
   : >"$TMP_ROOT/log"
   : >"$TMP_ROOT/output"
+  rm -rf "$config"
+  mkdir -p "$config/.github/standards/trusted-actors"
+  [[ -z "${STUB_TRACKER+set}" ]] || printf '%s\n' "$STUB_TRACKER" >"$config/.work-item-tracker.json"
+  [[ " $STUB_FAIL " == *" actors "* ]] || printf '%s\n' "$STUB_ACTORS" >"$config/.github/standards/trusted-actors/trusted-actors.json"
+  [[ " $STUB_FAIL " != *" tracker "* ]] || config=
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" PR_NUMBER=6419 GITHUB_REPOSITORY=o/r \
     RUNNER_TEMP="$TMP_ROOT" GITHUB_OUTPUT="$TMP_ROOT/output" BASE_SHA="$BASE" HEAD_SHA="$HEAD" \
-    bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    BASE_CONFIG="$config" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   cleared=no deleted=no posted=no
   grep -qxF 'cleared=true' "$TMP_ROOT/output" && cleared=yes
   grep -q -- '-X DELETE repos/o/r/issues/6419/labels/needs-human' "$TMP_ROOT/log" && deleted=yes
   grep -q -- '-X POST repos/o/r/issues/6419/comments' "$TMP_ROOT/log" && posted=yes
   if [[ "$rc" -ne 0 ]]; then
     fail "$label: the step must never fail the job, got rc=$rc out='$out'"
+  elif grep -q '/contents/' "$TMP_ROOT/log"; then
+    fail "$label: the base config was read through the API: '$(grep '/contents/' "$TMP_ROOT/log")'"
   elif [[ "$cleared" != "$2" || "$deleted" != "$3" || "$posted" != "$4" ]]; then
     fail "$label: cleared=$cleared deleted=$deleted posted=$posted, wanted $2/$3/$4; out='$out'"
   elif [[ "$cleared" == yes ]] && ! grep -qxF "decision=${WANT_LINK:-$LINK}" "$TMP_ROOT/output"; then
@@ -320,11 +325,16 @@ STUB_EVENTS="[$(event labeled "$LANE" 2026-10-23T13:00:00Z)]"
 expect "a lane label with no held review within ten minutes clears nothing" no no no "no held review after it"
 STUB_EVENTS='[]'
 expect "a hold with no label event clears nothing" no no no "no label was added"
-if grep -qE 'actions/workflows|check-runs|graphql|/pulls/' "$TMP_ROOT/log"; then
-  fail "with no lane label event the step read more than the events: '$(grep -E 'actions/|check-runs|graphql|/pulls/' "$TMP_ROOT/log")'"
+if [[ "$(grep -c '^api ' "$TMP_ROOT/log")" -eq 1 ]] && grep -q '^api repos/o/r/issues/6419/events' "$TMP_ROOT/log"; then
+  ok "with no lane label event the events are the step's one read"
 else
-  ok "with no lane label event the step stops before the pull request, run and GraphQL reads"
+  fail "with no lane label event the step read more than the events: '$(cat "$TMP_ROOT/log")'"
 fi
+export STUB_TRACKER='{"config":{"role_labels":{"human-gated":"owner-call"}}}'
+STUB_EVENTS="[$(jq -c '.label.name = "owner-call"' <<<"$(event labeled "$OWNER" 2026-10-23T13:20:20Z)")]"
+expect "the base tracker's human-gated label is the one judged" no no no "someone other than a review lane"
+export STUB_TRACKER='{not json'
+expect "an invalid tracker config clears nothing" no no no "the tracker config is invalid"
 # A pull_request run takes its workflow from the head, so a head that edits a
 # lane workflow could write the cost notice itself.
 reset
