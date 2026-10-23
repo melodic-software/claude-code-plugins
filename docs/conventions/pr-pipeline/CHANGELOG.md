@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [4.7.3] - 2026-10-23
+
+### Changed
+
+- The pr-merge gate fetches each verifier verdict by its artifact id, one request where `gh run download` spends two, and an untied FAIL record that could not be read refuses the run's later candidates without another download. Both stay on `GITHUB_TOKEN`, since the lane App token holds no Actions permission.
+
 ## [4.7.2] - 2026-10-23
 
 ### Fixed

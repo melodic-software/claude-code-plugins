@@ -3856,6 +3856,7 @@ class ForeignPaths(unittest.TestCase):
                 ".github/workflows/release-publish-plugins.yml",
                 ".github/actions/check-trusted-trigger/action.yml",
                 ".github/standards/trusted-actors/trusted-actors.json",
+                ".github/actions/resolve-config/resolve.mjs",
                 "CODEOWNERS",
                 "docs/CODEOWNERS",
                 ".claude/settings.json",

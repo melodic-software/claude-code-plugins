@@ -299,6 +299,10 @@ class HighReasonTests(unittest.TestCase):
                 ".github/actions/check-trusted-trigger/action.yml",
                 "high-path:.github/actions/check-trusted-trigger/**",
             ),
+            (
+                ".github/actions/resolve-config/resolve.mjs",
+                "high-path:.github/actions/resolve-config/**",
+            ),
         ]
         for path, code in cases:
             with self.subTest(path):
@@ -903,6 +907,10 @@ class MalformedInputTests(unittest.TestCase):
                 ".github/standards/trusted-actors",
                 "high-path:.github/standards/trusted-actors/**",
             ),
+            (
+                ".github/actions/resolve-config",
+                "high-path:.github/actions/resolve-config/**",
+            ),
         ):
             with self.subTest(path):
                 result = score(_input(files=(_file(path),)))
@@ -1151,10 +1159,17 @@ class LanePathFloorTests(unittest.TestCase):
             ".github/CODEOWNERS",
             ".github/standards/trusted-actors/trusted-actors.json",
             ".github/actions/check-trusted-trigger/action.yml",
+            ".github/actions/resolve-config/lane-rules.json",
         ):
             with self.subTest(path):
                 result = score(_lane_input((_file(path),)))
                 self.assertEqual(result.score, Risk.HIGH, result.reasons)
+
+    def test_resolve_config_waits_for_the_owner(self):
+        # Owner decision Q51: the token broker runs this code from main.
+        result = score(_lane_input((_file(".github/actions/resolve-config/resolve.mjs"),)))
+        self.assertEqual(result.score, Risk.HIGH, result.reasons)
+        self.assertIn("high-path:.github/actions/resolve-config/**", _codes(result))
 
     def test_instructions_hooks_and_scripts_merge(self):
         # Owner direction 2026-10-22: the review lanes are the gate for these.

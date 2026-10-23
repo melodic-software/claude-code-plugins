@@ -17,11 +17,13 @@ that override their own behavior are out of scope. A count outside
 The HIGH path floor and the lane table are fixed here, never read from
 configuration. The floor holds only the takeover set, what could hand the
 repository to someone outside the org: the trusted-actor list and the
-trusted-trigger check that enforces it, code owners, and submodules. Everything
-else, agent permission config, package manifests, workflows, this module, the
-merge gate, the review lanes, hooks, scripts and agent instructions included,
-merges on the two review lanes, which are the gate (owner direction
-2026-10-23), except the cost and trusted-actor holds below. The configured `merge.diff-check.denied-paths` are joined to
+trusted-trigger check that enforces it, code owners, submodules, and
+resolve-config, whose code the token broker runs from main in its signer
+process. Everything else, agent permission config, package manifests,
+workflows, this module, the merge gate, the review lanes, hooks, scripts and
+agent instructions included, merges on the two review lanes, which are the
+gate (owner direction 2026-10-23), except the cost and trusted-actor holds
+below. The configured `merge.diff-check.denied-paths` are joined to
 the floor, never in place of it. Every glob matches case-insensitively,
 because a lane host on a case-insensitive filesystem treats `Codeowners` as
 `CODEOWNERS`.
@@ -200,12 +202,15 @@ class RiskResult:
 
 # What would hand the repository to someone outside the org: who is trusted
 # (the trusted-actor list and the check that enforces it), who owns review
-# (code owners), and what code is pulled in from elsewhere (submodules).
+# (code owners), what code is pulled in from elsewhere (submodules), and the
+# code the token broker runs from main in its signer process (resolve-config,
+# owner decision Q51).
 HIGH_FLOOR: tuple[str, ...] = (
     ".github/standards/trusted-actors/**",
     ".github/actions/check-trusted-trigger/**",
     "**/CODEOWNERS",
     "**/.gitmodules",
+    ".github/actions/resolve-config/**",
 )
 
 # plugin.json keys whose values Claude Code runs or reads as run config.

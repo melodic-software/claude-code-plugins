@@ -530,9 +530,9 @@ token has no `workflows` permission), `CODEOWNERS` at the root, in `.github/` or
 `.gitmodules`, `**/settings*.json`, a symbolic link, a gitlink, and a rename into any of those.
 The rest of `.github/`, `.claude/`, `.mcp.json`, plugin hooks, `.claude-plugin/`, `lib/`,
 `scripts/`, `CLAUDE.md`, `AGENTS.md` and an executable bit reach review, and merge on it: the
-[HIGH path floor](#merge-authority) holds for a human merge only agent permission config,
-`.gitmodules`, `CODEOWNERS`, package manifests and lockfiles, the workflows that publish a release
-or hold `id-token: write`, and the trusted-trigger check. The `ci-context`, `default` and `issue` rows cap a patch at 300 paths.
+[HIGH path floor](#merge-authority) holds for a human merge only the takeover set: the
+trusted-actor list, the trusted-trigger check, `CODEOWNERS`, `.gitmodules`, and `resolve-config`,
+whose code the token broker runs from main. The `ci-context`, `default` and `issue` rows cap a patch at 300 paths.
 `checkPatchRules` in
 [`patch-rules.mjs`](../../../.github/actions/resolve-config/patch-rules.mjs) rejects a row without that
 set, a `[head, base]` commit whose `allow` is not exactly `[merge-result]`, a refusal, allow or requirement name
@@ -724,10 +724,12 @@ and its queued entries leave; two different identities, or an unreadable head co
   and the diff risk score still decides. It counts only when a human added it last and the pull
   request body was not edited afterwards.
 - **HIGH path floor.** A fixed set of paths in the wrapper's code, joined with
-  `merge.diff-check.denied-paths` and matched case-insensitively: agent permission config
-  (`**/settings*.json`), `.gitmodules`, `CODEOWNERS`, package manifests and lockfiles, the
-  workflows that publish a release or hold `id-token: write`, and the trusted-trigger check they
-  run. A diff that touches any of them scores HIGH and is never merged unattended. A
+  `merge.diff-check.denied-paths` and matched case-insensitively. It holds only the takeover set
+  (owner direction 2026-10-23): `.github/standards/trusted-actors/**`,
+  `.github/actions/check-trusted-trigger/**`, `CODEOWNERS`, `.gitmodules`, and
+  `.github/actions/resolve-config/**`, whose code the token broker runs from main in its signer
+  process. Agent permission config, package manifests and workflows merge on the review lanes. A
+  diff that touches a floor path scores HIGH and is never merged unattended. A
   `plugins/<plugin>/.claude-plugin/plugin.json` or the top-level
   `.claude-plugin/marketplace.json` change scores HIGH as `manifest-review-required` when it
   installs or runs something new: a differing `hooks`, `mcpServers`, `lspServers`, `monitors` or
