@@ -1,7 +1,7 @@
 // Expected values come from the head-ref map rules in head-ref-map.mjs and
 // pr-merge.yml: the map is read only from the newest scheduled or hand-started
 // pr-merge.yml run on main other than this one (found the way rotation.mjs
-// finds the cursor), holds artifact id to head ref and nothing else, keeps an
+// finds the cursor) whose head commit is on main, holds artifact id to head ref and nothing else, keeps an
 // entry only while its id is listed, adds only this run's own downloads, and on
 // any failure writes nothing.
 import assert from "node:assert/strict";
@@ -16,14 +16,22 @@ const REPO = "melodic-software/claude-code-plugins";
 const dir = mkdtempSync(join(tmpdir(), "head-ref-map-"));
 after(() => rmSync(dir, { recursive: true, force: true }));
 const mapOf = (refs, extra = {}) => JSON.stringify({ version: 1, repo: REPO, head_refs: refs, ...extra });
-const wf = (id, event, branch = "main", path = ".github/workflows/pr-merge.yml") => ({ id, event, head_branch: branch, path });
+const sha = (id) => String(id).padStart(40, "a");
+const wf = (id, event, branch = "main", path = ".github/workflows/pr-merge.yml", head_sha = sha(id)) => ({
+  id,
+  event,
+  head_branch: branch,
+  path,
+  head_sha,
+});
 
 let n = 0;
 // `pages` is the workflow's run listing, newest first; `maps` maps a run id to
-// the text its pr-merge-head-refs artifact holds. Requests count REST
+// the text its pr-merge-head-refs artifact holds; `offMain` lists the head
+// commits the compare API reports as not on main. Requests count REST
 // requests: each API call, and two per `gh run download` (it lists the run's
 // artifacts, then fetches the archive).
-async function readRun({ pages = [[]], maps = {}, fail } = {}) {
+async function readRun({ pages = [[]], maps = {}, offMain = [], fail } = {}) {
   n += 1;
   const path = join(dir, `in-${n}.json`);
   const calls = [];
@@ -33,6 +41,8 @@ async function readRun({ pages = [[]], maps = {}, fail } = {}) {
     if (fail) throw fail;
     const page = /\/actions\/workflows\/pr-merge\.yml\/runs\?branch=main&.*&page=(\d+)$/.exec(url)?.[1];
     if (page) return { workflow_runs: pages[Number(page) - 1] ?? [] };
+    const base = /\/compare\/([0-9a-f]{40})\.\.\.main\?per_page=1$/.exec(url)?.[1];
+    if (base) return { status: offMain.includes(base) ? "diverged" : "ahead" };
     const id = /\/actions\/runs\/(\d+)\/artifacts\?name=pr-merge-head-refs$/.exec(url)?.[1];
     assert.ok(id, `unexpected call ${url}`);
     return { artifacts: id in maps ? [{ expired: false }] : [] };
@@ -57,7 +67,7 @@ async function readRun({ pages = [[]], maps = {}, fail } = {}) {
   };
 }
 
-test("the newest trusted run's map is read in four requests", async () => {
+test("the newest trusted run's map is read in five requests", async () => {
   const result = await readRun({
     pages: [[wf(999, "schedule"), wf(8, "pull_request_target"), wf(7, "schedule"), wf(6, "workflow_dispatch")]],
     maps: { 8: mapOf({ 1: "forged" }), 7: mapOf({ 30: "feat/other", 40: "" }), 6: mapOf({ 1: "old" }) },
@@ -65,8 +75,27 @@ test("the newest trusted run's map is read in four requests", async () => {
   // This run (999) is skipped, and a pull_request_target run is never asked.
   assert.deepEqual(result.downloads, [7]);
   assert.deepEqual(result.written, { version: 1, repo: REPO, head_refs: { 30: "feat/other", 40: "" } });
-  // The run listing, run 7's artifact filter, and its download.
-  assert.equal(result.requests, 4);
+  // The run listing, run 7's artifact filter, the compare of its head commit
+  // with main, and its download.
+  assert.equal(result.requests, 5);
+});
+
+test("a run whose head commit is not on main is passed over", async () => {
+  // Run 9 ran on a tag named main whose commit main does not hold; run 8's
+  // head_sha is not a commit id.
+  const result = await readRun({
+    pages: [[wf(9, "workflow_dispatch"), wf(8, "schedule", "main", undefined, "main"), wf(7, "schedule")]],
+    maps: { 9: mapOf({ 1: "forged" }), 8: mapOf({ 1: "forged" }), 7: mapOf({ 30: "feat/other" }) },
+    offMain: [sha(9)],
+  });
+  assert.deepEqual(result.downloads, [7]);
+  assert.deepEqual(result.written.head_refs, { 30: "feat/other" });
+});
+
+test("no run on main with a map writes nothing", async () => {
+  const result = await readRun({ pages: [[wf(9, "schedule")]], maps: { 9: mapOf({ 1: "forged" }) }, offMain: [sha(9)] });
+  assert.equal(result.written, undefined);
+  assert.deepEqual(result.downloads, []);
 });
 
 test("an unreadable, foreign or misshapen map writes nothing and warns", async () => {

@@ -71,8 +71,8 @@ export function ghDownload({ repo, token, dir, name = CURSOR_ARTIFACT, file = "c
 }
 
 // The id of the newest trusted run, this one aside, holding an unexpired
-// artifact named `name`, or undefined when there is none.
-export async function newestTrustedRun({ repo, runId, actions, name }) {
+// artifact named `name` and passing `accept`, or undefined when there is none.
+export async function newestTrustedRun({ repo, runId, actions, name, accept = async () => true }) {
   let asked = 0;
   for (let page = 1; page <= MAX_PAGES; page += 1) {
     const listing = await actions(
@@ -92,7 +92,7 @@ export async function newestTrustedRun({ repo, runId, actions, name }) {
       }
       asked += 1;
       const found = await actions("GET", `/repos/${repo}/actions/runs/${run.id}/artifacts?name=${name}`);
-      if (Array.isArray(found?.artifacts) && found.artifacts.some((a) => a?.expired === false)) {
+      if (Array.isArray(found?.artifacts) && found.artifacts.some((a) => a?.expired === false) && (await accept(run))) {
         return run.id;
       }
     }

@@ -9,7 +9,9 @@
 // pr-merge.yml (rotation.mjs `trustedRun`), this run aside, holding the
 // pr-merge-head-refs artifact; its map is checked and written to
 // HEAD_REFS_PATH. Only a run's own steps can upload its artifacts, so that
-// map was written by main's pr-merge.yml. It never goes through
+// map was written by main's pr-merge.yml. A run's head_branch is a tag's name
+// for a run on a tag, so a run counts only when its head commit is on main
+// (`onMain`); a run that is not is passed over. The map never goes through
 // actions/cache, which any job in main's cache scope can write.
 //
 // `write`, after the gate: that map's entries and the head refs this run
@@ -46,6 +48,7 @@ export const MAP_FILE = "head-refs.json";
 const VERSION = 1;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const ID = /^[1-9][0-9]{0,15}$/;
+const SHA = /^[0-9a-f]{40}$/;
 // babysit_verify_evidence.py RECORD_SECTION.
 const RECORD_SECTION = "fail-head-ref";
 
@@ -74,9 +77,17 @@ function writeAtomic(path, text) {
   renameSync(`${path}.tmp`, path);
 }
 
+// Whether commit `sha` is main's head or an ancestor of it.
+export async function onMain({ repo, actions, sha }) {
+  if (!SHA.test(sha ?? "")) return false;
+  const compare = await actions("GET", `/repos/${repo}/compare/${sha}...main?per_page=1`);
+  return compare?.status === "identical" || compare?.status === "ahead";
+}
+
 // The newest trusted run's map, by id, or undefined when no run has one.
 export async function readMap({ repo, runId, actions, download }) {
-  const id = await newestTrustedRun({ repo, runId, actions, name: MAP_ARTIFACT });
+  const accept = (run) => onMain({ repo, actions, sha: run.head_sha });
+  const id = await newestTrustedRun({ repo, runId, actions, name: MAP_ARTIFACT, accept });
   return id === undefined ? undefined : { run: id, refs: parseMap(download(id), repo) };
 }
 
