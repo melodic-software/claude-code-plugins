@@ -106,23 +106,23 @@
     },
     {
       "id": 8,
-      "name": "work-readies-the-pr-after-create-pushed",
-      "prompt": "/work-items:work\n\nRun autonomously. The worker returned worktree /work/wt-731 on branch feat/731-csv-header, committed and pushed. The pre-PR diff gate passed and `/source-control:pull-request create --pushed --worktree /work/wt-731` opened draft PR 812. What does the orchestrator do next?",
-      "expected_output": "Right after create --pushed, the orchestrator dispatches /source-control:pull-request ready --unattended into the persisted worktree /work/wt-731, with a brief naming PR 812 so the dispatched agent stops if ready resolves a different PR, and a strong-tier model rather than its own inherited one. ready merges the base, runs the code and security reviews, verifies the merged head and flips the draft; monitoring and the post-green review pass follow, then the hand-off to /source-control:babysit-prs. The orchestrator does not flip the PR itself and does not merge.",
+      "name": "work-lets-create-pushed-ready-the-pr",
+      "prompt": "/work-items:work\n\nRun autonomously. The worker returned worktree /work/wt-731 on branch feat/731-csv-header, committed and pushed. The pre-PR diff gate passed, merge-hold.sh exited 1 for item #731 (no hold), and pr_open_state resolves to ready. What does the orchestrator do to open and ready the PR?",
+      "expected_output": "It opens the PR with /source-control:pull-request create --pushed --worktree /work/wt-731, which, with the open state resolved ready, runs ready --unattended itself: it merges the base, runs the code and security reviews, verifies the merged head and flips the draft. The orchestrator dispatches no ready of its own; monitoring and the post-green review pass follow from the persisted worktree, then the hand-off to /source-control:babysit-prs. The orchestrator does not flip the PR itself and does not merge.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Dispatches /source-control:pull-request ready --unattended after create --pushed and before monitoring",
-        "Runs it in the persisted worktree, with the brief naming PR 812 as the PR ready must resolve",
-        "Passes an explicit strong-tier model on that dispatch",
+        "Opens the PR with /source-control:pull-request create --pushed --worktree /work/wt-731",
+        "Relies on create --pushed to run ready --unattended and dispatches no second ready",
+        "Runs monitoring and the post-green review pass from the persisted worktree after the PR is open",
         "Never flips the draft with a bare forge command and never merges"
       ]
     },
     {
       "id": 9,
       "name": "work-leaves-a-held-pr-in-draft-when-ready-refuses",
-      "prompt": "/work-items:work\n\nRun autonomously. create --pushed opened draft PR 813 for item #732. The orchestrator dispatched /source-control:pull-request ready --unattended for PR 813, which refused: the PR carries the do-not-merge label a teammate added while it was being opened.",
-      "expected_output": "The PR stays a draft. The orchestrator carries ready's refusal reason (the do-not-merge label) into the run's report, does not remove the label, does not flip the PR any other way, and does not merge.",
+      "prompt": "/work-items:work\n\nRun autonomously. create --pushed opened PR 813 for item #732 and ran /source-control:pull-request ready --unattended on it, which refused: the PR carries the do-not-merge label a teammate added while it was being opened.",
+      "expected_output": "The PR stays a draft. The orchestrator carries the refusal reason create --pushed reported (the do-not-merge label) into the run's report, does not remove the label, does not flip the PR any other way, and does not merge.",
       "files": [],
       "narration": true,
       "expectations": [
@@ -171,6 +171,20 @@
         "Reads the already-committed pages in the checkout before editing",
         "Does not rewrite, recreate or re-commit the two pages the earlier run committed",
         "Writes and commits only the remaining third page and whatever release record the repository requires"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "work-reads-merge-hold-before-create-pushed",
+      "prompt": "/work-items:work\n\nRun autonomously. The worker returned worktree /work/wt-734 for item #734, committed and pushed, and the pre-PR diff gate passed. A maintainer with write access commented `Hold: a human merges this` on #734. The PR is not open yet. What does the orchestrator do, in order?",
+      "expected_output": "Before create --pushed it runs merge-hold.sh for #734, which exits 0 and prints the Hold: line. It then opens the PR with /source-control:pull-request create --pushed --worktree /work/wt-734, and right after that returns it adds the Hold: line below the closing line by reading the current body and writing the combined body back, never a bare body replacement. It dispatches no ready of its own and does not merge; a person merges the PR.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs merge-hold.sh for #734 before create --pushed",
+        "Adds the printed Hold: line right after create --pushed returns, by a read-modify-write of the body",
+        "Dispatches no second ready after create --pushed",
+        "Does not merge the PR"
       ]
     }
   ]
