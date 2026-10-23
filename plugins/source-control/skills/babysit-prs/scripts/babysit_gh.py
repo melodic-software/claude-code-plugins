@@ -13,7 +13,7 @@ import re
 import subprocess
 import sys
 from collections.abc import Callable, Iterable, Iterator, Mapping
-from typing import Any, cast
+from typing import Any, Literal, cast, overload
 from urllib.parse import quote, unquote, urlparse
 
 from babysit_util import (
@@ -95,7 +95,7 @@ _ROUTE_WORDS = frozenset(
     | {"organization-variables", "orgs", "permission", "pulls", "reactions"}
     | {"ref", "repos", "rerun", "rerun-failed-jobs", "reviews", "rules", "runs"}
     | {"stacks", "status", "timeline", "trees", "update-branch", "user"}
-    | {"users", "variables", "workflows"}
+    | {"users", "variables", "workflows", "zip"}
 )
 # Everything after one of these is a single value that may hold slashes (a
 # branch, a file path), so the rest of the route is one `{}`.
@@ -191,12 +191,14 @@ def _run_gh(
     timeout_seconds: float | None,
     check: bool,
     env_overrides: Mapping[str, str] | None = None,
-) -> subprocess.CompletedProcess[str]:
+    binary: bool = False,
+) -> subprocess.CompletedProcess[Any]:
     """The one gh invocation seam; `None` means the process-wide default timeout.
     `env_overrides` layers onto the environment for this call only, such as a
-    `GH_TOKEN` other than the process's. Every call is counted before it runs,
-    so a failed or timed-out call is counted too, and the process prints the
-    counts to stderr on exit (`gh_call_summary`)."""
+    `GH_TOKEN` other than the process's; `binary` keeps stdout as bytes. Every
+    call is counted before it runs, so a failed or timed-out call is counted
+    too, and the process prints the counts to stderr on exit
+    (`gh_call_summary`)."""
     kind = gh_call_kind(args, env_overrides)
     _gh_call_counts[kind] = _gh_call_counts.get(kind, 0) + 1
     return run_command(
@@ -207,6 +209,7 @@ def _run_gh(
         ),
         check=check,
         env_overrides=env_overrides,
+        binary=binary,
     )
 
 
@@ -215,16 +218,42 @@ def run_gh(args: list[str], *, timeout_seconds: float | None = None) -> str:
     return _run_gh(args, timeout_seconds=timeout_seconds, check=True).stdout
 
 
+@overload
+def gh_capture(
+    args: list[str],
+    *,
+    timeout_seconds: float | None = ...,
+    env_overrides: Mapping[str, str] | None = ...,
+    binary: Literal[False] = ...,
+) -> subprocess.CompletedProcess[str]: ...
+
+
+@overload
+def gh_capture(
+    args: list[str],
+    *,
+    timeout_seconds: float | None = ...,
+    env_overrides: Mapping[str, str] | None = ...,
+    binary: Literal[True],
+) -> subprocess.CompletedProcess[Any]: ...
+
+
 def gh_capture(
     args: list[str],
     *,
     timeout_seconds: float | None = None,
     env_overrides: Mapping[str, str] | None = None,
-) -> subprocess.CompletedProcess[str]:
+    binary: bool = False,
+) -> subprocess.CompletedProcess[Any]:
     """Run a gh command capturing stdout/stderr/returncode without raising on
-    nonzero exit -- for callers that inspect the returncode themselves."""
+    nonzero exit -- for callers that inspect the returncode themselves.
+    `binary` keeps stdout as bytes."""
     return _run_gh(
-        args, timeout_seconds=timeout_seconds, check=False, env_overrides=env_overrides
+        args,
+        timeout_seconds=timeout_seconds,
+        check=False,
+        env_overrides=env_overrides,
+        binary=binary,
     )
 
 

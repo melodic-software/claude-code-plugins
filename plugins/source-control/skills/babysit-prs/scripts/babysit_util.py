@@ -19,7 +19,7 @@ from collections.abc import Collection, Iterator, Mapping
 from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, TypeGuard
+from typing import Any, Literal, TypeGuard, overload
 
 # Minimum accepted hex-prefix length for --expected-head-sha pins. Lives here --
 # not in the state module -- so the guarded mutation CLIs can validate pins
@@ -161,6 +161,32 @@ def split_owner(repo: str) -> str:
     return repo.split("/", 1)[0]
 
 
+@overload
+def run_command(
+    argv: list[str],
+    *,
+    allowed_executables: Collection[str],
+    timeout_seconds: float = ...,
+    check: bool = ...,
+    cwd: str | Path | None = ...,
+    env_overrides: Mapping[str, str] | None = ...,
+    binary: Literal[False] = ...,
+) -> subprocess.CompletedProcess[str]: ...
+
+
+@overload
+def run_command(
+    argv: list[str],
+    *,
+    allowed_executables: Collection[str],
+    timeout_seconds: float = ...,
+    check: bool = ...,
+    cwd: str | Path | None = ...,
+    env_overrides: Mapping[str, str] | None = ...,
+    binary: Literal[True],
+) -> subprocess.CompletedProcess[Any]: ...
+
+
 def run_command(
     argv: list[str],
     *,
@@ -169,7 +195,8 @@ def run_command(
     check: bool = True,
     cwd: str | Path | None = None,
     env_overrides: Mapping[str, str] | None = None,
-) -> subprocess.CompletedProcess[str]:
+    binary: bool = False,
+) -> subprocess.CompletedProcess[Any]:
     """Run one allowlisted executable and capture its output.
 
     The single subprocess seam for every babysit script: argv is never a shell
@@ -181,6 +208,8 @@ def run_command(
     `env_overrides` layers onto the inherited environment for this call only --
     the seam a caller uses to pin a child's locale when it must read a decision
     out of that child's human-readable output, which is otherwise translated.
+    `binary` keeps stdout as bytes, for a payload such as a zip archive; stderr
+    is still text.
     """
     if not argv:
         raise ValueError("argv must name an executable")
@@ -196,9 +225,9 @@ def run_command(
         proc = subprocess.run(
             [executable, *argv[1:]],
             check=False,
-            text=True,
+            text=not binary,
             capture_output=True,
-            encoding="utf-8",
+            encoding=None if binary else "utf-8",
             timeout=timeout_seconds,
             cwd=str(cwd) if cwd is not None else None,
             env=({**os.environ, **env_overrides} if env_overrides else None),
@@ -207,6 +236,8 @@ def run_command(
         raise RuntimeError(
             f"{' '.join(argv)} timed out after {timeout_seconds:g}s"
         ) from exc
+    if binary:
+        proc.stderr = proc.stderr.decode("utf-8", "replace")
     if check and proc.returncode != 0:
         detail = proc.stderr.strip() or proc.stdout.strip()
         raise RuntimeError(f"{' '.join(argv)} failed: {detail}")

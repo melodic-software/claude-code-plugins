@@ -82,11 +82,15 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import io
 import json
 import os
 import re
+import subprocess
+import sys
 import tempfile
 import time
+import zipfile
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -99,6 +103,7 @@ from babysit_classify import is_dependency_author
 from babysit_gh import (
     flatten_paginated_items,
     gh_http_status,
+    gh_rate_limited,
     gh_timeout_seconds,
     pull_request_commits_once,
 )
@@ -172,6 +177,10 @@ RECORD_SECTION = "fail-head-ref"
 CARRIED_RUN_SECTION = "carried-run-record"
 CARRIED_RECORD_SECTION = "carried-fail-head-ref"
 CARRIED_ON_BRANCH = "carried-on-branch"
+# Where a gate process records that the process (lane) token was refused a
+# verdict download for a reason other than a rate limit, so the run's later
+# downloads stop falling back to it (`Reader._download`).
+LANE_DOWNLOAD_REFUSED = "lane-download-refused"
 RUN_FIELDS = (
     "id",
     "path",
@@ -334,6 +343,11 @@ def change_digest(diff: str) -> str | None:
 def _is_id(value: Any, run_id: int) -> bool:
     """`value` is the integer `run_id`; `True` equals 1 but is no id."""
     return type(value) is int and value == run_id
+
+
+def _is_artifact_id(value: Any) -> bool:
+    """An artifact id as the listing gives it: an integer, never a bool."""
+    return isinstance(value, int) and not isinstance(value, bool)
 
 
 def _read(args: list[str], label: str) -> Any:
@@ -616,7 +630,7 @@ class Reader:
         that never change (an overwrite uploads a new id), and a FAIL whose
         artifact has since gone still refuses. An artifact with no id is not
         shared."""
-        shared = isinstance(artifact_id, int) and not isinstance(artifact_id, bool)
+        shared = _is_artifact_id(artifact_id)
         key = f"{self.repo}|{artifact_id}"
         dated = run_cache.get_dated(RECORD_SECTION, key, None) if shared else None
         if dated is not None and is_json_object(dated[0]):
@@ -626,34 +640,93 @@ class Reader:
         carried = run_cache.get(CARRIED_RECORD_SECTION, key, None) if shared else None
         if head_ref and is_json_object(carried) and carried.get("head_ref") == head_ref:
             return head_ref
-        record = self._record(run_id, name)
+        record = self._record(run_id, name, artifact_id)
         if shared:
             run_cache.put(RECORD_SECTION, key, {"head_ref": record.get("head_ref")})
         return record.get("head_ref")
 
-    def _record(self, run_id: int, name: str) -> dict[str, Any]:
-        """The artifact's verdict.json, downloaded once."""
+    def _record(
+        self, run_id: int, name: str, artifact_id: Any = None
+    ) -> dict[str, Any]:
+        """The artifact's verdict.json, downloaded once: by the listed
+        artifact's id when it has one, one request, else by run and name
+        (`gh run download`, which lists the run's artifacts first, then
+        fetches the archive)."""
         key = (run_id, name)
         if key not in self._records:
-            with tempfile.TemporaryDirectory() as tmp:
-                args = ["run", "download", str(run_id), "-R", self.repo]
-                try:
-                    proc = postmerge.gh_capture(
-                        [*args, "-n", name, "-D", tmp], env_overrides=self._env()
+            unread = f"artifact {name} of run {run_id}"
+            try:
+                if _is_artifact_id(artifact_id):
+                    proc = self._download(
+                        [
+                            "api",
+                            f"repos/{self.repo}/actions/artifacts/{artifact_id}/zip",
+                        ],
+                        binary=True,
                     )
-                except (RuntimeError, ValueError, OSError) as exc:
-                    raise _Unreadable(f"artifact {name}: {exc}") from exc
-                path = Path(tmp) / "verdict.json"
-                if proc.returncode != 0 or not path.is_file():
-                    raise _Unreadable(f"artifact {name} of run {run_id}")
-                try:
-                    record = json.loads(path.read_text(encoding="utf-8"))
-                except ValueError as exc:
-                    raise _Unreadable(f"artifact {name}: {exc}") from exc
+                    if proc.returncode != 0:
+                        raise _Unreadable(unread)
+                    with zipfile.ZipFile(io.BytesIO(proc.stdout)) as archive:
+                        raw = archive.read("verdict.json")
+                else:
+                    with tempfile.TemporaryDirectory() as tmp:
+                        proc = self._download(
+                            ["run", "download", str(run_id), "-R", self.repo]
+                            + ["-n", name, "-D", tmp]
+                        )
+                        path = Path(tmp) / "verdict.json"
+                        if proc.returncode != 0 or not path.is_file():
+                            raise _Unreadable(unread)
+                        raw = path.read_bytes()
+                record = json.loads(raw.decode("utf-8"))
+            except (RuntimeError, ValueError, OSError) as exc:
+                raise _Unreadable(f"artifact {name}: {exc}") from exc
+            except (zipfile.BadZipFile, KeyError) as exc:
+                raise _Unreadable(f"{unread}: {exc}") from exc
             if not is_json_object(record):
                 raise _Unreadable(f"artifact {name}: not an object")
             self._records[key] = record
         return self._records[key]
+
+    def _download(
+        self, args: list[str], *, binary: bool = False
+    ) -> subprocess.CompletedProcess[Any]:
+        """A verdict download under the Actions token. When GitHub refuses it
+        for a rate limit (`gh_rate_limited`), the run cache records that
+        (`run_cache.READ_TOKEN_LIMITED`, which the review-evidence reads
+        honor too) and this and every later download of the run use the
+        process (lane) token. Both tokens read the same archive, so the
+        choice changes no judgment. Once the lane token is refused a download
+        with a 401 or 403 that is no rate limit, the run's later downloads
+        stay on the Actions token (`LANE_DOWNLOAD_REFUSED`)."""
+        env = self._env()
+        key = run_cache.token_key(env["GH_TOKEN"]) if env else None
+        lane_refused = run_cache.get(LANE_DOWNLOAD_REFUSED, self.repo, None) is not None
+        if (
+            key is None
+            or lane_refused
+            or run_cache.get(run_cache.READ_TOKEN_LIMITED, key, None) is None
+        ):
+            proc = postmerge.gh_capture(args, env_overrides=env, binary=binary)
+            if (
+                key is None
+                or lane_refused
+                or proc.returncode == 0
+                or not gh_rate_limited(proc.stderr or "")
+            ):
+                return proc
+            run_cache.put(run_cache.READ_TOKEN_LIMITED, key, True)
+            print(
+                f"read-token-floor: {TOKEN_ENV} was rate limited"
+                f" ({(proc.stderr or '').strip()[-200:]}); downloading verdicts"
+                " with the lane token",
+                file=sys.stderr,
+            )
+        proc = postmerge.gh_capture(args, binary=binary)
+        stderr = proc.stderr or ""
+        if gh_http_status(stderr) in (401, 403) and not gh_rate_limited(stderr):
+            run_cache.put(LANE_DOWNLOAD_REFUSED, self.repo, True)
+        return proc
 
     def _trusted_humans(self) -> frozenset[int]:
         """The trusted list's human ids at the branch, shared by the run's
@@ -841,7 +914,7 @@ class Reader:
         head_ref = str(json_object(pr.get("head")).get("ref") or "")
         commits = self._commits(number, head) | {head}
         verdicts: list[Verdict] = []
-        passes: list[tuple[int, str]] = []
+        passes: list[tuple[int, str, Any]] = []
         head_fails: list[tuple[int, str]] = []
         ignored = 0
         unreadable: str | None = None
@@ -868,7 +941,7 @@ class Reader:
                     continue
                 if self._run_state(run_id) == COUNTED:
                     verdicts.append(Verdict(sha, verdict, run_id))
-                    passes.append((run_id, name))
+                    passes.append((run_id, name, item.get("id")))
                 else:
                     ignored += 1
                 continue
@@ -932,8 +1005,8 @@ class Reader:
                 )
             else:
                 refusals = {
-                    self._pass_refusal(run_id, name, number, head, live, pr)
-                    for run_id, name in passes
+                    self._pass_refusal(run_id, name, number, head, live, pr, artifact)
+                    for run_id, name, artifact in passes
                 }
                 refusal = next(
                     (r for r in (SPEC_CHANGED, UNTRUSTED_SPEC) if r in refusals),
@@ -987,7 +1060,7 @@ class Reader:
             return None
 
     def _passes_follow(
-        self, fails: list[Verdict], passes: list[tuple[int, str]]
+        self, fails: list[Verdict], passes: list[tuple[int, str, Any]]
     ) -> bool:
         """Every counted pass at the head was judged after every counted
         FAIL: each pass's run was created after each FAIL's run. A pass judged
@@ -997,7 +1070,7 @@ class Reader:
         if not passes:
             return False
         starts = [self._fresh_created(v.run_id) for v in fails]
-        begun = [self._fresh_created(run_id) for run_id, _ in passes]
+        begun = [self._fresh_created(run_id) for run_id, _, _ in passes]
         if None in starts or None in begun:
             return False
         return max(s for s in starts if s) < min(b for b in begun if b)
@@ -1074,10 +1147,11 @@ class Reader:
         head: str,
         live: dict[Any, Any],
         pr: dict[str, Any] | None = None,
+        artifact_id: Any = None,
     ) -> str | None:
         """One counted pass at the head against the live closing issues, or,
         for an `intent` `pull-request` verdict, the live title and body."""
-        record = self._record(run_id, name)
+        record = self._record(run_id, name, artifact_id)
         if record.get("pr") != number or record.get("head_sha") != head:
             raise _Unreadable(f"artifact {name} records another pull request or head")
         recorded = record.get("linked_issues")

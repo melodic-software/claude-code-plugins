@@ -1346,7 +1346,8 @@ saved, and is kept for that candidate's gate run: the pull request and every que
 listing being paged again, so a listing outage holds the whole queue rather than merging blind.
 The lane token holds no Actions permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
-records, the download and the compare of a run's head to main (a `contents: read` call). The gate's
+records, the download of a verdict.json (by the listed artifact's id, one request where `gh run
+download` lists the run's artifacts first) and the compare of a run's head to main (a `contents: read` call). The gate's
 review-evidence reads use it too: the timeline, the comments, and the lane runs with their attempts,
 jobs and annotations. Two things send them back to the lane token, as before; both tokens read
 the same data, so neither changes a gate decision. First, `GITHUB_TOKEN` must have at least
@@ -1357,7 +1358,9 @@ already refused with "API rate limit exceeded for installation". Second, when an
 is refused with a 429, or a 403 whose message names a rate limit, the gate reads all of that
 candidate's evidence again with the lane token (they are all GETs). It records the refusal in
 `BABYSIT_RUN_CACHE`, so later candidates in the run skip `GITHUB_TOKEN`. Any other refusal is not
-retried. `GITHUB_TOKEN`'s pool is shared with the full-run dispatch and the post-merge checks. Every other call, every write
+retried. A verdict download refused that way is made again with the lane token and sets the same
+record, which moves the run's later downloads too; once the lane token is refused a download with a
+401 or 403 that names no rate limit, the run's later downloads stay on `GITHUB_TOKEN`. `GITHUB_TOKEN`'s pool is shared with the full-run dispatch and the post-merge checks. Every other call, every write
 included, keeps the lane token. That job checks out only main and runs no pull request code.
 
 pr-merge.yml also names a file in `BABYSIT_RUN_CACHE`, where the run's gate processes share reads
