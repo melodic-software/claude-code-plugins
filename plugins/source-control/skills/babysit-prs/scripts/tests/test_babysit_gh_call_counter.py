@@ -190,6 +190,19 @@ class GhCallCounterTests(unittest.TestCase):
             {"default GET repos/{}/{}/pulls/{}": 2, "default graphql": 1},
         )
 
+    def test_an_archive_download_is_counted_by_its_route(self) -> None:
+        with mock.patch.object(gh, "run_command", side_effect=_ok) as run:
+            gh.gh_capture(
+                ["api", "repos/acme/widgets/actions/artifacts/7/zip"],
+                env_overrides={"GH_TOKEN": "t"},
+                binary=True,
+            )
+        self.assertTrue(run.call_args.kwargs["binary"])
+        self.assertEqual(
+            gh.gh_call_counts(),
+            {"override GET repos/{}/{}/actions/artifacts/{}/zip": 1},
+        )
+
     def test_a_failed_call_is_still_counted(self) -> None:
         with (
             mock.patch.object(gh, "run_command", side_effect=RuntimeError("timeout")),
