@@ -13,7 +13,8 @@
 //      App's, after the select job's head, carrying the review-threads
 //      row's Lane-Activity trailer (fixCommitOf). Confirms it changes each
 //      VALID thread's path and that the branch changed no path outside the
-//      kept threads' scope (thread-scope.mjs) and none under .github/. A
+//      kept threads' scope (thread-scope.mjs) and none under
+//      .github/workflows/. A
 //      push that was superseded, refused, escalated or held left no such
 //      commit, so the round ends feedback-not-landed.
 //   3. Re-reads each thread and skips one that is resolved, moved, or has a
@@ -221,8 +222,8 @@ export function fixCommitOf(commits, appId) {
 // Whenever the PR branch moved since the select job's head, or a reply is
 // VALID, that range may change only what inThreadScope allows around the kept
 // threads' paths (run.json, whose SHA-256 the select job recorded), and
-// nothing under .github/. With a VALID reply the range must hold exactly one
-// fix commit (fixCommitOf), and it must change every VALID thread's path, or
+// nothing under .github/workflows/. With a VALID reply the range must hold
+// exactly one fix commit (fixCommitOf), and it must change every VALID thread's path, or
 // for a thread on a skill's SKILL.md any file in that skill's directory
 // (touchesThread). Returns the fix commit, "" when no reply is VALID, or null.
 async function fixesLanded({ api, run, headSha, replies, appId }) {

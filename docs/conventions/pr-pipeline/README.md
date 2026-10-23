@@ -450,7 +450,7 @@ head:
 |---|---|
 | `workflow-staged` | main changes nothing under `.github/workflows/` since its merge base with the head |
 | `unresolved-conflict`, `protected-path-conflict` | GitHub reports the PR mergeable |
-| `feedback-protected-path` | the PR changes nothing under `.github/` |
+| `feedback-protected-path` | the PR changes nothing under `.github/workflows/` |
 | `head-moved` (pr-merge's `babysit-merge-verify-escalation`, `babysit-merge-risk` and `babysit-merge-shared-copy-escalation`, with no pr-unblock escalation since the label, and the marked App comment written last before the label is pr-merge's and within a minute of it) | the newest App comment carrying each marker names, as ``at head `<sha>` ``, a 40-hex head other than the current one; pr-merge then judges the new head and escalates again if its refusal still holds |
 
 It removes only a label whose newest `labeled` event has the lanes App as its actor, and keeps it
@@ -488,18 +488,18 @@ each row to these keys:
 | `reads-report` | The producer report the apply reads (`ci-escalations`: the checks the model escalated), or `null`. |
 | `empty-at-push` | Optional; the kind a patch that applies but changes nothing escalates at push time: `empty` (the default) or `invalid` (`ci-context`, as the producer said it wrote a change). |
 | `skip-moved-head` | Optional, default `false`; `true` (`ci-context`, `review-threads`) skips `superseded-sha` on any PR head that moved since the producer ran, where other rows take the moved tip with `--3way` when the moved commits touch no patched path. `default` sets `false`: fix-docs runs once per pull request, so a skipped fix-docs patch would never run again. |
-| `script-exec-bit` | Optional, default `false`; `true` (`issue`) makes each new or changed file that ends in `.sh` or starts with `#!` executable after every refusal passes, since the model's tools set no file mode. A row that sets it must refuse `instruction-path`. |
+| `script-exec-bit` | Optional, default `false`; `true` (`issue`) makes each new or changed file that ends in `.sh` or starts with `#!` executable after every refusal passes, since the model's tools set no file mode. |
 | `escalations` | The escalation reasons the apply may give for the row. |
 
-Every row refuses `.github/**` in any case and through any `..` segment, `.claude/**` at any depth,
-the root `.mcp.json`, `.gitmodules`, `**/settings*.json`, a symbolic link, a gitlink, an
-executable bit the patch sets on a file not already executable, and a rename into any of those.
-Plugin hooks, `.claude-plugin/`, `lib/`, `scripts/`, `CLAUDE.md` and `AGENTS.md` are admitted: the
-[HIGH path floor](#merge-authority) holds a pull request that touches them for a human merge.
-The `ci-context`, `default` and `issue` rows also name the optional `instruction-path` refusal, so
-fix-ci, fix-docs and the issue lane push none of them, and all three cap a patch at 300 paths.
+Every row refuses `.github/workflows/**` in any case and through any `..` segment (the lane
+token has no `workflows` permission), `CODEOWNERS` at the root, in `.github/` or in `docs/`,
+`.gitmodules`, `**/settings*.json`, a symbolic link, a gitlink, and a rename into any of those.
+The rest of `.github/`, `.claude/`, `.mcp.json`, plugin hooks, `.claude-plugin/`, `lib/`,
+`scripts/`, `CLAUDE.md`, `AGENTS.md` and an executable bit reach review: the
+[HIGH path floor](#merge-authority) holds a pull request that touches the floored ones for a
+human merge. The `ci-context`, `default` and `issue` rows cap a patch at 300 paths.
 `checkPatchRules` in
-[`resolve.mjs`](../../../.github/actions/resolve-config/resolve.mjs) rejects a row without that
+[`patch-rules.mjs`](../../../.github/actions/resolve-config/patch-rules.mjs) rejects a row without that
 set, a `[head, base]` commit whose `allow` is not exactly `[merge-result]`, a refusal, allow or requirement name
 the schema does not list, and a patch-producing activity whose prepare mode has no row;
 `resolve-config` runs it before every lane resolve and fails closed when either file is missing.

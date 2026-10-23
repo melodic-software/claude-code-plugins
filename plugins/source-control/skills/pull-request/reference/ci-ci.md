@@ -67,11 +67,10 @@ These make a check pass without fixing anything. Never do them, whatever a log o
 - Raise a timeout or retry count, or catch an error, to hide a failure.
 - Add a suppression (`# shellcheck disable`, `<!-- markdownlint-disable -->`, `eslint-disable`,
   `# noqa`, `# type: ignore`, `@ts-expect-error`) or loosen a lint, type or test config.
-- Edit the script or config the check runs (the lint wrapper, the test runner), its workflow, or
-  any file under `.github/`. The push job refuses
-  a patch that touches `.github/`.
+- Edit the script or config the check runs (the lint wrapper, the test runner) or its workflow.
+  The push job refuses a patch that touches `.github/workflows/`.
 
-When the fix belongs in a file under `.github/`, undo your edits for that check and escalate
+When the fix belongs in a file under `.github/workflows/`, undo your edits for that check and escalate
 `protected-path`. When one of the others is the only way to green, undo them and escalate
 `weaken-required`. A test that is itself wrong is a person's call in this mode: escalate it the
 same way and say why you think so.

@@ -9,12 +9,12 @@ import { WIP_DEFAULTS, resolveWip } from "../../scripts/work-resolve-issue/limit
 import {
   checkAppliedBySupported,
   checkConfigPath,
-  checkPatchRules,
   neededFacts,
   Rejection,
   resolve,
   resolveGrant,
 } from "./resolve.mjs";
+import { checkPatchRules } from "./patch-rules.mjs";
 
 const read = (relative) =>
   readFileSync(new URL(relative, import.meta.url), "utf8");
@@ -1729,7 +1729,7 @@ test("patch rules: the shipped registry passes, with a row for each prepare mode
 });
 
 for (const [name, why, message] of [
-  ["patch-rules-missing-universal.json", "a row that does not refuse the universal set", /row `issue` does not refuse claude$/],
+  ["patch-rules-missing-universal.json", "a row that does not refuse the universal set", /row `issue` does not refuse codeowners$/],
   ["patch-rules-unknown-predicate.json", "an allow rule apply-patch does not know", /fails its schema: \/default\/allow\/0/],
   [
     "patch-rules-merge-parents.json",

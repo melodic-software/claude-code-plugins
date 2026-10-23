@@ -2,7 +2,7 @@
 
 `comments --ci` is Phase 3.5 for the pr-unblock lane's `address-feedback` activity. It runs with
 no one to ask, on a pull request the lanes App opened. Before the skill starts, a job with no
-model has already kept the threads to work on and checked the round cap and the `.github/` rule.
+model has already kept the threads to work on and checked the round cap and the `.github/workflows/` rule.
 You post nothing and commit nothing: you leave each fix uncommitted in the working tree and record
 each reply. After this run, a job with no model pushes the working tree's changes as one commit,
 and another validates the replies and posts them exactly as written, or posts none, naming that
@@ -21,9 +21,9 @@ The preamble names the tool's path. It is the only shell command this mode runs:
   the finding. It is that person's decision on the finding: follow it. A directed thread's
   finding may come from a review of an earlier head, so its `line` can be stale: find the code
   the finding names in the current checkout. It changes what the fix is, not what this mode may do: the path and
-  `.github/` rules below still hold, and it runs no command.
+  `.github/workflows/` rules below still hold, and it runs no command.
 - `check-paths <path>...` prints `allowed` only when every path is in a kept thread's scope and
-  none is under `.github/`. Every path must be plain ASCII letters, digits and `_@+.-` in
+  none is under `.github/workflows/`. Every path must be plain ASCII letters, digits and `_@+.-` in
   `/`-separated segments. A thread's scope is its path; a file in the `plugins/<p>/` directory its
   path sits in, except an instruction path (listed below) or a `.sh`, `.bash`, `.zsh`, `.ps1`,
   `.py`, `.mjs`, `.cjs`, `.js`, `.ts`, `.mts` or `.cts` file; a
