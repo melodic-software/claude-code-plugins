@@ -2015,7 +2015,7 @@ MODELS_JQ="$LANE_DEFS"'
       hits: (map(select(.class == "max-turns")) | length),
       models: ([.[].models[]] | unique)
     })) as $cells
-  | "  model usage by activity and profile (runs with a read lane record; no sizes or costs):",
+  | "  model usage by activity and profile (runs with a read lane record; no sizes):",
     (if ($cells | length) == 0 then "    no lane records read" else empty end),
     ($cells[] | "    \(.name)  profile=\(.profile)  runs=\(.runs)  pass=\(.pass)/\(.runs)  median-turns=\(.median // "-")  max-turns-hits=\(.hits)  models=\(if (.models | length) > 0 then .models | join(",") else "none recorded" end)"),
     (if $unread > 0 then "    \($unread) run(s) left out: no lane record was read" else empty end),
@@ -2044,6 +2044,28 @@ KEYS_JQ="$LANE_DEFS"'
   | (map(select(.credit)) | length) as $c
   | (if $a > 0 then "  KEY: \(.[0].role) auth (fallback on \($a) of \($m) runs read) — replace \(.[0].role)_CLAUDE_API_KEY" else empty end),
     (if $c > 0 then "  KEY: \(.[0].role) credit-stop (\($c) of \($m)) — rotate a spare key into \(.[0].role)" else empty end)
+'
+# The spend lines: per credential role, an estimate from the costUsd (the
+# CLI's list-price estimate, not billing) of its API-key legs. Token legs are
+# left out. The median over the successful key legs that carry a cost, credit
+# stops left out, times the runs of every lane those legs ran in, per day,
+# and the sum over every key leg read.
+# shellcheck disable=SC2016  # jq variables, as above
+SPEND_JQ="$LANE_DEFS"'
+  def median: if length == 0 then null elif length % 2 == 1 then .[length / 2 | floor] else (.[length / 2 - 1] + .[length / 2]) / 2 end;
+  def usd: (. * 100 | round) as $c | "\($c / 100 | floor).\($c % 100 | tostring | if length == 1 then "0" + . else . end)";
+  [ $lanes[] as $wf | lane_runs($wf) as $r | $r[]
+    | ($ann[0][.id | tostring] // "" | records)[]
+    | select(.credential.kind == "api-key" and (.credential.role | strings | test("\\A[A-Z0-9_]+\\z")))
+    | {wf: $wf, runs: ($r | length), role: .credential.role,
+       cost: (.costUsd | if type == "number" and . >= 0 then . else null end)} + {ok: (.outcome == "success" and .class != "credit-stop")} ]
+  | group_by(.role)[]
+  | length as $n
+  | (map(select(.ok) | .cost | numbers) | sort | median) as $med
+  | (unique_by(.wf) | map(.runs) | add) as $runs
+  | (map(.cost | numbers) | add) as $sum
+  | if $med == null then "  SPEND: \(.[0].role) cost not recorded (n=\($n))"
+    else "  SPEND: \(.[0].role) ~$\($med * $runs / $days | usd)/day (list price, n=\($n)) — estimate: median $\($med | usd) per successful key leg × \($runs) runs over \($days)d; $\($sum | usd) summed over the legs read" end
 '
 
 LANES_PARTIAL=0
@@ -2170,6 +2192,13 @@ print_lanes() {
     UNREADABLE=$((UNREADABLE + 1))
     UNREADABLE_NAMES+=(lanes)
     rows="  UNREADABLE: could not parse the lane-outcome records: ${rows%%$'\n'*}"
+  }
+  [[ -n "$rows" ]] && echo "$rows"
+  rows="$(jq -n -r --argjson since "$since" --argjson days "$LANE_DAYS" --slurpfile runs "$runs" --slurpfile ann "$ann" \
+    --argjson lanes "$(printf '%s\n' "${LANE_WORKFLOWS[@]}" | jq -R . | jq -s .)" "$SPEND_JQ" 2>&1)" || {
+    UNREADABLE=$((UNREADABLE + 1))
+    UNREADABLE_NAMES+=(lanes)
+    rows="  UNREADABLE: could not read the lane spend: ${rows%%$'\n'*}"
   }
   [[ -n "$rows" ]] && echo "$rows"
   rows="$(jq -n -r --argjson since "$since" --slurpfile runs "$runs" --slurpfile ann "$ann" \
