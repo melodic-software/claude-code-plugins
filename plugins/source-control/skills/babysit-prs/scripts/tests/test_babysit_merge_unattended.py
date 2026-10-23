@@ -38,6 +38,7 @@ import babysit_merge_prefilter as prefilter
 import babysit_merge_policy as policy
 import babysit_postmerge as postmerge
 import babysit_run_cache as run_cache
+import babysit_util as util
 import test_babysit_merge as fixtures
 import test_babysit_merge_async as async_fixtures
 from babysit_risk import ChangedFile, LaneEvidence
@@ -1188,6 +1189,70 @@ class LaneMode(Unattended):
                     contextlib.redirect_stdout(out),
                 ):
                     self.assertEqual(merge.main(), 2)
+
+    # merge.gate-candidate-minutes: the lane passes the limit in seconds; a
+    # fake clock stands in for time, and `true` for the command a read or a
+    # write starts through the one subprocess seam.
+    def _clocked(self, *flags: str) -> tuple[int, dict[str, Any]]:
+        self.now = 0.0
+        with mock.patch.object(util, "_clock", lambda: self.now):
+            return self.lane(*flags)
+
+    def _command_at(self, now: float) -> None:
+        self.now = now
+        util.run_command(["true"], allowed_executables=("true",))
+
+    def test_a_read_past_the_candidate_deadline_stops_before_any_write(self) -> None:
+        read_on: list[float] = []
+
+        def slow_read(*args: Any) -> Any:
+            self._command_at(241.0)
+            read_on.append(self.now)
+            return self.lanes, self.comments
+
+        self._lane_evidence = slow_read  # type: ignore[method-assign]
+        code, out = self._clocked("--candidate-deadline-seconds", "240")
+        self.assertEqual(code, 11)
+        self.assertEqual(read_on, [], "the command past the deadline started")
+        self.assertEqual(out["error"].split(";")[0], "unknown:candidate-deadline")
+        self.assertNotIn("ready", out)
+        self.assertEqual(self.log, [])
+        self.async_merge.assert_not_called()
+        self.dequeue.assert_not_called()
+
+    def test_the_same_slow_read_without_a_deadline_still_enqueues(self) -> None:
+        def slow_read(*args: Any) -> Any:
+            self._command_at(10_000.0)
+            return self.lanes, self.comments
+
+        self._lane_evidence = slow_read  # type: ignore[method-assign]
+        code, out = self._clocked()
+        self.assertEqual(code, 0, out.get("blockers"))
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+
+    def test_a_deadline_passing_during_the_enqueue_never_stops_it(self) -> None:
+        def slow_enqueue(repo: str, number: int, **kwargs: Any) -> dict[str, Any]:
+            self._command_at(10_000.0)
+            self.log.append(f"enqueue:{kwargs['sha']}:{kwargs['merge_action']}")
+            return dict(ENQUEUED)
+
+        self._async_merge = slow_enqueue  # type: ignore[method-assign]
+        code, out = self._clocked("--candidate-deadline-seconds", "240")
+        self.assertEqual(code, 0, out.get("blockers"))
+        self.assertTrue(out["enqueued"])
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+
+    def test_the_candidate_deadline_is_the_lane_s_alone(self) -> None:
+        code, out = self.run_main("--candidate-deadline-seconds", "240")
+        self.assertEqual(code, 2)
+        self.assertIn("--candidate-deadline-seconds", out["error"])
+        self.async_merge.assert_not_called()
+
+    def test_a_deadline_that_is_not_positive_is_refused(self) -> None:
+        for value in ("0", "-5", "nan", "inf"):
+            code, out = self._clocked("--candidate-deadline-seconds", value)
+            self.assertEqual(code, 2, value)
+            self.assertIn("positive", out["error"])
 
 
 AUTO_TIER = dependabot.Classification("auto")

@@ -699,6 +699,12 @@ merge:
   # 157-164 s, about 1 minute before the loop. 10 keeps a run, its longest
   # candidate included, inside the 15 minutes between scheduled runs.
   gate-budget-minutes: 10
+  # Minutes one candidate's gate may spend reading before it stops at its next
+  # read, reported unknown for a later run; a write in progress always
+  # finishes. Run 39883357253 spent 21.5 minutes on one candidate and held
+  # the queue behind it. 4 is above the longest measured candidate (157-164 s,
+  # above) and leaves the budget room for others (judgment).
+  gate-candidate-minutes: 4
   # Minutes a MED or HIGH reasons comment must stand unchanged at the head
   # before the gate adds the human-gated label; 0 is no minimum. 60 is longer
   # than a review lane's run (judgment), so a review still running at the

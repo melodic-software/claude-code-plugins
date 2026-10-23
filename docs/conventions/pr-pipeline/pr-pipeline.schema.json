@@ -874,6 +874,11 @@
           "minimum": 1,
           "description": "Minutes the pr-merge workflow's gate loop runs before it starts no further candidate. The candidate in progress finishes, so no gate stops between its check and its enqueue; the next run starts after the last candidate reached. Keep it below the merge job's timeout-minutes less the longest single candidate. Absent: no budget."
         },
+        "gate-candidate-minutes": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Minutes one candidate's gate may spend in its read phases (the merge policy, then the verdict). Past it the gate starts no further read command and reports the candidate unknown (exit 11, reason unknown:candidate-deadline), never ready; no write is bounded, so none is cut short. The loop goes on to the next candidate within gate-budget-minutes, and a later run gates the stopped one again. Absent: no limit."
+        },
         "skip-unchanged": {
           "type": "object",
           "additionalProperties": false,
