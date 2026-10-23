@@ -1258,10 +1258,12 @@ jobs:
   # itself. The issue lane finishing arms the pull request it opened; a listed
   # human's edit, unlabel or ready disarms or arms at once; the schedule
   # catches what the events missed, such as a run the lanes App started, which
-  # the broker refuses. It arms only on the verifier evidence pr-merge's gate
-  # would take at the head (babysit_verify_evidence.py, read with the job's
-  # GITHUB_TOKEN as the gate does, from the head-ref map and run cache the
-  # last gate run kept), so a FAIL or the repeated-FAIL cap disarms too.
+  # the broker refuses. It arms only on a pr-verify pass at the head, read
+  # with the job's GITHUB_TOKEN: an event run looks the head's own pass up by
+  # exact name (2 to 4 lookups and a run read per pull request), and the
+  # scheduled run asks the gate's reader (babysit_verify_evidence.py, from the
+  # head-ref map and run cache the last gate run kept), so a FAIL or the
+  # repeated-FAIL cap disarms on the schedule.
   # Its own job and token: the broker mints one token per
   # job. Rules: .github/scripts/pr-merge/enable-auto-merge.mjs.
   enable-auto-merge:
@@ -1355,11 +1357,11 @@ jobs:
           issues: ${{ steps.config.outputs.issues }}
           superseded-ok: true
 
-      # The verdict reader's untied FAILs, as the gate job reads them: the
-      # head-ref map and the carried run cache. Any error leaves none, and
-      # the reader reads GitHub instead.
+      # The scheduled run's verdict reader ties untied FAILs as the gate job
+      # does: the head-ref map and the carried run cache. Any error leaves
+      # none, and the reader reads GitHub instead. Event runs need neither.
       - name: Read the head refs the last gate run kept
-        if: steps.lane-token.outputs.token != ''
+        if: steps.lane-token.outputs.token != '' && github.event_name == 'schedule'
         continue-on-error: true
         env:
           ACTIONS_TOKEN: ${{ github.token }}
@@ -1367,7 +1369,7 @@ jobs:
         run: node .base/.github/scripts/pr-merge/head-ref-map.mjs read
 
       - name: Restore the verdict reads the last gate run kept
-        if: steps.lane-token.outputs.token != ''
+        if: steps.lane-token.outputs.token != '' && github.event_name == 'schedule'
         continue-on-error: true
         timeout-minutes: 2
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -1377,7 +1379,7 @@ jobs:
           restore-keys: pr-merge-run-cache-
 
       - name: Start the run cache from them
-        if: steps.lane-token.outputs.token != ''
+        if: steps.lane-token.outputs.token != '' && github.event_name == 'schedule'
         continue-on-error: true
         env:
           CARRY_FROM: ${{ runner.temp }}/pr-merge-carried.json
@@ -1393,6 +1395,7 @@ jobs:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           RESOLVED_CONFIG: ${{ runner.temp }}/resolved-config.json
+          EVENT_NAME: ${{ github.event_name }}
           BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
           BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json

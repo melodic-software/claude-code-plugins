@@ -14,7 +14,20 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
-import { ARM_MUTATION, BODY_HOLD, DETAIL_QUERY, DISARM_MUTATION, HUMAN_VETO, PULLS_QUERY, decide, main, verifyHold } from "./enable-auto-merge.mjs";
+import {
+  ARM_MUTATION,
+  BODY_HOLD,
+  DETAIL_QUERY,
+  DISARM_MUTATION,
+  HUMAN_VETO,
+  PULLS_QUERY,
+  decide,
+  headPassVerify,
+  main,
+  verifyFor,
+  verifyHold,
+} from "./enable-auto-merge.mjs";
+import { headRefDigest } from "../pr-verify/write-verdict.mjs";
 import { VERIFY_PATH, verdictHold } from "./merge-holds.mjs";
 import { VERIFY_PATH as RESOLVER_VERIFY_PATH } from "../pr-verify/resolve-pr.mjs";
 import { decide as decideOutcome } from "../work-resolve-issue/report-outcome.mjs";
@@ -89,7 +102,7 @@ function world(pulls, { failArm = false } = {}) {
   // The gate's verifier evidence: a pull request's `verdict` (a report, or
   // an Error to throw), else a pass at its head.
   const verified = [];
-  const verify = async (number, head) => {
+  const verify = async ({ number, headRefOid: head }) => {
     verified.push(number);
     const found = pulls.find((candidate) => candidate.number === number);
     if (found?.verdict instanceof Error) {
@@ -477,4 +490,89 @@ test("verdictHold counts a pass only from a successful pr-verify run on main", (
 // test_verify_rules_sync.py ties the resolver's path to the gate's WORKFLOW_PATH.
 test("verdictHold names the verifier workflow the resolver and the gate name", () => {
   assert.equal(VERIFY_PATH, RESOLVER_VERIFY_PATH);
+});
+
+// Event runs look the head's own pass up by exact name, as ci-status does in
+// the merge queue; only the scheduled run spends the full reader.
+test("the scheduled run reads with the gate's reader, every event run by exact name", () => {
+  const env = { GITHUB_REPOSITORY: REPO };
+  assert.equal(verifyFor({ ...env, EVENT_NAME: "schedule" }, null).mode, "reader");
+  for (const event of ["workflow_run", "pull_request_target", "workflow_dispatch", undefined]) {
+    assert.equal(verifyFor({ ...env, EVENT_NAME: event }, null).mode, "head-pass", String(event));
+  }
+});
+
+function actionsWorld(artifacts, runs) {
+  const reads = [];
+  const actions = async (method, path) => {
+    reads.push(path);
+    assert.equal(method, "GET");
+    const byName = /\/actions\/artifacts\?name=([^&]+)&per_page=100$/.exec(path);
+    if (byName) {
+      const name = decodeURIComponent(byName[1]);
+      return {
+        artifacts: [
+          ...(artifacts[name] ?? []).map((id) => ({ name, expired: false, workflow_run: { id } })),
+          { name, expired: true, workflow_run: { id: 1 } },
+          { name: `${name}-i1`, expired: false, workflow_run: { id: 1 } },
+        ],
+      };
+    }
+    const run = /\/actions\/runs\/([0-9]+)$/.exec(path);
+    if (run && runs[run[1]]) {
+      return runs[run[1]];
+    }
+    throw new Error(`GET ${path} failed with status 404`);
+  };
+  return { actions, reads };
+}
+
+test("headPassVerify passes on a successful pr-verify run's pass at the head, by exact name", async () => {
+  const good = {
+    path: VERIFY_PATH,
+    event: "workflow_run",
+    head_branch: "main",
+    status: "completed",
+    conclusion: "success",
+    repository: { full_name: REPO },
+    head_repository: { full_name: REPO },
+  };
+  const runs = { 1: good, 11: good, 12: { ...good, conclusion: "failure" }, 13: { ...good, path: ".github/workflows/x.yml" } };
+  const digest = headRefDigest("work-resolve-issue/issue-1");
+  const target = pull(7, { headRefName: "work-resolve-issue/issue-1" });
+  const check = async (artifacts) => {
+    const { actions, reads } = actionsWorld(artifacts, runs);
+    return { ...(await headPassVerify(actions, REPO)(target)), lookups: reads.filter((path) => path.includes("artifacts?name=")).length };
+  };
+  assert.deepEqual(await check({ [`pr-verify-7-${HEAD}-pass`]: [11] }), { refusal: null, head: HEAD, lookups: 1 });
+  assert.deepEqual(await check({ [`pr-verify-7-${HEAD}-pass-notes-${digest}`]: [11] }), { refusal: null, head: HEAD, lookups: 4 });
+  assert.deepEqual(await check({}), { refusal: "verify:missing", head: HEAD, lookups: 4 });
+  assert.deepEqual(await check({ [`pr-verify-7-${"c".repeat(40)}-pass`]: [11] }), { refusal: "verify:missing", head: HEAD, lookups: 4 });
+  assert.deepEqual(await check({ [`pr-verify-8-${HEAD}-pass`]: [11] }), { refusal: "verify:missing", head: HEAD, lookups: 4 });
+  assert.deepEqual(await check({ [`pr-verify-7-${HEAD}-pass`]: [12] }), { refusal: "verify:missing", head: HEAD, lookups: 4 });
+  assert.equal((await check({ [`pr-verify-7-${HEAD}-pass`]: [13] })).refusal, "verify:missing");
+  await assert.rejects(check({ [`pr-verify-7-${HEAD}-pass`]: [99] }), /404/);
+});
+
+test("an event run arms on the head's pass and leaves a head with none", async () => {
+  const { github, writes } = world([pull(1), pull(2)]);
+  const { actions } = actionsWorld({ [`pr-verify-1-${HEAD}-pass`]: [11] }, {
+    11: {
+      path: VERIFY_PATH,
+      event: "workflow_run",
+      head_branch: "main",
+      status: "completed",
+      conclusion: "success",
+      repository: { full_name: REPO },
+      head_repository: { full_name: REPO },
+    },
+  });
+  const log = console.log;
+  console.log = () => {};
+  try {
+    assert.equal(await main({ env: { ...ENV, EVENT_NAME: "workflow_run" }, github, actions }), 0);
+  } finally {
+    console.log = log;
+  }
+  assert.deepEqual(writes(), [{ mutation: "arm", id: "PR_1", head: HEAD }]);
 });

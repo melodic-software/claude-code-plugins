@@ -1049,12 +1049,14 @@ opens with `Closes #<issue>`, and carries no hold: no `Hold:` line or "do not me
 (the gate's own rule), no `do-not-merge` or human-gated label, and no member (owner, member or
 collaborator) whose newest comment, review or inline comment with text says "do not merge" (the
 gate's veto rule; a later comment lifts it), and whose head changes no path in the lane's
-`merge.diff-check.denied-paths`, read on the files the head changes at each run, and whose
-verifier verdict at that head the pr-merge gate would take: `babysit_verify_evidence.py evidence`
-(the gate's reader, with its saved listing, head-ref map and run cache) refuses nothing, so a
-PASS or PASS-NOTES of [pr-verify](#verifier-verdict) stands at the head, no FAIL is at it, and
-FAILs sit at fewer than `merge.max-verify-fails` heads. It is read last, only for a pull request
-every other rule would arm or keep armed. It turns auto-merge off on an armed one that now fails
+`merge.diff-check.denied-paths`, read on the files the head changes at each run, and that has a
+PASS or PASS-NOTES of [pr-verify](#verifier-verdict) at that head. That is read last, only for a
+pull request every other rule would arm or keep armed. An event run looks the head's own pass up
+by exact artifact name, as `ci-status` does in the merge queue (below). The scheduled run asks the
+gate's reader instead (`babysit_verify_evidence.py evidence`, with its saved listing, head-ref map
+and run cache), which also refuses a FAIL at the head, an earlier FAIL not cleared, and FAILs at
+`merge.max-verify-fails` or more heads; a pull request that goes over the cap between scheduled
+runs stays armed until the next one. It turns auto-merge off on an armed one that now fails
 any of those, and does not turn it back on once a person has turned it off. GitHub then merges the pull request through the merge queue
 once `ci-status` passes. The issue lane finishing (`workflow_run`) wakes it, so a pull request is
 armed right after report-outcome opens it; a listed human's edit, unlabel or ready wakes it too, so
@@ -1090,7 +1092,7 @@ holds a head pr-verify has not passed. The same trusted approval of the head lif
 request the gate sends to a person. It runs only in the queue: pr-verify runs only after a
 successful `pull_request` run of `pr-require-checks`, so a red `ci-status` there would never get a
 verdict, and a pull request event makes no verdict read. FAILs and the repeated-FAIL cap are
-`enable-auto-merge.mjs`'s, which disarms such a pull request on its next run.
+`enable-auto-merge.mjs`'s, which disarms such a pull request on its next scheduled run.
 
 ### Dependabot pull requests
 

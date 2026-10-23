@@ -183,6 +183,7 @@ test("enable-auto-merge asks the broker for its own activity's merge token", () 
   // GITHUB_TOKEN for the Actions reads, with the run's head-ref map and
   // carried run cache.
   for (const line of [
+    "EVENT_NAME: ${{ github.event_name }}",
     "BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}",
     "BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json",
     "BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json",
@@ -190,6 +191,8 @@ test("enable-auto-merge asks the broker for its own activity's merge token", () 
     assert.ok(arm.includes(`\n          ${line}\n`), line);
   }
   assert.match(arm, /node \.base\/\.github\/scripts\/pr-merge\/head-ref-map\.mjs read\n/);
+  // Only the scheduled run spends the full reader, so only it reads the map.
+  assert.match(arm, /- name: Read the head refs the last gate run kept\n {8}if: steps\.lane-token\.outputs\.token != '' && github\.event_name == 'schedule'\n/);
   assert.match(arm, /MAX_VERIFY_FAILS=\$\(yq '\.merge\."max-verify-fails" \/\/ ""' "\$config"\)\n/);
 });
 
