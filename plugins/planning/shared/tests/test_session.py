@@ -3182,7 +3182,9 @@ class TestSessionControls(SessionCase):
     def test_the_owner_can_reopen_an_ended_session(self):
         self.act("end_session", HOST, {"on": True})
         self.act("end_session", HOST, {"on": False})
-        self.act("chat", self.ann, {"text": "Back again"})
+        self.assertEqual(self.s.state["session"]["phase"], {"kind": "live"})
+        msg = self.act("chat", self.ann, {"text": "Back again"})["id"]
+        self.assertEqual([m["text"] for m in self.s.state["chat"] if m["id"] == msg], ["Back again"])
 
     def test_link_rotation_is_owner_only(self):
         self.refused("owner-only", "rotate_guest_link", self.ann, {})
