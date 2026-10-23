@@ -124,7 +124,8 @@ run_prepare
 T0=$(val conflict-tree)
 check 'conflict-tree: a full tree id' 1 "$([[ $T0 =~ ^[0-9a-f]{40}$ ]] && echo 1)"
 check 'conflict-tree: the unmerged path holds the marker file' "$(git -C "$R" hash-object --no-filters a.txt)" "$(tg rev-parse "$T0:a.txt")"
-if tg cat-file -p "$T0:a.txt" | grep -q '^<<<<<<< '; then ok 'conflict-tree: the marker file holds markers'; else not_ok 'conflict-tree: the marker file holds markers'; fi
+T0_A=$(tg cat-file -p "$T0:a.txt")
+if grep -q '^<<<<<<< ' <<<"$T0_A"; then ok 'conflict-tree: the marker file holds markers'; else not_ok 'conflict-tree: the marker file holds markers'; fi
 check 'conflict-tree: a base-side path is the merge stage-0 blob' "$(tg rev-parse main:b.txt)" "$(tg rev-parse "$T0:b.txt")"
 check 'conflict-tree: the head-side mode' "$(tg ls-tree pr a.txt | cut -d' ' -f1)" "$(tg ls-tree "$T0" a.txt | cut -d' ' -f1)"
 check 'conflict-tree: the live index stays unmerged' 123 "$(tg ls-files -u -- a.txt | awk '{s = s $3} END {print s}')"
