@@ -51,10 +51,27 @@ records behind these statements live in
   in the action's `claude_args` (`--allowedTools
   mcp__github_inline_comment__create_inline_comment`). Rely on the lane
   wrapper's grant; do not assume this frontmatter installed it.
+- The frontmatter's `gh` grants serve a wrapper that runs with Bash. A lane
+  that runs without Bash cannot use them: there the files the wrapper names
+  ("Inputs" below) are the only source of the diff, and skip-gate items 1, 2
+  and 4 are the wrapper's job gate and scope step, not yours.
 - Scope security findings **out** of this lane wherever the consumer runs a
   separate security lane, and leave those to `/review:security-review`. Where no
   security lane runs, report them here: a suppressed finding would have no other
   reader.
+
+## Inputs
+
+The wrapper names its files on prompt lines; take each path from its line.
+
+- **Diff.** The file on the line that starts `FULL DIFF:` holds the whole
+  pull request's diff. When a `REVIEW SCOPE: incremental` note names a file
+  (`That change is in <path>`), review that file's change and use the full
+  diff, else `gh pr diff`, only for context. With no diff line, use
+  `gh pr diff`. With neither a named file nor a working `gh`, review nothing:
+  say in the summary that the diff could not be read.
+- **PR context.** The file on the line that starts `PR CONTEXT:` ("Closing
+  issue" under Criteria).
 
 ## Skip gate (cheap)
 
@@ -154,8 +171,8 @@ entry-versus-manifest precedence is at
 As of: 2026-10-21. Recheck trigger: that page changes a `userConfig` field's semantics, the
 `options` floor, or how a marketplace entry combines with `plugin.json`.
 
-Scope the review to files changed in this PR. Use `gh pr diff` to identify what
-changed, then review those files. Reading the PR context file, the matching rule
+Scope the review to files changed in this PR: read the diff from "Inputs"
+below, then review those files. Reading the PR context file, the matching rule
 files, the tests that would cover a criterion, and a changed plugin's files when
 looking for what reads a new or changed `userConfig` key is in scope; do not explore
 other parts of the codebase.
@@ -182,7 +199,9 @@ A `manifest <field>: flag` line is exempt from this bar: it counts as a finding 
 
 When you fan out subagents for candidate findings, dispatch each hunter and
 verifier as the `review:lane-verifier` agent, never a general-purpose
-subagent, so no subagent can re-invoke this skill and fan out. The producer of a
+subagent, so no subagent can re-invoke this skill and fan out. Name in each
+brief the diff file and PR context file from "Inputs", when the wrapper named
+them: a subagent of a lane without Bash has no other way to the diff. The producer of a
 finding must not be the verifier. Drop candidates the verifier rejects, except a
 `manifest <field>: flag` line, which a verifier never drops: the diff hitting the item is the
 evidence. Committable
@@ -192,6 +211,6 @@ suggestion alone fully fixes the finding on the anchored lines.
 ## Reporting
 
 Follow the reporting mechanics the workflow wrapper appended to the prompt
-(inline MCP tool vs `gh`). Keep the summary comment for overview and
+(inline MCP tool, `gh`, or the output schema it supplies). Keep the summary comment for overview and
 cross-file / whole-PR findings; use commit-blob permalinks with the supplied
 HEAD SHA for locations no changed line can carry.
