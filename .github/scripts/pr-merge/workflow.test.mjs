@@ -12,6 +12,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
+import { VERIFY_BUDGET_MS, VERIFY_TIMEOUT_MS } from "./enable-auto-merge.mjs";
+
 const read = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
 const merge = read("pr-merge.yml");
 const jobs = merge.slice(merge.indexOf("\njobs:\n"));
@@ -162,6 +164,13 @@ test("the issue lane finishing wakes only the enable-auto-merge job", () => {
   assert.match(arm, /\n {4}concurrency:\n {6}group: pr-merge-enable-auto-merge\n {6}queue: max\n/);
 });
 
+test("the last verifier read enable-auto-merge starts ends inside its step's timeout", () => {
+  const arm = job("enable-auto-merge");
+  const step = /- name: Arm and disarm auto-merge\n {8}if: .*\n {8}timeout-minutes: ([0-9]+)\n/.exec(arm);
+  assert.ok(step, "the arm step names its timeout");
+  assert.ok(VERIFY_BUDGET_MS + VERIFY_TIMEOUT_MS < Number(step[1]) * 60_000);
+});
+
 test("enable-auto-merge asks the broker for its own activity's merge token", () => {
   const arm = job("enable-auto-merge");
   const steps = [...arm.matchAll(/\n {10}lane: (.*)\n {10}activity: (.*)\n/g)].map((m) => `${m[1]}/${m[2]}`);
@@ -177,8 +186,27 @@ test("enable-auto-merge asks the broker for its own activity's merge token", () 
   const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(arm)[1];
   assert.deepEqual(
     [...block.matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => `${m[1]}: ${m[2]}`),
-    ["contents: read", "id-token: write"],
+    ["contents: read", "actions: read", "id-token: write"],
   );
+  // The verifier evidence is read as the gate reads it: the job's
+  // GITHUB_TOKEN for the Actions reads, with the run's head-ref map and
+  // carried run cache.
+  for (const line of [
+    "EVENT_NAME: ${{ github.event_name }}",
+    "BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}",
+    "BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json",
+    "BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json",
+  ]) {
+    assert.ok(arm.includes(`\n          ${line}\n`), line);
+  }
+  assert.match(arm, /node \.base\/\.github\/scripts\/pr-merge\/head-ref-map\.mjs read\n/);
+  // Only the runs that read the verdict (READER_EVENTS) read the map.
+  assert.match(
+    arm,
+    /- name: Read the head refs the last gate run kept\n {8}if: steps\.lane-token\.outputs\.token != '' && \(github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch'\)\n/,
+  );
+  // The reader resolves the FAIL cap itself, from the base and main (--base-sha).
+  assert.doesNotMatch(arm, /MAX_VERIFY_FAILS/);
 });
 
 // The dispatch POST's retry, run under bash against a stub gh that answers
