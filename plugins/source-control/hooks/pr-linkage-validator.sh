@@ -336,8 +336,11 @@ section_content_to() {
 # heading-level section bounds — stays intact.
 mask_markdown_code_to() {
   local __plv_dest="$1" body="$2" line rest rendered fence_char="" fence_len=0 in_fence=0
-  local marker_run marker_rest i ticks len k m j sidx nspans nruns cs ce out="" li=0
-  local -a runs_pos runs_len spans_start spans_end used
+  local marker_run marker_rest f nf ticks j r nruns ticks_text out="" li=0 IFS
+  local -a fields runs_before runs_len closer last
+  # The backtick split below must not glob the line's own `*`, `?` or `[`.
+  local -
+  set -f
   # Up to three leading spaces, then the fence run, then the info string.
   local fence_re='^ {0,3}(`{3,}|~{3,})(.*)$'
   linkage::split_lines "$body"
@@ -373,67 +376,56 @@ mask_markdown_code_to() {
       out+=$'\n'
       continue
     fi
-    # Collect backtick runs in one left-to-right pass, then pair each opener
-    # with the next unused same-length run. A per-opener rescan of the
-    # remainder is O(L^1.5) on a line of distinct run lengths and can exceed
-    # the 15s PreToolUse timeout, which fails this gate open.
-    runs_pos=()
+    if [[ "$rest" != *'`'* ]]; then
+      out+="$rest"$'\n'
+      continue
+    fi
+    # Split the line at its backticks, so field f sits between backtick f-1
+    # and backtick f and a run of t backticks leaves t-1 empty fields; word
+    # splitting drops the field after a final backtick, so it is put back.
+    # Every step below is linear in the line: the `${rest:i:1}` walk this
+    # replaced measured the whole line per character, 4.8 s on 30,000 words.
+    IFS='`'
+    # shellcheck disable=SC2206  # the split is the point; set -f above stops globbing
+    fields=($rest)
+    [[ "$rest" == *'`' ]] && fields+=("")
+    nf=${#fields[@]}
+    runs_before=()
     runs_len=()
-    i=0
-    len=${#rest}
-    while ((i < len)); do
-      if [[ "${rest:i:1}" == '`' ]]; then
-        ticks=1
-        while ((i + ticks < len)) && [[ "${rest:i+ticks:1}" == '`' ]]; do ((ticks++)); done
-        runs_pos+=("$i")
-        runs_len+=("$ticks")
-        i=$((i + ticks))
-      else
-        ((i++))
-      fi
+    for ((f = 1; f < nf; f++)); do
+      runs_before+=("$((f - 1))")
+      ticks=1
+      while ((f < nf - 1)) && [[ -z "${fields[f]}" ]]; do
+        ticks=$((ticks + 1))
+        f=$((f + 1))
+      done
+      runs_len+=("$ticks")
     done
     # CommonMark: leftmost opener consumes through the next same-length
     # run; everything between is content (nested pairs, the escaped-tick
-    # idiom, leftover pending of another length). Walk openers in order
-    # and mark absorbed runs used so they cannot steal a later pair.
-    nruns=${#runs_pos[@]}
-    used=()
-    for ((k = 0; k < nruns; k++)); do used[k]=0; done
-    spans_start=()
-    spans_end=()
-    for ((k = 0; k < nruns; k++)); do
-      ((used[k])) && continue
-      ticks=${runs_len[k]}
-      j=-1
-      for ((m = k + 1; m < nruns; m++)); do
-        if ((used[m] == 0 && runs_len[m] == ticks)); then
-          j=$m
-          break
-        fi
-      done
-      ((j < 0)) && continue
-      used[k]=1
-      used[j]=1
-      for ((m = k + 1; m < j; m++)); do
-        used[m]=1
-      done
-      cs=${runs_pos[k]}
-      ce=$((runs_pos[j] + runs_len[j]))
-      spans_start+=("$cs")
-      spans_end+=("$ce")
+    # idiom, leftover pending of another length). Openers are taken in
+    # order and a pair absorbs every run between, so the closer of run r is
+    # the next run of the same length, found for all runs in one backward
+    # pass (a per-opener forward rescan is O(L^1.5) on distinct lengths).
+    nruns=${#runs_len[@]}
+    closer=()
+    last=()
+    for ((r = nruns - 1; r >= 0; r--)); do
+      ticks=${runs_len[r]}
+      closer[r]=${last[ticks]:--1}
+      last[ticks]=$r
     done
-    rendered=""
-    i=0
-    sidx=0
-    nspans=${#spans_start[@]}
-    while ((i < len)); do
-      if ((sidx < nspans && i == spans_start[sidx])); then
-        i=${spans_end[sidx]}
-        ((sidx++))
-        continue
+    # A paired span renders as nothing; an unpaired run stays as backticks.
+    rendered="${fields[0]}"
+    for ((r = 0; r < nruns; r++)); do
+      j=${closer[r]}
+      if ((j >= 0)); then
+        r=$j
+      else
+        printf -v ticks_text '%*s' "${runs_len[r]}" ''
+        rendered+="${ticks_text// /\`}"
       fi
-      rendered+="${rest:i:1}"
-      ((i++))
+      rendered+="${fields[runs_before[r] + runs_len[r]]}"
     done
     out+="$rendered"$'\n'
   done

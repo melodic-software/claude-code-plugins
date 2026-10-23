@@ -764,6 +764,14 @@ timed_run() {
 } >"$GATED/long-words.md"
 timed_run "30000-word line ending in closes #1" long-words.md 0
 
+# 15,000 inline spans on one line: the code-span mask read the line one
+# character at a time, and each read measured the whole line.
+{
+  yes "\`w\`" | head -n 15000 | tr '\n' ' '
+  printf 'closes #1\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n- x\n'
+} >"$GATED/long-spans.md"
+timed_run "15000 inline spans on a line ending in closes #1" long-spans.md 0
+
 # An unterminated comment keeps the keyword before it and drops the rest, so the
 # stripped body is ~65,400 blank lines whose trailing run chomp_to removes.
 {
