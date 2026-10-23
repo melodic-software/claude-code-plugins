@@ -142,6 +142,7 @@
             "type": "command",
             "shell": "bash",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/hook-failure-audit.sh\"",
+            "async": true,
             "timeout": 10,
             "statusMessage": "Checking for unsurfaced hook failures..."
           }
