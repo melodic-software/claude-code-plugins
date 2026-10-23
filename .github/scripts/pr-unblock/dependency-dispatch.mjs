@@ -14,8 +14,9 @@
 // maxDispatch is reached, none for a head the record holds as reviewed, and
 // no commits or files for a red ci-status, which is review tier on its own
 // (dependency-classify.mjs classify). A head is recorded only once a verdict
-// check started after its newest review-dependency check, so a no-model-turn
-// verdict still to come can release it.
+// check started after its newest review-dependency check, or that check is a
+// select job skip no verdict follows, so a no-model-turn verdict still to come
+// can release it.
 
 import { DEPENDABOT_ID, DEPENDABOT_LOGIN, RED } from "./dependency-classify.mjs";
 import { emptyRecord, isHandled, markHandled } from "./dispatch-record.mjs";
@@ -39,6 +40,11 @@ const RUN_ID = /^[1-9][0-9]{0,14}$/;
 
 const handles = (run) =>
   !(run.status === "completed" && run.conclusion === "neutral" && String(run.output?.title ?? "").startsWith("Skipped: untrusted-trigger"));
+
+// The neutral titles review-dependency-not-run posts from the select job's
+// skip reasons (review-dependency.mjs select): no verdict job follows them,
+// so no no-model-turn verdict can release the head.
+const TERMINAL_SKIPS = new Set(["Skipped: awaiting-human", "Skipped: not-applicable", "Skipped: superseded-sha"]);
 
 // NaN for a run with no readable start: it compares false either way.
 const startOf = (run) => Date.parse(run.started_at ?? "");
@@ -135,9 +141,12 @@ export async function dispatchDependencyReviews({
       }
       // Until a verdict check started after the newest review-dependency
       // check, a no-model-turn verdict may still release the head, so it is
-      // not recorded yet. An unreadable start records nothing.
+      // not recorded yet; a newest check that is a select job skip no verdict
+      // job follows records at once. An unreadable start records nothing.
       const newestCheck = Math.max(...existing.map(startOf));
-      if (existing.some((run) => run.status === "completed" && handles(run)) && verdicts.some((run) => startOf(run) > newestCheck)) {
+      const last = existing.find((run) => startOf(run) === newestCheck);
+      const terminal = last?.status === "completed" && last.conclusion === "neutral" && TERMINAL_SKIPS.has(last.output?.title);
+      if (existing.some((run) => run.status === "completed" && handles(run)) && (terminal || verdicts.some((run) => startOf(run) > newestCheck))) {
         markHandled(record, checkName, node.headRefOid);
       }
     } catch (error) {

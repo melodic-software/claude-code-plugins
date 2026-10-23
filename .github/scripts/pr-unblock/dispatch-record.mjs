@@ -9,6 +9,10 @@ import { readFileSync, writeFileSync } from "node:fs";
 
 const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
+// Raised whenever a dispatcher changes which check runs handle a head for
+// good, so a record written under the old rule is read as empty: version 2
+// leaves unrecorded a head a later no-model-turn reply or verdict can release.
+export const RECORD_VERSION = 2;
 
 export function emptyRecord() {
   return { handled: new Map(), dispatched: new Map() };
@@ -22,7 +26,7 @@ export function parseRecord(text) {
   } catch {
     return record;
   }
-  if (doc?.version !== 1) {
+  if (doc?.version !== RECORD_VERSION) {
     return record;
   }
   for (const [check, heads] of Object.entries(doc.handled ?? {})) {
@@ -43,7 +47,7 @@ export function serializeRecord(record) {
     [...record.handled].filter(([, heads]) => heads.size > 0).sort(([a], [b]) => a.localeCompare(b)).map(([check, heads]) => [check, [...heads].sort()]),
   );
   const dispatched = Object.fromEntries([...record.dispatched].sort(([a], [b]) => a.localeCompare(b)));
-  return `${JSON.stringify({ version: 1, handled, dispatched })}\n`;
+  return `${JSON.stringify({ version: RECORD_VERSION, handled, dispatched })}\n`;
 }
 
 export const isHandled = (record, check, head) => record.handled.get(check)?.has(head) === true;

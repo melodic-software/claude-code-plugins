@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
-import { emptyRecord, markHandled } from "./dispatch-record.mjs";
+import { emptyRecord, markHandled, parseRecord } from "./dispatch-record.mjs";
 
 const CHECK = "pr-unblock / review-dependency";
 
@@ -268,6 +268,35 @@ test("a head whose newest review-dependency check has no later verdict check is 
   assert.equal(record.handled.get(CHECK), undefined);
   const later = await run(fakeApi({ nodes: [node], checks: headOf(node, [check, noModelTurn()]) }), { record });
   assert.deepEqual(later.dispatched, [{ number: 63, workflowRunId: "7063" }]);
+});
+
+// The round cap's skip, posted by review-dependency-not-run, has no verdict
+// job after it, so it records the head at once; a read runner skip waits for
+// its verdict.
+test("a head whose newest review-dependency check is a select skip is recorded, and a read runner skip is not", async () => {
+  for (const [label, runs] of [
+    ["the round cap after a no-model-turn round", [roundRun("review-dependency", "failure", "Failed", "2026-10-17T10:00:00Z"), noModelTurn(), roundRun("review-dependency", "neutral", "Skipped: awaiting-human", "2026-10-17T11:00:00Z")]],
+    ["the round cap alone", [roundRun("review-dependency", "neutral", "Skipped: awaiting-human", "2026-10-17T11:00:00Z")]],
+    ["a sort that no longer applies", [roundRun("review-dependency", "neutral", "Skipped: not-applicable", "2026-10-17T11:00:00Z")]],
+  ]) {
+    const node = pr(64);
+    const record = emptyRecord();
+    assert.deepEqual((await run(fakeApi({ nodes: [node], checks: headOf(node, runs) }), { record })).dispatched, [], label);
+    assert.ok(record.handled.get(CHECK)?.has(node.headRefOid), label);
+  }
+  const node = pr(65);
+  const record = emptyRecord();
+  await run(fakeApi({ nodes: [node], checks: headOf(node, [roundRun("review-dependency", "neutral", "Skipped: not-assessed", "2026-10-17T10:00:00Z")]) }), { record });
+  assert.equal(record.handled.get(CHECK), undefined);
+});
+
+// A record the dispatcher wrote before a no-model-turn verdict released the
+// head holds it as handled; that record's version is read as empty.
+test("a version 1 record that holds a no-model-turn head is ignored, and the head dispatches again", async () => {
+  const node = pr(66);
+  const record = parseRecord(JSON.stringify({ version: 1, handled: { [CHECK]: [node.headRefOid] }, dispatched: {} }));
+  const checks = headOf(node, [roundRun("review-dependency", "failure", "Failed", "2026-10-17T10:00:00Z"), noModelTurn()]);
+  assert.deepEqual((await run(fakeApi({ nodes: [node], checks }), { record })).dispatched, [{ number: 66, workflowRunId: "7066" }]);
 });
 
 // Reads spent only where they change the decision. Each count beside the
