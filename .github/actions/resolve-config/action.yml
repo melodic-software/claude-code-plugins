@@ -185,6 +185,9 @@ outputs:
   issues:
     description: The App grant's `issues` permission for the activity's effect.
     value: ${{ steps.resolve.outputs.issues }}
+  actions:
+    description: "The App grant's `actions` permission: `read` when lane-rules.json's `activity-grants` adds it, else empty."
+    value: ${{ steps.resolve.outputs.actions }}
   can-commit:
     description: "`false` only when the grant's `contents` is `read`."
     value: ${{ steps.resolve.outputs.can-commit }}

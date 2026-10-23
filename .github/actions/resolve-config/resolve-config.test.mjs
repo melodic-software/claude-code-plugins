@@ -202,6 +202,7 @@ test("a valid config writes ResolvedConfig and the selected activity's outputs",
     contents: "read",
     "pull-requests": "read",
     issues: "read",
+    actions: "",
     "can-commit": "false",
   });
 });
