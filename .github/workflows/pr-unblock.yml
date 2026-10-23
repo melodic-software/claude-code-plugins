@@ -419,7 +419,8 @@ jobs:
       review-run-attempt: ${{ needs.address-feedback-select.outputs.context-attempt }}
       # The replies, their SHA-256 and the patch state, all from the one leg
       # apply-feedback-patch reads; only the scan job, which ran no model or
-      # head code, sets these outputs.
+      # head code, sets these outputs. The scan's refusal arrives as the
+      # scan-refusal job's marker artifact, which the reply job downloads.
       review-replies-attempt: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '' }}
       review-replies-sha256: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-sha256 || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-sha256 || '' }}
       review-patch-state: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-state || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-state || '' }}
@@ -756,15 +757,15 @@ jobs:
       dependency-context-attempt: ${{ needs.review-dependency-select.outputs.context-attempt }}
       dependency-run-sha256: ${{ needs.review-dependency-select.outputs.run-sha256 }}
       dependency-head-sha: ${{ needs.review-dependency-select.outputs.head-sha }}
-      # The verdict, its SHA-256, the patch state and the scan's refusal, all
-      # from the one leg apply-dependency-patch reads; only the scan job,
-      # which ran no model or head code, sets these outputs. The verdict's
+      # The verdict, its SHA-256 and the patch state, all from the one leg
+      # apply-dependency-patch reads; only the scan job, which ran no model
+      # or head code, sets these outputs. The scan's refusal arrives as the
+      # scan-refusal job's marker artifact, which the verdict job downloads. The verdict's
       # attempt names the model run in the round marker, so "Re-run failed
       # jobs" on this job alone still downloads it.
       dependency-run-attempt: ${{ needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.dependency-attempt || needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.dependency-attempt || '' }}
       dependency-verdict-sha256: ${{ needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.dependency-sha256 || needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.dependency-sha256 || '' }}
       dependency-patch-state: ${{ needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.scan-patch-state || needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.scan-patch-state || '' }}
-      dependency-scan-refused: ${{ needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.scan-refused || needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.scan-refused || '' }}
 
   # fix-ci is four jobs, so no model ever holds a write token. This one runs
   # only base code with a read-only token and checks out no PR head: it hands
