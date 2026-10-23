@@ -3,6 +3,12 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.0] - 2026-10-23
+
+### Added
+
+- The `report` return contract has a core `next:` field after `counts:`: suggested follow-ups, each a `/plugin:skill` with arguments and a one-line reason, `[]` when there are none. The contract also says to pair every code in text a person reads with its plain name.
+
 ## [0.32.0] - 2026-10-22
 
 ### Added
