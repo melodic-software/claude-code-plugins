@@ -766,7 +766,9 @@ jobs:
       # (cursor.json, uploaded below). No setting: no budget. Each candidate's
       # gate reads for at most merge.gate-candidate-minutes, then stops before
       # its next read and is reported unknown (exit 11); the gate bounds only
-      # its reads, so a write it started finishes. No setting: no limit.
+      # its reads, so a write it started finishes. No setting: no limit. The
+      # first candidate stopped so is recorded in the cursor as deferred, and
+      # the next run gates it first with no limit (rotation.mjs).
       - name: Run the merge gate on each candidate
         id: gate
         if: steps.candidates.outcome == 'success'
@@ -815,6 +817,7 @@ jobs:
           mkdir -p "${cursor%/*}"
           started=$(date +%s)
           reached=0
+          deferred=
           # The script and its flags come from the merge-pr activity on main.
           read -ra args < <(jq -r '.selected.args // ""' "$RUNNER_TEMP/resolved-config.json")
           results="$RUNNER_TEMP/results.jsonl"
@@ -834,7 +837,7 @@ jobs:
           summary="$RUNNER_TEMP/pr-merge-summary.json"
           save() { jq -s . "$results" >"$summary.tmp" && mv "$summary.tmp" "$summary"; }
           save
-          while read -r number head updated; do
+          while read -r number head updated uncapped; do
             if [ -n "$budget" ] && (($(date +%s) - started >= budget * 60)); then
               stop="the ${budget}-minute gate budget is used after $reached of $(jq length "$RUNNER_TEMP/candidates.json") candidates; the next run starts after #$(jq .last "$cursor" 2>/dev/null || echo none)"
               echo "::notice::$stop"
@@ -843,9 +846,11 @@ jobs:
             fi
             out="$RUNNER_TEMP/gate-$number.json"
             code=0
+            cap=()
+            [ "$uncapped" = true ] || cap=("${limit[@]}")
             ".base/$SCRIPT" "${args[@]}" --allowed-owners "$OWNER" \
               --lane-kill-switch "$KILL_SWITCH" --lane-rung-cap "$RUNG_CAP" \
-              --postmerge-result "$RUNNER_TEMP/post-merge.json" "${limit[@]}" \
+              --postmerge-result "$RUNNER_TEMP/post-merge.json" "${cap[@]}" \
               --expected-head "$head" "$REPO#$number" </dev/null >"$out" || code=$?
             echo "::group::PR #$number at $head: exit $code"
             cat "$out"
@@ -864,8 +869,11 @@ jobs:
             ' "$out" >>"$results"
             save
             reached=$((reached + 1))
-            echo "{\"last\":$number}" >"$cursor"
-          done < <(jq -r '.[] | "\(.number) \(.head) \(.updatedAt)"' "$RUNNER_TEMP/candidates.json")
+            if [ "$code" = 11 ] && [ -z "$deferred" ]; then
+              deferred=$number
+            fi
+            echo "{\"last\":$number${deferred:+,\"deferred\":$deferred}}" >"$cursor"
+          done < <(jq -r '.[] | "\(.number) \(.head) \(.updatedAt) \(.uncapped == true)"' "$RUNNER_TEMP/candidates.json")
           dispatch=$(jq 'any(.[]; .merged and .dispatched != true)' "$summary")
           echo "dispatch=$dispatch" >>"$GITHUB_OUTPUT"
 

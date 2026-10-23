@@ -442,7 +442,12 @@ test("the record step warns on refused re-runs and errors when the record was no
 // `skipped` as the skip step's file when given. `gate` replaces the fake
 // gate's body, and `candidateMinutes` is merge.gate-candidate-minutes.
 const REFUSING_GATE = `echo '{"ready": false, "blockers": ["x"], "unattended": {"reason": "verify:missing"}}'\nexit 10\n`;
-const runBudgetedGate = (budget, clock, skipped, { gate = REFUSING_GATE, candidateMinutes = "" } = {}) => {
+const runBudgetedGate = (
+  budget,
+  clock,
+  skipped,
+  { gate = REFUSING_GATE, candidateMinutes = "", candidates = [7, 3, 5].map((number) => ({ number, head: `h${number}`, updatedAt: "u" })) } = {},
+) => {
   const dir = mkdtempSync(join(tmpdir(), "pr-merge-budget-"));
   try {
     const bin = join(dir, "bin");
@@ -460,10 +465,7 @@ const runBudgetedGate = (budget, clock, skipped, { gate = REFUSING_GATE, candida
     for (const file of [join(bin, "gh"), join(bin, "date"), join(dir, ".base", "gate")]) chmodSync(file, 0o755);
     writeFileSync(join(dir, "resolved-config.json"), '{"selected": {"args": ""}}');
     writeFileSync(join(dir, "held.json"), "[]");
-    writeFileSync(
-      join(dir, "candidates.json"),
-      JSON.stringify([7, 3, 5].map((number) => ({ number, head: `h${number}`, updatedAt: "u" }))),
-    );
+    writeFileSync(join(dir, "candidates.json"), JSON.stringify(candidates));
     if (skipped !== undefined) writeFileSync(join(dir, "skipped.json"), skipped);
     const result = spawnSync("bash", ["-c", runScript("Run the merge gate on each candidate")], {
       cwd: dir,
@@ -541,7 +543,47 @@ test("a candidate stopped at its read limit is reported unknown, never ready, an
       [5, 10, false, false, "verify:missing"],
     ],
   );
-  assert.deepEqual(JSON.parse(run.cursor), { last: 5 });
+  assert.deepEqual(JSON.parse(run.cursor), { last: 5, deferred: 7 });
+});
+
+test("a candidate that always passes its read limit still gets one uncapped gate the next run", async () => {
+  const { main: rotation } = await import("./rotation.mjs");
+  // #7's gate always runs past the limit when it has one.
+  const gate =
+    `if [[ $* == *--candidate-deadline-seconds*'#7' ]]; then echo '{"error": "unknown:candidate-deadline; stopped"}'; exit 11; fi\n` +
+    REFUSING_GATE;
+  const first = runBudgetedGate("", [0, 0, 1, 2], undefined, { gate, candidateMinutes: "4" });
+  assert.equal(first.status, 0, first.stderr);
+  assert.deepEqual(JSON.parse(first.cursor), { last: 5, deferred: 7 });
+  assert.deepEqual(first.summary.map((row) => [row.pr, row.exit]), [[7, 11], [3, 10], [5, 10]]);
+  // The next run's rotation reads that cursor.
+  const dir = mkdtempSync(join(tmpdir(), "pr-merge-rotation-"));
+  let candidates;
+  try {
+    const path = join(dir, "candidates.json");
+    writeFileSync(path, JSON.stringify([3, 5, 7].map((number) => ({ number, head: `h${number}`, updatedAt: "u" }))));
+    const actions = async (_method, url) =>
+      url.includes("/artifacts")
+        ? { artifacts: [{ expired: false }] }
+        : { workflow_runs: [{ id: 1, event: "schedule", head_branch: "main", path: ".github/workflows/pr-merge.yml" }] };
+    const log = console.log;
+    console.log = () => {};
+    try {
+      await rotation({ env: { GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "2", CANDIDATES_PATH: path }, actions, download: () => first.cursor });
+    } finally {
+      console.log = log;
+    }
+    candidates = JSON.parse(readFileSync(path, "utf8"));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  const second = runBudgetedGate("", [0, 0, 1, 2], undefined, { gate, candidateMinutes: "4", candidates });
+  assert.equal(second.status, 0, second.stderr);
+  assert.deepEqual(second.gated, ["o/r#7", "o/r#3", "o/r#5"]);
+  assert.doesNotMatch(second.argv[0], /--candidate-deadline-seconds/);
+  assert.ok(second.argv.slice(1).every((line) => line.includes("--candidate-deadline-seconds 240 ")));
+  assert.deepEqual(second.summary.map((row) => [row.pr, row.exit, row.reason]), [[7, 10, "verify:missing"], [3, 10, "verify:missing"], [5, 10, "verify:missing"]]);
+  assert.deepEqual(JSON.parse(second.cursor), { last: 5 });
 });
 
 test("with no read limit, or an unreadable one, the gate passes none", () => {

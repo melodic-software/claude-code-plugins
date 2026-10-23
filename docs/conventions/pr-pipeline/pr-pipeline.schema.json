@@ -877,7 +877,7 @@
         "gate-candidate-minutes": {
           "type": "integer",
           "minimum": 1,
-          "description": "Minutes one candidate's gate may spend in its read phases (the merge policy, then the verdict). Past it the gate starts no further read command and reports the candidate unknown (exit 11, reason unknown:candidate-deadline), never ready; no write is bounded, so none is cut short. The loop goes on to the next candidate within gate-budget-minutes, and a later run gates the stopped one again. Absent: no limit."
+          "description": "Minutes one candidate's gate may spend in its read phases (the merge policy, then the verdict). Past it the gate starts no further read command and reports the candidate unknown (exit 11, reason unknown:candidate-deadline), never ready; no write is bounded, so none is cut short. The loop goes on to the next candidate within gate-budget-minutes. The first candidate a run stops is gated first in the next run with no limit, so one that always runs past it still gets a whole gate. Absent: no limit."
         },
         "skip-unchanged": {
           "type": "object",

@@ -943,7 +943,9 @@ The workflow's gate loop starts no further candidate once it has run `merge.gate
 between its check and its enqueue. One candidate's gate reads for at most
 `merge.gate-candidate-minutes` (absent: no limit): past it the gate starts no further read and the
 candidate is reported `unknown:candidate-deadline`, never ready, while a write already started
-finishes; the loop goes on to the next candidate, and a later run gates it again. Each run starts after the last candidate the previous loop
+finishes; the loop goes on to the next candidate. The first candidate a run stops so is recorded in
+the cursor as deferred, and the next run gates it first with no limit, so a pull request whose gate
+always runs past the limit still gets a whole gate. Each run starts after the last candidate the previous loop
 reached and wraps round to the lowest PR number, so every candidate is reached across runs. The
 position is the `pr-merge-gate-cursor` artifact, read only from a scheduled or hand-started
 `pr-merge.yml` run on the default branch, found through that workflow's run list; it sets the order

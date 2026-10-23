@@ -75,7 +75,8 @@ async function run({ pages = [[]], cursors = {}, fail } = {}) {
   } finally {
     console.log = log;
   }
-  return { order: numbers(JSON.parse(readFileSync(candidates, "utf8"))), calls, downloads, lines };
+  const written = JSON.parse(readFileSync(candidates, "utf8"));
+  return { order: numbers(written), uncapped: numbers(written.filter((c) => c.uncapped === true)), calls, downloads, lines };
 }
 
 const wf = (id, event, branch = "main", path = ".github/workflows/pr-merge.yml") => ({ id, event, head_branch: branch, path });
@@ -117,8 +118,23 @@ test("the lookup pages through main's runs, then stops at its bounds", async () 
   assert.deepEqual(paged.order, [10, 20, 30]);
 });
 
+test("a candidate the last run deferred at its read limit is gated first, and alone uncapped", async () => {
+  const deferred = await run({ pages: [[wf(7, "schedule")]], cursors: { 7: '{"last": 30, "deferred": 20}' } });
+  assert.deepEqual(deferred.order, [20, 30, 10]);
+  assert.deepEqual(deferred.uncapped, [20]);
+  // With none deferred, no candidate is uncapped.
+  const plain = await run({ pages: [[wf(7, "schedule")]], cursors: { 7: '{"last": 10}' } });
+  assert.deepEqual(plain.order, [20, 30, 10]);
+  assert.deepEqual(plain.uncapped, []);
+  // A deferred PR no longer listed leaves the others capped, starting above it.
+  const gone = await run({ pages: [[wf(7, "schedule")]], cursors: { 7: '{"last": 30, "deferred": 15}' } });
+  assert.deepEqual(gone.order, [20, 30, 10]);
+  assert.deepEqual(gone.uncapped, []);
+});
+
 test("an unreadable cursor leaves the listing order with a warning", async () => {
   for (const options of [
+    { pages: [[wf(1, "schedule")]], cursors: { 1: '{"last": 20, "deferred": "x"}' } },
     { fail: new Error("HTTP 502") },
     { pages: [[wf(1, "schedule")]], cursors: { 1: '{"last": "x"}' } },
     { pages: [[wf(1, "schedule")]], cursors: { 1: "not json" } },

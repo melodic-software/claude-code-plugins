@@ -6,7 +6,10 @@
 // every candidate is reached across runs.
 //
 // The previous position is the `pr-merge-gate-cursor` artifact each gate loop
-// uploads, `{"last": <PR number>}`. Only a scheduled or hand-started run of
+// uploads, `{"last": <PR number>}`, with `"deferred": <PR number>` when its
+// read limit (merge.gate-candidate-minutes) stopped a candidate. A deferred
+// candidate is gated first, marked `uncapped` so its gate runs with no limit:
+// one that always passes the limit still gets a whole gate the next run. Only a scheduled or hand-started run of
 // pr-merge.yml on main counts; a pull_request_target run runs the PR base
 // branch's copy, so its cursor is not read. The newest such run holding a
 // cursor wins, found from the workflow's own run list, never the repository's
@@ -65,7 +68,7 @@ function ghDownload({ repo, token, dir }) {
   };
 }
 
-// The newest trusted cursor's PR number, or undefined when there is none.
+// The newest trusted cursor, {last, deferred}, or undefined when there is none.
 export async function readCursor({ repo, runId, actions, download }) {
   let asked = 0;
   for (let page = 1; page <= MAX_PAGES; page += 1) {
@@ -89,11 +92,12 @@ export async function readCursor({ repo, runId, actions, download }) {
       if (!Array.isArray(found?.artifacts) || !found.artifacts.some((a) => a?.expired === false)) {
         continue;
       }
-      const last = JSON.parse(download(run.id))?.last;
-      if (!Number.isInteger(last) || last < 1) {
+      const cursor = JSON.parse(download(run.id));
+      const pr = (value) => Number.isInteger(value) && value >= 1;
+      if (!pr(cursor?.last) || (cursor.deferred !== undefined && !pr(cursor.deferred))) {
         throw new Error(`the cursor of run ${run.id} is not a PR number`);
       }
-      return last;
+      return { last: cursor.last, deferred: cursor.deferred };
     }
     if (listing.workflow_runs.length < 100) {
       return undefined;
@@ -103,7 +107,6 @@ export async function readCursor({ repo, runId, actions, download }) {
 }
 
 export async function main({ env = process.env, actions, download } = {}) {
-  let last;
   try {
     const repo = env.GITHUB_REPOSITORY ?? "";
     if (!REPO.test(repo)) {
@@ -116,15 +119,19 @@ export async function main({ env = process.env, actions, download } = {}) {
     }
     actions ??= createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     download ??= ghDownload({ repo, token: env.ACTIONS_TOKEN, dir: env.RUNNER_TEMP });
-    last = await readCursor({ repo, runId: String(env.GITHUB_RUN_ID), actions, download });
-    const ordered = rotate(candidates, last);
+    const cursor = await readCursor({ repo, runId: String(env.GITHUB_RUN_ID), actions, download });
+    const deferred = cursor?.deferred;
+    const ordered = rotate(candidates, deferred === undefined ? cursor?.last : deferred - 1).map((c) =>
+      c.number === deferred ? { ...c, uncapped: true } : c,
+    );
     writeFileSync(`${path}.tmp`, JSON.stringify(ordered));
     renameSync(`${path}.tmp`, path);
     const first = ordered[0]?.number;
     console.log(
-      last === undefined
+      cursor === undefined
         ? "no earlier gate cursor; the gate starts at the lowest PR number"
-        : `the last run's gate reached #${last}; this run starts at ${first === undefined ? "no candidate" : `#${first}`}`,
+        : `the last run's gate reached #${cursor.last}${deferred === undefined ? "" : ` and deferred #${deferred}`}; ` +
+            `this run starts at ${first === undefined ? "no candidate" : `#${first}`}`,
     );
   } catch (error) {
     console.log(`::warning title=rotation::${escapeCommand(error?.message ?? error)}; the gate runs in listing order`);
