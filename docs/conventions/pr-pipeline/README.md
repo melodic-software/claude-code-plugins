@@ -1034,7 +1034,7 @@ listed human's run, so an issue run the lanes App started is armed by the next s
 
 `ci-status` enforces the same two text holds on every lanes App pull request, so one added after
 arming stops the merge without waiting for this job: its step `Fail a lanes App pull request its
-body or a member holds` runs the base commit's `.github/scripts/pr-merge/merge-holds.mjs`, the
+body or a member holds` runs `.github/scripts/pr-merge/merge-holds.mjs` as main has it, the
 module `enable-auto-merge.mjs` arms by, over the live body and discussion, on each pull request
 event and in the merge queue, where a red group removes the pull request. A body edit re-runs
 `ci-status` at once. A comment does not, so a veto posted while armed takes effect when the queue

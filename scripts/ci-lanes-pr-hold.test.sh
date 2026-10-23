@@ -51,10 +51,10 @@ if [[ "$step" == *"github.event.pull_request.body"* ]]; then
 else
   ok "step reads the body live"
 fi
-if [[ "$step" == *"BASE_SHA: \${{ github.event.merge_group.base_sha || github.event.pull_request.base.sha }}"* ]]; then
-  ok "step runs merge-holds.mjs from the base commit"
+if [[ "$step" == *"GROUP_BASE_SHA: \${{ github.event.merge_group.base_sha }}"* && "$step" != *"pull_request.base"* ]]; then
+  ok "step takes only the queue's base from the payload; a pull request's base is read live"
 else
-  fail "step does not read merge-holds.mjs at the base commit"
+  fail "step reads a pull request's base from the payload"
 fi
 order="$(grep -nE "^  ci-status:$|^      - name: ($NAME|Aggregate lane results)$" "$WORKFLOW" | cut -d: -f1 | paste -sd' ')"
 read -r job_line hold_line agg_line <<<"$order"
@@ -105,7 +105,8 @@ SHA=0123456789abcdef0123456789abcdef01234567
 BASE=89abcdef0123456789abcdef0123456789abcdef
 QUEUE="refs/heads/gh-readonly-queue/main/pr-7-$SHA"
 LANES='{"id":337595936,"login":"melodic-automation-lanes[bot]","type":"Bot"}'
-pull() { jq -nc --argjson user "${2:-$LANES}" --arg body "$1" '{number: 7, user: $user, body: $body}'; }
+pull() { jq -nc --argjson user "${2:-$LANES}" --arg body "$1" --arg ref "${STUB_BASE_REF:-main}" --arg sha "${STUB_BASE_SHA:-$BASE}" \
+  '{number: 7, user: $user, body: $body, base: {ref: $ref, sha: $sha}}'; }
 comment() { jq -nc --arg login "$1" --arg type "${2:-User}" --arg assoc "$3" --arg at "$4" --arg body "$5" \
   '{user: {login: $login, type: $type}, author_association: $assoc, created_at: $at, body: $body}'; }
 review() { jq -nc --arg login "$1" --arg assoc "$2" --arg at "$3" --arg body "$4" \
@@ -116,15 +117,15 @@ review() { jq -nc --arg login "$1" --arg assoc "$2" --arg at "$3" --arg body "$4
 expect() {
   local label="$1" want_rc="$2" want_calls="$3" out rc calls
   : >"$TMP_ROOT/log"
-  out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_MODULE="$MODULE" \
+  out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_MODULE="${STUB_MODULE:-$MODULE}" \
     GITHUB_EVENT_NAME="${EVENT:-pull_request}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" \
-    GITHUB_REPOSITORY=o/r RUNNER_TEMP="$TMP_ROOT" BASE_SHA="${BASE_SHA-$BASE}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    GITHUB_REPOSITORY=o/r RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   calls=$(grep -cE '/(comments|reviews)\?' "$TMP_ROOT/log")
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
   elif [[ "$calls" -ne "$want_calls" ]]; then
     fail "$label: expected $want_calls discussion call(s) got $calls: '$(sort -u "$TMP_ROOT/log")'"
-  elif [[ "$want_calls" -gt 0 ]] && ! grep -qxF "api -H Accept: application/vnd.github.raw+json repos/o/r/contents/.github/scripts/pr-merge/merge-holds.mjs?ref=${BASE_SHA-$BASE}" "$TMP_ROOT/log"; then
+  elif [[ "$want_calls" -gt 0 ]] && ! grep -qxF "api -H Accept: application/vnd.github.raw+json repos/o/r/contents/.github/scripts/pr-merge/merge-holds.mjs?ref=${WANT_BASE:-$BASE}" "$TMP_ROOT/log"; then
     fail "$label: merge-holds.mjs was not read at the base commit: '$(sort -u "$TMP_ROOT/log")'"
   elif [[ -n "${4:-}" && "$out" != *"$4"* ]]; then
     fail "$label: output lacks '$4': '$out'"
@@ -183,7 +184,7 @@ STUB_ISSUE="[$KYLE_VETO]" STUB_PULL="$(pull $'Hold: x')"
 expect "a body hold and a veto are both reported" 1 3 "kyle asked not to merge it"
 STUB_ISSUE='' STUB_REVIEWS='' STUB_INLINE=''
 
-export EVENT=merge_group REF="$QUEUE" PR_NUMBER=''
+export EVENT=merge_group REF="$QUEUE" PR_NUMBER='' GROUP_BASE_SHA="$SHA" WANT_BASE="$SHA"
 STUB_PULL="$(pull $'Closes #1\nHold: owner call')"
 expect "in the merge queue, a body hold fails the group" 1 3 "::error::#7: its body holds it"
 STUB_PULL="$(pull 'Closes #1')" STUB_ISSUE="[$KYLE_VETO]"
@@ -193,7 +194,9 @@ expect "in the merge queue, a lifted veto passes" 0 3
 STUB_ISSUE=''
 export REF="refs/heads/main"
 expect "a merge-group ref with no pull request fails closed without a call" 1 0 "::error::cannot read a pull request number"
-unset EVENT REF PR_NUMBER
+export STUB_ISSUE='[]' REF="$QUEUE" GROUP_BASE_SHA=main
+expect "a queue base that is not a commit SHA fails closed without a call" 1 0 "::error::the base commit 'main' is not a commit SHA"
+unset EVENT REF PR_NUMBER GROUP_BASE_SHA WANT_BASE
 
 STUB_PULL="$(pull 'Closes #1')"
 export STUB_FAILS=1
@@ -201,12 +204,20 @@ expect "a transient discussion read failure is retried" 0 4
 export STUB_FAILS=3
 expect "an unreadable discussion fails closed" 1 3 "::error::could not read the issues/7/comments of #7"
 unset STUB_FAILS
+printf 'process.exitCode = 0;\n' >"$TMP_ROOT/silent.mjs"
+export STUB_MODULE="$TMP_ROOT/silent.mjs"
+expect "a module that exits 0 without its verdict fails closed" 1 3 "::error::merge-holds.mjs exited 0 without its verdict"
+unset STUB_MODULE
 export STUB_NO_MODULE=1
 expect "a base with no merge-holds.mjs fails closed" 1 0 "::error::could not read .github/scripts/pr-merge/merge-holds.mjs at $BASE"
 unset STUB_NO_MODULE
-export BASE_SHA=main
-expect "a base that is not a commit SHA fails closed without a call" 1 0 "::error::the base commit 'main' is not a commit SHA"
-unset BASE_SHA
+STUB_PULL="$(STUB_BASE_SHA=main pull 'Closes #1')"
+expect "a live base that is not a commit SHA fails closed without a call" 1 0 "::error::the base commit 'main' is not a commit SHA"
+STUB_PULL="$(STUB_BASE_REF=attacker STUB_BASE_SHA="$SHA" pull $'Hold: x')"
+expect "a pull request into another branch runs no module from that branch" 0 0 "is not into main"
+STUB_PULL='{"number":7,"message":"Server Error"}'
+expect "a pull read with no author fails closed" 1 0 "::error::the author of #7 could not be read"
+STUB_PULL="$(pull 'Closes #1')"
 export PR_NUMBER='7; rm -rf /'
 expect "a pull request number that is not a number fails closed" 1 0 "is not a number"
 unset PR_NUMBER

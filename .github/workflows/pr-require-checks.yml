@@ -3554,8 +3554,11 @@ jobs:
       # requests, which then merge without pr-merge's gate, so this step fails
       # on the two text holds that gate honors: a body hold and a member's
       # veto comment, by the rules in .github/scripts/pr-merge/merge-holds.mjs,
-      # which this step runs as the base commit has it so a pull request cannot
-      # rewrite its own hold. On a pull request event and in the merge queue
+      # which this step runs as main has it so a pull request cannot rewrite
+      # its own hold: in the queue at the group's base commit, and on a pull
+      # request event at the live base commit of a pull request into main. A
+      # pull request into any other branch is never armed and is not read, so
+      # it cannot choose a branch whose module runs here with this job's token. On a pull request event and in the merge queue
       # (the pull request named in the group's ref, as the step above reads
       # it), the body, comments, reviews and inline comments are read live,
       # never from the payload a re-run replays. A body edit re-runs this job;
@@ -3571,7 +3574,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          BASE_SHA: ${{ github.event.merge_group.base_sha || github.event.pull_request.base.sha }}
+          GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
         run: |
           lanes_app_id=337595936
           pr=$PR_NUMBER
@@ -3586,10 +3589,6 @@ jobs:
             echo "::error::the pull request number '${pr//%/%25}' is not a number."
             exit 1
           fi
-          if [[ ! $BASE_SHA =~ ^[0-9a-f]{40}$ ]]; then
-            echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
-            exit 1
-          fi
           read_api() {
             local attempt body
             for attempt in 1 2 3; do
@@ -3602,9 +3601,25 @@ jobs:
             done
           }
           pull=$(read_api "#$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr") || exit 1
+          if ! jq -e '(.user.id | numbers) and (.user.type | strings)' <<<"$pull" >/dev/null; then
+            echo "::error::the author of #$pr could not be read."
+            exit 1
+          fi
           if ! jq -e --argjson id "$lanes_app_id" '.user.id == $id and .user.type == "Bot"' <<<"$pull" >/dev/null; then
             echo "#$pr is not the lanes App's; pr-merge's gate or a person reads its holds."
             exit 0
+          fi
+          BASE_SHA=$GROUP_BASE_SHA
+          if [ "$GITHUB_EVENT_NAME" != merge_group ]; then
+            if [ "$(jq -r '.base.ref' <<<"$pull")" != main ]; then
+              echo "#$pr is not into main, so native auto-merge never arms it."
+              exit 0
+            fi
+            BASE_SHA=$(jq -r '.base.sha' <<<"$pull")
+          fi
+          if [[ ! $BASE_SHA =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
+            exit 1
           fi
           module=.github/scripts/pr-merge/merge-holds.mjs
           read_api "$module at $BASE_SHA" -H 'Accept: application/vnd.github.raw+json' \
@@ -3615,7 +3630,10 @@ jobs:
             rows=$(read_api "the $kind of #$pr" "repos/$GITHUB_REPOSITORY/$kind?per_page=100" --paginate --jq '.[] | @json') || exit 1
             [ -z "$rows" ] || printf '%s\n' "$rows" >>"$RUNNER_TEMP/discussion.jsonl"
           done
-          node "$RUNNER_TEMP/merge-holds.mjs" "$pr" "$RUNNER_TEMP/pr-body.txt" "$RUNNER_TEMP/discussion.jsonl"
+          out=$(node "$RUNNER_TEMP/merge-holds.mjs" "$pr" "$RUNNER_TEMP/pr-body.txt" "$RUNNER_TEMP/discussion.jsonl") || { printf '%s\n' "$out"; exit 1; }
+          # Exit 0 without the module's no-hold line ran no check: fail closed.
+          printf '%s\n' "$out"
+          grep -qxF "#$pr: no body hold and no member veto." <<<"$out" || { echo "::error::merge-holds.mjs exited 0 without its verdict."; exit 1; }
       # ORDERED SKIPS ARE CHECKED HERE. A test lane `test-<x>`, or `lint-shell`
       # on its `run_shell` row, skips as a job when `select-tests`'s `run_<x>`
       # row says the change gives it no work. Its
