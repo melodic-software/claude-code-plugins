@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Runs the `Require a broker pin PR for a broker-fetched change` step body of
+# Runs the `Require a broker deploy PR for a resolve-config dependency change` step body of
 # .github/workflows/pr-require-checks.yml's ci-status under the shell Actions
 # gives a step with no `shell:` (bash -e), against a stub `gh` that applies the
 # step's own --jq filter to a pull-request files fixture.
 #
-# The lanes token broker in melodic-software/azure-iac runs resolve-config at a
-# pinned commit, fetched by azure-iac scripts/deploy/fetch-resolve-config.sh
-# (runtime list: resolve.mjs dimensions.mjs predicate.mjs vocabulary.mjs
-# package.json package-lock.json under .github/actions/resolve-config). A pull request that
-# changes one of those files must name its paired pin pull request, or the
-# broker keeps parsing the config with the old code (#8313, azure-iac#44).
+# The lanes token broker in melodic-software/azure-iac loads resolve-config's
+# modules from main's tip but imports ajv and yaml from its own deployment, and
+# denies every token while main's package.json or package-lock.json under
+# .github/actions/resolve-config differs from the deployed one. A pull request
+# that changes either file must name the azure-iac pull request that deploys
+# the new dependencies.
 # test-scope: .github/workflows/pr-require-checks.yml
 set -uo pipefail
 
@@ -22,7 +22,7 @@ WORKFLOW="$ROOT/.github/workflows/pr-require-checks.yml"
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
-NAME='Require a broker pin PR for a broker-fetched change'
+NAME='Require a broker deploy PR for a resolve-config dependency change'
 step="$(awk -v name="      - name: $NAME" '$0 == name { on = 1; print; next }
   on && /^      - / { exit }
   on { print }' "$WORKFLOW")"
@@ -74,7 +74,7 @@ printf '#!/usr/bin/env bash\n' >"$TMP_ROOT/bin/sleep"
 chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep"
 
 RC=.github/actions/resolve-config
-LINE='Broker pin: melodic-software/azure-iac#44'
+LINE='Broker deploy: melodic-software/azure-iac#44'
 
 # files <path>... : a pulls/<n>/files page with one entry per path.
 files() {
@@ -103,24 +103,27 @@ expect() {
   fi
 }
 
-for f in resolve.mjs dimensions.mjs predicate.mjs vocabulary.mjs package.json package-lock.json; do
+for f in package.json package-lock.json; do
   expect "a change to $f without the line fails" 1 1 "$(files "$RC/$f")" "Closes #1" 0 "::error::"
   expect "a change to $f with the line passes" 0 1 "$(files "$RC/$f")" "Closes #1
 $LINE" 0
 done
-expect "the error names the broker-fetched path" 1 1 "$(files README.md "$RC/resolve.mjs")" "" 0 "$RC/resolve.mjs"
-expect "the error names the required line" 1 1 "$(files "$RC/resolve.mjs")" "" 0 "Broker pin: melodic-software/azure-iac#<n>"
-expect "files the broker does not fetch need no line" 0 1 \
+expect "the error names the dependency path" 1 1 "$(files README.md "$RC/package-lock.json")" "" 0 "$RC/package-lock.json"
+expect "the error names the required line" 1 1 "$(files "$RC/package.json")" "" 0 "Broker deploy: melodic-software/azure-iac#<n>"
+expect "modules the broker loads from main need no line" 0 1 \
+  "$(files "$RC/resolve.mjs" "$RC/dimensions.mjs" "$RC/predicate.mjs" "$RC/vocabulary.mjs")" "" 0
+expect "files the broker does not load need no line" 0 1 \
   "$(files "$RC/README.md" "$RC/resolve.test.mjs" "$RC/resolve-config.mjs" "$RC/lane-rules.json" "$RC/fixtures/vocabulary.json")" "" 0
-expect "a same-named file elsewhere needs no line" 0 1 "$(files "scripts/resolve.mjs" "$RC/sub/package.json" "$RC/resolve.mjs.orig")" "" 0
-expect "a rename away from a broker-fetched path fails" 1 1 \
-  "[{\"filename\":\"$RC/old/resolve.mjs\",\"previous_filename\":\"$RC/resolve.mjs\",\"status\":\"renamed\"}]" "" 0 "$RC/resolve.mjs"
-expect "a CRLF body line counts" 0 1 "$(files "$RC/resolve.mjs")" $'Closes #1\r\n'"$LINE"$'\r\n## Summary\r' 0
-expect "trailing blanks after the number count" 0 1 "$(files "$RC/resolve.mjs")" "$LINE  " 0
-expect "the line inside other text does not count" 1 1 "$(files "$RC/resolve.mjs")" "see $LINE" 0
-expect "another repository does not count" 1 1 "$(files "$RC/resolve.mjs")" "Broker pin: melodic-software/other#44" 0
-expect "a line with no number does not count" 1 1 "$(files "$RC/resolve.mjs")" "Broker pin: melodic-software/azure-iac#" 0
-expect "a transient files read failure is retried" 1 2 "$(files "$RC/resolve.mjs")" "" 1
+expect "a same-named file elsewhere needs no line" 0 1 "$(files "package.json" "$RC/sub/package.json" "$RC/package.json.orig")" "" 0
+expect "a rename away from a dependency path fails" 1 1 \
+  "[{\"filename\":\"$RC/old/package.json\",\"previous_filename\":\"$RC/package.json\",\"status\":\"renamed\"}]" "" 0 "$RC/package.json"
+expect "a CRLF body line counts" 0 1 "$(files "$RC/package.json")" $'Closes #1\r\n'"$LINE"$'\r\n## Summary\r' 0
+expect "trailing blanks after the number count" 0 1 "$(files "$RC/package.json")" "$LINE  " 0
+expect "the line inside other text does not count" 1 1 "$(files "$RC/package.json")" "see $LINE" 0
+expect "another repository does not count" 1 1 "$(files "$RC/package.json")" "Broker deploy: melodic-software/other#44" 0
+expect "a line with no number does not count" 1 1 "$(files "$RC/package.json")" "Broker deploy: melodic-software/azure-iac#" 0
+expect "the old pin line does not count" 1 1 "$(files "$RC/package.json")" "Broker pin: melodic-software/azure-iac#44" 0
+expect "a transient files read failure is retried" 1 2 "$(files "$RC/package.json")" "" 1
 expect "an unreadable file list fails closed" 1 3 "$(files README.md)" "$LINE" 3 "::error::could not read the files of #8313"
 
 test_harness::report

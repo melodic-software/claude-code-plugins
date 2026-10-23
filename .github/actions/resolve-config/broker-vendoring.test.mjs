@@ -1,12 +1,13 @@
-// The lanes token broker (azure-iac src/lanes-token-broker) imports
-// resolve.mjs from the files scripts/deploy/fetch-resolve-config.sh fetches at
-// its pinned commit (the `runtime` list), and calls only loadConfig and
-// resolveGrant (src/ports.mjs) on the trust-root files binding.mjs reads from
-// main's tip (TRUST_FILES); its tests read the `test_files` list instead. A
-// module resolve.mjs loads that `runtime` lacks, or a file loadConfig needs
-// that TRUST_FILES lacks, fails every broker request.
-// fixtures/broker-vendored-lists.json copies those lists from the commit it
-// names; the azure-iac pin pull request updates both together.
+// The lanes token broker (azure-iac src/lanes-token-broker) loads resolve.mjs
+// from this repository's main tip, whichever repository calls: its
+// resolve-config-loader.mjs walks the sibling modules resolve.mjs imports with
+// the `relative_import` pattern, imports them beside a node_modules holding only
+// its own `packages`, and calls only loadConfig and resolveGrant on the
+// trust-root files binding.mjs reads from the caller's main tip (TRUST_FILES); its tests read the `test_files` list instead. A module the
+// pattern misses, a file read beside a module, a package the broker does not
+// provide, or a file loadConfig needs that TRUST_FILES lacks fails every
+// broker request. fixtures/broker-vendored-lists.json copies those lists from
+// the commit it names; the azure-iac pull request that changes them updates it.
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { posix } from "node:path";
@@ -74,20 +75,37 @@ test("the copied lists name the azure-iac files and the commit they were read fr
   assert.equal(LISTS.repository, "melodic-software/azure-iac");
   assert.match(LISTS.commit, /^[0-9a-f]{40}$/);
   assert.equal(LISTS.fetch.path, "scripts/deploy/fetch-resolve-config.sh");
+  assert.equal(LISTS.loader.path, "src/lanes-token-broker/src/resolve-config-loader.mjs");
+  assert.equal(LISTS.loader.entry, "resolve.mjs");
   assert.deepEqual(LISTS.calls.exports, ["loadConfig", "resolveGrant"]);
 });
 
-test("every file resolve.mjs loads is on the broker's runtime list", () => {
-  const runtime = new Set(LISTS.fetch.runtime);
-  const missing = closure().files.filter((file) => !runtime.has(file));
-  assert.deepEqual(missing, [], `fetch-resolve-config.sh's runtime list must add ${missing.join(", ")}`);
+// The modules the broker's loader reaches from resolve.mjs with its pattern.
+function loaderClosure() {
+  const pattern = new RegExp(LISTS.loader.relative_import, "g");
+  const seen = new Set();
+  const queue = [LISTS.loader.entry];
+  while (queue.length > 0) {
+    const name = queue.shift();
+    if (!seen.has(name)) {
+      seen.add(name);
+      queue.push(...[...read(`./${name}`).matchAll(pattern)].map((match) => match[1]));
+    }
+  }
+  return [...seen].sort();
+}
+
+test("the broker's loader reaches every file resolve.mjs loads, and each is a sibling module", () => {
+  const files = closure().files.sort();
+  assert.deepEqual(files.filter((file) => !/^[A-Za-z0-9_.-]+\.mjs$/.test(file)), [], "the broker loads only sibling .mjs modules");
+  assert.deepEqual(loaderClosure(), files, "resolve-config-loader.mjs's import pattern must reach every module resolve.mjs loads");
 });
 
-test("every package resolve.mjs loads installs from the vendored package files", () => {
-  assert.ok(LISTS.fetch.runtime.includes("package.json") && LISTS.fetch.runtime.includes("package-lock.json"));
+test("every package resolve.mjs loads is one the broker provides and package.json names", () => {
   const { dependencies = {} } = JSON.parse(read("./package.json"));
-  const missing = closure().packages.filter((name) => !Object.hasOwn(dependencies, name));
-  assert.deepEqual(missing, [], `package.json dependencies must name ${missing.join(", ")}`);
+  const { packages } = closure();
+  assert.deepEqual(packages.filter((name) => !LISTS.loader.packages.includes(name)), [], "the broker's loader links only its own ajv and yaml");
+  assert.deepEqual(packages.filter((name) => !Object.hasOwn(dependencies, name)), [], "package.json dependencies must name every package");
 });
 
 test("the broker's calls resolve this tree's config from the TRUST_FILES it reads, and nothing more", () => {
@@ -164,8 +182,8 @@ test("the patch rules are read by lane runs only, never by the broker's loadConf
 });
 
 test("every listed file exists", () => {
-  for (const file of LISTS.fetch.runtime) {
-    assert.ok(existsSync(here(`./${file}`)), `runtime names ${file}, which does not exist`);
+  for (const file of [LISTS.loader.entry, ...LISTS.loader.dependency_files]) {
+    assert.ok(existsSync(here(`./${file}`)), `the loader names ${file}, which does not exist`);
   }
   for (const file of [...LISTS.fetch.test_files, ...Object.values(LISTS.binding.trust_files)]) {
     assert.ok(existsSync(here(`${ROOT}${file}`)), `the lists name ${file}, which does not exist`);

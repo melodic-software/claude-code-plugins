@@ -3142,29 +3142,25 @@ jobs:
           # linkage check and its pull requests stay mergeable. An exact-login
           # match, never a `*[bot]` pattern.
           exempt-authors: 'dependabot[bot]'
-      # A BROKER-FETCHED CHANGE NAMES ITS PIN PULL REQUEST. The lanes token
-      # broker in melodic-software/azure-iac runs resolve-config at the commit
-      # in its src/lanes-token-broker/resolve-config.pin, fetched by its
-      # scripts/deploy/fetch-resolve-config.sh; BROKER_PATHS below is that
-      # script's runtime list and changes when it does. A change to one of
-      # those files without a pin bump leaves the broker on the old code (#8313
-      # denied every pr-unblock token as config-invalid until azure-iac#44).
-      # The body line names the paired pin pull request; it is re-read on a
-      # body edit, since this job runs on every contract-only event. A merge
-      # group carries no body; the pull request was checked before enqueue.
+      # A RESOLVE-CONFIG DEPENDENCY CHANGE NAMES ITS BROKER DEPLOY PULL REQUEST.
+      # The lanes token broker in melodic-software/azure-iac loads resolve-config's
+      # modules from main's tip, but imports ajv and yaml from its own deployed
+      # package and denies every token as config-invalid while main's
+      # package.json or package-lock.json here differs from the deployed one
+      # (its src/lanes-token-broker/src/resolve-config-loader.mjs). BROKER_PATHS
+      # below is those two files. The body line names the azure-iac pull request
+      # that deploys the new dependencies; it is re-read on a body edit, since
+      # this job runs on every contract-only event. A merge group carries no
+      # body; the pull request was checked before enqueue.
       # Pinned by scripts/ci-broker-pin.test.sh, which runs this body.
-      - name: Require a broker pin PR for a broker-fetched change
+      - name: Require a broker deploy PR for a resolve-config dependency change
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_BODY: ${{ github.event.pull_request.body }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          BROKER_PATHS='.github/actions/resolve-config/resolve.mjs
-          .github/actions/resolve-config/dimensions.mjs
-          .github/actions/resolve-config/predicate.mjs
-          .github/actions/resolve-config/vocabulary.mjs
-          .github/actions/resolve-config/package.json
+          BROKER_PATHS='.github/actions/resolve-config/package.json
           .github/actions/resolve-config/package-lock.json'
           for attempt in 1 2 3; do
             if files=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --paginate --jq '.[] | .filename, (.previous_filename // empty)'); then
@@ -3178,15 +3174,15 @@ jobs:
             if grep -qxF "$path" <<<"$files"; then touched="$touched $path"; fi
           done
           if [ -z "$touched" ]; then
-            echo "No file the lanes token broker fetches changed."
+            echo "No resolve-config dependency file changed."
             exit 0
           fi
-          pin=$(tr -d '\r' <<<"$PR_BODY" | sed -nE 's/^Broker pin: (melodic-software\/azure-iac#[0-9]+)[[:blank:]]*$/\1/p')
-          if [ -z "$pin" ]; then
-            echo "::error::this pull request changes files the lanes token broker runs at a pinned commit:$touched. Open the azure-iac pull request that will bump src/lanes-token-broker/resolve-config.pin to this change's merge commit, and add a body line 'Broker pin: melodic-software/azure-iac#<n>' naming it."
+          pr=$(tr -d '\r' <<<"$PR_BODY" | sed -nE 's/^Broker deploy: (melodic-software\/azure-iac#[0-9]+)[[:blank:]]*$/\1/p')
+          if [ -z "$pr" ]; then
+            echo "::error::this pull request changes resolve-config's dependencies:$touched. The lanes token broker denies every token while main's differ from its deployed ones. Open the azure-iac pull request that moves the broker to these dependencies, deploy it as this merges, and add a body line 'Broker deploy: melodic-software/azure-iac#<n>' naming it."
             exit 1
           fi
-          echo "Broker-fetched change:$touched; paired pin pull request: $pin"
+          echo "Resolve-config dependency change:$touched; paired broker deploy pull request: $pr"
       # A BODY LINE MUST NOT START A SQUASH MESSAGE LINE WITH `committer `.
       # GitHub builds the squash message from the body (squash_merge_commit_message
       # PR_BODY) and wraps it: a line of at most 72 characters is kept as
