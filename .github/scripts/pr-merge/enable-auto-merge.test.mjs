@@ -7,6 +7,10 @@
 // parity test reads its verdicts from Python.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
@@ -329,6 +333,26 @@ test("a pull request whose head now changes a hold path is not armed, or is disa
     { mutation: "disarm", id: "PR_2" },
     { mutation: "arm", id: "PR_5", head: HEAD },
   ]);
+});
+
+// ci-status runs merge-holds.mjs on the live files with the base config's
+// denied paths, by the same pathHold that decides arming above.
+test("merge-holds.mjs holds a changed or renamed-from hold path from the command line", () => {
+  const dir = mkdtempSync(join(tmpdir(), "merge-holds-"));
+  const cli = (files, denied) => {
+    writeFileSync(join(dir, "body"), "Closes #1");
+    writeFileSync(join(dir, "discussion"), "");
+    writeFileSync(join(dir, "files"), files.map((row) => JSON.stringify(row)).join("\n"));
+    writeFileSync(join(dir, "denied"), JSON.stringify(denied));
+    const args = ["7", "body", "discussion", "files", "denied"].map((name, index) => (index ? join(dir, name) : name));
+    return spawnSync(process.execPath, [fileURLToPath(new URL("./merge-holds.mjs", import.meta.url)), ...args], { encoding: "utf8" });
+  };
+  assert.equal(cli([["docs/a.md"]], ["docs/held.md"]).status, 0);
+  const renamed = cli([["docs/a.md", ".github/a.md"]], []);
+  assert.equal(renamed.status, 1);
+  assert.match(renamed.stdout, /it changes \.github\/a\.md, a hold path/);
+  assert.match(cli([["docs/held.md"]], ["docs/held.md"]).stdout, /it changes docs\/held\.md, a hold path/);
+  assert.match(cli([["docs/a.md"]], "docs/held.md").stdout, /the hold paths could not be read/);
 });
 
 test("hold paths that cannot be read arm nothing", async () => {

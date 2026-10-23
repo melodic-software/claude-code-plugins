@@ -4,12 +4,13 @@
 # gives a step with no `shell:` (bash -e), against stub `gh` and `sleep`.
 #
 # Native auto-merge (pr-merge.yml's enable-auto-merge job) merges a lanes App
-# pull request without pr-merge's gate, so ci-status holds it on the two text
-# holds that gate honors: a body hold (a `Hold:` line or "do not merge") and
-# a member's newest comment saying not to merge. It reads them live, on a pull
+# pull request without pr-merge's gate, so ci-status holds it on the holds
+# that gate honors: a body hold (a `Hold:` line or "do not merge"), a member's
+# newest comment saying not to merge, and a changed or renamed-from path
+# matching the merge lane's denied paths. It reads them live, on a pull
 # request event and in the merge queue, runs the base commit's
 # merge-holds.mjs, and fails closed when it cannot tell.
-# test-scope: .github/workflows/pr-require-checks.yml .github/scripts/pr-merge/merge-holds.mjs
+# test-scope: .github/workflows/pr-require-checks.yml .github/scripts/pr-merge/merge-holds.mjs docs/conventions/pr-pipeline.yaml
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -77,7 +78,10 @@ fi
 # of merge-holds.mjs prints the working tree's module, or answers 404 when
 # STUB_NO_MODULE is set. A discussion read fails its first STUB_FAILS calls,
 # then prints each row of STUB_ISSUE, STUB_REVIEWS or STUB_INLINE (JSON
-# arrays) as one line, as `--jq '.[] | @json'` does.
+# arrays) as one line, as `--jq '.[] | @json'` does. A contents read of
+# pr-pipeline.yaml prints STUB_CONFIG, or answers 404 when STUB_NO_CONFIG is
+# set. A files read prints each row of STUB_FILES (a JSON array of
+# [path, renamed-from?] arrays) as one line.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -91,6 +95,11 @@ case "$*" in
   [[ -z "${STUB_NO_MODULE:-}" ]] || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
   cat "$STUB_MODULE"
   ;;
+*/contents/docs/conventions/pr-pipeline.yaml*)
+  [[ -z "${STUB_NO_CONFIG:-}" ]] || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
+  printf '%s\n' "$STUB_CONFIG"
+  ;;
+*/pulls/*/files\?*) rows "$STUB_FILES" ;;
 */issues/*/comments\?*) discussion; rows "${STUB_ISSUE:-}" ;;
 */pulls/*/reviews\?*) discussion; rows "${STUB_REVIEWS:-}" ;;
 */pulls/*/comments\?*) discussion; rows "${STUB_INLINE:-}" ;;
@@ -106,7 +115,7 @@ BASE=89abcdef0123456789abcdef0123456789abcdef
 QUEUE="refs/heads/gh-readonly-queue/main/pr-7-$SHA"
 LANES='{"id":337595936,"login":"melodic-automation-lanes[bot]","type":"Bot"}'
 pull() { jq -nc --argjson user "${2:-$LANES}" --arg body "$1" --arg ref "${STUB_BASE_REF:-main}" --arg sha "${STUB_BASE_SHA:-$BASE}" \
-  '{number: 7, user: $user, body: $body, base: {ref: $ref, sha: $sha}}'; }
+  --argjson changed "${STUB_CHANGED:-1}" '{number: 7, user: $user, body: $body, base: {ref: $ref, sha: $sha}, changed_files: $changed}'; }
 comment() { jq -nc --arg login "$1" --arg type "${2:-User}" --arg assoc "$3" --arg at "$4" --arg body "$5" \
   '{user: {login: $login, type: $type}, author_association: $assoc, created_at: $at, body: $body}'; }
 review() { jq -nc --arg login "$1" --arg assoc "$2" --arg at "$3" --arg body "$4" \
@@ -134,11 +143,12 @@ expect() {
   fi
 }
 
-export STUB_PULL STUB_ISSUE='' STUB_REVIEWS='' STUB_INLINE=''
+export STUB_PULL STUB_ISSUE='' STUB_REVIEWS='' STUB_INLINE='' STUB_FILES='[["docs/guide.md"]]'
+export STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: [docs/held/**]'
 KYLE_VETO="$(comment kyle User MEMBER 2026-10-23T10:00:00Z 'Please do not merge this yet.')"
 
 STUB_PULL="$(pull 'Closes #1')"
-expect "a lanes App pull request with no hold passes" 0 3 "#7: no body hold and no member veto"
+expect "a lanes App pull request with no hold passes" 0 3 "#7: no body hold, no member veto and no hold path"
 STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
 expect "a person's pull request is left to pr-merge's gate, with no discussion read" 0 0 "not the lanes App's"
 STUB_PULL="$(pull 'Closes #1' '{"id":1,"login":"melodic-automation-lanes[bot]","type":"User"}')"
@@ -184,6 +194,25 @@ STUB_ISSUE="[$KYLE_VETO]" STUB_PULL="$(pull $'Hold: x')"
 expect "a body hold and a veto are both reported" 1 3 "kyle asked not to merge it"
 STUB_ISSUE='' STUB_REVIEWS='' STUB_INLINE=''
 
+STUB_PULL="$(pull 'Closes #1')"
+STUB_FILES='[["docs/held/a.md"]]'
+expect "a file under the config's denied paths fails" 1 3 "::error::#7: it changes docs/held/a.md, a hold path; a person merges it"
+STUB_FILES='[["docs/guide.md"],["docs/moved.md",".github/workflows/x.yml"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
+expect "a rename away from a floor path fails on its old path" 1 3 "it changes .github/workflows/x.yml, a hold path"
+STUB_FILES='[["docs/conventions/pr-pipeline.yaml"]]' STUB_PULL="$(pull 'Closes #1')"
+expect "the pipeline config is held by the floor" 1 3 "it changes docs/conventions/pr-pipeline.yaml, a hold path"
+STUB_FILES='[["docs/guide.md"]]' STUB_CONFIG='merge: {}'
+expect "a config with no denied paths still holds nothing outside the floor" 0 3 "no hold path"
+STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: docs/held/**'
+expect "denied paths that are not a list fail closed" 1 3 "the hold paths could not be read"
+STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: [docs/held/**]'
+STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
+expect "a file list shorter than changed_files fails closed before the discussion" 1 0 "::error::GitHub listed fewer files than #7 changes"
+STUB_PULL="$(pull 'Closes #1')"
+export STUB_NO_CONFIG=1
+expect "an unreadable config fails closed" 1 0 "::error::could not read docs/conventions/pr-pipeline.yaml at $BASE"
+unset STUB_NO_CONFIG
+
 export EVENT=merge_group REF="$QUEUE" PR_NUMBER='' GROUP_BASE_SHA="$SHA" WANT_BASE="$SHA"
 STUB_PULL="$(pull $'Closes #1\nHold: owner call')"
 expect "in the merge queue, a body hold fails the group" 1 3 "::error::#7: its body holds it"
@@ -191,7 +220,9 @@ STUB_PULL="$(pull 'Closes #1')" STUB_ISSUE="[$KYLE_VETO]"
 expect "in the merge queue, a member's veto fails the group" 1 3 "kyle asked not to merge it"
 STUB_ISSUE="[$KYLE_VETO,$(comment kyle User MEMBER 2026-10-23T11:00:00Z 'ok, merge it')]"
 expect "in the merge queue, a lifted veto passes" 0 3
-STUB_ISSUE=''
+STUB_ISSUE='' STUB_FILES='[[".github/workflows/x.yml"]]'
+expect "in the merge queue, a hold path fails the group" 1 3 "it changes .github/workflows/x.yml, a hold path"
+STUB_FILES='[["docs/guide.md"]]'
 export REF="refs/heads/main"
 expect "a merge-group ref with no pull request fails closed without a call" 1 0 "::error::cannot read a pull request number"
 export STUB_ISSUE='[]' REF="$QUEUE" GROUP_BASE_SHA=main

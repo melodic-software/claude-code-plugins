@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { parse, stringify } from "yaml";
 
 import { Rejection, resolve } from "./resolve.mjs";
+import { HOLD_PATH_FLOOR } from "../../scripts/pr-merge/merge-holds.mjs";
 
 const read = (relative) =>
   readFileSync(new URL(relative, import.meta.url), "utf8");
@@ -211,6 +212,14 @@ test("a GitHub App [bot] login validates as agent-identity", () => {
 
 test("resolveMerge output for valid.yaml is unchanged", () => {
   assert.deepEqual(run(read("./fixtures/valid.yaml")).merge, VALID_MERGE);
+});
+
+// ci-status adds this floor to the base config's denied paths itself.
+test("merge-holds.mjs's HOLD_PATH_FLOOR is the denied paths resolveMerge forces", () => {
+  assert.deepEqual(
+    [...run(read("./fixtures/valid.yaml")).merge["diff-check"]["denied-paths"]].sort(),
+    [...HOLD_PATH_FLOOR].sort(),
+  );
 });
 
 test("resolveMerge does not carry authority or agent-identity into the output", () => {

@@ -3609,8 +3609,12 @@ jobs:
       # A LANES APP PULL REQUEST IS HELD BY ITS TEXT TOO. pr-merge.yml's
       # enable-auto-merge job arms native auto-merge on lanes App pull
       # requests, which then merge without pr-merge's gate, so this step fails
-      # on the two text holds that gate honors: a body hold and a member's
-      # veto comment, by the rules in .github/scripts/pr-merge/merge-holds.mjs,
+      # on the holds that gate honors: a body hold, a member's veto comment,
+      # and a changed file or renamed-from path matching the merge lane's
+      # denied paths (pr-pipeline.yaml merge.diff-check.denied-paths, as main
+      # has it, plus the floor resolve-config adds), so a push after arming is
+      # held on its own pull request event, by the rules in
+      # .github/scripts/pr-merge/merge-holds.mjs,
       # which this step runs as main has it so a pull request cannot rewrite
       # its own hold: in the queue at the group's base commit, and on a pull
       # request event at the live base commit of a pull request into main. A
@@ -3618,13 +3622,15 @@ jobs:
       # it cannot choose a branch whose module runs here with this job's token. On a pull request event and in the merge queue
       # (the pull request named in the group's ref, as the step above reads
       # it), the body, comments, reviews and inline comments are read live,
-      # never from the payload a re-run replays. A body edit re-runs this job;
+      # never from the payload a re-run replays, and so are the changed files;
+      # a list shorter than changed_files fails closed. A body edit re-runs this job;
       # a comment does not, so a veto posted while armed is enforced when the
       # queue builds the group, and after a veto is lifted ci-status needs a
       # re-run. Only the lanes App's pull requests are read, by numeric id
       # (pr-pipeline.yaml merge.agent-identity, as trusted-actors.json lists
       # it); every other pull request merges through pr-merge's gate or a
-      # person. An unreadable pull request, module or discussion fails closed.
+      # person. An unreadable pull request, module, config, file list or
+      # discussion fails closed.
       # Pinned by scripts/ci-lanes-pr-hold.test.sh, which runs this body.
       - name: Fail a lanes App pull request its body or a member holds
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
@@ -3682,15 +3688,30 @@ jobs:
           read_api "$module at $BASE_SHA" -H 'Accept: application/vnd.github.raw+json' \
             "repos/$GITHUB_REPOSITORY/contents/$module?ref=$BASE_SHA" >"$RUNNER_TEMP/merge-holds.mjs" || exit 1
           jq -r '.body // ""' <<<"$pull" >"$RUNNER_TEMP/pr-body.txt"
+          config=docs/conventions/pr-pipeline.yaml
+          read_api "$config at $BASE_SHA" -H 'Accept: application/vnd.github.raw+json' \
+            "repos/$GITHUB_REPOSITORY/contents/$config?ref=$BASE_SHA" >"$RUNNER_TEMP/pr-pipeline.yaml" || exit 1
+          yq -o=json '.merge."diff-check"."denied-paths" // []' "$RUNNER_TEMP/pr-pipeline.yaml" >"$RUNNER_TEMP/denied-paths.json" || {
+            echo "::error::cannot read merge.diff-check.denied-paths from $config at $BASE_SHA."
+            exit 1
+          }
+          read_api "the files of #$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr/files?per_page=100" --paginate \
+            --jq '.[] | [.filename, (.previous_filename // empty)] | @json' >"$RUNNER_TEMP/files.jsonl" || exit 1
+          changed=$(jq -er '.changed_files | numbers' <<<"$pull") || { echo "::error::the changed-file count of #$pr could not be read."; exit 1; }
+          if [ "$(grep -c . "$RUNNER_TEMP/files.jsonl")" -lt "$changed" ]; then
+            echo "::error::GitHub listed fewer files than #$pr changes, so its hold paths cannot be checked; a person merges it."
+            exit 1
+          fi
           : >"$RUNNER_TEMP/discussion.jsonl"
           for kind in "issues/$pr/comments" "pulls/$pr/reviews" "pulls/$pr/comments"; do
             rows=$(read_api "the $kind of #$pr" "repos/$GITHUB_REPOSITORY/$kind?per_page=100" --paginate --jq '.[] | @json') || exit 1
             [ -z "$rows" ] || printf '%s\n' "$rows" >>"$RUNNER_TEMP/discussion.jsonl"
           done
-          out=$(node "$RUNNER_TEMP/merge-holds.mjs" "$pr" "$RUNNER_TEMP/pr-body.txt" "$RUNNER_TEMP/discussion.jsonl") || { printf '%s\n' "$out"; exit 1; }
+          out=$(node "$RUNNER_TEMP/merge-holds.mjs" "$pr" "$RUNNER_TEMP/pr-body.txt" "$RUNNER_TEMP/discussion.jsonl" \
+            "$RUNNER_TEMP/files.jsonl" "$RUNNER_TEMP/denied-paths.json") || { printf '%s\n' "$out"; exit 1; }
           # Exit 0 without the module's no-hold line ran no check: fail closed.
           printf '%s\n' "$out"
-          grep -qxF "#$pr: no body hold and no member veto." <<<"$out" || { echo "::error::merge-holds.mjs exited 0 without its verdict."; exit 1; }
+          grep -qxF "#$pr: no body hold, no member veto and no hold path." <<<"$out" || { echo "::error::merge-holds.mjs exited 0 without its verdict."; exit 1; }
       # ORDERED SKIPS ARE CHECKED HERE. A test lane `test-<x>`, or `lint-shell`
       # on its `run_shell` row, skips as a job when `select-tests`'s `run_<x>`
       # row says the change gives it no work. Its

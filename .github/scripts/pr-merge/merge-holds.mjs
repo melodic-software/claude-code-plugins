@@ -11,11 +11,18 @@
 //   decides, and holds when it says "do not merge"
 //   (babysit_merge.HUMAN_MERGE_VETO_RE). A later one by the same person
 //   lifts it; an item with no text lifts nothing.
+// - A hold path: a changed file, or a renamed file's old path, matching the
+//   merge lane's denied paths, which resolve-config resolves as the config's
+//   merge.diff-check.denied-paths plus HOLD_PATH_FLOOR.
 //
-// Command line: merge-holds.mjs <number> <body-file> <discussion-file>. The
-// discussion file holds one REST issue comment, review or review comment per
-// line. Each hold prints as an ::error:: and exits 1; no hold exits 0.
+// Command line: merge-holds.mjs <number> <body-file> <discussion-file>
+// <files-file> <denied-paths-file>. The discussion file holds one REST issue
+// comment, review or review comment per line; the files file one JSON array
+// per changed file, its path then any renamed-from path; the denied-paths file
+// the config's merge.diff-check.denied-paths as JSON. Each hold prints as an
+// ::error:: and exits 1; no hold exits 0.
 import { readFileSync } from "node:fs";
+import { posix } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -25,6 +32,13 @@ export const BODY_HOLD = /\bdo(?:n['’]?t| not)\s+merge\b|(?:^|\r)[^\S\r\n]*hol
 export const HUMAN_VETO = /\bdo(?:n['’]?t| not|-not)[\s-]*merge\b/i;
 // babysit_merge_policy.BLOCKER_ASSOCIATIONS.
 const MEMBERS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
+// The denied paths resolve-config adds to every config's (resolveMerge);
+// merge-authority.test.mjs checks the two agree.
+export const HOLD_PATH_FLOOR = Object.freeze([
+  "docs/conventions/pr-pipeline.yaml",
+  ".github/**",
+  ".github/standards/trusted-actors/trusted-actors.json",
+]);
 
 // The members whose newest item with text vetoes the merge, sorted. Each item
 // is { login, isUser, association, at, body }, `at` an ISO 8601 UTC time.
@@ -53,10 +67,37 @@ export const fromRest = (row) => ({
   body: String(row?.body ?? ""),
 });
 
-// Why the pull request's `body` and discussion `items` hold it; empty when
-// nothing does.
-export function holds(body, items) {
+// Why the head's changed `files` hold it, or null. Null `holdPaths` or
+// `files` (unreadable) holds it.
+export function pathHold(files, holdPaths) {
+  if (!Array.isArray(holdPaths)) {
+    return "the hold paths could not be read";
+  }
+  if (!Array.isArray(files)) {
+    return "its changed files could not all be read";
+  }
+  if (typeof posix.matchesGlob !== "function") {
+    return "this Node has no path.matchesGlob, so its hold paths cannot be checked";
+  }
+  const held = files.find((path) => holdPaths.some((glob) => posix.matchesGlob(path, glob)));
+  return held === undefined ? null : `it changes ${held}, a hold path`;
+}
+
+// The config's denied paths plus the floor, or null unless a list of strings.
+export function holdPathsOf(denied) {
+  return Array.isArray(denied) && denied.every((glob) => typeof glob === "string")
+    ? [...new Set([...denied, ...HOLD_PATH_FLOOR])]
+    : null;
+}
+
+// Why the pull request's `body`, discussion `items` and changed `files` hold
+// it; empty when nothing does.
+export function holds(body, items, files, holdPaths) {
   const reasons = [];
+  const pathReason = pathHold(files, holdPaths);
+  if (pathReason) {
+    reasons.push(`${pathReason}; a person merges it`);
+  }
   if (BODY_HOLD.test(String(body ?? ""))) {
     reasons.push("its body holds it (a line opening with 'Hold:', or 'do not merge'); removing that text lifts it");
   }
@@ -68,21 +109,21 @@ export function holds(body, items) {
 }
 
 export function main(argv = process.argv.slice(2)) {
-  const [number, bodyFile, discussionFile] = argv;
+  const [number, bodyFile, discussionFile, filesFile, deniedFile] = argv;
   try {
-    if (!/^[1-9][0-9]*$/.test(String(number)) || !bodyFile || !discussionFile) {
-      throw new Error("usage: merge-holds.mjs <number> <body-file> <discussion-file>");
+    if (!/^[1-9][0-9]*$/.test(String(number)) || !bodyFile || !discussionFile || !filesFile || !deniedFile) {
+      throw new Error("usage: merge-holds.mjs <number> <body-file> <discussion-file> <files-file> <denied-paths-file>");
     }
-    const items = readFileSync(discussionFile, "utf8")
-      .split("\n")
-      .filter((line) => line.trim())
-      .map((line) => fromRest(JSON.parse(line)));
-    const reasons = holds(readFileSync(bodyFile, "utf8"), items);
+    const lines = (file) => readFileSync(file, "utf8").split("\n").filter((line) => line.trim());
+    const items = lines(discussionFile).map((line) => fromRest(JSON.parse(line)));
+    const files = lines(filesFile).flatMap((line) => JSON.parse(line).map(String));
+    const holdPaths = holdPathsOf(JSON.parse(readFileSync(deniedFile, "utf8")));
+    const reasons = holds(readFileSync(bodyFile, "utf8"), items, files, holdPaths);
     for (const reason of reasons) {
       console.log(`::error::#${number}: ${reason.replaceAll("%", "%25")}.`);
     }
     if (!reasons.length) {
-      console.log(`#${number}: no body hold and no member veto.`);
+      console.log(`#${number}: no body hold, no member veto and no hold path.`);
     }
     return reasons.length ? 1 : 0;
   } catch (error) {

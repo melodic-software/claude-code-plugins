@@ -19,7 +19,9 @@
 // - Its head changes no hold path: the merge lane's denied paths
 //   (report-outcome.readHoldPaths), read against the files, renamed-from paths
 //   included, that the head changes now, since a push after report-outcome
-//   wrote its Hold: line can add one.
+//   wrote its Hold: line can add one. The rule is merge-holds.pathHold, which
+//   ci-status also runs on every lanes App pull request event and merge
+//   group, so a push after arming is held without waiting for this job.
 // - No person turned its auto-merge off: the newest auto-merge-disabled event
 //   by a user account keeps it off until a person turns it on again.
 // Arming passes the head just read as expectedHeadOid, so a push in between
@@ -37,14 +39,13 @@
 //                        label (default .base/.work-item-tracker.json)
 //   RESOLVED_CONFIG      the resolve-config output, for the hold paths
 //   GITHUB_API_URL
-import { posix } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { humanGatedLabelFrom } from "../pr-unblock/address-feedback.mjs";
 import { readHoldPaths } from "../work-resolve-issue/report-outcome.mjs";
-import { BODY_HOLD, vetoers } from "./merge-holds.mjs";
+import { BODY_HOLD, pathHold, vetoers } from "./merge-holds.mjs";
 
 export { BODY_HOLD, HUMAN_VETO } from "./merge-holds.mjs";
 
@@ -138,18 +139,6 @@ export function discussionHold(detail) {
   }));
   const vetoes = vetoers(items);
   return vetoes.length ? `${vetoes.join(", ")} asked not to merge it` : null;
-}
-
-// Why the head's changed `files` hold it, or null.
-export function pathHold(files, holdPaths) {
-  if (!Array.isArray(holdPaths)) {
-    return "the hold paths could not be read";
-  }
-  if (!Array.isArray(files)) {
-    return "its changed files could not all be read";
-  }
-  const held = files.find((path) => holdPaths.some((glob) => posix.matchesGlob(path, glob)));
-  return held === undefined ? null : `it changes ${held}, a hold path`;
 }
 
 async function changedFiles(github, slug, number) {
