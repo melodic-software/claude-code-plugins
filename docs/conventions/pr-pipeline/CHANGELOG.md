@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [4.13.1] - 2026-10-23
+
+### Fixed
+
+- `ci-status` and `enable-auto-merge` hold a lanes App pull request that changes the marketplace manifest (until a trusted approval of the head) or a merge-gate cost path (until the owner's linked cost decision).
+
 ## [4.13.0] - 2026-10-23
 
 ### Added
