@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.13.3] - 2026-10-23
+
+### Changed
+
+- The post-merge check (`babysit_postmerge.py`) answers a lane dispatch or re-run record from the file pr-merge.yml names in `BABYSIT_POSTMERGE_LANE_RECORDS` before listing it: a record an earlier check proved is present with no request once it is unexpired and the run that uploaded it passes the check's sender rule again (pr-merge.yml on the branch, an event of the job that writes the record, a head commit on the branch tip). The check writes back, to the same file, the records it read in and each it proves whose uploading run completed and whose artifact was listed unexpired, merged with the file as another check of the run left it since (a record this check read in but never asked for, which that check dropped, stays dropped), keeping those unexpired and created at or after the lowest floor any check of the run used; a file it cannot parse at all, a nesting too deep to read included, is no file. A record it holds decides as a successful read would; the decision differs only where today's read fails: a failed listing or sender read leaves the verdict unreadable, and a listing that reads empty twice is an unlisted-record hold, where the carried record reads present, as an earlier successful read found it. Any other record is read as before, and a missing, unreadable or malformed file (another version or repository, a name that is no lane record, an entry missing its dates, artifact id or completed sender) is no file. Without the variable nothing changes.
+
+### Fixed
+
+- The pr-merge gate's verdict reader (`babysit_verify_evidence`) compares the number of a name that starts like a FAIL's but is no verdict name as text, so any length of digits is read without raising, and a number over 10 digits never counts toward the cap. pr-verify now writes the FAIL names with `-i` and the verdict's issues that 2.13.1 described as not written yet.
+
 ## [2.13.2] - 2026-10-23
 
 ### Removed
