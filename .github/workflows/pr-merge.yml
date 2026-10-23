@@ -584,6 +584,7 @@ jobs:
         if: steps.lane-token.outputs.token != ''
         env:
           GH_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
           REPO: ${{ github.repository }}
           DEPENDABOT: ${{ steps.mode.outputs.dependabot }}
         run: |
@@ -725,6 +726,7 @@ jobs:
         if: steps.lane-token.outputs.token != ''
         env:
           GH_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -756,6 +758,7 @@ jobs:
         if: steps.mode.outputs.live == 'true' && steps.post-merge.outputs.code == '1'
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          API_BUDGET_TOKEN: lanes-app
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -788,6 +791,7 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          API_BUDGET_TOKEN: lanes-app
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -810,6 +814,8 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          API_BUDGET_TOKEN: lanes-app
+          API_BUDGET_OVERRIDE_TOKEN: github-token
           BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
           REPO: ${{ github.repository }}
@@ -862,6 +868,9 @@ jobs:
           # _lane_evidence, babysit_whole_review.py); every write keeps the
           # lane token. The job runs main's code alone, never a PR's.
           BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}
+          # Name the two tokens' rate-limit readings (api-budget.bash).
+          API_BUDGET_TOKEN: lanes-app
+          API_BUDGET_OVERRIDE_TOKEN: github-token
           # At most one whole-review request per run: the first candidate to
           # reach its limits creates this file (babysit_whole_review.py).
           BABYSIT_WHOLE_REVIEW_SPENT: ${{ runner.temp }}/whole-review-spent

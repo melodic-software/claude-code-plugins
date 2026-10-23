@@ -32,8 +32,8 @@ name: pr-feedback-dispatch
 # record for the next one at that head in the Actions cache
 # (dispatch-record.mjs): a head already handled for good is skipped before
 # any read, and one whose dispatched run is still going after one. The
-# token's budget is logged at the start and end of the job
-# (.github/actions/log-api-budget).
+# token's rate-limit readings, from the script's own responses, are logged
+# at the end of the job (.github/actions/log-api-budget).
 
 on:
   # workflow_run runs this file from the default branch, never a PR's copy.
@@ -210,6 +210,7 @@ jobs:
         if: steps.kill.outputs.proceed == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
           DISPATCH_RECORD: ${{ runner.temp }}/pr-feedback-dispatch-record.json

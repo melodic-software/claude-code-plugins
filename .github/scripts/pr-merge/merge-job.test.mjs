@@ -184,20 +184,20 @@ test("the listing fails with one clear error after three failed tries", () => {
   assert.doesNotMatch(run.stderr, /jq: error|Traceback/);
 });
 
-test("the API budget is logged through the shared action at mint and at job end, for both tokens", () => {
-  for (const [name, phase, condition] of [
-    ["Log the API budget at mint", "start", "steps.lane-token.outputs.token != ''"],
-    ["Log the API budget at job end", "end", "always() && steps.lane-token.outputs.token != ''"],
-  ]) {
-    const block = step(name);
-    assert.match(block, /\n {8}uses: \.\/\.base\/\.github\/actions\/log-api-budget /);
-    assert.match(block, new RegExp(`\\n {8}if: ${condition.replace(/[().|$]/g, "\\$&")}\\n`));
-    assert.match(block, /\n {8}continue-on-error: true\n/);
-    assert.match(block, new RegExp(`\\n {10}phase: ${phase}\\n`));
-    assert.match(block, /\n {12}lanes-app \$\{\{ steps\.lane-token\.outputs\.token \}\}\n {12}github-token \$\{\{ github\.token \}\}\n/);
-  }
-  assert.doesNotMatch(job, /gh api rate_limit/);
+test("the job end logs both tokens' readings from the job's own responses, and reads no /rate_limit", () => {
+  const block = step("Log the API budget at job end");
+  assert.match(block, /\n {8}uses: \.\/\.base\/\.github\/actions\/log-api-budget /);
+  assert.match(block, /\n {8}if: always\(\) && steps\.lane-token\.outputs\.token != ''\n/);
+  assert.match(block, /\n {8}continue-on-error: true\n/);
+  assert.match(block, /\n {10}tokens: lanes-app github-token\n/);
+  assert.doesNotMatch(job, /gh api rate_limit|phase: start|\$\{\{ [^}]*token[^}]* \}\}\n {10}tokens:/);
+  // The gate's babysit calls read into both names: the lane token by default,
+  // the job token for the verdict reads that carry it.
+  const gate = step("Run the merge gate on each candidate");
+  assert.match(gate, /\n {10}API_BUDGET_TOKEN: lanes-app\n/);
+  assert.match(gate, /\n {10}API_BUDGET_OVERRIDE_TOKEN: github-token\n/);
   const names = steps.map((s) => s.name);
+  assert.ok(names.indexOf("Run the merge gate on each candidate") < names.indexOf("Log the API budget at job end"));
   assert.ok(names.indexOf("Log the API budget at job end") < names.indexOf("Revoke the lane token"));
 });
 
