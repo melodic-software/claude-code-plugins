@@ -1679,6 +1679,69 @@ assert_not_contains "keys live: a later record in one message flags no role" "$K
 assert_contains "keys live: the cap's overflow is reported" "$KEYS_LIVE" \
   "  PARTIAL: annotations read for 200 runs, the newest 3 of each lane and then failed runs first; 3 more were not read (raise --lane-read-limit)"
 
+# --- Lanes: per-role spend from the records' costUsd ----------------------------
+# Fixture amounts are synthetic round numbers, not rates. AUTOMATIONS spans two
+# lanes: pr-verify runs 100 and 101 are successful key legs (1 and 3), run
+# 102's key leg hit a credit stop (4, left out of the median) and its
+# subscription leg carries a cost (9, a token leg, ignored), and run 103 was
+# not read; intake-triage run 110 is a successful key leg (2) and run 111 was
+# not read. Median 2 per key leg times the 6 runs of those lanes, over 7 days;
+# the sum covers every key leg read, the credit stop's included (1+3+4+2).
+# REVIEWS run 120's key leg has no costUsd. EVEN's successful legs in runs 121
+# and 122 cost 1 and 4 (median 2.5 over pr-review-hosted's 3 runs); its
+# credit-stop leg (100) counts only in the sum, and its -1 and "2" costs are not
+# costs. HUGE's cost is past the bound; role "bad" is not a role. PR_UNBLOCK
+# run 130 is a token leg.
+cat >"$TMP/spend-runs.json" <<'EOF'
+{
+  "pr-verify.yml": [
+    {"id": 100, "html_url": "http://x/runs/100", "event": "workflow_run", "display_title": "PR S1", "head_sha": "s1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T10:00:00Z"},
+    {"id": 101, "html_url": "http://x/runs/101", "event": "workflow_run", "display_title": "PR S2", "head_sha": "s2", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T11:00:00Z"},
+    {"id": 102, "html_url": "http://x/runs/102", "event": "workflow_run", "display_title": "PR S3", "head_sha": "s3", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T12:00:00Z"},
+    {"id": 103, "html_url": "http://x/runs/103", "event": "workflow_run", "display_title": "PR S4", "head_sha": "s4", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T13:00:00Z"}
+  ],
+  "intake-triage.yml": [
+    {"id": 110, "html_url": "http://x/runs/110", "event": "issues", "display_title": "Issue S", "head_sha": "t1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T10:00:00Z"},
+    {"id": 111, "html_url": "http://x/runs/111", "event": "issues", "display_title": "Issue T", "head_sha": "t2", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T11:00:00Z"}
+  ],
+  "pr-review-hosted.yml": [
+    {"id": 120, "html_url": "http://x/runs/120", "event": "pull_request", "display_title": "PR R", "head_sha": "r1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T10:00:00Z"},
+    {"id": 121, "html_url": "http://x/runs/121", "event": "pull_request", "display_title": "PR R2", "head_sha": "r2", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T11:00:00Z"},
+    {"id": 122, "html_url": "http://x/runs/122", "event": "pull_request", "display_title": "PR R3", "head_sha": "r3", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T12:00:00Z"}
+  ],
+  "pr-unblock.yml": [
+    {"id": 130, "html_url": "http://x/runs/130", "event": "workflow_dispatch", "display_title": "Fix #9", "head_sha": "u1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T10:00:00Z"}
+  ]
+}
+EOF
+cat >"$TMP/spend-annotations.json" <<'EOF'
+{
+  "100": "pr-verify completed: credential=AUTOMATIONS_CLAUDE_API_KEY turns=5. lane-outcome {\"v\":1,\"lane\":\"pr-verify\",\"outcome\":\"success\",\"credential\":{\"secret\":\"AUTOMATIONS_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"AUTOMATIONS\"},\"turns\":5,\"costUsd\":1}",
+  "101": "pr-verify completed: credential=AUTOMATIONS_CLAUDE_API_KEY turns=5. lane-outcome {\"v\":1,\"lane\":\"pr-verify\",\"outcome\":\"success\",\"credential\":{\"secret\":\"AUTOMATIONS_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"AUTOMATIONS\"},\"turns\":5,\"costUsd\":3}",
+  "102": "pr-verify exited with: failure class=credit-stop credential=AUTOMATIONS_CLAUDE_API_KEY. lane-outcome {\"v\":1,\"lane\":\"pr-verify\",\"outcome\":\"failure\",\"class\":\"credit-stop\",\"credential\":{\"secret\":\"AUTOMATIONS_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"AUTOMATIONS\"},\"handoff\":true,\"costUsd\":4}\npr-verify completed: credential=AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN fallback=credit-stop turns=4. lane-outcome {\"v\":1,\"lane\":\"pr-verify\",\"outcome\":\"success\",\"credential\":{\"secret\":\"AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\",\"role\":\"AUTOMATIONS\"},\"fallback\":{\"reason\":\"credit-stop\"},\"turns\":4,\"costUsd\":9}",
+  "110": "Claude intake triage completed: credential=AUTOMATIONS_CLAUDE_API_KEY turns=3. lane-outcome {\"v\":1,\"lane\":\"intake-triage\",\"outcome\":\"success\",\"credential\":{\"secret\":\"AUTOMATIONS_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"AUTOMATIONS\"},\"turns\":3,\"costUsd\":2}",
+  "120": "pr-review completed: credential=REVIEWS_CLAUDE_API_KEY turns=7. lane-outcome {\"v\":1,\"lane\":\"pr-review\",\"outcome\":\"success\",\"credential\":{\"secret\":\"REVIEWS_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"REVIEWS\"},\"turns\":7}",
+  "121": "pr-review completed. lane-outcome {\"v\":1,\"lane\":\"pr-review\",\"outcome\":\"success\",\"credential\":{\"secret\":\"EVEN_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"EVEN\"},\"costUsd\":1}\nother leg. lane-outcome {\"v\":1,\"lane\":\"pr-review\",\"outcome\":\"success\",\"credential\":{\"secret\":\"bad_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"bad\"},\"costUsd\":1}\nother leg. lane-outcome {\"v\":1,\"lane\":\"pr-review\",\"outcome\":\"success\",\"credential\":{\"secret\":\"HUGE_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"HUGE\"},\"costUsd\":1e17}",
+  "122": "pr-review completed. lane-outcome {\"v\":1,\"lane\":\"pr-review\",\"outcome\":\"success\",\"credential\":{\"secret\":\"EVEN_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"EVEN\"},\"costUsd\":4}\nother leg. lane-outcome {\"v\":1,\"lane\":\"pr-review\",\"outcome\":\"success\",\"credential\":{\"secret\":\"EVEN_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"EVEN\"},\"class\":\"credit-stop\",\"costUsd\":100}\nother leg. lane-outcome {\"v\":1,\"lane\":\"pr-review\",\"outcome\":\"success\",\"credential\":{\"secret\":\"EVEN_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"EVEN\"},\"costUsd\":-1}\nother leg. lane-outcome {\"v\":1,\"lane\":\"pr-review\",\"outcome\":\"success\",\"credential\":{\"secret\":\"EVEN_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"EVEN\"},\"costUsd\":\"2\"}",
+  "130": "pr-unblock completed: credential=PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN fallback=no-key turns=6. lane-outcome {\"v\":1,\"lane\":\"fix-ci\",\"outcome\":\"success\",\"credential\":{\"secret\":\"PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\",\"role\":\"PR_UNBLOCK\"},\"fallback\":{\"reason\":\"no-key\"},\"turns\":6,\"costUsd\":5}\nactivity=fix-ci"
+}
+EOF
+SPEND="$(section "$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" \
+  --decisions-json "$TMP/decisions.json" --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \
+  --lane-runs-json "$TMP/spend-runs.json" --lane-annotations-json "$TMP/spend-annotations.json" "${CLEAR_COST_ARGS[@]}" 2>&1)" "== Lanes")"
+assert_contains "spend: the median successful key leg, scaled by the role's lane runs per day, labeled a list-price estimate" "$SPEND" \
+  "  SPEND: AUTOMATIONS ~\$1.71/day (list price, n=4) — estimate: median \$2.00 per successful key leg × 6 runs over 7d; \$10.00 summed over the legs read"
+assert_eq "spend: one line per role prefix, across lanes and secrets" "1" "$(grep -c "^  SPEND: AUTOMATIONS " <<<"$SPEND")"
+assert_not_contains "spend: never grouped by lane id" "$SPEND" "SPEND: pr-verify"
+assert_contains "spend: a key leg with no costUsd says so" "$SPEND" "  SPEND: REVIEWS cost not recorded (n=1)"
+assert_not_contains "spend: a role with only token legs prints no spend line" "$SPEND" "SPEND: PR_UNBLOCK"
+assert_contains "spend: an even count takes the mean of the middle two; a successful credit-stop leg and a negative or string cost are left out" "$SPEND" \
+  "  SPEND: EVEN ~\$1.07/day (list price, n=5) — estimate: median \$2.50 per successful key leg × 3 runs over 7d; \$105.00 summed over the legs read"
+assert_contains "spend: a cost past the bound is not a cost" "$SPEND" "  SPEND: HUGE cost not recorded (n=1)"
+assert_not_contains "spend: a role outside the role pattern prints nothing" "$SPEND" "SPEND: bad"
+assert_not_contains "spend: the section stays readable" "$SPEND" "UNREADABLE"
+assert_contains "spend: legs without costUsd elsewhere print cost not recorded" "$KEYS" "  SPEND: INTAKE cost not recorded (n=1)"
+
 # --- Lanes: model usage by activity and profile ---------------------------------
 # pr-unblock runs 30-36: resolve-conflicts with no profile= runs 30, 31, 34 and
 # 36 (two pass, two max-turns failures, turns 8, 40, 40, 10, so the median is
