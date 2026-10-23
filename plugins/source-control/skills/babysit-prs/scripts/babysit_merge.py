@@ -3617,8 +3617,10 @@ def escalate(
     `marker`, then the tracker's human-gated role label on the pull request,
     added only when no label matches it case-insensitively. The comment goes
     first so a label never stands unexplained; a failed label is retried by
-    the next run, which finds the comment unchanged. Raises `RuntimeError` on
-    a failed write."""
+    the next run, which finds the comment unchanged. A label a person removed
+    after that comment last changed is not a failed write but a lift
+    (`_lifted_by_person`): it stays off, as `lifted`, until the comment
+    changes (a new head or reason). Raises `RuntimeError` on a failed write."""
     pr = json_object(inputs.get("pr"))
     comment = upsert_marker_comment(
         repo,
@@ -3637,6 +3639,12 @@ def escalate(
         str(json_object(item).get("name") or "").casefold() == label.casefold()
         for item in labels
     )
+    if (
+        not present
+        and comment == "unchanged"
+        and _lifted_by_person(repo, number, identity, label, marker, inputs)
+    ):
+        return {"label": "lifted", "comment": comment}
     if not present:
         proc = gh_capture(
             ["api", "-X", "POST", f"repos/{repo}/issues/{number}/labels"]
@@ -3645,6 +3653,65 @@ def escalate(
         if proc.returncode != 0:
             raise RuntimeError(f"label {label}: {proc.stderr.strip()}")
     return {"label": "present" if present else "added", "comment": comment}
+
+
+def _lifted_by_person(
+    repo: str,
+    number: int,
+    identity: str,
+    label: str,
+    marker: str,
+    inputs: Mapping[str, Any],
+) -> bool:
+    """Whether a person (`merge_policy.is_human`: a User with write access,
+    never a bot, the agent identity or a self-login) removed `label` strictly
+    after the identity's `marker` comment last changed. That comment names the
+    head and the reasons, so the removal lifted this escalation. The timeline
+    and comments are read under the verdict reader's token when one is set;
+    any failure or unparsable time is no lift, so the label goes on."""
+    token = os.environ.get(verify_evidence.TOKEN_ENV)
+    read_env = {"GH_TOKEN": token} if token else None
+
+    def person(actor: Any) -> bool:
+        return merge_policy.is_human(
+            {"__typename": actor.get("type"), "login": actor.get("login")},
+            repo=repo,
+            agent_identity=identity,
+            self_logins=inputs.get("self_logins") or frozenset(),
+            permission=inputs.get("permission"),
+        )
+
+    try:
+        comments = inputs.get("comments")
+        if comments is None:
+            comments = fetch_paginated_api(
+                f"repos/{repo}/issues/{number}/comments?per_page=100",
+                f"#{number} comments",
+                env_overrides=read_env,
+            )
+        prior = _newest_marker_comment(comments, identity, marker) or {}
+        escalated = parse_github_timestamp(
+            str(prior.get("updated_at") or prior.get("created_at") or "")
+        )
+        if escalated is None:
+            return False
+        timeline = fetch_paginated_api(
+            f"repos/{repo}/issues/{number}/timeline?per_page=100",
+            f"#{number} timeline",
+            env_overrides=read_env,
+        )
+        return any(
+            event.get("event") == "unlabeled"
+            and str(json_object(event.get("label")).get("name") or "").casefold()
+            == label.casefold()
+            and (at := parse_github_timestamp(str(event.get("created_at") or "")))
+            is not None
+            and at > escalated
+            and person(json_object(event.get("actor")))
+            for event in timeline
+        )
+    except Exception:  # noqa: BLE001 -- any failure escalates as before
+        return False
 
 
 def _failed_merge_group_runs(repo: str, branch: str, number: int) -> list[str] | None:

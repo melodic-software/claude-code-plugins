@@ -749,6 +749,9 @@ class Unattended(unittest.TestCase):
         self.eligible = policy.Eligibility(True, None, "C2", 40)
         self.lanes = BOUND
         self.comments: list[dict[str, Any]] = []
+        self.timeline: list[dict[str, Any]] = []
+        self.timeline_error: Exception | None = None
+        self.timeline_reads: list[dict[str, Any]] = []
         self.files = ((LOW_FILE,), True)
         self.pr_view = fixtures._pr()
         self.queue = fixtures._queue_read(required=True)
@@ -826,6 +829,12 @@ class Unattended(unittest.TestCase):
         # The pr-merge human-veto scan reads the inline review comments too.
         if endpoint == f"repos/owner/repo/pulls/{PR}/comments?per_page=100":
             return []
+        # The timeline an escalation reads for a person's removal of its label.
+        if endpoint == f"repos/owner/repo/issues/{PR}/timeline?per_page=100":
+            self.timeline_reads.append(kwargs)
+            if self.timeline_error is not None:
+                raise self.timeline_error
+            return self.timeline
         return self._real_paginated(endpoint, label, **kwargs)
 
     def _default_branch(self, repo: str, *, shared: bool = False) -> str:
@@ -3227,6 +3236,114 @@ class ReasonsComment(Unattended):
             {"label": "added", "comment": "unchanged"},
         )
 
+    def unlabeled(
+        self, login: str, kind: str, at: datetime, name: str = "Needs-Human"
+    ) -> dict[str, Any]:
+        """A REST timeline event removing `name` at `at`."""
+        return {
+            "event": "unlabeled",
+            "actor": {"login": login, "type": kind},
+            "label": {"name": name},
+            "created_at": at.isoformat().replace("+00:00", "Z"),
+        }
+
+    def escalated_earlier(self) -> None:
+        """An earlier run escalated at this head at WRITTEN; the label is off."""
+        self.setUp()
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(f"{body}\n\n{merge.RISK_ESCALATION_LINE}")
+        self.lanes = UNBOUND
+
+    def test_a_person_removing_the_label_after_the_escalation_keeps_it_off(
+        self,
+    ) -> None:
+        self.escalated_earlier()
+        self.timeline = [
+            self.unlabeled("owner-person", "User", self.WRITTEN + timedelta(minutes=30))
+        ]
+        _, out = self.run_main()
+        self.assertEqual(self.log, [])
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"],
+            {"label": "lifted", "comment": "unchanged"},
+        )
+
+    def test_a_bot_or_a_reader_removing_the_label_is_no_lift(self) -> None:
+        later = self.WRITTEN + timedelta(minutes=30)
+        for login, kind in (
+            ("melodic-automation-lanes[bot]", "Bot"),
+            ("github-actions[bot]", "Bot"),
+            (IDENTITY, "Bot"),
+            ("reader-person", "User"),
+        ):
+            with self.subTest(login):
+                self.escalated_earlier()
+                self.permission_reader = lambda repo: (
+                    lambda who: "read" if who == "reader-person" else "write"
+                )
+                self.timeline = [self.unlabeled(login, kind, later)]
+                _, out = self.run_main()
+                self.assertEqual(self.log, [self.LABEL])
+                self.assertEqual(
+                    out["unattended"]["writes"]["riskEscalation"],
+                    {"label": "added", "comment": "unchanged"},
+                )
+
+    def test_a_removal_before_the_escalation_is_no_lift(self) -> None:
+        self.escalated_earlier()
+        self.timeline = [
+            self.unlabeled("owner-person", "User", self.WRITTEN - timedelta(minutes=5)),
+            self.unlabeled("owner-person", "User", self.WRITTEN),
+        ]
+        self.run_main()
+        self.assertEqual(self.log, [self.LABEL])
+
+    def test_another_labels_removal_is_no_lift(self) -> None:
+        self.escalated_earlier()
+        self.timeline = [
+            self.unlabeled(
+                "owner-person", "User", self.WRITTEN + timedelta(minutes=30), "bug"
+            )
+        ]
+        self.run_main()
+        self.assertEqual(self.log, [self.LABEL])
+
+    def test_an_unread_timeline_escalates(self) -> None:
+        self.escalated_earlier()
+        self.timeline_error = RuntimeError("HTTP 403: rate limit")
+        _, out = self.run_main()
+        self.assertEqual(self.log, [self.LABEL])
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"]["label"], "added"
+        )
+
+    def test_the_timeline_is_read_under_the_verdict_readers_token(self) -> None:
+        self.escalated_earlier()
+        with mock.patch.dict(os.environ, {merge.verify_evidence.TOKEN_ENV: "reader"}):
+            self.run_main()
+        self.assertEqual(
+            self.timeline_reads, [{"env_overrides": {"GH_TOKEN": "reader"}}]
+        )
+
+    def test_a_removal_before_a_new_escalation_does_not_lift_it(self) -> None:
+        # The reasons comment says the refusal for the first time at this
+        # head, so a person's earlier removal lifted some other escalation.
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(body)
+        self.lanes = UNBOUND
+        self.timeline = [
+            self.unlabeled("owner-person", "User", self.WRITTEN + timedelta(minutes=30))
+        ]
+        _, out = self.run_main()
+        self.assertEqual(self.log, ["risk-comment:PATCH", self.LABEL])
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"],
+            {"label": "added", "comment": "updated"},
+        )
+        self.assertEqual(self.timeline_reads, [])
+
     def test_an_escalated_comment_at_a_new_head_drops_the_line(self) -> None:
         old = self.body().replace(HEAD, "d" * 40)
         self.setUp()
@@ -4529,6 +4646,43 @@ class DependabotMajorEscalation(unittest.TestCase):
         self.assertEqual(self.calls, [])
         self.assertEqual(
             out["majorEscalation"], {"label": "present", "comment": "unchanged"}
+        )
+
+    def lifted(self, timeline: list[dict[str, Any]]) -> dict[str, Any]:
+        """A rerun at the head after the label came off, over `timeline`."""
+        self.comments = [
+            {
+                "id": 90,
+                "user": {"login": "agent-lanes[bot]", "type": "Bot"},
+                "created_at": "2026-10-18T10:00:00Z",
+                "body": merge.major_escalation_body("x", self.HEAD),
+            }
+        ]
+        with mock.patch.object(merge, "fetch_paginated_api", return_value=timeline):
+            return self.writes("ineligible:dependabot-major-held:x")
+
+    def test_a_person_removing_the_label_keeps_a_held_major_off(self) -> None:
+        removed = {
+            "event": "unlabeled",
+            "actor": {"login": "owner-person", "type": "User"},
+            "label": {"name": "status: needs-decision"},
+            "created_at": "2026-10-18T11:00:00Z",
+        }
+        with mock.patch.object(
+            policy, "permission_reader", return_value=lambda _: "admin"
+        ):
+            out = self.lifted([removed])
+        self.assertEqual(self.calls, [])
+        self.assertEqual(
+            out["majorEscalation"], {"label": "lifted", "comment": "unchanged"}
+        )
+
+    def test_a_held_major_whose_label_write_failed_is_labeled_again(self) -> None:
+        out = self.lifted([])
+        (label,) = self.calls
+        self.assertEqual(label[-1], "labels[]=status: needs-decision")
+        self.assertEqual(
+            out["majorEscalation"], {"label": "added", "comment": "unchanged"}
         )
 
     def test_the_first_line_is_the_attend_queue_escalation_marker(self) -> None:
