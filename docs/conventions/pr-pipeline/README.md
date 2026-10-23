@@ -1434,9 +1434,12 @@ them on every `pull_request` run, contract-only runs included:
 
 A review usually finishes after ci-status has read it, so `pr-feedback-dispatch.yml`'s
 `rerun-ci-status` job re-runs the ci-status job of the newest `pr-require-checks` run on the head
-whenever either review caller completes (not when GitHub skipped it) on an open same-repository PR
-still at that head. A ci-status not started yet is left to read the reviews itself; one in progress
-is polled every 60 seconds for at most 10 minutes first. The merge-group run re-checks the labels.
+when a review caller completes (not when GitHub skipped it) on an open same-repository PR still at
+that head and the other lane's newest run on the head has finished or never ran. While the other
+lane is still going a re-run could only be red, and that lane's completion re-runs it, so a head
+gets one re-run, not one per lane. A ci-status not started yet, or one that started after both
+lanes finished, is left to read the reviews itself; an earlier one in progress is polled every 60
+seconds for at most 10 minutes first. The merge-group run re-checks the labels.
 `fix-ci` keys on `ci-lanes`, so a hold or a pending review never summons it.
 
 ## Trust-root paths
