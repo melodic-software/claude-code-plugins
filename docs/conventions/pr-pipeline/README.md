@@ -1300,8 +1300,10 @@ saved, and is kept for that candidate's gate run: the pull request and every que
 listing being paged again, so a listing outage holds the whole queue rather than merging blind.
 The lane token holds no Actions permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
-records, the download and the compare of a run's head to main (a `contents: read` call) alone, and
-every other call keeps the lane token. That job checks out only main and runs no pull request code.
+records, the download and the compare of a run's head to main (a `contents: read` call). The gate's
+review-evidence reads use it too: the timeline, the comments, and the lane runs with their attempts,
+jobs and annotations. Every other call, every write included, keeps the lane token. That job checks
+out only main and runs no pull request code.
 
 pr-merge.yml also names a file in `BABYSIT_RUN_CACHE`, where the run's gate processes share reads
 that are the same for every candidate. The acting login and a credential pass are reused only under
