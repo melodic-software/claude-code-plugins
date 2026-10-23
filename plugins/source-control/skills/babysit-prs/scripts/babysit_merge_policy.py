@@ -4502,15 +4502,11 @@ def lane_room(
 
     Any read failure, a missing `shared` and an in-flight count that could
     not be read included, is `unreadable`. So is a `shared` the gate would
-    not reuse for its age (`_shared_age_refusal`) or for a demotion record
-    filed or changed since (`_demotion_changed`): a re-run job downloads the
-    run's first report, up to a day old, and reads its demotion and
-    refusal."""
+    not reuse (`shared_refusal`): too old (a re-run job downloads the run's
+    first report, up to a day old), a demotion record filed or changed
+    since, or a lane merge landed since that it does not count."""
     if shared is None:
         return LaneRoom(unreadable="post-merge answer missing or unreadable")
-    stale = _shared_age_refusal(shared, (now or datetime.now(UTC)) - shared.computed_at)
-    if stale:
-        return LaneRoom(unreadable=f"post-merge answer {stale}")
     try:
         default = _default_branch(repo, shared=True)
         config = _default_branch_config(repo, default)
@@ -4519,11 +4515,25 @@ def lane_room(
     if enabled_authority(config) != PR_MERGE:
         return LaneRoom(refusal=AUTHORITY_UNCONFIGURED)
     identity = config.agent_identity
-    if not identity or _login_key(shared.identity) != _login_key(identity):
-        return LaneRoom(unreadable="post-merge answer is for another identity")
-    owner, name = _split_repo(repo)
-    if not shared.demotion.active and _demotion_changed(owner, name, shared, identity):
-        return LaneRoom(unreadable="post-merge answer demotion-changed")
+    if not identity:
+        return LaneRoom(unreadable="no agent identity")
+    # The gate's own reuse rule, as a candidate at the default branch head
+    # with the gate's self logins (none): the same identity and lane, its
+    # age, no demotion record filed or changed since, and every lane merge
+    # the check would judge now counted (`new-merge:#<n>` otherwise).
+    unusable = shared_refusal(
+        repo,
+        shared,
+        branch=default,
+        base_sha=config.base_sha,
+        identity=identity,
+        self_logins=frozenset(),
+        lane=True,
+        authority=PR_MERGE,
+        now=now,
+    )
+    if unusable:
+        return LaneRoom(unreadable=f"post-merge answer {unusable}")
     if shared.gate.refusal:
         return LaneRoom(refusal=f"post-merge:{shared.gate.refusal}")
     cap = rung_cap(repo, authority=PR_MERGE, lane_value=lane_rung_cap)

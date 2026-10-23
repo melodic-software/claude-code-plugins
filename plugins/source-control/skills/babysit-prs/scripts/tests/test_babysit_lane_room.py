@@ -97,6 +97,10 @@ class LaneRoom(unittest.TestCase):
             mock.patch.object(
                 policy, "_demotion_changed", return_value=demotion_changed
             ),
+            # shared_refusal's reads: the answer's own config commit and main
+            # head, so only its age and demotion decide.
+            mock.patch.object(policy, "newest_config_commit", return_value=MAIN),
+            mock.patch.object(policy, "_get", return_value=(200, {"sha": MAIN})),
         ):
             result = policy.lane_room(
                 REPO,
@@ -172,6 +176,39 @@ class LaneRoom(unittest.TestCase):
                 self.assertIsNone(room.refusal)
                 self.assertTrue(room.unreadable)
         self.assertFalse(self.seen, "no in-flight read after an unusable answer")
+
+    def test_a_lane_merge_the_answer_does_not_count_is_unreadable(self) -> None:
+        # The gate's reuse rule (shared_refusal) reads afresh when a lane
+        # merge landed after the report was computed (`new-merge:#<n>`), so
+        # its failed full run is not missed; the room holds rather than arm.
+        seen: list[dict[str, object]] = []
+
+        def refusal(repo: str, answer: object, **kwargs: object) -> str:
+            seen.append(kwargs)
+            return "new-merge:#7"
+
+        with mock.patch.object(policy, "shared_refusal", side_effect=refusal):
+            room = self.room()
+        self.assertEqual(
+            (room.refusal, room.unreadable),
+            (None, "post-merge answer new-merge:#7"),
+        )
+        self.assertFalse(self.seen, "no in-flight read after an unusable answer")
+        # Bound as the gate binds a candidate at the default branch head.
+        self.assertEqual(
+            {
+                k: seen[0][k]
+                for k in ("branch", "base_sha", "identity", "lane", "authority")
+            },
+            {
+                "branch": "main",
+                "base_sha": MAIN,
+                "identity": IDENTITY,
+                "lane": True,
+                "authority": "pr-merge",
+            },
+        )
+        self.assertEqual(seen[0]["self_logins"], frozenset())
 
     def test_an_active_demotion_is_not_re_read(self) -> None:
         # Already refusing: a changed record cannot make it allow.

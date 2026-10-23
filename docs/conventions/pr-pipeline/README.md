@@ -1083,8 +1083,9 @@ an open CRITICAL security finding or a review not bound to the head, whether or 
 applied its hold label, a symlink, submodule or other non-regular mode, a high path, the manifest
 review, the trust gate and the cost review all hold. Each such run also
 waits for the same run's `post-merge-dispatch` job and reads the lane's room from the post-merge
-report that job keeps as an artifact (`babysit_verify_evidence.py lane-room`; with no report it
-holds as a refusal does): while the gate holds its lane off (a demotion record,
+report that job keeps as an artifact (`babysit_verify_evidence.py lane-room`; with no report, or
+one the gate would not reuse (`shared_refusal`: too old, a demotion record changed since, or a lane
+merge landed since that it does not count), it holds as a refusal does): while the gate holds its lane off (a demotion record,
 `merge.rung`, the loop setting or the rung cap off, a lane merge that failed its post-merge check)
 nothing is armed and every armed lanes App pull request is disarmed; at `merge.max-in-flight`,
 counting the queue's lane entries, the lane's unverified merges and armed pull requests the queue
