@@ -18,8 +18,9 @@ The HIGH path floor and the lane table are fixed here, never read from
 configuration. The floor holds only what has an effect outside the repository
 or its review: agent permission config, submodules, code owners, package
 manifests and lockfiles, the workflows that publish a release or hold
-`id-token: write`, and the trusted-trigger check that keeps work from outside
-the org away from their credentials. Everything else, this module, the merge
+`id-token: write`, the trusted-trigger check that keeps work from outside
+the org away from their credentials, and resolve-config, which the token
+broker runs from main in its signer process. Everything else, this module, the merge
 gate, the review lanes, hooks, scripts and agent instructions included, merges
 on the two review lanes, which are the gate (owner direction 2026-10-22: the
 review lanes are the only gate, and bots may edit hooks, plugins, skills,
@@ -211,7 +212,8 @@ HIGH_FLOOR: tuple[str, ...] = (
     # effects and the secrets behind them. The scripts and actions they run
     # are open to review-gated merge (owner direction 2026-10-22), except the
     # trusted-trigger check, which implements the outside-org hold the owner
-    # kept.
+    # kept, and resolve-config, whose code the token broker runs from main in
+    # its signer process (owner decision Q51).
     ".github/workflows/release-*.yml",
     ".github/workflows/intake-triage.yml",
     ".github/workflows/pr-merge.yml",
@@ -223,6 +225,7 @@ HIGH_FLOOR: tuple[str, ...] = (
     ".github/workflows/work-resolve-issue.yml",
     ".github/workflows/work-unblock.yml",
     ".github/actions/check-trusted-trigger/**",
+    ".github/actions/resolve-config/**",
 )
 
 # plugin.json keys whose values Claude Code runs or reads as run config.

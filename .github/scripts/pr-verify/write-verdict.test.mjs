@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { artifactName, buildVerdict, checkKeyLeg, main, structuredOutput } from "./write-verdict.mjs";
+import { artifactName, buildVerdict, checkKeyLeg, HEAD_REF_DIGEST_HEX, headRefDigest, main, structuredOutput } from "./write-verdict.mjs";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
@@ -50,6 +50,14 @@ test("each verdict names its artifact with the PR, the head and the verdict", ()
     });
     assert.equal(artifactName(built), `pr-verify-41-${HEAD}-${verdict}`);
   }
+});
+
+test("the head-ref digest is the first 16 hex digits of the branch's SHA-256", () => {
+  // `printf %s <ref> | sha256sum`, cut to 16 digits.
+  assert.equal(HEAD_REF_DIGEST_HEX, 16);
+  assert.equal(headRefDigest("feat/x"), "79b4cc554b80dca6");
+  assert.equal(headRefDigest("feat/a+b"), "a27da2afd9962004");
+  assert.equal(headRefDigest("fix/\u00e9"), "8c8a071ad0e51f5e");
 });
 
 test("output outside the schema throws", () => {

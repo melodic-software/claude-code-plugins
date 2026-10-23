@@ -193,7 +193,7 @@ assert_not_contains "extracted library stops above the example stage" \
   "$(cat "$LIB")" "MAIL_API_TOKEN"
 
 missing_fns=""
-for fn in fatal banner stage say step note warn open_url pause confirm ask \
+for fn in fatal banner stage say step note warn open_url pause confirm gate on_exit ask \
   ask_secret write_env set_secret set_var finish; do
   grep -qE "^${fn}\(\)" "$LIB" || missing_fns="$missing_fns $fn"
 done
@@ -1140,7 +1140,8 @@ SKIPPED+=("rotate the old key by hand")
 finish
 BODY
 )"
-assert_contains "finish announces completion" "$out" "Setup complete"
+assert_contains "finish with leftover work says so in its title" "$out" "Done, with items left to do by hand"
+assert_not_contains "... and never claims a setup" "$out" "Setup complete"
 assert_contains "finish names the env keys written" "$out" "API_KEY"
 assert_contains "finish names the secrets set" "$out" "DEPLOY_TOKEN"
 assert_contains "finish names the variables set" "$out" "REGION"
@@ -1158,6 +1159,142 @@ BODY
 rc=$?
 assert_exit "finish on a wizard that wrote nothing still exits clean" 0 "$rc"
 assert_not_contains "... and claims no leftover work" "$out" "still to do by hand"
+assert_contains "... under the neutral default title" "$out" "Done"
+assert_not_contains "... with no leftover-work title" "$out" "with items left"
+
+out="$(
+  case_run "$TTY_EOF" <<'BODY'
+finish "Cutover finished"
+BODY
+)"
+assert_contains "finish prints a caller-supplied title" "$out" "Cutover finished"
+
+# The stage count is hand-set, so finish compares it with the stages that ran.
+out="$(
+  case_run "$TTY_EOF" <<'BODY'
+TOTAL_STAGES=2
+stage "Only one" >/dev/null
+finish
+BODY
+)"
+assert_contains "finish warns when fewer stages ran than TOTAL_STAGES" "$out" "stage count mismatch: TOTAL_STAGES is 2 but 1 stage() calls ran"
+out="$(
+  case_run "$TTY_EOF" <<'BODY'
+TOTAL_STAGES=1
+stage "Only one" >/dev/null
+finish
+BODY
+)"
+assert_not_contains "finish stays quiet when the stage count matches" "$out" "stage count mismatch"
+
+# banner: kind-neutral default intro, caller-supplied lines, singular count.
+out="$(
+  case_run "$TTY_BLANK" <<'BODY'
+_drain_tty() { :; }
+TOTAL_STAGES=3
+banner "Cutover"
+BODY
+)"
+assert_contains "banner prints the title" "$out" "Cutover"
+assert_contains "banner default intro counts the stages" "$out" "walks you through 3 stages"
+assert_not_contains "banner default intro names no browser" "$out" "browser"
+assert_not_contains "... and no saved-answers claim" "$out" ".env"
+out="$(
+  case_run "$TTY_BLANK" <<'BODY'
+_drain_tty() { :; }
+TOTAL_STAGES=1
+banner "One" "A caller line" "A second line"
+BODY
+)"
+assert_contains "banner prints each caller-supplied intro line" "$out" "A second line"
+assert_not_contains "... in place of the default intro" "$out" "walks you through"
+assert_contains "banner pluralizes one stage" "$out" "1 stage"
+assert_not_contains "... as singular" "$out" "1 stages"
+
+# gate: a yes goes on, anything else ends the wizard with the stated message.
+out="$(
+  case_run "$TTY_Y" <<'BODY'
+_drain_tty() { :; }
+gate "Go ahead?" "nothing changed"
+echo "after-gate"
+BODY
+)"
+assert_contains "gate lets a yes through" "$out" "after-gate"
+out="$(
+  case_run "$TTY_N" <<'BODY'
+_drain_tty() { :; }
+gate "Go ahead?" "nothing changed"
+echo "after-gate"
+BODY
+)"
+rc=$?
+assert_exit "gate ends the wizard on a no" 1 "$rc"
+assert_contains "... saying what is unchanged" "$out" "stopped: nothing changed"
+assert_not_contains "... before the next step" "$out" "after-gate"
+
+# --- 9b. No em dash in anything the library prints --------------------------
+
+# Comment-only lines may carry one; any other line holds a string a person reads.
+assert_eq "no U+2014 in a non-comment line of template.sh" "" \
+  "$(grep -n '—' "$TEMPLATE" | grep -vE '^[0-9]+:[[:space:]]*#' || true)"
+
+# --- 9c. on_exit: handlers run on every way the wizard can end ---------------
+
+# Each case registers its handler inside run_wizard, as a generated wizard does,
+# and leaves a stand-in write_env temp file that _cleanup must still remove.
+exit_case() {
+  local how="$1" leak="$2"
+  case_run "$TTY_EOF" strict <<BODY
+_exit_note() { echo "handler:first status=\$1"; }
+_exit_late() { echo "handler:second status=\$1"; }
+run_wizard() {
+  on_exit _exit_note
+  on_exit _exit_late
+  _WIZARD_TMP="$leak"
+  : >"\$_WIZARD_TMP"
+  $how
+}
+run_wizard
+BODY
+}
+for spec in "fatal|fatal boom|1" "int|kill -INT \$\$|130" "term|kill -TERM \$\$|143" "hup|kill -s HUP \$\$|129" "clean|exit 0|0"; do
+  IFS='|' read -r name how want <<<"$spec"
+  leak="$TEST_TMPDIR/leak-$name"
+  out="$(exit_case "$how" "$leak")"
+  rc=$?
+  assert_exit "on_exit: the wizard exits $want on '$name'" "$want" "$rc"
+  assert_contains "... running the handler with that status" "$out" "handler:first status=$want"
+  case "$out" in
+  *"handler:second"*"handler:first"*) pass "... in reverse order of registration" ;;
+  *) fail "... in reverse order of registration" "second before first" "$out" ;;
+  esac
+  if [[ -e "$leak" ]]; then
+    fail "... and the write_env temp file is still removed" "removed" "still present"
+    rm -f "$leak"
+  else
+    pass "... and the write_env temp file is still removed"
+  fi
+done
+
+out="$(
+  case_run "$TTY_EOF" <<'BODY'
+(on_exit no_such_function)
+echo "rc=$?"
+BODY
+)"
+assert_contains "on_exit refuses a name that is not a function" "$out" "on_exit: 'no_such_function' is not a function"
+assert_contains "... exiting nonzero" "$out" "rc=1"
+
+out="$(
+  case_run "$TTY_EOF" strict <<'BODY'
+_failing_handler() { return 7; }
+on_exit _failing_handler
+echo "reached-end"
+BODY
+)"
+rc=$?
+assert_exit "a failing handler does not change a clean exit" 0 "$rc"
+assert_contains "... and the run still reached its end" "$out" "reached-end"
 
 # --- 10. The EXIT trap must not turn a clean run into a failure -------------
 
@@ -1224,7 +1361,7 @@ edit_case() {
         while ((getline line < body) > 0) print line
         skip = 1; next
       }
-      skip && /^  finish$/ { skip = 0; after = 1 }
+      skip && /^  finish/ { skip = 0; after = 1 }
       skip { next }
       after && mode == "unwrapped" && (/^}$/ || /^run_wizard "\$@"$/) { next }
       { print }' >"$script"
@@ -1238,7 +1375,7 @@ out="$(edit_case wrapped)"
 rc=$?
 assert_eq "an in-place edit mid-run does not re-run an earlier step" 1 \
   "$(grep -c '^ran:step-1$' <<<"$out")"
-assert_contains "... and the wizard still runs to its finish" "$out" "Setup complete"
+assert_contains "... and the wizard still runs to its finish" "$out" "Mail provider setup complete"
 assert_exit "... exiting 0, reading nothing past the run_wizard call" 0 "$rc"
 out="$(edit_case unwrapped)"
 assert_eq "control: the same edit re-runs step-1 when the stages are not wrapped" 2 \

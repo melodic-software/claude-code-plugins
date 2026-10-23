@@ -3,6 +3,26 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.11.6] - 2026-10-23
+
+### Fixed
+
+- `ci --ci` reads the open review findings in the fix-ci context file and fixes a reproduced check a finding already explains, rather than escalating it.
+
+## [2.11.5] - 2026-10-23
+
+### Changed
+
+- The HIGH path floor also holds `.github/actions/resolve-config/**`, so a change there scores HIGH and waits for the owner: the token broker runs that directory's code from main in its signer process.
+
+- The pr-merge gate accepts a verdict artifact named `pr-verify-<pr>-<sha>-<verdict>-<ref-digest>`, the digest being the first `babysit_verify_evidence.HEAD_REF_DIGEST_HEX` (16) hex digits of the SHA-256 of the head branch the verdict records. For an untied FAIL so named, the gate ties it to the pull request from the name instead of downloading its verdict.json; a name without the digest is downloaded and read as before. One decision changes: a digest-named untied FAIL whose verdict.json cannot be read used to refuse `verify:unreadable`, and now its name decides. That is safe because the name is trusted only from a run of verifier origin, the same check that authenticates the verdict.json, and because equal branches always give equal digests, so a collision can only tie a FAIL, never untie one. pr-verify still writes the name without the digest; a later change switches it once this reader has run on main.
+
+## [2.11.4] - 2026-10-23
+
+### Changed
+
+- The pr-merge gate fetches each verdict.json by the listed artifact's id (`GET .../actions/artifacts/{id}/zip`, one request) instead of `gh run download`, which first lists the run's artifacts (two requests). An artifact listed without an id still goes through `gh run download`. An untied FAIL record a gate process could not read is shared in `BABYSIT_RUN_CACHE` (`unreadable-fail-head-ref`, by artifact id), so the run's later candidates refuse on it without downloading it again; a failure only refuses, and `carry-run-cache.mjs` does not carry it to the next run. Any failure to unpack or parse an archive, a corrupt deflate stream's `zlib.error` included, is now an unreadable record, where before that error escaped the reader and failed the candidate's gate process. `fail_summary` fetches the head FAIL by the id its Reader's listing gives. No gate decision changes otherwise. `babysit_util.run_command` and `babysit_gh.gh_capture` take `binary=True` to keep stdout as bytes, for the zip.
+
 ## [2.11.3] - 2026-10-23
 
 ### Changed
