@@ -3640,12 +3640,13 @@ def escalate(
         str(json_object(item).get("name") or "").casefold() == label.casefold()
         for item in labels
     )
-    if (
-        not present
-        and comment == "unchanged"
-        and _lifted_by_person(repo, number, identity, label, marker, comments, inputs)
-    ):
-        return {"label": "lifted", "comment": comment}
+    unread = ""
+    if not present and comment == "unchanged":
+        lifted, unread = _lifted_by_person(
+            repo, number, identity, label, marker, comments, inputs
+        )
+        if lifted:
+            return {"label": "lifted", "comment": comment}
     if not present:
         proc = gh_capture(
             ["api", "-X", "POST", f"repos/{repo}/issues/{number}/labels"]
@@ -3653,7 +3654,10 @@ def escalate(
         )
         if proc.returncode != 0:
             raise RuntimeError(f"label {label}: {proc.stderr.strip()}")
-    return {"label": "present" if present else "added", "comment": comment}
+    result = {"label": "present" if present else "added", "comment": comment}
+    if unread:
+        result["liftUnread"] = unread
+    return result
 
 
 def _lifted_by_person(
@@ -3664,17 +3668,18 @@ def _lifted_by_person(
     marker: str,
     comments: list[dict[str, Any]],
     inputs: Mapping[str, Any],
-) -> bool:
+) -> tuple[bool, str]:
     """Whether the newest removal of `label` came strictly after the
-    identity's `marker` comment last changed and was a person's: a User of
-    kind `human` on the trusted-actor list read at the repository's default
-    branch (never the head, nor a base a retarget could pick), who also
-    passes `merge_policy.is_human` (write access, not a bot, the agent
-    identity or a self-login). That comment names the head and the reasons,
-    so the removal lifted this escalation. The timeline is
-    read under the verdict reader's token when one is set; any failure,
-    unreadable list or default branch, or unparsable time is no lift, so
-    the label goes on."""
+    identity's `marker` comment last changed and was a person's, acting in
+    person (no `performed_via_github_app`): a User of kind `human` on the
+    trusted-actor list read at the repository's default branch (never the
+    head, nor a base a retarget could pick), who also passes
+    `merge_policy.is_human` (write access, not a bot, the agent identity or
+    a self-login). That comment names the head and the reasons, so the
+    removal lifted this escalation. The timeline is read under the verdict
+    reader's token when one is set; any failure, unreadable list or default
+    branch, or unparsable time is no lift, so the label goes on. The second
+    value names a read that failed, empty otherwise."""
     token = os.environ.get(verify_evidence.TOKEN_ENV)
     try:
         prior = _newest_marker_comment(comments, identity, marker) or {}
@@ -3682,14 +3687,14 @@ def _lifted_by_person(
             str(prior.get("updated_at") or prior.get("created_at") or "")
         )
         if escalated is None:
-            return False
+            return False, ""
         timeline = fetch_paginated_api(
             f"repos/{repo}/issues/{number}/timeline?per_page=100",
             f"#{number} timeline",
             env_overrides={"GH_TOKEN": token} if token else None,
         )
         removals = [
-            (at, json_object(event.get("actor")))
+            (at, event)
             for event in timeline
             if event.get("event") == "unlabeled"
             and str(json_object(event.get("label")).get("name") or "").casefold()
@@ -3697,13 +3702,17 @@ def _lifted_by_person(
             and (at := parse_github_timestamp(str(event.get("created_at") or "")))
             is not None
         ]
+        if not removals:
+            return False, ""
         default = repository_default_branch(repo)
-        if not removals or not default:
-            return False
+        if not default:
+            return False, "default branch unread"
         # The newest removal decides; a tie keeps the later timeline item.
-        at, actor = max(enumerate(removals), key=lambda r: (r[1][0], r[0]))[1]
+        at, event = max(enumerate(removals), key=lambda r: (r[1][0], r[0]))[1]
+        actor = json_object(event.get("actor"))
         return (
             at > escalated
+            and event.get("performed_via_github_app") is None
             and actor.get("type") == "User"
             and actor.get("id") in merge_policy.trusted_actors(repo, default)[1]
             and merge_policy.is_human(
@@ -3713,9 +3722,9 @@ def _lifted_by_person(
                 self_logins=inputs.get("self_logins") or frozenset(),
                 permission=inputs.get("permission"),
             )
-        )
-    except Exception:  # noqa: BLE001 -- any failure escalates as before
-        return False
+        ), ""
+    except Exception as exc:  # noqa: BLE001 -- any failure escalates as before
+        return False, f"{type(exc).__name__}: {exc}"
 
 
 def _failed_merge_group_runs(repo: str, branch: str, number: int) -> list[str] | None:

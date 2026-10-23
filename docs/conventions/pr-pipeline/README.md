@@ -986,7 +986,8 @@ label's newest removal came after the escalation comment's last change and was a
 of kind `human` on the trusted-actor list read at the default branch, never a retargeted base,
 with write access; an unreadable default branch lifts nothing), it lifts that escalation: a later
 run that finds the comment unchanged (same head and reasons) adds no label. A removal by a bot,
-the lanes App included, or by an account off that list lifts nothing, and a new head or new
+the lanes App included, by an account off that list, or made through a GitHub App
+(`performed_via_github_app`) lifts nothing, and a new head or new
 reasons escalate afresh. The same holds for pr-merge's verifier, held-major and shared-copy
 escalations.
 

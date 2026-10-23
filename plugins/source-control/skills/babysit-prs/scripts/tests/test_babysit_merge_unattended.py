@@ -3293,7 +3293,7 @@ class ReasonsComment(Unattended):
             out["unattended"]["writes"]["riskEscalation"],
             {"label": "lifted", "comment": "unchanged"},
         )
-        # The trusted list is read at the base branch, never the head.
+        # The trusted list is read at the default branch, never the head.
         self.assertEqual(self.trusted_refs, ["main"])
 
     def test_the_trusted_list_is_read_at_the_default_branch(self) -> None:
@@ -3315,9 +3315,28 @@ class ReasonsComment(Unattended):
         self.timeline = [
             self.unlabeled("owner-person", "User", self.WRITTEN + timedelta(minutes=30))
         ]
-        self.run_main()
+        _, out = self.run_main()
         self.assertEqual(self.log, [self.LABEL])
         self.assertEqual(self.trusted_refs, [])
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"]["liftUnread"],
+            "default branch unread",
+        )
+
+    def test_a_person_removing_through_an_app_is_no_lift(self) -> None:
+        # An agent driving a person's token through an App is not the person.
+        self.escalated_earlier()
+        removal = self.unlabeled(
+            "owner-person", "User", self.WRITTEN + timedelta(minutes=30)
+        )
+        removal["performed_via_github_app"] = {"slug": "agent-app"}
+        self.timeline = [removal]
+        _, out = self.run_main()
+        self.assertEqual(self.log, [self.LABEL])
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"],
+            {"label": "added", "comment": "unchanged"},
+        )
 
     def test_a_trusted_id_on_a_bot_account_is_no_lift(self) -> None:
         self.escalated_earlier()
@@ -3447,7 +3466,12 @@ class ReasonsComment(Unattended):
         _, out = self.run_main()
         self.assertEqual(self.log, [self.LABEL])
         self.assertEqual(
-            out["unattended"]["writes"]["riskEscalation"]["label"], "added"
+            out["unattended"]["writes"]["riskEscalation"],
+            {
+                "label": "added",
+                "comment": "unchanged",
+                "liftUnread": "RuntimeError: HTTP 403: rate limit",
+            },
         )
 
     def test_the_timeline_is_read_under_the_verdict_readers_token(self) -> None:
@@ -4824,7 +4848,7 @@ class DependabotMajorEscalation(unittest.TestCase):
         )
         return stack
 
-    def test_no_identity_is_no_lift(self) -> None:
+    def test_only_the_identitys_comment_dates_the_escalation(self) -> None:
         # With no agent identity no escalation comment is the identity's.
         comments = [
             {
@@ -4850,9 +4874,9 @@ class DependabotMajorEscalation(unittest.TestCase):
                             "status: needs-decision",
                             merge.MAJOR_ESCALATION_MARKER,
                             comments,
-                            {"branch": "main"},
+                            {},
                         ),
-                        identity != "",
+                        (identity != "", ""),
                     )
 
     def test_a_held_major_whose_label_write_failed_is_labeled_again(self) -> None:
