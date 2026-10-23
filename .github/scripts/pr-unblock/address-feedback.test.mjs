@@ -82,6 +82,7 @@ test("an unresolved reviewer-bot thread on a marker-confirmed head proceeds and 
     repository: "o/r",
     pr: 42,
     head_sha: HEAD,
+    pr_paths: ["src/a.js"],
     threads: [
       {
         id: "PRRT_1",
@@ -93,6 +94,33 @@ test("an unresolved reviewer-bot thread on a marker-confirmed head proceeds and 
       },
     ],
   });
+});
+
+// A finding on a doc whose fix lives in a script the PR also changes: the
+// thread file lists every file the PR changes, rename sources included, but
+// none a fix may never change.
+test("the thread file's pr_paths hold the PR's files, rename sources included, less the refused ones", async () => {
+  const files = [
+    { filename: "plugins/p/skills/s/converge.md" },
+    { filename: "plugins/p/skills/s/scripts/converge-plan.sh" },
+    { filename: "docs/new.md", previous_filename: "docs/old.md", status: "renamed" },
+    { filename: "src/a.js" },
+    { filename: ".github/actions/resolve-config/resolve.mjs" },
+    { filename: ".github/standards/trusted-actors/trusted-actors.json" },
+    { filename: ".github/actions/check-trusted-trigger/action.yml" },
+    { filename: "CODEOWNERS" },
+    { filename: "plugins/p/.claude/settings.json" },
+    { filename: "a\\b.md" },
+  ];
+  const result = await run(fakeApi({ files }));
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.file.pr_paths, [
+    "docs/new.md",
+    "docs/old.md",
+    "plugins/p/skills/s/converge.md",
+    "plugins/p/skills/s/scripts/converge-plan.sh",
+    "src/a.js",
+  ]);
 });
 
 test("the security lane's marker also confirms a head", async () => {
@@ -699,10 +727,12 @@ test("main select writes outputs and the thread file; escalation writes no threa
   assert.equal(okFile.threads[0].id, "PRRT_1");
   // No lane branch: the model job commits nothing.
   assert.equal(Object.hasOwn(okFile, "lane_branch"), false);
+  // The files the PR changes, for every kept thread's scope.
+  assert.deepEqual(okFile.pr_paths, ["src/a.js"]);
   // run.json's bytes, in the shape the write runner's collect step wrote.
   assert.equal(
     readFileSync(join(dir, "ok.run.json"), "utf8"),
-    `{"version":1,"head_sha":"${HEAD}","threads":[{"id":"PRRT_1","path":"src/a.js","comment_ids":[100]}]}\n`,
+    `{"version":1,"head_sha":"${HEAD}","pr_paths":["src/a.js"],"threads":[{"id":"PRRT_1","path":"src/a.js","comment_ids":[100]}]}\n`,
   );
 
   // The people on the list come from TRUSTED_ACTORS.
