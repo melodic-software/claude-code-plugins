@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [4.7.1] - 2026-10-23
+
+### Fixed
+
+- address-feedback's and review-dependency's fallback calls no longer start on the read runner's run-job outputs, which head code can forge. As for fix-ci, `address-feedback-handoff` and `review-dependency-handoff`, base jobs with only `actions: read`, read this run's jobs through the Actions API once, and the fallback call runs when the first call's report job posted no check ([#9365](https://github.com/melodic-software/claude-code-plugins/issues/9365)).
+- Every fallback call with a handoff job, fix-ci's among them, passes `fallback: handoff`, which the read runner now accepts, instead of a label taken from the first call's `lane-class`. Its lane record reads "posted no check" in place of "hit a credit stop" or "is empty" ([#9365](https://github.com/melodic-software/claude-code-plugins/issues/9365)).
+
+- An issue held before admission (an escalated or flagged intake verdict, or a hold label) whose done-when asks for what an unattended lane run cannot do now gets the admission comment that names those items and recommends the split, which a `needs_human` escalation used to drop. The intake rubric no longer sends such items through the `intent` flag: the model triages the lane-checkable items with their work class and leaves the hold to admission.
+
+- `pr-unblock-dispatch.yml` dispatches `review-dependency` again at a head whose newest `pr-unblock / apply-dependency-verdict` check skipped `no-model-turn`. The `pr-unblock / review-dependency` check runs that started before that verdict no longer hold the head, a limit stop aside. Each such round still posts its round marker, so the round cap bounds the retries. The dispatcher records a head as reviewed only once a verdict check started after its newest `review-dependency` check, or once that check is a select job skip (`awaiting-human`, `not-applicable`, `superseded-sha`) that no verdict follows ([#9362](https://github.com/melodic-software/claude-code-plugins/issues/9362)).
+- The dispatch record's version is now 2, so `pr-unblock-dispatch.yml` and `pr-feedback-dispatch.yml` read a record cached under the old rule as empty. Such a record could still hold a `no-model-turn` head as handled and skip the release ([#9362](https://github.com/melodic-software/claude-code-plugins/issues/9362), [#9360](https://github.com/melodic-software/claude-code-plugins/pull/9360)).
+
 ## [4.7.0] - 2026-10-23
 
 ### Added
