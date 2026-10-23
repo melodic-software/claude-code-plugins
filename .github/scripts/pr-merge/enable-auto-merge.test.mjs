@@ -10,7 +10,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
-import { ARM_MUTATION, BODY_HOLD, DISARM_MUTATION, PULLS_QUERY, decide, main } from "./enable-auto-merge.mjs";
+import { ARM_MUTATION, BODY_HOLD, DETAIL_QUERY, DISARM_MUTATION, HUMAN_VETO, PULLS_QUERY, decide, main } from "./enable-auto-merge.mjs";
 import { decide as decideOutcome } from "../work-resolve-issue/report-outcome.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
@@ -36,6 +36,23 @@ const pull = (number, overrides = {}) => ({
   autoMergeRequest: null,
   ...overrides,
 });
+// One pull request's comments, reviews, inline comments and newest
+// auto-merge-disabled event, as DETAIL_QUERY returns them.
+const page = (nodes = []) => ({ totalCount: nodes.length, nodes });
+function detail({ comments = [], reviews = [], inline = [], disabledBy = null } = {}) {
+  return {
+    comments: page(comments),
+    reviews: page(reviews),
+    reviewThreads: page(inline.length ? [{ comments: page(inline) }] : []),
+    timelineItems: { nodes: disabledBy ? [{ actor: disabledBy }] : [] },
+  };
+}
+const said = (login, body, at, association = "OWNER", typename = "User") => ({
+  author: { __typename: typename, login },
+  body,
+  createdAt: at,
+  authorAssociation: association,
+});
 const labels = (...names) => ({ totalCount: names.length, nodes: names.map((name) => ({ name })) });
 
 function world(pulls, { failArm = false } = {}) {
@@ -47,6 +64,10 @@ function world(pulls, { failArm = false } = {}) {
       assert.deepEqual(body.variables, { owner: "melodic-software", name: "claude-code-plugins", after: null });
       return { data: { repository: { pullRequests: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: pulls } } } };
     }
+    if (body.query === DETAIL_QUERY) {
+      const found = pulls.find((candidate) => candidate.number === body.variables.number);
+      return { data: { repository: { pullRequest: detail(found?.discussion) } } };
+    }
     if (body.query === ARM_MUTATION && failArm) {
       throw new Error("POST /graphql (GraphQL errors) failed with status 200");
     }
@@ -54,7 +75,7 @@ function world(pulls, { failArm = false } = {}) {
   };
   const writes = () =>
     calls
-      .filter(({ body }) => body.query !== PULLS_QUERY)
+      .filter(({ body }) => body.query !== PULLS_QUERY && body.query !== DETAIL_QUERY)
       .map(({ body }) => ({ mutation: body.query === ARM_MUTATION ? "arm" : body.query === DISARM_MUTATION ? "disarm" : "?", ...body.variables }));
   return { github, writes };
 }
@@ -210,10 +231,76 @@ test("report-outcome's own pull request body arms, and its hold and Refs bodies 
   const verdict = (overrides) => {
     const opened = plan(overrides);
     assert.equal(opened.action, "open-pr");
-    return decide(pull(1, { body: opened.body }), { bot: "melodic-automation-lanes", humanGated: "needs-human" });
+    return decide(pull(1, { body: opened.body }), { bot: "melodic-automation-lanes", humanGated: "needs-human" }, detail());
   };
   assert.deepEqual(verdict({}), { action: "arm", reason: "no hold" });
   assert.equal(verdict({ humanMerge: true }).action, "none");
   assert.equal(verdict({ changedFiles: [".github/workflows/x.yml"] }).action, "none");
   assert.equal(verdict({ outcome: { exit: "done", reason: "", title: "t", summary: "s", link: "refs" } }).action, "none");
+});
+
+// The gate's human veto (babysit_merge.human_veto_logins): each member's
+// newest comment, review or inline comment with text decides, so a later
+// comment lifts the hold; a non-member's, a bot's or an empty one counts for
+// nothing. Native auto-merge skips that gate, so the arm rule applies it.
+test("a member's newest comment saying not to merge holds, and a later one lifts it", async () => {
+  const veto = said("kyle-sexton", "Please don't merge this yet.", "2026-10-23T10:00:00Z");
+  const { code, writes } = await run([
+    pull(1, { discussion: { comments: [veto] } }),
+    pull(2, { discussion: { comments: [veto, said("kyle-sexton", "Go ahead.", "2026-10-23T11:00:00Z")] } }),
+    pull(3, { discussion: { comments: [said("someone", "do not merge", "2026-10-23T10:00:00Z", "CONTRIBUTOR")] } }),
+    pull(4, { discussion: { comments: [said("codex", "do not merge", "2026-10-23T10:00:00Z", "NONE", "Bot")] } }),
+    pull(5, { discussion: { reviews: [{ ...veto, createdAt: undefined, submittedAt: veto.createdAt }] } }),
+    pull(6, { discussion: { inline: [said("kyle-sexton", "do-not merge until the canary", "2026-10-23T10:00:00Z", "MEMBER")] } }),
+    pull(7, { discussion: { comments: [veto, said("kyle-sexton", "", "2026-10-23T11:00:00Z")] } }),
+  ]);
+  assert.equal(code, 0);
+  assert.deepEqual(
+    writes.map(({ id }) => id),
+    ["PR_2", "PR_3", "PR_4"],
+  );
+});
+
+test("an armed pull request a member now vetoes is disarmed", async () => {
+  const { writes } = await run([
+    pull(1, { autoMergeRequest: {}, discussion: { comments: [said("kyle-sexton", "do not merge", "2026-10-23T10:00:00Z")] } }),
+  ]);
+  assert.deepEqual(writes, [{ mutation: "disarm", id: "PR_1" }]);
+});
+
+test("a pull request whose discussion cannot all be read is not armed", async () => {
+  const cut = { totalCount: 101, nodes: [] };
+  const held = (pr) => decide(pull(1), { bot: LANES.login, humanGated: "needs-human" }, { ...detail(), ...pr });
+  assert.equal(held({ comments: cut }).action, "none");
+  assert.equal(held({ reviews: cut }).action, "none");
+  assert.equal(held({ reviewThreads: cut }).action, "none");
+  assert.equal(held({ reviewThreads: page([{ comments: cut }]) }).action, "none");
+  // A read that failed leaves it as it is, armed or not, until the next run.
+  assert.equal(decide(pull(1), { bot: LANES.login, humanGated: "needs-human" }, null).action, "none");
+  assert.equal(decide(pull(1, { autoMergeRequest: {} }), { bot: LANES.login, humanGated: "needs-human" }, null).action, "none");
+});
+
+test("auto-merge a person turned off stays off; one the lanes App turned off is armed again", async () => {
+  const { writes } = await run([
+    pull(1, { discussion: { disabledBy: { __typename: "User", login: "kyle-sexton" } } }),
+    pull(2, { discussion: { disabledBy: { __typename: "Bot", login: "melodic-automation-lanes" } } }),
+  ]);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_2", head: HEAD }]);
+});
+
+test("the comment veto agrees with the gate's HUMAN_MERGE_VETO_RE", () => {
+  const bodies = ["do not merge", "Don't merge", "don’t merge", "dont-merge", "do-not merge", "Do NOT\nmerge", "donut merge", "merge it", "doesn't merge", ""];
+  const scripts = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
+  const python = spawnSync(
+    "python3",
+    ["-c", "import json,sys\nfrom babysit_merge import HUMAN_MERGE_VETO_RE as R\nprint(json.dumps([bool(R.search(b)) for b in json.load(sys.stdin)]))"],
+    { cwd: scripts, input: JSON.stringify(bodies), encoding: "utf8" },
+  );
+  assert.equal(python.status, 0, python.stderr);
+  const expected = JSON.parse(python.stdout);
+  assert.deepEqual(
+    bodies.map((body) => HUMAN_VETO.test(body)),
+    expected,
+  );
+  assert.ok(expected.includes(true) && expected.includes(false));
 });

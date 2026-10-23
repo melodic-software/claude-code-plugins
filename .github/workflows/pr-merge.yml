@@ -1315,7 +1315,6 @@ jobs:
           set -euo pipefail
           config=.base/docs/conventions/pr-pipeline.yaml
           REPORT_ONLY=$(yq '.merge."report-only"' "$config")
-          [ "$REPORT_ONLY" = null ] && REPORT_ONLY=false
           LANES_BOT_LOGIN=$(yq '.merge."agent-identity" // ""' "$config")
           export REPORT_ONLY LANES_BOT_LOGIN
           node .base/.github/scripts/pr-merge/enable-auto-merge.mjs

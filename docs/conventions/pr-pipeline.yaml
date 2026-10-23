@@ -364,14 +364,15 @@ activities:
     # Turns on GitHub's native auto-merge (squash, at the head it read) for
     # each open lanes App pull request into main that opens with `Closes #<n>`
     # and carries no hold (a `Hold:` line, do-not-merge, the human-gated
-    # label), and turns it off on an armed one that now carries a hold. No
+    # label, a member's "do not merge" comment), and turns it off on an armed
+    # one that now carries a hold; auto-merge a person turned off stays off. No
     # model. The enable-auto-merge job of .github/workflows/pr-merge.yml runs
     # it when the issue lane finishes, on a listed human's PR edit, and on the
     # schedule.
     script: .github/scripts/pr-merge/enable-auto-merge.mjs
     effect: merge
     gating: advisory
-    # Reads PR bodies and labels for holds.
+    # Reads PR bodies, labels and comments for holds.
     reads-untrusted: true
     inputs: [pr, head-sha]
   label-unblocked:

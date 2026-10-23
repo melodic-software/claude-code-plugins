@@ -1019,8 +1019,10 @@ own lanes App token (`.github/scripts/pr-merge/enable-auto-merge.mjs`, no model)
 native auto-merge (`enablePullRequestAutoMerge`, squash, `expectedHeadOid` the head it read) for
 each open lanes App pull request into main from a branch of this repository that is not a draft,
 opens with `Closes #<issue>`, and carries no hold: no `Hold:` line or "do not merge" in its body
-(the gate's own rule) and no `do-not-merge` or human-gated label. It turns auto-merge off on an
-armed one that now fails any of those. GitHub then merges the pull request through the merge queue
+(the gate's own rule), no `do-not-merge` or human-gated label, and no member (owner, member or
+collaborator) whose newest comment, review or inline comment with text says "do not merge" (the
+gate's veto rule; a later comment lifts it). It turns auto-merge off on an armed one that now fails
+any of those, and does not turn it back on once a person has turned it off. GitHub then merges the pull request through the merge queue
 once `ci-status` passes. The issue lane finishing (`workflow_run`) wakes it, so a pull request is
 armed right after report-outcome opens it; a listed human's edit, unlabel or ready wakes it too, so
 adding a `Hold:` line disarms at once; and the 15-minute schedule arms or disarms what the events

@@ -156,7 +156,7 @@ test("the issue lane finishing wakes only the enable-auto-merge job", () => {
   assert.match(job("merge"), /\n {6}&& github\.event_name != 'workflow_run'\n/);
   const arm = job("enable-auto-merge");
   const armIf = /\n {4}if: >-\n([\s\S]*?)\n {4}[a-z-]+:/.exec(arm)[1];
-  assert.doesNotMatch(armIf, /workflow_run'\n/);
+  assert.match(armIf, /github\.event_name != 'workflow_run' \|\| github\.event\.workflow_run\.conclusion != 'skipped'/);
   // A push to main is a merge landing, never a new lane pull request.
   assert.match(armIf, /github\.event_name != 'push'/);
   assert.match(arm, /\n {4}concurrency:\n {6}group: pr-merge-enable-auto-merge\n {6}queue: max\n/);
@@ -167,6 +167,10 @@ test("enable-auto-merge asks the broker for its own activity's merge token", () 
   const steps = [...arm.matchAll(/\n {10}lane: (.*)\n {10}activity: (.*)\n/g)].map((m) => `${m[1]}/${m[2]}`);
   assert.deepEqual(steps, ["pr-merge/enable-auto-merge", "pr-merge/enable-auto-merge"]);
   assert.match(arm, /node \.base\/\.github\/scripts\/pr-merge\/enable-auto-merge\.mjs/);
+  // A missing merge.report-only reaches the script as `null`, which it reads
+  // as report-only; the job must not turn it into `false`.
+  assert.match(arm, /REPORT_ONLY=\$\(yq '\.merge\."report-only"' "\$config"\)\n/);
+  assert.doesNotMatch(arm, /REPORT_ONLY=false/);
   const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(arm)[1];
   assert.deepEqual(
     [...block.matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => `${m[1]}: ${m[2]}`),
