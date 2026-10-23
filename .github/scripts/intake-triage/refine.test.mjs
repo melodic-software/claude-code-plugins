@@ -255,6 +255,13 @@ describe("applyRefinement", () => {
     }
   });
 
+  test("a second exact refinement re-runs no triage: the re-triage fires once per issue", async () => {
+    const fake = fakeGitHub({ issue: issueOf(), comments: [laneComment(), appComment(`${REFINE_MARKER}\nfirst`)], events: labeledBy(APP) });
+    const result = await apply(fake, EXACT);
+    assert.deepEqual(result, { outcome: "skipped", redispatch: false });
+    assert.equal(writes(fake.calls).length, 0);
+  });
+
   const untouched = [
     ["an issue already refined", { issue: issueOf(), comments: [appComment(`${REFINE_MARKER}\nold`)] }],
     ["a closed issue", { issue: issueOf({ state: "closed" }) }],
