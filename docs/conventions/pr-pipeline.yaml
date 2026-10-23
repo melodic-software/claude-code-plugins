@@ -49,16 +49,16 @@ activities:
     # opened; a trusted person may also dispatch it by hand.
     skill: source-control:pull-request
     # The skill's CI mode for review comments: edits only files a finding
-    # names, never under .github/, and writes replies to a file.
+    # names, never under .github/workflows/, and writes replies to a file.
     args: comments --ci
     # Before any model turn pr-unblock.yml's address-feedback-select job, which
     # runs only base code, keeps only unresolved threads the reviewer bot
     # opened on a reviewed head, left by it alone or answered by a trusted
     # person after the lane escalated them, hands the pull request to a person
-    # when it changes .github/ or `loop.review-rounds` rounds already ran (a
-    # write-access fix request newer than the last round still runs one more
-    # round on its threads), and writes the thread file; the read runner checks
-    # that file and gives the skill the review-thread tool.
+    # when it changes .github/workflows/ or `loop.review-rounds` rounds already
+    # ran (a write-access fix request newer than the last round still runs one
+    # more round on its threads), and writes the thread file; the read runner
+    # checks that file and gives the skill the review-thread tool.
     prepare: review-threads
     # Edits head files, so no write token: the change leaves as a patch.
     effect: read
@@ -159,7 +159,7 @@ activities:
     # trusted person may also dispatch it by hand.
     skill: source-control:pull-request
     # The skill's CI mode for failing checks: never weakens a check, never
-    # edits .github/, and reports each check fixed or escalated.
+    # edits .github/workflows/, and reports each check fixed or escalated.
     args: ci --ci
     # Before the run a base job writes the failing checks' names, workflow,
     # annotations and log ends to a context file, or hands the pull request
@@ -357,10 +357,14 @@ activities:
     # After intake triage, writes its verdict as the lanes App: the work-class
     # label, the Size, Complexity and Uncertainty issue fields, and
     # `status: ready` or `status: needs-decision`, read from the lane comment
-    # the triage run posted. Never agent-ready. A script, no model.
+    # the triage run posted. On `status: ready` it adds agent-ready when
+    # .github/actions/resolve-config/admission-rules.json holds and the caps
+    # have room, else admission-deferred (owner decision Q51, #9212). A
+    # script, no model.
     # .github/workflows/intake-triage.yml runs it.
     script: .github/scripts/intake-triage/apply-verdict.mjs
-    # Labels issues, sets issue fields and edits the lane comment; nothing else.
+    # Labels issues, sets issue fields, edits the lane comment and posts an
+    # admission comment; nothing else.
     effect: mutate-tracker
     gating: advisory
     # Reads the lane comment, which carries model text.
@@ -600,10 +604,10 @@ wip:
   held-cap: 10
   held-alarm-hours: 24
   # Over the WIP cap or the held cap runs pause from this date, and over the
-  # queued cap new admissions do.
-  # The owner clears it to only alert. Empty: over a cap the lane alerts and
-  # keeps starting runs.
-  pause-from: ""
+  # queued cap new admissions do (intake admission also defers while paused).
+  # Set with intake admitting issues itself (owner decision Q51, 2026-10-22).
+  # Empty: over a cap the lane alerts and keeps starting runs.
+  pause-from: "2026-10-22T00:00:00Z"
 
 # The red-main revert rule (owner decision 2026-10-20). post-merge-demotion-
 # alert.yml's report job reads it after a scheduled or dispatched

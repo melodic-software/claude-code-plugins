@@ -350,3 +350,14 @@ test("a needs-human a person added beside a pr-merge escalation at an old head i
   await run(w);
   assert.deepEqual(w.writes(), []);
 });
+
+test("a feedback-protected-path label comes off once the PR changes nothing under .github/workflows/, whatever else it changes under .github/", async () => {
+  for (const [pullFiles, clears] of [
+    [[{ filename: ".github/scripts/x.mjs" }, { filename: ".github/CODEOWNERS" }], true],
+    [[{ filename: "README.md" }, { filename: ".github/workflows/ci.yml" }], false],
+  ]) {
+    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("feedback-protected-path")], pullFiles });
+    await run(w);
+    assert.equal(w.writes().at(-1)?.method === "DELETE", clears, pullFiles[0].filename);
+  }
+});

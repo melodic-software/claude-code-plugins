@@ -48,7 +48,6 @@ import { appendFileSync, existsSync, lstatSync, readdirSync, readFileSync, write
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { isInstructionPath } from "../pr-unblock/thread-scope.mjs";
 import { PREDICATES } from "./predicates.mjs";
 
 export const MAX_PATCH_BYTES = 1024 * 1024;
@@ -80,9 +79,12 @@ export function segments(path) {
 }
 
 const PATH_RULES = {
-  github: (s) => s[0] === ".github",
-  claude: (s) => s.includes(".claude"),
-  "mcp-config": (s) => s.length === 1 && s[0] === ".mcp.json",
+  // The lane token has no workflows permission, so GitHub refuses the push.
+  "github-workflows": (s) => s[0] === ".github" && s[1] === "workflows",
+  // The three places GitHub reads a CODEOWNERS file from
+  // (docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners,
+  // as of 2026-10-22; recheck when that page names another location).
+  codeowners: (s) => s.at(-1) === "codeowners" && (s.length === 1 || (s.length === 2 && [".github", "docs"].includes(s[0]))),
   gitmodules: (s) => s.at(-1) === ".gitmodules",
   settings: (s) => /^settings[^/]*\.json$/.test(s.at(-1) ?? ""),
 };
@@ -90,34 +92,23 @@ const pathRule = (name) => (entry) => PATH_RULES[name](segments(entry.path));
 const pathRefused = (path) => Object.values(PATH_RULES).some((rule) => rule(segments(path))) || path.includes("\\");
 
 // The refusal table. Every row must name every refusal but those in ALWAYS,
-// which apply to every row unnamed, and those in OPTIONAL, which apply only to
-// a row that names them; any match refuses the whole patch, and `kind` picks
-// the row's escalation reason.
+// which apply to every row unnamed; any match refuses the whole patch, and
+// `kind` picks the row's escalation reason.
 export const ALWAYS = ["backslash"];
-export const OPTIONAL = ["instruction-path"];
 export const REFUSALS = {
   // A backslash reads as a directory separator on Windows checkouts.
   backslash: { kind: "protected-path", test: (entry) => entry.path.includes("\\") },
-  github: { kind: "protected-path", test: pathRule("github") },
-  claude: { kind: "protected-path", test: pathRule("claude") },
-  "mcp-config": { kind: "protected-path", test: pathRule("mcp-config") },
+  "github-workflows": { kind: "protected-path", test: pathRule("github-workflows") },
+  codeowners: { kind: "protected-path", test: pathRule("codeowners") },
   gitmodules: { kind: "protected-path", test: pathRule("gitmodules") },
   settings: { kind: "protected-path", test: pathRule("settings") },
   symlink: { kind: "invalid", test: (entry) => entry.oldMode === SYMLINK || entry.newMode === SYMLINK },
   gitlink: { kind: "invalid", test: (entry) => entry.oldMode === GITLINK || entry.newMode === GITLINK },
-  "new-executable": { kind: "protected-path", test: (entry) => entry.newMode === EXECUTABLE && entry.oldMode !== EXECUTABLE },
   "rename-into-refused": { kind: "protected-path", test: (entry) => entry.renamedFrom !== undefined && pathRefused(entry.path) },
-  // A path the harness, git or GitHub runs or loads as instructions
-  // (thread-scope.mjs): agent rules, MCP and language-server config, code
-  // owners, .claude and .claude-plugin directories, a plugin's hooks,
-  // monitors and bin.
-  "instruction-path": { kind: "protected-path", test: (entry) => isInstructionPath(entry.path) },
 };
 
-// The names of the refusals that match one changed entry; by default those
-// every row names.
-export const refusalsOf = (entry, names = Object.keys(REFUSALS).filter((name) => !OPTIONAL.includes(name))) =>
-  names.filter((name) => REFUSALS[name].test(entry));
+// The names of the refusals that match one changed entry; by default all.
+export const refusalsOf = (entry, names = Object.keys(REFUSALS)) => names.filter((name) => REFUSALS[name].test(entry));
 
 // Credential shapes: any match in the patch or a patched blob refuses it all.
 // GitHub prefixes from
@@ -256,7 +247,7 @@ export function checkRow(row) {
   const fail = (message) => {
     throw new Error(`patch-rules.json row \`${row.name}\` ${message}`);
   };
-  const missing = Object.keys(REFUSALS).filter((name) => !ALWAYS.includes(name) && !OPTIONAL.includes(name) && !row.refuse?.includes(name));
+  const missing = Object.keys(REFUSALS).filter((name) => !ALWAYS.includes(name) && !row.refuse?.includes(name));
   if (missing.length > 0) {
     fail(`does not refuse ${missing.join(", ")}`);
   }
@@ -291,10 +282,6 @@ export function checkRow(row) {
   }
   if (!Object.hasOwn(TARGETS, String(row.target))) {
     fail(`names an unknown target: ${row.target}`);
-  }
-  // A plugin's hooks and bin run, so the bit is set only where they are refused.
-  if (row["script-exec-bit"] === true && !row.refuse.includes("instruction-path")) {
-    fail("sets script-exec-bit without refusing instruction-path");
   }
   return row;
 }
@@ -532,21 +519,15 @@ export async function push({
   const reaching = from === headSha ? entries : changes(git(["diff-tree", "-r", "-z", "--no-renames", from, tree]));
   const renames = changes(git(["diff-tree", "-r", "-z", "-M", "--diff-filter=R", from, tree]));
   // One refused entry refuses the whole patch, before anything is written.
-  // A rename is checked as one first; every entry then meets the rest. Under
-  // script-exec-bit, a script's executable bit that only the start commit
-  // carries is the one an earlier apply set, so only the patch's own bits meet
-  // new-executable.
+  // A rename is checked as one first; every entry then meets the rest.
   const refuse = [...row.refuse, ...ALWAYS];
-  const inherited = row["script-exec-bit"] === true ? refuse.filter((name) => name !== "new-executable") : refuse;
-  // Each list is read only when its entry's turn comes, after the patch's own
-  // entries have passed.
   const checks = [
-    ...renames.map((entry) => [entry, () => ["rename-into-refused"]]),
-    ...entries.map((entry) => [entry, () => refuse]),
-    ...(reaching === entries ? [] : reaching.map((entry) => [entry, () => (isScript(git, entry) ? inherited : refuse)])),
+    ...renames.map((entry) => [entry, ["rename-into-refused"]]),
+    ...entries.map((entry) => [entry, refuse]),
+    ...(reaching === entries ? [] : reaching.map((entry) => [entry, refuse])),
   ];
-  for (const [entry, namesOf] of checks) {
-    const [refusal] = refusalsOf(entry, namesOf());
+  for (const [entry, names] of checks) {
+    const [refusal] = refusalsOf(entry, names);
     if (refusal) {
       return escalate(REFUSALS[refusal].kind, `refused (${refusal}): ${entry.path}`);
     }
@@ -572,9 +553,9 @@ export async function push({
   if (leaked) {
     return escalate("invalid", `the patched ${leaked.entry.path} carries a credential shape`);
   }
-  // The model sets no file mode (new-executable refused any it did), so under
-  // script-exec-bit each new or changed script, a .sh file or one starting
-  // with #!, is made executable here, in the index the patch was applied to.
+  // The model's tools set no file mode, so under script-exec-bit each new or
+  // changed script, a .sh file or one starting with #!, is made executable
+  // here, in the index the patch was applied to.
   if (row["script-exec-bit"] === true) {
     const scripts = blobs.filter(({ entry }) => entry.newMode !== EXECUTABLE && isScript(git, entry));
     if (scripts.length > 0) {

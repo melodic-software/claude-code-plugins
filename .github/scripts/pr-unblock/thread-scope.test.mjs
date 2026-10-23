@@ -106,8 +106,14 @@ test("outside plugins/, a test file in another directory, or a same-directory fi
   }
 });
 
-test("a test file under .github/ is refused even beside a kept thread's path there", () => {
-  assert.equal(inThreadScope(".github/scripts/x.test.mjs", new Set([".github/scripts/x.mjs"])), false);
+test("a test file under .github/workflows/ is refused even beside a kept thread's path there", () => {
+  assert.equal(inThreadScope(".github/workflows/x.test.mjs", new Set([".github/workflows/x.mjs"])), false);
+});
+
+test("a kept thread's path under .github/scripts/ and a test file beside it are in scope", () => {
+  const kept = new Set([".github/scripts/x.mjs"]);
+  assert.equal(inThreadScope(".github/scripts/x.mjs", kept), true);
+  assert.equal(inThreadScope(".github/scripts/x.test.mjs", kept), true);
 });
 
 test("a path with an empty, . or .. segment, or a leading /, is refused before any other rule", () => {
@@ -122,12 +128,14 @@ test("a path with an empty, . or .. segment, or a leading /, is refused before a
   }
 });
 
-test(".github/ is refused even when a kept thread names a file there", () => {
-  const github = new Set([".github/workflows/x.yml", ".GitHub/evals/c/a.md"]);
+test(".github/workflows/ is refused even when a kept thread names a file there", () => {
+  const github = new Set([".github/workflows/x.yml", ".GitHub/Workflows/a.yml"]);
   assert.equal(inThreadScope(".github/workflows/x.yml", github), false);
-  assert.equal(inThreadScope(".GitHub/evals/c/b.md", github), false);
-  assert.equal(isProtectedPath(".github"), true);
-  assert.equal(isProtectedPath(".githubx/a"), false);
+  assert.equal(inThreadScope(".GitHub/Workflows/a.yml", github), false);
+  assert.equal(isProtectedPath(".github/workflows"), true);
+  assert.equal(isProtectedPath(".github"), false);
+  assert.equal(isProtectedPath(".github/scripts/x.mjs"), false);
+  assert.equal(isProtectedPath(".github/workflowsx/a"), false);
 });
 
 test("a plugin's .mcp.json, .gitmodules or CODEOWNERS is outside the plugin-wide part of its scope", () => {

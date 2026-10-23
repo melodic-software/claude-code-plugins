@@ -44,7 +44,7 @@ scratch_dir=${FEEDBACK_SCRATCH:-} workspace=${FEEDBACK_WORKSPACE:-}
   die 2 "FEEDBACK_THREADS, FEEDBACK_LOG, FEEDBACK_SCRATCH and FEEDBACK_WORKSPACE must be set"
 [[ -f $threads_file ]] || die 2 "no thread file"
 
-# Not under .github/ in any letter case, with no empty, . or .. segment, of
+# Not under .github/workflows/ in any letter case, with no empty, . or .. segment, of
 # plain ASCII segments, and in a kept thread's scope: its path, a file in the
 # plugins/<p>/ directory it sits in that is no instruction path (CLAUDE.md,
 # AGENTS.md, .mcp.json, .lsp.json, .gitmodules, CODEOWNERS, a .claude or
@@ -55,7 +55,7 @@ scratch_dir=${FEEDBACK_SCRATCH:-} workspace=${FEEDBACK_WORKSPACE:-}
 # .github/scripts/pr-unblock/thread-scope.mjs, which the promote step and
 # the reply job apply.
 allowed() {
-  [[ ! ${1,,} =~ ^\.github(/|$) && ! $1 =~ (^|/)\.{0,2}(/|$) ]] &&
+  [[ ! ${1,,} =~ ^\.github/workflows(/|$) && ! $1 =~ (^|/)\.{0,2}(/|$) ]] &&
     jq -e --arg p "$1" '
       def dir: sub("[^/]*$"; "");
       def plugin: first(capture("^(?<c>plugins/[^/]+/)").c) // null;
@@ -103,7 +103,7 @@ cmd_check_paths() {
   local refused=0 path
   for path in "$@"; do
     if ! allowed "$path"; then
-      printf "refused: %s is outside every kept thread's scope, or is under .github/\n" "$path" >&2
+      printf "refused: %s is outside every kept thread's scope, or is under .github/workflows/\n" "$path" >&2
       refused=1
     fi
   done
@@ -176,7 +176,7 @@ cmd_record() {
     done
     ((${#paths[@]} < 300)) || die 1 "the working tree changes too many files to check"
     for path in "${paths[@]}"; do
-      allowed "$path" || die 1 "the working tree changes $path, which is outside every kept thread's scope or under .github/; nothing is recorded"
+      allowed "$path" || die 1 "the working tree changes $path, which is outside every kept thread's scope or under .github/workflows/; nothing is recorded"
     done
   fi
 

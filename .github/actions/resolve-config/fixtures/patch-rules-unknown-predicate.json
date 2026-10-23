@@ -1,14 +1,12 @@
 {
   "default": {
     "refuse": [
-      "github",
-      "claude",
-      "mcp-config",
+      "github-workflows",
+      "codeowners",
       "gitmodules",
       "settings",
       "symlink",
       "gitlink",
-      "new-executable",
       "rename-into-refused"
     ],
     "allow": [
@@ -33,14 +31,12 @@
   },
   "issue": {
     "refuse": [
-      "github",
-      "claude",
-      "mcp-config",
+      "github-workflows",
+      "codeowners",
       "gitmodules",
       "settings",
       "symlink",
       "gitlink",
-      "new-executable",
       "rename-into-refused"
     ],
     "allow": [

@@ -292,6 +292,44 @@ export async function commitPulls({
 export const graphQLReader = (github) => async (query, variables, signal) =>
   (await github("POST", "/graphql", { query, variables }, {}, { signal }))?.data;
 
+// Whether a close counts: (a) a listed human made it, matched by id; or (b) a
+// merge in this repository closed it: the `closer` GraphQL gives the issue's
+// last ClosedEvent is a merged pull request or a commit here, whoever merged
+// it. The REST close event carries no link to the pull request, so GraphQL
+// is the read. Any
+// other close, such as a workflow's GITHUB_TOKEN or an outside author closing
+// their own issue, counts for nothing.
+const CLOSER_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    issue(number: $number) {
+      timelineItems(itemTypes: CLOSED_EVENT, last: 1) {
+        nodes { ... on ClosedEvent { closer {
+          __typename
+          ... on PullRequest { merged repository { nameWithOwner } }
+          ... on Commit { repository { nameWithOwner } }
+        } } }
+      }
+    }
+  }
+}`;
+export async function isTrustedClose(github, repo, closedIssue, humans) {
+  const closer = closedIssue?.closed_by;
+  if (humans.has(closer?.id)) {
+    return true;
+  }
+  if (closedIssue?.state !== "closed" || !/^[1-9][0-9]{0,9}$/.test(String(closedIssue.number))) {
+    return false;
+  }
+  const [owner, name] = repo.split("/");
+  const answer = await github("POST", "/graphql", {
+    query: CLOSER_QUERY,
+    variables: { owner, name, number: Number(closedIssue.number) },
+  });
+  const by = answer?.data?.repository?.issue?.timelineItems?.nodes?.at(-1)?.closer;
+  const here = String(by?.repository?.nameWithOwner ?? "").toLowerCase() === repo.toLowerCase();
+  return here && (by.__typename === "Commit" || (by.__typename === "PullRequest" && by.merged === true));
+}
+
 // Reads every page of a list endpoint (100 per page).
 export async function paginate(github, apiPath, maxPages = 50) {
   const items = [];

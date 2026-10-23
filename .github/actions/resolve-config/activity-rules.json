@@ -16,7 +16,7 @@
   },
   "apply-feedback-patch": {
     "forbidden-effects": ["publish-artifact", "mutate-tracker", "merge"],
-    "never": "Runs a model or head code, force-pushes, or pushes under .github/"
+    "never": "Runs a model or head code, force-pushes, or pushes under .github/workflows/"
   },
   "publish-feedback": {
     "forbidden-effects": ["mutate-branch", "mutate-tracker", "merge"],
@@ -36,7 +36,7 @@
   },
   "apply-patch": {
     "forbidden-effects": ["publish-artifact", "mutate-tracker", "merge"],
-    "never": "Runs a model or head code, force-pushes, or pushes under .github/"
+    "never": "Runs a model or head code, force-pushes, or pushes under .github/workflows/"
   },
   "resolve-issue": {
     "forbidden-effects": ["publish-artifact", "mutate-tracker", "mutate-branch", "merge"],
@@ -44,7 +44,7 @@
   },
   "apply-issue-patch": {
     "forbidden-effects": ["publish-artifact", "mutate-tracker", "merge"],
-    "never": "Runs a model or code from the patch, moves an existing branch, or pushes under .github/"
+    "never": "Runs a model or code from the patch, moves an existing branch, or pushes under .github/workflows/"
   },
   "apply-dependency-verdict": {
     "forbidden-effects": ["mutate-branch", "merge"],
