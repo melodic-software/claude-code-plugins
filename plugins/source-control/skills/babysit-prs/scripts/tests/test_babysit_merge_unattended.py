@@ -759,6 +759,8 @@ class Unattended(unittest.TestCase):
         # The trusted-actor list's people, and each ref it was read at.
         self.trusted_humans: tuple[int, ...] = (PERSON_ID,)
         self.trusted_refs: list[str] = []
+        # The repository's default branch as `repository_default_branch` reads it.
+        self.repo_default: str | None = "main"
         self.files = ((LOW_FILE,), True)
         self.pr_view = fixtures._pr()
         self.queue = fixtures._queue_read(required=True)
@@ -1036,7 +1038,11 @@ class Unattended(unittest.TestCase):
                 "fetch_pull_request_reviews",
                 return_value=fixtures.CLEAN_APPROVAL,
             ),
-            mock.patch.object(merge, "repository_default_branch", return_value="main"),
+            mock.patch.object(
+                merge,
+                "repository_default_branch",
+                side_effect=lambda repo: self.repo_default,
+            ),
             mock.patch.object(merge, "read_merge_queue", return_value=self.queue),
             mock.patch.object(merge, "async_merge", self.async_merge),
             mock.patch.object(merge, "rerun_rate_limited_reviews", self.rerun),
@@ -3290,6 +3296,48 @@ class ReasonsComment(Unattended):
         # The trusted list is read at the base branch, never the head.
         self.assertEqual(self.trusted_refs, ["main"])
 
+    def test_the_trusted_list_is_read_at_the_default_branch(self) -> None:
+        # The pull request's base is main; a retarget cannot pick the list.
+        self.escalated_earlier()
+        self.repo_default = "trunk"
+        self.timeline = [
+            self.unlabeled("owner-person", "User", self.WRITTEN + timedelta(minutes=30))
+        ]
+        _, out = self.run_main()
+        self.assertEqual(self.trusted_refs, ["trunk"])
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"]["label"], "lifted"
+        )
+
+    def test_an_unread_default_branch_is_no_lift(self) -> None:
+        self.escalated_earlier()
+        self.repo_default = None
+        self.timeline = [
+            self.unlabeled("owner-person", "User", self.WRITTEN + timedelta(minutes=30))
+        ]
+        self.run_main()
+        self.assertEqual(self.log, [self.LABEL])
+        self.assertEqual(self.trusted_refs, [])
+
+    def test_a_trusted_id_on_a_bot_account_is_no_lift(self) -> None:
+        self.escalated_earlier()
+        self.timeline = [
+            self.unlabeled("person-app", "Bot", self.WRITTEN + timedelta(minutes=30))
+        ]
+        self.run_main()
+        self.assertEqual(self.log, [self.LABEL])
+
+    def test_a_tie_goes_to_the_later_removal(self) -> None:
+        # Same second: the person's removal, then the lanes App's.
+        self.escalated_earlier()
+        at = self.WRITTEN + timedelta(minutes=30)
+        self.timeline = [
+            self.unlabeled("owner-person", "User", at),
+            self.unlabeled("melodic-automation-lanes[bot]", "Bot", at, actor_id=1),
+        ]
+        self.run_main()
+        self.assertEqual(self.log, [self.LABEL])
+
     def test_a_write_user_off_the_trusted_list_is_no_lift(self) -> None:
         # A model-driven User account can hold write access.
         self.escalated_earlier()
@@ -4770,6 +4818,9 @@ class DependabotMajorEscalation(unittest.TestCase):
         )
         stack.enter_context(
             mock.patch.object(policy, "trusted_actors", return_value=((), (PERSON_ID,)))
+        )
+        stack.enter_context(
+            mock.patch.object(merge, "repository_default_branch", return_value="main")
         )
         return stack
 

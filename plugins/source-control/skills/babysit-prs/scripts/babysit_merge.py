@@ -3667,24 +3667,21 @@ def _lifted_by_person(
 ) -> bool:
     """Whether the newest removal of `label` came strictly after the
     identity's `marker` comment last changed and was a person's: a User of
-    kind `human` on the trusted-actor list read at the base branch, never
-    the head, who also passes `merge_policy.is_human` (write access, not a
-    bot, the agent identity or a self-login). That comment names the head
-    and the reasons, so the removal lifted this escalation. The timeline is
+    kind `human` on the trusted-actor list read at the repository's default
+    branch (never the head, nor a base a retarget could pick), who also
+    passes `merge_policy.is_human` (write access, not a bot, the agent
+    identity or a self-login). That comment names the head and the reasons,
+    so the removal lifted this escalation. The timeline is
     read under the verdict reader's token when one is set; any failure,
-    unreadable list or unparsable time is no lift, so the label goes on."""
+    unreadable list or default branch, or unparsable time is no lift, so
+    the label goes on."""
     token = os.environ.get(verify_evidence.TOKEN_ENV)
-    base = str(
-        json_object(json_object(inputs.get("pr")).get("base")).get("ref")
-        or inputs.get("branch")
-        or ""
-    )
     try:
         prior = _newest_marker_comment(comments, identity, marker) or {}
         escalated = parse_github_timestamp(
             str(prior.get("updated_at") or prior.get("created_at") or "")
         )
-        if escalated is None or not base:
+        if escalated is None:
             return False
         timeline = fetch_paginated_api(
             f"repos/{repo}/issues/{number}/timeline?per_page=100",
@@ -3700,14 +3697,15 @@ def _lifted_by_person(
             and (at := parse_github_timestamp(str(event.get("created_at") or "")))
             is not None
         ]
-        if not removals:
+        default = repository_default_branch(repo)
+        if not removals or not default:
             return False
         # The newest removal decides; a tie keeps the later timeline item.
         at, actor = max(enumerate(removals), key=lambda r: (r[1][0], r[0]))[1]
         return (
             at > escalated
             and actor.get("type") == "User"
-            and actor.get("id") in merge_policy.trusted_actors(repo, base)[1]
+            and actor.get("id") in merge_policy.trusted_actors(repo, default)[1]
             and merge_policy.is_human(
                 {"__typename": "User", "login": actor.get("login")},
                 repo=repo,

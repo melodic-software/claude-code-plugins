@@ -983,10 +983,12 @@ refusal comment naming that head, unless it is escalated, to say the refusal no 
 later refusal at the head starts its time afresh. The merge gate never removes the label; the
 `head-moved` clear above removes it once the head moves, and otherwise a person does. When the
 label's newest removal came after the escalation comment's last change and was a person's (a User
-of kind `human` on the trusted-actor list read at the base branch, with write access), it lifts
-that escalation: a later run that finds the comment unchanged (same head and reasons) adds no
-label. A removal by a bot, the lanes App included, or by an account off that list lifts nothing,
-and a new head or new reasons escalate afresh. The same holds for pr-merge's verifier, held-major and shared-copy escalations.
+of kind `human` on the trusted-actor list read at the default branch, never a retargeted base,
+with write access; an unreadable default branch lifts nothing), it lifts that escalation: a later
+run that finds the comment unchanged (same head and reasons) adds no label. A removal by a bot,
+the lanes App included, or by an account off that list lifts nothing, and a new head or new
+reasons escalate afresh. The same holds for pr-merge's verifier, held-major and shared-copy
+escalations.
 
 Finding closure (owner decision, #8450, narrowed to whole reviews): a clean **whole** review of the
 current head closes a review finding whoever resolved its thread, and a HIGH security finding also
