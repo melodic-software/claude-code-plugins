@@ -74,6 +74,12 @@ export const fromRest = (row) => ({
   body: String(row?.body ?? ""),
 });
 
+// Whether `path` matches the hold-path `glob`. path.matchesGlob has no `dot`
+// option, so `*` and `**` skip a segment opening with "."; both sides mark
+// such a segment alike first, so `.github/**` holds `.github/a/.x` too.
+const undot = (text) => String(text).replaceAll(/(^|\/)\./g, "$1\u0001");
+export const matchesHoldPath = (path, glob) => posix.matchesGlob(undot(path), undot(glob));
+
 // Why the head's changed `files` hold it, or null. Null `holdPaths` or
 // `files` (unreadable) holds it.
 export function pathHold(files, holdPaths) {
@@ -86,7 +92,7 @@ export function pathHold(files, holdPaths) {
   if (typeof posix.matchesGlob !== "function") {
     return "this Node has no path.matchesGlob, so its hold paths cannot be checked";
   }
-  const held = files.find((path) => holdPaths.some((glob) => posix.matchesGlob(path, glob)));
+  const held = files.find((path) => holdPaths.some((glob) => matchesHoldPath(path, glob)));
   return held === undefined ? null : `it changes ${held}, a hold path`;
 }
 

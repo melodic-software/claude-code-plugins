@@ -350,6 +350,9 @@ test("merge-holds.mjs holds a changed or renamed-from hold path from the command
     return spawnSync(process.execPath, [fileURLToPath(new URL("./merge-holds.mjs", import.meta.url)), ...args], { encoding: "utf8" });
   };
   assert.equal(cli([["docs/a.md"]], ["docs/held.md"]).status, 0);
+  assert.match(cli([[".github/workflows/.x.yml"]], []).stdout, /it changes \.github\/workflows\/\.x\.yml, a hold path/);
+  assert.match(cli([["plugins/a/.hidden"]], ["plugins/**"]).stdout, /it changes plugins\/a\/\.hidden, a hold path/);
+  assert.equal(cli([["plugins/a/x.md"]], ["plugins/*.md"]).status, 0);
   const renamed = cli([["docs/a.md", ".github/a.md"]], []);
   assert.equal(renamed.status, 1);
   assert.match(renamed.stdout, /it changes \.github\/a\.md, a hold path/);
