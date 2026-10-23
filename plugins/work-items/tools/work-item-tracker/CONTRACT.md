@@ -201,6 +201,7 @@ work-item-tracker.sh list-items [--state open|closed|all] [--repo <o>/<r>] [--la
 work-item-tracker.sh list-frontier [--autonomous] [--parent <container-id>] [--repo <o>/<r>] [--label <name>]
 work-item-tracker.sh label-provenance <id> --label <name> [--label <name> ...]
 work-item-tracker.sh set-fields <id> --field <field-id>=<option-id> [--field <field-id>=<option-id> ...]
+work-item-tracker.sh get-field-options --field <name-or-id> [--repo <o>/<r>]
 work-item-tracker.sh change-link (<id> | --branch-ref <ref> | --branch <name>) [--repo <o>/<r>]
 work-item-tracker.sh capabilities
 ```
@@ -242,6 +243,16 @@ option's name (pointer:
 [organization issue fields](https://docs.github.com/en/rest/orgs/issue-fields), as of
 2026-10-18, recheck trigger: the write starts taking option ids, or the listing's permission
 changes). An adapter that declares no `set-fields` key exits `6`.
+
+`get-field-options` is the read-only counterpart of `set-fields`: it lists the options of one
+single-select issue field, so a caller such as planning's Work size can use a tracker's own size
+values. `--field` is the field's exact name or its numeric id; `--repo` picks the repository whose
+organization is read (default: the working directory's remote). It prints `{schema_version, field,
+options: [{id, name}]}`. A field the organization does not have, or one with no options, prints an
+empty `options` list and exits `0`; a caller that gets one falls back to its own defaults. Only the
+GitHub adapter implements it, from the same `GET /orgs/{org}/issue-fields` listing `set-fields`
+validates against (same `read:org` need). An adapter that declares no `get-field-options` key exits
+`6`, which a caller reads as "unsupported", not as a failure. Label groups are not read by this verb.
 
 `claim --ttl-minutes <n>` (0–59) **adds to** `--ttl-hours`, it never replaces it: `--ttl-hours 24
 --ttl-minutes 30` is a 24.5-hour lease. For a sub-hour lease pass `--ttl-hours 0 --ttl-minutes <n>`.
