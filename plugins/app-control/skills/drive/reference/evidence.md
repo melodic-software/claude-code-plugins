@@ -37,7 +37,7 @@ For a job. One object with these fields:
 | `app` | The app's name |
 | `control_skill` | The control skill used, or `null` |
 | `fallback` | What drive used when `control_skill` is `null`, else `null` |
-| `mode` | `attended` (an interactive run) or `unattended` |
+| `mode` | `interactive` or `unattended` |
 | `ready` | `surfaces` (URL, port or command), `build`, `data`, `telemetry` |
 | `steps` | A list; each has `action`, `entry_point`, `observed` (text) and `artifacts` (paths); a capture step also has `process` (pid and name) and `command` (the exact command run) |
 | `capability_gaps` | Signals and capture kinds the app or project does not provide |
