@@ -870,7 +870,7 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    `cancelled` or `timed_out`) still runs one more round, on those threads only; a
    round with no readable time grants none. Both escalations skip `awaiting-human`, and no model
    job runs. Otherwise it writes `threads.json` and `run.json` (the gated head and the kept
-   threads' ids, paths, comment ids and named paths, from the thread file) and uploads both as
+   threads' ids, paths, comment ids and named paths, and `pr_paths`, from the thread file) and uploads both as
    `feedback-context-<run attempt>`. Its outputs are `proceed`, the head it read, the
    escalation, `fix-requested`, both files' SHA-256 and that attempt; every later job takes its
    gate, head and reply inputs from them, never from a model call's run job, whose runner head
@@ -893,9 +893,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    thread's scope or any `.github/workflows/` path, read with no hook, fsmonitor or untracked-cache config.
    Every path must be plain ASCII letters, digits and `_@+.-` in `/`-separated segments. A
    thread's scope is its path; a file in the `plugins/<p>/` directory its path sits in, except an
-   instruction path (`CLAUDE.md`, `AGENTS.md`, `.mcp.json`, `.lsp.json`, `.gitmodules` or
-   `CODEOWNERS` at any depth, a `.claude` or `.claude-plugin` directory, a plugin's `hooks/`,
-   `monitors/` or `bin/`) or a `.sh`, `.bash`, `.zsh`, `.ps1`,
+   instruction path
+   (`.gitmodules`, `CODEOWNERS`, a `settings*.json`, `package.json`, `package-lock.json` or `requirements*.txt`, at any depth) or a `.sh`, `.bash`, `.zsh`, `.ps1`,
    `.py`, `.mjs`, `.cjs`, `.js`, `.ts`, `.mts` or `.cts` file; a test file (`test_*.py`, `*_test.py`, `*.test.*`, `*.spec.*`) in its path's
    directory; and its `named_paths`. The select job sets those from the thread's fix requests by a
    trusted person with write access: each file-shaped word outside fenced code and quoted lines,
@@ -903,7 +902,15 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    does not, kept when it is in the thread path's `plugins/<p>/` directory, in normal form, not
    under `.github/workflows/` and not an instruction path (the same list), and
    a regular file, not a symbolic link or gitlink, at the gated head (ten per thread
-   at most).
+   at most). Every kept thread's scope also holds the thread file's `pr_paths`: each file the
+   pull request's file listing changes, rename sources included, in normal form, not under
+   `.github/workflows/`, not a `.gitmodules`, `CODEOWNERS`, `settings*.json`, package manifest or
+   `requirements*.txt`, and not a control-plane or agent-instruction surface: anything under
+   `.github/` (the pr-merge HIGH floor's trusted-actor list, trusted-trigger check and
+   `resolve-config` among it), `CLAUDE.md`, `AGENTS.md`, `.mcp.json` or `.lsp.json`, a `.claude`
+   or `.claude-plugin` directory, or a plugin's `hooks/`, `monitors/` or `bin/`. A path the fix creates gets no scope from `pr_paths`: the tool checks it exists at
+   the gated head, `apply-patch.mjs` refuses an added entry, and the reply job an `added`,
+   `renamed` or `copied` file.
 3. After the skill, the run job carries the tool's `replies.jsonl` beside the patch, at most
    49152 bytes, sealed for the scan job ([Patch output mode](#patch-output-mode)), and only for a
    `review-threads` skill. The scan job scans it with the reply and the patch and, on a clean
@@ -917,7 +924,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    `scan-*` outputs, never a run job's, and only when that call's scan also uploaded replies.
    Before the mint it downloads the select
    job's thread file and fails red unless its SHA-256 is the select job's; `apply-patch.mjs` then
-   admits only paths in a kept thread's scope (the `kept-threads` rule, `named_paths` included),
+   admits only paths in a kept thread's scope (the `kept-threads` rule, `named_paths` and
+   `pr_paths` included),
    skips `superseded-sha` when the head moved since the select job read it, keeps the
    human-gated hold unless the select job reported `fix-requested`, and commits with the
    `Lane-Activity: pr-unblock/address-feedback` trailer. An empty patch (every reply needs no fix)
@@ -955,7 +963,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
      current head: the branch must be ahead and change fewer than 300 files, each in a kept
      thread's scope and none under `.github/workflows/`, and with a `VALID` reply hold exactly one commit the
      lanes App authored with the push job's trailer, committed by `web-flow` with a `valid`
-     signature, which must change each `VALID` thread's path,
+     signature, which must change each `VALID` thread's path, a file in `run.json`'s `pr_paths` at a
+     line the reply's evidence cites inside one of the fix commit's hunks,
      or for a thread on a skill's `SKILL.md` any file in that skill's directory. Otherwise it
      posts no reply and escalates `feedback-not-landed`: a push that was superseded, refused,
      escalated or held made no such commit;
