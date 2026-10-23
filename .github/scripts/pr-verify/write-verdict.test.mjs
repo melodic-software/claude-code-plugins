@@ -48,8 +48,21 @@ test("each verdict names its artifact with the PR, the head and the verdict", ()
       notes: ["n"],
       run_id: 9001,
     });
-    assert.equal(artifactName(built), `pr-verify-41-${HEAD}-${verdict}`);
+    assert.equal(artifactName(built), `pr-verify-41-${HEAD}-${verdict}${verdict === "fail" ? "-i7" : ""}`);
   }
+});
+
+test("a FAIL's name carries the issues it records, ascending and once each", () => {
+  const issue = (number) => ({ ...ISSUE, number });
+  const name = (verdict, linkedIssues) =>
+    artifactName(buildVerdict({ ...ids, linkedIssues, output: JSON.stringify({ verdict, summary: "s", notes: [] }) }));
+  assert.equal(name("fail", [issue(12), issue(7), issue(12)]), `pr-verify-41-${HEAD}-fail-i7.12`);
+  assert.equal(name("fail", []), `pr-verify-41-${HEAD}-fail`);
+  assert.equal(name("pass", [issue(7)]), `pr-verify-41-${HEAD}-pass`);
+  assert.equal(name("pass-notes", [issue(7)]), `pr-verify-41-${HEAD}-pass-notes`);
+  const ten = Array.from({ length: 10 }, (_, i) => issue(i + 1));
+  assert.equal(name("fail", ten), `pr-verify-41-${HEAD}-fail-i1.2.3.4.5.6.7.8.9.10`);
+  assert.throws(() => name("fail", [...ten, issue(11)]), /more than a name carries/);
 });
 
 test("the head-ref digest is the first 16 hex digits of the branch's SHA-256", () => {
@@ -248,7 +261,7 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
   assert.equal(written.verdict, "fail");
   assert.equal(written.summary, "wrong");
   assert.deepEqual(written.linked_issues, [ISSUE]);
-  assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), `name=pr-verify-41-${HEAD}-fail\nverdict=fail\n`);
+  assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), `name=pr-verify-41-${HEAD}-fail-i7\nverdict=fail\n`);
 
   const okFile = execution("ok", JSON.parse(ok));
   const unparsable = path.join(dir, "unparsable.json");

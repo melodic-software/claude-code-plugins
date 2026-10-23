@@ -1291,8 +1291,8 @@ over 10 digits, and a name over 194 characters. A name that starts like a `fail`
 the gate refuses `verify:unreadable` when its run is of verifier origin, or is tied to the pull
 request and cannot be read, and pr-feedback-dispatch fails its run. One of verifier origin holds
 every pull request in the repository until its artifact is deleted or expires; deleting it clears
-the hold. The writer adds the issues once the readers have run
-on main. GitHub refuses
+the hold. The writer adds the issues to every `fail` that records one, ascending and once each,
+and checks the name against the readers' pattern before uploading. GitHub refuses
 an artifact name holding `"`, `:`, `<`, `>`, `|`, `*`, `?`, `\`, `/`, a carriage return or a
 line feed
 ([`validateArtifactName`](https://github.com/actions/toolkit/blob/main/packages/artifact/src/internal/upload/path-and-artifact-name-validation.ts)),

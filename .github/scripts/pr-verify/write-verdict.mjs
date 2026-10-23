@@ -1,6 +1,7 @@
 // Checks the verifier's structured output, the last result message of
 // run-claude-cli's execution file, and writes the verdict file that
-// pr-verify.yml uploads as pr-verify-<pr>-<head-sha>-<verdict>. Every reader
+// pr-verify.yml uploads as pr-verify-<pr>-<head-sha>-<verdict>, a FAIL's name
+// followed by `-i` and the issues it records (`artifactName`). Every reader
 // also accepts that name followed by `-<headRefDigest of the head branch>`,
 // which lets the pr-merge lane tie a FAIL to a branch without downloading it;
 // this writer moves to it once the readers have run on main. The output
@@ -176,7 +177,22 @@ export const HEAD_REF_DIGEST_HEX = 16;
 export const headRefDigest = (ref) =>
   createHash("sha256").update(String(ref), "utf8").digest("hex").slice(0, HEAD_REF_DIGEST_HEX);
 
-export const artifactName = (verdict) => `pr-verify-${verdict.pr}-${verdict.head_sha}-${verdict.verdict}`;
+// A FAIL's name ends with `-i` and the numbers of the issues it records,
+// ascending and joined by dots, so the pr-merge gate counts it toward each
+// issue's repeated-fail cap from the artifact listing alone
+// (babysit_verify_evidence.NAME_RE, which takes at most NAMED_ISSUES_MAX).
+export const NAMED_ISSUES_MAX = 10;
+export function artifactName(verdict) {
+  const name = `pr-verify-${verdict.pr}-${verdict.head_sha}-${verdict.verdict}`;
+  const issues = [...new Set((verdict.linked_issues ?? []).map((issue) => issue.number))].sort((a, b) => a - b);
+  if (verdict.verdict !== "fail" || issues.length === 0) {
+    return name;
+  }
+  if (issues.length > NAMED_ISSUES_MAX) {
+    throw new Error(`the verdict records ${issues.length} issues, more than a name carries`);
+  }
+  return `${name}-i${issues.join(".")}`;
+}
 
 export function main(env = process.env) {
   for (const key of [
