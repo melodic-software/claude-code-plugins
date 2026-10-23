@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Runs the `Require a broker deploy PR for a resolve-config dependency change` step body of
 # .github/workflows/pr-require-checks.yml's ci-status under the shell Actions
-# gives a step with no `shell:` (bash -e), against a stub `gh` that applies the
-# step's own --jq filter to a pull-request files fixture.
+# gives a step with no `shell:` (bash -e), against a stub `gh` that prints a
+# pull-request files fixture. The step leaves the pages it read under
+# RUNNER_TEMP for the review-lane step.
 #
 # The lanes token broker in melodic-software/azure-iac loads resolve-config's
 # modules from main's tip but imports ajv and yaml from its own deployment, and
@@ -55,20 +56,15 @@ else
   fail "step is not inside ci-status before the aggregate (lines: $order)"
 fi
 
-# The stub logs its arguments, fails the first STUB_FAILS calls, then applies
-# the --jq argument to STUB_JSON, as gh does to each page.
+# The stub logs its arguments, fails the first STUB_FAILS calls, then prints
+# STUB_JSON, one page.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$STUB_LOG"
 calls=$(wc -l <"$STUB_LOG")
 [[ "$calls" -gt "${STUB_FAILS:-0}" ]] || exit 1
-filter=
-while [[ $# -gt 0 ]]; do
-  [[ "$1" == --jq ]] && { filter="$2"; shift; }
-  shift
-done
-jq -r "$filter" <<<"$STUB_JSON"
+printf '%s\n' "$STUB_JSON"
 EOF
 printf '#!/usr/bin/env bash\n' >"$TMP_ROOT/bin/sleep"
 chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep"
@@ -87,15 +83,20 @@ files() {
 expect() {
   local label="$1" want_rc="$2" want_calls="$3" out rc calls
   : >"$TMP_ROOT/log"
+  rm -f "$TMP_ROOT/pr-files.json"
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_JSON="$4" PR_BODY="$5" STUB_FAILS="$6" \
-    PR_NUMBER=8313 GITHUB_REPOSITORY=o/r bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    PR_NUMBER=8313 GITHUB_REPOSITORY=o/r RUNNER_TEMP="$TMP_ROOT" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   calls=$(wc -l <"$TMP_ROOT/log")
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
   elif [[ "$calls" -ne "$want_calls" ]]; then
     fail "$label: expected $want_calls gh call(s) got $calls"
-  elif [[ "$want_calls" -gt 0 && "$(sort -u "$TMP_ROOT/log")" != "api repos/o/r/pulls/8313/files?per_page=100 --paginate --jq "* ]]; then
+  elif [[ "$want_calls" -gt 0 && "$(sort -u "$TMP_ROOT/log")" != "api repos/o/r/pulls/8313/files?per_page=100 --paginate" ]]; then
     fail "$label: unexpected gh call '$(sort -u "$TMP_ROOT/log")'"
+  elif [[ "$want_calls" -gt "$6" ]] && ! jq -se --argjson want "$(jq -sc . <<<"$4")" '. == $want' "$TMP_ROOT/pr-files.json" >/dev/null 2>&1; then
+    fail "$label: the pages read were not left for the review-lane step: '$(cat "$TMP_ROOT/pr-files.json" 2>&1)'"
+  elif [[ "$want_calls" -le "$6" && -e "$TMP_ROOT/pr-files.json" ]]; then
+    fail "$label: an unread file list left a pr-files.json"
   elif [[ -n "${7:-}" && "$out" != *"$7"* ]]; then
     fail "$label: output lacks '$7': '$out'"
   else
@@ -117,6 +118,8 @@ expect "files the broker does not load need no line" 0 1 \
 expect "a same-named file elsewhere needs no line" 0 1 "$(files "package.json" "$RC/sub/package.json" "$RC/package.json.orig")" "" 0
 expect "a rename away from a dependency path fails" 1 1 \
   "[{\"filename\":\"$RC/old/package.json\",\"previous_filename\":\"$RC/package.json\",\"status\":\"renamed\"}]" "" 0 "$RC/package.json"
+expect "a dependency path on the second page fails" 1 1 "$(files README.md)$(files "$RC/package.json")" "" 0 "$RC/package.json"
+expect "a dependency path on the second page passes with the line" 0 1 "$(files README.md)$(files "$RC/package.json")" "$LINE" 0
 expect "a CRLF body line counts" 0 1 "$(files "$RC/package.json")" $'Closes #1\r\n'"$LINE"$'\r\n## Summary\r' 0
 expect "trailing blanks after the number count" 0 1 "$(files "$RC/package.json")" "$LINE  " 0
 expect "the line inside other text does not count" 1 1 "$(files "$RC/package.json")" "see $LINE" 0

@@ -298,13 +298,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
       - name: Fetch base
         uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
       # THE DIFF BASE, RESOLVED ONCE. A pull request diffs against its base
@@ -499,15 +492,6 @@ jobs:
             printf 'affected-tests fallback: %s unmapped file(s)\n' "$unmapped" >>"$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: github-token ${{ github.token }}
-
   # Public repository: every lane runs on GitHub-hosted ubuntu-24.04 (free for
   # public repositories); the local-runner selector is not permitted here.
   #
@@ -584,13 +568,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
       - name: Fetch base
         uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
 
@@ -1266,15 +1243,6 @@ jobs:
             runner-policy=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.runner_policy.outcome }}
         run: scripts/aggregate-hygiene-results.sh
 
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: github-token ${{ github.token }}
-
   # THE SHELL LINTERS: ShellCheck, and the repo-local gates that read shell
   # source (GNU-only constructs, piped early-exit greps, temp-path cleanup,
   # fixture git isolation, discriminating skips, the drive-root no-op, the
@@ -1309,13 +1277,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
       - name: Fetch base
         uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
 
@@ -1569,15 +1530,6 @@ jobs:
             shellcheck=${{ steps.shellcheck.outcome }}
         run: scripts/aggregate-hygiene-results.sh
 
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: github-token ${{ github.token }}
-
   # PLUGIN CONTRACTS ACROSS FILES: the manifest schemas and duplicate keys, the
   # catalog presence and enablement, option docs, the changelog and vendor-bump
   # gates, the hook-declaration gates, `claude plugin validate`, the
@@ -1613,13 +1565,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
       - name: Fetch base
         uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
 
@@ -2181,15 +2126,6 @@ jobs:
             manifest-duplicate-keys=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.duplicate_keys.outcome }}
         run: scripts/aggregate-hygiene-results.sh
 
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: github-token ${{ github.token }}
-
   # SKILL AND EVAL CONTRACTS: check 25 and the changed-skills gate, the
   # portability lint, leaf names, spoke paths, the listing budgets, the eval
   # schema and quality lint, the invocation probes, the detector/eval crosswalk
@@ -2218,13 +2154,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
       - name: Fetch base
         uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
 
@@ -2572,15 +2501,6 @@ jobs:
             listing-budget-configured=${{ steps.listing_budget_configured.outcome }}
             portability-lint=${{ steps.portability.outcome }}
         run: scripts/aggregate-hygiene-results.sh
-
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: github-token ${{ github.token }}
 
   # THE TEST LANES RUN WHAT THE SELECTION SAYS. `select-tests` plans them once
   # (scripts/plan-test-lanes.sh): the shell suites the change selects go to
@@ -3189,14 +3109,14 @@ jobs:
     # (`rate-limit-wait-seconds` on check-contract and aggregate-results), 45 s
     # of own-gate retries, 7 s of status-write retries and the 90 s
     # `rerun-wait-seconds` wait, about four and a half minutes, plus up to
-    # 15 s of retry sleeps for each of the hold-lift step's three reads and
-    # the review-lane step's four, under two minutes, plus the cost-hold step's
-    # reads: three for most pull requests, which stop at the label events; for a
-    # lane-labeled one whose body cites a decision, about ten, and two more per
-    # review run since the window opened. One more minute covers the API
-    # budget steps: a sparse checkout and two GET /rate_limit reads, seconds
-    # each, capped at a minute apiece.
-    timeout-minutes: 10
+    # 15 s of retry sleeps for each of the hold-lift step's two reads, the
+    # review-lane step's four and the lanes-hold step's eight, about four
+    # minutes, plus the cost-hold step's reads: one for most pull requests,
+    # which stop at the label events; for a lane-labeled one whose body cites a
+    # decision, about eight, and two more per review run since the window
+    # opened, plus the base-config checkout's fetch (seconds; its retries
+    # replace the contents reads' 15 s each).
+    timeout-minutes: 11
     permissions:
       # `yield-to-full-run` lists this workflow's runs on the head SHA, and
       # `rerun-contract-only-siblings` re-runs the red contract-only ones once
@@ -3214,20 +3134,6 @@ jobs:
       pull-requests: write
       statuses: write
     steps:
-      - name: Check out the API budget action
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          sparse-checkout: .github/actions/log-api-budget
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
       - name: Check the pull-request contract
         uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
         with:
@@ -3259,12 +3165,15 @@ jobs:
           BROKER_PATHS='.github/actions/resolve-config/package.json
           .github/actions/resolve-config/package-lock.json'
           for attempt in 1 2 3; do
-            if files=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --paginate --jq '.[] | .filename, (.previous_filename // empty)'); then
+            if pages=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --paginate); then
               break
             fi
             [ "$attempt" -lt 3 ] || { echo "::error::could not read the files of #$PR_NUMBER; re-run this run."; exit 1; }
             sleep $((attempt * 5))
           done
+          files=$(jq -r '.[] | .filename, (.previous_filename // empty)' <<<"$pages")
+          # The review-lane step reads the same list from here instead of again.
+          printf '%s\n' "$pages" >"$RUNNER_TEMP/pr-files.json"
           touched=
           for path in $BROKER_PATHS; do
             if grep -qxF "$path" <<<"$files"; then touched="$touched $path"; fi
@@ -3348,6 +3257,32 @@ jobs:
           msg="draft: lanes not run; the ready_for_review run lints and tests this SHA"
           echo "::notice::$msg"
           echo "$msg" >>"$GITHUB_STEP_SUMMARY"
+      # THE HOLD STEPS READ THEIR CONFIG FROM THE BASE COMMIT, ONCE. The tracker
+      # config names the human-gated label and the trusted-actor list names who
+      # may lift a hold; both are read at the base so the pull request cannot
+      # rewrite its own hold. A sparse checkout of the two files at the base SHA
+      # is a git fetch, not a REST request: as of actions/checkout v7.0.1 its
+      # API calls (default branch, object format, the stale-merge tracepoint, the
+      # no-git archive download) all return early for a 40-hex `ref` on a runner
+      # with git; recheck on a checkout bump. It checks out no pull request
+      # code: the ref is the base commit, nothing here is executed, and no
+      # credential is persisted.
+      # The steps below read BASE_CONFIG: empty when this step did not succeed,
+      # which each of them treats as an unreadable config; a file missing from
+      # a checkout that succeeded is a file the base commit does not have.
+      - name: Check out the base commit's hold config
+        id: base_config
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        continue-on-error: true
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          path: base-config
+          persist-credentials: false
+          sparse-checkout: |
+            /.work-item-tracker.json
+            /.github/standards/trusted-actors/trusted-actors.json
+          sparse-checkout-cone-mode: false
       # A COST HOLD THE OWNER ALREADY DECIDED COMES OFF. A review lane re-holds
       # every new head, so its `cost` hold went back on after the owner had
       # recorded the cost decision. This step clears a hold only when all
@@ -3390,6 +3325,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
           keep() {
             echo "The cost hold stays for a person: $1."
@@ -3410,15 +3346,18 @@ jobs:
           [[ $BASE_SHA =~ ^[0-9a-f]{40}$ && $HEAD_SHA =~ ^[0-9a-f]{40}$ && $PR_NUMBER =~ ^[1-9][0-9]*$ ]] || keep "the event names no commit or pull request"
           [[ $LANES_APP_ID =~ ^[1-9][0-9]*$ ]] || keep "AUTOMATION_LANES_APP_SENDER_ID is not set"
           repo=$GITHUB_REPOSITORY
-          tracker=$(read_api -H 'Accept: application/vnd.github.raw+json' "repos/$repo/contents/.work-item-tracker.json?ref=$BASE_SHA") && rc=0 || rc=$?
-          [ "$rc" -ne 1 ] || keep "the tracker config is unreadable"
+          [ -d "$BASE_CONFIG" ] || keep "the tracker config is unreadable"
+          tracker=
+          if [ -e "$BASE_CONFIG/.work-item-tracker.json" ]; then
+            tracker=$(cat "$BASE_CONFIG/.work-item-tracker.json") || keep "the tracker config is unreadable"
+          fi
           label=needs-human
-          if [ "$rc" -eq 0 ] && [ -n "$tracker" ]; then
+          if [ -n "$tracker" ]; then
             label=$(jq -er '[objects | .config | objects | .role_labels | objects
               | .["human-gated"] | strings | gsub("^\\s+|\\s+$"; "")][0] // ""
               | if . == "" then "needs-human" else . end' <<<"$tracker") || keep "the tracker config is invalid"
           fi
-          actors=$(read_api -H 'Accept: application/vnd.github.raw+json' "repos/$repo/contents/.github/standards/trusted-actors/trusted-actors.json?ref=$BASE_SHA") || keep "the trusted-actor list is unreadable"
+          actors=$(cat "$BASE_CONFIG/.github/standards/trusted-actors/trusted-actors.json") || keep "the trusted-actor list is unreadable"
           humans=$(jq -ec '[.actors[] | select(.kind == "human") | .id | numbers] | select(length > 0)' <<<"$actors") || keep "the trusted-actor list names no person"
           events=$(read_api "repos/$repo/issues/$PR_NUMBER/events?per_page=100" --paginate) || keep "the events are unreadable"
           # The window opens at the newest removal by a trusted person.
@@ -3554,21 +3493,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
           if [[ ! $BASE_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
             exit 1
           fi
-          for attempt in 1 2 3; do
-            if tracker=$(gh api -H 'Accept: application/vnd.github.raw+json' "repos/$GITHUB_REPOSITORY/contents/.work-item-tracker.json?ref=$BASE_SHA" 2>"$RUNNER_TEMP/tracker.err"); then
-              break
-            elif grep -q 'HTTP 404' "$RUNNER_TEMP/tracker.err"; then
-              tracker=
-              break
-            fi
-            [ "$attempt" -lt 3 ] || { echo "::error::could not read .work-item-tracker.json at $BASE_SHA; re-run this run."; exit 1; }
-            sleep $((attempt * 5))
-          done
+          tracker=
+          if [ ! -d "$BASE_CONFIG" ] || { [ -e "$BASE_CONFIG/.work-item-tracker.json" ] && ! tracker=$(cat "$BASE_CONFIG/.work-item-tracker.json"); }; then
+            echo "::error::could not read .work-item-tracker.json at $BASE_SHA; re-run this run."
+            exit 1
+          fi
           human_gated=needs-human
           if [ -n "$tracker" ]; then
             human_gated=$(jq -er '[objects | .config | objects | .role_labels | objects
@@ -3629,6 +3564,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HUMAN_GATED: ${{ steps.human_gated.outputs.label }}
+          BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
           if [[ ! $BASE_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
@@ -3664,13 +3600,10 @@ jobs:
             echo "No review lane has held #$PR_NUMBER."
             exit 0
           fi
-          for attempt in 1 2 3; do
-            if actors=$(gh api -H 'Accept: application/vnd.github.raw+json' "repos/$GITHUB_REPOSITORY/contents/.github/standards/trusted-actors/trusted-actors.json?ref=$BASE_SHA"); then
-              break
-            fi
-            [ "$attempt" -lt 3 ] || { echo "::error::could not read the trusted-actor list at $BASE_SHA; re-run this run."; exit 1; }
-            sleep $((attempt * 5))
-          done
+          if [ ! -d "$BASE_CONFIG" ] || ! actors=$(cat "$BASE_CONFIG/.github/standards/trusted-actors/trusted-actors.json"); then
+            echo "::error::could not read the trusted-actor list at $BASE_SHA; re-run this run."
+            exit 1
+          fi
           humans=$(jq -er '[.actors[] | select(.kind == "human") | .id | numbers | tostring] | select(length > 0) | join(" ")' <<<"$actors") || {
             echo "::error::the trusted-actor list at $BASE_SHA names no person."
             exit 1
@@ -3752,13 +3685,19 @@ jobs:
               exit 1
             fi
             pr=$(read_api "#$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER") || exit 1
-            for attempt in 1 2 3; do
-              if files=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --paginate --jq '.[] | [.filename, (.previous_filename // "")] | @tsv'); then
-                break
-              fi
-              [ "$attempt" -lt 3 ] || { echo "::error::could not read the files of #$PR_NUMBER; re-run this run."; exit 1; }
-              sleep $((attempt * 5))
-            done
+            # The broker step above leaves the file list it read; read it again
+            # only when that step could not.
+            if [ -s "$RUNNER_TEMP/pr-files.json" ]; then
+              files=$(jq -r '.[] | [.filename, (.previous_filename // "")] | @tsv' "$RUNNER_TEMP/pr-files.json")
+            else
+              for attempt in 1 2 3; do
+                if files=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --paginate --jq '.[] | [.filename, (.previous_filename // "")] | @tsv'); then
+                  break
+                fi
+                [ "$attempt" -lt 3 ] || { echo "::error::could not read the files of #$PR_NUMBER; re-run this run."; exit 1; }
+                sleep $((attempt * 5))
+              done
+            fi
             if [ "$(grep -c . <<<"$files")" -lt "$(jq '.changed_files // 0' <<<"$pr")" ]; then
               echo "::error::GitHub listed fewer files than #$PR_NUMBER changes, so its hold-paths cannot be checked; a person merges it."
               exit 1
@@ -3844,6 +3783,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           BASE_SHA: ${{ github.event.merge_group.base_sha }}
+          BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
           pr=$(sed -nE 's#^(refs/heads/)?gh-readonly-queue/.+/pr-([0-9]+)-[0-9a-f]{40}$#\2#p' <<<"$GITHUB_REF")
           if [ -z "$pr" ]; then
@@ -3854,16 +3794,11 @@ jobs:
             echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
             exit 1
           fi
-          for attempt in 1 2 3; do
-            if tracker=$(gh api -H 'Accept: application/vnd.github.raw+json' "repos/$GITHUB_REPOSITORY/contents/.work-item-tracker.json?ref=$BASE_SHA" 2>"$RUNNER_TEMP/tracker.err"); then
-              break
-            elif grep -q 'HTTP 404' "$RUNNER_TEMP/tracker.err"; then
-              tracker=
-              break
-            fi
-            [ "$attempt" -lt 3 ] || { echo "::error::could not read .work-item-tracker.json at $BASE_SHA; re-run this run."; exit 1; }
-            sleep $((attempt * 5))
-          done
+          tracker=
+          if [ ! -d "$BASE_CONFIG" ] || { [ -e "$BASE_CONFIG/.work-item-tracker.json" ] && ! tracker=$(cat "$BASE_CONFIG/.work-item-tracker.json"); }; then
+            echo "::error::could not read .work-item-tracker.json at $BASE_SHA; re-run this run."
+            exit 1
+          fi
           human_gated=needs-human
           if [ -n "$tracker" ]; then
             human_gated=$(jq -er '[objects | .config | objects | .role_labels | objects
@@ -3891,6 +3826,141 @@ jobs:
           fi
           [ "$held" -eq 0 ] || exit 1
           echo "#$pr carries neither 'do-not-merge' nor '$human_gated'."
+      # The lanes-hold step below runs node; pin it to main's .node-version,
+      # as every other Node job is, rather than the runner image's default.
+      - name: Check out main's Node pin
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+          sparse-checkout: .node-version
+          sparse-checkout-cone-mode: false
+      - name: Set up Node
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+      # A LANES APP PULL REQUEST IS HELD BY ITS TEXT TOO. pr-merge.yml's
+      # enable-auto-merge job arms native auto-merge on lanes App pull
+      # requests, which then merge without pr-merge's gate, so this step fails
+      # on the holds that gate honors: a body hold, a member's veto comment,
+      # and a changed file or renamed-from path matching the merge lane's
+      # denied paths (pr-pipeline.yaml merge.diff-check.denied-paths, as main
+      # has it, plus merge-holds.mjs's HOLD_PATH_FLOOR), so a push after arming is
+      # held on its own pull request event; a person on the trusted-actor list
+      # (as main has it) lifts a hold path by approving the head, then re-runs
+      # ci-status. All by the rules in
+      # .github/scripts/pr-merge/merge-holds.mjs,
+      # which this step runs as main has it so a pull request cannot rewrite
+      # its own hold: in the queue at the group's base commit, and on a pull
+      # request event at the live base commit of a pull request into main. A
+      # pull request into any other branch is never armed and is not read, so
+      # it cannot choose a branch whose module runs here with this job's token. On a pull request event and in the merge queue
+      # (the pull request named in the group's ref, as the step above reads
+      # it), the body, comments, reviews and inline comments are read live,
+      # never from the payload a re-run replays, and so are the changed files;
+      # a list shorter than changed_files fails closed. A body edit re-runs this job;
+      # a comment does not, so a veto posted while armed is enforced when the
+      # queue builds the group, and after a veto is lifted ci-status needs a
+      # re-run. Only the lanes App's pull requests are read, by numeric id
+      # (pr-pipeline.yaml merge.agent-identity, as trusted-actors.json lists
+      # it); every other pull request merges through pr-merge's gate or a
+      # person. An unreadable pull request, module, config, file list or
+      # discussion fails closed.
+      # Pinned by scripts/ci-lanes-pr-hold.test.sh, which runs this body.
+      - name: Fail a lanes App pull request its body or a member holds
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+        run: |
+          lanes_app_id=337595936
+          pr=$PR_NUMBER
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            pr=$(sed -nE 's#^(refs/heads/)?gh-readonly-queue/.+/pr-([0-9]+)-[0-9a-f]{40}$#\2#p' <<<"$GITHUB_REF")
+            if [ -z "$pr" ]; then
+              echo "::error::cannot read a pull request number from the merge-group ref '$GITHUB_REF'."
+              exit 1
+            fi
+          fi
+          if [[ ! $pr =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::the pull request number '${pr//%/%25}' is not a number."
+            exit 1
+          fi
+          read_api() {
+            local attempt body
+            for attempt in 1 2 3; do
+              if body=$(gh api "${@:2}"); then
+                printf '%s\n' "$body"
+                return 0
+              fi
+              [ "$attempt" -lt 3 ] || { echo "::error::could not read $1; re-run this run." >&2; return 1; }
+              sleep $((attempt * 5))
+            done
+          }
+          pull=$(read_api "#$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr") || exit 1
+          if ! jq -e '(.user.id | numbers) and (.user.type | strings)' <<<"$pull" >/dev/null; then
+            echo "::error::the author of #$pr could not be read."
+            exit 1
+          fi
+          if ! jq -e --argjson id "$lanes_app_id" '.user.id == $id and .user.type == "Bot"' <<<"$pull" >/dev/null; then
+            echo "#$pr is not the lanes App's; pr-merge's gate or a person reads its holds."
+            exit 0
+          fi
+          BASE_SHA=$GROUP_BASE_SHA
+          if [ "$GITHUB_EVENT_NAME" != merge_group ]; then
+            if [ "$(jq -r '.base.ref' <<<"$pull")" != main ]; then
+              echo "#$pr is not into main, so native auto-merge never arms it."
+              exit 0
+            fi
+            BASE_SHA=$(jq -r '.base.sha' <<<"$pull")
+          fi
+          if [[ ! $BASE_SHA =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
+            exit 1
+          fi
+          module=.github/scripts/pr-merge/merge-holds.mjs
+          read_api "$module at $BASE_SHA" -H 'Accept: application/vnd.github.raw+json' \
+            "repos/$GITHUB_REPOSITORY/contents/$module?ref=$BASE_SHA" >"$RUNNER_TEMP/merge-holds.mjs" || exit 1
+          jq -r '.body // ""' <<<"$pull" >"$RUNNER_TEMP/pr-body.txt"
+          config=docs/conventions/pr-pipeline.yaml
+          read_api "$config at $BASE_SHA" -H 'Accept: application/vnd.github.raw+json' \
+            "repos/$GITHUB_REPOSITORY/contents/$config?ref=$BASE_SHA" >"$RUNNER_TEMP/pr-pipeline.yaml" || exit 1
+          yq -o=json '.merge."diff-check"."denied-paths" // []' "$RUNNER_TEMP/pr-pipeline.yaml" >"$RUNNER_TEMP/denied-paths.json" || {
+            echo "::error::cannot read merge.diff-check.denied-paths from $config at $BASE_SHA."
+            exit 1
+          }
+          read_api "the files of #$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr/files?per_page=100" --paginate \
+            --jq '.[] | [.filename, (.previous_filename // empty)] | @json' >"$RUNNER_TEMP/files.jsonl" || exit 1
+          changed=$(jq -er '.changed_files | numbers' <<<"$pull") || { echo "::error::the changed-file count of #$pr could not be read."; exit 1; }
+          if [ "$(grep -c . "$RUNNER_TEMP/files.jsonl")" -lt "$changed" ]; then
+            echo "::error::GitHub listed fewer files than #$pr changes, so its hold paths cannot be checked; a person merges it."
+            exit 1
+          fi
+          head=$(jq -r '.head.sha' <<<"$pull")
+          if [[ ! $head =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the head of #$pr could not be read."
+            exit 1
+          fi
+          actors=.github/standards/trusted-actors/trusted-actors.json
+          read_api "$actors at $BASE_SHA" -H 'Accept: application/vnd.github.raw+json' \
+            "repos/$GITHUB_REPOSITORY/contents/$actors?ref=$BASE_SHA" >"$RUNNER_TEMP/trusted-actors.json" || exit 1
+          : >"$RUNNER_TEMP/discussion.jsonl"
+          for kind in "issues/$pr/comments" "pulls/$pr/reviews" "pulls/$pr/comments"; do
+            rows=$(read_api "the $kind of #$pr" "repos/$GITHUB_REPOSITORY/$kind?per_page=100" --paginate --jq '.[] | @json') || exit 1
+            [ -z "$rows" ] || printf '%s\n' "$rows" >>"$RUNNER_TEMP/discussion.jsonl"
+          done
+          out=$(node "$RUNNER_TEMP/merge-holds.mjs" "$pr" "$RUNNER_TEMP/pr-body.txt" "$RUNNER_TEMP/discussion.jsonl" \
+            "$RUNNER_TEMP/files.jsonl" "$RUNNER_TEMP/denied-paths.json" "$RUNNER_TEMP/trusted-actors.json" "$head") || {
+            printf '%s\n' "$out"
+            exit 1
+          }
+          # Exit 0 without the module's no-hold line ran no check: fail closed.
+          printf '%s\n' "$out"
+          grep -qxF "#$pr: no body hold, no member veto and no hold path." <<<"$out" || { echo "::error::merge-holds.mjs exited 0 without its verdict."; exit 1; }
       # ORDERED SKIPS ARE CHECKED HERE. A test lane `test-<x>`, or `lint-shell`
       # on its `run_shell` row, skips as a job when `select-tests`'s `run_<x>`
       # row says the change gives it no work. Its
@@ -3952,12 +4022,3 @@ jobs:
           # how many steps of the job are in progress.
           step-name: Aggregate lane results
           token: ${{ github.token }}
-
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: github-token ${{ github.token }}

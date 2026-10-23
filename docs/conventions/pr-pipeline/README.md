@@ -536,7 +536,7 @@ each row to these keys:
 | Key | Holds |
 |---|---|
 | `refuse` | Named refusals; any match refuses the whole patch. |
-| `allow` | What every other changed path must also meet: `any`, `kept-threads` (a path in the scope of a thread the select job kept, its `named_paths` included, read from that job's thread file), `dependency-manifests` (an npm or pip manifest or lock file outside `.github/` in a directory the base `.github/dependabot.yml` lists for its ecosystem) or `merge-result` (a path the base merge left conflicted; under a merge row only the patch's own changes, measured from the conflict tree, face the rules, every conflicted path left in the tree must hold no conflict markers, and the merge's base-side changes pass through). |
+| `allow` | What every other changed path must also meet: `any`, `kept-threads` (a path in the scope of a thread the select job kept, its `named_paths` included, or a file the pull request already changes that the patch does not add, its `pr_paths`, read from that job's thread file), `dependency-manifests` (an npm or pip manifest or lock file outside `.github/` in a directory the base `.github/dependabot.yml` lists for its ecosystem) or `merge-result` (a path the base merge left conflicted; under a merge row only the patch's own changes, measured from the conflict tree, face the rules, every conflicted path left in the tree must hold no conflict markers, and the merge's base-side changes pass through). |
 | `max-files` | The most paths one patch may change, or `null`. |
 | `max-blobs` | Merge rows only: the most blobs one merge commit may upload, each one neither the head nor the base holds at its path; over it nothing is written. |
 | `requires` | What the producer's output must say before anything applies: `dependency-verdict: fix`, the scanned verdict's field. |
@@ -1039,6 +1039,43 @@ such as a demotion record, a ruleset, an edit to a comment older than the newest
 outside the keyed paths, delays re-gating by at most those limits; a skip never merges, enqueues or
 drops an escalation.
 
+#### Native auto-merge
+
+The lane's `enable-auto-merge` activity, the `enable-auto-merge` job of `pr-merge.yml` with its
+own lanes App token (`.github/scripts/pr-merge/enable-auto-merge.mjs`, no model), turns on GitHub's
+native auto-merge (`enablePullRequestAutoMerge`, squash, `expectedHeadOid` the head it read) for
+each open lanes App pull request into main from a branch of this repository that is not a draft,
+opens with `Closes #<issue>`, and carries no hold: no `Hold:` line or "do not merge" in its body
+(the gate's own rule), no `do-not-merge` or human-gated label, and no member (owner, member or
+collaborator) whose newest comment, review or inline comment with text says "do not merge" (the
+gate's veto rule; a later comment lifts it), and whose head changes no path in the lane's
+`merge.diff-check.denied-paths`, read on the files the head changes at each run. It turns auto-merge off on an armed one that now fails
+any of those, and does not turn it back on once a person has turned it off. GitHub then merges the pull request through the merge queue
+once `ci-status` passes. The issue lane finishing (`workflow_run`) wakes it, so a pull request is
+armed right after report-outcome opens it; a listed human's edit, unlabel or ready wakes it too, so
+adding a `Hold:` line disarms at once; and the 15-minute schedule arms or disarms what the events
+missed. The token broker mints `merge` only for `pr-merge.yml`, and outside the schedule only for a
+listed human's run, so an issue run the lanes App started is armed by the next scheduled run. While
+`merge.report-only` is true it reports each decision and writes nothing.
+
+`ci-status` enforces the same holds on every lanes App pull request, the two text holds and the
+hold paths, so one added after arming stops the merge without waiting for this job: its step
+`Fail a lanes App pull request its body or a member holds` runs
+`.github/scripts/pr-merge/merge-holds.mjs` as main has it, the module `enable-auto-merge.mjs` arms
+by, over the live body, discussion and changed files (renamed-from paths included) against main's
+`merge.diff-check.denied-paths` plus the paths resolve-config always adds and the rest of the merge
+gate's HIGH floor (`CODEOWNERS`, `.gitmodules`, every plugin manifest), on each pull request
+event and in the merge queue, where a red group removes the pull request. A push that adds a hold
+path fails `ci-status` on its own head. A person on the trusted-actor list (as main has it) lifts a
+hold path by approving that head: their newest review of it that approves, requests changes or was
+dismissed must approve. Then re-run `ci-status`, since a review does not. The approval lifts no
+body hold or veto, and arming still skips the pull request, so that person merges it. The module is read at the pull request's base commit, so a lanes App pull
+request whose base predates the module fails `ci-status` closed until it is updated with main.
+Its own changes are held: `merge-holds.mjs` and this workflow sit under `.github/**`, a path
+resolve-config always denies, so a lanes App pull request cannot weaken the rule and merge itself. A body edit re-runs
+`ci-status` at once. A comment does not, so a veto posted while armed takes effect when the queue
+builds the group, and after a person lifts one with a later comment, `ci-status` needs a re-run.
+
 ### Dependabot pull requests
 
 No Dependabot pull request waits on a human
@@ -1377,7 +1414,7 @@ network error is read again, three reads in all with backoff, all inside the one
 read would get; any other failure, a timeout, a 429 or a rate-limit 403 included, is not. A failed listing is never
 saved, and is kept for that candidate's gate run: the pull request and every queued entry refuse `verify:unreadable` without the
 listing being paged again, so a listing outage holds the whole queue rather than merging blind.
-pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
+The lane token holds no Actions permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
 records, the download of a verdict.json (by the listed artifact's id, one request where `gh run
 download` lists the run's artifacts first) and the compare of a run's head to main (a `contents: read` call). The gate's
@@ -1392,7 +1429,7 @@ is refused with a 429, or a 403 whose message names a rate limit, the gate reads
 candidate's evidence again with the lane token (they are all GETs). It records the refusal in
 `BABYSIT_RUN_CACHE`, so later candidates in the run skip `GITHUB_TOKEN`. Any other refusal is not
 retried. The verdict downloads, the listing, the run records and the compares
-stay on `GITHUB_TOKEN`; the lane token holds Actions read (owner decision Q8) but these reads do not fall back to it. An untied FAIL whose record
+stay on `GITHUB_TOKEN`: the lane token holds no Actions permission. An untied FAIL whose record
 cannot be read refuses the run's later candidates through `BABYSIT_RUN_CACHE` without another
 download; the next run reads it again. `GITHUB_TOKEN`'s pool is shared with the full-run dispatch and the post-merge checks. Every other call, every write
 included, keeps the lane token. That job checks out only main and runs no pull request code.

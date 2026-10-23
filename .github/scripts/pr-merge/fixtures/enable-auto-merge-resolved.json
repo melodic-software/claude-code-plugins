@@ -1,0 +1,7 @@
+{
+  "merge": {
+    "diff-check": {
+      "denied-paths": [".github/**", "docs/held.md"]
+    }
+  }
+}

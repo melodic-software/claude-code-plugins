@@ -31,9 +31,12 @@ The preamble names the tool's path. It is the only shell command this mode runs:
   test file (`test_*.py`, `*_test.py`, `*.test.*`,
   `*.spec.*`) in its path's directory; and each file in its `named_paths`: a file a trusted person
   with write access named in a fix request, in the same `plugins/<p>/` directory, existing at the
-  gated head, and not an instruction path (`CLAUDE.md`, `AGENTS.md`, `.mcp.json`, `.lsp.json`,
-  `.gitmodules`, `CODEOWNERS`, a `.claude` or `.claude-plugin` directory, a plugin's `hooks`,
-  `monitors` or `bin`).
+  gated head, and not an instruction path (`.gitmodules`, `CODEOWNERS`, a `settings*.json`,
+  `package.json`, `package-lock.json` or `requirements*.txt`, at any depth). Every kept thread's
+  scope also holds each file in the thread file's `pr_paths`, the files the pull request already
+  changes outside `.github/` and the agent-instruction surfaces, while the gated head holds it as
+  a regular file: a finding on one of the PR's files may be fixed in another. A file the fix would
+  create is never in `pr_paths`' part of the scope.
 - `record <thread-id> <file>` reads a disposition file from the scratch directory, checks it
   against the template, and records it. Exit 1 means the tool refused and recorded nothing: fix
   the file and record again. One record per thread.
@@ -44,13 +47,14 @@ The preamble names the tool's path. It is the only shell command this mode runs:
    reading code and docs only: run no command, test, build or script from the checkout. CI runs
    them after the push.
 2. Classify. On a thread with a direction, apply the direction: record `VALID` once its fix is
-   in the working tree, or `UNCERTAIN` with the reason when it needs a file outside every kept thread's scope
+   in the working tree, or `UNCERTAIN` with the reason when it needs a file `check-paths` refuses
    or cannot be done in one scoped change. When the current code no longer shows the finding
    (fixed, moved or deleted since that review), make no edit: record `UNCERTAIN` with evidence of
    what the code shows now. Never record `INCORRECT` against a direction. Otherwise, a
    finding that touches security, shared infrastructure or another repository, and
-   that the code you read cannot settle, is UNCERTAIN. So is a fix that needs a file outside
-   every kept thread's scope, or is too large for one scoped change.
+   that the code you read cannot settle, is UNCERTAIN. So is a fix that needs a file
+   `check-paths` refuses, or is too large for one scoped change. A file outside the thread's own
+   path may still be in scope: run `check-paths` on it before deciding.
 3. VALID: run `check-paths` on every file the fix changes before you edit it, and edit only when
    it prints `allowed`. Leave the fix uncommitted in the working tree before you record it: there
    is no commit tool, and the one commit the push job makes may fix several threads.
@@ -65,7 +69,9 @@ The preamble names the tool's path. It is the only shell command this mode runs:
    }
    ```
 
-   `VALID` and `INCORRECT` need at least one `path:line` in the checkout, at most 10. `fix_sha`
+   `VALID` and `INCORRECT` need at least one `path:line` in the checkout, at most 10. A `VALID`
+   fix that does not change the thread's own path must cite a line it changed in another of the
+   pull request's files, or its reply does not land, and nor does any other reply in the round. `fix_sha`
    stays empty, or is left out: the reply job finds the commit the push job made. `VALID-defer`
    is VALID (defer). The note is 1-2000 characters of plain prose: no control characters, no HTML
    comment (`<!--`, `-->`), no token, no @-mention. It is posted in a code fence.

@@ -123,7 +123,13 @@ export function parseRun(text) {
   } catch {
     throw new Invalid("run.json does not parse");
   }
-  check(run?.version === 1 && SHA.test(run.head_sha ?? "") && Array.isArray(run.threads), "run.json is malformed");
+  check(
+    run?.version === 1 &&
+      SHA.test(run.head_sha ?? "") &&
+      Array.isArray(run.threads) &&
+      (run.pr_paths === undefined || (Array.isArray(run.pr_paths) && run.pr_paths.every((path) => typeof path === "string"))),
+    "run.json is malformed",
+  );
   for (const thread of run.threads) {
     check(
       THREAD_ID.test(thread?.id ?? "") &&
@@ -199,9 +205,27 @@ export function renderReply({ disposition, evidence, fixSha, note }) {
 
 const SKILL_FILE = /^((?:.*\/)?skills\/[^/]+\/)SKILL\.md$/;
 
+// Whether a unified diff's new side (a commit file's `patch`) holds `line` in
+// one of its hunks; false with no patch, as for a binary or very large file.
+export function lineChanged(patch, line) {
+  for (const [, start, count] of String(patch ?? "").matchAll(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/gm)) {
+    const first = Number(start);
+    const size = count === undefined ? 1 : Number(count);
+    if (line >= first && line < first + size) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // Whether a fix commit's changed files touch a thread's path: the path itself,
-// or for a skill's SKILL.md any file under that skill's directory.
-function touchesThread(changed, threadPath) {
+// a file the pull request already changes whose line the reply's evidence
+// cites inside a hunk of the fix (`cited`), so a finding on one file fixed in another of the PR's files
+// lands, or for a skill's SKILL.md any file under that skill's directory.
+function touchesThread(changed, threadPath, cited) {
+  if (changed.some((file) => cited.has(file))) {
+    return true;
+  }
   const skillDir = SKILL_FILE.exec(threadPath)?.[1];
   return skillDir === undefined ? changed.includes(threadPath) : changed.some((file) => file.startsWith(skillDir));
 }
@@ -226,11 +250,12 @@ export function fixCommitOf(commits, appId) {
 
 // Whenever the PR branch moved since the select job's head, or a reply is
 // VALID, that range may change only what inThreadScope allows around the kept
-// threads' paths (run.json, whose SHA-256 the select job recorded), and
-// nothing under .github/workflows/. With a VALID reply the range must hold
-// exactly one fix commit (fixCommitOf), and it must change every VALID thread's path, or
-// for a thread on a skill's SKILL.md any file in that skill's directory
-// (touchesThread). Returns the fix commit, "" when no reply is VALID, or null.
+// threads' paths and the PR's own files (run.json, whose SHA-256 the select
+// job recorded), adding none of those files, and nothing under
+// .github/workflows/. With a VALID reply the range must hold
+// exactly one fix commit (fixCommitOf), and it must change every VALID thread's path, a
+// file the PR already changes at a line the reply's evidence cites, or for a
+// thread on a skill's SKILL.md any file in that skill's directory (touchesThread). Returns the fix commit, "" when no reply is VALID, or null.
 async function fixesLanded({ api, run, headSha, replies, appId }) {
   const valid = replies.filter((reply) => reply.disposition === "VALID");
   if (valid.length === 0 && run.head_sha === headSha) {
@@ -240,6 +265,7 @@ async function fixesLanded({ api, run, headSha, replies, appId }) {
   const fixSha = valid.length === 0 ? "" : fixCommitOf(comparison.commits ?? [], appId);
   const threadPath = new Map(run.threads.map((thread) => [thread.id, thread.path]));
   const paths = new Set(threadPath.values());
+  const prPaths = new Set(run.pr_paths ?? []);
   const files = comparison.files ?? [];
   const inRange =
     ["ahead", "identical"].includes(comparison.status) &&
@@ -247,15 +273,30 @@ async function fixesLanded({ api, run, headSha, replies, appId }) {
     files.length < LIMITS.files &&
     files.every((file) =>
       [file.filename, file.previous_filename].every(
-        (path) => path === undefined || inThreadScope(path, paths, run.threads),
+        (path) =>
+          path === undefined ||
+          inThreadScope(path, paths, run.threads, {
+            prPaths,
+            added: path === file.filename && ["added", "renamed", "copied"].includes(file.status),
+          }),
       ),
     );
   if (!inRange) {
     return null;
   }
   if (fixSha) {
-    const changed = ((await api.getCommit(fixSha)).files ?? []).map((file) => file.filename);
-    if (!valid.every((reply) => touchesThread(changed, threadPath.get(reply.thread)))) {
+    const commitFiles = (await api.getCommit(fixSha)).files ?? [];
+    const changed = commitFiles.map((file) => file.filename);
+    const patches = new Map(commitFiles.map((file) => [file.filename, file.patch]));
+    // The pr_paths files whose cited line the fix commit changed.
+    const cited = (reply) =>
+      new Set(
+        reply.evidence
+          .map((ev) => [ev.slice(0, ev.lastIndexOf(":")), Number(ev.slice(ev.lastIndexOf(":") + 1))])
+          .filter(([path, line]) => prPaths.has(path) && lineChanged(patches.get(path), line))
+          .map(([path]) => path),
+      );
+    if (!valid.every((reply) => touchesThread(changed, threadPath.get(reply.thread), cited(reply)))) {
       return null;
     }
   }
