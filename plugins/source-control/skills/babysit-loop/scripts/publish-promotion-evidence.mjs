@@ -303,10 +303,27 @@ function postMergeRuns(gh, repo, branch, merges, { lane, throughMs }) {
   const floor = Math.min(...merges.map((m) => ms(m.mergedAt, `#${m.number} mergedAt`)));
   const created = encodeURIComponent(`>=${new Date(floor).toISOString().replace(/\.\d{3}Z$/, "Z")}`);
   const byCreated = (a, b) => a.createdMs - b.createdMs;
+  // check()'s _Context.on_branch: a run's head_branch is only a name, which a run on a tag named
+  // like the branch carries too, so a run counts only when its commit is on refs/heads/<branch>.
+  const ref = gh(`repos/${repo}/git/ref/heads/${branch.split("/").map(encodeURIComponent).join("/")}`);
+  const tip = ref?.object?.sha;
+  if (!/^[0-9a-f]{40}$/.test(tip ?? "")) throw new PublishError(`refusing to publish: branch ${branch} has no tip commit`);
+  const onBranches = new Map();
+  const onBranch = (sha) => {
+    if (!/^[0-9a-f]{40}$/.test(sha ?? "")) return false;
+    if (!onBranches.has(sha)) {
+      const status = sha === tip ? "identical" : gh(`repos/${repo}/compare/${sha}...${tip}?per_page=1&page=1`)?.status;
+      if (!["ahead", "identical", "behind", "diverged"].includes(status)) {
+        throw new PublishError(`refusing to publish: compare ${sha}...${tip} is ${JSON.stringify(status)}, so whether that run is on ${branch} is unknown`);
+      }
+      onBranches.set(sha, status === "ahead" || status === "identical");
+    }
+    return onBranches.get(sha);
+  };
   const list = (workflow, event) =>
     pages(gh, `repos/${repo}/actions/workflows/${workflow}/runs?event=${event}&branch=${encodeURIComponent(branch)}&created=${created}`, "workflow_runs")
       .map((run) => ({ ...run, createdMs: ms(run.created_at, `run ${run.id}`), check: `${workflow} ${event}` }))
-      .filter((run) => run.head_branch === branch && run.createdMs >= floor);
+      .filter((run) => run.head_branch === branch && run.createdMs >= floor && onBranch(run.head_sha));
   const fullRuns = [...list(FULL_RUN_WORKFLOW, "schedule"), ...list(FULL_RUN_WORKFLOW, "workflow_dispatch")].sort(byCreated);
   const canaryRuns = list(CANARY_WORKFLOW, "push").sort(byCreated);
 

@@ -1023,6 +1023,21 @@ class DroppedDispatchListing(CheckCase):
     def reads_by_sha(self, sha: str) -> bool:
         return any(f"head_sha={sha}" in " ".join(c) for c in self.gh.calls)
 
+    def test_a_dropped_run_off_the_branch_leaves_the_failure_standing(
+        self,
+    ) -> None:
+        # The commit listing names a commit off refs/heads/main (a tag named
+        # main): a run at it is no run the listing should have held.
+        self.gh.descendants.add(FORK_SHA)
+        self.gh.branch_commits = [commit_on_main(FORK_SHA, "2026-10-12T15:00:00Z")]
+        self.gh.unlisted[("pr-require-checks.yml", "workflow_dispatch")] = [
+            dispatch_run(11, head_sha=FORK_SHA)
+        ]
+        verdict = self.check(now=self.LATE)
+        self.assertTrue(self.reads_by_sha(FORK_SHA))
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
+
     def test_a_descendant_in_the_window_is_read_by_sha(self) -> None:
         self.gh.branch_commits = [commit_on_main(LATER_SHA, "2026-10-12T15:00:00Z")]
         verdict = self.check(now=self.LATE)

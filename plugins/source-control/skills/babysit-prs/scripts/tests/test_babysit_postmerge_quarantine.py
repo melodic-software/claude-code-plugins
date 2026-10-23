@@ -534,6 +534,11 @@ class LaneRerunOutsideAWindow(AffectedBase):
         self.assertEqual(self.lane_reruns(verdict), [(11, True)])
         self.assertEqual(pm.verdict_exit(verdict), 0)
 
+    def test_a_red_run_off_the_branch_gets_no_rerun(self) -> None:
+        # Run 11 on a tag named main: its commit is not on refs/heads/main.
+        self.lane_red(bash_log((TOUCHED, False)), head_sha=FORK_SHA)
+        self.assertEqual(self.lane_reruns(self.lane_check()), [])
+
     def test_an_out_of_set_red_gets_no_rerun_and_files_no_quarantine(self) -> None:
         # The alert's --judge-run already excuses and quarantines it. A lane
         # merge is judged, so the verdict carries quarantines, but run 11's

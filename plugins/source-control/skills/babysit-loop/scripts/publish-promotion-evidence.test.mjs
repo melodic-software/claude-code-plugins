@@ -60,6 +60,26 @@ test("a red full run on a later SHA containing two merges yields gate-failure fo
   );
 });
 
+test("a red run on a commit off the branch is not charged, as in _Context.on_branch", () => {
+  // A run on a tag named main reports head_branch main; its commit descends from the merge but
+  // is not on refs/heads/main.
+  const off = shaOf(0xa0ff);
+  const pulls = () => [pr(1601, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })];
+  const red = (offBranch) =>
+    run({
+      pulls: pulls(),
+      history: [shaOf(1601), off, shaOf(0xa100)],
+      offBranch,
+      workflowRuns: {
+        ...verifiedEach(pulls()),
+        [FULL]: [...verifiedEach(pulls())[FULL], wfRun(7, "workflow_dispatch", off, "2026-09-01T00:30:00Z", { conclusion: "failure", actor: LANE })],
+      },
+    });
+  assert.deepEqual(red([off]).events, []);
+  // The same run with its commit on the branch is a gate failure.
+  assert.deepEqual(red([]).gateFailures.map((g) => [g.number, g.check]), [[1601, `${FULL} workflow_dispatch`]]);
+});
+
 test("a run created before the merge is not its evidence", () => {
   // Run 3 on #1303's own SHA predates #1303's merge, so it is evidence for #1309 only.
   const result = run({
@@ -142,9 +162,9 @@ test("a lane-enqueued merge passes only when its unedited lane pin names headRef
 test("a lane identity's native auto-merge owes no pin, as in native_auto_merge", () => {
   const armed = (kind, at, login = LANE) => ({ nodes: [{ __typename: kind, createdAt: at, actor: actorOf(login) }] });
   const enqueue = [queued("2026-08-31T23:50:00Z", LANE)];
-  const pulls = (autoMerge, extra = {}) => [pr(1505, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], timeline: enqueue, patch: { autoMerge, ...extra } })];
-  const judge = (autoMerge, extra, lanes = [LANE]) => {
-    const result = run({ pulls: pulls(autoMerge, extra), workflowRuns: verifiedEach(pulls(autoMerge, extra)), comments: { 1505: [] } }, { laneLogins: lanes });
+  const pulls = (autoMerge, extra = {}, timeline = enqueue) => [pr(1505, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], timeline, patch: { autoMerge, ...extra } })];
+  const judge = (autoMerge, extra, lanes = [LANE], timeline = enqueue) => {
+    const result = run({ pulls: pulls(autoMerge, extra, timeline), workflowRuns: verifiedEach(pulls(autoMerge, extra, timeline)), comments: { 1505: [] } }, { laneLogins: lanes });
     return [gateOf(result), result.events];
   };
   const noPin = [FAILED, gateEvents("2026-09-01T06:00:00Z", "C2-auto-merge")];
@@ -156,6 +176,10 @@ test("a lane identity's native auto-merge owes no pin, as in native_auto_merge",
   assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z", "kyle-sexton")), noPin);
   // Unreadable auto-merge events refuse the publish, as the check reads them unreadable.
   assert.throws(() => judge(undefined), (error) => error instanceof PublishError && /no auto-merge events/.test(error.message));
+  // One lane identity opened and armed it, another enqueued it: not one identity's native merge.
+  const lanes = [LANE, "other-lane[bot]"];
+  const byOther = [queued("2026-08-31T23:50:00Z", "other-lane[bot]")];
+  assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z"), {}, lanes, byOther), noPin);
   // One lane identity opened it and another armed it: not one identity's native merge.
   const other = "other-lane[bot]";
   assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z", other), {}, [LANE, other]), noPin);
