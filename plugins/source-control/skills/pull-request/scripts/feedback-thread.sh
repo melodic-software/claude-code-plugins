@@ -50,12 +50,17 @@ scratch_dir=${FEEDBACK_SCRATCH:-} workspace=${FEEDBACK_WORKSPACE:-}
 # CODEOWNERS, a settings*.json, a package manifest or lockfile) and no script
 # or code file, a test file in its directory, or a path in its named_paths
 # (the files a write-access fix request named) in that same plugins/<p>/
-# directory that is no instruction path. The same rule as
+# directory that is no instruction path; or, when the gated head holds it, a
+# file in the thread file's pr_paths (the files the pull request already
+# changes) that is no instruction path and not under the trusted-actor list,
+# the trusted-trigger check or resolve-config. The same rule as
 # .github/scripts/pr-unblock/thread-scope.mjs, which the promote step and
 # the reply job apply.
 allowed() {
+  local tracked=false
+  git_tree cat-file -e "HEAD:$1" 2>/dev/null && tracked=true
   [[ ! ${1,,} =~ ^\.github/workflows(/|$) && ! $1 =~ (^|/)\.{0,2}(/|$) ]] &&
-    jq -e --arg p "$1" '
+    jq -e --arg p "$1" --argjson tracked "$tracked" '
       def dir: sub("[^/]*$"; "");
       def plugin: first(capture("^(?<c>plugins/[^/]+/)").c) // null;
       ($p | test("^[A-Za-z0-9_@+.-]+(/[A-Za-z0-9_@+.-]+)*$")) as $plain
@@ -64,11 +69,14 @@ allowed() {
          then null else $p | plugin end) as $plugin
       | ($p | sub("^.*/"; "") | test("^(test_[^/]*\\.py|[^/]*_test\\.py|[^/]*\\.(test|spec)\\.[^/]+)$")) as $test
       | (if $instruction then null else $p | plugin end) as $named
-      | $plain and any(.threads[]; .path as $t
+      | ($tracked and ($instruction | not)
+          and ($p | test("^\\.github/(standards/trusted-actors|actions/check-trusted-trigger|actions/resolve-config)/"; "i") | not)
+          and any(.pr_paths[]?; . == $p)) as $pr
+      | $plain and ($pr or any(.threads[]; .path as $t
           | $t == $p
           or ($plugin != null and ($t | startswith($plugin)))
           or ($test and ($t | dir) == ($p | dir))
-          or ($named != null and ($t | plugin) == $named and any(.named_paths[]?; . == $p)))' "$threads_file" >/dev/null
+          or ($named != null and ($t | plugin) == $named and any(.named_paths[]?; . == $p))))' "$threads_file" >/dev/null
 }
 
 # git in the checkout with no system, global, hook, fsmonitor or untracked

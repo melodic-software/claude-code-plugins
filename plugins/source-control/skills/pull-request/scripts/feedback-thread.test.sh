@@ -126,6 +126,31 @@ for path in plugins/q/evals/c/samples/y.json plugins/pp/README.md plugins/README
   assert_exit "check-paths refuses $path" 1 "$?"
 done
 
+# check-paths: a file the pull request already changes (pr_paths) joins every thread's scope while
+# the gated head holds it; a new file, a .github/workflows/ path, an instruction path and the HIGH
+# floor's paths stay out even when pr_paths lists them
+setup
+mkdir -p "$STUB/ws/.github/workflows" "$STUB/ws/.github/actions/resolve-config"
+echo 'c' >"$STUB/ws/.github/workflows/ci.yml"
+echo 'r' >"$STUB/ws/.github/actions/resolve-config/resolve.mjs"
+echo 'o' >"$STUB/ws/CODEOWNERS"
+fixture_git add -A
+fixture_git commit -q -m more
+run check-paths src/other.js >/dev/null 2>&1
+assert_exit "check-paths refuses a file the pull request changes when pr_paths does not list it" 1 "$?"
+jq '.pr_paths = ["src/other.js", "src/new.js", ".github/workflows/ci.yml", ".github/actions/resolve-config/resolve.mjs", "CODEOWNERS"]' \
+  "$STUB/threads.json" >"$STUB/t2" && mv "$STUB/t2" "$STUB/threads.json"
+run check-paths src/other.js >/dev/null 2>&1
+assert_exit "check-paths allows a file pr_paths lists, outside every thread's own scope" 0 "$?"
+for path in src/new.js .github/workflows/ci.yml .github/actions/resolve-config/resolve.mjs CODEOWNERS src/helper.js; do
+  run check-paths "$path" >/dev/null 2>&1
+  assert_exit "check-paths refuses $path with pr_paths set" 1 "$?"
+done
+echo 'fixed' >"$STUB/ws/src/other.js"
+disposition '{"disposition":"VALID","evidence":["src/a.js:1"],"fix_sha":"","note":"fixed in src/other.js"}'
+run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "record takes a VALID fix made in a pr_paths file" 0 "$?"
+
 # check-paths: a kept thread's named_paths join its scope only in its own plugins/<p>/ directory,
 # never under .github/, never an instruction path, and never off normal form. run-transcript.js is
 # the file #8116's thread PRRT_kwDOTCGFQM6tojDu was refused.

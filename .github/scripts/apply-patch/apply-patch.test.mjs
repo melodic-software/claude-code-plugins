@@ -703,6 +703,42 @@ test("review-threads: a file a kept thread's named_paths holds pushes; the same 
   });
 });
 
+// A finding on a doc fixed in a script the pull request also changes: the
+// thread file's pr_paths carry the PR's files into every thread's scope.
+const docThread = (prPaths) => ({ ...keptOf([{ path: "README.md" }]), prPaths: new Set(prPaths) });
+const docPush = (fix, prPaths) => pushWith(fix, fakeApi(fix.repo, fix.head), { row: row("review-threads"), context: { keptThreads: docThread(prPaths) } });
+
+test("review-threads: a thread on one PR file fixed in another PR file pushes", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "scripts/x.sh"), "#!/bin/sh\nfoo=2\n"));
+  assert.equal((await docPush(fix, ["README.md", "scripts/x.sh"])).outcome, "pushed");
+});
+
+test("review-threads: a fix in a file the PR does not change is refused", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "scripts/x.sh"), "#!/bin/sh\nfoo=2\n"));
+  assert.deepEqual(await docPush(fix, ["README.md"]), { outcome: "escalate", escalationReason: "patch-protected-path" });
+});
+
+test("review-threads: a new file stays refused even when pr_paths lists it", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "scripts/new.sh"), "#!/bin/sh\n"));
+  assert.deepEqual(await docPush(fix, ["README.md", "scripts/new.sh"]), { outcome: "escalate", escalationReason: "patch-protected-path" });
+});
+
+test("review-threads: a protected path the PR changes is still refused", async (t) => {
+  for (const path of [".github/workflows/ci.yml", "CODEOWNERS", ".github/actions/resolve-config/resolve.mjs"]) {
+    const fix = repoWithPatch(
+      t,
+      (repo) => writeFileSync(join(repo, path), "changed\n"),
+      {
+        head: (repo) => {
+          mkdirSync(join(repo, dirname(path)), { recursive: true });
+          writeFileSync(join(repo, path), "head\n");
+        },
+      },
+    );
+    assert.deepEqual(await docPush(fix, ["README.md", path]), { outcome: "escalate", escalationReason: "patch-protected-path" }, path);
+  }
+});
+
 test("review-threads: a symbolic link at an in-scope path is refused patch-invalid", async (t) => {
   const fix = repoWithPatch(t, (repo) => {
     mkdirSync(join(repo, "plugins/p"), { recursive: true });
@@ -731,9 +767,12 @@ test("keptThreadsFrom reads a threads.json's paths and named_paths, and refuses 
       { path: "plugins/p/a.md", named_paths: ["plugins/p/b.js"] },
       { path: "src/c.py", named_paths: undefined },
     ],
+    prPaths: new Set(),
   });
+  writeFileSync(file, JSON.stringify({ threads: [{ path: "plugins/p/a.md" }], pr_paths: ["plugins/p/a.md", "src/d.sh"] }));
+  assert.deepEqual(keptThreadsFrom(file).prPaths, new Set(["plugins/p/a.md", "src/d.sh"]));
   assert.equal(keptThreadsFrom(""), undefined);
-  for (const text of [JSON.stringify(["plugins/p/a.md"]), JSON.stringify({ threads: [{ path: 7 }] }), JSON.stringify({ threads: [{ path: "a", named_paths: "b" }] })]) {
+  for (const text of [JSON.stringify(["plugins/p/a.md"]), JSON.stringify({ threads: [{ path: 7 }] }), JSON.stringify({ threads: [{ path: "a", named_paths: "b" }] }), JSON.stringify({ threads: [{ path: "a" }], pr_paths: "b" }), JSON.stringify({ threads: [{ path: "a" }], pr_paths: [7] })]) {
     writeFileSync(file, text);
     assert.throws(() => keptThreadsFrom(file), /KEPT_THREADS_FILE/, text);
   }

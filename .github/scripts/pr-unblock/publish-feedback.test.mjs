@@ -485,6 +485,30 @@ test("a VALID fix that changes a file its thread's named_paths holds lands; one 
   assert.equal(malformed.escalationReason, "feedback-invalid");
 });
 
+// A finding on one file of the PR fixed in another: run.json's pr_paths
+// carry the PR's files into the thread's scope.
+test("a VALID fix in another file the PR changes lands; one the PR does not change, a new one, or a protected one does not", async () => {
+  const thread = { ...RUN.threads[0], path: "plugins/p/skills/s/converge.md" };
+  const script = "plugins/p/skills/s/scripts/converge-plan.sh";
+  for (const [label, prPaths, file, landed] of [
+    ["in the PR", [thread.path, script], { filename: script, status: "modified" }, true],
+    ["not in the PR", [thread.path], { filename: script, status: "modified" }, false],
+    ["added by the fix", [thread.path, script], { filename: script, status: "added" }, false],
+    ["under .github/workflows/", [thread.path, ".github/workflows/x.yml"], { filename: ".github/workflows/x.yml", status: "modified" }, false],
+    ["CODEOWNERS", [thread.path, "CODEOWNERS"], { filename: "CODEOWNERS", status: "modified" }, false],
+  ]) {
+    const api = fakeApi({
+      compare: { status: "ahead", commits: [fixCommit()], files: [file] },
+      commits: { [FIX]: { files: [file] } },
+    });
+    const result = await run(api, lines(reply({ disposition: "VALID" })), JSON.stringify({ ...RUN, pr_paths: prPaths, threads: [thread] }));
+    assert.equal(result.escalationReason, landed ? "" : "feedback-not-landed", label);
+    assert.equal(api.posted().length, landed ? 1 : 0, label);
+  }
+  const malformed = await run(fakeApi(), lines(reply({ disposition: "VALID" })), JSON.stringify({ ...RUN, pr_paths: [7] }));
+  assert.equal(malformed.escalationReason, "feedback-invalid");
+});
+
 test("feedback-not-landed, nothing posted: a VALID fix commit that does not change its own thread's path", async () => {
   const api = fakeApi({
     compare: { status: "ahead", commits: [fixCommit()], files: [{ filename: "docs/b.md" }] },

@@ -569,7 +569,7 @@ export async function push({
   if (row["max-files"] !== null && entries.length > row["max-files"]) {
     return escalate("invalid", `the patch changes ${entries.length} paths; the row allows ${row["max-files"]}`);
   }
-  const outside = entries.find((entry) => !allow.every((admits) => admits(entry.path)));
+  const outside = entries.find((entry) => !allow.every((admits) => admits(entry.path, entry)));
   if (outside) {
     return escalate("protected-path", `not allowed by ${row.allow.join(", ")}: ${outside.path}`);
   }
@@ -684,23 +684,30 @@ function need(env, keys) {
 }
 
 // The kept threads of a threads.json: each a path and, when a fix request
-// named files, its named_paths.
+// named files, its named_paths; and the files the PR already changes, its
+// pr_paths.
 export function keptThreadsFrom(file) {
   if (!file) {
     return undefined;
   }
-  const threads = JSON.parse(readFileSync(file, "utf8"))?.threads;
+  const { threads, pr_paths: prPaths = [] } = JSON.parse(readFileSync(file, "utf8")) ?? {};
   const plain = (value) => typeof value === "string" && value !== "";
   if (
     !Array.isArray(threads) ||
+    !Array.isArray(prPaths) ||
+    !prPaths.every(plain) ||
     !threads.every(
       (thread) =>
         plain(thread?.path) && (thread.named_paths === undefined || (Array.isArray(thread.named_paths) && thread.named_paths.every(plain))),
     )
   ) {
-    throw new Error("KEPT_THREADS_FILE is not a thread file of paths and named_paths");
+    throw new Error("KEPT_THREADS_FILE is not a thread file of paths, named_paths and pr_paths");
   }
-  return { paths: new Set(threads.map((thread) => thread.path)), threads: threads.map(({ path, named_paths }) => ({ path, named_paths })) };
+  return {
+    paths: new Set(threads.map((thread) => thread.path)),
+    threads: threads.map(({ path, named_paths }) => ({ path, named_paths })),
+    prPaths: new Set(prPaths),
+  };
 }
 
 // The base dependabot.yml's [ecosystem, directory] pairs, or null when the

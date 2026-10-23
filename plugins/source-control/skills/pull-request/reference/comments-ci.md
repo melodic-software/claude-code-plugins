@@ -33,7 +33,10 @@ The preamble names the tool's path. It is the only shell command this mode runs:
   with write access named in a fix request, in the same `plugins/<p>/` directory, existing at the
   gated head, and not an instruction path (`CLAUDE.md`, `AGENTS.md`, `.mcp.json`, `.lsp.json`,
   `.gitmodules`, `CODEOWNERS`, a `.claude` or `.claude-plugin` directory, a plugin's `hooks`,
-  `monitors` or `bin`).
+  `monitors` or `bin`). Every kept thread's scope also holds each file in the thread file's
+  `pr_paths`, the files the pull request already changes, while the gated head holds it: a
+  finding on one of the PR's files may be fixed in another. A file the fix would create is
+  never in `pr_paths`' part of the scope.
 - `record <thread-id> <file>` reads a disposition file from the scratch directory, checks it
   against the template, and records it. Exit 1 means the tool refused and recorded nothing: fix
   the file and record again. One record per thread.
