@@ -566,7 +566,7 @@ test("a pr-verify run dispatches past a check run and a handled record from befo
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const before = { name: "pr-unblock / address-feedback", status: "completed", conclusion: "neutral", started_at: "2026-10-17T11:00:00Z", output: { title: "Skipped: no-model-turn" } };
   const record = join(dir, "record.json");
-  writeFileSync(record, JSON.stringify({ version: 1, handled: { "pr-unblock / address-feedback": [HEAD] }, dispatched: {} }));
+  writeFileSync(record, JSON.stringify({ version: 2, handled: { "pr-unblock / address-feedback": [HEAD] }, dispatched: {} }));
   const api = verifyApi({ checkRuns: [before] });
   const { output } = await verifyMain(dir, api, HEAD, record);
   assert.equal(api.calls.dispatch.length, 1);
@@ -934,6 +934,15 @@ test("a head whose newest address-feedback check has no later reply check is not
   assert.equal(record.handled.size, 0);
   const later = await decideWith(fakeApi({ checkRuns: [check, noModelTurn()] }), parseRecord(serializeRecord(record)));
   assert.deepEqual(later.result, { number: 42, workflowRunId: "38779200001" });
+});
+
+// A record the dispatcher wrote before a no-model-turn reply released the
+// head holds it as handled; that record's version is read as empty.
+test("a version 1 record that holds a no-model-turn head is ignored, and the head dispatches again", async () => {
+  const old = parseRecord(JSON.stringify({ version: 1, handled: { "pr-unblock / address-feedback": [HEAD] }, dispatched: {} }));
+  const check = roundRun("address-feedback", "failure", "Failed", "2026-10-17T10:00:00Z");
+  const { result } = await decideWith(fakeApi({ checkRuns: [check, noModelTurn()] }), old);
+  assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" });
 });
 
 test("a limit-stopped run is not recorded", async () => {

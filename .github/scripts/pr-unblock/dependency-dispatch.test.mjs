@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
-import { emptyRecord, markHandled } from "./dispatch-record.mjs";
+import { emptyRecord, markHandled, parseRecord } from "./dispatch-record.mjs";
 
 const CHECK = "pr-unblock / review-dependency";
 
@@ -52,7 +52,8 @@ function fakeApi({ nodes = [], checks = new Map(), ci = new Map(), files = new M
       if (checkName === "ci-status") {
         return ci.get(sha) ?? [];
       }
-      return checks.get(sha) ?? [];
+      // A run that names no check is the review-dependency one.
+      return (checks.get(sha) ?? []).filter((run) => (run.name ?? CHECK) === checkName);
     },
     async dispatchWorkflow({ workflow, ref, inputs }) {
       calls.dispatch.push({ workflow, ref, inputs });
@@ -186,6 +187,118 @@ test("dispatches at most the cap, lowest number first", async () => {
   assert.deepEqual(dispatched.map((d) => d.number), [21, 22]);
 });
 
+// A round whose verdict job found no model turn (#9362): its
+// apply-dependency-verdict check skipped no-model-turn, so the
+// review-dependency check runs before it handled nothing, and the next run
+// dispatches the head again. Every such round posts its round marker, so the
+// select job's round cap still ends it.
+const roundRun = (name, conclusion, title, started) => ({
+  name: `pr-unblock / ${name}`,
+  status: "completed",
+  conclusion,
+  started_at: started,
+  completed_at: started,
+  output: { title, summary: "" },
+});
+const noModelTurn = (started = "2026-10-17T10:05:00Z") => roundRun("apply-dependency-verdict", "neutral", "Skipped: no-model-turn", started);
+const headOf = (node, runs) => new Map([[node.headRefOid, runs]]);
+
+test("a head whose last round had no model turn dispatches again, and is not recorded as handled", async () => {
+  for (const [label, check] of [
+    ["the model call failed", roundRun("review-dependency", "failure", "Failed", "2026-10-17T10:00:00Z")],
+    ["the broker refused the run", roundRun("review-dependency", "neutral", "Skipped: not-assessed", "2026-10-17T10:00:00Z")],
+  ]) {
+    const node = pr(60);
+    const record = emptyRecord();
+    const { dispatched } = await run(fakeApi({ nodes: [node], checks: headOf(node, [check, noModelTurn()]) }), { record });
+    assert.deepEqual(dispatched, [{ number: 60, workflowRunId: "7060" }], label);
+    assert.equal(record.handled.get(CHECK), undefined, label);
+  }
+});
+
+// A rate-limited model call leaves no verdict, so its verdict job also skips
+// no-model-turn; that never releases the limit stop.
+test("a no-model-turn verdict after a limit stop still holds the head", async () => {
+  const node = pr(61);
+  const stop = {
+    ...roundRun("review-dependency", "failure", "Failed", "2026-10-17T10:00:00Z"),
+    output: { title: "Failed", summary: "lane=pr-unblock activity=review-dependency class=rate-limit resets=2026-10-17T11:00:00Z" },
+  };
+  const { dispatched } = await run(fakeApi({ nodes: [node], checks: headOf(node, [stop, noModelTurn()]) }));
+  assert.deepEqual(dispatched, []);
+});
+
+test("a round that answered, or a newer review-dependency check, still holds the head", async () => {
+  for (const [label, runs] of [
+    ["the last round escalated", [roundRun("review-dependency", "success", "Passed", "2026-10-17T10:00:00Z"), roundRun("apply-dependency-verdict", "neutral", "Skipped: awaiting-human", "2026-10-17T10:05:00Z")]],
+    ["a no-model-turn round before a round that answered", [
+      roundRun("review-dependency", "failure", "Failed", "2026-10-17T10:00:00Z"),
+      noModelTurn(),
+      roundRun("review-dependency", "success", "Passed", "2026-10-17T11:00:00Z"),
+      roundRun("apply-dependency-verdict", "success", "Passed", "2026-10-17T11:05:00Z"),
+    ]],
+    // review-dependency-not-run posts the round cap's skip after the round.
+    ["the round cap was reached after it", [
+      roundRun("review-dependency", "failure", "Failed", "2026-10-17T10:00:00Z"),
+      noModelTurn(),
+      roundRun("review-dependency", "neutral", "Skipped: awaiting-human", "2026-10-17T11:00:00Z"),
+    ]],
+    ["no verdict job ran", [roundRun("review-dependency", "failure", "Failed", "2026-10-17T10:00:00Z")]],
+  ]) {
+    const node = pr(62);
+    const lines = [];
+    const api = fakeApi({ nodes: [node], checks: headOf(node, runs) });
+    assert.deepEqual((await run(api, { log: (line) => lines.push(line) })).dispatched, [], label);
+    assert.deepEqual(api.calls.dispatch, [], label);
+    assert.match(lines.at(-1), /already has a pr-unblock \/ review-dependency check run/, label);
+  }
+});
+
+// Between the round's review-dependency check and its verdict job's check, a
+// dispatcher run must not record the head, or the verdict's no-model-turn skip
+// could never release it.
+test("a head whose newest review-dependency check has no later verdict check is not recorded, and is released once the verdict skips no-model-turn", async () => {
+  const node = pr(63);
+  const record = emptyRecord();
+  const check = roundRun("review-dependency", "failure", "Failed", "2026-10-17T10:00:00Z");
+  assert.deepEqual((await run(fakeApi({ nodes: [node], checks: headOf(node, [check]) }), { record })).dispatched, [], "the head is handled for now");
+  assert.equal(record.handled.get(CHECK), undefined, "but not recorded");
+  // An older verdict check, from an earlier round, does not count.
+  await run(fakeApi({ nodes: [node], checks: headOf(node, [noModelTurn("2026-10-17T09:05:00Z"), check]) }), { record });
+  assert.equal(record.handled.get(CHECK), undefined);
+  const later = await run(fakeApi({ nodes: [node], checks: headOf(node, [check, noModelTurn()]) }), { record });
+  assert.deepEqual(later.dispatched, [{ number: 63, workflowRunId: "7063" }]);
+});
+
+// The round cap's skip, posted by review-dependency-not-run, has no verdict
+// job after it, so it records the head at once; a read runner skip waits for
+// its verdict.
+test("a head whose newest review-dependency check is a select skip is recorded, and a read runner skip is not", async () => {
+  for (const [label, runs] of [
+    ["the round cap after a no-model-turn round", [roundRun("review-dependency", "failure", "Failed", "2026-10-17T10:00:00Z"), noModelTurn(), roundRun("review-dependency", "neutral", "Skipped: awaiting-human", "2026-10-17T11:00:00Z")]],
+    ["the round cap alone", [roundRun("review-dependency", "neutral", "Skipped: awaiting-human", "2026-10-17T11:00:00Z")]],
+    ["a sort that no longer applies", [roundRun("review-dependency", "neutral", "Skipped: not-applicable", "2026-10-17T11:00:00Z")]],
+  ]) {
+    const node = pr(64);
+    const record = emptyRecord();
+    assert.deepEqual((await run(fakeApi({ nodes: [node], checks: headOf(node, runs) }), { record })).dispatched, [], label);
+    assert.ok(record.handled.get(CHECK)?.has(node.headRefOid), label);
+  }
+  const node = pr(65);
+  const record = emptyRecord();
+  await run(fakeApi({ nodes: [node], checks: headOf(node, [roundRun("review-dependency", "neutral", "Skipped: not-assessed", "2026-10-17T10:00:00Z")]) }), { record });
+  assert.equal(record.handled.get(CHECK), undefined);
+});
+
+// A record the dispatcher wrote before a no-model-turn verdict released the
+// head holds it as handled; that record's version is read as empty.
+test("a version 1 record that holds a no-model-turn head is ignored, and the head dispatches again", async () => {
+  const node = pr(66);
+  const record = parseRecord(JSON.stringify({ version: 1, handled: { [CHECK]: [node.headRefOid] }, dispatched: {} }));
+  const checks = headOf(node, [roundRun("review-dependency", "failure", "Failed", "2026-10-17T10:00:00Z"), noModelTurn()]);
+  assert.deepEqual((await run(fakeApi({ nodes: [node], checks }), { record })).dispatched, [{ number: 66, workflowRunId: "7066" }]);
+});
+
 // Reads spent only where they change the decision. Each count beside the
 // assertion is what the dispatcher read before it skipped them.
 const RED_CI = [{ id: 1, app: { slug: "github-actions" }, status: "completed", conclusion: "failure" }];
@@ -212,11 +325,14 @@ test("once the cap is reached the rest are left unread", async () => {
 
 test("a reviewed head is recorded, and the next run reads nothing for it", async () => {
   const node = pr(10);
-  const checks = new Map([[node.headRefOid, [{ status: "completed", conclusion: "success", output: { title: "Reviewed" } }]]]);
+  // The round's verdict job posted after it, so no no-model-turn skip can still release the head.
+  const reviewed = { status: "completed", conclusion: "success", started_at: "2026-10-17T10:00:00Z", output: { title: "Reviewed" } };
+  const checks = new Map([[node.headRefOid, [reviewed, roundRun("apply-dependency-verdict", "success", "Passed", "2026-10-17T10:05:00Z")]]]);
   const record = emptyRecord();
   const first = fakeApi({ nodes: [node], checks });
   assert.deepEqual((await run(first, { record })).dispatched, []);
-  assert.equal(first.calls.checks.length, 2);
+  // ci-status, then both checks' runs.
+  assert.equal(first.calls.checks.length, 3);
   assert.ok(record.handled.get(CHECK).has(node.headRefOid));
   const second = fakeApi({ nodes: [node], checks });
   assert.deepEqual((await run(second, { record })).dispatched, []);
