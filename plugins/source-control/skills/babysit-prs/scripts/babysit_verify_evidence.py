@@ -16,13 +16,13 @@ from a completed, successful one. Any other artifact is ignored.
 
 - the pull request was created more than `TOO_OLD_DAYS` ago:
   `verify:too-old`, since a verdict may already have expired;
-- a counted FAIL at the head, under any pull request number: `verify:fail`;
 - counted FAILs at `max_fails` or more distinct heads of this pull request
-  (tied as in the next item): `verify:repeated-fail`, whatever a pass says.
-  Before a pass decides, FAILs of other pull requests in this repository,
-  open or closed, that close one of its closing issues count too, at their
-  own heads (a FAIL among them whose run cannot be read is
-  `verify:unreadable`);
+  (tied as in the item after next): `verify:repeated-fail`, whatever a pass
+  says, a FAIL at the head included. Before a FAIL at the head or a pass
+  decides, FAILs of other pull requests in this repository, open or closed, that close one of its
+  closing issues count too, at their own heads (a FAIL among them whose run
+  cannot be read is `verify:unreadable`);
+- a counted FAIL at the head, under any pull request number: `verify:fail`;
 - a counted FAIL at another head of this pull request: its number, one of its
   commits (`pulls/<n>/commits`), or a verdict recording its head branch:
   `verify:earlier-fail`. Counted PASS or PASS-NOTES verdicts at the
@@ -46,15 +46,20 @@ from a completed, successful one. Any other artifact is ignored.
   `verify:spec-changed` unless the pull request's closing issues now are the
   ones its verdict recorded, none was edited after its run started, and each
   issue's trusted comments (`_spec_comments`) are the recorded ones by id and
-  update time; then allowed only when every linked issue it records was
+  update time; then allowed when it records no issue and `intent`
+  `pull-request` (the title and body were the spec), else only when every
+  linked issue it records was
   written, and last edited if ever, by a User on the trusted list's humans
   (the pull request's author among them), else `verify:untrusted-spec`;
 - otherwise `verify:missing`.
 
-`verify:fail`, `verify:too-old`, `verify:repeated-fail`, `verify:earlier-fail`,
-`verify:spec-changed` and `verify:untrusted-spec` need a human, who merges in
-person; a `verify:fail` escalation quotes the newest head FAIL's summary
-(`Reader.fail_summary`). Any read that fails refuses
+`verify:too-old`, `verify:repeated-fail`, `verify:spec-changed` and
+`verify:untrusted-spec` need a human, who merges in person; a
+`verify:repeated-fail` escalation quotes the newest head FAIL's summary
+(`Reader.fail_summary`). A `verify:fail` or `verify:earlier-fail` only waits:
+pr-feedback-dispatch.yml posts a FAIL's notes on the pull request as review
+comments for an address-feedback round, whose push gives a head the verifier
+judges again. Any read that fails refuses
 (`verify:unreadable`). The repository's artifacts are listed once per
 `Reader`, every page, and filtered on the name here: the API's name filter
 matches whole names only, and a FAIL counts under any number and head.
@@ -133,9 +138,10 @@ UNREADABLE = "verify:unreadable"
 TOO_OLD = "verify:too-old"
 UNTRUSTED_SPEC = "verify:untrusted-spec"
 SPEC_CHANGED = "verify:spec-changed"
+# A verdict's `intent` when its pull request closed no issue in this
+# repository: the title and body were the spec (write-verdict.mjs).
+INTENT_PULL_REQUEST = "pull-request"
 NEEDS_HUMAN = (
-    FAIL,
-    EARLIER_FAIL,
     REPEATED_FAIL,
     TOO_OLD,
     UNTRUSTED_SPEC,
@@ -248,7 +254,8 @@ class Evidence:
     verdicts: tuple[Verdict, ...]
     ignored: int
     detail: str | None = None
-    # The newest counted FAIL at the head: its run id and artifact name.
+    # The newest counted FAIL at the head, for `verify:fail` and
+    # `verify:repeated-fail`: its run id and artifact name.
     head_fail: tuple[int, str] | None = None
 
     @property
@@ -892,11 +899,20 @@ class Reader:
         failed = {v.sha for v in fails}
         refusal: str | None
         detail = unreadable
-        if head in failed:
-            refusal = FAIL
-        elif len(failed) >= self.max_fails:
+        if len(failed) >= self.max_fails:
             refusal = REPEATED_FAIL
             detail = f"fails at {len(failed)} heads, the cap is {self.max_fails}"
+        elif head in failed:
+            # A FAIL here gets a fix round, so the cap counts the other pull
+            # requests for its issues first: a round past it cannot merge.
+            _, elsewhere = self._elsewhere(number, failed_by_pr, unread_prs)
+            refusal = FAIL
+            if len(failed | elsewhere) >= self.max_fails:
+                refusal = REPEATED_FAIL
+                detail = (
+                    f"fails at {len(failed | elsewhere)} heads of this and other "
+                    f"pull requests for its issues, the cap is {self.max_fails}"
+                )
         elif fails and (
             not self._passes_follow(fails, passes)
             or not self._change_differs(head, failed)
@@ -907,11 +923,7 @@ class Reader:
         elif passes:
             # Every pass at the head must allow, so listing order decides
             # nothing; any unreadable one refuses (`_Unreadable`).
-            live = self._closing_issues(number)
-            others = self._closers(live) - {number}
-            elsewhere = set().union(*(failed_by_pr.get(n, set()) for n in others))
-            if others & unread_prs:
-                raise _Unreadable("a FAIL run of a pull request for the same issue")
+            live, elsewhere = self._elsewhere(number, failed_by_pr, unread_prs)
             if len(failed | elsewhere) >= self.max_fails:
                 refusal = REPEATED_FAIL
                 detail = (
@@ -920,7 +932,7 @@ class Reader:
                 )
             else:
                 refusals = {
-                    self._pass_refusal(run_id, name, number, head, live)
+                    self._pass_refusal(run_id, name, number, head, live, pr)
                     for run_id, name in passes
                 }
                 refusal = next(
@@ -935,8 +947,22 @@ class Reader:
             tuple(verdicts),
             ignored,
             detail,
-            max(head_fails) if refusal == FAIL else None,
+            max(head_fails)
+            if head_fails and refusal in (FAIL, REPEATED_FAIL)
+            else None,
         )
+
+    def _elsewhere(
+        self, number: int, failed_by_pr: dict[int, set[str]], unread_prs: set[int]
+    ) -> tuple[dict[Any, Any], set[str]]:
+        """The live closing issues, and the heads of counted FAILs of the
+        other pull requests that close one of them. A FAIL among those whose
+        run cannot be read raises `_Unreadable`."""
+        live = self._closing_issues(number)
+        others = self._closers(live) - {number}
+        if others & unread_prs:
+            raise _Unreadable("a FAIL run of a pull request for the same issue")
+        return live, set().union(*(failed_by_pr.get(n, set()) for n in others))
 
     def _fresh_created(self, run_id: int) -> datetime | None:
         """When the run was created, from a record this process read from
@@ -1047,8 +1073,10 @@ class Reader:
         number: int,
         head: str,
         live: dict[Any, Any],
+        pr: dict[str, Any] | None = None,
     ) -> str | None:
-        """One counted pass at the head against the live closing issues."""
+        """One counted pass at the head against the live closing issues, or,
+        for an `intent` `pull-request` verdict, the live title and body."""
         record = self._record(run_id, name)
         if record.get("pr") != number or record.get("head_sha") != head:
             raise _Unreadable(f"artifact {name} records another pull request or head")
@@ -1069,6 +1097,16 @@ class Reader:
             for n, node in live.items()
         ):
             return SPEC_CHANGED
+        # No closing issue, then and now: the verdict judged the pull
+        # request's own title and body, which only a trusted author's adopted
+        # pull request reaches the gate with (`lane_eligibility`).
+        if not issues and record.get("intent") == INTENT_PULL_REQUEST:
+            # The title and body it judged, by sha256 (write-verdict.mjs):
+            # an edit since, or no recorded hash, is a spec it never read.
+            pr = json_object(pr)
+            text = f"{pr.get('title') or ''}\n\n{pr.get('body') or ''}"
+            live_digest = hashlib.sha256(text.encode()).hexdigest()
+            return None if record.get("intent_sha256") == live_digest else SPEC_CHANGED
         return None if self._trusted_spec(record) else UNTRUSTED_SPEC
 
     def queued_hold(self, number: int) -> str | None:

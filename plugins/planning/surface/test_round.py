@@ -278,7 +278,7 @@ class TestRefusals(DirCase):
         self.assertEqual(rc, 0)
         self.assertNotIn("warning", err)
 
-    def test_alternative_restating_the_recommendation_warns_and_still_writes(self):
+    def test_alternative_restating_the_recommendation_is_refused_on_add(self):
         q = question(
             "Q4",
             recommendation="Ship it now.\nReasons follow.",
@@ -287,14 +287,11 @@ class TestRefusals(DirCase):
                 {"key": "b", "text": "Wait"},
             ],
         )
-        rc, out, err = self.rp("add", "--file", self.file("q.json", q))
-        self.assertEqual(rc, 0, out + err)
-        self.assertIn("Q4 alternative (a) restates the recommendation", err)
-        self.assertNotIn("alternative (b)", err)
-        self.assertIn("Q4", {x["id"] for x in self.doc()["questions"]})
+        out = self.assert_refused("add", "--file", self.file("q.json", q))
+        self.assertIn("Q4 alternative (a) repeats or contains the recommendation", out)
 
-    def test_add_alt_flag_with_recommended_marker_warns(self):
-        rc, out, err = self.rp(
+    def test_add_alt_flag_with_recommended_marker_is_refused(self):
+        out = self.assert_refused(
             "add",
             "--file",
             self.file("q.json", question("Q4", alternatives=[])),
@@ -303,10 +300,9 @@ class TestRefusals(DirCase):
             "--alt",
             "b:Later",
         )
-        self.assertEqual(rc, 0, out + err)
-        self.assertIn("Q4 alternative (a) restates the recommendation", err)
+        self.assertIn("Q4 alternative (a) repeats or contains the recommendation", out)
 
-    def test_add_round_duplicate_alternative_warns_naming_the_question(self):
+    def test_add_round_with_a_restating_alternative_writes_nothing(self):
         dup = question(
             "Q5",
             alternatives=[
@@ -315,29 +311,46 @@ class TestRefusals(DirCase):
             ],
         )
         spec = {"questions": [question("Q4"), dup]}
-        rc, out, err = self.rp("add-round", "--file", self.file("r.json", spec))
+        out = self.assert_refused("add-round", "--file", self.file("r.json", spec))
+        self.assertIn("Q5 alternative (a) repeats or contains the recommendation", out)
+        self.assertNotIn("Q4", {x["id"] for x in self.doc()["questions"]})
+
+    def test_apply_with_a_restating_alternative_writes_nothing(self):
+        dup = question("Q4", alternatives=[{"key": "a", "text": "Yes"}, {"key": "b", "text": "Later"}])
+        ops = {"ops": [{"op": "add", "question": dup}]}
+        out = self.assert_refused("apply", "--file", self.file("a.json", ops))
+        self.assertIn("Q4 alternative (a) repeats or contains the recommendation", out)
+
+    def test_distinct_alternatives_are_added(self):
+        rc, out, err = self.rp("add", "--file", self.file("q.json", question("Q4")))
         self.assertEqual(rc, 0, out + err)
-        self.assertIn("Q5 alternative (a) restates the recommendation", err)
-        self.assertNotIn("Q4 alternative", err)
+        self.assertNotIn("recommendation", err)
 
-    def test_distinct_alternatives_do_not_warn_about_restating(self):
-        rc, _, err = self.rp("add", "--file", self.file("q.json", question("Q4")))
-        self.assertEqual(rc, 0)
-        self.assertNotIn("restates", err)
+    def test_containment_is_whole_word_either_way(self):
+        q = question(
+            "Q4",
+            recommendation="No.",
+            alternatives=[{"key": "a", "text": "Not yet"}, {"key": "b", "text": "Later"}],
+        )
+        rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0, out + err)
+        q = question(
+            "Q5",
+            recommendation="Yes.",
+            alternatives=[{"key": "a", "text": "Yes, but only for X"}, {"key": "b", "text": "Later"}],
+        )
+        out = self.assert_refused("add", "--file", self.file("q.json", q))
+        self.assertIn("Q5 alternative (a)", out)
 
-    def test_alternative_containing_the_recommendation_is_distinct(self):
-        for qid, rec, alt in (
-            ("Q4", "No.", "Not yet"),
-            ("Q5", "Yes.", "Yes, but only for X"),
-        ):
-            q = question(
-                qid,
-                recommendation=rec,
-                alternatives=[{"key": "a", "text": alt}, {"key": "b", "text": "Later"}],
-            )
-            rc, out, err = self.rp("add", "--file", self.file("q.json", q))
-            self.assertEqual(rc, 0, out + err)
-            self.assertNotIn("restates", err)
+    def test_a_withheld_question_keeps_alternatives_its_text_names(self):
+        q = question(
+            "Q4",
+            recommendation="Withheld: whether we ship now depends on the load test.",
+            alternatives=[{"key": "a", "text": "Ship now"}, {"key": "b", "text": "Later"}],
+        )
+        rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(len(self.q("Q4")["alternatives"]), 2)
 
     def test_branch_source_link_warns_on_add_and_revise(self):
         link = "https://github.com/o/r/blob/main/a.py#L1-L3"
@@ -2782,7 +2795,8 @@ class TestGroupSummaryOf(DirCase):
         self.add_group("Take.")
         rc, out, err = self.add("Q5")
         self.assertEqual(rc, 0, out + err)
-        self.assertIn("group g3 summary predates 1 questions", err)
+        self.assertIn("group g3 summary predates 1 question;", err)
+        self.assertNotIn("1 questions", err)
         g3 = next(g for g in self.doc()["groups"] if g["id"] == "g3")
         self.assertEqual(g3["summaryOf"], ["Q4"])
 

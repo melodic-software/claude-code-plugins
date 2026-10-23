@@ -36,6 +36,7 @@ import sys
 import threading
 import time
 import unicodedata
+import urllib.parse
 import zipfile
 from pathlib import Path
 
@@ -48,7 +49,9 @@ if str(HERE) not in sys.path:
 if str(HERE.parent / "surface") not in sys.path:
     sys.path.append(str(HERE.parent / "surface"))
 schema = importlib.import_module("schema")
+question_shape = importlib.import_module("question_shape")
 detached = importlib.import_module("detached")
+liveserve = importlib.import_module("liveserve")
 
 HOST = "host"
 CLAUDE = object()  # the actor for ops arriving through the control listener
@@ -220,6 +223,22 @@ ASSET = re.compile(r"[0-9a-f]{16}\.(png|jpg|webp|svg|html)")
 IMAGE_ASSET = re.compile(r"[0-9a-f]{16}\.(png|jpg|webp|svg)")  # an image asset's file name
 SVG_ASSET = re.compile(r"[0-9a-f]{16}\.svg")
 HTML_ASSET = re.compile(r"[0-9a-f]{16}\.html")  # a prototype variant's snapshot
+# Live prototypes (`lives`): an entry's id; a live link's path on the prototype's own origin, RFC 3986 path-absolute
+# (so never "//", which would name another host) with an optional query, in URL characters only: no "#" (a fragment,
+# where the page's #me=, #join= and #owner= identities ride), no backslash, space or control character (the WHATWG URL
+# parser reads a backslash as "/" and drops tab and newline, so "/<backslash>x" or "/<tab>/x" would become "//x"); the
+# origin a started entry is opened at, only a quick tunnel's (https, one label under trycloudflare.com, no user, port,
+# path, query or fragment, never an IP literal or cloudflared's own api. host), which the Public Suffix List makes a
+# site apart from the interview's; and the build folder an entry serves, relative to the data folder, under staging/
+# (never the data folder itself, which holds the session's secrets and guests' files).
+LIVE_ID = re.compile(r"L[1-9][0-9]{0,5}")
+LIVE_PATH = re.compile(r"/(?!/)(?:[A-Za-z0-9._~!$&'()*+,;=:@/?-]|%[0-9A-Fa-f]{2})*")
+LIVE_URL = re.compile(r"https://(?!api\.)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.trycloudflare\.com")
+LIVE_FOLDER = re.compile(r"staging/[^/.][^/]*(?:/[^/.][^/]*)*")
+MAX_LIVE_PATH = 500
+MAX_LIVE_URL = 300
+MAX_LIVES = 20  # judgment: live entries not ended at once; each is a server and a tunnel on the owner's machine
+PORTS_FILE = ".shared-ports.json"  # server.py writes the session's own guest and control ports here
 VARIANT = re.compile(r"v-[1-9][0-9]?")
 # A note's element path (Annotation.anchor.selector), written by the prototype page's pin helper: "img" on an
 # image variant, else tag names from the variant's root down, each with its place among same-tag siblings,
@@ -486,6 +505,7 @@ def cross_field_errors(doc):
     held = [(qid, rs) for qid, refs in doc["reactions"].items() for by in refs.values() for rs in by.values()]
     errors += [f"A person holds one reaction twice, or both thumbs and down, on an answer to {qid}." for qid, rs in held if len(set(rs)) < len(rs) or {"thumbs", "down"} <= set(rs)]
     errors += _upload_errors(doc)
+    errors += _live_errors(doc)
     errors += [f"A Discussion comment on {qid[:40]} has an id the server never makes." for qid, lst in doc["discussions"].items() for c in lst if not COMMENT_ID.fullmatch(c["id"])]
     errors += [f"A result under {key[:40]} names another place." for key, lst in doc["results"].items() for r in lst if r.get("qid", GENERAL) != key]
     errors += [f"Report {fid[:40]} holds an id or picture name the server never makes." for fid, r in doc.get("reports", {}).items()
@@ -519,6 +539,64 @@ def _upload_errors(doc):
             if u is None or u["pid"] != rec.get("pid") or u["status"]["kind"] not in UPLOAD_ACCEPTED:
                 errors.append(f"{where} carries {uid[:40]}, not an accepted upload of its author.")
     return errors
+
+
+def _live_errors(doc):
+    """Live entries hold ids, folders and urls the server makes, each id once; a variant's live link names an entry and
+    a path a write takes."""
+    errors, ids = [], set()
+    for e in doc.get("lives", []):
+        if e["id"] in ids or not LIVE_ID.fullmatch(e["id"]):
+            errors.append(f"Live prototype {e['id'][:40]} has an id the server never makes, or one another entry has.")
+        ids.add(e["id"])
+        if e["target"]["kind"] == "folder" and not (len(e["target"]["folder"]) <= 1000 and LIVE_FOLDER.fullmatch(e["target"]["folder"])):
+            errors.append(f"Live prototype {e['id'][:40]} serves a folder outside staging/.")
+        url = e["status"].get("url")
+        if url is not None and not (len(url) <= MAX_LIVE_URL and LIVE_URL.fullmatch(url)):
+            errors.append(f"Live prototype {e['id'][:40]} runs at an address that is not a quick tunnel's https origin.")
+        if e["status"]["kind"] in ("starting", "running") and (doc["session"]["phase"]["kind"] == "ended" or "live" not in prototype_tiers(doc["session"]["settings"])):
+            errors.append(f"Live prototype {e['id'][:40]} runs while live prototypes are off or the session has ended.")
+        if e["target"]["kind"] == "port" and "approvedAt" in e["status"] and not e["status"].get("attested"):
+            errors.append(f"Live prototype {e['id'][:40]} on a port was approved without the owner's attestation.")
+    for q in doc["questions"]:
+        for v in q["format"].get("variants", []):
+            link = v.get("live")
+            if link and (link["id"] not in ids or _live_path_error(link["path"])):
+                errors.append(f"questions[{q['id']}].format.variants.live names no live prototype, or a path a write refuses.")
+    return errors
+
+
+def _live_path_error(path):
+    """Why `path` cannot be a live link's path (LIVE_PATH), or None."""
+    if not isinstance(path, str) or len(path) > MAX_LIVE_PATH or not LIVE_PATH.fullmatch(path) or "%23" in path:
+        return (f"A live link's path starts with one / (never //), is at most {MAX_LIVE_PATH} characters of URL path and query "
+                "characters, and holds no fragment (# or %23), scheme, space or backslash.")
+    part, _, query = path.partition("?")
+    # "." and ".." segments (escaped too) collapse when a browser resolves the path, so "/.//x" would become "//x".
+    if "//" in part or any(urllib.parse.unquote(seg) in (".", "..") for seg in part.split("/")):
+        return "A live link's path holds no empty, . or .. segment."
+    if any(k.lower() in ("me", "join", "owner") for k, _ in urllib.parse.parse_qsl(query, keep_blank_values=True)):
+        return "A live link's query holds no me, join or owner key: those name the session's identities."
+    return None
+
+
+def _live_folder(path, root):
+    """A build folder for a live entry: an existing directory under `root`/staging/ (not staging/ itself), with no
+    hidden part, named by an absolute path; its path relative to `root`, as written in the entry."""
+    if not isinstance(path, str) or not os.path.isabs(path):
+        raise _bad("folder", "folder must be an absolute path to a build folder under the data folder's staging/.")
+    try:
+        real = Path(path).resolve(strict=True)
+        base = Path(root).resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise _bad("folder", f"No folder at {path}.") from exc
+    staging = base / STAGING
+    if not real.is_relative_to(staging) or real == staging:
+        raise _bad("folder", f"add-live serves a build folder only from inside {staging}.")
+    rel = real.relative_to(base)
+    if not real.is_dir() or any(part.startswith(".") for part in rel.parts) or not LIVE_FOLDER.fullmatch(rel.as_posix()):
+        raise _bad("folder", "folder must name a directory with no hidden folder or name.")
+    return rel.as_posix()
 
 
 def _answers(cards):
@@ -685,6 +763,17 @@ def ref_author(ref):
 
 
 # -- input parsing: every route and op body goes through these before any state changes ------
+
+
+def _question_view(q):
+    """A question as the snapshot sends it: the stored one, plus the question_shape flags the page reads
+    (`withheld`, `alternatives[i].restates`) on a copy, so state.json never holds them."""
+    rec = q.get("recommendation")
+    held = question_shape.withheld(rec)
+    alts = [{**a, "restates": True} if question_shape.restates(a["text"], rec) else a for a in q["alternatives"]]
+    if not held and all(x is a for x, a in zip(alts, q["alternatives"])):
+        return q
+    return {**q, "alternatives": alts, **({"withheld": True} if held else {})}
 
 
 def _bad(field, message):
@@ -2439,6 +2528,8 @@ class Session:
             if tradeoff:
                 alt["tradeoff"] = tradeoff
             q["alternatives"].append(alt)
+            if question_shape.restates(alt["text"], rec):
+                raise _bad(f"{field}.alternatives[{i}].text", f"Alternative ({a['key']}) repeats or contains the recommendation, or the recommendation contains it.")
         if rec:
             q["recommendation"] = rec
         deps = qi["dependsOn"]
@@ -2512,18 +2603,29 @@ class Session:
         return {"kind": "prototype", "lookAt": look, "variants": variants}
 
     def _views(self, v, at):
-        """A variant's views as written: `{asset}` for one view, so a variant with one picture or one html file keeps the
-        shape builds before `shots` and `snapshot` read; `{shots?, snapshot?}` for more than one. The schema has already
-        refused a variant with no view, or with `asset` beside `shots` or `snapshot`."""
+        """A variant's views as written: `{asset}` for one picture or one html file and nothing else, so such a variant
+        keeps the shape builds before `shots` and `snapshot` read; `{shots?, snapshot?, live?}` otherwise. The schema
+        has already refused a variant with no view, or with `asset` beside another view."""
         if "asset" in v:
             return {"asset": self._asset(v["asset"], f"{at}.asset")}
         shots = [self._asset(x, f"{at}.shots[{j}]", image=True) for j, x in enumerate(v.get("shots", []))]
         if len(set(shots)) != len(shots):
             raise _bad(f"{at}.shots", "Each screenshot of a variant is its own picture.")
         snap = [self._asset(v["snapshot"], f"{at}.snapshot", pattern=HTML_ASSET)] if "snapshot" in v else []
-        if len(shots) + len(snap) == 1:
+        live = [self._live_link(v["live"], f"{at}.live")] if "live" in v else []
+        if len(shots) + len(snap) == 1 and not live:
             return {"asset": (shots + snap)[0]}
-        return {**({"shots": shots} if shots else {}), **({"snapshot": snap[0]} if snap else {})}
+        return {**({"shots": shots} if shots else {}), **({"snapshot": snap[0]} if snap else {}), **({"live": live[0]} if live else {})}
+
+    def _live_link(self, link, at):
+        """A variant's live view: an entry `add-live` made that has not ended, and a path LIVE_PATH takes."""
+        why = _live_path_error(link["path"])
+        if why:
+            raise _bad(f"{at}.path", why)
+        e = next((e for e in self.state.get("lives", []) if e["id"] == link["id"]), None)
+        if e is None or e["status"]["kind"] == "ended":
+            raise _bad(f"{at}.id", f"{str(link['id'])[:40]} names no live prototype that is still on; add one with add-live first.")
+        return {"id": e["id"], "path": link["path"]}
 
     def _options(self, q):
         """Option id -> label for the option cards a non-text question offers, None of these included; Something
@@ -2557,9 +2659,10 @@ class Session:
         now = self.now()
         if q["format"]["kind"] == "text":
             cards = []
-            if q.get("recommendation"):
+            rec = q.get("recommendation")
+            if rec and not question_shape.withheld(rec):  # a withheld recommendation is asked open, never on a card
                 cards.append({"kind": "claude", "key": "rec", "at": now})
-                cards += [{"kind": "claude", "key": a["key"], "at": now} for a in q["alternatives"]]
+            cards += [{"kind": "claude", "key": a["key"], "at": now} for a in q["alternatives"]]
         else:
             cards = [{"kind": "option", "option": o} for o in self._options(q)]
         st["cards"][q["id"]] = cards
@@ -3848,7 +3951,7 @@ class Session:
         """The questions every guest is sent, built once per rev (every page polls)."""
         st = self.state
         if not (self._guest_q_cache and self._guest_q_cache[0] == st["rev"]):
-            self._guest_q_cache = (st["rev"], _guest_questions(st["questions"], prototype_tiers(st["session"]["settings"])))
+            self._guest_q_cache = (st["rev"], _guest_questions([_question_view(q) for q in st["questions"]], prototype_tiers(st["session"]["settings"])))
         return self._guest_q_cache[1]
 
     def asset_hidden(self, pid, name):
@@ -3857,6 +3960,153 @@ class Session:
         and confirm questions share them."""
         with self._lock:
             return pid != HOST and name.endswith(".html") and "snapshot" not in prototype_tiers(self.state["session"]["settings"])
+
+    # -- live prototypes ------------------------------------------------------------------------
+    # An entry `add-live` made waits (pending) until the owner's Approve on the page. server.py starts it outside the
+    # state lock: approve_live marks it starting and hands back the entry, the server's live starter starts it, and
+    # live_started sets it running with the https origin the starter answered (or live_start_failed puts it back).
+    # Stop, the live tier turned off and the session ended each end it, keeping no url; server.py then stops whatever
+    # its starter began for an entry no longer starting or running (live_status).
+
+    def _live_on(self):
+        return "live" in prototype_tiers(self.state["session"]["settings"])
+
+    def _live(self, lid):
+        if not isinstance(lid, str) or not LIVE_ID.fullmatch(lid):
+            raise _bad("id", "id names a live prototype, like L1.")
+        e = next((e for e in self.state.get("lives", []) if e["id"] == lid), None)
+        if e is None:
+            raise DomainError(404, "not-found", f"No live prototype {lid}.")
+        return e
+
+    def _end_live(self, e, reason):
+        old = e["status"]
+        e["status"] = {"kind": "ended", "endedAt": self.now(), "reason": reason, **{k: old[k] for k in ("approvedAt", "attested") if k in old}}
+
+    def _end_lives(self, reason):
+        for e in self.state.get("lives", []):
+            if e["status"]["kind"] != "ended":
+                self._end_live(e, reason)
+
+    def approve_live(self, pid, body):
+        """POST /api/live/approve {id, attest?}: the owner lets a pending live prototype start. A port target (a server
+        the owner runs) needs `attest: true`, the owner's word that it runs on sample data only, with writes stubbed and
+        no credentials in its environment; the entry keeps it."""
+        _body(body)
+        with self._tx():
+            self._owner(pid)
+            if not self._live_on():
+                raise DomainError(403, "live-off", "Live prototypes are off in this session.")
+            if self._ended():
+                raise DomainError(409, "wrong-status", "The session has ended.", status="ended")
+            e = self._live(body.get("id"))
+            if e["status"]["kind"] != "pending":
+                raise DomainError(409, "wrong-status", f"Live prototype {e['id']} is {e['status']['kind']}.", status=e["status"]["kind"])
+            port = e["target"]["kind"] == "port"
+            if port:
+                self._live_port(e["target"]["port"])  # the session's own ports can move on a restart: check again
+            if port and body.get("attest") is not True:
+                raise _bad("attest", "A server on a port starts only once you confirm it runs on sample data only, with writes stubbed and no credentials in its environment.")
+            e["status"] = {"kind": "starting", "approvedAt": self.now(), **({"attested": True} if port else {})}
+            return {"live": e["id"], "entry": copy.deepcopy(e)}
+
+    def live_started(self, lid, url):
+        """The server's live starter started `lid` at `url`: running, when it is still starting; False when it ended
+        meanwhile (the server then stops it). A url that is not an https origin is refused, 502."""
+        with self._lock:
+            if self._live(lid)["status"]["kind"] != "starting":
+                return False
+        if not (isinstance(url, str) and len(url) <= MAX_LIVE_URL and LIVE_URL.fullmatch(url)):
+            raise DomainError(502, "live-failed", "The live prototype did not start: its server answered no https address.")
+        with self._tx():
+            e = self._live(lid)
+            if e["status"]["kind"] != "starting":
+                return False
+            e["status"] = {**e["status"], "kind": "running", "startedAt": self.now(), "url": url}
+            return True
+
+    def live_start_failed(self, lid):
+        """The start of `lid` failed: it waits for Approve again, unless it ended meanwhile."""
+        with self._lock:
+            if self._live(lid)["status"]["kind"] != "starting":
+                return
+            with self._tx():
+                self._live(lid)["status"] = {"kind": "pending"}
+
+    def live_status(self, lid):
+        """`lid`'s status kind, or None for no such entry."""
+        with self._lock:
+            return next((e["status"]["kind"] for e in self.state.get("lives", []) if e["id"] == lid), None)
+
+    def live_entries(self):
+        """A copy of every live entry, for the server's supervision."""
+        with self._lock:
+            return copy.deepcopy(self.state.get("lives", []))
+
+    def live_moved(self, lid, url):
+        """The live starter restarted the running `lid` behind a new quick tunnel at `url`: the entry keeps running,
+        approved once for its target and content, at the new address. False when it no longer runs (the server then
+        stops what it restarted); a url that is not a quick tunnel's origin is refused, 502."""
+        if not (isinstance(url, str) and len(url) <= MAX_LIVE_URL and LIVE_URL.fullmatch(url)):
+            raise DomainError(502, "live-failed", "The live prototype did not restart: its server answered no https address.")
+        with self._tx():
+            e = self._live(lid)
+            if e["status"]["kind"] != "running":
+                return False
+            if e["status"]["url"] != url:
+                e["status"] = {**e["status"], "url": url}
+            return True
+
+    def live_ended(self, lid, reason="failed"):
+        """`lid` ended outside a route: `failed` when it stopped and could not be started again (or was gone after a
+        restart of the machine), `stopped` when `share.sh stop` ended it while the server was down. True when it ended
+        here."""
+        with self._lock:
+            if self.live_status(lid) not in ("starting", "running"):
+                return False
+            with self._tx():
+                self._end_live(self._live(lid), reason)
+            return True
+
+    def stop_all_lives(self):
+        """`share.sh stop` and `share.sh live-stop` with no id: every live prototype not ended ends; the ids."""
+        with self._lock:
+            ids = [e["id"] for e in self.state.get("lives", []) if e["status"]["kind"] != "ended"]
+            if ids:
+                with self._tx():
+                    self._end_lives("stopped")
+            return ids
+
+    def stop_live(self, pid, body):
+        """POST /api/live/stop {id}: the owner ends a live prototype, started or not."""
+        _body(body)
+        with self._tx():
+            self._owner(pid)
+            e = self._live(body.get("id"))
+            if e["status"]["kind"] == "ended":
+                raise DomainError(409, "wrong-status", f"Live prototype {e['id']} has ended.", status="ended")
+            self._end_live(e, "stopped")
+            return {"live": e["id"], "status": "ended"}
+
+    def _lives_view(self, owner, questions):
+        """The snapshot's `lives`, or None when the session has none. The owner gets each entry whole, with `url`: the
+        running origin, or, for a pending or starting port, that port on 127.0.0.1 to look at first. Anyone else gets
+        only the entries `questions` (as they see them) link, as {id, label, status: {kind}}, with `url` only while it
+        runs: never a target, a note or the url of one the owner has not approved."""
+        lives = self.state.get("lives")
+        if not lives:
+            return None
+        if owner:
+            def local(e):
+                if e["status"]["kind"] == "running":
+                    return {"url": e["status"]["url"]}
+                if e["target"]["kind"] == "port" and e["status"]["kind"] in ("pending", "starting"):
+                    return {"url": f"http://127.0.0.1:{e['target']['port']}"}
+                return {}
+            return [{**copy.deepcopy(e), **local(e)} for e in lives]
+        linked = {v["live"]["id"] for q in questions if q["format"]["kind"] == "prototype" for v in q["format"]["variants"] if "live" in v}
+        return [{"id": e["id"], "label": e["label"], "status": {"kind": e["status"]["kind"]}, **({"url": e["status"]["url"]} if e["status"]["kind"] == "running" else {})}
+                for e in lives if e["id"] in linked]
 
     def is_prototype(self, qid):
         """GET /proto/<qid> serves the prototype page only for a prototype question."""
@@ -5116,7 +5366,10 @@ class Session:
         _body(body)
         with self._tx() as st:
             self._owner(pid)
+            was_live = "live" in prototype_tiers(st["session"]["settings"])
             _settings_patch(st["session"]["settings"], body)
+            if was_live and "live" not in prototype_tiers(st["session"]["settings"]):
+                self._end_lives("tier-off")  # every live prototype ends at once; turning it on again restarts none
             return {"settings": copy.deepcopy(st["session"]["settings"])}
 
     def set_title(self, pid, body):
@@ -5163,6 +5416,7 @@ class Session:
                 st["session"]["phase"] = {"kind": "ended", "at": self.now()}
                 st["credentials"].pop("devices", None)  # the owner's other devices sign out with the session; a reopen brings none back
                 self._pairing = None
+                self._end_lives("session-ended")  # and every live prototype ends; a reopen restarts none
                 self._event("session-ended", later=later)
             else:
                 st["session"]["phase"] = {"kind": "live"}
@@ -5991,6 +6245,43 @@ class Session:
         write_private(meta_path, json.dumps(meta) + "\n")
         return meta
 
+    def _op_add_live(self, op):
+        """Record a live prototype, pending until the owner's Approve: a build folder under staging/ or a port on
+        127.0.0.1 that is not one of the session's own. Nothing starts here."""
+        if not self._live_on():
+            raise DomainError(403, "live-off", "Live prototypes are off in this session; the owner turns them on in Settings.")
+        if self._ended():
+            raise DomainError(409, "wrong-status", "The session has ended.", status="ended")
+        label = _text(op, "label")
+        note = _text(op, "note", limit=MAX_NOTE) if op.get("note") is not None else None
+        if "port" in op:
+            target = {"kind": "port", "port": self._live_port(op["port"])}
+        else:
+            target = {"kind": "folder", "folder": _live_folder(op["folder"], self.path.parent)}
+            try:
+                liveserve.scan_build(self.path.parent / target["folder"])  # the start copies it with the same walk
+            except (liveserve.BuildRefused, OSError) as exc:
+                raise _bad("folder", f"add-live serves a folder of regular files only: {exc}") from None
+        lives = self.state.get("lives", [])
+        if sum(1 for e in lives if e["status"]["kind"] != "ended") >= MAX_LIVES:
+            raise DomainError(409, "lives-full", f"A session runs at most {MAX_LIVES} live prototypes at once; stop one first.", max=MAX_LIVES)
+        lid = f"L{1 + max((int(e['id'][1:]) for e in lives), default=0)}"  # entries are never removed, so an id never returns
+        entry = {"id": lid, "label": label, **({"note": note} if note else {}), "target": target, "at": self.now(), "status": {"kind": "pending"}}
+        self.state.setdefault("lives", []).append(entry)
+        return {"id": lid, "status": "pending"}
+
+    def _live_port(self, port):
+        """A live entry's port: refused when it is the session's own guest or control port (PORTS_FILE), and when those
+        cannot be read, since the check would then pass blind."""
+        try:
+            ports = json.loads((self.path.parent / PORTS_FILE).read_text(encoding="utf-8"))
+            own = {int(ports["guest"]), int(ports["control"])}
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            raise DomainError(503, "live-unavailable", "The session's own ports are unknown, so no port can be checked; run share.sh ensure-running.") from exc
+        if port in own:
+            raise _bad("port", "A live prototype never runs on the session's own guest or control port.")
+        return port
+
     def _op_make_question_from(self, op):
         prop = self._proposal(op["proposal"])
         kind = prop["status"]["kind"]
@@ -6141,7 +6432,13 @@ class Session:
         if self._base_cache and self._base_cache[0] == st["rev"]:
             return self._base_cache[1]
         active = {p for p in st["people"] if self._active(p)}
-        cards = {qid: [self._public_card(qid, c, active) for c in lst if self._shown(c)] for qid, lst in st["cards"].items()}
+        # an alternative a state saved before the refusal holds that restates the recommendation folds away, as on the 1:1
+        # page, unless someone backs it: then it stays, so the page and the tally agree on the leader
+        folded = {q["id"]: {a["key"] for a in q["alternatives"] if question_shape.restates(a["text"], q.get("recommendation"))} for q in st["questions"]}
+        cards = {
+            qid: [self._public_card(qid, c, active) for c in lst if self._shown(c) and not (c["kind"] == "claude" and c["key"] in folded.get(qid, ()) and not self._backed(qid, card_ref(c)))]
+            for qid, lst in st["cards"].items()
+        }
         suggestions = {}
         for qid, lst in st["suggestions"].items():
             by = st["suggestionVotes"].get(qid, {})
@@ -6161,7 +6458,7 @@ class Session:
             "settings": st["session"]["settings"],
             "rounds": st["rounds"],
             "round": {"n": cur["n"], "status": cur["status"]["kind"]} if cur else None,
-            "questions": st["questions"],
+            "questions": [_question_view(q) for q in st["questions"]],
             "cards": cards,
             "locks": st["locks"],
             "suggestions": suggestions,
@@ -6252,6 +6549,14 @@ class Session:
         if u["id"] in self._public_uploads:
             return True
         return me["role"] == "leader" and self._active(u["pid"]) and any(u["id"] in p.get("attachments", ()) for p in self.state["proposals"])
+
+    def _backed(self, qid, ref):
+        """Whether anyone stands behind card `ref`: a vote or backing, a reaction, or the question's lock."""
+        st = self.state
+        return (any(r == ref for r in st["votes"].get(qid, {}).values())
+                or any(ref in refs for refs in st.get("backs", {}).get(qid, {}).values())
+                or any(st["reactions"].get(qid, {}).get(ref, {}).values())
+                or (st["locks"].get(qid) or {}).get("source", {}).get("card") == ref)
 
     def _public_card(self, qid, c, active):
         """One card as people read it: never `view`, `deviceInfo` or `history`; with its ref, the
@@ -6363,6 +6668,9 @@ class Session:
                 snap["cards"] = {**base["cards"], **own}
             if not owner:
                 snap["questions"] = self._guest_questions()
+            lives = self._lives_view(owner, snap["questions"])
+            if lives is not None:
+                snap["lives"] = lives
             if owner or any(c["pid"] == pid and "hidden" in c for lst in st["discussions"].values() for c in lst):
                 snap["discussions"] = self._discussions_for(pid, {p["pid"] for p in base["people"]})
             if mode != "full":
@@ -6496,19 +6804,25 @@ def prototype_tiers(settings):
 
 def _guest_questions(questions, tiers):
     """`questions` as guests see them under `tiers`: a variant's pictures (`shots`, or an `asset` picture) leave while
-    screenshots are off, its html file (`snapshot`, or an `asset` html file) while snapshots are off, each view on its
-    own. The same list when both are on; otherwise new prototype questions, the rest shared."""
-    off = {t for t in ("screenshot", "snapshot") if t not in tiers}
+    screenshots are off, its html file (`snapshot`, or an `asset` html file) while snapshots are off, and its live link
+    while live prototypes are off, each view on its own. A question none of that changes is shared, not copied."""
+    off = {t for t in PROTOTYPE_TIERS if t not in tiers}
     if not off:
         return questions
-    gone = {k for k, t in (("shots", "screenshot"), ("snapshot", "snapshot")) if t in off}
+    gone = {k for k, t in (("shots", "screenshot"), ("snapshot", "snapshot"), ("live", "live")) if t in off}
 
     def view(v):
         drop = gone | ({"asset"} if "asset" in v and ("snapshot" if v["asset"].endswith(".html") else "screenshot") in off else set())
         return {k: x for k, x in v.items() if k not in drop} if drop & v.keys() else v
 
-    return [{**q, "format": {**q["format"], "variants": [view(v) for v in q["format"]["variants"]]}} if q["format"]["kind"] == "prototype" else q
-            for q in questions]
+    out = []
+    for q in questions:
+        if q["format"]["kind"] == "prototype":
+            vs = [view(v) for v in q["format"]["variants"]]
+            if any(a is not b for a, b in zip(vs, q["format"]["variants"])):
+                q = {**q, "format": {**q["format"], "variants": vs}}
+        out.append(q)
+    return out
 
 
 def _settings_patch(settings, patch):

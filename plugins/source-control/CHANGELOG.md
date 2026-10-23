@@ -3,6 +3,95 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.6.0] - 2026-10-23
+
+### Changed
+
+- The unattended merge gate merges a MED score whose every reason is a class or size reason (`class-contradicted`, `blast-radius-missing`, `lines-over`, `files-over`, `no-patch:*`), as it does LOW (#9270). Unbound or missing review evidence, an open claude-review finding, an unread file listing, the rung and every HIGH reason still hold, and such a MED gets no reasons comment or risk escalation.
+- The security lane holds the merge only on a CRITICAL finding. The gate reads each inline comment's `severity:` line and the summary's `critical-findings:` line; a finding whose severity it cannot read counts as CRITICAL.
+- The HIGH path floor holds only what has an effect outside the repository or its review: `**/settings*.json`, `.gitmodules`, `CODEOWNERS`, package manifests and lockfiles, the workflows that publish a release or hold `id-token: write`, and `check-trusted-trigger`. Agent instructions, hooks, `bin`, `lib`, scripts, monitors, `.mcp.json` and `.lsp.json`, the review and merge-gate plugins, `docs/conventions` and the rest leave it, as do the capability, test-only, eval-data, eval-scaffold, script-mode and base-side declaration checks. `merge.diff-check.floor-paths` and `floor-script-scopes` are gone.
+- `manifest-review-required` holds only a `plugin.json` change to `hooks`, `mcpServers`, `lspServers`, `monitors` or `experimental.monitors`, and a marketplace plugin added, removed, renamed or re-sourced, or the marketplace renamed.
+- A `work-class: structural` label scores as `C3` (scoped), in the local merge gate and the promotion evidence.
+- `NEVER_FLOOR_EXEMPT` is the HIGH path floor, and `INSTRUCTION_PATH_RE` (twin of `thread-scope.mjs` `INSTRUCTION_PATH`) names only submodule, code-owner, agent permission and package manifest files; the review-thread tool `feedback-thread.sh` reads the same set.
+
+### Fixed
+
+- The unattended merge gate lists each review lane's runs only from the pull request's creation time on. A reused branch (such as the release branch) no longer reads every earlier pull request's runs, which cost about 4,000 lanes App calls per gate and exhausted its rate limit.
+
+## [2.5.0] - 2026-10-23
+
+### Changed
+
+- `pull-request comments --ci` and `ci --ci` keep away from `.github/workflows/` only, not all of `.github/`. The review-thread tool, `feedback-thread.sh`, refuses a path under `.github/workflows/` in any letter case and allows a kept thread's path elsewhere under `.github/`.
+
+- The pr-merge lane no longer escalates `verify:fail` or `verify:earlier-fail` to a person: both only refuse while an `address-feedback` round answers the fail's notes. `verify:repeated-fail` still escalates, and now wins over a `fail` at the head once fails reach `merge.max-verify-fails`, counting the other pull requests for the same issue, so the round past the cap is not spent. Its escalation quotes the head fail's summary.
+- `pull-request comments --ci` lists a `verifier` author: the pr-verify verifier's fail notes for the head, a finding like a `reviewer` body.
+
+### Removed
+
+- The carried-quote rule that kept an earlier `verify:fail` reason in a `verify:earlier-fail` escalation, and that turned an earlier-fail or repeated-fail whose last quote named this head back into `verify:fail`.
+
+## [2.4.0] - 2026-10-23
+
+### Changed
+
+- `pull-request comments --ci` commits nothing: it leaves each fix uncommitted in the working tree, and a later job with no model pushes it as one commit. A disposition's `fix_sha` stays empty, and the reply job names the pushed commit. The review-thread tool's path comes from the run's preamble ([`comments-ci.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/pull-request/reference/comments-ci.md)).
+- The review-thread tool, `feedback-thread.sh`, makes no GitHub call. It records `VALID` only with an empty `fix_sha`, and only while every path the working tree changes against the gated head is in a kept thread's scope and outside `.github/`. That covers both sides of a rename and every untracked file git does not ignore.
+
+## [2.3.0] - 2026-10-22
+
+### Added
+
+- The unattended merge scorer holds a pull request that could add or raise a charge as HIGH
+  `cost-review-required`, in both lanes, whatever `high-path-floor` says and whatever an adopted
+  author's own paths leave off the floor: Pulumi, Terraform or Bicep files, the multi-agent role
+  map and anything under a Pulumi project; a file renamed into a workflow or `pr-pipeline.yaml`;
+  a workflow that adds a schedule, a `--model` or `--max-turns` flag, any new `secrets`
+  reference, a new Claude Code action, image or package run, a raised timeout on a model leg, or
+  a runner that is not a free standard label (any runner off a public repository); and any
+  `pr-pipeline.yaml` change beyond comments, blank lines, `description:` and `title:`. The hold
+  clears only when the body links an owner's unedited `**Decision recorded.** Cost:` comment on
+  the pull request, or on the closing issue when created after the pull request.
+
+## [2.2.0] - 2026-10-22
+
+### Changed
+
+- The pr-merge lane adopts a pull request any trusted-actor-list account opened, a `User` or a
+  `Bot`, read at the default branch head (owner decision 2026-10-22); a `Bot`'s needs no idle
+  window. pr-merge.yml lists each listed account's PRs by login. Without `adoption.idle-hours`
+  nothing is adopted.
+- An adopted pull request closing no issue in this repository is eligible when a person or an App
+  in `adoption.spec-from-body-apps` opened it, and the verifier gate accepts a pass that records
+  `intent: pull-request` with no closing issue then or now. Any other App still needs its issue.
+- For an adopted pull request, the HIGH path floor and the manifest review score only its changed
+  paths that a commit not its author's own touched, so a trusted author's own lines, a person's or
+  an App's, need no person while a lane's fix to a floor path still holds. A commit is the
+  author's own only when GitHub verified it and its author account, and for a person its
+  committer account, is the pull request's author. A merge commit not the author's own scores its
+  files the pull request changed. The lanes App's own pull requests stay scored whole, and an
+  unreadable commit list scores every path.
+- A person, whose title and body serve as intent with no closing issue, is a `kind: human` id on
+  the trusted list, not any GitHub `User`; the list is read at the default branch head, less the
+  lanes App and Dependabot, which are never adopted.
+- The own-lines floor exemption covers people and `adoption.spec-from-body-apps` Apps; every
+  other App's adopted pull request (claude[bot], cursor[bot], cursoragent, melodic-ai[bot]) is
+  exempt only for its own lines under `plugins/*/scripts/` (owner decision Q14 (c)); top-level
+  `scripts/` still scores, since credentialed jobs on main run it. `.github/standards/**`, `.github/workflows/**`,
+  `.github/scripts/**`, `.github/actions/**` and any `CODEOWNERS` are never exempt, nor are the
+  merge gate, the review lanes, `docs/conventions/**` and agent permission config (`.claude/`,
+  `.claude-plugin/`, `CLAUDE.md`, `AGENTS.md`, `REVIEW.md`, `.mcp.json`, `.lsp.json`,
+  `settings*.json`), per owner decision 2026-10-20, nor `.gitmodules` and `plugins/*/hooks`,
+  `monitors` and `bin`. The instruction paths come from one regex, the twin of pr-unblock's
+  `thread-scope.mjs` `INSTRUCTION_PATH`, held equal by a test. An App's own
+  commit needs a committer that is the App or GitHub's web-flow.
+- A pass judged on the pull request's title and body records their sha256, and the gate refuses
+  it with `verify:spec-changed` once they change.
+
+### Fixed
+
+- The post-merge check no longer holds the pr-merge lane forever when a github-actions[bot] dispatch run's `pr-merge-dispatched-<id>` record listing reads empty twice past the dispatch deadline. The unreadable verdict now sets `needsDispatch` once per merge, so pr-merge starts and records one fresh full run; any github-actions[bot] dispatch after the deadline, recorded or not, uses up that one run. A completed later run judges the merge only when its record is listed, github-actions[bot] dispatched it on the branch, and its head contains the merge commit: one that passes clears the hold, a red one with checks newly failing is a dispatch failure, and a red attempt 1 waits for the lane's re-run. Any other later run leaves the verdict unreadable. The report's new `hold` field names the case, and `recovery-unrecorded`, the recovery run's record missing too, makes pr-merge emit an error.
+
 ## [2.1.2] - 2026-10-22
 
 ### Fixed

@@ -1,5 +1,23 @@
 # Changelog: docs-hygiene plugin
 
+## [2.0.3] - 2026-10-23
+
+### Fixed
+
+- `context/derivability-route-followups.md` now names `plugins/machine-health/skills/audit/reference/windows/` for the `check-catalog.md` and `elevation-matrix.md` rows; the directory is `reference/`, not `references/`.
+
+## [2.0.2] - 2026-10-22
+
+### Fixed
+
+- The derivability followups list names `plugins/ai-briefing/skills/generate/reference/build-pipeline.md`, the directory's current name, instead of the renamed `references/`.
+
+## [2.0.1] - 2026-10-22
+
+### Fixed
+
+- The derivability route follow-ups list now names `plugins/ai-briefing/skills/generate/reference/slide-generation.md`, the directory's current name, instead of the retired `references/`.
+
 ## [2.0.0] - 2026-10-22
 
 ### Added

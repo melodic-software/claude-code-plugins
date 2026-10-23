@@ -18,6 +18,8 @@ const INFRA_JOBS = MIXED_JOBS.filter((job) => job.name !== "lint-shell");
 
 // A tested pr-require-checks run that failed, an hour before NOW unless named.
 const NOW = Date.parse("2026-10-22T12:00:00Z");
+const REQUIRED = ".github/workflows/pr-require-checks.yml";
+const ADVISORY = ".github/workflows/pr-test-windows.yml";
 const tested = (attempt, hoursAgo = 1) => ({
   status: "completed",
   conclusion: "failure",
@@ -52,14 +54,16 @@ function pr(number, { checks = [check("ci-status", "FAILURE")], ...overrides } =
 }
 
 function fakeApi({ pages = [[]], cost = 1, workflowRuns = [], failDispatch = new Set(), runIds = new Map(), requiredRuns = new Map() } = {}) {
-  const calls = { list: 0, runs: 0, dispatch: [], jobs: [] };
+  const calls = { list: 0, runs: 0, dispatch: [], jobs: [], paths: [] };
   return {
     calls,
-    // The head's tested pr-require-checks run and its latest jobs; a real
-    // failure at attempt 1 unless the test names the head.
-    async readRequiredRun(sha) {
+    // The head's tested run of the workflow at path and its latest jobs; a
+    // real failure at attempt 2 (its one re-run spent) unless the test names
+    // the head, or the head and path.
+    async readRequiredRun(sha, path = REQUIRED) {
       calls.jobs.push(sha);
-      const required = requiredRuns.get(sha) ?? { run: tested(1), jobs: MIXED_JOBS };
+      calls.paths.push(path);
+      const required = requiredRuns.get(`${sha} ${path}`) ?? requiredRuns.get(sha) ?? { run: tested(2), jobs: MIXED_JOBS };
       if (required instanceof Error) {
         throw required;
       }
@@ -253,6 +257,17 @@ function ownerPr(number, { updated = 25, committed = 25, committedDate = hoursAg
   return node;
 }
 
+// Owner decision 2026-10-22: a trusted App's PR (the release App here) does
+// not wait out the idle window; a person's still does.
+test("a listed bot's PR is adopted with no idle wait, a listed person's waits", () => {
+  const RELEASE = 337859524;
+  const options = { base: "main", appSenderId: APP, actionsAppId: ACTIONS, checkName: "pr-unblock / fix-ci", holdLabels: ["do-not-merge", "needs-human"], restarts: 1, adoption: { ownerIds: [OWNER, RELEASE], idleHours: 24 }, now: NOW };
+  const bot = { __typename: "Bot", login: "melodic-plugin-release", databaseId: RELEASE };
+  assert.equal(skipReason(ownerPr(1, { updated: 0, committed: 0, author: bot }), options), "");
+  assert.equal(skipReason(ownerPr(2, { updated: 0, committed: 0, author: { __typename: "User", login: "kyle-sexton", databaseId: OWNER } }), options), "owner PR or its head commit active in the last 24 hour(s)");
+  assert.equal(skipReason(ownerPr(3, { updated: 0, committed: 0, author: { ...bot, databaseId: 4242 } }), options), "not opened by the lanes App or an adoptable owner");
+});
+
 test("an adoptable owner's PR idle 25 hours whose ci-status failed is dispatched", async () => {
   const { result } = await run({ pages: [[ownerPr(9)]] }, { adoption: ADOPTION, now: NOW });
   assert.deepEqual(result, { dispatched: [{ number: 9, workflowRunId: "7009" }], failed: 0 });
@@ -414,4 +429,52 @@ test("an infra-only head past the reconciler's 24-hour lookback is fix-ci's", as
     [5],
   );
   assert.ok(lines.includes("skip fix-ci #6: infra failure, re-run job owns it"));
+});
+
+// Any other failure at attempt 1 is the reconciler's for one re-run of its
+// failed jobs (reconcile.mjs), so a flaky test the diff did not cause spends
+// no model run; a second failure, or one past the lookback, is fix-ci's.
+test("a real failure at attempt 1 is the reconciler's to re-run once; at attempt 2 fix-ci takes it", async () => {
+  const head = (number) => String(number).padStart(40, "a");
+  const requiredRuns = new Map([
+    [head(5), { run: tested(1), jobs: MIXED_JOBS }],
+    [head(6), { run: tested(2), jobs: MIXED_JOBS }],
+    [head(7), { run: tested(1, 25), jobs: MIXED_JOBS }],
+    // Only ci-status failed: the reconciler re-runs none of it.
+    [head(8), { run: tested(1), jobs: [{ name: "lint-repo", conclusion: "success" }, { name: "ci-status", conclusion: "failure" }] }],
+  ]);
+  const { lines, result } = await run({ pages: [[pr(5), pr(6), pr(7), pr(8)]], requiredRuns }, { maxDispatch: 4 });
+  assert.deepEqual(
+    result.dispatched.map((d) => d.number),
+    [6, 7, 8],
+  );
+  assert.ok(lines.includes("skip fix-ci #5: first failure, re-run job re-runs it once"));
+});
+
+// pr-test-windows is not in ci-status, but the merge gate holds a PR on any
+// failing check, such as a macOS test_tunnel flake.
+test("a failed advisory pr-test-windows run with ci-status green is fix-ci's once its one re-run failed", async () => {
+  const head = (number) => String(number).padStart(40, "a");
+  const advisory = [check("ci-status", "SUCCESS"), check("test-macos-planning-shared", "FAILURE")];
+  const requiredRuns = new Map([
+    [`${head(5)} ${ADVISORY}`, { run: tested(1), jobs: MIXED_JOBS }],
+    [`${head(6)} ${ADVISORY}`, { run: tested(2), jobs: MIXED_JOBS }],
+    [`${head(7)} ${ADVISORY}`, { run: { ...tested(2), conclusion: "success" }, jobs: [] }],
+  ]);
+  const { api, lines, result } = await run({ pages: [[pr(5, { checks: advisory }), pr(6, { checks: advisory }), pr(7, { checks: advisory })]], requiredRuns }, { maxDispatch: 3 });
+  assert.deepEqual(
+    result.dispatched.map((d) => d.number),
+    [6],
+  );
+  assert.deepEqual(api.calls.paths, [ADVISORY, ADVISORY, ADVISORY]);
+  assert.ok(lines.includes("skip fix-ci #5: first failure, re-run job re-runs it once"));
+  assert.ok(lines.includes("skip fix-ci #7: ci-status passed and no pr-test-windows run failed"));
+});
+
+test("a green ci-status with only a failed fix-ci run, or no failure, is left alone", async () => {
+  const { api, result } = await run({
+    pages: [[pr(5, { checks: [check("ci-status", "SUCCESS"), check("pr-unblock / fix-ci", "FAILURE")] }), pr(6, { checks: [check("ci-status", "SUCCESS"), check("lint", "SUCCESS")] })]],
+  });
+  assert.deepEqual(result.dispatched, []);
+  assert.deepEqual(api.calls.paths, []);
 });

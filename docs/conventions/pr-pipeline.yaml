@@ -42,33 +42,61 @@ activities:
       draft: [false]
   address-feedback:
     # Fixes the review lanes' open findings on a pull request and records a
-    # reply for each one. It posts nothing itself. pr-feedback-dispatch.yml
-    # starts it only on pull requests the lanes App opened; a trusted person
-    # may also dispatch it by hand.
+    # reply for each one. It posts nothing and holds no write token: the read
+    # runner turns its uncommitted fixes into a patch that
+    # apply-feedback-patch pushes, and hands its replies to publish-feedback.
+    # pr-feedback-dispatch.yml starts it only on pull requests the lanes App
+    # opened; a trusted person may also dispatch it by hand.
     skill: source-control:pull-request
     # The skill's CI mode for review comments: edits only files a finding
-    # names, never under .github/, and writes replies to a file.
+    # names, never under .github/workflows/, and writes replies to a file.
     args: comments --ci
-    # Before any model turn the runner keeps only unresolved threads the
-    # reviewer bot opened on a reviewed head, left by it alone or answered by
-    # a trusted person after the lane escalated them, hands the pull request to a
-    # person when it changes .github/ or `loop.review-rounds` rounds already
-    # ran (a write-access fix request newer than the last round still runs
-    # one more round on its threads), and gives the skill the review-thread tool.
+    # Before any model turn pr-unblock.yml's address-feedback-select job, which
+    # runs only base code, keeps only unresolved threads the reviewer bot
+    # opened on a reviewed head, left by it alone or answered by a trusted
+    # person after the lane escalated them, hands the pull request to a person
+    # when it changes .github/workflows/ or `loop.review-rounds` rounds already
+    # ran (a write-access fix request newer than the last round still runs one
+    # more round on its threads), and writes the thread file; the read runner
+    # checks that file and gives the skill the review-thread tool.
     prepare: review-threads
-    # Pushes its fixes to the pull request's branch, nothing else.
-    effect: mutate-branch
+    # Edits head files, so no write token: the change leaves as a patch.
+    effect: read
+    applied-by:
+      patch: apply-feedback-patch
+      feedback-replies: publish-feedback
     # ci-status and the review lanes judge the pushed fix.
     gating: advisory
     # Reads review comments, which quote the diff.
     reads-untrusted: true
     inputs: [pr, head-sha]
     applies-when:
-      # do-not-merge stops it. On a needs-human PR the select step keeps only
+      # do-not-merge stops it. On a needs-human PR the select job keeps only
       # threads a trusted person with write access asked it to fix, and
       # holds the PR when there are none; pr-merge still refuses that PR.
       labels-absent: [do-not-merge]
       # A draft pull request is skipped.
+      draft: [false]
+  apply-feedback-patch:
+    # Applies address-feedback's patch to the head the select job gated and
+    # pushes it as one commit, without force. A script, no model, and it runs
+    # no head code; patch-rules.json's review-threads row admits only paths in
+    # the kept threads' scope, and a head that moved since skips. The push
+    # commit carries the Lane-Activity trailer publish-feedback names in its
+    # replies; a patch that does not land leaves no such commit, so
+    # publish-feedback hands the pull request to a person.
+    script: .github/scripts/apply-patch/apply-patch.mjs
+    prepare: apply-patch
+    # Pushes the fix to the pull request's branch, nothing else.
+    effect: mutate-branch
+    gating: advisory
+    # Reads the patch the model wrote.
+    reads-untrusted: true
+    inputs: [pr, head-sha]
+    applies-when:
+      # As address-feedback: a needs-human PR still takes a fix a trusted
+      # person with write access asked for.
+      labels-absent: [do-not-merge]
       draft: [false]
   publish-feedback:
     # Posts the replies address-feedback recorded, exactly as written, resolves
@@ -131,7 +159,7 @@ activities:
     # trusted person may also dispatch it by hand.
     skill: source-control:pull-request
     # The skill's CI mode for failing checks: never weakens a check, never
-    # edits .github/, and reports each check fixed or escalated.
+    # edits .github/workflows/, and reports each check fixed or escalated.
     args: ci --ci
     # Before the run a base job writes the failing checks' names, workflow,
     # annotations and log ends to a context file, or hands the pull request
@@ -250,9 +278,6 @@ activities:
       labels-absent: [needs-human, needs-owner-decision, "status: needs-decision"]
       # Read now, so removing agent-ready while a run waits stops it.
       labels: [agent-ready]
-      # Only issues labeled agent-ready after this time start a run; an issue
-      # labeled earlier starts nothing.
-      labeled-after: "2026-10-14T19:21:59Z"
   apply-issue-patch:
     # Commits resolve-issue's patch to a new branch,
     # work-resolve-issue/issue-<n>-<run id>-<attempt>, made at the commit the
@@ -328,6 +353,23 @@ activities:
     reads-untrusted: true
     # The closed issue; the hourly sweep takes none and lists recent closes.
     inputs: [issue]
+  apply-verdict:
+    # After intake triage, writes its verdict as the lanes App: the work-class
+    # label, the Size, Complexity and Uncertainty issue fields, and
+    # `status: ready` or `status: needs-decision`, read from the lane comment
+    # the triage run posted. On `status: ready` it adds agent-ready when
+    # .github/actions/resolve-config/admission-rules.json holds and the caps
+    # have room, else admission-deferred (owner decision Q51, #9212). A
+    # script, no model.
+    # .github/workflows/intake-triage.yml runs it.
+    script: .github/scripts/intake-triage/apply-verdict.mjs
+    # Labels issues, sets issue fields, edits the lane comment and posts an
+    # admission comment; nothing else.
+    effect: mutate-tracker
+    gating: advisory
+    # Reads the lane comment, which carries model text.
+    reads-untrusted: true
+    inputs: [issue]
 
 lanes:
   # Started by the agent-ready label on an issue (.github/workflows/work-resolve-issue.yml).
@@ -350,9 +392,12 @@ lanes:
       # Started by pr-feedback-dispatch.yml after both review lanes reviewed
       # the head.
       - activity: address-feedback
-      # Runs after address-feedback, in its own job with its own token.
-      - activity: publish-feedback
+      # Run after address-feedback, each in its own job with its own token:
+      # the push, then the replies, which name the pushed commit.
+      - activity: apply-feedback-patch
         needs: [address-feedback]
+      - activity: publish-feedback
+        needs: [address-feedback, apply-feedback-patch]
       # Started by pr-unblock-dispatch.yml for review-tier Dependabot PRs.
       - activity: review-dependency
       # Runs after review-dependency, in its own job with its own token.
@@ -380,6 +425,12 @@ lanes:
     stage: work
     slots:
       - activity: label-unblocked
+  # Started by intake triage on an opened issue or its dispatch
+  # (.github/workflows/intake-triage.yml).
+  intake-triage:
+    stage: intake
+    slots:
+      - activity: apply-verdict
 
 # The model, effort and turn budget of every model run (README.md, Models).
 # Aliases only, never full model IDs. `default` passes no --model, so the
@@ -434,6 +485,7 @@ models:
       max-turns: 75
   default-profile: standard
   routes:
+    address-feedback: code-fix
     fix-ci: code-fix
     fix-docs: docs-fix
     verify-pr: review
@@ -444,9 +496,8 @@ models:
     summarize-reuse: summary
   # A run on an issue (resolve-issue) takes its budget from the issue's Size,
   # Complexity and Uncertainty org issue fields, read by id. An empty field,
-  # or one whose latest setter is not a listed human or the lanes App, is not
-  # assessed and the lane refuses the issue (not-assessed); an unmapped
-  # option fails the run. Turn cap = base-turns x complexity factor, rounded
+  # or one whose latest setter is not a listed human or the lanes App, reads
+  # as small, medium or known; an unmapped option fails the run. Turn cap = base-turns x complexity factor, rounded
   # up; it replaces the profile's max-turns.
   issue-dimensions:
     fields:
@@ -496,8 +547,8 @@ models:
     uncertainty:
       # The approach is known: run it.
       known: run
-      # Answerable by reading or asking first: skip until it is (research-first).
-      knowable: research-first
+      # Answerable by reading first: the run researches, then works it.
+      knowable: run
       # Only an experiment answers it: skip until a probe has (probe-first).
       unknown: probe-first
 
@@ -552,10 +603,10 @@ wip:
   held-cap: 10
   held-alarm-hours: 24
   # Over the WIP cap or the held cap runs pause from this date, and over the
-  # queued cap new admissions do.
-  # The owner clears it to only alert. Empty: over a cap the lane alerts and
-  # keeps starting runs.
-  pause-from: ""
+  # queued cap new admissions do (intake admission also defers while paused).
+  # Set with intake admitting issues itself (owner decision Q51, 2026-10-22).
+  # Empty: over a cap the lane alerts and keeps starting runs.
+  pause-from: "2026-10-22T00:00:00Z"
 
 # The red-main revert rule (owner decision 2026-10-20). post-merge-demotion-
 # alert.yml's report job reads it after a scheduled or dispatched
@@ -584,16 +635,21 @@ red-main:
   # repairs main (owner decision W-51, 2026-10-21).
   remedy: rollback
 
-# Owner PRs the lanes adopt (owner decision Q22, 2026-10-22): a non-draft PR
-# one of these accounts opened, with no hold label and no `Hold:` body line,
-# whose last update and head commit are both idle-hours old. fix-ci fixes its
-# failed ci-status; pr-merge merges it under its usual gates once its adoption
-# path lands.
+# PRs the lanes adopt (owner decisions Q22 and 2026-10-22): a non-draft PR an
+# account on .github/standards/trusted-actors/trusted-actors.json opened (by
+# id, a person or an App), with no hold label and no `Hold:` body line, and,
+# for a person's PR, whose last update and head commit are both idle-hours
+# old. fix-ci fixes its failed ci-status; pr-merge merges it under its usual
+# gates. Without this section nothing is adopted.
 adoption:
-  # 24: a day with no push, comment or label change means the owner left it.
+  # 24: a day with no push, comment or label change means the person left it.
   idle-hours: 24
-  # kyle-sexton (.github/standards/trusted-actors/trusted-actors.json).
-  owner-ids: [153232337]
+  # Apps whose PR bodies a script writes: such a PR closing no issue is judged
+  # against its title and body, as a person's is. Any other App (a model
+  # writes its body, the lanes App's included) needs a closing issue, since
+  # the run that wrote the diff would also write its spec. Ids from
+  # trusted-actors.json: melodic-plugin-release[bot], melodic-standards-sync[bot].
+  spec-from-body-apps: [337859524, 300666570]
 
 # The daily branch cleanup (owner decisions W-7, 2026-10-21, and #8958): a
 # branch lives as long as its issue is open. maintenance-delete-stale-branches.yml
@@ -679,21 +735,15 @@ merge:
   dependabot:
     mode: enforce
     majors: hold
-  # The HIGH path floor, floor-paths, floor-script-scopes and the capability
-  # check are on (owner decision 2026-10-18, reversing Q661): lanes may edit
-  # runnable plugin files (the #8184 scope), and fix-ci's patch guard
-  # covers only .github/** and agent instruction paths. The scorer's fixed HIGH floor (.github/**,
-  # docs/conventions/**, agent instructions, hooks, lib/, scripts/, package
-  # manifests and more) now applies in the pr-merge lane too. A lane PR
-  # touching a floor path or script, or changing
-  # capability frontmatter in a SKILL.md, agents/**/*.md or commands/**/*.md,
-  # scores HIGH and waits for a human, who merges it in person. A denied path
-  # would instead make the PR ineligible. The switch governs both lanes: in
-  # the local babysit lane, false would leave out floor-paths,
-  # floor-script-scopes, the capability check and the floor entries for
-  # plugin monitors and workflows, keeping the rest of the fixed floor. The
-  # verifier verdict, both AI review lanes, ci-status and the post-merge
-  # revert breaker still gate every lane PR.
+  # The HIGH path floor is on in both lanes. It holds only what has an effect
+  # outside the repository or its review (owner direction 2026-10-22): agent
+  # permission config, submodules, code owners, package manifests and
+  # lockfiles, and the workflows that publish a release or hold
+  # `id-token: write` (babysit_risk.py HIGH_FLOOR). A lane PR touching one
+  # scores HIGH and waits for a human, who merges it in person; a denied path
+  # would instead make the PR ineligible. The verifier verdict, both AI
+  # review lanes, ci-status and the post-merge revert breaker still gate every
+  # lane PR.
   # Owner decision Q624 still holds for the rest: no denied path, size cap or
   # C2 contradiction check. Each comes back by setting it here: list
   # denied-paths, set `c2-contradictions: true`, or set `max-changed-files`
@@ -704,45 +754,3 @@ merge:
   diff-check:
     denied-paths: []
     high-path-floor: true
-    floor-paths:
-      - "docs/adr/**"
-      - "**/bin/**"
-      - "**/.lsp.json"
-      - "**/settings*.json"
-      - "plugins/ai-slop/scripts/**"
-      - "plugins/ai-slop/skills/*/scripts/**"
-      - "plugins/source-control/scripts/**"
-      - "plugins/source-control/skills/*/scripts/**"
-      - "plugins/discovery/scripts/**"
-      - "plugins/discovery/skills/*/scripts/**"
-      - "plugins/knowledge/scripts/**"
-      - "plugins/knowledge/skills/*/scripts/**"
-      - "plugins/skill-quality/scripts/**"
-      - "plugins/skill-quality/skills/*/scripts/**"
-      - "plugins/testing/scripts/**"
-      - "plugins/testing/skills/*/scripts/**"
-      - "plugins/autonomy/scripts/**"
-      - "plugins/autonomy/skills/*/scripts/**"
-      # The directories of the scripts a SessionStart or PreToolUse hook runs
-      # by path, outside the plugin's hooks/, held whole so a sibling module
-      # cannot shadow one of their imports (pydeps.py, arm_observer.py,
-      # destructive_guard.py). Like every scripts glob here, they do not hold
-      # a test file a plugin declares nothing under.
-      - "plugins/animation/scripts/**"
-      - "plugins/explainer-video/scripts/**"
-      - "plugins/speech/scripts/**"
-      - "plugins/playwright/skills/demo-video/scripts/**"
-      - "plugins/session-flow/skills/running-retro/scripts/**"
-      - "plugins/disk-hygiene/skills/clean/scripts/**"
-    # Owner decision Q646 (2026-10-18): a .ps1 or .cjs file, or one with git
-    # mode 100755, holds the same way in the plugins the CI lanes load and,
-    # in the scorer, at the top level. work-items and review are already on
-    # the floor; other plugins stay an accepted risk (Q640c).
-    floor-script-scopes:
-      - "plugins/ai-slop/**"
-      - "plugins/source-control/**"
-      - "plugins/discovery/**"
-      - "plugins/knowledge/**"
-      - "plugins/skill-quality/**"
-      - "plugins/testing/**"
-      - "plugins/autonomy/**"

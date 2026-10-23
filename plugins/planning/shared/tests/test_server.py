@@ -29,6 +29,8 @@ import server
 import session
 import tunnel
 
+os.environ["SHARED_CLOUDFLARED"] = FAKE  # an App's live starter runs cloudflared: never a real one from PATH
+
 PAGE_CSP = "default-src 'self'; img-src 'self' data:; frame-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 SECURITY = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer"}
 HTML_ASSET_CSP = (
@@ -69,6 +71,36 @@ def status_and_headers(raw):
 
 def text_q(qid):
     return {"id": qid, "text": f"Question {qid}?", "alternatives": [], "dependsOn": [], "purpose": "decide", "format": {"kind": "text"}}
+
+
+def port_leaks(doc, port, path="$"):
+    """Paths in parsed JSON where `port` shows: an integer equal to it, or a key or string holding its digits. A float
+    such as a timestamp is never a port, whatever digits it contains."""
+    if isinstance(doc, dict):
+        return [f"{path}.{k}" for k in doc if str(port) in k] + [p for k, v in doc.items() for p in port_leaks(v, port, f"{path}.{k}")]
+    if isinstance(doc, list):
+        return [p for i, v in enumerate(doc) for p in port_leaks(v, port, f"{path}[{i}]")]
+    hit = str(port) in doc if isinstance(doc, str) else doc == port and isinstance(doc, int) and not isinstance(doc, bool)
+    return [path] if hit else []
+
+
+class TestPortLeaks(unittest.TestCase):
+    def test_a_timestamp_holding_the_ports_digits_is_no_leak(self):
+        doc = {"people": [{"pid": "host", "joinedAt": 1792710102.8151734}], "serverTime": 51730.5}
+        self.assertIn("5173", json.dumps(doc))  # what a substring search over the JSON matched
+        self.assertEqual(port_leaks(doc, 5173), [])
+
+    def test_the_port_as_a_url_host_port_number_field_or_key_is_a_leak(self):
+        cases = {
+            "url": ({"lives": [{"url": "http://127.0.0.1:5173"}]}, ["$.lives[0].url"]),
+            "host:port": ({"note": "see 127.0.0.1:5173"}, ["$.note"]),
+            "int field": ({"lives": [{"target": {"kind": "port", "port": 5173}}]}, ["$.lives[0].target.port"]),
+            "string field": ({"port": "5173"}, ["$.port"]),
+            "key": ({"5173": True}, ["$.5173"]),
+        }
+        for why, (doc, paths) in cases.items():
+            with self.subTest(why):
+                self.assertEqual(port_leaks(doc, 5173), paths)
 
 
 class ServerCase(unittest.TestCase):
@@ -438,6 +470,18 @@ class TestHeadersAndCaps(ServerCase):
         self.assertEqual(headers["Content-Security-Policy"], PAGE_CSP)
         self.assertTrue(headers["Content-Type"].startswith("text/html"))
         self.assertIn(b"<html", body)
+
+    def test_the_question_shape_files_are_served_and_load_first(self):
+        """question-shape.js and .css, which the 1:1 page's server serves too, come from web/ as written; the page loads
+        them before the files that use them."""
+        for path, ctype in (("/question-shape.js", "text/javascript"), ("/question-shape.css", "text/css")):
+            with self.subTest(path=path):
+                code, h, body = self.get(path)
+                self.assertEqual((code, h["Content-Type"]), (200, ctype + "; charset=utf-8"))
+                self.assertEqual(body, (server.WEB / path[1:]).read_bytes())
+        page = self.get("/")[2].decode("utf-8")
+        self.assertLess(page.index('<script src="/question-shape.js">'), page.index('<script src="/core.js">'))
+        self.assertLess(page.index('href="/question-shape.css"'), page.index('href="/app.css"'))
 
     def test_only_allowlisted_files_are_served(self):
         for path in ("/server.py", "/state.json", "/../state.json", "/.shared-secrets.json", "/web/index.html"):
@@ -2056,6 +2100,152 @@ class TestPrototypePage(ServerCase):
         self.assertEqual((code, out["error"], out["field"]), (400, "bad-field", "anchor.selector"))
         notes = self.get("/api/state", self.guest)[2]["annotations"]
         self.assertEqual([(a["id"], a["text"]) for a in notes], [("A1", "Hard to find")])
+
+
+class StubLiveStarter:
+    """A live starter tests hand the server: start answers `url` (or raises `fail`) and records each call; stop records."""
+
+    def __init__(self, url="https://quiet-fox.trycloudflare.com", fail=None):
+        self.url, self.fail, self.started, self.stopped = url, fail, [], []
+
+    def start(self, entry):
+        self.started.append(entry["id"])
+        if self.fail:
+            raise self.fail
+        return self.url
+
+    def stop(self, entry):
+        self.stopped.append(entry["id"])
+
+
+class TestLiveRoutes(ServerCase):
+    """The live tier's routes: `add-live` (an op on the control listener), and the owner's POST /api/live/approve and
+    /api/live/stop on the guest listener. Approve hands the entry to the server's live starter outside the state lock and
+    sets it running with the origin the starter returns; Stop, turning the live tier off and ending the session end it and
+    stop what the starter began. /api/state carries an entry's url to guests only while it runs."""
+
+    def setUp(self):
+        super().setUp()
+        self.stub = self.app.live_starter = StubLiveStarter()
+        self.build = self.d / "staging" / "r1" / "live"
+        self.build.mkdir(parents=True)
+        (self.build / "index.html").write_text("<!doctype html><p>app</p>", encoding="utf-8")
+        _, self.guest = self.join("Ann")
+        self.lee, self.leader_h = self.join("Lee")
+        self.leader(self.lee)
+
+    def live_on(self):
+        code, _, out = self.post("/api/session/settings", {"prototypeTiers": ["screenshot", "snapshot", "live"]}, self.owner)
+        self.assertEqual(code, 200, out)
+
+    def add(self, **target):
+        code, _, out = self.ops({"op": "add-live", "label": "Checkout app", **(target or {"folder": str(self.build)})})
+        self.assertEqual(code, 200, out)
+        lid = out["results"][0]["id"]
+        proto = {**text_q("Q1"), "format": {"kind": "prototype", "lookAt": "The basket.", "variants": [
+            {"id": "v-1", "label": "Live", "live": {"id": lid, "path": "/?variant=A"}}, {"id": "v-2", "label": "Also live", "live": {"id": lid, "path": "/?variant=B"}}]}}
+        code, _, out = self.ops({"op": "open-round", "questions": [proto]})
+        self.assertEqual(code, 200, out)
+        return lid
+
+    def lives(self, headers):
+        code, _, snap = self.get("/api/state", headers)
+        self.assertEqual(code, 200, snap)
+        return {e["id"]: e for e in snap.get("lives", [])}
+
+    def test_add_live_while_the_tier_is_off_answers_403_live_off(self):
+        code, _, out = self.ops({"op": "add-live", "label": "App", "folder": str(self.build)})
+        self.assertEqual((code, out["error"]), (403, "live-off"), out)
+        self.assertNotIn("lives", self.app.session.state)
+
+    def test_add_live_refuses_the_sessions_own_guest_and_control_ports(self):
+        self.live_on()
+        for port in (self.app.guest_port, self.app.control_port):
+            with self.subTest(port=port):
+                code, _, out = self.ops({"op": "add-live", "label": "App", "port": port})
+                self.assertEqual((code, out["error"], out.get("field")), (400, "bad-field", "port"), out)
+
+    def test_a_pending_entry_url_reaches_the_owner_and_never_a_guest_or_leader(self):
+        self.live_on()
+        code, _, out = self.ops({"op": "add-live", "label": "Dev server", "port": 5173})
+        self.assertEqual(code, 200, out)
+        self.assertEqual(self.lives(self.owner)["L1"]["url"], "http://127.0.0.1:5173")
+        self.assertEqual(port_leaks(self.get("/api/state", self.owner)[2], 5173), ["$.lives[0].target.port", "$.lives[0].url"])
+        for who in (self.guest, self.leader_h):
+            entry = self.lives(who).get("L1")
+            self.assertTrue(entry is None or "url" not in entry, entry)
+            self.assertEqual(port_leaks(self.get("/api/state", who)[2], 5173), [])
+
+    def test_a_guest_or_leader_post_to_approve_or_stop_is_refused(self):
+        self.live_on()
+        lid = self.add()
+        for who in (self.guest, self.leader_h, None):
+            for route in ("/api/live/approve", "/api/live/stop"):
+                with self.subTest(who=who, route=route):
+                    code, _, out = self.post(route, {"id": lid}, who)
+                    self.assertIn(code, (401, 403), out)
+        self.assertEqual((self.stub.started, self.app.session.state["lives"][0]["status"]), ([], {"kind": "pending"}))
+
+    def test_approve_starts_it_through_the_starter_and_guests_then_get_the_url(self):
+        self.live_on()
+        lid = self.add()
+        self.assertNotIn("url", self.lives(self.guest)[lid])
+        code, _, out = self.post("/api/live/approve", {"id": lid}, self.owner)
+        self.assertEqual(code, 200, out)
+        self.assertEqual(self.stub.started, [lid])
+        for who in (self.owner, self.guest, self.leader_h):
+            entry = self.lives(who)[lid]
+            self.assertEqual((entry["status"]["kind"], entry["url"]), ("running", "https://quiet-fox.trycloudflare.com"))
+
+    def test_with_no_cloudflared_approve_answers_503_and_the_entry_still_waits(self):
+        self.live_on()
+        lid = self.add()
+        self.app.live_starter = server.QuickTunnelStarter(self.app)
+        with mock.patch.dict(os.environ, {"SHARED_CLOUDFLARED": "", "PATH": str(self.d)}):
+            code, _, out = self.post("/api/live/approve", {"id": lid}, self.owner)
+        self.assertEqual((code, out["error"]), (503, "live-unavailable"), out)
+        self.assertIn("cloudflared", out["message"])
+        self.assertEqual(self.app.session.state["lives"][0]["status"], {"kind": "pending"})
+        self.assertFalse((self.d / tunnel.LIVE_DIR / f"{lid}.json").exists())
+
+    def test_a_starter_that_fails_or_answers_a_bad_url_leaves_the_entry_waiting_and_stops_what_it_began(self):
+        self.live_on()
+        lid = self.add()
+        bad = ("http://quiet-fox.trycloudflare.com/x", "https://a.example", "https://127.0.0.1", "https://api.trycloudflare.com",
+               "https://x.trycloudflare.com.evil.example", "https://quiet-fox.trycloudflare.com:8443")  # only a quick tunnel's origin
+        for stub in (*(StubLiveStarter(url=u) for u in bad), StubLiveStarter(fail=RuntimeError("boom"))):
+            with self.subTest(url=stub.url, fail=stub.fail):
+                self.app.live_starter = stub
+                code, _, out = self.post("/api/live/approve", {"id": lid}, self.owner)
+                self.assertEqual((code, out["error"]), (502, "live-failed"), out)
+                self.assertEqual(self.app.session.state["lives"][0]["status"], {"kind": "pending"})
+                self.assertEqual(stub.stopped, [lid])
+                self.assertNotIn("url", self.lives(self.guest)[lid])
+
+    def test_stop_tier_off_and_end_session_each_stop_the_started_entry(self):
+        enders = {
+            "stop": lambda lid: self.post("/api/live/stop", {"id": lid}, self.owner),
+            "tier off": lambda lid: self.post("/api/session/settings", {"prototypeTiers": ["screenshot"]}, self.owner),
+            "end session": lambda lid: self.post("/api/session/end", {"on": True}, self.owner),
+        }
+        for why, end in enders.items():
+            with self.subTest(why):
+                if self.app.session.state["session"]["phase"]["kind"] == "ended":
+                    self.post("/api/session/end", {"on": False}, self.owner)
+                self.live_on()
+                self.stub.stopped.clear()
+                code, _, out = self.ops({"op": "add-live", "label": "App", "folder": str(self.build)})
+                lid = out["results"][0]["id"]
+                self.assertEqual(self.post("/api/live/approve", {"id": lid}, self.owner)[0], 200)
+                code, _, out = end(lid)
+                self.assertEqual(code, 200, out)
+                self.assertEqual(self.stub.stopped, [lid])
+                for who in (self.owner, self.guest):
+                    self.assertTrue(all("url" not in e and e["status"]["kind"] == "ended" for e in self.lives(who).values()))
+
+    def test_approve_and_stop_are_json_owner_routes(self):
+        self.assertEqual(server.ROUTES["/api/live/approve"], ("owner", "approve_live"))
+        self.assertEqual(server.ROUTES["/api/live/stop"], ("owner", "stop_live"))
 
 
 class TestConnectYourClaude(ServerCase):

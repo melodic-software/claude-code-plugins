@@ -40,8 +40,8 @@ inputs:
   issue-number:
     description: >-
       The issue an `issues` lane works; sent as `issue_number` when set, which
-      the broker needs on an `issues` event. Never with `pr-number` or
-      `dispatcher-run-id`. `token` mode only.
+      the broker needs on an `issues` event and an intake-triage.yml dispatch.
+      Never with `pr-number` or `dispatcher-run-id`. `token` mode only.
     required: false
     default: ""
   dispatcher-run-id:

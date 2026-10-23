@@ -16,7 +16,8 @@
 # 2. Sensitive-path repair: claude-code-action resets the index entries of the
 #    paths it restores from the base, which during a merge drops the merged
 #    content. Remove every such entry from the index and re-apply the
-#    snapshot's entries for them.
+#    snapshot's stage-0 entries for them; a path the snapshot held unmerged is
+#    the model's to resolve and is left as it staged it.
 # 3. Checks, first match wins:
 #    unresolved-conflict  an unmerged entry remains, or an entry staged since
 #                         the snapshot (a resolution, wherever the model put
@@ -28,10 +29,12 @@
 #                         staged workflows are exactly the trusted base's, no
 #                         head workflow is dropped, and the PR's own diff
 #                         touches no workflow;
-#    unexpected-path-staged  an index entry is neither a stage-0 snapshot
-#                         entry as it was nor at a path the snapshot held
-#                         unmerged, or a stage-0 snapshot entry is gone
-#                         (bulk staging such as git add -A).
+#    unexpected-path-staged  outside a path the snapshot held unmerged, an
+#                         index entry was added, removed or changed since the
+#                         snapshot that is a symlink or gitlink, holds a
+#                         backslash, or is submodule config, a settings file
+#                         or a CODEOWNERS file GitHub reads. Any other change
+#                         the model staged reaches review.
 #
 # 4. With no reason, write the validated index as a tree; tree-entries.sh
 #    takes that tree, so nothing staged after this check reaches the commit.
@@ -122,15 +125,24 @@ cquote() {
   q=${q//$'\r'/\\r}
   printf '"%s"' "$q"
 }
+# Entries the snapshot already held at stage 0 are the merge's own; every
+# other entry, a conflict's resolution or a path the model added, moved or
+# changed, is scanned.
+declare -A merged=() unmerged=()
+while IFS= read -r -d '' record; do
+  read -r _ _ stage <<<"${record%%$'\t'*}"
+  if [[ $stage == 0 ]]; then merged[$record]=1; else unmerged[${record#*$'\t'}]=1; fi
+done <"$out/index-snapshot"
+
 # Mode 0 removes a path at every stage; the snapshot lines re-add the entries.
 g ls-files -s -z >"$tmp/index"
 while IFS= read -r -d '' record; do
   path=${record#*$'\t'}
-  if [[ $path =~ $SENSITIVE_RE ]]; then printf '0 %s\t%s\n' "$null_oid" "$(cquote "$path")"; fi
+  if [[ $path =~ $SENSITIVE_RE && -z ${unmerged[$path]:-} ]]; then printf '0 %s\t%s\n' "$null_oid" "$(cquote "$path")"; fi
 done <"$tmp/index" >"$tmp/repair"
 while IFS= read -r -d '' record; do
   path=${record#*$'\t'}
-  if [[ $path =~ $SENSITIVE_RE ]]; then printf '%s\t%s\n' "${record%%$'\t'*}" "$(cquote "$path")"; fi
+  if [[ -n ${merged[$record]:-} && $path =~ $SENSITIVE_RE ]]; then printf '%s\t%s\n' "${record%%$'\t'*}" "$(cquote "$path")"; fi
 done <"$out/index-snapshot" >>"$tmp/repair"
 g update-index --index-info <"$tmp/repair"
 
@@ -140,15 +152,6 @@ reason() {
 }
 
 [[ -z $(g ls-files -u) ]] || reason unresolved-conflict
-
-# Entries the snapshot already held at stage 0 are the merge's own; every
-# other entry, a conflict's resolution or a path the model added, moved or
-# changed, is scanned.
-declare -A merged=() unmerged=()
-while IFS= read -r -d '' record; do
-  read -r _ _ stage <<<"${record%%$'\t'*}"
-  if [[ $stage == 0 ]]; then merged[$record]=1; else unmerged[${record#*$'\t'}]=1; fi
-done <"$out/index-snapshot"
 
 # Marker lines in order, any length from seven (conflict-marker-size): a run of
 # <, then a run of =, then a run of >, the outer two followed by a space or the
@@ -203,13 +206,21 @@ workflows_are_base_own() {
 }
 g diff-index --cached --quiet "$head" -- .github/workflows/ || workflows_are_base_own || reason workflow-staged
 
+# A staged change the lane still refuses: a symlink or gitlink, a backslash,
+# submodule config, a settings file, or a CODEOWNERS file where GitHub reads
+# one (the root, .github/ or docs/), matched on the lower-cased path.
+GUARDED_RE='(^|/)(\.gitmodules|settings[^/]*\.json)$|^(\.github/|docs/)?codeowners$'
+guarded() {
+  local mode=${1%% *} path=${1#*$'\t'}
+  [[ $mode == 120000 || $mode == 160000 || $path == *\\* || ${path,,} =~ $GUARDED_RE ]]
+}
 declare -A final=()
 while IFS= read -r -d '' record; do
-  [[ -n ${merged[$record]:-} || -n ${unmerged[${record#*$'\t'}]:-} ]] || reason unexpected-path-staged
+  [[ -n ${merged[$record]:-} || -n ${unmerged[${record#*$'\t'}]:-} ]] || ! guarded "$record" || reason unexpected-path-staged
   final[$record]=1
 done <"$tmp/index"
 for record in "${!merged[@]}"; do
-  [[ -n ${final[$record]:-} ]] || reason unexpected-path-staged
+  [[ -n ${final[$record]:-} ]] || ! guarded "$record" || reason unexpected-path-staged
 done
 
 tree=$(g write-tree)

@@ -9,12 +9,12 @@ import { WIP_DEFAULTS, resolveWip } from "../../scripts/work-resolve-issue/limit
 import {
   checkAppliedBySupported,
   checkConfigPath,
-  checkPatchRules,
   neededFacts,
   Rejection,
   resolve,
   resolveGrant,
 } from "./resolve.mjs";
+import { checkPatchRules } from "./patch-rules.mjs";
 
 const read = (relative) =>
   readFileSync(new URL(relative, import.meta.url), "utf8");
@@ -1296,12 +1296,14 @@ test("prepare on a script leaf, or a value other than merge-base, fails the sche
   assertRejected(() => runRefine(otherMode), "invalid-config");
 });
 
-test("prepare: ci-context is the one mode a read skill may set, and it needs effect read", () => {
+// A read ci-context skill that hands on its patch resolves: the live fix-ci
+// (live-config.test.mjs). Without applied-by.patch its edits would leave nowhere.
+test("prepare: ci-context needs effect read, and a read one needs applied-by.patch", () => {
   const read = withPrepare((doc) => {
     doc.activities.simplify.prepare = "ci-context";
     doc.activities.simplify.effect = "read";
   });
-  assert.equal(runRefine(read, { activity: "simplify", facts: LINT_FACTS }).selected.prepare, "ci-context");
+  assertRejected(() => runRefine(read), "invalid-config");
   const write = withPrepare((doc) => {
     doc.activities.simplify.prepare = "ci-context";
   });
@@ -1426,11 +1428,12 @@ lanes:
       - activity: ${activity}
 `;
 
+// address-feedback runs on the read runner: it neither pushes nor posts.
 for (const [activity, allowed, forbidden] of [
-  ["address-feedback", "mutate-branch", ["publish-artifact", "mutate-tracker", "merge"]],
+  ["address-feedback", "read", ["mutate-branch", "publish-artifact", "mutate-tracker", "merge"]],
   ["publish-feedback", "publish-artifact", ["mutate-branch", "mutate-tracker", "merge"]],
 ]) {
-  test(`the shipped activity rules give ${activity} ${allowed} and nothing that ${allowed === "mutate-branch" ? "posts" : "pushes"}`, () => {
+  test(`the shipped activity rules give ${activity} ${allowed} and nothing that ${allowed === "read" ? "pushes or posts" : "pushes"}`, () => {
     // The live vocabulary: the fixture lacks the verb "publish".
     const live = { vocabulary: JSON.parse(readFileSync(LIVE_VOCABULARY, "utf8")) };
     assert.equal(run(feedbackLeaf(activity, allowed), { lane: "pr-unblock", activity }, live).selected.effect, allowed);
@@ -1563,18 +1566,25 @@ const appliedByEdit = (edit) => {
   return stringify(doc);
 };
 
+// review-threads also hands on its replies, which the schema requires: the
+// reply job is the only way they reach the pull request.
 test("prepare: a read skill that hands on a patch may set a writing skill's prepare mode; without applied-by.patch it may not", () => {
   for (const prepare of ["review-threads", "dependency-review", "merge-base"]) {
     const handsOn = appliedByEdit((doc) => {
       doc.activities["fix-ci"].prepare = prepare;
+      if (prepare === "review-threads") doc.activities["fix-ci"]["applied-by"]["feedback-replies"] = "apply-patch";
     });
     assert.equal(unblock(handsOn).prepare, prepare, prepare);
     const noPatch = appliedByEdit((doc) => {
       doc.activities["fix-ci"].prepare = prepare;
       delete doc.activities["fix-ci"]["applied-by"];
     });
-    assertRejected(() => unblock(noPatch), "invalid-prepare");
+    assertRejected(() => unblock(noPatch), prepare === "review-threads" ? "invalid-config" : "invalid-prepare");
   }
+  const noReplies = appliedByEdit((doc) => {
+    doc.activities["fix-ci"].prepare = "review-threads";
+  });
+  assertRejected(() => unblock(noReplies), "invalid-config");
 });
 
 test("applied-by: a read skill whose patch an apply-patch script in its lane needs resolves and carries the map", () => {
@@ -1719,7 +1729,7 @@ test("patch rules: the shipped registry passes, with a row for each prepare mode
 });
 
 for (const [name, why, message] of [
-  ["patch-rules-missing-universal.json", "a row that does not refuse the universal set", /row `issue` does not refuse claude$/],
+  ["patch-rules-missing-universal.json", "a row that does not refuse the universal set", /row `issue` does not refuse codeowners$/],
   ["patch-rules-unknown-predicate.json", "an allow rule apply-patch does not know", /fails its schema: \/default\/allow\/0/],
   [
     "patch-rules-merge-parents.json",

@@ -8,12 +8,13 @@ import { inThreadScope } from "../pr-unblock/thread-scope.mjs";
 
 export const PREDICATES = {
   any: () => () => true,
-  // A kept thread's path, or a file thread-scope.mjs places in its scope.
+  // A kept thread's path, or a file thread-scope.mjs places in its scope,
+  // its named_paths included: `keptThreads` is { paths, threads }.
   "kept-threads": ({ keptThreads }) => {
-    if (!(keptThreads instanceof Set) || keptThreads.size === 0) {
+    if (!(keptThreads?.paths instanceof Set) || keptThreads.paths.size === 0 || !Array.isArray(keptThreads.threads)) {
       throw new Error("allow kept-threads needs the run's kept thread paths");
     }
-    return (path) => inThreadScope(path, keptThreads);
+    return (path) => inThreadScope(path, keptThreads.paths, keptThreads.threads);
   },
   // An npm or pip manifest or lock file outside .github/, in a directory of
   // its ecosystem among the base dependabot.yml's [ecosystem, directory]

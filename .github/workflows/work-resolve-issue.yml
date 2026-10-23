@@ -215,8 +215,7 @@ jobs:
       github.event.label.name == 'agent-ready' && needs.admit.outputs.proceed == 'true'
       && (needs.pick-slot.outputs.skip-reason == 'split-required'
       || needs.pick-slot.outputs.skip-reason == 'research-first'
-      || needs.pick-slot.outputs.skip-reason == 'probe-first'
-      || needs.pick-slot.outputs.skip-reason == 'not-assessed')
+      || needs.pick-slot.outputs.skip-reason == 'probe-first')
     permissions:
       contents: read
       pull-requests: read
@@ -512,3 +511,5 @@ jobs:
       app-label: agent-ready
       reuse-branch: ${{ needs.resolve-issue.outputs.reuse-branch }}
       runner-checks: ${{ needs.run-checks.result == 'success' && needs.run-checks.outputs.checks || '' }}
+      # Why apply-issue-patch committed nothing, so the hand-back names it.
+      escalation-reason: ${{ needs.apply-issue-patch.outputs.escalation-reason }}

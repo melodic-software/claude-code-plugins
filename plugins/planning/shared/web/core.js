@@ -2,6 +2,7 @@
 // reads the prototype's state names; toView() builds them from the contract snapshot, and each action
 // below sends the contract route's body. The map: plugins/planning/shared/snapshot-map.md.
 (() => {
+  const { OTHER } = window.QuestionShape;
   const memory = new Map();
   const local = (() => { try { const s = window.localStorage; s.setItem("_t", "1"); s.removeItem("_t"); return s; } catch { return null; } })();
   const store = local || { getItem: k => memory.get(k) ?? null, setItem: (k, v) => memory.set(k, v), removeItem: k => memory.delete(k) };
@@ -61,7 +62,7 @@
     questions: [], answers: {}, ideas: [], presence: [], locks: {}, disagreements: {}, suggestions: {}, chat: [], leaders: [], trusted: [],
     round: { current: 1, status: "open" }, rounds: [], title: "", people: {}, research: {}, requestCounts: { open: 0, byQ: {} }, requests: [],
     myRequests: [], ended: false, youRemoved: false, youWaiting: false, removed: [], joinRequests: [], cleared: [], guestKey: "", shareChanged: false, shareUrl: "", shareTunnel: "",
-    goal: "", intro: "", repo: "", commit: "", annotations: [], uploads: [], reports: [], myReports: [], passes: {}, myUploads: [], files: {}, questionPics: {}, mergeRequests: [], claudeProposals: [], myMergeRequests: [], inbox: [], discussions: {}, discussionSeen: {}, me: null, joinNeedsKey: false,
+    goal: "", intro: "", repo: "", commit: "", annotations: [], lives: [], uploads: [], reports: [], myReports: [], passes: {}, myUploads: [], files: {}, questionPics: {}, mergeRequests: [], claudeProposals: [], myMergeRequests: [], inbox: [], discussions: {}, discussionSeen: {}, me: null, joinNeedsKey: false,
     settings: { voting: true, signoff: false, chat: true, follow: true, showNames: true, digestNames: false, uploads: false, hideClaude: true, prototypeTiers: ["screenshot", "snapshot"] },
   };
 
@@ -132,6 +133,8 @@
         ...(last.status.ready ? { ready: { by: nameOf(last.status.ready.by), cid: last.status.ready.by, ts: last.status.ready.at } } : {}) } : { current: 1, status: "open" },
       requestCounts: s.requestCounts || DEFAULTS.requestCounts, behind: s.behind || {}, aboutYou: s.aboutYou || {}, myAbout: s.me?.aboutYou || null,
       shareUrl: s.share?.url || "", shareChanged: !!s.share?.changedAt, shareTunnel: s.share?.tunnel || "", guestKey: s.guestKey || "", ownerDevices: s.ownerDevices || [],
+      // Live prototypes (session.py _lives_view): a guest gets only the ones a question links, with a url only while one runs.
+      lives: s.lives || [],
     };
     const proposals = s.proposals || [];
     const reqText = new Map([...(s.requests || []), ...(s.myRequests || [])].map(r => [r.id, r]));
@@ -171,7 +174,7 @@
       const by = {}, points = {};
       for (const c of cards) {
         if (c.kind !== "person") continue;
-        const ranked = (c.order || []).filter(o => o !== "other");
+        const ranked = (c.order || []).filter(o => o !== OTHER);
         const ids = q.format === "multi" ? c.picks || [] : q.format === "scale" ? ("value" in c ? [String(c.value)] : []) : ranked.slice(0, 1);
         for (const o of ids) (by[o] ||= []).push(shownPid(c.pid));
         ranked.forEach((o, i) => { points[o] = (points[o] || 0) + ranked.length - 1 - i; });
@@ -195,7 +198,7 @@
         }
         const d = details[qid]?.[c.ref], info = d?.deviceInfo;
         // A person's own "Something else…" option: their pick, picks or order holds it, and their text is it.
-        const other = c.pick === "other" || (c.picks || []).includes("other") || (c.order || []).includes("other");
+        const other = c.pick === OTHER || (c.picks || []).includes(OTHER) || (c.order || []).includes(OTHER);
         return { ...base, name: nameOf(c.pid), text: plain(c.text || ""), ts: c.at, cites: c.cites || [], device: c.device,
           // C44: the files an answer or pick carries, each an upload the owner accepted.
           ...attOf(c),
@@ -486,17 +489,32 @@
     canModerate: () => Core.me.isOwner || Core.me.isLeader,
     lockOf: qid => Core.state.locks[qid] || null,
     suggestionsFor: qid => Core.state.suggestions[qid] || [],
-    /** A prototype variant's views as this viewer's state holds them: {shots: [pictures], snapshot: html file or ""}.
-     *  A variant with one view is written as `asset` (the shape earlier builds read), taken here by its file's kind. */
-    viewsOf: v => (v?.asset ? (/\.html$/.test(v.asset) ? { shots: [], snapshot: v.asset } : { shots: [v.asset], snapshot: "" })
-      : { shots: v?.shots || [], snapshot: v?.snapshot || "" }),
+    /** A prototype variant's views as this viewer's state holds them: {shots: [pictures], snapshot: html file or "",
+     *  live: {id, path} or null}. A variant with one picture or html file and nothing else is written as `asset` (the
+     *  shape earlier builds read), taken here by its file's kind. */
+    viewsOf: v => (v?.asset ? (/\.html$/.test(v.asset) ? { shots: [], snapshot: v.asset, live: null } : { shots: [v.asset], snapshot: "", live: null })
+      : { shots: v?.shots || [], snapshot: v?.snapshot || "", live: v?.live || null }),
+    /** The live entry a variant's live link names, as this viewer's state holds it, or null. */
+    liveOf: v => (v?.live ? Core.state.lives.find(e => e.id === v.live.id) || null : null),
+    /** The address a running live entry's link opens: its https origin and the variant's path, or "" for any other
+     *  entry or a path that would leave that origin (the server refuses such paths; this keeps the page from trusting
+     *  that). */
+    liveLink(v) {
+      const e = Core.liveOf(v);
+      if (!e?.url || e.status.kind !== "running" || !/^https:\/\/[a-z0-9.-]+(:[0-9]{1,5})?$/.test(e.url)) return "";
+      try { const u = new URL(v.live.path, e.url); return u.origin === e.url && !u.hash && !u.pathname.startsWith("//") ? u.href : ""; } catch { return ""; }
+    },
+    /** Owner: start a pending live prototype (`attest` for a server on a port), or end one. */
+    approveLive: (id, attest) => act("/api/live/approve", { id, ...(attest ? { attest: true } : {}) }),
+    stopLive: id => act("/api/live/stop", { id }),
     /** Which of a prototype variant's views the session switched off (prototypeTiers), in order: "screenshot" for its
-     *  pictures, "snapshot" for its html file; ["off"] when this viewer's state holds none of them (a guest's with them
-     *  off); [] while every view shows. */
+     *  pictures, "snapshot" for its html file, "live" for its live link; ["off"] when this viewer's state holds none of
+     *  them (a guest's with them off); [] while every view shows. */
     viewsOff(v) {
-      const { shots, snapshot } = Core.viewsOf(v), on = Core.state.settings.prototypeTiers;
-      if (!shots.length && !snapshot) return ["off"];
-      return [...(shots.length && !on.includes("screenshot") ? ["screenshot"] : []), ...(snapshot && !on.includes("snapshot") ? ["snapshot"] : [])];
+      const { shots, snapshot, live } = Core.viewsOf(v), on = Core.state.settings.prototypeTiers;
+      if (!shots.length && !snapshot && !live) return ["off"];
+      return [...(shots.length && !on.includes("screenshot") ? ["screenshot"] : []), ...(snapshot && !on.includes("snapshot") ? ["snapshot"] : []),
+        ...(live && !on.includes("live") ? ["live"] : [])];
     },
     /** One prototype variant's versions, oldest first, along the `previous` links between prototype questions:
      *  [{qid, variant, label, views, round, n, current}] (views as viewsOf), `current` on the newest. Empty for a variant
@@ -1238,17 +1256,17 @@
     if (c) c.votes = on ? [...without(c.votes, pid), pid] : without(c.votes, pid);
     // On choice, backing someone's own option moves my one pick there (session.py vote).
     if (on && fmtOf(s, qid).kind === "choice") {
-      s.cards[qid] = cards.filter(x => !(x.kind === "person" && x.pid === pid && (x.pick === "other" || !(x.text || x.attachments))));
+      s.cards[qid] = cards.filter(x => !(x.kind === "person" && x.pid === pid && (x.pick === OTHER || !(x.text || x.attachments))));
       for (const x of s.cards[qid]) if (x.kind === "person" && x.pid === pid) delete x.pick;
     }
   }
-  const isOther = c => c.pick === "other" || (c.picks || []).includes("other") || (c.order || []).includes("other");
+  const isOther = c => c.pick === OTHER || (c.picks || []).includes(OTHER) || (c.order || []).includes(OTHER);
   /** My pick on qid as /api/pick takes it (contract option ids), the way session.py pick writes my card and vote. */
   function patchPick(s, pid, qid, body) {
     const kind = fmtOf(s, qid).kind, cards = cardsOf(s, qid), device = body.device;
-    const ids = (fmtOf(s, qid).options || []).map(o => o.id).filter(id => id !== "other");
+    const ids = (fmtOf(s, qid).options || []).map(o => o.id).filter(id => id !== OTHER);
     const fields = "option" in body ? (body.option ? { pick: body.option } : {})
-      : "options" in body ? (body.options.length ? { picks: [...ids, "other"].filter(id => body.options.includes(id)) } : {})
+      : "options" in body ? (body.options.length ? { picks: [...ids, OTHER].filter(id => body.options.includes(id)) } : {})
       : "value" in body ? (body.value == null ? {} : { value: body.value })
       : body.order?.length ? { order: body.order } : {};
     const i = cards.findIndex(c => c.kind === "person" && c.pid === pid && (c.device || "") === (device || ""));
@@ -1621,33 +1639,6 @@
   }
 
   window.Core = Core;
-  // Pin the app to the visual viewport: an on-screen keyboard (iOS ignores interactive-widget) shrinks the app
-  // from the bottom instead of covering the focused field, and the page never pans. --kb is the keyboard's height:
-  // what it takes from the layout viewport, whose innerHeight a keyboard leaves alone while it shrinks the visual
-  // viewport (https://developer.mozilla.org/en-US/docs/Web/API/VisualViewport). The pan iOS adds to reveal the field
-  // moves offsetTop, not the height, so it never counts against the keyboard. Pinch-zoomed, WebKit shrinks innerWidth
-  // and innerHeight with the visual viewport (https://bugs.webkit.org/show_bug.cgi?id=174362) where Chromium keeps
-  // them, but in both the full height for the visual viewport's width is vv.width * innerHeight / innerWidth; what the
-  // keyboard takes of it, times scale, is its height on screen, and a zoom alone takes nothing.
-  // Fires "core-viewport" on window once the app is refitted.
-  const vv = window.visualViewport, docEl = document.documentElement;
-  function fitViewport() {
-    if (!vv || !window.innerWidth) return;
-    const kb = Math.max(0, Math.round(vv.scale * (vv.width * window.innerHeight / window.innerWidth - vv.height)));
-    docEl.style.setProperty("--vv-top", vv.offsetTop + "px");
-    docEl.style.setProperty("--vv-h", vv.height + "px");
-    docEl.style.setProperty("--kb", kb + "px");
-    if (kb > 80) docEl.dataset.kb = ""; else delete docEl.dataset.kb;
-    if (window.scrollY || window.scrollX) window.scrollTo(0, 0);
-    window.dispatchEvent(new Event("core-viewport"));
-  }
-  // iOS can hand a resize handler an offsetTop of 0 that reads right a moment later
-  // (https://bugs.webkit.org/show_bug.cgi?id=237851), and may send no event after it: measure again two frames on.
-  const refit = () => { fitViewport(); requestAnimationFrame(() => requestAnimationFrame(fitViewport)); };
-  Core.fitViewport = fitViewport;
-  vv?.addEventListener("resize", refit);
-  vv?.addEventListener("scroll", refit);
-  fitViewport();
   /** A secret with no name beside it (a personal link, or a guest the import carried over): ask the server who it is.
    *  Only the server's refusal of the secret (401) forgets it, rejecting with 401; a removed person (403) keeps it and
    *  rejects with 403. Anything else (429, a server error, no network, as when every tab reloads at once) keeps the

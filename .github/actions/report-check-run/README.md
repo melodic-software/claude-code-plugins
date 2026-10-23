@@ -46,7 +46,8 @@ and `head-sha` are cross-checks only. Any disagreement with the inputs is a fail
      `cancelled`, so only a newer head shows the run was superseded.
   2. `run-result` `skipped` with a `not-run-reason`: neutral with that reason, and no verdict is
      read. A caller posts this for an activity job its own workflow did not run, such as
-     `publish-feedback` after an `address-feedback` run with no feedback round.
+     `address-feedback` and `publish-feedback` after an `address-feedback-select` run that kept
+     no thread or handed the PR to a person.
   3. No verdict, a malformed verdict, or one whose lane, activity, gate stop reason or `head-sha`
      differs from the inputs: failure.
   4. `config: invalid`: failure.

@@ -276,54 +276,6 @@ function checkAppliedBy(doc) {
   }
 }
 
-// Every patch-rules.json row refuses these, so no row can admit them.
-const UNIVERSAL_REFUSE = Object.freeze([
-  "github",
-  "claude",
-  "mcp-config",
-  "gitmodules",
-  "settings",
-  "symlink",
-  "gitlink",
-  "new-executable",
-  "rename-into-refused",
-]);
-
-// patch-rules.json against its schema, which names every refusal and allow
-// rule apply-patch knows; then what the schema cannot check: each row refuses
-// the universal set, a two-parent commit allows exactly merge-result, and
-// each prepare mode a patch-producing activity uses has a row.
-export function checkPatchRules(patchRules, schema, activities = {}) {
-  const fail = (message) => {
-    throw new Rejection("patch-rules", message);
-  };
-  if (!isObject(patchRules) || !isObject(schema)) {
-    fail("patch-rules.json and patch-rules.schema.json must be present");
-  }
-  const validate = new Ajv2020({ allErrors: true, strict: false, validateFormats: false }).compile(schema);
-  if (!validate(patchRules)) {
-    fail(
-      `patch-rules.json fails its schema: ${validate.errors.map((error) => `${error.instancePath || "/"} ${error.message}`).join("; ")}`,
-    );
-  }
-  for (const [row, rules] of Object.entries(patchRules)) {
-    const missing = UNIVERSAL_REFUSE.filter((name) => !rules.refuse.includes(name));
-    if (missing.length > 0) {
-      fail(`patch-rules.json row \`${row}\` does not refuse ${missing.join(", ")}`);
-    }
-    if (rules.commit.parents.includes("base") && (rules.allow.length !== 1 || rules.allow[0] !== "merge-result")) {
-      fail(`patch-rules.json row \`${row}\` commits with the base as a parent, so its allow must be exactly [merge-result]`);
-    }
-  }
-  for (const [name, activity] of Object.entries(activities)) {
-    const row = activity?.prepare ?? "default";
-    if (activity?.["applied-by"]?.patch !== undefined && !Object.hasOwn(patchRules, row)) {
-      fail(`activity \`${name}\` hands on a patch with prepare: ${row}, and patch-rules.json has no \`${row}\` row`);
-    }
-  }
-  return patchRules;
-}
-
 // A runner names the applied-by keys it hands on (applied-by-supported, a
 // comma- or space-separated list); an applying leaf with any other key would
 // hand nothing on, so it fails before the head checkout.

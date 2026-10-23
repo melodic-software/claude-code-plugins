@@ -16,9 +16,10 @@
 # 3. Merge <trusted-base-sha> without committing, then run the version-bump
 #    script, so the common version-bump collision needs no model.
 # 4. Snapshot the index (stage 0 and unmerged entries) to <out-dir>, list the
-#    unmerged paths, and escalate when one is a protected path, or when one is
-#    a conflict a model cannot resolve from markers: a side missing (modify or
-#    rename against delete) or no markers in the file (binary).
+#    unmerged paths, and escalate when one is a protected path (a workflow,
+#    submodule config or a settings file), or when one is a conflict a model
+#    cannot resolve from markers: a side missing (modify or rename against
+#    delete) or no markers in the file (binary).
 #
 # Every git call, the version-bump script's included, reads gitattributes
 # from the trusted base tree (GIT_ATTR_SOURCE, git 2.41 or later), so the
@@ -54,11 +55,10 @@ sha256() {
 
 TRAILER_VALUE=pr-unblock/resolve-conflicts
 OID_RE='^([0-9a-f]{40}|[0-9a-f]{64})$'
-# The paths claude-code-action restores from the base branch before the model
-# runs (SENSITIVE_PATHS in src/github/operations/restore-config.ts, read at
-# pin ed670b4 on 2026-10-11; recheck when the action pin moves). post.sh holds
-# the same list.
-PROTECTED_RE='^(\.github/workflows/|(\.claude|\.mcp\.json|\.claude\.json|\.gitmodules|\.ripgreprc|CLAUDE\.md|CLAUDE\.local\.md|\.husky)(/|$))'
+# Conflicts the lane does not resolve, matched on the lower-cased path: a
+# workflow, which the lane token cannot push, submodule config and a settings
+# file.
+PROTECTED_RE='^\.github/workflows/|(^|/)(\.gitmodules|settings[^/]*\.json)$'
 # Marker lines in order, any length from seven (conflict-marker-size): a run of
 # <, then a run of =, then a run of >, the outer two followed by a space or the
 # line end. post.sh holds the same program.
@@ -152,7 +152,7 @@ while IFS= read -r -d '' record; do
   if [[ -z ${stages[$path]:-} ]]; then
     paths+=("$path")
     printf '%s\0' "$path" >>"$out/unmerged-paths"
-    if [[ $path =~ $PROTECTED_RE ]]; then protected=1; fi
+    if [[ ${path,,} =~ $PROTECTED_RE ]]; then protected=1; fi
   fi
   # A gitlink or symlink side has no markers either: count it as a missing
   # side. The ancestor's (stage 1) mode does not decide whether the sides merge.

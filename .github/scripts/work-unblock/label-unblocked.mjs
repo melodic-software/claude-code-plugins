@@ -6,14 +6,15 @@
 // agent-ready. Every fact is read from the API now, never from the event
 // payload. No model.
 //
-// Each new agent-ready is paced: at or over the issue lane's queued cap
-// (check-wip-cap.mjs, on or after wip.pause-from, or whenever a search answers
-// incomplete_results: true) a ready issue gets `admission-deferred` instead,
-// and with room for k admissions only the first k ready issues are labeled.
-// Every sweep revisits the open deferred issues oldest first, before the closed
-// ones: one still ready is labeled agent-ready within the room and loses
-// admission-deferred, a held one stays deferred, and any other loses
-// admission-deferred. Restarts, re-fires and relabels below
+// Each new agent-ready is paced: at or over the issue lane's queued cap, or
+// with the lane paused over its WIP or held cap (check-wip-cap.mjs, on or
+// after wip.pause-from, or whenever a search answers incomplete_results:
+// true) a ready issue gets `admission-deferred` instead, and with room for k
+// admissions only the first k ready issues are labeled. Every sweep revisits
+// the open deferred issues oldest first, before the closed ones: one still
+// ready is labeled agent-ready within the room and loses admission-deferred,
+// a held one, or one an open pull request in this repository names (intake
+// defers those), stays deferred, and any other loses admission-deferred. Restarts, re-fires and relabels below
 // re-run admitted issues and are never paced.
 //
 // On `schedule` it sweeps instead: every issue closed in the last
@@ -104,11 +105,12 @@ import { readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, isTrustedClose, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
+import { openPullsNaming } from "../intake-triage/admit.mjs";
 
 const LABEL = "agent-ready";
 const HUMAN_LABEL = "needs-human";
@@ -262,26 +264,6 @@ async function closedSince(github, repo, since) {
     .map((item) => Number(item.number));
 }
 
-// Whether a close counts: (a) a listed human made it, matched by id; or (b) a
-// merge in this repository closed it: the `closer` GraphQL gives the issue's
-// last ClosedEvent is a merged pull request or a commit here, whoever merged
-// it. The REST close event carries no link to the pull request, so GraphQL
-// is the read. Any
-// other close, such as a workflow's GITHUB_TOKEN or an outside author closing
-// their own issue, counts for nothing.
-const CLOSER_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
-  repository(owner: $owner, name: $name) {
-    issue(number: $number) {
-      timelineItems(itemTypes: CLOSED_EVENT, last: 1) {
-        nodes { ... on ClosedEvent { closer {
-          __typename
-          ... on PullRequest { merged repository { nameWithOwner } }
-          ... on Commit { repository { nameWithOwner } }
-        } } }
-      }
-    }
-  }
-}`;
 // One answer per issue per run: a swept close is also its dependents'
 // blocker, and a blocker can block several dependents.
 function trustedClose({ github, repo, number, humans, closes }) {
@@ -291,37 +273,28 @@ function trustedClose({ github, repo, number, humans, closes }) {
   return closes.get(number);
 }
 
-async function isTrustedClose(github, repo, closedIssue, humans) {
-  const closer = closedIssue?.closed_by;
-  if (humans.has(closer?.id)) {
-    return true;
-  }
-  if (closedIssue?.state !== "closed" || !NUMBER.test(String(closedIssue.number))) {
-    return false;
-  }
-  const [owner, name] = repo.split("/");
-  const answer = await github("POST", "/graphql", {
-    query: CLOSER_QUERY,
-    variables: { owner, name, number: Number(closedIssue.number) },
-  });
-  const by = answer?.data?.repository?.issue?.timelineItems?.nodes?.at(-1)?.closer;
-  const here = String(by?.repository?.nameWithOwner ?? "").toLowerCase() === repo.toLowerCase();
-  return here && (by.__typename === "Commit" || (by.__typename === "PullRequest" && by.merged === true));
-}
 
 // The admission pace for one run: `take()` answers whether one more issue may
 // get agent-ready now, reading the issue lane's status the first time it is
-// asked and counting each admission against its room.
+// asked and counting each admission against its room. A lane paused over its
+// WIP or held cap admits nothing, as intake's admission does.
 function admissionGate(status) {
   let room;
   let reason;
+  let pause;
   return {
     // Why take() last answered false.
-    why: () => (reason === "search-incomplete" ? "GitHub search answered incomplete results" : "queued work is at the queued cap"),
+    why: () =>
+      pause
+        ? `the issue lane is paused (${pause})`
+        : reason === "search-incomplete"
+          ? "GitHub search answered incomplete results"
+          : "queued work is at the queued cap",
     take: async () => {
       if (room === undefined) {
         const s = await status();
-        room = s.admission_room ?? Number.POSITIVE_INFINITY;
+        pause = s.paused ? s.pause_reason : null;
+        room = pause ? 0 : (s.admission_room ?? Number.POSITIVE_INFINITY);
         reason = s.admission_reason;
         if (!s.admission_open) {
           console.log(`::notice title=admission paused::${escapeCommand(admissionLine(s))}`);
@@ -381,7 +354,12 @@ async function admitDeferred({ github, repo, humans, bot, gate }) {
         continue;
       }
       const { reason, held, deferred } = await refusal({ github, repo, number, humans, closes, bot });
-      if (reason === null) {
+      // Intake defers an issue an open pull request names; it waits here
+      // until no such pull request is open.
+      const pulls = reason === null ? openPullsNaming(await paginate(github, `/repos/${repo}/issues/${number}/timeline`), repo) : [];
+      if (pulls.length > 0) {
+        console.log(`label-unblocked: #${number} stays deferred: open pull request #${pulls[0]} names it`);
+      } else if (reason === null) {
         await admit({ github, repo, number, gate, deferred });
       } else if (held) {
         console.log(`label-unblocked: #${number} stays deferred: ${reason}`);

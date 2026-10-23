@@ -552,7 +552,8 @@ Wave-1 adopter (cascade wiring plus chrome citation): `visualization:visualize`.
 Current emitters, grandfathered on their shipped ladder and `medium` only, since the
 content-class rules bind them now (see Content classes): `adhd:clarify`,
 `architecture:improve`, `education:teach` (topic mode),
-`prototype:explore-directions`, `prototype:pressure-test`, `machine-health:audit`,
+`prototype:explore-directions`, `prototype:pressure-test`,
+`machine-health:audit` (its step-6 static report view; the decision page is on the shared builder),
 `planning:interview` (and planning's other rendered views, except the plan and brainstorm views below),
 `overengineering:audit`, `ai-briefing:generate`,
 `visualization:visualize`.
@@ -570,7 +571,10 @@ a layer asks for one; `planning:plan` and
 (`plugins/planning/scripts/build-view.mjs`); `debugging:debug` (post-mortem) and `discovery:blindspot`, built
 the same way (`plugins/debugging/scripts/build-view.mjs`, `plugins/discovery/scripts/build-view.mjs`); and the
 `architecture` `map-*` skills, each offering a view of its JSON record from one checked-in template
-(`plugins/architecture/scripts/build-view.mjs`).
+(`plugins/architecture/scripts/build-view.mjs`); and the `machine-health:audit` decision page, which
+its orchestrator builds for each run from `latest.json`
+(`plugins/machine-health/skills/audit/scripts/build-checkup-view.mjs`), with a copied payload that
+`machine-health:setup picks` resolves against the run's id map.
 
 Emitters through an Artifact type (see Artifact types): `/visualization:present`, a deck made from
 the account's Slides type, gated by `plugins/visualization/skills/present/scripts/check-deck.mjs`.
@@ -634,7 +638,7 @@ Two emitters stay off `lib/html-escape.mjs`. Each is held to the baseline above 
   emitter uses `html.escape` and never passes `quote=False`.
 - **`/playbooks:repo-sweep` page.** `render.sh` splices one JSON document into the template's
   `<script type="application/json">` block and rewrites every `<` in it to the six characters backslash, `u003c`. In a data
-  block the only way out is a `</script>` sequence, and with no `<` left in the text none can form;
+  block the only way out is a `</script>` sequence, and with no `<` left in the text none can form.
   That escape parses back to `<` in `JSON.parse`. The template renders the parsed values with
   `textContent` only, so nothing from the JSON is read as markup. The splice must stay at exactly
   one token inside a non-executing data block; JSON placed in an executable script block, or

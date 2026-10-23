@@ -48,12 +48,14 @@ baseline=()
 read_list::into baseline "$BASELINE" --comments inline || exit 2
 
 # offends <file>: true when the file mentions mktemp and has no EXIT trap,
-# ignoring comment lines.
+# ignoring comment lines. fixture_tree::build installs its own EXIT trap that
+# removes every tree it built (scripts/lib/fixture-tree.sh), so it counts.
 offends() {
   awk '
     /^[[:space:]]*#/ { next }
     /mktemp/ { made = 1 }
     /trap[^#]*EXIT/ { trapped = 1 }
+    /fixture_tree::build/ { trapped = 1 }
     END { exit !(made && !trapped) }
   ' "$1"
 }

@@ -1,18 +1,18 @@
-// Which paths an address-feedback fix may change, shared by the promote step
-// of .github/workflows/pr-run-activity-write.yml (which imports a SHA-256
-// pinned copy, so it imports nothing itself), publish-feedback.mjs,
-// address-feedback.mjs and apply-patch.mjs.
+// Which paths an address-feedback fix may change, shared by
+// address-feedback.mjs, publish-feedback.mjs and apply-patch.mjs's
+// kept-threads rule, and mirrored by the review-thread tool
+// (feedback-thread.sh). It imports nothing, so the write runner's copy of it
+// beside apply-patch.mjs's needs no other file.
 
+// Under .github/workflows/, which the lane token has no permission to push.
 export function isProtectedPath(path) {
-  return /^\.github(\/|$)/i.test(String(path));
+  return /^\.github\/workflows(\/|$)/i.test(String(path));
 }
 
-// Run or loaded as instructions by the harness, git or GitHub: agent rules,
-// MCP, language-server and submodule config, code owners, a .claude or
-// .claude-plugin directory, and a plugin's hooks, monitors and bin, each
-// matched as the whole segment.
+// Submodule, code-owner, agent permission and package manifest files, each
+// matched as the whole last segment.
 const INSTRUCTION_PATH =
-  /(^|\/)((claude|agents)\.md|\.mcp\.json|\.lsp\.json|\.gitmodules|codeowners)$|(^|\/)\.claude(-plugin)?(\/|$)|(^|\/)plugins\/[^/]+\/(hooks|monitors|bin)(\/|$)/i;
+  /(^|\/)(\.gitmodules|codeowners|settings[^/]*\.json|package(-lock)?\.json|requirements[^/]*\.txt)$/i;
 export const isInstructionPath = (path) => INSTRUCTION_PATH.test(String(path));
 
 const PLUGIN_DIR = /^plugins\/[^/]+\//;
@@ -31,8 +31,8 @@ const PLAIN_PATH = /^[A-Za-z0-9_@+.-]+(\/[A-Za-z0-9_@+.-]+)*$/;
 
 // A path a trusted write-access fix request on a kept thread named may join
 // that thread's scope: a plain path in normal form, in the same plugins/<p>/
-// directory as the thread's own path, and neither under .github/ nor an
-// instruction path.
+// directory as the thread's own path, and neither under .github/workflows/ nor
+// an instruction path.
 export function namedInScope(path, threadPath) {
   const plugin = pluginOf(path);
   return (
@@ -50,7 +50,8 @@ export function namedInScope(path, threadPath) {
 // file, a test file in the same directory as a kept thread's path,
 // or a path in a kept thread's named_paths (in `threads`, each { path,
 // named_paths }) that namedInScope allows for that thread; never anything
-// under .github/, and never a path that is not plain and in normal form.
+// under .github/workflows/, and never a path that is not plain and in normal
+// form.
 export function inThreadScope(path, threadPaths, threads = []) {
   if (isProtectedPath(path) || BAD_SEGMENT.test(path) || !PLAIN_PATH.test(path)) {
     return false;

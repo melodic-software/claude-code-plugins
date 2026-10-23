@@ -5,7 +5,7 @@
 Tests for scripts/windows/remediations/Restart-StoppedService.ps1.
 
 .DESCRIPTION
-Pins three behaviors of the service-restart remediation:
+Pins four behaviors of the service-restart remediation:
 
 1. Findings arrive through the -Finding parameter, as either a JSON
    string or a PSCustomObject. Reading them from
@@ -17,6 +17,9 @@ Pins three behaviors of the service-restart remediation:
 
 3. Missing services produce an error result rather than throwing,
    so one bad entry doesn't break the whole remediation.
+
+4. A service named in -ExcludedService (exact name, any case) is never
+   started and gets no attempt record.
 #>
 
 BeforeAll {
@@ -24,8 +27,9 @@ BeforeAll {
 
     # Stub the Windows-only Get-Service/Start-Service so Mock can attach off Windows; the
     # remediation resolves them from this parent scope. Every test mocks both.
-    function Get-Service { }
-    function Start-Service { }
+    # The -Name parameter lets a -ParameterFilter bind it.
+    function Get-Service { param([string]$Name) }
+    function Start-Service { param([string]$Name) }
 
     # Reports Stopped for the first $StoppedCalls calls, then Running, so before/after reads
     # straddle the restart. The counter rides in a closure: mock bodies cannot see $script:.
@@ -173,5 +177,44 @@ Describe 'Restart-StoppedService -- -Finding parameter contract' -Tag 'remediati
         # return an empty target list without throwing.
         $attempts = @(Invoke-RestartAsObject -FindingJson '{"detail":{"other":1}}')
         @($attempts).Count | Should -Be 0
+    }
+}
+
+Describe 'Restart-StoppedService -- service_exclusions' -Tag 'remediation' {
+    BeforeEach {
+        Mock Start-Service {}
+        Mock Start-Sleep {}
+        Mock Get-Service {
+            [pscustomobject]@{ Name = $Name; Status = 'Stopped'; StartType = 'Automatic' }
+        }
+        $script:Finding = @{
+            id     = 'services'
+            detail = @{ stopped_auto_services = @(@{ name = 'Spooler' }, @{ name = 'svc-b' }) }
+        } | ConvertTo-Json -Depth 5
+    }
+
+    It 'never starts an excluded stopped service and still starts the others' {
+        # Exclusion is an exact name match that ignores case: 'spooler' covers 'Spooler'.
+        $raw = & $script:ScriptPath -Finding $script:Finding -ExcludedService @('spooler')
+        $attempts = @(ConvertFrom-CheckOutput $raw)
+
+        Should -Invoke Start-Service -Times 0 -ParameterFilter { $Name -eq 'Spooler' }
+        Should -Invoke Start-Service -Times 1 -Exactly -ParameterFilter { $Name -eq 'svc-b' }
+        @($attempts.target) | Should -Be @('svc-b')
+    }
+
+    It 'reports each skipped service on the information stream' {
+        $null = & $script:ScriptPath -Finding $script:Finding -ExcludedService @('Spooler') `
+            -InformationVariable info
+
+        @($info | ForEach-Object { "$_" }) | Should -Be @('skipped Spooler (service_exclusions)')
+    }
+
+    It 'does not treat a partial name as a match' {
+        $raw = & $script:ScriptPath -Finding $script:Finding -ExcludedService @('Spool')
+        $attempts = @(ConvertFrom-CheckOutput $raw)
+
+        Should -Invoke Start-Service -Times 1 -Exactly -ParameterFilter { $Name -eq 'Spooler' }
+        @($attempts.target) | Sort-Object | Should -Be @('Spooler', 'svc-b')
     }
 }

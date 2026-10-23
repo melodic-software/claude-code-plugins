@@ -7,17 +7,26 @@
 //
 // Three kinds are re-run:
 // - CI: a CI workflow's newest run on an open PR's current head. These
-//   workflows check no re-runner.
+//   workflows check no re-runner, but pr-verify, which runs after
+//   pr-require-checks, trusts its attempt 2 by github-actions[bot] only through
+//   this workflow's record of it, so each re-run that makes that attempt
+//   carries one, as a lane re-run does.
 // - Infra: the same run when it ended failure and every failure is one an
 //   outside outage explains (infra-failure.mjs). Only its failed jobs are
 //   re-run, through rerun-failed-jobs, at attempts 1 and 2 only, each
 //   INFRA_BACKOFF_MINUTES after the attempt ended, and only while npm's and
 //   GitHub's status pages show indicator none.
+// - Flake: the same run when it ended failure on anything else, at attempt 1
+//   only: its failed jobs are re-run once, at the next half-hourly run, so a
+//   flaky test the diff did not cause spends no model run. Which failure the
+//   diff caused is not decidable here, so every first failure gets the one
+//   re-run; a real one fails again and pr-unblock's fix-ci takes it.
 // - Lane: a pr-verify run. Its trigger check trusts a re-run github-actions[bot]
 //   starts only through this workflow's record of it, the artifact
 //   rerunRecordName(run id, head SHA) (check-trusted-trigger's README). The
 //   plan step names each record, the workflow uploads them, and only then does
-//   the act step re-run the run, so the record exists before the re-run.
+//   the act step re-run the run, so the record exists before the re-run. The
+//   same holds for each CI re-run that carries a record.
 // Other lost lane runs (the review lanes, refine) are listed in the summary for
 // a person: their gates or the lanes token broker refuse a re-run
 // github-actions[bot] starts. A merge-group run is not covered: a re-run puts
@@ -50,7 +59,7 @@ import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, paginate, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { INFRA_BACKOFF_MINUTES, infraOnly, LOOKBACK_HOURS, reconcilerRetries, testedRun } from "./infra-failure.mjs";
+import { firstFailure, INFRA_BACKOFF_MINUTES, infraOnly, LOOKBACK_HOURS, reconcilerRetries, testedRun } from "./infra-failure.mjs";
 
 const STATUS_URL = "https://www.githubstatus.com/api/v2/components.json";
 // A failed run's failed jobs are re-run only while both pages show indicator none.
@@ -70,6 +79,11 @@ export const CI_WORKFLOWS = new Set([
 // (reconciler-workflow) and that mint no broker token. Each starts on
 // workflow_run from main, so its runs are listed by workflow, not by PR head.
 export const RECORDED_LANES = [".github/workflows/pr-verify.yml"];
+// The CI workflows a recorded lane runs after on workflow_run. A re-run that
+// makes attempt 2 of one is recorded too: the lane trusts that attempt's
+// github-actions[bot] only through its record. A later attempt gets none, and
+// the lane refuses it.
+export const RECORDED_UPSTREAMS = new Set([".github/workflows/pr-require-checks.yml"]);
 // The floor-label run an issue's opening starts. A first attempt that failed
 // (most often on a rate limit) left the issue unlabeled, and nothing else
 // starts it again, so its failed jobs are re-run once. Adding the label is
@@ -142,7 +156,7 @@ const lostNow = (item, r, since) => {
   if (r?.head_sha !== item.head) {
     return false;
   }
-  if (item.kind === "infra") {
+  if (item.kind === "infra" || item.kind === "flake") {
     return r.status === "completed" && r.conclusion === "failure" && r.run_attempt === item.attempt;
   }
   if (item.kind === "intake") {
@@ -162,6 +176,13 @@ export function classify(runs, since) {
     inFlight: ci.some((r) => r.status !== "completed" && r.run_attempt > 1),
   };
 }
+
+// A CI item with its record, when its re-run makes attempt 2 of a recorded
+// upstream. One PR holds one run per workflow, so a place holds one record.
+const withRecord = (item) =>
+  RECORDED_UPSTREAMS.has(item.path) && (item.kind === "ci" || item.attempt === 1) ? { ...item, record: rerunRecordName(item.id, item.head) } : item;
+// The items the record uploads cover: every lane re-run, and each recorded CI re-run.
+const recorded = (item) => item.kind === "lane" || item.record !== undefined;
 
 const byMergeCriticality = (a, b) => Number(b.auto_merge != null) - Number(a.auto_merge != null) || a.number - b.number;
 const byAge = (a, b) => Date.parse(a.created_at) - Date.parse(b.created_at) || a.id - b.id;
@@ -184,7 +205,8 @@ async function holdReason(call, repo, runId) {
 }
 
 // Reads every open PR's head and the recorded lanes' runs, and returns the
-// re-runs to make in order, with a record name on each lane re-run.
+// re-runs to make in order, with a record name on each lane re-run and each
+// recorded CI re-run.
 async function plan({ repo, call, say, since, now, readStatus }) {
   const pulls = (await paginate(call, `/repos/${repo}/pulls?state=open&base=main`, 5))
     .filter((p) => p.state === "open" && p.draft !== true && p.base?.ref === "main" && p.head?.repo?.full_name === repo && SHA.test(p.head?.sha ?? ""))
@@ -248,7 +270,16 @@ async function plan({ repo, call, say, since, now, readStatus }) {
         continue;
       }
       for (const { run: r, jobs } of tested.filter(Boolean)) {
-        if (!jobs || !isRetryable(r, now) || !infraOnly(jobs)) {
+        if (!jobs) {
+          continue;
+        }
+        if (!infraOnly(jobs)) {
+          if (firstFailure(r, jobs, now)) {
+            set.push({ kind: "flake", pr: pull.number, id: r.id, path: r.path, conclusion: "failure", attempt: 1, head: pull.head.sha });
+          }
+          continue;
+        }
+        if (!isRetryable(r, now)) {
           continue;
         }
         const hold = await upstreamHold();
@@ -259,7 +290,7 @@ async function plan({ repo, call, say, since, now, readStatus }) {
         set.push({ kind: "infra", pr: pull.number, id: r.id, path: r.path, conclusion: "failure (infra only)", attempt: r.run_attempt, head: pull.head.sha });
       }
       if (set.length > 0) {
-        ready.push(set);
+        ready.push(set.map(withRecord));
       }
     } catch (error) {
       noteFailure(`#${pull.number}`, error);
@@ -370,7 +401,7 @@ async function act({ repo, call, say, since, sleep, items }) {
   for (const item of items) {
     const where = item.kind === "lane" || item.kind === "intake" ? item.kind : `#${item.pr}`;
     try {
-      if (item.kind === "lane" && item.record !== rerunRecordName(item.id, item.head)) {
+      if (recorded(item) && item.record !== rerunRecordName(item.id, item.head)) {
         throw new Error("the plan names no record for it");
       }
       const r = await call("GET", `/repos/${repo}/actions/runs/${item.id}`);
@@ -391,12 +422,13 @@ async function act({ repo, call, say, since, sleep, items }) {
         await sleep(WRITE_GAP_MS);
       }
       wrote = true;
-      if (item.kind === "intake" || item.kind === "infra") {
+      if (item.kind === "intake" || item.kind === "infra" || item.kind === "flake") {
         await call("POST", `/repos/${repo}/actions/runs/${item.id}/rerun-failed-jobs`);
+        const why = { intake: "", infra: ", which failed on infra only", flake: ", its one re-run before fix-ci takes it" }[item.kind];
         say(
           item.kind === "intake"
             ? `${where}: re-ran the failed jobs of floor-label run ${item.id}, whose first attempt failed`
-            : `${where}: re-ran the failed jobs of run ${item.id} (${item.path}) attempt ${item.attempt}, which failed on infra only`,
+            : `${where}: re-ran the failed jobs of run ${item.id} (${item.path}) attempt ${item.attempt}${why}`,
         );
         continue;
       }
@@ -415,7 +447,7 @@ async function act({ repo, call, say, since, sleep, items }) {
 
 // The plan's record-N outputs, each a record name or empty.
 function recordOutputs(items) {
-  const names = items.filter((item) => item.kind === "lane").map((item) => item.record);
+  const names = items.filter(recorded).map((item) => item.record);
   if (names.length > MAX_IN_FLIGHT || !names.every((name) => RECORD.test(name))) {
     throw new Error("the plan's record names are malformed");
   }
@@ -477,7 +509,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
       writeFileSync(env.PLAN_PATH, JSON.stringify(result));
       const outputs = recordOutputs(result.items);
       if (outputs["record-1"] !== "") {
-        writeFileSync(env.RECORD_PATH, JSON.stringify(result.items.filter((item) => item.kind === "lane")));
+        writeFileSync(env.RECORD_PATH, JSON.stringify(result.items.filter(recorded)));
       }
       if (env.GITHUB_OUTPUT) {
         writeOutputs(outputs, env.GITHUB_OUTPUT);
@@ -500,7 +532,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
       return finish(0);
     }
     result = await plan({ repo, call, say, since, now, readStatus });
-    if (result.items.some((item) => item.kind === "lane") && !env.RECORD_PATH) {
+    if (result.items.some(recorded) && !env.RECORD_PATH) {
       throw new Error("RECORD_PATH is not set");
     }
     write();

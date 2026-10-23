@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.1] - 2026-10-22
+
+### Fixed
+
+- The run-e2e config doc now says `scripts/resolve-config.sh e2e` resolves `feature_map_dir` with the other three top-level keys, not the other two.
+
 ## [0.31.0] - 2026-10-22
 
 ### Added

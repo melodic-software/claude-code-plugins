@@ -41,6 +41,7 @@ import logging
 import os
 import re
 import secrets
+import shutil
 import signal
 import socket
 import ssl
@@ -58,6 +59,7 @@ if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
 import detached  # noqa: E402  (beside this file; sys.path is set just above)
+import liveserve  # noqa: E402
 import session  # noqa: E402
 import session_bridge  # noqa: E402
 import tunnel  # noqa: E402
@@ -77,8 +79,10 @@ STATIC = {
     "/core.js": ("core.js", "text/javascript"),
     "/app.js": ("app.js", "text/javascript"),
     "/connect.js": ("connect.js", "text/javascript"),
+    "/question-shape.js": ("question-shape.js", "text/javascript"),  # surface/server.py serves it too
     "/core.css": ("core.css", "text/css"),
     "/app.css": ("app.css", "text/css"),
+    "/question-shape.css": ("question-shape.css", "text/css"),
     "/proto.js": ("proto.js", "text/javascript"),
     "/web-vitals.attribution.iife.js": ("web-vitals.attribution.iife.js", "text/javascript"),  # vendored, unedited (web/web-vitals.LICENSE)
 }
@@ -248,7 +252,10 @@ ROUTES = {
     "/api/report": ("person", "report"),
     "/api/report/act": ("owner", "act_on_report"),
     "/api/report/add": ("person", "add_to_report"),
+    "/api/live/approve": ("owner", "approve_live"),
+    "/api/live/stop": ("owner", "stop_live"),
 }
+LIVE_ENDERS = {"stop_live", "update_settings", "end_session"}  # the routes that can end a live prototype
 UPLOAD_CHUNK = "/api/upload/chunk"
 UPLOAD_IMAGE = "/api/upload/image"
 CHUNK_HEADERS = {"id": "X-Upload-Id", "index": "X-Chunk-Index", "total": "X-Chunk-Total", "sha256": "X-Chunk-Sha256", "fileSha256": "X-File-Sha256"}
@@ -284,6 +291,222 @@ def client_fields(body):
     if not out["message"]:
         raise DomainError(400, "empty", "message is empty.", field="message")
     return out
+
+
+LIVE_COPIES = "live"  # <data_dir>/live/<id>/: the copy of a build folder a live prototype serves, made at its start
+LIVE_RESTARTS = 5  # judgment: restarts in a row that may fail before a live prototype ends
+LIVE_BACKOFF = 2.0  # seconds before the first restart after a failed one, doubling up to LIVE_BACKOFF_MAX
+LIVE_BACKOFF_MAX = 32.0
+
+
+def control_listener(port):
+    """True when 127.0.0.1:<port> answers the session-bridge ping the way a session's control listener does, with its
+    pid and data folder (a dev server's own /api/ping does not)."""
+    p = session_bridge.ping(port, timeout=1.0)
+    return isinstance(p, dict) and "pid" in p and "dataDir" in p
+
+
+class QuickTunnelStarter:
+    """The live starter (ADR 0083): each live prototype the owner approved runs behind its own quick tunnel
+    (tunnel.py), never the session's, to a copy of its build folder that liveserve.py serves, or to a port the owner
+    runs and attested on Approve. `start(entry)` answers the tunnel's https origin or raises DomainError; `stop(entry)`
+    ends what start began and never the owner's own server; `watch()`, once a second, restarts one whose tunnel or
+    static server exited, with backoff, and ends it after LIVE_RESTARTS failures in a row; `resume()`, at server start,
+    takes back the live prototypes still running from before (a restart) and ends those whose processes are gone (a
+    reboot or a crash). App.live_starter holds it; tests hand App their own."""
+
+    def __init__(self, app):
+        self.app, self.d = app, app.dir
+        self.retry = {}  # live id -> (monotonic time of the next try, failures in a row)
+
+    def path(self, lid):
+        return tunnel.live_path(self.d, lid)
+
+    def check_port(self, port):
+        """Refuse a port that is the session's own guest or control port, or another session's control listener: the
+        control listener is never tunneled (ADR 0077). Checked on every start and restart, as a port can be taken."""
+        if port in (self.app.guest_port, self.app.control_port):
+            raise DomainError(400, "bad-field", "A live prototype never runs on the session's own guest or control port.", field="port")
+        if control_listener(port):
+            raise DomainError(400, "bad-field", f"Port {port} answers as a shared session's control listener, which is never tunneled.", field="port")
+
+    def serve(self, entry, fresh=True):
+        """(port, server fields or None) the tunnel points at: the attested port, checked; or liveserve.py on 127.0.0.1
+        serving the entry's copy, made afresh from its build folder with `fresh`, else the copy made at its start."""
+        target = entry["target"]
+        if target["kind"] == "port":
+            self.check_port(target["port"])
+            return target["port"], None
+        lid = entry["id"]
+        if (self.d / LIVE_COPIES).is_symlink():
+            raise DomainError(502, "live-failed", f"{LIVE_COPIES}/ in the data folder is a link, so no copy is made.")
+        dest = detached.make_private_dir(self.d / LIVE_COPIES) / lid
+        if fresh:
+            src = session._live_folder(str(self.d / target["folder"]), self.d)  # still a folder under staging/
+            try:
+                liveserve.copy_build(self.d / src, dest)
+            except (liveserve.BuildRefused, OSError) as exc:
+                raise DomainError(400, "bad-field", f"The build folder cannot be served: {exc}", field="folder") from None
+        log = self.path(lid).with_suffix(".serve.log")
+        detached.make_private_dir(log.parent)
+        proc, port = liveserve.spawn(dest, log, env=tunnel.child_env())
+        start = detached.started(proc.pid) if port else None
+        if start is None:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait()
+            raise DomainError(502, "live-failed", "The live prototype's static server did not start.")
+        detached.release(proc)
+        return port, {"pid": proc.pid, "marker": liveserve.MARKER, "processStart": start, "port": port}
+
+    def start(self, entry):
+        if not tunnel.binary():
+            raise DomainError(503, "live-unavailable", f"A live prototype needs cloudflared: {tunnel.MISSING}")
+        lid, path = entry["id"], self.path(entry["id"])
+        tunnel.end_live(path, "stopped")  # whatever an earlier start of this entry left
+        port, srv = self.serve(entry)
+        try:
+            tunnel.write_live(path, {"id": lid, "port": port, **({"server": srv} if srv else {})})
+            rec = tunnel.start_live(path, port, fresh=True)
+        except (tunnel.TunnelDown, TimeoutError, OSError) as exc:
+            if srv:
+                detached.stop(srv["pid"], srv["marker"], srv["processStart"])  # the record may not have been written
+            self.end(entry, "failed")
+            self.app.log.warning("live %s: the tunnel did not start: %s", lid, loggable(str(exc), 300))
+            raise DomainError(502, "live-failed", "The live prototype's tunnel did not start; it waits for Approve again.") from None
+        self.retry.pop(lid, None)
+        return rec["url"]
+
+    def end(self, entry, reason):
+        """End the entry's record and processes; a folder's copy goes too, and a port's server keeps running."""
+        done = tunnel.end_live(self.path(entry["id"]), reason)
+        if entry["target"]["kind"] == "folder":
+            shutil.rmtree(self.d / LIVE_COPIES / entry["id"], ignore_errors=True)
+        elif done is not None:
+            self.app.log.info("live %s: its tunnel ended; the server on port %d keeps running (the owner's own)", entry["id"], entry["target"]["port"])
+        return done
+
+    def stop(self, entry):
+        self.retry.pop(entry["id"], None)
+        self.end(entry, "stopped")
+
+    def restart(self, entry, rec, server_ok):
+        """Bring a running entry back behind a new quick tunnel: a new static server on its copy first when that exited,
+        the port checked again for a port; its new url."""
+        path = self.path(entry["id"])
+        if entry["target"]["kind"] == "port":
+            port, _ = self.serve(entry)
+        elif server_ok:
+            port = rec["server"]["port"]
+        else:
+            tunnel.end_live(path, "failed")
+            port, srv = self.serve(entry, fresh=False)
+            try:
+                return tunnel.start_live(path, port, server=srv)["url"]
+            except BaseException:
+                detached.stop(srv["pid"], srv["marker"], srv["processStart"])  # recorded nowhere yet
+                raise
+        return tunnel.start_live(path, port)["url"]
+
+    @staticmethod
+    def listening(port):
+        """True when something accepts connections on 127.0.0.1:<port>."""
+        try:
+            socket.create_connection(("127.0.0.1", port), timeout=0.5).close()
+            return True
+        except OSError:
+            return False
+
+    def watch(self):
+        app = self.app
+        with app._live_lock:
+            begun = dict(app._live_begun)
+        for lid, entry in begun.items():
+            rec = tunnel.read_live(self.path(lid)) or {}
+            if rec.get("reason") == "stopped":  # ended from outside (share.sh): end the entry, never restart it
+                with app._live_lock:
+                    app._live_begun.pop(lid, None)
+                self.end(entry, "stopped")
+                if app.session.live_ended(lid, "stopped"):
+                    app.changed()
+                continue
+            if entry["target"]["kind"] == "port" and not self.listening(entry["target"]["port"]):
+                # The owner's server is gone: whatever binds the port next is not what they attested, so it never
+                # inherits the public address. A new server needs a new add-live and Approve.
+                with app._live_lock:
+                    app._live_begun.pop(lid, None)
+                self.end(entry, "failed")
+                app.log.info("live %s: nothing listens on port %d any more, so it ended", lid, entry["target"]["port"])
+                if app.session.live_ended(lid, "failed"):
+                    app.changed()
+                continue
+            server_ok = entry["target"]["kind"] == "port" or tunnel.server_running(rec)
+            if "endedAt" not in rec and server_ok and tunnel.tunnel_running(rec):
+                self.retry.pop(lid, None)
+                continue
+            when, fails = self.retry.get(lid, (0.0, 0))
+            if time.monotonic() < when or app.session.live_status(lid) != "running" or app._stop.is_set():
+                continue
+            try:
+                url = self.restart(entry, rec, server_ok)
+            except (DomainError, tunnel.TunnelDown, TimeoutError, OSError) as exc:
+                with app._live_lock:
+                    gone = lid not in app._live_begun or app.session.live_status(lid) != "running"
+                if gone:  # stopped while it restarted: end what the restart began
+                    self.retry.pop(lid, None)
+                    self.end(entry, "stopped")
+                    continue
+                fails += 1
+                app.log.warning("live %s: restart %d of %d failed: %s", lid, fails, LIVE_RESTARTS, loggable(str(exc), 300))
+                if fails < LIVE_RESTARTS:
+                    self.retry[lid] = (time.monotonic() + min(LIVE_BACKOFF_MAX, LIVE_BACKOFF * 2 ** (fails - 1)), fails)
+                    continue
+                self.retry.pop(lid, None)
+                with app._live_lock:
+                    app._live_begun.pop(lid, None)
+                self.end(entry, "failed")
+                if app.session.live_ended(lid, "failed"):
+                    app.changed()
+                continue
+            self.retry.pop(lid, None)
+            try:
+                moved = app.session.live_moved(lid, url)
+            except DomainError:
+                moved = None
+            if moved is None:
+                with app._live_lock:
+                    app._live_begun.pop(lid, None)
+                self.end(entry, "failed")
+                if app.session.live_ended(lid, "failed"):
+                    app.changed()
+            elif moved:
+                app.log.info("live %s: restarted at a new address", lid)
+                app.changed()
+            else:  # stopped while it restarted
+                with app._live_lock:
+                    app._live_begun.pop(lid, None)
+                self.end(entry, "stopped")
+
+    def resume(self):
+        app = self.app
+        for e in app.session.live_entries():
+            lid, kind = e["id"], e["status"]["kind"]
+            rec = tunnel.read_live(self.path(lid))
+            if kind == "running" and rec and "endedAt" not in rec and (tunnel.tunnel_running(rec) or tunnel.server_running(rec)):
+                app._live_begun[lid] = e  # the watch brings back whichever part has exited
+                continue
+            if kind in ("starting", "running"):
+                self.end(e, "failed")
+                if kind == "starting":
+                    app.session.live_start_failed(lid)  # the server stopped while it started: it waits for Approve again
+                else:
+                    app.session.live_ended(lid, "stopped" if (rec or {}).get("reason") == "stopped" else "failed")
+        for path, rec in tunnel.live_records(self.d):  # a record no running entry claims
+            if "endedAt" not in rec and rec["id"] not in app._live_begun:
+                tunnel.end_live(path, "failed")
+
+
+LIVE_STARTER = None  # None: App starts live prototypes with QuickTunnelStarter; a test fixture sets its own
 
 
 class StartRefused(Exception):
@@ -508,8 +731,28 @@ class ControlHandler(session_bridge.LoopbackHandler):
             guestPort=app.guest_port,
             tunnel=tunnel_kind(rec, app.tunnel_up),
             lease=self.hub.lease_view(),
+            lives=[{"id": e["id"], "label": e["label"], "status": e["status"]["kind"], **({"url": e["status"]["url"]} if "url" in e["status"] else {}),
+                    **({"port": e["target"]["port"]} if e["target"]["kind"] == "port" else {})} for e in app.session.live_entries()],
         )
         return self.send(200, out)
+
+    def stop_lives(self, msg):
+        """POST /api/live/stop {id?} from share.py: `live-stop <id>` ends one live prototype, `stop` (no id) every one
+        not ended; each stops what it ran. Answers the ids ended and, for an owner's server on a port, that port: share.py
+        tells the owner it keeps running."""
+        app = self.hub.app
+        before = {e["id"]: e for e in app.session.live_entries()}
+        try:
+            if msg.get("id") is None:
+                ids = app.session.stop_all_lives()
+            else:
+                ids = [app.session.stop_live(session.HOST, {"id": msg["id"]})["live"]]
+        except DomainError as exc:
+            return self.send(exc.http, exc.body())
+        app.stop_ended_lives()
+        app.changed()
+        ports = [before[i]["target"]["port"] for i in ids if before[i]["target"]["kind"] == "port"]
+        return self.send(200, {"ok": True, "ended": ids, "keptPorts": ports})
 
     def route_post(self, path, msg):
         app = self.hub.app
@@ -517,6 +760,8 @@ class ControlHandler(session_bridge.LoopbackHandler):
             url = msg.get("url")
             problem = app.probe_tunnel(url) if isinstance(url, str) else "url must be a string"
             return self.send(200, {"ok": problem is None, **({"error": problem} if problem else {})})
+        if path == "/api/live/stop":
+            return self.stop_lives(msg)
         if path != "/api/ops":
             return self.send(404, {"error": "not found"})
         try:
@@ -524,6 +769,7 @@ class ControlHandler(session_bridge.LoopbackHandler):
         except DomainError as exc:
             app.log.info("ops refused: %s %s", exc.code, loggable(exc.details.get("op")))
             return self.send(exc.http, exc.body())
+        app.stop_ended_lives()
         app.changed()
         app.log.info("ops applied: %d", len(msg.get("ops", [])))
         return self.send(200, {"ok": True, **out})
@@ -909,6 +1155,15 @@ class GuestHandler(BaseHTTPRequestHandler):
             app.write_owner_link()
         if method in ("rotate_owner_link", "revoke_device", "end_session"):
             app._asset_key = secrets.token_bytes(32)  # an asset cookie names the host, not the device: every one ends
+        if method == "approve_live":
+            app.changed()  # the entry reads starting while it starts
+            try:
+                out = app.start_live(out)
+            except DomainError as exc:
+                app.changed()
+                return self.fail(exc)
+        if method in LIVE_ENDERS:
+            app.stop_ended_lives()
         app.changed()
         return self.send(200, {"ok": True, **out})
 
@@ -1026,6 +1281,8 @@ class App:
         self._stop = threading.Event()
         self._chunk_lock, self._chunk_readers = threading.Lock(), set()
         self._probe_lock, self._probes = threading.Lock(), {}  # nonce asked -> (answer, expiry)
+        self.live_starter = LIVE_STARTER
+        self._live_lock, self._live_begun = threading.Lock(), {}  # live id -> the entry its starter began, until stopped
         self.guest = GuestServer(("127.0.0.1", guest_port), GuestHandler)
         self.guest.app = self
         self.guest_port = self.guest.server_address[1]
@@ -1035,9 +1292,59 @@ class App:
         self.control, self.hub = session_bridge.start(handler, lambda port: ControlHub(port, self.dir, self), control_port, nonce)
         self.control_port = self.hub.port
         detached.write_private(self.dir / PORTS, json.dumps({"guest": self.guest_port, "control": self.control_port}) + "\n")
+        if self.live_starter is None:
+            self.live_starter = QuickTunnelStarter(self)
+            self.live_starter.resume()
         self.write_owner_link()
         self.sync_tunnel(restart=False)  # a tunnel start can outlast share.py's wait for this one: share.py or the watch starts it
         self.log.info("started: guest %d, control %d, build %s", self.guest_port, self.control_port, self.build)
+
+    def start_live(self, approved):
+        """Start the live prototype approve_live marked starting, outside the state lock: the starter answers its https
+        origin, which session.py checks before the entry runs. A start that fails, or answers no https origin, stops what
+        it began and leaves the entry waiting for Approve again (502); one the owner ended meanwhile is stopped."""
+        lid, entry = approved["live"], approved["entry"]
+        try:
+            url = self.live_starter.start(entry)
+        except DomainError:
+            self.session.live_start_failed(lid)
+            raise
+        except Exception:
+            self.log.exception("live %s: the start failed", lid)
+            self._stop_live(entry)
+            self.session.live_start_failed(lid)
+            raise DomainError(502, "live-failed", "The live prototype did not start; it waits for Approve again.") from None
+        with self._live_lock:  # held from running to recorded, so an end landing between them still finds it to stop
+            try:
+                running = self.session.live_started(lid, url)
+            except DomainError:
+                running = None
+            if running:
+                self._live_begun[lid] = entry
+        if running is None:
+            self._stop_live(entry)
+            self.session.live_start_failed(lid)
+            raise DomainError(502, "live-failed", "The live prototype did not start: its server answered no https address.")
+        if not running:
+            self._stop_live(entry)
+            raise DomainError(409, "wrong-status", f"Live prototype {lid} was stopped while it started.", status="ended")
+        return {"live": lid, "status": "running"}
+
+    def _stop_live(self, entry):
+        try:
+            self.live_starter.stop(entry)
+        except Exception:  # a stop that fails is logged; the entry has ended either way
+            self.log.exception("live %s: the stop failed", entry["id"])
+
+    def stop_ended_lives(self):
+        """Stop each live prototype the starter began whose entry is no longer running (Stop, the live tier turned off,
+        the session ended)."""
+        with self._live_lock:
+            done = {lid: e for lid, e in self._live_begun.items() if self.session.live_status(lid) != "running"}
+            for lid in done:
+                del self._live_begun[lid]
+        for entry in done.values():
+            self._stop_live(entry)
 
     @contextlib.contextmanager
     def reading_chunk(self, pid):
@@ -1220,6 +1527,18 @@ class App:
             if self.session.set_share(url):
                 self.changed()
 
+    def watch_lives(self):
+        """Once a second, the live starter's own watch (QuickTunnelStarter.watch), apart from the tunnel's: a restart
+        can wait for a new tunnel's address."""
+        while not self._stop.wait(TUNNEL_POLL):
+            watch = getattr(self.live_starter, "watch", None)
+            if watch is None:
+                continue
+            try:
+                watch()
+            except Exception:  # the watch must outlive any one bad pass
+                self.log.error("%s", entry("live-watch", trace=trace()))
+
     def watch(self):
         while not self._stop.wait(TUNNEL_POLL):
             try:
@@ -1235,8 +1554,9 @@ class App:
 
     def serve(self):
         """Serve both listeners and watch the tunnel in threads; returns at once."""
-        loops = (lambda: self.guest.serve_forever(poll_interval=0.1), lambda: self.control.serve_forever(poll_interval=0.1), self.watch)
+        loops = (lambda: self.guest.serve_forever(poll_interval=0.1), lambda: self.control.serve_forever(poll_interval=0.1), self.watch, self.watch_lives)
         self.threads = [threading.Thread(target=t, daemon=True) for t in loops]
+        self._live_thread = self.threads[-1]
         for t in self.threads:
             t.start()
 
@@ -1250,6 +1570,15 @@ class App:
             self.control.shutdown()
         self.guest.server_close()
         self.control.server_close()
+        live_thread = getattr(self, "_live_thread", None)
+        if live_thread is not None:
+            live_thread.join(tunnel.START_SECONDS + 10)  # a restart under way ends before the sweep, never after it
+        try:  # a live prototype whose processes are gone ends; a running one outlives a restart, unless the session ended
+            over = self.session.state["session"]["phase"]["kind"] == "ended"
+            for rec in tunnel.sweep_live(self.dir, every=over, reason="session-ended" if over else "failed"):
+                self.log.info("live %s: ended at shutdown", rec["id"])
+        except Exception:
+            self.log.error("%s", entry("live-sweep", trace=trace()))
         for h in list(self.log.handlers):
             self.log.removeHandler(h)
             h.close()

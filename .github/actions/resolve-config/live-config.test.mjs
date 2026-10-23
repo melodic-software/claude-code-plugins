@@ -8,7 +8,8 @@ import { test } from "node:test";
 
 import { parse } from "yaml";
 
-import { checkPatchRules, resolve, resolveGrant } from "./resolve.mjs";
+import { checkPatchRules } from "./patch-rules.mjs";
+import { resolve, resolveGrant } from "./resolve.mjs";
 
 const read = (relative) =>
   readFileSync(new URL(relative, import.meta.url), "utf8");
@@ -122,6 +123,7 @@ test("live config: pr-unblock runs its slots in order", () => {
     [
       "resolve-conflicts",
       "address-feedback",
+      "apply-feedback-patch",
       "publish-feedback",
       "review-dependency",
       "apply-dependency-verdict",
@@ -140,10 +142,30 @@ test("live config: address-feedback applies to a ready PR with comments --ci and
   assert.equal(slot.skill, "source-control:pull-request");
   assert.equal(slot.args, "comments --ci");
   assert.equal(slot.prepare, "review-threads");
+  // The read runner's model job holds no write token: its fix leaves as a
+  // patch, its replies for the reply job.
   assert.deepEqual(
     resolveGrant(FILES, { lane: "pr-unblock", activity: "address-feedback", configPath: CONFIG_PATH }),
+    { effect: "read", grant: { contents: "read", "pull-requests": "read", issues: "read" } },
+  );
+  assert.deepEqual(slot["applied-by"], { patch: "apply-feedback-patch", "feedback-replies": "publish-feedback" });
+});
+
+// The push job runs apply-patch.mjs under the review-threads row, may only
+// write the branch, and holds a needs-human PR as address-feedback does.
+test("live config: apply-feedback-patch pushes address-feedback's patch, granted mutate-branch only", () => {
+  const slot = selected("pr-unblock", "apply-feedback-patch");
+  assert.equal(slot.applies, true);
+  assert.equal(slot.script, ".github/scripts/apply-patch/apply-patch.mjs");
+  assert.equal(slot.prepare, "apply-patch");
+  assert.deepEqual(slot.needs, ["address-feedback"]);
+  assert.deepEqual(
+    resolveGrant(FILES, { lane: "pr-unblock", activity: "apply-feedback-patch", configPath: CONFIG_PATH }),
     { effect: "mutate-branch", grant: { contents: "write", "pull-requests": "read", issues: "read" } },
   );
+  assert.equal(selected("pr-unblock", "apply-feedback-patch", { labels: ["needs-human"] }).applies, true);
+  assert.equal(skipReason("pr-unblock", "apply-feedback-patch", { labels: ["do-not-merge"] }), "awaiting-human");
+  assert.equal(skipReason("pr-unblock", "apply-feedback-patch", { draft: true }), "not-applicable");
 });
 
 test("live config: address-feedback waits for a human on do-not-merge and skips a draft", () => {
@@ -179,7 +201,8 @@ test("live config: publish-feedback runs the reply script after address-feedback
   // It reads the replies the model wrote.
   assert.equal(slot["reads-untrusted"], true);
   assert.equal(slot.script, ".github/scripts/pr-unblock/publish-feedback.mjs");
-  assert.deepEqual(slot.needs, ["address-feedback"]);
+  // After the push, so its replies can name the pushed commit.
+  assert.deepEqual(slot.needs, ["address-feedback", "apply-feedback-patch"]);
   assert.deepEqual(
     resolveGrant(FILES, { lane: "pr-unblock", activity: "publish-feedback", configPath: CONFIG_PATH }),
     { effect: "publish-artifact", grant: { contents: "read", "pull-requests": "write", issues: "write" } },
@@ -232,12 +255,10 @@ test("live config: review-dependency may only write its branch; its verdict job 
   assert.equal(selected("pr-unblock", "apply-dependency-verdict").script, ".github/scripts/pr-unblock/apply-dependency-verdict.mjs");
 });
 
-// An agent-ready label event on an issue. The lane went live at
-// 2026-10-14T19:21:59Z, the labeled-after time in the live config.
+// An agent-ready label event on an issue.
 const ISSUE = {
   event: "labeled",
   labels: ["agent-ready"],
-  labeledAt: "2026-10-20T00:00:00Z",
 };
 
 // Owner decision 2026-10-17: the agent-ready label alone admits the issue;
@@ -267,11 +288,12 @@ test("live config: resolve-issue starts nothing once agent-ready is gone from th
   assert.equal(skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labels: ["bug"] }), "not-applicable");
 });
 
-test("live config: resolve-issue still needs the agent-ready label event after the go-live time", () => {
-  assert.equal(
-    skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labeledAt: "2026-10-14T19:21:58Z" }),
-    "not-applicable",
-  );
+// No go-live cutoff: an issue labeled agent-ready at any time starts a run.
+test("live config: resolve-issue starts on an agent-ready label event, with no label-time cutoff", () => {
+  assert.equal(selected("work-resolve-issue", "resolve-issue", { ...ISSUE, labeledAt: "2026-10-14T19:21:58Z" }).applies, true);
+});
+
+test("live config: resolve-issue still needs the agent-ready label event", () => {
   assert.equal(
     skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, event: "dispatch" }),
     "not-applicable",
@@ -470,8 +492,8 @@ test("live config: fix-docs with a write effect is refused", () => {
 
 // Each activity's applied-by lands with the phase that moves it to the read
 // runner, after the broker serves a reader that knows the field; fix-docs,
-// fix-ci and resolve-issue so far.
-test("live config: only fix-docs, fix-ci and resolve-issue set applied-by: fix-docs's and fix-ci's patch to apply-patch, resolve-issue's to apply-issue-patch and its outcome to report-outcome", () => {
+// address-feedback, fix-ci and resolve-issue so far.
+test("live config: only fix-docs, address-feedback, fix-ci and resolve-issue set applied-by, each to its own appliers", () => {
   const { activities } = parse(FILES.config);
   assert.deepEqual(
     Object.entries(activities)
@@ -479,6 +501,7 @@ test("live config: only fix-docs, fix-ci and resolve-issue set applied-by: fix-d
       .map(([name, activity]) => [name, activity["applied-by"]]),
     [
       ["fix-docs", { patch: "apply-patch" }],
+      ["address-feedback", { patch: "apply-feedback-patch", "feedback-replies": "publish-feedback" }],
       ["fix-ci", { patch: "apply-patch" }],
       ["resolve-issue", { patch: "apply-issue-patch", "work-outcome": "report-outcome" }],
     ],

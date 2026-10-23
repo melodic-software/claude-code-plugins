@@ -57,12 +57,12 @@ die() {
 }
 
 case ${ESCALATION_REASON:-} in
-  protected-path-conflict) why='a conflicted path is protected, so the lane does not resolve it' ;;
+  protected-path-conflict) why='a conflicted path is a workflow, submodule config or a settings file, which the lane does not resolve' ;;
   workflow-staged) why='the merge stages a change under .github/workflows/, which the lane does not push' ;;
-  unexpected-path-staged) why='the merge stages a change to a path that did not conflict, which the lane does not push' ;;
+  unexpected-path-staged) why='the merge stages a symlink, gitlink, submodule config, settings or CODEOWNERS change outside the conflicts, which the lane does not push' ;;
   repeat-cap) why='the lane has resolved conflicts on this branch as many times in a row as its cap allows' ;;
   unresolved-conflict) why='the lane could not resolve every conflict' ;;
-  feedback-protected-path) why='the pull request changes .github/, so the lane does not address its review threads' ;;
+  feedback-protected-path) why='the pull request changes .github/workflows/, which the lane token cannot push, so the lane does not address its review threads' ;;
   feedback-round-cap) why='the lane has addressed review threads on this pull request as many rounds as its cap allows' ;;
   feedback-uncertain) why='a review finding is uncertain or deferred, so a person decides it' ;;
   feedback-not-landed) why='a fix the lane recorded did not reach the branch, so none of its review replies was posted' ;;
@@ -83,7 +83,7 @@ case ${ESCALATION_REASON:-} in
   ci-fix-round-cap) why='the lane has pushed as many CI fixes to this pull request as its cap allows, and CI still fails' ;;
   ci-fix-empty) why='the lane changed nothing that fixes the failing checks' ;;
   ci-fix-invalid) why='the CI fix the lane wrote did not pass validation, so it was not pushed' ;;
-  ci-fix-protected-path) why='the CI fix changes .github/, which the lane does not push' ;;
+  ci-fix-protected-path) why='the CI fix changes a path the lane does not push: .github/workflows/, CODEOWNERS, .gitmodules or a settings file' ;;
   ci-fix-not-applied) why='the CI fix did not apply to the head it was written for, so it was not pushed' ;;
   ci-fix-escalated) why='the lane could not fix every failing check; its run log names each one and why' ;;
   *) die "unknown escalation reason [${ESCALATION_REASON:-}]" ;;

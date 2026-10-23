@@ -9,11 +9,14 @@ name: pr-unblock
 # workflow on a conflicting PR, so pr-unblock-dispatch.yml sends one dispatch
 # per conflicting PR after a push to the default branch. address-feedback:
 # pr-feedback-dispatch.yml sends one after a review lane finishes on a lanes App
-# PR with unresolved reviewer-bot threads. review-dependency:
+# PR with unresolved reviewer-bot threads; a base job keeps the threads, a read
+# model job answers them, and script jobs push its patch and post its replies.
+# review-dependency:
 # pr-unblock-dispatch.yml also sends one per review-tier Dependabot PR (a major
 # bump, an action publisher outside the allowlist, a group holding a major, or
 # a red ci-status) whose head has no review yet. fix-ci: pr-unblock-dispatch.yml
-# also sends one per lanes App PR whose ci-status failed. fix-docs:
+# also sends one per lanes App PR whose ci-status or pr-test-windows run failed
+# past the lost-run reconciler's re-run. fix-docs:
 # pr-unblock-dispatch.yml also sends one per ready PR a person opened that
 # changes a Markdown file and never had a fix-docs run. All set
 # dispatcher-run-id; a trusted human may dispatch with pr-number and activity
@@ -81,77 +84,143 @@ jobs:
     secrets:
       claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
 
-  address-feedback:
+  # address-feedback is five jobs, so no model ever holds a write token. This
+  # one runs only base code with a read-only token and checks out no PR head.
+  # Before any model turn it reads the PR head, resolves the slot (draft and
+  # do-not-merge skip it), and keeps the reviewer-bot threads to work on
+  # (address-feedback.mjs select): it skips, hands the PR to a person (a
+  # .github/ diff or the round cap), or writes the thread file and run.json
+  # the model job and the reply job read. Every gate, head and reply input
+  # the jobs after it take comes from here, never from the model job, whose
+  # runner head code could forge.
+  address-feedback-select:
     if: >-
       inputs.pr-number != '' && inputs.activity == 'address-feedback'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     permissions:
-      contents: read
-      pull-requests: read
-      checks: write
-      issues: write
-      id-token: write
-    concurrency:
-      group: pr-pipeline-write-${{ inputs.pr-number }}
-      queue: max
-    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
-    with:
-      role: automations
-      lane: pr-unblock
-      activity: address-feedback
-      pr-number: ${{ inputs.pr-number }}
-      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
-      trusted-base: default-tip
-    secrets:
-      claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+      contents: read # check out main
+      pull-requests: read # the PR, its reviews, review comments and threads
+      checks: read # the model check runs that count rounds
+    outputs:
+      # true once the context is uploaded; false on a skip or an escalation;
+      # empty when the job stopped before deciding.
+      proceed: >-
+        ${{ steps.upload.outcome == 'success' && 'true'
+        || (steps.slot.outputs.applies == 'false' || steps.select.outputs.proceed == 'false') && 'false' || '' }}
+      head-sha: ${{ steps.head.outputs.sha }}
+      escalation-reason: ${{ steps.select.outputs.escalation-reason }}
+      skip-reason: ${{ steps.slot.outputs.applies == 'false' && steps.slot.outputs.skip-reason || steps.select.outputs.skip-reason }}
+      fix-requested: ${{ steps.select.outputs.fix-requested }}
+      threads-sha256: ${{ steps.select.outputs.threads-sha256 }}
+      run-sha256: ${{ steps.select.outputs.run-sha256 }}
+      # The artifact name's attempt, so a re-run of a later job alone still
+      # finds it.
+      context-attempt: ${{ steps.upload.outcome == 'success' && github.run_attempt || '' }}
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
 
-  # address-feedback's model job holds contents: write and posts nothing; this
-  # script job, with no model, holds pull-requests: write and posts the replies
-  # that job recorded, exactly as written or not at all, then the round marker.
-  # It runs whenever the model job's skill ran, even when that job failed, so
-  # every round is counted.
-  publish-feedback:
-    needs: address-feedback
-    if: ${{ !cancelled() && needs.address-feedback.outputs.feedback-round == 'true' }}
-    permissions:
-      contents: read
-      pull-requests: read
-      checks: write
-      issues: write
-      id-token: write
-    concurrency:
-      group: pr-pipeline-write-${{ inputs.pr-number }}
-      queue: max
-    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
-    with:
-      role: automations
-      lane: pr-unblock
-      activity: publish-feedback
-      pr-number: ${{ inputs.pr-number }}
-      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
-      trusted-base: default-tip
-      review-replies: true
-      review-run-sha256: ${{ needs.address-feedback.outputs.feedback-run-sha256 }}
-      # The model job's attempt names the replies artifact, so "Re-run failed
-      # jobs" on this job alone still downloads it.
-      review-run-attempt: ${{ needs.address-feedback.outputs.feedback-run-attempt }}
-      # The model job's push moved the PR head off the reviewed one; the gate
-      # and the broker accept the review of the head that job gated when only
-      # commits GitHub signed for the lanes App during this run follow it. A human dispatch has no
-      # dispatcher and passes none.
-      expected-upstream-head: >-
-        ${{ inputs.dispatcher-run-id != '' && needs.address-feedback.outputs.head-sha || '' }}
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
 
-  # A skipped publish-feedback posts no check, so a red one from an earlier
-  # run would stay on the head. When address-feedback ran no feedback round,
-  # this job posts publish-feedback neutral on the head that job gated; a gate
-  # stop leaves that head empty, and nothing is posted.
-  publish-feedback-not-run:
-    needs: address-feedback
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Read the PR head
+        id: head
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr-number }}
+        run: |
+          if ! [[ $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ ]]; then
+            echo "::error::the pr-number input is not a PR number"
+            exit 1
+          fi
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)
+          if ! [[ $sha =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the PR names no head SHA"
+            exit 1
+          fi
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+
+      # As the read runner resolves it: its applies-when decides on the head
+      # just read, before any thread is read.
+      - name: Resolve the slot
+        id: slot
+        if: steps.head.outcome == 'success'
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          lane: pr-unblock
+          activity: address-feedback
+          base-path: .base
+          output-path: ${{ runner.temp }}/resolved-config.json
+          pr-number: ${{ inputs.pr-number }}
+          head-sha: ${{ steps.head.outputs.sha }}
+          prepare-supported: "true"
+          applied-by-supported: patch feedback-replies
+
+      - name: Select the review threads
+        id: select
+        if: steps.slot.outputs.applies == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr-number }}
+          HEAD_SHA: ${{ steps.head.outputs.sha }}
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          FEEDBACK_DIR: ${{ runner.temp }}/feedback-context
+          TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
+          TRACKER_CONFIG: .base/.work-item-tracker.json
+          RESOLVED: ${{ runner.temp }}/resolved-config.json
+        run: |
+          mkdir -p "$FEEDBACK_DIR"
+          REVIEW_ROUNDS=$(jq -r '.loop["review-rounds"]' "$RESOLVED")
+          export REVIEW_ROUNDS
+          THREAD_FILE="$FEEDBACK_DIR/threads.json" RUN_FILE="$FEEDBACK_DIR/run.json" \
+            node .base/.github/scripts/pr-unblock/address-feedback.mjs select
+          if [ -f "$FEEDBACK_DIR/threads.json" ]; then
+            for name in threads run; do
+              sum=$(sha256sum <"$FEEDBACK_DIR/$name.json")
+              echo "$name-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
+            done
+          fi
+
+      - name: Upload the feedback context
+        id: upload
+        if: steps.select.outputs.proceed == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: feedback-context-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/feedback-context/threads.json
+            ${{ runner.temp }}/feedback-context/run.json
+          retention-days: 1
+          if-no-files-found: error
+
+  # A select that kept nothing, or handed the PR to a person, runs no model
+  # or reply job, so neither check would land on the head and
+  # feedback-dispatch.mjs would dispatch it again. This job posts both
+  # neutral on the head the select job read; a kill-switch stop reads none,
+  # and nothing is posted.
+  address-feedback-not-run:
+    needs: address-feedback-select
     if: >-
       ${{ !cancelled() && inputs.activity == 'address-feedback'
-      && needs.address-feedback.outputs.feedback-round != 'true'
-      && needs.address-feedback.outputs.head-sha != '' }}
+      && needs.address-feedback-select.outputs.proceed == 'false'
+      && needs.address-feedback-select.outputs.head-sha != '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -171,18 +240,193 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
-      - name: Post the check run
+      - name: Post the address-feedback check run
+        uses: ./.base/.github/actions/report-check-run # zizmor: ignore[self-repository]
+        with:
+          lane: pr-unblock
+          activity: address-feedback
+          run-result: skipped
+          not-run-reason: ${{ needs.address-feedback-select.outputs.skip-reason || 'awaiting-human' }}
+          head-sha: ${{ needs.address-feedback-select.outputs.head-sha }}
+          can-commit: "false"
+          base-path: .base
+          head-sha-fallback: ${{ needs.address-feedback-select.outputs.head-sha }}
+          github-token: ${{ github.token }}
+
+      - name: Post the publish-feedback check run
         uses: ./.base/.github/actions/report-check-run # zizmor: ignore[self-repository]
         with:
           lane: pr-unblock
           activity: publish-feedback
           run-result: skipped
-          not-run-reason: not-applicable
-          head-sha: ${{ needs.address-feedback.outputs.head-sha }}
+          not-run-reason: ${{ needs.address-feedback-select.outputs.skip-reason || 'awaiting-human' }}
+          head-sha: ${{ needs.address-feedback-select.outputs.head-sha }}
           can-commit: "false"
           base-path: .base
-          head-sha-fallback: ${{ needs.address-feedback.outputs.head-sha }}
+          head-sha-fallback: ${{ needs.address-feedback-select.outputs.head-sha }}
           github-token: ${{ github.token }}
+
+  # The model job: a read activity with no write token and no OIDC token in
+  # the job that runs head code. The skill fixes the kept threads and records
+  # a reply for each with the review-thread tool; the runner uploads its
+  # uncommitted edits as a patch and, after its leak scan, its replies. It
+  # runs on the automations role's API key alone, in the per-PR write queue.
+  address-feedback:
+    needs: address-feedback-select
+    if: ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
+    with:
+      role: automations
+      lane: pr-unblock
+      activity: address-feedback
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      feedback-context-attempt: ${{ needs.address-feedback-select.outputs.context-attempt }}
+      feedback-context-sha256: ${{ needs.address-feedback-select.outputs.threads-sha256 }}
+      head-sha: ${{ needs.address-feedback-select.outputs.head-sha }}
+      # The 50-minute launcher step and the CLI install.
+      timeout-minutes: 60
+    secrets:
+      claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+
+  # The subscription fallback, as fix-ci-subscription is for fix-ci: it runs
+  # only when address-feedback's key leg hit a credit stop or its key is
+  # empty, reads only those two outputs, each compared to a fixed string,
+  # and holds the OAuth token alone. A forged value only adds a second leg.
+  address-feedback-subscription:
+    needs: [address-feedback-select, address-feedback]
+    if: >-
+      ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true'
+      && (needs.address-feedback.outputs.lane-class == 'credit-stop'
+      || needs.address-feedback.outputs.credential-present == 'false') }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
+    with:
+      role: automations
+      lane: pr-unblock
+      activity: address-feedback
+      fallback: ${{ needs.address-feedback.outputs.lane-class == 'credit-stop' && 'credit-stop' || 'no-key' }}
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      feedback-context-attempt: ${{ needs.address-feedback-select.outputs.context-attempt }}
+      feedback-context-sha256: ${{ needs.address-feedback-select.outputs.threads-sha256 }}
+      head-sha: ${{ needs.address-feedback-select.outputs.head-sha }}
+      timeout-minutes: 60
+    secrets:
+      claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+
+  # The push job: apply-patch.mjs under patch-rules.json's review-threads
+  # row, a script with no model that runs no head code. It admits only paths
+  # in the kept threads' scope, read from the select job's thread file, skips
+  # a head that moved since the select job read it, and pushes one commit
+  # without force. It runs only on a written patch: no change (every thread
+  # INCORRECT or UNCERTAIN) needs no push. report-escalation does not need it:
+  # a patch that does not land leaves no fix commit, and publish-feedback
+  # hands the PR to a person as feedback-not-landed.
+  apply-feedback-patch:
+    needs: [address-feedback-select, address-feedback, address-feedback-subscription]
+    # One leg answers the round: the fallback call when it ran, else the
+    # first, and every model-call input below is that leg's, so one leg's
+    # patch never pairs with the other's replies and an empty field never
+    # falls through. A patch with no replies is not pushed.
+    if: >-
+      ${{ !cancelled()
+      && (needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-state || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-state || '') == 'written'
+      && (needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '') != '' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      role: automations
+      lane: pr-unblock
+      activity: apply-feedback-patch
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      # The scan job's outputs alone, never a run job's, from the one leg.
+      patch-state: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-state || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-state || '' }}
+      patch-sha256: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-sha256 || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-sha256 || '' }}
+      patch-attempt: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-attempt || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-attempt || '' }}
+      patch-activity: address-feedback
+      patch-prepare: review-threads
+      # The head the select job read, from a job that ran no head code.
+      patch-head-sha: ${{ needs.address-feedback-select.outputs.head-sha }}
+      patch-threads-attempt: ${{ needs.address-feedback-select.outputs.context-attempt }}
+      patch-threads-sha256: ${{ needs.address-feedback-select.outputs.threads-sha256 }}
+      # true drops the human-gated label from the holds: the select job kept
+      # only threads a trusted person with write access asked to fix.
+      patch-fix-requested: ${{ needs.address-feedback-select.outputs.fix-requested }}
+      reply-attempt: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-reply-attempt || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-reply-attempt || '' }}
+
+  # The reply job, a script with no model: it holds pull-requests: write and
+  # posts the replies the model job recorded, exactly as written or not at
+  # all, naming the commit the push job made, then the round marker. It runs
+  # whenever the select job proceeded, whatever the model and push jobs did,
+  # so every round is counted; a hostile model job cannot skip it.
+  publish-feedback:
+    needs: [address-feedback-select, address-feedback, address-feedback-subscription, apply-feedback-patch]
+    if: ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      role: automations
+      lane: pr-unblock
+      activity: publish-feedback
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      review-replies: true
+      # run.json and its SHA-256, from the select job.
+      review-run-sha256: ${{ needs.address-feedback-select.outputs.run-sha256 }}
+      review-run-attempt: ${{ needs.address-feedback-select.outputs.context-attempt }}
+      # The replies, their SHA-256 and the patch state, all from the one leg
+      # apply-feedback-patch reads; only the scan job, which ran no model or
+      # head code, sets these outputs.
+      review-replies-attempt: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '' }}
+      review-replies-sha256: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-sha256 || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-sha256 || '' }}
+      review-patch-state: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-state || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-state || '' }}
+      # The push job moved the PR head off the reviewed one; the gate and the
+      # broker accept the review of the head the select job read when only
+      # commits GitHub signed for the lanes App during this run follow it. A
+      # human dispatch has no dispatcher and passes none.
+      expected-upstream-head: >-
+        ${{ inputs.dispatcher-run-id != '' && needs.address-feedback-select.outputs.head-sha || '' }}
 
   # review-dependency's model job holds contents: write, posts nothing, and
   # returns its verdict as structured output that the runner uploads; it
@@ -577,13 +821,40 @@ jobs:
       patch-model-rung: "1"
       reply-attempt: ${{ needs.fix-ci-rung-up-subscription.outputs.reply-attempt || needs.fix-ci-rung-up.outputs.reply-attempt }}
 
-  # fix-docs is three jobs, so no model ever holds a write token. The model
+  # The PR head fix-docs's report posts its check on, read by a job that runs
+  # no head code, as fix-ci-context's is for fix-ci. Without it the report
+  # trusts only the head read at report time, so a push mid-run posts failure
+  # on the new head.
+  fix-docs-head:
+    if: >-
+      inputs.pr-number != '' && inputs.activity == 'fix-docs'
+      && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      head-sha: ${{ steps.head.outputs.sha }}
+    steps:
+      - name: Read the PR's head SHA
+        id: head
+        env:
+          PR_NUMBER: ${{ inputs.pr-number }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [[ $PR_NUMBER =~ ^[1-9][0-9]*$ ]] || { echo "::error::pr-number is not a PR number"; exit 1; }
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)
+          [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::no PR head SHA read"; exit 1; }
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+
+  # fix-docs is four jobs, so no model ever holds a write token. The model
   # job: a read activity with no write token and no OIDC token in the job that
   # runs head code. The skill fixes the changed Markdown files; the runner
   # uploads its uncommitted edits as a patch. It runs on the automations
   # role's API key alone. Drafts and held PRs skip in the config's
   # applies-when, before any model turn.
   fix-docs:
+    needs: fix-docs-head
     if: >-
       inputs.pr-number != '' && inputs.activity == 'fix-docs'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
@@ -604,6 +875,8 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
+      head-sha: ${{ needs.fix-docs-head.outputs.head-sha }}
+      post-decline: false
       timeout-minutes: 60
     secrets:
       claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
@@ -614,7 +887,7 @@ jobs:
   # only those two outputs, each compared to a fixed string, and holds the
   # OAuth token alone.
   fix-docs-subscription:
-    needs: fix-docs
+    needs: [fix-docs-head, fix-docs]
     if: >-
       ${{ !cancelled() && (needs.fix-docs.outputs.lane-class == 'credit-stop'
       || needs.fix-docs.outputs.credential-present == 'false') }}
@@ -636,6 +909,8 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
+      head-sha: ${{ needs.fix-docs-head.outputs.head-sha }}
+      post-decline: false
       timeout-minutes: 60
     secrets:
       claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
@@ -711,7 +986,7 @@ jobs:
   report-escalation:
     needs:
       - resolve-conflicts
-      - address-feedback
+      - address-feedback-select
       - publish-feedback
       - review-dependency
       - apply-dependency-verdict
@@ -719,8 +994,8 @@ jobs:
       - apply-patch
       - apply-patch-rung-up
     # escalation-reason is set only by the write runner's own steps, the
-    # base's reply, verdict and apply-patch scripts, and fix-ci-context's
-    # base script. A later failure in that run (a failed verdict upload)
+    # base's reply, verdict and apply-patch scripts, and the base scripts of
+    # address-feedback-select and fix-ci-context. A later failure in that run (a failed verdict upload)
     # still escalates. At most one escalates: one activity runs per dispatch,
     # a reply, verdict or push job runs only after a model turn, and a model
     # job, or fix-ci-context, escalates only before one. A rung-up stop
@@ -730,7 +1005,7 @@ jobs:
     # label is applied and ci-status stays red.
     if: >-
       ${{ (!cancelled() && (needs.resolve-conflicts.outputs.escalation-reason != ''
-      || needs.address-feedback.outputs.escalation-reason != ''
+      || needs.address-feedback-select.outputs.escalation-reason != ''
       || needs.publish-feedback.outputs.escalation-reason != ''
       || needs.review-dependency.outputs.escalation-reason != ''
       || needs.apply-dependency-verdict.outputs.escalation-reason != ''
@@ -757,7 +1032,7 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       escalation-reason: >-
         ${{ needs.resolve-conflicts.outputs.escalation-reason
-        || needs.address-feedback.outputs.escalation-reason
+        || needs.address-feedback-select.outputs.escalation-reason
         || needs.publish-feedback.outputs.escalation-reason
         || needs.review-dependency.outputs.escalation-reason
         || needs.apply-dependency-verdict.outputs.escalation-reason
@@ -768,5 +1043,5 @@ jobs:
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       expected-upstream-head: >-
         ${{ inputs.activity == 'address-feedback' && inputs.dispatcher-run-id != ''
-        && needs.address-feedback.outputs.head-sha || '' }}
+        && needs.address-feedback-select.outputs.head-sha || '' }}
       trusted-base: default-tip

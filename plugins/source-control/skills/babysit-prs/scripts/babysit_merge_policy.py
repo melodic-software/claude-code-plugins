@@ -32,7 +32,7 @@ import re
 import sys
 import tempfile
 import urllib.request
-from collections.abc import Callable, Collection, Iterable, Iterator, Mapping
+from collections.abc import Callable, Collection, Iterator, Mapping
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -57,15 +57,10 @@ from babysit_gh import (
     record_pull_request_total,
 )
 from babysit_risk import (
-    AGENT_FILES,
-    DECLARATION_FILES,
+    HIGH_FLOOR,
     ChangedFile,
-    declaration_pointers,
-    case_dir,
-    eval_case_dirs,
     glob_match,
-    is_capability_path,
-    is_case_file,
+    is_workflow_path,
     is_manifest_path,
 )
 from babysit_util import (
@@ -73,6 +68,7 @@ from babysit_util import (
     is_json_object,
     json_array,
     json_object,
+    parse_timestamp,
     run_command,
 )
 
@@ -99,7 +95,9 @@ WORK_CLASS_LABELS = {
     "work-class: read-only": "C1",
     "work-class: mechanical": "C2",
     "work-class: scoped": "C3",
-    "work-class: structural": "C4",
+    # Structural risk shows in the diff the review lanes read: it merges as
+    # scoped work.
+    "work-class: structural": "C3",
     "work-class: untrusted-provenance": "C5",
 }
 WORK_CLASS_PREFIX = "work-class:"
@@ -117,10 +115,12 @@ BODY_MERGE_HOLD_RE = re.compile(
 # The label form of the same hold: blocks in every tier, whether or not the
 # autopilot merge tier is engaged. `--block-labels` only adds to it.
 MERGE_HOLD_LABELS = ("do-not-merge",)
-# `adoption.idle-hours` when absent; a value outside 1 to
-# `MAX_ADOPTION_IDLE_HOURS` adopts nothing.
-ADOPTION_IDLE_HOURS = 24
+# An `adoption.idle-hours` value outside 1 to `MAX_ADOPTION_IDLE_HOURS`, or
+# none, adopts nothing.
 MAX_ADOPTION_IDLE_HOURS = 720
+# Whose pull requests the pr-merge lane adopts: every account on this list,
+# by id (`trusted_actor_ids`).
+TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
 RUNG_CAP_VARIABLE = "CLAUDE_LANES_MERGE_RUNG_CAP"
 ORG_SWITCH = "CLAUDE_LANES_DISABLED"
 REPO_SWITCH = "CLAUDE_LANES_REPO_DISABLED"
@@ -533,17 +533,8 @@ class PipelineConfig:
     # decision Q624): absent, the HIGH path floor and the C2 contradictions
     # are off and there is no file cap (`max_changed_lines` None: no line
     # cap); a value other than true or false turns a switch on. The local
-    # babysit lane ignores them, except that `high_path_floor` gates the floor
-    # additions there too (`babysit_risk.RiskInput.floor_extensions`).
+    # babysit lane ignores them.
     high_path_floor: bool = False
-    # `merge.diff-check.floor-paths`: globs joined to the floor (owner
-    # decision Q641); they hold a pull request for a human, unlike
-    # denied-paths, which makes it ineligible.
-    floor_paths: tuple[str, ...] = ()
-    # `merge.diff-check.floor-script-scopes`: globs inside which a `.ps1` or
-    # `.cjs` file, or a file with git mode 100755, holds the same way (owner
-    # decision Q646).
-    floor_script_scopes: tuple[str, ...] = ()
     c2_contradictions: bool = False
     max_changed_files: int | None = None
     # `merge.max-in-flight`: lane merges in flight at once (`in_flight`).
@@ -573,17 +564,17 @@ class PipelineConfig:
     # The default branch head's `merge.check-inputs` not in `check_inputs`,
     # set by `stricter_config` and read on its own.
     head_check_inputs: tuple[str, ...] = ()
-    # `adoption.idle-hours`: how long an owner pull request's update and head
-    # commit must be idle before the pr-merge lane adopts it
-    # (`adoption_refusal`). Absent is `ADOPTION_IDLE_HOURS`; anything but a
-    # whole number from 1 to `MAX_ADOPTION_IDLE_HOURS` is None, which adopts
-    # nothing. `stricter_config` takes the
-    # default branch head's.
-    adoption_idle_hours: int | None = ADOPTION_IDLE_HOURS
-    # `adoption.owner-ids`: the account ids whose pull requests may be
-    # adopted. Absent, null, empty, or a list with an entry that is not a
-    # whole number is empty, which adopts nothing. The default branch head's.
-    adoption_owner_ids: tuple[int, ...] = ()
+    # `adoption.idle-hours`: how long a person's pull request's update and
+    # head commit must be idle before the pr-merge lane adopts it
+    # (`adoption_refusal`). Absent, or anything but a whole number from 1 to
+    # `MAX_ADOPTION_IDLE_HOURS`, is None, which adopts nothing.
+    # `stricter_config` takes the default branch head's.
+    adoption_idle_hours: int | None = None
+    # `adoption.spec-from-body-apps`: the App ids whose pull request bodies a
+    # script writes, so an adopted one closing no issue here is judged
+    # against its title and body, as a person's is. Any other App needs a
+    # closing issue. An entry that is not an id empties it. Main's.
+    spec_from_body_apps: tuple[int, ...] = ()
     # `merge.quarantine-days`: days a quarantined suite's failures on the
     # default branch stop demoting (`babysit_postmerge`). Absent, or anything
     # but a whole number from 1 to `MAX_QUARANTINE_DAYS`, is `QUARANTINE_DAYS`.
@@ -721,8 +712,6 @@ def read_config_at(
             ("merge.diff-check.high-path-floor", False),
             ("merge.diff-check.c2-contradictions", False),
             ("merge.diff-check.denied-paths", True),
-            ("merge.diff-check.floor-paths", True),
-            ("merge.diff-check.floor-script-scopes", True),
             ("merge.report-only", False),
             ("merge.require-verifier-verdict", False),
             ("merge.dependabot.mode", False),
@@ -733,7 +722,7 @@ def read_config_at(
             ("merge.max-verify-fails", False),
             ("merge.check-inputs", True),
             ("adoption.idle-hours", False),
-            ("adoption.owner-ids", True),
+            ("adoption.spec-from-body-apps", True),
             ("merge.quarantine-days", False),
             ("red-main.confirm-wait-minutes", False),
         ],
@@ -821,7 +810,7 @@ def read_config_at(
         )
         verify_fails = "1"
     idle_text = scalar("adoption.idle-hours")
-    idle_hours: int | None = ADOPTION_IDLE_HOURS
+    idle_hours: int | None = None
     if idle_text is not None:
         idle_hours = (
             int(idle_text) if re.fullmatch(r"[1-9][0-9]{0,2}", idle_text) else None
@@ -832,13 +821,13 @@ def read_config_at(
                 f"to {MAX_ADOPTION_IDLE_HOURS}; nothing is adopted"
             )
             idle_hours = None
-    owner_ids = tuple(values["adoption.owner-ids"])
-    if not all(re.fullmatch(r"[1-9][0-9]*", i) for i in owner_ids):
+    body_apps = tuple(values["adoption.spec-from-body-apps"])
+    if not all(re.fullmatch(r"[1-9][0-9]*", i) for i in body_apps):
         notes.append(
-            f"adoption.owner-ids {list(owner_ids)!r} holds an entry that is not an "
-            "account id; nothing is adopted"
+            f"adoption.spec-from-body-apps {list(body_apps)!r} holds an entry that "
+            "is not an account id; every App needs a closing issue"
         )
-        owner_ids = ()
+        body_apps = ()
     quarantine_days = scalar("merge.quarantine-days")
     if quarantine_days is not None and not (
         re.fullmatch(r"[1-9][0-9]?", quarantine_days)
@@ -873,8 +862,6 @@ def read_config_at(
         dependabot_mode=dependabot_mode,
         dependabot_majors=dependabot_majors,
         high_path_floor=high_path_floor,
-        floor_paths=tuple(values["merge.diff-check.floor-paths"]),
-        floor_script_scopes=tuple(values["merge.diff-check.floor-script-scopes"]),
         c2_contradictions=c2_contradictions,
         max_changed_files=int(files) if files else None,
         max_in_flight=int(in_flight_cap) if in_flight_cap else 1,
@@ -885,7 +872,7 @@ def read_config_at(
         max_verify_fails=int(verify_fails) if verify_fails else MAX_VERIFY_FAILS,
         check_inputs=tuple(values["merge.check-inputs"]),
         adoption_idle_hours=idle_hours,
-        adoption_owner_ids=tuple(int(i) for i in owner_ids),
+        spec_from_body_apps=tuple(int(i) for i in body_apps),
         quarantine_days=int(quarantine_days) if quarantine_days else QUARANTINE_DAYS,
         confirm_wait_minutes=int(confirm_wait)
         if confirm_wait is not None
@@ -949,8 +936,6 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
         if "hold" in (base.dependabot_majors, main.dependabot_majors)
         else base.dependabot_majors,
         high_path_floor=base.high_path_floor or main.high_path_floor,
-        floor_paths=_union(base.floor_paths, main.floor_paths),
-        floor_script_scopes=_union(base.floor_script_scopes, main.floor_script_scopes),
         c2_contradictions=base.c2_contradictions or main.c2_contradictions,
         max_changed_files=_cap(base.max_changed_files, main.max_changed_files),
         max_queue_ejections=min(base.max_queue_ejections, main.max_queue_ejections),
@@ -965,7 +950,7 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
         max_in_flight=min(base.max_in_flight, main.max_in_flight),
         # Read at main (owner decision Q22).
         adoption_idle_hours=main.adoption_idle_hours,
-        adoption_owner_ids=main.adoption_owner_ids,
+        spec_from_body_apps=main.spec_from_body_apps,
     )
 
 
@@ -1010,8 +995,6 @@ def _cached_config(value: Any) -> PipelineConfig | None:
                 for t in (
                     c.denied_paths,
                     c.notes,
-                    c.floor_paths,
-                    c.floor_script_scopes,
                     c.check_inputs,
                     c.head_check_inputs,
                 )
@@ -1036,8 +1019,8 @@ def _cached_config(value: Any) -> PipelineConfig | None:
                 or count(c.adoption_idle_hours, 1)
                 and c.adoption_idle_hours <= MAX_ADOPTION_IDLE_HOURS
             )
-            and isinstance(c.adoption_owner_ids, tuple)
-            and all(count(i, 1) for i in c.adoption_owner_ids)
+            and isinstance(c.spec_from_body_apps, tuple)
+            and all(count(i, 1) for i in c.spec_from_body_apps)
         )
     except (TypeError, ValueError):
         return None
@@ -1553,6 +1536,11 @@ class Eligibility:
     # Why the pr-merge lane adopted a pull request it did not open
     # (`adoption_refusal`), else None.
     adoption: str | None = None
+    # An adopted pull request whose author is a person or an App in
+    # `adoption.spec-from-body-apps`: its title and body may be its intent,
+    # and its own lines skip the denied paths and manifest review (`own_paths`).
+    # Any other App's own lines skip them only under `MODEL_APP_OWN`.
+    body_is_intent: bool = False
 
 
 def _label_names(node: dict[str, Any]) -> list[str] | None:
@@ -1808,6 +1796,10 @@ def eligibility(
     return Eligibility(True, None, work_class, issue_number)
 
 
+# `_closing_issue` refusals that mean no closing issue in this repository.
+NO_ISSUE_HERE = ("linked-issues:0", "linked-issue-other-repository")
+
+
 def _closing_issue(pr: dict[str, Any], repo: str) -> tuple[dict[str, Any], str | None]:
     """(the issue, None) for a pull request with exactly one closing issue in
     this repository, else ({}, the refusal)."""
@@ -1822,6 +1814,92 @@ def _closing_issue(pr: dict[str, Any], repo: str) -> tuple[dict[str, Any], str |
     ):
         return {}, "linked-issue-other-repository"
     return issue, None
+
+
+# --- Cost decision ------------------------------------------------------------------------
+
+# A comment link in a pull request body, and the first line that makes a
+# comment a decision (as select-trusted-text.mjs `DECISION` reads it).
+COST_DECISION_LINK = re.compile(
+    r"https://github\.com/([A-Za-z0-9-]+)/([A-Za-z0-9._-]+)/(?:issues|pull)/"
+    r"([0-9]+)#issuecomment-([0-9]+)"
+)
+# A cost decision's first line: the decision marker, then `Cost:`, so a
+# decision recorded for something else clears no cost hold.
+DECISION_LINE = re.compile(r"^\*\*Decision recorded\.\*\*[ \t]+Cost:")
+# An HTML comment in the body, or an unclosed one to the end: a link inside
+# one is hidden from a reader, so it cites nothing.
+HTML_COMMENT = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)
+COMMENT_EDITED = "query PolicyCommentEdited($id:ID!){node(id:$id){... on IssueComment{lastEditedAt}}}"
+
+
+def _after(value: Any, opened: datetime | None) -> bool:
+    made = parse_timestamp(value)
+    return made is not None and opened is not None and made > opened
+
+
+def cost_decision(
+    repo: str,
+    pr: Mapping[str, Any],
+    issue: int | None,
+    *,
+    permission: Permission,
+    agent_identity: str | None,
+    self_logins: Collection[str] = frozenset(),
+) -> str | None:
+    """The first comment link in the body that is an owner decision covering
+    this pull request, else None: a comment on its closing issue or on the
+    pull request itself in `repo`, by a User with admin permission who is not
+    the agent identity, not posted through an App, never edited, and whose
+    first line starts `**Decision recorded.** Cost:`. One on the closing issue
+    counts only when created after the pull request was, so an older decision
+    on the issue cannot cover new work (an author can forge commit dates, not
+    these); one on the pull request postdates it already. A link inside an HTML
+    comment, and a comment by a `self_logins` account, count for nothing. A
+    read that fails clears nothing."""
+    owner, name = _split_repo(repo)
+    covered = {pr.get("number"), issue} - {None}
+    opened = parse_timestamp(pr.get("created_at"))
+    excluded = {_login_key(agent_identity)} | {_login_key(x) for x in self_logins}
+    body = HTML_COMMENT.sub("", str(pr.get("body") or ""))
+    for link in COST_DECISION_LINK.finditer(body):
+        if f"{link[1]}/{link[2]}".casefold() != repo.casefold():
+            continue
+        if int(link[3]) not in covered:
+            continue
+        status, comment = _get(f"repos/{owner}/{name}/issues/comments/{link[4]}")
+        if status != 200 or not is_json_object(comment):
+            continue
+        user = json_object(comment.get("user"))
+        login = user.get("login")
+        if (
+            not str(comment.get("issue_url") or "").endswith(f"/issues/{link[3]}")
+            or user.get("type") != "User"
+            or comment.get("performed_via_github_app") is not None
+            or not isinstance(login, str)
+            or _login_key(login) in excluded
+            or not DECISION_LINE.match(str(comment.get("body") or "").lstrip())
+            or (
+                int(link[3]) != pr.get("number")
+                and not _after(comment.get("created_at"), opened)
+            )
+        ):
+            continue
+        try:
+            if permission(login) != "admin":
+                continue
+            node = _graphql(
+                COMMENT_EDITED, "cost decision", id=str(comment.get("node_id"))
+            ).get("node")
+        except PolicyReadError:
+            continue
+        if (
+            is_json_object(node)
+            and "lastEditedAt" in node
+            and node["lastEditedAt"] is None
+        ):
+            return link[0]
+    return None
 
 
 def _foreign_refusal(pr: dict[str, Any], owner: str) -> str | None:
@@ -1884,6 +1962,38 @@ def _denied_path_refusal(
 
 
 AUTHOR_NOT_OWNER = "author-not-owner"
+# `trusted_actors` by (repo, ref), read once a run.
+_TRUSTED_IDS: dict[tuple[str, ...], tuple[tuple[int, ...], tuple[int, ...]]] = {}
+
+
+def trusted_actors(
+    repo: str, ref: str, exclude: Collection[str] = ()
+) -> tuple[tuple[int, ...], tuple[int, ...]]:
+    """Every account id on `TRUSTED_ACTORS_PATH` at `ref`, people and Apps
+    alike (whose pull requests the lane adopts), but those whose login
+    (`_login_key`) is in `exclude`, and the ids of kind `human` (the people;
+    a GitHub User may be a model's account). A list that cannot be read or
+    does not match its schema is empty, which adopts nothing."""
+    key = (repo, ref, *sorted(exclude))
+    if key not in _TRUSTED_IDS:
+        owner, name = _split_repo(repo)
+        try:
+            listing = json_object(
+                json.loads(_file_at(owner, name, TRUSTED_ACTORS_PATH, ref) or "{}")
+            )
+        except (PolicyReadError, ValueError):
+            listing = {}
+        actors = [json_object(a) for a in json_array(listing.get("actors"))]
+        ids = tuple(a.get("id") for a in actors)
+        valid = listing.get("version") == 1 and all(
+            type(i) is int and i > 0 for i in ids
+        )
+        humans = tuple(a["id"] for a in actors if a.get("kind") == "human")
+        kept = tuple(
+            a.get("id") for a in actors if _login_key(a.get("login")) not in exclude
+        )
+        _TRUSTED_IDS[key] = (kept, humans) if valid else ((), ())
+    return _TRUSTED_IDS[key]
 
 
 def adoption_refusal(
@@ -1897,17 +2007,19 @@ def adoption_refusal(
     queued_at_head: Callable[[], bool] = lambda: False,
 ) -> str | None:
     """Why the pr-merge lane does not adopt this REST pull request, or None
-    when it does (owner decision Q22): not a draft; opened by an owner
-    account, a User whose id is in `owner_ids` (never matched by login); its
-    `updated_at` and its head commit's committer date, `head_committed()`,
-    read last, both at least `idle_hours` old, an unreadable one not idle;
-    and no hold: a `MERGE_HOLD_LABELS` label, the resolved `human_gated` role
-    label, or a body hold (`BODY_MERGE_HOLD_RE`). A fresh `updated_at` is
-    excused while `queued_at_head()` (`lane_queued_at_head`), read only
-    then: the lane's own pin comment and enqueue refresh it."""
+    when it does (owner decisions Q22 and 2026-10-22): not a draft; opened by
+    a User or Bot whose id is in `owner_ids` (`trusted_actor_ids`; never
+    matched by login); for a User, its `updated_at` and its head commit's
+    committer date, `head_committed()`, read last, both at least
+    `idle_hours` old, an unreadable one not idle; and no hold: a
+    `MERGE_HOLD_LABELS` label, the resolved `human_gated` role label, or a
+    body hold (`BODY_MERGE_HOLD_RE`). A fresh `updated_at` is excused while
+    `queued_at_head()` (`lane_queued_at_head`), read only then: the lane's
+    own pin comment and enqueue refresh it."""
     user = json_object(pr.get("user"))
     uid = user.get("id")
-    if user.get("type") != "User" or type(uid) is not int or uid not in owner_ids:
+    kind = user.get("type")
+    if kind not in ("User", "Bot") or type(uid) is not int or uid not in owner_ids:
         return AUTHOR_NOT_OWNER
     if pr.get("draft") is not False:
         return "draft"
@@ -1933,6 +2045,8 @@ def adoption_refusal(
         except PolicyReadError:
             return False
 
+    if kind == "Bot":
+        return None
     if not idle(lambda: pr.get("updated_at")) and not queued_at_head():
         return "updated-fresh"
     if not idle(head_committed):
@@ -1987,6 +2101,7 @@ def lane_eligibility(
     permission: Permission | None = None,
     adoption_idle_hours: int | None = None,
     adoption_owner_ids: Collection[int] = (),
+    spec_from_body_ids: Collection[int] = (),
     human_gated: str | None = None,
     now: datetime | None = None,
     queued_at_head: Callable[[], bool] = lambda: False,
@@ -2007,6 +2122,7 @@ def lane_eligibility(
     owner, name = _split_repo(repo)
     issue_number = None
     adoption = None
+    body_is_intent = False
     try:
         data = _graphql(ELIGIBILITY, f"#{number}", o=owner, r=name, n=number)
         node = json_object(json_object(data.get("repository")).get("pullRequest"))
@@ -2035,6 +2151,14 @@ def lane_eligibility(
         issue, refusal = _closing_issue(node, repo)
         if refusal is None:
             issue_number = issue["number"]
+        # An adopted pull request closing no issue here is its own intent,
+        # the verifier judging its title and body (owner decision 2026-10-22),
+        # when a person or a script wrote them (`spec_from_body_ids`: the
+        # trusted list's kind human ids and adoption.spec-from-body-apps); a
+        # model-written body would be the spec the same run grades itself
+        # against, whatever the account's GitHub type.
+        body_is_intent = json_object(pr.get("user")).get("id") in spec_from_body_ids
+        if refusal is None or adoption and body_is_intent and refusal in NO_ISSUE_HERE:
             refusal = _base_refusal(owner, name, node, shared=True)
         if refusal is None:
             refusal = _denied_path_refusal(
@@ -2043,7 +2167,12 @@ def lane_eligibility(
     except PolicyReadError as exc:
         return Eligibility(False, f"unreadable: {exc}")
     return Eligibility(
-        refusal is None, refusal, LANE_CLASS, issue_number, adoption=adoption
+        refusal is None,
+        refusal,
+        LANE_CLASS,
+        issue_number,
+        adoption=adoption,
+        body_is_intent=bool(adoption) and body_is_intent,
     )
 
 
@@ -2451,6 +2580,8 @@ def recheck_lane_issue(repo: str, number: int, *, issue: int | None) -> str | No
         if not node:
             return "pull-request-unreadable"
         found, refusal = _closing_issue(node, repo)
+        if issue is None and refusal in NO_ISSUE_HERE:
+            return _base_refusal(owner, name, node)
         if refusal:
             return refusal
         if found["number"] != issue:
@@ -3140,6 +3271,32 @@ def merged_since_floor(
 # --- Changed files with git modes -------------------------------------------------------------
 
 
+def pulumi_dirs_at(repo: str, pr: Mapping[str, Any]) -> tuple[str, ...] | None:
+    """`babysit_risk.RiskInput.pulumi_dirs`: each directory holding a
+    `Pulumi.yaml` at the base ("" for the root); None when the base tree
+    cannot be listed whole."""
+    owner, name = _split_repo(repo)
+    base = str(json_object(pr.get("base")).get("sha"))
+    try:
+        if not SHA_RE.fullmatch(base):
+            raise PolicyReadError("the pull request record names no base SHA")
+        modes = _tree_modes(owner, name, base)
+    except (PolicyReadError, ValueError) as exc:
+        print(
+            f"Pulumi projects at the base: {type(exc).__name__}: {exc}", file=sys.stderr
+        )
+        return None
+    if modes is None:
+        return None
+    return tuple(
+        sorted(
+            path.rpartition("/")[0]
+            for path in modes
+            if path.rpartition("/")[2].casefold() == "pulumi.yaml"
+        )
+    )
+
+
 def _tree_modes(owner: str, name: str, sha: str) -> dict[str, str] | None:
     """Each path's git mode at `sha`, or None when the listing is truncated:
     from a local clone holding `sha` (`_clones_holding`), else the trees API."""
@@ -3222,7 +3379,108 @@ def changed_files(
     )
 
 
-# Capability file text by (owner, name, path, sha): a SHA pins the text, so a
+# GitHub's web-flow account, which commits what an App writes through the API.
+WEB_FLOW_ID = 19864447
+
+
+def _own_commit(commit: Mapping[str, Any], user: Mapping[str, Any]) -> bool:
+    """Whether a pull request commit is its author's own: GitHub verified
+    its signature, its author account is the pull request's author, and,
+    for a person, so is its committer. The author account alone comes from
+    the git author email, which anyone can set. An App commits through the
+    API, which GitHub's web-flow (`WEB_FLOW_ID`) commits, so its committer
+    may be web-flow or itself: the weaker case."""
+    author = json_object(commit.get("author")).get("id")
+    committer = json_object(commit.get("committer")).get("id")
+    verified = json_object(
+        json_object(json_object(commit.get("commit")).get("verification"))
+    ).get("verified")
+    allowed = (author, WEB_FLOW_ID) if user.get("type") == "Bot" else (author,)
+    return verified is True and author == user.get("id") and committer in allowed
+
+
+def foreign_paths(
+    repo: str, pr: Mapping[str, Any], changed: Collection[str]
+) -> frozenset[str] | None:
+    """The `changed` paths (the pull request's, both sides of a rename) that
+    a commit not its author's own (`_own_commit`) touched: what an adopted
+    pull request's floor scores (owner decision 2026-10-22: a trusted
+    author's own lines, a person's or an App's, need no person; a lane's fix
+    still does, and the lanes App's own pull requests, never adopted, are
+    scored whole). A merge commit counts too, intersected with `changed`, so
+    main's incoming files outside the pull request's diff score nothing
+    while a conflict resolved inside it scores. None, which scores every
+    path, when a listing may be cut off or cannot be read."""
+    owner, name = _split_repo(repo)
+    user = json_object(pr.get("user"))
+    try:
+        commits = _paginated(
+            f"repos/{owner}/{name}/pulls/{pr.get('number')}/commits?per_page=100",
+            f"#{pr.get('number')} commits",
+        )
+        if type(user.get("id")) is not int or len(commits) >= 250:
+            return None
+        paths: set[str] = set()
+        for commit in commits:
+            if _own_commit(commit, user):
+                continue
+            status, payload = _get(f"repos/{owner}/{name}/commits/{commit.get('sha')}")
+            files = json_array(json_object(payload).get("files"))
+            if status != 200 or len(files) >= 300:
+                return None
+            for entry in map(json_object, files):
+                paths.update(
+                    p
+                    for p in (entry.get("filename"), entry.get("previous_filename"))
+                    if isinstance(p, str) and p
+                )
+    except PolicyReadError:
+        return None
+    return frozenset(paths.intersection(changed))
+
+
+# Paths never a trusted author's own, whoever wrote them: the HIGH path floor
+# itself, so an adopted pull request's own lines hold there too.
+NEVER_FLOOR_EXEMPT = HIGH_FLOOR
+# Submodule, code-owner, agent permission and package manifest files, matched
+# as the whole last segment: the twin of
+# .github/scripts/pr-unblock/thread-scope.mjs INSTRUCTION_PATH, which a test
+# holds equal. Never floor-exempt either.
+INSTRUCTION_PATH_RE = re.compile(
+    r"(^|\/)(\.gitmodules|codeowners|settings[^/]*\.json|package(-lock)?\.json|requirements[^/]*\.txt)$",
+    re.I,
+)
+
+
+# A model-driven App's own lines skip the denied paths and the manifest review
+# only here (owner decision Q14 (c), #9107), still less the paths above.
+MODEL_APP_OWN = ("plugins/*/scripts/**",)
+
+
+def own_paths(
+    repo: str,
+    pr: Mapping[str, Any],
+    changed: Collection[str],
+    only: tuple[str, ...] | None = None,
+) -> frozenset[str]:
+    """The `changed` paths only the author's own commits touched
+    (`foreign_paths`), less `NEVER_FLOOR_EXEMPT` and `INSTRUCTION_PATH_RE`,
+    and inside `only` when given: what the denied paths and manifest review leave out of an
+    adopted pull request. Empty when the commits cannot be read."""
+    others = foreign_paths(repo, pr, changed)
+    if others is None:
+        return frozenset()
+    return frozenset(
+        p
+        for p in changed
+        if p not in others
+        and not INSTRUCTION_PATH_RE.search(p)
+        and not any(glob_match(g, p) for g in NEVER_FLOOR_EXEMPT)
+        and (only is None or any(glob_match(g, p) for g in only))
+    )
+
+
+# Manifest and workflow text by (owner, name, path, sha): a SHA pins the text, so a
 # run reads each side of each file once.
 _TEXT_AT: dict[tuple[str, str, str, str], str | None] = {}
 
@@ -3235,21 +3493,19 @@ def _text_at(owner: str, name: str, path: str, sha: str) -> str | None:
     return _TEXT_AT[key]
 
 
-def with_capability_contents(
+def with_contents(
     repo: str, pr: Mapping[str, Any], files: tuple[ChangedFile, ...]
 ) -> tuple[ChangedFile, ...]:
-    """Each changed capability file, manifest or eval case.yaml (not removed) with its base
-    text at the base SHA, from its previous path on a rename or copy, and its head text
-    at the head SHA, or the reason either could not be read."""
+    """Each changed manifest or workflow (not removed) with its base text at
+    the base SHA, from its previous path on a rename or copy, and its head
+    text at the head SHA, or the reason either could not be read."""
     owner, name = _split_repo(repo)
     base = json_object(pr.get("base")).get("sha")
     head = json_object(pr.get("head")).get("sha")
     read = []
     for changed in files:
         if changed.status == "removed" or not (
-            is_capability_path(changed.path)
-            or is_manifest_path(changed.path)
-            or is_case_file(changed.path)
+            is_manifest_path(changed.path) or is_workflow_path(changed.path)
         ):
             read.append(changed)
             continue
@@ -3274,140 +3530,9 @@ def with_capability_contents(
             reason = f"{type(exc).__name__}: {exc}"
             # repr escapes a newline in the author-controlled path, so the line
             # cannot start a workflow command.
-            print(
-                f"capability contents of {changed.path!r}: {reason!r}", file=sys.stderr
-            )
+            print(f"contents of {changed.path!r}: {reason!r}", file=sys.stderr)
             read.append(replace(changed, contents_error=reason))
     return tuple(read)
-
-
-_TREE_MODE = "040000"
-
-
-def _base_text(
-    owner: str,
-    name: str,
-    root: Path | None,
-    modes: Mapping[str, str],
-    path: str,
-    base: str,
-) -> str | None:
-    """A file's text at the base SHA, from the clone at `root` when there is
-    one, else the contents API; None when absent, a tree, or unreadable."""
-    if modes.get(path) in (None, _TREE_MODE):
-        return None
-    try:
-        if root is not None:
-            return _git_file_at(root, path, base)
-        return _text_at(owner, name, path, base)
-    except (PolicyReadError, ValueError) as exc:
-        print(f"base file {path!r}: {type(exc).__name__}", file=sys.stderr)
-        return None
-
-
-def agents_at(
-    repo: str, pr: Mapping[str, Any]
-) -> tuple[tuple[str, str | None], ...] | None:
-    """`babysit_risk.RiskInput.agents`: every `AGENT_FILES` file at the base
-    SHA as (path, text), None for a file that could not be read; None when the
-    base tree cannot be listed."""
-    owner, name = _split_repo(repo)
-    base = str(json_object(pr.get("base")).get("sha"))
-    try:
-        if not SHA_RE.fullmatch(base):
-            raise PolicyReadError("the pull request record names no base SHA")
-        root = next(_clones_holding(base), None)
-        modes = _tree_modes(owner, name, base)
-    except (PolicyReadError, ValueError) as exc:
-        print(f"agents at the base: {type(exc).__name__}: {exc}", file=sys.stderr)
-        return None
-    if modes is None:
-        return None
-    return tuple(
-        (path, _base_text(owner, name, root, modes, path, base))
-        for path in sorted(modes)
-        if modes[path] != _TREE_MODE and glob_match(AGENT_FILES, path)
-    )
-
-
-def eval_cases_at(
-    repo: str, pr: Mapping[str, Any], changed: Iterable[str | None]
-) -> tuple[tuple[str, str | None], ...] | None:
-    """`babysit_risk.RiskInput.eval_cases`: each case file (`is_case_file`) at the base SHA in
-    a directory `eval_case_dirs` names for a changed path, as (path, text),
-    None for a file that could not be read; None when the base tree cannot be
-    listed."""
-    owner, name = _split_repo(repo)
-    base = str(json_object(pr.get("base")).get("sha"))
-    wanted = {d for path in changed if path for d in eval_case_dirs(path)}
-    try:
-        if not SHA_RE.fullmatch(base):
-            raise PolicyReadError("the pull request record names no base SHA")
-        root = next(_clones_holding(base), None)
-        modes = _tree_modes(owner, name, base)
-    except (PolicyReadError, ValueError) as exc:
-        print(f"eval cases at the base: {type(exc).__name__}: {exc}", file=sys.stderr)
-        return None
-    if modes is None:
-        return None
-    return tuple(
-        (path, _base_text(owner, name, root, modes, path, base))
-        for path in sorted(modes)
-        if modes[path] != _TREE_MODE and is_case_file(path) and case_dir(path) in wanted
-    )
-
-
-def declarations_at(
-    repo: str, pr: Mapping[str, Any], changed: Iterable[str | None]
-) -> tuple[tuple[str, str | None], ...] | None:
-    """`babysit_risk.RiskInput.declarations`: `DECLARATION_FILES` files and
-    the config files their plugin.json points at, at the base SHA as (path,
-    text), with None for a file that could not be read. From a clone holding
-    the base, every plugin's, which costs no API call; else, through the
-    contents API, only those of a plugin directory a changed path sits in: a
-    declared path outside its own plugin is unsafe, so only another plugin's
-    escaping declaration could floor a changed file, and a change outside
-    every plugin reads none. None when the base tree cannot be listed; the
-    scorer holds the floor either way."""
-    plugins = {
-        "/".join(parts[:2]).casefold()
-        for path in changed
-        if isinstance(path, str)
-        and len(parts := path.split("/")) >= 3
-        and parts[0].casefold() == "plugins"
-    }
-    owner, name = _split_repo(repo)
-    base = str(json_object(pr.get("base")).get("sha"))
-    try:
-        if not SHA_RE.fullmatch(base):
-            raise PolicyReadError("the pull request record names no base SHA")
-        root = next(_clones_holding(base), None)
-        if root is None and not plugins:
-            return ()
-        modes = _tree_modes(owner, name, base)
-    except (PolicyReadError, ValueError) as exc:
-        print(f"declarations at the base: {type(exc).__name__}: {exc}", file=sys.stderr)
-        return None
-    if modes is None:
-        return None
-
-    def read(path: str) -> str | None:
-        return _base_text(owner, name, root, modes, path, base)
-
-    found = [
-        (path, read(path))
-        for path in sorted(modes)
-        if (root is not None or "/".join(path.split("/")[:2]).casefold() in plugins)
-        and any(glob_match(g, path) for g in DECLARATION_FILES)
-    ]
-    named = {path for path, _ in found}
-    pointers = (
-        q for path, text in list(found) for q in declaration_pointers(path, text)
-    )
-    for pointer in dict.fromkeys(pointers):
-        if pointer not in named:
-            found.append((pointer, read(pointer)))
-    return tuple(found)
 
 
 # --- Promotion evidence -----------------------------------------------------------------------
@@ -4099,13 +4224,26 @@ def assess(
         }
     elif lane:
         promo = Promotion(None, "not-read-in-pr-merge-lane")
+        # The trusted list at the default branch head, as its config is read
+        # (owner decision Q22): a stacked pull request's base is its author's.
+        trusted: tuple[tuple[int, ...], tuple[int, ...]] = ((), ())
+        if config.adoption_idle_hours is not None:
+            try:
+                head = _default_branch_config(repo, default).base_sha
+                # Never adopted: the lanes App (its own path) and Dependabot
+                # (its tier and review-dependency), by login on the list.
+                skip = {_login_key(inputs["identity"]), "dependabot"}
+                trusted = trusted_actors(repo, head, exclude=skip)
+            except (PolicyReadError, StopReadError):
+                pass
         eligible = lane_eligibility(
             repo,
             number,
             pr=pr,
             denied_paths=config.denied_paths,
             adoption_idle_hours=config.adoption_idle_hours,
-            adoption_owner_ids=config.adoption_owner_ids,
+            adoption_owner_ids=trusted[0],
+            spec_from_body_ids=(*trusted[1], *config.spec_from_body_apps),
             human_gated=human_gated,
             queued_at_head=lambda: lane_queued_at_head(
                 repo,

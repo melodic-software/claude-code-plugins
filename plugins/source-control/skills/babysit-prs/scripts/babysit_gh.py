@@ -112,8 +112,10 @@ def gh_capture(
     )
 
 
-def gh_json(args: list[str]) -> Any:
-    text = run_gh(args)
+def gh_json(args: list[str], env_overrides: Mapping[str, str] | None = None) -> Any:
+    text = _run_gh(
+        args, timeout_seconds=None, check=True, env_overrides=env_overrides
+    ).stdout
     return json.loads(text) if text.strip() else None
 
 
@@ -945,11 +947,15 @@ def flatten_paginated_items(
 
 
 def fetch_paginated_api(
-    endpoint: str, label: str, *, items_key: str | None = None
+    endpoint: str,
+    label: str,
+    *,
+    items_key: str | None = None,
+    env_overrides: Mapping[str, str] | None = None,
 ) -> list[dict[str, Any]]:
-    return flatten_paginated_items(
-        gh_json(["api", endpoint, "--paginate", "--slurp"]), label, items_key=items_key
-    )
+    args = ["api", endpoint, "--paginate", "--slurp"]
+    data = gh_json(args, env_overrides) if env_overrides else gh_json(args)
+    return flatten_paginated_items(data, label, items_key=items_key)
 
 
 def normalized_rest_author(item: dict[str, Any]) -> dict[str, Any]:
@@ -1318,26 +1324,49 @@ def collect_lane_runs(
     number: int,
     head_ref: str,
     lanes: Iterable[tuple[str, str]],
+    created_at: str = "",
+    env_overrides: Mapping[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     """The `runs` input of `babysit_review_evidence.bind()` for one pull request.
 
     `lanes` gives each lane's (caller workflow path, lane job name suffix).
     Each workflow's `pull_request` runs are listed by `head_ref` with no
     `head_sha` filter and kept when their `pull_requests` name `number`, so
-    earlier heads' reviews are included. Each kept run's attempt count comes
+    earlier heads' reviews are included. `created_at`, the pull request's
+    creation time, bounds the listing to runs created since: GitHub labels a
+    reused branch's older runs with whichever pull request is open on it now,
+    so without the bound a long-lived branch reads every earlier pull
+    request's runs. A value that is not a UTC timestamp leaves it unbounded. Each kept run's attempt count comes
     from a fresh `GET actions/runs/{id}` taken after the listing; each attempt
     carries its jobs, and each lane job its check run's annotations. Any read
     failure, a deleted or expired run included, raises `RuntimeError`, which
-    the caller turns into unbound evidence.
+    the caller turns into unbound evidence. `env_overrides` applies to every
+    read, all of them GETs.
     """
+    env = env_overrides
+
+    def read(path: str) -> Any:
+        return gh_json(["api", path], env) if env else gh_json(["api", path])
+
+    def pages(endpoint: str, label: str, items_key: str | None = None) -> list[Any]:
+        return fetch_paginated_api(
+            endpoint, label, items_key=items_key, env_overrides=env
+        )
+
     runs: list[dict[str, Any]] = []
+    since = (
+        f"&created={quote('>=' + created_at, safe='')}"
+        if re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", created_at)
+        else ""
+    )
     for path, job_suffix in lanes:
         workflow = quote(path.rsplit("/", 1)[-1], safe="")
-        listing = fetch_paginated_api(
+        listing = pages(
             f"repos/{repo}/actions/workflows/{workflow}/runs"
-            f"?branch={quote(head_ref, safe='')}&event=pull_request&per_page=100",
+            f"?branch={quote(head_ref, safe='')}&event=pull_request{since}"
+            "&per_page=100",
             f"{workflow} runs",
-            items_key="workflow_runs",
+            "workflow_runs",
         )
         for item in listing:
             if not any(
@@ -1348,22 +1377,18 @@ def collect_lane_runs(
             run_id = item.get("id")
             if not isinstance(run_id, int) or isinstance(run_id, bool):
                 raise RuntimeError(f"{workflow} run without an id")
-            latest = json_object(
-                gh_json(["api", f"repos/{repo}/actions/runs/{run_id}"])
-            )
+            latest = json_object(read(f"repos/{repo}/actions/runs/{run_id}"))
             count = latest.get("run_attempt")
             if not isinstance(count, int) or isinstance(count, bool) or count < 1:
                 raise RuntimeError(f"run {run_id}: no attempt count")
             attempts = []
             for n in range(1, count + 1):
                 base = f"repos/{repo}/actions/runs/{run_id}/attempts/{n}"
-                attempt = json_object(gh_json(["api", base]))
-                jobs = fetch_paginated_api(
-                    f"{base}/jobs?per_page=100", f"run {run_id} jobs", items_key="jobs"
-                )
+                attempt = json_object(read(base))
+                jobs = pages(f"{base}/jobs?per_page=100", f"run {run_id} jobs", "jobs")
                 for job in jobs:
                     if str(job.get("name") or "").rsplit(" / ", 1)[-1] == job_suffix:
-                        job["annotations"] = fetch_paginated_api(
+                        job["annotations"] = pages(
                             f"repos/{repo}/check-runs/{job.get('id')}/annotations"
                             "?per_page=100",
                             f"job {job.get('id')} annotations",

@@ -2,18 +2,19 @@
 // job's runner step and the reply job's script (publish-feedback.mjs). It runs
 // no PR head code and hands the model no decision.
 //
-//   select  run by .github/workflows/pr-run-activity-write.yml around a
-//           `prepare: review-threads` skill, before the head checkout and any
+//   select  run by .github/workflows/pr-unblock.yml's address-feedback-select
+//           job, which runs only base code, before the model job and any
 //           model turn, with the job's read-only token: keeps the unresolved
 //           review threads the reviewer bot opened in a review on a head a
 //           review lane's marker confirms, when every comment is the bot's,
 //           a trusted person with write access asked the lane to fix it, or
 //           a trusted person answered the lane's escalation, then decides
-//           skip (no such thread), escalate (the PR changes .github/**, or
+//           skip (no such thread), escalate (the PR changes .github/workflows/**, or
 //           the configured number of rounds already ran and no write-access
 //           fix request came after the newest one) or proceed, writing the thread file
 //           the skill's review-thread tool reads, with the same-plugin files
-//           a write-access fix request names (namedPaths). On a PR carrying the
+//           a write-access fix request names (namedPaths), and run.json, the
+//           record the reply job checks the replies against (runRecord). On a PR carrying the
 //           human-gated label it keeps only threads a trusted person with
 //           write access asked it to fix (isFixRequest), and skips
 //           awaiting-human when there are none.
@@ -38,6 +39,10 @@ export const MARKER_AUTHOR_ID = 41898282;
 const REVIEWED_HEAD =
   /^<!-- claude-lane-reviewed-head lane=(claude-review|claude-security-review) sha=([0-9a-f]{40}) -->$/;
 export const SHA = /^[0-9a-f]{40}$/;
+// The first line of each review comment verify-notes.mjs posts, as
+// github-actions[bot] (MARKER_AUTHOR_ID), with a pr-verify FAIL's notes. Such
+// a comment opens a thread this lane works like the reviewer bot's.
+export const VERIFY_NOTE_MARKER = "<!-- pr-verify:fail-note -->";
 const THREAD_COMMENT_CAP = 100;
 // The most files the pulls files listing returns
 // (docs.github.com/en/rest/pulls/pulls#list-pull-requests-files, as of
@@ -253,8 +258,10 @@ export function humanGatedLabelFrom(path) {
 
 // Who wrote each comment of a thread, or null when it is not one to work.
 // `comments` are oldest first, each { authorId, createdAt, body, lastEditedAt,
-// editorId }. The first is the reviewer bot's, and one of these holds:
-// - every comment is the reviewer bot's;
+// editorId }. The first is the reviewer bot's, or a verifier note
+// (github-actions[bot]'s, its first line VERIFY_NOTE_MARKER), and one of these
+// holds:
+// - every comment is the reviewer bot's, but a verifier note's own;
 // - the lanes App never commented, every later comment is the reviewer bot's
 //   or a trusted person's, and one is a fix request (isFixRequest) by one of
 //   `fixers` (the trusted people with write access who wrote a fix request,
@@ -270,11 +277,13 @@ export function humanGatedLabelFrom(path) {
 // worked only when a reply is a fix request by one of them, after the
 // escalation when there is one.
 export function threadAuthors(comments, { reviewerId, appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set() }) {
-  if (comments.length === 0 || comments[0].authorId !== reviewerId) {
+  const verifier = comments.length > 0 && comments[0].authorId === MARKER_AUTHOR_ID && firstLine(comments[0].body) === VERIFY_NOTE_MARKER;
+  if (comments.length === 0 || (comments[0].authorId !== reviewerId && !verifier)) {
     return null;
   }
-  if (comments.every((comment) => comment.authorId === reviewerId)) {
-    return requesters ? null : comments.map(() => ({ author: "reviewer" }));
+  const finder = (comment, i) => (i === 0 && verifier ? { author: "verifier" } : comment.authorId === reviewerId ? { author: "reviewer" } : null);
+  if (comments.every((comment, i) => finder(comment, i) !== null)) {
+    return requesters ? null : comments.map(finder);
   }
   const isHuman = (comment) =>
     trustedHumans.has(comment.authorId) && (comment.lastEditedAt == null || trustedHumans.has(comment.editorId));
@@ -288,8 +297,8 @@ export function threadAuthors(comments, { reviewerId, appId, trustedHumans = new
     const asked = comments.findIndex((comment) => isHuman(comment) && asks(fixers, comment));
     const authors = [];
     for (const [i, comment] of comments.entries()) {
-      if (comment.authorId === reviewerId) {
-        authors.push({ author: "reviewer" });
+      if (finder(comment, i)) {
+        authors.push(finder(comment, i));
       } else if (isHuman(comment)) {
         authors.push(i >= asked ? { author: "trusted-human", direction: true } : { author: "trusted-human" });
       } else {
@@ -315,8 +324,8 @@ export function threadAuthors(comments, { reviewerId, appId, trustedHumans = new
         return null;
       }
       authors.push({ author: "trusted-human", direction: true });
-    } else if (id === reviewerId || id === appId || human) {
-      authors.push({ author: id === reviewerId ? "reviewer" : id === appId ? "lane" : "trusted-human" });
+    } else if (finder(comment, i) || id === appId || human) {
+      authors.push(finder(comment, i) ?? { author: id === appId ? "lane" : "trusted-human" });
     } else {
       return null;
     }
@@ -325,9 +334,9 @@ export function threadAuthors(comments, { reviewerId, appId, trustedHumans = new
 }
 
 // A thread is kept when it is unresolved, its first comment belongs to a
-// review the reviewer bot submitted on a marker-confirmed head (any head for
-// a thread carrying a trusted person's direction), and threadAuthors accepts
-// its comments.
+// review its author (the reviewer bot, or github-actions[bot] for a verifier
+// note) submitted on a marker-confirmed head (any head for a thread carrying
+// a trusted person's direction), and threadAuthors accepts its comments.
 // A thread with more comments than one page reads is left alone.
 export function keepThreads({ threads, reviewComments, reviews, heads, reviewerId, appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set() }) {
   const comments = new Map(reviewComments.map((comment) => [comment.id, comment]));
@@ -359,7 +368,8 @@ export function keepThreads({ threads, reviewComments, reviews, heads, reviewerI
     // escalation) asks for the thread, so its review may be on an earlier head.
     const directed = authors.some((a) => a.direction === true);
     const review = reviewsById.get(rows[0].pull_request_review_id);
-    if (review?.user?.id !== reviewerId || (!directed && !heads.has(review.commit_id))) {
+    const reviewAuthor = authors[0].author === "verifier" ? MARKER_AUTHOR_ID : reviewerId;
+    if (review?.user?.id !== reviewAuthor || (!directed && !heads.has(review.commit_id))) {
       continue;
     }
     kept.push({
@@ -378,7 +388,6 @@ export async function select({
   api,
   pr,
   headSha,
-  laneBranch,
   repository,
   appId,
   reviewerId,
@@ -413,7 +422,7 @@ export async function select({
     return { decision: "skip", skipReason: gated ? "awaiting-human" : "not-applicable", threads: kept };
   }
   // The files listing stops at FILES_CAP, so a longer diff could hide a
-  // .github/ path and is treated as touching one.
+  // .github/workflows/ path and is treated as touching one.
   if (
     files.length >= FILES_CAP ||
     files.some((file) => isProtectedPath(file.filename) || isProtectedPath(file.previous_filename ?? ""))
@@ -456,8 +465,25 @@ export async function select({
     rounds,
     fixRequested: gated,
     threads: worked,
-    file: { version: 1, repository, pr, head_sha: headSha, lane_branch: laneBranch, threads: worked },
+    file: { version: 1, repository, pr, head_sha: headSha, threads: worked },
   };
+}
+
+// run.json, as its bytes: the gated head and the kept threads with the comment
+// ids the model is shown, a pure function of the thread file. publish-feedback.mjs
+// checks the model's replies against it.
+export function runRecord(file) {
+  const run = {
+    version: 1,
+    head_sha: file.head_sha,
+    threads: file.threads.map((t) => ({
+      id: t.id,
+      path: t.path,
+      comment_ids: t.comments.map((c) => c.id),
+      ...(t.named_paths ? { named_paths: t.named_paths } : {}),
+    })),
+  };
+  return `${JSON.stringify(run)}\n`;
 }
 
 // The kept threads of a PR as they are now: the reply job's re-read.
@@ -648,6 +674,9 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
     async getRun(id) {
       return (await request(`${repo}/actions/runs/${id}`)).data;
     },
+    async createReviewComment(pr, fields) {
+      return (await request(`${repo}/pulls/${pr}/comments`, "POST", fields)).data;
+    },
     async replyToComment(pr, commentId, body) {
       return (await request(`${repo}/pulls/${pr}/comments/${commentId}/replies`, "POST", { body })).data;
     },
@@ -730,12 +759,11 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
     });
   const output = (key, value) => appendFileSync(env.GITHUB_OUTPUT, `${key}=${value}\n`);
   if (command === "select") {
-    need(env, ["LANE_BRANCH", "THREAD_FILE", "TRUSTED_ACTORS"]);
+    need(env, ["THREAD_FILE", "RUN_FILE", "TRUSTED_ACTORS"]);
     const result = await select({
       api: client,
       pr,
       headSha: env.HEAD_SHA,
-      laneBranch: env.LANE_BRANCH,
       repository: env.GITHUB_REPOSITORY,
       appId,
       reviewerId: reviewerIdFrom(env.TRUSTED_ACTORS),
@@ -745,6 +773,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
     });
     if (result.file) {
       writeFileSync(env.THREAD_FILE, `${JSON.stringify(result.file, null, 2)}\n`);
+      writeFileSync(env.RUN_FILE, runRecord(result.file));
     }
     output("proceed", String(result.decision === "proceed"));
     // The write runner drops the human-gated label from the hold list only

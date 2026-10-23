@@ -24,6 +24,7 @@ import time
 from pathlib import Path, PureWindowsPath
 from urllib.parse import quote
 
+from question_shape import restates, withheld
 from session_bridge import (
     MAX_STREAMS,  # noqa: F401  # the stream limits, read through this module by its tests
     PING_SECONDS,  # noqa: F401
@@ -78,6 +79,12 @@ PAGE_CSP = (
     "connect-src 'self'; frame-src 'self' about:; frame-ancestors 'none'; "
     "form-action 'none'; base-uri 'none'"
 )
+# The question-shape files both interview pages load (composer, viewport fit), from the shared page's web folder.
+SHARED_WEB = HERE.parent / "shared" / "web"
+QUESTION_SHAPE = {
+    "/question-shape.js": ("question-shape.js", "text/javascript"),
+    "/question-shape.css": ("question-shape.css", "text/css"),
+}
 # A visual may never name a runtime file: the session files and their transient temp copies
 # hold the token, so every dotfile path component, lock and temp file is refused.
 RUNTIME_SUFFIXES = (".lock", ".tmp")
@@ -887,6 +894,13 @@ class Hub(LoopbackWatcher):
                             "decision"
                         )
                     )
+                if isinstance(x, dict):
+                    rec = x.get("recommendation")
+                    if withheld(rec):
+                        x["withheld"] = True
+                    for a in x.get("alternatives") or []:
+                        if isinstance(a, dict) and restates(a.get("text"), rec):
+                            a["restates"] = True
             self._last_state = {
                 "questions": q,
                 "responses": r,
@@ -1123,6 +1137,9 @@ class Handler(LoopbackHandler):
                 .replace("%%TOKEN%%", hub.token)
             )
             return self.send(200, html.encode("utf-8"), "text/html")
+        if url.path in QUESTION_SHAPE:
+            name, ctype = QUESTION_SHAPE[url.path]
+            return self.send(200, (SHARED_WEB / name).read_bytes(), ctype)
         if url.path == "/api/state":
             return self.send(200, hub.state())
         if url.path == "/api/visual-file":

@@ -4,6 +4,11 @@
     "forbidden-effects": ["merge"],
     "never": "Merges, or marks its pull request ready"
   },
+  "intake-triage": {
+    "stage": "intake",
+    "forbidden-effects": ["mutate-branch", "publish-artifact", "merge"],
+    "never": "Writes to a branch"
+  },
   "work-unblock": {
     "stage": "work",
     "forbidden-effects": ["mutate-branch", "publish-artifact", "merge"],

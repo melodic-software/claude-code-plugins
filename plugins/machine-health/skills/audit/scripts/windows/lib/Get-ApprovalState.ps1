@@ -171,3 +171,20 @@ function Test-ApprovalGranted {
     if ($null -eq $entry) { return $false }
     return [bool]$entry.Value.approved
 }
+
+function Get-ServiceExclusion {
+    # Service names from check_overrides.services.service_exclusions; @() when any
+    # level of that path is absent, since StrictMode 3.0 throws on a missing property.
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param([Parameter(Mandatory = $true)] [AllowNull()] $State)
+
+    $node = $State
+    foreach ($key in 'check_overrides', 'services', 'service_exclusions') {
+        if ($null -eq $node) { return [string[]]@() }
+        $prop = $node.PSObject.Properties[$key]
+        if ($null -eq $prop) { return [string[]]@() }
+        $node = $prop.Value
+    }
+    return [string[]]@($node | Where-Object { $_ })
+}

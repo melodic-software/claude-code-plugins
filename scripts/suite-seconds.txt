@@ -3,7 +3,9 @@
 # 2026-10-03 from the logs of four whole-tree ci runs (37113193629, 37141134032,
 # 37141960428, 37144196526), Python suites 2026-10-22 as the median of the
 # test-python legs of whole-tree runs 39726045512, 39727110042 and
-# 39732992257: a shell suite runs from the moment
+# 39732992257, and the nine shell rows that had drifted 40 s or more
+# 2026-10-23 from whole-tree runs 39880676111, 39881602417, 39882556362 and
+# 39884296244: a shell suite runs from the moment
 # run-plugin-tests.sh could start it (three at a time) to its result block, a
 # Python suite from its pytest command to the next one, at least 1. A suite not
 # listed counts 5 s. Wrong numbers cost leg balance, never coverage: every
@@ -330,7 +332,7 @@ plugins/harness-ops/skills/lanes/scripts/restart-consumer.test.sh 8
 plugins/harness-ops/skills/lanes/scripts/telemetry-upsert.test.sh 7
 plugins/harness-ops/skills/machine-profile/scripts/profile.test.sh 9
 plugins/harness-ops/skills/morning-brief/morning-brief-view.test.sh 1
-plugins/harness-ops/skills/morning-brief/morning-brief.test.sh 8
+plugins/harness-ops/skills/morning-brief/morning-brief.test.sh 65
 plugins/harness-ops/skills/observability/claude-observability.test.sh 2
 plugins/harness-ops/skills/observability/otel/cc-otel.test.sh 3
 plugins/harness-ops/skills/observability/otel/net-probe.test.sh 1
@@ -415,7 +417,7 @@ plugins/planning/scripts/check-open-questions.test.sh 2
 plugins/planning/scripts/check-plan-outcome.test.sh 1
 plugins/planning/scripts/eval-scaffold.test.sh 1
 plugins/planning/scripts/goal-condition-length.test.sh 1
-plugins/planning/shared/tests/align.test.sh 200
+plugins/planning/shared/tests/align.test.sh 312
 plugins/planning/shared/tests/test_cfdns.py 8
 plugins/planning/shared/tests/test_load.py 11
 plugins/planning/shared/tests/test_owner_ops.py 1
@@ -427,10 +429,10 @@ plugins/planning/shared/tests/test_share.py 123
 plugins/planning/shared/tests/test_tunnel.py 50
 plugins/planning/shared/tests/tracer-live.test.sh 1
 plugins/planning/shared/tests/tracer.test.sh 10
-plugins/planning/shared/tests/ui.test.sh 260
+plugins/planning/shared/tests/ui.test.sh 426
 plugins/planning/surface/surface-journey.test.sh 130
 plugins/planning/surface/surface-ui-c.test.sh 133
-plugins/planning/surface/surface.test.sh 128
+plugins/planning/surface/surface.test.sh 172
 plugins/planning/surface/test_exporters.py 132
 plugins/planning/surface/test_round.py 98
 plugins/planning/surface/test_schema.py 1
@@ -459,7 +461,7 @@ plugins/plugin-quality/scripts/packet-seal.test.sh 2
 plugins/plugin-quality/scripts/zones-inline-drift.test.sh 1
 plugins/plugin-quality/skills/audit/scripts/collect-categories.test.sh 1
 plugins/plugin-quality/skills/audit/scripts/collect-standards.test.sh 1
-plugins/powershell-format/hooks/powershell-format.test.sh 62
+plugins/powershell-format/hooks/powershell-format.test.sh 3
 plugins/prototype/scripts/allowed-tools-pairing.test.sh 1
 plugins/prototype/scripts/detect-ecosystems.test.sh 1
 plugins/prototype/skills/explore-directions/scripts/detect-ecosystems.test.sh 1
@@ -545,7 +547,7 @@ plugins/source-control/scripts/worktree-create.test.sh 11
 plugins/source-control/scripts/worktree-root-doctor.test.sh 1
 plugins/source-control/scripts/worktree-root-scan.test.sh 1
 plugins/source-control/skills/babysit-loop/scripts/resolve-promotion-evidence.test.sh 1
-plugins/source-control/skills/babysit-prs/scripts/engine.test.sh 8
+plugins/source-control/skills/babysit-prs/scripts/engine.test.sh 72
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_check_inputs.py 3
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_checks.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_classify.py 1
@@ -609,7 +611,7 @@ plugins/testing/hooks/test-weaken.test.sh 6
 plugins/testing/scripts/gen-hook-filters.test.sh 1
 plugins/testing/scripts/resolve-config.test.sh 3
 plugins/testing/skills/audit/evals/judge-calibration/metrics.test.sh 6
-plugins/testing/skills/audit/scripts/cant-fail-scan.test.sh 72
+plugins/testing/skills/audit/scripts/cant-fail-scan.test.sh 135
 plugins/testing/skills/setup/scripts/setup.test.sh 2
 plugins/testing/tests/fix-until-green.test.sh 1
 plugins/typos-format/hooks/typos-format.test.sh 12
@@ -695,7 +697,7 @@ scripts/check-conformance-registry.test.sh 1
 scripts/check-contract-clause-coverage.test.sh 2
 scripts/check-cross-plugin-source-drift.test.sh 1
 scripts/check-declared-prerequisites.test.sh 1
-scripts/check-detector-eval-coverage.test.sh 87
+scripts/check-detector-eval-coverage.test.sh 19
 scripts/check-detector-findings-crosswalk.test.sh 1
 scripts/check-discriminating-test-skips.test.sh 1
 scripts/check-docs-naming.test.sh 4
@@ -703,7 +705,7 @@ scripts/check-docs-only-gate.test.sh 4
 scripts/check-docs-only.test.sh 2
 scripts/check-drive-root-litter.test.sh 1
 scripts/check-exec-form-windows-probe.test.sh 10
-scripts/check-fixture-git-isolation.test.sh 52
+scripts/check-fixture-git-isolation.test.sh 2
 scripts/check-fleet-audit-doc-grammar.test.sh 1
 scripts/check-fleet-finding-test-coverage.test.sh 1
 scripts/check-guardrails-ps-differential.test.sh 28

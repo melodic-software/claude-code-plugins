@@ -18,6 +18,7 @@ import contextlib
 import dataclasses
 import io
 import json
+import os
 import pathlib
 import re
 import subprocess
@@ -469,6 +470,22 @@ UNBOUND = tuple(
 PROMOTED = policy.Promotion(dict.fromkeys(policy.PROMOTABLE_CELLS, "promoted"), None)
 PROCEED = policy.KillSwitch(True, "proceed")
 REAL_ASYNC_MERGE = merge.async_merge
+
+# Flags with which `gh api` sends something: a method, or fields or a body
+# (which turn the request into a POST).
+WRITE_FLAGS = frozenset(
+    {"-X", "--method", "-f", "-F", "--field", "--raw-field", "--input"}
+)
+
+
+def is_write(args: list[str]) -> bool:
+    """A gh call that changes GitHub: anything but a plain `gh api` GET."""
+    if not args or args[0] != "api":
+        return True
+    joined = " ".join(args)
+    return bool(WRITE_FLAGS & set(args)) or "mutation" in joined
+
+
 ENQUEUED = {
     "attempted": True,
     "api": "merge-async",
@@ -736,7 +753,7 @@ class Unattended(unittest.TestCase):
                 side_effect=self._dependabot_eligibility,
             ),
             mock.patch.object(policy, "changed_files", return_value=self.files),
-            mock.patch.object(policy, "declarations_at", return_value=()),
+            mock.patch.object(policy, "pulumi_dirs_at", return_value=()),
             mock.patch.object(
                 policy,
                 "entry_hold",
@@ -860,6 +877,66 @@ class LaneMode(Unattended):
             "",
             *flags,
         )
+
+    def test_an_adopted_pr_scores_only_paths_its_author_did_not_write(self) -> None:
+        # Owner decision 2026-10-22: a trusted author's own denied-path lines
+        # need no person; a denied path a lane commit touched still holds.
+        self.config = dataclasses.replace(self.config, denied_paths=("notes/**",))
+        self.files = ((dataclasses.replace(LOW_FILE, path="notes/x.md"),), True)
+        self.lane_eligible = policy.Eligibility(
+            True, None, "C2", 41, adoption="idle-owner:24h", body_is_intent=True
+        )
+        for others, score in (
+            (frozenset(), "LOW"),
+            (frozenset({"notes/x.md"}), "HIGH"),
+            (None, "HIGH"),
+        ):
+            with (
+                self.subTest(others=others),
+                mock.patch.object(policy, "foreign_paths", return_value=others),
+            ):
+                _, out = self.lane()
+                self.assertEqual(out["unattended"]["risk"]["score"], score)
+        # A lane PR is scored whole like the lanes App's own.
+        self.lane_eligible = policy.Eligibility(True, None, "C2", 41)
+        with mock.patch.object(
+            policy, "foreign_paths", side_effect=AssertionError("read")
+        ):
+            _, out = self.lane()
+        self.assertEqual(out["unattended"]["risk"]["score"], "HIGH")
+
+    def test_a_model_app_own_lines_skip_the_floor_only_under_scripts(self) -> None:
+        # Owner decision Q14 (c): a model-driven App's own lines skip the
+        # denied paths only under plugins/*/scripts/; the floor always scores.
+        self.config = dataclasses.replace(self.config, high_path_floor=True)
+        self.lane_eligible = policy.Eligibility(
+            True, None, "C2", 41, adoption="trusted-app"
+        )
+        self.config = dataclasses.replace(
+            self.config, denied_paths=("plugins/p/**", "scripts/**")
+        )
+        own, held = (
+            ("plugins/p/scripts/x.md",),
+            (
+                "scripts/release-plugins.sh",
+                "plugins/p/hooks/x.md",
+                ".gitmodules",
+                "plugins/p/skills/s/scripts/x.md",
+            ),
+        )
+        self.files = (
+            tuple(dataclasses.replace(LOW_FILE, path=p) for p in (*own, *held)),
+            True,
+        )
+        with mock.patch.object(policy, "foreign_paths", return_value=frozenset()):
+            _, out = self.lane()
+        scored = {
+            path
+            for r in out["unattended"]["risk"]["reasons"]
+            if r["code"].startswith("high-path:")
+            for path in r["detail"].split(", ")
+        }
+        self.assertEqual(scored, set(held))
 
     def test_the_lane_takes_the_rung_cap_from_the_workflow(self) -> None:
         code, out = self.lane()
@@ -992,6 +1069,30 @@ class LaneMode(Unattended):
         self.assertEqual(self.log, ["pin", f"graphql-enqueue:id=PR_self:head={HEAD}"])
         self.assertEqual(out["merge"]["api"], "graphql")
 
+    def test_no_write_runs_under_the_read_token(self) -> None:
+        # The job hands the gate its read-only token for reads; the pin
+        # comment and the enqueue must still go out under the lane token.
+        self._async_merge = REAL_ASYNC_MERGE  # type: ignore[method-assign]
+        tokens: list[tuple[list[str], str | None]] = []
+        record = self._capture
+
+        def capture(args: list[str], **kwargs: Any) -> Any:
+            env = kwargs.get("env_overrides") or {}
+            tokens.append((args, env.get("GH_TOKEN", os.environ.get("GH_TOKEN"))))
+            return record(args)
+
+        self._capture = capture  # type: ignore[method-assign]
+        environ = {"GH_TOKEN": "lane-tok", "BABYSIT_VERIFY_GH_TOKEN": "read-tok"}
+        with mock.patch.dict("os.environ", environ):
+            code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(self.log, ["pin", f"graphql-enqueue:id=PR_self:head={HEAD}"])
+        writes = [(args, token) for args, token in tokens if is_write(args)]
+        self.assertGreaterEqual(len(writes), 2)
+        for args, token in writes:
+            with self.subTest(" ".join(args)[:80]):
+                self.assertEqual(token, "lane-tok")
+
     def test_a_missing_workflow_kill_switch_stops_the_lane(self) -> None:
         # A stop like the switch itself: no enqueue, and the identity's own
         # queued entries leave the queue.
@@ -1078,11 +1179,11 @@ class LaneMode(Unattended):
         self.assertEqual([(o, n) for o, n, _ in self.base_reads], [("owner", "repo")])
 
     def test_an_ineligible_pr_is_refused(self) -> None:
-        self.lane_eligible = policy.Eligibility(False, "denied-path:.github/x.yml")
+        self.lane_eligible = policy.Eligibility(False, "denied-path:.gitmodules")
         code, out = self.lane()
         self.assert_no_merge(code)
         self.assertEqual(
-            out["unattended"]["reason"], "ineligible:denied-path:.github/x.yml"
+            out["unattended"]["reason"], "ineligible:denied-path:.gitmodules"
         )
 
     def test_report_only_reports_the_decision_and_writes_nothing(self) -> None:
@@ -1759,6 +1860,45 @@ class EachRefusalMakesNoMergeCall(Unattended):
         code, out = self.run_main()
         self.assert_no_merge(code)
         self.assertEqual(out["unattended"]["reason"], "risk:MED")
+
+    BINARY = dataclasses.replace(
+        LOW_FILE, path="docs/logo.png", has_patch=False, patch=None
+    )
+
+    def test_a_med_on_path_reasons_alone_merges(self) -> None:
+        # #9270: both lanes bound and clean, the only reason a path's.
+        self.files = ((self.BINARY,), True)
+        code, out = self.run_main()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(out["unattended"]["risk"]["score"], "MED")
+        self.assertIsNone(out["unattended"]["reason"])
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+
+    def test_a_med_with_an_open_review_finding_holds(self) -> None:
+        self.files = ((self.BINARY,), True)
+        self.lanes = (LaneEvidence("claude-review", True, None, 1), BOUND[1])
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "risk:MED")
+
+    def test_a_med_with_an_unbound_lane_holds(self) -> None:
+        self.files = ((self.BINARY,), True)
+        self.lanes = (BOUND[0], UNBOUND[1])
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "risk:MED")
+
+    def test_a_cost_hold_holds(self) -> None:
+        patch = "@@ -1,1 +1,1 @@\n-  max-in-flight: 5\n+  max-in-flight: 50"
+        pipeline = dataclasses.replace(
+            LOW_FILE, path="docs/conventions/pr-pipeline.yaml", patch=patch
+        )
+        self.files = ((pipeline,), True)
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
+        codes = [r["code"] for r in out["unattended"]["risk"]["reasons"]]
+        self.assertEqual(codes, ["cost-review-required"])
 
 
 class BaseConfigParseError(Unattended):
@@ -2438,6 +2578,99 @@ class FloorReadsCapabilityText(Unattended):
         self.assertEqual(out["unattended"]["risk"]["score"], "LOW")
 
 
+class CostHold(Unattended):
+    """A change that could add or raise a charge refuses as risk:HIGH unless
+    the body cites an owner decision; the decision is read only then."""
+
+    PULUMI = ChangedFile(
+        "infra/Pulumi.yaml", None, "modified", 1, 1, True, "100644", "100644"
+    )
+
+    def run_with_decision(self, decision: str | None) -> tuple[Any, dict[str, Any]]:
+        read = mock.Mock(return_value=decision)
+        with mock.patch.object(policy, "cost_decision", read):
+            code, out = self.run_main(merge_flag=False)
+        # A refusal exits 10, as every refused unattended check does.
+        self.assertEqual(code, 0 if out["unattended"]["reason"] is None else 10)
+        return read, out["unattended"]
+
+    def test_a_cost_change_waits_for_a_human(self) -> None:
+        self.files = ((LOW_FILE, self.PULUMI), True)
+        read, out = self.run_with_decision(None)
+        self.assertEqual(out["risk"]["score"], "HIGH")
+        self.assertEqual(out["reason"], "risk:HIGH")
+        codes = [r["code"] for r in out["risk"]["reasons"]]
+        self.assertEqual(codes, ["cost-review-required"])
+        read.assert_called_once()
+        self.assertEqual(read.call_args.args[2], 40)
+
+    def test_a_cited_owner_decision_clears_it(self) -> None:
+        self.files = ((LOW_FILE, self.PULUMI), True)
+        link = "https://github.com/owner/repo/issues/40#issuecomment-7"
+        read, out = self.run_with_decision(link)
+        self.assertEqual(out["risk"]["score"], "LOW")
+        self.assertEqual(out["costDecision"], link)
+
+    def test_a_raised_timeout_holds_only_on_a_model_workflow(self) -> None:
+        # The gate reads the workflow's head text, floor off, to see its legs.
+        workflow = ChangedFile(
+            ".github/workflows/x.yml",
+            None,
+            "modified",
+            1,
+            1,
+            True,
+            "100644",
+            "100644",
+            patch="@@ -1 +1 @@\n-    timeout-minutes: 30\n+    timeout-minutes: 45",
+        )
+        self.files = ((workflow,), True)
+        for text, held in (
+            ("      - uses: anthropics/claude-code-action@abc\n", True),
+            ("      - run: make\n", False),
+        ):
+            with self.subTest(held=held):
+                policy._TEXT_AT.clear()
+                self.addCleanup(policy._TEXT_AT.clear)
+                with mock.patch.object(policy, "_file_at", return_value=text):
+                    read, out = self.run_with_decision(None)
+                codes = [r["code"] for r in out["risk"]["reasons"]]
+                self.assertEqual("cost-review-required" in codes, held)
+
+    def test_a_record_without_visibility_reads_as_not_public(self) -> None:
+        # The harness record carries no base.repo.private: a standard runner
+        # charges until the repository is known to be public.
+        workflow = ChangedFile(
+            ".github/workflows/x.yml",
+            None,
+            "modified",
+            1,
+            0,
+            True,
+            "100644",
+            "100644",
+            patch="@@ -1 +1,2 @@\n jobs:\n+    runs-on: ubuntu-24.04",
+        )
+        self.files = ((workflow,), True)
+        policy._TEXT_AT.clear()
+        self.addCleanup(policy._TEXT_AT.clear)
+        head = "jobs:\n  a:\n    runs-on: ubuntu-24.04\n"
+        with mock.patch.object(
+            policy,
+            "_file_at",
+            side_effect=lambda o, n, p, sha: head if sha == HEAD else "jobs:\n",
+        ):
+            read, out = self.run_with_decision(None)
+        codes = [r["code"] for r in out["risk"]["reasons"]]
+        self.assertIn("cost-review-required", codes)
+
+    def test_a_non_cost_change_reads_no_decision(self) -> None:
+        read, out = self.run_with_decision("unused")
+        self.assertEqual(out["risk"]["score"], "LOW")
+        read.assert_not_called()
+        self.assertNotIn("costDecision", out)
+
+
 class LaneEvidenceGetsTheChangedPaths(Unattended):
     """The review evidence is bound against the diff's paths, both sides of
     a rename, and against None when the file list is incomplete."""
@@ -2484,14 +2717,14 @@ class ReasonsComment(Unattended):
 
     def test_a_floor_hold_says_a_human_merges_it(self) -> None:
         # Owner decision Q648: only the owner merges a floor-held PR.
-        self.files = ((dataclasses.replace(LOW_FILE, path=".github/x.yml"),), True)
+        self.files = ((dataclasses.replace(LOW_FILE, path=".gitmodules"),), True)
         self.run_main()
         body = next(
             c.args[0][-1]
             for c in self.capture.call_args_list
             if "babysit-merge-risk" in " ".join(c.args[0])
         )
-        self.assertIn("high-path:.github/**", body)
+        self.assertIn("high-path:**/.gitmodules", body)
         self.assertIn("a human merges it in person, never an agent or a lane", body)
 
     def test_a_med_hold_does_not_claim_the_floor(self) -> None:
@@ -2680,7 +2913,7 @@ class ReasonsComment(Unattended):
         # labeled, the reasons comment first extended to say so.
         for name, files in (
             ("MED", ((LOW_FILE,), True)),
-            ("HIGH", ((dataclasses.replace(LOW_FILE, path=".github/x.yml"),), True)),
+            ("HIGH", ((dataclasses.replace(LOW_FILE, path=".gitmodules"),), True)),
         ):
             with self.subTest(name):
                 self.setUp()
@@ -3065,7 +3298,7 @@ class HeadPushers(unittest.TestCase):
             "commits": len(commits) if total is None else total,
         }
 
-        def paginated(endpoint: str, label: str) -> list[dict[str, Any]]:
+        def paginated(endpoint: str, label: str, **_: Any) -> list[dict[str, Any]]:
             return commits if endpoint.endswith("/commits?per_page=100") else []
 
         with (
@@ -3114,6 +3347,101 @@ class HeadPushers(unittest.TestCase):
         bot = {"login": IDENTITY}
         lanes, _ = self.read([{"sha": "a" * 40, "author": bot, "committer": bot}])
         self.assertEqual(len(lanes), 2)
+
+
+class LaneEvidenceReadToken(unittest.TestCase):
+    """The gate's review-evidence reads (timeline, comments, lane runs and
+    their attempts, jobs and annotations) run under the job's read-only token
+    (`BABYSIT_VERIFY_GH_TOKEN`), off the lane App's quota; each is a GET."""
+
+    RUN = 11
+    JOB = 21
+
+    def answer(self, args: list[str]) -> Any:
+        endpoint = args[1]
+        runs = f"repos/owner/repo/actions/runs/{self.RUN}"
+        bot = {"login": IDENTITY}
+        if endpoint.endswith(f"/pulls/{PR}/commits?per_page=100"):
+            return [[{"sha": HEAD, "author": bot, "committer": bot}]]
+        if "/actions/workflows/" in endpoint:
+            return [
+                {"workflow_runs": [{"id": self.RUN, "pull_requests": [{"number": PR}]}]}
+            ]
+        if endpoint == runs:
+            return {"id": self.RUN, "run_attempt": 1}
+        if endpoint == f"{runs}/attempts/1":
+            return {"id": self.RUN, "run_attempt": 1}
+        if endpoint == f"{runs}/attempts/1/jobs?per_page=100":
+            suffixes = [s for _, s in merge.review_evidence.LANES.values()]
+            return [
+                {
+                    "jobs": [
+                        {"id": self.JOB, "name": f"pr-review / {n}"} for n in suffixes
+                    ]
+                }
+            ]
+        if endpoint.endswith(("/timeline?per_page=100", "/comments?per_page=100")):
+            return [[]]
+        if endpoint.endswith("/annotations?per_page=100"):
+            return [[]]
+        raise AssertionError(f"unexpected gh call: {args}")
+
+    def calls(self, environ: dict[str, str]) -> list[tuple[list[str], Any]]:
+        calls: list[tuple[list[str], Any]] = []
+
+        def fake_gh(
+            args: list[str], *, env_overrides: Any = None, **_: Any
+        ) -> subprocess.CompletedProcess[str]:
+            calls.append((args, env_overrides))
+            return subprocess.CompletedProcess(
+                args, 0, json.dumps(self.answer(args)), ""
+            )
+
+        pr = {
+            "number": PR,
+            "head": {"ref": "feat", "sha": HEAD},
+            "user": {"login": IDENTITY},
+            "commits": 1,
+            "created_at": "2026-10-22T00:00:00Z",
+        }
+        with (
+            mock.patch.dict("os.environ", environ, clear=True),
+            mock.patch.object(gh, "_run_gh", side_effect=fake_gh),
+            mock.patch.object(merge, "fetch_review_threads", return_value=[]),
+        ):
+            merge._lane_evidence(
+                "owner/repo", PR, pr, IDENTITY, frozenset(), lambda login: "write", ()
+            )
+        return calls
+
+    def test_the_evidence_reads_carry_the_read_token_and_are_gets(self) -> None:
+        calls = self.calls({"BABYSIT_VERIFY_GH_TOKEN": "read-tok"})
+        carried = [args for args, env in calls if env == {"GH_TOKEN": "read-tok"}]
+        for args in carried:
+            with self.subTest(args[1]):
+                self.assertFalse(is_write(args), args)
+        kinds = (
+            "/timeline?",
+            "/comments?",
+            "/actions/workflows/",
+            f"/actions/runs/{self.RUN}",
+            "/attempts/1",
+            "/jobs?",
+            "/annotations?",
+        )
+        for kind in kinds:
+            with self.subTest(kind):
+                self.assertTrue(any(kind in args[1] for args in carried), kind)
+        # Two lanes: listing, run, attempt, jobs and one annotations read each.
+        self.assertEqual(len(carried), 2 + 2 * 5)
+        # The commits read is shared with other readers and keeps its token.
+        others = [args[1] for args, env in calls if env is None]
+        self.assertEqual(others, [f"repos/owner/repo/pulls/{PR}/commits?per_page=100"])
+
+    def test_with_no_read_token_every_read_keeps_the_process_token(self) -> None:
+        calls = self.calls({})
+        self.assertEqual(len(calls), 1 + 2 + 2 * 5)
+        self.assertEqual([env for _, env in calls], [None] * len(calls))
 
 
 class CandidateReadsOnce(unittest.TestCase):

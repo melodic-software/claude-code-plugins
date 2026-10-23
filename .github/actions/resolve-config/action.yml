@@ -158,8 +158,8 @@ outputs:
   issue-dimensions:
     description: >
       `<size>/<complexity>/<uncertainty>` as models.issue-dimensions reads
-      the issue's fields, or `not-assessed`, for a skill activity with input
-      issue; empty otherwise.
+      the issue's fields, an unset field read as small, medium or known, for
+      a skill activity with input issue; empty otherwise.
     value: ${{ steps.resolve.outputs.issue-dimensions }}
   timeout-minutes:
     description: The issue size's job timeout in minutes; empty when issue-dimensions is.

@@ -1017,9 +1017,11 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    the full read. A queued pull request, a Dependabot one, or one whose queue read was not whole
    is still read in full.
    In the pr-merge lane, eligibility admits a pull request the lanes App opened or one it adopts:
-   an idle, unheld, ready pull request of the owner account, matched by account id
-   (`adoption_refusal`; owner decision Q22; the pr-pipeline README's "The pr-merge lane"). The
-   decision records why as `eligibility.adoption`; every later read applies unchanged. The lane's
+   an unheld, ready pull request of a trusted-actor-list account, matched by account id, a
+   person's once idle (`adoption_refusal`; owner decisions Q22 and 2026-10-22; the pr-pipeline
+   README's "The pr-merge lane"). The decision records why as `eligibility.adoption`; its path
+   floor scores only changed paths a commit not the author's own (verified, author and, for a
+   person, committer) touched (`foreign_paths`). The lane's
    own queue entry at the current head (`lane_queued_at_head`) keeps adoption though its pin
    comment refreshed `updated_at`, until anyone else comments or reviews after that pin.
 4. For an eligible pull request: the review-lane evidence bound to the head, and the diff score.
@@ -1029,20 +1031,16 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    - **Pointer**: when the commits list's cap matters, fetch
      [list commits on a pull request](https://docs.github.com/en/rest/pulls/pulls#list-commits-on-a-pull-request)
      live. **As of**: 2026-10-12. **Recheck trigger**: that section changes the cap or its paging.
-   Only LOW merges. Adding only `disable-model-invocation: true` to a plugin skill no agent
-   preloads, and a non-script file under `plugins/<plugin>/evals/`, take no hold from the floor
-   entries `babysit_risk.py`'s docstring names, unless the file sits in an eval case whose
-   `case.yaml` could name a `scaffold_script` (HIGH as `eval-scaffold-review-required`). A script
-   or mode 100755 file anywhere under `plugins/<plugin>/evals/` takes that hold too, floor or not,
-   since a scaffold may source it. A plugin
-   or marketplace manifest takes no floor hold; its parsed change clears only when every key that
-   differs is on that docstring's allow-lists (version, description and other metadata, or a
-   title or description edit on an existing `userConfig` key), and anything else, an added
-   `userConfig` key or a `defaultEnabled` change included, scores HIGH as
-   `manifest-review-required`, as does a listed key whose value has the wrong type. A test file
-   under a plugin `scripts/` directory, a `floor-paths` glob ending in a `scripts` directory or a
-   `floor-script-scopes` glob, named by no other changed file, takes no HIGH path floor hold for
-   that reason alone; the rule is in `babysit_risk.py`'s docstring. A C3 pull request also needs a
+   A LOW score merges, and so does a MED one whose every reason is a class or size reason
+   (`babysit_risk.holds`, #9270): an unbound or missing review lane, an open claude-review
+   finding, an unread file listing and every HIGH reason hold. The security lane holds only on
+   a CRITICAL finding. The HIGH path floor holds only the external-effect set
+   `babysit_risk.py`'s docstring names. A plugin or marketplace manifest change scores HIGH as
+   `manifest-review-required` only when it installs or runs something new: an executable
+   `plugin.json` key, or a marketplace plugin added, removed, renamed or re-sourced. A change that could add or
+   raise a charge scores HIGH as `cost-review-required` in both lanes, floor or not, until the body
+   links an owner `**Decision recorded.** Cost:` comment on the closing issue or the pull request
+   (`cost_decision`); which changes count is in that docstring. A C3 pull request also needs a
    LOW blast-radius rating, which nothing supplies
    yet, so it scores at least MED (`blast-radius-missing`) until a C3 rung adds that source.
 

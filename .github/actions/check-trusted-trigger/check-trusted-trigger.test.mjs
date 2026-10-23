@@ -2533,3 +2533,99 @@ for (const [label, ids] of [
     assert.deepEqual(github.calls, []);
   });
 }
+
+// A lost CI run the reconciler re-ran: the upstream run a workflow_run event
+// names is at attempt 2, started by github-actions[bot], and the reconciler
+// recorded reconcile-rerun-<upstream run id>-2-<head sha> before the re-run.
+// This run's own attempt is a listed actor's.
+
+const CI_RERUN_ID = 39310000010;
+const CI_RERUN_RECORD = `reconcile-rerun-${CI_RERUN_ID}-2-${HEAD_SHA}`;
+const upstreamAttemptRoute = `GET /repos/${REPOSITORY}/actions/runs/${CI_RERUN_ID}/attempts/2`;
+const upstreamArtifactsRoute = `GET /repos/${REPOSITORY}/actions/artifacts?name=${CI_RERUN_RECORD}&per_page=100&page=1`;
+const artifactsByName = (name) => `GET /repos/${REPOSITORY}/actions/artifacts?name=${name}&per_page=100&page=1`;
+
+function upstreamRerunEvent(overrides = {}) {
+  const event = rerunEvent();
+  event.workflow_run = { ...event.workflow_run, id: CI_RERUN_ID, run_attempt: 2, triggering_actor: ACTIONS_BOT, ...overrides };
+  return event;
+}
+
+function upstreamRoutes({ attempt = {}, artifacts = listing(rerunRecord({ name: CI_RERUN_RECORD })), extra = {} } = {}) {
+  return {
+    [commitPulls]: [fixture("api-pull-42.json")],
+    [upstreamAttemptRoute]: lostAttempt({ id: CI_RERUN_ID, name: "pr-require-checks", path: ".github/workflows/pr-require-checks.yml", event: "pull_request", head_branch: "feat/lane-probe", head_sha: HEAD_SHA, ...attempt }),
+    [upstreamArtifactsRoute]: artifacts,
+    [reconcilerRoute]: reconcilerRun(),
+    [tipRoute]: TIP_REF,
+    [reconcilerCompare]: { status: "ahead" },
+    ...extra,
+  };
+}
+
+const upstreamRerun = ({ github, event = upstreamRerunEvent(), ...rest }) =>
+  gate({ eventName: "workflow_run", event, github, reconcilerWorkflow: RECONCILER_WORKFLOW, ...rest });
+
+test("upstream re-run: a CI attempt 2 by github-actions[bot] with the reconciler's record proceeds", async () => {
+  const github = fakeGitHub(upstreamRoutes());
+  assert.deepEqual(await upstreamRerun({ github }), PROCEED);
+  assert.ok(github.calls.includes(upstreamAttemptRoute));
+  assert.ok(github.calls.includes(upstreamArtifactsRoute));
+  assert.ok(github.calls.includes(OWN_ROUTE));
+});
+
+test("upstream re-run: with no record the bot stays an untrusted actor after one re-read", async () => {
+  const sleep = fakeSleep();
+  const github = fakeGitHub(upstreamRoutes({ artifacts: listing() }));
+  assert.deepEqual(await upstreamRerun({ github, sleep }), STOPPED("untrusted-actor"));
+  assert.equal(github.calls.filter((call) => call === upstreamArtifactsRoute).length, 2);
+  assert.deepEqual(sleep.waits, [5000]);
+});
+
+for (const [label, name] of [
+  ["another run id", `reconcile-rerun-${CI_RERUN_ID + 1}-2-${HEAD_SHA}`],
+  ["another head SHA", `reconcile-rerun-${CI_RERUN_ID}-2-${LOST_HEAD}`],
+]) {
+  test(`upstream re-run: a record for ${label} refuses with untrusted-actor`, async () => {
+    const github = fakeGitHub(upstreamRoutes({ artifacts: listing(), extra: { [artifactsByName(name)]: listing(rerunRecord({ name })) } }));
+    assert.deepEqual(await upstreamRerun({ github }), STOPPED("untrusted-actor"));
+    assert.ok(!github.calls.includes(artifactsByName(name)));
+  });
+}
+
+for (const runAttempt of [1, 3]) {
+  test(`upstream re-run: github-actions[bot] at attempt ${runAttempt} refuses and reads no record`, async () => {
+    const github = fakeGitHub(upstreamRoutes());
+    assert.deepEqual(await upstreamRerun({ github, event: upstreamRerunEvent({ run_attempt: runAttempt }) }), STOPPED("untrusted-actor"));
+    assert.deepEqual(github.calls, [commitPulls]);
+  });
+}
+
+test("upstream re-run: without reconciler-workflow the bot refuses and reads no record", async () => {
+  const github = fakeGitHub(upstreamRoutes());
+  assert.deepEqual(await upstreamRerun({ github, reconcilerWorkflow: "" }), STOPPED("untrusted-actor"));
+  assert.deepEqual(github.calls, [commitPulls]);
+});
+
+for (const [label, change] of [
+  ["the upstream run's actor", (event) => (event.workflow_run.actor = STRANGER)],
+  ["the sender", (event) => (event.sender = STRANGER)],
+]) {
+  test(`upstream re-run: a record does not vouch for an unlisted ${label.replace(/^the /, "")}`, async () => {
+    const event = upstreamRerunEvent();
+    change(event);
+    const github = fakeGitHub(upstreamRoutes());
+    assert.deepEqual(await upstreamRerun({ github, event }), STOPPED("untrusted-actor"));
+    assert.ok(!github.calls.includes(upstreamArtifactsRoute));
+  });
+}
+
+test("upstream re-run: an attempt GitHub reports was started by someone else refuses", async () => {
+  const github = fakeGitHub(upstreamRoutes({ attempt: { triggering_actor: KYLE } }));
+  assert.deepEqual(await upstreamRerun({ github }), STOPPED("untrusted-actor"));
+});
+
+test("upstream re-run: a record does not vouch for an unlisted re-runner of this run", async () => {
+  const github = fakeGitHub(upstreamRoutes());
+  assert.deepEqual(await upstreamRerun({ github, runAttempt: "2", rerunner: STRANGER }), STOPPED("untrusted-rerunner"));
+});

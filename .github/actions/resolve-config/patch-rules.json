@@ -1,6 +1,6 @@
 {
   "ci-context": {
-    "refuse": ["github", "claude", "mcp-config", "gitmodules", "settings", "symlink", "gitlink", "new-executable", "rename-into-refused", "instruction-path"],
+    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "symlink", "gitlink", "rename-into-refused"],
     "allow": ["any"],
     "max-files": 300,
     "requires": [],
@@ -11,16 +11,17 @@
     "escalations": ["ci-fix-empty", "ci-fix-escalated", "ci-fix-invalid", "ci-fix-not-applied", "ci-fix-protected-path"]
   },
   "review-threads": {
-    "refuse": ["github", "claude", "mcp-config", "gitmodules", "settings", "symlink", "gitlink", "new-executable", "rename-into-refused"],
+    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "symlink", "gitlink", "rename-into-refused"],
     "allow": ["kept-threads"],
     "max-files": 300,
     "requires": [],
     "commit": { "parents": ["head"], "message": "Address review feedback on {ref}", "trailer": "Lane-Activity: {lane}/{activity}" },
     "reads-report": null,
+    "skip-moved-head": true,
     "escalations": ["feedback-not-landed", "patch-invalid", "patch-not-applied", "patch-protected-path"]
   },
   "dependency-review": {
-    "refuse": ["github", "claude", "mcp-config", "gitmodules", "settings", "symlink", "gitlink", "new-executable", "rename-into-refused"],
+    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "symlink", "gitlink", "rename-into-refused"],
     "allow": ["dependency-manifests"],
     "max-files": 300,
     "requires": ["dependency-verdict: fix"],
@@ -29,7 +30,7 @@
     "escalations": ["dependency-fix-not-landed", "patch-invalid", "patch-not-applied", "patch-protected-path"]
   },
   "merge-base": {
-    "refuse": ["github", "claude", "mcp-config", "gitmodules", "settings", "symlink", "gitlink", "new-executable", "rename-into-refused"],
+    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "symlink", "gitlink", "rename-into-refused"],
     "allow": ["merge-result"],
     "max-files": null,
     "requires": [],
@@ -38,7 +39,7 @@
     "escalations": ["unresolved-conflict", "unexpected-path-staged", "patch-invalid", "patch-not-applied", "patch-protected-path"]
   },
   "default": {
-    "refuse": ["github", "claude", "mcp-config", "gitmodules", "settings", "symlink", "gitlink", "new-executable", "rename-into-refused", "instruction-path"],
+    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "symlink", "gitlink", "rename-into-refused"],
     "allow": ["any"],
     "max-files": 300,
     "requires": [],
@@ -48,7 +49,7 @@
     "escalations": ["patch-empty", "patch-invalid", "patch-not-applied", "patch-protected-path"]
   },
   "issue": {
-    "refuse": ["github", "claude", "mcp-config", "gitmodules", "settings", "symlink", "gitlink", "new-executable", "rename-into-refused", "instruction-path"],
+    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "symlink", "gitlink", "rename-into-refused"],
     "allow": ["any"],
     "max-files": 300,
     "requires": [],

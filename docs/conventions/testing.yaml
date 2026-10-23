@@ -3,3 +3,8 @@
 # Resolution: plugins/testing/scripts/resolve-config.sh (scan keys and its e2e mode).
 e2e_driver: auto
 reuse_running_instance: auto
+# The planning session tests' refused and refused_ops helpers assert the refusal code.
+extend:
+  py-pytest:
+    assertion:
+      calls: ['self\.refused(_ops)?[[:space:]]*\(']
