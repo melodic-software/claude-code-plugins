@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -138,6 +139,73 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
         self.assertEqual(answer["digests"], [ve.head_ref_digest(r) for r in refs])
         # The first 16 hex digits of `printf %s feat/x | sha256sum`.
         self.assertEqual(answer["digests"][0], "79b4cc554b80dca6")
+
+    def test_every_reader_takes_the_same_fail_names(self) -> None:
+        # The gate, the resolver, the notes poster and pr-feedback-dispatch's
+        # filter accept the same FAIL names, older ones and ones that carry
+        # issue numbers alike; write-verdict.mjs writes the issues only once
+        # all of them do. Each expected issue set is read off the name by hand.
+        sha = "a" * 40
+        base = f"pr-verify-41-{sha}-fail"
+        digest = "79b4cc554b80dca6"
+        names = {
+            base: set(),
+            f"{base}-{digest}": set(),
+            f"{base}-i7": {7},
+            f"{base}-{digest}-i7.12": {7, 12},
+            f"{base}-i12.7.7": {7, 12},
+            f"{base}-i" + ".".join(str(n) for n in range(1, 11)): set(range(1, 11)),
+            f"{base}-i9999999999": {9999999999},
+            f"{base}-i" + ".".join(str(n) for n in range(1, 12)): None,
+            f"{base}-i10000000000": None,
+            f"{base}-i07": None,
+            f"{base}-i": None,
+            f"{base}-i7.": None,
+            f"{base}-i7-{digest}": None,
+            f"{base}-I7": None,
+            f"{base}-i7,8": None,
+            f"{base}-extra": None,
+        }
+        notes = RESOLVER.parents[1] / "pr-unblock/verify-notes.mjs"
+        script = (
+            f"import {{ NAME }} from {json.dumps(RESOLVER.as_uri())};"
+            f" import {{ FAIL_NAME }} from {json.dumps(notes.as_uri())};"
+            " const names = JSON.parse(process.argv[1]);"
+            " console.log(JSON.stringify(names.map((n) => [NAME.test(n), FAIL_NAME.test(n)])));"
+        )
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", script, json.dumps(list(names))],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        js = json.loads(proc.stdout)
+        for (name, issues), (resolver_takes, notes_take) in zip(
+            names.items(), js, strict=True
+        ):
+            with self.subTest(name):
+                match = ve.NAME_RE.fullmatch(name)
+                self.assertEqual(match is not None, issues is not None)
+                if match:
+                    self.assertEqual(ve.named_issues(match), issues)
+                self.assertEqual(resolver_takes, issues is not None)
+                self.assertEqual(notes_take, issues is not None)
+        if shutil.which("jq"):
+            workflow = RESOLVER.parents[2] / "workflows/pr-feedback-dispatch.yml"
+            filters = re.findall(
+                r'select\(test\("(\^pr-verify-[^"]*)"\)\)', workflow.read_text()
+            )
+            self.assertEqual(len(filters), 1, filters)
+            proc = subprocess.run(
+                ["jq", "-c", f'map(test("{filters[0]}"))'],
+                input=json.dumps(list(names)),
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            self.assertEqual(
+                json.loads(proc.stdout), [i is not None for i in names.values()]
+            )
 
 
 if __name__ == "__main__":

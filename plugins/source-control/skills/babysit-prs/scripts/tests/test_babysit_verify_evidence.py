@@ -984,6 +984,85 @@ class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:unreadable")
 
 
+class AFailNamingTheIssueCounts(unittest.TestCase):
+    """A FAIL whose artifact name carries `-i` and the issue numbers its
+    verdict records counts toward the cap for each of those issues, whatever
+    pull request it judged and whether or not that pull request closes the
+    issue: the listing the gate already read decides, with no download. A
+    name with no issues keeps the rule above."""
+
+    @staticmethod
+    def named_fails(*shas: str, suffix: str = "-i7") -> FakeGitHub:
+        """A pass at PR 41's head (closing issue 7), and FAILs of PR 40
+        (branch feat/other, not among issue 7's closing pull requests) at
+        `shas`, each named with the feat/other digest and `suffix`."""
+        runs = {i: judged(i, OLDER_START) for i in range(2, 2 + len(shas))}
+        fake = passing(
+            *(
+                artifact(f"{named(sha, 'fail', SIBLING)}-{DIGEST_OTHER}{suffix}", i)
+                for i, sha in zip(runs, shas)
+            ),
+            runs=runs,
+        )
+        fake.closers[7] = [(PR, REPO)]
+        return fake
+
+    def test_three_named_fails_refuse(self) -> None:
+        evidence = read(self.named_fails(*SIBLING_HEADS))
+        self.assertEqual(evidence.refusal, "verify:repeated-fail")
+        self.assertTrue(evidence.needs_human)
+        self.assertEqual(downloads(self.named_fails(*SIBLING_HEADS)), 0)
+
+    def test_two_named_and_a_fail_at_the_head_go_to_a_human(self) -> None:
+        fake = self.named_fails(*SIBLING_HEADS[:2])
+        fake.artifacts.append(artifact(named(HEAD, "fail"), 9))
+        fake.runs[9] = judged(9, OLDER_START)
+        evidence = read(fake)
+        self.assertEqual(evidence.refusal, "verify:repeated-fail")
+        self.assertEqual(
+            evidence.report()["headFail"], {"run": 9, "artifact": named(HEAD, "fail")}
+        )
+
+    def test_two_named_leave_the_pass_to_decide(self) -> None:
+        self.assertIsNone(read(self.named_fails(*SIBLING_HEADS[:2])).refusal)
+
+    def test_any_listed_issue_counts_in_any_order(self) -> None:
+        for suffix in ("-i7.12", "-i12.7", "-i3.7.7"):
+            with self.subTest(suffix):
+                fake = self.named_fails(*SIBLING_HEADS, suffix=suffix)
+                self.assertEqual(read(fake).refusal, "verify:repeated-fail")
+
+    def test_a_name_without_the_issue_does_not_count(self) -> None:
+        # Another issue, an older name, and names outside the grammar, which
+        # are not verdicts at all.
+        for suffix in (
+            "-i8",
+            "-i8.70",
+            "",
+            "-i07",
+            "-i",
+            "-i7.",
+            "-i" + ".".join(["7"] * 11),
+        ):
+            with self.subTest(suffix):
+                fake = self.named_fails(*SIBLING_HEADS, suffix=suffix)
+                self.assertIsNone(read(fake).refusal)
+
+    def test_an_unreadable_run_of_a_named_fail_refuses(self) -> None:
+        fake = self.named_fails(*SIBLING_HEADS[:1])
+        del fake.runs[2]
+        self.assertEqual(read(fake).refusal, "verify:unreadable")
+        fake = self.named_fails(*SIBLING_HEADS[:1], suffix="-i8")
+        del fake.runs[2]
+        self.assertIsNone(read(fake).refusal)
+
+    def test_a_foreign_run_never_counts(self) -> None:
+        fake = self.named_fails(*SIBLING_HEADS)
+        for run_id in (2, 3, 4):
+            fake.runs[run_id] = judged(run_id, OLDER_START, event="push")
+        self.assertIsNone(read(fake).refusal)
+
+
 class RepeatedFailsGoToAHuman(unittest.TestCase):
     """FAILs at `merge.max-verify-fails` (default 3) distinct heads of one
     pull request hold it for a human whatever a later pass says (owner

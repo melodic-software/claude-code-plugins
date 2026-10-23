@@ -50,7 +50,9 @@ const VERIFY_AUTHORS = Object.freeze(["lane", "lane-or-owner", "any"]);
 
 const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
-const NAME = /^pr-verify-([1-9][0-9]*)-([0-9a-f]{40})-(pass|pass-notes|fail)(?:-[0-9a-f]{16})?$/;
+// A verdict's name (babysit_verify_evidence.NAME_RE): the head-ref digest and
+// `-i` with the verdict's dot-joined issue numbers are optional.
+export const NAME = /^pr-verify-([1-9][0-9]*)-([0-9a-f]{40})-(pass|pass-notes|fail)(?:-[0-9a-f]{16})?(?:-i(?:[1-9][0-9]{0,9}(?:\.[1-9][0-9]{0,9}){0,9}))?$/;
 const MAX_PAGES = 100;
 
 const SPEC_QUERY = `query($owner: String!, $name: String!, $number: Int!) {

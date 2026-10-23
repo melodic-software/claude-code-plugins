@@ -106,7 +106,7 @@ jobs:
             exit 1
           fi
           names=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts?per_page=100" \
-            --jq '.artifacts[] | select(.expired == false) | .name | select(test("^pr-verify-[1-9][0-9]{0,9}-[0-9a-f]{40}-fail(-[0-9a-f]{16})?$"))')
+            --jq '.artifacts[] | select(.expired == false) | .name | select(test("^pr-verify-[1-9][0-9]{0,9}-[0-9a-f]{40}-fail(-[0-9a-f]{16})?(-i[1-9][0-9]{0,9}([.][1-9][0-9]{0,9}){0,9})?$"))')
           if [ -z "$names" ]; then
             echo "::notice::run $RUN_ID uploaded no fail verdict; nothing to post"
             exit 0
