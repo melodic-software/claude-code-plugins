@@ -3,17 +3,20 @@
 # .github/workflows/pr-require-checks.yml's ci-status, then calls the gh_read
 # function it writes, under bash -e, against stub `gh`, `sleep` and `date`.
 #
-# gh_read runs `gh api`. On a rate limit it waits until five seconds past the
-# reset GET /rate_limit reports (60 s when that resource is not at 0) and
-# reads again; the waits of the whole job sum to at most
-# RATE_LIMIT_WAIT_SECONDS, and a wait past that fails the read naming the
-# reset. Any other failure returns at once.
+# gh_read runs `gh api`. On a rate limit it waits once and reads again: until
+# five seconds past the reset GET /rate_limit reports for the resource, 60 s
+# for a secondary limit or an unreadable reset, one second when the window has
+# already reset. A wait that would end past the deadline the step sets,
+# RATE_LIMIT_WAIT_SECONDS after it runs, fails the read naming the reset and
+# blocks that resource until it. Any other failure returns at once.
 # test-scope: .github/workflows/pr-require-checks.yml
+# test-scope: .github/workflows/pr-feedback-dispatch.yml
 # shellcheck disable=SC2016 # the step snippets and the env expression are literal
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKFLOW="$ROOT/.github/workflows/pr-require-checks.yml"
+DISPATCH="$ROOT/.github/workflows/pr-feedback-dispatch.yml"
 
 # shellcheck source=lib/test-harness.sh
 . "$ROOT/scripts/lib/test-harness.sh"
@@ -23,10 +26,15 @@ WORKFLOW="$ROOT/.github/workflows/pr-require-checks.yml"
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
-if ! ci_gh_read::install "$WORKFLOW" "$TMP_ROOT"; then
+if ! RATE_LIMIT_WAIT_SECONDS=600 ci_gh_read::install "$WORKFLOW" "$TMP_ROOT"; then
   fail "no working 'Write the rate-limit-aware read helper' step in $WORKFLOW"
   test_harness::report
   exit 1
+fi
+if [[ "$(cat "$TMP_ROOT/gh-read.deadline")" -ge $(($(date +%s) + 590)) ]]; then
+  ok "the step sets the wait deadline RATE_LIMIT_WAIT_SECONDS after it runs"
+else
+  fail "the step set the deadline '$(cat "$TMP_ROOT/gh-read.deadline")'"
 fi
 
 job="$(awk '/^  ci-status:$/ { on = 1 } on && /^  [a-z-]+:$/ && !/ci-status/ { exit } on { print }' "$WORKFLOW")"
@@ -45,17 +53,33 @@ while IFS= read -r name; do
     fail "'$name' calls gh_read without sourcing it first"
   fi
 done < <(awk '/^      - name: / { name = substr($0, 15) } /gh_read [-"]/ && name != "Write the rate-limit-aware read helper" { print name }' <<<"$job" | sort -u)
+# Every other `gh api` in the job is a write, or marked gh-read-exempt on the
+# line above, so a new fail-closed read cannot skip the wait unnoticed.
+stray="$(awk '/^      - name: / { helper = ($0 == "      - name: Write the rate-limit-aware read helper") }
+  !helper && /gh api / && $0 !~ /^ *#/ && $0 !~ /gh api -X (POST|DELETE|PATCH|PUT) / && prev !~ /# gh-read-exempt: / { print }
+  { prev = $0 }' <<<"$job")"
+if [[ -z "$stray" ]]; then
+  ok "every other gh api in ci-status is a write or marked gh-read-exempt"
+else
+  fail "ci-status reads through plain gh api without a gh-read-exempt mark: $stray"
+fi
 cap="$(sed -nE 's/^      RATE_LIMIT_WAIT_SECONDS: ([0-9]+)$/\1/p' <<<"$job")"
 timeout="$(sed -nE 's/^    timeout-minutes: ([0-9]+)$/\1/p' <<<"$job")"
-if [[ -n "$cap" && -n "$timeout" && $((cap / 60 + 9)) -le "$timeout" ]]; then
-  ok "the job timeout ($timeout min) holds one ${cap}s reset wait plus the 9 min the other waits need"
+if [[ -n "$cap" && -n "$timeout" && $((2 * cap / 60 + 5)) -le "$timeout" ]]; then
+  ok "the job timeout ($timeout min) holds two ${cap}s wait windows plus the 5 min the other waits need"
 else
-  fail "the job timeout '$timeout' does not hold a '${cap}'s reset wait plus 9 minutes"
+  fail "the job timeout '$timeout' does not hold two '${cap}'s wait windows plus 5 minutes"
 fi
 if [[ "$(grep -c 'rate-limit-wait-seconds: \${{ env.RATE_LIMIT_WAIT_SECONDS }}' <<<"$job")" -eq 2 ]]; then
   ok "check-contract and aggregate-results wait under the same ceiling"
 else
   fail "check-contract and aggregate-results do not both take rate-limit-wait-seconds from RATE_LIMIT_WAIT_SECONDS"
+fi
+poll="$(sed -nE "s/^          POLL_LIMIT_SECONDS: '([0-9]+)'$/\1/p" "$DISPATCH")"
+if [[ -n "$poll" && -n "$timeout" && "$poll" -gt $((timeout * 60)) ]]; then
+  ok "pr-feedback-dispatch polls an in-progress ci-status longer than its ${timeout} min timeout"
+else
+  fail "pr-feedback-dispatch's POLL_LIMIT_SECONDS '$poll' does not outlast ci-status's ${timeout} min timeout"
 fi
 
 # The stub logs its arguments. GET /rate_limit prints STUB_LIMIT_<resource>
@@ -92,18 +116,17 @@ chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep" "$TMP_ROOT/bin/date"
 LIMITED='fail gh: API rate limit exceeded for installation. (HTTP 403)'
 NOW=1792800000
 
-# run <calls...>: runs `. gh-read.sh` and then each argument as a command in
-# one bash -e step, with the job state kept from earlier runs unless reset.
+# run <commands>: sources gh-read.sh, then runs <commands>, in one bash -e
+# step. The blocks and deadline stay from earlier runs until fresh.
 run() {
   : >"$TMP_ROOT/log"
   : >"$TMP_ROOT/sleeps"
   out="$(PATH="$TMP_ROOT/bin:$PATH" RUNNER_TEMP="$TMP_ROOT" STUB_LOG="$TMP_ROOT/log" STUB_SLEEPS="$TMP_ROOT/sleeps" \
-    STUB_NOW="${STUB_NOW:-$NOW}" RATE_LIMIT_WAIT_SECONDS="${CAP:-600}" \
-    bash -ec ". \"\$RUNNER_TEMP/gh-read.sh\"; $1" 2>&1)" && rc=0 || rc=$?
+    STUB_NOW="${STUB_NOW:-$NOW}" bash -ec ". \"\$RUNNER_TEMP/gh-read.sh\"; $1" 2>&1)" && rc=0 || rc=$?
   calls=$(grep -vc '^api rate_limit ' "$TMP_ROOT/log")
   sleeps=$(paste -sd' ' "$TMP_ROOT/sleeps")
 }
-fresh() { rm -f "$TMP_ROOT/gh-read.state"; }
+fresh() { ci_gh_read::reset "$TMP_ROOT" $((NOW + 600)); }
 # check <label> <want-rc> <want-calls> <want-sleeps> [want-out] [refuse-out]
 check() {
   if [[ "$rc" -ne "$2" ]]; then
@@ -156,25 +179,39 @@ ok fine" run 'gh_read repos/o/r/pulls/1 >/dev/null'
 check "a rate limit whose reset is unreadable waits 60 s" 0 2 "60"
 
 fresh
+STUB_LIMIT_core="4999 $((NOW + 3000))" STUB_SCRIPT="$LIMITED
+ok fine" run 'gh_read repos/o/r/pulls/1 >/dev/null'
+check "a primary limit whose window has already reset reads again after a second" 0 2 "1"
+
+fresh
 STUB_LIMIT_core="0 $((NOW + 30))" STUB_SCRIPT='fail gh: Forbidden (HTTP 403)
 ok fine' run 'gh_read repos/o/r/pulls/1 >/dev/null'
 check "a 403 while the core limit is at 0 is a rate limit" 0 2 "35"
 
 fresh
+STUB_LIMIT_core="0 $((NOW + 30))" STUB_SCRIPT="$LIMITED
+$LIMITED
+ok never" run 'gh_read repos/o/r/pulls/1 || echo "rc=$?"'
+check "a second rate limit after the wait fails the read without another wait" 0 2 "35" "rc=1"
+
+fresh
 STUB_LIMIT_core="0 $((NOW + 3000))" STUB_SCRIPT="$LIMITED" run 'gh_read repos/o/r/pulls/1 || echo "rc=$?"'
-check "a reset past the ceiling fails the read at once" 0 1 "" \
-  "::error::GitHub's core API rate limit blocks 'gh api repos/o/r/pulls/1' until 2026-10-24T00:50:00Z, past the 600s ci-status waits for a reset (0s spent); re-run this run after 2026-10-24T00:50:00Z."
+check "a reset past the deadline fails the read at once" 0 1 "" \
+  "::error::GitHub's core API rate limit blocks 'gh api repos/o/r/pulls/1' until 2026-10-24T00:50:00Z, after ci-status stops waiting at 2026-10-24T00:10:00Z; re-run this run after 2026-10-24T00:50:00Z."
 STUB_SCRIPT='ok never' run 'gh_read repos/o/r/pulls/2 || echo "rc=$?"'
-check "a later read, in a later step, before that reset fails without a call" 0 0 "" "rc=1" "::error::"
+check "a later read of that resource, in a later step, before its reset fails without a call" 0 0 "" "rc=1" "::error::"
+STUB_SCRIPT='ok graphql' run 'gh_read graphql -f query=x'
+check "a block on core does not stop a graphql read" 0 1 "" "graphql"
 STUB_NOW=$((NOW + 3000)) STUB_SCRIPT='ok again' run 'gh_read repos/o/r/pulls/2'
 check "a read after that reset is sent" 0 1 "" "again"
 
 fresh
 STUB_LIMIT_core="0 $((NOW + 400))" STUB_SCRIPT="$LIMITED
 ok one" run 'gh_read repos/o/r/pulls/1 >/dev/null'
-check "a first 405 s wait fits the 600 s ceiling" 0 2 "405"
-STUB_LIMIT_core="0 $((NOW + 300))" STUB_SCRIPT="$LIMITED" run 'gh_read repos/o/r/pulls/2 || echo "rc=$?"'
-check "a later step's wait counts what earlier steps spent" 0 1 "" "(405s spent)"
+check "a 405 s wait inside the deadline is taken" 0 2 "405"
+STUB_NOW=$((NOW + 560)) STUB_LIMIT_core="4999 $((NOW + 3600))" STUB_SCRIPT='fail gh: You have exceeded a secondary rate limit. (HTTP 403)' \
+  run 'gh_read repos/o/r/pulls/2 || echo "rc=$?"'
+check "a later step's wait that would end past the deadline is not taken" 0 1 "" "after ci-status stops waiting at 2026-10-24T00:10:00Z"
 
 fresh
 STUB_SCRIPT='fail gh: Not Found (HTTP 404)' run 'gh_read repos/o/r/contents/x 2>"$RUNNER_TEMP/err" || echo "rc=$?"; grep -c "HTTP 404" "$RUNNER_TEMP/err"'

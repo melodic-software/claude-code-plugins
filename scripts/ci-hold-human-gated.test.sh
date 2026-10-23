@@ -135,7 +135,7 @@ expect() {
   local label="$1" want_rc="$2" want_calls="$3" out rc calls
   : >"$TMP_ROOT/log"
   : >"$TMP_ROOT/sleeps"
-  rm -f "$TMP_ROOT/gh-read.state"
+  ci_gh_read::reset "$TMP_ROOT" 1792800600
   : >"$TMP_ROOT/output"
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_SLEEPS="$TMP_ROOT/sleeps" STUB_NOW=1792800000 STUB_LABELS="$4" STUB_FAILS="$5" PR_NUMBER=6419 \
     GITHUB_REPOSITORY=o/r RUNNER_TEMP="$TMP_ROOT" GITHUB_OUTPUT="$TMP_ROOT/output" BASE_SHA="${BASE_SHA-$BASE}" \
@@ -195,7 +195,7 @@ unset STUB_COMMENTS STUB_COMMENTS_FAIL
 expect "a transient label read failure is retried" 1 2 "needs-human" 1
 
 # A rate-limited read waits until five seconds past the reset and reads again;
-# a reset past the 600 s ceiling fails closed naming it; any other error keeps
+# a reset past the deadline fails closed naming it; any other error keeps
 # the caller's retries and is never waited on.
 sleeps() { paste -sd' ' "$TMP_ROOT/sleeps"; }
 export STUB_FAIL_TEXT='gh: API rate limit exceeded for installation. (HTTP 403)' STUB_RATE_LIMIT='0 1792800120'
@@ -207,12 +207,12 @@ else
   fail "the rate-limited read slept '$(sleeps)', not 125"
 fi
 export STUB_RATE_LIMIT='0 1792803000'
-expect "a reset past the ceiling fails closed naming the reset" 1 1 "enhancement" 3 \
-  "::error::GitHub's core API rate limit blocks 'gh api repos/o/r/issues/6419/labels?per_page=100 --paginate --jq .[].name' until 2026-10-24T00:50:00Z, past the 600s ci-status waits for a reset (0s spent); re-run this run after 2026-10-24T00:50:00Z."
+expect "a reset past the deadline fails closed naming the reset" 1 1 "enhancement" 3 \
+  "::error::GitHub's core API rate limit blocks 'gh api repos/o/r/issues/6419/labels?per_page=100 --paginate --jq .[].name' until 2026-10-24T00:50:00Z, after ci-status stops waiting at 2026-10-24T00:10:00Z; re-run this run after 2026-10-24T00:50:00Z."
 if [[ "$(sleeps)" == "5 10" ]]; then
-  ok "a reset past the ceiling is not waited for, and the retries make no call"
+  ok "a reset past the deadline is not waited for, and the retries make no call"
 else
-  fail "a reset past the ceiling slept '$(sleeps)', not the caller's '5 10'"
+  fail "a reset past the deadline slept '$(sleeps)', not the caller's '5 10'"
 fi
 export STUB_FAIL_TEXT='gh: Resource not accessible by integration (HTTP 403)' STUB_RATE_LIMIT='4999 1792800120'
 expect "a 403 that is not a rate limit fails closed without a wait" 1 3 "" 3 "::error::could not read the labels of #6419" "rate limited"

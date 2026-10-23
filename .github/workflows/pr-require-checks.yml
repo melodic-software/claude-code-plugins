@@ -3105,22 +3105,23 @@ jobs:
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     # 9 s p95 and 42 s max in full mode, about 10 s contract-only. The cap
-    # covers one wait for the primary rate limit's reset of up to
-    # RATE_LIMIT_WAIT_SECONDS (10 minutes), plus the pinned composites' other
-    # waits: 45 s of own-gate retries, 7 s of status-write retries and the 90 s
-    # `rerun-wait-seconds` wait, plus up to 15 s of retry sleeps for each of
-    # the hold-lift step's three reads and the review-lane step's four, plus
-    # the cost-hold step's reads: three for most pull requests, which stop at
-    # the label events; for a lane-labeled one whose body cites a decision,
-    # about ten, and two more per review run since the window opened. Only
-    # one wait in a run can reach a reset: the next one is an hour later, past
-    # the cap, so a read limited again fails at once; any other wait is 60 s
-    # for a secondary limit.
-    timeout-minutes: 20
+    # holds two rate-limit windows of RATE_LIMIT_WAIT_SECONDS (10 minutes):
+    # one shared by check-contract and the gh_read steps, which wait only
+    # until RATE_LIMIT_WAIT_SECONDS past the job's start, and aggregate-results'
+    # own. Core and graphql reset on separate hourly windows, so each window
+    # can hold a reset wait. Then about five minutes of other waits: 45 s of
+    # own-gate retries, 7 s of status-write retries and the 90 s
+    # `rerun-wait-seconds` wait, up to 15 s of retry sleeps for each of the
+    # hold-lift step's three reads and the review-lane step's four, and the
+    # cost-hold step's reads: three for most pull requests, which stop at the
+    # label events; for a lane-labeled one whose body cites a decision, about
+    # ten, and two more per review run since the window opened.
+    # pr-feedback-dispatch.yml polls an in-progress ci-status for longer than
+    # this cap.
+    timeout-minutes: 25
     env:
-      # The ceiling on rate-limit waits, for check-contract, aggregate-results
-      # and the gh_read steps below together. The limit-events rows that set it
-      # needed 399 to 523 s.
+      # The rate-limit wait ceiling of each window above. The limit-events
+      # rows that set it needed 399 to 523 s.
       RATE_LIMIT_WAIT_SECONDS: 600
     permissions:
       # `yield-to-full-run` lists this workflow's runs on the head SHA, and
@@ -3139,30 +3140,35 @@ jobs:
       pull-requests: write
       statuses: write
     steps:
-      # A RATE-LIMITED READ WAITS FOR THE RESET. The steps below read through
-      # gh_read, which runs `gh api` and, when it fails on a rate limit, waits
-      # and reads again, as the pinned composites' gh-api.sh does: until five
+      # A RATE-LIMITED READ WAITS FOR THE RESET. The fail-closed steps below
+      # read through gh_read, which runs `gh api` and, when that fails on a
+      # rate limit, waits once and reads again. The wait runs until five
       # seconds past the reset when GET /rate_limit (which no limit counts)
-      # shows the resource (core, or graphql for a graphql call) at 0, else
-      # 60 s. It is a rate limit when gh's error names one, or is an HTTP 403
-      # or 429 while that resource is at 0. The waits of every step sum to at
-      # most RATE_LIMIT_WAIT_SECONDS; a wait that does not fit fails the read
-      # with an error naming the reset, and later reads before the reset fail
-      # without a call. Any other failure returns gh's status at once, so each
-      # caller's own retries and fail-closed exit stay as they were. This step
-      # writes the function for the others to source. Pinned by
+      # shows the resource (core, or graphql for a graphql call) at 0; 60 s for
+      # a secondary limit or when the reset cannot be read; one second when the
+      # window has already reset. It is a rate limit when gh's error names one,
+      # or is an HTTP 403 or 429 while that resource is at 0. A wait that would
+      # end past the deadline this step sets, RATE_LIMIT_WAIT_SECONDS after it
+      # runs, fails the read with an error naming the reset, and later reads
+      # of that resource before the reset fail without a call. Any other
+      # failure, or a second rate limit after the wait, returns gh's status at
+      # once, so each caller's own retries and fail-closed exit stay as they
+      # were. The cost-hold step keeps plain `gh api`: an unreadable input
+      # keeps its hold, and a wait there would act on reads made before it.
+      # Every other `gh api` in this job is a write or marked gh-read-exempt.
+      # This step writes the function for the others to source. Pinned by
       # scripts/ci-gh-read.test.sh, which runs this body.
       - name: Write the rate-limit-aware read helper
         run: |
           gh_read() {
-            local state="$RUNNER_TEMP/gh-read.state" cap=${RATE_LIMIT_WAIT_SECONDS:-600}
-            local resource=core spent=0 until=0 arg err out now limit remaining reset wait at
+            local resource=core until=0 deadline arg err out now limit remaining reset wait at waited=
             for arg; do [ "$arg" != graphql ] || resource=graphql; done
+            local blocked="$RUNNER_TEMP/gh-read.until-$resource"
+            deadline=$(cat "$RUNNER_TEMP/gh-read.deadline")
+            [ ! -s "$blocked" ] || until=$(cat "$blocked")
+            [ "$until" -le "$(date +%s)" ] || return 1
             err=$(mktemp)
             while :; do
-              [ ! -s "$state" ] || read -r spent until <"$state"
-              now=$(date +%s)
-              [ "$until" -le "$now" ] || { rm -f "$err"; return 1; }
               if out=$(gh api "$@" 2>"$err"); then
                 cat "$err" >&2
                 rm -f "$err"
@@ -3170,31 +3176,37 @@ jobs:
                 return 0
               fi
               cat "$err" >&2
-              grep -qiE 'rate limit|HTTP (403|429)' "$err" || { rm -f "$err"; return 1; }
-              limit=$(gh api rate_limit --jq ".resources.$resource | \"\(.remaining) \(.reset)\"" 2>/dev/null) || limit=
-              read -r remaining reset <<<"$limit"
-              if [ "$remaining" = 0 ] && [[ $reset =~ ^[0-9]{1,10}$ ]]; then
-                wait=$((reset - now + 5))
-                [ "$wait" -ge 5 ] || wait=5
-              elif grep -qi 'rate limit' "$err"; then
-                wait=60 reset=$((now + 60))
-              else
+              wait=
+              if [ -z "$waited" ] && grep -qiE 'rate limit|HTTP (403|429)' "$err"; then
+                now=$(date +%s)
+                limit=$(gh api rate_limit --jq ".resources.$resource | \"\(.remaining) \(.reset)\"" 2>/dev/null) || limit=
+                read -r remaining reset <<<"$limit"
+                if [ "$remaining" = 0 ] && [[ $reset =~ ^[0-9]{1,10}$ ]]; then
+                  wait=$((reset - now + 5))
+                  [ "$wait" -ge 5 ] || wait=5
+                elif grep -qi 'secondary rate limit' "$err" || { grep -qi 'rate limit' "$err" && [[ ! $remaining =~ ^[0-9]+$ ]]; }; then
+                  wait=60 reset=$((now + 60))
+                elif grep -qi 'rate limit' "$err"; then
+                  wait=1 reset=$((now + 1))
+                fi
+              fi
+              if [ -z "$wait" ]; then
                 rm -f "$err"
                 return 1
               fi
-              if [ $((spent + wait)) -gt "$cap" ]; then
+              if [ $((now + wait)) -gt "$deadline" ]; then
                 at=$(jq -rn --argjson t "$reset" '$t | todate')
-                echo "::error::GitHub's $resource API rate limit blocks 'gh api $*' until $at, past the ${cap}s ci-status waits for a reset (${spent}s spent); re-run this run after $at." >&9
-                echo "$spent $reset" >"$state"
+                echo "::error::GitHub's $resource API rate limit blocks 'gh api $*' until $at, after ci-status stops waiting at $(jq -rn --argjson t "$deadline" '$t | todate'); re-run this run after $at." >&9
+                echo "$reset" >"$blocked"
                 rm -f "$err"
                 return 1
               fi
               echo "::notice::'gh api $*' is rate limited ($resource); waiting ${wait}s for the reset, then reading again." >&9
               sleep "$wait"
-              spent=$((spent + wait))
-              echo "$spent 0" >"$state"
+              waited=1
             done
           }
+          echo $(($(date +%s) + RATE_LIMIT_WAIT_SECONDS)) >"$RUNNER_TEMP/gh-read.deadline"
           # fd 9 is each sourcing step's stderr, so the notices reach the log
           # when a caller captures or redirects gh_read's own stderr.
           { echo 'exec 9>&2'; declare -f gh_read; } >"$RUNNER_TEMP/gh-read.sh"
@@ -3363,7 +3375,6 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
         run: |
-          . "$RUNNER_TEMP/gh-read.sh"
           keep() {
             echo "The cost hold stays for a person: $1."
             exit 0
@@ -3371,7 +3382,8 @@ jobs:
           read_api() {
             local attempt out
             for attempt in 1 2 3; do
-              if out=$(gh_read "$@" 2>"$RUNNER_TEMP/cost-hold.err"); then
+              # gh-read-exempt: an unreadable input keeps the hold, and a wait would act on stale reads.
+              if out=$(gh api "$@" 2>"$RUNNER_TEMP/cost-hold.err"); then
                 printf '%s\n' "$out"
                 return 0
               fi
@@ -3565,6 +3577,7 @@ jobs:
             echo "#$PR_NUMBER carries no '$human_gated' label."
             exit 0
           fi
+          # gh-read-exempt: the reason is best effort; the step fails either way.
           reason=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate \
             --jq '.[] | select(.user.type == "Bot" and (.body | test("(^|\n)<!-- claude-lane-hold lane="))
               and (.user.login == "claude[bot]" or (.user.login == "github-actions[bot]"

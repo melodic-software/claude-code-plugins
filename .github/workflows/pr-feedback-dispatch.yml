@@ -271,7 +271,8 @@ jobs:
   # never runs, so neither starts it. A head the PR has moved past, or a
   # closed PR, is left alone. A ci-status job not started yet reads the
   # reviews when it starts, so it is left alone too; one in progress is
-  # polled every 60 s for at most 10 minutes, then re-run. No checkout, no
+  # polled every 60 s for at most 26 minutes, longer than ci-status's
+  # 25-minute timeout, then re-run. No checkout, no
   # model: the token can only read runs and the PR and re-run a job.
   # Pinned by scripts/ci-rerun-ci-status.test.sh, which runs this body.
   rerun-ci-status:
@@ -284,7 +285,7 @@ jobs:
       && github.event.workflow_run.repository.full_name == github.repository
       && github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 30
     permissions:
       actions: write # list pr-require-checks runs and jobs; re-run the ci-status job
       pull-requests: read # the PR's state and live head
@@ -295,7 +296,7 @@ jobs:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
           POLL_SECONDS: '60'
-          POLL_LIMIT_SECONDS: '600'
+          POLL_LIMIT_SECONDS: '1560'
         run: |
           if [[ ! $HEAD_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the review run's head '$HEAD_SHA' is not a commit SHA."

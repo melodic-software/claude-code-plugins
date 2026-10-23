@@ -1440,7 +1440,8 @@ A review usually finishes after ci-status has read it, so `pr-feedback-dispatch.
 `rerun-ci-status` job re-runs the ci-status job of the newest `pr-require-checks` run on the head
 whenever either review caller completes (not when GitHub skipped it) on an open same-repository PR
 still at that head. A ci-status not started yet is left to read the reviews itself; one in progress
-is polled every 60 seconds for at most 10 minutes first. The merge-group run re-checks the labels.
+is polled every 60 seconds first, for at most 26 minutes, past ci-status's 25-minute timeout. The
+merge-group run re-checks the labels.
 `fix-ci` keys on `ci-lanes`, so a hold or a pending review never summons it.
 
 ## Trust-root paths
