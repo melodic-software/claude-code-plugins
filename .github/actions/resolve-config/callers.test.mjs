@@ -973,16 +973,73 @@ test("every read-runner caller job passes exactly one Claude secret, named for i
 // Read inside each test, so a missing catalog fails every one of them.
 const fundingCatalog = () => JSON.parse(read("../../lane-funding.json"));
 const catalogLanes = () => fundingCatalog().roles.flatMap((role) => role.lanes.map((lane) => ({ role, lane, key: `${lane.workflow} ${lane.id}` })));
-// Every job that reads a role's Claude secret or the bare token, with the names it reads.
-function claudeSecretJobs() {
+// What a node can read of the secrets context. A reference is a name (secrets.NAME,
+// secrets['NAME'], or an ANTHROPIC_* env name) or ALL_SECRETS, a form that
+// reaches every secret: toJSON(secrets), secrets[expression], secrets: inherit.
+const ALL_SECRETS = "*";
+const CLAUDE_CREDENTIAL = /^(?:(?:[A-Z][A-Z0-9_]*_)?CLAUDE_(?:API_KEY|CODE_OAUTH_TOKEN)|ANTHROPIC_[A-Z0-9_]+)$/;
+const NAMED_ACCESS = String.raw`\s*\.\s*[\w-]|\s*\[\s*['"][\w-]+['"]\s*\]`;
+const BARE_SECRETS = new RegExp(String.raw`(?<![\w.-])secrets(?![\w-])(?!${NAMED_ACCESS})`);
+function secretRefs(node, key = "", refs = new Set()) {
+  if (typeof node === "string") {
+    for (const [, dotted, quoted] of node.matchAll(/secrets\.([\w-]+)|secrets\[\s*['"]([\w-]+)['"]\s*\]/g)) refs.add(dotted ?? quoted);
+    // An `if` value is a bare expression; elsewhere only ${{ }} holds one.
+    const expressions = key === "if" ? [node] : [...node.matchAll(/\$\{\{([\s\S]*?)\}\}/g)].map((m) => m[1]);
+    if (expressions.some((expression) => BARE_SECRETS.test(expression))) refs.add(ALL_SECRETS);
+  } else if (Array.isArray(node)) {
+    for (const item of node) secretRefs(item, key, refs);
+  } else if (node && typeof node === "object") {
+    for (const [name, value] of Object.entries(node)) {
+      if (name === "secrets" && value === "inherit") refs.add(ALL_SECRETS);
+      if (key === "env" && name.startsWith("ANTHROPIC_")) refs.add(name);
+      secretRefs(value, name, refs);
+    }
+  }
+  return refs;
+}
+// The Claude credentials the given nodes can read, sorted.
+const claudeReads = (...nodes) => {
+  const refs = new Set();
+  for (const node of nodes) secretRefs(node, "", refs);
+  return [...refs].filter((name) => name === ALL_SECRETS || CLAUDE_CREDENTIAL.test(name)).sort();
+};
+const isApiKey = (name) => name === ALL_SECRETS || /(^|_)CLAUDE_API_KEY$|^ANTHROPIC_/.test(name);
+// Every job that can read a role's Claude credential, with the names it reads. The
+// workflow-level env reaches every job, so it counts toward each.
+function claudeSecretJobs(files = workflowFiles(), load = workflow) {
   const jobs = new Map();
-  for (const file of workflowFiles()) {
-    for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
-      const names = stepSecrets(job).filter((name) => /^([A-Z][A-Z0-9_]*_)?CLAUDE_(API_KEY|CODE_OAUTH_TOKEN)$/.test(name));
-      if (names.length) jobs.set(`${file} ${id}`, { job, names });
+  for (const file of files) {
+    const doc = load(file);
+    for (const [id, job] of Object.entries(doc.jobs ?? {})) {
+      const names = claudeReads({ env: doc.env }, job);
+      if (names.length) jobs.set(`${file} ${id}`, { doc, job, names });
     }
   }
   return jobs;
+}
+const isLauncherStep = (step, launcher) =>
+  launcher === "claude-cli" ? typeof step.run === "string" && step.uses === undefined : String(step.uses ?? "").includes(`/${launcher}@`);
+// A value that is only whether a secret is set, ${{ secrets.NAME != '' }}, carries no credential.
+const PRESENCE_ONLY = /^\s*(?:\$\{\{\s*)?secrets\.[\w-]+\s*[!=]=\s*''\s*(?:\}\})?\s*$/;
+const withoutPresenceChecks = (node) =>
+  typeof node === "string"
+    ? PRESENCE_ONLY.test(node) ? "" : node
+    : Array.isArray(node)
+      ? node.map(withoutPresenceChecks)
+      : node && typeof node === "object"
+        ? Object.fromEntries(Object.entries(node).map(([name, value]) => [name, withoutPresenceChecks(value)]))
+        : node;
+// The places a job lets its Claude credentials go beyond the launcher step: the
+// workflow or job env (every step), or any other step that reads more than whether
+// a secret is set.
+function strayClaudeReaders({ doc, job }, launcher) {
+  const stray = [];
+  if (claudeReads({ env: doc.env }).length) stray.push("workflow env");
+  if (claudeReads(job.env).length) stray.push("job env");
+  for (const step of job.steps ?? []) {
+    if (claudeReads(withoutPresenceChecks(step)).length && !isLauncherStep(step, launcher)) stray.push(`step ${step.name ?? step.id ?? step.run}`);
+  }
+  return stray;
 }
 
 test("lane-funding.json validates against its schema", () => {
@@ -1007,9 +1064,56 @@ test("every job that reads a Claude secret is a catalog lane, and every catalog 
 
 test("a job reads a Claude API key only when its catalog lane runs on run-claude-cli", () => {
   const lanes = new Map(catalogLanes().map(({ lane, key }) => [key, lane]));
-  const keyed = [...claudeSecretJobs()].filter(([, { names }]) => names.some((name) => name.endsWith("_CLAUDE_API_KEY")));
+  const keyed = [...claudeSecretJobs()].filter(([, { names }]) => names.some(isApiKey));
   assert.ok(keyed.length > 0);
   for (const [key] of keyed) assert.equal(lanes.get(key)?.launcher, "run-claude-cli", key);
+});
+
+test("a Claude credential reaches only the launcher step of its catalog lane", () => {
+  const jobs = claudeSecretJobs();
+  for (const { lane, key } of catalogLanes()) {
+    assert.deepEqual(strayClaudeReaders(jobs.get(key), lane.launcher), [], key);
+  }
+});
+
+test("the Claude credential scan sees every form a secret can be read in", () => {
+  const KEY = "REVIEWS_CLAUDE_API_KEY";
+  const step = (env) => ({ jobs: { j: { steps: [{ name: "s", run: "true", env }] } } });
+  const forms = {
+    "secrets.NAME": [step({ K: `\${{ secrets.${KEY} }}` }), [KEY]],
+    "secrets['NAME']": [step({ K: `\${{ secrets['${KEY}'] }}` }), [KEY]],
+    'secrets["NAME"]': [step({ K: `\${{ secrets["${KEY}"] }}` }), [KEY]],
+    "toJSON(secrets)": [step({ K: "${{ toJSON(secrets) }}" }), [ALL_SECRETS]],
+    "secrets[expression]": [step({ K: "${{ secrets[matrix.name] }}" }), [ALL_SECRETS]],
+    "if: toJSON(secrets)": [{ jobs: { j: { if: "toJSON(secrets) != ''", steps: [] } } }, [ALL_SECRETS]],
+    "secrets: inherit": [{ jobs: { j: { uses: "./.github/workflows/x.yml", secrets: "inherit" } } }, [ALL_SECRETS]],
+    "reusable secrets mapping": [{ jobs: { j: { uses: "./.github/workflows/x.yml", secrets: { k: `\${{ secrets.${KEY} }}` } } } }, [KEY]],
+    "workflow env": [{ env: { K: `\${{ secrets.${KEY} }}` }, jobs: { j: { steps: [{ run: "true" }] } } }, [KEY]],
+    "ANTHROPIC_ secret name": [step({ K: "${{ secrets.ANTHROPIC_API_KEY }}" }), ["ANTHROPIC_API_KEY"]],
+    "ANTHROPIC_ env name": [step({ ANTHROPIC_API_KEY: "${{ secrets.OTHER }}" }), ["ANTHROPIC_API_KEY"]],
+    "workflow env ANTHROPIC_ name": [{ env: { ANTHROPIC_AUTH_TOKEN: "x" }, jobs: { j: { steps: [{ run: "true" }] } } }, ["ANTHROPIC_AUTH_TOKEN"]],
+  };
+  for (const [form, [doc, expected]] of Object.entries(forms)) {
+    assert.deepEqual([...claudeSecretJobs(["f.yml"], () => doc).values()].flatMap(({ names }) => names), expected, form);
+  }
+  // A named secret that is not a Claude credential and a literal mention stay quiet.
+  const quiet = { jobs: { j: { steps: [{ run: "echo secrets", env: { T: "${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}" } }] } } };
+  assert.equal(claudeSecretJobs(["f.yml"], () => quiet).size, 0);
+});
+
+test("the stray-reader check names an extra step and an env that reaches every step", () => {
+  const launcher = { uses: "melodic-software/ci-workflows/.github/actions/run-claude-cli@abc", with: { "api-key": "${{ secrets.REVIEWS_CLAUDE_API_KEY }}" } };
+  const extra = { name: "extra", run: "true", env: { K: "${{ secrets.REVIEWS_CLAUDE_API_KEY }}" } };
+  const check = (doc, job) => strayClaudeReaders({ doc, job }, "run-claude-cli");
+  assert.deepEqual(check({}, { steps: [launcher] }), []);
+  assert.deepEqual(check({}, { steps: [launcher, extra] }), ["step extra"]);
+  assert.deepEqual(check({}, { env: extra.env, steps: [launcher] }), ["job env"]);
+  assert.deepEqual(check({ env: extra.env }, { steps: [launcher] }), ["workflow env"]);
+  assert.deepEqual(check({}, { steps: [{ ...launcher, name: "wrong", uses: "actions/checkout@abc" }] }), ["step wrong"]);
+  const presence = { name: "presence", run: "true", if: "secrets.REVIEWS_CLAUDE_API_KEY != ''", env: { P: "${{ secrets.REVIEWS_CLAUDE_API_KEY != '' }}" } };
+  assert.deepEqual(check({}, { steps: [presence, launcher] }), [], "whether a secret is set is not the secret");
+  const value = { ...presence, env: { P: "${{ secrets.REVIEWS_CLAUDE_API_KEY != '' && secrets.REVIEWS_CLAUDE_API_KEY }}" } };
+  assert.deepEqual(check({}, { steps: [value, launcher] }), ["step presence"]);
 });
 
 test("each catalog role names its secrets from its prefix, and is keyed only with a run-claude-cli lane", () => {
