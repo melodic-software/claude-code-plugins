@@ -1,5 +1,40 @@
 # Changelog for the PR pipeline convention
 
+## [4.5.0] - 2026-10-23
+
+### Changed
+
+- The security review lane (`pr-review-security-hosted.yml`) runs on ci-workflows' `pr-review-cli.yml` (v0.63.1), lane `security`: the reviews role's API key first, and its subscription token only after the key hands off or when the repository variable `REVIEWS_KEY_EXHAUSTED` is `true`. The check stays `pr-review-security / security-review`; the review now posts as `github-actions[bot]`, each comment ending in its `claude-lane: claude-security-review` footer. A newer push no longer cancels a running review: it waits for it.
+- `address-feedback` and `pr-feedback-dispatch.yml` treat a `github-actions[bot]` comment as the reviewer's when its last non-blank line is a review lane's footer and its review is `github-actions[bot]`'s; `claude[bot]` findings are unchanged.
+- One funding role, `reviews`, backs both review lanes and is keyed; the `reviews-security` role is gone.
+
+## [4.4.0] - 2026-10-23
+
+### Changed
+
+- `review-dependency` runs on the read runner, [`pr-run-activity-read.yml`](https://github.com/melodic-software/claude-code-plugins/blob/main/.github/workflows/pr-run-activity-read.yml), on `run-claude-cli` with a subscription fallback, and no model job holds a write token. `pr-unblock.yml` runs it as six jobs: `review-dependency-select`, a base job with a read-only token, selects the pull request and uploads the context file and `context.json`, the run fields the verdict job reads; `review-dependency-not-run` posts the check neutral when the select job does not proceed, so the dispatcher does not send that head again; the model job and its subscription call return the verdict as structured output and leave a fix as a patch; `apply-dependency-patch` pushes the patch only beside a scanned `fix` verdict; and `apply-dependency-verdict` acts on the verdict whenever the select job proceeded. Every gate and head comes from the select job, and every model-call input from one leg's scan job.
+- `review-dependency` has effect `read`, `applied-by` `patch: apply-dependency-patch` and `dependency-verdict: apply-dependency-verdict`, and routes to the `review` profile (Opus, 60 turns). Its skill gets Read, Grep, Glob, Skill, Edit, Write and Agent with no Bash, the context file read-only under `.lane/dependency/`, and one `WebFetch(domain:)` rule per configured host. A launcher activity with a `web-access` host list now gets those per-host rules instead of failing red. The new script activity `apply-dependency-patch` runs `apply-patch.mjs` under the `dependency-review` row, which now skips a moved head and holds each file to the new `dependency-version-change` content rule (`fixRefusal` on the local blobs, before any commit is built). The row's `dependency-manifests` rule reads the base `.github/dependabot.yml`, which the write runner copies out of the base, and its `dependency-verdict: fix` requirement reads the scanned verdict, which the write runner checks against the scan job's SHA-256 before the mint.
+- `apply-dependency-verdict.mjs` reads the select job's `context.json` and the scanned `dependency-verdict.json`, each against the SHA-256 its own job recorded. A round with no verdict counts and skips `no-model-turn` only when the same call's scan handed on no patch, refused nothing, and the head is unmoved; a scan that refused an oversize patch escalates `dependency-fix-not-landed`, and any other gap `dependency-invalid`. A round with no model run named always posts its marker.
+- The read runner carries, seals, scans and uploads a `dependency-review` skill's verdict at 49152 bytes, never beside a `review-threads` skill's replies, so the sealed payloads still fit five chunks. Its new `dependency-attempt`, `dependency-sha256`, `dependency-verdict` and `scan-refused` outputs come from the scan job alone.
+- The schema requires `applied-by.patch` and `applied-by.dependency-verdict` of a `read` `dependency-review` skill.
+
+- work-unblock's restart sweep reads a reopened fix issue's comments and events once: the recurrence check and the restart check share that read instead of listing both again, so each alert-filed issue costs one or two fewer lanes App calls per sweep, with the same verdicts.
+
+- The work-unblock and intake-triage apply-verdict jobs log the lane token's and the job token's REST budget at mint and at job end (`.github/actions/log-api-budget`), as pr-merge does, so each run's lanes App spend is on record. pr-run-activity-write logs it at mint, before the head checkout replaces the base checkout the step runs from.
+
+### Removed
+
+- The write runner's `dependency-review` mode: its select step, the promote step's dependency branch, the verdict collect and upload steps, and its `dependency-round`, `dependency-run-sha256` and `dependency-run-attempt` outputs. A `dependency-review` activity on the write runner now fails red.
+
+### Fixed
+
+- The hourly triage sweep re-dispatches intake for an issue whose intake run failed: the `needs-triage` floor label, which lands on open whether or not intake runs, no longer counts as triaged, so the missing intake comment decides. A filing records an in-progress state before it files, so a failed write cannot file twice (`.github/scripts/maintenance-audit-lane-runs/triage-sweep.mjs`, [#9216](https://github.com/melodic-software/claude-code-plugins/issues/9216)).
+- `status: needs-info` holds an issue like `status: needs-decision`: resolve-issue and apply-issue-patch start nothing on it, work-unblock neither adds `agent-ready` to it nor restarts it, and the WIP cap leaves it out of queued work. Pull request hold labels are unchanged ([#9216](https://github.com/melodic-software/claude-code-plugins/issues/9216)).
+
+- The pr-merge lane holds a pull request before it enqueues when an owner, member or collaborator's newest comment on it says "do not merge". A later comment from that person lifts the hold ([README.md, The pr-merge lane](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#the-pr-merge-lane), [#9216](https://github.com/melodic-software/claude-code-plugins/issues/9216)).
+
+- The lane sweep's collect job reads every run of its 24-hour window. It made one capped run listing, which returns at most 1,000 runs and so covered about the last 4 hours. It now reads each workflow's run count with one `per_page=1` call and halves any range at the cap until each part fits, inside its 350-call budget with 170 calls kept for the units. A workflow it reads only part of is named in a warning, and its unit carries `window_complete: false`, which the judge is told to report as partial.
+
 ## [4.3.0] - 2026-10-23
 
 ### Changed

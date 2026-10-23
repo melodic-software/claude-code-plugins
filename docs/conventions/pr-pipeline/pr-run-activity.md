@@ -808,7 +808,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
 1. Before any model turn, the select job reads the PR head, resolves the slot as the read file
    does (a draft or `do-not-merge` skips it), and runs `address-feedback.mjs select` with its
    `GITHUB_TOKEN`. It keeps each unresolved thread whose first comment's review
-   the reviewer bot (`claude[bot]` in the base's trusted-actors list, by id) submitted on a head
+   the reviewer bot (`claude[bot]` in the base's trusted-actors list, by id, or `github-actions[bot]`
+   for a comment whose last non-blank line is a review lane's `claude-lane:` footer) submitted on a head
    that a `claude-lane-reviewed-head` marker from `github-actions[bot]` names, or
    `github-actions[bot]` submitted there for a verifier note (a first comment by it whose first
    line is `<!-- pr-verify:fail-note -->`, author `verifier`), when every comment is the reviewer

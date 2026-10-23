@@ -229,6 +229,31 @@ test("the security review workflow is an upstream too", async () => {
   assert.equal((await decide(api)).result.number, 42);
 });
 
+// A pr-review-cli finding: github-actions[bot]'s, its body ending in the lane
+// footer (ci-workflows publish-review publish.cjs commentBody at v0.63.0).
+const laneThread = (body) => ({
+  isResolved: false,
+  comments: { nodes: [{ author: ACTIONS_BOT_NODE, body }], pageInfo: { hasNextPage: false } },
+});
+
+test("a github-actions[bot] thread ending in the lane footer dispatches like the reviewer bot's", async () => {
+  const api = fakeApi({ threads: [laneThread("severity: IMPORTANT\nUnquoted input.\n\nclaude-lane: claude-security-review")] });
+  assert.equal((await decide(api)).result.number, 42);
+});
+
+test("the code lane's github-actions[bot] thread dispatches like the reviewer bot's", async () => {
+  const api = fakeApi({ threads: [laneThread("The loop skips the last item.\n\nclaude-lane: claude-review")] });
+  assert.equal((await decide(api)).result.number, 42);
+});
+
+test("a github-actions[bot] thread without a review lane's footer last dispatches nothing", async () => {
+  for (const body of ["Unquoted input.", "claude-lane: claude-security-review\nUnquoted input."]) {
+    const api = fakeApi({ threads: [laneThread(body)] });
+    assert.equal((await decide(api)).result, null, body);
+    assert.deepEqual(api.calls.dispatch, []);
+  }
+});
+
 for (const [label, options] of [
   ["the upstream is another workflow", { run: { path: ".github/workflows/ci.yml" } }],
   ["the upstream path names a review workflow at another ref", {
