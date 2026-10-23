@@ -1037,6 +1037,90 @@ test("no workflow step references both Claude secrets or sets CLAUDE_CODE_ENTRYP
   }
 });
 
+// --- the shadow review lanes: pr-review-shadow-hosted.yml ---
+
+const SHADOW = "pr-review-shadow-hosted.yml";
+const SHADOW_PIN = "melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@8778094736e414233110f3e0d6d9948628ba77b5";
+
+test(`${SHADOW}: each lane calls pr-review-cli.yml in summary mode on the reviews key alone, and nothing cancels a run`, () => {
+  const doc = workflow(SHADOW);
+  assert.doesNotMatch(read(`../../workflows/${SHADOW}`), /^\s*(concurrency|cancel-in-progress):/m, "a cancelled run leaves a red check");
+  assert.deepEqual(doc.permissions, {});
+  for (const [id, lane] of [
+    ["pr-review-shadow", "code"],
+    ["pr-review-security-shadow", "security"],
+  ]) {
+    const job = doc.jobs[id];
+    assert.equal(job.uses, SHADOW_PIN, id);
+    assert.deepEqual(job.permissions, { contents: "read", "pull-requests": "write" }, id);
+    assert.deepEqual(job.secrets, { CLAUDE_API_KEY: "${{ secrets.REVIEWS_CLAUDE_API_KEY }}" }, id);
+    assert.equal(job.with.lane, lane, id);
+    assert.equal(job.with.publish, "summary", id);
+    assert.equal(job.with.role, "reviews", id);
+    assert.equal(job.needs, "gate", id);
+    assert.equal(job.if, "needs.gate.outputs.proceed == 'true'", id);
+  }
+});
+
+test(`${SHADOW}: every gate step continues on error, so a failing gate skips the lanes and stays green`, () => {
+  const { gate } = workflow(SHADOW).jobs;
+  for (const step of gate.steps) assert.equal(step["continue-on-error"], true, step.name);
+  const proceed = (run, kill) => evaluate(gate.outputs.proceed, { "steps.decide.outputs.run": run, "steps.kill.outputs.proceed": kill });
+  assert.equal(proceed("true", "true"), "true");
+  assert.equal(proceed("true", "false"), "false", "the kill switch stops the shadow");
+  assert.equal(proceed("true", ""), "false", "a failed kill-switch step stops the shadow");
+  assert.equal(proceed("", "true"), "false", "a failed decide step stops the shadow");
+  assert.equal(proceed("false", "true"), "false");
+  const args = (outcome, settings) =>
+    evaluate(gate.outputs["code-args"], {
+      "steps.code-models.outcome": outcome,
+      "steps.code-models.outputs.settings-json": settings,
+      "steps.code-models.outputs.claude-args": ARGS,
+    });
+  assert.equal(args("success", ""), ARGS);
+  assert.equal(args("success", SUBAGENT), "", "a subagent model leaves the reusable's defaults");
+  assert.equal(args("failure", ""), "", "a failed resolution leaves the reusable's defaults");
+});
+
+test(`${SHADOW}: the gate runs a pull request that changes the file, else one in four when REVIEWS_SHADOW_ENABLED is true`, (t) => {
+  const decide = workflow(SHADOW).jobs.gate.steps.find((step) => step.id === "decide");
+  const dir = mkdtempSync(join(tmpdir(), "shadow-gate-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  writeFileSync(join(dir, "gh"), '#!/bin/sh\n[ -n "$GH_FAIL" ] && exit 1\nprintf "%s\\n" $GH_FILES\n', { mode: 0o755 });
+  const output = join(dir, "output");
+  const run = ({ enabled = "", pr = "5", files = "README.md", fail = "" }) => {
+    writeFileSync(output, "");
+    const result = spawnSync("bash", ["-c", decide.run], {
+      env: {
+        PATH: `${dir}:${process.env.PATH}`,
+        GITHUB_OUTPUT: output,
+        GITHUB_REPOSITORY: "melodic-software/claude-code-plugins",
+        ENABLED: enabled,
+        PR_NUMBER: pr,
+        SELF: decide.env.SELF,
+        GH_FILES: files,
+        GH_FAIL: fail,
+      },
+    });
+    assert.equal(result.status, 0, String(result.stderr));
+    return readFileSync(output, "utf8").match(/^run=(.*)$/m)?.[1];
+  };
+  const self = `README.md ${decide.env.SELF}`;
+  assert.equal(decide.env.SELF, ".github/workflows/pr-review-shadow-hosted.yml");
+  assert.equal(run({ files: self }), "true", "a pull request that changes the file runs with the switch off");
+  assert.equal(run({ files: self, enabled: "false", pr: "7" }), "true");
+  assert.equal(run({ pr: "4" }), "false", "the switch unset stops a sampled pull request");
+  assert.equal(run({ pr: "4", enabled: "false" }), "false");
+  assert.equal(run({ pr: "4", enabled: "TRUE" }), "false", "only the exact value true enables the shadow");
+  assert.equal(run({ pr: "4", enabled: "true" }), "true");
+  assert.equal(run({ pr: "5", enabled: "true" }), "false", "5 is not a multiple of 4");
+  assert.equal(run({ pr: "6", enabled: "true" }), "false", "6 is not a multiple of 4");
+  assert.equal(run({ pr: "12", enabled: "true" }), "true");
+  assert.equal(run({ pr: "8", enabled: "true", fail: "1" }), "true", "a failed file listing falls back to the sample");
+  assert.equal(run({ pr: "8", fail: "1" }), "false");
+  assert.equal(run({ pr: "", enabled: "true" }), "false", "no pull request number never runs");
+});
+
 test("pr-run-activity-read.yml: the run job can only read, and each launcher step holds one Claude secret", () => {
   const { jobs } = workflow("pr-run-activity-read.yml");
   assert.deepEqual(jobs.run.permissions, { contents: "read", "pull-requests": "read" }, "read-only, no id-token");

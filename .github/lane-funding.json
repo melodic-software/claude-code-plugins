@@ -7,10 +7,12 @@
       "secretPrefix": "REVIEWS",
       "tokenSecret": "REVIEWS_CLAUDE_CODE_OAUTH_TOKEN",
       "keySecret": "REVIEWS_CLAUDE_API_KEY",
-      "keyed": false,
+      "keyed": true,
       "category": "review",
       "lanes": [
-        { "id": "pr-review", "workflow": "pr-review-hosted.yml", "launcher": "claude-code-action", "currentSecrets": ["CLAUDE_CODE_OAUTH_TOKEN"] }
+        { "id": "pr-review", "workflow": "pr-review-hosted.yml", "launcher": "claude-code-action", "currentSecrets": ["CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "pr-review-shadow", "workflow": "pr-review-shadow-hosted.yml", "launcher": "run-claude-cli", "currentSecrets": ["REVIEWS_CLAUDE_API_KEY"] },
+        { "id": "pr-review-security-shadow", "workflow": "pr-review-shadow-hosted.yml", "launcher": "run-claude-cli", "currentSecrets": ["REVIEWS_CLAUDE_API_KEY"] }
       ]
     },
     {

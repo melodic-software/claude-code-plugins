@@ -1,0 +1,194 @@
+name: pr-review-shadow-hosted
+
+# Shadow run of the launcher-based review lanes: ci-workflows'
+# pr-review-cli.yml in summary mode, one job per lane, on a sample of pull
+# requests, beside the live pr-review-hosted and pr-review-security-hosted
+# lanes. It posts nothing: each lane leaves a job summary and a
+# credential-scanned JSON artifact (findings, turns, models, leg and wall
+# time) to compare with the live review of the same head.
+#
+# Funding: the reviews role's API key only, never a subscription token, so
+# the shadow cannot spend the subscription the live reviews run on.
+#
+# Who runs: a ready (not draft) pull request from a branch of this
+# repository, with the same bot gate the reusable applies, so the reusable
+# is called only where its status job reports. The gate job then takes:
+#   - a pull request that changes this file, always (its own test run);
+#   - otherwise only when the repository variable REVIEWS_SHADOW_ENABLED is
+#     `true` and the pull request number is a multiple of 4.
+# The org and repository lane kill switches stop both.
+#
+# Its own file, workflow name and job ids keep it out of every consumer of
+# the live lanes: pr-feedback-dispatch.yml triggers on the live workflow
+# names, and babysit's review evidence reads the live workflow paths.
+#
+# Never red: every gate step continues on error and leaves the lanes
+# skipped, and in summary mode the reusable ends every job green. No
+# concurrency block: cancelling a run, even a pending one, leaves a
+# cancelled check, which the merge guard reads as red. Never make these
+# checks required.
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+
+permissions: {}
+
+jobs:
+  gate:
+    if: >-
+      github.event.pull_request.draft == false
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && github.actor != 'dependabot[bot]'
+      && github.event.pull_request.user.login != 'dependabot[bot]'
+      && (!endsWith(github.actor, '[bot]')
+          || (vars.AUTOMATION_LANES_APP_SENDER_ID != ''
+              && github.event.sender.id
+              && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # check out the default branch for the kill switch and the models block
+      pull-requests: read # list the pull request's files
+    outputs:
+      proceed: ${{ steps.decide.outputs.run == 'true' && steps.kill.outputs.proceed == 'true' && 'true' || 'false' }}
+      code-args: ${{ steps.code-models.outcome == 'success' && steps.code-models.outputs.settings-json == '' && steps.code-models.outputs.claude-args || '' }}
+      security-args: ${{ steps.security-models.outcome == 'success' && steps.security-models.outputs.settings-json == '' && steps.security-models.outputs.claude-args || '' }}
+    steps:
+      - name: Decide whether this pull request runs the shadow
+        id: decide
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ENABLED: ${{ vars.REVIEWS_SHADOW_ENABLED }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SELF: .github/workflows/pr-review-shadow-hosted.yml
+        run: |
+          decide() {
+            echo "run=$1" >>"$GITHUB_OUTPUT"
+            echo "::notice::shadow review: $2"
+          }
+          if ! [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+            decide false "no pull request number"
+            exit 0
+          fi
+          if files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[].filename'); then
+            if grep -qxF "$SELF" <<<"$files"; then
+              decide true "this pull request changes $SELF"
+              exit 0
+            fi
+          else
+            echo "::warning::could not list the pull request's files; deciding by the sample alone"
+          fi
+          if [ "$ENABLED" != true ]; then
+            decide false "REVIEWS_SHADOW_ENABLED is not true"
+          elif ((PR_NUMBER % 4 == 0)); then
+            decide true "pull request $PR_NUMBER is in the sample"
+          else
+            decide false "pull request $PR_NUMBER is not in the sample"
+          fi
+
+      - name: Check out the default branch
+        if: steps.decide.outputs.run == 'true'
+        continue-on-error: true
+        timeout-minutes: 3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+          # resolve-config imports the two check-* action modules.
+          sparse-checkout: |
+            /.github/actions/check-kill-switch/
+            /.github/actions/check-trusted-trigger/
+            /.github/actions/resolve-config/
+            /.github/CODEOWNERS
+            /.github/standards/github-actions-conventions/vocabulary.json
+            /.node-version
+            /docs/conventions/pr-pipeline.yaml
+            /docs/conventions/pr-pipeline/
+          sparse-checkout-cone-mode: false
+
+      - name: Set up Node
+        if: steps.decide.outputs.run == 'true'
+        continue-on-error: true
+        timeout-minutes: 3
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        if: steps.decide.outputs.run == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      # The live lanes' model routes, read from the default branch, so the
+      # shadow runs the model, effort and turns the live review runs. A failed
+      # resolution or a subagent model leaves the reusable's defaults.
+      - name: Resolve the code review model
+        id: code-models
+        if: steps.decide.outputs.run == 'true' && steps.kill.outputs.proceed == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          model-route: review-code
+          output-path: ${{ runner.temp }}/review-code-models.json
+
+      - name: Resolve the security review model
+        id: security-models
+        if: steps.decide.outputs.run == 'true' && steps.kill.outputs.proceed == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          model-route: review-security
+          output-path: ${{ runner.temp }}/review-security-models.json
+
+  pr-review-shadow:
+    needs: gate
+    if: needs.gate.outputs.proceed == 'true'
+    # GitHub checks the reusable's job permissions against this grant at
+    # startup; in summary mode it writes nothing.
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@8778094736e414233110f3e0d6d9948628ba77b5 # v0.63.0
+    with:
+      lane: code
+      publish: summary
+      role: reviews
+      model-args: ${{ needs.gate.outputs.code-args }}
+      allowed-bot-sender-ids: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+      # As pr-review-hosted.yml.
+      allowed-author-ids: '153232337'
+    secrets:
+      CLAUDE_API_KEY: ${{ secrets.REVIEWS_CLAUDE_API_KEY }}
+
+  pr-review-security-shadow:
+    needs: gate
+    if: needs.gate.outputs.proceed == 'true'
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@8778094736e414233110f3e0d6d9948628ba77b5 # v0.63.0
+    with:
+      lane: security
+      publish: summary
+      role: reviews
+      model-args: ${{ needs.gate.outputs.security-args }}
+      allowed-bot-sender-ids: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+      # pr-review-security.yml's default, which the live security lane runs on.
+      docs-only-paths: |
+        docs/**/*.md
+        **/README.md
+        **/CHANGELOG.md
+    secrets:
+      CLAUDE_API_KEY: ${{ secrets.REVIEWS_CLAUDE_API_KEY }}
