@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.94.1] - 2026-10-22
+
+### Fixed
+
+- The shared-session test that a pending live entry's port never reaches a guest or leader no longer fails when a timestamp in the state happens to hold the port's digits: it now checks string values, keys and integers, not the raw JSON text.
+
 ## [0.94.0] - 2026-10-22
 
 ### Added
