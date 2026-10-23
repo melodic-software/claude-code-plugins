@@ -155,7 +155,10 @@ test("the issue lane finishing wakes only the enable-auto-merge job", () => {
   assert.match(merge, /\n {2}workflow_run: # zizmor: ignore\[dangerous-triggers\]\n {4}workflows: \[work-resolve-issue\]\n {4}types: \[completed\]\n/);
   assert.match(job("merge"), /\n {6}&& github\.event_name != 'workflow_run'\n/);
   const arm = job("enable-auto-merge");
-  assert.doesNotMatch(/\n {4}if: >-\n([\s\S]*?)\n {4}[a-z-]+:/.exec(arm)[1], /workflow_run'\n/);
+  const armIf = /\n {4}if: >-\n([\s\S]*?)\n {4}[a-z-]+:/.exec(arm)[1];
+  assert.doesNotMatch(armIf, /workflow_run'\n/);
+  // A push to main is a merge landing, never a new lane pull request.
+  assert.match(armIf, /github\.event_name != 'push'/);
   assert.match(arm, /\n {4}concurrency:\n {6}group: pr-merge-enable-auto-merge\n {6}queue: max\n/);
 });
 

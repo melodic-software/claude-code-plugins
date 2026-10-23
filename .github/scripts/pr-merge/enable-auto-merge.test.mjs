@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 import { ARM_MUTATION, BODY_HOLD, DISARM_MUTATION, PULLS_QUERY, decide, main } from "./enable-auto-merge.mjs";
+import { decide as decideOutcome } from "../work-resolve-issue/report-outcome.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const LANES = { __typename: "Bot", login: "melodic-automation-lanes" };
@@ -189,4 +190,30 @@ test("the body hold agrees with the gate's BODY_MERGE_HOLD_RE", () => {
     expected,
   );
   assert.ok(expected.includes(true) && expected.includes(false));
+});
+
+// The body the issue lane opens its pull request with (report-outcome.mjs
+// decide), so a change to either side that stops a clean lane pull request
+// from arming, or arms a held one, fails here.
+test("report-outcome's own pull request body arms, and its hold and Refs bodies do not", () => {
+  const plan = (overrides) =>
+    decideOutcome({
+      outcome: { exit: "done", reason: "", title: "docs(work-items): fix a typo", summary: "Fixed it." },
+      issueNumber: 77,
+      issueLabels: ["agent-ready"],
+      branch: "work-resolve-issue/issue-77-123-1",
+      changedFiles: ["plugins/work-items/README.md"],
+      holdPaths: [".github/**"],
+      checks: { tip: HEAD, results: [] },
+      ...overrides,
+    });
+  const verdict = (overrides) => {
+    const opened = plan(overrides);
+    assert.equal(opened.action, "open-pr");
+    return decide(pull(1, { body: opened.body }), { bot: "melodic-automation-lanes", humanGated: "needs-human" });
+  };
+  assert.deepEqual(verdict({}), { action: "arm", reason: "no hold" });
+  assert.equal(verdict({ humanMerge: true }).action, "none");
+  assert.equal(verdict({ changedFiles: [".github/workflows/x.yml"] }).action, "none");
+  assert.equal(verdict({ outcome: { exit: "done", reason: "", title: "t", summary: "s", link: "refs" } }).action, "none");
 });
