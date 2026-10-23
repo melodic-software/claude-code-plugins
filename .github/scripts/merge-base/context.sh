@@ -64,11 +64,12 @@ keep() {
   fi
   # The rest is drained, so the writer never dies of a closed pipe.
   "$@" | { head -c "$((cap + 1))" >"$file" && cat >/dev/null; }
-  size=$(stat -c %s "$file")
+  size=$(wc -c <"$file")
   if ((size > cap)); then
-    truncate -s "$cap" "$file"
+    head -c "$cap" "$file" >"$file.cut"
+    mv "$file.cut" "$file"
     printf '\n[context.sh: cut at %d bytes]\n' "$cap" >>"$file"
-    size=$(stat -c %s "$file")
+    size=$(wc -c <"$file")
   fi
   written=$((written + size))
   kept=kept

@@ -83,7 +83,7 @@ big=$(head -c 1100000 /dev/zero | tr '\0' 'a')
 repo big.txt 'one\n' "$big\n" 'main\n'
 run
 check 'a stage over 1 MiB is cut with a note' 1 "$(tail -n 1 "$OUT/0000/ours" | grep -c 'cut at 1048576 bytes')"
-check 'the cut stage is 1 MiB plus the note' 1 "$(($(stat -c %s "$OUT/0000/ours") < 1048576 + 64 ? 1 : 0))"
+check 'the cut stage is 1 MiB plus the note' 1 "$(($(wc -c <"$OUT/0000/ours") < 1048576 + 64 ? 1 : 0))"
 # A log over 64 KiB: one long commit message on the head side.
 R="$(mktemp -d "$TMP/repo.XXXXXX")"
 git init -q -b main "$R"

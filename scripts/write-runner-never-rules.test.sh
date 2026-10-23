@@ -68,7 +68,7 @@ say(refuseMerge >= 0 && refuseMerge < mint && /steps\.config\.outputs\.prepare =
   "a merge-base skill fails red before the mint");
 say(!steps.some((s) => ["post", "commit"].includes(s.id)), "the write runner has no post or commit step of its own");
 const mergeRow = JSON.parse(readFileSync(".github/actions/resolve-config/patch-rules.json", "utf8"))["merge-base"];
-say(mergeRow?.refuse?.includes("github-workflows") && /if \(!workflowsAreBaseOwn\(git, headSha, merge\.baseSha, tree\)\) \{\n\s*return reason\("workflow-staged"/.test(applyPatch),
+say(mergeRow?.refuse?.includes("github-workflows") && /if \(!workflowsAreBaseOwn\(git, headSha, merge\.baseSha, tree\)\) \{\n\s*return reason\("workflow-staged"/.test(applyPatch), // portability-ok: embedded node JavaScript regex, not a shell tool pattern
   "a merge's workflow change pushes only as the base's own, and a model edit to a workflow is refused");
 const prepare = byId("prepare");
 say(/bash "\$BIN\/run-prepare\.sh"/.test(prepare.run ?? "") && /escalate:protected-path-conflict/.test(runPrepare)
@@ -214,8 +214,8 @@ say(trackerCheck >= 0 && trackerCheck < script.indexOf('"$RUNNER_TEMP/base-scrip
   "the script step fails on a tracker config whose SHA-256 differs, before running the script");
 
 // Hash checks compare and fail, not merely run.
-say(/check\(\) \{[^}]*sum=\$\(sha256sum <"\$1"\)[^}]*\[\[ \$\{sum%% \*\} == "\$2" \]\] \|\| fail/s.test(runPrepare) && /fail\(\) \{\n[^\n]*::error::[^\n]*\n\s*exit 1/.test(runPrepare)
-  && /if \[ "\$\{sum%% \*\}" != "\$RUN_PREPARE_SHA256" \]; then\n[^\n]*\n\s*exit 1/.test(byId("prepare").run ?? ""),
+say(/check\(\) \{[^}]*sum=\$\(sha256sum <"\$1"\)[^}]*\[\[ \$\{sum%% \*\} == "\$2" \]\] \|\| fail/s.test(runPrepare) && /fail\(\) \{\n[^\n]*::error::[^\n]*\n\s*exit 1/.test(runPrepare) // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+  && /if \[ "\$\{sum%% \*\}" != "\$RUN_PREPARE_SHA256" \]; then\n[^\n]*\n\s*exit 1/.test(byId("prepare").run ?? ""), // portability-ok: embedded node JavaScript regex, not a shell tool pattern
   "the prepare step's hash checks fail on a differing SHA-256");
 
 // Head file names reach git's output: workflow commands are stopped while a
