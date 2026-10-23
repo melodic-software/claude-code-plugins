@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.2.0] - 2026-10-23
+
+### Changed
+
+- `/review:security-review` marks each inline comment with one `severity:` line above the lane footer and its summary with one `critical-findings:` line. Only a CRITICAL finding holds the merge; every other finding flags it, a manifest `flag` line included.
+
 ## [1.1.0] - 2026-10-23
 
 ### Added
