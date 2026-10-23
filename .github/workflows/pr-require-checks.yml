@@ -3848,7 +3848,8 @@ jobs:
       # it. Only in the queue: pr-verify runs only after a successful
       # pull_request run of this workflow, so a red ci-status there would
       # never get a verdict, and a pull request event reads nothing for it.
-      # A push after arming re-enters the queue, which checks the new head.
+      # Whatever a push after arming does to the request, the queue checks
+      # the head it merges.
       # FAILs and the repeated-FAIL cap are enable-auto-merge.mjs's.
       # Pinned by scripts/ci-lanes-pr-hold.test.sh, which runs this body.
       - name: Fail a lanes App pull request its body or a member holds

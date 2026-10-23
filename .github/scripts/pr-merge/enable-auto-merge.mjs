@@ -30,7 +30,7 @@
 //   FAILs at fewer than merge.max-verify-fails heads. It is read last, only
 //   for a pull request every other rule would arm or keep armed. The merge
 //   queue's ci-status checks the pass again at the head it merges
-//   (merge-holds.mjs verdictHold), since a push after arming keeps it armed.
+//   (merge-holds.mjs verdictHold), whatever a push after arming does.
 // Arming passes the head just read as expectedHeadOid, so a push in between
 // fails the arm rather than arming a head nobody read. An armed pull request
 // that fails any rule is disarmed. While merge.report-only is true it reports

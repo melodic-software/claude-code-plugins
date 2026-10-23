@@ -1084,9 +1084,9 @@ builds the group, and after a person lifts one with a later comment, `ci-status`
 In the merge queue the same step also requires a verifier pass at the queued pull request's live
 head: an unexpired `pr-verify-<pr>-<head>-pass` or `-pass-notes` artifact, with or without the
 head-branch digest, looked up by exact name and uploaded by a completed, successful
-`workflow_run` run of `pr-verify.yml` on main here (`verdictHold` in `merge-holds.mjs`). A push
-after arming keeps auto-merge armed, so the queue's check on the new head is what holds it until
-pr-verify passes that head. The same trusted approval of the head lifts it, the path for a pull
+`workflow_run` run of `pr-verify.yml` on main here (`verdictHold` in `merge-holds.mjs`). Whatever
+GitHub does with an armed request when the head moves, the queue's check on the head it merges
+holds a head pr-verify has not passed. The same trusted approval of the head lifts it, the path for a pull
 request the gate sends to a person. It runs only in the queue: pr-verify runs only after a
 successful `pull_request` run of `pr-require-checks`, so a red `ci-status` there would never get a
 verdict, and a pull request event makes no verdict read. FAILs and the repeated-FAIL cap are

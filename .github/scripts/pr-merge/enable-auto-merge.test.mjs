@@ -16,6 +16,7 @@ import { test } from "node:test";
 
 import { ARM_MUTATION, BODY_HOLD, DETAIL_QUERY, DISARM_MUTATION, HUMAN_VETO, PULLS_QUERY, decide, main, verifyHold } from "./enable-auto-merge.mjs";
 import { VERIFY_PATH, verdictHold } from "./merge-holds.mjs";
+import { VERIFY_PATH as RESOLVER_VERIFY_PATH } from "../pr-verify/resolve-pr.mjs";
 import { decide as decideOutcome } from "../work-resolve-issue/report-outcome.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
@@ -471,4 +472,9 @@ test("verdictHold counts a pass only from a successful pr-verify run on main", (
   assert.match(hold([]), /has not passed this head/);
   assert.match(hold(null), /could not be read/);
   assert.match(verdictHold([], "not a repo"), /could not be read/);
+});
+
+// test_verify_rules_sync.py ties the resolver's path to the gate's WORKFLOW_PATH.
+test("verdictHold names the verifier workflow the resolver and the gate name", () => {
+  assert.equal(VERIFY_PATH, RESOLVER_VERIFY_PATH);
 });

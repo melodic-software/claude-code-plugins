@@ -89,9 +89,9 @@ fi
 # [path, renamed-from?] arrays) as one line. A contents read of
 # trusted-actors.json prints the working tree's list, or answers 404 when
 # STUB_NO_ACTORS is set. An artifacts read by name prints the run ids
-# STUB_ARTIFACTS (a JSON object of name to run ids) gives that name, as the
-# step's --jq does; a run read prints that id's entry of STUB_RUNS, or answers
-# 404.
+# STUB_ARTIFACTS (a JSON object of name to run ids) gives that name, through
+# the step's own --jq; a run read prints that id's entry of STUB_RUNS, or
+# answers 404.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -120,7 +120,12 @@ case "$*" in
 */actions/artifacts\?name=*)
   all="$*" name=${all##*actions/artifacts?name=}
   name=${name%%&*}
-  jq -r --arg name "$name" '.[$name][]?' <<<"${STUB_ARTIFACTS:-{\}}"
+  # The step's own --jq filter, the last argument, runs over a listing that
+  # also holds an expired artifact of that name and an unexpired one whose
+  # name only starts with it, both of run 11, which neither may count.
+  jq -c --arg name "$name" '{artifacts: ([.[$name][]? | {name: $name, expired: false, workflow_run: {id: .}}]
+    + [{name: $name, expired: true, workflow_run: {id: 11}}, {name: ($name + "-i1"), expired: false, workflow_run: {id: 11}}])}' \
+    <<<"${STUB_ARTIFACTS:-{\}}" | jq -r "${*: -1}"
   ;;
 */actions/runs/*)
   all="$*" id=${all##*actions/runs/}
