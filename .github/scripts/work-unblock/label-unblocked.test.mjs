@@ -268,8 +268,8 @@ test("the last blocker closing adds agent-ready", async () => {
   assert.deepEqual(writes(calls), [labeled(20)]);
 });
 
-test("an issue held by needs-owner-decision, status: needs-decision or needs-human stays unlabeled", async () => {
-  for (const hold of ["needs-owner-decision", "status: needs-decision", "needs-human"]) {
+test("an issue held by needs-owner-decision, status: needs-decision, status: needs-info or needs-human stays unlabeled", async () => {
+  for (const hold of ["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human"]) {
     const { github, calls } = oneDependent({ labels: [hold] });
     assert.equal(await main({ env: envFor(), github }), 0);
     assert.deepEqual(writes(calls), [], hold);
@@ -830,7 +830,7 @@ test("agent-ready the App added after the stop, by a run that left no marker, me
 });
 
 test("a held limit-stopped issue is not restarted; one with no other comment is", async () => {
-  for (const hold of ["needs-human", "needs-owner-decision", "status: needs-decision"]) {
+  for (const hold of ["needs-human", "needs-owner-decision", "status: needs-decision", "status: needs-info"]) {
     const held = stopped({ labels: [hold] });
     assert.equal(await sweep({ github: held.github }), 0);
     assert.deepEqual(writes(held.calls), [], hold);
@@ -1811,7 +1811,7 @@ test("a hold label on the issue prevents both hand-offs to triage", async () => 
     const control = lanePr({ pulls: [pull()] });
     assert.equal(await sweep({ github: control.github }), 0, name);
     assert.deepEqual(writes(control.calls), expected, name);
-    for (const hold of ["needs-human", "needs-owner-decision", "status: needs-decision"]) {
+    for (const hold of ["needs-human", "needs-owner-decision", "status: needs-decision", "status: needs-info"]) {
       const held = lanePr({ pulls: [pull()], labels: [hold] });
       assert.equal(await sweep({ github: held.github }), 0, `${name}: ${hold}`);
       assert.deepEqual(writes(held.calls), [], `${name}: ${hold}`);
