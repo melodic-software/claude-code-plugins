@@ -378,22 +378,25 @@ test("intake-triage.yml: the model may not apply good first issue or help wanted
   }
 });
 
-test("pr-unblock.yml: report-conflict-status runs only for an unresolved-conflict escalation, from the select or the push job, with a gated head", () => {
+test("pr-unblock.yml: report-conflict-status runs only for an unresolved-conflict escalation, from the select, push or scan-refusal job, with a gated head", () => {
   const head = "c".repeat(40);
   const { jobs } = workflow("pr-unblock.yml");
   const job = jobs["report-conflict-status"];
-  const context = (select, apply, headSha) => ({
+  const context = (select, apply, headSha, refused = "") => ({
     "needs.resolve-conflicts-select.outputs.escalation-reason": select,
     "needs.apply-conflict-patch.outputs.escalation-reason": apply,
+    "needs.conflict-scan-refusal.outputs.escalation-reason": refused,
     "needs.resolve-conflicts-select.outputs.head-sha": headSha,
   });
-  assert.deepEqual(job.needs, ["resolve-conflicts-select", "apply-conflict-patch"]);
+  assert.deepEqual(job.needs, ["resolve-conflicts-select", "apply-conflict-patch", "conflict-scan-refusal"]);
   assert.equal(evaluate(job.if, context("unresolved-conflict", "", head)), true, "before any model turn");
   assert.equal(evaluate(job.if, context("", "unresolved-conflict", head)), true, "a conflict the patch left");
+  assert.equal(evaluate(job.if, context("", "", head, "unresolved-conflict")), true, "a scan that refused the model's output");
   for (const reason of ["repeat-cap", "protected-path-conflict", "workflow-staged", "conflict-patch-invalid", ""]) {
     assert.equal(evaluate(job.if, context(reason, "", head)), false, reason);
     assert.equal(evaluate(job.if, context("", reason, head)), false, reason);
   }
+  assert.equal(evaluate(job.if, context("", "", "", "unresolved-conflict")), false, "no gated head to post on");
   assert.equal(evaluate(job.if, context("unresolved-conflict", "", "")), false, "no gated head to post on");
   // The head is the select job's, never a model call's.
   const post = job.steps.find((step) => step.name === "Post the conflict status");
@@ -467,7 +470,7 @@ test("pr-unblock.yml: address-feedback and publish-feedback are reported neutral
 // fix-ci's one retry one model rung up runs inside the same pr-unblock run,
 // so whatever it ends in reaches report-escalation: only a clean apply of
 // the retry's patch leaves the PR unlabeled.
-const ESCALATING = ["resolve-conflicts-select", "apply-conflict-patch", "address-feedback-select", "publish-feedback", "review-dependency-select", "apply-dependency-verdict", "fix-ci-context", "apply-patch"];
+const ESCALATING = ["resolve-conflicts-select", "apply-conflict-patch", "conflict-scan-refusal", "address-feedback-select", "publish-feedback", "review-dependency-select", "apply-dependency-verdict", "fix-ci-context", "apply-patch"];
 const rungUpContext = ({ rungUp = "true", result = "success", escalation = "", skip = "" } = {}) => ({
   ...Object.fromEntries(ESCALATING.map((job) => [`needs.${job}.outputs.escalation-reason`, ""])),
   "needs.apply-patch.outputs.rung-up": rungUp,
@@ -4346,6 +4349,7 @@ test("pr-run-activity-write.yml: a patch-* escalation reason passes the input ch
 // from a model call.
 const CONFLICT_CALL_READS = {
   "apply-conflict-patch": ["scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt"],
+  "conflict-scan-refusal": ["scan-patch-state"],
 };
 
 test("pr-unblock.yml: no job takes a gate, head, base or conflict tree from a resolve-conflicts model call", () => {
@@ -4398,6 +4402,80 @@ test("pr-unblock.yml: apply-conflict-patch runs on a clean merge, or on a confli
   // A forged run job output cannot make a clean merge take a patch: the
   // select job's merge-state is clean only when no model call ran.
   assert.equal(evaluate(jobs["resolve-conflicts"].if, { "needs.resolve-conflicts-select.outputs.proceed": "false" }), false);
+});
+
+// A refused scan hands no patch state on, so apply-conflict-patch skips; the
+// scan-refusal marker alone, read by a script job, escalates the round.
+test("pr-unblock.yml: conflict-scan-refusal escalates a refused resolve-conflicts scan from its marker, with every leg output empty", () => {
+  const { jobs } = workflow("pr-unblock.yml");
+  const job = jobs["conflict-scan-refusal"];
+  assert.ok(job, "pr-unblock.yml has a conflict-scan-refusal job");
+  assert.equal(job.uses, undefined, "a script job, never a runner call");
+  assert.deepEqual(job.permissions, { contents: "read" });
+  assert.deepEqual(job.needs, ["resolve-conflicts-select", "resolve-conflicts", "resolve-conflicts-subscription"]);
+  const runs = (proceed, subResult, sub, first) =>
+    evaluate(job.if, {
+      "needs.resolve-conflicts-select.outputs.proceed": proceed,
+      "needs.resolve-conflicts-subscription.result": subResult,
+      "needs.resolve-conflicts-subscription.outputs.scan-patch-state": sub,
+      "needs.resolve-conflicts.outputs.scan-patch-state": first,
+    });
+  assert.equal(runs("true", "skipped", "", ""), true, "the first leg handed on nothing");
+  assert.equal(runs("true", "failure", "", ""), true, "the fallback leg handed on nothing");
+  assert.equal(runs("true", "success", "", "written"), true, "the key call's patch is not the answering leg's");
+  // Exactly where apply-conflict-patch does not run on a conflicted round.
+  for (const state of ["written", "empty"]) {
+    assert.equal(runs("true", "skipped", "", state), false, state);
+    assert.equal(runs("true", "success", state, ""), false, state);
+  }
+  // On every conflicted round exactly one of the two jobs runs.
+  const states = ["", "written", "empty", "other"];
+  for (const subResult of ["skipped", "success", "failure"]) {
+    for (const sub of states) {
+      for (const first of states) {
+        const values = {
+          "needs.resolve-conflicts-select.outputs.merge-state": "conflicted",
+          "needs.resolve-conflicts-select.outputs.proceed": "true",
+          "needs.resolve-conflicts-subscription.result": subResult,
+          "needs.resolve-conflicts-subscription.outputs.scan-patch-state": sub,
+          "needs.resolve-conflicts.outputs.scan-patch-state": first,
+        };
+        const apply = evaluate(jobs["apply-conflict-patch"].if, values) === true;
+        const refusal = evaluate(job.if, values) === true;
+        assert.notEqual(apply, refusal, JSON.stringify([subResult, sub, first]));
+      }
+    }
+  }
+  assert.equal(runs("false", "skipped", "", ""), false, "a clean merge or a select-job skip");
+  assert.equal(runs("", "skipped", "", ""), false);
+  // The marker comes by name from the scan-refusal job's upload, never a job output.
+  const download = job.steps.find((step) => step.uses?.startsWith("actions/download-artifact@"));
+  const writeDownload = workflow("pr-run-activity-write.yml").jobs.run.steps.find((step) => step.id === "scan-refused");
+  assert.equal(download.uses, writeDownload.uses, "the write runner's pinned download action");
+  assert.equal(download["continue-on-error"], true);
+  assert.equal(download.with["merge-multiple"], true);
+  const upload = workflow("pr-run-activity-read.yml").jobs["scan-refusal"].steps.find((step) => step.uses?.startsWith("actions/upload-artifact@"));
+  const sub = (text, values) => text.replace(/\$\{\{([^}]*)\}\}/g, (_, expr) => String(evaluate(`\${{${expr}}}`, values)));
+  const values = { "inputs.lane": "pr-unblock", "inputs.activity": "resolve-conflicts", "github.run_attempt": "2", "runner.temp": "/t" };
+  for (const rung of ["", "1"]) {
+    const name = sub(upload.with.name, { ...values, "inputs.model-rung": rung });
+    assert.ok(download.with.pattern.endsWith("-*") && name.startsWith(download.with.pattern.slice(0, -1)), `${download.with.pattern} matches ${name}`);
+  }
+  const script = job.steps.find((step) => step.id === "refusal");
+  assert.equal(script.run, "node .base/.github/scripts/pr-unblock/conflict-scan-refusal.mjs");
+  assert.equal(sub(script.env.SCAN_REFUSED_DIR, values), sub(download.with.path, values));
+  assert.equal(script.env.SCAN_REFUSED_READ, `\${{ steps.${download.id}.outcome }}`);
+  assert.equal(job.outputs["escalation-reason"], "${{ steps.refusal.outputs.escalation-reason }}");
+  assert.doesNotMatch(JSON.stringify(job.steps), /needs\./, "no step reads a leg output");
+  // Its escalation reaches report-escalation and the conflict status.
+  const escalation = jobs["report-escalation"];
+  assert.ok(escalation.needs.includes("conflict-scan-refusal"));
+  assert.match(escalation.with["escalation-reason"], /needs\.apply-conflict-patch\.outputs\.escalation-reason\s+\|\| needs\.conflict-scan-refusal\.outputs\.escalation-reason/);
+  const quiet = rungUpContext({ rungUp: "false" });
+  const refused = { ...quiet, "needs.conflict-scan-refusal.outputs.escalation-reason": "unresolved-conflict" };
+  assert.equal(evaluate(escalation.if, refused), true);
+  assert.equal(evaluate(escalation.with["escalation-reason"], refused).trim(), "unresolved-conflict");
+  assert.equal(evaluate(escalation.if, quiet), false);
 });
 
 test("pr-unblock.yml: resolve-conflicts is reported neutral when the select job does not proceed: its skip, a clean merge, or a person's", async () => {
