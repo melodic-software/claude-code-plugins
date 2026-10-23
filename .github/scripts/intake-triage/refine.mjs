@@ -303,8 +303,9 @@ export async function applyRefinement({ github, repository, number, appId, outpu
     log(`refine: #${number} is exact; ${labels.includes(NEEDS_DECISION) ? "a person set its needs-decision, so it stays" : "no needs-decision to lift"}`);
     return { outcome: "exact", redispatch: false };
   }
-  await removeLabel(github, base, NEEDS_DECISION);
+  // needs-triage first: a failure between the two leaves a label a sweep picks up.
   await github("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
+  await removeLabel(github, base, NEEDS_DECISION);
   await post();
   log(`refine: #${number} is exact; ${NEEDS_DECISION} lifted and triage asked again`);
   return { outcome: "exact", redispatch: true };

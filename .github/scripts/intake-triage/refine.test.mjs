@@ -244,8 +244,8 @@ describe("applyRefinement", () => {
     const result = await apply(fake, EXACT);
     assert.equal(result.redispatch, true);
     const done = writes(fake.calls).map(({ method, path, body }) => `${method} ${path} ${JSON.stringify(body)}`);
-    assert.equal(done[0], "DELETE /repos/o/r/issues/7/labels/status%3A%20needs-decision undefined");
-    assert.equal(done[1], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: ["needs-triage"] })}`);
+    assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: ["needs-triage"] })}`);
+    assert.equal(done[1], "DELETE /repos/o/r/issues/7/labels/status%3A%20needs-decision undefined");
     assert.match(done[2], /^POST \/repos\/o\/r\/issues\/7\/comments /, "the marker comment goes last");
     assert.equal(done.length, 3);
   });
@@ -288,6 +288,7 @@ describe("applyRefinement", () => {
     };
     await assert.rejects(apply({ github, calls: fake.calls }, EXACT), /transient/);
     assert.ok(!writes(fake.calls).some(({ path }) => path.endsWith("/comments")), "no marker comment was posted");
+    assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"), "the issue keeps needs-decision when adding needs-triage fails");
   });
 
   const untouched = [
