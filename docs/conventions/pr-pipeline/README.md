@@ -223,9 +223,11 @@ so the gate and the broker check them as they check a conflict dispatch. After t
 dispatches it lists open, non-draft, same-repository Dependabot PRs into `main`, sorts each with
 `dependency-classify.mjs`, and dispatches `pr-unblock.yml` with `activity: review-dependency` for
 at most 2 `review`-tier PRs per run whose head has no `pr-unblock / review-dependency` check run
-from the GitHub Actions app (the untrusted-trigger skip aside). Their run ids join the same
-dispatched-runs record. It has no schedule: the broker accepts a dispatcher run started only by a
-push or a listed human, so a push to `main` or a hand run wakes it. In `pr-unblock.yml`, no
+from the GitHub Actions app (the untrusted-trigger skip aside; one that started before the head's
+newest `pr-unblock / apply-dependency-verdict` check run stops counting when that run skipped
+`no-model-turn`, unless it is a limit stop, and the round cap still bounds the retries). Their run
+ids join the same dispatched-runs record. It has no schedule: the broker accepts a dispatcher run
+started only by a push or a listed human, so a push to `main` or a hand run wakes it. In `pr-unblock.yml`, no
 model holds a write token: `review-dependency-select` (base code only, read-only token) selects
 the pull request or posts its check neutral; `review-dependency` (a `read` skill in
 [patch output mode](pr-run-activity.md#patch-output-mode), on run-claude-cli with the
