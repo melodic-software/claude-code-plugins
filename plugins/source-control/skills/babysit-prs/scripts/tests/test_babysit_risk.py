@@ -473,26 +473,23 @@ class EvidenceAndPluginTests(unittest.TestCase):
         self.assertEqual(_codes(result), ("class-contradicted",))
 
 
-class _OverBudget(AssertionError):
-    pass
+class _OverBudget(BaseException):
+    """A BaseException, so an `except Exception` in the matcher cannot
+    swallow it."""
 
 
-def _glob_work(pattern, path):
-    """Lines of babysit_risk.py that glob_match(pattern, path) runs. Spec
-    (glob_match, _segment_match): the work is bounded by len(pattern) x
-    len(path), so a budget of 4 lines per character pair, about 7x the most
-    any case here runs, fails a super-linear matcher. Counted, never timed, so
-    runner load cannot fail it; past the budget the trace raises, so a
-    regression fails at once instead of running for minutes."""
-    budget = 4 * (len(pattern) + 1) * (len(path) + 1)
+def _glob_work(pattern, path, cap=None):
+    """Lines of babysit_risk.py that glob_match(pattern, path) runs, counted
+    under sys.settrace rather than timed, so runner load cannot fail it.
+    Past `cap` the trace raises, so a blow-up fails at once."""
     count = 0
 
     def local(frame, event, arg):
         nonlocal count
         if event == "line":
             count += 1
-            if count > budget:
-                raise _OverBudget(f"glob_match ran past {budget} lines")
+            if cap is not None and count > cap:
+                raise _OverBudget(f"glob_match ran past {cap} lines")
         return local
 
     def calls(frame, event, arg):
@@ -508,41 +505,73 @@ def _glob_work(pattern, path):
 
 
 class GlobWorkTests(unittest.TestCase):
-    """Spec: each configured glob is judged with work bounded by the pattern
-    and path lengths, however many stars."""
+    """Spec (glob_match): the work is O(glob segments x path segments), and
+    within a segment O(len(pattern) x len(name)) (_segment_match). Each test
+    doubles the input and bounds the growth of the counted work, so constant
+    factors and the interpreter's line events cancel out: doubling the path
+    alone may at most double the work (2.5 allows slack, quadratic gives 4);
+    doubling pattern and path may at most quadruple it (5 allows slack; a
+    blow-up in the stars gives far more)."""
 
-    CASES = (
-        ("**/" * 9 + "z", "/".join(["a"] * 30) + "/b.md"),
-        ("**/a/" * 9 + "z", "/".join(["a"] * 30) + "/b.md"),
-        ("plugins/foo/" + "*a" * 20 + "z", "plugins/foo/" + "a" * 60 + ".md"),
-    )
-
-    def assertBoundedWork(self, pattern, path):
-        matched, count = _glob_work(pattern, path)
-        # A count of zero means the trace no longer sees the matcher.
-        self.assertGreater(count, 0)
+    def assertScales(self, build, small, ratio, floor=None):
+        matched, base = _glob_work(*build(small))
+        if floor is not None:
+            # The counted work grows with the path: the matcher is still in
+            # this module, not in C or elsewhere.
+            self.assertGreaterEqual(base, floor(small))
+        cap = int(ratio * base)
+        doubled, count = _glob_work(*build(2 * small), cap=cap)
+        self.assertLessEqual(count, cap)
+        self.assertEqual(doubled, matched)
         return matched
 
     def test_star_heavy_globs_do_bounded_work(self):
-        for glob, path in self.CASES:
-            with self.subTest(glob):
-                self.assertFalse(self.assertBoundedWork(glob, path))
+        for label, build, small in (
+            (
+                "**/ run",
+                lambda k: ("**/" * k + "z", "/".join(["a"] * 3 * k) + "/b.md"),
+                9,
+            ),
+            (
+                "**/a/ run",
+                lambda k: ("**/a/" * k + "z", "/".join(["a"] * 3 * k) + "/b.md"),
+                9,
+            ),
+            (
+                "*a run",
+                lambda k: (
+                    "plugins/foo/" + "*a" * k + "z",
+                    "plugins/foo/" + "a" * 3 * k + ".md",
+                ),
+                20,
+            ),
+        ):
+            with self.subTest(label):
+                self.assertFalse(self.assertScales(build, small, 5))
+                glob, path = build(small)
                 result = score(_input(files=(_file(path),), high_paths=(glob,)))
                 self.assertEqual(result.score, Risk.LOW)
 
-    def test_star_runs_inside_a_segment_fail_closed_with_bounded_work(self):
+    def test_star_runs_inside_a_segment_fail_closed(self):
         # Spec: '**' inside a segment is not a whole '**' segment: unreadable.
+        # Such a glob is refused before it reaches glob_match.
         for stars in (10, 20):
             glob = "plugins/foo/" + "*" * stars + "z"
             path = "plugins/foo/" + "a" * 40 + ".md"
             with self.subTest(glob):
-                self.assertBoundedWork(glob, path)
                 result = score(_input(files=(_file(path),), high_paths=(glob,)))
                 self.assertEqual(_codes(result), ("high-path:**",))
 
-    def test_double_star_over_a_very_deep_path_does_bounded_work(self):
+    def test_work_over_a_deep_path_grows_linearly(self):
+        for glob in ("**/a/**/b", "*"):
+            with self.subTest(glob):
+                self.assertScales(
+                    lambda n: (glob, "/".join(["a"] * n) + "/x.md"),
+                    2_000,
+                    2.5,
+                    floor=lambda n: n,
+                )
         path = "/".join(["a"] * 20_000) + "/x.md"
-        self.assertFalse(self.assertBoundedWork("**/a/**/b", path))
         result = score(_input(files=(_file(path),), high_paths=("**/a/**/b",)))
         self.assertEqual(result.score, Risk.LOW)
 
