@@ -67,7 +67,9 @@ RECORD_RE = re.compile(
     rf"(?:findings=(?P<n>{_COUNT}) inline=(?P<k>{_COUNT}) "
     rf"scope=(?:(?P<whole>whole)|incremental since=(?P<since>{_SHA}))"
     rf"|skip=no-change through=(?P<through>{_SHA})"
-    rf"|skip=(?P<skip>[\w-]+))$"
+    rf"|skip=(?P<skip>[\w-]+))"
+    # The subscription leg's review (ci-workflows pr-review-cli.yml).
+    rf"(?: account=fallback)?$"
 )
 SHA_RE = re.compile(rf"^{_SHA}$")
 HUNK_HEADER_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
@@ -79,6 +81,28 @@ MARKER_RE = re.compile(
 )
 CLAUDE_APP_LOGINS = frozenset({"claude", "claude[bot]"})
 LANE_TAG_RE = re.compile(r"^\s*`?claude-lane: ([\w-]+)`?\s*$", re.MULTILINE)
+# ci-workflows pr-review-cli.yml posts as github-actions[bot] (REST login;
+# GraphQL drops the suffix). Such a comment is the lane's only when its last
+# non-blank line is that lane's footer.
+ACTIONS_LOGINS = frozenset({"github-actions", "github-actions[bot]"})
+
+
+def _footer_lane(body: str) -> str | None:
+    """The lane a body's last non-blank line names as its `claude-lane:`
+    footer, None when that line is no footer."""
+    lines = [line for line in body.splitlines() if line.strip()]
+    tag = LANE_TAG_RE.fullmatch(lines[-1]) if lines else None
+    return tag[1] if tag else None
+
+
+def _lane_comment(lane: str, login: object, body: str) -> bool:
+    """A Claude App comment untagged or tagged for `lane`, or a
+    github-actions[bot] comment whose footer names `lane`."""
+    if login in CLAUDE_APP_LOGINS:
+        tag = LANE_TAG_RE.search(body)
+        return tag is None or tag[1] == lane
+    return login in ACTIONS_LOGINS and _footer_lane(body) == lane
+
 # The lane whose findings hold the merge only at its top tier, CRITICAL
 # (plugins/review/skills/security-review/SKILL.md, "Reporting"): each inline
 # comment carries one `severity:` line, and the summary one
@@ -442,17 +466,19 @@ def _require_marker(lane: str, head: str, comments: Sequence[Mapping[str, Any]])
 def _summary_comments(
     lane: str, comments: Sequence[Mapping[str, Any]]
 ) -> list[tuple[datetime | None, str]]:
-    """Each Claude App issue comment untagged or tagged for `lane`, with its
-    creation time: the summary comments an older lane producer posted."""
+    """Each lane comment of `lane` (`_lane_comment`) but a reviewed-head
+    marker, which the caller reads already, with its creation time: the
+    summary comments a lane producer posted."""
     found = []
     for comment in comments:
         user = comment.get("user")
-        if not isinstance(user, Mapping) or user.get("login") not in CLAUDE_APP_LOGINS:
+        if not isinstance(user, Mapping):
             continue
         body = str(comment.get("body") or "")
-        tag = LANE_TAG_RE.search(body)
         created = _time(comment.get("created_at"))
-        if (tag is None or tag[1] == lane) and created is not None:
+        if MARKER_RE.match(body.split("\n", 1)[0]):
+            continue
+        if _lane_comment(lane, user.get("login"), body) and created is not None:
             found.append((created, body))
     return found
 
@@ -718,7 +744,8 @@ def _time(value: Any) -> datetime | None:
 
 
 def _lane_thread(lane: str, thread: Mapping[str, Any]) -> bool:
-    """A thread the Claude App opened that is untagged or tagged for `lane`."""
+    """A thread the Claude App opened, untagged or tagged for `lane`, or
+    github-actions[bot] opened with `lane`'s footer last."""
     comments = thread.get("comments")
     if not isinstance(comments, list | tuple):
         raise Unbound("evidence-error")
@@ -730,10 +757,6 @@ def _lane_thread(lane: str, thread: Mapping[str, Any]) -> bool:
     author = first.get("author")
     if not isinstance(author, Mapping):
         return False
-    if (
-        author.get("__typename") != "Bot"
-        or author.get("login") not in CLAUDE_APP_LOGINS
-    ):
+    if author.get("__typename") != "Bot":
         return False
-    tag = LANE_TAG_RE.search(str(first.get("body") or ""))
-    return tag is None or tag[1] == lane
+    return _lane_comment(lane, author.get("login"), str(first.get("body") or ""))

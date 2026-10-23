@@ -503,6 +503,30 @@ class RecordTests(Base):
         result = self.bind([run("claude-review", S)])
         self.assertUnbound(result["claude-review"], "no-record")
 
+    def test_a_subscription_leg_record_binds(self) -> None:
+        # ci-workflows pr-review-cli.yml ends the record ` account=fallback`
+        # when the subscription leg reviewed (publish-review publish.cjs).
+        runs = [
+            whole("claude-review", S),
+            run(
+                "claude-security-review",
+                S,
+                "findings=0 inline=0 scope=whole account=fallback",
+            ),
+        ]
+        result = self.bind(runs)["claude-security-review"]
+        self.assertTrue(result.bound)
+        self.assertEqual(result.open_findings, 0)
+
+    def test_another_account_suffix_is_malformed(self) -> None:
+        for tail in (
+            "findings=0 inline=0 scope=whole account=primary",
+            "findings=0 inline=0 scope=whole account=fallback extra",
+        ):
+            with self.subTest(tail=tail):
+                result = self.bind([run("claude-review", S, tail)])
+                self.assertUnbound(result["claude-review"], "record-malformed")
+
     def test_record_for_another_lane(self) -> None:
         item = run(
             "claude-review",
@@ -1681,6 +1705,68 @@ class SeverityTests(Base):
                 result = self.bind(runs, comments=comments)[self.SEC]
                 self.assertEqual(result.open_findings, 2)
                 self.assertEqual(result.blocking_findings, blocking)
+
+    # ci-workflows pr-review-cli.yml posts as github-actions[bot] and foots
+    # each comment `\n\nclaude-lane: <lane>` (publish-review publish.cjs).
+    ACTIONS = {"__typename": "Bot", "login": "github-actions"}
+
+    def test_a_github_actions_finding_with_the_lane_footer_is_the_lanes(self) -> None:
+        for severity, blocking in (("IMPORTANT", 0), ("CRITICAL", 1), (None, 1)):
+            with self.subTest(severity=severity):
+                line = f"severity: {severity}\n" if severity else ""
+                body = f"finding\n{line}\nclaude-lane: {self.SEC}"
+                runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]
+                threads = [thread(body, author=self.ACTIONS)]
+                result = self.bind(runs, threads=threads)[self.SEC]
+                self.assertEqual(result.open_findings, 1)
+                self.assertEqual(result.blocking_findings, blocking)
+
+    def test_a_github_actions_thread_without_the_lanes_footer_last_is_not_the_lanes(
+        self,
+    ) -> None:
+        # Not the lane's thread, so the recorded inline finding has none left
+        # and counts as CRITICAL even though the body reads IMPORTANT.
+        for body in (
+            "finding\nseverity: IMPORTANT",
+            f"claude-lane: {self.SEC}\nfinding\nseverity: IMPORTANT",
+            "finding\nseverity: IMPORTANT\n\nclaude-lane: claude-review",
+        ):
+            with self.subTest(body=body):
+                runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]
+                threads = [thread(body, author=self.ACTIONS)]
+                result = self.bind(runs, threads=threads)[self.SEC]
+                self.assertEqual(result.blocking_findings, 1)
+
+    def test_a_github_actions_summary_comment_counts_only_with_the_lanes_footer(
+        self,
+    ) -> None:
+        runs = [whole("claude-review", S), whole(self.SEC, S, n=2, k=0)]
+
+        def summary(body: str) -> dict[str, Any]:
+            return {
+                "id": next(_ids),
+                "user": {"login": "github-actions[bot]", "type": "Bot"},
+                "created_at": "2026-01-01T00:30:00Z",
+                "body": body,
+            }
+
+        for body, blocking in (
+            (f"summary\n\ncritical-findings: 0\n\nclaude-lane: {self.SEC}", 0),
+            ("summary\n\ncritical-findings: 0", 2),
+            (f"claude-lane: {self.SEC}\n\ncritical-findings: 0", 2),
+        ):
+            with self.subTest(body=body):
+                comments = [*both_markers(), summary(body)]
+                result = self.bind(runs, comments=comments)[self.SEC]
+                self.assertEqual(result.blocking_findings, blocking)
+
+    def test_a_marker_ending_in_the_lane_footer_is_read_once(self) -> None:
+        runs = [whole("claude-review", S), whole(self.SEC, S, n=2, k=0)]
+        comments = self.summary_markers(
+            f"critical-findings: 0\n\nclaude-lane: {self.SEC}"
+        )
+        result = self.bind(runs, comments=comments)[self.SEC]
+        self.assertEqual(result.blocking_findings, 0)
 
     def test_a_thread_less_inline_finding_counts_as_critical(self) -> None:
         runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]
