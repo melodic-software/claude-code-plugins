@@ -24,10 +24,11 @@
 //      this job gated, nothing more is posted or resolved.
 //   4. Posts the round marker, as the lanes App, once per model run: a
 //      re-run of this job finds the marker naming that run and posts none.
-//   5. With no replies.jsonl, no scanned patch and the selected head still
-//      current (no model turn) posts nothing and skips no-model-turn,
-//      escalating nothing; with a moved head it escalates
-//      feedback-not-landed, and beside a patch feedback-invalid. Otherwise escalates
+//   5. With no replies.jsonl, no scanned patch, no scan refusal, no upload
+//      the scan named and the selected head still current (no model turn)
+//      posts nothing and skips no-model-turn, escalating nothing; with a
+//      moved head it escalates feedback-not-landed, and beside a patch, a
+//      refusal or a named upload feedback-invalid. Otherwise escalates
 //      feedback-invalid, feedback-incomplete (a kept thread has no
 //      disposition), feedback-not-landed, feedback-partial (posting stopped
 //      after a reply), feedback-uncertain (an UNCERTAIN or VALID-defer reply)
@@ -47,6 +48,8 @@
 //   RUN_SHA256            run.json's SHA-256, from the select job
 //   REPLIES_SHA256        replies.jsonl's SHA-256, from the scan job
 //   REVIEW_PATCH_STATE    the scan job's patch-state for the same model call
+//   REVIEW_SCAN_REFUSED   the same call's scan refusal: '' none, `patch` an
+//                         oversize patch, `output` any other
 //   GITHUB_WORKSPACE      the PR head checkout evidence paths are checked in
 //   SKIP_REASON_FILE, ESCALATION_REASON_FILE  where the runner reads them
 
@@ -329,7 +332,7 @@ export async function publish(args) {
   return result;
 }
 
-async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", reviewerId, trustedHumans, readArtifact, fileExists, log }) {
+async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", scanRefused = "", repliesExpected = false, reviewerId, trustedHumans, readArtifact, fileExists, log }) {
   let escalationReason = "";
   // fixesLanded judged the range up to headSha; a push after it is unjudged.
   const headMoved = async () => (await api.readBranch(headRef)) !== headSha;
@@ -340,11 +343,17 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       const { runText, repliesText } = readArtifact();
       run = parseRun(runText);
       // No replies.jsonl. The run job decides that, so it is a skip only
-      // when the scan handed on no patch and the PR head is still the one
-      // the select job read: the model call never ran. The round still
-      // counts. A moved head is a push nothing replied to; a patch with no
-      // replies is an artifact the model job left half-written.
+      // when the scan refused nothing, named no upload, handed on no patch,
+      // and the PR head is still the one the select job read: the model call
+      // never ran. The round still counts. A refused scan uploads nothing
+      // whatever the model did; named replies that did not arrive are a
+      // failed download; a moved head is a push nothing replied to; a patch
+      // with no replies is an artifact the model job left half-written.
       if (repliesText === null) {
+        if (scanRefused !== "" || repliesExpected) {
+          log(`no reply is posted: ${scanRefused ? `the scan refused the model call's ${scanRefused}` : "the replies the scan uploaded did not arrive"}`);
+          return { escalationReason: "feedback-invalid", posted: [] };
+        }
         if (headSha !== run.head_sha) {
           log("no reply is posted: no replies, and the PR head moved since the select job read it");
           return { escalationReason: "feedback-not-landed", posted: [] };
@@ -468,6 +477,10 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   if (!["", "written", "empty"].includes(patchState)) {
     throw new Error("REVIEW_PATCH_STATE is not a patch state");
   }
+  const scanRefused = env.REVIEW_SCAN_REFUSED ?? "";
+  if (!["", "patch", "output"].includes(scanRefused)) {
+    throw new Error("REVIEW_SCAN_REFUSED is not a scan refusal");
+  }
   const runId = positive(env.GITHUB_RUN_ID, "GITHUB_RUN_ID");
   const modelRun = attempt ? `${runId}-${attempt}` : null;
   const dir = env.FEEDBACK_REPLIES_DIR;
@@ -523,6 +536,8 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     appId,
     modelRun,
     patchState,
+    scanRefused,
+    repliesExpected: attempt !== "" || (env.REPLIES_SHA256 ?? "") !== "",
     maxRounds: maxRoundsFrom(env.REVIEW_ROUNDS),
     reviewerId: reviewerIdFrom(env.TRUSTED_ACTORS),
     trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS),

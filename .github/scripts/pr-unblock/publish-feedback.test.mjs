@@ -728,7 +728,7 @@ test("with no VALID reply no fix commit is needed: INCORRECT replies post on an 
 // A model call that never ran (credit stop on both legs, broker refusal, kill
 // switch, a head that moved before the call) uploads no replies.jsonl: the
 // round still counts, and the check posts a skip, not an escalation.
-const noReplies = (api, { headSha = GATED, patchState = "" } = {}) =>
+const noReplies = (api, { headSha = GATED, patchState = "", scanRefused = "", repliesExpected = false } = {}) =>
   publish({
     api,
     pr: 42,
@@ -737,6 +737,8 @@ const noReplies = (api, { headSha = GATED, patchState = "" } = {}) =>
     appId: APP,
     modelRun: null,
     patchState,
+    scanRefused,
+    repliesExpected,
     reviewerId: REVIEWER,
     trustedHumans: new Set([HUMAN]),
     readArtifact: () => ({ runText: JSON.stringify(RUN), repliesText: null }),
@@ -766,6 +768,30 @@ test("no replies.jsonl beside a scanned patch or a moved head is an escalation",
     assert.equal(result.escalationReason, "feedback-not-landed", `a push happened, patch-state ${patchState}`);
     assert.equal(api.markers().length, 1);
   }
+});
+
+// A scan that refused the leg's output (an oversize patch, a leak-scan block,
+// a refused decode) uploads nothing, so no replies is no proof the model took
+// no turn: the round goes to a person (#9225, #9340).
+test("no replies.jsonl after the scan refused the leg's output escalates feedback-invalid, never no-model-turn", async () => {
+  for (const scanRefused of ["patch", "output"]) {
+    const api = fakeApi();
+    const result = await noReplies(api, { scanRefused });
+    assert.equal(result.escalationReason, "feedback-invalid", scanRefused);
+    assert.equal(result.skipReason ?? "", "", scanRefused);
+    assert.deepEqual(api.posted(), [], scanRefused);
+    assert.equal(api.markers().length, 1, scanRefused);
+  }
+});
+
+// The scan named replies it uploaded (an attempt or a SHA-256), yet none
+// arrived: a failed download, not a round with no model turn (#9225).
+test("no replies.jsonl where the scan named an upload escalates feedback-invalid", async () => {
+  const api = fakeApi();
+  const result = await noReplies(api, { repliesExpected: true });
+  assert.equal(result.escalationReason, "feedback-invalid");
+  assert.equal(result.skipReason ?? "", "");
+  assert.equal(api.markers().length, 1);
 });
 
 // The lanes App's address, the trailer and a range position are what a person
@@ -825,6 +851,15 @@ test("main: a missing replies.jsonl writes the no-model-turn skip and no escalat
   assert.equal(readFileSync(env.ESCALATION_REASON_FILE, "utf8"), "feedback-invalid\n");
   rmSync(env.ESCALATION_REASON_FILE);
   await assert.rejects(main({ ...env, REVIEW_PATCH_STATE: "maybe" }, { api: fakeApi() }), /REVIEW_PATCH_STATE/);
+  // A refused scan, or replies the scan named that never arrived, is no skip.
+  for (const extra of [{ REVIEW_SCAN_REFUSED: "patch" }, { REVIEW_SCAN_REFUSED: "output" }, { MODEL_RUN_ATTEMPT: "1" }, { REPLIES_SHA256: "a".repeat(64) }]) {
+    rmSync(env.SKIP_REASON_FILE, { force: true });
+    rmSync(env.ESCALATION_REASON_FILE, { force: true });
+    await main({ ...env, ...extra }, { api: fakeApi(), log: () => {} });
+    assert.equal(readFileSync(env.ESCALATION_REASON_FILE, "utf8"), "feedback-invalid\n", JSON.stringify(extra));
+  }
+  rmSync(env.ESCALATION_REASON_FILE);
+  await assert.rejects(main({ ...env, REVIEW_SCAN_REFUSED: "maybe" }, { api: fakeApi() }), /REVIEW_SCAN_REFUSED/);
 
   rmSync(env.SKIP_REASON_FILE, { force: true });
   const huge = JSON.stringify(RUN) + " ".repeat(1048577);

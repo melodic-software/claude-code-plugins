@@ -155,7 +155,9 @@ name the head, an unresolved thread exists that `address-feedback` would keep (l
 reviewer bot, one the lane never answered where a fix request, below, follows the reviewer bot's
 finding, or answered by a trusted human after the lane escalated it; on a PR carrying the
 human-gated label, only one whose answer is a fix request), the head has no
-`pr-unblock / address-feedback` check run, and no `pr-unblock.yml` run titled
+`pr-unblock / address-feedback` check run (one that started before the head's newest
+`pr-unblock / publish-feedback` check run stops counting when that run skipped `no-model-turn`:
+the round handled nothing, and the round cap still bounds the retries), and no `pr-unblock.yml` run titled
 `pr-unblock address-feedback #<n>` is still queued or going (both lanes finishing at once). Then it
 runs the base's resolve-config for that PR and head with `address-feedback` selected, so only that
 slot's `applies-when` is decided, and dispatches only when the `pr-unblock` lane and its

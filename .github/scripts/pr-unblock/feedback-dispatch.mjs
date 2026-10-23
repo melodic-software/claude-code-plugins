@@ -25,7 +25,9 @@
 //   the human-gated label, only a thread where a trusted person with write
 //   access asked the lane to fix it (isFixRequest);
 // - that head has no pr-unblock / address-feedback check run yet (one the
-//   usage limit stopped stops counting once its limit resets), and no
+//   usage limit stopped stops counting once its limit resets, and one that
+//   started before the head's newest pr-unblock / publish-feedback check run
+//   when that run skipped no-model-turn: that round handled nothing), and no
 //   pr-unblock.yml address-feedback run for the PR is still queued or going;
 // - the base config's pr-unblock lane is enabled, holds enabled
 //   address-feedback and publish-feedback slots, and address-feedback applies
@@ -68,6 +70,9 @@ export const DEFAULTS = Object.freeze({
   activity: "address-feedback",
   replyActivity: "publish-feedback",
   checkName: "pr-unblock / address-feedback",
+  // The reply job's check: its no-model-turn skip releases the round's
+  // address-feedback check runs.
+  replyCheckName: "pr-unblock / publish-feedback",
   reviewWorkflows: Object.freeze([
     ".github/workflows/pr-review-hosted.yml",
     ".github/workflows/pr-review-security-hosted.yml",
@@ -255,10 +260,22 @@ export async function dispatchFeedback({
   if (resolved.selected?.applies !== true) {
     return skip(`#${number}: ${settings.activity} does not apply (${resolved.selected?.["skip-reason"] ?? "unknown"})`);
   }
-  const existing = (await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId })).filter(
-    // NaN compares false, so a run with no readable start still counts.
-    (run) => notesSince === null || !(Date.parse(run.started_at ?? "") <= notesSince),
-  );
+  // NaN compares false, so a run with no readable start still counts.
+  const sinceNotes = (run) => notesSince === null || !(Date.parse(run.started_at ?? "") <= notesSince);
+  let existing = (await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId })).filter(sinceNotes);
+  // A round whose reply job skipped no-model-turn (decided from the scan
+  // job's outputs and the select job's head) handled nothing: the
+  // address-feedback check runs that started before that reply job stop
+  // counting, so the next trigger dispatches the head again. Each such
+  // round posted its round marker, so the select job's round cap ends it.
+  if (anyHandles(existing, { now, limits: resolved.limits })) {
+    const replies = (await api.listCheckRuns({ sha: head, checkName: settings.replyCheckName, appId: settings.appId })).filter(sinceNotes);
+    const newest = replies.reduce((a, b) => (Date.parse(b.started_at ?? "") > Date.parse(a?.started_at ?? "") ? b : a), replies[0]);
+    if (newest?.status === "completed" && newest.conclusion === "neutral" && newest.output?.title === "Skipped: no-model-turn") {
+      const cut = Date.parse(newest.started_at ?? "");
+      existing = existing.filter((run) => !(Date.parse(run.started_at ?? "") < cut));
+    }
+  }
   if (permanentlyHandles(existing)) {
     markHandled(record, settings.checkName, head);
   }

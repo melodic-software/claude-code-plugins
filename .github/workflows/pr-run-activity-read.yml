@@ -264,10 +264,11 @@ on:
       scan-refused:
         description: >-
           PR mode: `patch` when the scan job refused the run's payloads because
-          the patch was over its cap, `output` when it refused them for any
-          other reason, empty when it published them or did not run. Only the
-          scan job sets it.
-        value: ${{ jobs.scan.outputs.refused }}
+          the patch was over its cap, `output` when it failed or was cancelled
+          for any other reason, empty when it published them or did not run.
+          The scan-refusal job, which succeeds, sets it from the scan job's
+          result, so it does not depend on the failed scan job's own outputs.
+        value: ${{ jobs.scan-refusal.outputs.refused }}
       base-sha:
         description: >-
           The trusted base commit the run checked, set before any head code
@@ -2562,6 +2563,32 @@ jobs:
           retention-days: 1
           if-no-files-found: error
           overwrite: false
+
+  # PR mode: the scan job's refusal, set by a job that succeeds, since no
+  # documentation says a failed job's outputs reach a workflow_call caller.
+  # The scan's own result decides it (a failed or cancelled scan published
+  # nothing); the failed scan job's outputs only name an oversize patch. The
+  # caller's job for this whole workflow still ends failed after a failed
+  # scan, so the caller reads this output from a failed job at that hop. It reads nothing from
+  # the run job, so head code can only fail the scan, which hands the round
+  # to a person.
+  scan-refusal:
+    needs: scan
+    if: >-
+      !cancelled() && inputs.issue-number == ''
+      && (needs.scan.result == 'failure' || needs.scan.result == 'cancelled')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      refused: ${{ steps.refusal.outputs.refused }}
+    steps:
+      - name: Name the scan's refusal
+        id: refusal
+        env:
+          REFUSED: ${{ needs.scan.outputs.refused == 'patch' && 'patch' || 'output' }}
+        run: echo "refused=$REFUSED" >>"$GITHUB_OUTPUT"
 
   # Issue mode, reuse: the summary pass, in its own job with a read-only
   # GITHUB_TOKEN. It starts only when the run job's issue-prior step named a

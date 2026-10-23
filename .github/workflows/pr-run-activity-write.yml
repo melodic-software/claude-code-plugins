@@ -155,8 +155,8 @@ on:
           only by its scan job: the attempt whose
           feedback-replies-<lane>-address-feedback-<attempt> artifact holds
           the scanned replies, and the model run the round marker names. Empty
-          downloads none: no model turn, which the reply script posts as a
-          no-model-turn skip.
+          downloads none: with no replies, no patch and no scan refusal, the
+          reply script posts a no-model-turn skip.
         required: false
         type: string
         default: ""
@@ -171,8 +171,17 @@ on:
       review-patch-state:
         description: >-
           With review-replies, the same read runner call's scan-patch-state.
-          With no replies, the reply script skips no-model-turn only when this
-          is empty.
+          With no replies, the reply script skips no-model-turn only when this,
+          review-scan-refused, review-replies-attempt and review-replies-sha256
+          are empty.
+        required: false
+        type: string
+        default: ""
+      review-scan-refused:
+        description: >-
+          With review-replies, the same read runner call's scan-refused:
+          `patch`, `output` or empty. With no replies, a refusal escalates
+          feedback-invalid.
         required: false
         type: string
         default: ""
@@ -2001,6 +2010,7 @@ jobs:
           RUN_SHA256: ${{ inputs.review-run-sha256 }}
           REPLIES_SHA256: ${{ inputs.review-replies-sha256 }}
           REVIEW_PATCH_STATE: ${{ inputs.review-replies && inputs.review-patch-state || '' }}
+          REVIEW_SCAN_REFUSED: ${{ inputs.review-replies && inputs.review-scan-refused || '' }}
           # Issue mode, apply-patch: the new lane branch, named by the model
           # job's patch attempt so a re-run of this job names the same one.
           HEAD_REF: >-

@@ -114,7 +114,8 @@ function fakeApi({
       calls.permission.push(login);
       return permissions[login] ?? "none";
     },
-    listCheckRuns: async () => checkRuns,
+    // A run that names no check is the address-feedback one.
+    listCheckRuns: async ({ checkName }) => checkRuns.filter((run) => (run.name ?? "pr-unblock / address-feedback") === checkName),
     listWorkflowRuns: async () => workflowRuns,
     async dispatchWorkflow(request) {
       calls.dispatch.push(request);
@@ -368,6 +369,58 @@ test("a failed check on the head that is not a limit stop blocks a dispatch", as
   for (const line of ["lane=pr-unblock activity=address-feedback class=other", null]) {
     const api = fakeApi({ checkRuns: [failedRun(line, "2026-10-01T00:00:00Z")] });
     assert.equal((await decide(api)).result, null, String(line));
+  }
+});
+
+// A round whose reply job found no model turn (#9218): its publish-feedback
+// check skipped no-model-turn, so the address-feedback check runs before it
+// handled nothing, and the next trigger dispatches the head again. Every such
+// round posts its round marker, so the select job's round cap still ends it.
+const roundRun = (name, conclusion, title, started) => ({
+  name: `pr-unblock / ${name}`,
+  status: "completed",
+  conclusion,
+  started_at: started,
+  completed_at: started,
+  output: { title, summary: "" },
+});
+const noModelTurn = (started = "2026-10-17T10:05:00Z") => roundRun("publish-feedback", "neutral", "Skipped: no-model-turn", started);
+
+test("a head whose last round had no model turn dispatches again, and is not recorded as handled", async () => {
+  for (const [label, check] of [
+    ["the activity step failed", roundRun("address-feedback", "failure", "Failed", "2026-10-17T10:00:00Z")],
+    ["the broker refused the run", roundRun("address-feedback", "neutral", "Skipped: not-assessed", "2026-10-17T10:00:00Z")],
+  ]) {
+    const record = emptyRecord();
+    const api = fakeApi({ checkRuns: [check, noModelTurn()] });
+    const { result } = await decideWith(api, record);
+    assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" }, label);
+    assert.equal(record.handled.size, 0, label);
+  }
+});
+
+test("a round that answered, or a newer address-feedback check, still handles the head", async () => {
+  for (const [label, runs] of [
+    ["the last round escalated", [roundRun("address-feedback", "success", "Passed", "2026-10-17T10:00:00Z"), roundRun("publish-feedback", "neutral", "Skipped: awaiting-human", "2026-10-17T10:05:00Z")]],
+    ["a no-model-turn round before a round that answered", [
+      roundRun("address-feedback", "failure", "Failed", "2026-10-17T10:00:00Z"),
+      noModelTurn(),
+      roundRun("address-feedback", "success", "Passed", "2026-10-17T11:00:00Z"),
+      roundRun("publish-feedback", "success", "Passed", "2026-10-17T11:05:00Z"),
+    ]],
+    // The select job's round cap posts the address-feedback skip after the round.
+    ["the round cap was reached after it", [
+      roundRun("address-feedback", "failure", "Failed", "2026-10-17T10:00:00Z"),
+      noModelTurn(),
+      roundRun("address-feedback", "neutral", "Skipped: awaiting-human", "2026-10-17T11:00:00Z"),
+    ]],
+    ["no reply job ran", [roundRun("address-feedback", "failure", "Failed", "2026-10-17T10:00:00Z")]],
+  ]) {
+    const api = fakeApi({ checkRuns: runs });
+    const { result, lines } = await decide(api);
+    assert.equal(result, null, label);
+    assert.deepEqual(api.calls.dispatch, [], label);
+    assert.match(lines.at(-1), /already has a pr-unblock \/ address-feedback check run/, label);
   }
 });
 
@@ -828,8 +881,8 @@ test("a head a finished run handled is recorded, and a later run at that head re
   const record = emptyRecord();
   const first = counting(fakeApi({ checkRuns: [handled] }));
   assert.equal((await decideWith(first.api, record)).result, null);
-  // Without a record: the PR, comments, threads, run listing and check runs.
-  assert.deepEqual(first.counts, { pullsForCommit: 1, listIssueComments: 1, listReviewThreads: 1, listWorkflowRuns: 1, listCheckRuns: 1 });
+  // Without a record: the PR, comments, threads, run listing and both checks' runs.
+  assert.deepEqual(first.counts, { pullsForCommit: 1, listIssueComments: 1, listReviewThreads: 1, listWorkflowRuns: 1, listCheckRuns: 2 });
   const later = counting(fakeApi({ checkRuns: [handled] }));
   const { result, lines } = await decideWith(later.api, parseRecord(serializeRecord(record)));
   assert.equal(result, null);

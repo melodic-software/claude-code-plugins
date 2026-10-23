@@ -417,12 +417,14 @@ jobs:
       # run.json and its SHA-256, from the select job.
       review-run-sha256: ${{ needs.address-feedback-select.outputs.run-sha256 }}
       review-run-attempt: ${{ needs.address-feedback-select.outputs.context-attempt }}
-      # The replies, their SHA-256 and the patch state, all from the one leg
-      # apply-feedback-patch reads; only the scan job, which ran no model or
-      # head code, sets these outputs.
+      # The replies, their SHA-256, the patch state and the scan's refusal,
+      # all from the one leg apply-feedback-patch reads; only the scan job,
+      # which ran no model or head code, sets these outputs (the refusal
+      # through the job that relays its result).
       review-replies-attempt: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '' }}
       review-replies-sha256: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-sha256 || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-sha256 || '' }}
       review-patch-state: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-state || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-state || '' }}
+      review-scan-refused: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-refused || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-refused || '' }}
       # The push job moved the PR head off the reviewed one; the gate and the
       # broker accept the review of the head the select job read when only
       # commits GitHub signed for the lanes App during this run follow it. A

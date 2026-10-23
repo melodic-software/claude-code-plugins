@@ -1876,6 +1876,33 @@ test("scan job: a refusal names an oversize patch, and every other refusal `outp
   assert.equal(at("", { "steps.open.outcome": "skipped", "steps.decode.outcome": "success", "steps.leak-scan.outcome": "skipped" }), "", "a run with nothing to open");
 });
 
+// A failed job's outputs are not documented to reach a workflow_call caller
+// (#9340), so the refusal the callers read is relayed by the scan-refusal job,
+// which succeeds: the scan's result alone decides it, and its outputs only
+// name an oversize patch. It needs the scan job alone, never the run job.
+test("scan-refused: a failed or cancelled scan reads as a refusal even with no scan outputs", () => {
+  const read = workflow("pr-run-activity-read.yml");
+  const caller = read.on.workflow_call.outputs["scan-refused"].value;
+  const relay = read.jobs["scan-refusal"];
+  const outcome = (result, refusedOutput = "", issue = "") => {
+    const values = { "needs.scan.result": result, "needs.scan.outputs.refused": refusedOutput, "inputs.issue-number": issue };
+    const ran = evaluate(relay?.if ?? "true", values) === true;
+    const step = relay?.steps.find((s) => s.id === "refusal");
+    const relayed = ran && step ? { "jobs.scan-refusal.outputs.refused": evaluate(step.env.REFUSED, values) } : { "jobs.scan-refusal.outputs.refused": "" };
+    // Under the old wiring the caller read the failed scan job's own output.
+    return evaluate(caller, { ...relayed, "jobs.scan.outputs.refused": refusedOutput });
+  };
+  assert.equal(outcome("failure"), "output", "a failed scan whose outputs did not arrive");
+  assert.equal(outcome("cancelled"), "output");
+  assert.equal(outcome("failure", "patch"), "patch");
+  assert.equal(outcome("success"), "");
+  assert.equal(outcome("skipped"), "");
+  assert.equal(outcome("failure", "", "7"), "", "issue mode has no caller that reads it");
+  assert.deepEqual(relay.needs, "scan");
+  assert.equal(relay.outputs.refused, "${{ steps.refusal.outputs.refused }}");
+  assert.doesNotMatch(JSON.stringify(relay), /needs\.run\./);
+});
+
 test("leak scan: a clean run is clean", async (t) => {
   const { clean, failed } = await scanWith(t, () => {});
   assert.deepEqual({ clean, failed }, { clean: "true", failed: null });
@@ -3200,7 +3227,7 @@ test("leak scan: the split-line pass leaves out the R2 key pair pattern, so adja
 const MODEL_CALL_READS = {
   "address-feedback-subscription": ["credential-present", "lane-class"],
   "apply-feedback-patch": ["feedback-attempt", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt"],
-  "publish-feedback": ["feedback-attempt", "feedback-sha256", "scan-patch-state"],
+  "publish-feedback": ["feedback-attempt", "feedback-sha256", "scan-patch-state", "scan-refused"],
 };
 
 // One leg answers the round: the fallback call when it ran, else the first.
@@ -3210,7 +3237,7 @@ test("pr-unblock.yml: the apply and reply jobs take every model-call input from 
   const { jobs } = workflow("pr-unblock.yml");
   const apply = jobs["apply-feedback-patch"];
   const publish = jobs["publish-feedback"].with;
-  const OUT = ["scan-patch-state", "scan-patch-sha256", "scan-patch-attempt", "scan-reply-attempt", "feedback-attempt", "feedback-sha256"];
+  const OUT = ["scan-patch-state", "scan-patch-sha256", "scan-patch-attempt", "scan-reply-attempt", "feedback-attempt", "feedback-sha256", "scan-refused"];
   const legs = (subResult, sub, first) => {
     const values = { "needs.address-feedback-subscription.result": subResult };
     for (const output of OUT) {
@@ -3228,6 +3255,7 @@ test("pr-unblock.yml: the apply and reply jobs take every model-call input from 
     "review-replies-attempt": [publish, "feedback-attempt"],
     "review-replies-sha256": [publish, "feedback-sha256"],
     "review-patch-state": [publish, "scan-patch-state"],
+    "review-scan-refused": [publish, "scan-refused"],
   };
   for (const [subResult, from] of [["skipped", "first"], ["success", "sub"], ["failure", "sub"]]) {
     const context = legs(subResult, from === "sub" ? full("sub") : {}, from === "first" ? full("first") : {});
@@ -3263,6 +3291,7 @@ test("pr-unblock.yml: the apply and reply jobs take every model-call input from 
   const script = write.jobs.run.steps.find((step) => step.id === "act-script");
   assert.equal(script.env.REPLIES_SHA256, "${{ inputs.review-replies-sha256 }}");
   assert.equal(script.env.REVIEW_PATCH_STATE, "${{ inputs.review-replies && inputs.review-patch-state || '' }}");
+  assert.equal(script.env.REVIEW_SCAN_REFUSED, "${{ inputs.review-replies && inputs.review-scan-refused || '' }}");
 });
 
 // --- review-dependency on run-claude-cli: a select job, two model calls, a push job, a verdict job ---
@@ -3310,11 +3339,11 @@ test("pr-unblock.yml: no job takes a gate, head or verdict input from a review-d
     ["dependency-attempt", "dependency-attempt"],
     ["dependency-sha256", "dependency-sha256"],
     ["dependency-verdict", "dependency-verdict"],
-    ["scan-refused", "refused"],
   ]) {
     assert.equal(read.on.workflow_call.outputs[output].value, `\${{ jobs.scan.outputs.${value} }}`, output);
     assert.equal(read.jobs.run.outputs[output], undefined, output);
   }
+  assert.equal(read.jobs.run.outputs["scan-refused"], undefined);
   assert.equal(read.jobs.scan.outputs["dependency-sha256"], "${{ steps.dependency-upload.outcome == 'success' && steps.leak-scan.outputs.verdict-sha256 || '' }}");
   assert.equal(read.jobs.scan.outputs["dependency-verdict"], "${{ steps.dependency-upload.outcome == 'success' && steps.leak-scan.outputs.dependency-verdict || '' }}");
   // report-escalation reads the select job's escalation, never a model call's.
