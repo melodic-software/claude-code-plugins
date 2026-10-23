@@ -16,9 +16,11 @@ import subprocess
 import sys
 import time
 import unittest
+from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
+import babysit_risk
 from babysit_risk import (
     ChangedFile,
     LaneEvidence,
@@ -505,11 +507,19 @@ class GlobTimingTests(unittest.TestCase):
                 self.assertLess(time.perf_counter() - start, 0.5)
                 self.assertEqual(_codes(result), ("high-path:**",))
 
-    def test_double_star_over_a_very_deep_path_finishes_quickly(self):
+    def test_double_star_over_a_very_deep_path_does_linear_work(self):
+        # Spec (glob_match): cost is O(glob segments x path segments). Counted
+        # in segment matches, not seconds, so runner load cannot fail it: the
+        # two plain segments, a and b, are each matched once per path segment
+        # at most.
         path = "/".join(["a"] * 20_000) + "/x.md"
-        start = time.perf_counter()
+        segments = path.count("/") + 1
+        with mock.patch.object(
+            babysit_risk, "_segment_match", wraps=babysit_risk._segment_match
+        ) as matched:
+            self.assertFalse(babysit_risk.glob_match("**/a/**/b", path))
+        self.assertLessEqual(matched.call_count, 2 * segments)
         result = score(_input(files=(_file(path),), high_paths=("**/a/**/b",)))
-        self.assertLess(time.perf_counter() - start, 1.0)
         self.assertEqual(result.score, Risk.LOW)
 
     def test_star_globs_still_match(self):
@@ -1167,7 +1177,9 @@ class LanePathFloorTests(unittest.TestCase):
 
     def test_resolve_config_waits_for_the_owner(self):
         # Owner decision Q51: the token broker runs this code from main.
-        result = score(_lane_input((_file(".github/actions/resolve-config/resolve.mjs"),)))
+        result = score(
+            _lane_input((_file(".github/actions/resolve-config/resolve.mjs"),))
+        )
         self.assertEqual(result.score, Risk.HIGH, result.reasons)
         self.assertIn("high-path:.github/actions/resolve-config/**", _codes(result))
 
@@ -1511,7 +1523,9 @@ class TrustGateTests(unittest.TestCase):
         # a removal waits for the owner.
         result = score(_input(files=(_edit(ACTORS, BASE_ACTORS, _actors(_KYLE)),)))
         self.assertEqual(result.score, Risk.HIGH)
-        self.assertEqual(_codes(result), ("high-path:.github/standards/trusted-actors/**",))
+        self.assertEqual(
+            _codes(result), ("high-path:.github/standards/trusted-actors/**",)
+        )
 
     def test_an_unread_or_structural_change_holds(self):
         cases = (
