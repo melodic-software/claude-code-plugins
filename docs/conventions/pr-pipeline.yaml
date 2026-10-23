@@ -700,10 +700,15 @@ merge:
   gate-budget-minutes: 10
   # Minutes one candidate's gate may spend reading before it stops at its next
   # read, reported unknown; a write in progress always finishes. The first
-  # candidate a run stops is gated first next run with no limit. Run 39883357253 spent 21.5 minutes on one candidate and held
+  # candidate a run stops is gated first next run under gate-deferred-minutes. Run 39883357253 spent 21.5 minutes on one candidate and held
   # the queue behind it. 4 is above the longest measured candidate (157-164 s,
   # above) and leaves the budget room for others (judgment).
   gate-candidate-minutes: 4
+  # Minutes the deferred candidate's gate may read; one stopped here is warned
+  # about and goes back to the capped rotation. 20 fits inside the merge job's
+  # 30-minute timeout with the minute before the loop and the closing steps
+  # (judgment).
+  gate-deferred-minutes: 20
   # Minutes a MED or HIGH reasons comment must stand unchanged at the head
   # before the gate adds the human-gated label; 0 is no minimum. 60 is longer
   # than a review lane's run (judgment), so a review still running at the

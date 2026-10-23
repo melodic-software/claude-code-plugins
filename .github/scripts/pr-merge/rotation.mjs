@@ -8,8 +8,9 @@
 // The previous position is the `pr-merge-gate-cursor` artifact each gate loop
 // uploads, `{"last": <PR number>}`, with `"deferred": <PR number>` when its
 // read limit (merge.gate-candidate-minutes) stopped a candidate. A deferred
-// candidate is gated first, marked `uncapped` so its gate runs with no limit:
-// one that always passes the limit still gets a whole gate the next run. Only a scheduled or hand-started run of
+// candidate is gated first, marked `deferred` so its gate runs under the
+// longer merge.gate-deferred-minutes: one that always passes the limit still
+// gets a longer gate the next run. Only a scheduled or hand-started run of
 // pr-merge.yml on main counts; a pull_request_target run runs the PR base
 // branch's copy, so its cursor is not read. The newest such run holding a
 // cursor wins, found from the workflow's own run list, never the repository's
@@ -122,7 +123,7 @@ export async function main({ env = process.env, actions, download } = {}) {
     const cursor = await readCursor({ repo, runId: String(env.GITHUB_RUN_ID), actions, download });
     const deferred = cursor?.deferred;
     const ordered = rotate(candidates, deferred === undefined ? cursor?.last : deferred - 1).map((c) =>
-      c.number === deferred ? { ...c, uncapped: true } : c,
+      c.number === deferred ? { ...c, deferred: true } : c,
     );
     writeFileSync(`${path}.tmp`, JSON.stringify(ordered));
     renameSync(`${path}.tmp`, path);

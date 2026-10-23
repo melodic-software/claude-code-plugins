@@ -76,7 +76,7 @@ async function run({ pages = [[]], cursors = {}, fail } = {}) {
     console.log = log;
   }
   const written = JSON.parse(readFileSync(candidates, "utf8"));
-  return { order: numbers(written), uncapped: numbers(written.filter((c) => c.uncapped === true)), calls, downloads, lines };
+  return { order: numbers(written), deferred: numbers(written.filter((c) => c.deferred === true)), calls, downloads, lines };
 }
 
 const wf = (id, event, branch = "main", path = ".github/workflows/pr-merge.yml") => ({ id, event, head_branch: branch, path });
@@ -118,18 +118,18 @@ test("the lookup pages through main's runs, then stops at its bounds", async () 
   assert.deepEqual(paged.order, [10, 20, 30]);
 });
 
-test("a candidate the last run deferred at its read limit is gated first, and alone uncapped", async () => {
+test("a candidate the last run deferred at its read limit is gated first, and alone marked deferred", async () => {
   const deferred = await run({ pages: [[wf(7, "schedule")]], cursors: { 7: '{"last": 30, "deferred": 20}' } });
   assert.deepEqual(deferred.order, [20, 30, 10]);
-  assert.deepEqual(deferred.uncapped, [20]);
-  // With none deferred, no candidate is uncapped.
+  assert.deepEqual(deferred.deferred, [20]);
+  // With none deferred, no candidate is marked.
   const plain = await run({ pages: [[wf(7, "schedule")]], cursors: { 7: '{"last": 10}' } });
   assert.deepEqual(plain.order, [20, 30, 10]);
-  assert.deepEqual(plain.uncapped, []);
-  // A deferred PR no longer listed leaves the others capped, starting above it.
+  assert.deepEqual(plain.deferred, []);
+  // A deferred PR no longer listed leaves none marked, starting above it.
   const gone = await run({ pages: [[wf(7, "schedule")]], cursors: { 7: '{"last": 30, "deferred": 15}' } });
   assert.deepEqual(gone.order, [20, 30, 10]);
-  assert.deepEqual(gone.uncapped, []);
+  assert.deepEqual(gone.deferred, []);
 });
 
 test("an unreadable cursor leaves the listing order with a warning", async () => {
