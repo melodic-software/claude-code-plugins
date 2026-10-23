@@ -66,10 +66,10 @@ else
 fi
 cap="$(sed -nE 's/^      RATE_LIMIT_WAIT_SECONDS: ([0-9]+)$/\1/p' <<<"$job")"
 timeout="$(sed -nE 's/^    timeout-minutes: ([0-9]+)$/\1/p' <<<"$job")"
-if [[ -n "$cap" && -n "$timeout" && $((2 * cap / 60 + 5)) -le "$timeout" ]]; then
-  ok "the job timeout ($timeout min) holds two ${cap}s wait windows plus the 5 min the other waits need"
+if [[ -n "$cap" && -n "$timeout" && $((2 * cap / 60 + 8)) -le "$timeout" ]]; then
+  ok "the job timeout ($timeout min) holds two ${cap}s wait windows plus the 8 min the other waits need"
 else
-  fail "the job timeout '$timeout' does not hold two '${cap}'s wait windows plus 5 minutes"
+  fail "the job timeout '$timeout' does not hold two '${cap}'s wait windows plus 8 minutes"
 fi
 if [[ "$(grep -c 'rate-limit-wait-seconds: \${{ env.RATE_LIMIT_WAIT_SECONDS }}' <<<"$job")" -eq 2 ]]; then
   ok "check-contract and aggregate-results wait under the same ceiling"

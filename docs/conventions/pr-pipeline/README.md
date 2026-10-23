@@ -1039,6 +1039,43 @@ such as a demotion record, a ruleset, an edit to a comment older than the newest
 outside the keyed paths, delays re-gating by at most those limits; a skip never merges, enqueues or
 drops an escalation.
 
+#### Native auto-merge
+
+The lane's `enable-auto-merge` activity, the `enable-auto-merge` job of `pr-merge.yml` with its
+own lanes App token (`.github/scripts/pr-merge/enable-auto-merge.mjs`, no model), turns on GitHub's
+native auto-merge (`enablePullRequestAutoMerge`, squash, `expectedHeadOid` the head it read) for
+each open lanes App pull request into main from a branch of this repository that is not a draft,
+opens with `Closes #<issue>`, and carries no hold: no `Hold:` line or "do not merge" in its body
+(the gate's own rule), no `do-not-merge` or human-gated label, and no member (owner, member or
+collaborator) whose newest comment, review or inline comment with text says "do not merge" (the
+gate's veto rule; a later comment lifts it), and whose head changes no path in the lane's
+`merge.diff-check.denied-paths`, read on the files the head changes at each run. It turns auto-merge off on an armed one that now fails
+any of those, and does not turn it back on once a person has turned it off. GitHub then merges the pull request through the merge queue
+once `ci-status` passes. The issue lane finishing (`workflow_run`) wakes it, so a pull request is
+armed right after report-outcome opens it; a listed human's edit, unlabel or ready wakes it too, so
+adding a `Hold:` line disarms at once; and the 15-minute schedule arms or disarms what the events
+missed. The token broker mints `merge` only for `pr-merge.yml`, and outside the schedule only for a
+listed human's run, so an issue run the lanes App started is armed by the next scheduled run. While
+`merge.report-only` is true it reports each decision and writes nothing.
+
+`ci-status` enforces the same holds on every lanes App pull request, the two text holds and the
+hold paths, so one added after arming stops the merge without waiting for this job: its step
+`Fail a lanes App pull request its body or a member holds` runs
+`.github/scripts/pr-merge/merge-holds.mjs` as main has it, the module `enable-auto-merge.mjs` arms
+by, over the live body, discussion and changed files (renamed-from paths included) against main's
+`merge.diff-check.denied-paths` plus the paths resolve-config always adds and the rest of the merge
+gate's HIGH floor (`CODEOWNERS`, `.gitmodules`, every plugin manifest), on each pull request
+event and in the merge queue, where a red group removes the pull request. A push that adds a hold
+path fails `ci-status` on its own head. A person on the trusted-actor list (as main has it) lifts a
+hold path by approving that head: their newest review of it that approves, requests changes or was
+dismissed must approve. Then re-run `ci-status`, since a review does not. The approval lifts no
+body hold or veto, and arming still skips the pull request, so that person merges it. The module is read at the pull request's base commit, so a lanes App pull
+request whose base predates the module fails `ci-status` closed until it is updated with main.
+Its own changes are held: `merge-holds.mjs` and this workflow sit under `.github/**`, a path
+resolve-config always denies, so a lanes App pull request cannot weaken the rule and merge itself. A body edit re-runs
+`ci-status` at once. A comment does not, so a veto posted while armed takes effect when the queue
+builds the group, and after a person lifts one with a later comment, `ci-status` needs a re-run.
+
 ### Dependabot pull requests
 
 No Dependabot pull request waits on a human
@@ -1462,7 +1499,7 @@ A review usually finishes after ci-status has read it, so `pr-feedback-dispatch.
 `rerun-ci-status` job re-runs the ci-status job of the newest `pr-require-checks` run on the head
 whenever either review caller completes (not when GitHub skipped it) on an open same-repository PR
 still at that head. A ci-status not started yet is left to read the reviews itself; one in progress
-is polled every 60 seconds first, for at most 26 minutes, past ci-status's 25-minute timeout. The
+is polled every 60 seconds first, for at most 29 minutes, past ci-status's 28-minute timeout. The
 merge-group run re-checks the labels.
 `fix-ci` keys on `ci-lanes`, so a hold or a pending review never summons it.
 
