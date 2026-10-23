@@ -3270,7 +3270,8 @@ jobs:
       # removal is of a later label, such as an escalation clear-escalations
       # lifts. A bot or another account lifting the hold, or no recorded
       # removal, fails; adding the label back and having a trusted person
-      # remove it approves.
+      # remove it approves: a trusted person's `labeled` event after the hold
+      # starts a new hold that only that list's removal lifts.
       # It runs only when the step above read the live labels and found the
       # label off. A hold is the newest hold comment or the newest `labeled`
       # event of the label by github-actions[bot] or claude[bot], whichever is
@@ -3332,8 +3333,13 @@ jobs:
             echo "::error::the trusted-actor list at $BASE_SHA names no person."
             exit 1
           }
-          lifted=$(jq -rs --arg label "$HUMAN_GATED" --arg held_at "$held_at" '[add[]
-            | select(.event == "unlabeled" and .label.name == $label and .created_at > $held_at)]
+          # A trusted person adding the label back starts a new hold that person's
+          # removal lifts, so a hold an untrusted account lifted can be recovered.
+          lifted=$(jq -rs --arg label "$HUMAN_GATED" --arg held_at "$held_at" --arg humans " $humans " '[add[]
+            | select(.label.name == $label)] as $events
+            | ([$held_at, ($events[] | select(.event == "labeled" and .created_at > $held_at
+                and (.actor.id as $id | $humans | contains(" \($id) "))) | .created_at)] | max) as $since
+            | [$events[] | select(.event == "unlabeled" and .created_at > $since)]
             | min_by(.created_at) // empty | [.created_at, (.actor.id // 0 | tostring), (.actor.login // "an unknown account")] | @tsv' <<<"$events") || {
             echo "::error::cannot read the events of #$PR_NUMBER."
             exit 1

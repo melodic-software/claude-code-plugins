@@ -164,6 +164,14 @@ expect "a trusted lift of a claude[bot] label passes with no comment" 0 "lifted 
 STUB_COMMENTS="[$HOLD]"
 STUB_EVENTS="[$OWNER_LIFT,$(labeled needs-human 2026-10-23T11:10:00Z 'github-actions[bot]'),$BOT_LIFT]"
 expect "a review re-run that labels the same head again needs its own trusted lift" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
+# Recovery: a trusted person adds the label back and removes it.
+TRUSTED_RELABEL="$(jq -cn '{event: "labeled", created_at: "2026-10-23T12:00:00Z", label: {name: "needs-human"}, actor: {id: 153232337, login: "kyle-sexton"}}')"
+STUB_EVENTS="[$BOT_LIFT,$TRUSTED_RELABEL,$(unlabeled needs-human 2026-10-23T12:05:00Z 153232337 kyle-sexton)]"
+expect "a trusted person re-adding and removing the label recovers a hold a bot lifted" 0 "lifted the review-lane hold"
+STUB_EVENTS="[$BOT_LIFT,$(labeled needs-human 2026-10-23T12:00:00Z),$(unlabeled needs-human 2026-10-23T12:05:00Z 153232337 kyle-sexton)]"
+expect "a bot re-adding the label does not move the hold" 1 "melodic-automation-lanes[bot] removed"
+STUB_EVENTS="[$BOT_LIFT,$TRUSTED_RELABEL,$(unlabeled needs-human 2026-10-23T12:05:00Z 4242 octocat)]"
+expect "an untrusted removal after a trusted re-add fails" 1 "octocat removed 'needs-human'"
 
 export STUB_EVENTS="[$OWNER_LIFT]"
 export STUB_ACTORS='{"version":1,"actors":[{"id":153232337,"login":"kyle-sexton","kind":"bot"}]}'

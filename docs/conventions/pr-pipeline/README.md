@@ -1394,8 +1394,8 @@ them on every `pull_request` run, contract-only runs included:
   newest `labeled` event of the label by `github-actions[bot]` or `claude[bot]`, whichever is later,
   so deleting the comment does not lift it. The first removal of the label after it must be by a `human` of the base's
   trusted-actor list; a later removal is of a later label, such as an escalation
-  `clear-escalations` lifts. A bot's or anyone else's lift, or none recorded, fails; add the label
-  back and have a trusted person remove it.
+  `clear-escalations` lifts. A bot's or anyone else's lift, or none recorded, fails. To recover, a
+  trusted person adds the label back, which starts a new hold, and a trusted person removes it.
 - **Both lanes review the head.** On a ready PR, the newest `pull_request` run of each caller on the
   head must have a successful status job (`pr-review / claude-review-status`,
   `pr-review-security / security-review`) whose `Apply the hold` step ran. A summary-mode run or
