@@ -35,6 +35,7 @@ if [[ ! -s "$TMP_ROOT/body.sh" ]]; then
   test_harness::report
   exit 1
 fi
+# shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell
 for env in 'HEAD_SHA: ${{ github.event.workflow_run.head_sha }}' 'PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}' "POLL_LIMIT_SECONDS: '600'"; do
   if [[ "$step" == *"$env"* ]]; then ok "step env carries $env"; else fail "step env lacks $env"; fi
 done
@@ -69,6 +70,7 @@ case "$*" in
 *) exit 1 ;;
 esac
 EOF
+# shellcheck disable=SC2016 # the stub expands $* and $STUB_LOG when it runs
 printf '#!/usr/bin/env bash\necho "sleep $*" >>"$STUB_LOG"\n' >"$TMP_ROOT/bin/sleep"
 chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep"
 

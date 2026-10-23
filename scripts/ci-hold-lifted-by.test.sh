@@ -43,6 +43,7 @@ if [[ "$step" == *"continue-on-error"* ]]; then
 else
   ok "step fails the job on its exit code"
 fi
+# shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell
 for env in 'BASE_SHA: ${{ github.event.pull_request.base.sha }}' 'HUMAN_GATED: ${{ steps.human_gated.outputs.label }}'; do
   if [[ "$step" == *"$env"* ]]; then ok "step env carries $env"; else fail "step env lacks $env"; fi
 done
@@ -123,7 +124,8 @@ export STUB_COMMENTS="[$SPOOF,$NO_FOOTER]"
 expect "a hold comment from a person or with no lane footer is not a hold" 0 "No review lane has held #6419."
 
 export STUB_COMMENTS="[$OLD_HOLD,$HOLD]"
-export STUB_EVENTS="[$(labeled needs-human 2026-10-23T09:59:00Z),$OWNER_LIFT]"
+export STUB_EVENTS
+STUB_EVENTS="[$(labeled needs-human 2026-10-23T09:59:00Z),$OWNER_LIFT]"
 expect "a trusted person's removal after the hold passes" 0 "kyle-sexton, a person on the trusted-actor list, lifted"
 if grep -qxF "api -H Accept: application/vnd.github.raw+json repos/o/r/contents/.github/standards/trusted-actors/trusted-actors.json?ref=$BASE" "$TMP_ROOT/log"; then
   ok "the trusted-actor list is read at the base commit"
@@ -132,10 +134,10 @@ else
 fi
 export STUB_EVENTS="[$OWNER_LIFT][$BOT_LIFT]"
 expect "a later escalation's removal by a bot, across pages, does not undo the trusted lift" 0 "kyle-sexton, a person on the trusted-actor list, lifted"
-export STUB_EVENTS="[$(unlabeled needs-human 2026-10-23T10:30:00Z 337595936 'melodic-automation-lanes[bot]'),$OWNER_LIFT]"
+STUB_EVENTS="[$(unlabeled needs-human 2026-10-23T10:30:00Z 337595936 'melodic-automation-lanes[bot]'),$OWNER_LIFT]"
 expect "a bot lifting the hold fails, whatever a trusted person did after" 1 \
   "::error::melodic-automation-lanes[bot] removed 'needs-human' from #6419 after a review lane held it, and is not a person on the trusted-actor list."
-export STUB_EVENTS="[$BOT_LIFT,$(unlabeled needs-human 2026-10-23T10:30:00Z 4242 octocat)]"
+STUB_EVENTS="[$BOT_LIFT,$(unlabeled needs-human 2026-10-23T10:30:00Z 4242 octocat)]"
 expect "the first removal after the hold decides, not the list order" 1 "octocat removed 'needs-human'"
 export STUB_EVENTS="[$EARLY_LIFT,$OWNER_LIFT]"
 expect "a removal before the hold comment is not its lift" 0 "lifted the review-lane hold"
@@ -144,9 +146,10 @@ expect "a removal before the newest hold comment does not lift it" 1 \
   "::error::a review lane held #6419 at 2026-10-23T10:00:00Z, and no removal of 'needs-human' since then is recorded."
 export STUB_EVENTS="[]"
 expect "a hold with no removal recorded fails closed" 1 "no removal of 'needs-human' since then is recorded"
-export STUB_EVENTS="[$(unlabeled other-label 2026-10-23T11:00:00Z 153232337 kyle-sexton)]"
+STUB_EVENTS="[$(unlabeled other-label 2026-10-23T11:00:00Z 153232337 kyle-sexton)]"
 expect "removing another label does not lift the hold" 1 "no removal of 'needs-human'"
-export HUMAN_GATED=owner-call STUB_EVENTS="[$(unlabeled owner-call 2026-10-23T11:00:00Z 153232337 kyle-sexton),$BOT_LIFT]"
+export HUMAN_GATED=owner-call
+STUB_EVENTS="[$(unlabeled owner-call 2026-10-23T11:00:00Z 153232337 kyle-sexton),$BOT_LIFT]"
 expect "the label is the one the human-gated step resolved" 0 "kyle-sexton, a person on the trusted-actor list"
 unset HUMAN_GATED
 
