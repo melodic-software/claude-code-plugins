@@ -84,6 +84,9 @@ _GH_API_VALUE_FLAGS = frozenset(
 )
 _GH_API_BODY_FLAGS = frozenset({"-f", "--raw-field", "-F", "--field", "--input"})
 _ROUTE_WORD_RE = re.compile(r"^[a-z][a-z_-]*$")
+# The segment after one of these words names an owner or a branch, which can
+# look like a route word (`orgs/melodic-software/repos`), so it is a value.
+_VALUE_AFTER_WORDS = frozenset({"orgs", "users", "branches"})
 _gh_call_counts: dict[str, int] = {}
 
 
@@ -93,7 +96,8 @@ def gh_call_kind(args: list[str], env_overrides: Mapping[str, str] | None) -> st
     The token is `override` when the call carries its own `GH_TOKEN`, else
     `default`. An `api` call is `graphql` or its HTTP method and route template:
     `gh api` sends GET, or POST once a body flag is given, unless `-X` names one.
-    Owner, repository, a branch, a contents path, and every segment that is not
+    Owner (after `repos/`, `orgs/` or `users/`), repository, a branch, a
+    contents path, and every segment that is not
     a lowercase route word become `{}`, and the query string is dropped, so no
     identifier, branch name,
     or other value reaches the log. `+paginate` marks a key whose invocations
@@ -126,7 +130,7 @@ def gh_call_kind(args: list[str], env_overrides: Mapping[str, str] | None) -> st
         is_value = (
             (segments[0] == "repos" and index in (1, 2))
             or not _ROUTE_WORD_RE.match(segment)
-            or (index > 0 and segments[index - 1] == "branches")
+            or (index > 0 and segments[index - 1] in _VALUE_AFTER_WORDS)
         )
         route.append("{}" if is_value else segment)
         if segment == "contents":

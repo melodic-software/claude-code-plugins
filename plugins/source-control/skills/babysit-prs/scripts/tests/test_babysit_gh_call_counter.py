@@ -68,6 +68,20 @@ class GhCallKindTests(unittest.TestCase):
             "default GET repos/{}/{}/compare/{}",
         )
 
+    def test_an_owner_that_looks_like_a_route_word_is_templated(self) -> None:
+        self.assertEqual(
+            self.kind("api", "orgs/melodic-software/repos?per_page=100", "--paginate"),
+            "default GET orgs/{}/repos+paginate",
+        )
+        self.assertEqual(
+            self.kind("api", "users/kyle-sexton/repos?per_page=100"),
+            "default GET users/{}/repos",
+        )
+        self.assertEqual(
+            self.kind("api", "repos/melodic-software/claude-code-plugins/pulls"),
+            "default GET repos/{}/{}/pulls",
+        )
+
     def test_a_field_makes_it_post_and_an_explicit_method_wins(self) -> None:
         self.assertEqual(
             self.kind("api", "repos/acme/widgets/issues/7/labels", "-f", "labels[]=x"),
