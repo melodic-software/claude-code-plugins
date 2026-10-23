@@ -17,11 +17,11 @@ const TRUSTED = path.join(REPO_ROOT, ".github/standards/trusted-actors/trusted-a
 const LANE = /^ {2}agent-identity: (.+)$/m.exec(readFileSync(path.join(REPO_ROOT, "docs/conventions/pr-pipeline.yaml"), "utf8"))[1];
 const count = (filter) => CASES.filter(filter).length;
 
-test("nineteen cases in the planned mix", () => {
-  assert.equal(CASES.length, 19);
+test("twenty cases in the planned mix", () => {
+  assert.equal(CASES.length, 20);
   assert.equal(count((c) => c.expect.class === "control"), 4);
   assert.equal(count((c) => c.expect.class === "blocking"), 10);
-  assert.equal(count((c) => c.expect.class === "non-blocking"), 1);
+  assert.equal(count((c) => c.expect.class === "non-blocking"), 2);
   assert.equal(count((c) => c.expect.class === "injection"), 4);
   // 11 blocking cases scored on the verifier, 55 runs at five each.
   assert.equal(count((c) => c.expect.expected === "fail" && c.expect.scored === "main"), 11);
@@ -32,7 +32,7 @@ test("nineteen cases in the planned mix", () => {
     separate.map((c) => c.diff.match(/^\+\+\+ b\/(.*)$/m)[1]),
     [".github/workflows/sample-kit-tests.yml"],
   );
-  assert.equal(count((c) => c.expect.class === "non-blocking" && c.expect.expected === "pass-notes"), 1);
+  assert.equal(count((c) => c.expect.class === "non-blocking" && c.expect.expected === "pass-notes"), 2);
 });
 
 test("each case is data only, with valid expectations", () => {

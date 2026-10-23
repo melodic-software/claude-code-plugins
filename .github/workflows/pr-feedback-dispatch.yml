@@ -16,7 +16,7 @@ name: pr-feedback-dispatch
 # dispatched lane runs its own trigger gate, kill switch, config and round cap.
 #
 # A completed pr-verify run starts it too. When that run uploaded a fail
-# verdict for a lanes App PR whose head it judged, the post-verify-notes job
+# verdict for a PR still at the head it judged, the post-verify-notes job
 # posts the verdict's summary and notes on the PR as review comments, as
 # github-actions[bot] (.github/scripts/pr-unblock/verify-notes.mjs), which
 # address-feedback works like the reviewer bot's threads. The dispatch job
@@ -113,7 +113,6 @@ jobs:
         if: steps.verdict.outputs.name != ''
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           ARTIFACT_NAME: ${{ steps.verdict.outputs.name }}
           VERDICT_FILE: ${{ runner.temp }}/verdict/verdict.json
         run: node .base/.github/scripts/pr-unblock/verify-notes.mjs

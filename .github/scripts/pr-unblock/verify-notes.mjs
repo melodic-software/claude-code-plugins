@@ -7,23 +7,25 @@
 // from that run's own artifact, which only steps of a pr-verify.yml run on
 // main can upload; the workflow checks the run before this runs.
 //
-// It posts only for an open lanes App pull request whose current head is the
-// one the FAIL judged, and only when no verifier note names that head yet, so
-// a re-run posts nothing twice. Each note that starts with a path the pull
+// It posts only for an open pull request whose current head is the one the
+// FAIL judged, and only when no verifier note names that head yet, so a re-run
+// posts nothing twice. On a pull request the lanes App did not open (an
+// adopted one, `merge.verify-authors: lane-or-owner`) no round starts, and the
+// notes tell its author why the pr-merge lane refuses it. Each note that starts with a path the pull
 // request changes (`path` or `path:line`, backticks allowed) goes on that
 // file; the summary and every other note go on the first such file, or on the
 // pull request's first changed file when no note names one. Model text is
 // quoted as data in a text fence, never interpolated into a command.
 //
-// Environment: GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_OUTPUT, APP_SENDER_ID
-// (the lanes App bot's user id), ARTIFACT_NAME (pr-verify-<pr>-<sha>-fail) and
+// Environment: GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_OUTPUT, ARTIFACT_NAME
+// (pr-verify-<pr>-<sha>-fail) and
 // VERDICT_FILE (its verdict.json). Writes pr-number and head-sha outputs once
 // the notes are on the pull request, posted now or by an earlier run.
 
 import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-import { createGitHubApi, MARKER_AUTHOR_ID, need, positive, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
+import { createGitHubApi, MARKER_AUTHOR_ID, need, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 
 export const FAIL_NAME = /^pr-verify-([1-9][0-9]{0,9})-([0-9a-f]{40})-fail$/;
 // GitHub refuses a comment body over 65536 characters; leave room for the
@@ -94,15 +96,11 @@ export function readVerdict(name, text) {
   return { pr: verdict.pr, head: verdict.head_sha, summary: verdict.summary, notes: verdict.notes };
 }
 
-export async function postNotes({ api, verdict, appSenderId, log }) {
+export async function postNotes({ api, verdict, log }) {
   const { pr, head } = verdict;
   const pull = await api.getPull(pr);
   if (pull.state !== "open" || pull.head?.sha !== head) {
     log(`skip: #${pr} is not open at head ${head}`);
-    return false;
-  }
-  if (pull.user?.id !== appSenderId) {
-    log(`skip: #${pr} was not opened by the lanes App`);
     return false;
   }
   const posted = (await api.listReviewComments(pr)).some(
@@ -126,7 +124,7 @@ export async function postNotes({ api, verdict, appSenderId, log }) {
 }
 
 export async function main(env, { api, log = (line) => console.log(line) } = {}) {
-  need(env, ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_OUTPUT", "APP_SENDER_ID", "ARTIFACT_NAME", "VERDICT_FILE"]);
+  need(env, ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_OUTPUT", "ARTIFACT_NAME", "VERDICT_FILE"]);
   const verdict = readVerdict(env.ARTIFACT_NAME, readFileSync(env.VERDICT_FILE, "utf8"));
   const client =
     api ??
@@ -136,7 +134,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
       apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
       graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
     });
-  if (await postNotes({ api: client, verdict, appSenderId: positive(env.APP_SENDER_ID, "APP_SENDER_ID"), log })) {
+  if (await postNotes({ api: client, verdict, log })) {
     appendFileSync(env.GITHUB_OUTPUT, `pr-number=${verdict.pr}\nhead-sha=${verdict.head}\n`);
   }
   return 0;

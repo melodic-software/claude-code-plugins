@@ -87,20 +87,20 @@ test("the verdict must be the fail its artifact name names", () => {
 test("the notes are posted as file comments on the judged head, once", async () => {
   const api = fakeApi();
   const verdict = readVerdict(NAME, verdictText());
-  assert.equal(await postNotes({ api, verdict, appSenderId: APP, log: () => {} }), true);
+  assert.equal(await postNotes({ api, verdict, log: () => {} }), true);
   assert.deepEqual(
     api.created.map(({ pr, path, commit_id, subject_type }) => ({ pr, path, commit_id, subject_type })),
     [{ pr: 42, path: "plugins/x/a.py", commit_id: HEAD, subject_type: "file" }],
   );
   // A re-run finds its own note at that head and posts nothing.
   const again = fakeApi({ reviewComments: [{ user: { id: ACTIONS_BOT }, commit_id: HEAD, body: api.created[0].body }] });
-  assert.equal(await postNotes({ api: again, verdict, appSenderId: APP, log: () => {} }), true);
+  assert.equal(await postNotes({ api: again, verdict, log: () => {} }), true);
   assert.deepEqual(again.created, []);
 });
 
 test("a posted note opens a thread address-feedback keeps", async () => {
   const api = fakeApi();
-  await postNotes({ api, verdict: readVerdict(NAME, verdictText()), appSenderId: APP, log: () => {} });
+  await postNotes({ api, verdict: readVerdict(NAME, verdictText()), log: () => {} });
   const row = { id: 100, user: { id: ACTIONS_BOT }, pull_request_review_id: 10, path: api.created[0].path, line: null, body: api.created[0].body };
   assert.deepEqual(threadAuthors([{ authorId: ACTIONS_BOT, body: row.body }], { reviewerId: 209825114, appId: APP }), [{ author: "verifier" }]);
   const kept = keepThreads({
@@ -114,13 +114,19 @@ test("a posted note opens a thread address-feedback keeps", async () => {
   assert.equal(kept.length, 1);
 });
 
-test("nothing is posted on a moved head, a closed PR or one the lanes App did not open", async () => {
+test("nothing is posted on a moved head or a closed PR", async () => {
   const verdict = readVerdict(NAME, verdictText());
-  for (const pull of [{ head: { sha: "b".repeat(40) } }, { state: "closed" }, { user: { id: 7 } }]) {
+  for (const pull of [{ head: { sha: "b".repeat(40) } }, { state: "closed" }]) {
     const api = fakeApi({ pull });
-    assert.equal(await postNotes({ api, verdict, appSenderId: APP, log: () => {} }), false);
+    assert.equal(await postNotes({ api, verdict, log: () => {} }), false);
     assert.deepEqual(api.created, []);
   }
+});
+
+test("an adopted PR the lanes App did not open gets the notes too, so its author sees why it is refused", async () => {
+  const api = fakeApi({ pull: { user: { id: 153232337 } } });
+  assert.equal(await postNotes({ api, verdict: readVerdict(NAME, verdictText()), log: () => {} }), true);
+  assert.equal(api.created.length, 1);
 });
 
 test("main names the PR and head only once the notes are on the PR", async () => {
@@ -129,7 +135,6 @@ test("main names the PR and head only once the notes are on the PR", async () =>
     GITHUB_TOKEN: "t",
     GITHUB_REPOSITORY: "o/r",
     GITHUB_OUTPUT: join(dir, "out"),
-    APP_SENDER_ID: String(APP),
     ARTIFACT_NAME: NAME,
     VERDICT_FILE: join(dir, "verdict.json"),
   };
