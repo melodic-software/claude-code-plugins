@@ -107,7 +107,8 @@ nothing else):
 1. PR is closed or not open
 2. Change has no security-relevant surface after reading the diff. A diff that deletes, narrows,
    or softens a standing instruction is not eligible for this skip until it has been read under
-   the instruction-surface lens below: it reads as prose-only while it can remove a control
+   the instruction-surface lens below: it reads as prose-only while it can remove a control. A
+   change to a `trust-gate` path ("Reporting") is never eligible for it either
 3. This head already has a successful security review that still applies
 
 ## Criteria
