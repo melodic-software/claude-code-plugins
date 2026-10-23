@@ -64,8 +64,9 @@ Manuals, each record a pointer, as-of date and recheck trigger:
   2026-10-04. Recheck when the host kernel's perf version changes.
 - heaptrack: <https://github.com/KDE/heaptrack>. GDB: <https://sourceware.org/gdb/documentation/>.
   As of 2026-10-04. Recheck on a new major release of either.
-- macOS `sample`, `spindump` and `leaks`: the man pages on the host (`man sample`). Recheck on a
-  macOS major release.
+- macOS `sample`, `spindump` and `leaks`: no Apple docs page covers their flags as of 2026-10-23,
+  so read the man pages on the host (`man sample`). Recheck on a macOS major release, or when an
+  Apple docs page starts to cover these tools' flags.
 
 ## Feature files
 
