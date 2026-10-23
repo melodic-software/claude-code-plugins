@@ -57,25 +57,51 @@ function evaluate(expression, context) {
     body = body.replaceAll(name, JSON.stringify(context[name]));
   }
   body = body.replace(/format\('\{0\}', ([^)]*)\)/g, "String($1)");
-  assert.doesNotMatch(body, /[A-Za-z_][\w-]*\.[\w.-]+/, `an unresolved context reference in ${body}`);
+  // String literals, a workflow path among them, hold no reference.
+  assert.doesNotMatch(body.replace(/'[^']*'|"[^"]*"/g, "''"), /[A-Za-z_][\w-]*\.[\w.-]+/, `an unresolved context reference in ${body}`);
   return Function(`return (${body});`)();
 }
 
 test("pr-feedback-dispatch.yml starts no runner for a skipped or cancelled review run", () => {
   const gate = jobIf("pr-feedback-dispatch.yml", "dispatch");
-  const runs = (conclusion) =>
+  const runs = (conclusion, event = "pull_request", posted = "") =>
     evaluate(gate, {
       "github.ref": "refs/heads/main",
       "github.repository": "melodic-software/claude-code-plugins",
-      "github.event.workflow_run.event": "pull_request",
+      "github.event.workflow_run.event": event,
       "github.event.workflow_run.head_repository.full_name": "melodic-software/claude-code-plugins",
       "github.event.workflow_run.conclusion": conclusion,
+      "needs.post-verify-notes.outputs.head-sha": posted,
     });
   assert.equal(runs("skipped"), false);
   assert.equal(runs("cancelled"), false);
   for (const conclusion of ["success", "failure"]) {
     assert.equal(runs(conclusion), true, conclusion);
   }
+  // A pr-verify run dispatches only once its notes are on the PR.
+  assert.equal(runs("success", "workflow_run"), false);
+  assert.equal(runs("success", "workflow_run", "a".repeat(40)), true);
+});
+
+test("pr-feedback-dispatch.yml posts verifier notes only for a pr-verify run of main", () => {
+  const gate = jobIf("pr-feedback-dispatch.yml", "post-verify-notes");
+  const repo = "melodic-software/claude-code-plugins";
+  const runs = (overrides = {}) =>
+    evaluate(gate, {
+      "github.ref": "refs/heads/main",
+      "github.repository": repo,
+      "github.event.workflow_run.path": ".github/workflows/pr-verify.yml",
+      "github.event.workflow_run.event": "workflow_run",
+      "github.event.workflow_run.head_branch": "main",
+      "github.event.workflow_run.repository.full_name": repo,
+      "github.event.workflow_run.head_repository.full_name": repo,
+      ...overrides,
+    });
+  assert.equal(runs(), true);
+  assert.equal(runs({ "github.event.workflow_run.path": ".github/workflows/pr-review-hosted.yml" }), false);
+  assert.equal(runs({ "github.event.workflow_run.event": "pull_request" }), false);
+  assert.equal(runs({ "github.event.workflow_run.head_branch": "feat/x" }), false);
+  assert.equal(runs({ "github.event.workflow_run.head_repository.full_name": "fork/repo" }), false);
 });
 
 const UNBLOCK = "pr-unblock.yml";

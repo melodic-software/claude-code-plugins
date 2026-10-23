@@ -25,6 +25,7 @@ const HEAD = "1111111111111111111111111111111111111111";
 const OLD_HEAD = "2222222222222222222222222222222222222222";
 const APP_ID = 337595936; // melodic-automation-lanes[bot]
 const ACTIONS_BOT = { login: "github-actions[bot]", id: 41898282 };
+const ACTIONS_BOT_NODE = { databaseId: 41898282 };
 const CLAUDE = { databaseId: 209825114 };
 const KYLE = { databaseId: 153232337 };
 const UPSTREAM_RUN_ID = "38779135732";
@@ -389,10 +390,68 @@ test("main writes run-id and takes the upstream run from the event file", async 
       { api, resolveSlot: async () => resolvedLane(), log: () => {} },
     );
     assert.equal(code, 0);
-    assert.equal(readFileSync(output, "utf8"), "run-id=38779200001\n");
+    assert.equal(readFileSync(output, "utf8"), `run-id=38779200001\nupstream-run-id=${UPSTREAM_RUN_ID}\n`);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// A pr-verify run ran on main: its head is main's, so main takes the head its
+// post-verify-notes job posted notes on, and the newest completed review run
+// there stands in as the upstream the record names.
+const VERIFY_RUN = upstreamRun({ id: 99, path: ".github/workflows/pr-verify.yml", event: "workflow_run", head_sha: OLD_HEAD });
+
+async function verifyMain(dir, api, head = HEAD) {
+  const output = join(dir, "output");
+  writeFileSync(output, "");
+  const lines = [];
+  await main(
+    {
+      GITHUB_TOKEN: "t",
+      GITHUB_REPOSITORY: REPOSITORY,
+      GITHUB_RUN_ID: RUN_ID,
+      GITHUB_OUTPUT: output,
+      GITHUB_EVENT_PATH: eventFile(dir, VERIFY_RUN),
+      APP_SENDER_ID: String(APP_ID),
+      TRUSTED_ACTORS: noActors(dir),
+      VERIFY_HEAD_SHA: head,
+    },
+    { api, resolveSlot: async () => resolvedLane(), log: (line) => lines.push(line) },
+  );
+  return { output: readFileSync(output, "utf8"), lines };
+}
+
+test("a pr-verify run dispatches through the newest review run at the posted head", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const note = { isResolved: false, comments: { nodes: [{ author: ACTIONS_BOT_NODE, body: "<!-- pr-verify:fail-note -->\nnotes" }], pageInfo: { hasNextPage: false } } };
+  const api = fakeApi({ threads: [note] });
+  const asked = [];
+  api.listCompletedRuns = async (path, head) => {
+    asked.push([path, head]);
+    return path.endsWith("pr-review-hosted.yml")
+      ? [upstreamRun({ id: 11, created_at: "2026-10-17T10:00:00Z" }), upstreamRun({ id: 12, conclusion: "cancelled", created_at: "2026-10-17T11:00:00Z" })]
+      : [upstreamRun({ id: 13, path, created_at: "2026-10-17T10:30:00Z" })];
+  };
+  const { output } = await verifyMain(dir, api);
+  assert.deepEqual(asked, [
+    [".github/workflows/pr-review-hosted.yml", HEAD],
+    [".github/workflows/pr-review-security-hosted.yml", HEAD],
+  ]);
+  assert.equal(api.calls.dispatch.length, 1);
+  assert.equal(output, "run-id=38779200001\nupstream-run-id=13\n");
+});
+
+test("a pr-verify run with no completed review run at the head dispatches nothing", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const api = fakeApi();
+  api.listCompletedRuns = async () => [upstreamRun({ conclusion: "skipped" })];
+  const { output, lines } = await verifyMain(dir, api);
+  assert.equal(output, "");
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.match(lines.at(-1), /no completed review run yet/);
+  await assert.rejects(verifyMain(dir, fakeApi(), ""), /VERIFY_HEAD_SHA/);
 });
 
 test("an event file that holds no workflow run fails the run", async (t) => {

@@ -33,6 +33,14 @@
 // The gate and the broker re-check the upstream run and the head; this script
 // only decides whether to spend a run.
 //
+// A completed pr-verify run starts the file too, once its post-verify-notes
+// job has posted a fail verdict's notes on the PR (verify-notes.mjs). For
+// that run, which ran on main, main() takes the head the notes name
+// (VERIFY_HEAD_SHA) and decides as above with the newest completed review
+// run at that head as the upstream (reviewRunAt); with none, the review run
+// that completes later dispatches. The dispatched-run record names that review
+// run, so the gate and the broker check one kind of upstream.
+//
 // Both review lanes, and any re-run, finish on one head, so a run leaves a
 // record for the next run at that head (dispatch-record.mjs, carried in the
 // Actions cache): a head whose check runs handle it for good is skipped before
@@ -103,6 +111,18 @@ export function hasWorkableThread(threads, { reviewerId, appId, trustedHumans, r
         { reviewerId, appId, trustedHumans, requesters, fixers },
       ) !== null,
   );
+}
+
+export const VERIFY_WORKFLOW = ".github/workflows/pr-verify.yml";
+
+// The newest completed review run at `head` that reviewed something (not
+// skipped or cancelled), or null.
+export async function reviewRunAt({ api, head, settings = DEFAULTS }) {
+  const runs = (await Promise.all(settings.reviewWorkflows.map((path) => api.listCompletedRuns(path, head))))
+    .flat()
+    .filter((run) => run.head_sha === head && run.event === "pull_request" && !["skipped", "cancelled"].includes(run.conclusion));
+  runs.sort((a, b) => Date.parse(b.created_at ?? "") - Date.parse(a.created_at ?? ""));
+  return runs[0] ?? null;
 }
 
 // pr-unblock.yml's run-name, which names the activity and the PR.
@@ -364,6 +384,11 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
       return (await request(`${repo}/actions/workflows/${workflow}/runs?event=workflow_dispatch&per_page=100`)).workflow_runs ?? [];
     },
     getWorkflowRun: (id) => request(`${repo}/actions/runs/${encodeURIComponent(id)}`),
+    // The newest completed pull_request runs of a workflow file at a head.
+    async listCompletedRuns(path, head) {
+      const query = new URLSearchParams({ head_sha: head, event: "pull_request", status: "completed", per_page: "10" });
+      return (await request(`${repo}/actions/workflows/${path.split("/").at(-1)}/runs?${query}`)).workflow_runs ?? [];
+    },
     async dispatchWorkflow({ workflow, ref, inputs }) {
       const result = await request(`${repo}/actions/workflows/${workflow}/dispatches`, "POST", {
         ref,
@@ -419,20 +444,33 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
   }
   const budget = api ? null : budgetedFetch({ log });
   const { record, text } = readRecord(env.DISPATCH_RECORD);
+  const client =
+    api ??
+    createGitHubApi({
+      token: env.GITHUB_TOKEN,
+      repository: env.GITHUB_REPOSITORY,
+      apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
+      graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+      fetch: budget.fetch,
+    });
+  let upstream = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8")).workflow_run;
+  if (upstream?.path === VERIFY_WORKFLOW) {
+    const head = env.VERIFY_HEAD_SHA ?? "";
+    if (!SHA.test(head)) {
+      throw new Error("a pr-verify run names no posted head in VERIFY_HEAD_SHA");
+    }
+    upstream = await reviewRunAt({ api: client, head });
+    if (upstream === null) {
+      log(`skip: head ${head} has no completed review run yet; the review run dispatches when it completes`);
+      return 0;
+    }
+  }
   const dispatched = await dispatchFeedback({
-    api:
-      api ??
-      createGitHubApi({
-        token: env.GITHUB_TOKEN,
-        repository: env.GITHUB_REPOSITORY,
-        apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
-        graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
-        fetch: budget.fetch,
-      }),
+    api: client,
     record,
     repository: env.GITHUB_REPOSITORY,
     runId: env.GITHUB_RUN_ID,
-    upstream: JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8")).workflow_run,
+    upstream,
     appSenderId: Number(env.APP_SENDER_ID),
     // The base checkout's list, the one resolve-config reads beside it.
     trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`),
@@ -445,7 +483,7 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
     }
   });
   if (dispatched !== null) {
-    appendFileSync(env.GITHUB_OUTPUT, `run-id=${dispatched.workflowRunId}\n`);
+    appendFileSync(env.GITHUB_OUTPUT, `run-id=${dispatched.workflowRunId}\nupstream-run-id=${upstream.id}\n`);
   }
   if (writeRecord(env.DISPATCH_RECORD, record, text)) {
     appendFileSync(env.GITHUB_OUTPUT, "record-changed=true\n");

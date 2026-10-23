@@ -2782,7 +2782,8 @@ RISK_ESCALATION_LINE = (
     "the pr-merge lane added the human-gated label."
 )
 VERIFY_ESCALATION_MARKER = "<!-- babysit-merge-verify-escalation -->"
-# The most of a verdict's summary a verify:fail escalation quotes (judgment).
+# The most of a verdict's summary a verify:repeated-fail escalation quotes
+# (judgment).
 VERIFY_SUMMARY_MAX = 1500
 QUEUE_EJECTION_MARKER = "<!-- babysit-merge-queue-ejections -->"
 MAJOR_ESCALATION_MARKER = "<!-- babysit-merge-dependabot-major -->"
@@ -3469,20 +3470,13 @@ def escalate_verify(
     inputs: Mapping[str, Any],
     summary: str | None = None,
 ) -> dict[str, Any]:
-    """`escalate` for a needs-human verifier refusal. A `verify:fail`,
-    `verify:earlier-fail` or `verify:repeated-fail` with no `summary`
-    (unreadable, or a fail at an earlier head) quotes the last fail summary
-    its comment carried, so an unreadable artifact rewrites nothing and the
-    reason outlives the head. Either of the last two whose carried quote is a
-    fail at this head is that fail read as unreadable this run: it stays
-    `verify:fail`."""
+    """`escalate` for a needs-human verifier refusal. A
+    `verify:repeated-fail` with no `summary` (unreadable, or no fail at the
+    head) quotes the last fail summary its comment carried, so an unreadable
+    artifact rewrites nothing and the reason outlives the head."""
     head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
     carried = None
-    if summary is None and refusal in (
-        verify_evidence.FAIL,
-        verify_evidence.EARLIER_FAIL,
-        verify_evidence.REPEATED_FAIL,
-    ):
+    if summary is None and refusal == verify_evidence.REPEATED_FAIL:
         comments = inputs.get("comments")
         if comments is None:
             comments = fetch_paginated_api(
@@ -3491,8 +3485,6 @@ def escalate_verify(
             )
             inputs = {**inputs, "comments": comments}
         carried = _carried_quote(comments, identity)
-        if carried and carried[0] == head:
-            refusal = verify_evidence.FAIL
     body = verify_escalation_body(refusal, head, summary, carried)
     return escalate(repo, number, identity, body, VERIFY_ESCALATION_MARKER, inputs)
 
@@ -3500,14 +3492,14 @@ def escalate_verify(
 def _fail_summary(
     verify: Mapping[str, Any], inputs: Mapping[str, Any], number: int
 ) -> str | None:
-    """The summary of the head FAIL a `verify:fail` refusal names, read
-    through the gate's verdict reader; None for any other refusal or when the
-    record cannot be read."""
+    """The summary of the head FAIL a `verify:repeated-fail` refusal names,
+    read through the gate's verdict reader; None for any other refusal, with
+    no FAIL at the head, or when the record cannot be read."""
     fail = json_object(verify.get("headFail"))
     reader = inputs.get("verify_reader")
     run_id, name = fail.get("run"), fail.get("artifact")
     if (
-        verify.get("refusal") != verify_evidence.FAIL
+        verify.get("refusal") != verify_evidence.REPEATED_FAIL
         or not isinstance(reader, verify_evidence.Reader)
         or not isinstance(run_id, int)
         or not isinstance(name, str)
