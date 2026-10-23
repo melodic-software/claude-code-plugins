@@ -50,6 +50,24 @@ class GhCaptureTests(unittest.TestCase):
                 _, call = self.capture(env_overrides=overrides)
                 self.assertIsNone(call["env"])
 
+    def test_binary_keeps_stdout_as_bytes_and_decodes_stderr(self) -> None:
+        # An artifact archive is not UTF-8; gh's message on stderr is.
+        archive = b"PK\x03\x04\xff\x00"
+        done = subprocess.CompletedProcess(["gh"], 0, archive, "réponse".encode())
+        with (
+            mock.patch.object(util.shutil, "which", return_value="/bin/gh"),
+            mock.patch.object(util.subprocess, "run", return_value=done) as run,
+        ):
+            proc = gh.gh_capture(
+                ["api", "repos/o/r/actions/artifacts/7/zip"], binary=True
+            )
+        self.assertEqual(proc.stdout, archive)
+        self.assertEqual(proc.stderr, "réponse")
+        self.assertFalse(run.call_args.kwargs["text"])
+        self.assertIsNone(run.call_args.kwargs["encoding"])
+        _, call = self.capture()
+        self.assertTrue(call["text"])
+
 
 class ParseRepoTests(unittest.TestCase):
     def test_repo_number_canonicalizes_owner_casing(self) -> None:
