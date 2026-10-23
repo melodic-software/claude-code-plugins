@@ -180,8 +180,11 @@ control: it decides whether a slot runs, never what its token may do. Like `reso
 a `Rejection` whose `code` names the failure. `files.activityRules` is required: a caller that
 passes none is rejected with `activity-rules`. The broker passes only the files its
 `binding.mjs` lists, so a file `loadConfig` comes to need must join that list, and the
-`test_files` list of azure-iac's `scripts/deploy/fetch-resolve-config.sh`, in the same pin bump;
-[`broker-vendoring.test.mjs`](broker-vendoring.test.mjs) checks both against a copy of those lists.
+`test_files` list of azure-iac's `scripts/deploy/fetch-resolve-config.sh`, in an azure-iac change
+deployed before this one merges. The broker loads `resolve.mjs` and the sibling modules it imports
+from this repository's `main`, whichever repository calls, beside its own `ajv` and `yaml`;
+[`broker-vendoring.test.mjs`](broker-vendoring.test.mjs) checks the lists, the import walk and the
+packages against a copy of the broker's.
 
 ## Job contract
 

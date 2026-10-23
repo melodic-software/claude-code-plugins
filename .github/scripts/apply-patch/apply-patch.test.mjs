@@ -351,7 +351,7 @@ for (const [path, edit] of [
       writeFileSync(join(repo, "README.md"), "# fixed\n");
       edit(repo);
     });
-    assert.equal((await pushWith(fix, fakeApi(fix.repo, fix.head), { lane: "pr-unblock", activity: "fix-docs" })).outcome, "pushed");
+    assert.equal((await pushWith(fix, fakeApi(fix.repo, fix.head), { lane: "pr-refine", activity: "fix-docs" })).outcome, "pushed");
   });
 }
 
@@ -363,7 +363,7 @@ test("a fix-docs patch that edits docs/CODEOWNERS is refused patch-protected-pat
   });
   const api = fakeApi(fix.repo, fix.head);
   const lines = [];
-  assert.deepEqual(await pushWith(fix, api, { lane: "pr-unblock", activity: "fix-docs", log: (line) => lines.push(line) }), {
+  assert.deepEqual(await pushWith(fix, api, { lane: "pr-refine", activity: "fix-docs", log: (line) => lines.push(line) }), {
     outcome: "escalate",
     escalationReason: "patch-protected-path",
   });
@@ -386,12 +386,12 @@ test("a fix-docs patch of 300 files pushes, and one of 301 escalates patch-inval
   assert.deepEqual(refused.calls, []);
 });
 
-test("a fix-docs patch commits Apply fix-docs on the head with the Lane-Activity: pr-unblock/fix-docs trailer", async (t) => {
+test("a fix-docs patch commits Apply fix-docs on the head with the Lane-Activity: pr-refine/fix-docs trailer", async (t) => {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# fixed\n"));
   const api = fakeApi(fix.repo, fix.head);
-  assert.deepEqual(await pushWith(fix, api, { lane: "pr-unblock", activity: "fix-docs" }), { outcome: "pushed", commit: "c".repeat(40), branch: "feat/x" });
+  assert.deepEqual(await pushWith(fix, api, { lane: "pr-refine", activity: "fix-docs" }), { outcome: "pushed", commit: "c".repeat(40), branch: "feat/x" });
   const { createCommit } = api.calls.find((call) => call.createCommit);
-  assert.equal(createCommit.message, "Apply fix-docs on feat/x\n\nLane-Activity: pr-unblock/fix-docs\n");
+  assert.equal(createCommit.message, "Apply fix-docs on feat/x\n\nLane-Activity: pr-refine/fix-docs\n");
   assert.deepEqual(createCommit.parents, [fix.head]);
 });
 
