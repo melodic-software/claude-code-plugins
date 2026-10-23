@@ -224,7 +224,7 @@ describe("decide", () => {
 
   describe("criterion 7 from the lanes App's refinement comment", () => {
     const thin = issueOf({ body: "Make the README skill count right." });
-    const refinement = (user, body = `${REFINE_MARKER}\n**Refinement.**\n\n- [ ] Line 3 says nineteen.`) => ({ id: 41, body, user });
+    const refinement = (user, body = `${REFINE_MARKER}\n**Refinement.**\n\n- [ ] Line 3 says nineteen.`) => ({ id: 41, body, user, created_at: "2026-10-20T00:00:00Z" });
     const app = { id: APP, login: "melodic-automation-lanes[bot]", type: "Bot" };
 
     test("admits a thin issue whose task list is in the App's refinement comment", () => {
@@ -239,6 +239,14 @@ describe("decide", () => {
       ["the App, with only a quoted task list", refinement(app, `${REFINE_MARKER}\n> - [ ] Line 3 says nineteen.`)],
       ["the App's admission comment", refinement(app, `${ADMIT_MARKER}\n- [ ] Line 3 says nineteen.`)],
     ];
+    test("a refinement older than the body's last edit does not count; one newer does", () => {
+      const before = decide(facts({ issue: thin, comments: [refinement(app)], bodyEditedAt: "2026-10-21T00:00:00Z" }));
+      assert.equal(before.verdict, "refuse");
+      assert.match(before.reasons.join(), /task list/);
+      const after = decide(facts({ issue: thin, comments: [refinement(app)], bodyEditedAt: "2026-10-19T00:00:00Z" }));
+      assert.equal(after.verdict, "admit");
+    });
+
     for (const [name, comment] of lookalikes) {
       test(`a look-alike from ${name} does not count`, () => {
         const result = decide(facts({ issue: thin, comments: [comment] }));
@@ -251,11 +259,14 @@ describe("decide", () => {
 
 // A fake GitHub for admit(): the issue, its parent, blockers, timeline,
 // events and comments, recording every call.
-function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, timeline = [], events = [], comments = [] } = {}) {
+function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, timeline = [], events = [], comments = [], bodyEditedAt = null } = {}) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
     const base = "/repos/o/r/issues/7";
+    if (method === "POST" && path === "/graphql") {
+      return { data: { repository: { issue: { lastEditedAt: bodyEditedAt } } } };
+    }
     if (method !== "GET") {
       return null;
     }
@@ -385,6 +396,8 @@ describe("admit", () => {
     assert.equal(refined.outcome, "admitted");
     const copied = await go(fakeGitHub({ issue: thin, comments: [comment({ id: OUTSIDER, login: "someone", type: "User" })] }));
     assert.equal(copied.outcome, "refused");
+    const rewritten = await go(fakeGitHub({ issue: thin, bodyEditedAt: "2026-10-21T00:00:00Z", comments: [{ ...comment({ id: APP, login: "melodic-automation-lanes[bot]", type: "Bot" }), created_at: "2026-10-20T00:00:00Z" }] }));
+    assert.equal(rewritten.outcome, "refused", "the body changed after the refinement");
   });
 
   test("an open blocker posts the reason and keeps status: ready", async () => {

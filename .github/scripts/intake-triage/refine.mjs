@@ -26,10 +26,10 @@
 // `**Decision recorded.**` sends back through intake-reenter.yml. It never
 // adds `agent-ready` or `needs-human`.
 //
-// Model text is data: each field is rendered on one line, with `<` escaped,
-// mentions and issue references broken, and a leading `[` escaped, so it
-// cannot forge a marker, ping anyone, cross-reference an issue, or add a task
-// list line outside the criteria.
+// Model text is data: each field is rendered on one line, with `<`, `[`, `]`,
+// `(` and `)` escaped and mentions, `#N` and `GH-N` references and `://`
+// broken, so it cannot forge a marker, ping anyone, cross-reference an issue,
+// add a link or autolink, or add a task list line outside the criteria.
 //
 // Environment:
 //   GITHUB_TOKEN / GH_TOKEN   the job's read token (--select) or the lanes App token (--apply)
@@ -95,7 +95,9 @@ export function searchTerms(title) {
   return [...new Set(words)].slice(0, 4);
 }
 
-async function candidates(github, repository, issue) {
+// Only items a listed human or the lanes App opened: anyone can open an issue
+// here, and its title reaches the model.
+async function candidates(github, repository, issue, trusted) {
   const terms = searchTerms(issue.title);
   if (terms.length === 0) {
     return [];
@@ -105,7 +107,7 @@ async function candidates(github, repository, issue) {
     const q = encodeURIComponent(`repo:${repository} ${kind} ${terms.join(" OR ")}`);
     const answer = await github("GET", `/search/issues?q=${q}&per_page=${CANDIDATES}`);
     for (const item of answer?.items ?? []) {
-      if (item?.number !== issue.number && Number.isInteger(item?.number) && !found.some((seen) => seen.number === item.number)) {
+      if (item?.number !== issue.number && Number.isInteger(item?.number) && trusted(item.user?.id) && !found.some((seen) => seen.number === item.number)) {
         found.push({
           number: item.number,
           kind: item.pull_request ? "pull request" : "issue",
@@ -156,7 +158,7 @@ export async function selectRefinement({ github, repository, number, humans, app
       thin: reasons,
       triage: String(lane[0].body),
       comments: kept.map(({ comment }) => ({ author: comment.user?.login ?? "", created_at: comment.created_at ?? null, body: String(comment.body ?? "") })),
-      candidates: await candidates(github, repository, issue),
+      candidates: await candidates(github, repository, issue, (id) => humans.has(id) || (appId !== undefined && id === appId)),
     },
   };
 }
@@ -208,8 +210,13 @@ export function validateOutput(output, known) {
 // One line of model text, unable to forge markup the lanes read.
 export function line(text) {
   let out = String(text).replaceAll(/\s+/g, " ").trim().slice(0, TEXT_MAX);
-  out = out.replaceAll("<", "&lt;").replaceAll("@", "@​").replaceAll(/#(?=\d)/g, "#​");
-  return out.startsWith("[") ? `\\${out}` : out;
+  out = out
+    .replaceAll("<", "&lt;")
+    .replaceAll("@", "@​")
+    .replaceAll(/(#|GH-)(?=\d)/gi, "$1​")
+    .replaceAll(/[[\]()]/g, "\\$&")
+    .replaceAll("://", ":/​/");
+  return out;
 }
 
 export function render(output) {

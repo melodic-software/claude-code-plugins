@@ -15,7 +15,8 @@
 //   `sizes` and `uncertainty`;
 // - 7: the body, or a comment the lanes App's account posted opening with
 //   REFINE_MARKER (refine.mjs, which writes a task list only for an issue
-//   it made exact), has a `task-list` line, the criteria the lane checks;
+//   it made exact) after the body's last edit, has a `task-list` line, the
+//   criteria the lane checks;
 // - 8: no `refuse-labels` label, every blocker a merged pull request or an
 //   issue closed as completed by a listed human or a merge here (the close
 //   work-unblock counts), and no open pull request in this repository names
@@ -81,7 +82,7 @@ export const openPullsNaming = (timeline, repository) =>
 const names = (labels) => (labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
 
 // {verdict: admit | refuse | wait | skip, reasons}. Pure.
-export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, timeline, events, comments = [], humans, appId, repository }) {
+export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, timeline, events, comments = [], bodyEditedAt = null, humans, appId, repository }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
@@ -117,8 +118,9 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (!rules.uncertainty.includes(verdict.dimensions?.uncertainty)) {
     refuse.push(`Uncertainty ${verdict.dimensions?.uncertainty} is not one of ${rules.uncertainty.join(", ")}`);
   }
-  const refinements = comments
-    .filter((comment) => appId !== undefined && comment?.user?.id === appId && String(comment.body ?? "").startsWith(REFINE_MARKER))
+  // A refinement drafted before the body's last edit may not fit the body now.
+  const refinements = refinementsOf(comments, appId)
+    .filter((comment) => bodyEditedAt === null || Date.parse(comment.created_at) >= Date.parse(bodyEditedAt))
     .map((comment) => String(comment.body));
   const lines = [String(issue.body ?? ""), ...refinements].flatMap((text) => text.split("\n"));
   if (!lines.some((line) => line.trimStart().startsWith(rules["task-list"]))) {
@@ -183,6 +185,23 @@ async function sayWhy(github, repository, base, comments, text) {
 
 // Reads the issue fresh, decides, and writes. `status` answers check-wip-cap's
 // status for the issue lane. Returns {outcome, reasons}.
+const refinementsOf = (comments, appId) =>
+  comments.filter((comment) => appId !== undefined && comment?.user?.id === appId && String(comment.body ?? "").startsWith(REFINE_MARKER));
+
+const BODY_EDIT_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) { issue(number: $number) { lastEditedAt } }
+}`;
+
+// When the issue's body was last edited, or null when never. An unexpected shape throws.
+async function bodyEditedAtOf(github, repository, number) {
+  const [owner, name] = repository.split("/");
+  const issue = (await github("POST", "/graphql", { query: BODY_EDIT_QUERY, variables: { owner, name, number: Number(number) } }))?.data?.repository?.issue;
+  if (issue === null || typeof issue !== "object" || (issue.lastEditedAt !== null && typeof issue.lastEditedAt !== "string")) {
+    throw new Error("the issue's body edit time has an unexpected shape");
+  }
+  return issue.lastEditedAt;
+}
+
 export async function admit({ github, repository, number, verdict, rules, humans, appId, status, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
@@ -201,6 +220,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
   const decision = decide({
     issue,
     comments,
+    bodyEditedAt: refinementsOf(comments, appId).length > 0 ? await bodyEditedAtOf(github, repository, number) : null,
     verdict,
     rules,
     parent: rules["types-under-parent"].includes(issue.type?.name) ? await parentOf(github, base) : null,

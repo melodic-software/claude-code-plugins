@@ -14,6 +14,7 @@ import { afterEach, beforeEach, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { REFINE_MARKER } from "../intake-triage/admit.mjs";
 import { MAX_OTHER_COMMENTS, main } from "./write-issue.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -156,6 +157,18 @@ test("leaves out the lanes App's own comments, which quote the issue body", asyn
     fakeGitHub({ comments: [comment(11, LANES_BOT, "**Decision recorded.** quoted from the body")] }),
   );
   assert.deepEqual(issue.comments, []);
+});
+
+test("keeps the lanes App's intake refinement, tagged refinement, whose criteria admission counted", async () => {
+  const { issue } = await run(
+    fakeGitHub({
+      comments: [
+        comment(11, LANES_BOT, `${REFINE_MARKER}\n**Refinement.**\n\n- [ ] Line 3 says nineteen.`),
+        comment(12, LANES_BOT, "**Decision recorded.** quoted from the body"),
+      ],
+    }),
+  );
+  assert.deepEqual(summary(issue), [["melodic-automation-lanes[bot]", "refinement", false]]);
 });
 
 test("a decision line inside a quote or code fence, or not first, is no decision", async () => {
