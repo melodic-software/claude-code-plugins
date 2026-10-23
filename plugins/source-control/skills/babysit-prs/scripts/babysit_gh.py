@@ -736,12 +736,29 @@ def view_pr_fields(
     return cast(dict[str, Any], data), True
 
 
+_archived_by_repo: dict[str, bool] = {}
+
+
 def repository_is_archived(repo: str) -> bool:
     """Whether the repository is archived, over GraphQL or REST.
 
     `gh repo view --json` is GraphQL-backed and 403s alongside `gh pr view`;
-    `GET /repos/{owner}/{repo}` reports the same fact as `.archived`.
+    `GET /repos/{owner}/{repo}` reports the same fact as `.archived`. The
+    answer is kept per process, keyed by the casefolded repository, so a
+    snapshot of N pull requests in one repository reads it once; a failed
+    read is not kept, and the next lookup reads again.
     """
+    key = repo.casefold()
+    if key not in _archived_by_repo:
+        _archived_by_repo[key] = _read_repository_archived(repo)
+    return _archived_by_repo[key]
+
+
+def reset_repository_archived_cache() -> None:
+    _archived_by_repo.clear()
+
+
+def _read_repository_archived(repo: str) -> bool:
     try:
         repository = gh_json_graphql(
             ["repo", "view", repo, "--json", "isArchived"],
@@ -1484,7 +1501,9 @@ def collect_lane_runs(
     reused branch's older runs with whichever pull request is open on it now,
     so without the bound a long-lived branch reads every earlier pull
     request's runs. A value that is not a UTC timestamp leaves it unbounded. Each kept run's attempt count comes
-    from a fresh `GET actions/runs/{id}` taken after the listing; each attempt
+    from a fresh `GET actions/runs/{id}` taken after the listing, and that
+    response stands in for its latest attempt, so only earlier attempts are
+    read from `attempts/{n}`; each attempt
     carries its jobs, and each lane job its check run's annotations. Any read
     failure, a deleted or expired run included, raises `RuntimeError`, which
     the caller turns into unbound evidence; so does a listing that reached
@@ -1543,7 +1562,9 @@ def collect_lane_runs(
             attempts = []
             for n in range(1, count + 1):
                 base = f"repos/{repo}/actions/runs/{run_id}/attempts/{n}"
-                attempt = json_object(read(base))
+                # The run object is its latest attempt: the two responses
+                # differ only in `jobs_url` and `logs_url`, which nothing reads.
+                attempt = latest if n == count else json_object(read(base))
                 jobs = pages(f"{base}/jobs?per_page=100", f"run {run_id} jobs", "jobs")
                 for job in jobs:
                     if str(job.get("name") or "").rsplit(" / ", 1)[-1] == job_suffix:
