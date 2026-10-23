@@ -380,6 +380,15 @@ test("a verdict named with its head-ref digest stops a new judgment like one wit
   for (const name of [`pr-verify-41-${HEAD}-pass-${REF_DIGEST}`, `pr-verify-99-${HEAD}-fail-${OTHER_DIGEST}`]) {
     assert.equal(await reason({ pulls, artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77) } }), "already-judged", name);
   }
+  // Any branch name is looked up by its digest, whatever characters it holds:
+  // the first 16 hex digits of `printf %s <ref> | sha256sum`.
+  for (const [ref, digest] of [["feat/a+b", "a27da2afd9962004"], ["fix/\u00e9", "8c8a071ad0e51f5e"]]) {
+    const head = { sha: HEAD, ref, repo: { full_name: REPO } };
+    const odd = [pull({ head }), pull({ number: 99, state: "closed", head })];
+    for (const name of [`pr-verify-41-${HEAD}-pass-${digest}`, `pr-verify-99-${HEAD}-fail-${digest}`]) {
+      assert.equal(await reason({ pulls: odd, artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77) } }), "already-judged", name);
+    }
+  }
   // A digest of another branch is not this pull request's verdict.
   const foreign = artifact(`pr-verify-41-${HEAD}-pass-${OTHER_DIGEST}`, 77);
   assert.equal(await reason({ pulls, artifacts: [foreign], runs: { 77: verifyRun(77) } }), "ok");

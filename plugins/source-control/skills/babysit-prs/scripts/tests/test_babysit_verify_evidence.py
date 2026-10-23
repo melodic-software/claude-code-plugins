@@ -2955,6 +2955,20 @@ class AnUntiedFailIsTiedByItsNamedHeadRef(unittest.TestCase):
         )
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
+    def test_any_branch_name_ties_by_its_digest(self) -> None:
+        # The first 16 hex digits of `printf %s <ref> | sha256sum`.
+        for ref, digest in (
+            ("feat/a+b", "a27da2afd9962004"),
+            ("fix/\u00e9", "8c8a071ad0e51f5e"),
+        ):
+            with self.subTest(ref):
+                fake = FakeGitHub(
+                    [artifact(named(TIE, "fail", 97) + f"-{digest}", 4)], {4: run(4)}
+                )
+                pr = pull(head={"ref": ref, "sha": HEAD})
+                self.assertEqual(read(fake, pr).refusal, "verify:earlier-fail")
+                self.assertEqual(downloads(fake), 0)
+
     def test_a_malformed_digest_is_no_verdict(self) -> None:
         for suffix in ("-79B4CC554B80DCA6", "-79b4cc554b80dca", "-79b4cc554b80dca6x"):
             with self.subTest(suffix):

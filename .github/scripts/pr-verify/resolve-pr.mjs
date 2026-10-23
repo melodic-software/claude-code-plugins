@@ -51,7 +51,6 @@ const VERIFY_AUTHORS = Object.freeze(["lane", "lane-or-owner", "any"]);
 const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
 const NAME = /^pr-verify-([1-9][0-9]*)-([0-9a-f]{40})-(pass|pass-notes|fail)(?:-[0-9a-f]{16})?$/;
-const REF = /^[A-Za-z0-9._/-]+$/;
 const MAX_PAGES = 100;
 
 const SPEC_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
@@ -159,10 +158,11 @@ async function pullsOfCommit(github, repository, head) {
 // requests carry, each without a head-ref digest (an older verdict) and with
 // the digest of that pull request's head branch (write-verdict.mjs).
 async function judged({ github, repository, number, head, base, refs }) {
-  const named = (pr, verdict) => [
-    `pr-verify-${pr}-${head}-${verdict}`,
-    ...(REF.test(refs.get(pr) ?? "") ? [`pr-verify-${pr}-${head}-${verdict}-${headRefDigest(refs.get(pr))}`] : []),
-  ];
+  // The digest is hex whatever the branch holds, so any non-empty one is looked up.
+  const named = (pr, verdict) => {
+    const ref = refs.get(pr);
+    return [`pr-verify-${pr}-${head}-${verdict}`, ...(ref ? [`pr-verify-${pr}-${head}-${verdict}-${headRefDigest(ref)}`] : [])];
+  };
   const names = [
     ...["pass", "pass-notes", "fail"].flatMap((verdict) => named(number, verdict)),
     ...[...refs.keys()].filter((other) => other !== number).flatMap((other) => named(other, "fail")),
