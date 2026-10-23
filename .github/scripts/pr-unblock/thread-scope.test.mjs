@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { inThreadScope, isProtectedPath } from "./thread-scope.mjs";
+import { inThreadScope, isProtectedPath, prPathsOf } from "./thread-scope.mjs";
 
 const kept = new Set(["plugins/p/evals/c/graders/x.md", "src/a.js"]);
 
@@ -222,5 +222,68 @@ test("more code files are refused", () => {
 test("a path with a non-ASCII letter is refused, even as a kept thread's own path", () => {
   for (const path of ["plugins/p/hooKs/hooks.json", "plugins/p/AGENTſ.md", "plugins/p/run.ſh", "plugins/p/café.md"]) {
     assert.equal(inThreadScope(path, new Set([...kept, path])), false, path);
+  }
+});
+
+// A finding on a doc whose fix lives in a script the pull request also
+// changes: thread on A, fix in B.
+const DOC = "plugins/p/skills/s/converge.md";
+const SCRIPT = "plugins/p/skills/s/scripts/converge-plan.sh";
+
+test("a file the PR already changes is in every kept thread's scope", () => {
+  const prPaths = new Set(prPathsOf([{ filename: DOC }, { filename: SCRIPT }, { filename: "src/b.js", previous_filename: "src/old.js" }]));
+  for (const path of [SCRIPT, "src/b.js", "src/old.js"]) {
+    assert.equal(inThreadScope(path, new Set([DOC]), [], { prPaths }), true, path);
+  }
+});
+
+test("a file the PR does not change stays outside a thread's scope", () => {
+  const prPaths = new Set([DOC]);
+  assert.equal(inThreadScope(SCRIPT, new Set([DOC]), [], { prPaths }), false);
+  assert.equal(inThreadScope("src/b.js", new Set([DOC]), [], { prPaths }), false);
+});
+
+test("a fix that adds a file the PR lists gets no pr_paths scope", () => {
+  const prPaths = new Set([DOC, SCRIPT, "src/b.js"]);
+  assert.equal(inThreadScope(SCRIPT, new Set([DOC]), [], { prPaths, added: true }), false);
+  assert.equal(inThreadScope("src/b.js", new Set([DOC]), [], { prPaths, added: true }), false);
+  // A new file stays in the thread's own scope as before.
+  assert.equal(inThreadScope("plugins/p/skills/s/new.md", new Set([DOC]), [], { prPaths, added: true }), true);
+});
+
+test("a protected, instruction, HIGH floor or control-plane path the PR changes is refused", () => {
+  const refused = [
+    ".github/workflows/x.yml",
+    ".GitHub/Workflows/x.yml",
+    "CODEOWNERS",
+    ".github/CODEOWNERS",
+    ".gitmodules",
+    "plugins/p/.claude/settings.json",
+    "plugins/p/package.json",
+    ".github/standards/trusted-actors/trusted-actors.json",
+    ".github/actions/check-trusted-trigger/action.yml",
+    ".github/actions/resolve-config/resolve.mjs",
+    ".github/scripts/pr-unblock/thread-scope.mjs",
+    ".github/actions/setup-runner-isolation/action.yml",
+    ".github/standards/runner-policy/x.json",
+    "CLAUDE.md",
+    "plugins/p/AGENTS.md",
+    ".mcp.json",
+    "plugins/p/.lsp.json",
+    ".claude/rules/r.md",
+    "plugins/p/.claude-plugin/plugin.json",
+    "plugins/p/hooks/guard.sh",
+    "plugins/p/monitors/monitors.json",
+    "plugins/p/bin/tool",
+    "a\\b.md",
+    "a b.md",
+    "src/../x.md",
+  ];
+  const listed = refused.map((filename) => ({ filename }));
+  assert.deepEqual(prPathsOf(listed), []);
+  // Even when a thread file lists them, inThreadScope refuses each beside a
+  // thread outside their plugin.
+  for (const path of refused) {
+    assert.equal(inThreadScope(path, new Set(["docs/x.md"]), [], { prPaths: new Set(refused) }), false, path);
   }
 });

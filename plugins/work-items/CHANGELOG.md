@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.2.2] - 2026-10-23
+
+### Changed
+
+- `/work-items:work` names the third `author_kind` its issue file can carry, `refinement`: the lanes App's intake refinement, model-drafted acceptance criteria to check against the body.
+
 ## [3.2.1] - 2026-10-23
 
 ### Fixed
