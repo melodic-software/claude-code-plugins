@@ -15,7 +15,7 @@ when you describe broken behavior with no pre-existing reproduction.
 | Skill | Use it for |
 |---|---|
 | `/debugging:debug` | A failure you can see: reproduce it with a loop, rank and probe the causes, then fix it with a regression test and clean up. |
-| `/debugging:analyze-profile` | A CPU profile, heap snapshot or performance trace: read it down to a file:line cause with no fix, or record one first with your approval. Needs Python 3.10 or later. |
+| `/debugging:analyze-profile` | A CPU profile, heap snapshot or performance trace: read it down to a file:line cause with no fix (record one with `/app-control:drive capture`). Needs Python 3.10 or later. |
 
 ## The six phases
 

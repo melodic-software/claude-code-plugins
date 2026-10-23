@@ -26,7 +26,7 @@ import {
   main,
   verifyHold,
 } from "./enable-auto-merge.mjs";
-import { VERIFY_PATH, verdictHold } from "./merge-holds.mjs";
+import { COMMENT_EDITED_QUERY, PULL_OPENED_QUERY, VERIFY_PATH, verdictHold } from "./merge-holds.mjs";
 import { VERIFY_PATH as RESOLVER_VERIFY_PATH } from "../pr-verify/resolve-pr.mjs";
 import { decide as decideOutcome } from "../work-resolve-issue/report-outcome.mjs";
 
@@ -74,6 +74,15 @@ const said = (login, body, at, association = "OWNER", typename = "User") => ({
   authorAssociation: association,
 });
 const PASSED = { refusal: null, head: HEAD };
+const COST_LINK = `https://github.com/${REPO}/issues/1040#issuecomment-7`;
+const COST_COMMENT = {
+  issue_url: `https://api.github.com/repos/${REPO}/issues/1040`,
+  user: { login: "kyle-sexton", id: 5, type: "User" },
+  performed_via_github_app: null,
+  body: "**Decision recorded.** Cost: approve it.",
+  node_id: "IC_7",
+  created_at: "2026-10-22T12:00:00Z",
+};
 const labels = (...names) => ({ totalCount: names.length, nodes: names.map((name) => ({ name })) });
 
 function world(pulls, { failArm = false } = {}) {
@@ -85,7 +94,20 @@ function world(pulls, { failArm = false } = {}) {
       const files = pulls.find((candidate) => candidate.number === Number(listing[1]))?.files ?? [{ filename: "plugins/work-items/README.md" }];
       return files.slice((Number(listing[2]) - 1) * 100, Number(listing[2]) * 100);
     }
+    // The cost decision reads (merge-holds.costDecision): the owner's comment
+    // 7 on pull request 40's closing issue, and each pull request closes its own
+    // number plus 1000.
+    if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/issues/comments/7") {
+      return COST_COMMENT;
+    }
     assert.equal(`${method} ${path}`, "POST /graphql");
+    if (body.query === PULL_OPENED_QUERY) {
+      const nodes = [{ number: body.variables.number + 1000, repository: { nameWithOwner: REPO } }];
+      return { data: { repository: { pullRequest: { createdAt: "2026-10-22T10:00:00Z", closingIssuesReferences: { totalCount: 1, nodes } } } } };
+    }
+    if (body.query === COMMENT_EDITED_QUERY) {
+      return { data: { node: { lastEditedAt: null } } };
+    }
     if (body.query === PULLS_QUERY) {
       assert.deepEqual(body.variables, { owner: "melodic-software", name: "claude-code-plugins", after: null });
       return { data: { repository: { pullRequests: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: pulls } } } };
@@ -112,9 +134,9 @@ function world(pulls, { failArm = false } = {}) {
   };
   const writes = () =>
     calls
-      .filter(({ method, body }) => method === "POST" && body.query !== PULLS_QUERY && body.query !== DETAIL_QUERY)
+      .filter(({ method, body }) => method === "POST" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY].includes(body.query))
       .map(({ body }) => ({ mutation: body.query === ARM_MUTATION ? "arm" : body.query === DISARM_MUTATION ? "disarm" : "?", ...body.variables }));
-  return { github, writes, verify, verified };
+  return { github, writes, verify, verified, calls };
 }
 
 async function run(pulls, env = {}, options = {}) {
@@ -360,6 +382,49 @@ test("a pull request whose head now changes a hold path is not armed, or is disa
     { mutation: "disarm", id: "PR_2" },
     { mutation: "arm", id: "PR_5", head: HEAD },
   ]);
+});
+
+// The gate scores the marketplace manifest HIGH (babysit_risk.is_manifest_path),
+// so it is a hold path like every plugin manifest.
+test("a pull request whose head changes the marketplace manifest is not armed, or is disarmed", () => {
+  const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
+  const files = ["docs/a.md", ".claude-plugin/marketplace.json"];
+  assert.deepEqual(decide(pull(1), options, { ...detail(), files, verify: PASSED }), {
+    action: "none",
+    reason: "it changes .claude-plugin/marketplace.json, a hold path",
+  });
+  assert.equal(decide(pull(1, { autoMergeRequest: {} }), options, { ...detail(), files, verify: PASSED }).action, "disarm");
+});
+
+// The gate holds a cost path (babysit_risk.COST_PATHS) until the body links
+// the owner's cost decision (babysit_merge_policy.cost_decision).
+test("a cost path holds until the body links the owner's cost decision", async () => {
+  const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
+  const files = ["infra/Pulumi.prod.yaml"];
+  assert.deepEqual(decide(pull(1), options, { ...detail(), files, verify: PASSED }), {
+    action: "none",
+    reason: "it changes infra/Pulumi.prod.yaml, a cost path",
+  });
+  assert.equal(decide(pull(1, { autoMergeRequest: {} }), options, { ...detail(), files, verify: PASSED }).action, "disarm");
+  assert.equal(decide(pull(1), options, { ...detail(), files, costDecision: COST_LINK, verify: PASSED }).action, "arm");
+
+  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-"));
+  writeFileSync(join(dir, "actors.json"), JSON.stringify({ actors: [{ kind: "human", login: "kyle-sexton", id: 5 }] }));
+  const cost = [{ filename: "plugins/multi-agent/reference/defaults.yaml" }];
+  const decided = `Closes #1040\n\nCost decision: ${COST_LINK}`;
+  const { writes } = await run(
+    [pull(40, { files: cost, body: decided }), pull(41, { files: cost }), pull(42, { files: cost, body: decided })],
+    { TRUSTED_ACTORS: join(dir, "actors.json") },
+  );
+  // Pull request 41 links no decision; 42 closes a different issue, so pull
+  // request 40's decision does not cover it.
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_40", head: HEAD }]);
+  // A changed file's name cannot start a workflow command on its own line.
+  const { lines } = await run([pull(43, { files: [{ filename: "x\n::warning::forged/main.tf" }] })]);
+  assert.ok(lines.some((line) => line.includes("x ::warning::forged/main.tf, a cost path")));
+  assert.ok(!lines.some((line) => /(^|\n)::warning::/.test(line)));
+  // Not on the trusted-actor list, the commenter decides nothing.
+  assert.deepEqual((await run([pull(40, { files: cost, body: decided })], { TRUSTED_ACTORS: "/nonexistent/actors.json" })).writes, []);
 });
 
 // ci-status runs merge-holds.mjs on the live files with the base config's

@@ -1093,12 +1093,19 @@ hold paths, so one added after arming stops the merge without waiting for this j
 `.github/scripts/pr-merge/merge-holds.mjs` as main has it, the module `enable-auto-merge.mjs` arms
 by, over the live body, discussion and changed files (renamed-from paths included) against main's
 `merge.diff-check.denied-paths` plus the paths resolve-config always adds and the rest of the merge
-gate's HIGH floor (`CODEOWNERS`, `.gitmodules`, every plugin manifest), on each pull request
+gate's HIGH floor (`CODEOWNERS`, `.gitmodules`, every `.claude-plugin/plugin.json` and the
+root `.claude-plugin/marketplace.json`), on each pull request
 event and in the merge queue, where a red group removes the pull request. A push that adds a hold
 path fails `ci-status` on its own head. A person on the trusted-actor list (as main has it) lifts a
 hold path by approving that head: their newest review of it that approves, requests changes or was
 dismissed must approve. Then re-run `ci-status`, since a review does not. The approval lifts no
-body hold or veto, and arming still skips the pull request, so that person merges it. The module is read at the pull request's base commit, so a lanes App pull
+body hold or veto, and arming still skips the pull request, so that person merges it.
+Both also hold a pull request that changes one of the merge gate's cost paths
+(`babysit_risk.COST_PATHS`: the multi-agent role map, Pulumi, Terraform and Bicep files). An
+approval does not lift that hold. Only the owner's cost decision does, read as the gate's
+`cost_decision` reads it: an unedited comment by a person on the trusted-actor list whose first
+line opens `**Decision recorded.** Cost:`, on the pull request or on its one closing issue after
+the pull request opened, linked from the body. That body edit re-runs `ci-status`. The module is read at the pull request's base commit, so a lanes App pull
 request whose base predates the module fails `ci-status` closed until it is updated with main.
 Its own changes are held: `merge-holds.mjs` and this workflow sit under `.github/**`, a path
 resolve-config always denies, so a lanes App pull request cannot weaken the rule and merge itself. A body edit re-runs
