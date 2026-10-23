@@ -323,8 +323,8 @@ class HighReasonTests(unittest.TestCase):
     def test_case_folded_paths_are_high(self):
         cases = [
             (
-                ".GitHub/Workflows/PR-Unblock.yml",
-                "high-path:.github/workflows/pr-unblock.yml",
+                ".GitHub/Workflows/PR-Merge.yml",
+                "high-path:.github/workflows/pr-merge.yml",
             ),
             ("plugins/foo/Codeowners", "high-path:**/CODEOWNERS"),
             (".GITMODULES", "high-path:**/.gitmodules"),
@@ -1171,7 +1171,7 @@ class LanePathFloorTests(unittest.TestCase):
             "docs/conventions/x.md",
             "REVIEW.md",
             "plugins/review/skills/x/SKILL.md",
-            "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py",
+            "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
             "plugins/source-control/skills/babysit-loop/SKILL.md",
             "plugins/source-control/lib/x.awk",
             "plugins/work-items/x.md",
@@ -1183,7 +1183,7 @@ class LanePathFloorTests(unittest.TestCase):
             ".node-version",
             ".python-version",
             ".gitattributes",
-            ".github/scripts/pr-unblock/x.mjs",
+            ".github/scripts/pr-merge/x.mjs",
             "plugins/foo/evals/case/case.yaml",
             "plugins/foo/evals/case/scaffold.sh",
         ):
@@ -1196,13 +1196,10 @@ class LanePathFloorTests(unittest.TestCase):
         result = score(_lane_input((_edit(SKILL, FRONT, after),)))
         self.assertEqual(result.score, Risk.LOW, result.reasons)
 
-    def test_a_pipeline_caps_edit_holds_as_cost_and_trust_gate(self):
+    def test_a_pipeline_caps_edit_still_holds_as_cost(self):
         patch = "@@ -1,1 +1,1 @@\n-  max-in-flight: 5\n+  max-in-flight: 50"
         files = (_file("docs/conventions/pr-pipeline.yaml", patch=patch),)
-        self.assertEqual(
-            _codes(score(_lane_input(files))),
-            ("cost-review-required", "trust-gate:docs/conventions/pr-pipeline.yaml"),
-        )
+        self.assertEqual(_codes(score(_lane_input(files))), ("cost-review-required",))
 
 
 MANIFEST = "plugins/foo/.claude-plugin/plugin.json"
@@ -1349,8 +1346,8 @@ class HoldsTests(unittest.TestCase):
                 self.assertFalse(holds(result), result.reasons)
 
     def test_an_open_code_review_finding_is_reported_and_does_not_hold(self):
-        # Q25: a review flag other than cost, trust gate or high/critical
-        # security is reported and merges.
+        # Q25: a review flag other than cost, a trusted-actor widening or a
+        # CRITICAL security finding is reported and merges.
         lanes = (
             _lane("claude-review", open_findings=1),
             _lane("claude-security-review"),
@@ -1426,84 +1423,106 @@ class SecurityBlockingTests(unittest.TestCase):
 
 
 B = "plugins/source-control/skills/babysit-prs/scripts/"
+ACTORS = ".github/standards/trusted-actors/trusted-actors.json"
+TRUSTED = "trust-gate:trusted-actors"
+_KYLE = '{ "id": 1, "login": "kyle", "kind": "human" }'
+_BOT = '{ "id": 2, "login": "lanes[bot]", "kind": "bot" }'
+
+
+def _actors(*entries, version=1):
+    return '{\n  "version": %d,\n  "actors": [\n    %s\n  ]\n}\n' % (
+        version,
+        ",\n    ".join(entries),
+    )
+
+
+BASE_ACTORS = _actors(_KYLE, _BOT)
 
 
 class TrustGateTests(unittest.TestCase):
-    """Q24: a trust-gate path scores HIGH and holds whatever the floor switch
-    and the trusted author's own paths say. Paths and globs come from the
-    owner decision's list, not from the scorer."""
+    """The owner's direction: the one trust-gate hold is a change that adds
+    or widens entries in the trusted-actor list; a pure removal is not held,
+    whatever the floor switch and the trusted author's own paths say."""
 
-    CASES = (
-        (
-            ".github/standards/trusted-actors/trusted-actors.json",
-            "trust-gate:.github/standards/trusted-actors/**",
-        ),
-        (f"{B}babysit_risk.py", f"trust-gate:{B}babysit_risk.py"),
-        (f"{B}babysit_review_evidence.py", f"trust-gate:{B}babysit_review_evidence.py"),
-        ("docs/conventions/pr-pipeline.yaml", "trust-gate:docs/conventions/pr-pipeline.yaml"),
-        (".claude/source-control.md", "trust-gate:.claude/source-control.md"),
-        (f"{B}babysit_merge.py", f"trust-gate:{B}babysit_merge*.py"),
-        (f"{B}babysit_merge_policy.py", f"trust-gate:{B}babysit_merge*.py"),
-        (f"{B}babysit_merge_skip.py", f"trust-gate:{B}babysit_merge*.py"),
-        (".github/workflows/pr-merge.yml", "trust-gate:.github/workflows/pr-merge.yml"),
-        (".github/scripts/pr-merge/gate.mjs", "trust-gate:.github/scripts/pr-merge/**"),
-        (
-            ".github/workflows/pr-review-security-hosted.yml",
-            "trust-gate:.github/workflows/pr-review-security-hosted.yml",
-        ),
-    )  # fmt: skip
+    def _score(self, after, before=BASE_ACTORS, path=ACTORS, **changes):
+        changed = _edit(path, before, after)
+        return score(_input(files=(changed,), high_floor=False, **changes))
 
-    def _score(self, path, **changes):
-        return score(_input(files=(_file(path),), **changes))
-
-    def test_each_trust_gate_path_holds_with_the_floor_off_and_exempt(self):
-        for path, code in self.CASES:
-            for changes in (
-                dict(),
-                dict(high_floor=False),
-                dict(high_floor=False, floor_exempt=frozenset({path})),
-            ):
-                with self.subTest(path=path, changes=changes):
-                    result = self._score(path, **changes)
+    def test_a_widening_holds_with_the_floor_off_and_exempt(self):
+        widen = {
+            "an entry added": _actors(
+                _KYLE, _BOT, '{ "id": 3, "login": "new", "kind": "bot" }'
+            ),
+            "an entry's kind changed": _actors(
+                _KYLE, _BOT.replace('"bot"', '"human"')
+            ),
+            "an entry's id changed": _actors(_KYLE, _BOT.replace("2", "4")),
+            "a removal beside an addition": _actors(
+                _KYLE, '{ "id": 5, "login": "x", "kind": "bot" }'
+            ),
+            "another key changed": _actors(_KYLE, _BOT, version=2),
+            "unparsable head": "{",
+            "a repeated key": BASE_ACTORS.replace('"version": 1', '"version": 1, "version": 1'),
+            "actors not a list": '{"version": 1, "actors": {}}',
+        }  # fmt: skip
+        for name, after in widen.items():
+            for changes in (dict(), dict(floor_exempt=frozenset({ACTORS}))):
+                with self.subTest(name, changes=changes):
+                    result = self._score(after, **changes)
                     self.assertEqual(result.score, Risk.HIGH)
-                    self.assertIn(code, _codes(result))
+                    self.assertEqual(_codes(result), (TRUSTED,))
                     self.assertTrue(holds(result))
-                    if changes:
-                        # With the floor off, the trust gate is the only reason.
-                        self.assertEqual(_codes(result), (code,))
 
-    def test_a_case_folded_trust_gate_path_holds(self):
-        result = self._score(".GitHub/Scripts/PR-Merge/Gate.mjs", high_floor=False)
-        self.assertEqual(_codes(result), ("trust-gate:.github/scripts/pr-merge/**",))
+    def test_a_pure_removal_does_not_hold(self):
+        for after in (_actors(_KYLE), _actors(_BOT), BASE_ACTORS.replace("  ", " ")):
+            with self.subTest(after=after):
+                result = self._score(after)
+                self.assertEqual(result.score, Risk.LOW, result.reasons)
 
-    def test_the_old_side_of_a_rename_holds(self):
-        moved = _file(
-            "plugins/foo/x.py", status="renamed", previous_path=f"{B}babysit_risk.py"
+    def test_an_unread_or_structural_change_holds(self):
+        cases = (
+            _file(ACTORS, contents=None),
+            dataclasses.replace(_file(ACTORS), contents_error="boom"),
+            _file(ACTORS, status="added", previous_mode="000000"),
+            _file(ACTORS, status="removed"),
+            _file("plugins/foo/x.json", status="renamed", previous_path=ACTORS),
+            _file(ACTORS, status="renamed", previous_path="plugins/foo/x.json"),
         )
-        result = score(
-            _input(files=(moved,), high_floor=False, c2_contradictions=False)
-        )
-        self.assertEqual(_codes(result), (f"trust-gate:{B}babysit_risk.py",))
+        for changed in cases:
+            with self.subTest(changed=changed):
+                result = score(
+                    _input(files=(changed,), high_floor=False, c2_contradictions=False)
+                )
+                self.assertEqual(_codes(result), (TRUSTED,))
 
-    def test_neighbours_of_a_trust_gate_do_not_hold(self):
+    def test_a_case_folded_path_holds(self):
+        result = self._score(
+            _actors(_KYLE, _BOT, '{ "id": 3 }'),
+            path=".GitHub/Standards/Trusted-Actors/Trusted-Actors.JSON",
+        )
+        self.assertEqual(_codes(result), (TRUSTED,))
+
+    def test_paths_the_owner_lifted_do_not_hold_with_the_floor_off(self):
+        # The scorer, the merge gate, the pipeline config, workflows and the
+        # security review merge normally.
         for path in (
-            f"{B}babysit_postmerge.py",
-            f"{B}tests/test_babysit_merge.py",
-            f"{B}babysit_whole_review.py",
-            ".github/scripts/pr-unblock/gate.mjs",
-            ".github/workflows/pr-review-hosted.yml",
-            ".github/standards/runner-policy/policy.json",
-            "docs/conventions/pr-pipeline/README.md",
-            "plugins/foo/.claude/source-control.md",
+            f"{B}babysit_risk.py",
+            f"{B}babysit_merge.py",
+            f"{B}babysit_review_evidence.py",
+            ".github/workflows/pr-merge.yml",
+            ".github/scripts/pr-merge/gate.mjs",
+            ".github/workflows/pr-review-security-hosted.yml",
+            ".github/standards/trusted-actors/README.md",
+            "plugins/foo/trusted-actors/trusted-actors.json",
         ):
             with self.subTest(path):
-                result = self._score(path, high_floor=False)
+                result = score(_input(files=(_file(path),), high_floor=False))
                 self.assertEqual(result.score, Risk.LOW, result.reasons)
 
 
 class ReviewFlagClassTests(unittest.TestCase):
-    """Q25: a review flag holds only as a cost increase, a trust-gate change
-    or a high or critical security finding; any other is reported."""
+    """Q25: a review flag holds only as a cost increase, a trusted-actor
+    widening or a CRITICAL security finding (Q693); any other is reported."""
 
     def _lanes(self, review=0, security=0, critical=None):
         return (
@@ -1521,8 +1540,9 @@ class ReviewFlagClassTests(unittest.TestCase):
         self.assertTrue(holds(result))
 
     def test_trust_gate_flag_holds(self):
-        result = score(_input(files=(_file(".github/workflows/pr-merge.yml"),)))
-        self.assertIn("trust-gate:.github/workflows/pr-merge.yml", _codes(result))
+        widened = _edit(ACTORS, BASE_ACTORS, _actors(_KYLE, _BOT, '{ "id": 3 }'))
+        result = score(_input(files=(widened,)))
+        self.assertEqual(_codes(result), (TRUSTED,))
         self.assertTrue(holds(result))
 
     def test_critical_security_flag_holds(self):
@@ -1545,7 +1565,7 @@ class ReviewFlagClassTests(unittest.TestCase):
     def test_a_reported_flag_beside_a_hold_is_still_listed(self):
         result = score(
             _input(
-                files=(_file(".github/workflows/pr-merge.yml"),),
+                files=(_file(".gitmodules"),),
                 lanes=self._lanes(review=1),
             )
         )

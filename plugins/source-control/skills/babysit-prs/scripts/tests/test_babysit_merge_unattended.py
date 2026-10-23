@@ -1912,10 +1912,7 @@ class EachRefusalMakesNoMergeCall(Unattended):
         self.assert_no_merge(code)
         self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
         codes = [r["code"] for r in out["unattended"]["risk"]["reasons"]]
-        self.assertEqual(
-            codes,
-            ["cost-review-required", "trust-gate:docs/conventions/pr-pipeline.yaml"],
-        )
+        self.assertEqual(codes, ["cost-review-required"])
 
 
 class BaseConfigParseError(Unattended):
@@ -2745,9 +2742,9 @@ class ReasonsComment(Unattended):
         self.assertIn("a human merges it in person, never an agent or a lane", body)
 
     def test_a_trust_gate_hold_says_a_human_merges_it(self) -> None:
-        # Owner decision Q24: a trust gate waits for the owner.
+        # A trusted-actor widening waits for the owner.
         gate = merge.babysit_risk.Reason(
-            "trust-gate:.github/workflows/pr-merge.yml",
+            merge.babysit_risk.TRUST_GATE_CODE,
             merge.babysit_risk.Risk.HIGH,
             "x",
         )

@@ -23,7 +23,7 @@ the org away from their credentials. Everything else, this module, the merge
 gate, the review lanes, hooks, scripts and agent instructions included, merges
 on the two review lanes, which are the gate (owner direction 2026-10-22: the
 review lanes are the only gate, and bots may edit hooks, plugins, skills,
-scripts and workflows), except the trust gates below. The configured `merge.diff-check.denied-paths` are joined to
+scripts and workflows), except the trusted-actor widening below. The configured `merge.diff-check.denied-paths` are joined to
 the floor, never in place of it. Every glob matches case-insensitively,
 because a lane host on a case-insensitive filesystem treats `Codeowners` as
 `CODEOWNERS`.
@@ -36,17 +36,19 @@ or renamed, a changed entry `source`, or a changed marketplace `name`. A
 manifest removed, renamed or copied, or whose side cannot be read or parsed,
 or repeats a key, holds; an added plugin.json is compared with `{}`.
 
-A change to a trust gate rates HIGH as `trust-gate:<glob>` in every lane,
-whatever the floor switch and `floor_exempt` say, and waits for the owner
-(owner decision Q24): the trusted-actor list, this scorer and the config it
-reads, the merge gate, and the security review (`TRUST_GATES`).
+A change that adds or widens an entry in the trusted-actor list
+(`TRUSTED_ACTORS_PATH`) rates HIGH as `trust-gate:trusted-actors` in every
+lane, whatever the floor switch and `floor_exempt` say, and waits for the
+owner. Base and head text are compared: only removing entries passes; an
+added or changed entry, any other key changed, a side that cannot be read or
+parsed or repeats a key, and an added, removed, renamed or copied file hold.
 
-A review finding holds only as a HIGH or CRITICAL security finding
+A review finding holds only as a CRITICAL security finding
 (`security-finding`): the security lane's `blocking_findings`. Every other open
-finding, a code-review finding or a lower security one, is reported as a MED
-`findings:<lane>` reason that does not hold (owner decisions Q25 and Q33). A
-cost increase holds through `cost-review-required` and a trust-gate change
-through `trust-gate:`, both below.
+finding, a code-review finding or an IMPORTANT or SUGGESTION security one, is
+reported as a MED `findings:<lane>` reason that does not hold (owner decisions
+Q25, Q33 and Q693). A cost increase holds through `cost-review-required` and a
+trusted-actor widening through `trust-gate:trusted-actors`.
 
 A change that could add or raise a charge rates HIGH as `cost-review-required`
 in every lane, floor or not and whatever `floor_exempt` says (owner rule,
@@ -239,24 +241,8 @@ _HOLDING_LANE = "claude-security-review"
 REPORTED_SECURITY_CODE = "findings:claude-security-review"
 
 TRUST_GATE_PREFIX = "trust-gate:"
-_BABYSIT = "plugins/source-control/skills/babysit-prs/scripts/"
-# Paths whose change waits for the owner in every lane, whatever the floor
-# switch or `floor_exempt` says (owner decision Q24).
-TRUST_GATES: tuple[str, ...] = (
-    ".github/standards/trusted-actors/**",
-    # This scorer, the security severity it is fed, and the config the gate
-    # reads at the base (babysit_merge_policy.CONFIG_PATH, SOURCE_CONTROL_PATH).
-    f"{_BABYSIT}babysit_risk.py",
-    f"{_BABYSIT}babysit_review_evidence.py",
-    "docs/conventions/pr-pipeline.yaml",
-    ".claude/source-control.md",
-    # The merge gate.
-    f"{_BABYSIT}babysit_merge*.py",
-    ".github/workflows/pr-merge.yml",
-    ".github/scripts/pr-merge/**",
-    # The security review.
-    ".github/workflows/pr-review-security-hosted.yml",
-)
+TRUST_GATE_CODE = f"{TRUST_GATE_PREFIX}trusted-actors"
+TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
 
 # GitHub's documented pull request file statuses.
 STATUSES = frozenset(
@@ -612,15 +598,47 @@ def _high_path_reasons(
     return reasons
 
 
-def _trust_gate_reasons(files: list[_File]) -> list[Reason]:
-    paths = [path for f in files for path in f.paths if path]
-    reasons = []
-    for pattern in TRUST_GATES:
-        hits = [path for path in paths if glob_match(pattern, path)]
-        if hits:
-            detail = ", ".join(dict.fromkeys(hits)) + ": the owner merges it"
-            reasons.append(Reason(f"{TRUST_GATE_PREFIX}{pattern}", Risk.HIGH, detail))
-    return reasons
+def is_trusted_actors_path(path: str) -> bool:
+    return glob_match(TRUSTED_ACTORS_PATH, path)
+
+
+def _actors_widened(f: _File, raw: Any) -> str | None:
+    """Why a trusted-actor list change widens trust, None when it only
+    removes entries."""
+    if f.status != "modified" or len(f.paths) != 1:
+        return f"{f.status} trusted-actor list"
+    contents = getattr(raw, "contents", None)
+    if getattr(raw, "contents_error", None) is not None or not (
+        isinstance(contents, tuple) and len(contents) == 2
+    ):
+        return "contents unreadable"
+    base, head = _manifest(contents[0]), _manifest(contents[1])
+    if base is None or head is None:
+        return "unreadable, malformed or a repeated key"
+    old, new = base.get("actors"), head.get("actors")
+    if not isinstance(old, list) or not isinstance(new, list):
+        return "actors is not a list"
+    if {k: v for k, v in base.items() if k != "actors"} != {
+        k: v for k, v in head.items() if k != "actors"
+    }:
+        return "a key other than actors changed"
+    gained = Counter(json.dumps(e, sort_keys=True) for e in new)
+    gained.subtract(json.dumps(e, sort_keys=True) for e in old)
+    added = sorted(e for e, n in gained.items() if n > 0)
+    return f"entries added or changed: {', '.join(added)}" if added else None
+
+
+def _trust_gate_reasons(files: list[_File], raw_files: list[Any]) -> list[Reason]:
+    found = []
+    for f, raw in zip(files, raw_files):
+        if any(is_trusted_actors_path(p) for p in f.paths if p):
+            why = _actors_widened(f, raw)
+            if why:
+                found.append(f"{f.path}: {why}")
+    if not found:
+        return []
+    detail = "; ".join(found) + "; the owner merges it"
+    return [Reason(TRUST_GATE_CODE, Risk.HIGH, detail)]
 
 
 COST_CODE = "cost-review-required"
@@ -1068,7 +1086,7 @@ def _score(inp: RiskInput) -> RiskResult:
         *_lane_reasons(inp.lanes),
         *_high_path_reasons(inp, files or [], list(raw_files or ())),
         *_cost_reasons(inp, files or [], list(raw_files or ())),
-        *_trust_gate_reasons(files or []),
+        *_trust_gate_reasons(files or [], list(raw_files or ())),
     ]
     reasons.sort(key=lambda reason: (-reason.severity, reason.code))
     worst = max((reason.severity for reason in reasons), default=Risk.LOW)
