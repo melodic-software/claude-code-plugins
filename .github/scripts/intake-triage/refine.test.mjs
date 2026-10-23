@@ -289,6 +289,14 @@ describe("applyRefinement", () => {
     await assert.rejects(apply({ github, calls: fake.calls }, EXACT), /transient/);
     assert.ok(!writes(fake.calls).some(({ path }) => path.endsWith("/comments")), "no marker comment was posted");
     assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"), "the issue keeps needs-decision when adding needs-triage fails");
+    // The retry sees the labels the failed run left: the App's needs-decision, no marker.
+    const retry = fakeGitHub({ issue: issueOf(), comments: [laneComment()], events: labeledBy(APP) });
+    const result = await apply(retry, EXACT);
+    assert.equal(result.redispatch, true);
+    assert.ok(
+      writes(retry.calls).some(({ method, path, body }) => method === "POST" && path.endsWith("/labels") && body?.labels?.includes("needs-triage")),
+      "the retry adds needs-triage",
+    );
   });
 
   const untouched = [
