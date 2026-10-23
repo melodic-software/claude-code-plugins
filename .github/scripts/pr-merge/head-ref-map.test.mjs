@@ -113,7 +113,7 @@ test("the next map keeps listed entries and adds this run's downloads", () => {
   assert.deepEqual(refs, { 30: "feat/other", 40: "feat/x", 60: "" });
 });
 
-function writeRun({ previous, runCache, listing }) {
+async function writeRun({ previous, runCache, listing }) {
   n += 1;
   const paths = Object.fromEntries(["in", "cache", "listing", "out"].map((k) => [k, join(dir, `${k}-${n}.json`)]));
   if (previous !== undefined) writeFileSync(paths.in, previous);
@@ -123,7 +123,7 @@ function writeRun({ previous, runCache, listing }) {
   const log = console.log;
   console.log = (line) => lines.push(String(line));
   try {
-    main({
+    await main({
       mode: "write",
       env: {
         GITHUB_REPOSITORY: REPO,
