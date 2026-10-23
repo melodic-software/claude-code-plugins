@@ -179,31 +179,66 @@ on:
       dependency-verdict:
         description: >-
           For the verdict script of a review-dependency round: download the
-          verdict the model run's runner step uploaded in this workflow run
-          and pass it to the script as DEPENDENCY_VERDICT_DIR.
+          select job's context.json and the verdict the read runner's scan job
+          uploaded in this workflow run, and pass both to the script as
+          DEPENDENCY_VERDICT_DIR.
         required: false
         type: boolean
         default: false
+      dependency-context-attempt:
+        description: >-
+          With dependency-verdict, the select job's context-attempt output: the
+          attempt whose dependency-context-<attempt> artifact holds
+          context.json. Empty downloads nothing, which the verdict script
+          refuses as dependency-invalid.
+        required: false
+        type: string
+        default: ""
       dependency-run-sha256:
         description: >-
-          With dependency-verdict, the model run's dependency-run-sha256
-          output; the verdict script refuses a run.json with any other SHA-256.
+          With dependency-verdict, the SHA-256 of the context.json the caller's
+          select job wrote (pr-unblock's review-dependency-select run-sha256);
+          the verdict script refuses a context.json with any other SHA-256.
         required: false
         type: string
         default: ""
       dependency-head-sha:
         description: >-
-          With dependency-verdict, the model run's head-sha output: the head
-          its gate passed, which the verdict script requires run.json to name.
+          With dependency-verdict, the head the select job read, which the
+          verdict script requires context.json to name.
         required: false
         type: string
         default: ""
       dependency-run-attempt:
         description: >-
-          With dependency-verdict, the model run's dependency-run-attempt
-          output: the attempt whose verdict artifact to download. Empty
-          downloads nothing, which the verdict script refuses as
-          dependency-invalid.
+          With dependency-verdict, the read runner's dependency-attempt output,
+          set only by its scan job: the attempt whose
+          dependency-verdict-<lane>-review-dependency-<attempt> artifact holds
+          the scanned verdict, and the model run the round marker names. Empty
+          downloads none: no verdict arrived.
+        required: false
+        type: string
+        default: ""
+      dependency-verdict-sha256:
+        description: >-
+          With dependency-verdict, the read runner's dependency-sha256 output,
+          set only by its scan job from the verdict it uploaded. A verdict with
+          another SHA-256 is refused as dependency-invalid.
+        required: false
+        type: string
+        default: ""
+      dependency-patch-state:
+        description: >-
+          With dependency-verdict, the same read runner call's scan-patch-state.
+          With no verdict, the verdict script skips no-model-turn only when
+          this and dependency-scan-refused are empty.
+        required: false
+        type: string
+        default: ""
+      dependency-scan-refused:
+        description: >-
+          With dependency-verdict, the same read runner call's scan-refused:
+          `patch`, `output` or empty.
         required: false
         type: string
         default: ""
@@ -255,6 +290,20 @@ on:
         default: ""
       patch-threads-sha256:
         description: With patch-threads-attempt, that thread file's SHA-256.
+        required: false
+        type: string
+        default: ""
+      patch-verdict-attempt:
+        description: >-
+          apply-patch with patch-prepare dependency-review: the read runner's
+          dependency-attempt output, the attempt whose
+          dependency-verdict-<lane>-review-dependency-<attempt> artifact holds
+          the scanned verdict the row's dependency-verdict requirement reads.
+        required: false
+        type: string
+        default: ""
+      patch-verdict-sha256:
+        description: With patch-verdict-attempt, that verdict's SHA-256 from the scan job.
         required: false
         type: string
         default: ""
@@ -637,6 +686,15 @@ jobs:
           echo "::error::review-threads-in-write-runner: a review-threads skill runs in pr-run-activity-read.yml after its caller's select job"
           exit 1
 
+      # dependency-review runs in pr-run-activity-read.yml, after its
+      # caller's select job wrote the context: this file selects nothing and
+      # collects no verdict.
+      - name: Assert dependency-review runs in the read runner
+        if: steps.config.outcome == 'success' && steps.config.outputs.prepare == 'dependency-review'
+        run: |
+          echo "::error::dependency-review-in-write-runner: a dependency-review skill runs in pr-run-activity-read.yml after its caller's select job"
+          exit 1
+
       # Issue mode, apply-patch, before the mint: the new lane branch starts
       # at the commit the model job's patch was made on, the default branch
       # commit it checked (which must be on the default branch) or the
@@ -751,6 +809,47 @@ jobs:
             exit 1
           fi
           echo "file=$THREADS_FILE" >>"$GITHUB_OUTPUT"
+
+      # apply-patch under the dependency-review row, before the mint: the
+      # verdict the read runner's scan job uploaded, by its attempt, and its
+      # SHA-256; the row's dependency-verdict requirement reads its verdict
+      # field. A missing or altered file fails the job, so nothing is
+      # minted and no patch applies without a scanned verdict.
+      - name: Download the dependency verdict for the patch
+        if: >-
+          steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'apply-patch'
+          && inputs.patch-prepare == 'dependency-review'
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dependency-verdict-${{ inputs.lane }}-${{ inputs.patch-activity }}-${{ inputs.patch-verdict-attempt }}
+          path: ${{ runner.temp }}/lane-patch-verdict
+
+      - name: Check the dependency verdict for the patch
+        id: patch-verdict
+        if: >-
+          steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'apply-patch'
+          && inputs.patch-prepare == 'dependency-review'
+        env:
+          VERDICT_FILE: ${{ runner.temp }}/lane-patch-verdict/dependency-verdict.json
+          VERDICT_SHA256: ${{ inputs.patch-verdict-sha256 }}
+        run: |
+          if [ -L "$VERDICT_FILE" ] || [ ! -f "$VERDICT_FILE" ] || [ "$(stat -c %s "$VERDICT_FILE")" -gt 49152 ]; then
+            echo "::error::the dependency-verdict artifact holds no verdict of at most 49152 bytes"
+            exit 1
+          fi
+          sum=$(sha256sum <"$VERDICT_FILE")
+          if ! [[ $VERDICT_SHA256 =~ ^[0-9a-f]{64}$ ]] || [ "${sum%% *}" != "$VERDICT_SHA256" ]; then
+            echo "::error::the verdict does not match the SHA-256 the scan job recorded"
+            exit 1
+          fi
+          # Model output, held to the closed set before it becomes an output.
+          verdict=$(jq -r 'if type == "object" and (.verdict | type) == "string" then .verdict else "" end' "$VERDICT_FILE") || verdict=""
+          case $verdict in
+            merge | fix | close | escalate) ;;
+            *) verdict="" ;;
+          esac
+          echo "verdict=$verdict" >>"$GITHUB_OUTPUT"
 
       # apply-patch, before the mint and the head checkout, with no token:
       # the activity's script, from the base, checks the patch artifact
@@ -944,10 +1043,24 @@ jobs:
           name: feedback-replies-${{ inputs.lane }}-address-feedback-${{ inputs.review-replies-attempt }}
           path: ${{ runner.temp }}/feedback-replies
 
-      # dependency-verdict: the verdict script reads the model run's artifact
-      # from this workflow run. A missing artifact leaves the directory empty,
-      # which the script refuses as dependency-invalid after it still records
-      # the round.
+      # dependency-verdict: the verdict script reads context.json, the select
+      # job's, and the verdict the read runner's scan job uploaded, both from
+      # this workflow run, before the head checkout replaces .base. A missing
+      # artifact leaves its file absent; the script still records the round,
+      # then refuses a missing context.json as dependency-invalid and reads a
+      # missing verdict as no model turn only on the scan's own evidence.
+      - name: Download the dependency context
+        if: >-
+          steps.lane-token.outputs.token != '' && inputs.dependency-verdict
+          && steps.config.outputs.kind == 'script' && inputs.dependency-context-attempt != ''
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          # The other jobs' attempts, not this one: "Re-run failed jobs" on
+          # this job alone keeps their outputs from their attempt.
+          name: dependency-context-${{ inputs.dependency-context-attempt }}
+          path: ${{ runner.temp }}/dependency-verdict
+
       - name: Download the dependency verdict
         if: >-
           steps.lane-token.outputs.token != '' && inputs.dependency-verdict
@@ -955,7 +1068,7 @@ jobs:
         continue-on-error: true
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: dependency-verdict-${{ inputs.dependency-run-attempt }}
+          name: dependency-verdict-${{ inputs.lane }}-review-dependency-${{ inputs.dependency-run-attempt }}
           path: ${{ runner.temp }}/dependency-verdict
 
       # Also issue mode: report-outcome trusts a merge: human label only from
@@ -1054,8 +1167,9 @@ jobs:
 
       # apply-patch: the head checkout replaces .base, so the script's sibling
       # imports (thread-scope.mjs and dependency-classify.mjs, beside the
-      # script's base-script copy) and
-      # the patch-rules.json it reads are copied out of the base first.
+      # script's base-script copy), the patch-rules.json it reads, and the
+      # dependabot.yml whose pairs the dependency-manifests rule reads are
+      # copied out of the base first.
       - name: Copy the apply-patch base files
         id: apply-base
         if: steps.lane-token.outputs.token != '' && steps.config.outputs.prepare == 'apply-patch'
@@ -1067,6 +1181,11 @@ jobs:
           cp .base/.github/scripts/pr-unblock/thread-scope.mjs "$RUNNER_TEMP/pr-unblock/"
           cp .base/.github/scripts/pr-unblock/dependency-classify.mjs "$RUNNER_TEMP/pr-unblock/"
           cp ".base/$RULES" "$DEST/$RULES"
+          # A base without one leaves the rule's pairs unreadable: a row that
+          # needs them fails before any write.
+          if [ -f .base/.github/dependabot.yml ]; then
+            cp .base/.github/dependabot.yml "$DEST/.github/dependabot.yml"
+          fi
           echo "dir=$DEST" >>"$GITHUB_OUTPUT"
 
       # Nothing after this step needs sudo or docker.
@@ -2103,8 +2222,11 @@ jobs:
           # dependency-verdict only; empty otherwise.
           DEPENDENCY_VERDICT_DIR: ${{ inputs.dependency-verdict && format('{0}/dependency-verdict', runner.temp) || '' }}
           DEPENDENCY_RUN_SHA256: ${{ inputs.dependency-run-sha256 }}
+          DEPENDENCY_VERDICT_SHA256: ${{ inputs.dependency-verdict-sha256 }}
           DEPENDENCY_HEAD_SHA: ${{ inputs.dependency-head-sha }}
           DEPENDENCY_RUN_ATTEMPT: ${{ inputs.dependency-run-attempt }}
+          DEPENDENCY_PATCH_STATE: ${{ inputs.dependency-verdict && inputs.dependency-patch-state || '' }}
+          DEPENDENCY_SCAN_REFUSED: ${{ inputs.dependency-verdict && inputs.dependency-scan-refused || '' }}
           # apply-patch only; empty otherwise. The select step checked the
           # patch before the mint; the script checks its SHA-256 again.
           PREPARE: ${{ steps.config.outputs.prepare }}
@@ -2127,6 +2249,9 @@ jobs:
           # Under the review-threads row: the thread file the check step
           # matched to the select job's SHA-256; empty otherwise.
           KEPT_THREADS_FILE: ${{ steps.patch-threads.outputs.file }}
+          # Under the dependency-review row: the verdict field of the scanned
+          # verdict the check step matched to the scan job's SHA-256.
+          DEPENDENCY_VERDICT: ${{ steps.patch-verdict.outputs.verdict }}
         run: |
           if [ "$TRACKER_SHA256" = absent ]; then
             if [ -e "$TRACKER_CONFIG" ]; then
