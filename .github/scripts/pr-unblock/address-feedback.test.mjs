@@ -398,11 +398,11 @@ test("a thread longer than one comment page is left alone", async () => {
   assert.equal((await run(fakeApi({ threads: [big] }))).decision, "skip");
 });
 
-test("a PR that changes .github/** escalates feedback-protected-path before any model turn", async () => {
+test("a PR that changes .github/workflows/** escalates feedback-protected-path before any model turn", async () => {
   for (const files of [
     [{ filename: "src/a.js" }, { filename: ".github/workflows/ci.yml" }],
-    [{ filename: "src/b.js", previous_filename: ".github/scripts/x.sh" }],
-    [{ filename: ".GitHub/CODEOWNERS" }],
+    [{ filename: "src/b.js", previous_filename: ".github/workflows/x.yml" }],
+    [{ filename: ".GitHub/Workflows/ci.yml" }],
   ]) {
     const result = await run(fakeApi({ files }));
     assert.equal(result.decision, "escalate");
@@ -411,7 +411,16 @@ test("a PR that changes .github/** escalates feedback-protected-path before any 
   }
 });
 
-test("a diff at the files listing's 3000-file limit escalates, since it could hide a .github/ path", async () => {
+test("a PR that changes the rest of .github/ proceeds", async () => {
+  for (const files of [
+    [{ filename: "src/b.js", previous_filename: ".github/scripts/x.sh" }],
+    [{ filename: ".github/CODEOWNERS" }, { filename: ".github/actions/a/action.yml" }],
+  ]) {
+    assert.equal((await run(fakeApi({ files }))).decision, "proceed");
+  }
+});
+
+test("a diff at the files listing's 3000-file limit escalates, since it could hide a .github/workflows/ path", async () => {
   const files = Array.from({ length: 3000 }, (_, i) => ({ filename: `src/f${i}.js` }));
   const result = await run(fakeApi({ files }));
   assert.equal(result.escalationReason, "feedback-protected-path");
@@ -587,7 +596,7 @@ test("main select writes outputs and the thread file; escalation writes no threa
   await main(["select"], heldEnv, { api: fakeApi({ ...escalated(), labels: ["status: blocked-human"] }), log: () => {} });
   assert.equal(readFileSync(join(dir, "held.out"), "utf8"), "proceed=false\nfix-requested=false\nskip-reason=awaiting-human\nescalation-reason=\n");
 
-  await main(["select"], env("esc"), { api: fakeApi({ files: [{ filename: ".github/x" }] }), log: () => {} });
+  await main(["select"], env("esc"), { api: fakeApi({ files: [{ filename: ".github/workflows/x.yml" }] }), log: () => {} });
   assert.equal(
     readFileSync(join(dir, "esc.out"), "utf8"),
     "proceed=false\nfix-requested=false\nskip-reason=awaiting-human\nescalation-reason=feedback-protected-path\n",

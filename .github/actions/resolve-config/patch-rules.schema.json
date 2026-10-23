@@ -26,19 +26,16 @@
           "uniqueItems": true,
           "items": {
             "enum": [
-              "github",
-              "claude",
-              "mcp-config",
+              "github-workflows",
+              "codeowners",
               "gitmodules",
               "settings",
               "symlink",
               "gitlink",
-              "new-executable",
-              "rename-into-refused",
-              "instruction-path"
+              "rename-into-refused"
             ]
           },
-          "description": "Named refusals; any match refuses the whole patch. github: .github/** in any case and through any .. segment; claude: .claude/** at any depth; mcp-config: the root .mcp.json; gitmodules: .gitmodules; settings: **/settings*.json; symlink: mode 120000; gitlink: mode 160000; new-executable: an executable bit the patch sets on a file not already executable; rename-into-refused: a rename whose new path another refusal matches; instruction-path, optional: a path loaded as instructions or ownership (CLAUDE.md, AGENTS.md, .mcp.json, .lsp.json, .gitmodules or CODEOWNERS at any depth, a .claude or .claude-plugin directory, a plugin's hooks, monitors or bin)."
+          "description": "Named refusals; any match refuses the whole patch. github-workflows: .github/workflows/** in any case and through any .. segment; codeowners: CODEOWNERS at the root, in .github/ or in docs/; gitmodules: .gitmodules; settings: **/settings*.json; symlink: mode 120000; gitlink: mode 160000; rename-into-refused: a rename whose new path another refusal matches."
         },
         "allow": {
           "type": "array",
@@ -98,7 +95,7 @@
         "script-exec-bit": {
           "type": "boolean",
           "default": false,
-          "description": "true: after every refusal passes, apply-patch makes each new or changed file that ends in .sh or starts with #! executable, since the model's tools set no file mode; the row must refuse instruction-path."
+          "description": "true: after every refusal passes, apply-patch makes each new or changed file that ends in .sh or starts with #! executable, since the model's tools set no file mode."
         },
         "empty-at-push": {
           "enum": ["empty", "invalid"],

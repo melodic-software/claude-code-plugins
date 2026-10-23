@@ -90,14 +90,17 @@ assert_exit "check-paths allows paths kept threads name" 0 "$?"
 run check-paths src/a.js src/other.js >/dev/null 2>&1
 assert_exit "check-paths refuses a path no kept thread names" 1 "$?"
 jq '.threads += [{"id":"PRRT_g","path":".github/workflows/ci.yml","root_comment_id":300,"comments":[]},
-  {"id":"PRRT_G","path":".GITHUB/x.yml","root_comment_id":301,"comments":[]}]' "$STUB/threads.json" >"$STUB/t2" &&
+  {"id":"PRRT_G","path":".GITHUB/WORKFLOWS/x.yml","root_comment_id":301,"comments":[]},
+  {"id":"PRRT_s","path":".github/scripts/x.mjs","root_comment_id":302,"comments":[]}]' "$STUB/threads.json" >"$STUB/t2" &&
   mv "$STUB/t2" "$STUB/threads.json"
 run check-paths .github/workflows/ci.yml >/dev/null 2>&1
-assert_exit "check-paths refuses .github/ even when a thread names it" 1 "$?"
-run check-paths .GITHUB/x.yml >/dev/null 2>&1
-assert_exit "check-paths refuses .github/ in any letter case" 1 "$?"
+assert_exit "check-paths refuses .github/workflows/ even when a thread names it" 1 "$?"
+run check-paths .GITHUB/WORKFLOWS/x.yml >/dev/null 2>&1
+assert_exit "check-paths refuses .github/workflows/ in any letter case" 1 "$?"
 run check-paths .github/workflows/ci.test.yml >/dev/null 2>&1
-assert_exit "check-paths refuses a test file beside a .github/ thread path" 1 "$?"
+assert_exit "check-paths refuses a test file beside a .github/workflows/ thread path" 1 "$?"
+run check-paths .github/scripts/x.mjs .github/scripts/x.test.mjs >/dev/null 2>&1
+assert_exit "check-paths allows a .github/scripts/ thread path and a test file beside it" 0 "$?"
 
 # check-paths: a file in a kept thread's plugins/<p>/ directory other than hooks, manifests,
 # agent rules and non-test code, and test files beside a thread path

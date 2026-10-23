@@ -34,28 +34,43 @@ function scratch(t) {
 
 // --- the refusal table: each refused path or mode, one case each ---
 
-test("refuses .github/x", () => {
-  assert.ok(refusalsOf(entry(".github/x")).includes("github"));
+test("refuses .github/workflows/x.yml", () => {
+  assert.deepEqual(refusalsOf(entry(".github/workflows/x.yml")), ["github-workflows"]);
 });
 
-test("refuses .GitHub/x in another case", () => {
-  assert.ok(refusalsOf(entry(".GitHub/x")).includes("github"));
+test("refuses .GitHub/Workflows/x in another case", () => {
+  assert.deepEqual(refusalsOf(entry(".GitHub/Workflows/x")), ["github-workflows"]);
 });
 
-test("refuses .github/../.github/x through a .. segment", () => {
-  assert.ok(refusalsOf(entry(".github/../.github/x")).includes("github"));
+test("refuses .github/../.github/workflows/x through a .. segment", () => {
+  assert.deepEqual(refusalsOf(entry(".github/../.github/workflows/x")), ["github-workflows"]);
 });
 
-test("refuses a/../.github/x through a .. segment", () => {
-  assert.ok(refusalsOf(entry("a/../.github/x")).includes("github"));
+test("refuses a/../.github/workflows/x through a .. segment", () => {
+  assert.deepEqual(refusalsOf(entry("a/../.github/workflows/x")), ["github-workflows"]);
 });
 
-test("refuses .claude/settings.json", () => {
-  assert.ok(refusalsOf(entry(".claude/settings.json")).includes("claude"));
+test("admits the rest of .github/: scripts, actions, standards and config", () => {
+  for (const path of [".github/scripts/x.mjs", ".github/actions/a/action.yml", ".github/standards/s/policy.json", ".github/dependabot.yml", ".github/workflows.md"]) {
+    assert.deepEqual(refusalsOf(entry(path)), [], path);
+  }
 });
 
-test("refuses the root .mcp.json", () => {
-  assert.deepEqual(refusalsOf(entry(".mcp.json")), ["mcp-config"]);
+test("refuses .claude/settings.json as a settings file only", () => {
+  assert.deepEqual(refusalsOf(entry(".claude/settings.json")), ["settings"]);
+});
+
+test("refuses CODEOWNERS where GitHub reads it: the root, .github/ and docs/", () => {
+  for (const path of ["CODEOWNERS", ".github/CODEOWNERS", "docs/codeowners", "Docs/CODEOWNERS"]) {
+    assert.deepEqual(refusalsOf(entry(path)), ["codeowners"], path);
+  }
+  for (const path of ["plugins/p/CODEOWNERS", "docs/sub/CODEOWNERS", "CODEOWNERS.md"]) {
+    assert.deepEqual(refusalsOf(entry(path)), [], path);
+  }
+});
+
+test("admits the root .mcp.json", () => {
+  assert.deepEqual(refusalsOf(entry(".mcp.json")), []);
 });
 
 test("admits a plugin's .mcp.json", () => {
@@ -78,8 +93,8 @@ test("refuses a gitlink, mode 160000", () => {
   assert.deepEqual(refusalsOf(entry("vendor/sub", "160000", "160000")), ["gitlink"]);
 });
 
-test("admits plugin hooks, .claude-plugin, lib, scripts, CLAUDE.md and AGENTS.md", () => {
-  for (const path of ["plugins/p/hooks/hooks.json", "plugins/p/.claude-plugin/plugin.json", "lib/x.mjs", "scripts/x.sh", "CLAUDE.md", "plugins/p/AGENTS.md"]) {
+test("admits plugin hooks, .claude-plugin, .claude, lib, scripts, CLAUDE.md and AGENTS.md", () => {
+  for (const path of ["plugins/p/hooks/hooks.json", "plugins/p/.claude-plugin/plugin.json", ".claude/rules/r.md", "lib/x.mjs", "scripts/x.sh", "CLAUDE.md", "plugins/p/AGENTS.md"]) {
     assert.deepEqual(refusalsOf(entry(path)), [], path);
   }
 });
@@ -176,28 +191,39 @@ const pushWith = (fix, api, extra = {}) =>
     ...extra,
   });
 
-test("refuses a new executable bit on a file not executable at head", async (t) => {
+test("a new executable bit the patch sets pushes with the mode it set", async (t) => {
   const fix = repoWithPatch(t, (repo) => chmodSync(join(repo, "README.md"), 0o755));
   const api = fakeApi(fix.repo, fix.head);
-  assert.deepEqual(await pushWith(fix, api), { outcome: "escalate", escalationReason: "patch-protected-path" });
-  assert.deepEqual(api.calls, []);
+  assert.equal((await pushWith(fix, api)).outcome, "pushed");
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.equal(git(fix.repo, ["ls-tree", createCommit.tree, "--", "README.md"]).split(" ")[0], "100755");
 });
 
-test("refuses a rename from an allowed path into .github/", async (t) => {
+test("refuses a rename from an allowed path into .github/workflows/", async (t) => {
   const fix = repoWithPatch(
     t,
     (repo) => {
-      mkdirSync(join(repo, ".github"));
-      renameSync(join(repo, "notes.md"), join(repo, ".github/notes.md"));
+      mkdirSync(join(repo, ".github/workflows"), { recursive: true });
+      renameSync(join(repo, "notes.md"), join(repo, ".github/workflows/notes.md"));
     },
     { renames: true },
   );
-  assert.match(readFileSync(fix.patchFile, "utf8"), /^rename to \.github\/notes\.md$/m);
+  assert.match(readFileSync(fix.patchFile, "utf8"), /^rename to \.github\/workflows\/notes\.md$/m);
   const api = fakeApi(fix.repo, fix.head);
   const lines = [];
   assert.deepEqual(await pushWith(fix, api, { log: (line) => lines.push(line) }), { outcome: "escalate", escalationReason: "patch-protected-path" });
-  assert.deepEqual(lines, ["refused (rename-into-refused): .github/notes.md"]);
+  assert.deepEqual(lines, ["refused (rename-into-refused): .github/workflows/notes.md"]);
   assert.deepEqual(api.calls, []);
+});
+
+test("a patch that edits .github/scripts/ or .github/actions/ pushes", async (t) => {
+  const fix = repoWithPatch(t, (repo) => {
+    mkdirSync(join(repo, ".github/scripts"), { recursive: true });
+    mkdirSync(join(repo, ".github/actions/a"), { recursive: true });
+    writeFileSync(join(repo, ".github/scripts/x.mjs"), "export {};\n");
+    writeFileSync(join(repo, ".github/actions/a/action.yml"), "runs: {}\n");
+  });
+  assert.deepEqual(await pushWith(fix, fakeApi(fix.repo, fix.head), { row: row("ci-context") }), { outcome: "pushed", commit: "c".repeat(40), branch: "feat/x" });
 });
 
 test("refuses a patched path holding a backslash, such as a .github\\x.yml add", async (t) => {
@@ -258,71 +284,69 @@ test("a patch over max-files is refused", async (t) => {
   assert.deepEqual(api.calls, []);
 });
 
-// The owner's 2026-10-18 path list: agent instructions, plugin hooks and
-// manifests, MCP config, submodules and code owners, at any depth and in any
-// case, with the refusals the ci-context and default rows name for each. The
-// review-threads and dependency-review rows admit those the universal set
-// does not refuse.
+// Agent instructions, plugin hooks and manifests, MCP config and .claude
+// reach review on every row; settings files, submodules and code owners stay
+// refused on every row.
 const INSTRUCTION_PATHS = [
-  ["CLAUDE.md", ["instruction-path"]],
-  ["AGENTS.md", ["instruction-path"]],
-  ["plugins/p/skills/s/CLAUDE.md", ["instruction-path"]],
-  ["docs/Agents.MD", ["instruction-path"]],
-  [".claude/settings.json", ["claude", "settings", "instruction-path"]],
-  ["plugins/p/.claude/rules/r.md", ["claude", "instruction-path"]],
-  [".CLAUDE/x.md", ["claude", "instruction-path"]],
-  ["plugins/p/hooks/hooks.json", ["instruction-path"]],
-  ["plugins/p/Hooks/run.mjs", ["instruction-path"]],
-  ["plugins/p/.claude-plugin/plugin.json", ["instruction-path"]],
-  [".claude-plugin/marketplace.json", ["instruction-path"]],
-  ["vendor/m/.Claude-Plugin/marketplace.json", ["instruction-path"]],
-  [".mcp.json", ["mcp-config", "instruction-path"]],
-  ["plugins/p/.MCP.json", ["instruction-path"]],
-  [".gitmodules", ["gitmodules", "instruction-path"]],
-  ["CODEOWNERS", ["instruction-path"]],
-  ["docs/CODEOWNERS", ["instruction-path"]],
-  ["docs/codeowners", ["instruction-path"]],
+  ["CLAUDE.md", []],
+  ["AGENTS.md", []],
+  ["plugins/p/skills/s/CLAUDE.md", []],
+  ["docs/Agents.MD", []],
+  [".claude/settings.json", ["settings"]],
+  ["plugins/p/.claude/rules/r.md", []],
+  [".CLAUDE/x.md", []],
+  ["plugins/p/hooks/hooks.json", []],
+  ["plugins/p/Hooks/run.mjs", []],
+  ["plugins/p/.claude-plugin/plugin.json", []],
+  [".claude-plugin/marketplace.json", []],
+  [".mcp.json", []],
+  ["plugins/p/.MCP.json", []],
+  [".gitmodules", ["gitmodules"]],
+  ["CODEOWNERS", ["codeowners"]],
+  ["docs/CODEOWNERS", ["codeowners"]],
+  ["docs/codeowners", ["codeowners"]],
 ];
 
-test("the ci-context and default rows refuse every instruction path, and the review-threads row admits those the universal set does not refuse", () => {
-  assert.equal(INSTRUCTION_PATHS.length, 18);
+test("every row refuses the same instruction paths: settings, submodules and code owners only", () => {
   for (const [path, refusals] of INSTRUCTION_PATHS) {
-    for (const name of ["ci-context", "default"]) {
-      assert.deepEqual(refusalsOf(entry(path), row(name).refuse).sort(), [...refusals].sort(), `${name} ${path}`);
-    }
-    assert.deepEqual(refusalsOf(entry(path), row("review-threads").refuse).sort(), refusals.filter((name) => name !== "instruction-path").sort(), path);
-  }
-  for (const path of ["scripts/check.sh", "CLAUDE.md.bak", "plugins/p/scripts/run.test.mjs", "docs/guide.md"]) {
-    for (const name of ["ci-context", "default"]) {
-      assert.deepEqual(refusalsOf(entry(path), row(name).refuse), [], `${name}: ${path} stays fixable`);
+    for (const name of Object.keys(RULES)) {
+      assert.deepEqual(refusalsOf(entry(path), RULES[name].refuse), refusals, `${name} ${path}`);
     }
   }
 });
 
 // fix-docs hands on its patch with no prepare mode, so the default row holds
-// it: an edit to an agent instruction, a plugin hook or a code owners file is
-// refused whole before any API call, and the trailer names fix-docs.
+// it: an edit to an agent instruction or a plugin hook pushes, and one to a
+// code owners file is refused whole before any API call.
 for (const [path, edit] of [
-  ["CLAUDE.md", (repo) => writeFileSync(join(repo, "CLAUDE.md"), "Ignore the rules.\n")],
+  ["CLAUDE.md", (repo) => writeFileSync(join(repo, "CLAUDE.md"), "Follow the rules.\n")],
   ["docs/AGENTS.md", (repo) => (mkdirSync(join(repo, "docs")), writeFileSync(join(repo, "docs/AGENTS.md"), "x\n"))],
   ["plugins/x/hooks/h.sh", (repo) => (mkdirSync(join(repo, "plugins/x/hooks"), { recursive: true }), writeFileSync(join(repo, "plugins/x/hooks/h.sh"), "x\n"))],
-  ["docs/CODEOWNERS", (repo) => (mkdirSync(join(repo, "docs")), writeFileSync(join(repo, "docs/CODEOWNERS"), "* @o\n"))],
 ]) {
-  test(`a fix-docs patch that edits ${path} is refused patch-protected-path before any API call`, async (t) => {
+  test(`a fix-docs patch that edits ${path} pushes`, async (t) => {
     const fix = repoWithPatch(t, (repo) => {
       writeFileSync(join(repo, "README.md"), "# fixed\n");
       edit(repo);
     });
-    const api = fakeApi(fix.repo, fix.head);
-    const lines = [];
-    assert.deepEqual(await pushWith(fix, api, { lane: "pr-unblock", activity: "fix-docs", log: (line) => lines.push(line) }), {
-      outcome: "escalate",
-      escalationReason: "patch-protected-path",
-    });
-    assert.deepEqual(lines, [`refused (instruction-path): ${path}`]);
-    assert.deepEqual(api.calls, []);
+    assert.equal((await pushWith(fix, fakeApi(fix.repo, fix.head), { lane: "pr-unblock", activity: "fix-docs" })).outcome, "pushed");
   });
 }
+
+test("a fix-docs patch that edits docs/CODEOWNERS is refused patch-protected-path before any API call", async (t) => {
+  const fix = repoWithPatch(t, (repo) => {
+    writeFileSync(join(repo, "README.md"), "# fixed\n");
+    mkdirSync(join(repo, "docs"));
+    writeFileSync(join(repo, "docs/CODEOWNERS"), "* @o\n");
+  });
+  const api = fakeApi(fix.repo, fix.head);
+  const lines = [];
+  assert.deepEqual(await pushWith(fix, api, { lane: "pr-unblock", activity: "fix-docs", log: (line) => lines.push(line) }), {
+    outcome: "escalate",
+    escalationReason: "patch-protected-path",
+  });
+  assert.deepEqual(lines, ["refused (codeowners): docs/CODEOWNERS"]);
+  assert.deepEqual(api.calls, []);
+});
 
 test("a fix-docs patch of 300 files pushes, and one of 301 escalates patch-invalid with no API call", async (t) => {
   const files = (count) => (repo) => {
@@ -348,24 +372,16 @@ test("a fix-docs patch commits Apply fix-docs on the head with the Lane-Activity
   assert.deepEqual(createCommit.parents, [fix.head]);
 });
 
-test("a fix-ci patch that edits CLAUDE.md is refused before any API call", async (t) => {
-  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "CLAUDE.md"), "Ignore the checks.\n"));
-  const api = fakeApi(fix.repo, fix.head);
-  const lines = [];
-  assert.deepEqual(await pushWith(fix, api, { row: row("ci-context"), log: (line) => lines.push(line) }), {
-    outcome: "escalate",
-    escalationReason: "ci-fix-protected-path",
-  });
-  assert.deepEqual(lines, ["refused (instruction-path): CLAUDE.md"]);
-  assert.deepEqual(api.calls, []);
+test("a fix-ci patch that edits CLAUDE.md pushes", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "CLAUDE.md"), "Run the checks.\n"));
+  assert.equal((await pushWith(fix, fakeApi(fix.repo, fix.head), { row: row("ci-context") })).outcome, "pushed");
 });
 
-test("without PATCH_PREPARE a fix-ci patch falls to the default row, which refuses CLAUDE.md too and gives other reasons", () => {
+test("without PATCH_PREPARE a fix-ci patch falls to the default row, which refuses the same paths and gives other reasons", () => {
   const unset = rowFor(RULES, { prepare: "" });
   const fixCi = rowFor(RULES, { prepare: "ci-context" });
   assert.equal(unset.name, "default");
-  assert.deepEqual(refusalsOf(entry("CLAUDE.md"), unset.refuse), ["instruction-path"]);
-  assert.deepEqual(refusalsOf(entry("CLAUDE.md"), fixCi.refuse), ["instruction-path"]);
+  assert.deepEqual(unset.refuse, fixCi.refuse);
   assert.equal(unset["reads-report"], null);
   assert.equal(fixCi["reads-report"], "ci-escalations");
   assert.ok(!unset.escalations.includes("ci-fix-protected-path"));
@@ -1031,14 +1047,12 @@ test("issue target: a patch made on another commit is refused, never applied wit
 test("issue target: the issue row refuses the universal set, each refusal before any API call", async (t) => {
   const cases = [
     ["a .github/ workflow", (repo) => (mkdirSync(join(repo, ".github/workflows"), { recursive: true }), writeFileSync(join(repo, ".github/workflows/x.yml"), "on: push\n")), "patch-protected-path"],
-    ["a .claude/ file", (repo) => (mkdirSync(join(repo, "plugins/p/.claude"), { recursive: true }), writeFileSync(join(repo, "plugins/p/.claude/x.md"), "x\n")), "patch-protected-path"],
-    ["the root .mcp.json", (repo) => writeFileSync(join(repo, ".mcp.json"), "{}\n"), "patch-protected-path"],
+    ["CODEOWNERS", (repo) => writeFileSync(join(repo, "CODEOWNERS"), "* @o\n"), "patch-protected-path"],
     [".gitmodules", (repo) => writeFileSync(join(repo, ".gitmodules"), "\n"), "patch-protected-path"],
     ["a settings.json", (repo) => writeFileSync(join(repo, "settings.json"), "{}\n"), "patch-protected-path"],
     ["a symbolic link", (repo) => symlinkSync("README.md", join(repo, "link")), "patch-invalid"],
-    ["a new executable bit", (repo) => chmodSync(join(repo, "notes.md"), 0o755), "patch-protected-path"],
   ];
-  assert.deepEqual(issueRow().refuse, ["github", "claude", "mcp-config", "gitmodules", "settings", "symlink", "gitlink", "new-executable", "rename-into-refused", "instruction-path"]);
+  assert.deepEqual(issueRow().refuse, ["github-workflows", "codeowners", "gitmodules", "settings", "symlink", "gitlink", "rename-into-refused"]);
   for (const [what, edit, reason] of cases) {
     const fix = repoWithPatch(t, edit);
     const api = fakeApi(fix.repo, fix.head, { labels: READY });
@@ -1066,10 +1080,10 @@ test("issue target: a new or changed file that ends in .sh or starts with #! lan
   assert.equal(modeIn(fix.repo, createCommit.tree, "README.md"), "100644", "an unchanged file keeps its mode");
 });
 
-test("issue target: a resumed run keeps the executable script its earlier lane commit landed; a non-script made executable there is still refused", async (t) => {
-  for (const [path, body, outcome] of [
-    ["scripts/new.sh", "echo earlier\n", "pushed"],
-    ["notes.md", "notes\n", "escalate"],
+test("issue target: a resumed run keeps the executable bits its earlier lane commit landed, on a script or not", async (t) => {
+  for (const [path, body] of [
+    ["scripts/new.sh", "echo earlier\n"],
+    ["notes.md", "notes\n"],
   ]) {
     const fix = repoWithPatch(t, () => {});
     writeFileSync(join(fix.repo, path), body);
@@ -1082,7 +1096,7 @@ test("issue target: a resumed run keeps the executable script its earlier lane c
     writeFileSync(fix.patchFile, text);
     const api = fakeApi(fix.repo, resumeTip, { labels: READY });
     const resumed = { ...fix, head: resumeTip, sum: sha256(text) };
-    assert.equal((await pushIssue(resumed, api, { headRef: `${LANE}/issue-7-124-1`, refusalBase: fix.head })).outcome, outcome, path);
+    assert.equal((await pushIssue(resumed, api, { headRef: `${LANE}/issue-7-124-1`, refusalBase: fix.head })).outcome, "pushed", path);
   }
 });
 
@@ -1100,29 +1114,30 @@ test("issue target: a resumed run whose patch adds a gitlink to a commit not in 
   assert.deepEqual(api.calls, []);
 });
 
-test("issue target: a script under an instruction path is refused before any API call", async (t) => {
+test("issue target: a script in a plugin's hooks lands 100755", async (t) => {
   const fix = repoWithPatch(t, (repo) => (mkdirSync(join(repo, "plugins/p/hooks"), { recursive: true }), writeFileSync(join(repo, "plugins/p/hooks/x.sh"), "#!/bin/sh\n")));
   const api = fakeApi(fix.repo, fix.head, { labels: READY });
-  assert.deepEqual(await pushIssue(fix, api), { outcome: "escalate", escalationReason: "patch-protected-path" });
-  assert.deepEqual(api.calls, []);
+  assert.equal((await pushIssue(fix, api)).outcome, "pushed");
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.equal(modeIn(fix.repo, createCommit.tree, "plugins/p/hooks/x.sh"), "100755");
 });
 
-test("issue target: an executable bit the patch itself sets is refused, on a script or not", async (t) => {
-  for (const [what, edit] of [
-    ["a non-script", (repo) => chmodSync(join(repo, "notes.md"), 0o755)],
-    ["a new .sh", (repo) => (writeFileSync(join(repo, "scripts/new.sh"), "#!/bin/sh\n"), chmodSync(join(repo, "scripts/new.sh"), 0o755))],
+test("issue target: an executable bit the patch itself sets lands, on a script or not", async (t) => {
+  for (const [what, path, edit] of [
+    ["a non-script", "notes.md", (repo) => chmodSync(join(repo, "notes.md"), 0o755)],
+    ["a new .sh", "scripts/new.sh", (repo) => (writeFileSync(join(repo, "scripts/new.sh"), "#!/bin/sh\n"), chmodSync(join(repo, "scripts/new.sh"), 0o755))],
   ]) {
     const fix = repoWithPatch(t, edit);
     const api = fakeApi(fix.repo, fix.head, { labels: READY });
-    assert.deepEqual(await pushIssue(fix, api), { outcome: "escalate", escalationReason: "patch-protected-path" }, what);
-    assert.deepEqual(api.calls, [], what);
+    assert.equal((await pushIssue(fix, api)).outcome, "pushed", what);
+    const { createCommit } = api.calls.find((call) => call.createCommit);
+    assert.equal(modeIn(fix.repo, createCommit.tree, path), "100755", what);
   }
 });
 
-test("a row that sets script exec bits must refuse instruction paths", () => {
-  const { "script-exec-bit": _, ...without } = issueRow();
-  assert.throws(() => checkRow({ ...without, "script-exec-bit": true, refuse: without.refuse.filter((name) => name !== "instruction-path") }), /script-exec-bit.*instruction-path/);
-  assert.doesNotThrow(() => checkRow({ ...without, "script-exec-bit": true }));
+test("a row may set script exec bits whatever it refuses beyond the universal set", () => {
+  assert.doesNotThrow(() => checkRow({ ...issueRow(), "script-exec-bit": true }));
+  assert.doesNotThrow(() => checkRow({ ...row("default"), "script-exec-bit": true }));
 });
 
 test("issue target: API calls are one blob per changed file, then tree, commit, branch create and the label and branch reads; over max-files none", async (t) => {
@@ -1195,9 +1210,9 @@ function resumeWith(t, earlier) {
 
 test("issue target: a resume tip carrying a refused path is refused, though the patch itself is clean", async (t) => {
   for (const [what, earlier, reason] of [
-    ["a .claude/ file", (repo) => (mkdirSync(join(repo, ".claude")), writeFileSync(join(repo, ".claude/x"), "x\n")), "patch-protected-path"],
-    ["a .github/ workflow", (repo) => (mkdirSync(join(repo, ".github")), writeFileSync(join(repo, ".github/x.yml"), "on: push\n")), "patch-protected-path"],
-    ["a new executable bit", (repo) => chmodSync(join(repo, "notes.md"), 0o755), "patch-protected-path"],
+    ["a .claude/settings.json", (repo) => (mkdirSync(join(repo, ".claude")), writeFileSync(join(repo, ".claude/settings.json"), "{}\n")), "patch-protected-path"],
+    ["a .github/ workflow", (repo) => (mkdirSync(join(repo, ".github/workflows"), { recursive: true }), writeFileSync(join(repo, ".github/workflows/x.yml"), "on: push\n")), "patch-protected-path"],
+    ["CODEOWNERS", (repo) => writeFileSync(join(repo, "CODEOWNERS"), "* @o\n"), "patch-protected-path"],
   ]) {
     const { fix, base } = resumeWith(t, earlier);
     const api = fakeApi(fix.repo, fix.head, { labels: READY });

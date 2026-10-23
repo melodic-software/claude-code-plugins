@@ -612,8 +612,8 @@ re-run of that job alone still finds it. Before applying it, that job must check
 - the PR head is still `head-sha`;
 - `git apply --check` with `--index` or `--cached`, and no `--unsafe-paths` or `--directory`,
   succeeds on a fresh checkout of `head-sha`;
-- no entry has mode `120000` (symlink) or `160000` (gitlink), and no path is under a protected
-  path such as `.github/**`, `.gitattributes`, `.gitmodules` or `.husky`.
+- no entry has mode `120000` (symlink) or `160000` (gitlink), and no path is a protected path
+  such as `.github/workflows/**`, `CODEOWNERS`, `.gitmodules` or a settings file.
 
 It then commits on `head-sha` and moves the PR branch without force, so a head that moved after
 the check refuses the push. A forged `empty` can only hand the PR to a person; a forged `written`
@@ -701,22 +701,24 @@ the base's copies from step 8, each checked against its recorded SHA-256 before 
    address), which a `--no-commit` merge needs and the repeat cap counts by, and `loop.no-progress`
    as `LOOP_NO_PROGRESS`. It escalates `repeat-cap` before merging, runs
    `git merge --no-commit --no-ff <trusted base>` and the version-bump script, snapshots the
-   index, and escalates `protected-path-conflict` (a conflicted path under `.github/workflows/` or
-   a path claude-code-action restores) or `unresolved-conflict` (a conflict with no markers to
+   index, and escalates `protected-path-conflict` (a conflicted path under `.github/workflows/`,
+   a `.gitmodules` or a `settings*.json`) or `unresolved-conflict` (a conflict with no markers to
    resolve). Its `merge-state` output is `clean`, `conflicted` or `escalate`; an escalation skips
    with `awaiting-human`.
 2. The skill runs only when `merge-state` is `conflicted`, without the commit tool. A clean merge
    takes no model turn.
 3. `post.sh` runs after a clean merge, or after the skill and its model-turn check succeeded, with
-   prepare's hashes. It restores `.git/config` and `.git/info/attributes`, repairs the paths
-   claude-code-action reset, and escalates `unresolved-conflict` (an unmerged entry, or conflict
+   prepare's hashes. It restores `.git/config` and `.git/info/attributes`, repairs the merged
+   entries of the paths claude-code-action resets (leaving a conflicted one as the model resolved
+   it), and escalates `unresolved-conflict` (an unmerged entry, or conflict
    markers in a staged resolution) or `workflow-staged` (a `.github/workflows/` index entry changed
    since the snapshot, or differs from the gated head, as a workflow change merged in from the base
    does, unless the staged `.github/workflows/` entries are exactly the trusted base's (mode and
    blob), no head workflow is dropped, and the PR's own diff against every merge base touches no
-   workflow) or `unexpected-path-staged` (an index entry added,
-   changed or removed at a path the merge did not leave conflicted, as `git add -A` would stage);
-   otherwise it writes the index as a tree.
+   workflow) or `unexpected-path-staged` (an index entry added, changed or removed at a path the
+   merge did not leave conflicted that is a symlink or gitlink, holds a backslash, or is a
+   `.gitmodules`, a `settings*.json` or a `CODEOWNERS` GitHub reads); any other change the model
+   staged is committed and reaches review; otherwise it writes the index as a tree.
 4. With no escalation reason and a tree, a pinned `github-script` step commits through the Git
    Data API: it fails unless the lane branch is still at the gated head, uploads only the blobs
    `tree-entries.sh` flags (logging `created <k> blobs`), builds the tree on the gated head's tree
@@ -755,7 +757,7 @@ its check:
 | Hold label or draft set during the run, found before the promote | success | `awaiting-human` | empty | neutral |
 | Model left a conflict | success | `awaiting-human` | `unresolved-conflict` | neutral |
 | Model staged, or the merge brought in, a `.github/workflows/` change that is not the trusted base's own | success | `awaiting-human` | `workflow-staged` | neutral |
-| Model staged a change to a path that did not conflict | success | `awaiting-human` | `unexpected-path-staged` | neutral |
+| Model staged a symlink, gitlink, backslash, `.gitmodules`, settings or `CODEOWNERS` change at a path that did not conflict | success | `awaiting-human` | `unexpected-path-staged` | neutral |
 | Resolved, committed, promoted | success | none | empty | success |
 | Commit step fails or lane branch moved | failure | none | empty | failure |
 | PR branch moved during run (promote) | failure | none | empty | failure |
@@ -807,7 +809,7 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    those replies is such a fix request by a write-access human, and
    reports `fix-requested=true`, which lifts only the human-gated hold of the push job. No kept
    thread skips `not-applicable`, or `awaiting-human` on such a PR. A PR diff touching
-   `.github/**` escalates `feedback-protected-path`, and `loop.review-rounds` earlier rounds
+   `.github/workflows/**` escalates `feedback-protected-path`, and `loop.review-rounds` earlier rounds
    escalate `feedback-round-cap`: the larger of the round markers the lanes App posted and the PR
    commits carrying a `github-actions` `pr-unblock / address-feedback` check run that ended
    `success` or `failure` (a round whose reply job was refused still counts). At the cap, a kept
@@ -836,16 +838,18 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    refuses a disposition file outside the scratch directory or off the template (`fix_sha`
    empty), and a `VALID` reply while the working tree changes, against the gated head (renames
    as both paths, untracked files that git does not ignore included), a file outside every kept
-   thread's scope or any `.github/` path, read with no hook, fsmonitor or untracked-cache config.
+   thread's scope or any `.github/workflows/` path, read with no hook, fsmonitor or untracked-cache config.
    Every path must be plain ASCII letters, digits and `_@+.-` in `/`-separated segments. A
    thread's scope is its path; a file in the `plugins/<p>/` directory its path sits in, except an
-   instruction path (the `instruction-path` refusal of [`apply-patch`](#prepare-apply-patch)) or a `.sh`, `.bash`, `.zsh`, `.ps1`,
+   instruction path (`CLAUDE.md`, `AGENTS.md`, `.mcp.json`, `.lsp.json`, `.gitmodules` or
+   `CODEOWNERS` at any depth, a `.claude` or `.claude-plugin` directory, a plugin's `hooks/`,
+   `monitors/` or `bin/`) or a `.sh`, `.bash`, `.zsh`, `.ps1`,
    `.py`, `.mjs`, `.cjs`, `.js`, `.ts`, `.mts` or `.cts` file; a test file (`test_*.py`, `*_test.py`, `*.test.*`, `*.spec.*`) in its path's
    directory; and its `named_paths`. The select job sets those from the thread's fix requests by a
    trusted person with write access: each file-shaped word outside fenced code and quoted lines,
    read from the repository root when it holds a `/` and from the thread path's directory when it
    does not, kept when it is in the thread path's `plugins/<p>/` directory, in normal form, not
-   under `.github/` and not an instruction path (the same `instruction-path` list), and
+   under `.github/workflows/` and not an instruction path (the same list), and
    a regular file, not a symbolic link or gitlink, at the gated head (ten per thread
    at most).
 3. After the skill, the run job carries the tool's `replies.jsonl` beside the patch, at most
@@ -894,7 +898,7 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
      and escalates `feedback-incomplete`;
    - when a reply is `VALID` or the PR branch moved, compares the select job's head with the PR's
      current head: the branch must be ahead and change fewer than 300 files, each in a kept
-     thread's scope and none under `.github/`, and with a `VALID` reply hold exactly one commit the
+     thread's scope and none under `.github/workflows/`, and with a `VALID` reply hold exactly one commit the
      lanes App authored with the push job's trailer, committed by `web-flow` with a `valid`
      signature, which must change each `VALID` thread's path,
      or for a thread on a skill's `SKILL.md` any file in that skill's directory. Otherwise it
@@ -925,10 +929,11 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    The script writes its reason to `ESCALATION_REASON_FILE`; the runner accepts only those six
    reasons, and only with `review-replies`, as the run's `escalation-reason` output.
 
-The skill's limits to kept-thread scope and away from `.github/` are instructions and the tool's
+The skill's limits to kept-thread scope and away from `.github/workflows/` are instructions and the tool's
 checks at record time; the push job's `kept-threads` rule is what holds the push, and the reply
 job's compare withholds the replies when the branch changed anything else. A diff at the files
-listing's limit escalates as `feedback-protected-path`, since it could hide a `.github/` path.
+listing's limit escalates as `feedback-protected-path`, since it could hide a `.github/workflows/`
+path.
 Residuals: a reviewed-head marker confirms a head, not one review run, so any reviewer-bot review
 on that head is kept; and the replies file is the model's to write, so the tool's checks are
 advisory and `publish-feedback.mjs` is what holds the template. The write file fails red on a
@@ -1097,9 +1102,10 @@ its fallback call on the role's OAuth token after a credit stop or with the key 
    Residual: the skill runs head code by design, so head code can reach what any step of a read
    job can (the job's read-only token, the Actions runtime token through a process left running
    or `$GITHUB_ENV`, and the default branch's cache scope), as in `pr-verify.yml`. The patch it
-   leaves is checked only by [`apply-patch`](#prepare-apply-patch), which refuses `.github/**` and
-   the agent instruction paths (the owner's 2026-10-18 path-guard decision); a change elsewhere,
-   such as `.gitattributes` or a check's own script, reaches the branch and its review.
+   leaves is checked only by [`apply-patch`](#prepare-apply-patch), which refuses
+   `.github/workflows/**`, `CODEOWNERS`, `.gitmodules`, settings files, symlinks and gitlinks; a
+   change elsewhere, such as `.gitattributes`, an agent instruction file or a check's own script,
+   reaches the branch and its review.
 4. The run is in [patch output mode](#patch-output-mode); its `reply-attempt` output names the
    skill's reply, whose `<check>: escalated <reason> <sentence>` lines are the report.
 
@@ -1128,12 +1134,10 @@ of `patch-rules.json`. The caller passes the outputs of whichever `fix-ci` call 
 3. The script, from its base copy, with the lane token and `/usr/bin/git` under an allowlisted
    environment (no hooks, fsmonitor, global or system config), applies the patch to the gated
    head's index (escalating `ci-fix-not-applied` on failure) and refuses the whole patch,
-   whatever the report escalated, on any change the row refuses: the universal set (`.github/**`,
-   `.claude/**`, the root `.mcp.json`, `.gitmodules`, `**/settings*.json`, a symbolic link or
-   gitlink, a new executable bit, a rename into a refused path, a backslash) and the row's
-   `instruction-path` refusal (`CLAUDE.md`, `AGENTS.md`, `.mcp.json`, `.lsp.json`, `.gitmodules`
-   or `CODEOWNERS` at any depth, a `.claude` or `.claude-plugin` directory, a plugin's `hooks/`,
-   `monitors/` or `bin/`), escalating `ci-fix-protected-path`; more than the row's `max-files`
+   whatever the report escalated, on any change the row refuses: the universal set
+   (`.github/workflows/**`, `CODEOWNERS` at the root, in `.github/` or in `docs/`, `.gitmodules`,
+   `**/settings*.json`, a symbolic link or gitlink, a rename into a refused path, a backslash),
+   escalating `ci-fix-protected-path`; more than the row's `max-files`
    (300) paths, a credential shape, an oversized blob or a patch that changes nothing (the row's
    `empty-at-push`) escalates `ci-fix-invalid`. It then
    re-reads the pull request and its labels, throws unless the head is this repository's, stops
@@ -1148,7 +1152,7 @@ accepts the script's reasons only in this mode.
 
 In `pr-unblock.yml` the same leaf, as the `apply-docs-patch` job, follows `fix-docs`, which has
 no prepare mode: the caller passes no `patch-prepare`, so the script takes the `default` row, and
-runs the job only on a `written` patch. That row refuses the universal set and the `instruction-path` list, escalating
+runs the job only on a `written` patch. That row refuses the universal set, escalating
 `patch-protected-path`, caps a patch at 300 paths (`patch-invalid`), takes a moved head with
 `--3way` when the moved commits touch no patched path (`skip-moved-head: false`), and commits
 `Apply fix-docs on <head ref>` with the trailer `Lane-Activity: pr-unblock/fix-docs`.
@@ -1178,8 +1182,7 @@ The rules each producer's patch is to be held to are registered in
 [`patch-rules.json`](../../../.github/actions/resolve-config/patch-rules.json), one row per
 producer prepare mode ([README.md, Patch rules](README.md#patch-rules)): the refusals every row
 carries, what else a path must meet, a file cap, the producer output required, the commit's
-parents, message and trailer, and the row's escalation reasons. A row may also name an optional
-refusal, such as the `instruction-path` of `ci-context` and `default`.
+parents, message and trailer, and the row's escalation reasons.
 
 ## The scan job
 

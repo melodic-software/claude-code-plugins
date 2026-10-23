@@ -278,14 +278,12 @@ function checkAppliedBy(doc) {
 
 // Every patch-rules.json row refuses these, so no row can admit them.
 const UNIVERSAL_REFUSE = Object.freeze([
-  "github",
-  "claude",
-  "mcp-config",
+  "github-workflows",
+  "codeowners",
   "gitmodules",
   "settings",
   "symlink",
   "gitlink",
-  "new-executable",
   "rename-into-refused",
 ]);
 

@@ -4,8 +4,9 @@
 // (feedback-thread.sh). It imports nothing, so the write runner's copy of it
 // beside apply-patch.mjs's needs no other file.
 
+// Under .github/workflows/, which the lane token has no permission to push.
 export function isProtectedPath(path) {
-  return /^\.github(\/|$)/i.test(String(path));
+  return /^\.github\/workflows(\/|$)/i.test(String(path));
 }
 
 // Run or loaded as instructions by the harness, git or GitHub: agent rules,
@@ -32,8 +33,8 @@ const PLAIN_PATH = /^[A-Za-z0-9_@+.-]+(\/[A-Za-z0-9_@+.-]+)*$/;
 
 // A path a trusted write-access fix request on a kept thread named may join
 // that thread's scope: a plain path in normal form, in the same plugins/<p>/
-// directory as the thread's own path, and neither under .github/ nor an
-// instruction path.
+// directory as the thread's own path, and neither under .github/workflows/ nor
+// an instruction path.
 export function namedInScope(path, threadPath) {
   const plugin = pluginOf(path);
   return (
@@ -51,7 +52,8 @@ export function namedInScope(path, threadPath) {
 // file, a test file in the same directory as a kept thread's path,
 // or a path in a kept thread's named_paths (in `threads`, each { path,
 // named_paths }) that namedInScope allows for that thread; never anything
-// under .github/, and never a path that is not plain and in normal form.
+// under .github/workflows/, and never a path that is not plain and in normal
+// form.
 export function inThreadScope(path, threadPaths, threads = []) {
   if (isProtectedPath(path) || BAD_SEGMENT.test(path) || !PLAIN_PATH.test(path)) {
     return false;

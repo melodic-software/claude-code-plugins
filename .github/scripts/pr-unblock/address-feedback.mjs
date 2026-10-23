@@ -9,7 +9,7 @@
 //           review lane's marker confirms, when every comment is the bot's,
 //           a trusted person with write access asked the lane to fix it, or
 //           a trusted person answered the lane's escalation, then decides
-//           skip (no such thread), escalate (the PR changes .github/**, or
+//           skip (no such thread), escalate (the PR changes .github/workflows/**, or
 //           the configured number of rounds already ran and no write-access
 //           fix request came after the newest one) or proceed, writing the thread file
 //           the skill's review-thread tool reads, with the same-plugin files
@@ -413,7 +413,7 @@ export async function select({
     return { decision: "skip", skipReason: gated ? "awaiting-human" : "not-applicable", threads: kept };
   }
   // The files listing stops at FILES_CAP, so a longer diff could hide a
-  // .github/ path and is treated as touching one.
+  // .github/workflows/ path and is treated as touching one.
   if (
     files.length >= FILES_CAP ||
     files.some((file) => isProtectedPath(file.filename) || isProtectedPath(file.previous_filename ?? ""))

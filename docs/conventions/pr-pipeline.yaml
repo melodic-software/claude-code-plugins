@@ -49,16 +49,16 @@ activities:
     # opened; a trusted person may also dispatch it by hand.
     skill: source-control:pull-request
     # The skill's CI mode for review comments: edits only files a finding
-    # names, never under .github/, and writes replies to a file.
+    # names, never under .github/workflows/, and writes replies to a file.
     args: comments --ci
     # Before any model turn pr-unblock.yml's address-feedback-select job, which
     # runs only base code, keeps only unresolved threads the reviewer bot
     # opened on a reviewed head, left by it alone or answered by a trusted
     # person after the lane escalated them, hands the pull request to a person
-    # when it changes .github/ or `loop.review-rounds` rounds already ran (a
-    # write-access fix request newer than the last round still runs one more
-    # round on its threads), and writes the thread file; the read runner checks
-    # that file and gives the skill the review-thread tool.
+    # when it changes .github/workflows/ or `loop.review-rounds` rounds already
+    # ran (a write-access fix request newer than the last round still runs one
+    # more round on its threads), and writes the thread file; the read runner
+    # checks that file and gives the skill the review-thread tool.
     prepare: review-threads
     # Edits head files, so no write token: the change leaves as a patch.
     effect: read
@@ -159,7 +159,7 @@ activities:
     # trusted person may also dispatch it by hand.
     skill: source-control:pull-request
     # The skill's CI mode for failing checks: never weakens a check, never
-    # edits .github/, and reports each check fixed or escalated.
+    # edits .github/workflows/, and reports each check fixed or escalated.
     args: ci --ci
     # Before the run a base job writes the failing checks' names, workflow,
     # annotations and log ends to a context file, or hands the pull request
