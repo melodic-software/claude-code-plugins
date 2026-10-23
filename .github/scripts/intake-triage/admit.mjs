@@ -13,7 +13,9 @@
 //   parent issue a listed human filed that awaits no decision;
 // - 3: the class, Size and Uncertainty apply-verdict wrote are in `classes`,
 //   `sizes` and `uncertainty`;
-// - 7: the body has a `task-list` line, the criteria the lane checks;
+// - 7: the body, or a comment the lanes App's account posted opening with
+//   REFINE_MARKER (refine.mjs, which writes a task list only for an issue
+//   it made exact), has a `task-list` line, the criteria the lane checks;
 // - 8: no `refuse-labels` label, every blocker a merged pull request or an
 //   issue closed as completed by a listed human or a merge here (the close
 //   work-unblock counts), and no open pull request in this repository names
@@ -42,6 +44,8 @@ import { isTrustedClose, paginate } from "../../actions/check-trusted-trigger/ch
 export const AGENT_READY = "agent-ready";
 export const DEFERRED = "admission-deferred";
 export const ADMIT_MARKER = "<!-- intake-triage admission -->";
+// Opens the lanes App's refinement comment (refine.mjs).
+export const REFINE_MARKER = "<!-- intake-triage refinement -->";
 const READY = "status: ready";
 const NEEDS_DECISION = "status: needs-decision";
 const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
@@ -77,7 +81,7 @@ export const openPullsNaming = (timeline, repository) =>
 const names = (labels) => (labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
 
 // {verdict: admit | refuse | wait | skip, reasons}. Pure.
-export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, timeline, events, humans, appId, repository }) {
+export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, timeline, events, comments = [], humans, appId, repository }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
@@ -113,7 +117,10 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (!rules.uncertainty.includes(verdict.dimensions?.uncertainty)) {
     refuse.push(`Uncertainty ${verdict.dimensions?.uncertainty} is not one of ${rules.uncertainty.join(", ")}`);
   }
-  const lines = String(issue.body ?? "").split("\n");
+  const refinements = comments
+    .filter((comment) => appId !== undefined && comment?.user?.id === appId && String(comment.body ?? "").startsWith(REFINE_MARKER))
+    .map((comment) => String(comment.body));
+  const lines = [String(issue.body ?? ""), ...refinements].flatMap((text) => text.split("\n"));
   if (!lines.some((line) => line.trimStart().startsWith(rules["task-list"]))) {
     refuse.push(`it has no \`${rules["task-list"]}\` task list to check`);
   }
@@ -160,9 +167,9 @@ async function parentOf(github, base) {
 }
 
 // One App comment carrying ADMIT_MARKER, edited in place on a later run.
-async function sayWhy(github, repository, base, text) {
+async function sayWhy(github, repository, base, comments, text) {
   const body = `${ADMIT_MARKER}\n${text}`;
-  const own = (await paginate(github, `${base}/comments`)).find(
+  const own = comments.find(
     (comment) => comment.user?.login === LANES_APP_LOGIN && String(comment.body ?? "").startsWith(ADMIT_MARKER),
   );
   if (own) {
@@ -190,8 +197,10 @@ export async function admit({ github, repository, number, verdict, rules, humans
       }
     }
   }
+  const comments = await paginate(github, `${base}/comments`);
   const decision = decide({
     issue,
+    comments,
     verdict,
     rules,
     parent: rules["types-under-parent"].includes(issue.type?.name) ? await parentOf(github, base) : null,
@@ -221,6 +230,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
       github,
       repository,
       base,
+      comments,
       `Not admitted to the issue lane: ${reasons}. A recorded decision does not change these rules (\`.github/actions/resolve-config/admission-rules.json\`); a person who wants it worked adds \`agent-ready\`.`,
     );
     log(`admit: #${number} refused (${reasons})`);
@@ -232,7 +242,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
     } else if (!names(issue.labels).includes(DEFERRED)) {
       await github("POST", `${base}/labels`, { labels: [DEFERRED] });
     }
-    await sayWhy(github, repository, base, `Not admitted to the issue lane yet: ${reasons}.`);
+    await sayWhy(github, repository, base, comments, `Not admitted to the issue lane yet: ${reasons}.`);
     log(`admit: #${number} waits (${reasons})`);
     return { outcome: "waiting", reasons: decision.reasons };
   }
