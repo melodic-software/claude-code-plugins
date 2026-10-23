@@ -5,7 +5,8 @@ A green review check alone proves nothing: a lane has concluded success
 with no review done. `bind()` counts a lane as reviewed only when its newest
 workflow run on the pinned head succeeded on an allowed attempt, the lane
 job left exactly one completion record for that head, an incremental or
-no-change record leads back to a whole review, and the lane's
+no-change record leads back to a whole review (or the security lane skipped
+an all-documentation pull request it never reviewed), and the lane's
 reviewed-head marker names the head. Anything doubtful is unbound; the
 function never raises.
 
@@ -58,6 +59,52 @@ LANES: dict[str, tuple[str, str]] = {
 LANE_SOURCE_PREFIXES = (".github/", "plugins/review/")
 LANE_SOURCE_SEGMENT = ".claude"
 LANE_SOURCE_NAME = ".mcp.json"
+
+# The security lane's `skip=docs-only` stands as its review only when every
+# path the pull request changes is documentation on this list, a strict subset
+# of the lane's `docs-only-paths` default (ci-workflows pr-review-security.yml):
+# a README.md or CHANGELOG.md outside docs/, or one of the named top-level
+# docs. The rest of docs/ never counts (always-loaded instructions cite its
+# subtrees, docs/plugin-philosophy.md and docs/ci-runner-routing.md), nor does
+# a README or CHANGELOG in a directory an agent loads as instructions. Fixed
+# in code, like `LANES`: a new doc holds until it is named here.
+DOCS_ONLY_LANE = "claude-security-review"
+DOCS_ONLY_FILES = frozenset(
+    {
+        "docs/ai-briefing-design.md",
+        "docs/catalog-taxonomy.md",
+        "docs/catalog.md",
+        "docs/cloud-fleet-setup.md",
+        "docs/cloud-sessions.md",
+        "docs/conformance-dimensions.md",
+        "docs/extensibility-contract-smoke-tests.md",
+        "docs/finding-your-unknowns.md",
+        "docs/formatter-path-probes.md",
+        "docs/glossary.md",
+        "docs/knowledge-integration-design.md",
+        "docs/migration-playbook.md",
+        "docs/native-surfaces.md",
+        "docs/official-docs.md",
+        "docs/plugin-artifact-protocol.md",
+        "docs/skill-cheat-sheet.md",
+    }
+)
+DOCS_ONLY_NAMES = frozenset({"README.md", "CHANGELOG.md"})
+# Directories whose files an agent loads as instructions, in any case.
+INSTRUCTION_DIRS = frozenset(
+    {".claude", "agents", "commands", "hooks", "instructions", "prompts"}
+    | {"reference", "rules", "skills"}
+)
+# The marker body a docs-only skip leaves when no review came before it: the
+# marker line, the base line, and this status line, with no summary carried
+# forward from an earlier review.
+BASE_LINE_RE = re.compile(
+    r"^<!-- claude-lane-reviewed-base ref=\S+ merge-base=[0-9a-f]{40} -->$"
+)
+DOCS_ONLY_STATUS = (
+    "**{lane}** needs no new review of `{sha}`: "
+    "every file in scope matches docs-only-paths."
+)
 
 RECORD_TITLE = "claude-lane-review-complete"
 _SHA = r"[0-9a-f]{40}"
@@ -153,13 +200,22 @@ def bind(
             raise Unbound("changed-files-unread")
         if any(lane_source(path) for path in changed_paths):
             raise Unbound("lane-source-changed")
+        docs_only = bool(changed_paths) and all(map(is_docs, changed_paths))
         # Thread ids already standing for a recorded finding in some lane.
         # LANES order matters: claude-review claims first, so a doubtful
         # untagged thread leaves the count on the security lane.
         claimed: set[str] = set()
         return tuple(
             _bind_lane(
-                lane, head_sha, runs, comments, threads, is_human, claimed, head_file
+                lane,
+                head_sha,
+                runs,
+                comments,
+                threads,
+                is_human,
+                claimed,
+                head_file,
+                docs_only,
             )
             for lane in LANES
         )
@@ -181,6 +237,24 @@ def lane_source(path: Any) -> bool:
     )
 
 
+def is_docs(path: Any) -> bool:
+    """Whether a changed path is documentation a security-lane docs-only skip
+    may stand for (`DOCS_ONLY_FILES`); a path that is not a string is not."""
+    if not isinstance(path, str):
+        return False
+    if path in DOCS_ONLY_FILES:
+        return True
+    *dirs, name = path.split("/")
+    return (
+        name in DOCS_ONLY_NAMES
+        and not (dirs and dirs[0].casefold() == "docs")
+        and not any(
+            part in {"", ".", ".."} or part.casefold() in INSTRUCTION_DIRS
+            for part in dirs
+        )
+    )
+
+
 def _bind_lane(
     lane: str,
     head: str,
@@ -190,11 +264,15 @@ def _bind_lane(
     is_human: Callable[[Any], bool],
     claimed: set[str],
     head_file: Callable[[str, str], str | None] | None,
+    docs_only: bool,
 ) -> LaneEvidence:
     try:
         lane_runs = _lane_runs(lane, runs)
-        reviewed, chain = _resolve(lane, head, lane_runs)
-        marker = _require_marker(lane, head, comments)
+        reviewed, chain = _resolve(lane, head, lane_runs, docs_only)
+        comment = _require_marker(lane, head, comments)
+        if chain[0].skip is not None:
+            _require_never_reviewed(lane, head, lane_runs, comment)
+        marker = str(comment.get("body") or "")
         _require_marked_runs(lane, lane_runs, comments)
         count, clears, critical = _open_findings(
             lane,
@@ -232,7 +310,7 @@ def _lane_runs(lane: str, runs: Sequence[Mapping[str, Any]]) -> list[Mapping[str
 
 
 def _resolve(
-    lane: str, head: str, lane_runs: list[Mapping[str, Any]]
+    lane: str, head: str, lane_runs: list[Mapping[str, Any]], docs_only: bool
 ) -> tuple[str, list[_Record]]:
     """Require a bound run at `head` whose record leads back to a whole review,
     and return the head of the review that covers `head` with the chain of
@@ -240,10 +318,15 @@ def _resolve(
 
     A no-change skip binds to the review it names, one hop; an incremental
     review needs every earlier link bound, back to a whole review. Each link
-    is the newest run's latest attempt at its head (`_bound_record`).
+    is the newest run's latest attempt at its head (`_bound_record`). The
+    security lane's docs-only skip at `head` is a chain of its own when every
+    changed path is documentation (`docs_only`); the caller then requires
+    that the lane never reviewed the pull request (`_require_never_reviewed`).
     """
     rec = _bound_record(lane, head, lane_runs)
     seen = {head}
+    if rec.skip == "docs-only" and docs_only and lane == DOCS_ONLY_LANE:
+        return head, [rec]
     if rec.skip is not None:
         raise Unbound("skip-not-no-change")
     if rec.through is not None:
@@ -410,12 +493,14 @@ def _record(lane: str, sha: str, job: Mapping[str, Any]) -> _Record | None:
     )
 
 
-def _require_marker(lane: str, head: str, comments: Sequence[Mapping[str, Any]]) -> str:
+def _require_marker(
+    lane: str, head: str, comments: Sequence[Mapping[str, Any]]
+) -> Mapping[str, Any]:
     """The newest reviewed-head marker the lane job wrote must name `head`;
-    its body, which carries the covering review's summary."""
+    that comment, whose body carries the covering review's summary."""
     if not isinstance(comments, list | tuple):
         raise Unbound("evidence-error")
-    newest: tuple[str, int, str, str] | None = None
+    newest: tuple[str, int, str, Mapping[str, Any]] | None = None
     for comment in comments:
         if not isinstance(comment, Mapping):
             raise Unbound("evidence-error")
@@ -430,13 +515,58 @@ def _require_marker(lane: str, head: str, comments: Sequence[Mapping[str, Any]])
             str(comment.get("created_at") or ""),
             int(comment.get("id") or 0),
             match[2],
-            str(comment.get("body") or ""),
+            comment,
         )
         if newest is None or key[:2] > newest[:2]:
             newest = key
     if newest is None or newest[2] != head:
         raise Unbound("no-marker")
     return newest[3]
+
+
+def _require_never_reviewed(
+    lane: str,
+    head: str,
+    lane_runs: list[Mapping[str, Any]],
+    marker: Mapping[str, Any],
+) -> None:
+    """A docs-only skip at `head` stands only when the lane never reviewed the
+    pull request: every record any listed run left is a docs-only skip, and
+    the one marker comment, which the lane creates once and edits in place,
+    shows no review by a run no longer listed. It was created inside a listed
+    docs-only skip's lane job and last edited inside one at `head`, and its
+    body carries no summary forward (a skip keeps the last review's)."""
+    windows: list[tuple[datetime, datetime, str]] = []
+    for item in lane_runs:
+        for attempt in _attempts(item).values():
+            if (
+                attempt.get("status") != "completed"
+                or attempt.get("conclusion") == "skipped"
+            ):
+                continue
+            job = _lane_job(lane, item["id"], attempt)
+            rec = _record(lane, item["head_sha"], job)
+            if rec is None:
+                continue
+            if rec.skip != "docs-only":
+                raise Unbound("docs-only-after-review")
+            start, end = _time(job.get("started_at")), _time(job.get("completed_at"))
+            if start is None or end is None:
+                raise Unbound("evidence-missing")
+            windows.append((start, end, rec.sha))
+    created = _time(marker.get("created_at"))
+    updated = _time(marker.get("updated_at"))
+    if created is None or updated is None:
+        raise Unbound("marker-unreadable")
+    if not any(start <= created <= end for start, end, _ in windows) or not any(
+        start <= updated <= end and sha == head for start, end, sha in windows
+    ):
+        raise Unbound("marker-outside-skip")
+    rows = str(marker.get("body") or "").split("\n")[1:]
+    if rows and BASE_LINE_RE.match(rows[0]):
+        rows = rows[1:]
+    if rows != [DOCS_ONLY_STATUS.format(lane=lane, sha=head)]:
+        raise Unbound("marker-not-docs-only")
 
 
 def _summary_comments(
@@ -631,22 +761,26 @@ def _open_findings(
         for rec in chain
     )
     count = summary + unresolved + held + missing
-    # The covering review's summary findings, when it was the head's only
-    # summary count and its line reads no more than it reported.
-    own = chain[0].findings - chain[0].inline  # type: ignore[operator]
-    start, end = span or (None, None)
-    lines = [
-        line
-        for at, body in summaries
-        if at is None or (start and end and start <= at <= end)
-        for line in SUMMARY_CRITICAL_RE.findall(body)
-    ]
-    rest = summary - summary_max.get(chain[0].sha, 0)
-    if own == summary_max.get(chain[0].sha, 0) and len(lines) == 1:
-        summary = rest + min(int(lines[0]), own)
+    # A docs-only skip reviewed nothing: it has no summary, and a whole
+    # re-review of an all-docs pull request skips again, clearing nothing.
+    skipped = chain[0].findings is None
+    if not skipped:
+        # The covering review's summary findings, when it was the head's only
+        # summary count and its line reads no more than it reported.
+        own = chain[0].findings - chain[0].inline  # type: ignore[operator]
+        start, end = span or (None, None)
+        lines = [
+            line
+            for at, body in summaries
+            if at is None or (start and end and start <= at <= end)
+            for line in SUMMARY_CRITICAL_RE.findall(body)
+        ]
+        rest = summary - summary_max.get(chain[0].sha, 0)
+        if own == summary_max.get(chain[0].sha, 0) and len(lines) == 1:
+            summary = rest + min(int(lines[0]), own)
     return (
         count,
-        count > 0 and not unresolved and not head_spent,
+        count > 0 and not unresolved and not head_spent and not skipped,
         summary + critical + missing,
     )
 
