@@ -109,7 +109,10 @@ push time rather than after each edit. `/guardrails:setup apply install-git-hook
 registers them with the repository's hook manager (lefthook, husky or plain git
 hooks) under the check-placement convention's contract
 (`docs/conventions/check-placement/README.md` in the marketplace repository): local
-scope is this clone only, shared scope commits copies under `.githooks/guardrails/`.
+scope is this clone only. Shared scope with lefthook adds one `remotes:` entry to the
+committed `lefthook.yml`, so every clone runs the hooks from this marketplace repository's
+`main`, refetched daily (`git-hooks/lefthook-remote.yml`); with husky or plain hooks it commits
+copies under `.githooks/guardrails/`.
 Each entry blocks only on what the commit or push adds. A clone that does not want an
 entry declines it through `/guardrails:setup` (`install.mjs decline --entry <name>`),
 which also removes the entry's registration when it is already installed.

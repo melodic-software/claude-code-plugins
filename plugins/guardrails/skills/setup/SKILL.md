@@ -140,15 +140,20 @@ needs judgment comes back to you as a `decisions[]` item, which you reason about
 with your own edit tools. Never runs from bare `apply`.
 
 1. **Scope.** Use the argument when given. Otherwise, when the user is present, ask: `local`
-   (this clone only, nothing committed) or `shared` (committed under `.githooks/guardrails/`,
-   so every teammate and agent gets it). When nobody can answer, use `local`.
-2. **Plan.** Run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" plan --scope <scope>`
-   and read the JSON: `manager`, `actions[]`, `decisions[]`.
+   (this clone only, nothing committed) or `shared` (committed, so every teammate and agent
+   gets it). When nobody can answer, use `local`.
+2. **Plan.** For `local`, run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" plan
+   --scope local`. For `shared`, run `plan --scope remote` first: with lefthook, or no hook
+   manager yet, the committed `lefthook.yml` gets one `remotes:` entry that fetches the hooks
+   from the plugin's repository and refetches them daily, so nothing is copied and no refresh
+   is ever committed. When it returns `remote-needs-lefthook` (husky or plain hooks), run
+   `plan --scope shared` instead, which commits copies under `.githooks/guardrails/`. Read the
+   JSON: `manager`, `actions[]`, `decisions[]`.
 3. **Manager conflict.** A `manager-conflict` decision lists the evidence (two managers, or one
    this installer does not drive, such as the pre-commit framework). Show it and ask which
    manager should carry the entries; rerun `plan` with `--manager lefthook|husky|plain`.
    Without an answer, stop here and report.
-4. **Actions.** When `actions[]` holds `copy` items, run
+4. **Actions.** A remote plan has none. When `actions[]` holds `copy` items, run
    `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" copy --scope <scope>` (plus the same
    `--manager` when you passed one; `--entry <name>` to install one entry). It prints
    `installed`, `refreshed`, `unchanged`, `refused`, `unsafe-path` or `stage-failed` per entry;
@@ -176,7 +181,9 @@ does not stop an installed copy: when `list` shows the entry installed, also rem
 registration with your edit tools (the
 `<event>.d/guardrails.<name>` marker for plain hooks, the `guardrails-<name>` job in the lefthook
 config, its line in `.husky/<event>`) and the copy under `guardrails/`, on the user's yes; a shared
-registration is a committed change the team reviews. This is the way out the `reference-verify`
+registration is a committed change the team reviews. A remote entry stays in the committed
+`lefthook.yml`, so stop it in this clone alone with a job named `guardrails-remote-<name>` and
+`skip: true` under its event in the gitignored `lefthook-local.yml`. This is the way out the `reference-verify`
 failure names for a cli-flag finding, which is unverified rather than proven wrong.
 
 ## `apply install-read-deny [local|shared] [user] [remove]` (opt-in, explicit argument only)
