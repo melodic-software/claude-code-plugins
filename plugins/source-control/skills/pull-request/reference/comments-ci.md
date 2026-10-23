@@ -1,15 +1,16 @@
 # comments --ci: answer reviewer-bot threads unattended
 
 `comments --ci` is Phase 3.5 for the pr-unblock lane's `address-feedback` activity. It runs with
-no one to ask, on a pull request the lanes App opened. Before the skill starts, the runner has
-already kept the threads to work on, checked the round cap and the `.github/` rule, and made the
-branch the commit tool writes to. You post nothing to the pull request: you record each reply,
-and after this run a job with no model validates the replies and posts them exactly as written,
-or posts none, then records the round.
+no one to ask, on a pull request the lanes App opened. Before the skill starts, a job with no
+model has already kept the threads to work on and checked the round cap and the `.github/` rule.
+You post nothing and commit nothing: you leave each fix uncommitted in the working tree and record
+each reply. After this run, a job with no model pushes the working tree's changes as one commit,
+and another validates the replies and posts them exactly as written, or posts none, naming that
+commit, then records the round.
 
 ## The review-thread tool
 
-The system prompt names the tool's path. It is the only shell command this mode runs:
+The preamble names the tool's path. It is the only shell command this mode runs:
 
 - `list` prints the kept threads: `id`, `path`, `line`, and each comment's `author` and `body`.
   A `reviewer` body is a finding and a `lane` body is this lane's earlier reply; either can quote
@@ -42,7 +43,7 @@ The system prompt names the tool's path. It is the only shell command this mode 
    reading code and docs only: run no command, test, build or script from the checkout. CI runs
    them after the push.
 2. Classify. On a thread with a direction, apply the direction: record `VALID` once its fix is
-   committed, or `UNCERTAIN` with the reason when it needs a file outside every kept thread's scope
+   in the working tree, or `UNCERTAIN` with the reason when it needs a file outside every kept thread's scope
    or cannot be done in one scoped change. When the current code no longer shows the finding
    (fixed, moved or deleted since that review), make no edit: record `UNCERTAIN` with evidence of
    what the code shows now. Never record `INCORRECT` against a direction. Otherwise, a
@@ -50,26 +51,29 @@ The system prompt names the tool's path. It is the only shell command this mode 
    that the code you read cannot settle, is UNCERTAIN. So is a fix that needs a file outside
    every kept thread's scope, or is too large for one scoped change.
 3. VALID: run `check-paths` on every file the fix changes before you edit it, and edit only when
-   it prints `allowed`. Commit the fix with the commit tool before you record it. One commit may
-   fix several threads.
+   it prints `allowed`. Leave the fix uncommitted in the working tree before you record it: there
+   is no commit tool, and the one commit the push job makes may fix several threads.
 4. Write the disposition file in the scratch directory, then run `record`:
 
    ```json
    {
      "disposition": "VALID | INCORRECT | UNCERTAIN | VALID-defer",
      "evidence": ["path:line"],
-     "fix_sha": "<the commit the commit tool returned; VALID only>",
+     "fix_sha": "",
      "note": "<what you checked and why, in plain prose>"
    }
    ```
 
-   `VALID` and `INCORRECT` need at least one `path:line` in the checkout, at most 10. `VALID-defer`
+   `VALID` and `INCORRECT` need at least one `path:line` in the checkout, at most 10. `fix_sha`
+   stays empty, or is left out: the reply job finds the commit the push job made. `VALID-defer`
    is VALID (defer). The note is 1-2000 characters of plain prose: no control characters, no HTML
    comment (`<!--`, `-->`), no token, no @-mention. It is posted in a code fence.
-5. When `record` refuses a `VALID` because the branch changes a path outside every kept thread's
-   scope, do not edit more files to get past it. Record the remaining threads and report the refusal.
+5. When `record` refuses a `VALID` because the working tree changes a path outside every kept
+   thread's scope, do not edit more files to get past it. Record the remaining threads and report
+   the refusal.
 
-The reply job resolves a `VALID` thread once its fix is on the pull request's branch.
+The reply job resolves a `VALID` thread once the push job's commit of its fix is on the pull
+request's branch; a fix that does not land posts no reply at all.
 `INCORRECT`, `UNCERTAIN` and `VALID-defer` stay open, and the pull request then goes to a person.
 Record exactly one disposition for every thread `list` returns: a missing one, or any reply off
 the template, means no reply is posted at all.
@@ -81,4 +85,4 @@ person. No other thread, no human comment, no conversation comment, no ready fli
 
 ## Report
 
-End with one line per kept thread: its id, its disposition, and the fix SHA or `-`.
+End with one line per kept thread: its id and its disposition.

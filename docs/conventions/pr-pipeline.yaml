@@ -42,33 +42,61 @@ activities:
       draft: [false]
   address-feedback:
     # Fixes the review lanes' open findings on a pull request and records a
-    # reply for each one. It posts nothing itself. pr-feedback-dispatch.yml
-    # starts it only on pull requests the lanes App opened; a trusted person
-    # may also dispatch it by hand.
+    # reply for each one. It posts nothing and holds no write token: the read
+    # runner turns its uncommitted fixes into a patch that
+    # apply-feedback-patch pushes, and hands its replies to publish-feedback.
+    # pr-feedback-dispatch.yml starts it only on pull requests the lanes App
+    # opened; a trusted person may also dispatch it by hand.
     skill: source-control:pull-request
     # The skill's CI mode for review comments: edits only files a finding
     # names, never under .github/, and writes replies to a file.
     args: comments --ci
-    # Before any model turn the runner keeps only unresolved threads the
-    # reviewer bot opened on a reviewed head, left by it alone or answered by
-    # a trusted person after the lane escalated them, hands the pull request to a
-    # person when it changes .github/ or `loop.review-rounds` rounds already
-    # ran (a write-access fix request newer than the last round still runs
-    # one more round on its threads), and gives the skill the review-thread tool.
+    # Before any model turn pr-unblock.yml's address-feedback-select job, which
+    # runs only base code, keeps only unresolved threads the reviewer bot
+    # opened on a reviewed head, left by it alone or answered by a trusted
+    # person after the lane escalated them, hands the pull request to a person
+    # when it changes .github/ or `loop.review-rounds` rounds already ran (a
+    # write-access fix request newer than the last round still runs one more
+    # round on its threads), and writes the thread file; the read runner checks
+    # that file and gives the skill the review-thread tool.
     prepare: review-threads
-    # Pushes its fixes to the pull request's branch, nothing else.
-    effect: mutate-branch
+    # Edits head files, so no write token: the change leaves as a patch.
+    effect: read
+    applied-by:
+      patch: apply-feedback-patch
+      feedback-replies: publish-feedback
     # ci-status and the review lanes judge the pushed fix.
     gating: advisory
     # Reads review comments, which quote the diff.
     reads-untrusted: true
     inputs: [pr, head-sha]
     applies-when:
-      # do-not-merge stops it. On a needs-human PR the select step keeps only
+      # do-not-merge stops it. On a needs-human PR the select job keeps only
       # threads a trusted person with write access asked it to fix, and
       # holds the PR when there are none; pr-merge still refuses that PR.
       labels-absent: [do-not-merge]
       # A draft pull request is skipped.
+      draft: [false]
+  apply-feedback-patch:
+    # Applies address-feedback's patch to the head the select job gated and
+    # pushes it as one commit, without force. A script, no model, and it runs
+    # no head code; patch-rules.json's review-threads row admits only paths in
+    # the kept threads' scope, and a head that moved since skips. The push
+    # commit carries the Lane-Activity trailer publish-feedback names in its
+    # replies; a patch that does not land leaves no such commit, so
+    # publish-feedback hands the pull request to a person.
+    script: .github/scripts/apply-patch/apply-patch.mjs
+    prepare: apply-patch
+    # Pushes the fix to the pull request's branch, nothing else.
+    effect: mutate-branch
+    gating: advisory
+    # Reads the patch the model wrote.
+    reads-untrusted: true
+    inputs: [pr, head-sha]
+    applies-when:
+      # As address-feedback: a needs-human PR still takes a fix a trusted
+      # person with write access asked for.
+      labels-absent: [do-not-merge]
       draft: [false]
   publish-feedback:
     # Posts the replies address-feedback recorded, exactly as written, resolves
@@ -328,6 +356,19 @@ activities:
     reads-untrusted: true
     # The closed issue; the hourly sweep takes none and lists recent closes.
     inputs: [issue]
+  apply-verdict:
+    # After intake triage, writes its verdict as the lanes App: the work-class
+    # label, the Size, Complexity and Uncertainty issue fields, and
+    # `status: ready` or `status: needs-decision`, read from the lane comment
+    # the triage run posted. Never agent-ready. A script, no model.
+    # .github/workflows/intake-triage.yml runs it.
+    script: .github/scripts/intake-triage/apply-verdict.mjs
+    # Labels issues, sets issue fields and edits the lane comment; nothing else.
+    effect: mutate-tracker
+    gating: advisory
+    # Reads the lane comment, which carries model text.
+    reads-untrusted: true
+    inputs: [issue]
 
 lanes:
   # Started by the agent-ready label on an issue (.github/workflows/work-resolve-issue.yml).
@@ -350,9 +391,12 @@ lanes:
       # Started by pr-feedback-dispatch.yml after both review lanes reviewed
       # the head.
       - activity: address-feedback
-      # Runs after address-feedback, in its own job with its own token.
-      - activity: publish-feedback
+      # Run after address-feedback, each in its own job with its own token:
+      # the push, then the replies, which name the pushed commit.
+      - activity: apply-feedback-patch
         needs: [address-feedback]
+      - activity: publish-feedback
+        needs: [address-feedback, apply-feedback-patch]
       # Started by pr-unblock-dispatch.yml for review-tier Dependabot PRs.
       - activity: review-dependency
       # Runs after review-dependency, in its own job with its own token.
@@ -380,6 +424,12 @@ lanes:
     stage: work
     slots:
       - activity: label-unblocked
+  # Started by intake triage on an opened issue or its dispatch
+  # (.github/workflows/intake-triage.yml).
+  intake-triage:
+    stage: intake
+    slots:
+      - activity: apply-verdict
 
 # The model, effort and turn budget of every model run (README.md, Models).
 # Aliases only, never full model IDs. `default` passes no --model, so the
@@ -434,6 +484,7 @@ models:
       max-turns: 75
   default-profile: standard
   routes:
+    address-feedback: code-fix
     fix-ci: code-fix
     fix-docs: docs-fix
     verify-pr: review

@@ -19,12 +19,16 @@ NODE="$(command -v node)" || {
 }
 BASH_BIN="$(command -v bash)"
 
-# new_case: fresh fixture in $f with a bin/ dir holding node and dirname only.
+# new_case: fresh fixture in $f with a bin/ dir holding node and the coreutils
+# the script uses only.
 new_case() {
   fixture_tree::build f --sut "$SCRIPT" --plugins
   mkdir -p "$f/bin"
   ln -s "$NODE" "$f/bin/node"
-  ln -s "$(command -v dirname)" "$f/bin/dirname"
+  local tool
+  for tool in dirname mktemp cat rm; do
+    ln -s "$(command -v "$tool")" "$f/bin/$tool"
+  done
 }
 
 hooks_json() { # <plugin> <json>
@@ -32,12 +36,18 @@ hooks_json() { # <plugin> <json>
   printf '%s\n' "$2" >"$f/plugins/$1/hooks/hooks.json"
 }
 
-# stub_claude <version> <test-exit>: logs each `plugin test` dir to calls.log.
+# stub_claude <version> <test-exit>: logs each `plugin test` dir to calls.log;
+# a plugin named failing always fails its test.
 stub_claude() {
   cat >"$f/bin/claude" <<EOF
 #!$BASH_BIN
 if [[ "\$1" == --version ]]; then echo "$1 (Claude Code)"; exit 0; fi
-if [[ "\$1 \$2" == "plugin test" ]]; then echo "\$3" >>"$f/calls.log"; exit $2; fi
+if [[ "\$1 \$2" == "plugin test" ]]; then
+  echo "\$3" >>"$f/calls.log"
+  echo "tested \$3"
+  [[ "\$3" == plugins/failing ]] && exit 1
+  exit $2
+fi
 exit 64
 EOF
   chmod +x "$f/bin/claude"
@@ -108,5 +118,18 @@ hooks_json withmod "$MOD"
 stub_claude 2.10.0 1
 run 1 "a failing mod test fails the run"
 assert_output_contains "failure line" "Mod tests failed."
+
+new_case
+hooks_json failing "$MOD"
+hooks_json passing "$MOD"
+stub_claude 2.1.300 0
+run 1 "a failing mod fails the run when a later mod passes"
+assert_output_contains "failure line beside a passing mod" "Mod tests failed."
+expected=$'=== claude plugin test plugins/failing ===\ntested plugins/failing\n=== claude plugin test plugins/passing ===\ntested plugins/passing'
+if [[ "$LAST_OUTPUT" == "$expected"* ]]; then
+  pass "each mod's output prints under its own header, in order"
+else
+  bad "each mod's output prints under its own header, in order" "output: $LAST_OUTPUT"
+fi
 
 test_harness::report

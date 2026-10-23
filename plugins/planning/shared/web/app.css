@@ -550,9 +550,7 @@
 .app :is(.vf-ta, .vf-input):focus-visible { outline: none; border-color: var(--accent-text); /* 4.5:1 on every surface, so the edge keeps 3:1 (1.4.11) */ box-shadow: 0 0 0 3px var(--accent-soft); }
 .app .vf-crow { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-block-start: 8px; }
 .app .vf-hint { margin-inline-end: auto; color: var(--faint); font-size: 11.5px; }
-/* the key hint ("Ctrl + Enter to send") is one line, cut with an ellipsis where its row is short; it takes the row's free
-   room and never widens the row. Informational hints wrap. */
-.app .vf-keyhint { margin-inline-end: 0; flex: 1 1 auto; contain: inline-size; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* the composer's key hint and counter: question-shape.css. Informational hints wrap. */
 
 /* ---------- compare ---------- */
 .app .vf-cmp { position: relative; }
@@ -1160,7 +1158,6 @@
 .app .vf-edited { margin-block-start: 6px; color: var(--muted); font-size: 12px; }
 .app .vf-voters { padding-inline-start: 7px; }
 .app .vf-voters .core-avatar { box-shadow: 0 0 0 1.5px var(--pane); }
-.app .vf-count-txt { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .app .vf-mcount { padding: 0 14px; text-align: end; }
 .app .vf-mcount:empty { display: none; }
 

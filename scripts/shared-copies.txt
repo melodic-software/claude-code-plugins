@@ -451,6 +451,9 @@ lib/view-builder.mjs plugins/work-items/lib/view-builder.mjs
 lib/view-runtime.js plugins/work-items/lib/view-runtime.js
 lib/view-builder.mjs plugins/harness-ops/lib/view-builder.mjs
 lib/view-runtime.js plugins/harness-ops/lib/view-runtime.js
+lib/html-escape.mjs plugins/machine-health/lib/html-escape.mjs
+lib/view-builder.mjs plugins/machine-health/lib/view-builder.mjs
+lib/view-runtime.js plugins/machine-health/lib/view-runtime.js
 lib/mermaid-gate.mjs plugins/visualization/lib/mermaid-gate.mjs
 lib/mermaid-gate.mjs plugins/architecture/lib/mermaid-gate.mjs
 lib/write-snapshot.mjs plugins/rate-limit-guard/lib/write-snapshot.mjs

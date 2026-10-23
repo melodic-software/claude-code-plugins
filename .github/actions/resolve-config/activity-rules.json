@@ -11,8 +11,12 @@
     "never": "Writes to the branch"
   },
   "address-feedback": {
+    "forbidden-effects": ["publish-artifact", "mutate-tracker", "mutate-branch", "merge"],
+    "never": "Holds a write token, posts to the pull request, or touches a human thread: its fix leaves only as a patch"
+  },
+  "apply-feedback-patch": {
     "forbidden-effects": ["publish-artifact", "mutate-tracker", "merge"],
-    "never": "Posts to the pull request, or touches a human thread"
+    "never": "Runs a model or head code, force-pushes, or pushes under .github/"
   },
   "publish-feedback": {
     "forbidden-effects": ["mutate-branch", "mutate-tracker", "merge"],

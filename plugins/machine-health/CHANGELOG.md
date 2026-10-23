@@ -3,6 +3,58 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.1] - 2026-10-23
+
+### Removed
+
+- `check_overrides.event-log-errors.noise_allowlist` is no longer documented: no check ever read it. The schema still accepts it, now described as ignored, so an existing file that holds it keeps validating.
+
+### Fixed
+
+- `Restart-StoppedService` now honors `approvals.json` `check_overrides.services.service_exclusions`: a stopped service whose name matches an entry (exact name, any case) is never started and gets no attempt record, and the run log records the skip. The key was documented before but nothing read it.
+- The `approvals.json` schema description now says the file is written by `/machine-health:setup` and the first-run migration, not by hand.
+
+## [0.20.0] - 2026-10-22
+
+### Added
+
+- Each audit run ends with a short report of at most 12 lines, printed by `scripts/windows/Format-ShortReport.ps1` from `state/latest.json`: host and run id, elevation, severity counts and the change since the prior run, the worst three CRIT or WARN summaries, the intruder headline (Defender detections, exposed unsigned or user-writable listeners, unexpected path exclusions, each "not read" when its source was not read), the largest unmuted folder, and the report and decision-page paths. Its first line is always `machine-health checkup <host> <run_id>`, and every machine-derived string is collapsed to one line.
+- `/machine-health:audit --scheduled` marks an unattended run: `top-processes` samples for 60 seconds, the elevated pass is never offered, discovery only proposes checks in the report and `TODO.md` (it authors and registers none), and the short report is the whole final message.
+- `/machine-health:setup schedule` creates the monthly checkup, only on the owner's yes: a Claude Desktop scheduled task (Custom cron `0 9 1 * *`, Auto or Manual plus one Run now), or a Task Scheduler task running a wrapper copied to `<StateBase>/scheduler/monthly-run.ps1`. The wrapper runs `claude -p "/machine-health:audit on-demand --scheduled"` in dontAsk mode under a time limit, allowing only Read, writes to `TODO.md` and the two audit commands exactly as the audit prints them, with the plugin root, state folder and report folder setup wrote into the copy, run through the Bash tool, with deny rules for git, gh, download commands, subagents and other writing tools from `<StateBase>/scheduler/scheduled-settings.json` (no web tools, no MCP servers), and writes `<StateBase>/logs/monthly-run-<runStamp>.status.json`, which counts the run ok only when claude exits 0, reports no error, opens its result with the short report's first line naming this run, and leaves a newer `latest.json`. Setup refuses the fallback for a synced or `--plugin-dir` state folder, and either route for a plugin root, state folder or `report_dir` folder holding a single quote (`'` or U+2018 to U+201B), a control character, a line break or one of `% & | < > ^`, since the scheduled audit types them inside quotes, and shows the report folder the monthly runs write to.
+- Setup `check` reports the newest monthly-run status file, failing it when it is more than 35 days old or unreadable, fails a wrapper copy that never produced a status file in 35 days, and fails a copy left stale by a plugin update until `schedule` runs again. Before creating either task, `schedule` shows the owner their own allow rules that grant shell, write or network actions.
+- `Invoke-MachineHealthCheck.ps1 -OutputBase` is optional: omitted or blank, reports go to `$env:USERPROFILE\Documents\MachineHealth`, the audit's default, so a scheduled run with `report_dir` unset leaves it out instead of typing a path it cannot resolve.
+- `state/latest.json` records the run's `run_stamp`, `report_path`, `page_path` and `cadence_deferred_count`.
+
+### Changed
+
+- The audit skill runs the orchestrator as a background command, and skips discovery writes when the state folder sits under a cloud sync root.
+
+### Fixed
+
+- Report, decision-page and battery-report file names use the Gregorian calendar whatever the current culture.
+
+## [0.19.0] - 2026-10-22
+
+### Added
+
+- Each audit run builds a decision page, `<StateBase>/views/checkup-<runStamp>.html`, with the shared view builder: every check's items, worst first, a "Mute this item" pick on each item that has a stable key, a pick per remediation, a note field, and a button that copies the picks. Machine-derived text reaches the page only as data rendered as text, and a Defender exclusion's value is withheld from the page, its data and its id map, as it is from the report. The page sits beside its data and an id map, and the report's new "Decision page" section names it. Only the newest 12 runs' pages are kept; older ones are deleted by their exact paths after a successful build. Without Node.js the run logs `checkup_view_skipped node_missing` and the report says no page was built.
+- `/machine-health:setup picks` resolves a pasted payload against the id map of the run its `run:` line names. It refuses the whole payload when that line is missing or the map is gone, refuses any pick the map does not hold, lists the rest with the run's time, and writes mutes after one yes (with "drop N, M") and each approval after its own yes, through `Set-ApprovalState`.
+- Setup `check` validates `state/mutes.json`: its schema, the key shape, the key's kind and the check id.
+
+### Changed
+
+- The `node` prerequisite's degrade text now says that without Node.js no decision page is built.
+
+## [0.18.0] - 2026-10-22
+
+### Added
+
+- The audit can run an optional elevated pass for the admin-gated checks. The session writes a one-command script under `<StateBase>/logs/`, shows it with its SHA-256 and launch string, and launches it behind UAC only after the owner's own yes in that session, never under `--scheduled` and never from a subagent. The elevated side checks the hash over the bytes it runs, runs only the elevation-matrix checks, and writes only the result file the session pre-created, refusing a reparse point, a non-disk handle or a swapped file. A standard run imports it with `-ElevatedResultPath` only when it was written with an admin token by the same user, replacing its own results per elevation-matrix check and listing them in `latest.json`'s `elevated_checks`; a refused file adds one UNKNOWN `elevated-pass` result. A state or report folder whose path holds a single quote or a control character cannot use the pass.
+
+### Changed
+
+- The non-elevated banner and the report's elevation block now point to the elevated pass instead of printing a transcript-based command to run from an elevated terminal.
+
 ## [0.17.0] - 2026-10-22
 
 ### Added

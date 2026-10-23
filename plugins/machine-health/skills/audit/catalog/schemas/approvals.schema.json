@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:claude-code-plugin:machine-health:approvals",
   "title": "Approvals",
-  "description": "Per-user approval state for machine-health remediations and check overrides. Lives at $OutputBase/state/approvals.json. Not checked into source control. Edited directly by the user or by migration on first run.",
+  "description": "Per-user approval state for machine-health remediations and check overrides. Lives at $OutputBase/state/approvals.json. Not checked into source control. Written by /machine-health:setup (Set-ApprovalState) and by the one-time migration on first run; do not edit it by hand, except check_overrides.services.service_exclusions, which setup cannot write yet.",
   "type": "object",
   "additionalProperties": false,
   "required": ["remediations", "schema_version"],
@@ -40,14 +40,14 @@
     },
     "check_overrides": {
       "type": "object",
-      "description": "Per-check user-curated state that augments shipped defaults. Optional.",
+      "description": "Per-check user-curated state, keyed by check id. Optional.",
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
           "noise_allowlist": {
             "type": "array",
-            "description": "User-added benign-event entries for event-log-errors. Merged with the shipped allowlist.",
+            "description": "Ignored: no check reads it. Still accepted so an existing approvals.json that holds it validates.",
             "items": {
               "type": "object",
               "additionalProperties": false,
@@ -62,7 +62,7 @@
           },
           "service_exclusions": {
             "type": "array",
-            "description": "Service names excluded from Restart-StoppedService remediation (per-host).",
+            "description": "Service names Restart-StoppedService never starts (exact name, case-insensitive; per-host).",
             "items": { "type": "string" }
           }
         }

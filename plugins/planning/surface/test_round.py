@@ -2795,7 +2795,8 @@ class TestGroupSummaryOf(DirCase):
         self.add_group("Take.")
         rc, out, err = self.add("Q5")
         self.assertEqual(rc, 0, out + err)
-        self.assertIn("group g3 summary predates 1 questions", err)
+        self.assertIn("group g3 summary predates 1 question;", err)
+        self.assertNotIn("1 questions", err)
         g3 = next(g for g in self.doc()["groups"] if g["id"] == "g3")
         self.assertEqual(g3["summaryOf"], ["Q4"])
 

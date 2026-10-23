@@ -450,7 +450,11 @@ class RenameTests(unittest.TestCase):
         )
         result = score(_input(files=files))
         self.assertEqual(result.score, Risk.HIGH)
-        self.assertEqual(_codes(result), ("high-path:.github/**", "class-contradicted"))
+        # A file renamed into a workflow also takes the cost hold.
+        self.assertEqual(
+            _codes(result),
+            ("cost-review-required", "high-path:.github/**", "class-contradicted"),
+        )
 
     def test_rename_across_plugins_counts_both_plugins(self):
         files = (

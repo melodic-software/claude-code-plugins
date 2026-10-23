@@ -161,9 +161,12 @@ runs the base's resolve-config for that PR and head with `address-feedback` sele
 slot's `applies-when` is decided, and dispatches only when the `pr-unblock` lane and its
 `address-feedback` and `publish-feedback` slots are enabled and `address-feedback` applies. It records `pr-feedback-dispatched-<upstream id>-<run
 id>`, which the gate and the broker read to tie the run to a review of the PR's current head.
-In `pr-unblock.yml`, `address-feedback` (the model job, `mutate-branch`) is followed by
-`publish-feedback` (a script job with no model, `publish-artifact`), which posts the replies the
-model job recorded ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)).
+In `pr-unblock.yml`, `address-feedback-select` (a base job with no model and a read-only token)
+keeps the threads, `address-feedback` (the model job, `read`, on the read runner with a
+subscription fallback) answers them and hands on a patch and its replies,
+`apply-feedback-patch` (a script job with no model, `mutate-branch`) pushes the patch, and
+`publish-feedback` (a script job with no model, `publish-artifact`) posts the replies, naming the
+pushed commit ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)).
 
 A fix request is a reply by a person on the trusted-actor list who holds write or admin
 permission on the repository, never edited, or last edited by a person on that list, with a line that starts with
@@ -332,13 +335,16 @@ Each leaf declares:
 - `skill` (`<plugin>:<skill>`) or `script` (a repository path), with optional `args` passed
   verbatim: after the skill name in that skill's own syntax, or to the script.
 - `prepare` (optional): what the runner does around the activity. `apply-patch` is the one mode
-  for a script (a `mutate-branch` one), `ci-context` the one mode for a `read` skill, and the
-  others need a skill with an effect other than `read` until their activity hands its change on
-  as a patch ([`pr-run-activity.md`](pr-run-activity.md#prepare-ci-context)). `merge-base` merges the base tip into the gated head without committing before the
-  skill runs, and commits the result with both as parents after it. `review-threads` keeps the
-  PR's unresolved reviewer-bot threads and decides skip, escalate or proceed before any model
-  turn, gives the skill the review-thread tool, and uploads the replies it records for a reply job
-  with no model to post ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)). A runner performs this
+  for a script (a `mutate-branch` one), `ci-context` and `review-threads` the modes the read
+  runner performs, each on a `read` skill that hands on a patch, and the others need a skill with
+  an effect other than `read` unless their activity hands its change on as a patch
+  ([`pr-run-activity.md`](pr-run-activity.md#prepare-ci-context)). `merge-base` merges the base tip into the gated head without committing before the
+  skill runs, and commits the result with both as parents after it. `review-threads` runs on the
+  read runner after the caller's base job kept the PR's unresolved reviewer-bot threads and
+  decided skip, escalate or proceed before any model turn: it checks that job's thread file, gives
+  the skill the review-thread tool, and hands on its fix as a patch and the replies it records
+  (`applied-by.feedback-replies`) for script jobs with no model to push and post
+  ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)). A runner performs this
   only where it declares support by passing `prepare-supported: true` to `resolve-config`; anywhere
   else an applying leaf that sets `prepare` fails red rather than running without it.
 - `applied-by` (optional, `skill` only, effect `read` and gating `advisory`): what the skill
@@ -469,20 +475,20 @@ trusted base: one row per prepare mode a patch-producing skill uses (`ci-context
 `review-threads`, `dependency-review`, `merge-base`), `default` for one with no prepare mode, and
 `issue` for a patch that goes to a new issue-lane branch made at the run's base or resume tip.
 [`apply-patch.mjs`](../../../.github/scripts/apply-patch/apply-patch.mjs) reads it for fix-ci's,
-fix-docs's and resolve-issue's patches ([`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)).
+fix-docs's, address-feedback's and resolve-issue's patches ([`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)).
 [`patch-rules.schema.json`](../../../.github/actions/resolve-config/patch-rules.schema.json) closes
 each row to these keys:
 
 | Key | Holds |
 |---|---|
 | `refuse` | Named refusals; any match refuses the whole patch. |
-| `allow` | What every other changed path must also meet: `any`, `kept-threads` (the path of a thread the run kept) or `merge-result` (the blob the base merge leaves there, or a conflicted path left with no conflict markers). |
+| `allow` | What every other changed path must also meet: `any`, `kept-threads` (a path in the scope of a thread the select job kept, its `named_paths` included, read from that job's thread file) or `merge-result` (the blob the base merge leaves there, or a conflicted path left with no conflict markers). |
 | `max-files` | The most paths one patch may change, or `null`. |
 | `requires` | What the producer's output must say before anything applies: `dependency-verdict: fix`. |
 | `commit` | `parents` (`[head]`, or `[head, base]` for a merge), `message` and `trailer`, with `{ref}`, `{base}`, `{lane}`, `{activity}` and `{issue}` filled in. |
 | `reads-report` | The producer report the apply reads (`ci-escalations`: the checks the model escalated), or `null`. |
 | `empty-at-push` | Optional; the kind a patch that applies but changes nothing escalates at push time: `empty` (the default) or `invalid` (`ci-context`, as the producer said it wrote a change). |
-| `skip-moved-head` | Optional, default `false`; `true` (`ci-context`) skips `superseded-sha` on any PR head that moved since the producer ran, where other rows take the moved tip with `--3way` when the moved commits touch no patched path. `default` sets `false`: fix-docs runs once per pull request, so a skipped fix-docs patch would never run again. |
+| `skip-moved-head` | Optional, default `false`; `true` (`ci-context`, `review-threads`) skips `superseded-sha` on any PR head that moved since the producer ran, where other rows take the moved tip with `--3way` when the moved commits touch no patched path. `default` sets `false`: fix-docs runs once per pull request, so a skipped fix-docs patch would never run again. |
 | `script-exec-bit` | Optional, default `false`; `true` (`issue`) makes each new or changed file that ends in `.sh` or starts with `#!` executable after every refusal passes, since the model's tools set no file mode. A row that sets it must refuse `instruction-path`. |
 | `escalations` | The escalation reasons the apply may give for the row. |
 
@@ -571,7 +577,8 @@ bounded re-reads), `cost-gated`, `awaiting-human` (among others, a `labels-absen
 PR), `superseded-sha`, `disabled-by-config`, `untrusted-trigger` (a fork, no same-repository PR, or an
 actor or author not on the trusted-actor list), `workflow-modified` (the token broker refused a
 write lane's mint for a workflow file the PR itself changes), `rung-up` (a fix-ci run's patch is
-held back for one retry one model rung up, [Lanes](#lanes)), or, for an issue run under
+held back for one retry one model rung up, [Lanes](#lanes)), `no-model-turn` (an address-feedback
+round whose model never ran, so the scan uploaded no replies), or, for an issue run under
 `models.issue-dimensions`, `not-assessed` (a dimension field empty or set by an untrusted
 account), `research-first` or `probe-first` (its Uncertainty), or `split-required` (its Size is
 `split`). Issue mode posts no check, so work-resolve-issue.yml reports those four dimension skips
@@ -711,6 +718,52 @@ and its queued entries leave; two different identities, or an unreadable head co
   `plugins/**/scripts/**` entries, `floor-paths` globs that end in a `scripts` directory (such as
   `plugins/x/scripts/**`), or `floor-script-scopes`; every other floor entry, every other
   `floor-paths` glob and `denied-paths` still hold it.
+- **Cost hold.** A change that could add or raise a charge needs the owner (owner rule,
+  2026-10-22). It scores HIGH as `cost-review-required` in both lanes, whatever `high-path-floor`
+  says and whatever an adopted author's own paths leave off the floor, and waits for a human like
+  any other HIGH reason. It catches:
+  - any changed `Pulumi.yaml`, `Pulumi.*.yaml`, `*.tf`, `*.tfvars`, `*.bicep` or `*.bicepparam`
+    file, `plugins/multi-agent/reference/defaults.yaml` (the model and effort per role), and any
+    file under a directory that holds a `Pulumi.yaml` at the base. A base tree the gate cannot
+    list whole holds every file;
+  - a file renamed or copied into `.github/workflows/` or a `pr-pipeline.yaml` path from outside;
+  - a workflow patch that adds a `cron:` key in any YAML or JSON spelling (a schedule can spend
+    model credits) or a `--model` or `--max-turns` flag; or that gains any `secrets` reference
+    (`secrets.NAME`, `secrets['NAME']`, `toJSON(secrets)`, `secrets: inherit`), a `uses:` of
+    `run-claude-cli` or any `claude-code*` action or image (matched ignoring case), or a run line
+    invoking `@anthropic-ai/claude-code`, each counted against the lines it removes so a moved
+    line or a repin is not new;
+  - a `timeout-minutes` or `leg-timeout-minutes` the patch adds above every one it removes, in a
+    workflow whose head text uses one of those actions or could not be read;
+  - a runner value the workflow's head text gains over its base text, or an added inline
+    `runs-on:` value: on a public repository only one that is not a free literal (GitHub's
+    standard `ubuntu-*`, `windows-*` and `macos-*` labels, the self-hosted managed labels, or a
+    list holding `self-hosted`), so an expression, a `group:` and a larger runner hold, since
+    [GitHub bills larger runners even on public repositories](https://docs.github.com/en/billing/concepts/product-billing/github-actions);
+    on any other repository every one, and any added `windows` or `macos` line;
+  - any `pr-pipeline.yaml` change except one whose added and removed lines are all blank,
+    comment-only, or a `description:` or `title:` value, or that only edits trailing comments
+    on the same lines in place.
+    Flow style, quoted keys and new list items hold;
+  - a workflow or pipeline file with no patch.
+
+  The hold clears only when the pull request body links an owner decision that covers it: a
+  comment on the pull request's closing issue or on the pull request itself, in this repository,
+  whose first line starts `**Decision recorded.** Cost:`, written by a User with admin permission
+  who is not the agent identity or one of the gate's own logins, not posted through an App, and
+  never edited; one on the closing issue must also be created after the pull request was. A link
+  inside an HTML comment in the body counts for nothing. A push after the decision is an accepted
+  residual: the decision is not bound to a head. The gate reads the linked comments only for a
+  pull request the hold catches, and a failed read leaves the hold. A decision
+  clears only this reason: a workflow or `docs/conventions/pr-pipeline.yaml` change still sits on
+  the HIGH path floor here and waits for a person to merge it. Cite the decision before the
+  human-gated label lands; a body edit does not remove that label (only a new head or a person
+  does). Not detected: budgets, billing settings and new paid services outside these files, and
+  the shapes [#9241](https://github.com/melodic-software/claude-code-plugins/issues/9241) lists.
+  azure-iac's Pulumi program is C#, and its deploy gate
+  ([azure-iac#75](https://github.com/melodic-software/azure-iac/issues/75)) stops any Azure change
+  for the owner at deploy time. The review lanes and the verifier judge the rest. Dependabot pull
+  requests are not scored, so the hold does not apply to them.
 - **Merge queue.** The wrapper enqueues with `--match-head-commit`, never `--auto`, and only when
   every required check is green. An armed auto-merge request on the pull request is a refusal, and
   the wrapper disarms it.

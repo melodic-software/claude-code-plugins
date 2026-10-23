@@ -168,7 +168,7 @@
       "properties": {"id": {"$ref": "#/$defs/liveId"}, "path": {"$ref": "#/$defs/livePath"}}
     },
     "liveEntry": {
-      "description": "One live prototype. target: a build folder (relative to the data dir, under staging/) the server serves, or a port on 127.0.0.1 the owner runs (never the session's own ports). status: pending until the owner's Approve; starting while the server starts it; running with `url`, the https origin guests open (the variant's path goes after it); ended with why. `attested`: the owner confirmed, on Approve of a port, sample data only, writes stubbed and no credentials in its environment. Only a running entry holds a url.",
+      "description": "One live prototype. target: a build folder (relative to the data dir, under staging/) the server serves, or a port on 127.0.0.1 the owner runs (never the session's own ports). status: pending until the owner's Approve; starting while the server starts it; running with `url`, the https origin of its own quick tunnel (a trycloudflare.com host) guests open (the variant's path goes after it), replaced without a new Approve when the tunnel restarts; ended with why (`failed`: it stopped and could not be started again). `attested`: the owner confirmed, on Approve of a port, sample data only, writes stubbed and no credentials in its environment. Only a running entry holds a url.",
       "type": "object",
       "required": ["id", "label", "target", "at", "status"],
       "additionalProperties": false,
@@ -192,9 +192,9 @@
              "properties": {"kind": {"enum": ["starting"]}, "approvedAt": {"$ref": "#/$defs/ts"}, "attested": {"enum": [true]}}},
             {"type": "object", "required": ["kind", "approvedAt", "startedAt", "url"], "additionalProperties": false,
              "properties": {"kind": {"enum": ["running"]}, "approvedAt": {"$ref": "#/$defs/ts"}, "attested": {"enum": [true]}, "startedAt": {"$ref": "#/$defs/ts"},
-                            "url": {"type": "string", "maxLength": 300, "pattern": "^https://[a-z0-9.-]+(:[0-9]{1,5})?$"}}},
+                            "url": {"type": "string", "maxLength": 300, "pattern": "^https://[a-z0-9-]+\\.trycloudflare\\.com$"}}},
             {"type": "object", "required": ["kind", "endedAt", "reason"], "additionalProperties": false,
-             "properties": {"kind": {"enum": ["ended"]}, "endedAt": {"$ref": "#/$defs/ts"}, "reason": {"enum": ["stopped", "tier-off", "session-ended"]},
+             "properties": {"kind": {"enum": ["ended"]}, "endedAt": {"$ref": "#/$defs/ts"}, "reason": {"enum": ["stopped", "tier-off", "session-ended", "failed"]},
                             "approvedAt": {"$ref": "#/$defs/ts"}, "attested": {"enum": [true]}}}
           ]
         }

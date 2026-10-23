@@ -52,7 +52,7 @@
           "properties": {
             "id": {"$ref": "#/$defs/liveId"}, "label": {"type": "string"},
             "status": {"type": "object", "required": ["kind"], "additionalProperties": false, "properties": {"kind": {"enum": ["running"]}}},
-            "url": {"type": "string", "pattern": "^https://[a-z0-9.-]+(:[0-9]{1,5})?$"}
+            "url": {"type": "string", "pattern": "^https://[a-z0-9-]+\\.trycloudflare\\.com$"}
           }
         },
         {

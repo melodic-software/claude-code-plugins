@@ -163,7 +163,7 @@ class TestStopStatusUrl(Running):
         code, st, _ = share(self.d, "status")
         self.assertEqual(code, 0)
         self.assertEqual((st["running"], st["tunnel"], st["guestUrl"], st["people"]["joined"]), (True, "quick", self.first["guestUrl"], 1))
-        self.assertEqual(sorted(st), ["guestUrl", "intro", "lease", "ok", "people", "queue", "round", "running", "tunnel", "unhandled"])
+        self.assertEqual(sorted(st), ["guestUrl", "intro", "lease", "lives", "ok", "people", "queue", "round", "running", "tunnel", "unhandled"])
 
     def test_status_says_whether_the_intro_is_set_running_or_stopped(self):
         """lane-shared.md Start step 5 reads `intro` from `share.sh status` to know whether to draft one."""
@@ -850,6 +850,99 @@ class TestShareSh(ShareCase):
         p = self.run_sh("status", environ=env(PYTHONPATH=str(planted)))
         self.assertEqual(p.returncode, 1, p.stderr)
         self.assertFalse(marker.exists())
+
+
+class TestLives(Running):
+    """Live prototypes from share.sh: `stop` ends every one and leaves no live process, `live-stop <id>` ends one,
+    `status` lists them, ensure-running after a crash ends the records whose processes are gone, and a server the
+    owner runs on a port is never stopped (share.sh says it keeps running)."""
+
+    def setUp(self):
+        super().setUp()
+        self.owner = {"X-Owner-Token": self.owner_token()}
+        code, _, out = call(self.guest_port(), "POST", "/api/session/settings", {"prototypeTiers": ["screenshot", "snapshot", "live"]}, self.owner)
+        self.assertEqual(code, 200, out)
+        self.build = self.d / "staging" / "r1" / "live"
+        self.build.mkdir(parents=True)
+        (self.build / "index.html").write_text("<p>app</p>", encoding="utf-8")
+
+    def started(self, **target):
+        code, out, err = self.apply({"op": "add-live", "label": "App", **(target or {"folder": str(self.build)})})
+        self.assertEqual(code, 0, err)
+        lid = out["results"][0]["id"]
+        code, _, body = call(self.guest_port(), "POST", "/api/live/approve", {"id": lid, **({"attest": True} if target else {})}, self.owner)
+        self.assertEqual(code, 200, body)
+        return lid, tunnel.read_live(tunnel.live_path(self.d, lid))
+
+    def gone(self, rec):
+        return not (tunnel.tunnel_running(rec) or tunnel.server_running(rec))
+
+    def test_stop_leaves_no_live_process(self):
+        _, rec = self.started()
+        self.assertFalse(self.gone(rec))
+        code, out, err = share(self.d, "stop")
+        self.assertEqual((code, out["lives"]), (0, ["L1"]), err)
+        self.assertTrue(self.gone(rec))
+        self.assertFalse(detached.alive(rec["pid"], rec["marker"]) or detached.alive(rec["server"]["pid"], rec["server"]["marker"]))
+        code, st, _ = share(self.d, "status")
+        self.assertEqual((code, st["lives"][0]["processes"]), (0, "stopped"))
+
+    def test_live_stop_ends_one_and_status_lists_them(self):
+        lid, rec = self.started()
+        code, st, _ = share(self.d, "status")
+        self.assertEqual((code, [(x["id"], x["status"]) for x in st["lives"]]), (0, [(lid, "running")]))
+        self.assertRegex(st["lives"][0]["url"], r"^https://fake-[0-9a-f]{12}\.trycloudflare\.com$")
+        code, out, err = share(self.d, "live-stop", lid)
+        self.assertEqual((code, out["ended"]), (0, [lid]), err)
+        self.assertTrue(self.gone(rec))
+        code, st, _ = share(self.d, "status")
+        self.assertEqual(st["lives"][0]["status"], "ended")
+        self.assertEqual(share(self.d, "live-stop", "L9")[0], 1)
+        self.assertEqual(share(self.d, "live-stop", "../x")[0], 1)
+
+    def test_live_stop_with_the_server_down_ends_the_record_and_the_next_start_ends_the_entry(self):
+        lid, rec = self.started()
+        detached.stop(self.session_record()["pid"], share_cli.SERVER_MARKER)
+        code, out, err = share(self.d, "live-stop", lid)
+        self.assertEqual((code, out["ended"]), (0, [lid]), err)
+        self.assertTrue(self.gone(rec))
+        self.assertEqual(share(self.d, "ensure-running")[0], 0)
+        entry = json.loads((self.d / "state.json").read_text(encoding="utf-8"))["lives"][0]
+        self.assertEqual((entry["status"]["kind"], entry["status"]["reason"]), ("ended", "stopped"))
+
+    def test_ensure_running_after_a_crash_ends_stale_records(self):
+        lid, rec = self.started()
+        detached.stop(self.session_record()["pid"], share_cli.SERVER_MARKER)  # the server crashes...
+        detached.stop(*tunnel._identity(rec))  # ...and the machine restarts: nothing of the live prototype runs
+        detached.stop(*tunnel._server(rec))
+        code, _, err = share(self.d, "ensure-running")
+        self.assertEqual(code, 0, err)
+        self.assertIn(f"live prototype {lid}", err)
+        self.assertEqual(tunnel.read_live(tunnel.live_path(self.d, lid))["reason"], "failed")
+        entry = json.loads((self.d / "state.json").read_text(encoding="utf-8"))["lives"][0]
+        self.assertEqual((entry["status"]["kind"], entry["status"]["reason"]), ("ended", "failed"))
+
+    def test_a_restart_keeps_a_running_live_prototype(self):
+        lid, rec = self.started()
+        code, _, err = share(self.d, "restart")
+        self.assertEqual(code, 0, err)
+        self.assertFalse(self.gone(rec))
+        code, st, _ = share(self.d, "status")
+        self.assertEqual((st["lives"][0]["status"], st["lives"][0]["url"]), ("running", rec["url"]))
+
+    def test_stop_leaves_the_owners_server_on_a_port_running_and_says_so(self):
+        dev = socket.socket()
+        dev.bind(("127.0.0.1", 0))
+        dev.listen()
+        self.addCleanup(dev.close)
+        port = dev.getsockname()[1]
+        _, rec = self.started(port=port)
+        self.assertNotIn("server", rec)
+        code, _, err = share(self.d, "stop")
+        self.assertEqual(code, 0, err)
+        self.assertIn(f"the server on port {port} that a live prototype showed keeps running", err)
+        self.assertFalse(tunnel.tunnel_running(rec))
+        socket.create_connection(("127.0.0.1", port), timeout=5).close()  # still listening
 
 
 if __name__ == "__main__":

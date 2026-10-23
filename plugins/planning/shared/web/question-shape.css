@@ -1,0 +1,9 @@
+/* The composer kit's own parts (question-shape.js), on both interview pages. A page's later rules place or hide them. */
+/* The key hint ("Ctrl + Enter to send") is one line, cut with an ellipsis where its row is short; it takes the row's
+   free room and never widens the row. */
+.app .vf-hint.vf-keyhint {
+  margin-inline-end: 0; flex: 1 1 auto; contain: inline-size; min-width: 0;
+  color: var(--faint); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* The counter shows near the field's limit. */
+.app .vf-count-txt { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }

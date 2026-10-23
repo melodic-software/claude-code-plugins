@@ -18,6 +18,7 @@
 .github/scripts/apply-patch
 .github/scripts/branch-cleanup
 .github/scripts/intake-reenter
+.github/scripts/intake-triage
 .github/scripts/maintenance-audit-lane-runs
 .github/scripts/maintenance-monitor-signals
 .github/scripts/maintenance-reconcile-lost-runs

@@ -1,5 +1,64 @@
 # Changelog for the PR pipeline convention
 
+## [3.8.0] - 2026-10-23
+
+### Added
+
+- intake-triage.yml writes the triage verdict as the lanes App after each triage run that applied: the proposed `work-class:` label, the Size, Complexity and Uncertainty issue fields, and `status: ready` or `status: needs-decision`, from the lane comment's class line and four verdict lines, each checked against a closed set (`.github/scripts/intake-triage/apply-verdict.mjs`, lane `intake-triage`, activity `apply-verdict`, effect `mutate-tracker`). It never adds `agent-ready`, keeps a class or field a listed human set, and drops the comment's "a maintainer confirms" wording once it applied the class ([#9213](https://github.com/melodic-software/claude-code-plugins/issues/9213)).
+
+### Changed
+
+- Intake triage follows a written priority, type and dimension rubric, and may no longer apply `good first issue` or `help wanted`.
+
+## [3.7.0] - 2026-10-22
+
+### Added
+
+- pr-merge holds a pull request that could add or raise a charge (IaC files, new workflow
+  schedules, billed runner labels, new secrets references, new model legs, raised model-leg
+  timeouts, pipeline config changes) for a human unless its body links an owner
+  `**Decision recorded.** Cost:` comment on its closing issue or the pull request itself.
+
+## [3.6.1] - 2026-10-22
+
+### Fixed
+
+- work-resolve-issue's report-outcome names apply-issue-patch's escalation reason when it refused a done run's patch, instead of saying the run committed nothing.
+
+- pr-unblock's `fix-docs` reports its check on the head it ran on when the PR head moves while it
+  runs, instead of posting failure on the new head and blocking the merge. A new `fix-docs-head`
+  job, which runs no head code, reads the head both `fix-docs` calls pass as `head-sha`; a run head
+  that matches no gated head still posts failure. The read runner's new `post-decline` input
+  (default `true`) is `false` for fix-docs, so a run that stops before its trigger gate posts
+  nothing and the once-per-PR dispatcher tries the PR again.
+
+## [3.6.0] - 2026-10-22
+
+### Added
+
+- `adoption.spec-from-body-apps`: the App ids whose PR bodies a script writes (the release App
+  and the standards-sync App here). An adopted PR that closes no issue is judged against its own
+  title and body when a person or one of these Apps opened it; resolve-pr hands the verifier that
+  text as the spec, and the verdict records `intent: pull-request`. Any other App, the lanes App
+  included, still needs a closing issue, since a model that wrote the diff would also have
+  written its spec. A body last edited by anyone but its author or a trusted person is not the
+  spec, and the verdict records the body's sha256 (`intent_sha256`).
+
+### Changed
+
+- Adoption covers every account on `.github/standards/trusted-actors/trusted-actors.json`, people
+  and Apps alike, matched by id (owner decision 2026-10-22): fix-ci fixes a red PR the release
+  App, the owner or anyone later added to the list opened, and `merge.verify-authors:
+  lane-or-owner` judges it. An App's PR is adopted at once; a person's still waits
+  `adoption.idle-hours`. Dependabot's red PRs stay with review-dependency.
+- The verifier fails a change that alters behavior or intent the spec does not ask for, a lane's
+  CI fix included, which escalates the PR to a person.
+
+### Removed
+
+- `adoption.owner-ids`: the trusted-actor list is the one source. Without `adoption.idle-hours`
+  nothing is adopted.
+
 ## [3.5.1] - 2026-10-22
 
 ### Fixed
