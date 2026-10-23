@@ -84,6 +84,33 @@ export function decide({ state, latest }) {
   return state.runs.length >= ATTEMPTS ? "file" : "dispatch";
 }
 
+const FILED_TITLE = /^Intake triage left #([1-9][0-9]*) untriaged after /;
+const SEARCH_PAGES = 10;
+
+// The issues the sweep already filed a hand-off for, read from one search of
+// its own hand-off issues, open or closed, so their originals cost no comment
+// reads. Only a title the bot wrote counts. A failed or incomplete search
+// excludes nothing: those issues are then read and skipped by their state.
+async function handedOff(call, repo) {
+  const q = encodeURIComponent(`repo:${repo} is:issue author:app/github-actions in:title "Intake triage left"`);
+  const numbers = new Set();
+  try {
+    for (let page = 1; page <= SEARCH_PAGES; page += 1) {
+      const found = await call("GET", `/search/issues?q=${q}&per_page=100&page=${page}`);
+      if (found?.incomplete_results !== false) return new Set();
+      for (const item of found.items ?? []) {
+        const m = item.user?.login === BOT ? FILED_TITLE.exec(String(item.title ?? "")) : null;
+        if (m) numbers.add(Number(m[1]));
+      }
+      if ((found.items ?? []).length < 100) break;
+    }
+  } catch (error) {
+    if (/call budget/.test(error.message)) throw error;
+    return new Set();
+  }
+  return numbers;
+}
+
 export const renderFiledIssue = ({ number, runs, repoUrl }) => ({
   title: `Intake triage left #${number} untriaged after ${runs.length} dispatches`,
   labels: ["needs-triage"],
@@ -106,7 +133,9 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
     if (batch.length < 100) break;
   }
   const result = { candidates: 0, dispatched: [], filed: [], handedOff: [], waiting: [], failed: [], truncated: null };
-  const candidates = selectCandidates({ issues, now, authorIds });
+  const selected = selectCandidates({ issues, now, authorIds });
+  const filed = selected.length > 0 ? await handedOff(call, repo) : new Set();
+  const candidates = selected.filter((i) => !filed.has(i.number));
   result.candidates = candidates.length;
   const handOff = (number) => call("POST", `/repos/${repo}/issues/${number}/labels`, { labels: [FLOOR] });
   // Issues intake already commented on, and ones the sweep already handed

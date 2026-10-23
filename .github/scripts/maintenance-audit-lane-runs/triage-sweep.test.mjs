@@ -128,13 +128,17 @@ test("the filed issue names the issue and every failed run, and carries needs-tr
 });
 
 // A fake GitHub holding issues, comments and runs, recording every write.
-function fakeGitHub({ issues, comments = {}, runs = {}, failPatch = () => false }) {
+function fakeGitHub({ issues, comments = {}, runs = {}, failPatch = () => false, filedIssues = [] }) {
   const writes = [];
   let nextRun = 900;
   let nextIssue = 5000;
   let nextComment = 100;
   const call = async (method, path, body) => {
     let m;
+    if (method === "GET" && (m = /^\/search\/issues\?q=([^&]+)&per_page=100&page=(\d+)$/.exec(path))) {
+      assert.equal(decodeURIComponent(m[1]), 'repo:o/r is:issue author:app/github-actions in:title "Intake triage left"');
+      return { incomplete_results: false, items: filedIssues.slice((Number(m[2]) - 1) * 100, Number(m[2]) * 100) };
+    }
     if (method === "GET" && (m = /^\/repos\/o\/r\/issues\?state=open&per_page=100&page=(\d+)$/.exec(path))) {
       return issues.slice((Number(m[1]) - 1) * 100, Number(m[1]) * 100);
     }
@@ -276,14 +280,15 @@ test("an issue with more comments than the sweep reads goes to a maintainer, und
 
 test("a pass stops dispatching when the budget left cannot record the run", async () => {
   const gh = fakeGitHub({ issues: [issue(1), issue(2, { created_at: "2026-10-18T09:30:00Z" })] });
-  let left = 6;
+  let left = 7;
   const call = async (...args) => {
-    if (left === 0) throw new Error("call budget of 6 reached");
+    if (left === 0) throw new Error("call budget of 7 reached");
     left -= 1;
     return gh.call(...args);
   };
-  // issues page 1, comments of #1, dispatch, state write: 4 calls; #2's
-  // comments leave 1, too few for a dispatch and its state write.
+  // issues page 1, the hand-off search, comments of #1, dispatch, state
+  // write: 5 calls; #2's comments leave 1, too few for a dispatch and its
+  // state write.
   const result = await runSweep({
     call,
     remaining: () => left,
@@ -331,6 +336,42 @@ test("issues the sweep already filed do not use up the per-pass check limit", as
   });
   const result = await sweep(gh);
   assert.deepEqual(result.dispatched, [21]);
+});
+
+// Codex P2 on #9303: with needs-triage no longer excluding them, the issues
+// the sweep already handed off would spend the call budget on their comments
+// every pass. One search for the sweep's own hand-off issues skips them unread.
+test("issues the sweep filed a hand-off for are skipped without reading their comments", async () => {
+  const handed = Array.from({ length: 118 }, (_, i) =>
+    issue(i + 1, { labels: [{ name: "needs-triage" }], created_at: "2026-10-01T00:00:00Z" }),
+  );
+  const filedIssues = [
+    ...handed.map((i) => ({
+      number: 6000 + i.number,
+      title: renderFiledIssue({ number: i.number, runs: [{}, {}], repoUrl: "u" }).title,
+      user: BOT,
+    })),
+    // The same title from anyone else excludes nothing.
+    { number: 7000, title: renderFiledIssue({ number: 119, runs: [{}, {}], repoUrl: "u" }).title, user: { login: "someone" } },
+  ];
+  const gh = fakeGitHub({
+    issues: [...handed, issue(119, { labels: [{ name: "needs-triage" }] })],
+    comments: Object.fromEntries(
+      handed.map((i) => [i.number, [{ id: i.number, user: BOT, body: renderState({ runs: [1, 2], filed: 6000 + i.number }) }]]),
+    ),
+    filedIssues,
+  });
+  const reads = [];
+  let left = 120;
+  const call = async (method, path, body) => {
+    if (left === 0) throw new Error("call budget of 120 reached");
+    left -= 1;
+    if (method === "GET") reads.push(path);
+    return gh.call(method, path, body);
+  };
+  const result = await runSweep({ call, remaining: () => left, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors });
+  assert.deepEqual(result.dispatched, [119]);
+  assert.equal(reads.filter((p) => p.includes("/comments")).length, 1);
 });
 
 test("an issue past the comment pages that already carries needs-triage is not handed off again", async () => {
