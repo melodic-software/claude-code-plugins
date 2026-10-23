@@ -127,7 +127,7 @@ reset() {
   export STUB_ACTORS="{\"actors\":[{\"kind\":\"human\",\"id\":$OWNER_ID},{\"kind\":\"bot\",\"id\":5}]}"
   export STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"body\":\"Closes #9306\\n\\n- Cost decision: [Q50]($LINK)\"}"
   export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"totalCount":1,"nodes":[{"number":9306,"repository":{"nameWithOwner":"o/r"}}]}}}}}'
-  STUB_DECISIONS="{\"111\":$(decision 9306 "$OWNER" 2026-10-23T13:14:57Z '**Decision recorded.** Cost: accepted.')}"
+  STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T13:14:57Z '**Decision recorded.** Cost: accepted.')" '{"111": $c}')"
   export STUB_DECISIONS
   export STUB_EDITED='{"data":{"node":{"lastEditedAt":null}}}'
   STUB_EVENTS="[$(event labeled "$LANE" 2026-10-23T13:20:00Z)]"
