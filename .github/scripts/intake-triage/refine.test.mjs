@@ -225,9 +225,10 @@ describe("render", () => {
   });
 
   test("model text cannot add a link, an autolink or a cross-reference", () => {
-    const hostile = "[approve here](https://evil.example) GH-12 #34 https://github.com/o/r/issues/5";
+    const hostile = "[approve here](https://evil.example) GH-12 #34 https://github.com/o/r/issues/5 www.evil.example a@evil.example";
     const body = render(validateOutput({ ...INEXACT, outcome: hostile, sources: [hostile] }, new Set([3])));
     assert.ok(!body.includes("](") && !body.includes("://"), "no markdown link or URL survives");
+    assert.ok(!/www\./i.test(body) && !body.includes("a@evil"), "no www. or email autolink survives");
     assert.ok(!body.includes("GH-12") && !body.includes("#34"), "references are broken");
   });
 });
@@ -235,16 +236,17 @@ describe("render", () => {
 describe("applyRefinement", () => {
   const labeledBy = (actor) => [{ event: "labeled", label: { name: NEEDS_DECISION }, actor: { id: actor } }];
   const apply = (fake, output) =>
-    applyRefinement({ github: fake.github, repository: "o/r", number: 7, appId: APP, humans, output: validateOutput(output, new Set([3])), log: () => {} });
+    applyRefinement({ github: fake.github, repository: "o/r", number: 7, appId: APP, humans, output: validateOutput(output, new Set([3])), context, log: () => {} });
+  const context = { issue: { title: issueOf().title, body: issueOf().body } };
 
   test("an exact refinement posts the comment, lifts the App's needs-decision, and asks for re-triage", async () => {
     const fake = fakeGitHub({ issue: issueOf(), comments: [laneComment()], events: labeledBy(APP) });
     const result = await apply(fake, EXACT);
     assert.equal(result.redispatch, true);
     const done = writes(fake.calls).map(({ method, path, body }) => `${method} ${path} ${JSON.stringify(body)}`);
-    assert.match(done[0], /^POST \/repos\/o\/r\/issues\/7\/comments /);
-    assert.equal(done[1], "DELETE /repos/o/r/issues/7/labels/status%3A%20needs-decision undefined");
-    assert.equal(done[2], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: ["needs-triage"] })}`);
+    assert.equal(done[0], "DELETE /repos/o/r/issues/7/labels/status%3A%20needs-decision undefined");
+    assert.equal(done[1], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: ["needs-triage"] })}`);
+    assert.match(done[2], /^POST \/repos\/o\/r\/issues\/7\/comments /, "the marker comment goes last");
     assert.equal(done.length, 3);
   });
 
@@ -260,9 +262,9 @@ describe("applyRefinement", () => {
     const result = await apply(fake, INEXACT);
     assert.equal(result.redispatch, false);
     const done = writes(fake.calls).map(({ method, path, body }) => `${method} ${path} ${JSON.stringify(body)}`);
-    assert.match(done[0], /^POST \/repos\/o\/r\/issues\/7\/comments .*RECOMMENDED:/);
-    assert.equal(done[1], "DELETE /repos/o/r/issues/7/labels/status%3A%20ready undefined");
-    assert.equal(done[2], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+    assert.equal(done[0], "DELETE /repos/o/r/issues/7/labels/status%3A%20ready undefined");
+    assert.equal(done[1], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+    assert.match(done[2], /^POST \/repos\/o\/r\/issues\/7\/comments .*RECOMMENDED:/, "the marker comment goes last");
     for (const call of done) {
       assert.ok(!call.includes("agent-ready") && !call.includes('"needs-human"'), call);
     }
@@ -275,7 +277,22 @@ describe("applyRefinement", () => {
     assert.equal(writes(fake.calls).length, 0);
   });
 
+  test("a failed label update posts no marker, so the next refinement can finish the labels", async () => {
+    const fake = fakeGitHub({ issue: issueOf(), comments: [laneComment()], events: labeledBy(APP) });
+    const github = async (method, path, body) => {
+      if (method === "POST" && path.endsWith("/labels")) {
+        fake.calls.push({ method, path, body });
+        throw new Error("transient");
+      }
+      return fake.github(method, path, body);
+    };
+    await assert.rejects(apply({ github, calls: fake.calls }, EXACT), /transient/);
+    assert.ok(!writes(fake.calls).some(({ path }) => path.endsWith("/comments")), "no marker comment was posted");
+  });
+
   const untouched = [
+    ["an issue whose body changed while the model ran", { issue: issueOf({ body: "Rewritten while the model ran." }), comments: [laneComment()], events: labeledBy(APP) }],
+    ["an issue whose title changed while the model ran", { issue: issueOf({ title: "Renamed" }), comments: [laneComment()], events: labeledBy(APP) }],
     ["an issue already refined", { issue: issueOf(), comments: [appComment(`${REFINE_MARKER}\nold`)] }],
     ["a closed issue", { issue: issueOf({ state: "closed" }) }],
     ["an issue a person now holds", { issue: issueOf({ labels: [{ name: "needs-human" }] }) }],

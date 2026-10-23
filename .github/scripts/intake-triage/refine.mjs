@@ -27,9 +27,10 @@
 // adds `agent-ready` or `needs-human`.
 //
 // Model text is data: each field is rendered on one line, with `<`, `[`, `]`,
-// `(` and `)` escaped and mentions, `#N` and `GH-N` references and `://`
-// broken, so it cannot forge a marker, ping anyone, cross-reference an issue,
-// add a link or autolink, or add a task list line outside the criteria.
+// `(` and `)` escaped, and mentions, `#N` and `GH-N` references, `://` and
+// `www.` broken (the broken `@` also stops an email autolink), so it cannot
+// forge a marker, ping anyone, cross-reference an issue, add a link or
+// autolink, or add a task list line outside the criteria.
 //
 // Environment:
 //   GITHUB_TOKEN / GH_TOKEN   the job's read token (--select) or the lanes App token (--apply)
@@ -215,7 +216,8 @@ export function line(text) {
     .replaceAll("@", "@​")
     .replaceAll(/(#|GH-)(?=\d)/gi, "$1​")
     .replaceAll(/[[\]()]/g, "\\$&")
-    .replaceAll("://", ":/​/");
+    .replaceAll("://", ":/​/")
+    .replaceAll(/www\./gi, "www​.");
   return out;
 }
 
@@ -257,8 +259,12 @@ async function removeLabel(github, base, name) {
   }
 }
 
-// Posts the refinement and sets the labels. {outcome, redispatch}.
-export async function applyRefinement({ github, repository, number, appId, output, log = console.log }) {
+// Sets the labels, then posts the refinement. {outcome, redispatch}.
+// `context` is what the model read: an issue whose title or body changed
+// since gets nothing. The comment goes last because its marker stops every
+// later refinement: a failure before it leaves no marker, so the next triage
+// refines the issue again and finishes the labels.
+export async function applyRefinement({ github, repository, number, appId, output, context, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
   const labels = labelNames(issue);
@@ -272,10 +278,13 @@ export async function applyRefinement({ github, repository, number, appId, outpu
   if (labels.includes(NEEDS_HUMAN)) {
     return skip(`is held by ${NEEDS_HUMAN}`);
   }
+  if (String(issue.title ?? "") !== context?.issue?.title || String(issue.body ?? "") !== context?.issue?.body) {
+    return skip("changed while the model ran");
+  }
   if ((await paginate(github, `${base}/comments`)).some((comment) => isRefinement(comment, appId))) {
     return skip("is already refined");
   }
-  await github("POST", `${base}/comments`, { body: render(output) });
+  const post = () => github("POST", `${base}/comments`, { body: render(output) });
   if (!output.exact) {
     if (labels.includes(READY)) {
       await removeLabel(github, base, READY);
@@ -283,17 +292,20 @@ export async function applyRefinement({ github, repository, number, appId, outpu
     if (!labels.includes(NEEDS_DECISION)) {
       await github("POST", `${base}/labels`, { labels: [NEEDS_DECISION] });
     }
+    await post();
     log(`refine: #${number} is not exact; it waits at ${NEEDS_DECISION} with recommended answers`);
     return { outcome: "needs-decision", redispatch: false };
   }
   // Only the lanes App's own needs-decision gives way: a person's stays.
   const setter = (await paginate(github, `${base}/events`)).filter((event) => event?.event === "labeled" && event.label?.name === NEEDS_DECISION).at(-1)?.actor?.id;
   if (!labels.includes(NEEDS_DECISION) || setter !== appId) {
+    await post();
     log(`refine: #${number} is exact; ${labels.includes(NEEDS_DECISION) ? "a person set its needs-decision, so it stays" : "no needs-decision to lift"}`);
     return { outcome: "exact", redispatch: false };
   }
   await removeLabel(github, base, NEEDS_DECISION);
   await github("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
+  await post();
   log(`refine: #${number} is exact; ${NEEDS_DECISION} lifted and triage asked again`);
   return { outcome: "exact", redispatch: true };
 }
@@ -332,7 +344,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
         const known = new Set((context.candidates ?? []).map((item) => item.number));
         const output = validateOutput(JSON.parse(readFileSync(env.REFINEMENT_PATH, "utf8")).output, known);
         const github = createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL });
-        const result = await applyRefinement({ github, repository, number, appId, output });
+        const result = await applyRefinement({ github, repository, number, appId, output, context });
         writeOutputs({ redispatch: String(result.redispatch) });
       } else {
         throw new Error("pass --select or --apply");

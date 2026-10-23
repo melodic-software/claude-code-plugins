@@ -183,8 +183,6 @@ async function sayWhy(github, repository, base, comments, text) {
   }
 }
 
-// Reads the issue fresh, decides, and writes. `status` answers check-wip-cap's
-// status for the issue lane. Returns {outcome, reasons}.
 const refinementsOf = (comments, appId) =>
   comments.filter((comment) => appId !== undefined && comment?.user?.id === appId && String(comment.body ?? "").startsWith(REFINE_MARKER));
 
@@ -202,6 +200,8 @@ async function bodyEditedAtOf(github, repository, number) {
   return issue.lastEditedAt;
 }
 
+// Reads the issue fresh, decides, and writes. `status` answers check-wip-cap's
+// status for the issue lane. Returns {outcome, reasons}.
 export async function admit({ github, repository, number, verdict, rules, humans, appId, status, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
