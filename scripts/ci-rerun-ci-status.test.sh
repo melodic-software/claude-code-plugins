@@ -92,8 +92,8 @@ RCF=.github/workflows/pr-require-checks.yml
 CODE=.github/workflows/pr-review-hosted.yml
 SEC=.github/workflows/pr-review-security-hosted.yml
 # This lane finished at DONE, the other lane at LATER; ci-status started at
-# EARLY unless a case says otherwise.
-EARLY=2026-10-23T09:50:00Z DONE=2026-10-23T10:00:00Z LATER=2026-10-23T10:05:00Z AFTER=2026-10-23T10:06:00Z
+# EARLY unless a case says otherwise. AFTER is just past the 60 s margin.
+EARLY=2026-10-23T09:50:00Z DONE=2026-10-23T10:00:00Z LATER=2026-10-23T10:05:00Z AFTER=2026-10-23T10:06:01Z
 pr() { jq -cn --arg st "${1:-open}" --arg sha "${2:-$HEAD}" '{state: $st, head: {sha: $sha}}'; }
 # run <id> [status] [sha] [path] [event] [updated_at]
 run() {
@@ -165,6 +165,9 @@ for st in in_progress queued waiting; do
   check_calls 1 "the first lane to finish stops after one read"
 done
 STUB_LANE_RUNS="$(runs "$(run 3 in_progress "${HEAD//0/f}" "$SEC")" "$(run 4 in_progress "$HEAD" "$SEC" merge_group)" "$(run 5 in_progress "$HEAD" "$CODE")")"
+STUB_LANE_RUNS="$(runs "$(run 3 in_progress "$HEAD" "$SEC")" "$(run 4 completed "$HEAD" "$SEC")")"
+expect "an older other-lane run still going does not hold the newest, finished one" 0 "Re-ran ci-status (job 77)"
+check_reran 1 "only the other lane's newest run decides"
 expect "other heads, events or files are not the other lane's newest run" 0 "Re-ran ci-status (job 77)"
 check_reran 1 "a head with no other-lane run of its own is re-run"
 
@@ -192,6 +195,11 @@ STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC" pull_request 2026-10-23
 expect "a ci-status that started before this lane finished is re-run" 0 "Re-ran ci-status (job 77)"
 STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC")")" STUB_JOBS="$(cijob completed "$LATER")"
 expect "a ci-status that started the second the last lane finished is re-run" 0 "Re-ran ci-status (job 77)"
+STUB_JOBS="$(cijob completed 2026-10-23T10:06:00Z)"
+expect "a ci-status that started within 60 s of the last lane is re-run" 0 "Re-ran ci-status (job 77)"
+STUB_JOBS="$(cijob completed "$AFTER")" STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC" pull_request 2026-10-23T10:05)")"
+expect "an unreadable finish time of the other lane means a re-run" 0 "Re-ran ci-status (job 77)"
+STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC")")"
 STUB_RUNS="$(runs "$(run 9 queued)")" STUB_JOBS="$(cijob queued "")"
 expect "a ci-status re-run already queued is left alone" 0 "ci-status of run 9 has not started"
 check_reran 0 "the second of two racing lanes adds no re-run"

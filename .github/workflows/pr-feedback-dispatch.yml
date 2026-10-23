@@ -272,13 +272,15 @@ jobs:
   #
   # One re-run per head, after the last lane: ci-status fails while the
   # other lane's newest run has not finished, so a re-run before then can
-  # only be red, and that lane's own completion starts this job again. The
-  # workflow's per-head concurrency group runs the two lanes' runs of this
-  # job one after the other, so the later one finds the earlier lane
-  # finished. A head with no run of the other lane (one lane only) re-runs
-  # on this lane alone. A head the PR has moved past, or a closed PR, is left
-  # alone. A ci-status job not started yet, or one that started after both
-  # lanes finished, reads them anyway, so it is left alone too; one that
+  # only be red, and that lane's own completion starts this job again. Each
+  # run of this job starts after its own lane completed, so the later lane's
+  # run finds the earlier lane finished; the per-head concurrency group keeps
+  # the two from re-running ci-status at once. A head with no run of the
+  # other lane (one lane only) re-runs on this lane alone. A head the PR has
+  # moved past, or a closed PR, is left alone. A ci-status job not started
+  # yet, or one that started more than 60 s after both lanes finished (the
+  # margin covers a lagging read), reads them anyway, so it is left alone
+  # too; one that
   # started earlier and is still in progress waits for its run, polled every
   # 60 s for at most 10 minutes, then is re-run. No checkout, no model: the
   # token can only read runs and the PR and re-run a job.
@@ -380,7 +382,8 @@ jobs:
             esac
           fi
           started_at=$(jq -r '.started_at // ""' <<<"${job:-null}")
-          if [[ $started_at > $done_at ]]; then
+          if [ "$(jq -r --arg s "$started_at" --arg d "$done_at" \
+            'try (($s | fromdateiso8601) > ($d | fromdateiso8601) + 60) catch false' <<<null)" = true ]; then
             echo "ci-status of run $id started at $started_at, after both lanes finished ($done_at); it read them."
             exit 0
           fi
