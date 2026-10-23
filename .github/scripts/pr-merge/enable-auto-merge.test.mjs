@@ -95,7 +95,8 @@ function world(pulls, { failArm = false } = {}) {
       return files.slice((Number(listing[2]) - 1) * 100, Number(listing[2]) * 100);
     }
     // The cost decision reads (merge-holds.costDecision): the owner's comment
-    // 7 on issue 1040, and pull request N closes issue N + 1000.
+    // 7 on pull request 40's closing issue, and each pull request closes its own
+    // number plus 1000.
     if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/issues/comments/7") {
       return COST_COMMENT;
     }
@@ -415,7 +416,8 @@ test("a cost path holds until the body links the owner's cost decision", async (
     [pull(40, { files: cost, body: decided }), pull(41, { files: cost }), pull(42, { files: cost, body: decided })],
     { TRUSTED_ACTORS: join(dir, "actors.json") },
   );
-  // Pull request 41 links no decision; 42 closes issue 1042, so a decision on 1040 does not cover it.
+  // Pull request 41 links no decision; 42 closes a different issue, so pull
+  // request 40's decision does not cover it.
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_40", head: HEAD }]);
   // A changed file's name cannot start a workflow command on its own line.
   const { lines } = await run([pull(43, { files: [{ filename: "x\n::warning::forged/main.tf" }] })]);
