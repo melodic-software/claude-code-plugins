@@ -1287,9 +1287,11 @@ and the issue numbers the JSON's `linked_issues` records, ascending, each once, 
 issues in a name the run authenticates and one verdict has one name. Every reader refuses a `pass`
 or `pass-notes` name that carries issues, issues out of order or repeated, a pull request number
 over 10 digits, and a name over 194 characters. A name that starts like a `fail`'s
-(`pr-verify-<pr>-<sha>-fail`) but no reader takes holds rather than being skipped: the gate refuses
-`verify:unreadable` when its run is of verifier origin, or is tied to the pull request and cannot be
-read, and pr-feedback-dispatch fails its run. The writer adds the issues once the readers have run
+(`pr-verify-<digits>-<sha>-fail`, any digits) but no reader takes holds rather than being skipped:
+the gate refuses `verify:unreadable` when its run is of verifier origin, or is tied to the pull
+request and cannot be read, and pr-feedback-dispatch fails its run. One of verifier origin holds
+every pull request in the repository until its artifact is deleted or expires; deleting it clears
+the hold. The writer adds the issues once the readers have run
 on main. GitHub refuses
 an artifact name holding `"`, `:`, `<`, `>`, `|`, `*`, `?`, `\`, `/`, a carriage return or a
 line feed

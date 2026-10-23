@@ -156,9 +156,10 @@ def named_issues(match: re.Match[str]) -> frozenset[int]:
 # and `-` (11), the SHA (40), `-fail` (5), `-` and the digest (17), `-i` (2),
 # then 10 issues of 10 digits and 9 dots (109).
 NAME_MAX = 10 + 11 + 40 + 5 + 17 + 2 + NAMED_ISSUES_MAX * 10 + NAMED_ISSUES_MAX - 1
-# What starts like a FAIL's name; one that is not a verdict name is held
+# What starts like a FAIL's name, with any digits for the number (leading
+# zeros and more than 10 included); one that is not a verdict name is held
 # (`Reader._evidence`), never skipped.
-FAIL_PREFIX_RE = re.compile(r"pr-verify-([1-9][0-9]{0,9})-([0-9a-f]{40})-fail")
+FAIL_PREFIX_RE = re.compile(r"pr-verify-([0-9]+)-([0-9a-f]{40})-fail")
 
 
 def verdict_name(name: str) -> re.Match[str] | None:
@@ -1005,9 +1006,13 @@ class Reader:
                 continue
             if not match:
                 if (off := FAIL_PREFIX_RE.match(name)) is not None:
-                    unreadable = unreadable or self._off_grammar(
+                    hold, unread = self._off_grammar(
                         item, name, int(off[1]) == number or off[2] in commits
                     )
+                    unreadable = unreadable or hold
+                    if unread:
+                        # Held only if its pull request is one the cap counts.
+                        unread_prs.add(int(off[1]))
                 continue
             pr_n, sha, verdict = int(match[1]), match[2], match[3]
             run_id = json_object(item.get("workflow_run")).get("id")
@@ -1118,18 +1123,24 @@ class Reader:
             else None,
         )
 
-    def _off_grammar(self, item: dict[str, Any], name: str, tied: bool) -> str | None:
-        """Why a FAIL-shaped name no reader takes holds: its run is of
-        verifier origin, or, tied to this pull request, cannot be read. Such a
-        name may be a FAIL the cap or the head should count, so it holds
-        rather than being skipped; one from any other run is ignored."""
+    def _off_grammar(
+        self, item: dict[str, Any], name: str, tied: bool
+    ) -> tuple[str | None, bool]:
+        """Why a FAIL-shaped name no reader takes holds, and whether its run
+        cannot be read. It holds when its run is of verifier origin, or, tied
+        to this pull request, cannot be read: it may be a FAIL the cap or the
+        head should count, so it is never skipped. One from any other run is
+        ignored; an untied one whose run cannot be read is left to the cap
+        (`_elsewhere`), as any such FAIL is."""
         run_id = json_object(item.get("workflow_run")).get("id")
         if not isinstance(run_id, int) or isinstance(run_id, bool):
-            return None
+            return None, False
         state = self._run_state(run_id, shared=True)
-        if state == FOREIGN or (state == UNREAD and not tied):
-            return None
-        return f"off-grammar FAIL name {name}"
+        if state == FOREIGN:
+            return None, False
+        if state == UNREAD and not tied:
+            return None, True
+        return f"off-grammar FAIL name {name}", state == UNREAD
 
     def _elsewhere(
         self,

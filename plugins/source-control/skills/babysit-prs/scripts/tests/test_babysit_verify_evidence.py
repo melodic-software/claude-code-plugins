@@ -1064,6 +1064,28 @@ class AFailNamingTheIssueCounts(unittest.TestCase):
                 fake.runs[9] = judged(9, OLDER_START)
                 self.assertEqual(read(fake).refusal, "verify:unreadable")
 
+    def test_a_fail_shaped_name_with_any_number_holds(self) -> None:
+        # The hold reads any digits, so a number no reader takes (11 digits,
+        # a leading zero) never turns a FAIL at the head into a skip.
+        for number in ("12345678901", "041"):
+            with self.subTest(number):
+                fake = passing(artifact(f"pr-verify-{number}-{HEAD}-fail", 9))
+                fake.runs[9] = judged(9, OLDER_START)
+                self.assertEqual(read(fake).refusal, "verify:unreadable")
+
+    def test_an_off_grammar_fail_whose_run_is_gone_holds_only_when_tied(self) -> None:
+        tied = passing(artifact(f"{named(HEAD, 'fail')}-i07", 9))
+        self.assertEqual(read(tied).refusal, "verify:unreadable")
+        untied = passing(artifact(f"{named(SIBLING_HEADS[0], 'fail', SIBLING)}-i07", 9))
+        self.assertIsNone(read(untied).refusal)
+
+    def test_an_unreadable_off_grammar_fail_of_a_closer_holds(self) -> None:
+        # Untied, but its pull request closes the same issue: the cap
+        # cannot be counted without it.
+        fake = passing(artifact(f"{named(SIBLING_HEADS[0], 'fail', SIBLING)}-i07", 9))
+        fake.closers[7] = [(SIBLING, REPO), (PR, REPO)]
+        self.assertEqual(read(fake).refusal, "verify:unreadable")
+
     def test_an_off_grammar_fail_of_another_run_is_ignored(self) -> None:
         for suffix in self.OFF_GRAMMAR:
             with self.subTest(suffix):

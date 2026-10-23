@@ -171,6 +171,7 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
         # The pull request number is 1 to 10 digits in every reader.
         f"pr-verify-9999999999-{SHA}-fail": set(),
         f"pr-verify-10000000000-{SHA}-fail": None,
+        f"pr-verify-041-{SHA}-fail": None,
         # The longest name the grammar allows, NAME_MAX (194) characters.
         f"pr-verify-9999999999-{SHA}-fail-{DIGEST}-i"
         + ".".join(str(9999999990 + n) for n in range(10)): set(
@@ -245,9 +246,9 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
             f"[{listing[0]}]",
             {"artifacts": [{"expired": False, "name": n} for n in names]},
         )
-        self.assertEqual(
-            listed, [n for n in fail_shaped if not n.startswith("pr-verify-10000")]
-        )
+        # Any digits for the number, so an 11-digit one is listed and fails
+        # the strict filter, as the gate holds on it.
+        self.assertEqual(listed, fail_shaped)
         self.assertEqual(
             jq(f"[.[] | {strict[0]}]", names),
             [n for n, issues in self.NAMES.items() if issues is not None],
