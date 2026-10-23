@@ -898,9 +898,10 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    at most). Every kept thread's scope also holds the thread file's `pr_paths`: each file the
    pull request's file listing changes, rename sources included, in normal form, not under
    `.github/workflows/`, not a `.gitmodules`, `CODEOWNERS`, `settings*.json`, package manifest or
-   `requirements*.txt`, and not under `.github/standards/trusted-actors/`,
-   `.github/actions/check-trusted-trigger/` or `.github/actions/resolve-config/` (the pr-merge
-   HIGH floor). A path the fix creates gets no scope from `pr_paths`: the tool checks it exists at
+   `requirements*.txt`, and not a control-plane or agent-instruction surface: anything under
+   `.github/` (the pr-merge HIGH floor's trusted-actor list, trusted-trigger check and
+   `resolve-config` among it), `CLAUDE.md`, `AGENTS.md`, `.mcp.json` or `.lsp.json`, a `.claude`
+   or `.claude-plugin` directory, or a plugin's `hooks/`, `monitors/` or `bin/`. A path the fix creates gets no scope from `pr_paths`: the tool checks it exists at
    the gated head, `apply-patch.mjs` refuses an added entry, and the reply job an `added`,
    `renamed` or `copied` file.
 3. After the skill, the run job carries the tool's `replies.jsonl` beside the patch, at most

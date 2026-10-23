@@ -31,11 +31,12 @@ The preamble names the tool's path. It is the only shell command this mode runs:
   test file (`test_*.py`, `*_test.py`, `*.test.*`,
   `*.spec.*`) in its path's directory; and each file in its `named_paths`: a file a trusted person
   with write access named in a fix request, in the same `plugins/<p>/` directory, existing at the
-  gated head, and not an instruction path (`.gitmodules`, `CODEOWNERS`, a `settings*.json`, `package.json`, `package-lock.json` or `requirements*.txt`, at any depth). Every kept thread's scope also holds each
-  file in the thread file's `pr_paths`, the files the pull request already changes, while the
-  gated head holds it as a regular file: a
-  finding on one of the PR's files may be fixed in another. A file the fix would create is
-  never in `pr_paths`' part of the scope.
+  gated head, and not an instruction path (`.gitmodules`, `CODEOWNERS`, a `settings*.json`,
+  `package.json`, `package-lock.json` or `requirements*.txt`, at any depth). Every kept thread's
+  scope also holds each file in the thread file's `pr_paths`, the files the pull request already
+  changes outside `.github/` and the agent-instruction surfaces, while the gated head holds it as
+  a regular file: a finding on one of the PR's files may be fixed in another. A file the fix would
+  create is never in `pr_paths`' part of the scope.
 - `record <thread-id> <file>` reads a disposition file from the scratch directory, checks it
   against the template, and records it. Exit 1 means the tool refused and recorded nothing: fix
   the file and record again. One record per thread.

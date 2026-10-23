@@ -30,21 +30,25 @@ const BAD_SEGMENT = /(^|\/)\.{0,2}(\/|$)/;
 // space, control or non-ASCII character.
 const PLAIN_PATH = /^[A-Za-z0-9_@+.-]+(\/[A-Za-z0-9_@+.-]+)*$/;
 
-// The pr-merge HIGH floor's paths (babysit_risk.py HIGH_FLOOR) besides
-// CODEOWNERS and .gitmodules, which isInstructionPath holds: the trusted-actor
-// list, the trusted-trigger check and resolve-config.
-const HIGH_FLOOR_PATH = /^\.github\/(standards\/trusted-actors|actions\/check-trusted-trigger|actions\/resolve-config)\//i;
+// Control-plane and agent-instruction surfaces: anything under .github/
+// (which holds the pr-merge HIGH floor's trusted-actor list, trusted-trigger
+// check and resolve-config, and this pipeline's own scripts and actions),
+// CLAUDE.md, AGENTS.md, .mcp.json, .lsp.json, a .claude or .claude-plugin
+// directory, and a plugin's hooks/, monitors/ and bin/.
+const CONTROL_PATH =
+  /^\.github\/|(^|\/)(CLAUDE\.md|AGENTS\.md|\.mcp\.json|\.lsp\.json)$|(^|\/)\.claude(-plugin)?\/|^plugins\/[^/]+\/(hooks|monitors|bin)\//i;
 
 // A path a pull request changes that a fix may also change: plain, in normal
-// form, and neither under .github/workflows/, an instruction path nor on the
-// HIGH floor.
+// form, and neither under .github/workflows/, an instruction path nor a
+// control-plane or agent-instruction surface. A thread on such a path still
+// reaches it through the thread's own scope.
 const prPathAllowed = (path) =>
   typeof path === "string" &&
   PLAIN_PATH.test(path) &&
   !BAD_SEGMENT.test(path) &&
   !isProtectedPath(path) &&
   !isInstructionPath(path) &&
-  !HIGH_FLOOR_PATH.test(path);
+  !CONTROL_PATH.test(path);
 
 // The paths a pull request's file listing (each { filename,
 // previous_filename }) changes, rename sources included, that prPathAllowed

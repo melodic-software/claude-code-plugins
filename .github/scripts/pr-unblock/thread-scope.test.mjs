@@ -251,7 +251,7 @@ test("a fix that adds a file the PR lists gets no pr_paths scope", () => {
   assert.equal(inThreadScope("plugins/p/skills/s/new.md", new Set([DOC]), [], { prPaths, added: true }), true);
 });
 
-test("a protected, instruction or HIGH floor path the PR changes is still refused", () => {
+test("a protected, instruction, HIGH floor or control-plane path the PR changes is refused", () => {
   const refused = [
     ".github/workflows/x.yml",
     ".GitHub/Workflows/x.yml",
@@ -263,14 +263,27 @@ test("a protected, instruction or HIGH floor path the PR changes is still refuse
     ".github/standards/trusted-actors/trusted-actors.json",
     ".github/actions/check-trusted-trigger/action.yml",
     ".github/actions/resolve-config/resolve.mjs",
+    ".github/scripts/pr-unblock/thread-scope.mjs",
+    ".github/actions/setup-runner-isolation/action.yml",
+    ".github/standards/runner-policy/x.json",
+    "CLAUDE.md",
+    "plugins/p/AGENTS.md",
+    ".mcp.json",
+    "plugins/p/.lsp.json",
+    ".claude/rules/r.md",
+    "plugins/p/.claude-plugin/plugin.json",
+    "plugins/p/hooks/guard.sh",
+    "plugins/p/monitors/monitors.json",
+    "plugins/p/bin/tool",
     "a\\b.md",
     "a b.md",
     "src/../x.md",
   ];
   const listed = refused.map((filename) => ({ filename }));
   assert.deepEqual(prPathsOf(listed), []);
-  // Even when a thread file lists them, inThreadScope refuses each.
+  // Even when a thread file lists them, inThreadScope refuses each beside a
+  // thread outside their plugin.
   for (const path of refused) {
-    assert.equal(inThreadScope(path, new Set([DOC]), [], { prPaths: new Set(refused) }), false, path);
+    assert.equal(inThreadScope(path, new Set(["docs/x.md"]), [], { prPaths: new Set(refused) }), false, path);
   }
 });
