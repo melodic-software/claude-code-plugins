@@ -7,21 +7,11 @@
       "secretPrefix": "REVIEWS",
       "tokenSecret": "REVIEWS_CLAUDE_CODE_OAUTH_TOKEN",
       "keySecret": "REVIEWS_CLAUDE_API_KEY",
-      "keyed": false,
+      "keyed": true,
       "category": "review",
       "lanes": [
-        { "id": "pr-review", "workflow": "pr-review-hosted.yml", "launcher": "claude-code-action", "currentSecrets": ["CLAUDE_CODE_OAUTH_TOKEN"] }
-      ]
-    },
-    {
-      "id": "reviews-security",
-      "secretPrefix": "REVIEWS_SECURITY",
-      "tokenSecret": "REVIEWS_SECURITY_CLAUDE_CODE_OAUTH_TOKEN",
-      "keySecret": "REVIEWS_SECURITY_CLAUDE_API_KEY",
-      "keyed": false,
-      "category": "review",
-      "lanes": [
-        { "id": "pr-review-security", "workflow": "pr-review-security-hosted.yml", "launcher": "claude-code-action", "currentSecrets": ["CLAUDE_CODE_OAUTH_TOKEN"] }
+        { "id": "pr-review", "workflow": "pr-review-hosted.yml", "launcher": "claude-code-action", "currentSecrets": ["CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "pr-review-security", "workflow": "pr-review-security-hosted.yml", "launcher": "run-claude-cli", "currentSecrets": ["REVIEWS_CLAUDE_API_KEY", "REVIEWS_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     },
     {
@@ -62,7 +52,8 @@
         { "id": "fix-docs-subscription", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "address-feedback", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
         { "id": "address-feedback-subscription", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "review-dependency", "workflow": "pr-unblock.yml", "launcher": "claude-code-action", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "review-dependency", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
+        { "id": "review-dependency-subscription", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "resolve-conflicts", "workflow": "pr-unblock.yml", "launcher": "claude-code-action", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     },

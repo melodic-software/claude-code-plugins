@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -315,7 +315,7 @@ test("select caps each patch and the total it hands the model", async () => {
   assert.equal(result.file.files.length, 30);
 });
 
-test("main writes the outputs and the file, and the security flag", async () => {
+test("main writes the outputs, the context file and the run fields, with the security flag", async () => {
   const dir = mkdtempSync(join(tmpdir(), "review-dependency-"));
   const actors = join(dir, "actors.json");
   writeFileSync(actors, JSON.stringify({ actors: [{ id: DEPENDABOT, login: "dependabot[bot]", kind: "bot" }] }));
@@ -328,20 +328,55 @@ test("main writes the outputs and the file, and the security flag", async () => 
     APP_SENDER_ID: String(APP),
     TRUSTED_ACTORS: actors,
     DEPENDENCY_FILE: join(dir, "dependency.json"),
+    CONTEXT_RUN_FILE: join(dir, "context.json"),
     DEPENDENCY_REVIEW_ROUNDS: "2",
     DEPENDABOT_CONFIG: join(dir, "dependabot.yml"),
     DEPENDABOT_POLICY: join(dir, "policy.json"),
   };
-  await main(["select"], env, { api: fakeApi({ pull: { labels: [{ name: "security" }] } }), log: () => {} });
+  const now = () => new Date("2026-10-22T10:11:12.345Z");
+  await main(["select"], env, { api: fakeApi({ pull: { labels: [{ name: "security" }] } }), log: () => {}, now });
   const out = readFileSync(env.GITHUB_OUTPUT, "utf8");
-  assert.match(out, /^proceed=true$/m);
-  assert.match(out, /^skip-reason=$/m);
-  assert.match(out, /^escalation-reason=$/m);
-  assert.match(out, /^security=true$/m);
-  assert.match(out, /^config-unreadable=true$/m, "the main test points at no config file");
-  assert.match(out, /^files-truncated=false$/m);
-  assert.match(out, /^controls=\[\]$/m);
+  assert.equal(out, "proceed=true\nskip-reason=\nescalation-reason=\n");
   assert.equal(JSON.parse(readFileSync(env.DEPENDENCY_FILE, "utf8")).pr, 7);
+  // The verdict job's run fields, one JSON line: the security label, no
+  // config file (the main test points at none), the time to the second.
+  assert.equal(
+    readFileSync(env.CONTEXT_RUN_FILE, "utf8"),
+    `${JSON.stringify({
+      version: 1,
+      pr: 7,
+      head_sha: HEAD,
+      security: true,
+      config_unreadable: true,
+      files_truncated: false,
+      started_at: "2026-10-22T10:11:12Z",
+      controls: [],
+      config: [],
+    })}\n`,
+  );
+});
+
+test("main writes no context or run file when the select skips", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "review-dependency-"));
+  const actors = join(dir, "actors.json");
+  writeFileSync(actors, JSON.stringify({ actors: [{ id: DEPENDABOT, login: "dependabot[bot]", kind: "bot" }] }));
+  const env = {
+    GITHUB_TOKEN: "t",
+    GITHUB_REPOSITORY: "o/r",
+    GITHUB_OUTPUT: join(dir, "out"),
+    PR_NUMBER: "7",
+    HEAD_SHA: HEAD,
+    APP_SENDER_ID: String(APP),
+    TRUSTED_ACTORS: actors,
+    DEPENDENCY_FILE: join(dir, "dependency.json"),
+    CONTEXT_RUN_FILE: join(dir, "context.json"),
+    DEPENDABOT_CONFIG: join(dir, "dependabot.yml"),
+    DEPENDABOT_POLICY: join(dir, "policy.json"),
+  };
+  await main(["select"], env, { api: fakeApi({ pull: { head: { sha: "f".repeat(40), ref: "dependabot/npm_and_yarn/x" } } }), log: () => {} });
+  assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), "proceed=false\nskip-reason=superseded-sha\nescalation-reason=\n");
+  assert.equal(existsSync(env.DEPENDENCY_FILE), false);
+  assert.equal(existsSync(env.CONTEXT_RUN_FILE), false);
 });
 
 // main over a readable base config and policy, with the registry stubbed.
@@ -360,18 +395,22 @@ async function mainWith({ title, policy = POLICY, provenance = async () => [] })
     APP_SENDER_ID: String(APP),
     TRUSTED_ACTORS: actors,
     DEPENDENCY_FILE: join(dir, "dependency.json"),
+    CONTEXT_RUN_FILE: join(dir, "context.json"),
     DEPENDABOT_CONFIG: join(dir, "dependabot.yml"),
     DEPENDABOT_POLICY: join(dir, "policy.json"),
   };
   const lines = [];
   await main(["select"], env, { api: fakeApi({ pull: { title }, files: ROOT_FILES }), log: (line) => lines.push(line), provenance });
-  return { out: readFileSync(env.GITHUB_OUTPUT, "utf8"), warnings: lines.filter((line) => line.startsWith("::warning::")) };
+  const run = existsSync(env.CONTEXT_RUN_FILE) ? JSON.parse(readFileSync(env.CONTEXT_RUN_FILE, "utf8")) : null;
+  return { out: readFileSync(env.GITHUB_OUTPUT, "utf8"), run, warnings: lines.filter((line) => line.startsWith("::warning::")) };
 }
 
-test("main outputs the matched review-only controls for the verdict job to check", async () => {
-  const { out } = await mainWith({ title: "bump x from 1.4.0 to 1.5.0" });
+test("main records the matched review-only controls and the base config's pairs for the verdict job to check", async () => {
+  const { out, run } = await mainWith({ title: "bump x from 1.4.0 to 1.5.0" });
   assert.match(out, /^proceed=true$/m);
-  assert.match(out, /^controls=\["docs\/x\.md#control"\]$/m);
+  assert.deepEqual(run.controls, ["docs/x.md#control"]);
+  assert.deepEqual(run.config, [["npm", "/"]]);
+  assert.equal(run.config_unreadable, false);
 });
 
 test("main warns of a classifier gap when only a parse failure sends a pull request to review", async () => {

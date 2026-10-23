@@ -184,6 +184,10 @@ subscription fallback) answers them and hands on a patch and its replies,
 `publish-feedback` (a script job with no model, `publish-artifact`) posts the replies, naming the
 pushed commit ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)).
 
+The reviewer bot is `claude[bot]`, or `github-actions[bot]` on a comment whose last non-blank
+line is a review lane's `claude-lane: <lane>` footer, as ci-workflows' `pr-review-cli.yml` posts
+its findings; the review holding it must be `github-actions[bot]`'s too.
+
 A fix request is a reply by a person on the trusted-actor list who holds write or admin
 permission on the repository, never edited, or last edited by a person on that list, with a line that starts with
 `PR-fix lane: please fix this finding`, in any letter case, outside a fenced code block (a quoted
@@ -217,10 +221,14 @@ dispatches it lists open, non-draft, same-repository Dependabot PRs into `main`,
 at most 2 `review`-tier PRs per run whose head has no `pr-unblock / review-dependency` check run
 from the GitHub Actions app (the untrusted-trigger skip aside). Their run ids join the same
 dispatched-runs record. It has no schedule: the broker accepts a dispatcher run started only by a
-push or a listed human, so a push to `main` or a hand run wakes it. In `pr-unblock.yml`,
-`review-dependency` (the model job, `mutate-branch`) is followed by `apply-dependency-verdict` (a
-script job with no model, `publish-artifact`), which acts on the verdict the model job recorded
-and never merges; the pr-merge lane merges on its `verdict=merge` marker at the current head
+push or a listed human, so a push to `main` or a hand run wakes it. In `pr-unblock.yml`, no
+model holds a write token: `review-dependency-select` (base code only, read-only token) selects
+the pull request or posts its check neutral; `review-dependency` (a `read` skill in
+[patch output mode](pr-run-activity.md#patch-output-mode), on run-claude-cli with the
+subscription fallback) returns its verdict as structured output and leaves a fix as a patch;
+`apply-dependency-patch` (a script, `mutate-branch`) pushes that patch only on a scanned `fix`
+verdict; and `apply-dependency-verdict` (a script, `publish-artifact`) acts on the verdict and
+never merges; the pr-merge lane merges on its `verdict=merge` marker at the current head
 ([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review);
 [ADR 0074](../../adr/0074-review-risky-dependabot-updates-in-a-model-job-and-act-in-a-scripted-job.md)).
 
@@ -490,20 +498,21 @@ trusted base: one row per prepare mode a patch-producing skill uses (`ci-context
 `review-threads`, `dependency-review`, `merge-base`), `default` for one with no prepare mode, and
 `issue` for a patch that goes to a new issue-lane branch made at the run's base or resume tip.
 [`apply-patch.mjs`](../../../.github/scripts/apply-patch/apply-patch.mjs) reads it for fix-ci's,
-fix-docs's, address-feedback's and resolve-issue's patches ([`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)).
+fix-docs's, address-feedback's, review-dependency's and resolve-issue's patches ([`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)).
 [`patch-rules.schema.json`](../../../.github/actions/resolve-config/patch-rules.schema.json) closes
 each row to these keys:
 
 | Key | Holds |
 |---|---|
 | `refuse` | Named refusals; any match refuses the whole patch. |
-| `allow` | What every other changed path must also meet: `any`, `kept-threads` (a path in the scope of a thread the select job kept, its `named_paths` included, read from that job's thread file) or `merge-result` (the blob the base merge leaves there, or a conflicted path left with no conflict markers). |
+| `allow` | What every other changed path must also meet: `any`, `kept-threads` (a path in the scope of a thread the select job kept, its `named_paths` included, read from that job's thread file), `dependency-manifests` (an npm or pip manifest or lock file outside `.github/` in a directory the base `.github/dependabot.yml` lists for its ecosystem) or `merge-result` (the blob the base merge leaves there, or a conflicted path left with no conflict markers). |
 | `max-files` | The most paths one patch may change, or `null`. |
-| `requires` | What the producer's output must say before anything applies: `dependency-verdict: fix`. |
+| `requires` | What the producer's output must say before anything applies: `dependency-verdict: fix`, the scanned verdict's field. |
+| `content-rule` | Optional; what each changed file's bytes must also meet, on the local blobs before any commit is built, escalating as `protected-path`: `dependency-version-change` (`dependency-review`: modified in place, a regular file, changed only by a version, `fixRefusal` in `dependency-classify.mjs`). |
 | `commit` | `parents` (`[head]`, or `[head, base]` for a merge), `message` and `trailer`, with `{ref}`, `{base}`, `{lane}`, `{activity}` and `{issue}` filled in. |
 | `reads-report` | The producer report the apply reads (`ci-escalations`: the checks the model escalated), or `null`. |
 | `empty-at-push` | Optional; the kind a patch that applies but changes nothing escalates at push time: `empty` (the default) or `invalid` (`ci-context`, as the producer said it wrote a change). |
-| `skip-moved-head` | Optional, default `false`; `true` (`ci-context`, `review-threads`) skips `superseded-sha` on any PR head that moved since the producer ran, where other rows take the moved tip with `--3way` when the moved commits touch no patched path. `default` sets `false`: fix-docs runs once per pull request, so a skipped fix-docs patch would never run again. |
+| `skip-moved-head` | Optional, default `false`; `true` (`ci-context`, `review-threads`, `dependency-review`) skips `superseded-sha` on any PR head that moved since the producer ran, where other rows take the moved tip with `--3way` when the moved commits touch no patched path. `default` sets `false`: fix-docs runs once per pull request, so a skipped fix-docs patch would never run again. |
 | `script-exec-bit` | Optional, default `false`; `true` (`issue`) makes each new or changed file that ends in `.sh` or starts with `#!` executable after every refusal passes, since the model's tools set no file mode. |
 | `escalations` | The escalation reasons the apply may give for the row. |
 
@@ -901,6 +910,16 @@ except six:
 - **Post-merge check and merges in flight.** Only merges the agent identity enqueued count. A
   merge by a person or by another App, such as a release pull request, is not the lane's.
 
+Before it enqueues, the lane reads every person's comments on the pull request: issue comments,
+review summaries and inline review comments. When the newest one from an OWNER, MEMBER or
+COLLABORATOR says "do not merge" (`HUMAN_MERGE_VETO_RE`), the pull request is held (`human merge
+veto from <logins>`). That person lifts the hold with any later comment that does not say it, such
+as "go ahead", or by editing the veto away. Another person's comment does not lift it, and neither
+does an item with no text, such as an Approve with no comment or the empty summary of an inline-only
+review. Comments from a bot or from `merge.agent-identity` hold nothing and neither do comments from
+anyone else, so an outside commenter cannot hold a lane pull request. A bare "wait" is not a veto,
+and neither are blocking words such as "regression" (the autopilot tier's wider scan).
+
 An eligible pull request its score holds gets one `<!-- babysit-merge-risk -->` reasons comment
 naming the score, the reasons and the head. While `merge.report-only` is false, a run that finds the
 lane identity's reasons comment from an earlier run unchanged (same score, reasons and head) for at
@@ -1175,7 +1194,7 @@ The review activity then judges the release as it judges any review-tier pull re
 A pull request whose every reason is a read failure (`unparsed-updates`, `sources-disagree`,
 `dependabot-config-unreadable`, `dependabot-policy-unreadable`, `provenance-unreadable:<name>`)
 is review tier because the classifier could not read it, not because it is risky. The
-review-dependency select step writes a `::warning::classifier gap` naming those reasons, so a
+review-dependency select job writes a `::warning::classifier gap` naming those reasons, so a
 parse bug shows in the run log instead of quietly spending AI reviews; fix the classifier.
 
 ### Verifier verdict
@@ -1426,7 +1445,11 @@ labels an issue `agent-ready`, so nothing it files starts work. Its scripts and 
   failed jobs, annotations and log tails; slice D, every run of each of the two lane workflows with
   the most runs, successes included, with sampled green runs' failed steps; slice C, ten open pull
   requests by listed authors per unit, with labels, ages and head check results. Runs from forks
-  never count. It stops at 350 REST calls and says so.
+  never count. It lists the window workflow by workflow: one `per_page=1` call reads each workflow's
+  run count, and a range at the listing's 1,000-run cap is halved until each part fits, so every run
+  of the 24 hours is read. It stops at 350 REST calls, keeping 170 of them for the units, and says
+  so: a workflow it read only part of is named in a warning, and its unit carries `window_complete:
+  false`.
 - **judge**, one model leg per unit, holds read permissions only, runs with `--setting-sources
   user` and `--permission-mode dontAsk`, and has Read, Grep and Glob over its data and the main
   checkout and no shell. It takes the `triage-issue` route's profile. CI logs and titles reach it
@@ -1573,9 +1596,9 @@ waits on an owner decision and a per-week Fable allowance for the lanes.
 
 ## Funding
 
-Each Claude lane's runs are paid by one funding role. There are seven: `reviews`,
-`reviews-security`, `issue-lane`, `intake`, `pr-unblock`, `pr-verify`, and `automations` for the
-lanes outside the pipeline. A role's secrets are `<ROLE>_CLAUDE_API_KEY` and
+Each Claude lane's runs are paid by one funding role. There are six: `reviews` for both review
+lanes, `issue-lane`, `intake`, `pr-unblock`, `pr-verify`, and `automations` for the lanes outside
+the pipeline. A role's secrets are `<ROLE>_CLAUDE_API_KEY` and
 `<ROLE>_CLAUDE_CODE_OAUTH_TOKEN`, the role upper-snake, so `issue-lane` gives `ISSUE_LANE_`.
 
 [`.github/lane-funding.json`](../../../.github/lane-funding.json) is the source of truth: each
@@ -1988,7 +2011,7 @@ the lanes.
 | `trust-root` ruleset, merge queues, code-owner review settings | github-iac `OrgRulesets.cs`; ADR 0015 Decision 5; [ADR 0007](https://github.com/melodic-software/github-iac/blob/main/docs/adr/0007-no-required-approving-reviews.md). Its rollback is not yet tracked: [github-iac#677](https://github.com/melodic-software/github-iac/issues/677) |
 | Test repository | [`melodic-software/pr-pipeline-sandbox`](https://github.com/melodic-software/pr-pipeline-sandbox), whose README states its purpose |
 | Trusted actors, runner policy, Actions naming vocabulary | `melodic-software/standards` components [`trusted-actors`](https://github.com/melodic-software/standards/tree/main/components/trusted-actors), [`runner-policy`](https://github.com/melodic-software/standards/tree/main/components/runner-policy) and [`github-actions-conventions`](https://github.com/melodic-software/standards/tree/main/components/github-actions-conventions), synced into `.github/standards/` |
-| Review and intake reusable workflows | [`melodic-software/ci-workflows`](https://github.com/melodic-software/ci-workflows) `.github/workflows/pr-review.yml`, `pr-review-security.yml` and `intake-triage.yml`, called by this repository's synced `*-hosted.yml` callers and `intake-triage.yml` |
+| Review and intake reusable workflows | [`melodic-software/ci-workflows`](https://github.com/melodic-software/ci-workflows) `.github/workflows/pr-review.yml`, `pr-review-cli.yml` (the security lane) and `intake-triage.yml`, called by this repository's synced `*-hosted.yml` callers and `intake-triage.yml` |
 
 In this repository, the lane runners and their contract are in [Lanes](#lanes), the config is
 `docs/conventions/pr-pipeline.yaml`, and the decisions are ADRs 0049 to 0051, 0053 to 0055 and 0058 in `docs/adr/`.

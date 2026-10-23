@@ -3,7 +3,8 @@
 # pull requests and is healthy, so a local review runs only where CI does not.
 #
 # A lane is a workflow whose pull_request runs call the org's reusable review
-# workflow: ci-workflows pr-review.yml (code-review) or pr-review-security.yml
+# workflow: ci-workflows pr-review.yml (code-review), or pr-review-security.yml
+# or, from a caller whose path names security, pr-review-cli.yml
 # (security-review). It is healthy when its workflow is active and its newest
 # pull_request run that reached a verdict (completed, and neither skipped nor
 # cancelled) succeeded and was created within --max-age-days. A failed run whose
@@ -68,6 +69,10 @@ REUSABLE=(
   '^melodic-software/ci-workflows/\.github/workflows/pr-review\.yml@'
   '^melodic-software/ci-workflows/\.github/workflows/pr-review-security\.yml@'
 )
+# pr-review-cli.yml serves either lane through an input the run listing does
+# not show, so it counts for a lane only from a caller whose path names it.
+CLI='^melodic-software/ci-workflows/\.github/workflows/pr-review-cli\.yml@'
+CLI_CALLER=('' 'security')
 WORKFLOW_ID=("" "") WORKFLOW_PATH=("" "")
 PAGES=3
 # Skipped-validation reds passed over per lane before it reads stale.
@@ -84,7 +89,7 @@ skipped_validation() {
   for id in $ids; do
     [[ "$id" =~ ^[0-9]+$ ]] || die 2 "unexpected job id in run $1"
     ann=$(gh api "repos/$REPO/check-runs/$id/annotations?per_page=100") || die 2 "cannot read the annotations of job $id"
-    hit=$(jq 'any(.[]?; .annotation_level == "failure" and (.message | test("^failure-class=skipped-validation(:|$)")))' <<<"$ann") ||
+    hit=$(jq 'any(.[]?; .annotation_level == "failure" and (.message | test("^([a-z-]+: )?failure-class=skipped-validation(:|$)")))' <<<"$ann") ||
       die 2 "cannot parse the annotations of job $id"
     [[ "$hit" == true ]] || return 1
   done
@@ -98,8 +103,10 @@ for ((page = 1; page <= PAGES; page++)); do
     die 2 "cannot list the workflow runs of $REPO"
   for i in "${!LANES[@]}"; do
     [[ -n "${WORKFLOW_ID[i]}" ]] && continue
-    hit=$(jq -r --arg re "${REUSABLE[i]}" '
-      [.workflow_runs[]? | select(any(.referenced_workflows[]?; .path | test($re)))][0]
+    hit=$(jq -r --arg re "${REUSABLE[i]}" --arg cli "$CLI" --arg caller "${CLI_CALLER[i]}" '
+      [.workflow_runs[]? | select(any(.referenced_workflows[]?; .path | test($re))
+        or ($caller != "" and (.path // "" | test($caller))
+          and any(.referenced_workflows[]?; .path | test($cli))))][0]
       | select(. != null) | "\(.workflow_id)\t\(.path)"' <<<"$runs") ||
       die 2 "cannot parse the workflow runs of $REPO"
     if [[ -n "$hit" ]]; then

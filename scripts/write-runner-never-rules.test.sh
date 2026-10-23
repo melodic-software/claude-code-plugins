@@ -177,11 +177,14 @@ say(/:\?\*:dependency-invalid \| :\?\*:dependency-fix-not-landed\)/.test(byId("a
   && /:\?\*:dependency-files-truncated \| :\?\*:dependency-control-uncited \| :\?\*:dependency-workflow-held\)/.test(byId("act-script").run ?? "")
   && /:\?\*:dependency-fix-refused\)/.test(byId("act-script").run ?? ""),
   "a script escalates with the verdict script's reasons only in dependency-verdict mode");
-say(promoteScript.indexOf("verdict !== 'fix'") >= 0 && promoteScript.indexOf("verdict !== 'fix'") < promoteScript.indexOf("updateRef")
-  && /\[dependabot skip\]/.test(promoteScript) && /!inFixScope\(p, pairs\)/.test(promoteScript)
-  && /await fixRefusal\(data\.files, pairs,/.test(promoteScript)
-  && /CLASSIFY_SHA256/.test(promoteScript) && /cp \.base\/\.github\/scripts\/pr-unblock\/dependency-classify\.mjs/.test(byId("dependency-select").run ?? ""),
-  "dependency-review promotes only a fix verdict's commits, each with [dependabot skip], changing only the manifests and lock files the base's classifier copy admits, as regular files, by a version change");
+// dependency-review runs on the read runner, after its caller's select job:
+// this file refuses it before the mint, selects nothing, promotes no fix and
+// collects no verdict; apply-patch pushes the fix under the dependency-review row.
+const refuseDependency = at((s) => s.name === "Assert dependency-review runs in the read runner");
+say(refuseDependency >= 0 && refuseDependency < mint && /steps\.config\.outputs\.prepare == 'dependency-review'/.test(steps[refuseDependency].if ?? "") && /exit 1/.test(steps[refuseDependency].run ?? ""),
+  "a dependency-review activity fails red before the mint");
+say(!steps.some((s) => ["dependency-select", "dependency-collect"].includes(s.id)) && !/DEPENDENCY_REVIEW|CLASSIFY_SHA256|inFixScope|fixRefusal/.test(promoteScript),
+  "the write runner selects no dependency pull request, promotes no dependency fix and collects no verdict");
 // apply-patch runs from a base copy, so each pr-unblock module its
 // predicates import must be copied beside it.
 const predicateImports = [...readFileSync(".github/scripts/apply-patch/predicates.mjs", "utf8").matchAll(/from "\.\.\/pr-unblock\/([^"]+)"/g)].map((m) => m[1]);
