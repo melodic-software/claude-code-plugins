@@ -387,6 +387,32 @@ class TheCarryIsBoundToTheWindow(LaneRecordCase):
             self.carried(), {"pr-merge-dispatched-11", "pr-merge-dispatched-12"}
         )
 
+    def test_a_record_another_process_dropped_since_the_load_stays_dropped(
+        self,
+    ) -> None:
+        # A gate process loads both records, the next one rejects record 12
+        # and writes the file without it, then the first saves, never having
+        # asked for 12: record 12 stays dropped.
+        self.lane_runs(2)
+        self.check()
+        both = self.written()
+        ctx = pm._Context(
+            "example-org", "example-repo", IDENTITY, branch="main", now=NOW
+        )
+        self.assertEqual(
+            set(ctx._carried_records()),
+            {"pr-merge-dispatched-11", "pr-merge-dispatched-12"},
+        )
+        only_11 = dict(
+            both,
+            records={
+                "pr-merge-dispatched-11": both["records"]["pr-merge-dispatched-11"]
+            },
+        )
+        self.path.write_text(json.dumps(only_11), encoding="utf-8")
+        ctx.save_lane_records(SINCE)
+        self.assertEqual(self.carried(), {"pr-merge-dispatched-11"})
+
 
 class AFileThatCannotParse(LaneRecordCase):
     def test_a_nesting_too_deep_to_parse_reads_as_today(self) -> None:

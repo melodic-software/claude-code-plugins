@@ -1434,7 +1434,8 @@ class _Context:
         """Write the lane records file back: the records it holds now
         (another check of the run may have written since this one read it),
         those this check read and those it proved, less any whose sender
-        failed, each unexpired and created at or after the lowest floor any
+        failed and any it read in but never asked for that another check
+        has since dropped, each unexpired and created at or after the lowest floor any
         check of the run saved under. Best effort: a failure is logged, and
         the file is left as it was."""
         path = self.lane_records_path
@@ -1447,6 +1448,7 @@ class _Context:
             name: entry
             for name, entry in {**on_disk, **carried}.items()
             if name not in self.lane_rejected
+            and (name in on_disk or name in self.lane_cache)
         }
         records = {
             name: entry

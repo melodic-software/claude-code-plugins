@@ -1442,10 +1442,12 @@ through `actions/cache`. A record it holds is present with no read once its send
 check's sender rule again; a carried record decides as a successful read would, and also where
 today's read would fail. Every check of a run adds the records it proves and keeps those at or after
 the lowest floor any check of the run used. A scheduled or hand-started merge job uploads the
-result only when the run's artifact listing can be read, keeping each record whose artifact it
-lists unexpired under the record's name and sender run. Deleting a record's artifact therefore does
-not revoke a carried record at once: it stays present until a later upload's listing drops it, and
-with no readable listing a run uploads nothing, so the next run reads an older file.
+result, keeping each unexpired record whose artifact the run's artifact listing lists unexpired
+under the record's name and sender run; a run with no candidates saves no listing and keeps each
+unexpired record, since each was listed unexpired when proved. Deleting a record's artifact
+therefore does not revoke a carried record at once: it stays present until a later upload's
+listing drops it, and with a listing that cannot be read a run uploads nothing, so the next run
+reads an older file.
 
 pr-merge.yml also names a file in `BABYSIT_RUN_CACHE`, where the run's gate processes share reads
 that are the same for every candidate. The acting login and a credential pass are reused only under

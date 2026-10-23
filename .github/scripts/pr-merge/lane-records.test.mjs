@@ -3,8 +3,8 @@
 // hand-started pr-merge.yml run on main other than this one (found the way
 // rotation.mjs finds the cursor) whose head commit is on main; a file of any
 // other shape is no file; the next run's file keeps a record only while it is
-// unexpired and, when the run's artifact listing can be read, listed
-// unexpired by its artifact id; and on any failure nothing is written.
+// unexpired and, when the run saved an artifact listing, listed unexpired by
+// its artifact id; and on any other failure nothing is written.
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -179,6 +179,13 @@ test("a listed artifact counts only under the record's name and sender run", () 
   assert.deepEqual(Object.keys(nextRecords({ records, listing, now: NOW })), ["pr-merge-dispatched-11"]);
 });
 
+test("a record's artifact is found by its artifact id, not its name or run number", () => {
+  const records = { "pr-merge-dispatched-11": entry(9011), "pr-merge-dispatched-12": entry(9012) };
+  // Record 12's name is listed, but under another artifact id than its own.
+  const listing = { artifacts: [item(9011, { name: "pr-merge-dispatched-11" }), item(7777, { name: "pr-merge-dispatched-12" })] };
+  assert.deepEqual(Object.keys(nextRecords({ records, listing, now: NOW })), ["pr-merge-dispatched-11"]);
+});
+
 async function writeRun({ records, listing }) {
   n += 1;
   const paths = Object.fromEntries(["in", "listing", "out"].map((k) => [k, join(dir, `${k}-${n}.json`)]));
@@ -205,9 +212,17 @@ test("write keeps the checks' records the listing still lists", async () => {
   assert.deepEqual(written, { version: 1, repo: REPO, records: { "pr-merge-dispatched-11": records["pr-merge-dispatched-11"] } });
 });
 
-test("write with no readable listing, or a bad file, writes nothing and warns", async () => {
+test("write with no listing keeps the unexpired records, quietly", async () => {
+  // A run with no candidates saves no listing; the records were listed unexpired when proved.
   const records = { "pr-merge-dispatched-11": entry(11), "pr-merge-dispatched-12": entry(12, { expires_at: "2026-10-01T00:00:00Z" }) };
-  for (const listing of [undefined, "{", { artifacts: "x" }]) {
+  const { written, lines } = await writeRun({ records: fileOf(records) });
+  assert.deepEqual(written, { version: 1, repo: REPO, records: { "pr-merge-dispatched-11": records["pr-merge-dispatched-11"] } });
+  assert.ok(!lines.some((line) => line.startsWith("::warning")));
+});
+
+test("write with an unreadable listing, or a bad file, writes nothing and warns", async () => {
+  const records = { "pr-merge-dispatched-11": entry(11), "pr-merge-dispatched-12": entry(12, { expires_at: "2026-10-01T00:00:00Z" }) };
+  for (const listing of ["{", { artifacts: "x" }]) {
     const { written, lines } = await writeRun({ records: fileOf(records), listing });
     assert.equal(written, undefined, String(listing));
     assert.ok(lines.some((line) => line.startsWith("::warning title=lane records::")), String(listing));
