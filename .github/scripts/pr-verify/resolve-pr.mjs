@@ -287,11 +287,11 @@ async function linkedIssues(github, readRefs, repository, number, humans) {
   if (named !== null) {
     // `readRefs` keeps GraphQL errors, so a NOT_FOUND reaches namesNothing.
     const answer = await readRefs("POST", "/graphql", { query: REFS_QUERY, variables: { owner, name, number: named } });
-    const repositoryRead = answer?.data?.repository;
-    if (answer?.errors ? !namesNothing(answer, "issueOrPullRequest") : repositoryRead === null || typeof repositoryRead !== "object") {
+    // Only an exact NOT_FOUND names nothing; a null without it is no answer.
+    const node = answer?.data?.repository?.issueOrPullRequest;
+    if (answer?.errors ? !namesNothing(answer, "issueOrPullRequest") : node === null || typeof node !== "object") {
       throw new Error(`#${number}: the Refs issue could not be read`);
     }
-    const node = repositoryRead.issueOrPullRequest;
     nodes = node?.__typename === "Issue" ? [node] : [];
   }
   const issues = nodes.filter(

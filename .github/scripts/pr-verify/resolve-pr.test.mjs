@@ -221,8 +221,9 @@ test("a Refs number that names no issue or pull request names no spec, and any o
     const answer = { data: { repository: { issueOrPullRequest: null } }, errors };
     await assert.rejects(resolve({ issues: [], body: "Refs: #7", refs: { 7: { answer } } }), /the Refs issue could not be read/, JSON.stringify(errors));
   }
-  // No errors and no repository is no answer, not "no issue".
-  for (const answer of [{ data: {} }, { data: { repository: null } }, {}]) {
+  // No errors and no repository, or a null issue without NOT_FOUND, is no
+  // answer, not "no issue".
+  for (const answer of [{ data: {} }, { data: { repository: null } }, {}, { data: { repository: { issueOrPullRequest: null } } }]) {
     await assert.rejects(resolve({ issues: [], body: "Refs: #7", refs: { 7: { answer } } }), /the Refs issue could not be read/, JSON.stringify(answer));
   }
 });

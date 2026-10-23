@@ -3341,6 +3341,10 @@ class RefsIssueEligibility(unittest.TestCase):
         gh = self.fake(closing=[], body="Refs: #41")
         gh.graphql["PolicyRefsIssue"] = {}
         self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
+        # Nor is a null issue without NOT_FOUND "no issue".
+        gh = self.fake(closing=[], body="Refs: #41")
+        gh.graphql["PolicyRefsIssue"] = {"repository": {"issueOrPullRequest": None}}
+        self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
 
     def test_a_closing_issue_wins_over_refs(self) -> None:
         gh = self.fake(body="Refs: #42")

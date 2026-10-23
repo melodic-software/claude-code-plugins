@@ -449,7 +449,8 @@ def _graphql(
     query: str, label: str, missing: str | None = None, **variables: str | int | None
 ) -> dict[str, Any]:
     """The query's data. A NOT_FOUND for `repository.<missing>` alone
-    (`names_nothing`) reads as `missing` null; any other error raises."""
+    (`names_nothing`) reads as `missing` an empty object, so a null there
+    without that error stays apart; any other error raises."""
     args = ["api", "graphql", "-f", f"query={query}"]
     for name, value in variables.items():
         if value is not None:
@@ -459,7 +460,7 @@ def _graphql(
     except (RuntimeError, ValueError, OSError) as exc:
         raise PolicyReadError(f"{label}: {exc}") from exc
     if missing and names_nothing(proc.stdout, missing):
-        return {"repository": {missing: None}}
+        return {"repository": {missing: {}}}
     if proc.returncode != 0:
         raise PolicyReadError(
             f"{label}: {(proc.stderr or '').strip() or proc.returncode}"
@@ -1920,7 +1921,9 @@ def _linked_issue(pr: dict[str, Any], repo: str) -> tuple[dict[str, Any], str | 
     repository = data.get("repository")
     if not is_json_object(repository):
         raise PolicyReadError(f"#{number}: the Refs issue answer has no repository")
-    node = json_object(repository.get("issueOrPullRequest"))
+    node = repository.get("issueOrPullRequest")
+    if not is_json_object(node):
+        raise PolicyReadError(f"#{number}: the Refs issue answer is empty")
     if node.get("__typename") != "Issue":
         return {}, REFS_NOT_AN_ISSUE
     return _closing_issue(

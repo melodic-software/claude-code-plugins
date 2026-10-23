@@ -287,6 +287,8 @@ class FakeGitHub:
                     )
                 if kind == "no-repository":
                     return ok({"data": {}})
+                if kind == "null":
+                    return ok({"data": {"repository": {"issueOrPullRequest": None}}})
                 node = (
                     {"__typename": "PullRequest"}
                     if kind == "PullRequest"
@@ -1780,8 +1782,9 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
         # as for any other link that names none, and no read error.
         self.assertEqual(read(self.refs("Refs: #99999")).refusal, "verify:spec-changed")
         # Any other failed read stays unreadable: gh failing, an answer with
-        # other errors gh exits 0 on, and one with no repository.
-        for kind in ("error", "errors", "no-repository"):
+        # other errors gh exits 0 on, one with no repository, and a null
+        # issue without NOT_FOUND.
+        for kind in ("error", "errors", "no-repository", "null"):
             with self.subTest(kind):
                 self.assertEqual(
                     read(self.refs("Refs: #7", kind)).refusal, "verify:unreadable"

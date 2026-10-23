@@ -918,7 +918,8 @@ class Reader:
     ) -> dict[str, Any]:
         """The query's `repository`. A NOT_FOUND for `missing` alone
         (`merge_policy.names_nothing`), which gh exits nonzero on, reads as
-        `missing` null; any other error raises `_Unreadable`."""
+        `missing` an empty object, so a null there without that error stays
+        apart; any other error raises `_Unreadable`."""
         owner, _, name = self.repo.partition("/")
         args = ["api", "graphql", "-f", f"query={query}"]
         args += ["-f", f"o={owner}", "-f", f"r={name}", "-F", f"n={number}"]
@@ -927,7 +928,7 @@ class Reader:
         except (RuntimeError, ValueError, OSError) as exc:
             raise _Unreadable(f"#{number} {what}: {exc}") from exc
         if missing and merge_policy.names_nothing(proc.stdout, missing):
-            return {missing: None}
+            return {missing: {}}
         if proc.returncode != 0:
             raise _Unreadable(f"#{number} {what}: {(proc.stderr or '').strip()}")
         try:
@@ -956,11 +957,11 @@ class Reader:
         if refs.get("totalCount") == 0:
             named, _ = merge_policy.refs_issue(pull.get("body"))
             if named is not None:
-                node = json_object(
-                    self._graphql(
-                        REFS_QUERY, named, "Refs issue", "issueOrPullRequest"
-                    ).get("issueOrPullRequest")
-                )
+                node = self._graphql(
+                    REFS_QUERY, named, "Refs issue", "issueOrPullRequest"
+                ).get("issueOrPullRequest")
+                if not is_json_object(node):
+                    raise _Unreadable(f"#{named}: the Refs issue answer is empty")
                 # Marked so the gate can bind a pass to how it was linked.
                 nodes = (
                     [node | {REFS_MARK: True}]
