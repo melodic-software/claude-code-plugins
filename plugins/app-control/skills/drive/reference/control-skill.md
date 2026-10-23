@@ -45,7 +45,8 @@ A `## Capture` command never carries an elevation prefix (such as `sudo`, `doas`
 a capture needs root or administrator rights, elevate only the recorder against the app's pid, never
 the app, and leave the elevation to drive's shown-script step. Drive treats an unprefixed command
 that fails for lack of permission the same way: a shown script when interactive, blocked when
-unattended.
+unattended. A command that launches the app as a child of the profiler is never elevated: when it
+is denied, drive blocks it and names the narrowest grant that would allow it.
 
 Manuals, each record a pointer, as-of date and recheck trigger:
 
