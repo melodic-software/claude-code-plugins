@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.11.6] - 2026-10-23
+
+### Fixed
+
+- `ci --ci` reads the open review findings in the fix-ci context file and fixes a reproduced check a finding already explains, rather than escalating it.
+
 ## [2.11.5] - 2026-10-23
 
 ### Changed
