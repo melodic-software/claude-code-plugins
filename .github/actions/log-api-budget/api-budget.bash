@@ -58,6 +58,7 @@ api_budget_read() {
 
 api_budget_wrap_gh() {
   API_BUDGET_GH_TOKEN=$1
+  # shellcheck disable=SC2329 # called by the script that sources this file
   gh() {
     local arg out rc=0 paginate=0 filter=0
     if [[ ${1:-} != api ]]; then
@@ -69,6 +70,7 @@ api_budget_wrap_gh() {
         -i | --include | --silent | --slurp) command gh "$@"; return ;;
         --paginate) paginate=1 ;;
         -q | --jq | -q=* | --jq=* | -t | --template | -t=* | --template=*) filter=1 ;;
+        *) ;;
       esac
     done
     # Unfiltered pages print as one merged array without -i, one array per
