@@ -96,6 +96,17 @@ LANE_RERUN_ARTIFACT = "pr-merge-rerun-"
 # the re-run record.
 LANE_DISPATCH_EVENTS = frozenset({"schedule", "workflow_dispatch", "push"})
 LANE_RERUN_EVENTS = frozenset({"schedule", "workflow_dispatch"})
+# A record found once stays found: pr-merge.yml names a file here that holds
+# the records earlier checks proved (.github/scripts/pr-merge/lane-records.mjs
+# reads it from the last trusted pr-merge run's artifact). A record in it is
+# answered with no read once its sender passes `_Context._lane_sender` again;
+# the check writes back the records it proved whose uploading run completed
+# and whose artifact was listed unexpired. Any other file is no file.
+LANE_RECORDS_ENV = "BABYSIT_POSTMERGE_LANE_RECORDS"
+LANE_RECORDS_VERSION = 1
+_LANE_RECORD_NAME = re.compile(
+    r"pr-merge-(?:dispatched-[1-9][0-9]{0,15}|rerun-[1-9][0-9]{0,15}-attempt-2)"
+)
 # With `--lane-merges-only`, a red attempt 1 of a lane-dispatched full run
 # created within red-main.confirm-wait-minutes plus this, with a newly failing
 # check that demotes (`_Context.regressions`), gets that re-run even when no
@@ -823,6 +834,76 @@ def affected_suites(base_sha: str, head_sha: str) -> frozenset[str] | None:
             policy._git(root, "worktree", "remove", "--force", str(tree))
 
 
+def _sender_fields(record: dict[str, Any]) -> dict[str, Any]:
+    """The fields of an uploading run `_Context._lane_sender` reads, and its
+    status."""
+    return {
+        **{k: record.get(k) for k in ("id", "path", "event", "status")},
+        **{k: record.get(k) for k in ("head_branch", "head_sha")},
+        **{
+            k: {"full_name": json_object(record.get(k)).get("full_name")}
+            for k in ("repository", "head_repository")
+        },
+    }
+
+
+def load_lane_records(
+    path: str, repo: str
+) -> tuple[dict[str, dict[str, Any]], datetime | None]:
+    """The records in the file at `path`, by artifact name, and the lowest
+    floor a check of this run saved them under (None in a file read from an
+    earlier run). Raises `ValueError` for any file of another shape, so none
+    of it is used."""
+    data = json_object(json.loads(Path(path).read_text(encoding="utf-8")))
+    records = data.get("records")
+    if (
+        data.get("version") != LANE_RECORDS_VERSION
+        or data.get("repo") != repo
+        or not is_json_object(records)
+    ):
+        raise ValueError("an unexpected shape")
+    try:
+        floor = None if data.get("floor") is None else _time(data["floor"])
+    except PostMergeReadError as exc:
+        raise ValueError(f"floor: {exc}") from exc
+    for name, entry in records.items():
+        entry = json_object(entry)
+        sender = json_object(entry.get("sender"))
+        artifact = entry.get("artifact")
+        try:
+            _time(entry.get("created_at"))
+            _time(entry.get("expires_at"))
+        except PostMergeReadError as exc:
+            raise ValueError(f"{name!r}: {exc}") from exc
+        if not (
+            _LANE_RECORD_NAME.fullmatch(name)
+            and isinstance(artifact, int)
+            and not isinstance(artifact, bool)
+            and artifact > 0
+            and isinstance(sender.get("id"), int)
+            and sender.get("status") == "completed"
+            and sender == _sender_fields(sender)
+        ):
+            raise ValueError(f"{name!r}: an entry of another shape")
+    return records, floor
+
+
+def _read_lane_file(
+    path: str, repo: str
+) -> tuple[dict[str, dict[str, Any]], datetime | None]:
+    """`load_lane_records`, with no records and a warning for a file it
+    cannot use: any failure, a parse too deep to finish included, is no
+    file."""
+    if not Path(path).exists():
+        return {}, None
+    try:
+        return load_lane_records(path, repo)
+    except Exception as exc:  # noqa: BLE001  (any unusable file is no file)
+        text = re.sub(r"[\r\n%]", " ", f"{type(exc).__name__}: {exc}")[:300]
+        print(f"lane records not used: {text}", file=sys.stderr)
+        return {}, None
+
+
 @dataclass
 class _Context:
     owner: str
@@ -865,6 +946,16 @@ class _Context:
     quarantines: dict[tuple[str, str], Quarantine] = field(default_factory=dict)
     # The branch's dispatch runs at each commit, read by SHA.
     dispatch_at_cache: dict[str, dict[int, Run]] = field(default_factory=dict)
+    # The lane records file (`LANE_RECORDS_ENV`), its records once loaded,
+    # and the final records this check proved, which `save_lane_records` adds.
+    lane_records_path: str | None = field(
+        default_factory=lambda: os.environ.get(LANE_RECORDS_ENV) or None
+    )
+    lane_carried: dict[str, dict[str, Any]] | None = None
+    lane_floor: datetime | None = None
+    lane_proved: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # Carried records whose sender failed `_lane_sender`: never written back.
+    lane_rejected: set[str] = field(default_factory=set)
 
     def dispatch_runs_through(
         self, commit: str, merged_at: datetime, deadline: datetime
@@ -1215,7 +1306,7 @@ class _Context:
         its `pr-merge-dispatched-<id>` artifact was uploaded by a run of
         pr-merge.yml in this repository on the branch."""
         return run.actor == LANE_DISPATCH_ACTOR and self._lane_record(
-            f"{LANE_DISPATCH_ARTIFACT}{run.id}", LANE_DISPATCH_EVENTS, reread=True
+            run, f"{LANE_DISPATCH_ARTIFACT}{run.id}", LANE_DISPATCH_EVENTS, reread=True
         )
 
     def lane_unlisted(self, run: Run) -> bool:
@@ -1232,51 +1323,154 @@ class _Context:
         its post-merge-dispatch job uploads `pr-merge-rerun-<id>-attempt-2`
         only after its own `rerun-failed-jobs` call made that attempt."""
         return self.lane_dispatched(run) and self._lane_record(
-            f"{LANE_RERUN_ARTIFACT}{run.id}-attempt-2", LANE_RERUN_EVENTS
+            run, f"{LANE_RERUN_ARTIFACT}{run.id}-attempt-2", LANE_RERUN_EVENTS
         )
 
     def _lane_record(
-        self, artifact: str, events: frozenset[str], *, reread: bool = False
+        self, run: Run, artifact: str, events: frozenset[str], *, reread: bool = False
     ) -> bool:
         """Whether a run of the branch's own pr-merge.yml (`_lane_sender`)
-        uploaded an artifact named `artifact`. Only steps of a run can upload
-        its artifacts. A failed read raises, so the verdict is unreadable
-        rather than the record taken as present. With `reread`, an empty
-        listing is read once more, and a second empty one is noted in
-        `lane_empty`; the record still reads absent."""
+        uploaded an artifact named `artifact`, recorded for full run `run`.
+        Only steps of a run can upload its artifacts. A record the lane
+        records file holds, unexpired, whose sender passes `_lane_sender`
+        again, is present with no read. A failed read raises, so the verdict
+        is unreadable rather than the record taken as present. With `reread`,
+        an empty listing is read once more, and a second empty one is noted
+        in `lane_empty`; the record still reads absent."""
         if artifact not in self.lane_cache:
+            if self._carried_record(artifact, events):
+                self.lane_cache[artifact] = True
+                return True
             repo = f"{self.owner}/{self.name}"
             senders = self._lane_senders(repo, artifact)
             if not senders and reread:
                 senders = self._lane_senders(repo, artifact)
                 if not senders:
                     self.lane_empty.add(artifact)
-            self.lane_cache[artifact] = any(
-                isinstance(sender, int)
-                and self._lane_sender(
-                    json_object(
-                        _read(
-                            ["api", f"repos/{repo}/actions/runs/{sender}"],
-                            f"run {sender}",
-                        )
-                    ),
-                    events,
+            found = False
+            for sender, item in senders.items():
+                if not isinstance(sender, int):
+                    continue
+                record = json_object(
+                    _read(
+                        ["api", f"repos/{repo}/actions/runs/{sender}"],
+                        f"run {sender}",
+                    )
                 )
-                for sender in senders
-            )
+                if self._lane_sender(record, events):
+                    found = True
+                    self._prove(run, artifact, item, record)
+                    break
+            self.lane_cache[artifact] = found
         return self.lane_cache[artifact]
 
-    def _lane_senders(self, repo: str, artifact: str) -> set[Any]:
-        """The ids of the runs that uploaded an artifact named `artifact`."""
+    def _lane_senders(self, repo: str, artifact: str) -> dict[Any, dict[str, Any]]:
+        """The runs that uploaded an artifact named `artifact`: each run's id
+        and the artifact it uploaded."""
         listing = _read(
             ["api", f"repos/{repo}/actions/artifacts?name={artifact}&per_page=100"],
             f"record {artifact}",
         )
         return {
-            json_object(a.get("workflow_run")).get("id")
+            json_object(a.get("workflow_run")).get("id"): a
             for a in map(json_object, json_array(json_object(listing).get("artifacts")))
             if a.get("name") == artifact
         }
+
+    def _carried_records(self) -> dict[str, dict[str, Any]]:
+        """The lane records file's records, read once: none without the
+        file, and none, with a warning, for a file of another shape."""
+        if self.lane_carried is None:
+            self.lane_carried = {}
+            if self.lane_records_path:
+                self.lane_carried, self.lane_floor = _read_lane_file(
+                    self.lane_records_path, f"{self.owner}/{self.name}"
+                )
+        return self.lane_carried
+
+    def _carried_record(self, artifact: str, events: frozenset[str]) -> bool:
+        """Whether the lane records file holds `artifact` unexpired, sent by
+        a run `_lane_sender` accepts. An entry that fails is dropped, and the
+        record is read as before."""
+        carried = self._carried_records()
+        entry = carried.get(artifact)
+        if entry is None:
+            return False
+        if self.now < _time(entry["expires_at"]) and self._lane_sender(
+            entry["sender"], events
+        ):
+            return True
+        del carried[artifact]
+        self.lane_rejected.add(artifact)
+        return False
+
+    def _prove(
+        self,
+        run: Run,
+        artifact: str,
+        item: dict[str, Any],
+        record: dict[str, Any],
+    ) -> None:
+        """Keep a record just proved for the lane records file when it is
+        final: its uploading run completed and its artifact listed unexpired
+        with an expiry."""
+        expires = item.get("expires_at")
+        try:
+            dated = expires is not None and _time(expires) > self.now
+        except PostMergeReadError:
+            dated = False
+        sender = _sender_fields(record)
+        if dated and item.get("expired") is False and sender["status"] == "completed":
+            artifact_id = item.get("id")
+            if isinstance(artifact_id, int) and not isinstance(artifact_id, bool):
+                self.lane_proved[artifact] = {
+                    "created_at": run.created_at.astimezone(UTC).isoformat(),
+                    "artifact": artifact_id,
+                    "expires_at": expires,
+                    "sender": sender,
+                }
+
+    def save_lane_records(self, floor: datetime) -> None:
+        """Write the lane records file back: the records it holds now
+        (another check of the run may have written since this one read it),
+        those this check read and those it proved, less any whose sender
+        failed and any it read in but never asked for that another check
+        has since dropped, each unexpired and created at or after the lowest floor any
+        check of the run saved under. Best effort: a failure is logged, and
+        the file is left as it was."""
+        path = self.lane_records_path
+        if not path:
+            return
+        carried = self._carried_records()
+        on_disk, disk_floor = _read_lane_file(path, f"{self.owner}/{self.name}")
+        low = min(f for f in (floor, self.lane_floor, disk_floor) if f is not None)
+        held = {
+            name: entry
+            for name, entry in {**on_disk, **carried}.items()
+            if name not in self.lane_rejected
+            and (name in on_disk or name in self.lane_cache)
+        }
+        records = {
+            name: entry
+            for name, entry in {**held, **self.lane_proved}.items()
+            if _time(entry["created_at"]) >= low
+            and _time(entry["expires_at"]) > self.now
+        }
+        payload = {
+            "version": LANE_RECORDS_VERSION,
+            "repo": f"{self.owner}/{self.name}",
+            "floor": low.isoformat(),
+            "records": records,
+        }
+        target = Path(path)
+        tmp = target.with_name(f"{target.name}.{os.getpid()}.tmp")
+        try:
+            tmp.write_text(json.dumps(payload), encoding="utf-8")
+            os.replace(tmp, target)
+        except OSError as exc:
+            print(f"lane records not written to {path}: {exc}", file=sys.stderr)
+            with contextlib.suppress(OSError):
+                tmp.unlink(missing_ok=True)
 
     def _lane_sender(self, record: dict[str, Any], events: frozenset[str]) -> bool:
         """Whether workflow run `record` ran this repository's own pr-merge.yml
@@ -1710,6 +1904,7 @@ def check(
     if merged_since.utcoffset() is None:
         return PostMergeVerdict(False, "merged-since-not-timezone-aware")
     now = now or datetime.now(UTC)
+    ctx: _Context | None = None
     try:
         owner, name = _split_repo(repo)
         branch = branch or _default_branch(owner, name)
@@ -1789,6 +1984,9 @@ def check(
             hold=held.hold if held else None,
             recover_dispatch=bool(held and held.dispatch),
         )
+    finally:
+        if ctx is not None:
+            ctx.save_lane_records(merged_since)
     return PostMergeVerdict(
         True,
         merges=states,

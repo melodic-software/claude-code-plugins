@@ -402,5 +402,85 @@ class TheGateBindsThePassToTheSpecKindTheWriterRecords(unittest.TestCase):
                     )
 
 
+QUEUE_CHECK = RESOLVER.parents[1] / "pr-merge/merge-holds.mjs"
+REQUIRE_CHECKS = RESOLVER.parents[2] / "workflows/pr-require-checks.yml"
+# The fields the queue check reads differ from the gate's `_origin` only in
+# its compare that main holds the run's head SHA, which the queue check skips
+# (main's ruleset forbids the force push that could drop it).
+HEAD_ONLY = {"head_sha"}
+
+
+def queue_counts(runs: list[dict[str, Any]]) -> list[bool]:
+    script = (
+        f"import {{ verdictHold }} from {json.dumps(QUEUE_CHECK.as_uri())};"
+        " const { runs, repo } = JSON.parse(process.argv[1]);"
+        " console.log(JSON.stringify(runs.map((run) => verdictHold([{ name: 'n', verdict: 'pass', runId: 1, run }], repo) === null)));"
+    )
+    proc = subprocess.run(
+        [
+            "node",
+            "--input-type=module",
+            "-e",
+            script,
+            json.dumps({"runs": runs, "repo": gate.REPO}),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return json.loads(proc.stdout)
+
+
+@unittest.skipUnless(shutil.which("node"), "node not installed")
+class TheQueueCheckAndTheGateAgree(unittest.TestCase):
+    """ci-status's merge-queue pass check (pr-require-checks.yml's lookup and
+    merge-holds.mjs verdictHold) counts a pass from the runs the gate counts."""
+
+    def test_a_pass_counts_from_the_same_runs(self) -> None:
+        cases = {label: gate.run(1, **overrides) for label, overrides in RUNS.items()}
+        counted = queue_counts(list(cases.values()))
+        for (label, run), js in zip(cases.items(), counted, strict=True):
+            with self.subTest(label):
+                if set(RUNS[label]) <= HEAD_ONLY:
+                    # Only the head SHA differs: the gate's compare decides.
+                    self.assertEqual(js, True)
+                else:
+                    self.assertEqual(js, gate_counts(run, "pass"))
+        self.assertIn(True, counted)
+        self.assertIn(False, counted)
+
+    def test_the_lookup_names_and_origin_are_the_gate_s(self) -> None:
+        text = REQUIRE_CHECKS.read_text(encoding="utf-8")
+        start = text.index("          verdicts=()\n")
+        body = text[
+            text.index('if [ "$GITHUB_EVENT_NAME" = merge_group ]; then', start) :
+        ]
+        body = body[: body.index("          out=$(node")]
+        # Every pass name, plain and with the head-ref digest, by exact name.
+        for name in (
+            '"pr-verify-$pr-$head-pass"',
+            '"pr-verify-$pr-$head-pass-$digest"',
+            '"pr-verify-$pr-$head-pass-notes"',
+            '"pr-verify-$pr-$head-pass-notes-$digest"',
+        ):
+            self.assertIn(name, body)
+        self.assertIn(f"sha256sum | cut -c1-{ve.HEAD_REF_DIGEST_HEX})", body)
+        # The early stop counts a pass only from the gate's verifier runs.
+        for clause in (
+            f'.path == "{ve.WORKFLOW_PATH}"',
+            '.event == "workflow_run"',
+            '.head_branch == "main"',
+            ".repository.full_name == $repo",
+            ".head_repository.full_name == $repo",
+            '.status == "completed"',
+            '.conclusion == "success"',
+        ):
+            self.assertIn(clause, body)
+        self.assertIn(
+            f'VERIFY_PATH = "{ve.WORKFLOW_PATH}"',
+            QUEUE_CHECK.read_text(encoding="utf-8"),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
