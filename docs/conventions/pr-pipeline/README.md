@@ -1927,9 +1927,10 @@ Size the process to the change:
 
 ## Changing this config
 
-The config file is a lane-power file: a human merges every change to it, and no lane does. The
-same holds for the trusted-actor list and any change to a lane's permissions, tokens or triggers.
-Everything downstream of that human merge may propagate on its own.
+The config file is a lane-power file, like the trusted-actor list and any change to a lane's
+permissions, tokens or triggers. A change to it goes through review and `ci-status`, and the
+merge lane's cost hold (an edit to more than comments, a `description` or a `title` waits for a
+cited owner decision); no rule requires a human to merge it.
 
 A pull request that changes a lane and lists a not-verified item that could stop the lane from
 running checks that item live before it merges. An item only a merged run can exercise, such as
@@ -1938,14 +1939,21 @@ check and its owner; a line in the pull request body does not count. Evidence: m
 intake author gate as "unverified, fails closed", merged, and skipped every intake run here
 (melodic-software/ci-workflows#772).
 
-The lanes token broker parses this config with resolve-config code pinned in azure-iac
-(`src/lanes-token-broker/resolve-config.pin`, fetched by `scripts/deploy/fetch-resolve-config.sh`).
-A pull request that changes a file that script fetches carries the body line
-`Broker pin: melodic-software/azure-iac#<n>`, naming the azure-iac pull request that bumps the pin
-to its merge commit; `ci-status` fails it otherwise. The path list is the `BROKER_PATHS` value of
-`ci-status`'s "Require a broker pin PR for a broker-fetched change" step in
-`.github/workflows/pr-require-checks.yml`. Evidence: #8313 changed `resolve.mjs` with no pin bump,
-and the broker denied every pr-unblock token request as `config-invalid` until azure-iac#44.
+The lanes token broker in azure-iac parses this config with the resolve-config modules it loads
+from the same `main` commit it reads the config at, so a change to `resolve.mjs` or a module it
+imports needs no azure-iac change. These still pair with an azure-iac deploy:
+
+- resolve-config's `package.json` or `package-lock.json`: the broker imports `ajv` and `yaml` from
+  its own deployment and denies every token as `config-invalid` while `main`'s two files differ
+  from the deployed ones. The pull request carries the body line
+  `Broker deploy: melodic-software/azure-iac#<n>`, naming the azure-iac pull request that moves the
+  broker to them; `ci-status` fails it otherwise (the `BROKER_PATHS` value of `ci-status`'s
+  "Require a broker deploy PR for a resolve-config dependency change" step in
+  `.github/workflows/pr-require-checks.yml`).
+- A file `loadConfig` comes to need, a new export the broker calls, a module outside
+  `.github/actions/resolve-config`, or an import form the broker's loader does not walk:
+  [`broker-vendoring.test.mjs`](../../../.github/actions/resolve-config/broker-vendoring.test.mjs)
+  fails on each against its copy of the broker's lists.
 
 ## Outside this repository
 
