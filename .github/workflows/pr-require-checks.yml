@@ -3247,10 +3247,10 @@ jobs:
             --jq '.[] | select(.user.type == "Bot" and (.body | test("(^|\n)<!-- claude-lane-hold lane="))
               and (.user.login == "claude[bot]" or (.user.login == "github-actions[bot]"
                 and ([.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "") | select(. != "")] | last // ""
-                  | test("^`?claude-lane: (claude-review|claude-security-review)`?$")))))
+                  | test("^\u0060?claude-lane: (claude-review|claude-security-review)\u0060?$")))))
               | .body | @json' | tail -n 1 |
             jq -r '[splits("[\r\n]+") | gsub("^\\s+|\\s+$"; "")
-              | select(. != "" and (test("^<!--|^`?claude-lane: ") | not))] | join(" ") | .[0:300]') || reason=
+              | select(. != "" and (test("^<!--|^\u0060?claude-lane: ") | not))] | join(" ") | .[0:300]') || reason=
           why=
           [ -z "$reason" ] || why=" (${reason//%/%25})"
           echo "::error::#$PR_NUMBER carries '$human_gated'$why. Removing the label approves this pull request; ci-status re-runs on the unlabel."
