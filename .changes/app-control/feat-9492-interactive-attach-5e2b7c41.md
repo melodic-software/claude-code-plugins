@@ -10,4 +10,4 @@ bump: minor
 
 ### Added
 
-- Eval cases for a permission-denied capture (unattended and interactive) for an attach given only a process name, and for a pid taken from app log text; the attach case now expects an attach with no question, and the interactive elevated-capture case gives the launched app a pid.
+- Eval cases for a permission-denied capture (unattended and interactive), for an attach given only a process name, and for a pid taken from app log text; the attach case now expects an attach with no question, and the interactive elevated-capture case gives the launched app a pid.
