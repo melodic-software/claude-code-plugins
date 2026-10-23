@@ -3325,7 +3325,7 @@ class TestResumedState(SessionCase):
         )
         brief = exporters.export_brief(self.dir)
         self.assertIn(
-            "- 1 commitments confirmed; 1 unconfirmed, carried as named risks", brief
+            "- 1 commitment confirmed; 1 unconfirmed, carried as named risks", brief
         )
         self.assertIn("- One writer: confirmed on Q1; revisit if Q1 changes\n", brief)
         self.assertIn("- risk: No network (unconfirmed); from Q1\n", brief)
