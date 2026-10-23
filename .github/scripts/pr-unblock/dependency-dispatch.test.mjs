@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
 import { emptyRecord, markHandled, parseRecord } from "./dispatch-record.mjs";
 
@@ -216,16 +217,47 @@ test("a head whose last round had no model turn dispatches again, and is not rec
   }
 });
 
-// A rate-limited model call leaves no verdict, so its verdict job also skips
-// no-model-turn; that never releases the limit stop.
-test("a no-model-turn verdict after a limit stop still holds the head", async () => {
-  const node = pr(61);
-  const stop = {
-    ...roundRun("review-dependency", "failure", "Failed", "2026-10-17T10:00:00Z"),
-    output: { title: "Failed", summary: "lane=pr-unblock activity=review-dependency class=rate-limit resets=2026-10-17T11:00:00Z" },
+// A review-dependency run the usage limit stopped at `started`, its lane record
+// naming a reset an hour later.
+const limitStop = (started) => {
+  const resets = new Date(Date.parse(started) + 3_600_000).toISOString().replace(".000", "");
+  return {
+    ...roundRun("review-dependency", "failure", "Failed", started),
+    output: { title: "Failed", summary: `lane=pr-unblock activity=review-dependency class=rate-limit resets=${resets}` },
   };
-  const { dispatched } = await run(fakeApi({ nodes: [node], checks: headOf(node, [stop, noModelTurn()]) }));
+};
+
+// A rate-limited model call leaves no verdict, so its verdict job also skips
+// no-model-turn; that never releases the limit stop before its reset.
+test("a no-model-turn verdict after a limit stop still holds the head until the reset", async () => {
+  const node = pr(61);
+  const checks = headOf(node, [limitStop("2026-10-17T10:00:00Z"), noModelTurn()]);
+  const { dispatched } = await run(fakeApi({ nodes: [node], checks }), { now: Date.parse("2026-10-17T10:30:00Z") });
   assert.deepEqual(dispatched, []);
+});
+
+// limit-stop.mjs: a limit stop holds its head until the limit resets, then the
+// next run dispatches the head again, until limits.limit-stops-per-head stops
+// (3 by default, work-resolve-issue/limits.mjs) hold it for good. A limit stop
+// is never recorded as handled, or its reset could not release it.
+test("a limit-stopped head is held until its reset, dispatched after it, and held once limit-stops-per-head stops are reached", async () => {
+  const node = pr(70);
+  const once = [limitStop("2026-10-17T10:00:00Z"), noModelTurn()];
+  const record = emptyRecord();
+  const before = await run(fakeApi({ nodes: [node], checks: headOf(node, once) }), { record, now: Date.parse("2026-10-17T10:59:00Z") });
+  assert.deepEqual(before.dispatched, [], "held before the reset");
+  assert.equal(record.handled.get(CHECK), undefined, "a limit stop is not recorded");
+  const after = await run(fakeApi({ nodes: [node], checks: headOf(node, once) }), { record, now: Date.parse("2026-10-17T11:01:00Z") });
+  assert.deepEqual(after.dispatched, [{ number: 70, workflowRunId: "7070" }], "dispatched after the reset");
+
+  const stops = (n) => Array.from({ length: n }, (_, i) => limitStop(`2026-10-17T1${i * 2}:00:00Z`));
+  const late = Date.parse("2026-10-18T00:00:00Z");
+  const two = await run(fakeApi({ nodes: [node], checks: headOf(node, stops(2)) }), { now: late });
+  assert.deepEqual(two.dispatched.map((d) => d.number), [70], "2 reset stops of the default 3");
+  const three = await run(fakeApi({ nodes: [node], checks: headOf(node, stops(3)) }), { now: late });
+  assert.deepEqual(three.dispatched, [], "3 reset stops reach the default cap");
+  const capped = await run(fakeApi({ nodes: [node], checks: headOf(node, stops(1)) }), { now: late, limits: { ...LIMIT_DEFAULTS, "limit-stops-per-head": 1 } });
+  assert.deepEqual(capped.dispatched, [], "the resolved limits set the cap");
 });
 
 test("a round that answered, or a newer review-dependency check, still holds the head", async () => {
