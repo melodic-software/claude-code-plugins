@@ -26,7 +26,8 @@
 //   lane run cannot do (unrunnableCriteria below): a run on a named host or
 //   OS, a paid eval, a run repeated N times, a measurement over time, or a
 //   page on a host outside resolve-issue's web-access domains. The refusal
-//   recommends splitting those items into a needs-human child issue;
+//   recommends splitting those items into a needs-human child issue, which
+//   refine.mjs files when some items are left for the lane;
 // - 10: check-wip-cap's status: over the queued cap, or with the lane paused
 //   over the WIP or held cap (from wip.pause-from), the issue gets
 //   `admission-deferred`, which work-unblock's hourly sweep admits once there
@@ -140,17 +141,23 @@ const excerpt = (text) => {
   return plain.length > 80 ? `${plain.slice(0, 77)}...` : plain;
 };
 
+// [{line, text}] for each task-list item, in order: its index among the
+// body's `\n`-split lines and its text after the task-list prefix. Item n
+// (1-based) is entry n - 1. Pure.
+export const taskItems = (body, taskList) =>
+  String(body ?? "")
+    .split("\n")
+    .map((line, index) => ({ line: index, trimmed: line.trimStart() }))
+    .filter(({ trimmed }) => trimmed.startsWith(taskList))
+    .map(({ line, trimmed }) => ({ line, text: trimmed.slice(taskList.length) }));
+
 // [{n, kind, text}] for each task-list item (1-based n) the lane cannot
 // perform. `webHosts` is resolve-issue's web-access domains: "any" skips the
 // URL check, an absent list allows only GitHub and local hosts, and a `*.`
 // entry allows that domain's subdomains. Pure.
 export function unrunnableCriteria(body, taskList, webHosts) {
   const allowed = webHosts === "any" ? null : allowedBy([...GITHUB_HOSTS, ...(Array.isArray(webHosts) ? webHosts : [])].map((h) => h.toLowerCase()));
-  const items = String(body ?? "")
-    .split("\n")
-    .map((line) => line.trimStart())
-    .filter((line) => line.startsWith(taskList))
-    .map((line) => line.slice(taskList.length));
+  const items = taskItems(body, taskList).map(({ text }) => text);
   const found = [];
   items.forEach((text, index) => {
     let kind = UNRUNNABLE.find(([, pattern]) => pattern.test(text))?.[0];

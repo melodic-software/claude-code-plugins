@@ -247,7 +247,7 @@ describe("decide", () => {
     });
 
     test("a rendered refinement criterion that reads a page outside the lane's web hosts is still refused", () => {
-      const output = { exact: true, outcome: "Match the spec.", criteria: ["The page at https://example.org/spec says nineteen."], dependencies: [], related: [], questions: [], sources: [] };
+      const output = { exact: true, outcome: "Match the spec.", criteria: ["The page at https://example.org/spec says nineteen."], dependencies: [], related: [], questions: [], sources: [], split: [] };
       const body = render(validateOutput(output, new Set()));
       assert.ok(!body.includes("https://"), "the rendered comment breaks the URL");
       const result = decide(facts({ issue: thin, comments: [refinement(app, body)] }));
