@@ -89,11 +89,27 @@ jobs:
           ref: refs/heads/main
           path: .base
           persist-credentials: false
+      - name: Log the API budget at the start
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: start
+          tokens: github-token ${{ github.token }}
 
       - name: Save the WIP cap's last known state
         uses: ./.base/.github/actions/check-wip-cap # zizmor: ignore[self-repository]
         with:
           save-state: "true"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: end
+          tokens: github-token ${{ github.token }}
 
   label-unblocked:
     # A close by any bot (the lanes App, or a PR merge a bot ran) is a clean
@@ -210,7 +226,7 @@ jobs:
         with:
           phase: start
           tokens: |
-            lane ${{ steps.lane-token.outputs.token }}
+            lanes-app ${{ steps.lane-token.outputs.token }}
             github-token ${{ github.token }}
 
       # The script re-reads every blocked issue, its labels, blockers and
@@ -239,7 +255,7 @@ jobs:
         with:
           phase: end
           tokens: |
-            lane ${{ steps.lane-token.outputs.token }}
+            lanes-app ${{ steps.lane-token.outputs.token }}
             github-token ${{ github.token }}
 
       # The token is cancelled as soon as the job is done; it would otherwise

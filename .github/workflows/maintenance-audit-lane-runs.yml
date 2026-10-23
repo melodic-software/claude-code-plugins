@@ -64,6 +64,13 @@ jobs:
           ref: ${{ github.sha }}
           path: .base
           persist-credentials: false
+      - name: Log the API budget at the start
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: start
+          tokens: github-token ${{ github.token }}
 
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -106,6 +113,15 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: end
+          tokens: github-token ${{ github.token }}
+
   judge:
     needs: collect
     if: needs.collect.outputs.units != '' && needs.collect.outputs.units != '[]'
@@ -126,6 +142,13 @@ jobs:
           ref: ${{ github.sha }}
           path: .base
           persist-credentials: false
+      - name: Log the API budget at the start
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: start
+          tokens: github-token ${{ github.token }}
 
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -253,6 +276,15 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: end
+          tokens: github-token ${{ github.token }}
+
   file:
     needs: [collect, judge]
     # A failed leg loses its own findings only.
@@ -270,6 +302,13 @@ jobs:
           ref: ${{ github.sha }}
           path: .base
           persist-credentials: false
+      - name: Log the API budget at the start
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: start
+          tokens: github-token ${{ github.token }}
 
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -312,6 +351,15 @@ jobs:
           mkdir -p "$FINDINGS_DIR"
           node .base/.github/scripts/maintenance-audit-lane-runs/file-findings.mjs
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: end
+          tokens: github-token ${{ github.token }}
+
   # A dispatch sent with this token starts a run as github-actions[bot]
   # (41898282), which intake-triage.yml admits; intake itself uses its own
   # GITHUB_TOKEN and the Claude OAuth secret, no App token. At most 120 REST
@@ -337,6 +385,13 @@ jobs:
           ref: ${{ github.sha }}
           path: .base
           persist-credentials: false
+      - name: Log the API budget at the start
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: start
+          tokens: github-token ${{ github.token }}
 
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -360,3 +415,12 @@ jobs:
           LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           CALL_BUDGET: "120"
         run: node .base/.github/scripts/maintenance-audit-lane-runs/triage-sweep.mjs
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: end
+          tokens: github-token ${{ github.token }}

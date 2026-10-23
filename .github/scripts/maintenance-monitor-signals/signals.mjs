@@ -44,23 +44,27 @@ function finding({ key, signal, title, area, summary, facts, evidence, observedA
   };
 }
 
-// pr-merge's api-budget notice, from .github/actions/log-api-budget:
-// `<phase> <name> core remaining=R used=U limit=L reset=<ISO> ...`.
+// pr-merge's api-budget notices, from .github/actions/log-api-budget: at
+// start `<phase> <name> core remaining=R used=U limit=L reset=<ISO> ...`, at
+// end `token=<name> workflow=... limit=L remaining=R used=U ...`.
 export function parseBudget(message) {
-  const m = /^([a-z]+) ([a-z][a-z0-9-]*) core remaining=(\d+) used=(\d+) limit=(\d+) /.exec(String(message));
-  if (!m) return null;
-  return { phase: m[1], name: m[2], remaining: Number(m[3]), used: Number(m[4]), limit: Number(m[5]) };
+  const text = String(message);
+  const m = /^([a-z]+) ([a-z][a-z0-9-]*) core remaining=(\d+) used=(\d+) limit=(\d+) /.exec(text);
+  if (m) return { phase: m[1], name: m[2], remaining: Number(m[3]), used: Number(m[4]), limit: Number(m[5]) };
+  const e = /^token=([a-z][a-z0-9-]*) .* limit=(\d+) remaining=(\d+) used=(\d+) /.exec(text);
+  if (e) return { phase: "end", name: e[1], remaining: Number(e[3]), used: Number(e[4]), limit: Number(e[2]) };
+  return null;
 }
 
 const CEILINGS = [
-  { name: "lane", key: "ceiling:lanes-app-rest", label: "the lanes App REST quota" },
-  { name: "github-token", key: "ceiling:github-token", label: "the GITHUB_TOKEN REST quota" },
+  { names: ["lanes-app", "lane"], key: "ceiling:lanes-app-rest", label: "the lanes App REST quota" },
+  { names: ["github-token"], key: "ceiling:github-token", label: "the GITHUB_TOKEN REST quota" },
 ];
 
 export function ceilingFindings({ now, budgetReadings = [], jobsInUse = null }) {
   const out = [];
-  for (const { name, key, label } of CEILINGS) {
-    const readings = budgetReadings.filter((r) => r.name === name && r.limit > 0);
+  for (const { names, key, label } of CEILINGS) {
+    const readings = budgetReadings.filter((r) => names.includes(r.name) && r.limit > 0);
     if (readings.length === 0) continue;
     const peak = readings.reduce((a, b) => (b.used / b.limit > a.used / a.limit ? b : a));
     if (peak.used / peak.limit <= CEILING) continue;

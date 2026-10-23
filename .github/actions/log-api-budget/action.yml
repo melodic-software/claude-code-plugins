@@ -1,9 +1,12 @@
 name: Log API budget
 description: >
   Log each named token's REST budget, from the x-ratelimit-* headers of
-  GET /rate_limit, in pr-merge's rate-line shape: one notice and one step
-  summary line per token, and at any phase after `start` a used-since-start
-  count and one `<name>-cost=N` summary line. Never fails the job.
+  GET /rate_limit: at `start`, one notice and one step summary line per token
+  in pr-merge's rate-line shape; at any later phase, one notice per token in
+  the hub collector's `token=<name> workflow= job= run= attempt= limit=
+  remaining= used= reset= resource= cost=` shape, the rate line with a
+  used-since-start count in the summary, and one `<name>-cost=N` summary line.
+  Never fails the job.
 
 inputs:
   phase:
@@ -11,8 +14,8 @@ inputs:
     required: true
   tokens:
     description: >
-      One `name token` pair per line, name in lower-case kebab case, such as
-      `github-token` followed by the job token.
+      One `name token` pair per line, name in lower-case kebab case:
+      `github-token` for the job token, `lanes-app` for the lanes App token.
     required: true
 
 outputs:

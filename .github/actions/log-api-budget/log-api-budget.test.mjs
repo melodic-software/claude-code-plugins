@@ -33,13 +33,19 @@ printf 'HTTP/2.0 200 OK\\r\\nX-Ratelimit-Limit: 5000\\r\\nX-Ratelimit-Remaining:
       STATE_DIR: join(dir, "state"),
       GITHUB_STEP_SUMMARY: summary,
       GITHUB_OUTPUT: output,
+      GITHUB_WORKFLOW_REF: "melodic-software/claude-code-plugins/.github/workflows/pr-require-checks.yml@refs/pull/9/merge",
+      GITHUB_JOB: "ci-status",
+      GITHUB_RUN_ID: "39931677333",
+      GITHUB_RUN_ATTEMPT: "2",
     },
     encoding: "utf8",
   });
   return { stdout, summary: readFileSync(summary, "utf8"), output: readFileSync(output, "utf8") };
 }
 
-test("prints pr-merge's rate line per token and the cost since start", () => {
+const WHERE = "workflow=.github/workflows/pr-require-checks.yml job=ci-status run=39931677333 attempt=2";
+
+test("prints the rate line at start and the hub's line at end, with the cost since start", () => {
   const dir = mkdtempSync(join(tmpdir(), "log-api-budget-"));
   try {
     const start = run({ phase: "start", tokens: "github-token t0ken", used: 120, dir });
@@ -49,14 +55,21 @@ test("prints pr-merge's rate line per token and the cost since start", () => {
     );
     writeFileSync(join(dir, "summary"), "");
     const end = run({ phase: "end", tokens: "github-token t0ken", used: 135, dir });
-    assert.match(end.stdout, / used-since-start=15\n$/);
+    assert.equal(
+      end.stdout,
+      `::notice title=api-budget::token=github-token ${WHERE} limit=5000 remaining=4865 used=135 reset=1792378942 resource=core cost=15\n`,
+    );
     assert.equal(
       end.summary,
       "api-budget: end github-token core remaining=4865 used=135 limit=5000 reset=2026-10-19T03:02:22Z graphql remaining=4990 used-since-start=15\ngithub-token-cost=15\n",
     );
     writeFileSync(join(dir, "summary"), "");
     const rolled = run({ phase: "end", tokens: "github-token t0ken", used: 3, reset: 1792382542, dir });
-    assert.match(rolled.stdout, / used-since-start=window-rolled\n$/);
+    assert.equal(
+      rolled.stdout,
+      `::notice title=api-budget::token=github-token ${WHERE} limit=5000 remaining=4997 used=3 reset=1792382542 resource=core cost=na\n`,
+    );
+    assert.match(rolled.summary, / used-since-start=window-rolled\n/);
     assert.match(rolled.summary, /\ngithub-token-cost=unknown\n$/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -71,8 +84,8 @@ const RUN_END_RESET = 1792425538;
 function costAt({ start, end }) {
   const dir = mkdtempSync(join(tmpdir(), "log-api-budget-"));
   try {
-    run({ phase: "start", tokens: "lane l4ne", ...start, dir });
-    return run({ phase: "end", tokens: "lane l4ne", ...end, dir }).output;
+    run({ phase: "start", tokens: "lanes-app l4ne", ...start, dir });
+    return run({ phase: "end", tokens: "lanes-app l4ne", ...end, dir }).output;
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -81,35 +94,35 @@ function costAt({ start, end }) {
 test("counts the cost when the reset moved earlier within one window", () => {
   assert.equal(
     costAt({ start: { used: 13, reset: RUN_START_RESET }, end: { used: 328, reset: RUN_END_RESET } }),
-    "costs=lane-cost=315\n",
+    "costs=lanes-app-cost=315\n",
   );
 });
 
 test("counts the plain difference when the reset is unchanged", () => {
   assert.equal(
     costAt({ start: { used: 13, reset: RUN_START_RESET }, end: { used: 328, reset: RUN_START_RESET } }),
-    "costs=lane-cost=315\n",
+    "costs=lanes-app-cost=315\n",
   );
 });
 
 test("reports unknown when the window rolled: reset an hour later and used lower", () => {
   assert.equal(
     costAt({ start: { used: 328, reset: RUN_START_RESET }, end: { used: 13, reset: RUN_START_RESET + 3600 } }),
-    "costs=lane-cost=unknown\n",
+    "costs=lanes-app-cost=unknown\n",
   );
 });
 
 test("reports unknown when the reset moved later by an hour even though used rose", () => {
   assert.equal(
     costAt({ start: { used: 13, reset: RUN_START_RESET }, end: { used: 328, reset: RUN_START_RESET + 3600 } }),
-    "costs=lane-cost=unknown\n",
+    "costs=lanes-app-cost=unknown\n",
   );
 });
 
 test("reports unknown when used went down at the same reset", () => {
   assert.equal(
     costAt({ start: { used: 328, reset: RUN_START_RESET }, end: { used: 13, reset: RUN_START_RESET } }),
-    "costs=lane-cost=unknown\n",
+    "costs=lanes-app-cost=unknown\n",
   );
 });
 
@@ -126,9 +139,23 @@ test("skips an entry with no token or a bad name, and still exits 0", () => {
 test("sets the costs output at a later phase, for every token, and none at start", () => {
   const dir = mkdtempSync(join(tmpdir(), "log-api-budget-"));
   try {
-    const tokens = "lane l4ne\ngithub-token t0ken";
+    const tokens = "lanes-app l4ne\ngithub-token t0ken";
     assert.equal(run({ phase: "start", tokens, used: 100, dir }).output, "");
-    assert.equal(run({ phase: "end", tokens, used: 142, dir }).output, "costs=lane-cost=42 github-token-cost=42\n");
+    assert.equal(run({ phase: "end", tokens, used: 142, dir }).output, "costs=lanes-app-cost=42 github-token-cost=42\n");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("an end with no start reading still prints the hub's line, cost na", () => {
+  const dir = mkdtempSync(join(tmpdir(), "log-api-budget-"));
+  try {
+    const end = run({ phase: "end", tokens: "lanes-app l4ne", used: 7, dir });
+    assert.equal(
+      end.stdout,
+      `::notice title=api-budget::token=lanes-app ${WHERE} limit=5000 remaining=4993 used=7 reset=1792378942 resource=core cost=na\n`,
+    );
+    assert.equal(end.output, "costs=lanes-app-cost=unknown\n");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

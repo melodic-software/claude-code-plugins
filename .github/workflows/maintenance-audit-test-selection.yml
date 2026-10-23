@@ -162,6 +162,13 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+      - name: Log the API budget at the start
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: start
+          tokens: github-token ${{ github.token }}
       - name: Replay the selection for each failing suite
         env:
           GH_TOKEN: ${{ github.token }}
@@ -174,3 +181,12 @@ jobs:
           name: selection-red-replay-${{ github.event.workflow_run.id }}
           path: ${{ runner.temp }}/red-replay/report.md
           retention-days: 30
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: end
+          tokens: github-token ${{ github.token }}

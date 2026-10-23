@@ -298,6 +298,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Log the API budget at the start
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: start
+          tokens: github-token ${{ github.token }}
       - name: Fetch base
         uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
       # THE DIFF BASE, RESOLVED ONCE. A pull request diffs against its base
@@ -492,6 +499,15 @@ jobs:
             printf 'affected-tests fallback: %s unmapped file(s)\n' "$unmapped" >>"$GITHUB_STEP_SUMMARY"
           fi
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: end
+          tokens: github-token ${{ github.token }}
+
   # Public repository: every lane runs on GitHub-hosted ubuntu-24.04 (free for
   # public repositories); the local-runner selector is not permitted here.
   #
@@ -568,6 +584,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Log the API budget at the start
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: start
+          tokens: github-token ${{ github.token }}
       - name: Fetch base
         uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
 
@@ -1243,6 +1266,15 @@ jobs:
             runner-policy=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.runner_policy.outcome }}
         run: scripts/aggregate-hygiene-results.sh
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: end
+          tokens: github-token ${{ github.token }}
+
   # THE SHELL LINTERS: ShellCheck, and the repo-local gates that read shell
   # source (GNU-only constructs, piped early-exit greps, temp-path cleanup,
   # fixture git isolation, discriminating skips, the drive-root no-op, the
@@ -1277,6 +1309,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Log the API budget at the start
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: start
+          tokens: github-token ${{ github.token }}
       - name: Fetch base
         uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
 
@@ -1530,6 +1569,15 @@ jobs:
             shellcheck=${{ steps.shellcheck.outcome }}
         run: scripts/aggregate-hygiene-results.sh
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: end
+          tokens: github-token ${{ github.token }}
+
   # PLUGIN CONTRACTS ACROSS FILES: the manifest schemas and duplicate keys, the
   # catalog presence and enablement, option docs, the changelog and vendor-bump
   # gates, the hook-declaration gates, `claude plugin validate`, the
@@ -1565,6 +1613,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Log the API budget at the start
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: start
+          tokens: github-token ${{ github.token }}
       - name: Fetch base
         uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
 
@@ -2126,6 +2181,15 @@ jobs:
             manifest-duplicate-keys=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.duplicate_keys.outcome }}
         run: scripts/aggregate-hygiene-results.sh
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: end
+          tokens: github-token ${{ github.token }}
+
   # SKILL AND EVAL CONTRACTS: check 25 and the changed-skills gate, the
   # portability lint, leaf names, spoke paths, the listing budgets, the eval
   # schema and quality lint, the invocation probes, the detector/eval crosswalk
@@ -2154,6 +2218,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Log the API budget at the start
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: start
+          tokens: github-token ${{ github.token }}
       - name: Fetch base
         uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
 
@@ -2501,6 +2572,15 @@ jobs:
             listing-budget-configured=${{ steps.listing_budget_configured.outcome }}
             portability-lint=${{ steps.portability.outcome }}
         run: scripts/aggregate-hygiene-results.sh
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: end
+          tokens: github-token ${{ github.token }}
 
   # THE TEST LANES RUN WHAT THE SELECTION SAYS. `select-tests` plans them once
   # (scripts/plan-test-lanes.sh): the shell suites the change selects go to
@@ -3132,6 +3212,20 @@ jobs:
       pull-requests: write
       statuses: write
     steps:
+      - name: Check out the API budget action
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/actions/log-api-budget
+      - name: Log the API budget at the start
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: start
+          tokens: github-token ${{ github.token }}
       - name: Check the pull-request contract
         uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
         with:
@@ -3856,3 +3950,12 @@ jobs:
           # how many steps of the job are in progress.
           step-name: Aggregate lane results
           token: ${{ github.token }}
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: end
+          tokens: github-token ${{ github.token }}

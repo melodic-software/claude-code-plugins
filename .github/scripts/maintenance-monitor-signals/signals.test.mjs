@@ -41,6 +41,13 @@ test("parseBudget reads pr-merge's api-budget notice", () => {
     { phase: "end", name: "lane", remaining: 4235, used: 965, limit: 5200 },
   );
   assert.equal(parseBudget("end lane core remaining=unknown used=unknown limit=unknown reset=unknown"), null);
+  assert.deepEqual(
+    parseBudget(
+      "token=lanes-app workflow=.github/workflows/pr-merge.yml job=merge run=1 attempt=1 limit=5200 remaining=494 used=4706 reset=1792378942 resource=core cost=na",
+    ),
+    { phase: "end", name: "lanes-app", remaining: 494, used: 4706, limit: 5200 },
+  );
+  assert.equal(parseBudget("token=lanes-app workflow=w job=j run=1 attempt=1 limit=na remaining=na used=na reset=na resource=na cost=na"), null);
 });
 
 test("signal 2: a lane reading over 90% fires, 90% exactly stays quiet", () => {
@@ -52,6 +59,10 @@ test("signal 2: a lane reading over 90% fires, 90% exactly stays quiet", () => {
   );
   assert.match(hot[0].summary, /90\.5%/);
   assert.deepEqual(ceilingFindings({ ...base, budgetReadings: [reading("lane", 4680, 5200)] }), []);
+  assert.deepEqual(
+    ceilingFindings({ ...base, budgetReadings: [reading("lanes-app", 4706, 5200)] }).map((f) => f.key),
+    ["ceiling:lanes-app-rest"],
+  );
 });
 
 test("signal 2: GITHUB_TOKEN and Actions jobs have their own keys", () => {
