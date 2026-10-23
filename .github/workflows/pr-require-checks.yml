@@ -3295,7 +3295,7 @@ jobs:
           links=$(jq -r '.body // "" | gsub("<!--[\\s\\S]*?(?:-->|\\z)"; "")
             | match("https://github\\.com/([A-Za-z0-9-]+)/([A-Za-z0-9._-]+)/(?:issues|pull)/([0-9]+)#issuecomment-([0-9]+)"; "g")
             | [.string, (.captures[] | .string)] | @tsv' <<<"$pr") || links=
-          decision= decision_id=
+          decision='' decision_id=''
           while IFS=$'\t' read -r link owner name number id; do
             [ -n "$link" ] || continue
             [ "$(tr '[:upper:]' '[:lower:]' <<<"$owner/$name")" = "$(tr '[:upper:]' '[:lower:]' <<<"$repo")" ] || continue
@@ -3308,6 +3308,7 @@ jobs:
               and (.body // "" | sub("\\A\\s+"; "") | test("\\A\\*\\*Decision recorded\\.\\*\\*[ \\t]+Cost:"))
               and ($number == $pr or (.created_at | fromdateiso8601) > $opened)' <<<"$comment" >/dev/null 2>&1 || continue
             node=$(jq -r .node_id <<<"$comment")
+            # shellcheck disable=SC2016 # GraphQL variables, not shell
             edited=$(read_api graphql -f query='query($id:ID!){node(id:$id){... on IssueComment{lastEditedAt}}}' -F id="$node") || continue
             jq -e '.data.node | objects | has("lastEditedAt") and .lastEditedAt == null' <<<"$edited" >/dev/null 2>&1 || continue
             decision=$link decision_id=$id
@@ -3331,6 +3332,7 @@ jobs:
           ci-status removed \`$label\`: every review-lane hold since a trusted person last removed it is cost-only, and the owner recorded the cost decision in $decision. A person adding \`$label\` back holds it again." >/dev/null ||
               echo "::warning::could not post the removal comment on #$PR_NUMBER."
           fi
+          # shellcheck disable=SC2016 # $l is a jq variable
           gh api -X DELETE "repos/$repo/issues/$PR_NUMBER/labels/$(jq -rn --arg l "$label" '$l | @uri')" >/dev/null ||
             echo "::warning::could not remove '$label' from #$PR_NUMBER; the step below holds it."
       # A PULL REQUEST CARRYING THE HUMAN-GATED LABEL IS HELD. A review lane or
