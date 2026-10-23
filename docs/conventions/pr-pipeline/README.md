@@ -892,7 +892,8 @@ except six:
   counts only as a plain `Refs: #<n>` from the first column, outside an HTML comment and a fenced
   code block; a `Refs:` line in any other form (another repository's issue, a URL, two issues, any
   other case) refuses `refs-line-not-plain`, two or more issues refuse `refs-issues:<n>`, and a
-  number that is a pull request refuses `refs-not-an-issue`. A closing issue always wins, and the
+  number that is a pull request, or names nothing (GitHub's NOT_FOUND, a typo), refuses
+  `refs-not-an-issue`. A closing issue always wins, and the
   `Refs:` issue is read with the same fields, so the cost decision, the verifier verdict, the
   enqueue recheck and the worker tier's class, provenance and claim checks read it as they read a
   closing issue. Nothing closes it on merge: GitHub closes only on a closing keyword, and the lane
@@ -1377,24 +1378,24 @@ head:
   for its linked issues count too, at their own heads, so a new pull request for the same issue,
   closing or `Refs:`, does not reset the count. Every `fail` of a pull request that closes one of
   the issues counts. Every counted `fail` whose name carries one of the issues counts too, from
-  the listing the gate already reads, so it costs no request; such a `fail` whose run cannot be
-  read refuses `verify:unreadable`. Such a `fail` keeps counting until its artifact expires, even
-  after its pull request stops closing the issue: the name records the issues the verdict judged,
-  and this only adds holds. Editing a pull request's body never lowers a count its `fail` verdicts
-  added, so a hostile pull request that closes an issue only to inflate its cap is undone by
-  deleting that pull request's `fail` artifacts. A pull request the issue's timeline shows
-  referencing it without closing it (a `Refs:` pull request, or one whose closing reference was
-  removed) counts each `fail` whose verdict JSON records the issue among its linked issues. The
-  timeline rides the issue read the gate already makes, so this adds no request per issue, only
-  one download per such `fail` per gate run, shared by the run's gate processes by artifact id.
-  Such a `fail` whose run or verdict JSON cannot be read refuses `verify:unreadable`, and a cut
-  list refuses the same way: more than 50 pull requests that claim to close one issue, or more
-  than 100 cross-references on its timeline, make every pull request for that issue refuse
-  `verify:unreadable`, a hold, not a way past the cap. This cap is what bounds pushing until the
-  verifier passes once: the carry-forward below stops only a head that changes nothing of its own,
-  and a one-line edit gives a new change. A pull request the issue's timeline does not show is
-  otherwise not counted. Closing a newly filed duplicate issue instead starts the count of other
-  pull requests again; a pass then needs that issue written by a trusted human, as below;
+  the listing the gate already reads, so it costs no request: pr-verify names a `fail` with a
+  `Refs:` issue as with a closing one, so this is how a `Refs:` pull request's `fail` verdicts
+  count. Such a `fail` whose run cannot be read refuses `verify:unreadable`. Such a `fail` keeps
+  counting until its artifact expires, even after its pull request stops closing or naming the
+  issue: the name records the issues the verdict judged, and this only adds holds. Editing a pull
+  request's body never lowers a count its `fail` verdicts added, so a hostile pull request that
+  names an issue only to inflate its cap is undone by deleting that pull request's `fail`
+  artifacts. The gate reads no issue timeline, so cross-references to an issue, which anyone can
+  add, hold nothing. A plain `fail`, which pr-verify writes when the issues fit no name (more than
+  10, or a number of 11 digits or more), still counts for its own pull request and at the head,
+  but not toward another pull request's cap for those issues; it is rare, and the per-pull-request
+  cap still bounds it. A pull request whose `fail` names do not carry the issue is otherwise not
+  counted. More than 50 pull requests that claim to close one issue make every pull request for
+  that issue refuse `verify:unreadable`: a hold, not a way past the cap. This cap is what bounds
+  pushing until the verifier passes once: the carry-forward below stops only a head that changes
+  nothing of its own, and a one-line edit gives a new change. Closing a newly filed duplicate issue
+  instead starts the count of other pull requests again; a pass then needs that issue written by a
+  trusted human, as below;
 - a counted `fail` at the head, under any pull request number, refuses (`verify:fail`);
 - a counted `fail` at another head of the pull request (its number, one of its commits, or a
   verdict recording its head branch, read from the name's digest, or for a name without one from

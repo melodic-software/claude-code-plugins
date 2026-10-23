@@ -159,6 +159,15 @@ test("linked issues outside their schema throw", () => {
   assert.equal(kind([{ number: 7, spec_kind: "closes", body: "b", comments: [] }]), "closes");
   assert.equal(kind(own, []), "pull-request");
   assert.equal(kind([], []), "none");
+  // A Refs FAIL carries its issue in its name, as a closing one does: the
+  // gate counts another PR's FAILs toward the issue's cap by name alone.
+  const refsFail = buildVerdict({
+    ...ids,
+    linkedIssues: [ISSUE],
+    specText: [{ number: 7, spec_kind: "refs", body: "b", comments: [] }],
+    output: JSON.stringify({ verdict: "fail", summary: "s", notes: [] }),
+  });
+  assert.equal(artifactName(refsFail), `pr-verify-41-${HEAD}-fail-i7`);
   const edited = { ...ISSUE, last_edited_at: "2026-10-14T00:00:00Z", editor_login: "lanes", editor_id: 200, editor_type: "Bot" };
   assert.deepEqual(buildVerdict({ ...ids, linkedIssues: [edited], output: ok }).linked_issues, [edited]);
 });

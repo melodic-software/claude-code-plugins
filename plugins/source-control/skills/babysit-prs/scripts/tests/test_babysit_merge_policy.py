@@ -95,7 +95,7 @@ class GhFake:
 
     `rest` maps an endpoint to a payload, a `RawText` printed as it is, or to
     an int HTTP status for a failure. `graphql` maps an operation name to a payload or to a callable of
-    the query's string variables. Any other call fails the test.
+    the query's string variables, which may return a whole gh result. Any other call fails the test.
     """
 
     def __init__(self) -> None:
@@ -116,9 +116,10 @@ class GhFake:
                 if f"query {name}" in query:
                     if isinstance(answer, int):
                         return http_error(answer)
-                    return ok(
-                        {"data": answer(variables) if callable(answer) else answer}
-                    )
+                    got = answer(variables) if callable(answer) else answer
+                    if isinstance(got, subprocess.CompletedProcess):
+                        return got
+                    return ok({"data": got})
             raise AssertionError(f"unexpected graphql call: {query[:80]}")
         endpoint = args[1]
         if endpoint not in self.rest:
@@ -3207,16 +3208,26 @@ class LaneEligibility(unittest.TestCase):
 
 def refs_answer(*issues: dict[str, Any], pulls: tuple[int, ...] = ()) -> Any:
     """The PolicyRefsIssue answer: each issue node by number, a pull request
-    for each number in `pulls`, and a missing number an error GitHub would
-    send (the fake has no error shape, so the test fails loudly)."""
+    for each number in `pulls`, and for any other number GitHub's NOT_FOUND
+    answer, as a live read of a missing number returned it: gh exits 1."""
     by_number = {issue["number"]: issue for issue in issues}
 
-    def answer(variables: dict[str, str]) -> dict[str, Any]:
+    def answer(variables: dict[str, str]) -> Any:
         number = int(variables["n"])
         if number in pulls:
             node: dict[str, Any] = {"__typename": "PullRequest"}
-        else:
+        elif number in by_number:
             node = {"__typename": "Issue"} | by_number[number]
+        else:
+            missing = {
+                "data": {"repository": {"issueOrPullRequest": None}},
+                "errors": [
+                    {"type": "NOT_FOUND", "path": ["repository", "issueOrPullRequest"]}
+                ],
+            }
+            return subprocess.CompletedProcess(
+                [], 1, json.dumps(missing), "gh: Could not resolve"
+            )
         return {"repository": {"issueOrPullRequest": node}}
 
     return answer
@@ -3296,6 +3307,36 @@ class RefsIssueEligibility(unittest.TestCase):
         gh = self.fake(closing=[], body="Refs: #41")
         gh.graphql["PolicyRefsIssue"] = 502
         self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
+
+    def test_a_refs_number_that_names_nothing_refuses_as_no_issue(self) -> None:
+        # A typo: no issue or pull request has the number. It names no
+        # issue here (`no_issue_here`), never a read error.
+        gh = self.fake(closing=[], body="Refs: #99999")
+        gh.graphql["PolicyRefsIssue"] = refs_answer(self.issue_node())
+        self.assertEqual(self.eligibility().reason, "refs-not-an-issue")
+        self.assertTrue(policy.no_issue_here("refs-not-an-issue"))
+        self.assertEqual(
+            policy.recheck_lane_issue(REPO, 7, issue=41), "refs-not-an-issue"
+        )
+        # NOT_FOUND anywhere else, or beside another error, stays unreadable.
+        for errors in (
+            [{"type": "NOT_FOUND", "path": ["repository"]}],
+            [
+                {"type": "NOT_FOUND", "path": ["repository", "issueOrPullRequest"]},
+                {"type": "INTERNAL"},
+            ],
+            [{"type": "RATE_LIMITED", "path": ["repository", "issueOrPullRequest"]}],
+        ):
+            with self.subTest(errors=errors):
+                gh = self.fake(closing=[], body="Refs: #99999")
+                answer = {
+                    "data": {"repository": {"issueOrPullRequest": None}},
+                    "errors": errors,
+                }
+                gh.graphql["PolicyRefsIssue"] = subprocess.CompletedProcess(
+                    [], 1, json.dumps(answer), "gh: error"
+                )
+                self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
 
     def test_a_closing_issue_wins_over_refs(self) -> None:
         gh = self.fake(body="Refs: #42")

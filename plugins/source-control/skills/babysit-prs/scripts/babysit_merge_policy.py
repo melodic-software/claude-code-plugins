@@ -417,7 +417,39 @@ def _paginated(
         raise PolicyReadError(f"{label}: {exc}") from exc
 
 
-def _graphql(query: str, label: str, **variables: str | int | None) -> dict[str, Any]:
+def names_nothing(text: Any, field: str) -> bool:
+    """Whether a GraphQL answer says only that `repository.<field>` names
+    nothing: null there, and every error a NOT_FOUND at that path, as GitHub
+    answers `issueOrPullRequest` for a number that is no issue or pull
+    request (a `Refs: #<n>` typo). gh exits nonzero on it."""
+    try:
+        payload = json.loads(text or "")
+    except ValueError:
+        return False
+    if not is_json_object(payload):
+        return False
+    repository = json_object(payload.get("data")).get("repository")
+    errors = payload.get("errors")
+    return (
+        is_json_object(repository)
+        and field in repository
+        and repository[field] is None
+        and is_json_array(errors)
+        and bool(errors)
+        and all(
+            is_json_object(e)
+            and e.get("type") == "NOT_FOUND"
+            and e.get("path") == ["repository", field]
+            for e in errors
+        )
+    )
+
+
+def _graphql(
+    query: str, label: str, missing: str | None = None, **variables: str | int | None
+) -> dict[str, Any]:
+    """The query's data. A NOT_FOUND for `repository.<missing>` alone
+    (`names_nothing`) reads as `missing` null; any other error raises."""
     args = ["api", "graphql", "-f", f"query={query}"]
     for name, value in variables.items():
         if value is not None:
@@ -426,6 +458,8 @@ def _graphql(query: str, label: str, **variables: str | int | None) -> dict[str,
         proc = gh_capture(args)
     except (RuntimeError, ValueError, OSError) as exc:
         raise PolicyReadError(f"{label}: {exc}") from exc
+    if missing and names_nothing(proc.stdout, missing):
+        return {"repository": {missing: None}}
     if proc.returncode != 0:
         raise PolicyReadError(
             f"{label}: {(proc.stderr or '').strip() or proc.returncode}"
@@ -1880,7 +1914,9 @@ def _linked_issue(pr: dict[str, Any], repo: str) -> tuple[dict[str, Any], str | 
     if number is None:
         return {}, refusal
     owner, name = _split_repo(repo)
-    data = _graphql(REFS_ISSUE, f"#{number}", o=owner, r=name, n=number)
+    data = _graphql(
+        REFS_ISSUE, f"#{number}", "issueOrPullRequest", o=owner, r=name, n=number
+    )
     node = json_object(json_object(data.get("repository")).get("issueOrPullRequest"))
     if node.get("__typename") != "Issue":
         return {}, REFS_NOT_AN_ISSUE

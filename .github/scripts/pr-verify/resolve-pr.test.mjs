@@ -100,7 +100,13 @@ function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, o
     }
     if (apiPath === "/graphql" && body.query.includes("issueOrPullRequest")) {
       queries.push(body.variables.number);
-      return { data: { repository: { issueOrPullRequest: refs[body.variables.number] ?? null } } };
+      const n = body.variables.number;
+      // GitHub's answer for a number that names nothing, as a live read of a
+      // missing number returned it; refs[n] may also be a whole answer.
+      if (!(n in refs)) {
+        return { data: { repository: { issueOrPullRequest: null } }, errors: [{ type: "NOT_FOUND", path: ["repository", "issueOrPullRequest"], message: `Could not resolve to an issue or pull request with the number of ${n}.` }] };
+      }
+      return refs[n]?.answer ?? { data: { repository: { issueOrPullRequest: refs[n] } } };
     }
     if (apiPath === "/graphql") {
       return { data: { repository: { pullRequest: { ...edit, body: prBody, closingIssuesReferences: { totalCount: issues.length, nodes: issues } } } } };
@@ -201,6 +207,19 @@ test("a hidden, ambiguous or non-issue Refs line names no spec", async () => {
   ]) {
     const resolved = await resolve({ issues: [], body: prBody, refs });
     assert.deepEqual([resolved.linkedIssues, resolved.specText, resolved.specKind], [[], [], "none"], prBody);
+  }
+});
+
+test("a Refs number that names no issue or pull request names no spec, and any other error stops the run", async () => {
+  const resolved = await resolve({ issues: [], body: "Refs: #99999" });
+  assert.deepEqual([resolved.proceed, resolved.linkedIssues, resolved.specText, resolved.specKind], [true, [], [], "none"]);
+  for (const errors of [
+    [{ type: "RATE_LIMITED", path: ["repository", "issueOrPullRequest"] }],
+    [{ type: "NOT_FOUND", path: ["repository"] }],
+    [{ type: "NOT_FOUND", path: ["repository", "issueOrPullRequest"] }, { type: "INTERNAL" }],
+  ]) {
+    const answer = { data: { repository: { issueOrPullRequest: null } }, errors };
+    await assert.rejects(resolve({ issues: [], body: "Refs: #7", refs: { 7: { answer } } }), /the Refs issue could not be read/, JSON.stringify(errors));
   }
 });
 

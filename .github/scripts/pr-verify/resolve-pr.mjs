@@ -117,6 +117,24 @@ export function refsIssue(body) {
   return numbers.size === 1 ? [...numbers][0] : null;
 }
 
+// babysit_merge_policy.names_nothing: whether a GraphQL answer says only that
+// `repository.<field>` names nothing, null there with every error a NOT_FOUND
+// at that path, as GitHub answers a `Refs: #<n>` whose number is no issue or
+// pull request.
+export function namesNothing(answer, field) {
+  const repository = answer?.data?.repository;
+  const errors = answer?.errors;
+  return (
+    repository !== null &&
+    typeof repository === "object" &&
+    Object.hasOwn(repository, field) &&
+    repository[field] === null &&
+    Array.isArray(errors) &&
+    errors.length > 0 &&
+    errors.every((e) => e?.type === "NOT_FOUND" && Array.isArray(e.path) && e.path.length === 2 && e.path[0] === "repository" && e.path[1] === field)
+  );
+}
+
 const actorFields = (actor, role) => ({
   [`${role}_login`]: typeof actor?.login === "string" ? actor.login : null,
   [`${role}_id`]: Number.isSafeInteger(actor?.databaseId) ? actor.databaseId : null,
@@ -268,7 +286,7 @@ async function linkedIssues(github, repository, number, humans) {
   const named = refs.totalCount === 0 ? refsIssue(data.data.repository.pullRequest.body) : null;
   if (named !== null) {
     const answer = await github("POST", "/graphql", { query: REFS_QUERY, variables: { owner, name, number: named } });
-    if (answer?.errors) {
+    if (answer?.errors && !namesNothing(answer, "issueOrPullRequest")) {
       throw new Error(`#${number}: the Refs issue could not be read`);
     }
     const node = answer?.data?.repository?.issueOrPullRequest;

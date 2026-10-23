@@ -229,9 +229,9 @@ class FakeGitHub:
         # (number, repository), and a totalCount that cuts them.
         self.closers: dict[int, list[tuple[int, str]]] = {}
         self.closers_total: dict[int, int] = {}
-        # The pull requests each issue's timeline shows referencing it:
+        # The pull requests each issue's cross-reference timeline shows:
         # (number, repository), or None for an issue as the source; and a
-        # totalCount that cuts them.
+        # totalCount that cuts them. The gate reads no timeline.
         self.mentions: dict[int, list[tuple[int, str] | None]] = {}
         self.mentions_total: dict[int, int] = {}
         # The pull request's body now, and what each number a `Refs:` line
@@ -256,7 +256,26 @@ class FakeGitHub:
                 return subprocess.CompletedProcess(args, 1, "", "gh: boom (HTTP 502)")
             if any("issueOrPullRequest" in a for a in args):
                 n = int(next(a for a in args if a.startswith("n="))[2:])
+                if n not in self.refs:
+                    # GitHub's answer for a number that names nothing, as a
+                    # live read of a missing number returned it: gh exits 1.
+                    missing = {
+                        "data": {"repository": {"issueOrPullRequest": None}},
+                        "errors": [
+                            {
+                                "type": "NOT_FOUND",
+                                "path": ["repository", "issueOrPullRequest"],
+                            }
+                        ],
+                    }
+                    return subprocess.CompletedProcess(
+                        args, 1, json.dumps(missing), "gh: Could not resolve"
+                    )
                 kind = self.refs[n]
+                if kind == "error":
+                    return subprocess.CompletedProcess(
+                        args, 1, "", "gh: boom (HTTP 502)"
+                    )
                 node = (
                     {"__typename": "PullRequest"}
                     if kind == "PullRequest"
@@ -1018,52 +1037,38 @@ class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
 
 class FailsOnARefsPullRequestForTheSameIssueCount(unittest.TestCase):
     """A pull request that names the issue without closing it (a `Refs:` pull
-    request) never appears among the issue's closing pull requests, so the cap
-    also counts each counted FAIL of a pull request the issue's timeline shows
-    referencing it whose verdict records the issue among its linked issues:
-    closing a FAILed pull request and opening another `Refs:` one for the same
-    issue does not reset the count (the cap's README rule; the regression
-    test the follow-up issue asks for)."""
-
-    def setUp(self) -> None:
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        self.cache = str(pathlib.Path(tmp.name, "run.json"))
-        patcher = mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": self.cache})
-        patcher.start()
-        self.addCleanup(patcher.stop)
+    request) never appears among the issue's closing pull requests, so its
+    FAILs count toward the issue's cap through their names alone: the writer
+    names a FAIL with the `Refs:` issue as with a closing one (`-i7`).
+    Closing a FAILed pull request and opening another `Refs:` one for the
+    same issue does not reset the count, and no record is downloaded."""
 
     @staticmethod
-    def sibling_fails(
-        *shas: str, linked: list[dict[str, Any]] | None = None, suffix: str = ""
-    ) -> FakeGitHub:
+    def sibling_fails(*shas: str, suffix: str = "-i7") -> FakeGitHub:
         """PR 41 links issue 7 by a `Refs:` line and has a counted pass at
-        the head judged as a slice; PR 40 (branch feat/other, closed) linked it
-        the same way and FAILed at `shas`, each record naming `linked`."""
+        the head judged as a slice; PR 40 (branch feat/other, closed) linked
+        it the same way and FAILed at `shas`, each named with `suffix`."""
         runs = {i: judged(i, OLDER_START) for i in range(2, 2 + len(shas))}
-        names = [named(sha, "fail", SIBLING) + suffix for sha in shas]
-        fake = passing(*(artifact(name, i) for i, name in zip(runs, names)), runs=runs)
+        fake = passing(
+            *(
+                artifact(f"{named(sha, 'fail', SIBLING)}-{DIGEST_OTHER}{suffix}", i)
+                for i, sha in zip(runs, shas)
+            ),
+            runs=runs,
+        )
         fake.records[named(HEAD, "pass")] = record(spec_kind="refs")
-        for name, sha in zip(names, shas):
-            fake.records[name] = record(
-                SIBLING,
-                sha,
-                verdict="fail",
-                head_ref="feat/other",
-                spec_kind="refs",
-                linked_issues=[TRUSTED_ISSUE] if linked is None else linked,
-            )
         fake.closing = []
         fake.body = "Refs: #7\n\nPart two."
         fake.refs = {7: REPO}
         fake.closers[7] = []
-        fake.mentions[7] = [None, (SIBLING, REPO), (PR, REPO)]
         return fake
 
     def test_three_fails_on_another_refs_pull_request_refuse(self) -> None:
-        evidence = read(self.sibling_fails(*SIBLING_HEADS))
+        fake = self.sibling_fails(*SIBLING_HEADS)
+        evidence = read(fake)
         self.assertEqual(evidence.refusal, "verify:repeated-fail")
         self.assertTrue(evidence.needs_human)
+        self.assertEqual(downloads(fake), 0)
 
     def test_two_there_and_a_fail_at_the_head_go_to_a_human(self) -> None:
         fake = self.sibling_fails(*SIBLING_HEADS[:2])
@@ -1078,67 +1083,33 @@ class FailsOnARefsPullRequestForTheSameIssueCount(unittest.TestCase):
     def test_two_there_leave_the_pass_to_decide(self) -> None:
         self.assertIsNone(read(self.sibling_fails(*SIBLING_HEADS[:2])).refusal)
 
-    def test_fails_that_record_another_issue_do_not_count(self) -> None:
-        other = TRUSTED_ISSUE | {"number": 8}
-        for i, (linked, refusal) in enumerate(
-            (
-                ([other], None),
-                ([], None),
-                ([other, TRUSTED_ISSUE], "verify:repeated-fail"),
-            )
+    def test_only_names_that_carry_the_issue_count(self) -> None:
+        # A plain FAIL (an unnamable issue set, or a name from before the
+        # writer named issues) counts only for its own pull request.
+        for suffix, refusal in (
+            ("-i7.8", "verify:repeated-fail"),
+            ("-i8", None),
+            ("", None),
         ):
-            # Each case is its own gate run: the artifact ids repeat.
-            cache = {"BABYSIT_RUN_CACHE": f"{self.cache}{i}"}
-            with self.subTest(linked=linked), mock.patch.dict("os.environ", cache):
-                fake = self.sibling_fails(*SIBLING_HEADS, linked=linked)
+            with self.subTest(suffix):
+                fake = self.sibling_fails(*SIBLING_HEADS, suffix=suffix)
                 self.assertEqual(read(fake).refusal, refusal)
 
-    def test_a_pull_request_the_timeline_does_not_show_does_not_count(self) -> None:
-        fake = self.sibling_fails(*SIBLING_HEADS)
-        fake.mentions[7] = [None, (PR, REPO)]
+    def test_a_long_cross_reference_timeline_holds_nothing(self) -> None:
+        # Anyone can cross-reference an issue: 101 mentions of it, from
+        # issues here or in another repository, a page of 100 cut from the
+        # count, hold no pull request for it, closing or `Refs:`, and its
+        # FAILs still count by name.
+        mentions = [None] * 99 + [(SIBLING, "example-org/other")]
+        closing = passing()
+        closing.mentions[7], closing.mentions_total[7] = mentions, 101
+        self.assertIsNone(read(closing).refusal)
+        fake = self.sibling_fails(*SIBLING_HEADS[:2])
+        fake.mentions[7], fake.mentions_total[7] = mentions, 101
         self.assertIsNone(read(fake).refusal)
         fake = self.sibling_fails(*SIBLING_HEADS)
-        fake.mentions[7] = [(SIBLING, "example-org/other"), (PR, REPO)]
-        self.assertIsNone(read(fake).refusal)
-
-    def test_an_unreadable_record_or_run_refuses(self) -> None:
-        fake = self.sibling_fails(*SIBLING_HEADS[:2], suffix="-" + DIGEST_OTHER)
-        del fake.records[named(SIBLING_HEADS[0], "fail", SIBLING) + "-" + DIGEST_OTHER]
-        self.assertEqual(read(fake).refusal, "verify:unreadable")
-        with mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": self.cache + "2"}):
-            fake = self.sibling_fails(*SIBLING_HEADS[:2], suffix="-" + DIGEST_OTHER)
-            name = named(SIBLING_HEADS[0], "fail", SIBLING) + "-" + DIGEST_OTHER
-            fake.records[name] = fake.records[name] | {"linked_issues": None}
-            self.assertEqual(read(fake).refusal, "verify:unreadable")
-        with mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": self.cache + "3"}):
-            fake = self.sibling_fails(*SIBLING_HEADS[:2])
-            del fake.runs[3]
-            self.assertEqual(read(fake).refusal, "verify:unreadable")
-
-    def test_a_cut_timeline_refuses(self) -> None:
-        fake = self.sibling_fails(*SIBLING_HEADS[:1])
-        fake.mentions_total[7] = 101
-        self.assertEqual(read(fake).refusal, "verify:unreadable")
-
-    def test_each_record_is_downloaded_once_per_run(self) -> None:
-        # Digest-named FAILs of another branch need no download to untie, so
-        # every download here is the cap's read of the linked issues.
-        fake = self.sibling_fails(*SIBLING_HEADS, suffix="-" + DIGEST_OTHER)
+        fake.mentions[7], fake.mentions_total[7] = mentions, 101
         self.assertEqual(read(fake).refusal, "verify:repeated-fail")
-        self.assertEqual(read(fake).refusal, "verify:repeated-fail")
-        self.assertEqual(
-            [OneRunSharesItsFailRunReads.downloads(fake, r) for r in (2, 3, 4)],
-            [1, 1, 1],
-        )
-
-    def test_no_pull_request_referencing_the_issue_downloads_nothing(self) -> None:
-        fake = self.sibling_fails(*SIBLING_HEADS, suffix="-" + DIGEST_OTHER)
-        fake.mentions[7] = [(PR, REPO)]
-        self.assertIsNone(read(fake).refusal)
-        self.assertEqual(
-            [OneRunSharesItsFailRunReads.downloads(fake, r) for r in (2, 3, 4)],
-            [0, 0, 0],
-        )
 
 
 class AFailNamingTheIssueCounts(unittest.TestCase):
@@ -1791,6 +1762,16 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
                 self.assertEqual(
                     read(self.refs(body, kind)).refusal, "verify:spec-changed"
                 )
+
+    def test_a_refs_number_that_names_nothing_names_no_issue(self) -> None:
+        # GitHub answers a number with no issue or pull request NOT_FOUND
+        # and gh exits 1: no issue, so the pass recording issue 7 refuses
+        # as for any other link that names none, and no read error.
+        self.assertEqual(read(self.refs("Refs: #99999")).refusal, "verify:spec-changed")
+        # Any other failed read stays unreadable.
+        self.assertEqual(
+            read(self.refs("Refs: #7", "error")).refusal, "verify:unreadable"
+        )
 
     def test_a_pass_binds_to_how_the_issue_was_linked(self) -> None:
         # A Refs pass was judged as a partial slice: it never covers the same
