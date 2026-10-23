@@ -14,11 +14,11 @@ import functools
 import pathlib
 import subprocess
 import sys
-import time
 import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
+import babysit_risk
 from babysit_risk import (
     ChangedFile,
     LaneEvidence,
@@ -473,43 +473,111 @@ class EvidenceAndPluginTests(unittest.TestCase):
         self.assertEqual(_codes(result), ("class-contradicted",))
 
 
-class GlobTimingTests(unittest.TestCase):
-    """Spec: each configured glob is judged in under 0.5s, however many stars."""
+class _OverBudget(BaseException):
+    """A BaseException, so an `except Exception` in the matcher cannot
+    swallow it."""
 
-    CASES = (
-        ("**/" * 9 + "z", "/".join(["a"] * 30) + "/b.md"),
-        ("**/a/" * 9 + "z", "/".join(["a"] * 30) + "/b.md"),
-        ("plugins/foo/" + "*a" * 20 + "z", "plugins/foo/" + "a" * 60 + ".md"),
-    )
 
-    def test_star_heavy_globs_finish_fast(self):
-        for glob, path in self.CASES:
-            with self.subTest(glob):
-                start = time.perf_counter()
+def _glob_work(pattern, path, cap=None):
+    """Lines of babysit_risk.py that glob_match(pattern, path) runs, counted
+    under sys.settrace rather than timed, so runner load cannot fail it.
+    Past `cap` the trace raises, so a blow-up fails at once."""
+    count = 0
+
+    def local(frame, event, arg):
+        nonlocal count
+        if event == "line":
+            count += 1
+            if cap is not None and count > cap:
+                raise _OverBudget(f"glob_match ran past {cap} lines")
+        return local
+
+    def calls(frame, event, arg):
+        return local if frame.f_code.co_filename == babysit_risk.__file__ else None
+
+    previous = sys.gettrace()
+    sys.settrace(calls)
+    try:
+        matched = babysit_risk.glob_match(pattern, path)
+    finally:
+        sys.settrace(previous)
+    return matched, count
+
+
+class GlobWorkTests(unittest.TestCase):
+    """Spec (glob_match): the work is O(glob segments x path segments), and
+    within a segment O(len(pattern) x len(name)) (_segment_match). Each test
+    doubles the input and bounds the growth of the counted work, so constant
+    factors and the interpreter's line events cancel out: doubling the path
+    alone may at most double the work (2.5 allows slack, quadratic gives 4);
+    doubling pattern and path may at most quadruple it (5 allows slack; a
+    blow-up in the stars gives far more). `**/` runs collapse to one `**`
+    and `*a` runs stay linear, so those two keep the 2.5 bound. The trace
+    counts Python lines only: work moved into a C builtin is not counted."""
+
+    def assertScales(self, build, small, ratio, floor=None):
+        matched, base = _glob_work(*build(small))
+        if floor is not None:
+            # The counted work grows with the path: the matcher is still in
+            # this module, not in C or elsewhere.
+            self.assertGreaterEqual(base, floor(small))
+        cap = int(ratio * base)
+        doubled, count = _glob_work(*build(2 * small), cap=cap)
+        self.assertLessEqual(count, cap)
+        self.assertEqual(doubled, matched)
+        return matched
+
+    def test_star_heavy_globs_do_bounded_work(self):
+        for label, build, small, ratio in (
+            (
+                "**/ run",
+                lambda k: ("**/" * k + "z", "/".join(["a"] * 3 * k) + "/b.md"),
+                9,
+                2.5,
+            ),
+            (
+                "**/a/ run",
+                lambda k: ("**/a/" * k + "z", "/".join(["a"] * 3 * k) + "/b.md"),
+                9,
+                5,
+            ),
+            (
+                "*a run",
+                lambda k: (
+                    "plugins/foo/" + "*a" * k + "z",
+                    "plugins/foo/" + "a" * 3 * k + ".md",
+                ),
+                20,
+                2.5,
+            ),
+        ):
+            with self.subTest(label):
+                self.assertFalse(self.assertScales(build, small, ratio))
+                glob, path = build(small)
                 result = score(_input(files=(_file(path),), high_paths=(glob,)))
-                self.assertLess(time.perf_counter() - start, 0.5)
                 self.assertEqual(result.score, Risk.LOW)
 
-    def test_star_runs_inside_a_segment_fail_closed_fast(self):
+    def test_star_runs_inside_a_segment_fail_closed(self):
         # Spec: '**' inside a segment is not a whole '**' segment: unreadable.
+        # Such a glob is refused before it reaches glob_match.
         for stars in (10, 20):
             glob = "plugins/foo/" + "*" * stars + "z"
+            path = "plugins/foo/" + "a" * 40 + ".md"
             with self.subTest(glob):
-                start = time.perf_counter()
-                result = score(
-                    _input(
-                        files=(_file("plugins/foo/" + "a" * 40 + ".md"),),
-                        high_paths=(glob,),
-                    )
-                )
-                self.assertLess(time.perf_counter() - start, 0.5)
+                result = score(_input(files=(_file(path),), high_paths=(glob,)))
                 self.assertEqual(_codes(result), ("high-path:**",))
 
-    def test_double_star_over_a_very_deep_path_finishes_quickly(self):
+    def test_work_over_a_deep_path_grows_linearly(self):
+        for glob in ("**/a/**/b", "*"):
+            with self.subTest(glob):
+                self.assertScales(
+                    lambda n: (glob, "/".join(["a"] * n) + "/x.md"),
+                    2_000,
+                    2.5,
+                    floor=lambda n: n,
+                )
         path = "/".join(["a"] * 20_000) + "/x.md"
-        start = time.perf_counter()
         result = score(_input(files=(_file(path),), high_paths=("**/a/**/b",)))
-        self.assertLess(time.perf_counter() - start, 1.0)
         self.assertEqual(result.score, Risk.LOW)
 
     def test_star_globs_still_match(self):
@@ -1167,7 +1235,9 @@ class LanePathFloorTests(unittest.TestCase):
 
     def test_resolve_config_waits_for_the_owner(self):
         # Owner decision Q51: the token broker runs this code from main.
-        result = score(_lane_input((_file(".github/actions/resolve-config/resolve.mjs"),)))
+        result = score(
+            _lane_input((_file(".github/actions/resolve-config/resolve.mjs"),))
+        )
         self.assertEqual(result.score, Risk.HIGH, result.reasons)
         self.assertIn("high-path:.github/actions/resolve-config/**", _codes(result))
 
@@ -1511,7 +1581,9 @@ class TrustGateTests(unittest.TestCase):
         # a removal waits for the owner.
         result = score(_input(files=(_edit(ACTORS, BASE_ACTORS, _actors(_KYLE)),)))
         self.assertEqual(result.score, Risk.HIGH)
-        self.assertEqual(_codes(result), ("high-path:.github/standards/trusted-actors/**",))
+        self.assertEqual(
+            _codes(result), ("high-path:.github/standards/trusted-actors/**",)
+        )
 
     def test_an_unread_or_structural_change_holds(self):
         cases = (

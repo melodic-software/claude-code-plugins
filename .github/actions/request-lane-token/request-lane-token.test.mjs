@@ -626,7 +626,7 @@ test("check mode refuses an issue number before the broker request", () => {
   assert.equal(run.body, null);
 });
 
-// pr-merge's merge-pr grant adds actions read (lane-rules.json activity-grants).
+// An activity grant of actions read (lane-rules.json activity-grants), as no live lane sets.
 const PR_MERGE = { LANE: "pr-merge", ACTIVITY: "merge-pr", EFFECT: "merge", CONTENTS: "write", PULL_REQUESTS: "write", ISSUES: "write", PR_NUMBER: "" };
 const grantedWith = (permissions) => ({
   token: "ghs_lane",
