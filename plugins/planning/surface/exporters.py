@@ -946,7 +946,7 @@ def export_brief(d, text=None):
         + (f", {superseded} superseded-by-plan" if superseded else "")
     )
     out.append(
-        f"- {len(confirmed)} commitments confirmed; {len(risks)} unconfirmed, carried as named risks"
+        f"- {len(confirmed)} commitment{'' if len(confirmed) == 1 else 's'} confirmed; {len(risks)} unconfirmed, carried as named risks"
     )
     if gated:
         out.append(

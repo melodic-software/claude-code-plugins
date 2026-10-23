@@ -343,12 +343,14 @@ test("an ignore issue for another head, or by another author, is not reused", as
   assert.equal(api.calls.issues.length, 1);
 });
 
-test("a run with no model attempt posts its `none` marker once across re-runs", async () => {
+// With no model run named, a re-run cannot tell its own marker from another
+// round's, so it posts: counting a round twice hands the PR to a person sooner.
+test("a run with no model attempt posts its `none` marker on every run", async () => {
   const api = fakeApi();
   await go(api, runOf(), { modelRun: null });
   await go(api, runOf(), { modelRun: null });
-  assert.equal(api.calls.comments.length, 1);
-  assert.match(api.calls.comments[0], /run=none -->/);
+  assert.equal(api.calls.comments.length, 2);
+  for (const comment of api.calls.comments) assert.match(comment, /run=none -->/);
 });
 
 test("a fix that landed a path other than an npm or pip manifest or lock file outside .github/ is refused", async () => {
@@ -466,11 +468,17 @@ test("a re-run that finds its own round marker posts nothing again", async () =>
   assert.deepEqual(api.calls.comments, []);
 });
 
-test("main escalates dependency-invalid on a run.json whose SHA-256 does not match", async () => {
+// main over the two artifacts: the select job's context.json and the scan
+// job's dependency-verdict.json, each held to the SHA-256 its own job recorded.
+const sha256 = (text) => createHash("sha256").update(text).digest("hex");
+function mainFiles({ context = runOf(), verdict = output(), env = {} } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "apply-dependency-"));
-  const text = `${JSON.stringify(runOf())}\n`;
-  writeFileSync(join(dir, "run.json"), text);
-  const env = {
+  const { output: _, ...fields } = context;
+  const contextText = `${JSON.stringify(fields)}\n`;
+  writeFileSync(join(dir, "context.json"), contextText);
+  const verdictText = verdict === null ? "" : JSON.stringify(verdict);
+  if (verdict !== null) writeFileSync(join(dir, "dependency-verdict.json"), verdictText);
+  return {
     GH_TOKEN: "t",
     GITHUB_REPOSITORY: "o/r",
     PR_NUMBER: "7",
@@ -478,24 +486,83 @@ test("main escalates dependency-invalid on a run.json whose SHA-256 does not mat
     BASE_SHA: BASE,
     DEPENDENCY_HEAD_SHA: HEAD,
     GITHUB_RUN_ID: "11",
-    DEPENDENCY_RUN_ATTEMPT: "1",
+    DEPENDENCY_RUN_ATTEMPT: verdict === null ? "" : "1",
     APP_SENDER_ID: String(APP),
     DEPENDENCY_VERDICT_DIR: dir,
-    DEPENDENCY_RUN_SHA256: "0".repeat(64),
+    DEPENDENCY_RUN_SHA256: sha256(contextText),
+    DEPENDENCY_VERDICT_SHA256: verdict === null ? "" : sha256(verdictText),
+    DEPENDENCY_PATCH_STATE: "",
+    DEPENDENCY_SCAN_REFUSED: "",
     SKIP_REASON_FILE: join(dir, "skip"),
     ESCALATION_REASON_FILE: join(dir, "escalation"),
+    ...env,
   };
-  const api = fakeApi();
+}
+const outcome = async (env, api = fakeApi()) => {
   await main(env, { api, log: () => {} });
-  assert.equal(readFileSync(env.ESCALATION_REASON_FILE, "utf8"), "dependency-invalid\n");
-  assert.match(api.calls.comments[0], /verdict=invalid/);
-  const good = { ...env, DEPENDENCY_RUN_SHA256: createHash("sha256").update(text).digest("hex"), ESCALATION_REASON_FILE: join(dir, "e2") };
-  await main(good, { api: fakeApi(), log: () => {} });
-  assert.throws(() => readFileSync(good.ESCALATION_REASON_FILE));
-  // run.json's head must be the head the model job's gate passed.
-  const moved = { ...good, DEPENDENCY_HEAD_SHA: FIX, ESCALATION_REASON_FILE: join(dir, "e3") };
-  await main(moved, { api: fakeApi(), log: () => {} });
-  assert.equal(readFileSync(moved.ESCALATION_REASON_FILE, "utf8"), "dependency-invalid\n");
+  const text = (file) => {
+    try {
+      return readFileSync(file, "utf8").trim();
+    } catch {
+      return "";
+    }
+  };
+  return { escalation: text(env.ESCALATION_REASON_FILE), skip: text(env.SKIP_REASON_FILE), comments: api.calls.comments };
+};
+
+test("main acts on a context and a verdict each matching the SHA-256 its job recorded", async () => {
+  const good = await outcome(mainFiles());
+  assert.deepEqual([good.escalation, good.skip], ["", ""]);
+  assert.match(good.comments[0], /verdict=merge run=11-1 -->/);
+  for (const [why, env] of [
+    ["the context's SHA-256", { DEPENDENCY_RUN_SHA256: "0".repeat(64) }],
+    ["the verdict's SHA-256", { DEPENDENCY_VERDICT_SHA256: "0".repeat(64) }],
+    ["no verdict SHA-256", { DEPENDENCY_VERDICT_SHA256: "" }],
+    ["the context's head is not the select job's", { DEPENDENCY_HEAD_SHA: FIX }],
+  ]) {
+    const result = await outcome(mainFiles({ env }));
+    assert.equal(result.escalation, "dependency-invalid", why);
+    assert.match(result.comments[0], /verdict=invalid/, why);
+  }
+  // The verdict file alone is the model's: run fields beside it are refused.
+  const widened = await outcome(mainFiles({ verdict: { ...output(), security: false } }));
+  assert.equal(widened.escalation, "dependency-invalid");
+  // A context that is missing, or carries the verdict, is refused.
+  const missingContext = mainFiles();
+  writeFileSync(join(missingContext.DEPENDENCY_VERDICT_DIR, "context.json"), "");
+  assert.equal((await outcome({ ...missingContext, DEPENDENCY_RUN_SHA256: sha256("") })).escalation, "dependency-invalid");
+  const withOutput = `${JSON.stringify(runOf())}\n`;
+  const carried = mainFiles();
+  writeFileSync(join(carried.DEPENDENCY_VERDICT_DIR, "context.json"), withOutput);
+  assert.equal((await outcome({ ...carried, DEPENDENCY_RUN_SHA256: sha256(withOutput) })).escalation, "dependency-invalid");
+});
+
+// Plan Q4: a missing verdict counts the round; it is a neutral no-model-turn
+// only when the same call's scan handed on no patch, refused nothing, and the
+// head is still the select job's.
+test("main counts a round with no verdict and skips no-model-turn only on the scan's own evidence", async () => {
+  const none = await outcome(mainFiles({ verdict: null }));
+  assert.deepEqual([none.escalation, none.skip], ["", "no-model-turn"]);
+  assert.equal(none.comments.length, 1, "the round counts");
+  assert.match(none.comments[0], new RegExp(`head=${HEAD} verdict=invalid run=none -->`));
+  // An attempt whose artifact did not arrive reads the same.
+  const absent = mainFiles({ verdict: null, env: { DEPENDENCY_RUN_ATTEMPT: "2" } });
+  assert.deepEqual(Object.values(await outcome(absent)).slice(0, 2), ["", "no-model-turn"]);
+  for (const [why, env, api, want] of [
+    ["a written patch", { DEPENDENCY_PATCH_STATE: "written" }, fakeApi(), "dependency-invalid"],
+    ["an empty patch, so the model ran", { DEPENDENCY_PATCH_STATE: "empty" }, fakeApi(), "dependency-invalid"],
+    ["a moved head", {}, fakeApi({ head: FIX }), "dependency-invalid"],
+    ["a scan that refused the output", { DEPENDENCY_SCAN_REFUSED: "output" }, fakeApi(), "dependency-invalid"],
+    // Plan Q5: a lockfile patch over the carry cap never lands.
+    ["a scan that refused an oversize patch", { DEPENDENCY_SCAN_REFUSED: "patch" }, fakeApi(), "dependency-fix-not-landed"],
+  ]) {
+    const result = await outcome(mainFiles({ verdict: null, env }), api);
+    assert.deepEqual([result.escalation, result.skip], [want, "awaiting-human"], why);
+    assert.equal(result.comments.length, 1, `${why}: the round counts`);
+  }
+  // A scan output outside its closed set fails the job.
+  await assert.rejects(main(mainFiles({ env: { DEPENDENCY_SCAN_REFUSED: "yes" } }), { api: fakeApi(), log: () => {} }), /scan output/);
+  await assert.rejects(main(mainFiles({ env: { DEPENDENCY_PATCH_STATE: "true" } }), { api: fakeApi(), log: () => {} }), /scan output/);
 });
 
 // The merge path: every commit that is not Dependabot's own must be a lane fix.

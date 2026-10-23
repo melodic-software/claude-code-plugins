@@ -87,6 +87,10 @@
           "enum": [null, "ci-escalations"],
           "description": "The producer report apply-patch reads; ci-escalations: the checks the model escalated."
         },
+        "content-rule": {
+          "enum": ["dependency-version-change"],
+          "description": "What each changed file's bytes must also meet, after every refusal and allow rule passes and before any commit is built; a refusal escalates as protected-path. dependency-version-change: each file modified in place, a regular file, an npm or pip manifest or lock file in fix scope, changed only by a version (dependency-classify.mjs fixRefusal)."
+        },
         "skip-moved-head": {
           "type": "boolean",
           "default": false,

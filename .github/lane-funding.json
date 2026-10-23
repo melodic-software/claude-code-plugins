@@ -52,7 +52,8 @@
         { "id": "fix-docs-subscription", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "address-feedback", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
         { "id": "address-feedback-subscription", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "review-dependency", "workflow": "pr-unblock.yml", "launcher": "claude-code-action", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "review-dependency", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
+        { "id": "review-dependency-subscription", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "resolve-conflicts", "workflow": "pr-unblock.yml", "launcher": "claude-code-action", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     },

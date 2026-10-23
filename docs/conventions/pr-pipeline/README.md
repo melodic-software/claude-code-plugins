@@ -221,10 +221,14 @@ dispatches it lists open, non-draft, same-repository Dependabot PRs into `main`,
 at most 2 `review`-tier PRs per run whose head has no `pr-unblock / review-dependency` check run
 from the GitHub Actions app (the untrusted-trigger skip aside). Their run ids join the same
 dispatched-runs record. It has no schedule: the broker accepts a dispatcher run started only by a
-push or a listed human, so a push to `main` or a hand run wakes it. In `pr-unblock.yml`,
-`review-dependency` (the model job, `mutate-branch`) is followed by `apply-dependency-verdict` (a
-script job with no model, `publish-artifact`), which acts on the verdict the model job recorded
-and never merges; the pr-merge lane merges on its `verdict=merge` marker at the current head
+push or a listed human, so a push to `main` or a hand run wakes it. In `pr-unblock.yml`, no
+model holds a write token: `review-dependency-select` (base code only, read-only token) selects
+the pull request or posts its check neutral; `review-dependency` (a `read` skill in
+[patch output mode](pr-run-activity.md#patch-output-mode), on run-claude-cli with the
+subscription fallback) returns its verdict as structured output and leaves a fix as a patch;
+`apply-dependency-patch` (a script, `mutate-branch`) pushes that patch only on a scanned `fix`
+verdict; and `apply-dependency-verdict` (a script, `publish-artifact`) acts on the verdict and
+never merges; the pr-merge lane merges on its `verdict=merge` marker at the current head
 ([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review);
 [ADR 0074](../../adr/0074-review-risky-dependabot-updates-in-a-model-job-and-act-in-a-scripted-job.md)).
 
@@ -494,20 +498,21 @@ trusted base: one row per prepare mode a patch-producing skill uses (`ci-context
 `review-threads`, `dependency-review`, `merge-base`), `default` for one with no prepare mode, and
 `issue` for a patch that goes to a new issue-lane branch made at the run's base or resume tip.
 [`apply-patch.mjs`](../../../.github/scripts/apply-patch/apply-patch.mjs) reads it for fix-ci's,
-fix-docs's, address-feedback's and resolve-issue's patches ([`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)).
+fix-docs's, address-feedback's, review-dependency's and resolve-issue's patches ([`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)).
 [`patch-rules.schema.json`](../../../.github/actions/resolve-config/patch-rules.schema.json) closes
 each row to these keys:
 
 | Key | Holds |
 |---|---|
 | `refuse` | Named refusals; any match refuses the whole patch. |
-| `allow` | What every other changed path must also meet: `any`, `kept-threads` (a path in the scope of a thread the select job kept, its `named_paths` included, read from that job's thread file) or `merge-result` (the blob the base merge leaves there, or a conflicted path left with no conflict markers). |
+| `allow` | What every other changed path must also meet: `any`, `kept-threads` (a path in the scope of a thread the select job kept, its `named_paths` included, read from that job's thread file), `dependency-manifests` (an npm or pip manifest or lock file outside `.github/` in a directory the base `.github/dependabot.yml` lists for its ecosystem) or `merge-result` (the blob the base merge leaves there, or a conflicted path left with no conflict markers). |
 | `max-files` | The most paths one patch may change, or `null`. |
-| `requires` | What the producer's output must say before anything applies: `dependency-verdict: fix`. |
+| `requires` | What the producer's output must say before anything applies: `dependency-verdict: fix`, the scanned verdict's field. |
+| `content-rule` | Optional; what each changed file's bytes must also meet, on the local blobs before any commit is built, escalating as `protected-path`: `dependency-version-change` (`dependency-review`: modified in place, a regular file, changed only by a version, `fixRefusal` in `dependency-classify.mjs`). |
 | `commit` | `parents` (`[head]`, or `[head, base]` for a merge), `message` and `trailer`, with `{ref}`, `{base}`, `{lane}`, `{activity}` and `{issue}` filled in. |
 | `reads-report` | The producer report the apply reads (`ci-escalations`: the checks the model escalated), or `null`. |
 | `empty-at-push` | Optional; the kind a patch that applies but changes nothing escalates at push time: `empty` (the default) or `invalid` (`ci-context`, as the producer said it wrote a change). |
-| `skip-moved-head` | Optional, default `false`; `true` (`ci-context`, `review-threads`) skips `superseded-sha` on any PR head that moved since the producer ran, where other rows take the moved tip with `--3way` when the moved commits touch no patched path. `default` sets `false`: fix-docs runs once per pull request, so a skipped fix-docs patch would never run again. |
+| `skip-moved-head` | Optional, default `false`; `true` (`ci-context`, `review-threads`, `dependency-review`) skips `superseded-sha` on any PR head that moved since the producer ran, where other rows take the moved tip with `--3way` when the moved commits touch no patched path. `default` sets `false`: fix-docs runs once per pull request, so a skipped fix-docs patch would never run again. |
 | `script-exec-bit` | Optional, default `false`; `true` (`issue`) makes each new or changed file that ends in `.sh` or starts with `#!` executable after every refusal passes, since the model's tools set no file mode. |
 | `escalations` | The escalation reasons the apply may give for the row. |
 
@@ -665,9 +670,14 @@ and its queued entries leave; two different identities, or an unreadable head co
   or no `authority`, the wrapper merges nothing.
 - **Same repository.** The pull request's head is in this repository, never a fork.
 - **Risk score.** A diff the risk scorer rates LOW merges, and so does a MEDIUM one whose every
-  reason is a class or size reason (`class-contradicted`, `blast-radius-missing`, `lines-over`,
-  `files-over`, `no-patch:*`). Every other MEDIUM reason (unbound or missing review evidence, an
-  open claude-review finding, an unread file listing, the rung) and every HIGH one refuse.
+  reason is a class, size or reported-finding reason (`class-contradicted`, `blast-radius-missing`,
+  `lines-over`, `files-over`, `no-patch:*`, `findings:claude-review`,
+  `findings:claude-security-review`). Every other MEDIUM reason (unbound or missing review
+  evidence, an unread file listing, the rung) and every HIGH one refuse.
+- **Review flags.** A review flag holds only for a cost increase (`cost-review-required`), a
+  trusted-actor widening (`trust-gate:trusted-actors`) or a CRITICAL security finding
+  (`security-finding`), owner decisions Q25, Q33 and Q693. Every other open finding, from
+  claude-review or a lower security one, is listed in the reasons and does not hold.
 - **Review evidence.** For each review lane, the newest run of the lane's caller workflow on the
   pinned head SHA concluded success and carries the lane's completion record for that SHA.
 - **Effective rung.** The lowest of `merge.rung`, the `babysit_loop_merge` key in
@@ -715,10 +725,17 @@ and its queued entries leave; two different identities, or an unreadable head co
   `experimental.monitors` value, or a marketplace plugin added, removed, renamed or re-sourced, or
   the marketplace renamed. A removed, renamed or copied manifest, and a side that cannot be read,
   does not parse or repeats a key, holds. That reason waits for a human like any other HIGH one.
-- **Security findings.** The security lane flags; only a CRITICAL finding holds the merge, as
-  `security-finding`. Its inline comments and summary carry the severity lines
+- **Trusted-actor widening.** A change that adds or widens an entry in
+  `.github/standards/trusted-actors/trusted-actors.json` scores HIGH as
+  `trust-gate:trusted-actors` in both lanes and waits for the owner, whatever `high-path-floor`
+  says and whatever an adopted author's own paths leave off the floor. The gate compares the
+  base and head entries: a change that only removes entries merges; an added or changed entry,
+  any other key changed, a side that cannot be read or parsed or repeats a key, and an added,
+  removed, renamed or copied list hold. An owner cost decision does not clear it.
+- **Security findings.** The security lane flags; only a CRITICAL finding, its top tier, holds the
+  merge, as `security-finding`. Its inline comments and summary carry the severity lines
   `/review:security-review` defines, and a finding whose severity the gate cannot read counts as
-  CRITICAL.
+  CRITICAL. Its other open findings are reported as `findings:claude-security-review`.
 - **Cost hold.** A change that could add or raise a charge needs the owner (owner rule,
   2026-10-22). It scores HIGH as `cost-review-required` in both lanes, whatever `high-path-floor`
   says and whatever an adopted author's own paths leave off the floor, and waits for a human like
@@ -872,12 +889,12 @@ except six:
   verdict, both AI review lanes, `ci-status` and the post-merge revert breaker gate the rest. It
   leaves the rest off (owner decision,
   2026-10-17). The local babysit lane ignores these switches and keeps the fixed floor, both
-  caps and the C2 contradictions. The review evidence and the security lane's CRITICAL findings
-  still count.
+  caps and the C2 contradictions. The review evidence, the security lane's CRITICAL findings, the
+  cost hold and the trusted-actor widening hold still count.
 
   What is left with every switch off: a lane pull request may change the merge gate, the
   workflows and their tokens, these lane rules, skills, hooks, agent instructions and CI checks,
-  at any size.
+  at any size; a trusted-actor widening still waits for the owner.
   The brakes that remain are the verifier verdict, the kill switch, the fork and Dependabot
   refusals, lane authorship with one closing issue, the review evidence and the demotion stop;
   setting `merge.report-only` back to true stops every merge. A verdict reads the diff only and runs no changed code, and a pull request
@@ -892,6 +909,16 @@ except six:
   a missing flag or any other value holds the rung at `off`.
 - **Post-merge check and merges in flight.** Only merges the agent identity enqueued count. A
   merge by a person or by another App, such as a release pull request, is not the lane's.
+
+Before it enqueues, the lane reads every person's comments on the pull request: issue comments,
+review summaries and inline review comments. When the newest one from an OWNER, MEMBER or
+COLLABORATOR says "do not merge" (`HUMAN_MERGE_VETO_RE`), the pull request is held (`human merge
+veto from <logins>`). That person lifts the hold with any later comment that does not say it, such
+as "go ahead", or by editing the veto away. Another person's comment does not lift it, and neither
+does an item with no text, such as an Approve with no comment or the empty summary of an inline-only
+review. Comments from a bot or from `merge.agent-identity` hold nothing and neither do comments from
+anyone else, so an outside commenter cannot hold a lane pull request. A bare "wait" is not a veto,
+and neither are blocking words such as "regression" (the autopilot tier's wider scan).
 
 An eligible pull request its score holds gets one `<!-- babysit-merge-risk -->` reasons comment
 naming the score, the reasons and the head. While `merge.report-only` is false, a run that finds the
@@ -944,7 +971,14 @@ no full CI run either; its summary says whether it would have.
 
 The workflow's gate loop starts no further candidate once it has run `merge.gate-budget-minutes`
 (absent: no budget); the candidate in progress finishes first, so the budget never stops a gate
-between its check and its enqueue. Each run starts after the last candidate the previous loop
+between its check and its enqueue. One candidate's gate reads for at most
+`merge.gate-candidate-minutes` (absent: no limit): past it the gate starts no further read and the
+candidate is reported `unknown:candidate-deadline`, never ready, while a write already started
+finishes; the loop goes on to the next candidate. The first candidate a run stops so is recorded in
+the cursor as deferred, and the next run gates it first under the longer
+`merge.gate-deferred-minutes` (absent: no limit), so a pull request whose gate always runs past the
+limit still gets a longer gate. One stopped at that ceiling too gets a warning annotation naming it
+and goes back to the capped rotation, never deferred again. Each run starts after the last candidate the previous loop
 reached and wraps round to the lowest PR number, so every candidate is reached across runs. The
 position is the `pr-merge-gate-cursor` artifact, read only from a scheduled or hand-started
 `pr-merge.yml` run on the default branch, found through that workflow's run list; it sets the order
@@ -1160,7 +1194,7 @@ The review activity then judges the release as it judges any review-tier pull re
 A pull request whose every reason is a read failure (`unparsed-updates`, `sources-disagree`,
 `dependabot-config-unreadable`, `dependabot-policy-unreadable`, `provenance-unreadable:<name>`)
 is review tier because the classifier could not read it, not because it is risky. The
-review-dependency select step writes a `::warning::classifier gap` naming those reasons, so a
+review-dependency select job writes a `::warning::classifier gap` naming those reasons, so a
 parse bug shows in the run log instead of quietly spending AI reviews; fix the classifier.
 
 ### Verifier verdict
@@ -1395,7 +1429,8 @@ any hand edit or deletion of them. The hosted review callers (`pr-review-hosted.
 `pr-review-security-hosted.yml`) are locally owned, so `/.github/workflows/**` owns them.
 `pr-merge` refuses a PR that touches a path `merge.diff-check.denied-paths` lists and leaves it
 for a human. This repository lists none, so a lane PR touching a trust-root path merges on a
-passing verdict like any other (see the switches above).
+passing verdict like any other (see the switches above), unless it widens the trusted-actor
+list ([Trusted-actor widening](#the-local-babysit-lane)).
 
 ## The lane sweep
 
@@ -1438,8 +1473,10 @@ A fourth job, **triage-sweep**, runs alone every hour and with the daily run, wi
 ([`triage-sweep.mjs`](../../../.github/scripts/maintenance-audit-lane-runs/triage-sweep.mjs)). It
 selects open issues, not pull requests, over an hour old, written by a human on the trusted-actors
 list or by the lanes App, that have no intake comment, no born-triaged marker and no triage, status,
-priority or work-class label. Issues from `github-actions[bot]`, the lane sweep's own included, are
-left out. For each it re-dispatches `intake-triage.yml`, at most 5 a pass, and records the runs in
+priority or work-class label. The `needs-triage` floor label is not a triage label: it lands on open
+whether or not intake runs, so an issue whose intake run failed is still selected; one the sweep
+already filed a hand-off issue for, found by one search of those issues, is skipped unread. Issues from
+`github-actions[bot]`, the lane sweep's own included, are left out. For each it re-dispatches `intake-triage.yml`, at most 5 a pass, and records the runs in
 one comment on the issue; after 2 dispatches leave it untriaged it labels the original
 `needs-triage`, then files one `needs-triage` issue naming the runs. It holds the job's own `GITHUB_TOKEN`
 (`actions: write`, `contents: read`, `issues: write`), never a lanes App token, and stops at 120
@@ -1624,7 +1661,7 @@ cap check (`.github/actions/check-wip-cap`) runs before work-resolve-issue takes
 work-unblock runs it before a re-fire and before adding `agent-ready`. It reads, one request at a
 time and none once `x-ratelimit-remaining` reaches 0, the lanes App's open pull requests, those
 merged in the window, those opened in it, and the open `agent-ready` issues that carry no hold
-label (`needs-human`, `needs-owner-decision`, `status: needs-decision`).
+label (`needs-human`, `needs-owner-decision`, `status: needs-decision`, `status: needs-info`).
 
 | Key | Default | What it sets |
 |---|---|---|
