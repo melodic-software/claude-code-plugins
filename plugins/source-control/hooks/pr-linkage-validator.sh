@@ -339,7 +339,9 @@ mask_markdown_code_to() {
   local marker_run marker_rest f nf ticks j r nruns ticks_text out="" li=0 IFS
   local -a fields runs_before runs_len closer last
   # The backtick split below must not glob the line's own `*`, `?` or `[`.
-  local -
+  # Saved and restored by hand: `local -` needs Bash 4.4.
+  local had_noglob=0
+  [[ $- == *f* ]] && had_noglob=1
   set -f
   # Up to three leading spaces, then the fence run, then the info string.
   local fence_re='^ {0,3}(`{3,}|~{3,})(.*)$'
@@ -429,6 +431,7 @@ mask_markdown_code_to() {
     done
     out+="$rendered"$'\n'
   done
+  ((had_noglob)) || set +f
   linkage::chomp_to "$__plv_dest" "$out"
 }
 
