@@ -3622,13 +3622,14 @@ def escalate(
     (`_lifted_by_person`): it stays off, as `lifted`, until the comment
     changes (a new head or reason). Raises `RuntimeError` on a failed write."""
     pr = json_object(inputs.get("pr"))
+    # Read once here, so the lift check reuses what the upsert read.
+    comments = inputs.get("comments")
+    if comments is None:
+        comments = fetch_paginated_api(
+            f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
+        )
     comment = upsert_marker_comment(
-        repo,
-        number,
-        identity,
-        body,
-        inputs.get("comments"),
-        marker=marker,
+        repo, number, identity, body, comments, marker=marker
     )
     try:
         label = human_gated_label(repo)
@@ -3642,7 +3643,7 @@ def escalate(
     if (
         not present
         and comment == "unchanged"
-        and _lifted_by_person(repo, number, identity, label, marker, inputs)
+        and _lifted_by_person(repo, number, identity, label, marker, comments, inputs)
     ):
         return {"label": "lifted", "comment": comment}
     if not present:
@@ -3661,54 +3662,59 @@ def _lifted_by_person(
     identity: str,
     label: str,
     marker: str,
+    comments: list[dict[str, Any]],
     inputs: Mapping[str, Any],
 ) -> bool:
-    """Whether a person (`merge_policy.is_human`: a User with write access,
-    never a bot, the agent identity or a self-login) removed `label` strictly
-    after the identity's `marker` comment last changed. That comment names the
-    head and the reasons, so the removal lifted this escalation. The timeline
-    and comments are read under the verdict reader's token when one is set;
-    any failure or unparsable time is no lift, so the label goes on."""
+    """Whether the newest removal of `label` came strictly after the
+    identity's `marker` comment last changed and was a person's: a User of
+    kind `human` on the trusted-actor list read at the base branch, never
+    the head, who also passes `merge_policy.is_human` (write access, not a
+    bot, the agent identity or a self-login). That comment names the head
+    and the reasons, so the removal lifted this escalation. The timeline is
+    read under the verdict reader's token when one is set; any failure,
+    unreadable list or unparsable time is no lift, so the label goes on."""
     token = os.environ.get(verify_evidence.TOKEN_ENV)
-    read_env = {"GH_TOKEN": token} if token else None
-
-    def person(actor: Any) -> bool:
-        return merge_policy.is_human(
-            {"__typename": actor.get("type"), "login": actor.get("login")},
-            repo=repo,
-            agent_identity=identity,
-            self_logins=inputs.get("self_logins") or frozenset(),
-            permission=inputs.get("permission"),
-        )
-
+    base = str(
+        json_object(json_object(inputs.get("pr")).get("base")).get("ref")
+        or inputs.get("branch")
+        or ""
+    )
     try:
-        comments = inputs.get("comments")
-        if comments is None:
-            comments = fetch_paginated_api(
-                f"repos/{repo}/issues/{number}/comments?per_page=100",
-                f"#{number} comments",
-                env_overrides=read_env,
-            )
         prior = _newest_marker_comment(comments, identity, marker) or {}
         escalated = parse_github_timestamp(
             str(prior.get("updated_at") or prior.get("created_at") or "")
         )
-        if escalated is None:
+        if escalated is None or not base:
             return False
         timeline = fetch_paginated_api(
             f"repos/{repo}/issues/{number}/timeline?per_page=100",
             f"#{number} timeline",
-            env_overrides=read_env,
+            env_overrides={"GH_TOKEN": token} if token else None,
         )
-        return any(
-            event.get("event") == "unlabeled"
+        removals = [
+            (at, json_object(event.get("actor")))
+            for event in timeline
+            if event.get("event") == "unlabeled"
             and str(json_object(event.get("label")).get("name") or "").casefold()
             == label.casefold()
             and (at := parse_github_timestamp(str(event.get("created_at") or "")))
             is not None
-            and at > escalated
-            and person(json_object(event.get("actor")))
-            for event in timeline
+        ]
+        if not removals:
+            return False
+        # The newest removal decides; a tie keeps the later timeline item.
+        at, actor = max(enumerate(removals), key=lambda r: (r[1][0], r[0]))[1]
+        return (
+            at > escalated
+            and actor.get("type") == "User"
+            and actor.get("id") in merge_policy.trusted_actors(repo, base)[1]
+            and merge_policy.is_human(
+                {"__typename": "User", "login": actor.get("login")},
+                repo=repo,
+                agent_identity=identity or None,
+                self_logins=inputs.get("self_logins") or frozenset(),
+                permission=inputs.get("permission"),
+            )
         )
     except Exception:  # noqa: BLE001 -- any failure escalates as before
         return False
