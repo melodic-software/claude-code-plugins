@@ -3,9 +3,10 @@
 # 2026-10-03 from the logs of four whole-tree ci runs (37113193629, 37141134032,
 # 37141960428, 37144196526), Python suites 2026-10-22 as the median of the
 # test-python legs of whole-tree runs 39726045512, 39727110042 and
-# 39732992257, and the nine shell rows that had drifted 40 s or more
-# 2026-10-23 from whole-tree runs 39880676111, 39881602417, 39882556362 and
-# 39884296244: a shell suite runs from the moment
+# 39732992257 and refreshed 2026-10-23 from runs 39968901543, 39970209215,
+# 39971514210 and 39972824070, and the nine shell rows that had drifted 40 s or
+# more 2026-10-23 from whole-tree runs 39880676111, 39881602417, 39882556362
+# and 39884296244: a shell suite runs from the moment
 # run-plugin-tests.sh could start it (three at a time) to its result block, a
 # Python suite from its pytest command to the next one, at least 1. A suite not
 # listed counts 5 s. Wrong numbers cost leg balance, never coverage: every
@@ -40,7 +41,7 @@ plugins/animation/scripts/animation.test.sh 11
 plugins/animation/scripts/test_inkstats.py 1
 plugins/animation/scripts/test_produce.py 2
 plugins/animation/scripts/test_pydeps.py 6
-plugins/animation/scripts/test_render.py 4
+plugins/animation/scripts/test_render.py 3
 plugins/animation/scripts/test_woodcut_marks.py 1
 plugins/animation/skills/rotoscope/scripts/test_regress.py 1
 plugins/architecture/lib/dotnet-references.test.sh 1
@@ -110,18 +111,18 @@ plugins/code-metrics/scripts/persist-report.test.sh 1
 plugins/code-metrics/scripts/python-resolve.test.sh 1
 plugins/code-metrics/scripts/test_pathglob.py 1
 plugins/code-metrics/scripts/test_replica_collapse.py 1
-plugins/code-metrics/scripts/test_report.py 7
-plugins/code-metrics/scripts/test_resolve_config.py 3
+plugins/code-metrics/scripts/test_report.py 6
+plugins/code-metrics/scripts/test_resolve_config.py 2
 plugins/code-metrics/scripts/test_scope_filter.py 1
 plugins/code-metrics/scripts/test_yaml_subset.py 1
 plugins/code-metrics/scripts/tool-free-path.test.sh 11
 plugins/code-metrics/skills/audit-complexity/scripts/audit-complexity.test.sh 22
 plugins/code-metrics/skills/audit-coverage/scripts/audit-coverage.test.sh 46
 plugins/code-metrics/skills/audit-coverage/scripts/test_crap.py 1
-plugins/code-metrics/skills/audit-coverage/scripts/test_join.py 3
+plugins/code-metrics/skills/audit-coverage/scripts/test_join.py 4
 plugins/code-metrics/skills/audit-duplication/scripts/audit-duplication.test.sh 20
 plugins/code-metrics/skills/audit-duplication/scripts/test_cluster_clones.py 1
-plugins/code-metrics/skills/audit-duplication/scripts/test_registry_filter.py 1
+plugins/code-metrics/skills/audit-duplication/scripts/test_registry_filter.py 2
 plugins/code-metrics/skills/audit-size/scripts/audit-size.test.sh 13
 plugins/code-metrics/skills/audit-type-debt/scripts/audit-type-debt.test.sh 15
 plugins/code-metrics/skills/setup/scripts/setup-check.test.sh 15
@@ -131,9 +132,9 @@ plugins/code-tidying/scripts/changed-code-files.test.sh 1
 plugins/code-tidying/scripts/comment-tooling-probe.test.sh 4
 plugins/code-tidying/scripts/evals-fixtures.test.sh 1
 plugins/code-tidying/scripts/scope-code-files.test.sh 1
-plugins/code-tidying/scripts/test_change_shape.py 31
-plugins/code-tidying/scripts/test_comment_census.py 3
-plugins/code-tidying/scripts/test_commented_out_code.py 8
+plugins/code-tidying/scripts/test_change_shape.py 32
+plugins/code-tidying/scripts/test_comment_census.py 2
+plugins/code-tidying/scripts/test_commented_out_code.py 7
 plugins/code-tidying/scripts/test_rank_comment_targets.py 3
 plugins/code-tidying/skills/audit-comment-residue/scripts/detect.test.sh 4
 plugins/code-tidying/skills/audit-dead-code/scripts/dead-code-scan.test.sh 5
@@ -169,7 +170,7 @@ plugins/disk-hygiene/skills/clean/scripts/owner_registry.test.sh 2
 plugins/disk-hygiene/skills/clean/scripts/test_deep_inventory.py 1
 plugins/disk-hygiene/skills/clean/scripts/test_engine_context.py 1
 plugins/disk-hygiene/skills/clean/scripts/test_guard_launch_monitor.py 1
-plugins/disk-hygiene/skills/clean/scripts/test_hygiene.py 13
+plugins/disk-hygiene/skills/clean/scripts/test_hygiene.py 11
 plugins/disk-hygiene/skills/clean/scripts/test_investigated_catalog.py 1
 plugins/disk-hygiene/skills/clean/scripts/test_owner_registry.py 2
 plugins/disk-hygiene/skills/setup/scripts/kill_switch_probe.test.sh 1
@@ -205,16 +206,16 @@ plugins/evals/skills/design/scripts/test_render_review.py 1
 plugins/evals/skills/plugin-eval/scripts/calibrate-judge.test.sh 5
 plugins/evals/skills/plugin-eval/scripts/noise-report.test.sh 2
 plugins/evals/skills/plugin-eval/scripts/run-validity.test.sh 4
-plugins/evals/skills/plugin-eval/scripts/test_calibrate_judge.py 3
+plugins/evals/skills/plugin-eval/scripts/test_calibrate_judge.py 4
 plugins/evals/skills/plugin-eval/scripts/test_noise_report.py 2
 plugins/evals/skills/plugin-eval/scripts/test_run_validity.py 3
-plugins/evals/skills/validate/scripts/test_validate_cases.py 4
+plugins/evals/skills/validate/scripts/test_validate_cases.py 8
 plugins/evals/skills/validate/scripts/validate-cases.test.sh 4
 plugins/event-storming/skills/simulation/scripts/build-bc-view.test.sh 1
 plugins/explainer-video/hooks/install-python-deps.test.sh 3
 plugins/explainer-video/scripts/explainer-video.test.sh 7
 plugins/explainer-video/scripts/test_explainer_video_narration.py 1
-plugins/explainer-video/scripts/test_explainer_video_pydeps.py 5
+plugins/explainer-video/scripts/test_explainer_video_pydeps.py 6
 plugins/explainer-video/scripts/test_explainer_video_render.py 1
 plugins/firecrawl/skills/update/scripts/update.test.sh 1
 plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.test.sh 1
@@ -312,7 +313,7 @@ plugins/harness-ops/skills/audit-plugin-landscape/scripts/test_landscape_ages.py
 plugins/harness-ops/skills/audit-skill-visibility/scripts/audit_skill_visibility.test.sh 1
 plugins/harness-ops/skills/audit-skill-visibility/scripts/skill-pair-cooccurrence.test.sh 1
 plugins/harness-ops/skills/audit-skill-visibility/scripts/test_audit_skill_visibility.py 1
-plugins/harness-ops/skills/behavior-probes/scripts/test_probe.py 2
+plugins/harness-ops/skills/behavior-probes/scripts/test_probe.py 1
 plugins/harness-ops/skills/changelog/scripts/changelog-status.test.sh 1
 plugins/harness-ops/skills/changelog/scripts/discover-surfaces.test.sh 1
 plugins/harness-ops/skills/changelog/scripts/native_drift.test.sh 1
@@ -321,7 +322,7 @@ plugins/harness-ops/skills/inventory/scripts/test_compare_reports.py 1
 plugins/harness-ops/skills/inventory/scripts/test_fixture_parse.py 2
 plugins/harness-ops/skills/inventory/scripts/test_inventory.py 2
 plugins/harness-ops/skills/inventory/scripts/test_inventory_under_parser.py 2
-plugins/harness-ops/skills/inventory/scripts/test_parser_reader.py 24
+plugins/harness-ops/skills/inventory/scripts/test_parser_reader.py 28
 plugins/harness-ops/skills/inventory/scripts/test_reader_findings.py 2
 plugins/harness-ops/skills/known-issues/scripts/check-all.test.sh 1
 plugins/harness-ops/skills/known-issues/scripts/test_registry_manager.py 1
@@ -368,7 +369,7 @@ plugins/knowledge/skills/docpage-digest/scripts/check-html-rows.test.sh 1
 plugins/knowledge/skills/docpage-digest/scripts/check-snippets.test.sh 1
 plugins/knowledge/skills/docpage-digest/scripts/extract_blog_body.test.sh 1
 plugins/knowledge/skills/docpage-digest/scripts/pin-manifest.test.sh 1
-plugins/knowledge/skills/docpage-digest/scripts/test_check_fences_exact.py 2
+plugins/knowledge/skills/docpage-digest/scripts/test_check_fences_exact.py 1
 plugins/knowledge/skills/docpage-digest/scripts/test_check_html_rows.py 1
 plugins/knowledge/skills/docpage-digest/scripts/test_check_prose_terms.py 1
 plugins/knowledge/skills/docpage-digest/scripts/test_check_snippets.py 1
@@ -406,8 +407,8 @@ plugins/performance/scripts/summarize.test.sh 1
 plugins/performance/skills/climb/scripts/test_climb_log.py 3
 plugins/pixel-art/scripts/backends.test.sh 35
 plugins/pixel-art/scripts/test_backends.py 1
-plugins/pixel-art/scripts/test_capture.py 13
-plugins/pixel-art/scripts/test_examples.py 17
+plugins/pixel-art/scripts/test_capture.py 14
+plugins/pixel-art/scripts/test_examples.py 14
 plugins/pixel-art/scripts/test_kit.py 1
 plugins/pixel-art/scripts/test_palette.py 1
 plugins/pixel-art/scripts/test_render.py 1
@@ -419,24 +420,26 @@ plugins/planning/scripts/eval-scaffold.test.sh 1
 plugins/planning/scripts/goal-condition-length.test.sh 1
 plugins/planning/shared/tests/align.test.sh 312
 plugins/planning/shared/tests/test_cfdns.py 8
-plugins/planning/shared/tests/test_load.py 11
+plugins/planning/shared/tests/test_load.py 10
 plugins/planning/shared/tests/test_owner_ops.py 1
 plugins/planning/shared/tests/test_people_proposals.py 1
 plugins/planning/shared/tests/test_schema_shapes.py 1
-plugins/planning/shared/tests/test_server.py 124
-plugins/planning/shared/tests/test_session.py 17
-plugins/planning/shared/tests/test_share.py 123
-plugins/planning/shared/tests/test_tunnel.py 50
+plugins/planning/shared/tests/test_server.py 129
+plugins/planning/shared/tests/test_server_live.py 28
+plugins/planning/shared/tests/test_session.py 30
+plugins/planning/shared/tests/test_share.py 142
+plugins/planning/shared/tests/test_tunnel.py 64
 plugins/planning/shared/tests/tracer-live.test.sh 1
 plugins/planning/shared/tests/tracer.test.sh 10
 plugins/planning/shared/tests/ui.test.sh 426
 plugins/planning/surface/surface-journey.test.sh 130
 plugins/planning/surface/surface-ui-c.test.sh 133
 plugins/planning/surface/surface.test.sh 172
-plugins/planning/surface/test_exporters.py 132
-plugins/planning/surface/test_round.py 98
+plugins/planning/surface/test_exporters.py 50
+plugins/planning/surface/test_question_shape.py 1
+plugins/planning/surface/test_round.py 33
 plugins/planning/surface/test_schema.py 1
-plugins/planning/surface/test_server.py 201
+plugins/planning/surface/test_server.py 70
 plugins/planning/surface/watch.test.sh 48
 plugins/planning/tests/interview-defenses.test.sh 1
 plugins/planning/tests/interview-surface-decision-mirror.test.sh 1
@@ -504,12 +507,12 @@ plugins/session-flow/scripts/harness/hop_chain.test.sh 19
 plugins/session-flow/scripts/save_point.test.sh 38
 plugins/session-flow/scripts/tests/test_hop_chain_load_transcript.py 1
 plugins/session-flow/scripts/tests/test_save_point.py 26
-plugins/session-flow/scripts/tests/test_tidy_work.py 7
+plugins/session-flow/scripts/tests/test_tidy_work.py 5
 plugins/session-flow/scripts/tests/test_transcript_reader_first_cwd.py 1
 plugins/session-flow/scripts/tidy_work.test.sh 8
-plugins/session-flow/skills/audit-friction/scripts/tests/test_friction.py 4
+plugins/session-flow/skills/audit-friction/scripts/tests/test_friction.py 3
 plugins/session-flow/skills/audit-sessions/scripts/audit-sessions.test.sh 12
-plugins/session-flow/skills/audit-sessions/scripts/tests/test_collect.py 15
+plugins/session-flow/skills/audit-sessions/scripts/tests/test_collect.py 16
 plugins/session-flow/skills/audit-sessions/scripts/tests/test_drift.py 1
 plugins/session-flow/skills/audit-sessions/scripts/tests/test_friction_scan.py 1
 plugins/session-flow/skills/audit-sessions/scripts/tests/test_parse_transcript_golden.py 1
@@ -519,9 +522,9 @@ plugins/session-flow/skills/audit-sessions/scripts/tests/test_transcript_reader.
 plugins/session-flow/skills/keep-going/scripts/check-usage-limit-reset.test.sh 1
 plugins/session-flow/skills/recall/scripts/test_recall_scan.py 1
 plugins/session-flow/skills/retro/scripts/parse-transcript.test.sh 4
-plugins/session-flow/skills/retro/scripts/test_parse_transcript.py 3
+plugins/session-flow/skills/retro/scripts/test_parse_transcript.py 2
 plugins/session-flow/skills/running-retro/scripts/observer.test.sh 8
-plugins/session-flow/skills/running-retro/scripts/test_observer.py 10
+plugins/session-flow/skills/running-retro/scripts/test_observer.py 9
 plugins/skill-quality/scripts/check-evals-quality.test.sh 1
 plugins/skill-quality/scripts/check-listing-budget.test.sh 1
 plugins/skill-quality/scripts/check-skill.test.sh 40
@@ -548,7 +551,7 @@ plugins/source-control/scripts/worktree-root-doctor.test.sh 1
 plugins/source-control/scripts/worktree-root-scan.test.sh 1
 plugins/source-control/skills/babysit-loop/scripts/resolve-promotion-evidence.test.sh 1
 plugins/source-control/skills/babysit-prs/scripts/engine.test.sh 72
-plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_check_inputs.py 3
+plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_check_inputs.py 2
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_checks.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_classify.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_delta.py 1
@@ -556,12 +559,16 @@ plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_dependabot.
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_feedback.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_findings.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_gh.py 1
+plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_gh_archived_memo.py 1
+plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_gh_call_counter.py 1
+plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_gh_lane_attempt_reuse.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_lease.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_async.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_base_freshness.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_branch_rules.py 1
-plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_policy.py 41
+plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_cost.py 1
+plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_policy.py 42
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_prefilter.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_rate_limit_rerun.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_report_only_state.py 1
@@ -570,18 +577,19 @@ plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_skip.
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_unattended.py 2
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_postmerge.py 2
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_postmerge_contains.py 1
-plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_postmerge_quarantine.py 2
+plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_postmerge_quarantine.py 5
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_repo_config.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_resolve_thread.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_review_evidence.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_risk.py 5
+plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_risk_cost.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_risk_declared_executables.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_state.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_util.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_verify_evidence.py 2
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_whole_review.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_guarded_mutation.py 1
-plugins/source-control/skills/babysit-prs/scripts/tests/test_guards.py 9
+plugins/source-control/skills/babysit-prs/scripts/tests/test_guards.py 10
 plugins/source-control/skills/babysit-prs/scripts/tests/test_integration.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_manage_feedback_ledger.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_pr_queue_snapshot.py 1
