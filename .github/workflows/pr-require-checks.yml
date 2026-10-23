@@ -3113,7 +3113,8 @@ jobs:
     # the review-lane step's four, under two minutes, plus the cost-hold step's
     # reads: one for most pull requests, which stop at the label events; for a
     # lane-labeled one whose body cites a decision, about eight, and two more per
-    # review run since the window opened.
+    # review run since the window opened, plus the base-config checkout's
+    # fetch (seconds; its retries replace the contents reads' 15 s each).
     timeout-minutes: 9
     permissions:
       # `yield-to-full-run` lists this workflow's runs on the head SHA, and

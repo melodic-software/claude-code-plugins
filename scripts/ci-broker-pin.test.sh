@@ -93,7 +93,7 @@ expect() {
     fail "$label: expected $want_calls gh call(s) got $calls"
   elif [[ "$want_calls" -gt 0 && "$(sort -u "$TMP_ROOT/log")" != "api repos/o/r/pulls/8313/files?per_page=100 --paginate" ]]; then
     fail "$label: unexpected gh call '$(sort -u "$TMP_ROOT/log")'"
-  elif [[ "$want_calls" -gt "$6" ]] && ! jq -e --argjson want "$4" '. == $want' "$TMP_ROOT/pr-files.json" >/dev/null 2>&1; then
+  elif [[ "$want_calls" -gt "$6" ]] && ! jq -se --argjson want "$(jq -sc . <<<"$4")" '. == $want' "$TMP_ROOT/pr-files.json" >/dev/null 2>&1; then
     fail "$label: the pages read were not left for the review-lane step: '$(cat "$TMP_ROOT/pr-files.json" 2>&1)'"
   elif [[ "$want_calls" -le "$6" && -e "$TMP_ROOT/pr-files.json" ]]; then
     fail "$label: an unread file list left a pr-files.json"
@@ -118,6 +118,8 @@ expect "files the broker does not load need no line" 0 1 \
 expect "a same-named file elsewhere needs no line" 0 1 "$(files "package.json" "$RC/sub/package.json" "$RC/package.json.orig")" "" 0
 expect "a rename away from a dependency path fails" 1 1 \
   "[{\"filename\":\"$RC/old/package.json\",\"previous_filename\":\"$RC/package.json\",\"status\":\"renamed\"}]" "" 0 "$RC/package.json"
+expect "a dependency path on the second page fails" 1 1 "$(files README.md)$(files "$RC/package.json")" "" 0 "$RC/package.json"
+expect "a dependency path on the second page passes with the line" 0 1 "$(files README.md)$(files "$RC/package.json")" "$LINE" 0
 expect "a CRLF body line counts" 0 1 "$(files "$RC/package.json")" $'Closes #1\r\n'"$LINE"$'\r\n## Summary\r' 0
 expect "trailing blanks after the number count" 0 1 "$(files "$RC/package.json")" "$LINE  " 0
 expect "the line inside other text does not count" 1 1 "$(files "$RC/package.json")" "see $LINE" 0
