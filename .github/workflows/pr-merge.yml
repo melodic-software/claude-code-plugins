@@ -1334,8 +1334,8 @@ jobs:
   # catches what the events missed, such as a run the lanes App started, which
   # the broker refuses. Only the scheduled run and a hand-started one arm, on
   # the issue link (one closing issue, or one plain `Refs:` issue) and verdict
-  # pr-merge's gate would take at the head, with no review-lane hold the gate
-  # reads (babysit_verify_evidence.py `evidence --lane-link --lane-reviews`,
+  # pr-merge's gate would take at the head, with no hold on the gate's risk
+  # score (babysit_verify_evidence.py `evidence --lane-link --lane-reviews`,
   # its Actions reads with the job's GITHUB_TOKEN from the head-ref map and
   # run cache the last gate run kept), and only while the gate's lane has
   # room (`lane-room`, from this run's post-merge-dispatch report): while the

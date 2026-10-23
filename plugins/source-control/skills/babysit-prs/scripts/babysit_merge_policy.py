@@ -4455,14 +4455,16 @@ class LaneRoom:
     """`lane_room`'s answer. `refusal`: the gate holds the lane off, so
     nothing is armed and armed lane pull requests are disarmed. `unreadable`:
     a read failed, which the caller holds on as on a refusal. Otherwise
-    `count` merges are in flight of `cap`, and `queued` holds the merge
-    queue's pull request numbers."""
+    `count` merges are in flight of `cap`, `queued` holds the merge queue's
+    pull request numbers, and `rung` is the effective rung the gate scores
+    each candidate at ("off" unless the lane has room)."""
 
     refusal: str | None = None
     unreadable: str | None = None
     count: int = 0
     cap: int = 1
     queued: frozenset[int] = frozenset()
+    rung: str = "off"
 
     def report(self) -> dict[str, Any]:
         return {
@@ -4471,6 +4473,7 @@ class LaneRoom:
             "count": self.count,
             "cap": self.cap,
             "queued": sorted(self.queued),
+            "rung": self.rung,
         }
 
 
@@ -4550,6 +4553,7 @@ def lane_room(
         count=flight.count if flight.clear else flight_cap,
         cap=flight_cap,
         queued=flight.queued,
+        rung=rung.rung,
     )
 
 

@@ -87,7 +87,7 @@ const COST_COMMENT = {
   created_at: "2026-10-22T12:00:00Z",
 };
 // lane-room's answer for a lane with room: nothing in flight of five.
-const ROOM = { refusal: null, unreadable: null, count: 0, cap: 5, queued: [] };
+const ROOM = { refusal: null, unreadable: null, count: 0, cap: 5, queued: [], rung: "C2" };
 const room = (answer = ROOM) => async () => answer;
 const labels = (...names) => ({ totalCount: names.length, nodes: names.map((name) => ({ name })) });
 
@@ -525,8 +525,8 @@ test("verifyHold allows only the reader's null refusal at the head read", () => 
   assert.match(verifyHold({ refusal: null, head: HEAD }, HEAD), /issue link could not be read/);
   assert.match(verifyHold({ refusal: null, head: HEAD, ineligible: false }, HEAD), /issue link could not be read/);
   // The review lanes' answer: a hold names it, and a line without one allows nothing.
-  assert.match(verifyHold({ refusal: null, head: HEAD, ineligible: null, reviews: "security-finding: 1 open" }, HEAD), /holds it on its review lanes \(security-finding: 1 open\)/);
-  assert.match(verifyHold({ refusal: null, head: HEAD, ineligible: null }, HEAD), /review lanes could not be read/);
+  assert.match(verifyHold({ refusal: null, head: HEAD, ineligible: null, reviews: "security-finding: 1 open" }, HEAD), /holds it on its risk score \(security-finding: 1 open\)/);
+  assert.match(verifyHold({ refusal: null, head: HEAD, ineligible: null }, HEAD), /risk score could not be read/);
 });
 
 // The merge queue's check (merge-holds.mjs verdictHold): a pass counts only
@@ -612,7 +612,7 @@ test("a reader that fails, prints no JSON or reports another head arms nothing a
     garbage: "print('not json')\n",
     other: `import json\nprint(json.dumps({"refusal": None, "head": "${"c".repeat(40)}"}))\n`,
     unlinked: `import json, sys\nprint(json.dumps({"refusal": None, "head": sys.argv[-1]}))\n`,
-    passes: `import json, sys\nassert sys.argv[2:4] == ["--lane-link", "--lane-reviews"] and sys.argv[-4:-2] == ["--base-sha", "${"d".repeat(40)}"], sys.argv\nprint(json.dumps({"refusal": None, "head": sys.argv[-1], "ineligible": None, "reviews": None}))\n`,
+    passes: `import json, sys\nassert sys.argv[2:4] == ["--lane-link", "--lane-reviews"] and sys.argv[-6:-2] == ["--base-sha", "${"d".repeat(40)}", "--rung", "C2"], sys.argv\nprint(json.dumps({"refusal": None, "head": sys.argv[-1], "ineligible": None, "reviews": None}))\n`,
   };
   for (const [name, body] of Object.entries(scripts)) {
     writeFileSync(join(dir, `${name}.py`), body);
@@ -674,10 +674,8 @@ def passes(self, number, head, pr=None):
     return ve.Evidence(None, head, (ve.Verdict(head, "pass", 1),), 0)
 
 argv = sys.argv[1:]
-cut = argv.index("--base-sha")
-del argv[cut : cut + 2]
 pr = lambda repo, number: {"number": number, "head": {"sha": argv[-1]}}
-with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "gh_capture", gh), mock.patch.object(ve.Reader, "evidence", passes), mock.patch.object(policy, "pull_request", pr), mock.patch.object(ve, "lane_review_refusal", lambda repo, number, pr: None):
+with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "gh_capture", gh), mock.patch.object(ve.Reader, "evidence", passes), mock.patch.object(policy, "pull_request", pr), mock.patch.object(ve, "lane_risk_refusal", lambda *args: None), mock.patch.object(policy, "read_config_at", lambda repo, sha: policy.PipelineConfig(sha, "C2", "pr-merge", "agent[bot]", None, (), "c2-mechanical")), mock.patch.object(policy, "with_default_branch", lambda repo, base, *rest: base):
     sys.exit(ve.main(argv))
 `,
   );
@@ -855,6 +853,68 @@ test("a review-lane hold the gate reads arms nothing and disarms an armed pull r
     { mutation: "disarm", id: "PR_2" },
     { mutation: "arm", id: "PR_4", head: HEAD },
   ]);
-  assert.ok(lines.some((line) => line.includes("#1 left: pr-merge's gate holds it on its review lanes (security-finding: 1 open)")));
-  assert.ok(lines.some((line) => line.includes("#3 left: its review lanes could not be read")));
+  assert.ok(lines.some((line) => line.includes("#1 left: pr-merge's gate holds it on its risk score (security-finding: 1 open)")));
+  assert.ok(lines.some((line) => line.includes("#3 left: its risk score could not be read")));
+});
+
+// The gate's whole risk score through its own CLI and scorer
+// (babysit_risk.score, holding), the reads stubbed: only a regular file that
+// stays regular may rate below HIGH, so a symlink or a submodule pointer a
+// lane pull request adds holds, and a plain documentation change arms.
+test("a lane pull request adding a symlink or a submodule pointer is not armed, or is disarmed; a doc change arms", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-risk-"));
+  const wrapper = join(dir, "risk.py");
+  writeFileSync(
+    wrapper,
+    `import json, os, sys
+sys.path.insert(0, os.environ["SCRIPTS"])
+from unittest import mock
+import babysit_merge
+import babysit_merge_policy as policy
+import babysit_verify_evidence as ve
+from babysit_risk import ChangedFile, LaneEvidence
+
+KINDS = json.loads(os.environ["KINDS"])
+DOC = ChangedFile("docs/guide.md", None, "modified", 1, 1, True, "100644", "100644", patch="@@ -1 +1 @@\\n-old\\n+new")
+EXTRA = {
+    "doc": (),
+    "symlink": (ChangedFile("docs/link", None, "added", 1, 0, True, "120000", "000000"),),
+    "submodule": (ChangedFile("vendor/lib", None, "modified", 1, 1, False, "160000", "160000"),),
+}
+number = int(sys.argv[-2])
+pr = {"number": number, "head": {"sha": sys.argv[-1]}, "base": {"sha": "d" * 40, "repo": {"private": False}}}
+lanes = (LaneEvidence("claude-review", True, None, 0), LaneEvidence("claude-security-review", True, None, 0, False, 0))
+config = policy.PipelineConfig("c" * 40, "C2", "pr-merge", "agent[bot]", None, (), "c2-mechanical")
+with mock.patch.object(ve.Reader, "link_refusal", lambda self, n: None), \\
+    mock.patch.object(ve.Reader, "evidence", lambda self, n, h, pr=None: ve.Evidence(None, h, (), 0)), \\
+    mock.patch.object(policy, "read_config_at", lambda repo, sha: config), \\
+    mock.patch.object(policy, "with_default_branch", lambda repo, base, *rest: base), \\
+    mock.patch.object(policy, "pull_request", lambda repo, n: pr), \\
+    mock.patch.object(policy, "changed_files", lambda repo, p: ((DOC, *EXTRA[KINDS[str(number)]]), True)), \\
+    mock.patch.object(policy, "with_contents", lambda repo, p, f: f), \\
+    mock.patch.object(policy, "pulumi_dirs_at", lambda repo, p: ()), \\
+    mock.patch.object(policy, "permission_reader", lambda repo: (lambda login: None)), \\
+    mock.patch.object(babysit_merge, "_lane_evidence", lambda *args: (lanes, [])):
+    sys.exit(ve.main(sys.argv[1:]))
+`,
+  );
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  const kinds = { 1: "doc", 2: "symlink", 3: "submodule" };
+  const { github, writes } = world([pull(1), pull(2), pull(3, { autoMergeRequest: armed })]);
+  const scripts = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
+  const env = { ...ENV, PATH: process.env.PATH, SCRIPTS: scripts, KINDS: JSON.stringify(kinds), VERIFY_EVIDENCE_SCRIPT: wrapper };
+  const lines = [];
+  const log = console.log;
+  console.log = (line) => lines.push(line);
+  try {
+    assert.equal(await main({ env, github, room: room() }), 0);
+  } finally {
+    console.log = log;
+  }
+  assert.deepEqual(writes(), [
+    { mutation: "arm", id: "PR_1", head: HEAD },
+    { mutation: "disarm", id: "PR_3" },
+  ]);
+  assert.ok(lines.some((line) => /#2 left: pr-merge's gate holds it on its risk score \(.*docs\/link/.test(line)), lines.join("\n"));
+  assert.ok(lines.some((line) => /#3 disarmed: pr-merge's gate holds it on its risk score \(.*vendor\/lib/.test(line)), lines.join("\n"));
 });

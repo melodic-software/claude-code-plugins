@@ -113,6 +113,9 @@ class LaneRoom(unittest.TestCase):
             (room.refusal, room.unreadable, room.count, room.cap, room.queued),
             (None, None, 2, 5, frozenset({11})),
         )
+        # The rung the gate scores at: merge.rung C2, the loop setting c2.
+        self.assertEqual(room.rung, "C2")
+        self.assertEqual(self.room(cap="C2").rung, "C2")
         # The lane's own merges, since the post-merge floor, judged by its check.
         self.assertEqual(
             (
@@ -208,7 +211,7 @@ class LaneRoomCommand(unittest.TestCase):
             repo: str, answer: object, *, lane_rung_cap: str | None
         ) -> policy.LaneRoom:
             seen.append((repo, answer, lane_rung_cap))
-            return policy.LaneRoom(count=1, cap=5, queued=frozenset({3}))
+            return policy.LaneRoom(count=1, cap=5, queued=frozenset({3}), rung="C2")
 
         out = io.StringIO()
         with (
@@ -234,7 +237,14 @@ class LaneRoomCommand(unittest.TestCase):
         self.assertEqual(seen, [(REPO, "answer", "")])
         self.assertEqual(
             json.loads(out.getvalue()),
-            {"refusal": None, "unreadable": None, "count": 1, "cap": 5, "queued": [3]},
+            {
+                "refusal": None,
+                "unreadable": None,
+                "count": 1,
+                "cap": 5,
+                "queued": [3],
+                "rung": "C2",
+            },
         )
 
     def test_a_missing_report_is_unreadable(self) -> None:

@@ -1075,9 +1075,11 @@ issue link and verifier verdict at that head pr-merge's gate would take:
 [eligibility](#the-pr-merge-lane) rule takes (one closing issue in this repository, or, with none,
 the one issue its plain `Refs: #<n>` lines name; a failed read refuses), a PASS or PASS-NOTES of [pr-verify](#verifier-verdict) stands at the head,
 no FAIL is at it, no earlier FAIL is uncleared, FAILs sit at fewer than `merge.max-verify-fails`
-heads, and the spec is unchanged and trusted; and `evidence --lane-reviews` finds no hold the gate
-reads from the review lanes' evidence bound to the head (an open CRITICAL security finding, or a
-review not bound to the head), whether or not the lane applied its hold label. Each such run also
+heads, and the spec is unchanged and trusted; and `evidence --lane-reviews` finds no hold on the
+gate's risk score (`babysit_risk.score` over the inputs the gate builds, at the lane room's rung):
+an open CRITICAL security finding or a review not bound to the head, whether or not the lane
+applied its hold label, a symlink, submodule or other non-regular mode, a high path, the manifest
+review, the trust gate and the cost review all hold. Each such run also
 waits for the same run's `post-merge-dispatch` job and reads the lane's room from the post-merge
 report that job keeps as an artifact (`babysit_verify_evidence.py lane-room`; with no report it
 holds as a refusal does): while the gate holds its lane off (a demotion record,
@@ -1111,6 +1113,9 @@ and the post-merge check, the full-run dispatch, re-firing refused runs and clea
 run unchanged. `gate` lists the lanes App's pull requests for the gate as well, which is how the
 lane ran before this setting; the `enable-auto-merge` job arms them in both modes.
 
+While the lanes kill switch is on (`CLAUDE_LANES_DISABLED` or `CLAUDE_LANES_REPO_DISABLED` reads
+anything but `false`), `ci-status` fails every lanes App pull request, so one armed before the switch
+was turned on stops in the merge queue; owner and Dependabot pull requests are not affected.
 `ci-status` enforces the same holds on every lanes App pull request, the two text holds and the
 hold paths, so one added after arming stops the merge without waiting for this job: its step
 `Fail a lanes App pull request its body or a member holds` runs

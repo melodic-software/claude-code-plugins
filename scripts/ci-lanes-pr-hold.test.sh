@@ -188,7 +188,8 @@ expect() {
   : >"$TMP_ROOT/log"
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_MODULE="${STUB_MODULE:-$MODULE}" \
     GITHUB_EVENT_NAME="${EVENT:-pull_request}" EVENT_ACTION="${ACTION-synchronize}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" \
-    GITHUB_REPOSITORY=o/r RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    GITHUB_REPOSITORY=o/r RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" \
+    LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   calls=$(grep -cE '/(comments|reviews)\?' "$TMP_ROOT/log")
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
@@ -214,6 +215,26 @@ STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"Use
 expect "a person's pull request is left to pr-merge's gate, with no discussion read" 0 0 "not the lanes App's"
 STUB_PULL="$(pull 'Closes #1' '{"id":1,"login":"melodic-automation-lanes[bot]","type":"User"}')"
 expect "a user account with the lanes App's login is not the lanes App" 0 0 "not the lanes App's"
+
+# The lanes kill switch stops every lanes App pull request, and only those.
+for kill in "KILL=true" "KILL=" "REPO_KILL=true" "REPO_KILL=1"; do
+  STUB_PULL="$(pull 'Closes #1')"
+  export "${kill?}"
+  expect "with $kill, a lanes App pull request fails" 1 0 "the lanes kill switch is on"
+  STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
+  expect "with $kill, a person's pull request is not held by it" 0 0 "not the lanes App's"
+  STUB_PULL="$(pull 'Closes #1' '{"id":49699333,"login":"dependabot[bot]","type":"Bot"}')"
+  expect "with $kill, a Dependabot pull request is not held by it" 0 0 "not the lanes App's"
+  STUB_PULL="$(pull 'Closes #1')"
+  unset KILL REPO_KILL
+done
+# shellcheck disable=SC2016 # a literal workflow expression, not shell
+if grep -qF 'LANES_DISABLED: ${{ vars.CLAUDE_LANES_DISABLED }}' <<<"$step" &&
+  grep -qF 'LANES_REPO_DISABLED: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}' <<<"$step"; then
+  ok "the step reads both kill switches from the vars context"
+else
+  fail "the step does not read both kill switches from the vars context"
+fi
 
 STUB_PULL="$(pull $'Closes #1\n\nHold: wait for the canary')"
 expect "a Hold: line in the body fails" 1 3 "::error::#7: its body holds it"

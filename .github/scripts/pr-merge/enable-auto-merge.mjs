@@ -54,12 +54,14 @@
 //   arms; at the cap it arms nothing more. A room that cannot be read (no
 //   post-merge report, a failed read) holds as a refusal does: nothing is
 //   armed and every armed lanes App pull request is disarmed.
-// - pr-merge's gate would not hold it on its review lanes: `evidence
-//   --lane-reviews` binds both lanes' evidence to the head as the gate does
-//   (babysit_merge._lane_evidence) and applies the gate's lane rule
-//   (babysit_risk._lane_reasons, holding), so an open CRITICAL security
-//   finding, or a review not bound to the head, holds whether or not the
-//   lane applied its hold label. Read only after the verdict allows.
+// - pr-merge's gate would not hold it on its risk score: `evidence
+//   --lane-reviews --rung <the room's rung>` runs the gate's scorer
+//   (babysit_risk.score, holding) over the inputs the gate builds, the
+//   review lanes' evidence bound to the head included. So an open CRITICAL
+//   security finding or a review not bound to the head (whether or not the
+//   lane applied its hold label), a symlink, submodule or other non-regular
+//   mode, a high path, the manifest review, the trust gate and the cost
+//   review hold. Read only after the verdict allows.
 // Arming passes the head just read as expectedHeadOid, so a push in between
 // fails the arm rather than arming a head nobody read. An armed pull request
 // that fails any rule is disarmed. While merge.report-only is true it reports
@@ -232,20 +234,24 @@ export function verifyHold(evidence, head) {
     return "its issue link could not be read";
   }
   if (typeof evidence.reviews === "string") {
-    return `pr-merge's gate holds it on its review lanes (${escapeCommand(evidence.reviews)})`;
+    return `pr-merge's gate holds it on its risk score (${escapeCommand(evidence.reviews)})`;
   }
-  return evidence.reviews === null ? null : "its review lanes could not be read";
+  return evidence.reviews === null ? null : "its risk score could not be read";
 }
 
 // The gate's own reader, one process per pull request; the run shares its
 // artifact listing, head-ref map and run cache through the BABYSIT_* files.
 export function pythonVerify(env) {
-  const verify = async ({ number, headRefOid: head, baseRefOid: base }) => {
+  // `rung`: the lane room's effective rung, which the gate scores at.
+  const verify = async ({ number, headRefOid: head, baseRefOid: base }, rung) => {
     if (!SHA.test(String(base))) {
       throw new Error("its base commit is not a commit SHA");
     }
     // --base-sha: the gate's FAIL cap, the lower of the base's and main's.
     const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "evidence", "--lane-link", "--lane-reviews", "--repo", env.GITHUB_REPOSITORY, "--base-sha", base];
+    if (typeof rung === "string") {
+      args.push("--rung", rung);
+    }
     const done = spawnSync("python3", [...args, String(number), head], { encoding: "utf8", env, timeout: VERIFY_TIMEOUT_MS });
     if (done.status !== 0) {
       throw new Error(`babysit_verify_evidence.py exited ${done.status ?? done.signal}: ${String(done.stderr ?? "").trim().split("\n").at(-1)}`);
@@ -288,9 +294,10 @@ export function readRoom(answer) {
     !whole(answer.count, 0) ||
     !whole(answer.cap, 1) ||
     !Array.isArray(answer.queued) ||
-    !answer.queued.every((number) => whole(number, 1))
+    !answer.queued.every((number) => whole(number, 1)) ||
+    typeof answer.rung !== "string"
   ) {
-    return { refusal: null, unreadable: "its answer is not lane-room's", count: 0, cap: 1, queued: [] };
+    return { refusal: null, unreadable: "its answer is not lane-room's", count: 0, cap: 1, queued: [], rung: "off" };
   }
   return answer;
 }
@@ -460,7 +467,7 @@ export async function main({ env = process.env, github, verify, room } = {}) {
       } else if (action === "verify") {
         let evidence = null;
         try {
-          evidence = await verify(pull);
+          evidence = await verify(pull, lane?.rung);
         } catch (error) {
           console.log(`enable-auto-merge: #${pull.number} verifier verdict did not read: ${escapeCommand(error?.message ?? error)}`);
         }

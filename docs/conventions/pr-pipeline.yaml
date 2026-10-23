@@ -394,7 +394,7 @@ activities:
     # gate takes (one closing issue, or one plain `Refs: #<n>` issue) and
     # that carries no hold (a `Hold:` line, do-not-merge, the human-gated
     # label, a member's "do not merge" comment, a head that changes a denied
-    # path, a review-lane hold the gate reads), while the gate's lane has
+    # path, a hold on the gate's risk score), while the gate's lane has
     # room (no demotion, rung on, below merge.max-in-flight), and turns it
     # off on an armed one that now carries a hold or while the gate holds the
     # lane off; auto-merge a person turned off stays off. No

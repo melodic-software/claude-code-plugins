@@ -109,11 +109,10 @@ import sys
 import tempfile
 import time
 import zipfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from types import SimpleNamespace
-from typing import Any, cast
+from typing import Any
 
 import babysit_merge_policy as merge_policy
 import babysit_postmerge as postmerge
@@ -512,6 +511,8 @@ class Reader:
     # The pull requests `link_refusal` read, each taken by the next
     # `_closing_issues` instead of reading it again.
     _linked: dict[int, dict[str, Any]] = field(default_factory=dict)
+    # The issue number `link_refusal` took for each pull request.
+    linked_issue: dict[int, Any] = field(default_factory=dict)
 
     def _listing(self) -> list[dict[str, Any]]:
         """`_current_listing`, noting when it began to be read
@@ -1004,11 +1005,12 @@ class Reader:
                     "pullRequest"
                 )
             )
-            _, refusal = merge_policy._linked_issue(pull, self.repo)
+            issue, refusal = merge_policy._linked_issue(pull, self.repo)
         except (_Unreadable, merge_policy.PolicyReadError) as exc:
             return f"unreadable: {exc}"
         if refusal is None:
             self._linked[number] = pull
+            self.linked_issue[number] = issue.get("number")
         return refusal
 
     def _closers(self, live: dict[Any, Any]) -> set[int]:
@@ -1426,21 +1428,33 @@ class Reader:
         return self.evidence(number, head, pr).refusal
 
 
-def lane_review_refusal(repo: str, number: int, pr: dict[str, Any]) -> str | None:
-    """Why pr-merge's gate would hold the pull request on its review lanes'
-    evidence, or None: the holding lane reasons of `babysit_risk`
-    (`_lane_reasons`, `holding`), over the evidence the gate binds
-    (`babysit_merge._lane_evidence`). The security lane's open CRITICAL
-    findings hold, and so does a lane whose review is not bound to the head.
-    A read that fails holds."""
+def lane_risk_refusal(
+    repo: str,
+    number: int,
+    pr: dict[str, Any],
+    config: merge_policy.PipelineConfig,
+    rung: str,
+    issue: int | None,
+) -> str | None:
+    """Why pr-merge's gate would hold the pull request on its risk score, or
+    None: `babysit_risk.score` and `holding` over the inputs the gate builds
+    (`babysit_merge.score_unattended`) for a lane pull request, class
+    `LANE_CLASS` at `rung`, with `config` the base's tightened by the
+    default branch head's. So the review lanes' evidence (an open CRITICAL
+    security finding, a review not bound to the head), a symlink, submodule
+    or other non-regular mode, a high path, the manifest review, the trust
+    gate and the cost review all hold, the cost review lifted only by the
+    owner's decision on the pull request or its linked `issue`
+    (`merge_policy.cost_decision`). A read that fails holds."""
     # Imported here: babysit_merge imports this module.
     import babysit_merge  # noqa: PLC0415
     import babysit_risk  # noqa: PLC0415
 
     try:
-        identity = merge_policy._default_branch_config(repo).agent_identity
+        identity = config.agent_identity
         if not identity:
             return "unreadable: no agent identity"
+        permission = merge_policy.permission_reader(repo)
         files, complete = merge_policy.changed_files(repo, pr)
         lanes, _ = babysit_merge._lane_evidence(
             repo,
@@ -1448,15 +1462,39 @@ def lane_review_refusal(repo: str, number: int, pr: dict[str, Any]) -> str | Non
             pr,
             identity,
             frozenset(),
-            merge_policy.permission_reader(repo),
+            permission,
             [p for f in files for p in (f.path, f.previous_path) if p]
             if complete
             else None,
         )
-        reasons = babysit_risk._lane_reasons(lanes)
+        files = merge_policy.with_contents(repo, pr, files)
+        private = json_object(json_object(pr.get("base")).get("repo")).get("private")
+        risk_input = babysit_risk.RiskInput(
+            work_class=merge_policy.LANE_CLASS,
+            rung=babysit_risk.Rung[rung.upper()],
+            files=files,
+            files_complete=complete,
+            max_changed_lines=config.max_changed_lines,
+            high_paths=config.denied_paths,
+            lanes=lanes,
+            blast_radius=None,
+            public=True if private is False else None,
+            pulumi_dirs=merge_policy.pulumi_dirs_at(repo, pr),
+            high_floor=config.high_path_floor,
+            c2_contradictions=config.c2_contradictions,
+            max_changed_files=config.max_changed_files,
+            lines_optional=True,
+        )
+        risk = babysit_risk.score(risk_input)
+        if any(r.code == babysit_risk.COST_CODE for r in risk.reasons):
+            decision = merge_policy.cost_decision(
+                repo, pr, issue, permission=permission, agent_identity=identity
+            )
+            if decision:
+                risk = babysit_risk.score(replace(risk_input, cost_decision=decision))
     except Exception as exc:  # noqa: BLE001 - any doubt holds, as the gate's
         return f"unreadable: {type(exc).__name__}: {exc}"
-    held = babysit_risk.holding(cast(Any, SimpleNamespace(reasons=reasons)))
+    held = babysit_risk.holding(risk)
     return "; ".join(f"{r.code}: {r.detail}" for r in held) or None
 
 
@@ -1476,10 +1514,10 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     With `--lane-link`, the line also carries `ineligible`: null when the
     pull request's issue link is one the pr-merge lane takes
     (`Reader.link_refusal`), else why not, with refusal `verify:ineligible`
-    and no verdict or config read. With `--lane-reviews`, a line whose
-    refusal is null also carries `reviews`: null when pr-merge's gate would
-    not hold the pull request on its review lanes (`lane_review_refusal`),
-    else why.
+    and no verdict or config read. With `--lane-reviews` (and `--base-sha`
+    and `--rung`, the lane room's effective rung), a line whose refusal is
+    null also carries `reviews`: null when pr-merge's gate would not hold
+    the pull request on its risk score (`lane_risk_refusal`), else why.
 
     `lane-room --postmerge-result <file> [--rung-cap <value>]`: whether the
     pr-merge lane may merge one more of its own pull requests now
@@ -1497,6 +1535,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     cmd.add_argument("--base-sha", default=None)
     cmd.add_argument("--lane-link", action="store_true")
     cmd.add_argument("--lane-reviews", action="store_true")
+    cmd.add_argument("--rung", default=None)
     cmd.add_argument("number", type=int)
     cmd.add_argument("head")
     room = sub.add_parser("lane-room", allow_abbrev=False)
@@ -1522,6 +1561,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
         )
     reader = Reader(args.repo, args.branch, now=now, max_fails=args.max_fails)
     link: dict[str, Any] = {}
+    config: merge_policy.PipelineConfig | None = None
     if args.lane_link:
         link["ineligible"] = reader.link_refusal(args.number)
         if link["ineligible"] is not None:
@@ -1553,11 +1593,30 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
         evidence = reader.evidence(args.number, args.head, pr)
     if args.lane_reviews and evidence.refusal is None:
         head = json_object(json_object(pr).get("head")).get("sha")
-        link["reviews"] = (
-            lane_review_refusal(args.repo, args.number, json_object(pr))
-            if head == args.head
-            else f"unreadable: the head is {head}, not {args.head}"
-        )
+        if head != args.head:
+            link["reviews"] = f"unreadable: the head is {head}, not {args.head}"
+        elif config is None:
+            link["reviews"] = "unreadable: no --base-sha, so no config to score at"
+        else:
+            # The lowest of the room's effective rung and this base's config.
+            rung = merge_policy.effective_rung(
+                config_rung=config.rung,
+                loop_merge=config.loop_merge,
+                cap=args.rung if args.rung in merge_policy.RUNG_RANK else "off",
+                demoted=False,
+            ).rung
+            link["reviews"] = (
+                f"unreadable: the lane's rung is {args.rung}"
+                if rung == "off"
+                else lane_risk_refusal(
+                    args.repo,
+                    args.number,
+                    json_object(pr),
+                    config,
+                    rung,
+                    reader.linked_issue.get(args.number),
+                )
+            )
     print(json.dumps(evidence.report() | link))
     return 0
 
