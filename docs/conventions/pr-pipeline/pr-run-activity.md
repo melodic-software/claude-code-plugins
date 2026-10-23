@@ -1152,14 +1152,14 @@ of `patch-rules.json`. The caller passes the outputs of whichever `fix-ci` call 
 The run's `escalation-reason` output is the script's reason, else the select step's. The runner
 accepts the script's reasons only in this mode.
 
-In `pr-unblock.yml` the same leaf, as the `apply-docs-patch` job, follows `fix-docs`, which has
+In `pr-refine.yml` the same leaf, as the `apply-docs-patch` job, follows `fix-docs`, which has
 no prepare mode: the caller passes no `patch-prepare`, so the script takes the `default` row, and
 runs the job only on a `written` patch. That row refuses the universal set, escalating
 `patch-protected-path`, caps a patch at 300 paths (`patch-invalid`), takes a moved head with
 `--3way` when the moved commits touch no patched path (`skip-moved-head: false`), and commits
-`Apply fix-docs on <head ref>` with the trailer `Lane-Activity: pr-unblock/fix-docs`.
-`report-escalation` does not need `apply-docs-patch` and takes no `patch-*` reason, so an
-escalation leaves only the neutral `awaiting-human` check.
+`Apply fix-docs on <head ref>` with the trailer `Lane-Activity: pr-refine/fix-docs`.
+`pr-refine.yml` has no escalation job, so a refusal leaves only the neutral `awaiting-human`
+check.
 
 In issue mode the same leaf is `apply-issue-patch`, which runs
 [`apply-patch.mjs`](../../../.github/scripts/apply-patch/apply-patch.mjs) with `PATCH_TARGET=issue`

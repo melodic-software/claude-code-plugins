@@ -1,8 +1,10 @@
 // Expected values come from fix-docs's applies-when in
 // docs/conventions/pr-pipeline.yaml (paths **/*.md, labels-absent do-not-merge
-// and needs-human, draft false), the check name `pr-unblock / fix-docs` the
-// read runner posts as `<lane> / <activity>`, and pr-refine.yml's old trigger:
-// once when a PR opened ready or turned ready, never on a bot's event.
+// and needs-human, draft false), the check name `pr-refine / fix-docs` the
+// read runner posts as `<lane> / <activity>` (and `pr-unblock / fix-docs`, the
+// lane fix-docs ran in before), the owner's call to tidy every PR but
+// Dependabot's, the release App's and the standards-sync App's, and once per
+// PR, as pr-refine.yml's old trigger ran it when a PR opened or turned ready.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -11,7 +13,13 @@ import { createGitHubApi } from "./dispatch.mjs";
 import { dispatchDocsFixes, HISTORY_COMMITS, HISTORY_QUERY, LIST_QUERY } from "./fix-docs-dispatch.mjs";
 
 const ACTIONS = 15368;
-const CHECK = "pr-unblock / fix-docs";
+const CHECK = "pr-refine / fix-docs";
+const EARLIER_CHECK = "pr-unblock / fix-docs";
+// GET /users/<login> ids, which GraphQL's Bot.databaseId returns too.
+const DEPENDABOT = 49699333;
+const RELEASE_APP = 337859524;
+const STANDARDS_SYNC_APP = 300666570;
+const LANES_APP = 337595936;
 
 const checkRun = (name, app = ACTIONS) => ({ __typename: "CheckRun", name, checkSuite: { app: { databaseId: app } } });
 
@@ -24,7 +32,7 @@ function pr(number, { paths = ["docs/guide.md"], more = false, checks = [], ...o
     isCrossRepository: false,
     baseRefName: "main",
     headRefOid: head,
-    author: { __typename: "User", login: "someone" },
+    author: { __typename: "User", login: "someone", databaseId: 4242 },
     labels: { nodes: [] },
     files: { nodes: paths.map((path) => ({ path })), pageInfo: { hasNextPage: more } },
     commits: { nodes: [{ commit: { oid: head, statusCheckRollup: { contexts: { nodes: checks, pageInfo: { hasNextPage: false } } } } }] },
@@ -32,9 +40,16 @@ function pr(number, { paths = ["docs/guide.md"], more = false, checks = [], ...o
   };
 }
 
-// Per PR number, the check-run counts on each of its last commits; absent is none.
-const history = (counts = []) => ({
-  commits: { nodes: counts.map((count) => ({ commit: { checkSuites: { nodes: [{ checkRuns: { totalCount: count } }], pageInfo: { hasNextPage: false } } } })) },
+// Per PR number, the check-run counts on each of its last commits; absent is
+// none. `earlier` gives the counts under the earlier check name.
+const history = (counts = [], earlier = counts.map(() => 0)) => ({
+  commits: {
+    nodes: counts.map((count, index) => ({
+      commit: {
+        checkSuites: { nodes: [{ checkRuns: { totalCount: count }, earlierRuns: { totalCount: earlier[index] } }], pageInfo: { hasNextPage: false } },
+      },
+    })),
+  },
 });
 
 function fakeApi({ pages = [[]], histories = {}, workflowRuns = [], failHistory = new Set() } = {}) {
@@ -48,8 +63,8 @@ function fakeApi({ pages = [[]], histories = {}, workflowRuns = [], failHistory 
         pullRequests: { nodes: pages[index], pageInfo: { hasNextPage: index + 1 < pages.length, endCursor: String(index + 1) } },
       };
     },
-    async readDocsFixHistory({ number, appId, checkName }) {
-      calls.history.push({ number, appId, checkName });
+    async readDocsFixHistory({ number, appId, checkName, earlierCheckName }) {
+      calls.history.push({ number, appId, checkName, earlierCheckName });
       if (failHistory.has(number)) {
         throw new Error("history read failed");
       }
@@ -75,13 +90,13 @@ async function run(apiOptions, options = {}) {
 
 const numbers = (api) => api.calls.dispatch.map((call) => call.inputs["pr-number"]);
 
-test("a ready PR a person opened that changes Markdown is dispatched fix-docs on main with the dispatcher's run id", async () => {
+test("a ready PR a person opened that changes Markdown is dispatched pr-refine.yml fix-docs on main with the dispatcher's run id", async () => {
   const { api, result, lines } = await run({ pages: [[pr(5)]] });
   assert.deepEqual(api.calls.dispatch, [
-    { workflow: "pr-unblock.yml", ref: "refs/heads/main", inputs: { "pr-number": "5", activity: "fix-docs", "dispatcher-run-id": "4242" } },
+    { workflow: "pr-refine.yml", ref: "refs/heads/main", inputs: { "pr-number": "5", activity: "fix-docs", "dispatcher-run-id": "4242" } },
   ]);
   assert.deepEqual(result, { dispatched: [{ number: 5, workflowRunId: "8005" }], failed: 0 });
-  assert.deepEqual(api.calls.history, [{ number: 5, appId: ACTIONS, checkName: CHECK }]);
+  assert.deepEqual(api.calls.history, [{ number: 5, appId: ACTIONS, checkName: CHECK, earlierCheckName: EARLIER_CHECK }]);
   assert.ok(lines.includes("fix-docs listing page 1: rateLimit.cost=3 remaining=4990"), "the listing's cost is logged");
 });
 
@@ -104,14 +119,39 @@ test("a draft, a fork, a PR into another base, or a held PR is not dispatched", 
   assert.deepEqual(api.calls.history, [], "no history read for a PR the listing drops");
 });
 
-test("PRs the lanes App, Dependabot or any other bot opened are not dispatched, as pr-refine.yml skipped bot events", async () => {
+test("PRs the lanes App or another bot opened are dispatched; Dependabot's, the release App's and the standards-sync App's are not", async () => {
   const pulls = [
-    pr(20, { author: { __typename: "Bot", login: "melodic-automation-lanes" } }),
-    pr(21, { author: { __typename: "Bot", login: "dependabot" } }),
-    pr(22, { author: null }),
-    pr(23),
+    pr(20, { author: { __typename: "Bot", login: "melodic-automation-lanes", databaseId: LANES_APP } }),
+    pr(21, { author: { __typename: "Bot", login: "dependabot", databaseId: DEPENDABOT } }),
+    pr(22, { author: { __typename: "Bot", login: "melodic-plugin-release", databaseId: RELEASE_APP } }),
+    pr(23, { author: { __typename: "Bot", login: "melodic-standards-sync", databaseId: STANDARDS_SYNC_APP } }),
+    pr(24, { author: { __typename: "Bot", login: "claude", databaseId: 209825114 } }),
+    pr(25),
   ];
-  assert.deepEqual(numbers((await run({ pages: [pulls] })).api), ["23"]);
+  assert.deepEqual(numbers((await run({ pages: [pulls] })).api), ["20", "24"]);
+});
+
+test("an excluded account is matched by id, not login, and a PR whose author has no id is not dispatched", async () => {
+  const pulls = [
+    pr(26, { author: { __typename: "Bot", login: "renamed-dependabot", databaseId: DEPENDABOT } }),
+    pr(27, { author: { __typename: "User", login: "dependabot" } }),
+    pr(28, { author: null }),
+    pr(29, { author: { __typename: "Bot", login: "x", databaseId: "49699333" } }),
+  ];
+  assert.deepEqual(numbers((await run({ pages: [pulls] })).api), []);
+});
+
+test("a head or an earlier commit with a pr-unblock / fix-docs run, from before the lane moved, is not dispatched again", async () => {
+  const record = emptyRecord();
+  markHandled(record, EARLIER_CHECK, pr(38).headRefOid);
+  const { api } = await run({
+    pages: [[pr(36, { checks: [checkRun(EARLIER_CHECK)] }), pr(37), pr(38), pr(39)]],
+    histories: { 37: history([0, 0], [0, 1]) },
+  }, { record });
+  assert.deepEqual(numbers(api), ["39"]);
+  assert.deepEqual(api.calls.history.map((call) => call.number), [37, 39], "a head recorded under the earlier name skips its read");
+  assert.ok(isHandled(record, CHECK, pr(36).headRefOid), "a head handled under the earlier name is recorded under the current one");
+  assert.ok(isHandled(record, CHECK, pr(37).headRefOid));
 });
 
 test("once per PR: a head with a fix-docs run, or any earlier commit with one, is not dispatched again", async () => {
@@ -152,9 +192,9 @@ test("a fix-docs run still queued or going for the PR holds the dispatch", async
   const { api } = await run({
     pages: [[pr(50), pr(51)]],
     workflowRuns: [
-      { id: 1, status: "in_progress", display_title: "pr-unblock fix-docs #50" },
-      { id: 2, status: "completed", display_title: "pr-unblock fix-docs #51" },
-      { id: 3, status: "queued", display_title: "pr-unblock fix-ci #51" },
+      { id: 1, status: "in_progress", display_title: "pr-refine fix-docs #50" },
+      { id: 2, status: "completed", display_title: "pr-refine fix-docs #51" },
+      { id: 3, status: "queued", display_title: "pr-unblock fix-docs #51" },
     ],
   });
   assert.deepEqual(numbers(api), ["51"]);
@@ -182,9 +222,11 @@ test("the GitHub API sends the listing and history queries with their variables"
   };
   const api = createGitHubApi({ token: "t", repository: "octo/repo", apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch });
   await api.listDocsFixCandidates({ base: "main" });
-  const read = await api.readDocsFixHistory({ number: 9, appId: ACTIONS, checkName: CHECK });
+  const read = await api.readDocsFixHistory({ number: 9, appId: ACTIONS, checkName: CHECK, earlierCheckName: EARLIER_CHECK });
   assert.deepEqual(bodies[0].variables, { owner: "octo", name: "repo", base: "main", after: null });
-  assert.deepEqual(bodies[1].variables, { owner: "octo", name: "repo", number: 9, appId: ACTIONS, checkName: CHECK });
+  assert.deepEqual(bodies[1].variables, { owner: "octo", name: "repo", number: 9, appId: ACTIONS, checkName: CHECK, earlierCheckName: EARLIER_CHECK });
+  assert.match(LIST_QUERY, /\.\.\. on Bot \{ databaseId \}/);
+  assert.match(LIST_QUERY, /\.\.\. on User \{ databaseId \}/);
   assert.equal(bodies[1].query, HISTORY_QUERY);
   assert.match(HISTORY_QUERY, new RegExp(`commits\\(last: ${HISTORY_COMMITS}\\)`));
   assert.deepEqual(read.pullRequest, history([0]));

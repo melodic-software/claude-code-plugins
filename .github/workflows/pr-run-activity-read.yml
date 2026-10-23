@@ -535,7 +535,8 @@ jobs:
           dispatcher-workflow: .github/workflows/pr-unblock-dispatch.yml
           run-dispatcher-workflow: ${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-feedback-dispatch.yml' || '' }}
           run-dispatcher-upstreams: ${{ inputs.feedback-context-sha256 != '' && '.github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml' || '' }}
-          dispatched-workflow: .github/workflows/pr-unblock.yml
+          # A dispatcher sends pr-refine.yml for the pr-refine lane, pr-unblock.yml otherwise.
+          dispatched-workflow: ${{ inputs.lane == 'pr-refine' && '.github/workflows/pr-refine.yml' || '.github/workflows/pr-unblock.yml' }}
           # Issue mode reads no PR: the account that applied the label, and
           # any re-runner, must be listed as a human; the lanes App passes
           # only by applying the caller's app-label.

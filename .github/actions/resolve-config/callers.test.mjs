@@ -953,14 +953,14 @@ test("every read-runner caller job passes exactly one Claude secret, named for i
     }
   }
   assert.deepEqual(callers.sort(), [
+    "pr-refine.yml fix-docs",
+    "pr-refine.yml fix-docs-subscription",
     "pr-unblock.yml address-feedback",
     "pr-unblock.yml address-feedback-subscription",
     "pr-unblock.yml fix-ci",
     "pr-unblock.yml fix-ci-rung-up",
     "pr-unblock.yml fix-ci-rung-up-subscription",
     "pr-unblock.yml fix-ci-subscription",
-    "pr-unblock.yml fix-docs",
-    "pr-unblock.yml fix-docs-subscription",
     "work-resolve-issue.yml resolve-issue",
   ]);
 });
@@ -1279,7 +1279,7 @@ test("pr-run-activity-read.yml: the fallback call's lane record names why it ran
 // call ran the activity.
 const PATCH_LANES = [
   ["pr-unblock.yml", "fix-ci", "fix-ci-subscription", ["fix-ci-context"], { "needs.fix-ci-context.outputs.proceed": "true" }, "apply-patch"],
-  ["pr-unblock.yml", "fix-docs", "fix-docs-subscription", ["fix-docs-head"], {}, "apply-docs-patch"],
+  ["pr-refine.yml", "fix-docs", "fix-docs-subscription", ["fix-docs-head"], {}, "apply-docs-patch"],
   // apply-feedback-patch stays out of report-escalation: every refusal leaves
   // no fix commit, and publish-feedback escalates feedback-not-landed
   // (publish-feedback.test.mjs).
@@ -1424,6 +1424,11 @@ for (const [file, firstId, subId, extraNeeds, extraProceed, applyId] of PATCH_LA
     assert.equal(runs("empty", ""), EMPTY_RUNS_APPLY[firstId], "an empty patch");
     assert.equal(runs("", ""), false, "a handoff whose fallback call left no patch");
     const escalation = jobs["report-escalation"];
+    if (escalation === undefined) {
+      // A lane with no escalation job hands no PR to a person.
+      assert.equal(EMPTY_RUNS_APPLY[firstId], false, `${file} has no report-escalation for ${applyId}`);
+      return;
+    }
     for (const need of escalation.needs) assert.ok(Object.hasOwn(jobs, need), `report-escalation needs ${need}, a job of the file`);
     if (EMPTY_RUNS_APPLY[firstId]) {
       assert.ok(escalation.needs.includes(applyId));
@@ -1446,17 +1451,19 @@ test("pr-run-activity-write.yml passes the producer's prepare mode to both apply
   }
 });
 
-// fix-docs starts only from a pr-unblock.yml dispatch naming it: the
+// fix-docs starts only from a pr-refine.yml dispatch naming it: the
 // dispatcher, or a listed person. Every fix-docs job trusts the default
 // branch tip, and the lanes App's own dispatch starts none.
-test("pr-unblock.yml: fix-docs runs only on a fix-docs dispatch with a PR number, never the lanes App's, trusting the default branch tip", () => {
-  const { on, jobs } = workflow("pr-unblock.yml");
-  assert.ok(on.workflow_dispatch.inputs.activity.options.includes("fix-docs"), "a fix-docs dispatch is a valid choice");
-  assert.equal(on.pull_request, undefined);
+test("pr-refine.yml: fix-docs runs only on a fix-docs dispatch with a PR number, never the lanes App's, trusting the default branch tip", () => {
+  const { on, jobs, "run-name": runName } = workflow("pr-refine.yml");
+  assert.deepEqual(Object.keys(on), ["workflow_dispatch"], "dispatch only, no pull_request trigger");
+  assert.deepEqual(on.workflow_dispatch.inputs.activity.options, ["fix-docs"]);
+  // fix-docs-dispatch.mjs matches this title to skip a PR whose run is not done.
+  assert.equal(runName, "pr-refine ${{ inputs.activity }} #${{ inputs.pr-number }}");
   for (const id of ["fix-docs", "fix-docs-subscription", "apply-docs-patch"]) {
     assert.equal(jobs[id].with["trusted-base"], "default-tip", id);
     assert.equal(jobs[id].with["dispatcher-run-id"], "${{ inputs.dispatcher-run-id }}", id);
-    assert.equal(jobs[id].with.lane, "pr-unblock", id);
+    assert.equal(jobs[id].with.lane, "pr-refine", id);
     assert.deepEqual(jobs[id].permissions, { contents: "read", "pull-requests": "read", checks: "write", issues: "write", "id-token": "write" }, id);
   }
   const starts = ({ activity = "fix-docs", pr = "7", sender = "1" } = {}) =>
@@ -1471,18 +1478,20 @@ test("pr-unblock.yml: fix-docs runs only on a fix-docs dispatch with a PR number
   assert.equal(starts({ activity: "resolve-conflicts" }), false);
   assert.equal(starts({ pr: "" }), false);
   assert.equal(starts({ sender: "2" }), false, "the lanes App's own dispatch");
-  assert.equal(existsSync(new URL("../../workflows/pr-refine.yml", import.meta.url)), false, "pr-refine.yml and its pull_request trigger are gone");
+  const unblock = workflow("pr-unblock.yml");
+  assert.ok(!unblock.on.workflow_dispatch.inputs.activity.options.includes("fix-docs"), "pr-unblock.yml no longer takes fix-docs");
+  assert.deepEqual(Object.keys(unblock.jobs).filter((id) => /docs/.test(id)), []);
 });
 
 // The read report job posts on the run's head only when it equals a head the
 // caller or event gated; with neither it trusts the PR head read at report
 // time, so a push mid-run made a finished run look forged and posted failure
 // on the new head (#9207). Runs the report job's head step with the head-sha
-// each pr-unblock call passes.
-test("pr-unblock.yml: a read activity whose PR head moved mid-run posts on its own head, never on the new one", () => {
+// each pr-unblock and pr-refine call passes.
+test("pr-unblock.yml and pr-refine.yml: a read activity whose PR head moved mid-run posts on its own head, never on the new one", () => {
   const old = "1".repeat(40);
   const moved = "2".repeat(40);
-  const { jobs } = workflow("pr-unblock.yml");
+  const jobs = { ...workflow("pr-unblock.yml").jobs, ...workflow("pr-refine.yml").jobs };
   const read = workflow("pr-run-activity-read.yml");
   const step = read.jobs.report.steps.find((s) => s.name === "Choose the head the check is posted on");
   const choose = (callerHead, runHead, postDecline = true) => {
@@ -2941,11 +2950,12 @@ test("report job: the PR number comes from the caller or the event, a run job pr
   assert.equal(steps.filter((s) => String(s.uses ?? "").startsWith("actions/checkout@")).length, 1);
   assert.doesNotMatch(JSON.stringify(steps), /base-sha/, "no step reads the run job's base-sha");
   assert.equal(steps.findIndex((s) => s.name === "Assert the default branch is set"), 0);
-  // pr-unblock passes the head a job that ran no head code read to both calls
-  // of each activity.
+  // pr-unblock and pr-refine pass the head a job that ran no head code read
+  // to both calls of each activity.
   const { jobs } = workflow("pr-unblock.yml");
   for (const id of ["fix-ci", "fix-ci-subscription"]) assert.equal(jobs[id].with["head-sha"], "${{ needs.fix-ci-context.outputs.head-sha }}", id);
-  for (const id of ["fix-docs", "fix-docs-subscription"]) assert.equal(jobs[id].with["head-sha"], "${{ needs.fix-docs-head.outputs.head-sha }}", id);
+  const refine = workflow("pr-refine.yml").jobs;
+  for (const id of ["fix-docs", "fix-docs-subscription"]) assert.equal(refine[id].with["head-sha"], "${{ needs.fix-docs-head.outputs.head-sha }}", id);
 });
 
 test("scan job: an empty default branch fails closed before the opener is checked out", (t) => {

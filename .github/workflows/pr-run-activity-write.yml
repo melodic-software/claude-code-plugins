@@ -584,7 +584,8 @@ jobs:
           # gated, and only the lanes App's signed commits may follow it.
           expected-upstream-head: ${{ inputs.expected-upstream-head }}
           lanes-app-id: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
-          dispatched-workflow: .github/workflows/pr-unblock.yml
+          # A dispatcher sends pr-refine.yml for the pr-refine lane, pr-unblock.yml otherwise.
+          dispatched-workflow: ${{ inputs.lane == 'pr-refine' && '.github/workflows/pr-refine.yml' || '.github/workflows/pr-unblock.yml' }}
           # Issue mode reads no PR: the account that applied the label, and
           # any re-runner, must be listed as a human.
           require-pr: ${{ inputs.issue-number == '' }}

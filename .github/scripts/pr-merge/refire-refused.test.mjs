@@ -27,10 +27,12 @@ const sha = (n) => String(n).padStart(40, "0");
 const MAIN_TIP = "a".repeat(40);
 const LANE = "pr-unblock.yml";
 const UNBLOCK = ".github/workflows/pr-unblock.yml";
+const REFINE_LANE = "pr-refine.yml";
+const REFINE = ".github/workflows/pr-refine.yml";
 const WRITER = ".github/workflows/pr-run-activity-write.yml";
 const ACTIONS_BOT = { id: 41898282, login: "github-actions[bot]" };
 const FILES = [UNBLOCK, WRITER, ".github/workflows/pr-unblock-dispatch.yml", ".github/workflows/pr-feedback-dispatch.yml"];
-const MAIN_BLOBS = Object.fromEntries(FILES.map((file) => [file, BLOB]));
+const MAIN_BLOBS = Object.fromEntries([...FILES, REFINE].map((file) => [file, BLOB]));
 
 const pr = (number, { user = OWNER, draft = false, repo = REPO, ref = `fix/${number}` } = {}) => ({
   number,
@@ -194,12 +196,59 @@ test("a dispatched pr-unblock run re-fires only when its failed check is on the 
   assert.equal(pushes(rerun.calls).length, 0);
 });
 
-test("a pr-refine.yml run is no longer read or re-fired", async () => {
-  const w = world({ pulls: [pr(7)], runs: { "pr-refine.yml": [run(70, { number: 7 })] }, checks: { [sha(7)]: [linkedCheck(70)] } });
+// A refused pr-refine run, dispatched on main for PR `number`, with its
+// failed check on that PR's head.
+const refineWorld = (number, runOptions = {}, options = {}) =>
+  world({
+    pulls: [pr(number)],
+    runs: { [REFINE_LANE]: [run(number * 10, { number, title: `pr-refine fix-docs #${number}`, messages: [denial(REFINE)], ...runOptions })] },
+    checks: { [sha(number)]: [linkedCheck(number * 10)] },
+    ...options,
+  });
+
+test("a pr-refine run refused as workflow-modified on the current head gets one empty commit on that branch", async () => {
+  const w = refineWorld(7);
   assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
-  assert.equal(w.calls.some((call) => call.includes("/actions/workflows/pr-refine.yml/")), false);
-  assert.deepEqual(pushes(w.calls), []);
-  assert.deepEqual(posts(w.calls), []);
+  assert.deepEqual(posts(w.calls), [`POST /repos/${REPO}/issues/7/comments ${JSON.stringify({ body: refireComment(REFINE, BLOB, sha(7), REFINE_LANE) })}`]);
+  assert.deepEqual(pushes(w.calls), [`PATCH /repos/${REPO}/git/refs/heads/fix/7 {"sha":"${NEW_SHA}","force":false}`]);
+});
+
+test("a pr-refine re-fire says the push starts no pr-refine run, which waits for a listed person's dispatch", async () => {
+  const w = refineWorld(7);
+  assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+  const body = postedBody(w.calls);
+  assert.ok(body.includes("so the next pr-refine run uses main's files"), body);
+  assert.ok(
+    body.endsWith(" The push starts no pr-refine run itself: fix-docs runs once per pull request, so a listed person dispatches `pr-refine` with its number to run it again."),
+    body,
+  );
+});
+
+test("a pr-refine run refused for the write runner or the dispatcher re-fires; one refused for pr-unblock.yml does not", async () => {
+  for (const file of [WRITER, ".github/workflows/pr-unblock-dispatch.yml"]) {
+    const w = refineWorld(7, { messages: [denial(file)] });
+    assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+    assert.equal(pushes(w.calls).length, 1, file);
+  }
+  const other = refineWorld(7, { messages: [denial(UNBLOCK)] });
+  assert.equal(await main({ env, github: other.github, actions: other.actions, now: NOW }), 0);
+  assert.deepEqual(pushes(other.calls), []);
+});
+
+test("a pr-refine run on a head that changes a file the broker compares for it is not re-fired", async () => {
+  for (const file of [REFINE, WRITER]) {
+    const w = refineWorld(7, {}, { changed: { [sha(7)]: ["README.md", file] } });
+    assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+    assert.deepEqual(pushes(w.calls), [], file);
+  }
+});
+
+test("a pr-refine run whose title names no PR, or another workflow's title, re-fires nothing", async () => {
+  for (const title of ["pr-refine fix-docs", "pr-review fix-docs #7", "pr-refine fix-docs #7 extra"]) {
+    const w = refineWorld(7, { title });
+    assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+    assert.deepEqual(pushes(w.calls), [], title);
+  }
 });
 
 // The comment text pr-merge posted for every lane until now, verbatim: markers

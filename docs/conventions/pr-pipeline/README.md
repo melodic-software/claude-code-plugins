@@ -110,13 +110,13 @@ reader applies.
 
 | Lane | Starts on |
 |---|---|
-| `pr-refine` | no caller today; `fix-docs` runs in `pr-unblock` |
+| `pr-refine` | a `fix-docs` dispatch from `pr-unblock-dispatch.yml` for each ready PR that changes Markdown and never had `fix-docs`, after a push to the default branch, or a trusted human's dispatch |
 | `pr-run-checks` | dispatch from `pr-refine` |
 | `pr-review`, `pr-review-security` | dispatch from `pr-refine` |
 | `pr-verify` | dispatch from `pr-refine` |
 | `pr-explain` | dispatch from `pr-refine`, alongside verify |
 | `pr-require-checks` | each verify result |
-| `pr-unblock` | a dispatch for each conflicting PR, each unreviewed review-tier Dependabot PR, each failing lanes App PR and each ready PR a person opened that changes Markdown and never had `fix-docs` after a push to the default branch, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, or a trusted human's dispatch |
+| `pr-unblock` | a dispatch for each conflicting PR, each unreviewed review-tier Dependabot PR, and each failing lanes App PR after a push to the default branch, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, or a trusted human's dispatch |
 | `pr-merge` | final check green, or a hold removed |
 | `work-unblock` | an issue closing, by a listed human, and an hourly sweep of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran); labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue`. The sweep also restarts or re-fires stopped issue runs and relabels a red-main fix issue a repeat failure reopened |
 | `post-merge-verify` | push to the default branch |
@@ -260,24 +260,27 @@ and no `fix-ci` run for the PR still queued or going, at most `limits.fix-ci-per
 lowest number first. Their run ids join the dispatched-runs record. The dispatcher job's
 concurrency group cancels a run in progress, so a burst of pushes ends in one listing.
 
-`pr-unblock`'s `fix-docs` runs the same way in three jobs of `pr-unblock.yml`: `fix-docs` (a
+`pr-refine`'s `fix-docs` runs the same way in three jobs of `pr-refine.yml`: `fix-docs` (a
 `read` skill in patch output mode with no prepare mode, on run-claude-cli with the automations
 role's API key) runs `ai-slop:audit fix` on the PR's changed Markdown files;
 `fix-docs-subscription` runs the same on the role's OAuth token, only after a credit stop or with
 the key empty; and `apply-docs-patch` runs the `apply-patch` activity on a `written` patch,
 pushing it as one commit under `patch-rules.json`'s `default` row, which refuses the universal
 set, every agent instruction path and more than 300 paths. No change is the common case, so an
-`empty` patch runs no push job. `report-escalation` does not follow `fix-docs`: a refused or
-unappliable patch posts the `pr-unblock / apply-patch` check neutral `awaiting-human` and labels
+`empty` patch runs no push job. `pr-refine.yml` has no escalation job: a refused or
+unappliable patch posts the `pr-refine / apply-patch` check neutral `awaiting-human` and labels
 nothing. Every job trusts the default branch tip (`trusted-base: default-tip`). `fix-docs` routes
 to the `docs-fix` profile ([Models](#models)).
 
-The same `pr-unblock-dispatch.yml` run starts `fix-docs` once per pull request, as a PR opening
-ready or turning ready used to: one GraphQL query per page of 50 open pull requests, its
-`rateLimit.cost` logged, lists the non-draft, same-repository ones into `main` that a person
-opened (a `User` author, so no lanes App or other bot PR), with no `do-not-merge` or
-`needs-human` label, that change at least one `.md` file, and whose head has no
-`pr-unblock / fix-docs` check run from the GitHub Actions app. For each, lowest number first, one
+The same `pr-unblock-dispatch.yml` run dispatches `pr-refine.yml`'s `fix-docs` once per pull
+request: one GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, lists
+the non-draft, same-repository ones into `main`, whoever opened them, lanes App PRs included,
+except Dependabot (account 49699333, whose own rebases a lane commit stops), the release App
+(337859524) and the standards-sync App (300666570), whose files are generated or synced; an
+author with no account id is skipped. It keeps those with no `do-not-merge` or `needs-human`
+label, that change at least one `.md` file, and whose head has no `pr-refine / fix-docs` or
+`pr-unblock / fix-docs` (the lane `fix-docs` ran in before) check run from the GitHub Actions
+app. For each, lowest number first, one
 more query reads the check runs on its last 50 commits, and a PR with a `fix-docs` run on any of
 them is skipped for good; the dispatch record keeps its head so the next run skips that read. A
 run older than 50 commits, or a force-push that dropped its commit, costs one more run. It sends
@@ -432,7 +435,7 @@ Each leaf declares:
   paths `.github/CODEOWNERS` lists
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities); `changedPathTargets` in
   [`resolve.mjs`](../../../.github/actions/resolve-config/resolve.mjs)). When nothing is left, the
-  activity skips with `not-applicable-paths`: `pr-unblock / fix-docs` does not run on a PR whose
+  activity skips with `not-applicable-paths`: `pr-refine / fix-docs` does not run on a PR whose
   only changed Markdown is instruction surfaces or CODEOWNERS paths, such as this directory.
 - `scope` (`diff`, `tree`, `target`) and `applies-when` (paths, labels, `labels-absent`, work
   classes, events, `mergeable`, `draft`, `admission`). `mergeable` is `conflicting` or `clean`,
