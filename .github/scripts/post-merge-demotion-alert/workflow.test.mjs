@@ -95,7 +95,7 @@ test("main's tip is checked out without credentials, and every action is pinned"
 });
 
 test("the run step takes every event field through env", () => {
-  const run = /\n {8}run: (.*)\n?$/.exec(job)[1];
+  const run = /\n {8}run: (node \.base\/\.github\/scripts\/post-merge-demotion-alert\/report\.mjs.*)\n/.exec(job)[1];
   assert.doesNotMatch(run, /\$\{\{/);
 });
 

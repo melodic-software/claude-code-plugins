@@ -277,8 +277,10 @@ test("the outcome is reported whenever a judge ran to a final class, and a missi
     assert.ok(index("Write the prompt and schema", job) === index("Judge the pull request", job) - 1, job);
     assert.match(step("Write the verdict", job), /^ {10}EXECUTION_FILE: \$\{\{ steps\.judge\.outputs\.execution-file \}\}$/m, job);
     assert.match(step("Write the verdict", job), /^ {10}LOG_FILE: \$\{\{ steps\.judge\.outputs\.log-file \}\}$/m, job);
-    assert.equal(STEPS[job].at(-1).name, "Fail without a verdict", job);
-    assert.match(STEPS[job].at(-1).block, /exit 1/, job);
+    // Only the budget log, which never fails the job, comes after it.
+    assert.equal(STEPS[job].at(-1).name, "Log the API budget at the end", job);
+    assert.equal(STEPS[job].at(-2).name, "Fail without a verdict", job);
+    assert.match(STEPS[job].at(-2).block, /exit 1/, job);
   }
   assert.match(step("Report the judgment's outcome", SUB), /^ {8}if: steps\.judge\.outcome == 'success' \|\| steps\.judge\.outcome == 'failure'$/m);
   assert.equal(input(step("Report the judgment's outcome", SUB), "known-failure-class"), "${{ steps.judge.outputs.lane-class }}");
@@ -286,10 +288,10 @@ test("the outcome is reported whenever a judge ran to a final class, and a missi
   assert.equal(input(step("Report the judgment's outcome", SUB), "fallback-reason"), FALLBACK_REASON);
   // Only a hand-off spares the key job its red; an empty token fails the subscription job.
   assert.match(
-    STEPS[KEY].at(-1).block,
+    STEPS[KEY].at(-2).block,
     /^ {8}if: always\(\) && steps\.agree\.outcome == 'success' && steps\.verdict\.outcome != 'success' && steps\.credential\.outputs\.present != 'false' && steps\.key-leg\.outcome != 'success'$/m,
   );
-  assert.match(STEPS[SUB].at(-1).block, /^ {8}if: always\(\) && steps\.agree\.outcome == 'success' && steps\.verdict\.outcome != 'success'$/m);
+  assert.match(STEPS[SUB].at(-2).block, /^ {8}if: always\(\) && steps\.agree\.outcome == 'success' && steps\.verdict\.outcome != 'success'$/m);
 });
 
 test("a handoff leaves exactly one lane record, from the job that saw its end", () => {

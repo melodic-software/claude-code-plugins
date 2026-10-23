@@ -47,6 +47,7 @@ test("the re-dispatch for earlier lane merges waits on neither the listing nor t
     list.map((s) => s.name),
     [
       "Check out the default branch tip",
+      "Log the API budget at the start",
       "Set up Node",
       "Check the kill switch",
       "Read report-only",
@@ -55,6 +56,7 @@ test("the re-dispatch for earlier lane merges waits on neither the listing nor t
       "Record the dispatched run",
       "Re-run a red lane-dispatched full run",
       "Record the re-run",
+      "Log the API budget at the end",
     ],
   );
   assert.doesNotMatch(early, /steps\.candidates|steps\.gate|needs\.merge/);
@@ -194,7 +196,7 @@ test("the API budget is logged through the shared action at mint and at job end,
     assert.match(block, new RegExp(`\\n {8}if: ${condition.replace(/[().|$]/g, "\\$&")}\\n`));
     assert.match(block, /\n {8}continue-on-error: true\n/);
     assert.match(block, new RegExp(`\\n {10}phase: ${phase}\\n`));
-    assert.match(block, /\n {12}lane \$\{\{ steps\.lane-token\.outputs\.token \}\}\n {12}github-token \$\{\{ github\.token \}\}\n/);
+    assert.match(block, /\n {12}lanes-app \$\{\{ steps\.lane-token\.outputs\.token \}\}\n {12}github-token \$\{\{ github\.token \}\}\n/);
   }
   assert.doesNotMatch(job, /gh api rate_limit/);
   const names = steps.map((s) => s.name);
@@ -224,13 +226,13 @@ const runSweepCost = (costs, reached, skipped = 0) => {
 };
 
 test("the sweep cost names both tokens' spend, the candidates, those reached and those skipped, in the log and the summary", () => {
-  const run = runSweepCost("lane-cost=312 github-token-cost=41", 3, 2);
+  const run = runSweepCost("lanes-app-cost=312 github-token-cost=41", 3, 2);
   assert.equal(run.status, 0);
   const line = "sweep-cost=312 github-token-cost=41 candidates=5 reached=3 skipped=2\n";
   assert.equal(run.stdout, line);
   assert.equal(run.stepSummary, line);
   // A rolled window, or no end reading, reads unknown.
-  assert.equal(runSweepCost("lane-cost=unknown", 0).stdout, "sweep-cost=unknown github-token-cost=unknown candidates=5 reached=0 skipped=0\n");
+  assert.equal(runSweepCost("lanes-app-cost=unknown", 0).stdout, "sweep-cost=unknown github-token-cost=unknown candidates=5 reached=0 skipped=0\n");
   const block = step("Write the sweep cost");
   assert.match(block, /\n {8}if: always\(\) && steps\.gate\.outcome != 'skipped'\n/);
   assert.match(block, /COSTS: \$\{\{ steps\.budget-end\.outputs\.costs \}\}/);
@@ -781,13 +783,20 @@ test("each candidate's check run is written by its own job, the only one holding
   const writerSteps = stepsOf(writer);
   assert.deepEqual(
     writerSteps.map((s) => s.name),
-    ["Check out the default branch tip", "Set up Node", "Read the gate's rows", "Show each candidate's refusal as a check run"],
+    [
+      "Check out the default branch tip",
+      "Log the API budget at the start",
+      "Set up Node",
+      "Read the gate's rows",
+      "Show each candidate's refusal as a check run",
+      "Log the API budget at the end",
+    ],
   );
   assert.match(writerSteps[0].block, /\n {10}ref: refs\/heads\/main\n {10}path: \.base\n {10}persist-credentials: false\n/);
-  for (const { name, block } of writerSteps.slice(2)) {
+  for (const { name, block } of writerSteps.slice(3)) {
     assert.match(block, /\n {8}continue-on-error: true\n/, name);
   }
-  const show = writerSteps[3].block;
+  const show = writerSteps[4].block;
   assert.match(show, /\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n/);
   assert.match(show, /\n {10}SUMMARY_PATH: \$\{\{ runner\.temp \}\}\/rows\/pr-merge-summary\.json\n/);
   assert.match(show, /\n {8}run: node \.base\/\.github\/scripts\/pr-merge\/gate-check\.mjs\n/);
