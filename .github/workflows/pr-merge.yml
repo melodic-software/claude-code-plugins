@@ -1320,10 +1320,13 @@ jobs:
   # catches what the events missed, such as a run the lanes App started, which
   # the broker refuses. Only the scheduled run and a hand-started one arm, on
   # the issue link (one closing issue, or one plain `Refs:` issue) and verdict
-  # pr-merge's gate would take at the head (babysit_verify_evidence.py
-  # `evidence --lane-link`, its Actions reads with the job's GITHUB_TOKEN from
-  # the head-ref map and run cache the last gate run kept); event runs read
-  # neither and only disarm on a hold.
+  # pr-merge's gate would take at the head, with no review-lane hold the gate
+  # reads (babysit_verify_evidence.py `evidence --lane-link --lane-reviews`,
+  # its Actions reads with the job's GITHUB_TOKEN from the head-ref map and
+  # run cache the last gate run kept), and only while the gate's lane has
+  # room (`lane-room`, from the post-merge check this job runs): while the
+  # gate holds the lane off they also disarm every armed lane pull request.
+  # Event runs read none of these and only disarm on a hold.
   # Its own job and token: the broker mints one token per
   # job. Rules: .github/scripts/pr-merge/enable-auto-merge.mjs.
   enable-auto-merge:
@@ -1340,7 +1343,8 @@ jobs:
       group: pr-merge-enable-auto-merge
       queue: max
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # The sum of its steps' timeouts (workflow.test.mjs checks it).
+    timeout-minutes: 30
     permissions:
       contents: read # check out main
       actions: read # the verifier verdicts, their runs and the head-ref map
@@ -1468,6 +1472,7 @@ jobs:
       # gate. Only the runs that arm read it.
       - name: Check earlier lane merges
         if: steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        timeout-minutes: 6
         env:
           GH_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
@@ -1488,7 +1493,7 @@ jobs:
       # decision and writes nothing.
       - name: Arm and disarm auto-merge
         if: steps.lane-token.outputs.token != ''
-        timeout-minutes: 10
+        timeout-minutes: 14
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}

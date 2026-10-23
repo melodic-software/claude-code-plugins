@@ -299,9 +299,10 @@ export function readRoom(answer) {
 // stuck.
 export const READER_EVENTS = Object.freeze(["schedule", "workflow_dispatch"]);
 // The reader's per pull request limit, and when the run stops starting one:
-// a read started at the budget ends by VERIFY_BUDGET_MS + VERIFY_TIMEOUT_MS,
-// 9 minutes, inside the step's 10 (pr-merge.yml), so no read is cut off and
-// the rest of the pull requests are left for the next run.
+// the room read (at most VERIFY_TIMEOUT_MS) comes first, then a read started
+// at the budget ends by VERIFY_BUDGET_MS + VERIFY_TIMEOUT_MS, 13 minutes in
+// all, inside the step's 14 (pr-merge.yml), so no read is cut off and the
+// rest of the pull requests are left for the next run.
 export const VERIFY_TIMEOUT_MS = 4 * 60_000;
 export const VERIFY_BUDGET_MS = 5 * 60_000;
 
@@ -387,7 +388,6 @@ export async function main({ env = process.env, github, verify, room } = {}) {
     verify ??= pythonVerify(env);
     const reads = READER_EVENTS.includes(env.EVENT_NAME);
     const pulls = await listPulls(github, repo[1], repo[2]);
-    const deadline = Date.now() + VERIFY_BUDGET_MS;
     const lanes = (pull) => pull.author?.__typename === "Bot" && pull.author.login === slug;
     // Only a reader run arms, so only it reads the room.
     let lane = null;
@@ -400,6 +400,8 @@ export async function main({ env = process.env, github, verify, room } = {}) {
       }
       console.log(`enable-auto-merge: lane room: ${escapeCommand(JSON.stringify(lane))}`);
     }
+    // After the room read, so the verdict reads keep their whole budget.
+    const deadline = Date.now() + VERIFY_BUDGET_MS;
     // Merges in flight: the gate's count, plus each armed lanes App pull
     // request the queue has not taken yet, which GitHub enqueues on its own.
     let inFlight = lane === null ? 0 : lane.count + pulls.filter((pull) => lanes(pull) && pull.autoMergeRequest != null && !lane.queued.includes(pull.number)).length;

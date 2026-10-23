@@ -168,7 +168,8 @@ test("the last verifier read enable-auto-merge starts ends inside its step's tim
   const arm = job("enable-auto-merge");
   const step = /- name: Arm and disarm auto-merge\n {8}if: .*\n {8}timeout-minutes: ([0-9]+)\n/.exec(arm);
   assert.ok(step, "the arm step names its timeout");
-  assert.ok(VERIFY_BUDGET_MS + VERIFY_TIMEOUT_MS < Number(step[1]) * 60_000);
+  // The room read, then the verdict budget and the last read it starts.
+  assert.ok(VERIFY_TIMEOUT_MS + VERIFY_BUDGET_MS + VERIFY_TIMEOUT_MS < Number(step[1]) * 60_000);
 });
 
 test("enable-auto-merge logs both tokens' readings at job end, before the token is revoked", () => {
@@ -204,6 +205,14 @@ test("enable-auto-merge reads the lane's room from this run's post-merge check a
   assert.match(arm, /\n {6}issues: read #/);
   const names = [...arm.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
   assert.ok(names.indexOf("Check earlier lane merges") < names.indexOf("Arm and disarm auto-merge"));
+});
+
+test("enable-auto-merge's step timeouts fit inside its job's", () => {
+  const arm = job("enable-auto-merge");
+  const total = Number(/\n {4}timeout-minutes: ([0-9]+)\n/.exec(arm)[1]);
+  const steps = [...arm.matchAll(/\n {8}timeout-minutes: ([0-9]+)\n/g)].map((m) => Number(m[1]));
+  assert.ok(steps.length >= 4, "the post-merge check, the cache restore, the arm step and the budget step name timeouts");
+  assert.ok(steps.reduce((sum, minutes) => sum + minutes, 0) < total, `${steps.join(" + ")} inside ${total}`);
 });
 
 test("enable-auto-merge asks the broker for its own activity's merge token", () => {
