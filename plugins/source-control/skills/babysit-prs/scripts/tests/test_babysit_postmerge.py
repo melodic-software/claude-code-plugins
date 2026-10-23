@@ -711,6 +711,139 @@ class Verification(CheckCase):
         self.assertEqual(verdict.reruns, ())
 
 
+def auto_merge_event(
+    actor: Any,
+    kind: str = "AutoMergeEnabledEvent",
+    at: str = "2026-10-12T09:40:00Z",
+) -> dict[str, Any]:
+    """The `autoMerge` connection: the newest auto-merge enable or disable."""
+    return {"nodes": [{"__typename": kind, "createdAt": at, "actor": actor}]}
+
+
+class NativeAutoMerge(CheckCase):
+    """`enable-auto-merge.mjs` arms the lanes App's pull request with the App
+    token, so GitHub enqueues it under the identity with no pin comment: the
+    merge is the identity's and verifies on the dispatch and canary runs."""
+
+    LATE = datetime(2026, 10, 12, 17, 0, tzinfo=UTC)
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.native(auto_merge_event(APP_ACTOR))
+
+    def native(self, events: dict[str, Any]) -> None:
+        self.gh.merged = [identity_merge(autoMerge=events)]
+
+    def check_unpinned(self, now: datetime | None = None) -> pm.PostMergeVerdict:
+        def no_pin_read(merge: Any) -> str | None:
+            raise AssertionError(f"read the pin of #{merge.number}")
+
+        return pm.check(
+            REPO,
+            agent_identity=IDENTITY,
+            is_human=human,
+            merged_since=SINCE,
+            now=now or self.LATE,
+            pinned_sha=no_pin_read,
+        )
+
+    def test_a_native_merge_verifies_without_a_pin_past_the_deadline(self) -> None:
+        self.all_green()
+        verdict = self.check_unpinned()
+        self.assertTrue(verdict.merges[0].merge.by_identity)
+        self.assertEqual(verdict.failures, ())
+        self.assertTrue(verdict.merges[0].verified)
+        self.assertTrue(verdict.ok)
+
+    def test_a_native_merge_with_no_dispatch_run_asks_for_one(self) -> None:
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+        verdict = self.check_unpinned(datetime(2026, 10, 12, 11, 0, tzinfo=UTC))
+        self.assertEqual(verdict.merges[0].pending, ("dispatch-run-pending",))
+        self.assertTrue(verdict.needs_dispatch)
+
+    def test_a_native_merge_is_judged_by_the_lane(self) -> None:
+        self.all_green()
+        verdict = pm.check(
+            REPO,
+            agent_identity=IDENTITY,
+            is_human=human,
+            merged_since=SINCE,
+            now=self.LATE,
+            lane_merges_only=True,
+        )
+        self.assertEqual(self.numbers(verdict), [7001])
+        self.assertTrue(verdict.merges[0].verified)
+
+    def test_a_red_main_after_a_native_merge_demotes(self) -> None:
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(11, "failure", run_attempt=2, triggering_actor=by(IDENTITY)),
+        )
+        self.gh.attempts[(11, 1)] = dispatch_run(11, conclusion="failure")
+        verdict = self.check_unpinned()
+        self.assertEqual(
+            [(f.signal, f.merge.number) for f in verdict.failures], [("dispatch", 7001)]
+        )
+        self.assertFalse(verdict.ok)
+
+    def test_a_red_canary_after_a_native_merge_demotes(self) -> None:
+        self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
+        self.gh.add_runs(
+            "post-merge-detect-silent-revert.yml",
+            "push",
+            canary_run(21, conclusion="failure"),
+        )
+        self.assertEqual([f.signal for f in self.check_unpinned().failures], ["canary"])
+
+    def test_a_gate_merge_still_fails_its_read_back_past_the_deadline(self) -> None:
+        self.native({"nodes": []})
+        self.all_green()
+        verdict = self.check(pinned=None, now=self.LATE)
+        self.assertEqual([f.signal for f in verdict.failures], ["read-back"])
+
+    def test_the_pin_stays_required_unless_the_identity_armed_before_the_enqueue(
+        self,
+    ) -> None:
+        slug_user = {"__typename": "User", "login": "agent-lanes"}
+        cases = {
+            "disarmed since": auto_merge_event(APP_ACTOR, "AutoMergeDisabledEvent"),
+            "armed after the enqueue": auto_merge_event(
+                APP_ACTOR, at="2026-10-12T09:55:00Z"
+            ),
+            "armed by a person": auto_merge_event(HUMAN),
+            "armed by a user named like the app": auto_merge_event(slug_user),
+        }
+        self.all_green()
+        for name, events in cases.items():
+            with self.subTest(name):
+                self.native(events)
+                verdict = self.check(pinned=None, now=self.LATE)
+                self.assertEqual([f.signal for f in verdict.failures], ["read-back"])
+
+    def test_a_queue_bypassing_native_merge_needs_no_pin(self) -> None:
+        self.gh.merged = [
+            merged_pr(
+                timelineItems={"nodes": []},
+                mergedBy=APP_ACTOR,
+                autoMerge=auto_merge_event(APP_ACTOR),
+            )
+        ]
+        self.all_green()
+        self.assertTrue(self.check_unpinned().ok)
+
+    def test_an_identity_merge_without_its_auto_merge_events_is_unreadable(
+        self,
+    ) -> None:
+        for events in (None, {"nodes": None}):
+            with self.subTest(events=events):
+                self.native(events)
+                verdict = self.check(now=self.LATE)
+                self.assertFalse(verdict.readable)
+                self.assertIn("no auto-merge events", verdict.reason)
+
+
 class DroppedDispatchListing(CheckCase):
     """A listing that answers without runs it holds (a degraded API) must
     not read as "no dispatch run": past the deadline, a read by the merge

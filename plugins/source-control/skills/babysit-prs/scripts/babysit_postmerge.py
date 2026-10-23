@@ -15,8 +15,9 @@ warning `unqueued-merge`. It is verified when a green
 dispatch run by the identity on a SHA containing the merge, a green canary
 run on such a SHA, and a matching read-back all exist, and no red full run or
 canary run counted against it first. Only an enqueue by the identity has a
-pinned SHA to read back; any other enqueue verifies on the dispatch and canary
-runs alone. A red full run is attributed after one `rerun-failed-jobs` the
+pinned SHA to read back; any other enqueue, and the identity's own native
+auto-merge (`native_auto_merge`), verifies on the dispatch and canary runs
+alone. A red full run is attributed after one `rerun-failed-jobs` the
 wrapper triggers: red again is a failure, green is a flake. A red full run the
 pr-merge lane dispatched gets that one re-run from pr-merge.yml's own
 `post-merge-dispatch` job, which records it (`_Context.lane_rerun`); with
@@ -482,7 +483,10 @@ MERGED_QUERY = (
     "pageInfo{hasNextPage endCursor} nodes{number url mergedAt updatedAt headRefOid "
     "mergedBy{__typename login} "
     "mergeCommit{oid} timelineItems(itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT],last:1){nodes{"
-    "... on AddedToMergeQueueEvent{createdAt actor{__typename login} enqueuer{__typename login}}}}}}}}"
+    "... on AddedToMergeQueueEvent{createdAt actor{__typename login} enqueuer{__typename login}}}} "
+    "autoMerge:timelineItems(itemTypes:[AUTO_MERGE_ENABLED_EVENT,AUTO_MERGE_DISABLED_EVENT],last:1){nodes{"
+    "__typename ... on AutoMergeEnabledEvent{createdAt actor{__typename login}} "
+    "... on AutoMergeDisabledEvent{createdAt actor{__typename login}}}}}}}}"
 )
 QUEUE_QUERY = (
     "query PostMergeQueue($o:String!,$r:String!,$b:String!){repository(owner:$o,name:$r){"
@@ -490,6 +494,33 @@ QUEUE_QUERY = (
     "enqueuer{__typename login} pullRequest{id number}}}}}}"
 )
 DEQUEUE_MUTATION = "mutation PostMergeDequeue($id:ID!){dequeuePullRequest(input:{id:$id}){clientMutationId}}"
+
+
+def native_auto_merge(pr: dict[str, Any], merge: AutoMerge, identity: str) -> bool:
+    """Whether the identity's merge landed through GitHub's native auto-merge
+    (`enable-auto-merge.mjs` arms it), which posts no pin: the newest
+    auto-merge enable or disable event is the identity's enable, made no later
+    than the merge-queue enqueue. The gate disarms an armed auto-merge before
+    it pins and enqueues, and an arm after its enqueue is not what queued the
+    head, so either keeps the pin read-back."""
+    if not merge.by_identity:
+        return False
+    connection = pr.get("autoMerge")
+    if not is_json_object(connection) or not is_json_array(connection.get("nodes")):
+        raise PostMergeReadError(f"#{merge.number}: no auto-merge events")
+    if not connection["nodes"]:
+        return False
+    event = json_object(connection["nodes"][-1])
+    if event.get("__typename") != "AutoMergeEnabledEvent":
+        return False
+    if _actor_key(event.get("actor")) != identity:
+        return False
+    if not merge.queued:
+        return True
+    queued = json_array(json_object(pr.get("timelineItems")).get("nodes"))
+    return _time(event.get("createdAt")) <= _time(
+        json_object(queued[-1]).get("createdAt")
+    )
 
 
 def _default_branch(owner: str, name: str) -> str:
@@ -1457,6 +1488,7 @@ def _judge(
     pinned: str | None,
     now: datetime,
     tally: _Tally,
+    native: bool,
 ) -> MergeState:
     pending: list[str] = []
     failures: list[Failure] = []
@@ -1489,7 +1521,10 @@ def _judge(
         r for r in canaries if ctx.outcome(r, attributable=False)[0] == GREEN
     ]
 
-    if merge.by_identity and pinned is None:
+    # A native auto-merge has no pin; it verifies on the dispatch and canary
+    # runs alone, like any other enqueue.
+    pinned_merge = merge.by_identity and not native
+    if pinned_merge and pinned is None:
         # A missing or edited pin is pending until the dispatch deadline, then
         # a failure, so a demotion record is filed and a human close restarts
         # the floor instead of the lane holding forever.
@@ -1504,7 +1539,7 @@ def _judge(
             )
         else:
             pending.append("read-back-unrecorded")
-    elif merge.by_identity and pinned != merge.head_ref_oid:
+    elif pinned_merge and pinned != merge.head_ref_oid:
         failures.append(
             Failure(
                 SIGNAL_READ_BACK,
@@ -1714,6 +1749,7 @@ def check(
         owner, name = _split_repo(repo)
         branch = branch or _default_branch(owner, name)
         merges: list[AutoMerge] = []
+        native: set[int] = set()
         warnings: list[str] = []
         identity = _login_key(agent_identity)
         for pr in _merged_since(owner, name, branch, merged_since):
@@ -1724,6 +1760,8 @@ def check(
                 warnings.append(derived)
             elif derived is not None:
                 merges.append(derived)
+                if native_auto_merge(pr, derived, identity):
+                    native.add(derived.number)
         merges.sort(key=lambda m: (str(m.merged_at), m.number))
         ctx = _Context(
             owner,
@@ -1773,7 +1811,10 @@ def check(
                 ctx,
                 full_runs=full_runs,
                 canary_runs=canary_runs,
-                pinned=pinned_sha(merge) if pinned_sha and merge.by_identity else None,
+                pinned=pinned_sha(merge)
+                if pinned_sha and merge.by_identity and merge.number not in native
+                else None,
+                native=merge.number in native,
                 now=now,
                 tally=tally,
             )

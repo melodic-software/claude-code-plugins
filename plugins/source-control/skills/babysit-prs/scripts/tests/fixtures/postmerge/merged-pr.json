@@ -13,5 +13,6 @@
         "enqueuer": {"__typename": "User", "login": "example-sync[bot]"}
       }
     ]
-  }
+  },
+  "autoMerge": {"nodes": []}
 }

@@ -1100,7 +1100,9 @@ Named residuals:
   person with write permission can do either; a failure the post-merge check still finds refuses on
   its own and files a new record.
 - After a dispatch deadline with no unedited pin comment, an identity merge fails the read-back and
-  a demotion record is filed.
+  a demotion record is filed. A native auto-merge the identity armed no later than its enqueue,
+  and did not disarm since, posts no pin and needs no read-back: it verifies on the dispatch and
+  canary runs alone.
 - The pull request's author can apply the opt-in and `work-class:` labels: label provenance asks
   only that a human with write permission applied them in person, within write-access trust.
   Label provenance also cannot tell the operator from an agent driving the operator's own `gh`
