@@ -1448,18 +1448,11 @@ The lane token holds no Actions permission, so pr-merge.yml grants its job `acti
 records, the download of a verdict.json (by the listed artifact's id, one request where `gh run
 download` lists the run's artifacts first) and the compare of a run's head to main (a `contents: read` call). The gate's
 review-evidence reads use it too: the timeline, the comments, and the lane runs with their attempts,
-jobs and annotations. Two things send them back to the lane token, as before; both tokens read
-the same data, so neither changes a gate decision. First, `GITHUB_TOKEN` must have at least
-`merge.read-token-floor` of its core limit left by `GET /rate_limit` (default 0.3, read at the
-default branch head; an unreadable limit counts as short). That is only an early switch: in the
-05:26Z outage on 2026-10-23, `/rate_limit` showed 3,934 of 5,000 left while `GITHUB_TOKEN` was
-already refused with "API rate limit exceeded for installation". Second, when any of those reads
-is refused with a 429, or a 403 whose message names a rate limit, the gate reads all of that
-candidate's evidence again with the lane token (they are all GETs). It records the refusal in
-`BABYSIT_RUN_CACHE`, so later candidates in the run skip `GITHUB_TOKEN`. Any other refusal is not
-retried. The verdict downloads, the listing, the run records and the compares
-stay on `GITHUB_TOKEN`: the lane token holds no Actions permission. An untied FAIL whose record
-cannot be read refuses the run's later candidates through `BABYSIT_RUN_CACHE` without another
+jobs and annotations. All of these reads stay on `GITHUB_TOKEN`: none switches to the lane token,
+whatever `GITHUB_TOKEN`'s budget, since GitHub's Terms of Service bar sharing tokens to exceed its
+rate limits ([owner decision](https://github.com/melodic-software/claude-code-plugins/issues/9297#issuecomment-6368281689)).
+A read refused for a rate limit is not retried: the candidate's lanes read `evidence-missing`, it
+holds, and the next run reads again. An untied FAIL whose record cannot be read refuses the run's later candidates through `BABYSIT_RUN_CACHE` without another
 download; the next run reads it again. `GITHUB_TOKEN`'s pool is shared with the full-run dispatch and the post-merge checks. Every other call, every write
 included, keeps the lane token. That job checks out only main and runs no pull request code.
 

@@ -401,7 +401,8 @@ jobs:
       contents: read # check out main
       pull-requests: read # list the open PRs
       # The gate's pr-verify verdict reads (artifact listing, run records,
-      # download); the lane token holds no Actions permission.
+      # download) and its review-evidence reads, which stay on this token;
+      # the lane token holds no Actions permission.
       actions: read
       # Read a refused lane run's annotations and its PR head's checks. Never
       # write: the gate-check job below writes the check runs.
