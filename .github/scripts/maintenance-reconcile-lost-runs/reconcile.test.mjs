@@ -404,7 +404,7 @@ test("verify re-runs share the cap of 3 with PR CI sets, CI first, then the olde
     ],
   });
   assert.deepEqual(reruns, [101, 201]);
-  assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${MAIN_TIP}`, "", ""]);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-101-2-${sha(1)}`, `reconcile-rerun-201-2-${MAIN_TIP}`, ""]);
 });
 
 test("at most 3 verify runs are recorded and re-run in one run", async () => {
@@ -694,4 +694,51 @@ test("a floor-label re-run takes no place under the cap of 3", async () => {
   const { reruns, failedJobReruns } = await reconcile({ pulls: [pr(1), pr(2), pr(3)], runs });
   assert.deepEqual(reruns.sort(), [201, 202, 203]);
   assert.deepEqual(failedJobReruns, [301]);
+});
+
+// pr-verify runs after pr-require-checks and trusts that run's attempt 2 by
+// github-actions[bot] only through a reconcile-rerun-<run id>-2-<head sha>
+// record, so each re-run that makes that attempt is recorded before it is
+// made. Its head is the PR's head, the run's own head_sha.
+test("each re-run that makes attempt 2 of pr-require-checks is recorded before it is made", async () => {
+  const runs = [run(101, sha(1)), failed(102, sha(2), { jobs: MIXED_JOBS }), failed(103, sha(3))];
+  const { code, outputs, reruns, failedJobReruns, planWrites } = await reconcile({ pulls: [pr(1), pr(2), pr(3)], runs });
+  assert.equal(code, 0);
+  assert.equal(planWrites, 0);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-101-2-${sha(1)}`, `reconcile-rerun-102-2-${sha(2)}`, `reconcile-rerun-103-2-${sha(3)}`]);
+  assert.deepEqual(reruns, [101]);
+  assert.deepEqual(failedJobReruns, [102, 103]);
+});
+
+test("a pr-test-windows re-run and an infra re-run to attempt 3 are not recorded", async () => {
+  const runs = [run(101, sha(1), { path: WINDOWS }), failed(102, sha(2), { attempt: 2 })];
+  const { code, outputs, reruns, failedJobReruns } = await reconcile({ pulls: [pr(1), pr(2)], runs });
+  assert.equal(code, 0);
+  assert.deepEqual(records(outputs), ["", "", ""]);
+  assert.deepEqual(reruns, [101]);
+  assert.deepEqual(failedJobReruns, [102]);
+});
+
+test("a PR's CI set carries one record, so the cap of 3 bounds the records at 3", async () => {
+  const runs = [1, 2, 3, 4].flatMap((n) => [run(100 + n, sha(n)), run(200 + n, sha(n), { path: WINDOWS })]);
+  const { code, outputs, reruns } = await reconcile({ pulls: [pr(1), pr(2), pr(3), pr(4)], runs: [...runs, verifyRun(301)] });
+  assert.equal(code, 0);
+  assert.deepEqual(records(outputs), [1, 2, 3].map((n) => `reconcile-rerun-${100 + n}-2-${sha(n)}`));
+  assert.deepEqual(reruns.sort(), [101, 102, 103, 201, 202, 203]);
+});
+
+test("act re-runs no CI run whose plan names another record", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = fakeGitHub({ pulls: [pr(1)], runs: [run(101, sha(1))] });
+  const dir = mkdtempSync(path.join(tmpdir(), "reconcile-"));
+  try {
+    const PLAN_PATH = path.join(dir, "plan.json");
+    const item = { kind: "ci", pr: 1, id: 101, path: CHECKS, conclusion: "cancelled", head: sha(1), record: `reconcile-rerun-101-2-${sha(2)}` };
+    writeFileSync(PLAN_PATH, JSON.stringify({ items: [item], failed: 0 }));
+    const code = await main({ env: { GITHUB_REPOSITORY: REPO, MODE: "act", PLAN_PATH }, github, sleep: async () => {}, now: NOW });
+    assert.equal(code, 1);
+    assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
