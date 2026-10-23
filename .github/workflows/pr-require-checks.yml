@@ -108,9 +108,9 @@ concurrency:
 # repository contract across files, `test` executes code. The domain says over
 # what: `repo`, `shell`, `plugins`, `skills`, or the ecosystem a test job runs
 # (`bash`, `python`, `node`). One marker, `mark-lanes`, one resolver,
-# `select-tests`, eight working jobs,
+# `select-tests`, nine working jobs,
 # `lint-repo`, `lint-shell`, `check-plugins`, `check-skills`, `test-bash`,
-# `test-python`, `test-node` and `check-managed-files`, and one aggregate, `ci-status`, whose name,
+# `test-python`, `test-node`, `check-managed-files` and `check-tests`, and one aggregate, `ci-status`, whose name,
 # like this workflow's and this file's, is what the org ci-gate ruleset and its
 # verifiers read. No ordinals, no tool name for a multi-tool job, no runner OS
 # for a portable lane, and no job name another workflow here also uses. A gate
@@ -142,7 +142,8 @@ concurrency:
 # scripts/suite-seconds.txt, a 201 s suite among them, plus up to 56 s of
 # setup), 7; test-node about 50 (31 s
 # of package chains measured on a warm npm cache), sized for a cold install, 5;
-# ci-status 9 / 42, 3. A job that outgrows its timeout is made faster or split,
+# check-tests about 140 on the whole tree, measured, 4; ci-status 9 / 42, 3.
+# A job that outgrows its timeout is made faster or split,
 # not given a longer one.
 #
 # CACHES ARE SAVED FROM MAIN ONLY. Each cache restores through
@@ -1630,6 +1631,24 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh exec-form-windows-probe {0}
         run: scripts/check-exec-form-windows-probe.sh
 
+      # A test that cannot fail (/testing:audit's scan: no assertion, or an
+      # expected value recomputed from the actual) passes whatever the code
+      # does. A diff scans only its changed test files, in seconds, and reports
+      # the gate not applicable when it changes none; with no diff base the
+      # whole tree is `check-tests`'s.
+      - name: Check changed tests for tests that cannot fail
+        id: cant_fail_scan
+        continue-on-error: true
+        env:
+          DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
+        shell: bash scripts/run-hygiene-gate.sh cant-fail-scan {0}
+        run: |
+          if [ -z "$DIFF_BASE" ]; then
+            echo "::notice::No diff base on this $GITHUB_EVENT_NAME run; check-tests scans the whole tree."
+            exit 0
+          fi
+          scripts/check-cant-fail-scan.sh "$DIFF_BASE"
+
       # A plugin hooks.json takes an optional top-level `description`, the one
       # place a plugin labels its hooks as a set (the plugins reference, hooks
       # component). The 2026-09-04 hooks-reference audit found it absent in 20
@@ -2087,6 +2106,7 @@ jobs:
             userconfig-argv=${{ steps.userconfig_argv.outcome }}
             hook-exec-form=${{ steps.hook_exec_form.outcome }}
             exec-form-windows-probe=${{ steps.exec_form_windows_probe.outcome }}
+            cant-fail-scan=${{ steps.cant_fail_scan.outcome }}
             hooks-description=${{ steps.hooks_description.outcome }}
             summary-reader-parity=${{ steps.summary_reader_parity.outcome }}
             plugin-options-docs=${{ steps.plugin_options_docs.outcome }}
@@ -3023,6 +3043,42 @@ jobs:
       - name: Guard managed files
         uses: melodic-software/ci-workflows/.github/actions/check-managed-files@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
 
+  # THE WHOLE-TREE CAN'T-FAIL SCAN, WHENEVER THERE IS NO DIFF BASE: the
+  # schedule, a dispatch, and a pull request or merge group that
+  # `select-tests` resolves to the whole tree (no usable base, or a manifest
+  # change). With a base, `check-plugins` scans the changed test files and
+  # this job returns at once. The whole tree took 133 and 132 s on a hosted
+  # runner, serial, with 1301 test files, which no existing job's timeout
+  # holds. The job branches in the shell, not in `if:` (see `lint-repo`), so
+  # with a base it costs its setup and checkout and stays off the critical
+  # path. Wall about 140 s on the whole tree, so ceil(max(210, 154) / 60) = 4
+  # minutes. Sharded over 4 cores the scan took 64 s, for 3 minutes, but needs
+  # a second fail-closed denominator: a shard with no test file exits 2.
+  #
+  # The job skips only on a contract-only event or a draft (see `lint-repo`).
+  check-tests:
+    needs: [select-tests]
+    # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check every test for tests that cannot fail
+        env:
+          DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
+        run: |
+          if [ -n "$DIFF_BASE" ]; then
+            echo "::notice::check-plugins scans the test files changed since $DIFF_BASE."
+            exit 0
+          fi
+          scripts/check-cant-fail-scan.sh
+
   ci-status:
     needs:
       - mark-lanes
@@ -3035,6 +3091,7 @@ jobs:
       - test-python
       - test-node
       - check-managed-files
+      - check-tests
     # Fail-closed through execution: !cancelled() (never a success-guard) so a
     # lane failure still runs this required aggregate and the aggregation below
     # turns it red. A success-guard would skip the job, and a skipped required

@@ -3197,5 +3197,128 @@ class AnUnreadableRecordIsSharedForTheRun(unittest.TestCase):
         self.assertIsNone(read(fake).refusal)
 
 
+# --- The head-ref digest in a verdict's name ------------------------------------
+
+# The first 16 hex digits of `printf %s <ref> | sha256sum`.
+DIGEST_X = "79b4cc554b80dca6"  # feat/x, PR 41's head branch
+DIGEST_OTHER = "3b0035df584451e9"  # feat/other
+
+
+def downloads(fake: FakeGitHub) -> int:
+    """Verdict downloads of every run, by artifact id or by run and name."""
+    return sum(OneRunSharesItsFailRunReads.downloads(fake, r) for r in fake.runs)
+
+
+class AnUntiedFailIsTiedByItsNamedHeadRef(unittest.TestCase):
+    """pr-verify names a verdict with a digest of the head branch it records,
+    so an untied FAIL ties to this pull request by name, without a download,
+    exactly when the digest is its head branch's. The run record authenticates
+    the name (`_origin`), as it does the verdict.json; a name from any other
+    run is ignored like its contents. A name with no digest, uploaded before
+    the digest was added, is read as before."""
+
+    @staticmethod
+    def heads(
+        *, digests: bool = True, runs: dict[int, Any] | None = None
+    ) -> FakeGitHub:
+        """A pass at the head (run 1); PR 98's FAIL recording feat/other (run
+        3) and PR 97's recording feat/x (run 4), both before the pass; and a
+        FAIL at an earlier head of PR 41 (run 2)."""
+        suffix = (lambda d: f"-{d}") if digests else (lambda d: "")
+        fake = passing(
+            artifact(named(EARLIER, "fail"), 2),
+            artifact(named(UNRELATED, "fail", 98) + suffix(DIGEST_OTHER), 3),
+            artifact(named(TIE, "fail", 97) + suffix(DIGEST_X), 4),
+            runs={
+                2: judged(2, OLDER_START),
+                3: judged(3, OLDER_START),
+                4: judged(4, OLDER_START),
+                **(runs or {}),
+            },
+        )
+        fake.records[named(UNRELATED, "fail", 98) + suffix(DIGEST_OTHER)] = record(
+            98, UNRELATED, verdict="fail", head_ref="feat/other"
+        )
+        fake.records[named(TIE, "fail", 97) + suffix(DIGEST_X)] = record(
+            97, TIE, verdict="fail", head_ref="feat/x"
+        )
+        fake.diffs[TIE] = change("tie")
+        return fake
+
+    def test_both_formats_decide_alike_and_the_named_one_downloads_less(self) -> None:
+        # Before (no digest): the pass and both untied records, 3 downloads.
+        # After: the pass only.
+        for digests, count in ((False, 3), (True, 1)):
+            with self.subTest(digests=digests):
+                fake = self.heads(digests=digests)
+                evidence = read(fake)
+                self.assertIsNone(evidence.refusal)
+                self.assertEqual(
+                    evidence.report()["earlierFails"], sorted([EARLIER, TIE])
+                )
+                self.assertEqual(downloads(fake), count)
+
+    def test_a_tie_after_the_pass_holds_on_the_name_alone(self) -> None:
+        fake = self.heads(runs={4: judged(4, "2026-10-15T00:00:01Z")})
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+        self.assertEqual(downloads(fake), 0)
+
+    def test_a_digest_of_another_branch_unties_without_a_download(self) -> None:
+        fake = self.heads()
+        fake.artifacts.pop()  # PR 97's tie
+        evidence = read(fake)
+        self.assertEqual(evidence.report()["earlierFails"], [EARLIER])
+        self.assertEqual(downloads(fake), 1)  # the pass
+
+    def test_a_pull_request_with_no_head_ref_ties_nothing_by_name(self) -> None:
+        # e3b0c44298fc1c14: the first 16 hex digits of `printf '' | sha256sum`.
+        fake = FakeGitHub(
+            [artifact(named(TIE, "fail", 97) + "-e3b0c44298fc1c14", 4)], {4: run(4)}
+        )
+        self.assertEqual(
+            read(fake, pull(head={"ref": "", "sha": HEAD})).refusal, "verify:missing"
+        )
+
+    def test_a_name_from_a_run_not_of_verifier_origin_is_never_trusted(self) -> None:
+        # Each forgery names PR 41's head branch: trusted, it would hold.
+        for label, overrides in UnauthenticatedArtifactsAreIgnored.FORGERIES.items():
+            with self.subTest(label):
+                fake = FakeGitHub(
+                    [artifact(named(TIE, "fail", 97) + f"-{DIGEST_X}", 4)],
+                    {4: run(4, **overrides)},
+                )
+                evidence = read(fake)
+                self.assertEqual(evidence.refusal, "verify:missing")
+                self.assertEqual(evidence.report()["earlierFails"], [])
+                self.assertEqual(downloads(fake), 0)
+        # The same name from a run of verifier origin holds.
+        fake = FakeGitHub(
+            [artifact(named(TIE, "fail", 97) + f"-{DIGEST_X}", 4)], {4: run(4)}
+        )
+        self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def test_any_branch_name_ties_by_its_digest(self) -> None:
+        # The first 16 hex digits of `printf %s <ref> | sha256sum`.
+        for ref, digest in (
+            ("feat/a+b", "a27da2afd9962004"),
+            ("fix/\u00e9", "8c8a071ad0e51f5e"),
+        ):
+            with self.subTest(ref):
+                fake = FakeGitHub(
+                    [artifact(named(TIE, "fail", 97) + f"-{digest}", 4)], {4: run(4)}
+                )
+                pr = pull(head={"ref": ref, "sha": HEAD})
+                self.assertEqual(read(fake, pr).refusal, "verify:earlier-fail")
+                self.assertEqual(downloads(fake), 0)
+
+    def test_a_malformed_digest_is_no_verdict(self) -> None:
+        for suffix in ("-79B4CC554B80DCA6", "-79b4cc554b80dca", "-79b4cc554b80dca6x"):
+            with self.subTest(suffix):
+                fake = FakeGitHub(
+                    [artifact(named(TIE, "fail", 97) + suffix, 4)], {4: run(4)}
+                )
+                self.assertEqual(read(fake).refusal, "verify:missing")
+
+
 if __name__ == "__main__":
     unittest.main()
