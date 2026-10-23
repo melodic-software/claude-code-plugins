@@ -3462,14 +3462,6 @@ def foreign_paths(
 # Paths never a trusted author's own, whoever wrote them: the HIGH path floor
 # itself, so an adopted pull request's own lines hold there too.
 NEVER_FLOOR_EXEMPT = HIGH_FLOOR
-# Submodule, code-owner, agent permission and package manifest files, matched
-# as the whole last segment: the twin of
-# .github/scripts/pr-unblock/thread-scope.mjs INSTRUCTION_PATH, which a test
-# holds equal. Never floor-exempt either.
-INSTRUCTION_PATH_RE = re.compile(
-    r"(^|\/)(\.gitmodules|codeowners|settings[^/]*\.json|package(-lock)?\.json|requirements[^/]*\.txt)$",
-    re.I,
-)
 
 
 # A model-driven App's own lines skip the denied paths and the manifest review
@@ -3484,7 +3476,7 @@ def own_paths(
     only: tuple[str, ...] | None = None,
 ) -> frozenset[str]:
     """The `changed` paths only the author's own commits touched
-    (`foreign_paths`), less `NEVER_FLOOR_EXEMPT` and `INSTRUCTION_PATH_RE`,
+    (`foreign_paths`), less `NEVER_FLOOR_EXEMPT`,
     and inside `only` when given: what the denied paths and manifest review leave out of an
     adopted pull request. Empty when the commits cannot be read."""
     others = foreign_paths(repo, pr, changed)
@@ -3494,7 +3486,6 @@ def own_paths(
         p
         for p in changed
         if p not in others
-        and not INSTRUCTION_PATH_RE.search(p)
         and not any(glob_match(g, p) for g in NEVER_FLOOR_EXEMPT)
         and (only is None or any(glob_match(g, p) for g in only))
     )

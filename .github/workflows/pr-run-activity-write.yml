@@ -306,7 +306,8 @@ on:
           apply-patch with patch-prepare review-threads: the select job's
           fix-requested output. `true` leaves the human-gated label out of
           the holds, since that job kept only threads a trusted person with
-          write access asked the lane to fix.
+          write access asked the lane to fix, or a lane escalation put the
+          label on.
         required: false
         type: string
         default: ""
@@ -604,7 +605,8 @@ jobs:
           # gated, and only the lanes App's signed commits may follow it.
           expected-upstream-head: ${{ inputs.expected-upstream-head }}
           lanes-app-id: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
-          dispatched-workflow: .github/workflows/pr-unblock.yml
+          # A dispatcher sends pr-refine.yml for the pr-refine lane, pr-unblock.yml otherwise.
+          dispatched-workflow: ${{ inputs.lane == 'pr-refine' && '.github/workflows/pr-refine.yml' || '.github/workflows/pr-unblock.yml' }}
           # Issue mode reads no PR: the account that applied the label, and
           # any re-runner, must be listed as a human.
           require-pr: ${{ inputs.issue-number == '' }}
@@ -1085,7 +1087,8 @@ jobs:
       # human-gated label is left out only for apply-patch under the
       # review-threads row, when the caller's select job kept nothing but
       # threads a trusted person with write access asked the lane to fix on a
-      # PR carrying it, unless labels-absent lists it.
+      # PR carrying it, or a lane escalation put it on, unless labels-absent
+      # lists it.
       - name: Read the hold labels from the base
         id: hold-label
         if: >-

@@ -628,7 +628,7 @@ const docsPull = (number) => {
     isCrossRepository: false,
     baseRefName: "main",
     headRefOid: head,
-    author: { __typename: "User", login: "someone" },
+    author: { __typename: "User", login: "someone", databaseId: 4242 },
     labels: { nodes: [] },
     files: { nodes: [{ path: "README.md" }], pageInfo: { hasNextPage: false } },
     commits: { nodes: [{ commit: { oid: head, statusCheckRollup: { contexts: { nodes: [] } } } }] },

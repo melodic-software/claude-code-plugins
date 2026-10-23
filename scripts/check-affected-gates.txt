@@ -45,6 +45,7 @@ queued-pr ci-only merge queue only
 changelog-fragments-release ci-only release pull request only, scripts/check-changelog-fragments.sh --check-release <base>
 vendor-version-bump ci-only scripts/check-vendor-version-bump.sh --check-bump <base>
 portability-lint ci-only scripts/check-skill-portability.sh <base>
+cant-fail-scan ci-only scripts/check-cant-fail-scan.sh <base>
 evals-quality ci-only bash plugins/skill-quality/scripts/check-evals-quality.sh <eval sets>
 listing-budget ci-only whole-repo scanner, bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills
 listing-budget-configured ci-only whole-repo scanner, bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills

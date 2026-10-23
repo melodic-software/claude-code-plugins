@@ -68,6 +68,7 @@ REGISTRY=(
   "check-affected.sh|-|-|-"
   "check-app-key-references.sh|-|-|-"
   "check-all-skills-verb-contract.sh|-|-|-"
+  "check-cant-fail-scan.sh|-|-|-"
   "check-changed-skills.sh|-|-|-"
   "check-changelog-fragments.sh|-|--check|changelog_fragments"
   "check-changelog-parity.sh|-|--check|changelog_parity"

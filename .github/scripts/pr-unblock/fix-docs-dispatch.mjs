@@ -1,12 +1,12 @@
-// Starts the pr-unblock lane's fix-docs activity once per pull request: for
-// each open, ready, same-repository PR into the base that a person opened,
-// that changes a Markdown file, carries no hold label, and has never had a
-// pr-unblock / fix-docs check run. It runs from the same dispatcher run as
-// dispatch.mjs (pr-unblock-dispatch.yml), so the trigger gate and the broker
-// check it as they check a resolve-conflicts dispatch.
+// Starts the pr-refine lane's fix-docs activity once per pull request: for
+// each open, ready, same-repository PR into the base that changes a Markdown
+// file, carries no hold label, and has never had a fix-docs check run under
+// either lane fix-docs has run in, whoever opened it except the accounts in
+// excludedAuthorIds. It runs from the same dispatcher run as dispatch.mjs
+// (pr-unblock-dispatch.yml), so the trigger gate and the broker check it as
+// they check a resolve-conflicts dispatch.
 //
-// Once per PR, as pr-refine.yml's pull_request trigger ran it when a PR opened
-// or turned ready, not after each push. The listing is one GraphQL query per
+// Once per PR, when it is first seen ready, not after each push. The listing is one GraphQL query per
 // page of 50 pull requests, whose rateLimit.cost is logged; it drops a PR
 // whose head already has the check run. For each PR left, lowest number
 // first, one more query reads the check runs on its last HISTORY_COMMITS
@@ -17,13 +17,19 @@
 // numbers, SHAs, run ids and counts only.
 
 import { isHandled, markHandled, emptyRecord } from "./dispatch-record.mjs";
-import { runTitle } from "./feedback-dispatch.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
-  workflow: "pr-unblock.yml",
+  workflow: "pr-refine.yml",
   activity: "fix-docs",
-  checkName: "pr-unblock / fix-docs",
+  checkName: "pr-refine / fix-docs",
+  // fix-docs ran in the pr-unblock lane before; a run there counts as done.
+  earlierCheckName: "pr-unblock / fix-docs",
+  // Account ids (GET /users/<login>, the same as GraphQL's databaseId):
+  // dependabot[bot], whose own rebases a lane commit stops;
+  // melodic-plugin-release[bot] and melodic-standards-sync[bot], whose PRs
+  // carry generated or synced files.
+  excludedAuthorIds: Object.freeze([49699333, 337859524, 300666570]),
   // The GitHub Actions app, as in dispatch.mjs: only its runs count.
   actionsAppId: 15368,
   // fix-docs's applies-when labels-absent (docs/conventions/pr-pipeline.yaml).
@@ -42,7 +48,7 @@ export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!
     pullRequests(states: OPEN, baseRefName: $base, first: 50, after: $after) {
       nodes {
         number isDraft isCrossRepository baseRefName headRefOid
-        author { __typename login }
+        author { __typename login ... on Bot { databaseId } ... on User { databaseId } }
         labels(first: 100) { nodes { name } }
         files(first: 100) { nodes { path } pageInfo { hasNextPage } }
         commits(last: 1) {
@@ -67,7 +73,7 @@ export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!
   }
 }`;
 
-export const HISTORY_QUERY = `query($owner: String!, $name: String!, $number: Int!, $appId: Int!, $checkName: String!) {
+export const HISTORY_QUERY = `query($owner: String!, $name: String!, $number: Int!, $appId: Int!, $checkName: String!, $earlierCheckName: String!) {
   rateLimit { cost remaining }
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
@@ -75,7 +81,10 @@ export const HISTORY_QUERY = `query($owner: String!, $name: String!, $number: In
         nodes {
           commit {
             checkSuites(first: 20, filterBy: { appId: $appId }) {
-              nodes { checkRuns(first: 1, filterBy: { checkName: $checkName }) { totalCount } }
+              nodes {
+                checkRuns(first: 1, filterBy: { checkName: $checkName }) { totalCount }
+                earlierRuns: checkRuns(first: 1, filterBy: { checkName: $earlierCheckName }) { totalCount }
+              }
               pageInfo { hasNextPage }
             }
           }
@@ -86,13 +95,16 @@ export const HISTORY_QUERY = `query($owner: String!, $name: String!, $number: In
 }`;
 
 // Why a listed PR is not a candidate, or "" when it is one.
-export function skipReason(node, { base, actionsAppId, checkName, holdLabels }) {
+export function skipReason(node, { base, actionsAppId, checkName, earlierCheckName, excludedAuthorIds, holdLabels }) {
   if (node.isDraft !== false || node.isCrossRepository !== false || node.baseRefName !== base) {
     return "not a ready same-repository PR into the base";
   }
-  // pr-refine.yml skipped the lanes App's events and every other bot's.
-  if (node.author?.__typename !== "User") {
-    return "not opened by a person";
+  const author = node.author?.databaseId;
+  if (!Number.isSafeInteger(author)) {
+    return "author has no account id";
+  }
+  if (excludedAuthorIds.includes(author)) {
+    return "opened by an excluded account";
   }
   if ((node.labels?.nodes ?? []).some((label) => holdLabels.includes(label?.name))) {
     return "held";
@@ -107,20 +119,28 @@ export function skipReason(node, { base, actionsAppId, checkName, holdLabels }) 
   if (!commit || commit.oid !== node.headRefOid || commit.statusCheckRollup?.contexts?.pageInfo?.hasNextPage) {
     return "head commit or its checks not listed whole";
   }
+  const names = [checkName, earlierCheckName];
   const runs = (commit.statusCheckRollup?.contexts?.nodes ?? []).filter(
-    (context) => context?.__typename === "CheckRun" && context.name === checkName && context.checkSuite?.app?.databaseId === actionsAppId,
+    (context) => context?.__typename === "CheckRun" && names.includes(context.name) && context.checkSuite?.app?.databaseId === actionsAppId,
   );
   return runs.length > 0 ? `head already has a ${checkName} check run` : "";
 }
 
-// Whether any of the PR's last commits carries a check run of checkName; a
+// Whether any of the PR's last commits carries a check run of either name; a
 // commit whose suites were not listed whole counts as carrying one.
 function historyHasRun(pullRequest) {
   return (pullRequest?.commits?.nodes ?? []).some((node) => {
     const suites = node?.commit?.checkSuites;
-    return suites?.pageInfo?.hasNextPage === true || (suites?.nodes ?? []).some((suite) => suite?.checkRuns?.totalCount > 0);
+    return (
+      suites?.pageInfo?.hasNextPage === true ||
+      (suites?.nodes ?? []).some((suite) => suite?.checkRuns?.totalCount > 0 || suite?.earlierRuns?.totalCount > 0)
+    );
   });
 }
+
+// The run-name the workflow gives a dispatch: its file stem, the activity
+// and the PR (pr-refine.yml's run-name).
+const runTitle = (workflow, activity, number) => `${workflow.replace(/\.ya?ml$/, "")} ${activity} #${number}`;
 
 export async function dispatchDocsFixes({
   api,
@@ -132,6 +152,8 @@ export async function dispatchDocsFixes({
   workflow = DEFAULTS.workflow,
   activity = DEFAULTS.activity,
   checkName = DEFAULTS.checkName,
+  earlierCheckName = DEFAULTS.earlierCheckName,
+  excludedAuthorIds = DEFAULTS.excludedAuthorIds,
   actionsAppId = DEFAULTS.actionsAppId,
   holdLabels = DEFAULTS.holdLabels,
 }) {
@@ -141,8 +163,8 @@ export async function dispatchDocsFixes({
     const { rateLimit, pullRequests } = await api.listDocsFixCandidates({ base, after });
     log(`fix-docs listing page ${page}: rateLimit.cost=${rateLimit?.cost} remaining=${rateLimit?.remaining}`);
     for (const node of pullRequests.nodes) {
-      const reason = skipReason(node, { base, actionsAppId, checkName, holdLabels });
-      if (reason.startsWith("head already has")) {
+      const reason = skipReason(node, { base, actionsAppId, checkName, earlierCheckName, excludedAuthorIds, holdLabels });
+      if (reason.startsWith("head already has") || (reason === "" && isHandled(record, earlierCheckName, node.headRefOid))) {
         markHandled(record, checkName, node.headRefOid);
       } else if (reason === "" && !isHandled(record, checkName, node.headRefOid)) {
         candidates.push(node);
@@ -176,13 +198,13 @@ export async function dispatchDocsFixes({
       log(`defer fix-docs #${node.number}: ${maxDispatch} fix-docs dispatches this run; left for a later run`);
       continue;
     }
-    const inFlight = active.find((run) => run.display_title === runTitle(activity, node.number));
+    const inFlight = active.find((run) => run.display_title === runTitle(workflow, activity, node.number));
     if (inFlight) {
       log(`skip fix-docs #${node.number}: ${workflow} run ${inFlight.id} is not done yet`);
       continue;
     }
     try {
-      const { rateLimit, pullRequest } = await api.readDocsFixHistory({ number: node.number, appId: actionsAppId, checkName });
+      const { rateLimit, pullRequest } = await api.readDocsFixHistory({ number: node.number, appId: actionsAppId, checkName, earlierCheckName });
       log(`fix-docs history #${node.number}: rateLimit.cost=${rateLimit?.cost} remaining=${rateLimit?.remaining}`);
       if (historyHasRun(pullRequest)) {
         markHandled(record, checkName, node.headRefOid);

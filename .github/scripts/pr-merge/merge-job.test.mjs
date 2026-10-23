@@ -270,6 +270,54 @@ test("the run cache starts from the last run's kept reads and saves this run's u
   }
 });
 
+// The head-ref map (head-ref-map.mjs): read before the gate from the last
+// trusted run's artifact, written after it from the gate's own files, and
+// uploaded as this run's artifact by scheduled and hand-started runs only,
+// the runs a later read accepts. It never goes through actions/cache.
+test("the gate reads the head-ref map the last run uploaded and uploads the next", () => {
+  const names = steps.map((s) => s.name);
+  const order = [
+    "Read the head refs the last run kept",
+    "Run the merge gate on each candidate",
+    "Keep the head refs the gate read",
+    "Upload them for the next run",
+  ].map((name) => names.indexOf(name));
+  assert.ok(order.every((i, n) => i >= 0 && (n === 0 || i > order[n - 1])), String(order));
+  const mapIn = "${{ runner.temp }}/head-refs-in.json";
+  const mapOut = "${{ runner.temp }}/head-refs/head-refs.json";
+  const read = step("Read the head refs the last run kept");
+  assert.match(read, /run: node \.base\/\.github\/scripts\/pr-merge\/head-ref-map\.mjs read\n/);
+  assert.ok(read.includes(`HEAD_REFS_PATH: ${mapIn}\n`) && read.includes("ACTIONS_TOKEN: ${{ github.token }}\n"));
+  const gate = step("Run the merge gate on each candidate");
+  assert.ok(gate.includes(`BABYSIT_VERIFY_HEAD_REFS: ${mapIn}\n`));
+  const keep = step("Keep the head refs the gate read");
+  assert.match(keep, /head-ref-map\.mjs write\n/);
+  for (const line of [
+    `HEAD_REFS_PATH: ${mapIn}`,
+    "BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json",
+    "BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json",
+    `HEAD_REFS_OUT: ${mapOut}`,
+  ]) {
+    assert.ok(keep.includes(`${line}\n`), line);
+    if (!line.startsWith("HEAD_REFS")) assert.ok(gate.includes(`${line}\n`), line);
+  }
+  assert.ok(
+    keep.includes(
+      "always() && steps.gate.outcome != 'skipped'\n          && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')\n",
+    ),
+  );
+  const upload = step("Upload them for the next run");
+  assert.match(upload, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 /);
+  assert.ok(upload.includes("name: pr-merge-head-refs\n") && upload.includes(`path: ${mapOut}\n`));
+  assert.match(upload, /\n {8}if: always\(\) && steps\.head-refs\.outcome == 'success'\n/);
+  for (const name of ["Read the head refs the last run kept", "Keep the head refs the gate read", "Upload them for the next run"]) {
+    assert.match(step(name), /\n {8}continue-on-error: true\n/, name);
+  }
+  for (const s of steps.filter((s) => s.block.includes("actions/cache/"))) {
+    assert.ok(!s.block.includes("head-refs"), s.name);
+  }
+});
+
 // Runs the early job's check against a fake python3 that prints a report and
 // exits `code`.
 const runEarlyCheck = (code) => {
@@ -917,4 +965,11 @@ test("the re-run record is named by run and attempt, uploaded only after a recor
   assert.match(upload, /\n {8}if: "!cancelled\(\) && steps\.rerun\.outputs\.recorded == 'true'"\n/);
   assert.match(upload, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 /);
   assert.match(upload, /\n {10}name: pr-merge-rerun-\$\{\{ steps\.post-merge\.outputs\.lane-rerun \}\}-attempt-2\n/);
+});
+
+test("the lane token request passes the resolved grant's actions, so an actions read grant is compared too", () => {
+  const block = step("Request the lane token");
+  for (const scope of ["contents", "pull-requests", "issues", "actions"]) {
+    assert.match(block, new RegExp(`\\n {10}${scope}: \\$\\{\\{ steps\\.config\\.outputs\\.${scope} \\}\\}\\n`));
+  }
 });
