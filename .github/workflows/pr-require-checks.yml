@@ -4079,7 +4079,10 @@ jobs:
       # has it, plus merge-holds.mjs's HOLD_PATH_FLOOR), so a push after arming is
       # held on its own pull request event; a person on the trusted-actor list
       # (as main has it) lifts a hold path by approving the head, then re-runs
-      # ci-status. All by the rules in
+      # ci-status. A changed cost path (merge-holds.mjs COST_PATHS) also holds,
+      # and only the owner's cost decision linked from the body lifts it; the
+      # module reads that decision with this step's GH_TOKEN, only when the
+      # body links one. All by the rules in
       # .github/scripts/pr-merge/merge-holds.mjs,
       # which this step runs as main has it so a pull request cannot rewrite
       # its own hold: in the queue at the group's base commit, and on a pull

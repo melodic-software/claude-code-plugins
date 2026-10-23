@@ -22,6 +22,8 @@
 //   wrote its Hold: line can add one. The rule is merge-holds.pathHold, which
 //   ci-status also runs on every lanes App pull request event and merge
 //   group, so a push after arming is held without waiting for this job.
+// - Its head changes no cost path, unless its body links the owner's cost
+//   decision: merge-holds.costHold and costDecision, which ci-status runs too.
 // - No person turned its auto-merge off: the newest auto-merge-disabled event
 //   by a user account keeps it off until a person turns it on again.
 // - pr-merge's gate would take its verifier verdict at the head just read:
@@ -52,19 +54,22 @@
 //   TRACKER_CONFIG       the base .work-item-tracker.json, for the human-gated
 //                        label (default .base/.work-item-tracker.json)
 //   RESOLVED_CONFIG      the resolve-config output, for the hold paths
+//   TRUSTED_ACTORS       the base trusted-actors.json, for the owner of a cost
+//                        decision (default .base/.github/standards/trusted-actors/trusted-actors.json)
 //   EVENT_NAME           the run's event; only READER_EVENTS read verdicts and arm
 //   BABYSIT_VERIFY_*, BABYSIT_RUN_CACHE  the reader's Actions token (the
 //                        job's GITHUB_TOKEN), saved listing, head-ref map and
 //                        run cache, as the gate's
 //   GITHUB_API_URL
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { humanGatedLabelFrom } from "../pr-unblock/address-feedback.mjs";
 import { readHoldPaths } from "../work-resolve-issue/report-outcome.mjs";
-import { BODY_HOLD, pathHold, vetoers } from "./merge-holds.mjs";
+import { BODY_HOLD, costDecision, costHold, humansOf, pathHold, vetoers } from "./merge-holds.mjs";
 
 export { BODY_HOLD, HUMAN_VETO } from "./merge-holds.mjs";
 
@@ -161,6 +166,17 @@ export function discussionHold(detail) {
   return vetoes.length ? `${vetoes.join(", ")} asked not to merge it` : null;
 }
 
+// The trusted-actor list's people; an unreadable list names none, so no cost
+// decision clears.
+function trustedHumans(env) {
+  try {
+    const { actors } = JSON.parse(readFileSync(env.TRUSTED_ACTORS || ".base/.github/standards/trusted-actors/trusted-actors.json", "utf8"));
+    return humansOf(actors);
+  } catch {
+    return new Set();
+  }
+}
+
 async function changedFiles(github, slug, number) {
   const paths = [];
   for (let page = 1; page <= MAX_FILE_PAGES; page += 1) {
@@ -245,7 +261,7 @@ export function decide(pull, { bot, humanGated, holdPaths = null }, detail) {
   if (detail === null) {
     return { action: "none", reason: "its discussion did not read" };
   }
-  const vetoed = pathHold(detail.files, holdPaths) ?? discussionHold(detail);
+  const vetoed = pathHold(detail.files, holdPaths) ?? costHold(detail.files, detail.costDecision) ?? discussionHold(detail);
   if (vetoed !== null) {
     return { action: armed ? "disarm" : "none", reason: vetoed };
   }
@@ -314,7 +330,9 @@ export async function main({ env = process.env, github, verify } = {}) {
           const variables = { owner: repo[1], name: repo[2], number: pull.number };
           detail = (await github("POST", "/graphql", { query: DETAIL_QUERY, variables }))?.data?.repository?.pullRequest ?? null;
           if (detail !== null) {
-            detail = { ...detail, files: await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number) };
+            const files = await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number);
+            const decision = costHold(files, null) ? await costDecision(github, repo[0], pull.number, pull.body, trustedHumans(env)) : null;
+            detail = { ...detail, files, costDecision: decision };
           }
         } catch (error) {
           console.log(`enable-auto-merge: #${pull.number} discussion did not read: ${escapeCommand(error?.message ?? error)}`);
