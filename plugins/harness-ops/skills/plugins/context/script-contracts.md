@@ -1,6 +1,6 @@
-# Script contracts: `fleet-state.sh`, `cache-content-check.sh`, `normalize-enabled-plugins.sh`
+# Script contracts: `fleet-state.sh`, `cache-content-check.sh`, `converge-plan.sh`, `normalize-enabled-plugins.sh`
 
-The three read-and-write contracts `sync-run.sh` and `converge` are bound to. Each script's own
+The four read-and-write contracts `sync-run.sh` and `converge` are bound to. Each script's own
 header carries the same contract; this file restates it once for the caller's side. Read it when a
 step misbehaves, when `converge` needs an id list, or when a caller other than `sync-run.sh` is
 about to invoke one of the scripts.
@@ -55,6 +55,22 @@ that is not in the local marketplace clone is reported as `sha-not-local`, not f
 [sync.md](sync.md) Step 5b, [stale-records-cache-content.md](stale-records-cache-content.md) for
 how the finding is reported, and [scope-semantics.md](scope-semantics.md) for the mechanism that
 makes a cache directory and its recorded sha disagree in the first place.
+
+## `converge-plan.sh`: the converge plan, read-only
+
+`converge` Step 1 calls it once. It reads a `fleet-state.sh` report and prints one JSON plan, one row
+per lagging `(projectPath, id)` pin grouped by path, each with its strategy, exact command and class:
+
+```bash
+"<skill-dir>/scripts/converge-plan.sh" [--marketplace <name>]
+"<skill-dir>/scripts/converge-plan.sh" --from <report.json> [--marketplace <name>]
+```
+
+The first form runs `fleet-state.sh` itself; the second plans a single-marketplace report already on
+disk. Exit `0` is a plan (an empty one is success), `1` a marketplace that could not be resolved, `2`
+a usage error or an unusable report (an `--all` envelope is refused by name). The script never runs a
+`claude plugin` command and never writes a file. The classes, the strategy rules and the
+committed-enable read are in its header comment and in [converge.md](converge.md) Steps 1 and 2.
 
 ## `normalize-enabled-plugins.sh`: the one writer, user scope only
 
