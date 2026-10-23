@@ -888,6 +888,13 @@
           "minimum": 1,
           "description": "Minutes the gate may read for the candidate the last run deferred at gate-candidate-minutes, gated first in its run; writes are never bounded, as there. A candidate stopped at this ceiling gets a warning annotation and goes back to the capped rotation, never deferred again. Keep it below the merge job's timeout-minutes less the closing steps. Absent: no limit."
         },
+        "read-token-floor": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.3,
+          "description": "Share of GITHUB_TOKEN's core limit, as GET /rate_limit reports it, that must be left, at or above which the pr-merge gate reads its review evidence (timeline, comments, review-lane runs with their attempts, jobs and annotations) with BABYSIT_VERIFY_GH_TOKEN; below it, or when /rate_limit cannot be read, those reads use the lane App token. It is an early switch only: /rate_limit can show room while GitHub already refuses the token, so a read refused with a 429, or a 403 naming a rate limit, also sends that candidate's evidence reads to the lane App token and marks the token spent for the rest of the run. Both tokens read the same data, so no gate decision changes. Read at the default branch head. Absent, or not a number from 0 to 1: 0.3."
+        },
         "skip-unchanged": {
           "type": "object",
           "additionalProperties": false,
