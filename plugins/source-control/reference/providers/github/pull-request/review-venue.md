@@ -11,10 +11,11 @@ workflows, fixed in the script:
 
 | Lane | Reusable workflow the caller's runs reference |
 |---|---|
-| `code-review` | `melodic-software/ci-workflows/.github/workflows/pr-review.yml@<sha>` |
-| `security-review` | `melodic-software/ci-workflows/.github/workflows/pr-review-security.yml@<sha>`, or `pr-review-cli.yml@<sha>` from a caller whose path contains `security` (the run listing does not show its `lane` input) |
+| `code-review` | `melodic-software/ci-workflows/.github/workflows/pr-review.yml@<sha>`, or `pr-review-cli.yml@<sha>` from a caller whose path does not contain `security` |
+| `security-review` | `melodic-software/ci-workflows/.github/workflows/pr-review-security.yml@<sha>`, or `pr-review-cli.yml@<sha>` from a caller whose path contains `security` |
 
-The caller's own file name does not matter (`pr-review-hosted.yml` on a public repository,
+The run listing does not show `pr-review-cli.yml`'s `lane` input, so the caller's path decides its
+lane. Otherwise the caller's own file name does not matter (`pr-review-hosted.yml` on a public repository,
 `pr-review.yml` on a private one). The script reads the `referenced_workflows` field of the
 repository's newest pull request runs, up to three pages of 100:
 
