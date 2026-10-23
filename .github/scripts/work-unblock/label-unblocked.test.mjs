@@ -2151,7 +2151,7 @@ test("the sweep admits a deferred issue once under the queued cap, and keeps it 
   assert.deepEqual(writes(at.calls), []);
 });
 
-// A pull request in this repository that references issue 25, as the REST
+// A pull request in this repository that references the deferred issue, as the REST
 // timeline reports it.
 const namingPull = (state) => ({
   event: "cross-referenced",
