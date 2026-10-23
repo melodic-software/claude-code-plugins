@@ -183,17 +183,27 @@ export function unrunnableReason({ items, found }) {
 
 const names = (labels) => (labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
 
+// Why admission leaves an issue alone whatever its verdict, or null: a person
+// already added agent-ready, or it was removed once. Pure.
+export function admissionSettled(labels, events) {
+  if (labels.includes(AGENT_READY)) {
+    return `already ${AGENT_READY}`;
+  }
+  if (events.some((event) => event?.event === "unlabeled" && event.label?.name === AGENT_READY)) {
+    return `${AGENT_READY} was removed before`;
+  }
+  return null;
+}
+
 // {verdict: admit | refuse | wait | skip, reasons}. Pure.
 export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, timeline, events, humans, appId, repository, webHosts }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
   }
-  if (labels.includes(AGENT_READY)) {
-    return { verdict: "skip", reasons: [`already ${AGENT_READY}`] };
-  }
-  if (events.some((event) => event?.event === "unlabeled" && event.label?.name === AGENT_READY)) {
-    return { verdict: "skip", reasons: [`${AGENT_READY} was removed before`] };
+  const settled = admissionSettled(labels, events);
+  if (settled) {
+    return { verdict: "skip", reasons: [settled] };
   }
 
   const refuse = [];
@@ -276,6 +286,9 @@ async function sayWhy(github, repository, base, text) {
   const own = (await paginate(github, `${base}/comments`)).find(
     (comment) => comment.user?.login === LANES_APP_LOGIN && String(comment.body ?? "").startsWith(ADMIT_MARKER),
   );
+  if (own?.body === body) {
+    return;
+  }
   if (own) {
     await github("PATCH", `/repos/${repository}/issues/comments/${own.id}`, {
       body,
@@ -283,6 +296,27 @@ async function sayWhy(github, repository, base, text) {
   } else {
     await github("POST", `${base}/comments`, { body });
   }
+}
+
+// For an issue apply-verdict held without admission (a flag, an escalation or
+// a hold), the same split note a refusal posts, when a done-when item is one
+// the lane cannot perform, so the split survives a verdict that never reaches
+// decide(). It skips where decide() does (admissionSettled), and leaves an
+// unchanged note alone. Returns {outcome: noted | none | skipped, reasons}.
+export async function noteUnrunnable({ github, repository, issue, rules, webHosts, log = console.log }) {
+  const base = `/repos/${repository}/issues/${issue.number}`;
+  const reason = unrunnableReason(unrunnableCriteria(issue.body, rules["task-list"], webHosts));
+  if (!reason) {
+    return { outcome: "none", reasons: [] };
+  }
+  const settled = admissionSettled(names(issue.labels), await paginate(github, `${base}/events`));
+  if (settled) {
+    log(`admit: #${issue.number} left as is (${settled})`);
+    return { outcome: "skipped", reasons: [settled] };
+  }
+  await sayWhy(github, repository, base, `Not admitted to the issue lane: ${reason}.`);
+  log(`admit: #${issue.number} held; split noted (${reason})`);
+  return { outcome: "noted", reasons: [reason] };
 }
 
 // Reads the issue fresh, decides, and writes. `status` answers check-wip-cap's

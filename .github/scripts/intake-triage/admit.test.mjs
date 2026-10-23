@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, admit, decide, loadRules, unrunnableCriteria } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, admit, decide, loadRules, noteUnrunnable, unrunnableCriteria } from "./admit.mjs";
 
 const RULES = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)));
 const HUMAN = 153232337;
@@ -522,4 +522,48 @@ test("decide: every done-when item unrunnable says a person takes the issue, wit
   const result = decide(facts({ issue: issueOf({ body: "- [ ] Run it on a Windows 11 host." }) }));
   assert.equal(result.verdict, "refuse");
   assert.match(result.reasons.join("; "), /no done-when item is left for the lane, so a person takes the issue/);
+});
+
+describe("noteUnrunnable", () => {
+  const HELD = issueOf({ body: CANARY, labels: [{ name: NEEDS_DECISION }] });
+  const note = (fake, issue = HELD) => noteUnrunnable({ github: fake.github, repository: "o/r", issue, rules: RULES, webHosts: HOSTS, log: () => {} });
+  test("a held issue with a Windows-host item gets the split comment and no label change (#9372)", async () => {
+    const fake = fakeGitHub({ issue: HELD });
+    const result = await note(fake);
+    assert.equal(result.outcome, "noted");
+    const done = writes(fake.calls);
+    assert.equal(done.length, 1);
+    assert.match(done[0], /^POST \/repos\/o\/r\/issues\/7\/comments /);
+    assert.ok(done[0].includes(ADMIT_MARKER.replaceAll('"', '\\"')));
+    assert.match(done[0], /item 2 .*Windows 11 host.*recommended split: keep the other items here as the admissible issue/);
+  });
+  test("a held issue whose done-when the lane can run gets nothing", async () => {
+    const fake = fakeGitHub();
+    assert.deepEqual(await note(fake, issueOf()), { outcome: "none", reasons: [] });
+    assert.deepEqual(writes(fake.calls), []);
+  });
+  test("an issue a person already made agent-ready gets no note", async () => {
+    const issue = issueOf({ body: CANARY, labels: [{ name: NEEDS_DECISION }, { name: AGENT_READY }] });
+    const fake = fakeGitHub({ issue });
+    assert.deepEqual(await note(fake, issue), { outcome: "skipped", reasons: [`already ${AGENT_READY}`] });
+    assert.deepEqual(writes(fake.calls), []);
+  });
+  test("an issue whose agent-ready was removed before gets no note", async () => {
+    const fake = fakeGitHub({ issue: HELD, events: [{ event: "unlabeled", label: { name: AGENT_READY } }] });
+    assert.deepEqual(await note(fake), { outcome: "skipped", reasons: [`${AGENT_READY} was removed before`] });
+    assert.deepEqual(writes(fake.calls), []);
+  });
+  test("a repeated run leaves an unchanged note alone, and edits a changed one in place", async () => {
+    const first = fakeGitHub({ issue: HELD });
+    await note(first);
+    const posted = writes(first.calls)[0];
+    const body = JSON.parse(posted.slice(posted.indexOf("{"))).body;
+    const own = (text) => [{ id: 31, body: text, user: { login: "melodic-automation-lanes[bot]" } }];
+    const again = fakeGitHub({ issue: HELD, comments: own(body) });
+    assert.equal((await note(again)).outcome, "noted");
+    assert.deepEqual(writes(again.calls), []);
+    const changed = fakeGitHub({ issue: HELD, comments: own(`${ADMIT_MARKER}\nold`) });
+    await note(changed);
+    assert.match(writes(changed.calls)[0], /^PATCH \/repos\/o\/r\/issues\/comments\/31 /);
+  });
 });

@@ -230,14 +230,16 @@ jobs:
           interactions or concurrency.
         - Uncertainty: Known when the approach is clear from the issue, Knowable when reading or
           asking first would settle it, Unknown when only an experiment would.
-        - Flags: intent when the intended outcome is not exact or needs the owner's decision, or
-          when a done-when item asks for what an unattended lane run cannot do (a run on a named
-          host or OS, a paid eval, a run repeated N times, a measurement over time, or a page on a
-          host outside the issue lane's web access); then recommend a split in your comment: the
-          lane-checkable items stay in this issue, the rest go to a needs-human child issue;
+        - Flags: intent when the intended outcome is not exact or needs the owner's decision;
           security only for a very-high security risk, the security review's CRITICAL tier: the
           work would expose a credential or secret, bypass a trust boundary, or open an external
           attack surface (other security-related work gets no flag); cost as COST below describes.
+
+        UNRUNNABLE DONE-WHEN. A done-when item an unattended lane run cannot do (a run on a named
+        host or OS, a paid eval, a run repeated N times, a measurement over time, or a page on a
+        host outside the issue lane's web access) is no reason for needs_human, the intent flag or
+        a none class on its own: triage the lane-checkable items as usual, with their work class
+        and fields. Admission holds the issue and posts the split itself.
 
         VERDICT LINES. Begin your comment with these four lines, each at the start of its own line,
         exactly in this form, one value each (the Flags line lists every flag that applies, comma

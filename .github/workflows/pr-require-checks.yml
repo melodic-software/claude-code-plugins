@@ -3051,8 +3051,10 @@ jobs:
     # the worst case of the pinned composites' waits: two 60 s rate-limit waits
     # (`rate-limit-wait-seconds` on check-contract and aggregate-results), 45 s
     # of own-gate retries, 7 s of status-write retries and the 90 s
-    # `rerun-wait-seconds` wait, about four and a half minutes.
-    timeout-minutes: 5
+    # `rerun-wait-seconds` wait, about four and a half minutes, plus up to
+    # 15 s of retry sleeps for each of the hold-lift step's three reads and
+    # the review-lane step's four, under two minutes.
+    timeout-minutes: 7
     permissions:
       # `yield-to-full-run` lists this workflow's runs on the head SHA, and
       # `rerun-contract-only-siblings` re-runs the red contract-only ones once
@@ -3200,9 +3202,12 @@ jobs:
       # outdates. The reason is the newest review-lane hold comment's text: a
       # `<!-- claude-lane-hold lane=` comment by claude[bot], or by
       # github-actions[bot] when its last non-blank line is the lane's
-      # `claude-lane: <lane>` footer. Without one the error names none. An unreadable tracker config or label list fails closed. Pinned
+      # `claude-lane: <lane>` footer. Without one the error names none. An unreadable tracker config or label list fails closed.
+      # It outputs the label's name, and `held=false` once the live labels
+      # read without it, for the hold-lift step below. Pinned
       # by scripts/ci-hold-human-gated.test.sh, which runs this body.
       - name: Fail a pull request carrying the human-gated label
+        id: human_gated
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -3232,6 +3237,7 @@ jobs:
               exit 1
             }
           fi
+          echo "label=$human_gated" >>"$GITHUB_OUTPUT"
           for attempt in 1 2 3; do
             if labels=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels?per_page=100" --paginate --jq '.[].name'); then
               break
@@ -3240,6 +3246,7 @@ jobs:
             sleep $((attempt * 5))
           done
           if ! grep -qxF -- "$human_gated" <<<"$labels"; then
+            echo "held=false" >>"$GITHUB_OUTPUT"
             echo "#$PR_NUMBER carries no '$human_gated' label."
             exit 0
           fi
@@ -3255,6 +3262,225 @@ jobs:
           [ -z "$reason" ] || why=" (${reason//%/%25})"
           echo "::error::#$PR_NUMBER carries '$human_gated'$why. Removing the label approves this pull request; ci-status re-runs on the unlabel."
           exit 1
+      # ONLY A TRUSTED PERSON LIFTS A REVIEW-LANE HOLD. Removing the human-gated
+      # label approves a pull request, so once a review lane has held it (a
+      # hold comment as the step above reads them), the first removal of the
+      # label after the newest hold comment must be by a `human` of the base
+      # commit's .github/standards/trusted-actors/trusted-actors.json. A later
+      # removal is of a later label, such as an escalation clear-escalations
+      # lifts. A bot or another account lifting the hold, or no recorded
+      # removal, fails; adding the label back and having a trusted person
+      # remove it approves: a trusted person's `labeled` event after the hold
+      # starts a new hold that only that list's removal lifts.
+      # It runs only when the step above read the live labels and found the
+      # label off. A hold is the newest hold comment or the newest `labeled`
+      # event of the label by github-actions[bot] or claude[bot], whichever is
+      # later: an event cannot be deleted or edited, so removing the comment
+      # does not remove the hold, and a review re-run that labels the same head
+      # again starts a new hold. Unreadable comments, events or actor list fail
+      # closed.
+      # Pinned by scripts/ci-hold-lifted-by.test.sh, which runs this body.
+      - name: Fail a review-lane hold an untrusted account lifted
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.human_gated.outputs.held == 'false' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HUMAN_GATED: ${{ steps.human_gated.outputs.label }}
+        run: |
+          if [[ ! $BASE_SHA =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
+            exit 1
+          fi
+          # shellcheck disable=SC2016 # the $ in the --jq filter is a regex anchor
+          for attempt in 1 2 3; do
+            if held_at=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate \
+              --jq '.[] | select(.user.type == "Bot" and (.body | test("(^|\n)<!-- claude-lane-hold lane="))
+                and (.user.login == "claude[bot]" or (.user.login == "github-actions[bot]"
+                  and ([.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "") | select(. != "")] | last // ""
+                    | test("^`?claude-lane: (claude-review|claude-security-review)`?$")))))
+                | .created_at'); then
+              break
+            fi
+            [ "$attempt" -lt 3 ] || { echo "::error::could not read the comments of #$PR_NUMBER; re-run this run."; exit 1; }
+            sleep $((attempt * 5))
+          done
+          for attempt in 1 2 3; do
+            if events=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/events?per_page=100" --paginate); then
+              break
+            fi
+            [ "$attempt" -lt 3 ] || { echo "::error::could not read the events of #$PR_NUMBER; re-run this run."; exit 1; }
+            sleep $((attempt * 5))
+          done
+          labeled_at=$(jq -rs --arg label "$HUMAN_GATED" '[add[] | select(.event == "labeled" and .label.name == $label
+            and (.actor.login == "github-actions[bot]" or .actor.login == "claude[bot]")) | .created_at] | max // empty' <<<"$events") || {
+            echo "::error::cannot read the events of #$PR_NUMBER."
+            exit 1
+          }
+          held_at=$(printf '%s\n%s\n' "$held_at" "$labeled_at" | sort | tail -n 1)
+          if [ -z "$held_at" ]; then
+            echo "No review lane has held #$PR_NUMBER."
+            exit 0
+          fi
+          for attempt in 1 2 3; do
+            if actors=$(gh api -H 'Accept: application/vnd.github.raw+json' "repos/$GITHUB_REPOSITORY/contents/.github/standards/trusted-actors/trusted-actors.json?ref=$BASE_SHA"); then
+              break
+            fi
+            [ "$attempt" -lt 3 ] || { echo "::error::could not read the trusted-actor list at $BASE_SHA; re-run this run."; exit 1; }
+            sleep $((attempt * 5))
+          done
+          humans=$(jq -er '[.actors[] | select(.kind == "human") | .id | numbers | tostring] | select(length > 0) | join(" ")' <<<"$actors") || {
+            echo "::error::the trusted-actor list at $BASE_SHA names no person."
+            exit 1
+          }
+          # A trusted person adding the label back starts a new hold that person's
+          # removal lifts, so a hold an untrusted account lifted can be recovered.
+          lifted=$(jq -rs --arg label "$HUMAN_GATED" --arg held_at "$held_at" --arg humans " $humans " '[add[]
+            | select(.label.name == $label)] as $events
+            | ([$held_at, ($events[] | select(.event == "labeled" and .created_at > $held_at
+                and (.actor.id as $id | $humans | contains(" \($id) "))) | .created_at)] | max) as $since
+            | [$events[] | select(.event == "unlabeled" and .created_at > $since)]
+            | min_by(.created_at) // empty | [.created_at, (.actor.id // 0 | tostring), (.actor.login // "an unknown account")] | @tsv' <<<"$events") || {
+            echo "::error::cannot read the events of #$PR_NUMBER."
+            exit 1
+          }
+          IFS=$'\t' read -r lifted_at actor_id actor_login <<<"$lifted"
+          if [ -z "$lifted_at" ]; then
+            echo "::error::a review lane held #$PR_NUMBER at $held_at, and no removal of '$HUMAN_GATED' since then is recorded. Add the label back; a person on the trusted-actor list removing it approves this pull request."
+            exit 1
+          fi
+          if [[ " $humans " != *" $actor_id "* ]]; then
+            echo "::error::$actor_login removed '$HUMAN_GATED' from #$PR_NUMBER after a review lane held it, and is not a person on the trusted-actor list. Add the label back; a person on that list removing it approves this pull request."
+            exit 1
+          fi
+          echo "$actor_login, a person on the trusted-actor list, lifted the review-lane hold on #$PR_NUMBER."
+      # BOTH REVIEW LANES REVIEW THE HEAD. Neither review check is required by a
+      # ruleset (github-iac ADR 0017); this step makes ci-status need them. For
+      # each lane it takes the newest pull_request run of the lane's caller
+      # workflow on the head and that run's latest jobs, which are the GitHub
+      # Actions check runs. The lane passes when its status job succeeded and
+      # its `Apply the hold` step succeeded, so a summary-mode run or one
+      # without a hold label never counts. A pending, failed or cancelled
+      # review fails, as does a skipped one (a fork, or a bot outside the
+      # caller's allowed-bot-sender-ids), with the cause named. A lane the
+      # kill switch stopped passes: its kill-switch job succeeded and ran its
+      # `Report the kill switch` step. A kill-switch job that failed stopped
+      # the review too, and fails. Dependabot, the release App and the
+      # standards-sync App, by numeric author id, are exempt: no review lane
+      # reviews them. An exempt author's PR still fails when a changed file
+      # (or a renamed file's old path) matches the callers' hold-paths, since
+      # no lane is there to hold it as trust-gate; a person merges it. A draft is exempt
+      # (see `Note a draft`). pr-feedback-dispatch.yml re-runs this job when a
+      # review run completes. An unreadable run or job list fails closed.
+      # Pinned by scripts/ci-review-lanes.test.sh, which runs this body.
+      - name: Require both review lanes on this head
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft == false }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          AUTHOR_ID: ${{ github.event.pull_request.user.id }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          # dependabot[bot], melodic-plugin-release[bot] and
+          # melodic-standards-sync[bot], as
+          # .github/standards/trusted-actors/trusted-actors.json lists them.
+          exempt_author_ids='49699333 337859524 300666570'
+          lanes='pr-review-hosted.yml pr-review / claude-review-status
+          pr-review-security-hosted.yml pr-review-security / security-review'
+          if [[ ! $HEAD_SHA =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the head '$HEAD_SHA' is not a commit SHA."
+            exit 1
+          fi
+          read_api() {
+            local attempt body
+            for attempt in 1 2 3; do
+              if body=$(gh api "$2"); then
+                printf '%s\n' "$body"
+                return 0
+              fi
+              [ "$attempt" -lt 3 ] || { echo "::error::could not read $1; re-run this run." >&2; return 1; }
+              sleep $((attempt * 5))
+            done
+          }
+          if [[ $AUTHOR_ID =~ ^[0-9]+$ && " $exempt_author_ids " == *" $AUTHOR_ID "* ]]; then
+            # The callers' hold-paths, as bash patterns (`*` crosses `/`).
+            hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules')
+            if [[ ! $PR_NUMBER =~ ^[1-9][0-9]*$ ]]; then
+              echo "::error::the pull request number '$PR_NUMBER' is not a number."
+              exit 1
+            fi
+            pr=$(read_api "#$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER") || exit 1
+            for attempt in 1 2 3; do
+              if files=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --paginate --jq '.[] | [.filename, (.previous_filename // "")] | @tsv'); then
+                break
+              fi
+              [ "$attempt" -lt 3 ] || { echo "::error::could not read the files of #$PR_NUMBER; re-run this run."; exit 1; }
+              sleep $((attempt * 5))
+            done
+            if [ "$(grep -c . <<<"$files")" -lt "$(jq '.changed_files // 0' <<<"$pr")" ]; then
+              echo "::error::GitHub listed fewer files than #$PR_NUMBER changes, so its hold-paths cannot be checked; a person merges it."
+              exit 1
+            fi
+            held=
+            while IFS= read -r path; do
+              for pattern in "${hold_patterns[@]}"; do
+                # shellcheck disable=SC2053 # the pattern is matched as a glob on purpose
+                [[ $path != $pattern ]] || held="$held $path"
+              done
+            done < <(tr '\t' '\n' <<<"$files" | grep .)
+            if [ -n "$held" ]; then
+              echo "::error::#$PR_NUMBER is by an author no review lane reviews and changes trust-gate paths:${held//%/%25}. A person merges it."
+              exit 1
+            fi
+            echo "The author ($AUTHOR_ID) is one no review lane reviews, and no trust-gate path changed; the review lanes are not required."
+            exit 0
+          fi
+          failed=0
+          while read -r file check; do
+            runs=$(read_api "the $file runs on $HEAD_SHA" \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/$file/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=100") || exit 1
+            run=$(jq -c --arg path ".github/workflows/$file" --arg sha "$HEAD_SHA" \
+              '[.workflow_runs[] | select(.path == $path and .head_sha == $sha and .event == "pull_request")] | max_by(.id) // empty' <<<"$runs")
+            if [ -z "$run" ]; then
+              echo "::error::'$check' is missing: no $file run on $HEAD_SHA yet. ci-status re-runs when the review finishes."
+              failed=1
+              continue
+            fi
+            id=$(jq -r .id <<<"$run")
+            url=$(jq -r .html_url <<<"$run")
+            jobs=$(read_api "the jobs of run $id" "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?filter=latest&per_page=100") || exit 1
+            verdict=$(jq -r --arg check "$check" --arg run_status "$(jq -r .status <<<"$run")" '
+              (.jobs | map(select(.name == $check)) | max_by(.id)) as $s
+              | (.jobs | map(select(.name == "kill-switch")) | max_by(.id)) as $k
+              | if $s != null and $s.status != "completed" then "pending"
+                elif $s.conclusion == "success" then
+                  if any($s.steps[]?; .name == "Apply the hold" and .conclusion == "success") then "pass" else "uncounted" end
+                elif $s != null and $s.conclusion != "skipped" then "red \($s.conclusion)"
+                elif $k.conclusion == "success" and any($k.steps[]?; .name == "Report the kill switch" and .conclusion == "success") then "stopped"
+                elif $run_status != "completed" then "pending"
+                else "missing \($k.conclusion // "absent")" end' <<<"$jobs")
+            case $verdict in
+            pass) echo "'$check' passed on $HEAD_SHA ($url)." ;;
+            stopped) echo "::notice::a kill switch stopped '$check' on $HEAD_SHA ($url); the lane is not required." ;;
+            pending)
+              echo "::error::'$check' has not finished on $HEAD_SHA ($url). ci-status re-runs when the review finishes."
+              failed=1
+              ;;
+            uncounted)
+              echo "::error::'$check' passed in $url, but its 'Apply the hold' step did not run: the lane ran in summary mode or without a hold label, so it is not a review that counts."
+              failed=1
+              ;;
+            red\ *)
+              echo "::error::'$check' ended ${verdict#red } on $HEAD_SHA ($url): the review did not complete. Re-run the lane."
+              failed=1
+              ;;
+            *)
+              echo "::error::'$check' did not run on $HEAD_SHA ($url; kill-switch job: ${verdict#missing }): a fork, or a bot outside the caller's allowed-bot-sender-ids, gets no review, and a kill-switch job that did not succeed stops it. A push by a person on the trusted-actor list starts a review."
+              failed=1
+              ;;
+            esac
+          done <<<"$lanes"
+          exit "$failed"
       # A QUEUED PULL REQUEST IS HELD BY ITS LABELS TOO. A merge-group payload
       # carries no pull request, so `check-contract` above reports `skipped`,
       # and a `do-not-merge` or human-gated label applied after enqueue would
