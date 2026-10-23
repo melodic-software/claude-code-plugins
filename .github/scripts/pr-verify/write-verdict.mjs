@@ -98,12 +98,18 @@ export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, lin
     }
   }
   const own = Array.isArray(specText) ? specText.find((entry) => entry?.source === "pull-request") : undefined;
+  const issues = checkIssues(linkedIssues);
+  const refs = Array.isArray(specText) && specText.some((entry) => entry?.spec_kind === "refs");
   return {
     pr: Number(pr),
     head_sha: headSha,
     base_sha: baseSha,
     head_ref: headRef,
-    linked_issues: checkIssues(linkedIssues),
+    linked_issues: issues,
+    // How the linked issues were linked (resolve-pr's specKind): a `refs`
+    // issue was judged as a partial slice, so the gate refuses the pass once
+    // the pull request closes it instead (babysit_verify_evidence).
+    spec_kind: own ? "pull-request" : issues.length === 0 ? "none" : refs ? "refs" : "closes",
     // What the spec was: the pull request's own title and body
     // (babysit_verify_evidence.INTENT_PULL_REQUEST), else its closing issues.
     intent: own ? "pull-request" : "issues",

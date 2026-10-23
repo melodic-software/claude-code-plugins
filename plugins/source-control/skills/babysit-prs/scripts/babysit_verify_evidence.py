@@ -165,7 +165,9 @@ CLOSING_QUERY = (
     "pullRequest(number:$n){body closingIssuesReferences(first:10){totalCount "
     f"nodes{{{ISSUE_FIELDS}}}}}}}}}}}{ACTOR_FRAGMENT}"
 )
-# The one issue a `Refs:` line names, when the pull request closes none.
+# The one issue a `Refs:` line names, when the pull request closes none, and
+# the key `_closing_issues` marks it with.
+REFS_MARK = "refsLink"
 REFS_QUERY = (
     "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
     f"issueOrPullRequest(number:$n){{__typename ... on Issue{{{ISSUE_FIELDS}}}}}}}}}"
@@ -833,7 +835,12 @@ class Reader:
                         "issueOrPullRequest"
                     )
                 )
-                nodes = [node] if node.get("__typename") == "Issue" else []
+                # Marked so the gate can bind a pass to how it was linked.
+                nodes = (
+                    [node | {REFS_MARK: True}]
+                    if node.get("__typename") == "Issue"
+                    else []
+                )
         live = {
             json_object(node).get("number"): json_object(node)
             for node in nodes
@@ -1170,6 +1177,14 @@ class Reader:
             )
             != self._recorded_comments(issues[n])
             for n, node in live.items()
+        ):
+            return SPEC_CHANGED
+        # A `Refs:` issue is judged as a partial slice (write-verdict.mjs
+        # `spec_kind`), so a pass judged that way never covers a pull request
+        # that now closes it, nor the reverse. A record from before the kind
+        # was written judged closing issues.
+        if live and any(n.get(REFS_MARK) for n in live.values()) != (
+            record.get("spec_kind", "closes") == "refs"
         ):
             return SPEC_CHANGED
         # No closing issue, then and now: the verdict judged the pull

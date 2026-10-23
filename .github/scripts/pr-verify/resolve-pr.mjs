@@ -269,8 +269,12 @@ async function linkedIssues(github, repository, number, humans) {
         .filter(written)
         .map((comment) => ({ id: comment.databaseId, updated_at: comment.updatedAt })),
     })),
+    // How the spec was linked: `closes` for closing issues, `refs` for the one
+    // issue a `Refs:` line names, which the verifier judges as a partial slice.
+    specKind: issues.length === 0 ? "none" : named !== null ? "refs" : "closes",
     specText: issues.map((issue) => ({
       number: issue.number,
+      spec_kind: named !== null ? "refs" : "closes",
       body: written(issue) && typeof issue.body === "string" ? issue.body : null,
       comments: issue.comments.nodes.filter(written).map((comment) => String(comment.body ?? "")),
     })),
@@ -345,7 +349,8 @@ export async function resolvePull({ github, repository, upstreamRunId, humans, b
     (bodyEditor === null || bodyEditor === pull.user?.id || humans.has(bodyEditor));
   if (spec.linkedIssues.length === 0 && bodyIsIntent) {
     const body = `${String(pull.title ?? "")}\n\n${String(pull.body ?? "")}`;
-    spec.specText = [{ number: pull.number, source: "pull-request", body, comments: [] }];
+    spec.specKind = "pull-request";
+    spec.specText = [{ number: pull.number, source: "pull-request", spec_kind: "pull-request", body, comments: [] }];
   }
   return {
     proceed: true,

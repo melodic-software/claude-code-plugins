@@ -1224,7 +1224,14 @@ same-repository, non-draft pull request into main. It never runs the pull reques
 (the `verify-pr` route of [Models](#models)) reads the diff, the trusted pull request text and its linked issues as
 data, and judges whether the diff delivers the issue's intent correctly and safely. Its linked
 issues are its closing issues, or, when it closes none, the one `Refs:` issue
-[The pr-merge lane](#the-pr-merge-lane) reads, judged by the same standard. The model runs
+[The pr-merge lane](#the-pr-merge-lane) reads. A closing issue is judged whole. A `Refs:` issue is
+judged as a partial slice (owner decision 2026-10-23, the recommended option): only the part the
+pull request body says it delivers, which must be in the issue's scope, correct and coherent on
+its own, with the body naming what remains; a body that names no delivered part or no remaining
+work, or claims the whole issue, fails. The body only narrows what is judged, never adds a
+requirement, and the spec trust rules below are unchanged. resolve-pr marks each spec entry's
+`spec_kind` (`closes`, `refs` or `pull-request`), and the verdict records it, so the gate refuses a
+pass (`verify:spec-changed`) when the issue is now linked the other way. The model runs
 on ci-workflows' `run-claude-cli` as the `automations` role ([Funding](#funding)), with the Read
 tool alone, allowed only on the data files in the working directory's `pr-verify-data`. The run
 uploads one artifact, `pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>`, holding the verdict JSON

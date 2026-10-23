@@ -1466,6 +1466,7 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
         fake.closing = []
         fake.body = body
         fake.refs = {7: kind, 8: REPO}
+        fake.records[named(HEAD, "pass")] = record(spec_kind="refs")
         return fake
 
     def test_the_one_refs_issue_binds_like_a_closing_one(self) -> None:
@@ -1490,6 +1491,22 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
                 self.assertEqual(
                     read(self.refs(body, kind)).refusal, "verify:spec-changed"
                 )
+
+    def test_a_pass_binds_to_how_the_issue_was_linked(self) -> None:
+        # A Refs pass was judged as a partial slice: it never covers the same
+        # issue closed, and a closing pass never covers it as a Refs link.
+        fake = passing()
+        fake.records[named(HEAD, "pass")] = record(spec_kind="refs")
+        self.assertEqual(read(fake).refusal, "verify:spec-changed")
+        fake = self.refs("Refs: #7")
+        fake.records[named(HEAD, "pass")] = record(spec_kind="closes")
+        self.assertEqual(read(fake).refusal, "verify:spec-changed")
+        fake = self.refs("Refs: #7")
+        fake.records[named(HEAD, "pass")] = record()
+        self.assertEqual(read(fake).refusal, "verify:spec-changed")
+        fake = passing()
+        fake.records[named(HEAD, "pass")] = record(spec_kind="closes")
+        self.assertIsNone(read(fake).refusal)
 
     def test_a_closing_issue_wins_over_refs(self) -> None:
         fake = passing()

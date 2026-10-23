@@ -11,6 +11,9 @@
   judgment (the README's "Verifier verdict"); that is the one difference.
 - The `Refs:` rule: the one issue a pull request body's visible `Refs: #<n>`
   lines name (`babysit_merge_policy.refs_issue`, resolve-pr's `refsIssue`).
+- The spec kind: the verdict write-verdict.mjs builds from resolve-pr's spec
+  text records `spec_kind`, and the gate allows a pass only when it matches
+  how the issue is linked now (a `Refs:` slice or a closing issue).
 
 The run records are the gate suite's own forgeries and unfinished runs.
 """
@@ -150,6 +153,15 @@ REFS_BODIES = [
     "Refs: #5\x0bRefs: #6",
     "Closes #4\nRefs: #5",
 ]
+WRITER = RESOLVER.with_name("write-verdict.mjs")
+KIND_NODE = """
+import { buildVerdict } from %s;
+const { linked, entries } = JSON.parse(process.argv[1]);
+const ids = { pr: "41", headSha: "a".repeat(40), baseSha: "b".repeat(40), runId: "1", headRef: "feat/x" };
+const output = JSON.stringify({ verdict: "pass", summary: "s", notes: [] });
+console.log(JSON.stringify(entries.map((kind) =>
+  buildVerdict({ ...ids, linkedIssues: [linked], output, specText: [{ number: 7, spec_kind: kind, body: "b", comments: [] }] }).spec_kind)));
+"""
 REFS_NODE = """
 import { refsIssue } from %s;
 console.log(JSON.stringify(JSON.parse(process.argv[1]).map(refsIssue)));
@@ -173,6 +185,35 @@ class TheGateAndTheResolverReadRefsAlike(unittest.TestCase):
         # Hand-read: the table holds both kinds of answer.
         self.assertEqual(named[2], 5)
         self.assertIn(None, named)
+
+
+@unittest.skipUnless(shutil.which("node"), "node not installed")
+class TheGateBindsThePassToTheSpecKindTheWriterRecords(unittest.TestCase):
+    def test_a_pass_allows_only_under_the_link_it_was_judged_for(self) -> None:
+        script = KIND_NODE % json.dumps(WRITER.as_uri())
+        payload = {"linked": gate.TRUSTED_ISSUE, "entries": ["closes", "refs"]}
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", script, json.dumps(payload)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        written = json.loads(proc.stdout)
+        self.assertEqual(written, ["closes", "refs"])
+        for judged, kind in zip(("closes", "refs"), written, strict=True):
+            for linked in ("closes", "refs"):
+                with self.subTest(judged=judged, linked=linked):
+                    fake = gate.passing()
+                    fake.records[gate.named(gate.HEAD, "pass")] = gate.record(
+                        spec_kind=kind
+                    )
+                    if linked == "refs":
+                        fake.closing, fake.body = [], "Refs: #7"
+                        fake.refs = {7: gate.REPO}
+                    refusal = gate.read(fake).refusal
+                    self.assertEqual(
+                        refusal, None if judged == linked else "verify:spec-changed"
+                    )
 
 
 if __name__ == "__main__":

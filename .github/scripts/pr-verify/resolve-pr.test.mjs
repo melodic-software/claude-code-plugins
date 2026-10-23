@@ -130,7 +130,8 @@ test("a passing same-repository run resolves its one PR at the run's head", asyn
     baseSha: BASE,
     headRef: "feat/x",
     linkedIssues: [LINKED],
-    specText: [{ number: 7, body: "the spec", comments: [] }],
+    specKind: "closes",
+    specText: [{ number: 7, spec_kind: "closes", body: "the spec", comments: [] }],
   });
 });
 
@@ -171,7 +172,8 @@ test("a PR that closes no issue is judged against the one issue its Refs line na
   const queries = [];
   const resolved = await resolve({ issues: [], body: "Refs: #7\n\nPart one.", refs: { 7: REFS_ISSUE }, queries });
   assert.deepEqual(resolved.linkedIssues, [LINKED]);
-  assert.deepEqual(resolved.specText, [{ number: 7, body: "the spec", comments: [] }]);
+  assert.deepEqual(resolved.specText, [{ number: 7, spec_kind: "refs", body: "the spec", comments: [] }]);
+  assert.equal(resolved.specKind, "refs");
   assert.deepEqual(queries, [7]);
 });
 
@@ -183,6 +185,9 @@ test("a closing issue wins over a Refs line, which is then never read", async ()
 });
 
 test("a hidden, ambiguous or non-issue Refs line names no spec", async () => {
+  // The kind each link gives the verifier: closes, refs, none, or the PR's own text.
+  assert.equal((await resolve({ body: "Refs: #8" })).specKind, "closes");
+  assert.equal((await resolve({ issues: [] })).specKind, "none");
   for (const [prBody, refs] of [
     ["<!-- Refs: #7 -->", { 7: REFS_ISSUE }],
     ["```\nRefs: #7\n```", { 7: REFS_ISSUE }],
@@ -192,7 +197,7 @@ test("a hidden, ambiguous or non-issue Refs line names no spec", async () => {
     ["Refs: #7", { 7: { ...REFS_ISSUE, repository: { nameWithOwner: "someone/else" } } }],
   ]) {
     const resolved = await resolve({ issues: [], body: prBody, refs });
-    assert.deepEqual([resolved.linkedIssues, resolved.specText], [[], []], prBody);
+    assert.deepEqual([resolved.linkedIssues, resolved.specText, resolved.specKind], [[], [], "none"], prBody);
   }
 });
 
@@ -304,7 +309,7 @@ test("a trusted PR with no closing issue here is its own spec, unless a model wr
     specFromBodyApps: [RELEASE],
   };
   const own = (user) => pull({ user, title: "chore: release", body: "Bumps the versions." });
-  const spec = [{ number: 41, source: "pull-request", body: "chore: release\n\nBumps the versions.", comments: [] }];
+  const spec = [{ number: 41, source: "pull-request", spec_kind: "pull-request", body: "chore: release\n\nBumps the versions.", comments: [] }];
   for (const [user, expected] of [
     [{ id: OWNER_ID, login: "kyle-sexton", type: "User" }, spec],
     [{ id: RELEASE, login: "melodic-plugin-release[bot]", type: "Bot" }, spec],
@@ -314,6 +319,7 @@ test("a trusted PR with no closing issue here is its own spec, unless a model wr
   ]) {
     const result = await resolve({ pulls: [own(user)], issues: [] }, opts);
     assert.deepEqual(result.specText, expected, user.login);
+    assert.equal(result.specKind, expected.length ? "pull-request" : "none", user.login);
     assert.deepEqual(result.linkedIssues, [], user.login);
   }
   // S&C D: a body last edited by anyone but its author or a trusted person
@@ -334,7 +340,7 @@ test("a trusted PR with no closing issue here is its own spec, unless a model wr
   }
   // A closing issue here keeps it the spec.
   const result = await resolve({ pulls: [own({ id: OWNER_ID, login: "kyle-sexton", type: "User" })] }, opts);
-  assert.deepEqual(result.specText, [{ number: 7, body: "the spec", comments: [] }]);
+  assert.deepEqual(result.specText, [{ number: 7, spec_kind: "closes", body: "the spec", comments: [] }]);
 });
 
 test("main judges every trusted-actors.json account under lane-or-owner, a Bot included", async (t) => {
@@ -500,7 +506,7 @@ test("the spec text keeps only what trusted humans wrote and last edited", async
     },
   };
   assert.deepEqual((await resolve({ issues: [issue] })).specText, [
-    { number: 7, body: "the spec", comments: ["kept", "edited by the human"] },
+    { number: 7, spec_kind: "closes", body: "the spec", comments: ["kept", "edited by the human"] },
   ]);
   // The gate re-reads the same comments with the same filter, by id and update time.
   assert.deepEqual((await resolve({ issues: [issue] })).linkedIssues[0].spec_comments, [
@@ -520,14 +526,14 @@ test("the spec text keeps only what trusted humans wrote and last edited", async
   const editedBody = { ...issue, lastEditedAt: "2026-10-14T00:00:00Z", editor: lanes };
   assert.equal((await resolve({ issues: [editedBody] })).specText[0].body, null, "a body the lanes App last edited");
   const byAuthor = (await resolve(byMaintainer, { verifyAuthors: "any" })).specText[0];
-  assert.deepEqual(byAuthor, { number: 7, body: "the spec", comments: ["kept", "edited by the human"] }, "a trusted PR author's own text");
+  assert.deepEqual(byAuthor, { number: 7, spec_kind: "closes", body: "the spec", comments: ["kept", "edited by the human"] }, "a trusted PR author's own text");
   const lanesIssue = { ...issue, author: lanes };
   assert.equal((await resolve({ issues: [lanesIssue] })).specText[0].body, null, "an issue the lanes App wrote");
   const strangerIssue = { ...issue, author: stranger, comments: { totalCount: 1, nodes: [comment("by the stranger", stranger)] } };
   const byStranger = { issues: [strangerIssue], pulls: [pull({ user: { id: 999, login: "stranger", type: "User" } })] };
   assert.deepEqual(
     (await resolve(byStranger, { verifyAuthors: "any" })).specText[0],
-    { number: 7, body: null, comments: [] },
+    { number: 7, spec_kind: "closes", body: null, comments: [] },
     "an untrusted PR author's own text",
   );
 });
@@ -570,7 +576,7 @@ test("main writes the outputs, the linked issues and the spec text the workflow 
     `proceed=true\nreason=ok\npr-number=41\nhead-sha=${HEAD}\nbase-sha=${BASE}\nhead-ref=feat/x\n`,
   );
   assert.deepEqual(JSON.parse(readFileSync(spec, "utf8")), [LINKED]);
-  assert.deepEqual(JSON.parse(readFileSync(specText, "utf8")), [{ number: 7, body: "the spec", comments: [] }]);
+  assert.deepEqual(JSON.parse(readFileSync(specText, "utf8")), [{ number: 7, spec_kind: "closes", body: "the spec", comments: [] }]);
 });
 
 test("main reports a human's PR as skipped in the log and the step summary", async (t) => {
