@@ -73,6 +73,36 @@ def text_q(qid):
     return {"id": qid, "text": f"Question {qid}?", "alternatives": [], "dependsOn": [], "purpose": "decide", "format": {"kind": "text"}}
 
 
+def port_leaks(doc, port, path="$"):
+    """Paths in parsed JSON where `port` shows: an integer equal to it, or a key or string holding its digits. A float
+    such as a timestamp is never a port, whatever digits it contains."""
+    if isinstance(doc, dict):
+        return [f"{path}.{k}" for k in doc if str(port) in k] + [p for k, v in doc.items() for p in port_leaks(v, port, f"{path}.{k}")]
+    if isinstance(doc, list):
+        return [p for i, v in enumerate(doc) for p in port_leaks(v, port, f"{path}[{i}]")]
+    hit = str(port) in doc if isinstance(doc, str) else doc == port and isinstance(doc, int) and not isinstance(doc, bool)
+    return [path] if hit else []
+
+
+class TestPortLeaks(unittest.TestCase):
+    def test_a_timestamp_holding_the_ports_digits_is_no_leak(self):
+        doc = {"people": [{"pid": "host", "joinedAt": 1792710102.8151734}], "serverTime": 51730.5}
+        self.assertIn("5173", json.dumps(doc))  # what a substring search over the JSON matched
+        self.assertEqual(port_leaks(doc, 5173), [])
+
+    def test_the_port_as_a_url_host_port_number_field_or_key_is_a_leak(self):
+        cases = {
+            "url": ({"lives": [{"url": "http://127.0.0.1:5173"}]}, ["$.lives[0].url"]),
+            "host:port": ({"note": "see 127.0.0.1:5173"}, ["$.note"]),
+            "int field": ({"lives": [{"target": {"kind": "port", "port": 5173}}]}, ["$.lives[0].target.port"]),
+            "string field": ({"port": "5173"}, ["$.port"]),
+            "key": ({"5173": True}, ["$.5173"]),
+        }
+        for why, (doc, paths) in cases.items():
+            with self.subTest(why):
+                self.assertEqual(port_leaks(doc, 5173), paths)
+
+
 class ServerCase(unittest.TestCase):
     def setUp(self):
         self.d = tmpdir(self)
@@ -440,6 +470,18 @@ class TestHeadersAndCaps(ServerCase):
         self.assertEqual(headers["Content-Security-Policy"], PAGE_CSP)
         self.assertTrue(headers["Content-Type"].startswith("text/html"))
         self.assertIn(b"<html", body)
+
+    def test_the_question_shape_files_are_served_and_load_first(self):
+        """question-shape.js and .css, which the 1:1 page's server serves too, come from web/ as written; the page loads
+        them before the files that use them."""
+        for path, ctype in (("/question-shape.js", "text/javascript"), ("/question-shape.css", "text/css")):
+            with self.subTest(path=path):
+                code, h, body = self.get(path)
+                self.assertEqual((code, h["Content-Type"]), (200, ctype + "; charset=utf-8"))
+                self.assertEqual(body, (server.WEB / path[1:]).read_bytes())
+        page = self.get("/")[2].decode("utf-8")
+        self.assertLess(page.index('<script src="/question-shape.js">'), page.index('<script src="/core.js">'))
+        self.assertLess(page.index('href="/question-shape.css"'), page.index('href="/app.css"'))
 
     def test_only_allowlisted_files_are_served(self):
         for path in ("/server.py", "/state.json", "/../state.json", "/.shared-secrets.json", "/web/index.html"):
@@ -2128,10 +2170,11 @@ class TestLiveRoutes(ServerCase):
         code, _, out = self.ops({"op": "add-live", "label": "Dev server", "port": 5173})
         self.assertEqual(code, 200, out)
         self.assertEqual(self.lives(self.owner)["L1"]["url"], "http://127.0.0.1:5173")
+        self.assertEqual(port_leaks(self.get("/api/state", self.owner)[2], 5173), ["$.lives[0].target.port", "$.lives[0].url"])
         for who in (self.guest, self.leader_h):
             entry = self.lives(who).get("L1")
             self.assertTrue(entry is None or "url" not in entry, entry)
-            self.assertNotIn("5173", json.dumps(self.get("/api/state", who)[2]))
+            self.assertEqual(port_leaks(self.get("/api/state", who)[2], 5173), [])
 
     def test_a_guest_or_leader_post_to_approve_or_stop_is_refused(self):
         self.live_on()

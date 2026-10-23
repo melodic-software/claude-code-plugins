@@ -4,7 +4,10 @@ name: intake-triage
 # Claude run proposes labels and a comment, and a step with no model applies
 # only allowlisted labels that exist here, or `needs-human` when the run
 # escalates. Advisory: never blocks a merge. See ci-workflows'
-# intake-triage.yml for the security model and inputs.
+# intake-triage.yml for the security model and inputs. The apply-verdict job
+# then writes the run's verdict as the lanes App (no model): the work class,
+# the Size, Complexity and Uncertainty fields, and `status: ready` or
+# `status: needs-decision` (.github/scripts/intake-triage/apply-verdict.mjs).
 #
 # workflow_dispatch triages one issue by number: issues a job's GITHUB_TOKEN
 # creates (the lane sweep's) start no issues run, and intake-reenter.yml
@@ -47,6 +50,9 @@ jobs:
       issues: read # read the issue's current body, type and labels
     outputs:
       skip: ${{ steps.check.outputs.skip }}
+      # When this run started: apply-verdict acts only on a lane comment
+      # written at or after it.
+      started-at: ${{ steps.started.outputs.at }}
       # The trusted-actor list's human ids, for the reusable's author gate.
       human-ids: ${{ steps.check.outputs.human-ids }}
       bot-ids: ${{ steps.bots.outputs.ids }}
@@ -54,6 +60,10 @@ jobs:
       # cannot apply; the refusal step below shows why.
       claude-args: ${{ steps.models.outputs.settings-json == '' && steps.models.outputs.claude-args || '' }}
     steps:
+      - name: Record when this run started
+        id: started
+        run: echo "at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
       - name: Check out the default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -201,10 +211,35 @@ jobs:
         status: needs-decision
         question
         area: security
-        good first issue
-        help wanted
         needs-human
       instructions: |
+        RUBRIC. Decide the same way every time for the same issue text.
+        - Priority, exactly one: `priority: critical` for a red main branch, a security exposure,
+          or a lane that is down; `priority: high` for something that blocks the pipeline or queued
+          work; `priority: low` for a cosmetic or docs-only change; otherwise `priority: medium`.
+        - Type: Bug for a defect in something that exists, Task for a bounded change, Feature for a
+          new capability.
+        - Work class: the `work-class:` label whose meaning in this repository's conventions fits;
+          none when unsure.
+        - Size: Small for one focused change in a few files, Medium for several files or one
+          subsystem, Large for work that needs splitting.
+        - Complexity: Low for a direct edit, Medium for several moving parts, High for subtle
+          interactions or concurrency.
+        - Uncertainty: Known when the approach is clear from the issue, Knowable when reading or
+          asking first would settle it, Unknown when only an experiment would.
+        - Flags: intent when the intended outcome is not exact or needs the owner's decision;
+          security for security, auth, credentials or personal data; cost as COST below describes.
+
+        VERDICT LINES. Begin your comment with these four lines, each at the start of its own line,
+        exactly in this form, one value each (the Flags line lists every flag that applies, comma
+        separated, or none), before any quote or other text:
+        Size: Small|Medium|Large
+        Complexity: Low|Medium|High
+        Uncertainty: Known|Knowable|Unknown
+        Flags: none|intent|security|cost
+        A step with no model reads only those four lines and the proposed class, and sets the
+        issue's class label, fields and status from them.
+
         COST. When the work an issue asks for would add or raise a charge (a new Azure resource or
         SKU, a retention or quota change, a paid GitHub feature, larger or hosted runners, macOS or
         private-repo minutes, new API spend, or a new paid service or plan), apply the `needs-human`
@@ -241,3 +276,126 @@ jobs:
     secrets:
       CLAUDE_API_KEY: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
       CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+
+  # Writes the triage run's verdict on the issue as the lanes App, so the work
+  # lanes count it: the work-class label, the Size, Complexity and Uncertainty
+  # issue fields, and `status: ready` or `status: needs-decision`. No model:
+  # .github/scripts/intake-triage/apply-verdict.mjs parses the lane comment
+  # against closed enums and never adds agent-ready. It runs only after a
+  # triage that ran and applied, and reads only a lane comment written since
+  # this run started.
+  apply-verdict:
+    needs: [born-triaged, intake-triage]
+    if: >-
+      ${{ !cancelled()
+      && needs.intake-triage.result == 'success'
+      && needs.intake-triage.outputs.triage-failed != 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: intake-apply-verdict-${{ github.event.issue.number || inputs.issue-number || github.run_id }}
+      cancel-in-progress: false
+    permissions:
+      contents: read # check out main
+      id-token: write # prove to the token broker which workflow this is
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      # The broker mints only for a listed human, or github-actions[bot] on a
+      # dispatch (intake-reenter.yml, the triage sweep), and a re-run only for
+      # a listed human. Anything else stops here quietly, before the token
+      # request: an issue the lanes App or a listed bot opened gets triage but
+      # no written verdict.
+      - name: Check who started the run
+        id: who
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          ACTOR_ID: ${{ github.actor_id }}
+          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+        run: node .base/.github/scripts/intake-triage/apply-verdict.mjs --check
+
+      - name: Resolve the config
+        id: config
+        if: steps.who.outputs.proceed == 'true'
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          lane: intake-triage
+          activity: apply-verdict
+          base-path: .base
+          output-path: ${{ runner.temp }}/resolved-config.json
+
+      - name: Report a lane the config turns off
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies != 'true'
+        env:
+          REASON: ${{ steps.config.outputs.skip-reason }}
+        run: echo "::notice::apply-verdict does not apply (${REASON:-no reason}); nothing written"
+
+      # Swaps this job's GitHub identity proof for a short-lived lanes App
+      # token for this repository only, with the resolved grant (issues:
+      # write, contents: read, pull-requests: read).
+      - name: Request the lane token
+        id: lane-token
+        if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
+        uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
+        with:
+          broker-url: ${{ vars.LANES_BROKER_URL }}
+          audience: ${{ vars.LANES_BROKER_AUDIENCE }}
+          lane: intake-triage
+          activity: apply-verdict
+          issue-number: ${{ format('{0}', github.event.issue.number || inputs.issue-number) }}
+          effect: ${{ steps.config.outputs.effect }}
+          contents: ${{ steps.config.outputs.contents }}
+          pull-requests: ${{ steps.config.outputs.pull-requests }}
+          issues: ${{ steps.config.outputs.issues }}
+
+      - name: Write the verdict
+        if: steps.lane-token.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          SCRIPT: ${{ steps.config.outputs.script }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue-number }}
+          STARTED_AT: ${{ needs.born-triaged.outputs.started-at }}
+          KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          BASE_PATH: .base
+        run: node ".base/$SCRIPT"
+
+      # The token is cancelled as soon as the job is done; it would otherwise
+      # expire within the hour. This never fails the job.
+      - name: Revoke the lane token
+        if: always() && steps.lane-token.outputs.token != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+        run: |
+          # The header goes through stdin so the token never appears in a
+          # process listing.
+          status=$(printf 'Authorization: Bearer %s\n' "$GH_TOKEN" |
+            curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -X DELETE -H @- \
+              -H 'Accept: application/vnd.github+json' "$GITHUB_API_URL/installation/token" || true)
+          if [ "$status" = 204 ]; then
+            echo "the lane token is revoked"
+          else
+            echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
+          fi

@@ -604,7 +604,8 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
         [CmdletBinding()]
         param(
             [Parameter(Mandatory = $true)] [string] $Script,
-            [Parameter(Mandatory = $false)] [string] $FindingJson
+            [Parameter(Mandatory = $false)] [string] $FindingJson,
+            [hashtable] $ExtraArgs = @{}
         )
 
         $scriptPath = Join-Path $PSScriptRoot $Script
@@ -612,10 +613,11 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
         try {
             # Remediations that take -Finding accept the JSON via that parameter;
             # remediations that don't need findings run with no arguments.
-            $out = if ($FindingJson) {
-                & $scriptPath -Finding $FindingJson
-            } else {
-                & $scriptPath
+            $remArgs = $ExtraArgs.Clone()
+            if ($FindingJson) { $remArgs['Finding'] = $FindingJson }
+            $out = & $scriptPath @remArgs -InformationVariable remInfo
+            foreach ($line in @($remInfo)) {
+                Write-MachineHealthLog "remediation_info script=$Script $line"
             }
             $joined = ($out | Where-Object { $_ }) -join "`n"
             return $joined | ConvertFrom-Json -ErrorAction Stop
@@ -630,7 +632,9 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
         $restartApproved = Test-ApprovalGranted -State $approvalState -RemediationId 'restart-stopped-service'
         if ($servicesFinding -and $servicesFinding.severity -eq 'WARN' -and $restartApproved) {
             $findingJson = $servicesFinding | ConvertTo-Json -Depth 10 -Compress
-            $out = Invoke-Remediation -Script 'remediations\Restart-StoppedService.ps1' -FindingJson $findingJson
+            $exclusions = @(Get-ServiceExclusion -State $approvalState)
+            $out = Invoke-Remediation -Script 'remediations\Restart-StoppedService.ps1' -FindingJson $findingJson `
+                -ExtraArgs @{ ExcludedService = $exclusions }
             if ($out) {
                 foreach ($att in @($out)) {
                     $remediationAttempts.Add($att)
