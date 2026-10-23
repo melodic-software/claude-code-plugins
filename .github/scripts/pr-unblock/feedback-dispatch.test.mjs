@@ -905,17 +905,35 @@ async function decideWith(api, record, resolved = resolvedLane()) {
 }
 
 test("a head a finished run handled is recorded, and a later run at that head reads nothing", async () => {
-  const handled = { id: 7, name: "pr-unblock / address-feedback", status: "completed", conclusion: "success", output: { title: "Done" } };
+  const handled = { id: 7, name: "pr-unblock / address-feedback", status: "completed", conclusion: "success", started_at: "2026-10-17T10:00:00Z", output: { title: "Done" } };
+  // The round's reply job posted after it, so no no-model-turn skip can still release the head.
+  const reply = roundRun("publish-feedback", "success", "Passed", "2026-10-17T10:05:00Z");
   const record = emptyRecord();
-  const first = counting(fakeApi({ checkRuns: [handled] }));
+  const first = counting(fakeApi({ checkRuns: [handled, reply] }));
   assert.equal((await decideWith(first.api, record)).result, null);
   // Without a record: the PR, comments, threads, run listing and both checks' runs.
   assert.deepEqual(first.counts, { pullsForCommit: 1, listIssueComments: 1, listReviewThreads: 1, listWorkflowRuns: 1, listCheckRuns: 2 });
-  const later = counting(fakeApi({ checkRuns: [handled] }));
+  const later = counting(fakeApi({ checkRuns: [handled, reply] }));
   const { result, lines } = await decideWith(later.api, parseRecord(serializeRecord(record)));
   assert.equal(result, null);
   assert.deepEqual(later.counts, {});
   assert.deepEqual(lines, [`skip: head ${HEAD} already has a pr-unblock / address-feedback check run (recorded)`]);
+});
+
+// #9362 part 2: between the round's address-feedback check and its reply
+// job's check, a dispatcher run must not record the head, or the reply's
+// no-model-turn skip could never release it.
+test("a head whose newest address-feedback check has no later reply check is not recorded, and is released once the reply skips no-model-turn", async () => {
+  const record = emptyRecord();
+  const check = roundRun("address-feedback", "failure", "Failed", "2026-10-17T10:00:00Z");
+  const early = await decideWith(fakeApi({ checkRuns: [check] }), record);
+  assert.equal(early.result, null, "the head is handled for now");
+  assert.equal(record.handled.size, 0, "but not recorded");
+  // An older reply check, from an earlier round, does not count.
+  await decideWith(fakeApi({ checkRuns: [noModelTurn("2026-10-17T09:05:00Z"), check] }), record);
+  assert.equal(record.handled.size, 0);
+  const later = await decideWith(fakeApi({ checkRuns: [check, noModelTurn()] }), parseRecord(serializeRecord(record)));
+  assert.deepEqual(later.result, { number: 42, workflowRunId: "38779200001" });
 });
 
 test("a limit-stopped run is not recorded", async () => {

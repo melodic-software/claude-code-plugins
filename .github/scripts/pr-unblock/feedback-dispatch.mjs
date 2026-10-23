@@ -48,7 +48,8 @@
 //
 // Both review lanes, and any re-run, finish on one head, so a run leaves a
 // record for the next run at that head (dispatch-record.mjs, carried in the
-// Actions cache): a head whose check runs handle it for good is skipped before
+// Actions cache): a head whose check runs handle it for good, once a reply
+// check started after its newest address-feedback check, is skipped before
 // any read, and a head whose dispatched run for this PR is still queued or
 // going is skipped after the PR read, with one read of that run in place of
 // the comment, thread and run listings. Each shortcut stands for a skip the
@@ -270,15 +271,22 @@ export async function dispatchFeedback({
   // round posted its round marker, so the select job's round cap ends it. A
   // limit stop is never released: limit-stop.mjs still holds the head until
   // its reset and counts it toward limits.limit-stops-per-head.
+  const startOf = (run) => Date.parse(run.started_at ?? "");
+  let replies = [];
   if (anyHandles(existing, { now, limits: resolved.limits })) {
-    const replies = (await api.listCheckRuns({ sha: head, checkName: settings.replyCheckName, appId: settings.appId })).filter(sinceNotes);
-    const newest = replies.reduce((a, b) => (Date.parse(b.started_at ?? "") > Date.parse(a?.started_at ?? "") ? b : a), replies[0]);
+    replies = (await api.listCheckRuns({ sha: head, checkName: settings.replyCheckName, appId: settings.appId })).filter(sinceNotes);
+    const newest = replies.reduce((a, b) => (startOf(b) > startOf(a) ? b : a), replies[0]);
     if (newest?.status === "completed" && newest.conclusion === "neutral" && newest.output?.title === "Skipped: no-model-turn") {
-      const cut = Date.parse(newest.started_at ?? "");
-      existing = existing.filter((run) => limitResetsAt(run, resolved.limits) !== null || !(Date.parse(run.started_at ?? "") < cut));
+      const cut = startOf(newest);
+      existing = existing.filter((run) => limitResetsAt(run, resolved.limits) !== null || !(startOf(run) < cut));
     }
   }
-  if (permanentlyHandles(existing)) {
+  // The round's reply job posts its check after the round's address-feedback
+  // check, so until a reply check started after the newest address-feedback
+  // check, a no-model-turn skip may still release the head: it is not
+  // recorded as handled yet (#9362). An unreadable start records nothing.
+  const newestCheck = Math.max(...existing.map(startOf));
+  if (permanentlyHandles(existing) && replies.some((run) => startOf(run) > newestCheck)) {
     markHandled(record, settings.checkName, head);
   }
   if (anyHandles(existing, { now, limits: resolved.limits })) {
