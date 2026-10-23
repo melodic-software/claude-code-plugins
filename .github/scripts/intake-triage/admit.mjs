@@ -243,7 +243,9 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (!lines.some((line) => line.trimStart().startsWith(rules["task-list"]))) {
     refuse.push(`it has no \`${rules["task-list"]}\` task list to check`);
   }
-  const unrunnable = unrunnableReason(unrunnableCriteria(lines.join("\n"), rules["task-list"], webHosts));
+  // A refinement breaks `://` and `www.` with a zero-width space so no link
+  // renders; the check reads the URL as written.
+  const unrunnable = unrunnableReason(unrunnableCriteria(lines.join("\n").replaceAll("\u200b", ""), rules["task-list"], webHosts));
   if (unrunnable) {
     refuse.push(unrunnable);
   }

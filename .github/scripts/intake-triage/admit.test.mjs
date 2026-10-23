@@ -3,7 +3,7 @@ import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { ADMIT_MARKER, AGENT_READY, DEFERRED, admit, decide, loadRules, noteUnrunnable, unrunnableCriteria } from "./admit.mjs";
-import { REFINE_MARKER } from "./refine.mjs";
+import { REFINE_MARKER, render, validateOutput } from "./refine.mjs";
 
 const RULES = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)));
 const HUMAN = 153232337;
@@ -244,6 +244,15 @@ describe("decide", () => {
 
     test("admits a thin issue whose task list is in the App's refinement comment", () => {
       assert.deepEqual(decide(facts({ issue: thin, comments: [refinement(app)] })), { verdict: "admit", reasons: [] });
+    });
+
+    test("a rendered refinement criterion that reads a page outside the lane's web hosts is still refused", () => {
+      const output = { exact: true, outcome: "Match the spec.", criteria: ["The page at https://example.org/spec says nineteen."], dependencies: [], related: [], questions: [], sources: [] };
+      const body = render(validateOutput(output, new Set()));
+      assert.ok(!body.includes("https://"), "the rendered comment breaks the URL");
+      const result = decide(facts({ issue: thin, comments: [refinement(app, body)] }));
+      assert.equal(result.verdict, "refuse");
+      assert.match(result.reasons.join(), /example\.org/);
     });
 
     const lookalikes = [
