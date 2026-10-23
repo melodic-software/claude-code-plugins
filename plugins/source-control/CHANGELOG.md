@@ -3,6 +3,52 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.13.4] - 2026-10-23
+
+### Added
+
+- `babysit_verify_evidence.py evidence --repo R [--max-fails N] <pr> <head>` prints the gate's verifier evidence for one pull request as one JSON line, which the pr-merge lane's native auto-merge arms on.
+
+## [2.13.3] - 2026-10-23
+
+### Changed
+
+- The post-merge check (`babysit_postmerge.py`) answers a lane dispatch or re-run record from the file pr-merge.yml names in `BABYSIT_POSTMERGE_LANE_RECORDS` before listing it: a record an earlier check proved is present with no request once it is unexpired and the run that uploaded it passes the check's sender rule again (pr-merge.yml on the branch, an event of the job that writes the record, a head commit on the branch tip). The check writes back, to the same file, the records it read in and each it proves whose uploading run completed and whose artifact was listed unexpired, merged with the file as another check of the run left it since (a record this check read in but never asked for, which that check dropped, stays dropped), keeping those unexpired and created at or after the lowest floor any check of the run used; a file it cannot parse at all, a nesting too deep to read included, is no file. A record it holds decides as a successful read would; the decision differs only where today's read fails: a failed listing or sender read leaves the verdict unreadable, and a listing that reads empty twice is an unlisted-record hold, where the carried record reads present, as an earlier successful read found it. Any other record is read as before, and a missing, unreadable or malformed file (another version or repository, a name that is no lane record, an entry missing its dates, artifact id or completed sender) is no file. Without the variable nothing changes.
+
+### Fixed
+
+- The pr-merge gate's verdict reader (`babysit_verify_evidence`) compares the number of a name that starts like a FAIL's but is no verdict name as text, so any length of digits is read without raising, and a number over 10 digits never counts toward the cap. pr-verify now writes the FAIL names with `-i` and the verdict's issues that 2.13.1 described as not written yet.
+
+## [2.13.2] - 2026-10-23
+
+### Removed
+
+- The unattended merge gate no longer reads its review evidence with the process (lane) token when `BABYSIT_VERIFY_GH_TOKEN` is short or rate limited: `_evidence_read_env`, `ReadTokenLimited`, the `read-token-limited` run-cache mark, `PipelineConfig.read_token_floor` and `babysit_gh.gh_rate_limited` are gone, and `babysit_whole_review._short_bucket` takes only `env` again. With the read token set, every evidence read uses it; a refused read, a rate limit included, raises once and the candidate holds with `evidence-missing`.
+
+## [2.13.1] - 2026-10-23
+
+### Changed
+
+- The pr-merge gate's verdict reader (`babysit_verify_evidence`) accepts a pr-verify FAIL artifact name that ends with `-i` and the numbers of the issues its verdict records, ascending, each once, joined by dots (at most 10). The cross-pull-request repeated-fail cap counts every counted FAIL whose name carries one of the pull request's closing issues, read from the artifact listing the gate already holds, so it adds no request. A name without the issues keeps today's rule. A PASS or PASS-NOTES name that carries issues, or issues out of order or repeated, is no verdict name, here and in the merge-skip key (`babysit_merge_skip`), and neither is a pull request number over 10 digits or a name over 194 characters. A name that starts like a FAIL's (any digits for the number) but is no verdict name holds (`verify:unreadable`) when its run is of verifier origin, or is tied to the pull request and cannot be read, rather than being skipped; it costs one run read, shared by the run's gate processes through the run cache. Deleting such an artifact clears the hold. pr-verify does not write these names yet.
+
+## [2.13.0] - 2026-10-23
+
+### Changed
+
+- The review-thread tool (`feedback-thread.sh`) of `/source-control:pull-request comments --ci` admits a file in the thread file's `pr_paths`, the files the pull request already changes, in every kept thread's scope while the gated head holds it. `reference/comments-ci.md` tells the model to run `check-paths` before calling a fix out of scope, and to cite a changed line in such a file as evidence.
+
+## [2.12.0] - 2026-10-23
+
+### Changed
+
+- `resolve-conflicts ci` runs no command and stages nothing: it reads the merge context the runner writes to `.lane/merge/` (each conflicted path's base, ours and theirs versions and both sides' history) in place of git, resolves each conflicted file in place, edits no other file, and leaves a path it cannot resolve with its conflict markers, which hands the run to a person ([`SKILL.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/resolve-conflicts/SKILL.md#ci-mode)). The CI-mode evals follow: `resolve-conflicts-ci-mode-stages-resolved-paths` becomes `resolve-conflicts-ci-mode-resolves-in-place`.
+
+## [2.11.8] - 2026-10-23
+
+### Changed
+
+- The pr-merge gate's verdict reader takes an untied FAIL's recorded head branch from the head-ref map pr-merge.yml names in `BABYSIT_VERIFY_HEAD_REFS` before downloading the artifact: artifact id to the `head_ref` an earlier run read from that artifact's verdict.json. An id the map holds ties or unties the FAIL as the download would, with no request; any other id is downloaded as before. A missing, unreadable or malformed map (another version or repository, a key that is no artifact id, a value that is no string) is no map, and every untied FAIL is downloaded. The decision differs from a download only where the download fails: the map answers with what an earlier successful download read, where the failed download refused `verify:unreadable`.
+
 ## [2.11.7] - 2026-10-23
 
 ### Changed

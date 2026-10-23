@@ -21,6 +21,7 @@ at the `gh_capture` seam the reader shares with the post-merge check.
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import hashlib
 import io
@@ -984,6 +985,155 @@ class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:unreadable")
 
 
+class AFailNamingTheIssueCounts(unittest.TestCase):
+    """A FAIL whose artifact name carries `-i` and the issue numbers its
+    verdict records counts toward the cap for each of those issues, whatever
+    pull request it judged and whether or not that pull request closes the
+    issue: the listing the gate already read decides, with no download. A
+    name with no issues keeps the rule above."""
+
+    @staticmethod
+    def named_fails(*shas: str, suffix: str = "-i7") -> FakeGitHub:
+        """A pass at PR 41's head (closing issue 7), and FAILs of PR 40
+        (branch feat/other, not among issue 7's closing pull requests) at
+        `shas`, each named with the feat/other digest and `suffix`."""
+        runs = {i: judged(i, OLDER_START) for i in range(2, 2 + len(shas))}
+        fake = passing(
+            *(
+                artifact(f"{named(sha, 'fail', SIBLING)}-{DIGEST_OTHER}{suffix}", i)
+                for i, sha in zip(runs, shas)
+            ),
+            runs=runs,
+        )
+        fake.closers[7] = [(PR, REPO)]
+        return fake
+
+    def test_three_named_fails_refuse(self) -> None:
+        evidence = read(self.named_fails(*SIBLING_HEADS))
+        self.assertEqual(evidence.refusal, "verify:repeated-fail")
+        self.assertTrue(evidence.needs_human)
+        self.assertEqual(downloads(self.named_fails(*SIBLING_HEADS)), 0)
+
+    def test_two_named_and_a_fail_at_the_head_go_to_a_human(self) -> None:
+        fake = self.named_fails(*SIBLING_HEADS[:2])
+        fake.artifacts.append(artifact(named(HEAD, "fail"), 9))
+        fake.runs[9] = judged(9, OLDER_START)
+        evidence = read(fake)
+        self.assertEqual(evidence.refusal, "verify:repeated-fail")
+        self.assertEqual(
+            evidence.report()["headFail"], {"run": 9, "artifact": named(HEAD, "fail")}
+        )
+
+    def test_two_named_leave_the_pass_to_decide(self) -> None:
+        self.assertIsNone(read(self.named_fails(*SIBLING_HEADS[:2])).refusal)
+
+    def test_any_listed_issue_counts(self) -> None:
+        ten = "-i" + ".".join(str(n) for n in range(1, 11))
+        for suffix in ("-i7.12", "-i3.7", ten):
+            with self.subTest(suffix):
+                fake = self.named_fails(*SIBLING_HEADS, suffix=suffix)
+                self.assertEqual(read(fake).refusal, "verify:repeated-fail")
+
+    def test_a_name_without_the_issue_does_not_count(self) -> None:
+        # Another issue, or an older name with no issues.
+        for suffix in ("-i8", "-i8.70", ""):
+            with self.subTest(suffix):
+                fake = self.named_fails(*SIBLING_HEADS, suffix=suffix)
+                self.assertIsNone(read(fake).refusal)
+
+    OFF_GRAMMAR = (
+        "-i07",
+        "-i",
+        "-i7.",
+        "-i7,8",
+        "-I7",
+        "-i" + ".".join(str(n) for n in range(1, 12)),
+        # One verdict has one name: ascending, each issue once.
+        "-i12.7",
+        "-i7.7",
+        "-i3.7.7",
+    )
+
+    def test_an_off_grammar_fail_of_verifier_origin_holds(self) -> None:
+        # A FAIL name no reader takes is held, never skipped: it may be a
+        # FAIL the cap or the head should count.
+        for suffix in self.OFF_GRAMMAR:
+            with self.subTest(suffix):
+                fake = self.named_fails(*SIBLING_HEADS[:1], suffix=suffix)
+                self.assertEqual(read(fake).refusal, "verify:unreadable")
+                fake = passing(artifact(f"{named(HEAD, 'fail')}{suffix}", 9))
+                fake.runs[9] = judged(9, OLDER_START)
+                self.assertEqual(read(fake).refusal, "verify:unreadable")
+
+    def test_a_fail_shaped_name_with_any_number_holds(self) -> None:
+        # The hold reads any digits, so a number no reader takes (11 digits,
+        # a leading zero) never turns a FAIL at the head into a skip.
+        # 4301 digits passes Python's limit on converting a string to an
+        # int, which must never raise out of the judgment.
+        for number in ("12345678901", "041", "1" * 4301):
+            with self.subTest(number[:12]):
+                fake = passing(artifact(f"pr-verify-{number}-{HEAD}-fail", 9))
+                fake.runs[9] = judged(9, OLDER_START)
+                self.assertEqual(read(fake).refusal, "verify:unreadable")
+                if number.lstrip("0") == str(PR):
+                    continue  # 041 is this pull request's number: tied
+                untied = f"pr-verify-{number}-{SIBLING_HEADS[0]}-fail"
+                for run_record in (judged(9, OLDER_START, event="push"), None):
+                    fake = passing(artifact(untied, 9))
+                    if run_record is not None:
+                        fake.runs[9] = run_record
+                    fake.closers[7] = [(SIBLING, REPO), (PR, REPO)]
+                    self.assertIsNone(read(fake).refusal)
+
+    def test_an_off_grammar_fail_whose_run_is_gone_holds_only_when_tied(self) -> None:
+        tied = passing(artifact(f"{named(HEAD, 'fail')}-i07", 9))
+        self.assertEqual(read(tied).refusal, "verify:unreadable")
+        untied = passing(artifact(f"{named(SIBLING_HEADS[0], 'fail', SIBLING)}-i07", 9))
+        self.assertIsNone(read(untied).refusal)
+
+    def test_an_unreadable_off_grammar_fail_of_a_closer_holds(self) -> None:
+        # Untied, but its pull request closes the same issue: the cap
+        # cannot be counted without it.
+        fake = passing(artifact(f"{named(SIBLING_HEADS[0], 'fail', SIBLING)}-i07", 9))
+        fake.closers[7] = [(SIBLING, REPO), (PR, REPO)]
+        self.assertEqual(read(fake).refusal, "verify:unreadable")
+
+    def test_an_off_grammar_fail_of_another_run_is_ignored(self) -> None:
+        for suffix in self.OFF_GRAMMAR:
+            with self.subTest(suffix):
+                fake = passing(artifact(f"{named(HEAD, 'fail')}{suffix}", 9))
+                fake.runs[9] = judged(9, OLDER_START, event="push")
+                self.assertIsNone(read(fake).refusal)
+
+    def test_a_pass_never_carries_issues(self) -> None:
+        # Only a FAIL's name carries issues: a lone pass named with them at
+        # the head is no verdict, so the head still waits for one.
+        for name in (
+            f"{named(HEAD, 'pass')}-i7",
+            f"{named(HEAD, 'pass-notes')}-i7",
+            f"{named(HEAD, 'pass')}-{DIGEST_X}-i7",
+        ):
+            with self.subTest(name):
+                fake = FakeGitHub([artifact(name, 1)], {1: run(1)}, {name: record()})
+                self.assertEqual(read(fake).refusal, "verify:missing")
+        fake = passing()
+        self.assertIsNone(read(fake).refusal)
+
+    def test_an_unreadable_run_of_a_named_fail_refuses(self) -> None:
+        fake = self.named_fails(*SIBLING_HEADS[:1])
+        del fake.runs[2]
+        self.assertEqual(read(fake).refusal, "verify:unreadable")
+        fake = self.named_fails(*SIBLING_HEADS[:1], suffix="-i8")
+        del fake.runs[2]
+        self.assertIsNone(read(fake).refusal)
+
+    def test_a_foreign_run_never_counts(self) -> None:
+        fake = self.named_fails(*SIBLING_HEADS)
+        for run_id in (2, 3, 4):
+            fake.runs[run_id] = judged(run_id, OLDER_START, event="push")
+        self.assertIsNone(read(fake).refusal)
+
+
 class RepeatedFailsGoToAHuman(unittest.TestCase):
     """FAILs at `merge.max-verify-fails` (default 3) distinct heads of one
     pull request hold it for a human whatever a later pass says (owner
@@ -1124,11 +1274,17 @@ class UnauthenticatedArtifactsAreIgnored(unittest.TestCase):
         for name in (
             f"pr-verify-{PR}-{HEAD}-FAIL",
             f"pr-verify-{PR}-{HEAD[:39]}-fail",
-            f"pr-verify-{PR}-{HEAD}-fail-extra",
         ):
             with self.subTest(name):
                 fake = FakeGitHub([artifact(name, 1)], {1: run(1)})
                 self.assertEqual(read(fake).refusal, "verify:missing")
+
+    def test_a_fail_shaped_name_that_does_not_parse_holds(self) -> None:
+        # It starts like a FAIL of verifier origin, so it may be one: held.
+        fake = FakeGitHub(
+            [artifact(f"pr-verify-{PR}-{HEAD}-fail-extra", 1)], {1: run(1)}
+        )
+        self.assertEqual(read(fake).refusal, "verify:unreadable")
 
 
 class UnreadableReadsBlock(unittest.TestCase):
@@ -3316,13 +3472,15 @@ class AnUntiedFailIsTiedByItsNamedHeadRef(unittest.TestCase):
                 self.assertEqual(read(fake, pr).refusal, "verify:earlier-fail")
                 self.assertEqual(downloads(fake), 0)
 
-    def test_a_malformed_digest_is_no_verdict(self) -> None:
+    def test_a_malformed_digest_is_no_verdict_and_holds(self) -> None:
+        # No verdict name, but a FAIL-shaped one of verifier origin: held,
+        # never skipped.
         for suffix in ("-79B4CC554B80DCA6", "-79b4cc554b80dca", "-79b4cc554b80dca6x"):
             with self.subTest(suffix):
                 fake = FakeGitHub(
                     [artifact(named(TIE, "fail", 97) + suffix, 4)], {4: run(4)}
                 )
-                self.assertEqual(read(fake).refusal, "verify:missing")
+                self.assertEqual(read(fake).refusal, "verify:unreadable")
 
 
 # --- The head-ref map an earlier pr-merge run kept ------------------------------
@@ -3589,6 +3747,166 @@ class TheHeadRefMapSparesASweepItsDownloads(unittest.TestCase):
         ):
             after = self.sweep(fake)
         self.assertEqual(after[ZIP_KIND], 6)
+
+
+class EvidenceCommandTest(unittest.TestCase):
+    """`evidence <number> <head>` prints the gate's judgment for
+    enable-auto-merge.mjs, which arms only on a null refusal."""
+
+    def run_main(
+        self, argv: list[str], evidence: ve.Evidence
+    ) -> tuple[dict[str, Any], ve.Reader]:
+        seen: list[ve.Reader] = []
+
+        def judge(
+            reader: ve.Reader, number: int, head: str, pr: Any = None
+        ) -> ve.Evidence:
+            seen.append(reader)
+            self.assertEqual((number, head, pr), (PR, HEAD, None))
+            return evidence
+
+        out = io.StringIO()
+        with (
+            mock.patch.object(ve.Reader, "evidence", judge),
+            contextlib.redirect_stdout(out),
+        ):
+            self.assertEqual(ve.main(argv), 0)
+        return json.loads(out.getvalue()), seen[0]
+
+    def test_a_pass_prints_a_null_refusal_under_the_given_cap(self) -> None:
+        report, reader = self.run_main(
+            ["evidence", "--repo", REPO, "--max-fails", "2", str(PR), HEAD],
+            ve.Evidence(None, HEAD, (ve.Verdict(HEAD, "pass", 1),), 0),
+        )
+        self.assertEqual((report["refusal"], report["head"]), (None, HEAD))
+        self.assertEqual(
+            (reader.repo, reader.branch, reader.max_fails), (REPO, "main", 2)
+        )
+
+    def test_a_repeated_fail_prints_its_refusal(self) -> None:
+        report, _ = self.run_main(
+            ["evidence", "--repo", REPO, str(PR), HEAD],
+            ve.Evidence(ve.REPEATED_FAIL, HEAD, (), 0, "fails at 3 heads"),
+        )
+        self.assertEqual(report["refusal"], ve.REPEATED_FAIL)
+        self.assertTrue(report["needsHuman"])
+
+    def test_a_short_head_or_a_zero_cap_is_refused(self) -> None:
+        for argv in (
+            ["evidence", "--repo", REPO, str(PR), "abc"],
+            ["evidence", "--repo", REPO, "--max-fails", "0", str(PR), HEAD],
+        ):
+            with (
+                contextlib.redirect_stderr(io.StringIO()),
+                self.assertRaises(SystemExit),
+            ):
+                ve.main(argv)
+
+
+class EvidenceCommandReadsAsTheGateDoes(unittest.TestCase):
+    """The CLI runs once per pull request with the run's shared listing, so a
+    pass judged on that saved listing is judged again on its own, and the
+    FAIL cap is the lower of the base's and the default branch head's."""
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.path = str(pathlib.Path(tmp.name, "verify-listing.json"))
+        patcher = mock.patch.dict("os.environ", {ve.LISTING_ENV: self.path})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def cli(self, fake: FakeGitHub, *extra: str) -> dict[str, Any]:
+        out = io.StringIO()
+        with (
+            mock.patch.object(policy, "pull_request", return_value=pull()),
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+            contextlib.redirect_stdout(out),
+        ):
+            argv = ["evidence", "--repo", REPO, *extra, str(PR), HEAD]
+            self.assertEqual(ve.main(argv, now=NOW), 0)
+        return json.loads(out.getvalue())
+
+    def test_a_pass_on_the_saved_listing_meets_a_fail_uploaded_since(self) -> None:
+        # The first pull request of the run saves a listing with a pass only.
+        self.assertIsNone(self.cli(passing())["refusal"])
+        self.assertTrue(pathlib.Path(self.path).exists())
+        # A FAIL at the head lands; the next process's saved listing lacks it.
+        fake = passing(artifact(named(HEAD, "fail"), 2), runs={2: run(2)})
+        self.assertEqual(self.cli(fake)["refusal"], "verify:fail")
+        self.assertEqual(listings(fake), 1)
+
+    def test_a_refusal_on_the_saved_listing_reads_no_listing(self) -> None:
+        fake = FakeGitHub([artifact(named(HEAD, "fail"), 1)], {1: run(1)})
+        self.assertEqual(self.cli(fake)["refusal"], "verify:fail")
+        self.assertEqual(self.cli(fake)["refusal"], "verify:fail")
+        self.assertEqual(listings(fake), 1)
+
+    def cap(self, base_cap: int, main_cap: int) -> int:
+        """The cap the reader judges with for --base-sha, the default branch
+        head's config carrying `main_cap`."""
+        config = policy.PipelineConfig(MAIN_SHA, "C2", "pr-merge", None, None, (), None)
+        seen: list[int] = []
+
+        def judge(
+            reader: ve.Reader, number: int, head: str, pr: Any = None
+        ) -> ve.Evidence:
+            seen.append(reader.max_fails)
+            return ve.Evidence(None, head, (), 0)
+
+        with (
+            mock.patch.object(
+                policy,
+                "read_config_at",
+                return_value=dataclasses.replace(
+                    config, base_sha=EARLIER, max_verify_fails=base_cap
+                ),
+            ),
+            mock.patch.object(
+                policy,
+                "_default_branch_config",
+                return_value=dataclasses.replace(config, max_verify_fails=main_cap),
+            ),
+            mock.patch.object(ve.Reader, "evidence", judge),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            ve.main(
+                [
+                    "evidence",
+                    "--repo",
+                    REPO,
+                    "--max-fails",
+                    "9",
+                    "--base-sha",
+                    EARLIER,
+                    str(PR),
+                    HEAD,
+                ],
+                now=NOW,
+            )
+        return seen[0]
+
+    def test_main_raising_the_cap_does_not_raise_it(self) -> None:
+        self.assertEqual(self.cap(3, 5), 3)
+
+    def test_main_lowering_the_cap_lowers_it(self) -> None:
+        self.assertEqual(self.cap(3, 2), 2)
+
+    def test_an_unreadable_config_refuses(self) -> None:
+        out = io.StringIO()
+        with (
+            mock.patch.object(
+                policy,
+                "read_config_at",
+                side_effect=policy.PolicyReadError("contents 502"),
+            ),
+            contextlib.redirect_stdout(out),
+        ):
+            ve.main(
+                ["evidence", "--repo", REPO, "--base-sha", EARLIER, str(PR), HEAD],
+                now=NOW,
+            )
+        self.assertEqual(json.loads(out.getvalue())["refusal"], ve.UNREADABLE)
 
 
 if __name__ == "__main__":

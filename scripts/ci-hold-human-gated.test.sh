@@ -5,7 +5,8 @@
 #
 # On a pull_request event, contract-only runs included, ci-status fails while
 # the pull request carries the human-gated label the base commit's
-# .work-item-tracker.json names (default `needs-human`), read live from the API.
+# .work-item-tracker.json names (default `needs-human`), read from the base
+# commit's sparse checkout; the labels are read live from the API.
 # The error names the reason from the newest review-lane hold comment, and says
 # that removing the label approves. It fails closed when it cannot tell.
 # test-scope: .github/workflows/pr-require-checks.yml
@@ -19,6 +20,11 @@ WORKFLOW="$ROOT/.github/workflows/pr-require-checks.yml"
 
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
+
+# shellcheck source=lib/ci-gh-read.sh
+. "$ROOT/scripts/lib/ci-gh-read.sh"
+export RUNNER_TEMP="$TMP_ROOT"
+ci_gh_read::install "$WORKFLOW" "$TMP_ROOT" || fail "the ci-status gh_read helper step is missing or fails"
 
 NAME='Fail a pull request carrying the human-gated label'
 step="$(awk -v name="      - name: $NAME" '$0 == name { on = 1; print; next }
@@ -51,10 +57,10 @@ if [[ "$step" == *$'\n        id: human_gated\n'* ]]; then
 else
   fail "step lost its human_gated id"
 fi
-if [[ "$step" == *"BASE_SHA: \${{ github.event.pull_request.base.sha }}"* ]]; then
-  ok "step reads the tracker config at the base commit, never the head"
+if [[ "$step" == *"BASE_CONFIG: \${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}"* ]]; then
+  ok "step reads the tracker config from the base checkout, and none when it failed"
 else
-  fail "step does not read the tracker config at pull_request.base.sha"
+  fail "step does not read the tracker config from the base_config checkout"
 fi
 order="$(grep -nE "^  ci-status:$|^      - name: ($NAME|Aggregate lane results)$" "$WORKFLOW" | cut -d: -f1 | paste -sd' ')"
 read -r job_line hold_line agg_line <<<"$order"
@@ -63,6 +69,25 @@ if [[ -n "${agg_line:-}" && "$job_line" -lt "$hold_line" && "$hold_line" -lt "$a
 else
   fail "step is not inside ci-status before the aggregate (lines: $order)"
 fi
+# The config comes from a sparse checkout of the base commit: never the head,
+# never a persisted credential, and before every step that reads it.
+checkout="$(awk '$0 == "      - name: Check out the base commit'"'"'s hold config" { on = 1; print; next }
+  on && /^      - / { exit }
+  on { print }' "$WORKFLOW")"
+# shellcheck disable=SC2016 # workflow literals to match, not shell expansions
+for line in $'\n        id: base_config\n' 'continue-on-error: true' \
+  'ref: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}' \
+  'persist-credentials: false' '/.work-item-tracker.json' '/.github/standards/trusted-actors/trusted-actors.json' \
+  'sparse-checkout-cone-mode: false' 'path: base-config'; do
+  if [[ "$checkout" == *"$line"* ]]; then ok "the base checkout carries '${line//$'\n'/}'"; else fail "the base checkout lost '${line//$'\n'/}'"; fi
+done
+order="$(grep -nE "^  ci-status:$|^      - name: (Check out the base commit's hold config|Clear a cost-only review hold the owner decided)$" "$WORKFLOW" | cut -d: -f1 | paste -sd' ')"
+read -r job_line checkout_line cost_line <<<"$order"
+if [[ -n "${cost_line:-}" && "$job_line" -lt "$checkout_line" && "$checkout_line" -lt "$cost_line" ]]; then
+  ok "the base checkout sits in ci-status before the first step that reads it"
+else
+  fail "the base checkout is not in ci-status before the cost-hold step (lines: $order)"
+fi
 gate="$(awk '/^  ci-status:$/ { on = 1; next } on && /^    if: / { print; exit }' "$WORKFLOW")"
 if [[ "$gate" == "    if: \${{ !cancelled() }}" ]]; then
   ok "ci-status carries no contract-only gate, so the step runs on label events"
@@ -70,9 +95,10 @@ else
   fail "ci-status gained a gate that could skip the hold: '$gate'"
 fi
 
-# The stub logs its arguments. A contents read fails its first
-# STUB_TRACKER_FAILS calls, then answers 404 when STUB_TRACKER is unset, else
-# prints STUB_TRACKER. A labels read fails its first STUB_FAILS calls, then
+# The base commit's config is a fixture directory: STUB_TRACKER is its
+# .work-item-tracker.json (absent when unset), and STUB_CHECKOUT_FAILED leaves
+# BASE_CONFIG empty, as a failed checkout does. The gh stub logs its
+# arguments. A labels read fails its first STUB_FAILS calls, then
 # prints STUB_LABELS one per line. A comments read fails when STUB_COMMENTS_FAIL
 # is set, else applies the --jq filter to the STUB_COMMENTS array, as gh does
 # per page.
@@ -81,13 +107,8 @@ cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$STUB_LOG"
 case "$*" in
-*/contents/.work-item-tracker.json*)
-  [[ "$(grep -c '/contents/' "$STUB_LOG")" -gt "${STUB_TRACKER_FAILS:-0}" ]] || { echo 'gh: Server Error (HTTP 502)' >&2; exit 1; }
-  [[ -n "${STUB_TRACKER+set}" ]] || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
-  printf '%s\n' "$STUB_TRACKER"
-  ;;
 */labels*)
-  [[ "$(grep -c '/labels' "$STUB_LOG")" -gt "${STUB_FAILS:-0}" ]] || exit 1
+  [[ "$(grep -c '/labels' "$STUB_LOG")" -gt "${STUB_FAILS:-0}" ]] || { printf '%s\n' "${STUB_FAIL_TEXT:-}" >&2; exit 1; }
   [[ -z "$STUB_LABELS" ]] || tr ',' '\n' <<<"$STUB_LABELS"
   ;;
 */comments*)
@@ -95,11 +116,25 @@ case "$*" in
   while [[ $# -gt 0 && "$1" != --jq ]]; do shift; done
   jq -r "$2" <<<"${STUB_COMMENTS:-[]}"
   ;;
+'api -i '*)
+  [[ -n "${STUB_RATE_LIMIT:-}" ]] || exit 1
+  read -r remaining reset <<<"$STUB_RATE_LIMIT"
+  printf 'HTTP/2.0 403 Forbidden\r\nX-Ratelimit-Remaining: %s\r\nX-Ratelimit-Reset: %s\r\n\r\n{}\n' "$remaining" "$reset"
+  [[ "$remaining" != 0 ]] || exit 1
+  ;;
 *) exit 1 ;;
 esac
 EOF
-printf '#!/usr/bin/env bash\n' >"$TMP_ROOT/bin/sleep"
-chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep"
+# sleep logs its seconds; date +%s answers STUB_NOW.
+cat >"$TMP_ROOT/bin/sleep" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$STUB_SLEEPS"
+EOF
+cat >"$TMP_ROOT/bin/date" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$STUB_NOW"
+EOF
+chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep" "$TMP_ROOT/bin/date"
 
 BASE=89abcdef0123456789abcdef0123456789abcdef
 CUSTOM='{"config":{"role_labels":{"human-gated":"owner-call"}}}'
@@ -117,10 +152,17 @@ OTHER_BOT="$(hold "$LANE" $'A comment with no hold marker.\nclaude-lane: claude-
 expect() {
   local label="$1" want_rc="$2" want_calls="$3" out rc calls
   : >"$TMP_ROOT/log"
+  : >"$TMP_ROOT/sleeps"
+  ci_gh_read::reset "$TMP_ROOT" 1792800600
   : >"$TMP_ROOT/output"
-  out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_LABELS="$4" STUB_FAILS="$5" PR_NUMBER=6419 \
+  rm -rf "$TMP_ROOT/base-config"
+  mkdir -p "$TMP_ROOT/base-config"
+  [[ -z "${STUB_TRACKER+set}" ]] || printf '%s\n' "$STUB_TRACKER" >"$TMP_ROOT/base-config/.work-item-tracker.json"
+  local config="$TMP_ROOT/base-config"
+  [[ -z "${STUB_CHECKOUT_FAILED:-}" ]] || config=
+  out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_SLEEPS="$TMP_ROOT/sleeps" STUB_NOW=1792800000 STUB_LABELS="$4" STUB_FAILS="$5" PR_NUMBER=6419 \
     GITHUB_REPOSITORY=o/r RUNNER_TEMP="$TMP_ROOT" GITHUB_OUTPUT="$TMP_ROOT/output" BASE_SHA="${BASE_SHA-$BASE}" \
-    bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    BASE_CONFIG="$config" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   calls=$(grep -c '/labels' "$TMP_ROOT/log")
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
@@ -128,8 +170,8 @@ expect() {
     fail "$label: expected $want_calls labels call(s) got $calls"
   elif [[ "$calls" -gt 0 && "$(grep '/labels' "$TMP_ROOT/log" | sort -u)" != "api repos/o/r/issues/6419/labels?per_page=100 --paginate --jq .[].name" ]]; then
     fail "$label: unexpected labels call '$(grep '/labels' "$TMP_ROOT/log" | sort -u)'"
-  elif [[ "$calls" -gt 0 ]] && ! grep -qxF "api -H Accept: application/vnd.github.raw+json repos/o/r/contents/.work-item-tracker.json?ref=$BASE" "$TMP_ROOT/log"; then
-    fail "$label: the tracker config was not read at the base commit: '$(sort -u "$TMP_ROOT/log")'"
+  elif grep -q '/contents/' "$TMP_ROOT/log"; then
+    fail "$label: the tracker config was read through the API: '$(sort -u "$TMP_ROOT/log")'"
   elif [[ -n "${6:-}" && "$out" != *"$6"* ]]; then
     fail "$label: output lacks '$6': '$out'"
   elif [[ -n "${7:-}" && "$out" == *"$7"* ]]; then
@@ -174,6 +216,35 @@ expect "an unreadable comment list still fails, without a reason" 1 1 "needs-hum
 unset STUB_COMMENTS STUB_COMMENTS_FAIL
 
 expect "a transient label read failure is retried" 1 2 "needs-human" 1
+
+# A rate-limited read waits until five seconds past the reset and reads again;
+# a reset past the deadline fails closed naming it; any other error keeps
+# the caller's retries and is never waited on.
+sleeps() { paste -sd' ' "$TMP_ROOT/sleeps"; }
+export STUB_FAIL_TEXT='gh: API rate limit exceeded for installation. (HTTP 403)' STUB_RATE_LIMIT='0 1792800120'
+expect "a rate-limited label read recovers after the reset" 0 2 "enhancement" 1 \
+  "is rate limited (core); waiting 125s for the reset, then reading again."
+if [[ "$(sleeps)" == 125 ]]; then
+  ok "the rate-limited read slept until five seconds past the reset"
+else
+  fail "the rate-limited read slept '$(sleeps)', not 125"
+fi
+export STUB_RATE_LIMIT='0 1792803000'
+expect "a reset past the deadline fails closed naming the reset" 1 1 "enhancement" 3 \
+  "::error::GitHub's core API rate limit blocks 'gh api repos/o/r/issues/6419/labels?per_page=100 --paginate --jq .[].name' until 2026-10-24T00:50:00Z, past the 2026-10-24T00:10:00Z ci-status can wait to inside its timeout; a re-run after 2026-10-24T00:50:00Z is needed."
+if [[ "$(sleeps)" == "5 10" ]]; then
+  ok "a reset past the deadline is not waited for, and the retries make no call"
+else
+  fail "a reset past the deadline slept '$(sleeps)', not the caller's '5 10'"
+fi
+export STUB_FAIL_TEXT='gh: Resource not accessible by integration (HTTP 403)' STUB_RATE_LIMIT='4999 1792800120'
+expect "a 403 that is not a rate limit fails closed without a wait" 1 3 "" 3 "::error::could not read the labels of #6419" "rate limited"
+if [[ "$(sleeps)" == "5 10" ]]; then
+  ok "a 403 that is not a rate limit keeps the caller's retries only"
+else
+  fail "a 403 that is not a rate limit slept '$(sleeps)'"
+fi
+unset STUB_FAIL_TEXT STUB_RATE_LIMIT
 expect "an unreadable label list fails closed" 1 3 "" 3 "::error::could not read the labels of #6419"
 if grep -q '^held=' "$TMP_ROOT/output"; then
   fail "an unreadable label list output held"
@@ -191,11 +262,12 @@ fi
 expect "needs-human does not hold when the tracker names another label" 0 1 "needs-human" 0 "#6419 carries no 'owner-call' label."
 export STUB_TRACKER='{not json'
 expect "an invalid tracker config fails closed" 1 0 "" 0 "::error::cannot read the human-gated role label"
-export STUB_TRACKER="$CUSTOM" STUB_TRACKER_FAILS=1
-expect "a transient tracker read failure is retried" 1 1 "owner-call" 0 "carries 'owner-call'"
-export STUB_TRACKER_FAILS=3
-expect "an unreadable tracker config fails closed" 1 0 "" 0 "::error::could not read .work-item-tracker.json"
-unset STUB_TRACKER STUB_TRACKER_FAILS
+export STUB_TRACKER="$CUSTOM" STUB_CHECKOUT_FAILED=1
+expect "a base checkout that failed fails closed" 1 0 "" 0 "::error::could not read .work-item-tracker.json at $BASE; re-run this run."
+unset STUB_TRACKER STUB_CHECKOUT_FAILED
+export STUB_TRACKER=''
+expect "an empty tracker config falls back to needs-human" 1 1 "needs-human" 0 "carries 'needs-human'"
+unset STUB_TRACKER
 export BASE_SHA=main
 expect "a base that is not a commit SHA fails closed without a call" 1 0 "" 0 "::error::the base commit 'main' is not a commit SHA"
 unset BASE_SHA

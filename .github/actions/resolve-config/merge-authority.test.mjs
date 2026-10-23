@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { parse, stringify } from "yaml";
 
 import { Rejection, resolve } from "./resolve.mjs";
+import { FORCED_DENIED_PATHS } from "../../scripts/pr-merge/merge-holds.mjs";
 
 const read = (relative) =>
   readFileSync(new URL(relative, import.meta.url), "utf8");
@@ -52,11 +53,13 @@ const rejectedFor = (config, pattern) =>
   );
 
 // The merge section valid.yaml resolves to: no merge section, so rung off,
-// manual landing, and only the forced denied paths.
+// manual landing, lane pull requests on native auto-merge, and only the
+// forced denied paths.
 const VALID_MERGE = {
   rung: "off",
   "diff-check": { "denied-paths": [CONFIG_PATH, ".github/**", TRUSTED_ACTORS] },
   "stack-landing": "manual",
+  "lane-prs": "native",
 };
 
 test("authority local-babysit without agent-identity fails the schema on the missing identity", () => {
@@ -213,6 +216,14 @@ test("resolveMerge output for valid.yaml is unchanged", () => {
   assert.deepEqual(run(read("./fixtures/valid.yaml")).merge, VALID_MERGE);
 });
 
+// ci-status adds this floor to the base config's denied paths itself.
+test("merge-holds.mjs's FORCED_DENIED_PATHS are the denied paths resolveMerge forces", () => {
+  assert.deepEqual(
+    [...run(read("./fixtures/valid.yaml")).merge["diff-check"]["denied-paths"]].sort(),
+    [...FORCED_DENIED_PATHS].sort(),
+  );
+});
+
 test("resolveMerge does not carry authority or agent-identity into the output", () => {
   assert.deepEqual(
     run(withMerge({ authority: "local-babysit", "agent-identity": IDENTITY }))
@@ -240,6 +251,15 @@ test("any other merge.dependabot.mode or key fails the schema", () => {
     withMerge({ dependabot: { mode: "enforce", other: true } }),
     /must NOT have additional properties/,
   );
+});
+
+test("merge.lane-prs takes native or gate, and the schema's default is the resolver's", () => {
+  for (const mode of ["native", "gate"]) {
+    assert.equal(run(withMerge({ "lane-prs": mode })).merge["lane-prs"], mode);
+  }
+  rejectedFor(withMerge({ "lane-prs": "off" }), /must be equal to one of the allowed values/);
+  const schema = json("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json");
+  assert.equal(schema.$defs.merge.properties["lane-prs"].default, run(withMerge({})).merge["lane-prs"]);
 });
 
 test("merge.dependabot.majors takes hold or review", () => {

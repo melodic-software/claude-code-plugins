@@ -386,21 +386,6 @@ jobs:
           pull-requests: ${{ steps.config.outputs.pull-requests }}
           issues: ${{ steps.config.outputs.issues }}
 
-      # Measures the run's spend on the lane token and on the job's own token:
-      # this reading and the one at job end bracket the run. The lanes App's
-      # bucket is shared by every job using it, so the lane figure includes
-      # their calls. Never fails the job.
-      - name: Log the API budget at mint
-        if: steps.lane-token.outputs.token != ''
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: |
-            lane ${{ steps.lane-token.outputs.token }}
-            github-token ${{ github.token }}
-
       - name: Write the verdict
         if: steps.lane-token.outputs.token != ''
         env:
@@ -413,17 +398,6 @@ jobs:
           BASE_PATH: .base
           RESOLVED_CONFIG: ${{ runner.temp }}/resolved-config.json
         run: node ".base/$SCRIPT"
-
-      - name: Log the API budget at job end
-        if: always() && steps.lane-token.outputs.token != ''
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: |
-            lane ${{ steps.lane-token.outputs.token }}
-            github-token ${{ github.token }}
 
       # The token is cancelled as soon as the job is done; it would otherwise
       # expire within the hour. This never fails the job.

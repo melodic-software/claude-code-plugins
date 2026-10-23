@@ -3,6 +3,38 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.2.1] - 2026-10-23
+
+### Fixed
+
+- The README skills table lists `/harness-ops:prerequisites`, which had no row.
+
+## [4.2.0] - 2026-10-23
+
+### Added
+
+- `/harness-ops:morning-brief` prints a `KEY:` line in the Lanes section for each credential role whose API key needs the owner, read from the runs' lane-outcome records: `auth` when a run fell back off a refused key or a key leg failed with class auth, naming the key secret to replace, and `credit-stop` when a run fell back on a credit stop, naming the role to rotate a spare key into. A role with no key problem prints nothing.
+
+### Changed
+
+- The Lanes section reads the newest 3 runs of every lane first, whatever their conclusion, then failed runs, all inside `--lane-read-limit`, so a key that handed off on a successful run is no longer crowded out by failed runs.
+
+## [4.1.0] - 2026-10-23
+
+### Added
+
+- `plugins converge` has a planning script, `converge-plan.sh`. It reads the `fleet-state.sh` report and prints one row per lagging `(projectPath, id)` pin, grouped by path, with the strategy, the exact command, the other strategy the row offers (its command and warning) when it has one, and a class: `actionable`, `worktree`, `blocked-absent`, `blocked-home` or `blocked-catalog`. A blocked row carries no command, and a linked-worktree row is offered uninstall only.
+
+### Changed
+
+- `plugins converge` Step 3 now confirms one batch per project path, with approve, other strategy or skip per row, instead of one prompt per plugin across the whole fleet. It still refuses a single approval that covers several paths. The committed-enable check that picks `update` over `uninstall` is now made by the script, not by the model reading each settings file.
+
+## [4.0.3] - 2026-10-23
+
+### Changed
+
+- `/harness-ops:morning-brief` lists `pr-refine.yml` among its default lane workflows again, now that the pr-pipeline `pr-refine` lane runs `fix-docs`.
+
 ## [4.0.2] - 2026-10-23
 
 ### Changed

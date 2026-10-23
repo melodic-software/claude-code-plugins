@@ -15,7 +15,8 @@ Title every pull request in Conventional Commits form, `<type>[(<scope>)]: <subj
 
 When a pull request is superseded or must not merge, apply the `do-not-merge` label (for example
 `gh pr edit <n> --add-label do-not-merge`) before writing any explanation. "Do not merge" in the body
-or a comment is not enforced by `ci-status`, which reads only the label; the babysit merge gate
+or a comment is not enforced by `ci-status`, which reads only the label, except on a lanes App pull
+request, where it also fails on a body hold or a member's veto comment; the babysit merge gate
 still respects a body hold and human comments, so never override one. The hold convention is in
 `docs/conventions/loop-lane/README.md`.
 

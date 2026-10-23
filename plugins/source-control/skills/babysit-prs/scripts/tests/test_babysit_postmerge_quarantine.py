@@ -46,6 +46,7 @@ import babysit_merge_policy as policy  # noqa: E402  (follows the git-env clear 
 import babysit_postmerge as pm  # noqa: E402
 from test_babysit_postmerge import (  # noqa: E402
     FIXTURES,
+    FORK_SHA,
     HEAD_SHA,
     IDENTITY,
     LATER_SHA,
@@ -106,6 +107,8 @@ class QuarantineGh:
 class AffectedBase(CheckCase):
     def setUp(self) -> None:
         super().setUp()
+        # The last green full run's commit (below) is on main.
+        self.gh.on_main.add(OTHER_SHA)
         self.fake = QuarantineGh(self.gh)
         for module in (pm, pm.policy):
             patcher = mock.patch.object(module, "gh_capture", self.fake)
@@ -170,6 +173,18 @@ class AffectedBase(CheckCase):
 
 
 class AffectedSet(AffectedBase):
+    def test_a_newer_green_run_on_a_commit_not_on_main_is_ignored(self) -> None:
+        # A run on a tag named main reports `head_branch: main`; its commit
+        # (and the plan script it would run) is not main's.
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(6, head_sha=FORK_SHA, created_at="2026-10-12T09:00:00Z"),
+        )
+        self.red_dispatch(bash_log((FLAKY, False), (TOUCHED, True)))
+        self.check()
+        self.affected_calls.assert_called_once_with(OTHER_SHA, LATER_SHA)
+
     def test_an_unrelated_red_suite_files_a_quarantine_issue_and_does_not_demote(
         self,
     ) -> None:
@@ -518,6 +533,11 @@ class LaneRerunOutsideAWindow(AffectedBase):
         self.assertEqual(verdict.merges, ())
         self.assertEqual(self.lane_reruns(verdict), [(11, True)])
         self.assertEqual(pm.verdict_exit(verdict), 0)
+
+    def test_a_red_run_off_the_branch_gets_no_rerun(self) -> None:
+        # Run 11 on a tag named main: its commit is not on refs/heads/main.
+        self.lane_red(bash_log((TOUCHED, False)), head_sha=FORK_SHA)
+        self.assertEqual(self.lane_reruns(self.lane_check()), [])
 
     def test_an_out_of_set_red_gets_no_rerun_and_files_no_quarantine(self) -> None:
         # The alert's --judge-run already excuses and quarantines it. A lane

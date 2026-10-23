@@ -21,8 +21,9 @@ from a completed, successful one. Any other artifact is ignored.
   (tied as in the item after next): `verify:repeated-fail`, whatever a pass
   says, a FAIL at the head included. Before a FAIL at the head or a pass
   decides, FAILs of other pull requests in this repository, open or closed, that close one of its
-  closing issues count too, at their own heads (a FAIL among them whose run
-  cannot be read is `verify:unreadable`);
+  closing issues count too, at their own heads, and so does every FAIL whose
+  name carries one of those issues (a FAIL among them whose run cannot be
+  read is `verify:unreadable`);
 - a counted FAIL at the head, under any pull request number: `verify:fail`;
 - a counted FAIL at another head of this pull request: its number, one of its
   commits (`pulls/<n>/commits`), or a verdict recording its head branch (read
@@ -87,16 +88,23 @@ a scheduled or hand-started run of main's pr-merge.yml, which only that run's
 steps can upload (.github/scripts/pr-merge/head-ref-map.mjs). An entry ties or
 unties the FAIL as the download would; a missing or malformed map is no map,
 and the FAIL is downloaded.
+
+`python3 babysit_verify_evidence.py evidence --repo R [--max-fails N] <pr>
+<head>` prints `Evidence.report()` for one pull request as one JSON line;
+.github/scripts/pr-merge/enable-auto-merge.mjs arms native auto-merge only on
+its null `refusal` at the head it read.
 """
 
 from __future__ import annotations
 
+import argparse
 import contextlib
 import hashlib
 import io
 import json
 import os
 import re
+import sys
 import tempfile
 import time
 import zipfile
@@ -126,8 +134,17 @@ HEAD_REFS_ENV = "BABYSIT_VERIFY_HEAD_REFS"
 # (head-ref-map.mjs writes both).
 HEAD_REFS_VERSION = 1
 ARTIFACT_ID_RE = re.compile(r"[1-9][0-9]{0,15}")
+# A verdict's name, then optionally the head-ref digest, then, for a FAIL
+# only, optionally `-i` and the numbers of the issues the verdict records,
+# ascending, each once, joined by dots (`NAMED_ISSUES_MAX` at most), so one
+# verdict has one name. write-verdict.mjs writes the issues after the readers
+# accept them. `verdict_name` applies the order; NAME_RE alone does not.
+NAMED_ISSUES_MAX = 10
 NAME_RE = re.compile(
-    r"pr-verify-([1-9][0-9]*)-([0-9a-f]{40})-(pass|pass-notes|fail)(?:-([0-9a-f]{16}))?"
+    r"pr-verify-([1-9][0-9]{0,9})-([0-9a-f]{40})-"
+    r"(pass(?:-notes)?(?=(?:-[0-9a-f]{16})?\Z)|fail)"
+    r"(?:-([0-9a-f]{16}))?"
+    rf"(?:-i([1-9][0-9]{{0,9}}(?:\.[1-9][0-9]{{0,9}}){{0,{NAMED_ISSUES_MAX - 1}}}))?"
 )
 # The head-ref digest in a verdict's name: the first HEAD_REF_DIGEST_HEX hex
 # digits of the SHA-256 of the head branch's UTF-8 bytes. write-verdict.mjs
@@ -135,6 +152,34 @@ NAME_RE = re.compile(
 # them. Equal branches always give equal digests, so a collision can only tie
 # a FAIL to a branch it did not judge: it holds, never clears.
 HEAD_REF_DIGEST_HEX = 16
+
+
+def named_issues(match: re.Match[str]) -> frozenset[int]:
+    """The issue numbers a `NAME_RE` match names; none for an older name."""
+    return frozenset(int(n) for n in match[5].split(".")) if match[5] else frozenset()
+
+
+# The longest name the grammar allows: `pr-verify-` (10), a 10-digit number
+# and `-` (11), the SHA (40), `-fail` (5), `-` and the digest (17), `-i` (2),
+# then 10 issues of 10 digits and 9 dots (109).
+NAME_MAX = 10 + 11 + 40 + 5 + 17 + 2 + NAMED_ISSUES_MAX * 10 + NAMED_ISSUES_MAX - 1
+# What starts like a FAIL's name, with any digits for the number (leading
+# zeros and more than 10 included); one that is not a verdict name is held
+# (`Reader._evidence`), never skipped.
+FAIL_PREFIX_RE = re.compile(r"pr-verify-([0-9]+)-([0-9a-f]{40})-fail")
+
+
+def verdict_name(name: str) -> re.Match[str] | None:
+    """`NAME_RE`'s full match of `name`, when it is at most `NAME_MAX` long
+    and its issues, if any, are ascending and each listed once; else None,
+    as for any other name."""
+    match = NAME_RE.fullmatch(name) if len(name) <= NAME_MAX else None
+    if match is None or not match[5]:
+        return match
+    numbers = [int(n) for n in match[5].split(".")]
+    return match if all(a < b for a, b in zip(numbers, numbers[1:])) else None
+
+
 PASSES = ("pass", "pass-notes")
 # Artifacts last at most 90 days in this repository (the retention maximum,
 # and the repository's setting), so a verdict on an older pull request may be
@@ -958,10 +1003,27 @@ class Reader:
         # requests (`_closers`).
         failed_by_pr: dict[int, set[str]] = {}
         unread_prs: set[int] = set()
+        # The same by each issue a FAIL's name carries (`named_issues`).
+        failed_by_issue: dict[int, set[str]] = {}
+        unread_issues: set[int] = set()
         for item in map(json_object, self._listing()):
             name = str(item.get("name") or "")
-            match = NAME_RE.fullmatch(name)
-            if not match or item.get("expired") is not False:
+            match = verdict_name(name)
+            if item.get("expired") is not False:
+                continue
+            if not match:
+                if (off := FAIL_PREFIX_RE.match(name)) is not None:
+                    # Compared as text: the digits are unbounded, and a string
+                    # past Python's int-conversion limit would raise.
+                    digits = off[1].lstrip("0")
+                    hold, unread = self._off_grammar(
+                        item, name, digits == str(number) or off[2] in commits
+                    )
+                    unreadable = unreadable or hold
+                    if unread and len(digits) <= 10:
+                        # Held only if its pull request is one the cap counts,
+                        # which a number over 10 digits never is.
+                        unread_prs.add(int(digits or "0"))
                 continue
             pr_n, sha, verdict = int(match[1]), match[2], match[3]
             run_id = json_object(item.get("workflow_run")).get("id")
@@ -986,12 +1048,15 @@ class Reader:
                 continue
             if state == UNREAD:
                 unread_prs.add(pr_n)
+                unread_issues.update(named_issues(match))
                 if tied:
                     unreadable = unreadable or f"run of {name}"
                 else:
                     ignored += 1
                 continue
             failed_by_pr.setdefault(pr_n, set()).add(sha)
+            for issue in named_issues(match):
+                failed_by_issue.setdefault(issue, set()).add(sha)
             if not tied and match[4] is not None:
                 # The name, which the run authenticates, carries the head
                 # branch the verdict records: no download.
@@ -1018,7 +1083,9 @@ class Reader:
         elif head in failed:
             # A FAIL here gets a fix round, so the cap counts the other pull
             # requests for its issues first: a round past it cannot merge.
-            _, elsewhere = self._elsewhere(number, failed_by_pr, unread_prs)
+            _, elsewhere = self._elsewhere(
+                number, failed_by_pr, unread_prs, failed_by_issue, unread_issues
+            )
             refusal = FAIL
             if len(failed | elsewhere) >= self.max_fails:
                 refusal = REPEATED_FAIL
@@ -1036,7 +1103,9 @@ class Reader:
         elif passes:
             # Every pass at the head must allow, so listing order decides
             # nothing; any unreadable one refuses (`_Unreadable`).
-            live, elsewhere = self._elsewhere(number, failed_by_pr, unread_prs)
+            live, elsewhere = self._elsewhere(
+                number, failed_by_pr, unread_prs, failed_by_issue, unread_issues
+            )
             if len(failed | elsewhere) >= self.max_fails:
                 refusal = REPEATED_FAIL
                 detail = (
@@ -1065,17 +1134,46 @@ class Reader:
             else None,
         )
 
+    def _off_grammar(
+        self, item: dict[str, Any], name: str, tied: bool
+    ) -> tuple[str | None, bool]:
+        """Why a FAIL-shaped name no reader takes holds, and whether its run
+        cannot be read. It holds when its run is of verifier origin, or, tied
+        to this pull request, cannot be read: it may be a FAIL the cap or the
+        head should count, so it is never skipped. One from any other run is
+        ignored; an untied one whose run cannot be read is left to the cap
+        (`_elsewhere`), as any such FAIL is."""
+        run_id = json_object(item.get("workflow_run")).get("id")
+        if not isinstance(run_id, int) or isinstance(run_id, bool):
+            return None, False
+        state = self._run_state(run_id, shared=True)
+        if state == FOREIGN:
+            return None, False
+        if state == UNREAD and not tied:
+            return None, True
+        return f"off-grammar FAIL name {name}", state == UNREAD
+
     def _elsewhere(
-        self, number: int, failed_by_pr: dict[int, set[str]], unread_prs: set[int]
+        self,
+        number: int,
+        failed_by_pr: dict[int, set[str]],
+        unread_prs: set[int],
+        failed_by_issue: dict[int, set[str]],
+        unread_issues: set[int],
     ) -> tuple[dict[Any, Any], set[str]]:
         """The live closing issues, and the heads of counted FAILs of the
-        other pull requests that close one of them. A FAIL among those whose
-        run cannot be read raises `_Unreadable`."""
+        other pull requests that close one of them, and of every counted FAIL
+        whose name carries one of them (`named_issues`), from the listing
+        already read. A FAIL among those whose run cannot be read raises
+        `_Unreadable`."""
         live = self._closing_issues(number)
         others = self._closers(live) - {number}
-        if others & unread_prs:
+        if others & unread_prs or unread_issues & set(live):
             raise _Unreadable("a FAIL run of a pull request for the same issue")
-        return live, set().union(*(failed_by_pr.get(n, set()) for n in others))
+        return live, set().union(
+            *(failed_by_pr.get(n, set()) for n in others),
+            *(failed_by_issue.get(n, set()) for n in live),
+        )
 
     def _fresh_created(self, run_id: int) -> datetime | None:
         """When the run was created, from a record this process read from
@@ -1246,3 +1344,63 @@ class Reader:
             return None
         head = str(json_object(pr.get("head")).get("sha"))
         return self.evidence(number, head, pr).refusal
+
+
+def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
+    """`evidence <number> <head>`: one pull request's evidence at `head` as
+    one JSON line (`Evidence.report`), as pr-merge's gate judges it.
+    enable-auto-merge.mjs arms native auto-merge only on a null `refusal`
+    at the head it read. Exit 0 whenever the line is printed, a refusal
+    included.
+
+    With `--base-sha`, the FAIL cap is the gate's: `merge.max-verify-fails`
+    of the config at that base commit and at the default branch head, the
+    lower one (`with_default_branch`); a config that cannot be read refuses
+    `verify:unreadable`. A pass judged on the run's saved listing is judged
+    again on a listing of its own, as the gate does before it allows."""
+    parser = argparse.ArgumentParser(
+        prog="babysit_verify_evidence.py", allow_abbrev=False
+    )
+    sub = parser.add_subparsers(dest="command", required=True)
+    cmd = sub.add_parser("evidence", allow_abbrev=False)
+    cmd.add_argument("--repo", required=True)
+    cmd.add_argument("--branch", default="main")
+    cmd.add_argument("--max-fails", type=int, default=merge_policy.MAX_VERIFY_FAILS)
+    cmd.add_argument("--base-sha", default=None)
+    cmd.add_argument("number", type=int)
+    cmd.add_argument("head")
+    args = parser.parse_args(argv)
+    if (
+        args.max_fails < 1
+        or not merge_policy.SHA_RE.fullmatch(args.head)
+        or (
+            args.base_sha is not None
+            and not merge_policy.SHA_RE.fullmatch(args.base_sha)
+        )
+    ):
+        parser.error(
+            "--max-fails must be 1 or more, and head and --base-sha full commit SHAs"
+        )
+    max_fails = args.max_fails
+    if args.base_sha is not None:
+        try:
+            base = merge_policy.read_config_at(args.repo, args.base_sha)
+            if base.error:
+                raise merge_policy.PolicyReadError(base.error)
+            config = merge_policy.with_default_branch(args.repo, base)
+        except merge_policy.PolicyReadError as exc:
+            refusal = Evidence(UNREADABLE, args.head, (), 0, f"config: {exc}")
+            print(json.dumps(refusal.report()))
+            return 0
+        max_fails = config.max_verify_fails
+    reader = Reader(args.repo, args.branch, now=now, max_fails=max_fails)
+    evidence = reader.evidence(args.number, args.head)
+    if evidence.refusal is None and reader.saved:
+        reader.refresh()
+        evidence = reader.evidence(args.number, args.head)
+    print(json.dumps(evidence.report()))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

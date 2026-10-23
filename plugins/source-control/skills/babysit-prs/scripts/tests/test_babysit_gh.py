@@ -614,18 +614,6 @@ class GraphQLAvailabilityClassificationTests(unittest.TestCase):
         self.assertEqual(gh.gh_http_status("(HTTP 502) ... (HTTP 403)"), 403)
         self.assertIsNone(gh.gh_http_status("connection reset"))
 
-    def test_rate_limited_is_a_429_or_a_403_that_names_a_rate_limit(self) -> None:
-        for text, expected in (
-            ("gh: API rate limit exceeded for installation ID 1. (HTTP 403)", True),
-            ("gh: You have exceeded a secondary rate limit. (HTTP 403)", True),
-            ("gh: Too Many Requests (HTTP 429)", True),
-            ("gh: Resource not accessible by integration (HTTP 403)", False),
-            ("gh: API rate limit exceeded (HTTP 502)", False),
-            ("API rate limit exceeded, but no status", False),
-        ):
-            with self.subTest(text=text):
-                self.assertIs(gh.gh_rate_limited(text), expected)
-
 
 class ViewPrRestFallbackTests(unittest.TestCase):
     """`gh pr view --json` is GraphQL end to end, so the refusal takes out the

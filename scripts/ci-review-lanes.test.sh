@@ -21,6 +21,11 @@ WORKFLOW="$ROOT/.github/workflows/pr-require-checks.yml"
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
+# shellcheck source=lib/ci-gh-read.sh
+. "$ROOT/scripts/lib/ci-gh-read.sh"
+export RUNNER_TEMP="$TMP_ROOT"
+ci_gh_read::install "$WORKFLOW" "$TMP_ROOT" || fail "the ci-status gh_read helper step is missing or fails"
+
 NAME='Require both review lanes on this head'
 step="$(awk -v name="      - name: $NAME" '$0 == name { on = 1; print; next }
   on && /^      - / { exit }
@@ -71,10 +76,10 @@ for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-
   caller="$ROOT/.github/workflows/$file"
   if grep -qxF "  $job" "$caller" && grep -qxF '      publish: comments' "$caller" &&
     grep -qxF '      hold-label: needs-human' "$caller" &&
-    grep -qE '^    uses: melodic-software/ci-workflows/\.github/workflows/pr-review-cli\.yml@9aca743c4ed9aaf7870288a36586c3994e9321e4 # v0\.64\.1$' "$caller"; then
-    ok "$file calls pr-review-cli v0.64.1 as job ${job%:} with publish: comments and hold-label: needs-human"
+    grep -qE '^    uses: melodic-software/ci-workflows/\.github/workflows/pr-review-cli\.yml@6d6cb798e7cb7560a0f9327d8a22398961c23b31 # v0\.64\.2$' "$caller"; then
+    ok "$file calls pr-review-cli v0.64.2 as job ${job%:} with publish: comments and hold-label: needs-human"
   else
-    fail "$file lost its job id, publish: comments, hold-label or v0.64.1 pin"
+    fail "$file lost its job id, publish: comments, hold-label or v0.64.2 pin"
   fi
   paths="$(awk '/^      hold-paths: \|$/ { on = 1; next } on && /^        / { sub(/^ +/, ""); print; next } on { exit }' "$caller")"
   if [[ "$paths" == $'.github/standards/trusted-actors/**\n.github/actions/check-trusted-trigger/**\n**/CODEOWNERS\n**/.gitmodules' ]]; then
@@ -151,8 +156,11 @@ jobs() { local IFS=,; printf '{"jobs":[%s]}' "$*"; }
 expect() {
   local label="$1" want_rc="$2" out rc
   : >"$TMP_ROOT/log"
+  # SHARED_FILES stands for the pages the broker step left under RUNNER_TEMP.
+  rm -f "$TMP_ROOT/pr-files.json"
+  [[ -z "${SHARED_FILES:-}" ]] || printf '%s\n' "$SHARED_FILES" >"$TMP_ROOT/pr-files.json"
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REPOSITORY=o/r HEAD_SHA="${HEAD_SHA-$HEAD}" \
-    AUTHOR_ID="${AUTHOR_ID-153232337}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    AUTHOR_ID="${AUTHOR_ID-153232337}" RUNNER_TEMP="$TMP_ROOT" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
   elif [[ -n "${3:-}" && "$out" != *"$3"* ]]; then
@@ -241,6 +249,14 @@ done
 STUB_FILES="$(files README.md)" STUB_CHANGED=3
 AUTHOR_ID=49699333 expect "a short file listing fails closed" 1 "::error::GitHub listed fewer files than #77 changes"
 STUB_CHANGED=1 STUB_FILES_FAIL=1 AUTHOR_ID=49699333 expect "an unreadable file listing fails closed" 1 "::error::could not read the files of #77"
+# The broker step's pages are reused, so the files are not read again.
+STUB_FILES_FAIL=1 STUB_CHANGED=3 SHARED_FILES="$(files README.md)$(files docs/a.md 'docs/b.md<docs/c.md')" \
+  AUTHOR_ID=49699333 expect "the broker step's file pages, across pages, are reused" 0 "no trust-gate path changed"
+if grep -q '/files' "$TMP_ROOT/log"; then fail "the files were read again"; else ok "a reused file list makes no files read"; fi
+STUB_FILES_FAIL=1 STUB_CHANGED=2 SHARED_FILES="$(files README.md 'docs/new.md<CODEOWNERS')" \
+  AUTHOR_ID=49699333 expect "a renamed trust-gate path in the reused list fails" 1 "trust-gate paths: CODEOWNERS."
+STUB_FILES_FAIL=1 STUB_CHANGED=4 SHARED_FILES="$(files README.md)" \
+  AUTHOR_ID=49699333 expect "a reused list shorter than the change fails closed" 1 "::error::GitHub listed fewer files than #77 changes"
 STUB_FILES='[]' STUB_CHANGED=0
 AUTHOR_ID=49699333999 expect "an id that only contains an exempt id is not exempt" 1 "is missing"
 RUNS_CODE="$(runs "$(run 10 $CODE)")"

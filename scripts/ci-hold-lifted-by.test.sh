@@ -19,6 +19,11 @@ WORKFLOW="$ROOT/.github/workflows/pr-require-checks.yml"
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
+# shellcheck source=lib/ci-gh-read.sh
+. "$ROOT/scripts/lib/ci-gh-read.sh"
+export RUNNER_TEMP="$TMP_ROOT"
+ci_gh_read::install "$WORKFLOW" "$TMP_ROOT" || fail "the ci-status gh_read helper step is missing or fails"
+
 NAME='Fail a review-lane hold an untrusted account lifted'
 step="$(awk -v name="      - name: $NAME" '$0 == name { on = 1; print; next }
   on && /^      - / { exit }
@@ -44,7 +49,8 @@ else
   ok "step fails the job on its exit code"
 fi
 # shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell
-for env in 'BASE_SHA: ${{ github.event.pull_request.base.sha }}' 'HUMAN_GATED: ${{ steps.human_gated.outputs.label }}'; do
+for env in 'BASE_SHA: ${{ github.event.pull_request.base.sha }}' 'HUMAN_GATED: ${{ steps.human_gated.outputs.label }}' \
+  "BASE_CONFIG: \${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}"; do
   if [[ "$step" == *"$env"* ]]; then ok "step env carries $env"; else fail "step env lacks $env"; fi
 done
 order="$(grep -nE "^  ci-status:$|^      - name: (Fail a pull request carrying the human-gated label|$NAME|Aggregate lane results)$" "$WORKFLOW" | cut -d: -f1 | paste -sd' ')"
@@ -57,10 +63,11 @@ fi
 
 # The stub logs its arguments. A comments read fails when STUB_COMMENTS_FAIL is
 # set, else applies the --jq filter to the STUB_COMMENTS array, as gh does per
-# page. A contents read of the trusted-actor list fails its first
-# STUB_ACTORS_FAILS calls, then prints STUB_ACTORS. An events read fails when
-# STUB_EVENTS_FAIL is set, else prints STUB_EVENTS (pages concatenated, as
-# --paginate prints them).
+# page. An events read fails when STUB_EVENTS_FAIL is set, else prints
+# STUB_EVENTS (pages concatenated, as --paginate prints them). The base
+# commit's config is a fixture directory holding STUB_ACTORS as the
+# trusted-actor list; STUB_CHECKOUT_FAILED leaves BASE_CONFIG empty, as a
+# failed checkout does.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -70,10 +77,6 @@ case "$*" in
   [[ -z "${STUB_COMMENTS_FAIL:-}" ]] || exit 1
   while [[ $# -gt 0 && "$1" != --jq ]]; do shift; done
   jq -r "$2" <<<"${STUB_COMMENTS:-[]}"
-  ;;
-*/contents/.github/standards/trusted-actors/trusted-actors.json*)
-  [[ "$(grep -c '/contents/' "$STUB_LOG")" -gt "${STUB_ACTORS_FAILS:-0}" ]] || { echo 'gh: Server Error (HTTP 502)' >&2; exit 1; }
-  printf '%s\n' "$STUB_ACTORS"
   ;;
 */events*)
   [[ -z "${STUB_EVENTS_FAIL:-}" ]] || exit 1
@@ -102,11 +105,19 @@ EARLY_LIFT="$(unlabeled needs-human 2026-10-23T09:00:00Z 153232337 kyle-sexton)"
 
 # expect <label> <want-rc> [want-out] [refuse-out]; stubs come from the environment.
 expect() {
-  local label="$1" want_rc="$2" out rc
+  local label="$1" want_rc="$2" out rc config="$TMP_ROOT/base-config"
   : >"$TMP_ROOT/log"
-  out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_ACTORS="${STUB_ACTORS-$ACTORS}" PR_NUMBER=6419 \
+  rm -rf "$config"
+  mkdir -p "$config/.github/standards/trusted-actors"
+  printf '%s\n' "${STUB_ACTORS-$ACTORS}" >"$config/.github/standards/trusted-actors/trusted-actors.json"
+  [[ -z "${STUB_CHECKOUT_FAILED:-}" ]] || config=
+  out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" PR_NUMBER=6419 \
     GITHUB_REPOSITORY=o/r HUMAN_GATED="${HUMAN_GATED-needs-human}" BASE_SHA="${BASE_SHA-$BASE}" \
-    bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    BASE_CONFIG="$config" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+  if grep -q '/contents/' "$TMP_ROOT/log"; then
+    fail "$label: the trusted-actor list was read through the API"
+    return
+  fi
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
   elif [[ -n "${3:-}" && "$out" != *"$3"* ]]; then
@@ -118,8 +129,14 @@ expect() {
   fi
 }
 
-expect "a pull request no review lane held passes without reading the actor list" 0 "No review lane has held #6419."
-if grep -q '/contents/' "$TMP_ROOT/log"; then fail "actors read with no hold"; else ok "the actor list is read only after a hold"; fi
+expect "a pull request no review lane held passes" 0 "No review lane has held #6419."
+if [[ "$(grep -c '^api ' "$TMP_ROOT/log")" -eq 2 ]] && grep -q '^api repos/o/r/issues/6419/comments' "$TMP_ROOT/log" &&
+  grep -q '^api repos/o/r/issues/6419/events' "$TMP_ROOT/log"; then
+  ok "with no hold the step makes two reads, the comments and the events, both needed for that verdict"
+else
+  fail "with no hold the step's reads are not exactly comments and events: '$(cat "$TMP_ROOT/log")'"
+fi
+STUB_CHECKOUT_FAILED=1 expect "with no hold the actor list is not needed, so a failed base checkout passes" 0 "No review lane has held #6419."
 export STUB_EVENTS
 STUB_EVENTS="[$(labeled needs-human 2026-10-23T09:00:00Z),$BOT_LIFT]"
 expect "a label the lanes App added (an escalation) is not a review-lane hold" 0 "No review lane has held #6419."
@@ -129,11 +146,6 @@ expect "a hold comment from a person or with no lane footer is not a hold" 0 "No
 export STUB_COMMENTS="[$OLD_HOLD,$HOLD]"
 STUB_EVENTS="[$(labeled needs-human 2026-10-23T09:59:00Z),$OWNER_LIFT]"
 expect "a trusted person's removal after the hold passes" 0 "kyle-sexton, a person on the trusted-actor list, lifted"
-if grep -qxF "api -H Accept: application/vnd.github.raw+json repos/o/r/contents/.github/standards/trusted-actors/trusted-actors.json?ref=$BASE" "$TMP_ROOT/log"; then
-  ok "the trusted-actor list is read at the base commit"
-else
-  fail "the trusted-actor list was not read at the base commit: '$(sort -u "$TMP_ROOT/log")'"
-fi
 export STUB_EVENTS="[$OWNER_LIFT][$BOT_LIFT]"
 expect "a later escalation's removal by a bot, across pages, does not undo the trusted lift" 0 "kyle-sexton, a person on the trusted-actor list, lifted"
 STUB_EVENTS="[$(unlabeled needs-human 2026-10-23T10:30:00Z 337595936 'melodic-automation-lanes[bot]'),$OWNER_LIFT]"
@@ -181,11 +193,7 @@ expect "a person missing from the base list is not trusted" 1 "kyle-sexton remov
 export STUB_ACTORS='{not json'
 expect "an unreadable trusted-actor list fails closed" 1 "names no person"
 unset STUB_ACTORS
-export STUB_ACTORS_FAILS=1
-expect "a transient trusted-actor read failure is retried" 0 "lifted the review-lane hold"
-export STUB_ACTORS_FAILS=3
-expect "a trusted-actor list that never reads fails closed" 1 "::error::could not read the trusted-actor list at $BASE; re-run this run."
-unset STUB_ACTORS_FAILS
+STUB_CHECKOUT_FAILED=1 expect "a hold with a failed base checkout fails closed" 1 "::error::could not read the trusted-actor list at $BASE; re-run this run."
 export STUB_EVENTS_FAIL=1
 expect "an unreadable event list fails closed" 1 "::error::could not read the events of #6419; re-run this run."
 unset STUB_EVENTS_FAIL

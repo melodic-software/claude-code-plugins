@@ -96,6 +96,14 @@ on:
   push:
     branches: [main]
 
+  # The issue lane finished, and may have opened a pull request: only the
+  # enable-auto-merge job runs on it, so the new pull request is armed at
+  # once rather than at the next scheduled run. The run is the main copy of
+  # this file and checks out no code from the issue run.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    workflows: [work-resolve-issue]
+    types: [completed]
+
 permissions: {}
 
 defaults:
@@ -161,11 +169,24 @@ jobs:
             echo "::notice::the lane is report-only; no full CI run started"
           fi
 
+      # The lane dispatch and re-run records earlier checks proved, from the
+      # last scheduled or hand-started run's pr-merge-lane-records artifact;
+      # the merge job uploads it. Any error leaves no file, and the check
+      # reads each record. Rules: .github/scripts/pr-merge/lane-records.mjs.
+      - name: Read the lane records the last run kept
+        if: steps.mode.outputs.live == 'true'
+        continue-on-error: true
+        env:
+          ACTIONS_TOKEN: ${{ github.token }}
+          LANE_RECORDS_PATH: ${{ runner.temp }}/lane-records.json
+        run: node .base/.github/scripts/pr-merge/lane-records.mjs read
+
       - name: Check earlier lane merges
         id: post-merge
         if: steps.mode.outputs.live == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -363,6 +384,7 @@ jobs:
     # out of the queue.
     if: >-
       github.ref == 'refs/heads/main' && github.event_name != 'push'
+      && github.event_name != 'workflow_run'
       && (github.event_name != 'pull_request_target'
       || github.event.pull_request.head.repo.full_name == github.repository)
     # One run at a time, and a running one is never cancelled: a cancelled run
@@ -392,7 +414,8 @@ jobs:
       contents: read # check out main
       pull-requests: read # list the open PRs
       # The gate's pr-verify verdict reads (artifact listing, run records,
-      # download); the lane token holds Actions read as a fallback only.
+      # download) and its review-evidence reads, which stay on this token;
+      # the lane token holds no Actions permission.
       actions: read
       # Read a refused lane run's annotations and its PR head's checks. Never
       # write: the gate-check job below writes the check runs.
@@ -483,7 +506,7 @@ jobs:
         if: steps.who.outputs.proceed == 'true'
         continue-on-error: true
         env:
-          # The job's own token; the lane token is minted after this step.
+          # The lane token holds no Actions permission.
           ACTIONS_TOKEN: ${{ github.token }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/pr-merge/superseded.mjs
@@ -504,7 +527,8 @@ jobs:
       # lane's own PRs only `false` (or no setting at all) is live; for
       # Dependabot PRs only `merge.dependabot.mode: enforce` is, and only
       # `report` or `enforce` lists them at all. While neither is live this
-      # run starts no CI run either.
+      # run starts no CI run either. lane-prs is merge.lane-prs as
+      # resolve-config resolved it (absent: native).
       - name: Read report-only
         id: mode
         if: steps.config.outcome == 'success'
@@ -529,6 +553,7 @@ jobs:
             echo "report-only=$report_only"
             echo "dependabot=$dependabot"
             echo "live=$live"
+            echo "lane-prs=$(jq -r '.merge."lane-prs"' "$RUNNER_TEMP/resolved-config.json")"
             echo "gate-budget-minutes=$(yq '.merge."gate-budget-minutes" // ""' "$config")"
             echo "gate-candidate-minutes=$(yq '.merge."gate-candidate-minutes" // ""' "$config")"
             echo "gate-deferred-minutes=$(yq '.merge."gate-deferred-minutes" // ""' "$config")"
@@ -560,25 +585,12 @@ jobs:
           actions: ${{ steps.config.outputs.actions }}
           superseded-ok: true
 
-      # Measures the run's spend on the lane token and on the job's own token
-      # (the verdict reads, the listing): this reading and the one at job end
-      # bracket the run, and run even when it times out. The lanes App's
-      # bucket is shared by every job using it, so the lane figure includes
-      # their calls. Never fails the job.
-      - name: Log the API budget at mint
-        if: steps.lane-token.outputs.token != ''
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: |
-            lane ${{ steps.lane-token.outputs.token }}
-            github-token ${{ github.token }}
-
       # Candidates: open, non-draft PRs into main that the lanes App
       # (merge.agent-identity on main) or the owner account opened, plus
-      # Dependabot's unless merge.dependabot.mode is off. This is only a shortlist; the gate checks
+      # Dependabot's unless merge.dependabot.mode is off. The lanes App's are
+      # listed only under `merge.lane-prs: gate`; under native they merge
+      # through GitHub's auto-merge (the enable-auto-merge job), so the gate
+      # never reads them. This is only a shortlist; the gate checks
       # the author, the closing issue and verifier verdict or the Dependabot
       # tier, and every other rule again. A candidate the gate would refuse on
       # its listed labels or body alone (the `do-not-merge` label, the
@@ -591,8 +603,10 @@ jobs:
         if: steps.lane-token.outputs.token != ''
         env:
           GH_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
           REPO: ${{ github.repository }}
           DEPENDABOT: ${{ steps.mode.outputs.dependabot }}
+          LANE_PRS: ${{ steps.mode.outputs.lane-prs }}
         run: |
           set -euo pipefail
           identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
@@ -601,7 +615,8 @@ jobs:
             echo "::error::merge.agent-identity is not an App bot login: $identity"
             exit 1
           fi
-          authors=("app/$slug")
+          authors=()
+          [ "$LANE_PRS" = native ] || authors+=("app/$slug")
           # With adoption.idle-hours set, each trusted-actors.json account, a
           # person by login and an App as app/<slug>: the gate adopts their
           # pull requests (babysit_merge_policy.adoption_refusal) and checks
@@ -647,14 +662,14 @@ jobs:
               sleep $((attempt * 15))
             done
           done
-          jq -cs '[add[] | select(.isDraft | not)
+          jq -cs '[(add // [])[] | select(.isDraft | not)
               | {number, head: .headRefOid, updatedAt, labels: [.labels[].name], body}]
               | unique_by(.number)' "$listing" |
             python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_merge_prefilter.py \
               --human-gated="$human_gated" >"$RUNNER_TEMP/prefilter.json"
           jq -c .candidates "$RUNNER_TEMP/prefilter.json" >"$RUNNER_TEMP/candidates.json"
           jq -c .held "$RUNNER_TEMP/prefilter.json" >"$RUNNER_TEMP/held.json"
-          jq -cs '[add[] | select(.isDraft) | {number, id, head: .headRefOid, updatedAt,
+          jq -cs '[(add // [])[] | select(.isDraft) | {number, id, head: .headRefOid, updatedAt,
               labels: [.labels[].name]}] | unique_by(.number)' "$listing" >"$RUNNER_TEMP/drafts.json"
           echo "count=$(jq length "$RUNNER_TEMP/candidates.json")" >>"$GITHUB_OUTPUT"
 
@@ -714,6 +729,19 @@ jobs:
           CARRY_TO: ${{ runner.temp }}/babysit-run-cache.json
         run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs
 
+      # The lane dispatch and re-run records earlier post-merge checks proved
+      # (the pr-merge-lane-records artifact, found the way the cursor is):
+      # each check below, the gate's included, answers those with no read and
+      # adds the ones it proves. Any error leaves no file, and the checks read
+      # each record. Rules: .github/scripts/pr-merge/lane-records.mjs.
+      - name: Read the lane records the last run kept
+        if: steps.lane-token.outputs.token != ''
+        continue-on-error: true
+        env:
+          ACTIONS_TOKEN: ${{ github.token }}
+          LANE_RECORDS_PATH: ${{ runner.temp }}/lane-records.json
+        run: node .base/.github/scripts/pr-merge/lane-records.mjs read
+
       # The post-merge check, read-only, on every run whether or not any PR is
       # a candidate: after the queue lands the last lane PR there is none, yet
       # that merge still needs its full CI run to be verified. It looks only
@@ -732,6 +760,8 @@ jobs:
         if: steps.lane-token.outputs.token != ''
         env:
           GH_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
+          BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -756,13 +786,15 @@ jobs:
       # with --remediate under the lane token, which files the record (or
       # comments on it, reopening it on a new sighting) and dequeues the
       # lane's merge-queue entries. The lane token holds no Actions
-      # write, so the re-run and dispatch --remediate also attempts fail
+      # permission, so the re-run and dispatch --remediate also attempts fail
       # here and are reported as a write failure (exit 4); the
       # post-merge-dispatch job starts those. Live mode only.
       - name: Record a failed lane merge
         if: steps.mode.outputs.live == 'true' && steps.post-merge.outputs.code == '1'
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          API_BUDGET_TOKEN: lanes-app
+          BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -795,6 +827,7 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          API_BUDGET_TOKEN: lanes-app
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -817,6 +850,8 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          API_BUDGET_TOKEN: lanes-app
+          API_BUDGET_OVERRIDE_TOKEN: github-token
           BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
           REPO: ${{ github.repository }}
@@ -869,6 +904,9 @@ jobs:
           # _lane_evidence, babysit_whole_review.py); every write keeps the
           # lane token. The job runs main's code alone, never a PR's.
           BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}
+          # Name the two tokens' rate-limit readings (api-budget.bash).
+          API_BUDGET_TOKEN: lanes-app
+          API_BUDGET_OVERRIDE_TOKEN: github-token
           # At most one whole-review request per run: the first candidate to
           # reach its limits creates this file (babysit_whole_review.py).
           BABYSIT_WHOLE_REVIEW_SPENT: ${{ runner.temp }}/whole-review-spent
@@ -879,6 +917,9 @@ jobs:
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
           # The head-ref map read above, if any.
           BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
+          # The lane records read and added to above, for a gate that checks
+          # earlier lane merges again.
+          BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
           # Reads that are the same for every candidate (acting login,
           # credential pass, permissions, trusted list, run heads on main,
           # FAIL run records, default branch, base rules, the queued entries
@@ -987,7 +1028,7 @@ jobs:
         with:
           name: pr-merge-gate-cursor
           path: ${{ runner.temp }}/gate-cursor/cursor.json
-          retention-days: 2
+          retention-days: 1
           if-no-files-found: ignore
 
       # The next run's head-ref map: the one read above and this run's
@@ -1017,7 +1058,36 @@ jobs:
         with:
           name: pr-merge-head-refs
           path: ${{ runner.temp }}/head-refs/head-refs.json
-          retention-days: 2
+          retention-days: 1
+          if-no-files-found: ignore
+
+      # The next run's lane records: those the checks above read in and
+      # proved, unexpired and listed by the run's last artifact listing, or
+      # unexpired alone when the run saved none. Only a scheduled or hand-started run's
+      # file is read back, so only one uploads it. Rules:
+      # .github/scripts/pr-merge/lane-records.mjs.
+      - name: Keep the lane records the checks proved
+        id: lane-records
+        if: >-
+          always() && steps.post-merge.outcome != 'skipped'
+          && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
+        env:
+          LANE_RECORDS_PATH: ${{ runner.temp }}/lane-records.json
+          BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
+          LANE_RECORDS_OUT: ${{ runner.temp }}/lane-records/lane-records.json
+        run: |
+          mkdir -p "${LANE_RECORDS_OUT%/*}"
+          node .base/.github/scripts/pr-merge/lane-records.mjs write
+
+      - name: Upload the lane records for the next run
+        if: always() && steps.lane-records.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-merge-lane-records
+          path: ${{ runner.temp }}/lane-records/lane-records.json
+          retention-days: 1
           if-no-files-found: ignore
 
       # The next run's verdict reads, under this run's own key; also after a
@@ -1126,7 +1196,7 @@ jobs:
         with:
           name: pr-merge-summary
           path: ${{ runner.temp }}/pr-merge-sweep.json
-          retention-days: 8
+          retention-days: 1
           if-no-files-found: ignore
 
       # The gate-check job below writes each candidate's check run from these
@@ -1161,7 +1231,7 @@ jobs:
           LANES_APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           # The job's own read-only token lists runs, jobs and annotations;
-          # the lane token holds no Checks permission.
+          # the lane token holds no Actions or Checks permission.
           ACTIONS_TOKEN: ${{ github.token }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
@@ -1184,6 +1254,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
+          LANE_PRS: ${{ steps.mode.outputs.lane-prs }}
         run: node .base/.github/scripts/pr-merge/clear-escalations.mjs
 
       - name: Log the API budget at job end
@@ -1193,13 +1264,11 @@ jobs:
         timeout-minutes: 1
         uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
-          phase: end
-          tokens: |
-            lane ${{ steps.lane-token.outputs.token }}
-            github-token ${{ github.token }}
+          tokens: lanes-app github-token
 
-      # One line per sweep, in the log and the summary: the two tokens' spend
-      # since mint (`unknown` when the hourly window rolled), the candidates
+      # One line per sweep, in the log and the summary: the two tokens' core
+      # spend across the job's own calls, from their rate-limit headers
+      # (`unknown` without two readings in one window), the candidates
       # listed, how many the gate reached before it ended, and how many it
       # skipped as unchanged.
       - name: Write the sweep cost
@@ -1212,7 +1281,7 @@ jobs:
           lane=unknown github_token=unknown
           for cost in $COSTS; do
             case $cost in
-              lane-cost=*) lane=${cost#*=} ;;
+              lanes-app-cost=*) lane=${cost#*=} ;;
               github-token-cost=*) github_token=${cost#*=} ;;
             esac
           done
@@ -1233,6 +1302,177 @@ jobs:
         run: |
           # The header goes through stdin so the token never appears in a
           # process listing.
+          status=$(printf 'Authorization: Bearer %s\n' "$GH_TOKEN" |
+            curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -X DELETE -H @- \
+              -H 'Accept: application/vnd.github+json' "$GITHUB_API_URL/installation/token" || true)
+          if [ "$status" = 204 ]; then
+            echo "the lane token is revoked"
+          else
+            echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
+          fi
+
+  # Turns on GitHub's native auto-merge for each open lanes App pull request
+  # into main that closes an issue and carries no hold, and turns it off on
+  # one that now carries a hold (a `Hold:` line, do-not-merge, the human-gated
+  # label). Every event is a wake-up: the script lists the pull requests
+  # itself. The issue lane finishing arms the pull request it opened; a listed
+  # human's edit, unlabel or ready disarms or arms at once; the schedule
+  # catches what the events missed, such as a run the lanes App started, which
+  # the broker refuses. Only the scheduled run and a hand-started one arm, on
+  # the verdict pr-merge's gate would take at the head (babysit_verify_evidence.py,
+  # read with the job's GITHUB_TOKEN from the head-ref map and run cache the
+  # last gate run kept); event runs read no verdict and only disarm on a hold.
+  # Its own job and token: the broker mints one token per
+  # job. Rules: .github/scripts/pr-merge/enable-auto-merge.mjs.
+  enable-auto-merge:
+    # An issue run that skipped every job (a label other than agent-ready)
+    # opened nothing.
+    if: >-
+      github.ref == 'refs/heads/main' && github.event_name != 'push'
+      && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion != 'skipped')
+      && (github.event_name != 'pull_request_target'
+      || github.event.pull_request.head.repo.full_name == github.repository)
+    # A pending run is never replaced: a cancelled run leaves a CANCELLED
+    # check on the pull request that woke it.
+    concurrency:
+      group: pr-merge-enable-auto-merge
+      queue: max
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read # check out main
+      actions: read # the verifier verdicts, their runs and the head-ref map
+      id-token: write # prove to the token broker which workflow this is
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      # The broker mints the merge token only for a listed human, or on the
+      # schedule; any other run stops here quietly, as the merge job's does.
+      - name: Check who started the run
+        id: who
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          EVENT: ${{ github.event_name }}
+          ACTOR_ID: ${{ github.actor_id }}
+          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = schedule ]; then
+            echo "proceed=true" >>"$GITHUB_OUTPUT"
+          elif [[ $ACTOR_ID =~ ^[1-9][0-9]*$ ]] &&
+            jq -e --argjson id "$ACTOR_ID" --arg login "$TRIGGERING_ACTOR" '
+              [.actors[] | select(.kind == "human")] as $humans
+              | ($humans | any(.id == $id))
+                and ($humans | any((.login | ascii_downcase) == ($login | ascii_downcase)))
+            ' "$LIST" >/dev/null; then
+            echo "proceed=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "::notice::started by ${TRIGGERING_ACTOR:-an unknown account}, who is not a listed human; the next scheduled run arms what this one would"
+            echo "proceed=false" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Resolve the config
+        id: config
+        if: steps.who.outputs.proceed == 'true'
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          lane: pr-merge
+          activity: enable-auto-merge
+          base-path: .base
+          output-path: ${{ runner.temp }}/resolved-config.json
+
+      - name: Request the lane token
+        id: lane-token
+        if: steps.config.outcome == 'success'
+        uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
+        with:
+          broker-url: ${{ vars.LANES_BROKER_URL }}
+          audience: ${{ vars.LANES_BROKER_AUDIENCE }}
+          lane: pr-merge
+          activity: enable-auto-merge
+          effect: ${{ steps.config.outputs.effect }}
+          contents: ${{ steps.config.outputs.contents }}
+          pull-requests: ${{ steps.config.outputs.pull-requests }}
+          issues: ${{ steps.config.outputs.issues }}
+          superseded-ok: true
+
+      # The verdict reader of a scheduled or hand-started run ties untied
+      # FAILs as the gate job does: the head-ref map and the carried run
+      # cache. Any error leaves none, and the reader reads GitHub instead.
+      # Event runs read no verdict and need neither.
+      - name: Read the head refs the last gate run kept
+        if: steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
+        env:
+          ACTIONS_TOKEN: ${{ github.token }}
+          HEAD_REFS_PATH: ${{ runner.temp }}/head-refs-in.json
+        run: node .base/.github/scripts/pr-merge/head-ref-map.mjs read
+
+      - name: Restore the verdict reads the last gate run kept
+        if: steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/pr-merge-carried.json
+          key: pr-merge-run-cache-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: pr-merge-run-cache-
+
+      - name: Start the run cache from them
+        if: steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
+        env:
+          CARRY_FROM: ${{ runner.temp }}/pr-merge-carried.json
+          CARRY_TO: ${{ runner.temp }}/babysit-run-cache.json
+        run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs
+
+      # While merge.report-only is anything but false it reports each
+      # decision and writes nothing.
+      - name: Arm and disarm auto-merge
+        if: steps.lane-token.outputs.token != ''
+        timeout-minutes: 10
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
+          RESOLVED_CONFIG: ${{ runner.temp }}/resolved-config.json
+          EVENT_NAME: ${{ github.event_name }}
+          BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}
+          BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
+          BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
+          BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
+        run: |
+          set -euo pipefail
+          config=.base/docs/conventions/pr-pipeline.yaml
+          REPORT_ONLY=$(yq '.merge."report-only"' "$config")
+          LANES_BOT_LOGIN=$(yq '.merge."agent-identity" // ""' "$config")
+          export REPORT_ONLY LANES_BOT_LOGIN
+          node .base/.github/scripts/pr-merge/enable-auto-merge.mjs
+
+      - name: Revoke the lane token
+        if: always() && steps.lane-token.outputs.token != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+        run: |
           status=$(printf 'Authorization: Bearer %s\n' "$GH_TOKEN" |
             curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -X DELETE -H @- \
               -H 'Accept: application/vnd.github+json' "$GITHUB_API_URL/installation/token" || true)

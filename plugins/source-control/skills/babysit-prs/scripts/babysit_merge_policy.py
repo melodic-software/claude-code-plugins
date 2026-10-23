@@ -494,10 +494,6 @@ MAX_CONFIRM_WAIT_MINUTES = 45
 # the verifier keeps refusing, not one noisy verdict (owner decision
 # 2026-10-21).
 MAX_VERIFY_FAILS = 3
-# The default `merge.read-token-floor`: the share of GITHUB_TOKEN's core limit
-# that must be left for the gate's review-evidence reads to use it, as
-# babysit_whole_review.MIN_SHARE is for a whole-review request (judgment).
-READ_TOKEN_FLOOR = 0.3
 
 
 @dataclass(frozen=True)
@@ -561,11 +557,6 @@ class PipelineConfig:
     # says (`babysit_verify_evidence`). Absent is `MAX_VERIFY_FAILS`; anything
     # but a whole number of at least 1 is 1, so any earlier FAIL holds.
     max_verify_fails: int = MAX_VERIFY_FAILS
-    # `merge.read-token-floor`: the review-evidence reads use the job's own
-    # token only while it has this share of its core limit left, else the
-    # lane token (babysit_merge `_evidence_read_env`). Absent, or anything but
-    # a number from 0 to 1, is `READ_TOKEN_FLOOR`.
-    read_token_floor: float = READ_TOKEN_FLOOR
     # `merge.check-inputs`: git pathspecs of what the pull request checks
     # read. When the base changed one since a pull request's merge base, the
     # pr-merge lane updates its branch from the base instead of enqueuing it
@@ -730,7 +721,6 @@ def read_config_at(
             ("merge.max-queue-ejections", False),
             ("merge.risk-escalation-minutes", False),
             ("merge.max-verify-fails", False),
-            ("merge.read-token-floor", False),
             ("merge.check-inputs", True),
             ("adoption.idle-hours", False),
             ("adoption.spec-from-body-apps", True),
@@ -820,12 +810,6 @@ def read_config_at(
             f"merge.max-verify-fails {verify_fails!r} is not a count of 1 or more"
         )
         verify_fails = "1"
-    floor = scalar("merge.read-token-floor")
-    if floor is not None and not (
-        re.fullmatch(r"0|1|0?\.[0-9]+|1\.0+", floor) and float(floor) <= 1
-    ):
-        notes.append(f"merge.read-token-floor {floor!r} is not a number from 0 to 1")
-        floor = None
     idle_text = scalar("adoption.idle-hours")
     idle_hours: int | None = None
     if idle_text is not None:
@@ -887,7 +871,6 @@ def read_config_at(
         if escalation_minutes is not None
         else RISK_ESCALATION_MINUTES,
         max_verify_fails=int(verify_fails) if verify_fails else MAX_VERIFY_FAILS,
-        read_token_floor=float(floor) if floor is not None else READ_TOKEN_FLOOR,
         check_inputs=tuple(values["merge.check-inputs"]),
         adoption_idle_hours=idle_hours,
         spec_from_body_apps=tuple(int(i) for i in body_apps),
@@ -969,8 +952,6 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
         # Read at main (owner decision Q22).
         adoption_idle_hours=main.adoption_idle_hours,
         spec_from_body_apps=main.spec_from_body_apps,
-        # Which token reads, never a decision: main's.
-        read_token_floor=main.read_token_floor,
     )
 
 
@@ -2693,8 +2674,9 @@ class AutoMerge:
     head_ref_oid: str | None
     merged_at: str | None
     url: str | None = None
-    # The agent identity landed it, so the wrapper pinned its head; any other
-    # actor has no pin and verifies on the dispatch and canary runs alone.
+    # The agent identity landed it: the gate's enqueue pinned its head, its
+    # native auto-merge (`babysit_postmerge.native_auto_merge`) did not. Any
+    # other actor has no pin and verifies on the dispatch and canary runs alone.
     by_identity: bool = False
     queued: bool = True
 
