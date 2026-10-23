@@ -3617,16 +3617,19 @@ def escalate(
     `marker`, then the tracker's human-gated role label on the pull request,
     added only when no label matches it case-insensitively. The comment goes
     first so a label never stands unexplained; a failed label is retried by
-    the next run, which finds the comment unchanged. Raises `RuntimeError` on
-    a failed write."""
+    the next run, which finds the comment unchanged. A label a person removed
+    after that comment last changed is not a failed write but a lift
+    (`_lifted_by_person`): it stays off, as `lifted`, until the comment
+    changes (a new head or reason). Raises `RuntimeError` on a failed write."""
     pr = json_object(inputs.get("pr"))
+    # Read once here, so the lift check reuses what the upsert read.
+    comments = inputs.get("comments")
+    if comments is None:
+        comments = fetch_paginated_api(
+            f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
+        )
     comment = upsert_marker_comment(
-        repo,
-        number,
-        identity,
-        body,
-        inputs.get("comments"),
-        marker=marker,
+        repo, number, identity, body, comments, marker=marker
     )
     try:
         label = human_gated_label(repo)
@@ -3637,6 +3640,13 @@ def escalate(
         str(json_object(item).get("name") or "").casefold() == label.casefold()
         for item in labels
     )
+    unread = ""
+    if not present and comment == "unchanged":
+        lifted, unread = _lifted_by_person(
+            repo, number, identity, label, marker, comments, inputs
+        )
+        if lifted:
+            return {"label": "lifted", "comment": comment}
     if not present:
         proc = gh_capture(
             ["api", "-X", "POST", f"repos/{repo}/issues/{number}/labels"]
@@ -3644,7 +3654,77 @@ def escalate(
         )
         if proc.returncode != 0:
             raise RuntimeError(f"label {label}: {proc.stderr.strip()}")
-    return {"label": "present" if present else "added", "comment": comment}
+    result = {"label": "present" if present else "added", "comment": comment}
+    if unread:
+        result["liftUnread"] = unread
+    return result
+
+
+def _lifted_by_person(
+    repo: str,
+    number: int,
+    identity: str,
+    label: str,
+    marker: str,
+    comments: list[dict[str, Any]],
+    inputs: Mapping[str, Any],
+) -> tuple[bool, str]:
+    """Whether the newest removal of `label` came strictly after the
+    identity's `marker` comment last changed and was a person's, acting in
+    person (no `performed_via_github_app`): a User of kind `human` on the
+    trusted-actor list read at the repository's default branch (never the
+    head, nor a base a retarget could pick), who also passes
+    `merge_policy.is_human` (write access, not a bot, the agent identity or
+    a self-login). That comment names the head and the reasons, so the
+    removal lifted this escalation. The timeline is read under the verdict
+    reader's token when one is set; any failure, unreadable list or default
+    branch, or unparsable time is no lift, so the label goes on. The second
+    value names a read that failed, empty otherwise."""
+    token = os.environ.get(verify_evidence.TOKEN_ENV)
+    try:
+        prior = _newest_marker_comment(comments, identity, marker) or {}
+        escalated = parse_github_timestamp(
+            str(prior.get("updated_at") or prior.get("created_at") or "")
+        )
+        if escalated is None:
+            return False, ""
+        timeline = fetch_paginated_api(
+            f"repos/{repo}/issues/{number}/timeline?per_page=100",
+            f"#{number} timeline",
+            env_overrides={"GH_TOKEN": token} if token else None,
+        )
+        removals = [
+            (at, event)
+            for event in timeline
+            if event.get("event") == "unlabeled"
+            and str(json_object(event.get("label")).get("name") or "").casefold()
+            == label.casefold()
+            and (at := parse_github_timestamp(str(event.get("created_at") or "")))
+            is not None
+        ]
+        if not removals:
+            return False, ""
+        default = repository_default_branch(repo)
+        if not default:
+            return False, "default branch unread"
+        # The newest removal decides; a tie keeps the later timeline item.
+        at, event = max(enumerate(removals), key=lambda r: (r[1][0], r[0]))[1]
+        actor = json_object(event.get("actor"))
+        return (
+            at > escalated
+            and event.get("performed_via_github_app") is None
+            and actor.get("type") == "User"
+            and actor.get("id") in merge_policy.trusted_actors(repo, default)[1]
+            and merge_policy.is_human(
+                {"__typename": "User", "login": actor.get("login")},
+                repo=repo,
+                agent_identity=identity or None,
+                self_logins=inputs.get("self_logins") or frozenset(),
+                permission=inputs.get("permission"),
+            )
+        ), ""
+    except Exception as exc:  # noqa: BLE001 -- any failure escalates as before
+        return False, f"{type(exc).__name__}: {exc}"
 
 
 def _failed_merge_group_runs(repo: str, branch: str, number: int) -> list[str] | None:

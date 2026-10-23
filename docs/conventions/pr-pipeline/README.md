@@ -981,7 +981,15 @@ running at the head, which scores MED, finish first. Changed reasons rewrite the
 restart the time; a new head, or a score back at LOW, writes no label. A LOW score rewrites a
 refusal comment naming that head, unless it is escalated, to say the refusal no longer holds, so a
 later refusal at the head starts its time afresh. The merge gate never removes the label; the
-`head-moved` clear above removes it once the head moves, and otherwise a person does.
+`head-moved` clear above removes it once the head moves, and otherwise a person does. When the
+label's newest removal came after the escalation comment's last change and was a person's (a User
+of kind `human` on the trusted-actor list read at the default branch, never a retargeted base,
+with write access; an unreadable default branch lifts nothing), it lifts that escalation: a later
+run that finds the comment unchanged (same head and reasons) adds no label. A removal by a bot,
+the lanes App included, by an account off that list, or made through a GitHub App
+(`performed_via_github_app`) lifts nothing, and a new head or new
+reasons escalate afresh. The same holds for pr-merge's verifier, held-major and shared-copy
+escalations.
 
 Finding closure (owner decision, #8450, narrowed to whole reviews): a clean **whole** review of the
 current head closes a review finding whoever resolved its thread, and a HIGH security finding also
@@ -1486,7 +1494,8 @@ request. The comment is rewritten only when any of these changes. A `verify:repe
 summary to quote keeps the summary the lane's last such comment quoted, under the head it was given
 at, so a failed read rewrites nothing and the reason outlives a push. Then the lane adds the tracker's human-gated role label (`needs-human` unless
 `.work-item-tracker.json` maps it) when no label matches it ignoring case. The comment goes first,
-so a label never stands unexplained, and a failed label is added by the next run; a rerun that
+so a label never stands unexplained, and a failed label is added by the next run unless a person
+removed it after the comment last changed (see the reasons comment above); a rerun that
 finds both writes nothing. While it is true the refusal is only reported. The
 lane token's `issues: write` and `pull-requests: write` cover both writes. A human clears them
 by merging in person: the verdict is not a check run and stays out of `ci-status` and the required
