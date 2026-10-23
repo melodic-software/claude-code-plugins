@@ -13,7 +13,10 @@
 //   parent issue a listed human filed that awaits no decision;
 // - 3: the class, Size and Uncertainty apply-verdict wrote are in `classes`,
 //   `sizes` and `uncertainty`;
-// - 7: the body has a `task-list` line, the criteria the lane checks;
+// - 7: the body, or a comment the lanes App's account posted opening with
+//   REFINE_MARKER (refine.mjs, which writes a task list only for an issue
+//   it made exact) after the body's last edit, has a `task-list` line, the
+//   criteria the lane checks;
 // - 8: no `refuse-labels` label, every blocker a merged pull request or an
 //   issue closed as completed by a listed human or a merge here (the close
 //   work-unblock counts), and no open pull request in this repository names
@@ -47,6 +50,8 @@ import { isTrustedClose, paginate } from "../../actions/check-trusted-trigger/ch
 export const AGENT_READY = "agent-ready";
 export const DEFERRED = "admission-deferred";
 export const ADMIT_MARKER = "<!-- intake-triage admission -->";
+// Opens the lanes App's refinement comment (refine.mjs).
+export const REFINE_MARKER = "<!-- intake-triage refinement -->";
 const READY = "status: ready";
 const NEEDS_DECISION = "status: needs-decision";
 const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
@@ -196,7 +201,7 @@ export function admissionSettled(labels, events) {
 }
 
 // {verdict: admit | refuse | wait | skip, reasons}. Pure.
-export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, timeline, events, humans, appId, repository, webHosts }) {
+export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, timeline, events, comments = [], bodyEditedAt = null, humans, appId, repository, webHosts }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
@@ -230,11 +235,17 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (!rules.uncertainty.includes(verdict.dimensions?.uncertainty)) {
     refuse.push(`Uncertainty ${verdict.dimensions?.uncertainty} is not one of ${rules.uncertainty.join(", ")}`);
   }
-  const lines = String(issue.body ?? "").split("\n");
+  // A refinement drafted before the body's last edit may not fit the body now.
+  const refinements = refinementsOf(comments, appId)
+    .filter((comment) => bodyEditedAt === null || Date.parse(comment.created_at) >= Date.parse(bodyEditedAt))
+    .map((comment) => String(comment.body));
+  const lines = [String(issue.body ?? ""), ...refinements].flatMap((text) => text.split("\n"));
   if (!lines.some((line) => line.trimStart().startsWith(rules["task-list"]))) {
     refuse.push(`it has no \`${rules["task-list"]}\` task list to check`);
   }
-  const unrunnable = unrunnableReason(unrunnableCriteria(issue.body, rules["task-list"], webHosts));
+  // A refinement breaks `://` and `www.` with a zero-width space so no link
+  // renders; the check reads the URL as written.
+  const unrunnable = unrunnableReason(unrunnableCriteria(lines.join("\n").replaceAll("\u200b", ""), rules["task-list"], webHosts));
   if (unrunnable) {
     refuse.push(unrunnable);
   }
@@ -281,9 +292,9 @@ async function parentOf(github, base) {
 }
 
 // One App comment carrying ADMIT_MARKER, edited in place on a later run.
-async function sayWhy(github, repository, base, text) {
+async function sayWhy(github, repository, base, comments, text) {
   const body = `${ADMIT_MARKER}\n${text}`;
-  const own = (await paginate(github, `${base}/comments`)).find(
+  const own = comments.find(
     (comment) => comment.user?.login === LANES_APP_LOGIN && String(comment.body ?? "").startsWith(ADMIT_MARKER),
   );
   if (own?.body === body) {
@@ -296,6 +307,23 @@ async function sayWhy(github, repository, base, text) {
   } else {
     await github("POST", `${base}/comments`, { body });
   }
+}
+
+const refinementsOf = (comments, appId) =>
+  comments.filter((comment) => appId !== undefined && comment?.user?.id === appId && String(comment.body ?? "").startsWith(REFINE_MARKER));
+
+const BODY_EDIT_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) { issue(number: $number) { lastEditedAt } }
+}`;
+
+// When the issue's body was last edited, or null when never. An unexpected shape throws.
+async function bodyEditedAtOf(github, repository, number) {
+  const [owner, name] = repository.split("/");
+  const issue = (await github("POST", "/graphql", { query: BODY_EDIT_QUERY, variables: { owner, name, number: Number(number) } }))?.data?.repository?.issue;
+  if (issue === null || typeof issue !== "object" || (issue.lastEditedAt !== null && typeof issue.lastEditedAt !== "string")) {
+    throw new Error("the issue's body edit time has an unexpected shape");
+  }
+  return issue.lastEditedAt;
 }
 
 // For an issue apply-verdict held without admission (a flag, an escalation or
@@ -314,7 +342,7 @@ export async function noteUnrunnable({ github, repository, issue, rules, webHost
     log(`admit: #${issue.number} left as is (${settled})`);
     return { outcome: "skipped", reasons: [settled] };
   }
-  await sayWhy(github, repository, base, `Not admitted to the issue lane: ${reason}.`);
+  await sayWhy(github, repository, base, await paginate(github, `${base}/comments`), `Not admitted to the issue lane: ${reason}.`);
   log(`admit: #${issue.number} held; split noted (${reason})`);
   return { outcome: "noted", reasons: [reason] };
 }
@@ -335,8 +363,11 @@ export async function admit({ github, repository, number, verdict, rules, humans
       }
     }
   }
+  const comments = await paginate(github, `${base}/comments`);
   const decision = decide({
     issue,
+    comments,
+    bodyEditedAt: refinementsOf(comments, appId).length > 0 ? await bodyEditedAtOf(github, repository, number) : null,
     verdict,
     rules,
     parent: rules["types-under-parent"].includes(issue.type?.name) ? await parentOf(github, base) : null,
@@ -367,6 +398,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
       github,
       repository,
       base,
+      comments,
       `Not admitted to the issue lane: ${reasons}. A recorded decision does not change these rules (\`.github/actions/resolve-config/admission-rules.json\`); a person who wants it worked adds \`agent-ready\`.`,
     );
     log(`admit: #${number} refused (${reasons})`);
@@ -378,7 +410,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
     } else if (!names(issue.labels).includes(DEFERRED)) {
       await github("POST", `${base}/labels`, { labels: [DEFERRED] });
     }
-    await sayWhy(github, repository, base, `Not admitted to the issue lane yet: ${reasons}.`);
+    await sayWhy(github, repository, base, comments, `Not admitted to the issue lane yet: ${reasons}.`);
     log(`admit: #${number} waits (${reasons})`);
     return { outcome: "waiting", reasons: decision.reasons };
   }

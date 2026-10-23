@@ -3,6 +3,7 @@ import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { ADMIT_MARKER, AGENT_READY, DEFERRED, admit, decide, loadRules, noteUnrunnable, unrunnableCriteria } from "./admit.mjs";
+import { REFINE_MARKER, render, validateOutput } from "./refine.mjs";
 
 const RULES = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)));
 const HUMAN = 153232337;
@@ -235,15 +236,61 @@ describe("decide", () => {
     );
     assert.equal(result.verdict, "refuse");
   });
+
+  describe("criterion 7 from the lanes App's refinement comment", () => {
+    const thin = issueOf({ body: "Make the README skill count right." });
+    const refinement = (user, body = `${REFINE_MARKER}\n**Refinement.**\n\n- [ ] Line 3 says nineteen.`) => ({ id: 41, body, user, created_at: "2026-10-20T00:00:00Z" });
+    const app = { id: APP, login: "melodic-automation-lanes[bot]", type: "Bot" };
+
+    test("admits a thin issue whose task list is in the App's refinement comment", () => {
+      assert.deepEqual(decide(facts({ issue: thin, comments: [refinement(app)] })), { verdict: "admit", reasons: [] });
+    });
+
+    test("a rendered refinement criterion that reads a page outside the lane's web hosts is still refused", () => {
+      const output = { exact: true, outcome: "Match the spec.", criteria: ["The page at https://example.org/spec says nineteen."], dependencies: [], related: [], questions: [], sources: [] };
+      const body = render(validateOutput(output, new Set()));
+      assert.ok(!body.includes("https://"), "the rendered comment breaks the URL");
+      const result = decide(facts({ issue: thin, comments: [refinement(app, body)] }));
+      assert.equal(result.verdict, "refuse");
+      assert.match(result.reasons.join(), /example\.org/);
+    });
+
+    const lookalikes = [
+      ["github-actions[bot]", refinement({ id: 41898282, login: "github-actions[bot]", type: "Bot" })],
+      ["a listed human", refinement({ id: HUMAN, login: "maintainer", type: "User" })],
+      ["an outsider using the App's login text", refinement({ id: OUTSIDER, login: "melodic-automation-lanes[bot]", type: "User" })],
+      ["the App, with the marker mid-body", refinement(app, `See below.\n${REFINE_MARKER}\n- [ ] Line 3 says nineteen.`)],
+      ["the App, with only a quoted task list", refinement(app, `${REFINE_MARKER}\n> - [ ] Line 3 says nineteen.`)],
+      ["the App's admission comment", refinement(app, `${ADMIT_MARKER}\n- [ ] Line 3 says nineteen.`)],
+    ];
+    test("a refinement older than the body's last edit does not count; one newer does", () => {
+      const before = decide(facts({ issue: thin, comments: [refinement(app)], bodyEditedAt: "2026-10-21T00:00:00Z" }));
+      assert.equal(before.verdict, "refuse");
+      assert.match(before.reasons.join(), /task list/);
+      const after = decide(facts({ issue: thin, comments: [refinement(app)], bodyEditedAt: "2026-10-19T00:00:00Z" }));
+      assert.equal(after.verdict, "admit");
+    });
+
+    for (const [name, comment] of lookalikes) {
+      test(`a look-alike from ${name} does not count`, () => {
+        const result = decide(facts({ issue: thin, comments: [comment] }));
+        assert.equal(result.verdict, "refuse");
+        assert.match(result.reasons.join(), /task list/);
+      });
+    }
+  });
 });
 
 // A fake GitHub for admit(): the issue, its parent, blockers, timeline,
 // events and comments, recording every call.
-function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, timeline = [], events = [], comments = [] } = {}) {
+function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, timeline = [], events = [], comments = [], bodyEditedAt = null } = {}) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
     const base = "/repos/o/r/issues/7";
+    if (method === "POST" && path === "/graphql") {
+      return { data: { repository: { issue: { lastEditedAt: bodyEditedAt } } } };
+    }
     if (method !== "GET") {
       return null;
     }
@@ -376,6 +423,17 @@ describe("admit", () => {
     });
     await go(fake);
     assert.match(writes(fake.calls).at(-1), /^PATCH \/repos\/o\/r\/issues\/comments\/31 /);
+  });
+
+  test("a thin issue the App refined is admitted from the comment's task list; another author's copy is refused", async () => {
+    const thin = issueOf({ body: "Make the README skill count right." });
+    const comment = (user) => ({ id: 41, body: `${REFINE_MARKER}\n- [ ] Line 3 says nineteen.`, user });
+    const refined = await go(fakeGitHub({ issue: thin, comments: [comment({ id: APP, login: "melodic-automation-lanes[bot]", type: "Bot" })] }));
+    assert.equal(refined.outcome, "admitted");
+    const copied = await go(fakeGitHub({ issue: thin, comments: [comment({ id: OUTSIDER, login: "someone", type: "User" })] }));
+    assert.equal(copied.outcome, "refused");
+    const rewritten = await go(fakeGitHub({ issue: thin, bodyEditedAt: "2026-10-21T00:00:00Z", comments: [{ ...comment({ id: APP, login: "melodic-automation-lanes[bot]", type: "Bot" }), created_at: "2026-10-20T00:00:00Z" }] }));
+    assert.equal(rewritten.outcome, "refused", "the body changed after the refinement");
   });
 
   test("an open blocker posts the reason and keeps status: ready", async () => {
