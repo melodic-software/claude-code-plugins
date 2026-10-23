@@ -13,6 +13,7 @@ graders:
     type: tool_used
     tool: Bash
     input_match: '--cpu-prof|--inspect|--prof\b|perf\s+record|py-spy|0x\s|clinic|gdb|sudo|node\s+[^\n]*workers/export\.js'
+    min: 0
     max: 0
     arm: both
   - name: routes-to-drive-capture
