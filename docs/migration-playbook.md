@@ -713,7 +713,7 @@ not "is the server useful". `enabled`/`disabled` = medley `.claude/settings.json
 | aspire | stdio (`aspire` native) | none | STAY | medley .NET Aspire orchestration; no general-purpose plugin; infra-bound |
 | azure | stdio | `AZURE_CLIENT_SECRET`… | STAY (disabled) | Infra opt-in; disabled (auth-isolation issues); not a plugin concern |
 | azure-devops | stdio | `AZURE_DEVOPS_PAT` | STAY (disabled) | Infra opt-in PAT workflow; disabled; work-item tooling uses `gh`, not ADO |
-| ccusage | stdio | none | STAY | Live consumer `/harness-ops:claude-observability`; CLI covers the need (rule 1) and harness-ops is multi-skill, so shipping would spawn it for changelog/troubleshooting sessions. CLI-first is the preferred future direction |
+| ccusage | stdio | none | STAY | Live consumer `/harness-ops:observability`; CLI covers the need (rule 1) and harness-ops is multi-skill, so shipping would spawn it for changelog/troubleshooting sessions. CLI-first is the preferred future direction |
 | chrome-devtools | stdio | none | STAY | Ad-hoc browser/debug; stateful; no migrating plugin structurally requires it (degraded-but-functional) |
 | context7 | http | `CONTEXT7_API_KEY` | STAY (CLI-first) | context7 plugin ships `ctx7`; HTTP MCP kept repo-level as fallback |
 | github-events | stdio (repo-built) | `GITHUB_EVENTS_SECRET` | STAY | Repo-local broker; stateful `activeFilter`; repo identity via `CLAUDE_PROJECT_DIR`, so not repo-agnostic |
