@@ -3104,17 +3104,24 @@ jobs:
     # `ci-lanes` commit status the last full run recorded on this SHA.
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
-    # 9 s p95 and 42 s max in full mode, about 10 s contract-only. The cap is
-    # the worst case of the pinned composites' waits: two 60 s rate-limit waits
-    # (`rate-limit-wait-seconds` on check-contract and aggregate-results), 45 s
-    # of own-gate retries, 7 s of status-write retries and the 90 s
-    # `rerun-wait-seconds` wait, about four and a half minutes, plus up to
-    # 15 s of retry sleeps for each of the hold-lift step's three reads and
-    # the review-lane step's four, under two minutes, plus the cost-hold step's
-    # reads: three for most pull requests, which stop at the label events; for a
-    # lane-labeled one whose body cites a decision, about ten, and two more per
-    # review run since the window opened.
-    timeout-minutes: 9
+    # 9 s p95 and 42 s max in full mode, about 10 s contract-only. The cap
+    # covers one wait for the primary rate limit's reset of up to
+    # RATE_LIMIT_WAIT_SECONDS (10 minutes), plus the pinned composites' other
+    # waits: 45 s of own-gate retries, 7 s of status-write retries and the 90 s
+    # `rerun-wait-seconds` wait, plus up to 15 s of retry sleeps for each of
+    # the hold-lift step's three reads and the review-lane step's four, plus
+    # the cost-hold step's reads: three for most pull requests, which stop at
+    # the label events; for a lane-labeled one whose body cites a decision,
+    # about ten, and two more per review run since the window opened. Only
+    # one wait in a run can reach a reset: the next one is an hour later, past
+    # the cap, so a read limited again fails at once; any other wait is 60 s
+    # for a secondary limit.
+    timeout-minutes: 20
+    env:
+      # The ceiling on rate-limit waits, for check-contract, aggregate-results
+      # and the gh_read steps below together. The limit-events rows that set it
+      # needed 399 to 523 s.
+      RATE_LIMIT_WAIT_SECONDS: 600
     permissions:
       # `yield-to-full-run` lists this workflow's runs on the head SHA, and
       # `rerun-contract-only-siblings` re-runs the red contract-only ones once
@@ -3132,10 +3139,70 @@ jobs:
       pull-requests: write
       statuses: write
     steps:
+      # A RATE-LIMITED READ WAITS FOR THE RESET. The steps below read through
+      # gh_read, which runs `gh api` and, when it fails on a rate limit, waits
+      # and reads again, as the pinned composites' gh-api.sh does: until five
+      # seconds past the reset when GET /rate_limit (which no limit counts)
+      # shows the resource (core, or graphql for a graphql call) at 0, else
+      # 60 s. It is a rate limit when gh's error names one, or is an HTTP 403
+      # or 429 while that resource is at 0. The waits of every step sum to at
+      # most RATE_LIMIT_WAIT_SECONDS; a wait that does not fit fails the read
+      # with an error naming the reset, and later reads before the reset fail
+      # without a call. Any other failure returns gh's status at once, so each
+      # caller's own retries and fail-closed exit stay as they were. This step
+      # writes the function for the others to source. Pinned by
+      # scripts/ci-gh-read.test.sh, which runs this body.
+      - name: Write the rate-limit-aware read helper
+        run: |
+          gh_read() {
+            local state="$RUNNER_TEMP/gh-read.state" cap=${RATE_LIMIT_WAIT_SECONDS:-600}
+            local resource=core spent=0 until=0 arg err out now limit remaining reset wait at
+            for arg; do [ "$arg" != graphql ] || resource=graphql; done
+            err=$(mktemp)
+            while :; do
+              [ ! -s "$state" ] || read -r spent until <"$state"
+              now=$(date +%s)
+              [ "$until" -le "$now" ] || { rm -f "$err"; return 1; }
+              if out=$(gh api "$@" 2>"$err"); then
+                cat "$err" >&2
+                rm -f "$err"
+                [ -z "$out" ] || printf '%s\n' "$out"
+                return 0
+              fi
+              cat "$err" >&2
+              grep -qiE 'rate limit|HTTP (403|429)' "$err" || { rm -f "$err"; return 1; }
+              limit=$(gh api rate_limit --jq ".resources.$resource | \"\(.remaining) \(.reset)\"" 2>/dev/null) || limit=
+              read -r remaining reset <<<"$limit"
+              if [ "$remaining" = 0 ] && [[ $reset =~ ^[0-9]{1,10}$ ]]; then
+                wait=$((reset - now + 5))
+                [ "$wait" -ge 5 ] || wait=5
+              elif grep -qi 'rate limit' "$err"; then
+                wait=60 reset=$((now + 60))
+              else
+                rm -f "$err"
+                return 1
+              fi
+              if [ $((spent + wait)) -gt "$cap" ]; then
+                at=$(jq -rn --argjson t "$reset" '$t | todate')
+                echo "::error::GitHub's $resource API rate limit blocks 'gh api $*' until $at, past the ${cap}s ci-status waits for a reset (${spent}s spent); re-run this run after $at." >&9
+                echo "$spent $reset" >"$state"
+                rm -f "$err"
+                return 1
+              fi
+              echo "::notice::'gh api $*' is rate limited ($resource); waiting ${wait}s for the reset, then reading again." >&9
+              sleep "$wait"
+              spent=$((spent + wait))
+              echo "$spent 0" >"$state"
+            done
+          }
+          # fd 9 is each sourcing step's stderr, so the notices reach the log
+          # when a caller captures or redirects gh_read's own stderr.
+          { echo 'exec 9>&2'; declare -f gh_read; } >"$RUNNER_TEMP/gh-read.sh"
       - name: Check the pull-request contract
         uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
         with:
           token: ${{ github.token }}
+          rate-limit-wait-seconds: ${{ env.RATE_LIMIT_WAIT_SECONDS }}
           # Carried over verbatim from `pr-issue-linkage.yml`, the caller this
           # step replaces: dependabot PR bodies cannot carry the closing keyword
           # and the four contract sections, so its login is exempt from the
@@ -3160,10 +3227,11 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
+          . "$RUNNER_TEMP/gh-read.sh"
           BROKER_PATHS='.github/actions/resolve-config/package.json
           .github/actions/resolve-config/package-lock.json'
           for attempt in 1 2 3; do
-            if files=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --paginate --jq '.[] | .filename, (.previous_filename // empty)'); then
+            if files=$(gh_read "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --paginate --jq '.[] | .filename, (.previous_filename // empty)'); then
               break
             fi
             [ "$attempt" -lt 3 ] || { echo "::error::could not read the files of #$PR_NUMBER; re-run this run."; exit 1; }
@@ -3295,6 +3363,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
         run: |
+          . "$RUNNER_TEMP/gh-read.sh"
           keep() {
             echo "The cost hold stays for a person: $1."
             exit 0
@@ -3302,7 +3371,7 @@ jobs:
           read_api() {
             local attempt out
             for attempt in 1 2 3; do
-              if out=$(gh api "$@" 2>"$RUNNER_TEMP/cost-hold.err"); then
+              if out=$(gh_read "$@" 2>"$RUNNER_TEMP/cost-hold.err"); then
                 printf '%s\n' "$out"
                 return 0
               fi
@@ -3459,12 +3528,13 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
+          . "$RUNNER_TEMP/gh-read.sh"
           if [[ ! $BASE_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
             exit 1
           fi
           for attempt in 1 2 3; do
-            if tracker=$(gh api -H 'Accept: application/vnd.github.raw+json' "repos/$GITHUB_REPOSITORY/contents/.work-item-tracker.json?ref=$BASE_SHA" 2>"$RUNNER_TEMP/tracker.err"); then
+            if tracker=$(gh_read -H 'Accept: application/vnd.github.raw+json' "repos/$GITHUB_REPOSITORY/contents/.work-item-tracker.json?ref=$BASE_SHA" 2>"$RUNNER_TEMP/tracker.err"); then
               break
             elif grep -q 'HTTP 404' "$RUNNER_TEMP/tracker.err"; then
               tracker=
@@ -3484,7 +3554,7 @@ jobs:
           fi
           echo "label=$human_gated" >>"$GITHUB_OUTPUT"
           for attempt in 1 2 3; do
-            if labels=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels?per_page=100" --paginate --jq '.[].name'); then
+            if labels=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels?per_page=100" --paginate --jq '.[].name'); then
               break
             fi
             [ "$attempt" -lt 3 ] || { echo "::error::could not read the labels of #$PR_NUMBER; re-run this run."; exit 1; }
@@ -3534,13 +3604,14 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HUMAN_GATED: ${{ steps.human_gated.outputs.label }}
         run: |
+          . "$RUNNER_TEMP/gh-read.sh"
           if [[ ! $BASE_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
             exit 1
           fi
           # shellcheck disable=SC2016 # the $ in the --jq filter is a regex anchor
           for attempt in 1 2 3; do
-            if held_at=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate \
+            if held_at=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate \
               --jq '.[] | select(.user.type == "Bot" and (.body | test("(^|\n)<!-- claude-lane-hold lane="))
                 and (.user.login == "claude[bot]" or (.user.login == "github-actions[bot]"
                   and ([.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "") | select(. != "")] | last // ""
@@ -3552,7 +3623,7 @@ jobs:
             sleep $((attempt * 5))
           done
           for attempt in 1 2 3; do
-            if events=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/events?per_page=100" --paginate); then
+            if events=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/events?per_page=100" --paginate); then
               break
             fi
             [ "$attempt" -lt 3 ] || { echo "::error::could not read the events of #$PR_NUMBER; re-run this run."; exit 1; }
@@ -3569,7 +3640,7 @@ jobs:
             exit 0
           fi
           for attempt in 1 2 3; do
-            if actors=$(gh api -H 'Accept: application/vnd.github.raw+json' "repos/$GITHUB_REPOSITORY/contents/.github/standards/trusted-actors/trusted-actors.json?ref=$BASE_SHA"); then
+            if actors=$(gh_read -H 'Accept: application/vnd.github.raw+json' "repos/$GITHUB_REPOSITORY/contents/.github/standards/trusted-actors/trusted-actors.json?ref=$BASE_SHA"); then
               break
             fi
             [ "$attempt" -lt 3 ] || { echo "::error::could not read the trusted-actor list at $BASE_SHA; re-run this run."; exit 1; }
@@ -3627,6 +3698,7 @@ jobs:
           AUTHOR_ID: ${{ github.event.pull_request.user.id }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
+          . "$RUNNER_TEMP/gh-read.sh"
           # dependabot[bot], melodic-plugin-release[bot] and
           # melodic-standards-sync[bot], as
           # .github/standards/trusted-actors/trusted-actors.json lists them.
@@ -3640,7 +3712,7 @@ jobs:
           read_api() {
             local attempt body
             for attempt in 1 2 3; do
-              if body=$(gh api "$2"); then
+              if body=$(gh_read "$2"); then
                 printf '%s\n' "$body"
                 return 0
               fi
@@ -3657,7 +3729,7 @@ jobs:
             fi
             pr=$(read_api "#$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER") || exit 1
             for attempt in 1 2 3; do
-              if files=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --paginate --jq '.[] | [.filename, (.previous_filename // "")] | @tsv'); then
+              if files=$(gh_read "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --paginate --jq '.[] | [.filename, (.previous_filename // "")] | @tsv'); then
                 break
               fi
               [ "$attempt" -lt 3 ] || { echo "::error::could not read the files of #$PR_NUMBER; re-run this run."; exit 1; }
@@ -3749,6 +3821,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           BASE_SHA: ${{ github.event.merge_group.base_sha }}
         run: |
+          . "$RUNNER_TEMP/gh-read.sh"
           pr=$(sed -nE 's#^(refs/heads/)?gh-readonly-queue/.+/pr-([0-9]+)-[0-9a-f]{40}$#\2#p' <<<"$GITHUB_REF")
           if [ -z "$pr" ]; then
             echo "::error::cannot read a pull request number from the merge-group ref '$GITHUB_REF'."
@@ -3759,7 +3832,7 @@ jobs:
             exit 1
           fi
           for attempt in 1 2 3; do
-            if tracker=$(gh api -H 'Accept: application/vnd.github.raw+json' "repos/$GITHUB_REPOSITORY/contents/.work-item-tracker.json?ref=$BASE_SHA" 2>"$RUNNER_TEMP/tracker.err"); then
+            if tracker=$(gh_read -H 'Accept: application/vnd.github.raw+json' "repos/$GITHUB_REPOSITORY/contents/.work-item-tracker.json?ref=$BASE_SHA" 2>"$RUNNER_TEMP/tracker.err"); then
               break
             elif grep -q 'HTTP 404' "$RUNNER_TEMP/tracker.err"; then
               tracker=
@@ -3778,7 +3851,7 @@ jobs:
             }
           fi
           for attempt in 1 2 3; do
-            if labels=$(gh api "repos/$GITHUB_REPOSITORY/issues/$pr/labels?per_page=100" --paginate --jq '.[].name'); then
+            if labels=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$pr/labels?per_page=100" --paginate --jq '.[].name'); then
               break
             fi
             [ "$attempt" -lt 3 ] || { echo "::error::could not read the labels of #$pr; re-run this run."; exit 1; }
@@ -3856,3 +3929,4 @@ jobs:
           # how many steps of the job are in progress.
           step-name: Aggregate lane results
           token: ${{ github.token }}
+          rate-limit-wait-seconds: ${{ env.RATE_LIMIT_WAIT_SECONDS }}
