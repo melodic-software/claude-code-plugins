@@ -661,28 +661,11 @@ test("on an issues event, a missing label skips with not-applicable", async () =
   assert.equal(outputs["skip-reason"], "not-applicable");
 });
 
-test("labeled-after applies to an issue labeled after the cutover", async () => {
+test("labeled-after is not a predicate key: a config that sets it fails the schema", async (t) => {
   const { env } = workspace();
   issueEvent(env, { number: 7, labels: [], updated_at: "2026-10-20T00:00:01Z" });
   withPredicate(env, { "labeled-after": "2026-10-20T00:00:00Z" });
-  assert.equal(await main({ env, github: noApi }), 0);
-  assert.equal(readOutputs(env.GITHUB_OUTPUT).applies, "true");
-});
-
-test("labeled-after skips an issue labeled before the cutover with not-applicable", async () => {
-  const { env } = workspace();
-  issueEvent(env, { number: 7, labels: [], updated_at: "2026-10-19T23:59:59Z" });
-  withPredicate(env, { "labeled-after": "2026-10-20T00:00:00Z" });
-  assert.equal(await main({ env, github: noApi }), 0);
-  const outputs = readOutputs(env.GITHUB_OUTPUT);
-  assert.equal(outputs.applies, "false");
-  assert.equal(outputs["skip-reason"], "not-applicable");
-});
-
-test("labeled-after fails red off an issues event, which carries no label time", async (t) => {
-  const { env } = workspace();
-  withPredicate(env, { "labeled-after": "2026-10-20T00:00:00Z" });
-  await assertFailsRed(t, env, /needs labeledAt/);
+  await assertFailsRed(t, env, /fails the schema/);
 });
 
 test("on an issues event, labels-absent reads the issue's labels now", async () => {

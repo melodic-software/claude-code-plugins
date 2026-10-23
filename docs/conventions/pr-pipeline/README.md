@@ -419,10 +419,9 @@ Each leaf declares:
   activity skips with `not-applicable-paths`: `pr-unblock / fix-docs` does not run on a PR whose
   only changed Markdown is instruction surfaces or CODEOWNERS paths, such as this directory.
 - `scope` (`diff`, `tree`, `target`) and `applies-when` (paths, labels, `labels-absent`, work
-  classes, events, `mergeable`, `draft`, `labeled-after`, `admission`). `mergeable` is `conflicting` or `clean`,
+  classes, events, `mergeable`, `draft`, `admission`). `mergeable` is `conflicting` or `clean`,
   read from the PR at the gated head SHA only; unknown mergeability never matches. `labels-absent`
-  matches only when none of its labels is on the PR. `labeled-after`, a UTC time, is an issues
-  lane's go-live time: it matches only an issue labeled after it. `admission` is an issues lane's
+  matches only when none of its labels is on the PR. `admission` is an issues lane's
   work-class rule: an issue carrying a `work-class:` label outside `classes` is refused, even
   beside a listed one; otherwise a listed class admits it. With no `admission`, the triggering
   label alone admits the issue; this repository's resolve-issue sets none, so `agent-ready`
@@ -1547,8 +1546,7 @@ then, and passes the dimensions on (`issue-dimensions`), so a field set while th
 its slot cannot give it more turns than its timeout allows; without `issue-dimensions` the
 timeout is 25 minutes. This repository's budgets are owner-approved starting values, tuned in
 [`pr-pipeline.yaml`](../pr-pipeline.yaml) (`models.issue-dimensions`) from per-run measures. Large
-is `split`, and Uncertainty Known, Knowable and Unknown map to `run`, `research-first` and
-`probe-first`. `complexity-profiles` (optional) maps a complexity to the profile the run starts on,
+is `split`, and Uncertainty Known and Knowable map to `run` and Unknown to `probe-first`. `complexity-profiles` (optional) maps a complexity to the profile the run starts on,
 in place of its route's; the dimensions' turn cap still replaces that profile's `max-turns`. A
 complexity with no entry, or an issue not assessed, keeps the route's profile. The config
 reader rejects a key that is not a complexity and a value that is not a profile.
