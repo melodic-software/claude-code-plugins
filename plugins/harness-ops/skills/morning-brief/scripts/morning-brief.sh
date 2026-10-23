@@ -1936,6 +1936,7 @@ LANE_DEFS='
     elif test("class=max-turns(?![a-z-])|error_max_turns|exceeding the configured maximum of [0-9]+|maximum number of turns"; "i") then "max-turns"
     else "other" end;
   def hot($cap): $cap != null and . != null and . * 100 >= 80 * $cap;
+  def median: if length == 0 then null elif length % 2 == 1 then .[length / 2 | floor] else (.[length / 2 - 1] + .[length / 2]) / 2 end;
   # The v1 lane-outcome records in a run text, at most 8: after each marker,
   # the shortest prefix ending at a "}" that parses, since free text may follow
   # the JSON. A record whose credential or fallback is not an object is dropped.
@@ -2004,7 +2005,6 @@ LANES_JQ="$LANE_DEFS"'
 # concluded success; a max-turns hit is a failed run of class max-turns.
 # shellcheck disable=SC2016  # jq variables, as above
 MODELS_JQ="$LANE_DEFS"'
-  def median: if length == 0 then null elif length % 2 == 1 then .[length / 2 | floor] else (.[length / 2 - 1] + .[length / 2]) / 2 end;
   [ $lanes[] as $wf | lane_runs($wf)[] ] as $all
   | ($all | map(select(.record))) as $read
   | (($all | length) - ($read | length)) as $unread
@@ -2047,18 +2047,18 @@ KEYS_JQ="$LANE_DEFS"'
 '
 # The spend lines: per credential role, an estimate from the costUsd (the
 # CLI's list-price estimate, not billing) of its API-key legs. Token legs are
-# left out. The median over the successful key legs that carry a cost, credit
+# left out, and so is a cost that is not a number from 0 to under 1e6 (the
+# records are annotation text). The median over the successful key legs that carry a cost, credit
 # stops left out, times the runs of every lane those legs ran in, per day,
 # and the sum over every key leg read.
 # shellcheck disable=SC2016  # jq variables, as above
 SPEND_JQ="$LANE_DEFS"'
-  def median: if length == 0 then null elif length % 2 == 1 then .[length / 2 | floor] else (.[length / 2 - 1] + .[length / 2]) / 2 end;
   def usd: (. * 100 | round) as $c | "\($c / 100 | floor).\($c % 100 | tostring | if length == 1 then "0" + . else . end)";
   [ $lanes[] as $wf | lane_runs($wf) as $r | $r[]
     | ($ann[0][.id | tostring] // "" | records)[]
     | select(.credential.kind == "api-key" and (.credential.role | strings | test("\\A[A-Z0-9_]+\\z")))
     | {wf: $wf, runs: ($r | length), role: .credential.role,
-       cost: (.costUsd | if type == "number" and . >= 0 then . else null end)} + {ok: (.outcome == "success" and .class != "credit-stop")} ]
+       cost: (.costUsd | if type == "number" and . >= 0 and . < 1e6 then (if . == 0 then 0 else . end) else null end)} + {ok: (.outcome == "success" and .class != "credit-stop")} ]
   | group_by(.role)[]
   | length as $n
   | (map(select(.ok) | .cost | numbers) | sort | median) as $med
