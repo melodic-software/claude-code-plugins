@@ -17,6 +17,7 @@ import { join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import Ajv2020 from "ajv/dist/2020.js";
 import { parse } from "yaml";
 
 import { DEFAULTS as CI_FIX_DEFAULTS, skipReason } from "../../scripts/pr-unblock/fix-ci-dispatch.mjs";
@@ -962,6 +963,59 @@ test("every read-runner caller job passes exactly one Claude secret, named for i
     "pr-unblock.yml fix-docs-subscription",
     "work-resolve-issue.yml resolve-issue",
   ]);
+});
+
+// --- the lane-funding catalog: .github/lane-funding.json ---
+
+// Read inside each test, so a missing catalog fails every one of them.
+const fundingCatalog = () => JSON.parse(read("../../lane-funding.json"));
+const catalogLanes = () => fundingCatalog().roles.flatMap((role) => role.lanes.map((lane) => ({ role, lane, key: `${lane.workflow} ${lane.id}` })));
+// Every job that reads a role's Claude secret or the bare token, with the names it reads.
+function claudeSecretJobs() {
+  const jobs = new Map();
+  for (const file of workflowFiles()) {
+    for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
+      const names = stepSecrets(job).filter((name) => /^([A-Z][A-Z0-9_]*_)?CLAUDE_(API_KEY|CODE_OAUTH_TOKEN)$/.test(name));
+      if (names.length) jobs.set(`${file} ${id}`, { job, names });
+    }
+  }
+  return jobs;
+}
+
+test("lane-funding.json validates against its schema", () => {
+  const validate = new Ajv2020({ allErrors: true, strict: true }).compile(JSON.parse(read("../../lane-funding.schema.json")));
+  assert.ok(validate(fundingCatalog()), JSON.stringify(validate.errors));
+});
+
+test("every job that reads a Claude secret is a catalog lane, and every catalog lane is a job that reads the secrets it lists", () => {
+  const jobs = claudeSecretJobs();
+  const lanes = catalogLanes();
+  assert.equal(new Set(lanes.map(({ key }) => key)).size, lanes.length, "a job is one lane");
+  assert.deepEqual(lanes.map(({ key }) => key).sort(), [...jobs.keys()].sort());
+  for (const { lane, key } of lanes) {
+    const { job, names } = jobs.get(key);
+    assert.deepEqual([...lane.currentSecrets].sort(), names, key);
+    // Where the job itself names its launcher, the catalog names the same one.
+    const steps = (job.steps ?? []).map((step) => String(step.uses ?? ""));
+    if (steps.some((uses) => uses.includes("/run-claude-cli@"))) assert.equal(lane.launcher, "run-claude-cli", key);
+    if (steps.some((uses) => uses.startsWith("anthropics/claude-code-action@"))) assert.equal(lane.launcher, "claude-code-action", key);
+  }
+});
+
+test("a job reads a Claude API key only when its catalog lane runs on run-claude-cli", () => {
+  const lanes = new Map(catalogLanes().map(({ lane, key }) => [key, lane]));
+  const keyed = [...claudeSecretJobs()].filter(([, { names }]) => names.some((name) => name.endsWith("_CLAUDE_API_KEY")));
+  assert.ok(keyed.length > 0);
+  for (const [key] of keyed) assert.equal(lanes.get(key)?.launcher, "run-claude-cli", key);
+});
+
+test("each catalog role names its secrets from its prefix, and is keyed only with a run-claude-cli lane", () => {
+  for (const role of fundingCatalog().roles) {
+    assert.equal(role.secretPrefix, role.id.toUpperCase().replaceAll("-", "_"), role.id);
+    assert.equal(role.keySecret, `${role.secretPrefix}_CLAUDE_API_KEY`, role.id);
+    assert.equal(role.tokenSecret, `${role.secretPrefix}_CLAUDE_CODE_OAUTH_TOKEN`, role.id);
+    if (role.keyed) assert.ok(role.lanes.some((lane) => lane.launcher === "run-claude-cli"), role.id);
+  }
 });
 
 test("no workflow step references both Claude secrets or sets CLAUDE_CODE_ENTRYPOINT, and claude-code-action gets no API key", () => {

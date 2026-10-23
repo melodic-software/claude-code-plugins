@@ -1561,22 +1561,26 @@ waits on an owner decision and a per-week Fable allowance for the lanes.
 
 ## Funding
 
-Each Claude lane's runs are paid by one funding role: `reviews`, `automations` or `issue-lane`. A
-lane on ci-workflows' `run-claude-cli` action passes its role with the role's two secrets,
-`<ROLE>_CLAUDE_API_KEY` and `<ROLE>_CLAUDE_CODE_OAUTH_TOKEN` (role upper-snake, so `issue-lane`
-gives `ISSUE_LANE_`); the key runs first and the subscription token only after the key leg hands
-off (`run-claude-cli`'s `handoff` output: a credit stop, or class `auth` with API status 401 or
-402; a 403 hands nothing off). `pr-verify` holds one credential per job: `check-intent` runs on the
-key, and `check-intent-subscription` runs on the token, on a new runner, only after
-`check-intent`'s handoff with no permission denial or when the key is empty; its lane record is
-`pr-verify` with `fallback-reason` `credit-stop`, `auth` or `no-key`. Each lane's workflow names its role as a
-literal, and the runner policy admits it; no config key records it. `intake`, `pr-unblock`,
-`fix-ci`, `fix-docs` and `pr-verify` take `automations`; `claude-review` and
-`claude-security-review` take `reviews`; `work-resolve-issue` takes `issue-lane`.
+Each Claude lane's runs are paid by one funding role. There are seven: `reviews`,
+`reviews-security`, `issue-lane`, `intake`, `pr-unblock`, `pr-verify`, and `automations` for the
+lanes outside the pipeline. A role's secrets are `<ROLE>_CLAUDE_API_KEY` and
+`<ROLE>_CLAUDE_CODE_OAUTH_TOKEN`, the role upper-snake, so `issue-lane` gives `ISSUE_LANE_`.
 
-`intake` and `pr-verify` run on `run-claude-cli` today. Every other lane runs claude-code-action
-with its role's OAuth token alone until it moves there, and it never gets an API key, since
-claude-code-action runs are not paid from API credits. A lane on pr-run-activity-write.yml passes
+[`.github/lane-funding.json`](../../../.github/lane-funding.json) is the source of truth: each
+role's secrets, whether it is keyed, and each lane's workflow, job, launcher, and the secrets its
+job reads today, which can still be another role's or the bare `CLAUDE_CODE_OAUTH_TOKEN` until
+its wiring moves. `callers.test.mjs` in `.github/actions/resolve-config/` fails when a job that
+reads a Claude secret is missing from the catalog, or reads secrets other than those listed.
+
+Only a lane on ci-workflows' `run-claude-cli` action gets an API key, so only a role with such a
+lane is keyed; claude-code-action runs take the OAuth token alone, since they are not paid from
+API credits. On `run-claude-cli` the key runs first and the subscription token only after the key
+leg hands off (`run-claude-cli`'s `handoff` output: a credit stop, or class `auth` with API status
+401 or 402; a 403 hands nothing off). `pr-verify` holds one credential per job: `check-intent`
+runs on the key, and `check-intent-subscription` runs on the token, on a new runner, only after
+`check-intent`'s handoff with no permission denial or when the key is empty; its lane record is
+`pr-verify` with `fallback-reason` `credit-stop`, `auth` or `no-key`. Each lane's workflow names
+its role as a literal, and the runner policy admits it. A lane on pr-run-activity-write.yml passes
 its role as the `role` input, and the lane record names that role's token as the run's credential.
 
 ## Loop caps
