@@ -189,13 +189,16 @@ jobs:
   # default row (fix-docs has no prepare mode). It runs only on a written
   # patch: no change is the common case and needs no one. The lane has no
   # escalation job, so a refused patch posts the pr-refine / apply-patch
-  # check neutral and labels nothing. The patch and its head come from
-  # whichever call ran the activity; apply-patch still applies onto the head
-  # its own gate reads.
+  # check neutral and labels nothing. One leg answers, as for pr-unblock.yml's
+  # apply-patch: the fallback call when it ran, else the first, and every
+  # input is that leg's scan job's, never a run job's, since the run job runs
+  # head code. The head is fix-docs-head's, read by a job that ran no head
+  # code; apply-patch still applies onto the head its own gate reads.
   apply-docs-patch:
-    needs: [fix-docs, fix-docs-subscription]
+    needs: [fix-docs-head, fix-docs, fix-docs-subscription]
     if: >-
-      ${{ !cancelled() && (needs.fix-docs-subscription.outputs.patch-state || needs.fix-docs.outputs.patch-state) == 'written' }}
+      ${{ !cancelled()
+      && (needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-patch-state || needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-patch-state || '') == 'written' }}
     permissions:
       contents: read
       pull-requests: read
@@ -213,9 +216,9 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
-      patch-state: ${{ needs.fix-docs-subscription.outputs.patch-state || needs.fix-docs.outputs.patch-state }}
-      patch-sha256: ${{ needs.fix-docs-subscription.outputs.patch-sha256 || needs.fix-docs.outputs.patch-sha256 }}
-      patch-attempt: ${{ needs.fix-docs-subscription.outputs.patch-attempt || needs.fix-docs.outputs.patch-attempt }}
+      patch-state: ${{ needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-patch-state || needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-patch-state || '' }}
+      patch-sha256: ${{ needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-patch-sha256 || needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-patch-sha256 || '' }}
+      patch-attempt: ${{ needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-patch-attempt || needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-patch-attempt || '' }}
       patch-activity: fix-docs
-      patch-head-sha: ${{ needs.fix-docs-subscription.outputs.head-sha || needs.fix-docs.outputs.head-sha }}
-      reply-attempt: ${{ needs.fix-docs-subscription.outputs.reply-attempt || needs.fix-docs.outputs.reply-attempt }}
+      patch-head-sha: ${{ needs.fix-docs-head.outputs.head-sha }}
+      reply-attempt: ${{ needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-reply-attempt || needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-reply-attempt || '' }}

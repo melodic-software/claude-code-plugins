@@ -11,3 +11,4 @@ bump: minor
 ### Security
 
 - `fix-docs-subscription` no longer starts on `fix-docs` outputs, which its head-code run job could forge. A `fix-docs-handoff` job reads this run's jobs through the Actions API, as `fix-ci-handoff` does for fix-ci. The fallback runs only when the broker allowed `fix-docs` and its report job posted no check (#8890).
+- `apply-docs-patch` no longer takes its patch inputs or head from `fix-docs` run-job outputs. It takes them from the answering leg's scan job and the head from `fix-docs-head`, as fix-ci's `apply-patch` does (#8890).

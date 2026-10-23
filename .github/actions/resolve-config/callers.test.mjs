@@ -1457,13 +1457,12 @@ const APPLY_ACTIVITY = {
 };
 const CARRIER_SECRETS = { "scan-carrier-private-key": "${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}" };
 // The head apply-patch holds the patch to, per producer. fix-ci's push job
-// takes the head fix-ci-context gated, from a job that ran no head code.
-// fix-docs's push job takes the run job's head-sha
-// output from whichever call ran; apply-patch applies onto the head its own
-// gate reads either way.
+// takes the head fix-ci-context gated, and fix-docs's the head fix-docs-head
+// read, each from a job that ran no head code; apply-patch applies onto the
+// head its own gate reads either way.
 const PATCH_HEAD = {
   "fix-ci": { needs: ["fix-ci-context"], value: "${{ needs.fix-ci-context.outputs.head-sha }}" },
-  "fix-docs": { needs: [], value: null },
+  "fix-docs": { needs: ["fix-docs-head"], value: "${{ needs.fix-docs-head.outputs.head-sha }}" },
   "address-feedback": { needs: ["address-feedback-select"], value: "${{ needs.address-feedback-select.outputs.head-sha }}" },
   "review-dependency": { needs: ["review-dependency-select"], value: "${{ needs.review-dependency-select.outputs.head-sha }}" },
 };
@@ -1475,10 +1474,9 @@ const PATCH_HEAD = {
 // and review-dependency's one whose verdict needs none.
 const EMPTY_RUNS_APPLY = { "fix-ci": true, "fix-docs": false, "address-feedback": false, "review-dependency": false };
 const PATCH_OUTPUTS = { "patch-state": "patch-state", "patch-sha256": "patch-sha256", "patch-attempt": "patch-attempt", "reply-attempt": "reply-attempt" };
-// The read runner output each push job reads per input: address-feedback's
-// and review-dependency's, lanes the briefs hold to no run job output, the
-// scan job's alone.
-const SCAN_ONLY = new Set(["fix-ci", "address-feedback", "review-dependency"]);
+// The read runner output each push job reads per input: the scan job's alone,
+// never the run job's, which head code can forge.
+const SCAN_ONLY = new Set(["fix-ci", "fix-docs", "address-feedback", "review-dependency"]);
 // The base-code job whose jobs-API read starts a lane's fallback call, in
 // place of the first call's own handoff outputs.
 const HANDOFF = { "fix-ci": "fix-ci-handoff", "fix-docs": "fix-docs-handoff", "address-feedback": "address-feedback-handoff", "review-dependency": "review-dependency-handoff" };
@@ -4291,6 +4289,34 @@ test("pr-refine.yml: fix-docs-subscription starts on a base job's jobs-API read 
   const failed = readPosted(t, step, listing({ posted: true }), { fail: true });
   assert.notEqual(failed.status, 0);
   assert.deepEqual(failed.outputs, {});
+});
+
+// #8890 for fix-docs's push job: patch-state, patch-sha256, patch-attempt,
+// reply-attempt and the head came from the run job, which head code can
+// forge. Now each comes from the answering leg's scan job, or the head from
+// fix-docs-head, as #9363 did for fix-ci's apply-patch.
+test("pr-refine.yml: apply-docs-patch reads no read-runner run-job output and takes only the leg that answered", () => {
+  const apply = workflow("pr-refine.yml").jobs["apply-docs-patch"];
+  const runOutputs = Object.entries(workflow("pr-run-activity-read.yml").on.workflow_call.outputs)
+    .filter(([, output]) => /\bjobs\.run\.outputs\./.test(output.value))
+    .map(([name]) => name);
+  assert.ok(["patch-state", "patch-sha256", "head-sha"].every((name) => runOutputs.includes(name)), runOutputs.join(" "));
+  const read = [...JSON.stringify(apply).matchAll(/needs\.(fix-docs(?:-subscription)?)\.outputs\.([\w-]+)/g)]
+    .filter(([, , output]) => runOutputs.includes(output))
+    .map(([ref]) => ref);
+  assert.deepEqual(read, [], "apply-docs-patch reads no run-job output");
+  assert.equal(apply.with["patch-head-sha"], "${{ needs.fix-docs-head.outputs.head-sha }}");
+  const runs = (subResult, sub, first) =>
+    evaluate(apply.if, {
+      "needs.fix-docs-subscription.result": subResult,
+      "needs.fix-docs-subscription.outputs.scan-patch-state": sub,
+      "needs.fix-docs.outputs.scan-patch-state": first,
+    });
+  assert.equal(runs("skipped", "", "written"), true, "the key call's patch, its subscription call skipped");
+  assert.equal(runs("success", "written", ""), true, "the subscription call's patch after a handoff");
+  assert.equal(runs("success", "", "written"), false, "the key call's patch is not taken once the subscription call ran");
+  assert.equal(runs("skipped", "", "empty"), false, "no change runs no push job");
+  assert.equal(runs("skipped", "", ""), false, "a call that left no patch");
 });
 
 // #8890: a round in which no call posted left fix-ci-dispatch.mjs nothing to

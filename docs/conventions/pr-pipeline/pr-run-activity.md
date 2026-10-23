@@ -1223,7 +1223,10 @@ accepts the script's reasons only in this mode.
 
 In `pr-refine.yml` the same leaf, as the `apply-docs-patch` job, follows `fix-docs`, which has
 no prepare mode: the caller passes no `patch-prepare`, so the script takes the `default` row, and
-runs the job only on a `written` patch. That row refuses the universal set, escalating
+runs the job only on a `written` patch. As fix-ci's `apply-patch` does, it takes one leg (the
+fallback call when it ran, else the first) and every patch input from that leg's scan job
+(`scan-patch-state`, `scan-patch-sha256`, `scan-patch-attempt`, `scan-reply-attempt`), never from
+a run job. That row refuses the universal set, escalating
 `patch-protected-path`, caps a patch at 300 paths (`patch-invalid`), takes a moved head with
 `--3way` when the moved commits touch no patched path (`skip-moved-head: false`), and commits
 `Apply fix-docs on <head ref>` with the trailer `Lane-Activity: pr-refine/fix-docs`.
@@ -1416,7 +1419,8 @@ outputs are sent), so the report job differs:
   goes posts its check on the head it ran on, not failure on the new head. They also pass
   `post-decline: false`: fix-docs is dispatched once per PR, so a run that stops before its
   trigger gate posts no `not-assessed` neutral and the PR is dispatched again; and
-  `apply-docs-patch` passes the read runner's `head-sha` output as `patch-head-sha`; apply-patch still applies onto the head its own gate reads and measures the
+  `apply-docs-patch` passes `fix-docs-head`'s head as `patch-head-sha`, never the read runner's
+  run-job `head-sha` output; apply-patch still applies onto the head its own gate reads and measures the
   `default` row's refusals from there.
 
 What it trusts:
