@@ -63,10 +63,12 @@ from urllib.parse import quote
 
 import babysit_merge_policy as policy
 from babysit_gh import (
+    RUN_SEARCH_CAP,
     flatten_paginated_items,
     gh_capture,
     gh_http_status,
     is_owner_repo_pair,
+    run_search_capped,
 )
 from babysit_util import (
     is_json_array,
@@ -420,38 +422,33 @@ def _write(args: list[str], label: str) -> Any:
     return _call(args, label, PostMergeWriteError)
 
 
-# A filtered workflow-run listing returns at most this many runs per search:
-# https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-workflow
-# (as of 2026-10-22; recheck when that page's result limit changes).
-RUN_SEARCH_CAP = 1000
-
-
 def _paginated(
-    endpoint: str,
-    label: str,
-    items_key: str | None = None,
-    capped: list[str] | None = None,
+    endpoint: str, label: str, items_key: str | None = None
 ) -> list[dict[str, Any]]:
     """Every item of a paginated listing. An object listing whose
     `total_count` exceeds the items its pages carried answered short (a
-    degraded API can), so it raises rather than read as complete. Past
-    RUN_SEARCH_CAP the search is short by design: given `capped`, a listing
-    that carried at least RUN_SEARCH_CAP items reads and a `listing-capped`
-    warning goes there instead; one that carried fewer still raises."""
+    degraded API can), so it raises rather than read as complete. A run
+    listing that reached RUN_SEARCH_CAP may be missing runs, so it raises
+    too."""
     payload = _read(["api", endpoint, "--paginate", "--slurp"], label)
     try:
         items = flatten_paginated_items(payload, label, items_key=items_key)
     except RuntimeError as exc:
         raise PostMergeReadError(str(exc)) from exc
+    if items_key == "workflow_runs":
+        capped = run_search_capped(payload, items)
+        if capped is not None:
+            raise PostMergeReadError(
+                f"{label}: total_count {capped}, {len(items)} returned, "
+                f"at the {RUN_SEARCH_CAP}-run search cap"
+            )
     if items_key is not None:
         pages = payload if is_json_array(payload) else [payload]
         total = max(
             (p["total_count"] for p in pages if isinstance(p.get("total_count"), int)),
             default=0,
         )
-        if total > len(items) and len(items) >= RUN_SEARCH_CAP and capped is not None:
-            capped.append(f"listing-capped: {label} total_count {total}")
-        elif total > len(items):
+        if total > len(items):
             raise PostMergeReadError(
                 f"{label}: total_count {total}, but {len(items)} returned"
             )
@@ -627,7 +624,6 @@ def _runs(
     event: str,
     branch: str,
     since: datetime,
-    capped: list[str] | None = None,
 ) -> list[Run]:
     created = quote(
         f">={since.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}", safe=""
@@ -637,7 +633,7 @@ def _runs(
         f"?event={event}&branch={quote(branch, safe='')}&created={created}&per_page=100"
     )
     runs = _run_rows(
-        _paginated(endpoint, f"{workflow} {event} runs", "workflow_runs", capped),
+        _paginated(endpoint, f"{workflow} {event} runs", "workflow_runs"),
         event,
         owner,
         name,
@@ -867,8 +863,6 @@ class _Context:
     quarantine_issues: dict[str, dict[str, Any]] | None = None
     # Excused failing suites, by (suite, sighting).
     quarantines: dict[tuple[str, str], Quarantine] = field(default_factory=dict)
-    # Warnings for the verdict, such as a listing past the search cap.
-    warnings: list[str] = field(default_factory=list)
     # The branch's dispatch runs at each commit, read by SHA.
     dispatch_at_cache: dict[str, dict[int, Run]] = field(default_factory=dict)
 
@@ -918,7 +912,6 @@ class _Context:
                 f"&head_sha={commit}&per_page=100",
                 f"{FULL_RUN_WORKFLOW} dispatch runs at {commit[:12]}",
                 "workflow_runs",
-                self.warnings,
             )
             self.dispatch_at_cache[commit] = {
                 r.id: r
@@ -1670,7 +1663,6 @@ def _lane_reruns(ctx: _Context, now: datetime, tally: _Tally) -> list[str]:
             "workflow_dispatch",
             ctx.branch,
             now - ctx.lane_rerun_lookback(),
-            ctx.warnings,
         )
         for run in sorted(runs, key=lambda r: r.created_at, reverse=True):
             if (
@@ -1748,7 +1740,7 @@ def check(
             return PostMergeVerdict(
                 True,
                 reruns=tuple(tally.reruns.values()),
-                warnings=tuple(warnings + ctx.warnings),
+                warnings=tuple(warnings),
                 branch=branch,
             )
         floor = (
@@ -1758,9 +1750,7 @@ def check(
         )
         full_runs = [
             (SIGNAL_SCHEDULE, r)
-            for r in _runs(
-                owner, name, FULL_RUN_WORKFLOW, "schedule", branch, floor, ctx.warnings
-            )
+            for r in _runs(owner, name, FULL_RUN_WORKFLOW, "schedule", branch, floor)
         ] + [
             (SIGNAL_DISPATCH, r)
             for r in _runs(
@@ -1770,12 +1760,11 @@ def check(
                 "workflow_dispatch",
                 branch,
                 floor,
-                ctx.warnings,
             )
         ]
         full_runs.sort(key=lambda item: item[1].created_at)
         canary_runs = sorted(
-            _runs(owner, name, CANARY_WORKFLOW, "push", branch, floor, ctx.warnings),
+            _runs(owner, name, CANARY_WORKFLOW, "push", branch, floor),
             key=lambda r: r.created_at,
         )
         states = tuple(
@@ -1807,7 +1796,7 @@ def check(
         reruns=tuple(tally.reruns.values()),
         flakes=tuple(tally.flakes),
         unattributed=tuple(tally.unattributed),
-        warnings=tuple(warnings + ctx.warnings),
+        warnings=tuple(warnings),
         branch=branch,
         quarantines=tuple(ctx.quarantines.values()),
     )

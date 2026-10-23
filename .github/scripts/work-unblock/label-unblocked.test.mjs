@@ -2035,6 +2035,32 @@ test("a reopened fix issue whose agent-ready the App added is relabeled like a l
   assert.deepEqual(writes(calls), relabeled(30));
 });
 
+// The recurrence check and the restart check read the same issue's comments
+// and events; a sweep reads each once and both checks decide on that read.
+test("a sweep reads a fix issue's comments and events once when the recurrence check passes it on", async (t) => {
+  const reads = (calls, kind) => calls.filter((call) => call.startsWith(`GET /repos/${REPO}/issues/30/${kind}`)).length;
+  for (const [name, setup, line] of [
+    // The lane PR that first closed it merged with Closes, which the re-fire rule ends on.
+    ["no recurrence comment", { comments: [note()] }, "#30 not restarted: its lane PR #7805 merged"],
+    [
+      "a person's agent-ready since the reopen",
+      { events: [added("2026-10-10T09:00:00Z", OWNER), added("2026-10-16T11:10:00Z", OWNER)] },
+      "#30 not restarted: no lane run since agent-ready was added",
+    ],
+    ["an issue no alert filed", { issues: [fixIssue(30, { user: OWNER })] }, "#30 not restarted: its lane PR #7805 merged"],
+  ]) {
+    const log = t.mock.method(console, "log", () => {});
+    const { github, actions, calls } = reopened(setup);
+    assert.equal(await sweep({ github, actions }), 0, name);
+    assert.deepEqual(writes(calls), [], name);
+    assert.equal(reads(calls, "comments"), 1, name);
+    assert.equal(reads(calls, "events"), 1, name);
+    const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+    assert.ok(lines.includes(`label-unblocked: ${line}`), `${name}\n${lines.join("\n")}`);
+    log.mock.restore();
+  }
+});
+
 // Admission pacing (owner decision 2026-10-21, #8794): at or over the queued
 // cap, on or after wip.pause-from, work-unblock adds no new agent-ready. With
 // the default limits (factor 0.8, floor 1/h) and window (24 h), 24 merged

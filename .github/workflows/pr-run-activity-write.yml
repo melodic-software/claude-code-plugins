@@ -896,6 +896,21 @@ jobs:
           pull-requests: ${{ steps.config.outputs.pull-requests }}
           issues: ${{ steps.config.outputs.issues }}
 
+      # The lane token's and the job token's budget at mint, before the head
+      # checkout replaces .base: no step after the activity runs from the base
+      # with the token, so this reading has no job-end pair. The lanes App's
+      # bucket is shared by every job using it. Never fails the job.
+      - name: Log the API budget at mint
+        if: steps.lane-token.outputs.token != ''
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: start
+          tokens: |
+            lane ${{ steps.lane-token.outputs.token }}
+            github-token ${{ github.token }}
+
       - name: Select the trusted PR text
         if: >-
           steps.lane-token.outputs.token != '' && steps.config.outputs.reads-untrusted == 'true'
