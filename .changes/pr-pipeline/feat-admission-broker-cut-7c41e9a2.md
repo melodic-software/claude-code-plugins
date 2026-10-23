@@ -11,3 +11,4 @@ bump: minor
 
 - `not-assessed` as an issue-dimension skip: `report-skip` and the write file's `dimension-skip` input no longer accept it. fix-ci's neutral `not-assessed` check is unchanged.
 - The `labeled-after` predicate key from `predicate.mjs`.
+- The unused copy of `checkPatchRules` and its old refusal list in `resolve.mjs`; the live check is in `patch-rules.mjs`.
