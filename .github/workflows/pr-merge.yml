@@ -1061,9 +1061,10 @@ jobs:
           if-no-files-found: ignore
 
       # The next run's lane records: those the checks above read in and
-      # proved, unexpired, and listed by the run's last artifact listing when
-      # it has one. Only a scheduled or hand-started run's file is read back,
-      # so only one uploads it. Rules: .github/scripts/pr-merge/lane-records.mjs.
+      # proved, unexpired and listed by the run's last artifact listing; with
+      # no listing nothing is uploaded. Only a scheduled or hand-started run's
+      # file is read back, so only one uploads it. Rules:
+      # .github/scripts/pr-merge/lane-records.mjs.
       - name: Keep the lane records the checks proved
         id: lane-records
         if: >-

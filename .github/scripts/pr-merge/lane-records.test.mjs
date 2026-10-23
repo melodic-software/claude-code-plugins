@@ -159,12 +159,6 @@ test("the next file keeps unexpired records the listing lists unexpired", () => 
   const listing = { artifacts: [...listed(11, 14).artifacts, { id: 12, expired: true }] };
   // 12 has expired in the listing; 13 is no longer listed; 14 expires now.
   assert.deepEqual(Object.keys(nextRecords({ records, listing, now: NOW })), ["pr-merge-dispatched-11"]);
-  // With no listing, only the expiry each record was listed with prunes.
-  assert.deepEqual(Object.keys(nextRecords({ records, listing: undefined, now: NOW })), [
-    "pr-merge-dispatched-11",
-    "pr-merge-dispatched-12",
-    "pr-merge-dispatched-13",
-  ]);
 });
 
 async function writeRun({ records, listing }) {
@@ -193,13 +187,16 @@ test("write keeps the checks' records the listing still lists", async () => {
   assert.deepEqual(written, { version: 1, repo: REPO, records: { "pr-merge-dispatched-11": records["pr-merge-dispatched-11"] } });
 });
 
-test("write with no listing prunes by expiry; a bad or missing file writes nothing", async () => {
+test("write with no readable listing, or a bad file, writes nothing and warns", async () => {
   const records = { "pr-merge-dispatched-11": entry(11), "pr-merge-dispatched-12": entry(12, { expires_at: "2026-10-01T00:00:00Z" }) };
   for (const listing of [undefined, "{", { artifacts: "x" }]) {
     const { written, lines } = await writeRun({ records: fileOf(records), listing });
-    assert.deepEqual(Object.keys(written.records), ["pr-merge-dispatched-11"]);
-    assert.ok(lines.some((line) => line.includes("no artifact listing")), String(listing));
+    assert.equal(written, undefined, String(listing));
+    assert.ok(lines.some((line) => line.startsWith("::warning title=lane records::")), String(listing));
   }
+  // With the listing, the record that expired is dropped too.
+  const kept = await writeRun({ records: fileOf(records), listing: listed(11, 12) });
+  assert.deepEqual(Object.keys(kept.written.records), ["pr-merge-dispatched-11"]);
   const bad = await writeRun({ records: fileOf(records, { version: 2 }), listing: listed(11) });
   assert.equal(bad.written, undefined);
   assert.ok(bad.lines.some((line) => line.startsWith("::warning title=lane records::")));

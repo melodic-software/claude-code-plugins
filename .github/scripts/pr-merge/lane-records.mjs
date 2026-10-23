@@ -19,14 +19,17 @@
 //
 // `write`, after the gate: the file the checks of this job rewrote (the
 // records they read in and the final ones they proved, created at or after
-// their floor), each kept while unexpired and, when the run's saved artifact
-// listing can be read, while it lists its artifact id unexpired, written to
-// LANE_RECORDS_OUT for actions/upload-artifact.
+// their floor), each kept while unexpired and while the run's saved artifact
+// listing lists its artifact id unexpired, written to LANE_RECORDS_OUT for
+// actions/upload-artifact.
 //
 // The file is `{"version": 1, "repo": "<owner/repo>", "records": {"<record
 // name>": {"created_at", "artifact", "expires_at", "sender"}}}`. A file of
 // any other shape is no file. Any failure writes nothing and warns: the
 // check then reads every record, which costs requests, never a decision.
+//
+// With no readable listing nothing is written, and the next run reads an
+// older file.
 //
 // Environment:
 //   ACTIONS_TOKEN             read: the job's GITHUB_TOKEN (actions: read)
@@ -96,26 +99,17 @@ export async function readRecords({ repo, runId, actions, download }) {
   return id === undefined ? undefined : { run: id, records: parseRecords(download(id), repo) };
 }
 
-// The next run's records: those unexpired at `now` and, with a `listing`,
-// whose artifact it lists unexpired.
+// The next run's records: those unexpired at `now` whose artifact `listing`
+// lists unexpired.
 export function nextRecords({ records, listing, now }) {
-  const listed = Array.isArray(listing?.artifacts)
-    ? new Set(listing.artifacts.filter((a) => a?.expired === false && Number.isSafeInteger(a.id)).map((a) => a.id))
-    : undefined;
-  return Object.fromEntries(
-    Object.entries(records).filter(
-      ([, entry]) => Date.parse(entry.expires_at) > now && (listed === undefined || listed.has(entry.artifact)),
-    ),
+  const listed = new Set(
+    (Array.isArray(listing?.artifacts) ? listing.artifacts : [])
+      .filter((a) => a?.expired === false && Number.isSafeInteger(a.id))
+      .map((a) => a.id),
   );
-}
-
-function readListing(path) {
-  try {
-    const listing = JSON.parse(readFileSync(path, "utf8"));
-    return Array.isArray(listing?.artifacts) ? listing : undefined;
-  } catch {
-    return undefined;
-  }
+  return Object.fromEntries(
+    Object.entries(records).filter(([, entry]) => Date.parse(entry.expires_at) > now && listed.has(entry.artifact)),
+  );
 }
 
 export async function main({ mode = process.argv[2], env = process.env, actions, download, now = Date.now() } = {}) {
@@ -138,10 +132,8 @@ export async function main({ mode = process.argv[2], env = process.env, actions,
         return 0;
       }
       const records = parseRecords(readFileSync(env.LANE_RECORDS_PATH, "utf8"), repo);
-      const listing = env.BABYSIT_VERIFY_LISTING ? readListing(env.BABYSIT_VERIFY_LISTING) : undefined;
-      if (listing === undefined) {
-        console.log("no artifact listing this run; records are kept until they expire");
-      }
+      const listing = JSON.parse(readFileSync(env.BABYSIT_VERIFY_LISTING, "utf8"));
+      if (!Array.isArray(listing?.artifacts)) throw new Error("the saved artifact listing has an unexpected shape");
       const kept = nextRecords({ records, listing, now });
       writeAtomic(env.LANE_RECORDS_OUT, serialize(repo, kept));
       console.log(`lane records for the next run: ${Object.keys(kept).length}`);
