@@ -40,7 +40,10 @@ import {
   graphQLReader,
   loadTrustedList,
 } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { headRefDigest } from "./write-verdict.mjs";
+import { headRefDigest, issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
+
+// The name grammar lives with its writer; the resolver checks names against it.
+export { isVerdictName, NAME, NAME_MAX } from "./write-verdict.mjs";
 
 export const UPSTREAM_PATH = ".github/workflows/pr-require-checks.yml";
 export const VERIFY_PATH = ".github/workflows/pr-verify.yml";
@@ -51,17 +54,6 @@ const VERIFY_AUTHORS = Object.freeze(["lane", "lane-or-owner", "any"]);
 
 const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
-// A verdict's name (babysit_verify_evidence.NAME_RE): the head-ref digest is
-// optional, and so, on a FAIL only, is `-i` with the verdict's issue numbers,
-// ascending, each once, joined by dots (`isVerdictName` checks the order).
-export const NAME = /^pr-verify-([1-9][0-9]{0,9})-([0-9a-f]{40})-(pass(?:-notes)?(?=(?:-[0-9a-f]{16})?$)|fail)(?:-[0-9a-f]{16})?(?:-i([1-9][0-9]{0,9}(?:\.[1-9][0-9]{0,9}){0,9}))?$/;
-// The longest name NAME allows (babysit_verify_evidence.NAME_MAX).
-export const NAME_MAX = 194;
-export function isVerdictName(name) {
-  const match = String(name).length <= NAME_MAX ? NAME.exec(String(name)) : null;
-  const numbers = match?.[4]?.split(".").map(Number) ?? [];
-  return match !== null && numbers.every((n, i) => i === 0 || numbers[i - 1] < n);
-}
 const MAX_PAGES = 100;
 
 const ISSUE_FIELDS = `number repository { nameWithOwner } body lastEditedAt
@@ -214,17 +206,34 @@ async function pullsOfCommit(github, repository, head) {
 // pull request's head branch (write-verdict.mjs headRefDigest), which doubles
 // the lookups. Once write-verdict writes only digest names, the digest-free
 // lookups are needed only until the last artifact named that way expires
-// (90-day retention), and then go.
-async function judged({ github, repository, number, head, base, refs }) {
+// (90-day retention), and then go. Given `issues`, this PR's linked issue
+// numbers, it looks up only this PR's FAIL names with `-i` and those issues
+// (write-verdict.mjs artifactName), so the caller reads the issues only for a
+// head the names without them leave unjudged; issues no name carries (over
+// the cap, or a number the pattern refuses) are never looked up, since the
+// writer names that FAIL plainly. A FAIL another PR left at the
+// head names issues this run never reads, so its suffixed name is missed and
+// the head is judged again; so is a head whose linked issues a body edit
+// changed since this PR's FAIL there. Each costs a run and changes nothing
+// the gate decides: the earlier FAIL stays tied and refuses the head.
+async function judged({ github, repository, number, head, base, refs, issues }) {
   // The digest is hex whatever the branch holds, so any non-empty one is looked up.
   const named = (pr, verdict) => {
     const ref = refs.get(pr);
     return [`pr-verify-${pr}-${head}-${verdict}`, ...(ref ? [`pr-verify-${pr}-${head}-${verdict}-${headRefDigest(ref)}`] : [])];
   };
-  const names = [
-    ...["pass", "pass-notes", "fail"].flatMap((verdict) => named(number, verdict)),
-    ...[...refs.keys()].filter((other) => other !== number).flatMap((other) => named(other, "fail")),
-  ];
+  const suffix = issues === undefined ? "" : issuesSuffix(issues);
+  const names =
+    issues === undefined
+      ? [
+          ...["pass", "pass-notes", "fail"].flatMap((verdict) => named(number, verdict)),
+          ...[...refs.keys()].filter((other) => other !== number).flatMap((other) => named(other, "fail")),
+        ]
+      : suffix
+        ? named(number, "fail")
+            .map((name) => name + suffix)
+            .filter(isVerdictName)
+        : [];
   for (const name of names) {
     const [, , , verdict] = NAME.exec(name);
     for (const artifact of await artifactsNamed(github, repository, name)) {
@@ -358,7 +367,12 @@ export async function resolvePull({ github, repository, upstreamRunId, humans, b
   if (await judged({ github, repository, number: pull.number, head, base, refs })) {
     return skip("already-judged");
   }
+  // This PR's FAIL is named with the issues it records, read only now.
   const specRead = await linkedIssues(github, repository, pull.number, humans);
+  const issues = specRead.linkedIssues.map((issue) => issue.number);
+  if (await judged({ github, repository, number: pull.number, head, base, refs, issues })) {
+    return skip("already-judged");
+  }
   // No closing issue here: the title and body of a trusted person's PR, or
   // of an App whose bodies a script writes (adoption.spec-from-body-apps),
   // are the spec. A model-written body, the lanes App's included, never is:

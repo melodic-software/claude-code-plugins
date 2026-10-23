@@ -1224,11 +1224,22 @@ class AFailNamingTheIssueCounts(unittest.TestCase):
     def test_a_fail_shaped_name_with_any_number_holds(self) -> None:
         # The hold reads any digits, so a number no reader takes (11 digits,
         # a leading zero) never turns a FAIL at the head into a skip.
-        for number in ("12345678901", "041"):
-            with self.subTest(number):
+        # 4301 digits passes Python's limit on converting a string to an
+        # int, which must never raise out of the judgment.
+        for number in ("12345678901", "041", "1" * 4301):
+            with self.subTest(number[:12]):
                 fake = passing(artifact(f"pr-verify-{number}-{HEAD}-fail", 9))
                 fake.runs[9] = judged(9, OLDER_START)
                 self.assertEqual(read(fake).refusal, "verify:unreadable")
+                if number.lstrip("0") == str(PR):
+                    continue  # 041 is this pull request's number: tied
+                untied = f"pr-verify-{number}-{SIBLING_HEADS[0]}-fail"
+                for run_record in (judged(9, OLDER_START, event="push"), None):
+                    fake = passing(artifact(untied, 9))
+                    if run_record is not None:
+                        fake.runs[9] = run_record
+                    fake.closers[7] = [(SIBLING, REPO), (PR, REPO)]
+                    self.assertIsNone(read(fake).refusal)
 
     def test_an_off_grammar_fail_whose_run_is_gone_holds_only_when_tied(self) -> None:
         tied = passing(artifact(f"{named(HEAD, 'fail')}-i07", 9))

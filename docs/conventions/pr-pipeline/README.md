@@ -1069,6 +1069,14 @@ missed. The token broker mints `merge` only for `pr-merge.yml`, and outside the 
 listed human's run, so an issue run the lanes App started is armed by the next scheduled run. While
 `merge.report-only` is true it reports each decision and writes nothing.
 
+`merge.lane-prs` (default `native`) decides whether the merge gate still handles the lanes App's
+pull requests. Under `native` the `merge` job's candidate listing does not ask for them, so the gate
+never scores, escalates, toggles or enqueues one; native auto-merge and `ci-status` are their whole
+merge path. Owner pull requests the lane adopts and Dependabot's are listed and gated as before,
+and the post-merge check, the full-run dispatch, re-firing refused runs and clearing escalations
+run unchanged. `gate` lists the lanes App's pull requests for the gate as well, which is how the
+lane ran before this setting; the `enable-auto-merge` job arms them in both modes.
+
 `ci-status` enforces the same holds on every lanes App pull request, the two text holds and the
 hold paths, so one added after arming stops the merge without waiting for this job: its step
 `Fail a lanes App pull request its body or a member holds` runs
@@ -1311,8 +1319,9 @@ over 10 digits, and a name over 194 characters. A name that starts like a `fail`
 the gate refuses `verify:unreadable` when its run is of verifier origin, or is tied to the pull
 request and cannot be read, and pr-feedback-dispatch fails its run. One of verifier origin holds
 every pull request in the repository until its artifact is deleted or expires; deleting it clears
-the hold. The writer adds the issues once the readers have run
-on main. GitHub refuses
+the hold. The writer adds the issues to every `fail` that records one, ascending and once each,
+and checks the name against the readers' pattern before uploading; a `fail` whose issues no name
+carries (more than 10, or a number over 10 digits) keeps the plain name, with a warning. GitHub refuses
 an artifact name holding `"`, `:`, `<`, `>`, `|`, `*`, `?`, `\`, `/`, a carriage return or a
 line feed
 ([`validateArtifactName`](https://github.com/actions/toolkit/blob/main/packages/artifact/src/internal/upload/path-and-artifact-name-validation.ts)),
@@ -1321,7 +1330,13 @@ account type, `verdict`, `summary`, `notes` and `run_id`. The head SHA is the on
 ran on, never the pull request's live head. A model error, an output that fails the schema, a
 summary or note matching a shared credential pattern (`findSecret` in `lib/publish-gate.mjs`), or a run with any permission denial
 uploads nothing, and the run fails. A head that already has a counted verdict from a completed run (a `fail` under any
-pull request number) is not judged again. Runs share one concurrency group per pull request and
+pull request number) is not judged again. The resolver first looks up the names without issues;
+only when none holds a counted verdict does it read the pull request's linked issues, which the
+spec needs anyway, and look up its own `fail` under the name with `-i`. A `fail` another pull request
+left at the same head names issues it never reads, and that head is judged again. So is a head
+whose linked issues a body edit changed after this pull request's `fail` there: the new set names
+another `-i`, so one run follows each change of the issue set. Neither changes what the gate
+decides, since the earlier `fail` stays tied to the pull request and refuses the head. Runs share one concurrency group per pull request and
 head and never cancel a running judgment.
 
 `merge.verify-authors` decides whose pull requests are judged. Under `lane`, the default, only one
@@ -1466,18 +1481,11 @@ The lane token holds no Actions permission, so pr-merge.yml grants its job `acti
 records, the download of a verdict.json (by the listed artifact's id, one request where `gh run
 download` lists the run's artifacts first) and the compare of a run's head to main (a `contents: read` call). The gate's
 review-evidence reads use it too: the timeline, the comments, and the lane runs with their attempts,
-jobs and annotations. Two things send them back to the lane token, as before; both tokens read
-the same data, so neither changes a gate decision. First, `GITHUB_TOKEN` must have at least
-`merge.read-token-floor` of its core limit left by `GET /rate_limit` (default 0.3, read at the
-default branch head; an unreadable limit counts as short). That is only an early switch: in the
-05:26Z outage on 2026-10-23, `/rate_limit` showed 3,934 of 5,000 left while `GITHUB_TOKEN` was
-already refused with "API rate limit exceeded for installation". Second, when any of those reads
-is refused with a 429, or a 403 whose message names a rate limit, the gate reads all of that
-candidate's evidence again with the lane token (they are all GETs). It records the refusal in
-`BABYSIT_RUN_CACHE`, so later candidates in the run skip `GITHUB_TOKEN`. Any other refusal is not
-retried. The verdict downloads, the listing, the run records and the compares
-stay on `GITHUB_TOKEN`: the lane token holds no Actions permission. An untied FAIL whose record
-cannot be read refuses the run's later candidates through `BABYSIT_RUN_CACHE` without another
+jobs and annotations. All of these reads stay on `GITHUB_TOKEN`: none switches to the lane token,
+whatever `GITHUB_TOKEN`'s budget, since GitHub's Terms of Service bar sharing tokens to exceed its
+rate limits ([owner decision](https://github.com/melodic-software/claude-code-plugins/issues/9297#issuecomment-6368281689)).
+A read refused for a rate limit is not retried: the candidate's lanes read `evidence-missing`, it
+holds, and the next run reads again. An untied FAIL whose record cannot be read refuses the run's later candidates through `BABYSIT_RUN_CACHE` without another
 download; the next run reads it again. `GITHUB_TOKEN`'s pool is shared with the full-run dispatch and the post-merge checks. Every other call, every write
 included, keeps the lane token. That job checks out only main and runs no pull request code.
 
