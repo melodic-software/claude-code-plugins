@@ -28,6 +28,7 @@
     "list-items": true,
     "label-provenance": false,
     "set-fields": false,
+    "get-field-options": false,
     "list-sub-items": false,
     "reclaim": false,
     "release": false,
