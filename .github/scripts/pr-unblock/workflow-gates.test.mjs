@@ -7,6 +7,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
+import { laneBranchIssue } from "../work-resolve-issue/report-outcome.mjs";
+
 // A job's folded `if: >-` scalar, joined the way YAML folds it.
 function jobIf(file, job) {
   const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
@@ -48,28 +50,33 @@ function jobGate(file, job) {
 }
 
 // Evaluates the expression with each context reference replaced by its value.
-// Covers only the operators and function these gates use (&&, ||, ==, !=, !,
-// format('{0}', x)); GitHub compares strings case-insensitively, and every
-// value here is already in the case the gate names.
+// Covers only the operators and functions these gates use (&&, ||, ==, !=, !,
+// format('{0}', x), startsWith(x, 'y')); GitHub compares strings
+// case-insensitively, and every value here is already in the case the gate
+// names.
 function evaluate(expression, context) {
   let body = expression.replace(/^\$\{\{([\s\S]*)\}\}$/, "$1").replaceAll("!cancelled()", "true");
   for (const name of Object.keys(context).sort((a, b) => b.length - a.length)) {
     body = body.replaceAll(name, JSON.stringify(context[name]));
   }
   body = body.replace(/format\('\{0\}', ([^)]*)\)/g, "String($1)");
+  body = body.replace(/startsWith\(([^,]*), ('[^']*')\)/g, "String($1).startsWith($2)");
   // String literals, a workflow path among them, hold no reference.
   assert.doesNotMatch(body.replace(/'[^']*'|"[^"]*"/g, "''"), /[A-Za-z_][\w-]*\.[\w.-]+/, `an unresolved context reference in ${body}`);
   return Function(`return (${body});`)();
 }
 
+const LANE_BRANCH = "work-resolve-issue/issue-12-345-1";
+
 test("pr-feedback-dispatch.yml starts no runner for a skipped or cancelled review run", () => {
   const gate = jobIf("pr-feedback-dispatch.yml", "dispatch");
-  const runs = (conclusion, event = "pull_request", posted = "") =>
+  const runs = (conclusion, event = "pull_request", posted = "", branch = LANE_BRANCH) =>
     evaluate(gate, {
       "github.ref": "refs/heads/main",
       "github.repository": "melodic-software/claude-code-plugins",
       "github.event.workflow_run.event": event,
       "github.event.workflow_run.head_repository.full_name": "melodic-software/claude-code-plugins",
+      "github.event.workflow_run.head_branch": branch,
       "github.event.workflow_run.conclusion": conclusion,
       "needs.post-verify-notes.outputs.head-sha": posted,
     });
@@ -81,6 +88,34 @@ test("pr-feedback-dispatch.yml starts no runner for a skipped or cancelled revie
   // A pr-verify run dispatches only once its notes are on the PR.
   assert.equal(runs("success", "workflow_run"), false);
   assert.equal(runs("success", "workflow_run", "a".repeat(40)), true);
+  // A pr-verify run's branch is main, and its notes still dispatch.
+  assert.equal(runs("success", "workflow_run", "a".repeat(40), "main"), true);
+});
+
+test("pr-feedback-dispatch.yml starts no runner for a review run off a lane branch", () => {
+  const gate = jobIf("pr-feedback-dispatch.yml", "dispatch");
+  const prefix = /startsWith\(github\.event\.workflow_run\.head_branch, '([^']+)'\)/.exec(gate)?.[1];
+  assert.ok(prefix, "the dispatch gate checks the head branch");
+  const runs = (branch) =>
+    evaluate(gate, {
+      "github.ref": "refs/heads/main",
+      "github.repository": "melodic-software/claude-code-plugins",
+      "github.event.workflow_run.event": "pull_request",
+      "github.event.workflow_run.head_repository.full_name": "melodic-software/claude-code-plugins",
+      "github.event.workflow_run.head_branch": branch,
+      "github.event.workflow_run.conclusion": "success",
+      "needs.post-verify-notes.outputs.head-sha": "",
+    });
+  // Every branch the issue lane opens a PR from passes; a rename of the lane
+  // branch fails here instead of silently stopping dispatches.
+  assert.equal(laneBranchIssue(LANE_BRANCH), 12);
+  assert.ok(LANE_BRANCH.startsWith(prefix), `${LANE_BRANCH} starts with ${prefix}`);
+  assert.equal(laneBranchIssue(`x${LANE_BRANCH}`), null);
+  assert.equal(runs(LANE_BRANCH), true);
+  for (const branch of ["feat/x", "release/plugins", "dependabot/npm/x", "work-resolve-issue"]) {
+    assert.equal(laneBranchIssue(branch), null, branch);
+    assert.equal(runs(branch), false, branch);
+  }
 });
 
 test("pr-feedback-dispatch.yml posts verifier notes only for a pr-verify run of main", () => {
@@ -93,6 +128,7 @@ test("pr-feedback-dispatch.yml posts verifier notes only for a pr-verify run of 
       "github.event.workflow_run.path": ".github/workflows/pr-verify.yml",
       "github.event.workflow_run.event": "workflow_run",
       "github.event.workflow_run.head_branch": "main",
+      "github.event.workflow_run.conclusion": "success",
       "github.event.workflow_run.repository.full_name": repo,
       "github.event.workflow_run.head_repository.full_name": repo,
       ...overrides,
@@ -102,6 +138,11 @@ test("pr-feedback-dispatch.yml posts verifier notes only for a pr-verify run of 
   assert.equal(runs({ "github.event.workflow_run.event": "pull_request" }), false);
   assert.equal(runs({ "github.event.workflow_run.head_branch": "feat/x" }), false);
   assert.equal(runs({ "github.event.workflow_run.head_repository.full_name": "fork/repo" }), false);
+  // A skipped pr-verify run judged nothing and uploaded no verdict.
+  assert.equal(runs({ "github.event.workflow_run.conclusion": "skipped" }), false);
+  for (const conclusion of ["success", "failure", "cancelled"]) {
+    assert.equal(runs({ "github.event.workflow_run.conclusion": conclusion }), true, conclusion);
+  }
 });
 
 const UNBLOCK = "pr-unblock.yml";
