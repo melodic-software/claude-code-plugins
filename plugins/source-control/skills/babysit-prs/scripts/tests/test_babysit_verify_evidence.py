@@ -229,6 +229,10 @@ class FakeGitHub:
         # (number, repository), and a totalCount that cuts them.
         self.closers: dict[int, list[tuple[int, str]]] = {}
         self.closers_total: dict[int, int] = {}
+        # The pull request's body now, and what each number a `Refs:` line
+        # may name is: an issue's repository, or "PullRequest".
+        self.body: str | None = None
+        self.refs: dict[int, str] = {}
 
     def __call__(
         self, args: list[str], **kwargs: Any
@@ -245,37 +249,46 @@ class FakeGitHub:
         if args[:2] == ["api", "graphql"]:
             if "graphql" in self.fail:
                 return subprocess.CompletedProcess(args, 1, "", "gh: boom (HTTP 502)")
-            nodes = [
-                {
-                    "number": n,
-                    "lastEditedAt": self.closing_edited.get(n),
-                    "repository": {"nameWithOwner": repo},
-                    "comments": {
-                        "totalCount": self.comments_total.get(
-                            n, len(self.closing_comments.get(n, []))
-                        ),
-                        "nodes": self.closing_comments.get(n, []),
-                    },
-                    "closedByPullRequestsReferences": {
-                        "totalCount": self.closers_total.get(
-                            n, len(self.closers.get(n, [(PR, REPO)]))
-                        ),
-                        "nodes": [
-                            {"number": pr, "repository": {"nameWithOwner": repo}}
-                            for pr, repo in self.closers.get(n, [(PR, REPO)])
-                        ],
-                    },
-                }
-                for n, repo in self.closing
-            ]
+            if any("issueOrPullRequest" in a for a in args):
+                n = int(next(a for a in args if a.startswith("n="))[2:])
+                kind = self.refs[n]
+                node = (
+                    {"__typename": "PullRequest"}
+                    if kind == "PullRequest"
+                    else {"__typename": "Issue"} | self.issue(n, kind)
+                )
+                return ok({"data": {"repository": {"issueOrPullRequest": node}}})
+            nodes = [self.issue(n, repo) for n, repo in self.closing]
             refs = {"totalCount": self.closing_total or len(nodes), "nodes": nodes}
-            return ok(
-                {
-                    "data": {
-                        "repository": {"pullRequest": {"closingIssuesReferences": refs}}
-                    }
-                }
-            )
+            pull = {"body": self.body, "closingIssuesReferences": refs}
+            return ok({"data": {"repository": {"pullRequest": pull}}})
+        return self.rest(args, ok, missing, kwargs)
+
+    def issue(self, n: int, repo: str) -> dict[str, Any]:
+        return {
+            "number": n,
+            "lastEditedAt": self.closing_edited.get(n),
+            "repository": {"nameWithOwner": repo},
+            "comments": {
+                "totalCount": self.comments_total.get(
+                    n, len(self.closing_comments.get(n, []))
+                ),
+                "nodes": self.closing_comments.get(n, []),
+            },
+            "closedByPullRequestsReferences": {
+                "totalCount": self.closers_total.get(
+                    n, len(self.closers.get(n, [(PR, REPO)]))
+                ),
+                "nodes": [
+                    {"number": pr, "repository": {"nameWithOwner": repo}}
+                    for pr, repo in self.closers.get(n, [(PR, REPO)])
+                ],
+            },
+        }
+
+    def rest(
+        self, args: list[str], ok: Any, missing: Any, kwargs: dict[str, Any]
+    ) -> subprocess.CompletedProcess[str]:
         if args[:2] == ["run", "download"]:
             name, target = args[args.index("-n") + 1], args[args.index("-D") + 1]
             if name not in self.records:
@@ -1446,6 +1459,45 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
                 evidence = read(fake)
                 self.assertEqual(evidence.refusal, "verify:spec-changed")
                 self.assertTrue(evidence.needs_human)
+
+    def refs(self, body: str | None, kind: str = REPO) -> FakeGitHub:
+        """A pass recording issue 7, for a PR that closes none now."""
+        fake = passing()
+        fake.closing = []
+        fake.body = body
+        fake.refs = {7: kind, 8: REPO}
+        return fake
+
+    def test_the_one_refs_issue_binds_like_a_closing_one(self) -> None:
+        # Owner decision 2026-10-23: `Refs: #7` reads issue 7 as its issue.
+        self.assertIsNone(read(self.refs("Refs: #7\n\nPart one.")).refusal)
+        fake = self.refs("Refs: #7")
+        fake.closing_edited = {7: "2026-10-15T00:00:01Z"}
+        self.assertEqual(read(fake).refusal, "verify:spec-changed")
+
+    def test_a_refs_line_that_names_another_or_none_refuses(self) -> None:
+        for body, kind in (
+            ("Refs: #8", REPO),
+            ("<!-- Refs: #7 -->", REPO),
+            ("```\nRefs: #7\n```", REPO),
+            ("Refs: #7\nRefs: #8", REPO),
+            ("Refs: other/repo#7", REPO),
+            ("Refs: #7", "someone/else"),
+            ("Refs: #7", "PullRequest"),
+            (None, REPO),
+        ):
+            with self.subTest(body=body, kind=kind):
+                self.assertEqual(
+                    read(self.refs(body, kind)).refusal, "verify:spec-changed"
+                )
+
+    def test_a_closing_issue_wins_over_refs(self) -> None:
+        fake = passing()
+        fake.body = "Refs: #8"
+        self.assertIsNone(read(fake).refusal)
+        self.assertFalse(
+            any("issueOrPullRequest" in " ".join(c) for c in fake.calls), fake.calls
+        )
 
     def test_an_issue_edited_after_the_judgment_started_refuses(self) -> None:
         fake = passing()

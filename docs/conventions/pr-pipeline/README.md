@@ -775,7 +775,8 @@ and its queued entries leave; two different identities, or an unreadable head co
   - a workflow or pipeline file with no patch.
 
   The hold clears only when the pull request body links an owner decision that covers it: a
-  comment on the pull request's closing issue or on the pull request itself, in this repository,
+  comment on the pull request's linked issue (its closing issue, or its `Refs:` issue as
+  [The pr-merge lane](#the-pr-merge-lane) reads it) or on the pull request itself, in this repository,
   whose first line starts `**Decision recorded.** Cost:`, written by a User with admin permission
   who is not the agent identity or one of the gate's own logins, not posted through an App, and
   never edited; one on the closing issue must also be created after the pull request was. A link
@@ -856,13 +857,23 @@ head, and keeps every read above
 except six:
 
 - **Eligibility.** Not a fork or a dependency manager's pull request, opened by
-  `merge.agent-identity` (the lanes App) or adopted, exactly one closing issue
-  (`closingIssuesReferences`) in this repository, and a diff where no path, either side of a
-  rename, matches `merge.diff-check.denied-paths`. Such a pull request is class C2, as a
+  `merge.agent-identity` (the lanes App) or adopted, exactly one linked issue in this repository,
+  and a diff where no path, either side of a rename, matches `merge.diff-check.denied-paths`. The
+  linked issue is the closing issue (`closingIssuesReferences`), or, for a pull request with no
+  closing issue at all, the one issue its body's `Refs: #<n>` lines name (owner decision
+  2026-10-23: "why would we limit this? Seems like useless friction for now?"). A `Refs:` line
+  counts only as a plain `Refs: #<n>` from the first column, outside an HTML comment and a fenced
+  code block; a `Refs:` line in any other form (another repository's issue, a URL, two issues, any
+  other case) refuses `refs-line-not-plain`, two or more issues refuse `refs-issues:<n>`, and a
+  number that is a pull request refuses `refs-not-an-issue`. A closing issue always wins, and the
+  `Refs:` issue is read with the same fields, so the cost decision, the verifier verdict, the
+  enqueue recheck and the worker tier's class, provenance and claim checks read it as they read a
+  closing issue. Nothing closes it on merge: GitHub closes only on a closing keyword, and the lane
+  closes no issue. Such a pull request is class C2, as a
   Dependabot pull request is: no `work-class:` label is read, on the issue or the pull request,
   and the diff-derived C2 checks of the risk score still apply. No opt-in label or lane claim is
-  read. No closing issue, or more than one, refuses (`linked-issues:<n>`); right before the
-  enqueue the closing issue is read again and a different one refuses
+  read. No linked issue, or more than one closing issue, refuses (`linked-issues:<n>`); right
+  before the enqueue the linked issue is read again and a different one refuses
   (`closing-issue-changed:<was>><now>`). A pull request into any branch but the default refuses
   `base-not-default:<ref>`, read at eligibility and again before the enqueue; any read that fails
   refuses. An adopted pull request (owner decisions Q22 and 2026-10-22, [Adoption](#adoption)) is
@@ -1211,7 +1222,9 @@ parse bug shows in the run log instead of quietly spending AI reviews; fix the c
 `.github/workflows/pr-verify.yml` runs on main after each successful `pr-require-checks` run of a
 same-repository, non-draft pull request into main. It never runs the pull request's code: a model
 (the `verify-pr` route of [Models](#models)) reads the diff, the trusted pull request text and its linked issues as
-data, and judges whether the diff delivers the issue's intent correctly and safely. The model runs
+data, and judges whether the diff delivers the issue's intent correctly and safely. Its linked
+issues are its closing issues, or, when it closes none, the one `Refs:` issue
+[The pr-merge lane](#the-pr-merge-lane) reads, judged by the same standard. The model runs
 on ci-workflows' `run-claude-cli` as the `automations` role ([Funding](#funding)), with the Read
 tool alone, allowed only on the data files in the working directory's `pr-verify-data`. The run
 uploads one artifact, `pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>`, holding the verdict JSON
@@ -1263,8 +1276,9 @@ head:
   `fail` whose run cannot be read refuses `verify:unreadable`, and a cut list of those pull
   requests refuses the same way. This cap is what bounds pushing until the verifier passes once:
   the carry-forward below stops only a head that changes nothing of its own, and a one-line edit
-  gives a new change. A pull request that names the issue without closing it, or whose closing
-  reference was removed, is not counted. Closing a newly filed duplicate issue instead starts the
+  gives a new change. Another pull request that names the issue without closing it, a `Refs:` pull
+  request included, or whose closing reference was removed, is not counted, so a new `Refs:` pull
+  request for the same issue starts this count again. Closing a newly filed duplicate issue instead starts the
   count of other pull requests again; a pass then needs that issue written by a trusted human,
   as below. More than 50 pull requests that claim to close one issue make
   every pull request for that issue refuse `verify:unreadable`: a hold, not a way past the cap;
@@ -1294,7 +1308,8 @@ head:
 - every counted `pass` or `pass-notes` for this pull request at the head is checked, whatever order
   the listing returns them in, and the merge is allowed only when each allows (a changed spec is
   reported before an untrusted one). Each refuses (`verify:spec-changed`) unless the
-  pull request's closing issues in this repository now are the ones its verdict recorded, none
+  pull request's closing issues in this repository now (or, with none, its `Refs:` issue, read as
+  resolve-pr reads it) are the ones its verdict recorded, none
   was edited after the verdict's run started, and each issue's spec comments (written, and last
   edited if ever, by a `User` on the trusted-actor list's humans, the pull request's author
   included) are the ones it recorded by id and update time, none added, edited or deleted; a partial

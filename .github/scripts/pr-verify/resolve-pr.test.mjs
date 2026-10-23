@@ -85,7 +85,7 @@ const verifyRun = (id, overrides = {}) => ({
 
 const artifact = (name, runId, expired = false) => ({ name, expired, workflow_run: { id: runId } });
 
-function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, restFails = false, associated = [] } = {}) {
+function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, restFails = false, associated = [], body: prBody = null, refs = {}, queries = [] } = {}) {
   const github = async (method, apiPath, body) => {
     if (apiPath === `/repos/${REPO}/actions/runs/${RUN}`) return run;
     const listed = /\/commits\/([0-9a-f]+)\/pulls\?per_page=100&page=(\d+)$/.exec(apiPath);
@@ -95,8 +95,12 @@ function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, o
       assert.deepEqual(body.variables, { owner: "example-org", name: "example-repo", oid: HEAD });
       return { data: { repository: { object: { associatedPullRequests: { nodes: associated, pageInfo: { hasNextPage: false } } } } } };
     }
+    if (apiPath === "/graphql" && body.query.includes("issueOrPullRequest")) {
+      queries.push(body.variables.number);
+      return { data: { repository: { issueOrPullRequest: refs[body.variables.number] ?? null } } };
+    }
     if (apiPath === "/graphql") {
-      return { data: { repository: { pullRequest: { ...edit, closingIssuesReferences: { totalCount: issues.length, nodes: issues } } } } };
+      return { data: { repository: { pullRequest: { ...edit, body: prBody, closingIssuesReferences: { totalCount: issues.length, nodes: issues } } } } };
     }
     const named = /\/actions\/artifacts\?name=([^&]+)&per_page=100&page=(\d+)$/.exec(apiPath);
     if (named) {
@@ -157,6 +161,39 @@ test("a GraphQL fallback whose only PR is a draft skips as a draft", async () =>
 test("a linked issue in another repository is left out", async () => {
   const foreign = { ...ISSUE, number: 9, repository: { nameWithOwner: "someone/else" } };
   assert.deepEqual((await resolve({ issues: [foreign] })).linkedIssues, []);
+});
+
+// Owner decision 2026-10-23: a PR that closes no issue reads the one issue a
+// plain `Refs: #<n>` line names as its spec, as babysit_merge_policy does.
+const REFS_ISSUE = { __typename: "Issue", ...ISSUE };
+
+test("a PR that closes no issue is judged against the one issue its Refs line names", async () => {
+  const queries = [];
+  const resolved = await resolve({ issues: [], body: "Refs: #7\n\nPart one.", refs: { 7: REFS_ISSUE }, queries });
+  assert.deepEqual(resolved.linkedIssues, [LINKED]);
+  assert.deepEqual(resolved.specText, [{ number: 7, body: "the spec", comments: [] }]);
+  assert.deepEqual(queries, [7]);
+});
+
+test("a closing issue wins over a Refs line, which is then never read", async () => {
+  const queries = [];
+  const resolved = await resolve({ body: "Refs: #8", refs: { 8: { ...REFS_ISSUE, number: 8 } }, queries });
+  assert.deepEqual(resolved.linkedIssues, [LINKED]);
+  assert.deepEqual(queries, []);
+});
+
+test("a hidden, ambiguous or non-issue Refs line names no spec", async () => {
+  for (const [prBody, refs] of [
+    ["<!-- Refs: #7 -->", { 7: REFS_ISSUE }],
+    ["```\nRefs: #7\n```", { 7: REFS_ISSUE }],
+    ["Refs: #7\nRefs: #8", { 7: REFS_ISSUE }],
+    ["Refs: other/repo#7", { 7: REFS_ISSUE }],
+    ["Refs: #7", { 7: { __typename: "PullRequest" } }],
+    ["Refs: #7", { 7: { ...REFS_ISSUE, repository: { nameWithOwner: "someone/else" } } }],
+  ]) {
+    const resolved = await resolve({ issues: [], body: prBody, refs });
+    assert.deepEqual([resolved.linkedIssues, resolved.specText], [[], []], prBody);
+  }
 });
 
 test("a run that is not a passing pr-require-checks pull_request run of this repository starts nothing", async () => {

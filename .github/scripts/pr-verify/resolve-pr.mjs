@@ -24,8 +24,9 @@
 //   nothing does not stop a new judgment.
 // The babysit-prs test test_verify_rules_sync.py runs this file to keep
 // DEPENDENCY_MANAGERS, isDependencyManager and countedBy in step with the gate.
-// It also writes the PR's closing issues with their authors and last body
-// editors to SPEC_FILE, and the spec text trusted humans wrote to
+// It also writes the PR's closing issues, or, when it closes none, the one
+// issue its body's `Refs:` lines name (refsIssue), with their authors and last
+// body editors to SPEC_FILE, and the spec text trusted humans wrote to
 // SPEC_TEXT_FILE (linkedIssues).
 // The head SHA is the run's, never the PR's live head.
 
@@ -52,22 +53,66 @@ const RUN_ID = /^[1-9][0-9]{0,19}$/;
 const NAME = /^pr-verify-([1-9][0-9]*)-([0-9a-f]{40})-(pass|pass-notes|fail)$/;
 const MAX_PAGES = 100;
 
+const ISSUE_FIELDS = `number repository { nameWithOwner } body lastEditedAt
+          author { ...actor } editor { ...actor }
+          comments(first: 100) { totalCount nodes { databaseId updatedAt body lastEditedAt author { ...actor } editor { ...actor } } }`;
+const ACTOR = "fragment actor on Actor { __typename login ... on User { databaseId } ... on Bot { databaseId } }";
 const SPEC_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      lastEditedAt editor { ...actor }
+      body lastEditedAt editor { ...actor }
       closingIssuesReferences(first: 10) {
         totalCount
         nodes {
-          number repository { nameWithOwner } body lastEditedAt
-          author { ...actor } editor { ...actor }
-          comments(first: 100) { totalCount nodes { databaseId updatedAt body lastEditedAt author { ...actor } editor { ...actor } } }
+          ${ISSUE_FIELDS}
         }
       }
     }
   }
 }
-fragment actor on Actor { __typename login ... on User { databaseId } ... on Bot { databaseId } }`;
+${ACTOR}`;
+const REFS_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    issueOrPullRequest(number: $number) { __typename ... on Issue { ${ISSUE_FIELDS} } }
+  }
+}
+${ACTOR}`;
+
+// babysit_merge_policy.refs_issue, which test_verify_rules_sync.py keeps equal:
+// the one issue the visible `Refs: #<n>` lines of a pull request body name,
+// else null. A line counts only from its first column, outside an HTML comment
+// and a fenced code block; a `Refs:` line in any other form, or two numbers,
+// name none.
+const HTML_COMMENT = /<!--[\s\S]*?(?:-->|$)/g;
+const FENCE = /^ {0,3}(`{3,}|~{3,})/;
+const REFS_LINE = /^[Rr][Ee][Ff][Ss]:/;
+const REFS_PLAIN = /^Refs:[ \t]*#([1-9][0-9]{0,8})[ \t]*$/;
+export function refsIssue(body) {
+  const numbers = new Set();
+  let fence = "";
+  for (const line of String(body ?? "").replace(HTML_COMMENT, "").split(/\r\n|\r|\n/)) {
+    const marker = FENCE.exec(line);
+    if (fence) {
+      if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && line.slice(marker[0].length).replace(/[ \t]/g, "") === "") {
+        fence = "";
+      }
+      continue;
+    }
+    if (marker) {
+      fence = marker[1];
+      continue;
+    }
+    if (!REFS_LINE.test(line)) {
+      continue;
+    }
+    const plain = REFS_PLAIN.exec(line);
+    if (!plain) {
+      return null;
+    }
+    numbers.add(Number(plain[1]));
+  }
+  return numbers.size === 1 ? [...numbers][0] : null;
+}
 
 const actorFields = (actor, role) => ({
   [`${role}_login`]: typeof actor?.login === "string" ? actor.login : null,
@@ -175,8 +220,9 @@ async function judged({ github, repository, number, head, base, numbers }) {
   return false;
 }
 
-// The closing issues in this repository with their authors and last body
-// editors (`linkedIssues`), and the spec text: each body and comment written,
+// The closing issues in this repository, or, when the pull request closes
+// none, the one issue its `Refs:` lines name (refsIssue), with their authors
+// and last body editors (`linkedIssues`), and the spec text: each body and comment written,
 // and last edited if ever, by a User on the trusted list's humans, the PR
 // author included (`specText`). Bots and Apps, the lanes App among them, are
 // left out even where select-trusted-text keeps them.
@@ -189,7 +235,17 @@ async function linkedIssues(github, repository, number, humans) {
   }
   const trusted = (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
   const written = (item) => trusted(item?.author) && (item.lastEditedAt == null || trusted(item.editor));
-  const issues = refs.nodes.filter(
+  let nodes = refs.nodes;
+  const named = refs.totalCount === 0 ? refsIssue(data.data.repository.pullRequest.body) : null;
+  if (named !== null) {
+    const answer = await github("POST", "/graphql", { query: REFS_QUERY, variables: { owner, name, number: named } });
+    if (answer?.errors) {
+      throw new Error(`#${number}: the Refs issue could not be read`);
+    }
+    const node = answer?.data?.repository?.issueOrPullRequest;
+    nodes = node?.__typename === "Issue" ? [node] : [];
+  }
+  const issues = nodes.filter(
     (issue) => issue?.repository?.nameWithOwner === repository && Number.isSafeInteger(issue.number),
   );
   for (const issue of issues) {

@@ -149,16 +149,27 @@ NEEDS_HUMAN = (
     UNTRUSTED_SPEC,
     SPEC_CHANGED,
 )
-CLOSING_QUERY = (
-    "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
-    "pullRequest(number:$n){closingIssuesReferences(first:10){totalCount "
-    "nodes{number lastEditedAt repository{nameWithOwner} "
+ISSUE_FIELDS = (
+    "number lastEditedAt repository{nameWithOwner} "
     "comments(first:100){totalCount nodes{databaseId updatedAt lastEditedAt "
     "author{...actor} editor{...actor}}} "
     "closedByPullRequestsReferences(first:50,includeClosedPrs:true){totalCount "
-    "nodes{number repository{nameWithOwner}}}}}}}}"
+    "nodes{number repository{nameWithOwner}}}"
+)
+ACTOR_FRAGMENT = (
     "fragment actor on Actor{__typename login "
     "... on User{databaseId} ... on Bot{databaseId}}"
+)
+CLOSING_QUERY = (
+    "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
+    "pullRequest(number:$n){body closingIssuesReferences(first:10){totalCount "
+    f"nodes{{{ISSUE_FIELDS}}}}}}}}}}}{ACTOR_FRAGMENT}"
+)
+# The one issue a `Refs:` line names, when the pull request closes none.
+REFS_QUERY = (
+    "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
+    f"issueOrPullRequest(number:$n){{__typename ... on Issue{{{ISSUE_FIELDS}}}}}}}}}"
+    f"{ACTOR_FRAGMENT}"
 )
 
 # A run's standing: unreadable, foreign (not of verifier origin), origin (of
@@ -789,32 +800,40 @@ class Reader:
             for issue in issues
         )
 
-    def _closing_issues(self, number: int) -> dict[Any, Any]:
-        """The PR's closing issues in this repository now, each with its
-        body's lastEditedAt, read as the resolver reads them
-        (closingIssuesReferences, first 10)."""
+    def _graphql(self, query: str, number: int, what: str) -> dict[str, Any]:
         owner, _, name = self.repo.partition("/")
         payload = json_object(
             _read(
-                ["api", "graphql", "-f", f"query={CLOSING_QUERY}"]
+                ["api", "graphql", "-f", f"query={query}"]
                 + ["-f", f"o={owner}", "-f", f"r={name}", "-F", f"n={number}"],
-                f"#{number} closing issues",
+                f"#{number} {what}",
             )
         )
-        refs = json_object(
-            json_object(
-                json_object(json_object(payload.get("data")).get("repository")).get(
-                    "pullRequest"
-                )
-            ).get("closingIssuesReferences")
+        if payload.get("errors"):
+            raise _Unreadable(f"#{number}: the {what} could not be read")
+        return json_object(json_object(payload.get("data")).get("repository"))
+
+    def _closing_issues(self, number: int) -> dict[Any, Any]:
+        """The PR's closing issues in this repository now, each with its
+        body's lastEditedAt, read as the resolver reads them
+        (closingIssuesReferences, first 10), or, when it closes none, the one
+        issue its body's `Refs:` lines name (`merge_policy.refs_issue`)."""
+        pull = json_object(
+            self._graphql(CLOSING_QUERY, number, "closing issues").get("pullRequest")
         )
+        refs = json_object(pull.get("closingIssuesReferences"))
         nodes = refs.get("nodes")
-        if (
-            payload.get("errors")
-            or not is_json_array(nodes)
-            or refs.get("totalCount") != len(nodes)
-        ):
+        if not is_json_array(nodes) or refs.get("totalCount") != len(nodes):
             raise _Unreadable(f"#{number}: the closing issues could not be read")
+        if refs.get("totalCount") == 0:
+            named, _ = merge_policy.refs_issue(pull.get("body"))
+            if named is not None:
+                node = json_object(
+                    self._graphql(REFS_QUERY, named, "Refs issue").get(
+                        "issueOrPullRequest"
+                    )
+                )
+                nodes = [node] if node.get("__typename") == "Issue" else []
         live = {
             json_object(node).get("number"): json_object(node)
             for node in nodes

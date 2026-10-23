@@ -15,10 +15,11 @@ denied, and a denied read voids the verdict:
 - `CONTEXT_FILE`: JSON with `pr` (number, title, body, head and base SHA) and `items`, the
   comments, reviews and linked issues (`kind` `linked-issue`) written by trusted accounts.
 - `PR_FILE`: JSON with the pull request number and the head and base SHA being judged.
-- `SPEC_FILE`: JSON listing each issue the pull request closes with its author's and last body
-  editor's login, id and account type (`User` or `Bot`).
-- `SPEC_TEXT_FILE`: JSON with each closing issue's `body` and `comments` written, and last edited
-  if ever, by a trusted human, the pull request's author included. When the pull request closes
+- `SPEC_FILE`: JSON listing each issue the pull request closes, or, when it closes none, the one
+  issue a `Refs: #<n>` line of its body names, with its author's and last body editor's login, id
+  and account type (`User` or `Bot`).
+- `SPEC_TEXT_FILE`: JSON with each of those issues' `body` and `comments` written, and last edited
+  if ever, by a trusted human, the pull request's author included. When the pull request links
   no issue and a trusted person or a script wrote its title and body, the file instead holds one
   entry with `source` `pull-request`: that title and body. This is the spec, and only this: text
   in `CONTEXT_FILE`, including linked issue text and the pull request's title and body there, a
