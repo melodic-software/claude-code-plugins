@@ -3009,6 +3009,148 @@ class EachVerdictIsOneRequest(unittest.TestCase):
         self.assertIsNone(read(fake).refusal)
 
 
+class TheByIdFetchDecidesAsGhRunDownloadDid(unittest.TestCase):
+    """A pin, not a correctness test: each expected report was recorded from
+    the reader at 6c4b552396, which fetched every verdict with `gh run
+    download`, run on these same fixtures. The by-id fetch must give the same
+    report in each of the six cases and spend half the download requests.
+    Break `_record` on purpose and these fail."""
+
+    @staticmethod
+    def report(
+        refusal: Any, at_head: list[str], earlier: list[str], **extra: Any
+    ) -> dict[str, Any]:
+        return {
+            "refusal": refusal,
+            "needsHuman": refusal == "verify:repeated-fail",
+            "head": HEAD,
+            "atHead": at_head,
+            "earlierFails": sorted(earlier),
+            "ignored": 0,
+            "detail": None,
+            "headFail": None,
+            **extra,
+        }
+
+    def cases(self) -> dict[str, tuple[FakeGitHub, dict[str, Any], int, int]]:
+        """Each case: fixture, the recorded report, and the download requests
+        before (`gh run download`, two each) and after (one each)."""
+        heads = EachVerdictIsOneRequest.heads
+        third = heads()
+        third.artifacts.append(artifact(named(IN_PR, "fail", 96), 5))
+        third.runs[5] = run(5)
+        unreadable = heads()
+        del unreadable.records[named(UNRELATED, "fail", 98)]
+        no_pass = heads()
+        del no_pass.artifacts[0]
+        at_head = heads()
+        at_head.artifacts.append(artifact(named(HEAD, "fail"), 6))
+        at_head.runs[6] = run(6)
+        both = [EARLIER, TIE]
+        capped = "fails at 3 heads, the cap is 3"
+        return {
+            "later pass": (heads(), self.report(None, ["pass"], both), 6, 3),
+            "tie after pass": (
+                heads("2026-10-15T00:00:01Z"),
+                self.report("verify:earlier-fail", ["pass"], both),
+                4,
+                2,
+            ),
+            "third failed head": (
+                third,
+                self.report(
+                    "verify:repeated-fail", ["pass"], [*both, IN_PR], detail=capped
+                ),
+                4,
+                2,
+            ),
+            "unreadable untied record": (
+                unreadable,
+                self.report(
+                    "verify:unreadable",
+                    ["pass"],
+                    both,
+                    detail=f"record of {named(UNRELATED, 'fail', 98)}",
+                ),
+                4,
+                2,
+            ),
+            "no pass": (no_pass, self.report("verify:earlier-fail", [], both), 4, 2),
+            "fail at head": (
+                at_head,
+                self.report(
+                    "verify:repeated-fail",
+                    ["fail", "pass"],
+                    both,
+                    detail=capped,
+                    headFail={"run": 6, "artifact": named(HEAD, "fail")},
+                ),
+                4,
+                2,
+            ),
+        }
+
+    def test_each_case_reports_as_before_on_half_the_requests(self) -> None:
+        for label, (fake, recorded, before, after) in self.cases().items():
+            with self.subTest(label):
+                self.assertEqual(read(fake).report(), recorded)
+                self.assertEqual(download_requests(fake), after)
+                self.assertEqual(after * 2, before)
+
+
+class AFailSummaryIsFetchedByItsListedId(unittest.TestCase):
+    def test_the_judging_reader_quotes_the_head_fail_in_one_request(self) -> None:
+        name = named(HEAD, "fail")
+        fake = FakeGitHub(
+            [artifact(name, 5)],
+            {5: run(5)},
+            {name: record(verdict="fail", summary="Why.")},
+        )
+        with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
+            reader = ve.Reader(REPO, "main", now=NOW)
+            self.assertEqual(reader.evidence(PR, HEAD, pull()).refusal, "verify:fail")
+            fake.calls.clear()
+            self.assertEqual(reader.fail_summary(5, name, PR, HEAD), "Why.")
+        self.assertEqual(download_requests(fake), 1)
+
+
+class ACorruptArchiveIsAnUnreadableRecord(unittest.TestCase):
+    """A deflate stream that does not inflate raises zlib.error, not
+    BadZipFile; it must refuse like any unreadable record, and be shared."""
+
+    @staticmethod
+    def corrupt(record_: dict[str, Any]) -> bytes:
+        good = zipped(record_)
+        header = 30 + len("verdict.json")
+        return good[:header] + b"\xff" * 8 + good[header + 8 :]
+
+    def test_it_refuses_and_is_not_downloaded_again_in_the_run(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        name = named(UNRELATED, "fail", 98)
+        fake = passing(artifact(name, 3), runs={3: run(3)})
+        fake.records[name] = record(
+            98, UNRELATED, verdict="fail", head_ref="feat/other"
+        )
+        bad = self.corrupt(fake.records[name])
+
+        def answer(args: list[str], **kwargs: Any) -> Any:
+            if args[1] == f"repos/{REPO}/actions/artifacts/30/zip":
+                fake.calls.append(args)
+                return subprocess.CompletedProcess(args, 0, bad, "")
+            return fake(args, **kwargs)
+
+        cache = {"BABYSIT_RUN_CACHE": str(pathlib.Path(tmp.name, "run.json"))}
+        with mock.patch.dict("os.environ", cache):
+            for _ in range(2):
+                with mock.patch.object(postmerge, "gh_capture", side_effect=answer):
+                    evidence = ve.Reader(REPO, "main", now=NOW).evidence(
+                        PR, HEAD, pull()
+                    )
+                self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertEqual(OneRunSharesItsFailRunReads.downloads(fake, 3), 1)
+
+
 class AnUnreadableRecordIsSharedForTheRun(unittest.TestCase):
     """An untied FAIL record a gate process could not read refuses the run's
     later candidates without another download: pr-merge run 39930321434's

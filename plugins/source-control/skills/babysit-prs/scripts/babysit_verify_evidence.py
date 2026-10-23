@@ -688,10 +688,13 @@ class Reader:
                             raise _Unreadable(unread)
                         raw = path.read_bytes()
                 record = json.loads(raw.decode("utf-8"))
-            except (RuntimeError, ValueError, OSError) as exc:
+            except _Unreadable:
+                raise
+            except Exception as exc:
+                # Any failure to fetch, unpack or parse it (a timeout, a bad
+                # zip, a corrupt deflate stream's zlib.error, bad JSON) is an
+                # unreadable record, which `_head_ref` shares for the run.
                 raise _Unreadable(f"artifact {name}: {exc}") from exc
-            except (zipfile.BadZipFile, KeyError) as exc:
-                raise _Unreadable(f"{unread}: {exc}") from exc
             if not is_json_object(record):
                 raise _Unreadable(f"artifact {name}: not an object")
             self._records[key] = record
@@ -1087,6 +1090,16 @@ class Reader:
             for sha in sorted(failed)
         )
 
+    def _listed_id(self, run_id: int, name: str) -> Any:
+        """The id the listing this Reader judged on gives the artifact named
+        `name` of run `run_id`, or None (it is then fetched by run and name)."""
+        for item in map(json_object, self._artifacts or []):
+            if item.get("name") == name and _is_id(
+                json_object(item.get("workflow_run")).get("id"), run_id
+            ):
+                return item.get("id")
+        return None
+
     def fail_summary(
         self, run_id: int, name: str, number: int, head: str
     ) -> str | None:
@@ -1095,7 +1108,7 @@ class Reader:
         request, head or verdict. Raises `SummaryUnreadable` when it cannot be
         read. Untrusted model text: the caller frames it as data."""
         try:
-            record = self._record(run_id, name)
+            record = self._record(run_id, name, self._listed_id(run_id, name))
         except _Unreadable as exc:
             raise SummaryUnreadable(str(exc)) from exc
         summary = record.get("summary")
