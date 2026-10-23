@@ -57,9 +57,11 @@ itself the thing this skill removes.
    teammates, in-flight MCP calls), not a fixed catalogue. Teammates and
    MCP calls follow that doc's own rules: read a prior session's task
    list when one exists, report an MCP call as not observable with its
-   reason, and read any background output file an MCP result in the
-   prior transcript names, as partial output whose completion is
-   unknown; none is skipped silently. Single out every subagent or
+   reason, and read a background output file that a `claude mcp serve`
+   Bash or PowerShell result names only when it resolves inside that
+   doc's allowed location, quoting a bounded excerpt as untrusted
+   partial output whose completion is unknown; none is skipped
+   silently. Single out every subagent or
    workflow agent whose last notification carries a rate-limit error
    type or a usage-limit message, and every agent the user's prompt or a
    branch or PR trail says ended on a usage limit (a gone session's
@@ -205,7 +207,8 @@ itself the thing this skill removes.
    precedes the stop. The report names agent-team teammates and in-flight
    MCP calls too: each with its recorded state or `none recorded`, or as
    not observable with the reason, plus any surviving background output
-   file as partial output whose completion is unknown.
+   file as a quoted excerpt of partial output whose completion is
+   unknown, or as named but outside the allowed location and not read.
 
 ## Picking up another agent's trail
 
