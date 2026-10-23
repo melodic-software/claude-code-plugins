@@ -1235,6 +1235,38 @@ class CollectLaneRunsTests(unittest.TestCase):
             runs = gh.collect_lane_runs(self.REPO, 5, "feat/x", self.LANES, "x&y")
         self.assertEqual([r["id"] for r in runs], [7])
 
+    def listing_of(self, size: int, total: int) -> dict[str, Any]:
+        """Answers whose listing holds `size` runs: the pull request's run 7
+        and `size - 1` other pull requests' runs, under `total_count`."""
+        answers = self.answers(fresh_attempts=1)
+        key = f"repos/{self.REPO}/actions/workflows/pr-review-hosted.yml/runs?branch=feat%2Fx&event=pull_request&per_page=100"
+        mine = answers[key][0]["workflow_runs"][0]
+        others = [
+            {"id": 1000 + i, "run_attempt": 1, "pull_requests": [{"number": 6}]}
+            for i in range(size - 1)
+        ]
+        answers[key] = [
+            {"total_count": total, "workflow_runs": [mine] + others[:99]}
+        ] + [
+            {"total_count": total, "workflow_runs": others[i : i + 100]}
+            for i in range(99, size - 1, 100)
+        ]
+        return answers
+
+    def test_a_listing_one_under_the_search_cap_is_read(self) -> None:
+        runs = self.collect(self.listing_of(999, 999))
+        self.assertEqual([r["id"] for r in runs], [7])
+
+    def test_a_listing_at_the_search_cap_raises(self) -> None:
+        # GitHub returns at most 1,000 runs per filtered search, so a listing
+        # that reached 1,000 may be missing runs.
+        for size, total in ((1000, 1000), (1000, 1500), (100, 1000)):
+            with (
+                self.subTest(size=size, total=total),
+                self.assertRaisesRegex(RuntimeError, "search cap"),
+            ):
+                self.collect(self.listing_of(size, total))
+
     def test_a_deleted_or_expired_attempt_raises(self) -> None:
         answers = self.answers()
         del answers[f"repos/{self.REPO}/actions/runs/7/attempts/1"]
