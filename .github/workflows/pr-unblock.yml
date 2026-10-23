@@ -413,7 +413,8 @@ jobs:
       patch-threads-attempt: ${{ needs.address-feedback-select.outputs.context-attempt }}
       patch-threads-sha256: ${{ needs.address-feedback-select.outputs.threads-sha256 }}
       # true drops the human-gated label from the holds: the select job kept
-      # only threads a trusted person with write access asked to fix.
+      # only threads a trusted person with write access asked to fix, or a
+      # lane escalation put the label on (gate-source.mjs).
       patch-fix-requested: ${{ needs.address-feedback-select.outputs.fix-requested }}
       reply-attempt: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-reply-attempt || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-reply-attempt || '' }}
 
