@@ -100,8 +100,7 @@ audit unrelated parts of the codebase.
 Hunt for vulnerabilities that static analysis misses: logic flaws, authorization
 and access-control gaps, injection surfaces (command, SQL, path, template), and
 unsafe handling of tokens / secrets / credentials. Tag each finding with a
-severity (CRITICAL / IMPORTANT / SUGGESTION). Only a CRITICAL finding holds the merge for the
-owner; the others flag it.
+severity (CRITICAL / IMPORTANT / SUGGESTION).
 
 GitHub Actions hardening is zizmor's advisory lane: dangerous triggers such as
 `pull_request_target` or `workflow_run` running untrusted code with secrets,
@@ -155,8 +154,7 @@ eligible for skip 2. Compare the base and head manifests:
 
 For each item the diff hits, the summary carries one line, `manifest <field>: pass` or
 `manifest <field>: flag, <reason>`, so the outcome reads without the inline comments. Every
-`flag` line is a finding and counts in the review's findings total; it is IMPORTANT unless its
-exploit path makes it CRITICAL.
+`flag` line is a finding: it counts in the review's findings total, which is what holds the merge.
 
 The pointers below are reading material for naming what a flagged field runs, never the test
 for whether it is flagged. Pointer: what each field loads, runs, grants, or stores is read at
@@ -190,12 +188,3 @@ evidence.
 Use the inline-comment tool the wrapper granted to anchor each finding to the
 changed line it concerns. Cross-file / whole-PR findings go in the summary with
 commit-blob permalinks using the supplied HEAD SHA.
-
-The merge gate reads severity from two plain-text lines, never HTML comments:
-
-- Each inline comment carries exactly one line `severity: CRITICAL`, `severity: IMPORTANT` or
-  `severity: SUGGESTION`, above the lane footer line, which stays the comment's last line.
-- The summary carries exactly one line `critical-findings: <n>`: the number of CRITICAL findings
-  it reports that have no inline comment (0 when none).
-
-A comment or summary without its one readable line counts every finding it holds as CRITICAL.

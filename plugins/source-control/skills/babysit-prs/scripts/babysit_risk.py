@@ -131,9 +131,6 @@ class LaneEvidence:
     # was reported at the head, no whole review of it is recorded, and no
     # lane thread is unresolved.
     whole_review_clears: bool = False
-    # The open findings that hold the merge; None when every one does. The
-    # security lane counts only CRITICAL ones (babysit_review_evidence.py).
-    blocking_findings: int | None = None
 
 
 @dataclass(frozen=True)
@@ -205,9 +202,8 @@ HIGH_FLOOR: tuple[str, ...] = (
 # plugin.json keys whose values Claude Code runs or reads as run config.
 _EXECUTABLE_KEYS = ("hooks", "mcpServers", "lspServers", "monitors")
 
-# Lane -> (code, severity) for an open blocking finding on that lane
-# (`LaneEvidence.blocking_findings`). Both lanes are required: a lane absent
-# from the input is unbound.
+# Lane -> (code, severity) for an open finding on that lane. Both lanes are
+# required: a lane absent from the input is unbound.
 LANES: dict[str, tuple[str, Risk]] = {
     "claude-review": ("findings:claude-review", Risk.MED),
     "claude-security-review": ("security-finding", Risk.HIGH),
@@ -947,13 +943,6 @@ def _size_reasons(inp: RiskInput, files: list[_File] | None) -> list[Reason]:
     return reasons
 
 
-def blocking(lane: Any) -> Any:
-    """The lane's open findings that hold the merge: `blocking_findings`, or
-    every open finding when that is None."""
-    count = getattr(lane, "blocking_findings", None)
-    return getattr(lane, "open_findings", None) if count is None else count
-
-
 def _lane_reasons(raw_lanes: Any) -> list[Reason]:
     lanes = _sequence(raw_lanes) or ()
     reasons = []
@@ -970,7 +959,7 @@ def _lane_reasons(raw_lanes: Any) -> list[Reason]:
             reasons.append(Reason(f"evidence-unbound:{name}", Risk.MED, detail))
             continue
         lane = entries[0]
-        count = blocking(lane)
+        count = getattr(lane, "open_findings", None)
         unbound_reason = getattr(lane, "unbound_reason", None)
         bound = getattr(lane, "bound", None) is True
         if not bound or unbound_reason is not None or not _is_count(count):
