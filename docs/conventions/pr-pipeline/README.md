@@ -532,7 +532,7 @@ The rest of `.github/`, `.claude/`, `.mcp.json`, plugin hooks, `.claude-plugin/`
 `scripts/`, `CLAUDE.md`, `AGENTS.md` and an executable bit reach review, and merge on it: the
 [HIGH path floor](#merge-authority) holds for a human merge only agent permission config,
 `.gitmodules`, `CODEOWNERS`, package manifests and lockfiles, the workflows that publish a release
-or hold `id-token: write`, and the trusted-trigger check. The `ci-context`, `default` and `issue` rows cap a patch at 300 paths.
+or hold `id-token: write`, the trusted-trigger check, and `resolve-config`, whose code the token broker runs from main. The `ci-context`, `default` and `issue` rows cap a patch at 300 paths.
 `checkPatchRules` in
 [`patch-rules.mjs`](../../../.github/actions/resolve-config/patch-rules.mjs) rejects a row without that
 set, a `[head, base]` commit whose `allow` is not exactly `[merge-result]`, a refusal, allow or requirement name
@@ -726,8 +726,9 @@ and its queued entries leave; two different identities, or an unreadable head co
 - **HIGH path floor.** A fixed set of paths in the wrapper's code, joined with
   `merge.diff-check.denied-paths` and matched case-insensitively: agent permission config
   (`**/settings*.json`), `.gitmodules`, `CODEOWNERS`, package manifests and lockfiles, the
-  workflows that publish a release or hold `id-token: write`, and the trusted-trigger check they
-  run. A diff that touches any of them scores HIGH and is never merged unattended. A
+  workflows that publish a release or hold `id-token: write`, the trusted-trigger check they
+  run, and `.github/actions/resolve-config/**`, whose code the token broker runs from main in its
+  signer process. A diff that touches any of them scores HIGH and is never merged unattended. A
   `plugins/<plugin>/.claude-plugin/plugin.json` or the top-level
   `.claude-plugin/marketplace.json` change scores HIGH as `manifest-review-required` when it
   installs or runs something new: a differing `hooks`, `mcpServers`, `lspServers`, `monitors` or
