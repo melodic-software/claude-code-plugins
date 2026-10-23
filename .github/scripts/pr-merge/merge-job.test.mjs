@@ -238,20 +238,20 @@ test("the listing fails with one clear error after three failed tries", () => {
   assert.doesNotMatch(run.stderr, /jq: error|Traceback/);
 });
 
-test("the API budget is logged through the shared action at mint and at job end, for both tokens", () => {
-  for (const [name, phase, condition] of [
-    ["Log the API budget at mint", "start", "steps.lane-token.outputs.token != ''"],
-    ["Log the API budget at job end", "end", "always() && steps.lane-token.outputs.token != ''"],
-  ]) {
-    const block = step(name);
-    assert.match(block, /\n {8}uses: \.\/\.base\/\.github\/actions\/log-api-budget /);
-    assert.match(block, new RegExp(`\\n {8}if: ${condition.replace(/[().|$]/g, "\\$&")}\\n`));
-    assert.match(block, /\n {8}continue-on-error: true\n/);
-    assert.match(block, new RegExp(`\\n {10}phase: ${phase}\\n`));
-    assert.match(block, /\n {12}lane \$\{\{ steps\.lane-token\.outputs\.token \}\}\n {12}github-token \$\{\{ github\.token \}\}\n/);
-  }
-  assert.doesNotMatch(job, /gh api rate_limit/);
+test("the job end logs both tokens' readings from the job's own responses, and reads no /rate_limit", () => {
+  const block = step("Log the API budget at job end");
+  assert.match(block, /\n {8}uses: \.\/\.base\/\.github\/actions\/log-api-budget /);
+  assert.match(block, /\n {8}if: always\(\) && steps\.lane-token\.outputs\.token != ''\n/);
+  assert.match(block, /\n {8}continue-on-error: true\n/);
+  assert.match(block, /\n {10}tokens: lanes-app github-token\n/);
+  assert.doesNotMatch(job, /gh api rate_limit|phase: start|\$\{\{ [^}]*token[^}]* \}\}\n {10}tokens:/);
+  // The gate's babysit calls read into both names: the lane token by default,
+  // the job token for the verdict reads that carry it.
+  const gate = step("Run the merge gate on each candidate");
+  assert.match(gate, /\n {10}API_BUDGET_TOKEN: lanes-app\n/);
+  assert.match(gate, /\n {10}API_BUDGET_OVERRIDE_TOKEN: github-token\n/);
   const names = steps.map((s) => s.name);
+  assert.ok(names.indexOf("Run the merge gate on each candidate") < names.indexOf("Log the API budget at job end"));
   assert.ok(names.indexOf("Log the API budget at job end") < names.indexOf("Revoke the lane token"));
 });
 
@@ -278,13 +278,13 @@ const runSweepCost = (costs, reached, skipped = 0) => {
 };
 
 test("the sweep cost names both tokens' spend, the candidates, those reached and those skipped, in the log and the summary", () => {
-  const run = runSweepCost("lane-cost=312 github-token-cost=41", 3, 2);
+  const run = runSweepCost("lanes-app-cost=312 github-token-cost=41", 3, 2);
   assert.equal(run.status, 0);
   const line = "sweep-cost=312 github-token-cost=41 candidates=5 reached=3 skipped=2\n";
   assert.equal(run.stdout, line);
   assert.equal(run.stepSummary, line);
   // A rolled window, or no end reading, reads unknown.
-  assert.equal(runSweepCost("lane-cost=unknown", 0).stdout, "sweep-cost=unknown github-token-cost=unknown candidates=5 reached=0 skipped=0\n");
+  assert.equal(runSweepCost("lanes-app-cost=unknown", 0).stdout, "sweep-cost=unknown github-token-cost=unknown candidates=5 reached=0 skipped=0\n");
   const block = step("Write the sweep cost");
   assert.match(block, /\n {8}if: always\(\) && steps\.gate\.outcome != 'skipped'\n/);
   assert.match(block, /COSTS: \$\{\{ steps\.budget-end\.outputs\.costs \}\}/);
