@@ -4223,7 +4223,9 @@ test("pr-unblock.yml: a fix-ci round with no posted check posts fix-ci failure o
                     conclusion: decision.report.conclusion.toUpperCase(),
                     title: decision.report.output.title,
                   })),
-                ].map((run) => ({ __typename: "CheckRun", checkSuite: { app: { databaseId: 15368 } }, ...run })),
+                ]
+                  .map((run) => ({ __typename: "CheckRun", checkSuite: { app: { databaseId: 15368 } }, ...run }))
+                  .concat({ __typename: "StatusContext", context: "ci-lanes", state: "FAILURE", creator: { login: "github-actions[bot]" } }),
                 pageInfo: { hasNextPage: false },
               },
             },
