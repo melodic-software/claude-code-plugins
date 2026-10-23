@@ -210,6 +210,9 @@ UNREADABLE = "verify:unreadable"
 TOO_OLD = "verify:too-old"
 UNTRUSTED_SPEC = "verify:untrusted-spec"
 SPEC_CHANGED = "verify:spec-changed"
+# `evidence --lane-link`: the pull request's issue link is not one the
+# pr-merge lane takes (`Reader.link_refusal`), so no verdict is read.
+INELIGIBLE = "verify:ineligible"
 # A verdict's `intent` when its pull request closed no issue in this
 # repository: the title and body were the spec (write-verdict.mjs).
 INTENT_PULL_REQUEST = "pull-request"
@@ -505,6 +508,9 @@ class Reader:
     _mapped: dict[int, str] | None = None  # the head-ref map, once loaded
     _humans: frozenset[int] | None = None
     _humans_at: datetime | None = None  # when `_humans` was read
+    # The pull requests `link_refusal` read, each taken by the next
+    # `_closing_issues` instead of reading it again.
+    _linked: dict[int, dict[str, Any]] = field(default_factory=dict)
 
     def _listing(self) -> list[dict[str, Any]]:
         """`_current_listing`, noting when it began to be read
@@ -947,7 +953,7 @@ class Reader:
         body's lastEditedAt, read as the resolver reads them
         (closingIssuesReferences, first 10), or, when it closes none, the one
         issue its body's `Refs:` lines name (`merge_policy.refs_issue`)."""
-        pull = json_object(
+        pull = self._linked.pop(number, None) or json_object(
             self._graphql(CLOSING_QUERY, number, "closing issues").get("pullRequest")
         )
         refs = json_object(pull.get("closingIssuesReferences"))
@@ -984,6 +990,25 @@ class Reader:
                         f"#{issue.get('number')}: its {part} could not be read"
                     )
         return live
+
+    def link_refusal(self, number: int) -> str | None:
+        """Why the pull request's issue link is not one the pr-merge lane
+        takes from a pull request the lane opened, or None when it is: the
+        gate's own rule (`merge_policy._linked_issue`, as `lane_eligibility`
+        reads it), so one closing issue in this repository, or, with none,
+        the one issue its plain `Refs:` lines name. A failed read refuses."""
+        try:
+            pull = json_object(
+                self._graphql(CLOSING_QUERY, number, "closing issues").get(
+                    "pullRequest"
+                )
+            )
+            _, refusal = merge_policy._linked_issue(pull, self.repo)
+        except (_Unreadable, merge_policy.PolicyReadError) as exc:
+            return f"unreadable: {exc}"
+        if refusal is None:
+            self._linked[number] = pull
+        return refusal
 
     def _closers(self, live: dict[Any, Any]) -> set[int]:
         """The pull requests in this repository, open or closed, that close
@@ -1411,7 +1436,12 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     of the config at that base commit and at the default branch head, the
     lower one (`with_default_branch`); a config that cannot be read refuses
     `verify:unreadable`. A pass judged on the run's saved listing is judged
-    again on a listing of its own, as the gate does before it allows."""
+    again on a listing of its own, as the gate does before it allows.
+
+    With `--lane-link`, the line also carries `ineligible`: null when the
+    pull request's issue link is one the pr-merge lane takes
+    (`Reader.link_refusal`), else why not, with refusal `verify:ineligible`
+    and no verdict or config read."""
     parser = argparse.ArgumentParser(
         prog="babysit_verify_evidence.py", allow_abbrev=False
     )
@@ -1421,6 +1451,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     cmd.add_argument("--branch", default="main")
     cmd.add_argument("--max-fails", type=int, default=merge_policy.MAX_VERIFY_FAILS)
     cmd.add_argument("--base-sha", default=None)
+    cmd.add_argument("--lane-link", action="store_true")
     cmd.add_argument("number", type=int)
     cmd.add_argument("head")
     args = parser.parse_args(argv)
@@ -1435,7 +1466,14 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
         parser.error(
             "--max-fails must be 1 or more, and head and --base-sha full commit SHAs"
         )
-    max_fails = args.max_fails
+    reader = Reader(args.repo, args.branch, now=now, max_fails=args.max_fails)
+    link: dict[str, Any] = {}
+    if args.lane_link:
+        link["ineligible"] = reader.link_refusal(args.number)
+        if link["ineligible"] is not None:
+            refusal = Evidence(INELIGIBLE, args.head, (), 0, link["ineligible"])
+            print(json.dumps(refusal.report() | link))
+            return 0
     if args.base_sha is not None:
         try:
             base = merge_policy.read_config_at(args.repo, args.base_sha)
@@ -1444,15 +1482,14 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
             config = merge_policy.with_default_branch(args.repo, base)
         except merge_policy.PolicyReadError as exc:
             refusal = Evidence(UNREADABLE, args.head, (), 0, f"config: {exc}")
-            print(json.dumps(refusal.report()))
+            print(json.dumps(refusal.report() | link))
             return 0
-        max_fails = config.max_verify_fails
-    reader = Reader(args.repo, args.branch, now=now, max_fails=max_fails)
+        reader.max_fails = config.max_verify_fails
     evidence = reader.evidence(args.number, args.head)
     if evidence.refusal is None and reader.saved:
         reader.refresh()
         evidence = reader.evidence(args.number, args.head)
-    print(json.dumps(evidence.report()))
+    print(json.dumps(evidence.report() | link))
     return 0
 
 

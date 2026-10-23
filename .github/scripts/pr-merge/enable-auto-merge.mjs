@@ -8,8 +8,6 @@
 // A pull request is armed only when all of these hold:
 // - The lanes App opened it (merge.agent-identity), into main, from a branch
 //   of this repository, and it is not a draft.
-// - Its body opens with `Closes #<issue>`: a `Refs:` pull request is merged
-//   by a person (report-outcome.mjs).
 // - It carries no hold: no `do-not-merge` and no human-gated label (the
 //   tracker's role label, `needs-human` by default), and no body hold
 //   (merge-holds.mjs).
@@ -26,12 +24,17 @@
 //   decision: merge-holds.costHold and costDecision, which ci-status runs too.
 // - No person turned its auto-merge off: the newest auto-merge-disabled event
 //   by a user account keeps it off until a person turns it on again.
-// - pr-merge's gate would take its verifier verdict at the head just read:
-//   babysit_verify_evidence.py `evidence` refuses nothing (verifyHold), so a
-//   pr-verify PASS or PASS-NOTES stands at that head, no FAIL is at it, no
-//   earlier FAIL is uncleared, FAILs sit at fewer than merge.max-verify-fails
-//   heads, and the spec is unchanged and trusted. Only the scheduled run and
-//   a hand-started one read it (READER_EVENTS), last, for a pull request
+// - pr-merge's gate would take its issue link and its verifier verdict at the
+//   head just read: babysit_verify_evidence.py `evidence --lane-link` refuses
+//   nothing (verifyHold). The link is the gate's own rule
+//   (babysit_merge_policy._linked_issue): one closing issue in this
+//   repository, or, with none, the one issue its plain `Refs: #<issue>` lines
+//   name. Then a pr-verify PASS or PASS-NOTES stands at that head, no FAIL is
+//   at it, no earlier FAIL is uncleared, FAILs sit at fewer than
+//   merge.max-verify-fails heads, and the spec is unchanged and trusted. A
+//   read that fails, or a line without the link's answer, refuses. Only the
+//   scheduled run and
+//   a hand-started one read them (READER_EVENTS), last, for a pull request
 //   every other rule would arm or keep armed, sharing one artifact listing
 //   and run cache in the run. An event run (the issue lane, a person's edit,
 //   unlabel or ready) never arms and reads no verdict: it only disarms on a
@@ -78,7 +81,6 @@ const SHA = /^[0-9a-f]{40}$/;
 const BOT_LOGIN = /^([a-z0-9][a-z0-9-]*)\[bot\]$/;
 // babysit_merge_policy.MERGE_HOLD_LABELS, plus the human-gated label.
 const HOLD_LABELS = Object.freeze(["do-not-merge"]);
-const CLOSES = /^Closes #[1-9][0-9]*\r?$/;
 // 100 pull requests a page; more than this many open is a listing the run
 // stops on rather than one it reads only part of.
 const MAX_PAGES = 10;
@@ -138,13 +140,7 @@ export function holdReason(pull, humanGated) {
     return `it carries ${label}`;
   }
   const body = String(pull.body ?? "");
-  if (BODY_HOLD.test(body)) {
-    return "its body holds it";
-  }
-  if (!CLOSES.test(body.split("\n")[0])) {
-    return "its body does not open with Closes #<issue>";
-  }
-  return null;
+  return BODY_HOLD.test(body) ? "its body holds it" : null;
 }
 
 const whole = (connection) => Array.isArray(connection?.nodes) && connection.totalCount <= connection.nodes.length;
@@ -194,7 +190,7 @@ async function changedFiles(github, slug, number) {
   return null;
 }
 
-// Why the gate's verifier `evidence` (babysit_verify_evidence.py's report)
+// Why the gate's `evidence --lane-link` (babysit_verify_evidence.py's report)
 // keeps a pull request at `head` from merging, or null when it allows it.
 export function verifyHold(evidence, head) {
   if (evidence === null || typeof evidence !== "object" || !("refusal" in evidence)) {
@@ -203,7 +199,14 @@ export function verifyHold(evidence, head) {
   if (evidence.head !== head) {
     return "its verifier verdict was read at another head";
   }
-  return evidence.refusal === null ? null : `pr-merge's gate refuses its verifier verdict (${escapeCommand(evidence.refusal)})`;
+  if (typeof evidence.ineligible === "string") {
+    return `pr-merge's lane does not take its issue link (${escapeCommand(evidence.ineligible)})`;
+  }
+  if (evidence.refusal !== null) {
+    return `pr-merge's gate refuses its verifier verdict (${escapeCommand(evidence.refusal)})`;
+  }
+  // A line without the link's answer read no link: it allows nothing.
+  return evidence.ineligible === null ? null : "its issue link could not be read";
 }
 
 // The gate's own reader, one process per pull request; the run shares its
@@ -214,7 +217,7 @@ export function pythonVerify(env) {
       throw new Error("its base commit is not a commit SHA");
     }
     // --base-sha: the gate's FAIL cap, the lower of the base's and main's.
-    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "evidence", "--repo", env.GITHUB_REPOSITORY, "--base-sha", base];
+    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "evidence", "--lane-link", "--repo", env.GITHUB_REPOSITORY, "--base-sha", base];
     const done = spawnSync("python3", [...args, String(number), head], { encoding: "utf8", env, timeout: VERIFY_TIMEOUT_MS });
     if (done.status !== 0) {
       throw new Error(`babysit_verify_evidence.py exited ${done.status ?? done.signal}: ${String(done.stderr ?? "").trim().split("\n").at(-1)}`);

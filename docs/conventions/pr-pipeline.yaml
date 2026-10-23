@@ -390,8 +390,9 @@ activities:
     inputs: [pr, head-sha]
   enable-auto-merge:
     # Turns on GitHub's native auto-merge (squash, at the head it read) for
-    # each open lanes App pull request into main that opens with `Closes #<n>`
-    # and carries no hold (a `Hold:` line, do-not-merge, the human-gated
+    # each open lanes App pull request into main whose issue link the merge
+    # gate takes (one closing issue, or one plain `Refs: #<n>` issue) and
+    # that carries no hold (a `Hold:` line, do-not-merge, the human-gated
     # label, a member's "do not merge" comment, a head that changes a denied
     # path), and turns it off on an armed one that now carries a hold;
     # auto-merge a person turned off stays off. No

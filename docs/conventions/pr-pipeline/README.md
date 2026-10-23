@@ -1056,19 +1056,21 @@ drops an escalation.
 The lane's `enable-auto-merge` activity, the `enable-auto-merge` job of `pr-merge.yml` with its
 own lanes App token (`.github/scripts/pr-merge/enable-auto-merge.mjs`, no model), turns on GitHub's
 native auto-merge (`enablePullRequestAutoMerge`, squash, `expectedHeadOid` the head it read) for
-each open lanes App pull request into main from a branch of this repository that is not a draft,
-opens with `Closes #<issue>`, and carries no hold: no `Hold:` line or "do not merge" in its body
+each open lanes App pull request into main from a branch of this repository that is not a draft
+and carries no hold: no `Hold:` line or "do not merge" in its body
 (the gate's own rule), no `do-not-merge` or human-gated label, and no member (owner, member or
 collaborator) whose newest comment, review or inline comment with text says "do not merge" (the
 gate's veto rule; a later comment lifts it), and whose head changes no path in the lane's
 `merge.diff-check.denied-paths`, read on the files the head changes at each run, and whose
-verifier verdict at that head pr-merge's gate would take: `babysit_verify_evidence.py evidence`
-refuses nothing, so a PASS or PASS-NOTES of [pr-verify](#verifier-verdict) stands at the head,
+issue link and verifier verdict at that head pr-merge's gate would take:
+`babysit_verify_evidence.py evidence --lane-link` refuses nothing, so the link is one the gate's
+[eligibility](#the-pr-merge-lane) rule takes (one closing issue in this repository, or, with none,
+the one issue its plain `Refs: #<n>` lines name; a failed read refuses), a PASS or PASS-NOTES of [pr-verify](#verifier-verdict) stands at the head,
 no FAIL is at it, no earlier FAIL is uncleared, FAILs sit at fewer than `merge.max-verify-fails`
 heads, and the spec is unchanged and trusted. Only the scheduled run and a hand-started one read
-it and arm, last, for a pull request every other rule would arm or keep armed, with the gate's
-saved listing, head-ref map and run cache; an event run reads no verdict, never arms, and only
-disarms on a hold, so a pull request waits up to one scheduled interval to be armed. `ci-status`
+them and arm, last, for a pull request every other rule would arm or keep armed, with the gate's
+saved listing, head-ref map and run cache; an event run reads no link or verdict, never arms, and
+only disarms on a hold, so a pull request waits up to one scheduled interval to be armed. `ci-status`
 turns an armed lanes App pull request's auto-merge off on each push to its head, so a new head is
 armed only after the reader judges it. It turns auto-merge off on an armed one that now fails
 any of those, and does not turn it back on once a person has turned it off. GitHub then merges the pull request through the merge queue

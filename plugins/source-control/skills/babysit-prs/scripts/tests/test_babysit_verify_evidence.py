@@ -4120,5 +4120,93 @@ class EvidenceCommandReadsAsTheGateDoes(unittest.TestCase):
         self.assertEqual(json.loads(out.getvalue())["refusal"], ve.UNREADABLE)
 
 
+class EvidenceCommandReadsTheLaneLink(unittest.TestCase):
+    """`evidence --lane-link`, which enable-auto-merge.mjs runs: the issue
+    link the pr-merge lane takes from its own pull request, by the rule in
+    docs/conventions/pr-pipeline/README.md ("Eligibility"): one closing issue
+    here, or, with none, the one issue plain `Refs: #<n>` lines name; two
+    issues refuse `refs-issues:2`, a pull request or a number naming nothing
+    `refs-not-an-issue`, and a failed read refuses. A refused link reads no
+    verdict."""
+
+    def cli(self, fake: FakeGitHub) -> dict[str, Any]:
+        out = io.StringIO()
+        with (
+            mock.patch.object(policy, "pull_request", return_value=pull()),
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+            mock.patch.object(policy, "gh_capture", side_effect=fake),
+            contextlib.redirect_stdout(out),
+        ):
+            argv = ["evidence", "--lane-link", "--repo", REPO, str(PR), HEAD]
+            self.assertEqual(ve.main(argv, now=NOW), 0)
+        return json.loads(out.getvalue())
+
+    def refs(self, body: str, **refs: str) -> FakeGitHub:
+        fake = passing()
+        fake.closing, fake.body = [], body
+        fake.refs = {int(n.removeprefix("n")): kind for n, kind in refs.items()}
+        return fake
+
+    def test_a_closing_pull_request_is_linked_and_its_pass_allows(self) -> None:
+        fake = passing()
+        report = self.cli(fake)
+        self.assertEqual((report["ineligible"], report["refusal"]), (None, None))
+        # The verdict read takes the link read's pull request: one read.
+        closing = [c for c in fake.calls if any("closingIssues" in a for a in c)]
+        self.assertEqual(len(closing), 1)
+
+    def test_one_plain_refs_line_is_linked_and_its_verdict_is_read(self) -> None:
+        fake = self.refs("Refs: #7\n\n## Summary", n7=REPO)
+        report = self.cli(fake)
+        self.assertIsNone(report["ineligible"])
+        self.assertEqual(listings(fake), 1)
+
+    def test_a_refused_link_reads_no_verdict(self) -> None:
+        for body, refs, want in (
+            ("Refs: #7\nRefs: #8\n", {"n7": REPO, "n8": REPO}, "refs-issues:2"),
+            ("Refs: #7, #8\n", {"n7": REPO}, "refs-line-not-plain"),
+            ("refs: #7\n", {"n7": REPO}, "refs-line-not-plain"),
+            ("Refs: #7\n", {"n7": "PullRequest"}, "refs-not-an-issue"),
+            ("Refs: #9\n", {}, "refs-not-an-issue"),
+            ("## Summary\n", {}, "linked-issues:0"),
+        ):
+            with self.subTest(body=body):
+                fake = self.refs(body, **refs)
+                report = self.cli(fake)
+                self.assertEqual(
+                    (report["ineligible"], report["refusal"]), (want, ve.INELIGIBLE)
+                )
+                self.assertEqual(listings(fake), 0)
+
+    def test_a_closing_issue_elsewhere_or_two_refuse(self) -> None:
+        for closing, want in (
+            ([(7, REPO), (8, REPO)], "linked-issues:2"),
+            ([(7, "other-org/other-repo")], "linked-issue-other-repository"),
+        ):
+            fake = passing()
+            fake.closing = closing
+            self.assertEqual(self.cli(fake)["ineligible"], want)
+
+    def test_a_failed_link_read_refuses(self) -> None:
+        for fake in (passing(), self.refs("Refs: #7\n", n7="error")):
+            if not fake.refs:
+                fake.fail.add("graphql")
+            report = self.cli(fake)
+            self.assertTrue(str(report["ineligible"]).startswith("unreadable: "))
+            self.assertEqual(report["refusal"], ve.INELIGIBLE)
+            self.assertEqual(listings(fake), 0)
+
+    def test_without_the_flag_no_link_is_read(self) -> None:
+        fake = self.refs("Refs: #7\nRefs: #8\n")
+        out = io.StringIO()
+        with (
+            mock.patch.object(policy, "pull_request", return_value=pull()),
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+            contextlib.redirect_stdout(out),
+        ):
+            ve.main(["evidence", "--repo", REPO, str(PR), HEAD], now=NOW)
+        self.assertNotIn("ineligible", json.loads(out.getvalue()))
+
+
 if __name__ == "__main__":
     unittest.main()
