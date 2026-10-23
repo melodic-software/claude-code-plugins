@@ -11,6 +11,7 @@
 - [Concurrency](#concurrency)
 - [Outputs and skips](#outputs-and-skips)
 - [Merge authority](#merge-authority)
+- [Review-lane holds](#review-lane-holds)
 - [Trust-root paths](#trust-root-paths)
 - [The lane sweep](#the-lane-sweep)
 - [The monitoring lane](#the-monitoring-lane)
@@ -164,7 +165,10 @@ name the head, an unresolved thread exists that `address-feedback` would keep (l
 reviewer bot, one the lane never answered where a fix request, below, follows the reviewer bot's
 finding, or answered by a trusted human after the lane escalated it; on a PR carrying the
 human-gated label, only one whose answer is a fix request), the head has no
-`pr-unblock / address-feedback` check run, and no `pr-unblock.yml` run titled
+`pr-unblock / address-feedback` check run (one that started before the head's newest
+`pr-unblock / publish-feedback` check run stops counting when that run skipped `no-model-turn`:
+the round handled nothing, and the round cap still bounds the retries; a limit stop keeps its
+reset hold and counts toward `limit-stops-per-head`), and no `pr-unblock.yml` run titled
 `pr-unblock address-feedback #<n>` is still queued or going (both lanes finishing at once). Then it
 runs the base's resolve-config for that PR and head with `address-feedback` selected, so only that
 slot's `applies-when` is decided, and dispatches only when the `pr-unblock` lane and its
@@ -228,9 +232,11 @@ so the gate and the broker check them as they check a conflict dispatch. After t
 dispatches it lists open, non-draft, same-repository Dependabot PRs into `main`, sorts each with
 `dependency-classify.mjs`, and dispatches `pr-unblock.yml` with `activity: review-dependency` for
 at most 2 `review`-tier PRs per run whose head has no `pr-unblock / review-dependency` check run
-from the GitHub Actions app (the untrusted-trigger skip aside). Their run ids join the same
-dispatched-runs record. It has no schedule: the broker accepts a dispatcher run started only by a
-push or a listed human, so a push to `main` or a hand run wakes it. In `pr-unblock.yml`, no
+from the GitHub Actions app (the untrusted-trigger skip aside; one that started before the head's
+newest `pr-unblock / apply-dependency-verdict` check run stops counting when that run skipped
+`no-model-turn`, unless it is a limit stop, and the round cap still bounds the retries). Their run
+ids join the same dispatched-runs record. It has no schedule: the broker accepts a dispatcher run
+started only by a push or a listed human, so a push to `main` or a hand run wakes it. In `pr-unblock.yml`, no
 model holds a write token: `review-dependency-select` (base code only, read-only token) selects
 the pull request or posts its check neutral; `review-dependency` (a `read` skill in
 [patch output mode](pr-run-activity.md#patch-output-mode), on run-claude-cli with the
@@ -241,13 +247,14 @@ never merges; the pr-merge lane merges on its `verdict=merge` marker at the curr
 ([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review);
 [ADR 0074](../../adr/0074-review-risky-dependabot-updates-in-a-model-job-and-act-in-a-scripted-job.md)).
 
-`pr-unblock`'s `fix-ci` runs in four jobs of `pr-unblock.yml`, so no model holds a write token:
+`pr-unblock`'s `fix-ci` runs in separate jobs of `pr-unblock.yml`, so no model holds a write token:
 `fix-ci-context` (base code only, read-only token) writes the failing checks' context or hands
 the pull request to a person once `loop.fix-ci-rounds` fixes were pushed; `fix-ci` (a `read`
 skill in [patch output mode](pr-run-activity.md#patch-output-mode), on run-claude-cli with the
 automations role's API key) runs `source-control:pull-request ci --ci`, which reruns, fixes and
-reruns the checks; `fix-ci-subscription` runs the same on the role's OAuth token, only after a
-credit stop or with the key empty
+reruns the checks; `fix-ci-subscription` runs the same on the role's OAuth token, only when
+`fix-ci-handoff`'s read of this run's jobs shows `fix-ci` posted no check, as a credit stop or an
+empty key leaves it
 ([two calls](pr-run-activity.md#two-calls-on-one-credential-each)); and `apply-patch` (a
 `mutate-branch` script, no model, no head code) pushes the patch as one commit without force,
 refusing the whole patch on any change `patch-rules.json`'s `ci-context` row refuses: the
@@ -271,7 +278,9 @@ GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, li
 same-repository ones into `main` that the lanes App opened (by bot id), or that a trusted actor
 opened ([`adoption`](#adoption); a person's once idle), with no `do-not-merge`, `needs-human` or tracker
 human-gated label,
-whose head's `ci-status` check run from the GitHub Actions app ended `failure`. It dispatches those whose head has no `pr-unblock / fix-ci` run yet (an
+whose head's `ci-lanes` commit status from `github-actions[bot]` is `failure` or `error`: the lanes'
+verdict ci-status records, not ci-status itself, which also fails on a hold, a pending review or the
+PR contract, none of which a CI fix mends. It dispatches those whose head has no `pr-unblock / fix-ci` run yet (an
 untrusted-trigger skip aside), or only failed ones, at most `limits.fix-ci-restarts` of them,
 and no `fix-ci` run for the PR still queued or going, at most `limits.fix-ci-per-run` per run,
 lowest number first. Their run ids join the dispatched-runs record. The dispatcher job's
@@ -1353,8 +1362,17 @@ The lane token holds no Actions permission, so pr-merge.yml grants its job `acti
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
 records, the download and the compare of a run's head to main (a `contents: read` call). The gate's
 review-evidence reads use it too: the timeline, the comments, and the lane runs with their attempts,
-jobs and annotations. Every other call, every write included, keeps the lane token. That job checks
-out only main and runs no pull request code.
+jobs and annotations. Two things send them back to the lane token, as before; both tokens read
+the same data, so neither changes a gate decision. First, `GITHUB_TOKEN` must have at least
+`merge.read-token-floor` of its core limit left by `GET /rate_limit` (default 0.3, read at the
+default branch head; an unreadable limit counts as short). That is only an early switch: in the
+05:26Z outage on 2026-10-23, `/rate_limit` showed 3,934 of 5,000 left while `GITHUB_TOKEN` was
+already refused with "API rate limit exceeded for installation". Second, when any of those reads
+is refused with a 429, or a 403 whose message names a rate limit, the gate reads all of that
+candidate's evidence again with the lane token (they are all GETs). It records the refusal in
+`BABYSIT_RUN_CACHE`, so later candidates in the run skip `GITHUB_TOKEN`. Any other refusal is not
+retried. `GITHUB_TOKEN`'s pool is shared with the full-run dispatch and the post-merge checks. Every other call, every write
+included, keeps the lane token. That job checks out only main and runs no pull request code.
 
 pr-merge.yml also names a file in `BABYSIT_RUN_CACHE`, where the run's gate processes share reads
 that are the same for every candidate. The acting login and a credential pass are reused only under
@@ -1373,6 +1391,48 @@ never change (an overwrite uploads a new id). On the `--unattended` path only, t
 and the base's rules are reused for two minutes, and a failed read is never shared; before an
 enqueue, a default branch or rules a gate took from the file are read again for the branch read,
 and any change holds. An attended gate run reads both fresh. Without the variable nothing is shared.
+
+## Review-lane holds
+
+Both review callers (`pr-review-hosted.yml`, `pr-review-security-hosted.yml`) pass
+`hold-label: needs-human` and the same `hold-paths` to ci-workflows' `pr-review-cli.yml`. Their
+status job adds the label and a `<!-- claude-lane-hold lane=<lane> sha=<head> criteria=<list> -->`
+comment when the review returns a hold, or when a changed file (or a renamed file's old path)
+matches a hold path, which holds as `trust-gate` whatever the review says:
+
+- `.github/standards/trusted-actors/**`
+- `.github/actions/check-trusted-trigger/**`
+- `**/CODEOWNERS`
+- `**/.gitmodules`
+
+No ruleset requires a review check (github-iac ADR 0017); ci-status, the one required check, enforces
+them on every `pull_request` run, contract-only runs included:
+
+- **The label holds.** ci-status fails while the PR carries the human-gated label (`needs-human`
+  unless the base's `.work-item-tracker.json` names another). Removing it approves.
+- **Only a trusted person lifts a review-lane hold.** A hold is the newest hold comment or the
+  newest `labeled` event of the label by `github-actions[bot]` or `claude[bot]`, whichever is later,
+  so deleting the comment does not lift it. The first removal of the label after it must be by a `human` of the base's
+  trusted-actor list; a later removal is of a later label, such as an escalation
+  `clear-escalations` lifts. A bot's or anyone else's lift, or none recorded, fails. To recover, a
+  trusted person adds the label back, which starts a new hold, and a trusted person removes it.
+- **Both lanes review the head.** On a ready PR, the newest `pull_request` run of each caller on the
+  head must have a successful status job (`pr-review / claude-review-status`,
+  `pr-review-security / security-review`) whose `Apply the hold` step ran. A summary-mode run or
+  one with no hold label does not count. A pending, failed, cancelled or skipped review fails with
+  the cause named. A lane the kill switch stopped passes (no merge freeze), but a kill-switch job
+  that failed does not. A review skips a fork and a bot outside the caller's
+  `allowed-bot-sender-ids`, so their PRs stay red until a person on the trusted-actor list pushes a
+  commit to the head. Dependabot, the release App and the standards-sync App are exempt by numeric
+  author id, except that their PR fails when a changed file (or a renamed file's old path) matches
+  a hold path, since no lane reviews it to hold it; a person merges it. A draft is exempt.
+
+A review usually finishes after ci-status has read it, so `pr-feedback-dispatch.yml`'s
+`rerun-ci-status` job re-runs the ci-status job of the newest `pr-require-checks` run on the head
+whenever either review caller completes (not when GitHub skipped it) on an open same-repository PR
+still at that head. A ci-status not started yet is left to read the reviews itself; one in progress
+is polled every 60 seconds for at most 10 minutes first. The merge-group run re-checks the labels.
+`fix-ci` keys on `ci-lanes`, so a hold or a pending review never summons it.
 
 ## Trust-root paths
 
@@ -1616,10 +1676,13 @@ the pipeline. A role's secrets are `<ROLE>_CLAUDE_API_KEY` and
 `<ROLE>_CLAUDE_CODE_OAUTH_TOKEN`, the role upper-snake, so `issue-lane` gives `ISSUE_LANE_`.
 
 [`.github/lane-funding.json`](../../../.github/lane-funding.json) is the source of truth: each
-role's secrets, whether it is keyed, and each lane's workflow, job, launcher, and the secrets its
-job reads today, which can still be another role's or the bare `CLAUDE_CODE_OAUTH_TOKEN` until
-its wiring moves. `callers.test.mjs` in `.github/actions/resolve-config/` fails when a job that
-reads a Claude secret is missing from the catalog, or reads secrets other than those listed.
+role's secrets, whether it is keyed, and each lane's workflow, job, launcher, triggers, gate, and
+the secrets its job reads today, which can still be another role's or the bare
+`CLAUDE_CODE_OAUTH_TOKEN` until its wiring moves. `callers.test.mjs` in
+`.github/actions/resolve-config/` fails when a job that reads a Claude secret is missing from the
+catalog, or reads secrets other than those listed, and when a job that holds one under
+`pull_request_target`, `issues` or `workflow_run` shows no author gate (check-trusted-trigger in a
+job it needs, or the intake reusable's `allowed-author-ids`) or same-repo gate.
 
 Only a lane on ci-workflows' `run-claude-cli` action gets an API key, so only a role with such a
 lane is keyed; claude-code-action runs take the OAuth token alone, since they are not paid from
@@ -1841,7 +1904,7 @@ check, the security-review lane's findings and every other gate still apply. Dep
 its own tier in pr-merge ([Dependabot pull requests](#dependabot-pull-requests)), and is never
 dispatched `fix-ci`.
 
-An adopted PR whose `ci-status` failed is dispatched `fix-ci` like a lanes App PR, under the same
+An adopted PR whose lanes failed (`ci-lanes`) is dispatched `fix-ci` like a lanes App PR, under the same
 `limits.fix-ci-per-run`, `limits.fix-ci-restarts` and `loop.fix-ci-rounds`. The run still needs
 the author on the trusted-actor list, as every pr-unblock run does. A pushed fix commit updates the
 PR and its head, so the next fix waits another `idle-hours`: a person's PR gets at most one fix

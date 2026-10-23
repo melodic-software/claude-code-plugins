@@ -4,11 +4,14 @@ hydration, REST pagination, and the single GraphQL review-thread paginator."""
 
 from __future__ import annotations
 
+import atexit
 import contextlib
 import json
 import math
+import os
 import re
 import subprocess
+import sys
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from typing import Any, cast
 from urllib.parse import quote, unquote, urlparse
@@ -73,6 +76,115 @@ def gh_timeout_seconds() -> float:
     return _default_timeout_seconds
 
 
+GH_CALLS_PREFIX = "babysit-gh-calls"
+_GH_API_VALUE_FLAGS = frozenset(
+    {"-X", "--method", "-f", "--raw-field", "-F", "--field", "-H", "--header"}
+    | {"-q", "--jq", "-t", "--template", "--input", "-p", "--preview"}
+    | {"--hostname", "--cache"}
+)
+_GH_API_BODY_FLAGS = frozenset({"-f", "--raw-field", "-F", "--field", "--input"})
+# The REST route words the babysit scripts call. Any other segment is logged
+# as `{}`, so a value that happens to look like a word (a branch, an owner, a
+# label) never reaches the log; a new route word reads as `{}` until it is
+# added here.
+_ROUTE_WORDS = frozenset(
+    {"actions", "activity", "annotations", "app", "artifacts", "attempts"}
+    | {"branches", "check-runs", "collaborators", "comments", "commits"}
+    | {"compare", "contents", "dependabot", "dispatches", "files", "git"}
+    | {"heads", "issues", "jobs", "labels", "logs", "merge-async"}
+    | {"organization-variables", "orgs", "permission", "pulls", "reactions"}
+    | {"ref", "repos", "rerun", "rerun-failed-jobs", "reviews", "rules", "runs"}
+    | {"stacks", "status", "timeline", "trees", "update-branch", "user"}
+    | {"users", "variables", "workflows"}
+)
+# Everything after one of these is a single value that may hold slashes (a
+# branch, a file path), so the rest of the route is one `{}`.
+_REST_IS_VALUE_WORDS = frozenset({"contents", "heads"})
+# The segment after one of these is always a value (an owner, a branch, a
+# commit-ish, a range), even when it spells a route word.
+_VALUE_AFTER_WORDS = frozenset({"orgs", "users", "branches", "commits", "compare"})
+_gh_call_counts: dict[str, int] = {}
+
+
+def gh_call_kind(args: list[str], env_overrides: Mapping[str, str] | None) -> str:
+    """The counter key for one gh invocation: token, then endpoint kind.
+
+    The token is `override` when the call carries its own `GH_TOKEN`, else
+    `default`. An `api` call is `graphql` or its HTTP method and route template:
+    `gh api` sends GET, or POST once a body flag is given, unless `-X` names one.
+    Every segment that is not one of `_ROUTE_WORDS`, the owner and repository
+    after `repos/`, the segment after a `_VALUE_AFTER_WORDS` word, and
+    everything after `contents` or `heads` become `{}`, and
+    the query string is dropped, so no identifier, branch name, path,
+    or other value reaches the log. `+paginate` marks a key whose invocations
+    each make one HTTP request per page. Any other subcommand is `gh <sub> <verb>`.
+    """
+    token = "override" if env_overrides and "GH_TOKEN" in env_overrides else "default"
+    if not args or args[0] != "api":
+        return f"{token} gh {' '.join(args[:2])}"
+    method = ""
+    has_body = paginate = False
+    endpoint = None
+    rest = iter(args[1:])
+    for arg in rest:
+        flag, has_value, value = arg.partition("=")
+        if arg.startswith("-") and flag in _GH_API_VALUE_FLAGS:
+            value = value if has_value else next(rest, "")
+            if flag in ("-X", "--method"):
+                method = value.upper()
+            has_body = has_body or flag in _GH_API_BODY_FLAGS
+        elif arg == "--paginate":
+            paginate = True
+        elif not arg.startswith("-") and endpoint is None:
+            endpoint = arg
+    suffix = "+paginate" if paginate else ""
+    if endpoint == "graphql":
+        return f"{token} graphql{suffix}"
+    segments = (endpoint or "").split("?", 1)[0].strip("/").split("/")
+    route: list[str] = []
+    for index, segment in enumerate(segments):
+        owned = (segments[0] == "repos" and index in (1, 2)) or (
+            index > 0 and segments[index - 1] in _VALUE_AFTER_WORDS
+        )
+        route.append(segment if segment in _ROUTE_WORDS and not owned else "{}")
+        if segment in _REST_IS_VALUE_WORDS and not owned:
+            route += ["{}"] if index < len(segments) - 1 else []
+            break
+    method = method or ("POST" if has_body else "GET")
+    return f"{token} {method} {'/'.join(route)}{suffix}"
+
+
+def gh_call_counts() -> dict[str, int]:
+    """This process's gh invocations so far, by `gh_call_kind`."""
+    return dict(_gh_call_counts)
+
+
+def reset_gh_call_counts() -> None:
+    _gh_call_counts.clear()
+
+
+def gh_call_summary() -> str | None:
+    """One line for the job log, or None when this process made no gh call."""
+    if not _gh_call_counts:
+        return None
+    payload = {
+        "unit": "gh invocations",
+        "script": os.path.basename(sys.argv[0]) if sys.argv else "",
+        "total": sum(_gh_call_counts.values()),
+        "calls": dict(sorted(_gh_call_counts.items())),
+    }
+    return f"{GH_CALLS_PREFIX} {json.dumps(payload, sort_keys=True)}"
+
+
+def _emit_gh_call_summary() -> None:
+    line = gh_call_summary()
+    if line is not None:
+        print(line, file=sys.stderr, flush=True)
+
+
+atexit.register(_emit_gh_call_summary)
+
+
 def _run_gh(
     args: list[str],
     *,
@@ -82,7 +194,11 @@ def _run_gh(
 ) -> subprocess.CompletedProcess[str]:
     """The one gh invocation seam; `None` means the process-wide default timeout.
     `env_overrides` layers onto the environment for this call only, such as a
-    `GH_TOKEN` other than the process's."""
+    `GH_TOKEN` other than the process's. Every call is counted before it runs,
+    so a failed or timed-out call is counted too, and the process prints the
+    counts to stderr on exit (`gh_call_summary`)."""
+    kind = gh_call_kind(args, env_overrides)
+    _gh_call_counts[kind] = _gh_call_counts.get(kind, 0) + 1
     return run_command(
         ["gh", *args],
         allowed_executables=("gh",),
@@ -166,6 +282,14 @@ def gh_http_status(text: str) -> int | None:
     """
     matches = GH_HTTP_STATUS_RE.findall(text or "")
     return int(matches[-1]) if matches else None
+
+
+def gh_rate_limited(text: str) -> bool:
+    """Whether a `gh` failure message reports a rate limit: HTTP 429, or a 403
+    whose message names one ("API rate limit exceeded", "secondary rate
+    limit"). Any other 403 is a refusal, not a limit."""
+    status = gh_http_status(text)
+    return status == 429 or (status == 403 and "rate limit" in text.casefold())
 
 
 def is_graphql_unavailable(failure: BaseException | str) -> bool:
@@ -612,12 +736,29 @@ def view_pr_fields(
     return cast(dict[str, Any], data), True
 
 
+_archived_by_repo: dict[str, bool] = {}
+
+
 def repository_is_archived(repo: str) -> bool:
     """Whether the repository is archived, over GraphQL or REST.
 
     `gh repo view --json` is GraphQL-backed and 403s alongside `gh pr view`;
-    `GET /repos/{owner}/{repo}` reports the same fact as `.archived`.
+    `GET /repos/{owner}/{repo}` reports the same fact as `.archived`. The
+    answer is kept per process, keyed by the casefolded repository, so a
+    snapshot of N pull requests in one repository reads it once; a failed
+    read is not kept, and the next lookup reads again.
     """
+    key = repo.casefold()
+    if key not in _archived_by_repo:
+        _archived_by_repo[key] = _read_repository_archived(repo)
+    return _archived_by_repo[key]
+
+
+def reset_repository_archived_cache() -> None:
+    _archived_by_repo.clear()
+
+
+def _read_repository_archived(repo: str) -> bool:
     try:
         repository = gh_json_graphql(
             ["repo", "view", repo, "--json", "isArchived"],
@@ -1360,7 +1501,9 @@ def collect_lane_runs(
     reused branch's older runs with whichever pull request is open on it now,
     so without the bound a long-lived branch reads every earlier pull
     request's runs. A value that is not a UTC timestamp leaves it unbounded. Each kept run's attempt count comes
-    from a fresh `GET actions/runs/{id}` taken after the listing; each attempt
+    from a fresh `GET actions/runs/{id}` taken after the listing, and that
+    response stands in for its latest attempt, so only earlier attempts are
+    read from `attempts/{n}`; each attempt
     carries its jobs, and each lane job its check run's annotations. Any read
     failure, a deleted or expired run included, raises `RuntimeError`, which
     the caller turns into unbound evidence; so does a listing that reached
@@ -1419,7 +1562,9 @@ def collect_lane_runs(
             attempts = []
             for n in range(1, count + 1):
                 base = f"repos/{repo}/actions/runs/{run_id}/attempts/{n}"
-                attempt = json_object(read(base))
+                # The run object is its latest attempt: the two responses
+                # differ only in `jobs_url` and `logs_url`, which nothing reads.
+                attempt = latest if n == count else json_object(read(base))
                 jobs = pages(f"{base}/jobs?per_page=100", f"run {run_id} jobs", "jobs")
                 for job in jobs:
                     if str(job.get("name") or "").rsplit(" / ", 1)[-1] == job_suffix:

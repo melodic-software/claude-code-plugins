@@ -24,6 +24,10 @@ name: pr-feedback-dispatch
 # that head as its upstream, so the gate and the broker check the same kind of
 # run either way.
 #
+# A completed review run on any same-repository PR also starts the
+# rerun-ci-status job, which re-runs the head's ci-status so it reads the
+# finished review (see that job).
+#
 # Every completed review run at a head starts this file, so a run leaves a
 # record for the next one at that head in the Actions cache
 # (dispatch-record.mjs): a head already handled for good is skipped before
@@ -256,3 +260,102 @@ jobs:
         with:
           phase: end
           tokens: github-token ${{ github.token }}
+
+  # ci-status's `Require both review lanes on this head` step reads the
+  # review runs when it runs, and a review usually finishes after it. So
+  # when either review caller completes on a pull request of this
+  # repository, this job re-runs the ci-status job of the newest
+  # pr-require-checks run on that head, which reads both lanes and the live
+  # labels again. Every PR's review starts it, not only a lanes App PR's.
+  # A run GitHub skipped (a draft) reviewed nothing, and a fork's review
+  # never runs, so neither starts it. A head the PR has moved past, or a
+  # closed PR, is left alone. A ci-status job not started yet reads the
+  # reviews when it starts, so it is left alone too; one in progress is
+  # polled every 60 s for at most 10 minutes, then re-run. No checkout, no
+  # model: the token can only read runs and the PR and re-run a job.
+  # Pinned by scripts/ci-rerun-ci-status.test.sh, which runs this body.
+  rerun-ci-status:
+    if: >-
+      github.ref == 'refs/heads/main'
+      && (github.event.workflow_run.path == '.github/workflows/pr-review-hosted.yml'
+      || github.event.workflow_run.path == '.github/workflows/pr-review-security-hosted.yml')
+      && github.event.workflow_run.event == 'pull_request'
+      && github.event.workflow_run.conclusion != 'skipped'
+      && github.event.workflow_run.repository.full_name == github.repository
+      && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: write # list pr-require-checks runs and jobs; re-run the ci-status job
+      pull-requests: read # the PR's state and live head
+    steps:
+      - name: Re-run ci-status on the reviewed head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          POLL_SECONDS: '60'
+          POLL_LIMIT_SECONDS: '600'
+        run: |
+          if [[ ! $HEAD_SHA =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the review run's head '$HEAD_SHA' is not a commit SHA."
+            exit 1
+          fi
+          if [[ ! $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ ]]; then
+            echo "::notice::the review run names no pull request; nothing to re-run."
+            exit 0
+          fi
+          read_api() {
+            local attempt body
+            for attempt in 1 2 3; do
+              if body=$(gh api "$2"); then
+                printf '%s\n' "$body"
+                return 0
+              fi
+              [ "$attempt" -lt 3 ] || { echo "::error::could not read $1; re-run this run." >&2; return 1; }
+              sleep $((attempt * 5))
+            done
+          }
+          pr=$(read_api "#$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER") || exit 1
+          if [ "$(jq -r '"\(.state) \(.head.sha)"' <<<"$pr")" != "open $HEAD_SHA" ]; then
+            echo "#$PR_NUMBER is closed or no longer at $HEAD_SHA; nothing to re-run."
+            exit 0
+          fi
+          waited=0
+          while :; do
+            runs=$(read_api "the pr-require-checks runs on $HEAD_SHA" \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/pr-require-checks.yml/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=100") || exit 1
+            run=$(jq -c --arg sha "$HEAD_SHA" '[.workflow_runs[]
+              | select(.path == ".github/workflows/pr-require-checks.yml" and .head_sha == $sha and .event == "pull_request")]
+              | max_by(.id) // empty' <<<"$runs")
+            if [ -z "$run" ]; then
+              echo "No pr-require-checks run on $HEAD_SHA yet; its ci-status reads the reviews when it runs."
+              exit 0
+            fi
+            id=$(jq -r .id <<<"$run")
+            jobs=$(read_api "the jobs of run $id" "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?filter=latest&per_page=100") || exit 1
+            job=$(jq -c '[.jobs[] | select(.name == "ci-status")] | max_by(.id) // empty' <<<"$jobs")
+            if [ "$(jq -r .status <<<"$run")" = completed ]; then
+              break
+            fi
+            case $(jq -r '.status // "absent"' <<<"${job:-null}") in
+            in_progress | completed) ;;
+            *)
+              echo "ci-status of run $id has not started; it reads the reviews when it runs."
+              exit 0
+              ;;
+            esac
+            if [ "$waited" -ge "$POLL_LIMIT_SECONDS" ]; then
+              echo "::error::run $id on $HEAD_SHA has not finished after ${waited}s; re-run its ci-status job once it does."
+              exit 1
+            fi
+            sleep "$POLL_SECONDS"
+            waited=$((waited + POLL_SECONDS))
+          done
+          job_id=$(jq -r '.id // empty' <<<"${job:-null}")
+          if [[ ! $job_id =~ ^[1-9][0-9]{0,14}$ ]]; then
+            echo "::error::run $id on $HEAD_SHA has no ci-status job to re-run."
+            exit 1
+          fi
+          gh api -X POST "repos/$GITHUB_REPOSITORY/actions/jobs/$job_id/rerun" >/dev/null
+          echo "Re-ran ci-status (job $job_id) of run $id on $HEAD_SHA."

@@ -3,6 +3,24 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.11.2] - 2026-10-23
+
+### Changed
+
+- Every babysit script counts its gh invocations by token (`default`, or `override` for a call with its own `GH_TOKEN`) and endpoint kind (`graphql`, a REST method and route template that keeps only the REST route words the scripts call and logs every other segment, an owner, branch or path included, as `{}`, or `gh <sub> <verb>`), and prints one `babysit-gh-calls` JSON line to stderr on exit, so a pr-merge job log carries each gate run's counts. A `--paginate` key is marked `+paginate`, since it counts invocations, not pages. Stdout and every decision are unchanged; a process that made no gh call prints nothing.
+
+## [2.11.1] - 2026-10-23
+
+### Changed
+
+- The unattended merge gate reads its review evidence under `BABYSIT_VERIFY_GH_TOKEN` only while that token's core bucket has at least `merge.read-token-floor` of its limit left (`PipelineConfig.read_token_floor`, default 0.3, taken from the default branch head). Below the floor, or when `GET /rate_limit` cannot be read, the reads keep the process (lane) token and a `read-token-floor:` line goes to stderr. A read under the read token refused for a rate limit (`babysit_gh.gh_rate_limited`: a 429, or a 403 naming one) makes `_lane_evidence` read everything again with the process token and record the token in `BABYSIT_RUN_CACHE` (`read-token-limited`), so later candidates skip it; any other refusal still raises. `babysit_whole_review._short_bucket` takes an optional `share` and `buckets`; whole-review requests keep `MIN_SHARE`.
+
+## [2.11.0] - 2026-10-23
+
+### Changed
+
+- `review-venue.sh` finds the code-review lane on ci-workflows' [`pr-review-cli.yml`](https://github.com/melodic-software/ci-workflows/blob/83b739f625b501ad40c65dee7168d836883195e1/.github/workflows/pr-review-cli.yml) from a caller whose path does not contain `security`; a caller whose path does still counts only for security-review.
+
 ## [2.10.0] - 2026-10-23
 
 ### Changed
