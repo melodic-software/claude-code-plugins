@@ -24,8 +24,8 @@ $commands = @(
 # canonical example -- every healthy Windows install logs it multiple
 # times per day because the system is trying to touch a local COM
 # server whose ACL doesn't include the calling identity. This is
-# harmless and not actionable. The list stays deliberately conservative;
-# per-host extensions belong in approvals.json check_overrides.
+# harmless and not actionable. The list stays deliberately conservative
+# and has no per-host extension.
 $script:NoiseAllowlist = @(
     [pscustomobject]@{ Provider = 'Microsoft-Windows-DistributedCOM'; Id = 10016 }
 )

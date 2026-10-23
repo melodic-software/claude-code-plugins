@@ -22,7 +22,7 @@ Orchestrator consults this list after check execution and before any action.
 - **Abort conditions:**
   - `DryRun -eq $true`.
   - User-load heuristic tripped.
-  - Service name appears in `approvals.json` `check_overrides.services.service_exclusions` (per-host user curation).
+  - Service name appears in `approvals.json` `check_overrides.services.service_exclusions` (per-host user curation, exact name, any case). That service gets no attempt record; the run log records the skip.
   - `Start-Service` requires elevation the run lacks. Log `UNKNOWN` for the remediation attempt, do not auto-elevate.
 - **Default state:** **DISABLED** until the user runs `/machine-health:setup apply approve=restart-stopped-service` (see [`../shared/approvals.md`](../shared/approvals.md)). First run dry-modes it regardless.
 - **On failure:** corresponding `services` finding upgrades to `CRIT` with `"notes": "Restart-StoppedService failed for <svc>: <message>"`.
