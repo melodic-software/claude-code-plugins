@@ -127,9 +127,10 @@ effective branch rules (`rules/branches`), the review decision, unresolved
 review threads, and the status-check rollup.
 
 Exit codes: 0 ready (or merged, enqueued, or auto-merge armed), 10 not ready
-(blockers, or a merge request that failed or is still pending), 2 usage/runtime
-error, 3 owner out of scope (or no allowlist). Output is a single JSON object
-on stdout.
+(blockers, or a merge request that failed or is still pending), 11 unknown (the
+pr-merge lane's `--candidate-deadline-seconds` passed before a read; no write
+was cut short), 2 usage/runtime error, 3 owner out of scope (or no allowlist).
+Output is a single JSON object on stdout.
 """
 
 from __future__ import annotations
@@ -204,13 +205,16 @@ from babysit_review_trigger import (
 )
 from babysit_util import (
     MIN_HEAD_SHA_PREFIX_LENGTH,
+    DeadlineReached,
     configure_stdio,
+    deadline_after,
     is_json_array,
     is_json_object,
     json_array,
     json_object,
     parse_allowed_owners,
     parse_csv_set,
+    read_deadline,
     run_command,
     split_owner,
 )
@@ -4462,8 +4466,20 @@ def _main() -> int:
             "are read as without it"
         ),
     )
+    parser.add_argument(
+        "--candidate-deadline-seconds",
+        type=float,
+        default=None,
+        help=(
+            "with --authority pr-merge, how long this pull request's gate may "
+            "read: a read phase (the policy, then the verdict) starts no command "
+            "past it and the gate reports the pull request unknown (exit 11) for "
+            "a later run; a write is never stopped"
+        ),
+    )
     args = parser.parse_args()
     SHARE_BASE_READS = bool(args.unattended)
+    deadline = deadline_after(args.candidate_deadline_seconds)
 
     def _refuse(message: str, code: int, **envelope: object) -> int:
         """Emit one refusal envelope on stdout and return its exit code.
@@ -4591,11 +4607,25 @@ def _main() -> int:
         args.lane_kill_switch is not None
         or args.lane_rung_cap is not None
         or args.postmerge_result is not None
+        or args.candidate_deadline_seconds is not None
     ):
         return _refuse(
-            "--lane-kill-switch, --lane-rung-cap and --postmerge-result are only "
-            "meaningful with --authority pr-merge",
+            "--lane-kill-switch, --lane-rung-cap, --postmerge-result and "
+            "--candidate-deadline-seconds are only meaningful with --authority pr-merge",
             2,
+        )
+    if args.candidate_deadline_seconds is not None and not (
+        0 < args.candidate_deadline_seconds < float("inf")
+    ):
+        return _refuse("--candidate-deadline-seconds must be a positive number", 2)
+
+    def _deadline_stop() -> int:
+        return _refuse(
+            "unknown:candidate-deadline; the gate passed its "
+            f"{args.candidate_deadline_seconds:g}-second limit for one pull request "
+            "before its next read and stopped there, with no write cut short; "
+            "a later run gates it again",
+            11,
         )
 
     pending_path: Path | None = None
@@ -4650,25 +4680,28 @@ def _main() -> int:
             else None
         )
         try:
-            unattended = assess_unattended(
-                repo,
-                number,
-                self_logins=bot_selves,
-                authority=args.authority or merge_policy.LOCAL_BABYSIT,
-                lane_kill_switch=args.lane_kill_switch,
-                lane_rung_cap=args.lane_rung_cap,
-                shared=shared,
-                # Each recompute goes back to the file for the next candidate.
-                share=(
-                    None
-                    if args.postmerge_result is None
-                    else functools.partial(
-                        postmerge.write_shared, args.postmerge_result
-                    )
-                ),
-            )
+            with read_deadline(deadline):
+                unattended = assess_unattended(
+                    repo,
+                    number,
+                    self_logins=bot_selves,
+                    authority=args.authority or merge_policy.LOCAL_BABYSIT,
+                    lane_kill_switch=args.lane_kill_switch,
+                    lane_rung_cap=args.lane_rung_cap,
+                    shared=shared,
+                    # Each recompute goes back to the file for the next candidate.
+                    share=(
+                        None
+                        if args.postmerge_result is None
+                        else functools.partial(
+                            postmerge.write_shared, args.postmerge_result
+                        )
+                    ),
+                )
         except (RuntimeError, ValueError, OSError) as exc:
             return _refuse(f"unattended merge policy unreadable: {exc}", 10)
+        except DeadlineReached:
+            return _deadline_stop()
         if args.postmerge_result is not None and shared is None:
             unattended = replace(
                 unattended,
@@ -4801,29 +4834,32 @@ def _main() -> int:
         None,
     )
     try:
-        result = evaluate(
-            repo,
-            number,
-            args.expected_head,
-            allowed,
-            self_logins,
-            args.allow_dependency
-            or (
-                args.unattended
-                and lane_dependabot is not None
-                and lane_dependabot.mergeable
-            ),
-            args.allow_unprotected,
-            tier,
-            extra_dependency_manager_logins=extra_dependency_manager_logins,
-            settle=settle,
-            stacked=args.stacked_prs,
-            unattended=unattended if args.unattended else None,
-        )
+        with read_deadline(deadline):
+            result = evaluate(
+                repo,
+                number,
+                args.expected_head,
+                allowed,
+                self_logins,
+                args.allow_dependency
+                or (
+                    args.unattended
+                    and lane_dependabot is not None
+                    and lane_dependabot.mergeable
+                ),
+                args.allow_unprotected,
+                tier,
+                extra_dependency_manager_logins=extra_dependency_manager_logins,
+                settle=settle,
+                stacked=args.stacked_prs,
+                unattended=unattended if args.unattended else None,
+            )
     except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
         # Surface any gh/parse failure as JSON rather than a traceback.
         print(json.dumps({"pr": args.pr, "error": f"{type(exc).__name__}: {exc}"}))
         return 2
+    except DeadlineReached:
+        return _deadline_stop()
 
     result["action"] = "merge" if args.merge else "check"
     result["merged"] = False
