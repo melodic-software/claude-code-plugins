@@ -4423,6 +4423,24 @@ test("pr-unblock.yml: conflict-scan-refusal escalates a refused resolve-conflict
     assert.equal(runs("true", "skipped", "", state), false, state);
     assert.equal(runs("true", "success", state, ""), false, state);
   }
+  // On every conflicted round exactly one of the two jobs runs.
+  const states = ["", "written", "empty", "other"];
+  for (const subResult of ["skipped", "success", "failure"]) {
+    for (const sub of states) {
+      for (const first of states) {
+        const values = {
+          "needs.resolve-conflicts-select.outputs.merge-state": "conflicted",
+          "needs.resolve-conflicts-select.outputs.proceed": "true",
+          "needs.resolve-conflicts-subscription.result": subResult,
+          "needs.resolve-conflicts-subscription.outputs.scan-patch-state": sub,
+          "needs.resolve-conflicts.outputs.scan-patch-state": first,
+        };
+        const apply = evaluate(jobs["apply-conflict-patch"].if, values) === true;
+        const refusal = evaluate(job.if, values) === true;
+        assert.notEqual(apply, refusal, JSON.stringify([subResult, sub, first]));
+      }
+    }
+  }
   assert.equal(runs("false", "skipped", "", ""), false, "a clean merge or a select-job skip");
   assert.equal(runs("", "skipped", "", ""), false);
   // The marker comes by name from the scan-refusal job's upload, never a job output.

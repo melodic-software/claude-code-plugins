@@ -6,7 +6,9 @@
 // scan-refusal job's markers (address-feedback.mjs scanRefusal) and writes
 // escalation-reason=unresolved-conflict when any marker, or a failed download,
 // says the scan refused. It reads no leg output: a forged marker only hands
-// the round to a person.
+// the round to a person. Head code on the run job's runner that takes the
+// marker's artifact name first can suppress the escalation, a power it
+// already holds by forging that job's handed-off output.
 //
 // Environment: GITHUB_OUTPUT, SCAN_REFUSED_DIR (every attempt's marker for
 // the resolve-conflicts call), SCAN_REFUSED_READ (that download's outcome).

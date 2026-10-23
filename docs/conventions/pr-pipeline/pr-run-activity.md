@@ -792,7 +792,7 @@ the repeat cap counts by), `loop.no-progress` as `LOOP_NO_PROGRESS` and
    download failed (`conflict-scan-refusal.mjs`, through `scanRefusal`); no marker escalates
    nothing.
 6. `report-conflict-status` posts a failing `pr-unblock/conflict` status on the select job's head
-   when the select, push or scan-refusal job escalates `unresolved-conflict`; `report-escalation`
+   when the select, push or `conflict-scan-refusal` job escalates `unresolved-conflict`; `report-escalation`
    takes any of their reasons.
 
 The three merges of one round must agree on the conflict tree; one that does not fails red and
@@ -807,7 +807,7 @@ stops for a hold only at the push job's label and draft re-read. Every path and 
 | A later merge reaches another tree | model call or push | none | empty | failure |
 | Head moved since the select job | push | `superseded-sha` | empty | neutral `apply-conflict-patch` |
 | Empty patch, or a conflicted path left with markers | push | `awaiting-human` | `unresolved-conflict` | neutral `apply-conflict-patch` |
-| The scan refused the model's output (leak-scan block, oversize patch) | scan-refusal | none | `unresolved-conflict` | failure `resolve-conflicts` |
+| The scan refused the model's output (leak-scan block, oversize patch) | conflict-scan-refusal | none | `unresolved-conflict` | failure `resolve-conflicts` |
 | A model edit outside the conflicted set | push | `awaiting-human` | `unexpected-path-staged` | neutral `apply-conflict-patch` |
 | A model edit a refusal names | push | `awaiting-human` | `conflict-patch-protected-path` / `conflict-patch-invalid` | neutral `apply-conflict-patch` |
 | A `.github/workflows/` change that is not the base's own | push | `awaiting-human` | `workflow-staged` | neutral `apply-conflict-patch` |
