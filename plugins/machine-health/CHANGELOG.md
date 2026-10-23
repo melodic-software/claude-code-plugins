@@ -3,6 +3,17 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.1] - 2026-10-23
+
+### Removed
+
+- `check_overrides.event-log-errors.noise_allowlist` is no longer documented: no check ever read it. The schema still accepts it, now described as ignored, so an existing file that holds it keeps validating.
+
+### Fixed
+
+- `Restart-StoppedService` now honors `approvals.json` `check_overrides.services.service_exclusions`: a stopped service whose name matches an entry (exact name, any case) is never started and gets no attempt record, and the run log records the skip. The key was documented before but nothing read it.
+- The `approvals.json` schema description now says the file is written by `/machine-health:setup` and the first-run migration, not by hand.
+
 ## [0.20.0] - 2026-10-22
 
 ### Added
