@@ -47,8 +47,9 @@ which CLI calls write that file.
 **For `sync` and `audit`, the script computes every number and the model reports it.** Steps 1
 through 5b and the Step 6 render are one `sync-run.sh` call; the digest and the rendered report
 are the record, and the model adds the reload guidance and answers questions. Nothing in the
-report is retyped, recounted, or re-derived by the model. `converge` stays model-driven until it
-gains a script of its own, so this invariant does not yet cover it.
+report is retyped, recounted, or re-derived by the model. `converge` follows the same rule for
+its plan: `converge-plan.sh` computes every row's strategy, command and class, grouped by path, and
+the model presents it and runs only what the user confirms.
 
 **The skill never branches on the host to change its algorithm or its report.** There is no
 cloud-versus-local branch, and no detection of or coordination with a repository's bootstrap hook:
@@ -173,9 +174,9 @@ through `cache-content-check.sh`, and reorders a user-scope `enabledPlugins` map
 `normalize-enabled-plugins.sh`. Never hand-parse `installed_plugins.json`,
 `known_marketplaces.json`, or a settings file, never write them, and never hand-write a `jq`
 extraction where a script's `--ids` form exists. The one sanctioned exception is `converge`'s
-committed-enable check ([context/converge.md](context/converge.md) Step 2): a read-only look at one
-`enabledPlugins` key in a tracked project settings file. `sync-run.sh` calls all three during `sync` and
-`audit`. Alongside them `scripts/jq-capture.sh` ships as a sourced library, never invoked: it
+committed-enable check ([context/converge.md](context/converge.md) Step 2): a read-only look at the
+`enabledPlugins` keys of a tracked project settings file, which `converge-plan.sh` makes and the
+model does not. `sync-run.sh` calls all three during `sync` and `audit`. Alongside them `scripts/jq-capture.sh` ships as a sourced library, never invoked: it
 carries the CR-stripping `jq` capture and the JSON string encoder that `fleet-state.sh`,
 `cache-content-check.sh`, and `sync-run.sh` each source from their own directory.
 Read [context/script-contracts.md](context/script-contracts.md) when a step misbehaves,
