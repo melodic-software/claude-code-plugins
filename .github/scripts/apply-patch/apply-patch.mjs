@@ -637,7 +637,7 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
       return escalate("invalid", `the patch changes ${entries.length} paths; the row allows ${row["max-files"]}`);
     }
     const allow = row.allow.map((name) => PREDICATES[name](context));
-    const outside = entries.find((entry) => !allow.every((admits) => admits(entry.path)));
+    const outside = entries.find((entry) => !allow.every((admits) => admits(entry.path, entry)));
     if (outside) {
       return reason("unexpected-path-staged", `not a conflicted path: ${outside.path}`);
     }
