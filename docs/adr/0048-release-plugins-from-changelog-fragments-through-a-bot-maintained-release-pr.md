@@ -1,8 +1,8 @@
 # Release plugins from changelog fragments through a bot-maintained release PR
 
 - Status: accepted; amended 2026-10-17 (a failed check on a stale base also starts a rebuild) and
-  2026-10-20 (a push run never rebuilds, and a release may merge past newer fragments), see the
-  amendments below
+  2026-10-20 (a push run never rebuilds, and a release may merge past newer fragments) and
+  2026-10-23 (each release pull request has its own branch), see the amendments below
 - Date: 2026-10-03
 
 ## Context
@@ -358,3 +358,25 @@ either is missing. While fragments keep landing, the
 previous rule made every release stale before its checks finished, so each scheduled run would
 rebuild it and cancel them as the push rebuilds did in the 2026-10-20 runs above. The release and
 pull-request-merge owner decided this rule in an owner-session committee decision on 2026-10-20.
+
+## Amendment (2026-10-23): each release pull request has its own branch
+
+The release pull request's branch is `release/plugins-<run id>`, named by the
+`release-publish-plugins` run that opens it, instead of the one reused `release/plugins`. A
+rebuild keeps the open release pull request's branch, so the release pull request still moves
+through ref updates and keeps its number. `decide-rebuild.sh` finds the open release pull
+request by the branch pattern `^release/plugins(-[0-9]+)?$` and passes its branch to the build
+job, and `changelog_fragments::is_release_pr` reads the same pattern; the bare name is kept so a
+release opened before this change is still recognized. The staging branch `release/plugins-next`
+carries no run id and never matches.
+
+GitHub labels every run on a branch with the pull request open on it now, so a reused branch made
+each branch-scoped run listing return every earlier release's runs. On 2026-10-23 the merge gate's
+lane-run listing on `release/plugins` read 502 runs per review workflow and spent about 4,000 lanes
+App calls per gate. A run id is unique per run and stays the same across a run's re-run attempts,
+so a re-run writes the same branch; a short commit SHA would repeat when two runs cut a release
+from the same main tip.
+
+The `release-plugins` ruleset that limits creating, updating and deleting the release branch to
+the release App must cover `refs/heads/release/plugins-*` as well, or any repository writer could
+push to an open release branch that the release workflow then queues as the App.

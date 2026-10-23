@@ -4,8 +4,11 @@
 # Decide whether release-publish-plugins.yml rebuilds the release pull request.
 # Run from the root of a full-history checkout of <main-sha> (main's tip), with
 # GH_TOKEN, GITHUB_REPOSITORY and GITHUB_EVENT_NAME set. Writes to $GITHUB_OUTPUT:
-#   found    whether a release pull request is open
-#   id, number, head    that pull request, when found
+#   found    whether a release pull request is open: one from this repository
+#            whose head branch is release/plugins-<run id>, or the bare
+#            release/plugins of a release opened before that
+#   id, number, head, branch    that pull request, when found; the build job
+#            reuses its branch and names a new one only when none is open
 #   rebuild  false while it is in the merge queue; otherwise true when none is
 #            open, when it has a merge conflict, when main changed a file it
 #            changes (a fragment it consumed, a CHANGELOG.md, a plugin.json)
@@ -35,8 +38,11 @@ rebuild() {
 
 decide() {
   local main_sha=$1 pr id number head queued rc=0
-  pr="$(gh pr list --repo "$GITHUB_REPOSITORY" --head release/plugins --base main --state open \
-    --json id,number,headRefOid,mergeable,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0] // empty')"
+  # --head matches one exact name, so list every open pull request on main
+  # and keep the release branch pattern; -L lifts the default page of 30.
+  pr="$(gh pr list --repo "$GITHUB_REPOSITORY" --base main --state open -L 1000 \
+    --json id,number,headRefName,headRefOid,mergeable,isCrossRepository \
+    --jq '[.[] | select((.isCrossRepository | not) and (.headRefName | test("^release/plugins(-[0-9]+)?$")))][0] // empty')"
   if [[ -z $pr ]]; then
     # With none open there are no checks to cancel, so every run builds one.
     echo "No release pull request is open; building one."
@@ -46,7 +52,8 @@ decide() {
   number="$(jq -r .number <<<"$pr")"
   head="$(jq -r .headRefOid <<<"$pr")"
   id="$(jq -r .id <<<"$pr")"
-  printf 'found=true\nid=%s\nnumber=%s\nhead=%s\n' "$id" "$number" "$head" >>"$GITHUB_OUTPUT"
+  printf 'found=true\nid=%s\nnumber=%s\nhead=%s\nbranch=%s\n' "$id" "$number" "$head" \
+    "$(jq -r .headRefName <<<"$pr")" >>"$GITHUB_OUTPUT"
   # GitHub refuses to update a queued branch (HTTP 422). Leave a queued release
   # to the queue: it merges, or the queue removes it and the next scheduled run
   # rebuilds it from main's tip. A merged release leaves any fragment it missed

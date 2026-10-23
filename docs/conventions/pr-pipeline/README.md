@@ -1384,7 +1384,7 @@ before it reaches the default branch. Residuals, accepted by the owner:
   token), in a write lane, where claude-code-action puts the token in the origin URL. A run,
   including one steered by untrusted text it reads, can then push to any branch
   no ruleset protects (the token is scoped to the repository, not the PR branch; rulesets cover
-  the default branch and `release/plugins`), run any shell command through `git -c
+  the default branch and the release branches, `release/plugins` and `release/plugins-*`), run any shell command through `git -c
   core.hooksPath=<dir>` or `git -c alias.<name>='!<command>'`, and push unsigned commits that skip
   the signed-commit tool and the lane-branch freshness check. Unsigned commits on the PR branch
   fail the check run's signed-commit step; a push to another branch is not checked;

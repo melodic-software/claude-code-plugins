@@ -21,8 +21,11 @@
 #   changelog_fragments::newest_version <file>    print the newest version
 #                                                 heading of a CHANGELOG (`-`
 #                                                 reads stdin); empty when none
-#   changelog_fragments::is_release_pr            0 when CHANGELOG_HEAD_REF is
-#                                                 $CF_RELEASE_BRANCH. CI sets it to
+#   changelog_fragments::is_release_pr            0 when CHANGELOG_HEAD_REF
+#                                                 matches $CF_RELEASE_BRANCH_RE
+#                                                 (release/plugins-<run id>, or the
+#                                                 bare release/plugins of a release
+#                                                 opened before). CI sets it to
 #                                                 the head branch of a pull request
 #                                                 from this repository, never a fork,
 #                                                 so only the release pull request,
@@ -60,7 +63,9 @@ fi
 
 # A caller running another checkout's code may point CF_LIST at its own copy.
 CF_LIST="${CF_LIST:-scripts/fragment-plugins.txt}"
-CF_RELEASE_BRANCH="release/plugins"
+# Each release pull request has its own branch, release/plugins-<run id>
+# (release-publish-plugins.yml); the bare name is a release opened before that.
+CF_RELEASE_BRANCH_RE='^release/plugins(-[0-9]+)?$'
 CF_SECTIONS="Added Changed Deprecated Removed Fixed Security"
 CF_EM_DASH_LIST="scripts/em-dash-purged-paths.txt"
 
@@ -125,7 +130,7 @@ changelog_fragments::em_dash_lines() {
 }
 
 changelog_fragments::is_release_pr() {
-  [[ "${CHANGELOG_HEAD_REF:-}" == "$CF_RELEASE_BRANCH" ]]
+  [[ "${CHANGELOG_HEAD_REF:-}" =~ $CF_RELEASE_BRANCH_RE ]]
 }
 
 changelog_fragments::bump_of() {

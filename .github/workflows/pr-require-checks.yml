@@ -1756,8 +1756,8 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
           # The head branch of a pull request from this repository, never a
-          # fork's: scripts/lib/changelog-fragments.sh reads `release/plugins`
-          # here as the release pull request.
+          # fork's: scripts/lib/changelog-fragments.sh reads a release branch
+          # (`release/plugins-<run id>`) here as the release pull request.
           CHANGELOG_HEAD_REF: ${{ github.event_name == 'merge_group' && steps.queued_pr.outputs.head_ref || github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
           QUEUED_PR: ${{ steps.queued_pr.outcome }}
         shell: bash scripts/run-hygiene-gate.sh changelog-parity-bump {0}
@@ -1804,7 +1804,7 @@ jobs:
 
       # Changelog fragments (ADR 0048). A plugin in scripts/fragment-plugins.txt
       # takes a fragment under .changes/<plugin>/ in each pull request, and the
-      # release pull request (branch release/plugins) bumps it. --check
+      # release pull request (branch release/plugins-<run id>) bumps it. --check
       # validates every fragment in the tree; --check-required asks a change to
       # such a plugin for one. --check-release keeps a release from merging over
       # a file it changes (a consumed fragment, a CHANGELOG.md, a plugin.json)
@@ -1858,12 +1858,13 @@ jobs:
           QUEUED_PR: ${{ steps.queued_pr.outcome }}
         shell: bash scripts/run-hygiene-gate.sh changelog-fragments-release {0}
         run: |
+          . scripts/lib/changelog-fragments.sh
           if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
             if [ "$QUEUED_PR" != success ]; then
               echo "::error::The queued pull request could not be resolved; refusing to pass the release gate without knowing whether it is the release."
               exit 1
             fi
-            if [ "$CHANGELOG_HEAD_REF" != release/plugins ]; then
+            if ! changelog_fragments::is_release_pr; then
               echo "::notice::Declined: the queued pull request is not the release."
               exit 0
             fi
@@ -1872,7 +1873,7 @@ jobs:
               exit 1
             fi
             scripts/check-changelog-fragments.sh --check-release "$MERGE_GROUP_BASE_SHA"
-          elif [ "$GITHUB_EVENT_NAME" = pull_request ] && [ "$CHANGELOG_HEAD_REF" = release/plugins ]; then
+          elif [ "$GITHUB_EVENT_NAME" = pull_request ] && changelog_fragments::is_release_pr; then
             scripts/check-changelog-fragments.sh --check-release "origin/$BASE_REF"
           else
             echo "::notice::Declined: only the release pull request and the merge queue release plugins."

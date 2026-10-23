@@ -2,9 +2,12 @@ name: release-publish-plugins
 
 # The bot-maintained release pull request of ADR 0048
 # (docs/adr/0048-release-plugins-from-changelog-fragments-through-a-bot-maintained-release-pr.md).
-# `build` turns the changelog fragments on main into one commit on
-# `release/plugins` (scripts/release-plugins.sh) and opens or updates the pull
-# request; `merge` checks that pull request against main's live tip and queues
+# `build` turns the changelog fragments on main into one commit on the
+# release branch (scripts/release-plugins.sh) and opens or updates the pull
+# request. Each release pull request has its own branch,
+# `release/plugins-<run id>` of the run that opened it, and a rebuild reuses
+# the open one's branch, so a branch-scoped run listing holds one release's
+# runs. `merge` checks that pull request against main's live tip and queues
 # the head it checked.
 #
 # Both run as the dedicated release GitHub App, never GITHUB_TOKEN: a pull
@@ -92,7 +95,7 @@ jobs:
           git fetch -q --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
           .github/scripts/release-publish-plugins/decide-rebuild.sh "$(git rev-parse origin/main)"
       # expectedHeadOid pins the queued head to the one checked above: a push to
-      # release/plugins in between makes the call fail rather than queue an
+      # the release branch in between makes the call fail rather than queue an
       # unchecked head. A head already queued, or whose latest `ci-status` has
       # not passed, is left for a later run, as is one a push run deferred.
       - name: Queue the checked head
@@ -206,7 +209,7 @@ jobs:
             echo "::notice::No fragment on main asks for a release; nothing to write. A bump: none fragment waits for the next release."
           fi
       # Write the release as one signed commit on a staging branch cut from
-      # main's tip, then move release/plugins to that exact commit in one ref
+      # main's tip, then move the release branch to that exact commit in one ref
       # update: a run cut short never leaves the open release PR with an empty
       # head. expectedHeadOid makes the write fail if the staging branch moved.
       - name: Write the release commit
@@ -215,6 +218,8 @@ jobs:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           MAIN_SHA: ${{ steps.decide.outputs.main }}
           RELEASED: ${{ steps.release.outputs.released }}
+          # The open release pull request's branch, else a new one named by this run.
+          BRANCH: ${{ steps.decide.outputs.branch || format('release/plugins-{0}', github.run_id) }}
         run: |
           refs="repos/$GITHUB_REPOSITORY/git/refs"
           stage=release/plugins-next
@@ -248,12 +253,12 @@ jobs:
               }}
             }' >"$payload"
           oid="$(gh api graphql --input - <"$payload" | jq -er '.data.createCommitOnBranch.commit.oid')"
-          if gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/release/plugins" --silent 2>/dev/null; then
-            gh api -X PATCH "$refs/heads/release/plugins" -f sha="$oid" -F force=true --silent
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$BRANCH" --silent 2>/dev/null; then
+            gh api -X PATCH "$refs/heads/$BRANCH" -f sha="$oid" -F force=true --silent
           else
-            gh api -X POST "$refs" -f ref=refs/heads/release/plugins -f sha="$oid" --silent
+            gh api -X POST "$refs" -f ref="refs/heads/$BRANCH" -f sha="$oid" --silent
           fi
-          # The release already landed on release/plugins; a failed cleanup only leaves the staging branch, which the next run deletes first.
+          # The release already landed on $BRANCH; a failed cleanup only leaves the staging branch, which the next run deletes first.
           gh api -X DELETE "$refs/heads/$stage" --silent || echo "::warning::Could not delete $stage; the next run removes it."
           echo "Wrote release commit $oid."
       - name: Open or update the release pull request
@@ -264,6 +269,7 @@ jobs:
           RELEASED: ${{ steps.release.outputs.released }}
           REPORT: ${{ steps.release.outputs.report }}
           SKIPPED: ${{ steps.release.outputs.skipped }}
+          BRANCH: ${{ steps.decide.outputs.branch || format('release/plugins-{0}', github.run_id) }}
         run: |
           # release-plugins.sh prints one line per plugin:
           #   <name>: <old> -> <new> (<bump>) from <n> fragment(s): <path>...
@@ -295,12 +301,12 @@ jobs:
             echo "The \`release-publish-plugins\` workflow queues this pull request itself once \`ci-status\` is green (every 3 hours, on a fragment push, or by hand with action \`merge\`). Never use the merge button: the workflow checks it against main's live tip first."
           } >"$body"
           title="chore(release): release $RELEASED plugins"
-          number="$(gh pr list --repo "$GITHUB_REPOSITORY" --head release/plugins --base main --state open --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0].number // empty')"
+          number="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --base main --state open --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0].number // empty')"
           if [ -n "$number" ]; then
             gh pr edit "$number" --repo "$GITHUB_REPOSITORY" --title "$title" --body-file "$body"
             echo "Updated release pull request #$number."
           else
-            gh pr create --repo "$GITHUB_REPOSITORY" --base main --head release/plugins --title "$title" --body-file "$body"
+            gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$BRANCH" --title "$title" --body-file "$body"
           fi
       # With nothing released there is no new body to write, so name the skipped
       # plugins on the open release pull request, once per set.
@@ -309,8 +315,9 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           SKIPPED: ${{ steps.release.outputs.skipped }}
+          BRANCH: ${{ steps.decide.outputs.branch || format('release/plugins-{0}', github.run_id) }}
         run: |
-          number="$(gh pr list --repo "$GITHUB_REPOSITORY" --head release/plugins --base main --state open --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0].number // empty')"
+          number="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --base main --state open --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0].number // empty')"
           if [ -z "$number" ]; then
             echo "No release pull request is open; the warnings above name the skipped plugins."
             exit 0

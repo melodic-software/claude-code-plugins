@@ -52,7 +52,7 @@ chmod +x "$TMP/bin/gh"
 tg() { git -C "$R" -c user.name=t -c user.email=t@t.t -c commit.gpgsign=false "$@"; }
 commit() { tg commit -q --allow-empty -m "$1"; }
 
-# new_fixture <behind>: origin with main and release/plugins one commit apart;
+# new_fixture <behind>: origin with main and a release branch one commit apart;
 # with behind=yes main gains a commit after the release head was cut. R is the
 # clone, left on main.
 new_fixture() {
@@ -72,7 +72,7 @@ new_fixture() {
   HEAD_SHA=$(tg rev-parse HEAD)
   tg checkout -q main
   if [[ $1 == yes ]]; then commit 'main moves on'; fi
-  tg push -q origin main release:release/plugins
+  tg push -q origin main release:release/plugins-39902821663
   MAIN_SHA=$(tg rev-parse main)
 }
 
@@ -89,7 +89,8 @@ run_decide() {
   GHOUT=$(cat "$TMP/ghout")
 }
 val() { sed -n "s/^$1=//p" <<<"$GHOUT"; }
-pr_json() { printf '[{"id":"PR_n","number":7,"headRefOid":"%s","mergeable":"%s","isCrossRepository":false}]' "$HEAD_SHA" "$1"; }
+# pr_json <mergeable> [head branch]: one open same-repository pull request.
+pr_json() { printf '[{"id":"PR_n","number":7,"headRefName":"%s","headRefOid":"%s","mergeable":"%s","isCrossRepository":false}]' "${2:-release/plugins-39902821663}" "$HEAD_SHA" "$1"; }
 
 echo '# no open release pull request'
 new_fixture no
@@ -97,6 +98,21 @@ FAKE_PRS='[]' run_decide
 check 'none: exit 0' 0 "$RC"
 check 'none: rebuild' true "$(val rebuild)"
 check 'none: found=false' false "$(val found)"
+
+echo '# the open release pull request is found by its branch pattern'
+new_fixture no
+other='{"id":"PR_o","number":6,"headRefName":"feat/x","headRefOid":"0","mergeable":"MERGEABLE","isCrossRepository":false}'
+FAKE_PRS="[$other,$(pr_json MERGEABLE | sed 's/^\[//')" run_decide GATE_RC=0
+check 'pattern: the release pull request, past another one' 'true 7 release/plugins-39902821663' "$(val found) $(val number) $(val branch)"
+check 'pattern: lists every open pull request on main, not one --head' 0 "$(grep -c -- '--head' "$TMP/gh.log" || true)"
+FAKE_PRS="$(pr_json MERGEABLE release/plugins)" run_decide GATE_RC=0
+check 'pattern: a release still on the bare branch is reused' 'true release/plugins' "$(val found) $(val branch)"
+for branch in release/plugins-next release/plugins-fork feat/release/plugins-1; do
+  FAKE_PRS="$(pr_json MERGEABLE "$branch")" run_decide
+  check "pattern: $branch is not the release pull request" 'false true' "$(val found) $(val rebuild)"
+done
+FAKE_PRS="$(pr_json MERGEABLE | sed 's/"isCrossRepository":false/"isCrossRepository":true/')" run_decide
+check 'pattern: a fork on the release branch name is not the release pull request' false "$(val found)"
 
 echo '# queued release pull request that main went stale under'
 new_fixture no

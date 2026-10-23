@@ -71,7 +71,13 @@ rm -rf "$f"
 
 # --- is_release_pr ----------------------------------------------------------------
 (use_lib && CHANGELOG_HEAD_REF=release/plugins changelog_fragments::is_release_pr)
-expect_rc "the release branch is the release pull request" 0 $?
+expect_rc "the bare release branch of an earlier release is the release pull request" 0 $?
+(use_lib && CHANGELOG_HEAD_REF=release/plugins-39902821663 changelog_fragments::is_release_pr)
+expect_rc "a release branch named by its run id is the release pull request" 0 $?
+for ref in release/plugins-next release/plugins-fork release/plugins-1a release/plugins-; do
+  (use_lib && CHANGELOG_HEAD_REF=$ref changelog_fragments::is_release_pr)
+  expect_rc "$ref (no run id) is not the release pull request" 1 $?
+done
 (use_lib && CHANGELOG_HEAD_REF=feat/release/plugins changelog_fragments::is_release_pr)
 expect_rc "a branch that only contains the release branch name is not" 1 $?
 (use_lib && unset CHANGELOG_HEAD_REF && changelog_fragments::is_release_pr)

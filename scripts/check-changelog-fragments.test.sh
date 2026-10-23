@@ -217,10 +217,13 @@ printf '{\n  "name": "alpha",\n  "version": "1.0.1"\n}\n' >"$f/plugins/alpha/.cl
 printf '# Changelog\n\n## [1.0.1] - 2026-10-02\n\n### Fixed\n\n- x\n\n## [1.0.0] - 2026-10-01\n\n### Added\n\n- First.\n' >"$f/plugins/alpha/CHANGELOG.md"
 commit "$f" release
 expect "--check-required asks a non-release change set that bumps by hand for a fragment" 1 "MISSING FRAGMENT: this change set changes files under plugins/alpha/" "$f" --check-required main
-HEAD_REF=release/plugins
+HEAD_REF=release/plugins-39902821663
 expect "--check-required exempts the release pull request's version-only manifest edit and CHANGELOG.md" 0 "has a fragment" "$f" --check-required main
-HEAD_REF=release/plugins-fork
-expect "--check-required grants the exemption to the exact release branch only" 1 "MISSING FRAGMENT" "$f" --check-required main
+HEAD_REF=release/plugins
+expect "--check-required exempts a release pull request still on the bare release branch" 0 "has a fragment" "$f" --check-required main
+for HEAD_REF in release/plugins-fork release/plugins-next; do
+  expect "--check-required denies the exemption to $HEAD_REF, which no release run names" 1 "MISSING FRAGMENT" "$f" --check-required main
+done
 HEAD_REF=""
 rm -rf "$f"
 
@@ -235,10 +238,10 @@ expect "--check-required accepts a bump: none fragment for a CHANGELOG.md edit" 
 rm -rf "$f"
 
 base_fixture f alpha
-git_test_config "$f" checkout -qb release/plugins
+git_test_config "$f" checkout -qb release/plugins-39902821663
 printf 'v2\n' >"$f/plugins/alpha/skills/a.md"
 commit "$f" smuggled
-HEAD_REF=release/plugins
+HEAD_REF=release/plugins-39902821663
 expect "--check-required still asks the release pull request for a fragment for a shipped file" 1 "MISSING FRAGMENT" "$f" --check-required main
 HEAD_REF=""
 rm -rf "$f"

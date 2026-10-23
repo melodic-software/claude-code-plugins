@@ -188,6 +188,7 @@ test("excluded, protected and ruleset branches are never deleted", async () => {
     branches: [
       { name: "main", sha: sha("a") },
       { name: "release/plugins", sha: sha("b") },
+      { name: "release/plugins-39902821663", sha: sha("9") },
       { name: "dependabot/npm/x", sha: sha("c") },
       { name: "gh-readonly-queue/main/pr-1", sha: sha("d") },
       { name: "feat/protected", sha: sha("e"), protected: true },
@@ -195,6 +196,7 @@ test("excluded, protected and ruleset branches are never deleted", async () => {
     ],
     pulls: {
       "release/plugins": old(sha("b")),
+      "release/plugins-39902821663": old(sha("9")),
       "feat/protected": old(sha("e")),
       "feat/ruled": old(sha("f")),
     },
@@ -204,6 +206,7 @@ test("excluded, protected and ruleset branches are never deleted", async () => {
   assert.deepEqual(r.deletes, []);
   assert.equal(r.verdict("feat/ruled").verdict, "keep");
   assert.equal(r.verdict("feat/protected").verdict, "keep");
+  assert.equal(r.verdict("release/plugins-39902821663").verdict, "excluded");
 });
 
 test("a branch whose tip moved, or that gained an open PR, between listing and delete is skipped", async () => {

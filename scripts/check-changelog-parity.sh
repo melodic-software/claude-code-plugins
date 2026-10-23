@@ -940,7 +940,7 @@ for manifest in ${manifests[@]+"${manifests[@]}"}; do
 done
 
 if ((undocumented > 0 || malformed > 0 || preexisting > 0 || nonmonotonic > 0 || absorbed > 0 || published_reuse > 0 || repeated > 0 || empty_bump > 0 || fragment_release > 0)); then
-  ((fragment_release > 0)) && echo "Only the release pull request (branch $CF_RELEASE_BRANCH) changes a fragment-mode plugin's version or CHANGELOG.md. Revert those edits and describe the change in a fragment under .changes/<plugin>/: scripts/new-changelog-fragment.sh <plugin> <major|minor|patch|none>." >&2
+  ((fragment_release > 0)) && echo "Only the release pull request (branch release/plugins-<run id>) changes a fragment-mode plugin's version or CHANGELOG.md. Revert those edits and describe the change in a fragment under .changes/<plugin>/: scripts/new-changelog-fragment.sh <plugin> <major|minor|patch|none>." >&2
   ((undocumented > 0)) && echo "Add a '## [<version>]' entry for every plugin whose version changed." >&2
   ((malformed > 0)) && echo "Convert unbracketed changelog headings to the '## [<version>]' Keep-a-Changelog form." >&2
   ((preexisting > 0)) && echo "Add the bumped version's '## [<version>]' entry in this change set; it must be absent from the base changelog, not merely present at head." >&2
