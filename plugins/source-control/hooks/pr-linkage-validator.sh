@@ -65,12 +65,22 @@ UNICODE_SPACES=(
   $'\xe2\x81\x9f' $'\xe3\x80\x80' $'\xef\xbb\xbf'
 )
 
-# Trailing newlines removed, exactly as command substitution removed them.
+# Trailing newlines removed, exactly as command substitution removed them, in one
+# step: stripping them one at a time copied the string per newline, so ~65,000
+# trailing newlines ran past the hooks.json timeout. The pattern starts at a
+# non-newline, so one try scans one newline run; an all-newline text has no
+# such start and is the second pattern's.
 linkage::chomp_to() {
   local __plv_dest="$1" __plv_s="$2"
-  while [[ "$__plv_s" == *$'\n' ]]; do __plv_s="${__plv_s%$'\n'}"; done
+  if [[ "$__plv_s" =~ $_PLV_CHOMP_TAIL_ERE ]]; then
+    __plv_s="${__plv_s:0:${#__plv_s}-${#BASH_REMATCH[0]}+1}"
+  elif [[ "$__plv_s" =~ $_PLV_ALL_NEWLINES_ERE ]]; then
+    __plv_s=""
+  fi
   printf -v "$__plv_dest" '%s' "$__plv_s"
 }
+_PLV_CHOMP_TAIL_ERE=$'[^\n]\n+$'
+_PLV_ALL_NEWLINES_ERE=$'^\n+$'
 
 # `readarray` splits in C without a fork; `${rest#*$'\n'}` copies every
 # surviving byte each line, so 16k two-character lines exceeded the 15s
@@ -187,24 +197,35 @@ NO_ISSUE_ERE='[^a-z0-9_]no (linked|related) issue[^a-z0-9_]'
 TRACKER_LINK_ERE='^ {0,3}([A-Za-z]+([[:blank:]]+[Tt][Oo])?)([[:blank:]]*:[[:blank:]]*|[[:blank:]]+)([A-Z][A-Z0-9_]*-[0-9]+|(local-markdown|github|gitea|jira|linear):[^[:space:]#/][^[:space:]#]*#[0-9]+)[[:blank:]]*$'
 TRACKER_KEYWORD_ERE='^(close[sd]?|fix(es|ed)?|resolve[sd]?|refs|relates[[:blank:]]+to)$'
 _PLV_WORD_ERE="[A-Za-z][A-Za-z']*"
+_PLV_DELIM_TAIL_ERE='[.!?;,][^.!?;,]*$'
 
 # CI's `negation_trigger`: the first disclaimer word among the last five words
 # between the previous `.!?;,` and the keyword, into <dest>; empty when there is
 # none. A typographic apostrophe (U+2019) counts as a straight one, and "not
 # only" is affirmative.
+#
+# Linear in the length of <text>: the tail is cut at the last delimiter by a
+# regex that starts only at a delimiter (the longest-prefix glob this replaced
+# re-scanned), every other character becomes a blank so one unquoted split
+# yields the candidate words, and the last five are collected from the end. The
+# per-word suffix copy it replaced took 8.5 s on 20,000 words.
 negation_trigger_to() {
-  local __plv_dest="$1" tail="${2##*[.!?;,]}" lower n first i
-  local -a words=()
+  local __plv_dest="$1" tail="$2" lower n i tok IFS=' '
+  local -a toks=() words=()
   printf -v "$__plv_dest" '%s' ""
+  [[ "$tail" =~ $_PLV_DELIM_TAIL_ERE ]] && tail="${tail:${#tail}-${#BASH_REMATCH[0]}+1}"
   tail="${tail//$'\xe2\x80\x99'/\'}"
-  while [[ "$tail" =~ $_PLV_WORD_ERE ]]; do
-    words+=("${BASH_REMATCH[0]}")
-    tail="${tail#*"${BASH_REMATCH[0]}"}"
+  tail="${tail//[!A-Za-z\']/ }"
+  # shellcheck disable=SC2206  # split on blanks is the point; the text holds no glob characters
+  toks=($tail)
+  for ((i = ${#toks[@]} - 1; i >= 0 && ${#words[@]} < 5; i--)); do
+    tok="${toks[i]}"
+    # A word starts at a letter: leading apostrophes are not part of it, and a
+    # run of apostrophes alone is none.
+    [[ "$tok" =~ $_PLV_WORD_ERE ]] && words=("${BASH_REMATCH[0]}" ${words[@]+"${words[@]}"})
   done
   n=${#words[@]}
-  first=0
-  ((n > 5)) && first=$((n - 5))
-  for ((i = first; i < n; i++)); do
+  for ((i = 0; i < n; i++)); do
     lower="${words[i],,}"
     [[ "$lower" == not ]] && ((i + 1 < n)) && [[ "${words[i + 1],,}" == only ]] && continue
     case "$lower" in

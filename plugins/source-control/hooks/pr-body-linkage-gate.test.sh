@@ -735,6 +735,123 @@ else
   fi
 fi
 
+# --- Quadratic helpers: negation scan and newline chomp (#7152, #7169) -------
+# timed_run <label> <body-file> <want-rc> — the gate judges <body-file> inside
+# the same 8 s bound as the cases above.
+timed_run() {
+  local label="$1" file="$2" want="$3" t0 t1 ms
+  t0=${EPOCHREALTIME:-}
+  run "$GATED" "gh pr create -t T --body-file $file"
+  t1=${EPOCHREALTIME:-}
+  if ((RC != want)); then
+    fail "$label: expected rc=$want, got rc=$RC"
+  elif [[ -z "$t0" || -z "$t1" ]]; then
+    echo "SKIP: EPOCHREALTIME unavailable -- $label timing not measured"
+  else
+    ms=$(awk -v s="${t0/,/.}" -v e="${t1/,/.}" 'BEGIN{printf "%d", (e-s)*1000}')
+    if ((ms < 8000)); then
+      ok "$label judged in ${ms}ms (hooks.json timeout is 15s)"
+    else
+      fail "$label took ${ms}ms -- exceeds the 8s bound"
+    fi
+  fi
+}
+
+# 30,000 words ahead of the keyword: the per-word suffix copy took over 15 s.
+{
+  yes w | head -n 30000 | tr '\n' ' '
+  printf 'closes #1\n\n## Summary\n\nx\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n- x\n'
+} >"$GATED/long-words.md"
+timed_run "30000-word line ending in closes #1" long-words.md 0
+
+# An unterminated comment keeps the keyword before it and drops the rest, so the
+# stripped body is ~65,400 blank lines whose trailing run chomp_to removes.
+{
+  printf 'Closes #5\n<!--\n'
+  printf '\n%.0s' {1..65400}
+  printf 'x'
+} >"$GATED/long-newlines.md"
+timed_run "Closes #5, an unterminated comment, 65400 newlines and x" long-newlines.md 2
+
+# Differential: the functions this change replaced, kept verbatim as the oracle.
+old_chomp_to() {
+  local __plv_dest="$1" __plv_s="$2"
+  while [[ "$__plv_s" == *$'\n' ]]; do __plv_s="${__plv_s%$'\n'}"; done
+  printf -v "$__plv_dest" '%s' "$__plv_s"
+}
+old_negation_trigger_to() {
+  local __plv_dest="$1" tail="${2##*[.!?;,]}" lower n first i
+  local -a words=()
+  printf -v "$__plv_dest" '%s' ""
+  tail="${tail//$'\xe2\x80\x99'/\'}"
+  while [[ "$tail" =~ $_PLV_WORD_ERE ]]; do
+    words+=("${BASH_REMATCH[0]}")
+    tail="${tail#*"${BASH_REMATCH[0]}"}"
+  done
+  n=${#words[@]}
+  first=0
+  ((n > 5)) && first=$((n - 5))
+  for ((i = first; i < n; i++)); do
+    lower="${words[i],,}"
+    [[ "$lower" == not ]] && ((i + 1 < n)) && [[ "${words[i + 1],,}" == only ]] && continue
+    case "$lower" in
+    not | never | no | without | deliberately | intentionally | *"n't")
+      printf -v "$__plv_dest" '%s' "${words[i]}"
+      return 0
+      ;;
+    *) ;;
+    esac
+  done
+}
+
+diff_chomp_inputs=("" $'\n' $'\n\n\n' "x" $'x\n' $'x\n\n\n' $'\nx' $'a\n\nb\n\n' $'a\r\n' $'  \n \n' $'\n\nx\n')
+# Built without a command substitution, which would itself strip the newlines.
+printf -v diff_nl_run '%300s' ''
+diff_nl_run="${diff_nl_run// /$'\n'}"
+diff_chomp_inputs+=("$diff_nl_run" "x$diff_nl_run" "x${diff_nl_run}y$diff_nl_run" "$(printf 'a\n%.0s' {1..50})")
+diff_chomp_bad=0
+_old="" _new=""
+for diff_in in "${diff_chomp_inputs[@]}"; do
+  old_chomp_to _old "$diff_in"
+  linkage::chomp_to _new "$diff_in"
+  [[ "$_old" == "$_new" ]] || diff_chomp_bad=$((diff_chomp_bad + 1))
+done
+if ((diff_chomp_bad == 0)); then
+  ok "chomp_to matches the old loop on ${#diff_chomp_inputs[@]} inputs, an all-newline string included"
+else
+  fail "chomp_to differs from the old loop on $diff_chomp_bad of ${#diff_chomp_inputs[@]} inputs"
+fi
+linkage::chomp_to _new $'\n\n\n'
+if [[ -z "$_new" ]]; then
+  ok "an all-newline input chomps to the empty string"
+else
+  fail "an all-newline input chomped to '$_new'"
+fi
+
+diff_neg_inputs=(
+  "" "closes" "we do not " "this does not only " "not only " "We never, ever " "No. Fixes "
+  "this does not close it; instead " "isn't " "it isn’t " "don't want to " "'not' " "''not "
+  "a b c d e not " "not a b c d e " "not a b c d " "without any of the other words " "x-not " "n't "
+  "deliberately  ,  intentionally  " "never only " "not not only " "!!! " "word1 word2 not 3 4 " "a'b'c not " "'' ' ''' "
+  "Not Only the first " "the NEVER of it " "intentionally; just " "tab	not	"
+  "$(printf 'w %.0s' {1..2000})" "not $(printf 'w %.0s' {1..2000})" "$(printf 'w %.0s' {1..2000})not "
+  "$(printf 'w.%.0s' {1..300})not " "$(printf '%1000s' '')not "
+)
+diff_neg_bad=0
+for diff_in in "${diff_neg_inputs[@]}"; do
+  old_negation_trigger_to _old "$diff_in"
+  negation_trigger_to _new "$diff_in"
+  [[ "$_old" == "$_new" ]] || {
+    diff_neg_bad=$((diff_neg_bad + 1))
+    echo "  differs on: ${diff_in:0:60}: old='$_old' new='$_new'" >&2
+  }
+done
+if ((diff_neg_bad == 0)); then
+  ok "negation_trigger_to matches the old function on ${#diff_neg_inputs[@]} inputs"
+else
+  fail "negation_trigger_to differs from the old function on $diff_neg_bad of ${#diff_neg_inputs[@]} inputs"
+fi
+
 # --- Missing jq fails open ---------------------------------------------------
 # The hook cannot parse its payload without jq, and a policy gate that cannot
 # read its input must not refuse the command.
