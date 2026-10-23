@@ -129,7 +129,7 @@ export function decide({ issue, verdict, rules, parent, blockers, timeline, even
       event?.event === "cross-referenced" &&
       source?.pull_request &&
       source.state === "open" &&
-      String(source.repository?.full_name ?? "").toLowerCase() === repository.toLowerCase()
+      here(source.repository_url)
     ) {
       wait.push(`open pull request #${source.number} names it`);
     }

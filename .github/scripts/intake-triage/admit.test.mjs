@@ -152,7 +152,7 @@ describe("decide", () => {
                 number: 12,
                 state: "open",
                 pull_request: {},
-                repository: { full_name: "o/r" },
+                repository_url: "https://api.github.com/repos/o/r",
               },
             },
           },
@@ -166,7 +166,7 @@ describe("decide", () => {
   test("ignores a closed pull request and a mention from an issue", () => {
     const ref = (issue) => ({
       event: "cross-referenced",
-      source: { issue: { repository: { full_name: "o/r" }, ...issue } },
+      source: { issue: { repository_url: "https://api.github.com/repos/o/r", ...issue } },
     });
     const result = decide(
       facts({
