@@ -17,7 +17,7 @@
       "why": "P-plain: the gate point is complete (run-validity.py first, report only on VALID, INVALID means reasons and no number); it misses the sibling points by omitting --grader-agreement and giving no noise-verdict rule."
     },
     {
-      "answer": "Run the validity gate first, using the absolute path:\n\n```bash\npython3 /home/me/.claude/plugins/evals/skills/plugin-eval/scripts/run-validity.py /work/evals/aggregate-result.json --runs 3\n```\n\nIf it prints `verdict: INVALID`, post the INVALID line and its reasons in the channel, and leave the +0.25 out. Only `verdict: VALID` lets you quote a number.\n\nThen the noise report:\n\n```bash\npython3 /home/me/.claude/plugins/evals/skills/plugin-eval/scripts/noise-report.py /work/evals/aggregate-result.json --threshold 0.8 --grader-agreement\n```\n\nPost +0.25 as a gain only if it says `the interval excludes 0`.",
+      "answer": "Run the validity gate first, using the absolute path:\n\n```bash\npython3 /home/<user>/.claude/plugins/evals/skills/plugin-eval/scripts/run-validity.py /work/evals/aggregate-result.json --runs 3\n```\n\nIf it prints `verdict: INVALID`, post the INVALID line and its reasons in the channel, and leave the +0.25 out. Only `verdict: VALID` lets you quote a number.\n\nThen the noise report:\n\n```bash\npython3 /home/<user>/.claude/plugins/evals/skills/plugin-eval/scripts/noise-report.py /work/evals/aggregate-result.json --threshold 0.8 --grader-agreement\n```\n\nPost +0.25 as a gain only if it says `the interval excludes 0`.",
       "why": "P-absolute-path: the same gate shape with absolute paths to run-validity.py and the result file: run-validity.py first, a number only on VALID, INVALID means the INVALID line and its reasons with no number."
     },
     {
