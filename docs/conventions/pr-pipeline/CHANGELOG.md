@@ -1,5 +1,30 @@
 # Changelog for the PR pipeline convention
 
+## [4.12.3] - 2026-10-23
+
+### Changed
+
+- API budget logging reads the rate limit from each job's own responses. It no longer reads `GET /rate_limit`, which reports a different bucket from the one the job spends. `.github/actions/log-api-budget` holds three parts:
+  - `api-budget.bash`: a `gh` wrapper and the notice
+  - `api-budget.mjs`: the fetch side
+  - an end-of-job emitter
+- Each named token gets one notice for its last reading and one for each refused (403/429) reading: `token=<name> workflow=<path> job=<id> run=<id> attempt=<n> limit= remaining= used= reset=<epoch> resource= cost=<N or na>`. `cost` is how much `used` rose since the first reading with the same reset.
+- Where the notices come from:
+  - `ci-status` wraps its own `gh api` reads and writes its notice before the aggregate step.
+  - pr-merge's merge job reads through the babysit gh seam.
+  - The pr-feedback-dispatch and pr-unblock-dispatch jobs read through `request-budget.mjs`.
+  - Those three jobs write their notices from their existing end steps.
+- The start-of-job `/rate_limit` steps are gone, including those in work-unblock, intake-triage and pr-run-activity-write.
+- The lanes App token is now named `lanes-app` (it was `lane`). The monitor-signals ceiling reads both names and both notice shapes.
+
+- `pr-feedback-dispatch.yml`'s `rerun-ci-status` re-runs a head's ci-status once, after the last review lane finishes, instead of once per lane: while the other lane's newest run on the head is still going it stops after one read, since ci-status would still be red and that lane's completion starts the job again. A head with no run of the other lane re-runs on one lane. A ci-status that started after both lanes finished, or a re-run already queued, is left alone. The job list is read once, and each 60-second poll reads only the run. A read refused by the token's primary rate limit (403 or 429) waits `retry-after` seconds, else, with `x-ratelimit-remaining: 0`, until one second past `x-ratelimit-reset` inside the same 10-minute cap instead of failing; a reset past the cap fails the job with an error naming the reset, since nothing else re-runs a ci-status left stale.
+
+## [4.12.2] - 2026-10-23
+
+### Fixed
+
+- Native auto-merge of a lanes App pull request now needs the verifier verdict pr-merge's gate needs. `enable-auto-merge.mjs` arms, and keeps armed, only when pr-merge's gate reader refuses nothing at the head it read (a pr-verify pass, no FAIL at the head, FAILs under `merge.max-verify-fails`, an unchanged trusted spec), and only on its scheduled or hand-started run; event runs never arm. `ci-status` turns an armed lanes App pull request's auto-merge off on each push to its head. In the merge queue, `ci-status` requires a pass or pass-notes artifact at the queued head from a successful pr-verify run on main; a trusted approval of the head lifts it. Pull request events read no verdict, since pr-verify runs only after a green pull request run.
+
 ## [4.12.1] - 2026-10-23
 
 ### Changed

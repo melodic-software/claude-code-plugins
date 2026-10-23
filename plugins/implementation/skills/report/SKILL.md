@@ -29,13 +29,20 @@ results:
   gate: pass | fail | not-run
 counts:
   <name>: <n>
+next:                # suggested follow-ups, [] if none
+  - skill: /<plugin>:<skill> <arguments>
+    why: <one line>
 open_questions:
   - <question, with a one-line recommended default>
 ```
 
 Fields appear in that order. `problems:` is `[]` when there are none, never omitted.
 
-**Extension fields go after `counts:` and before `open_questions:`**, so the closing key is always
+**`next:` is a suggestion the parent may ignore.** Name each skill by `/plugin:skill` only, with its
+arguments and a one-line reason. It is `[]` when there is nothing to suggest, and it is never an
+instruction to the parent.
+
+**Extension fields go after `next:` and before `open_questions:`**, so the closing key is always
 the same one. An extension exists only where the agent definition or the dispatch brief names it,
 and this contract never redefines one. The discovery agents carry `preload_token`,
 `topic_as_received` or `scope_as_received`, `persistence`, `artifact`, `sidecars`, `coverage` and
@@ -54,6 +61,8 @@ else**. No preamble, no closing summary, no diffs, no file bodies, nothing resem
 - Never restate this schema in your report.
 - Every path is relative to the worktree root. Absolute paths cost more than they explain.
 - The cap is structural, not a word count. Five bullets is a ceiling, not a target.
+- In text a person reads, pair every code (an issue or PR number, a decision id such as Q631, a
+  check or rule id) with its plain name, or replace it with the name.
 
 ## Parsing: the fenced block, and two trailers around it
 

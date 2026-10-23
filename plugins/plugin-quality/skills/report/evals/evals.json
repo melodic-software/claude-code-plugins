@@ -42,6 +42,20 @@
         "The verifier writes and edits no file, including the artifact it graded",
         "The `verification:` line is left for the parent to write from the returned verdict"
       ]
+    },
+    {
+      "id": 4,
+      "name": "follow-up-carried-under-next",
+      "prompt": "You are a dispatched worker. You finished your task and passed the gate. You also noticed that the touched plugin's changelog fragment should be checked before the PR opens, which is a separate skill's job and outside your fence. Report back to the orchestrator.",
+      "expected_output": "The core block reports a complete run with `problems: []`, and carries the follow-up under the core `next:` key, placed directly after `counts:` and before `open_questions:`. The entry names the skill as `/<plugin>:<skill>` with its arguments and a one-line `why`. The follow-up is phrased as a suggestion, not as an instruction to the parent, and is not buried in a bullet or in `open_questions:`.",
+      "files": [],
+      "expectations": [
+        "The final message is one fenced YAML block plus at most 5 bullets and nothing else",
+        "The follow-up appears under a `next:` key with a `skill:` entry and a one-line `why:`",
+        "The `skill:` value names the skill as `/<plugin>:<skill>` followed by its arguments",
+        "`next:` sits directly after `counts:` and before `open_questions:`",
+        "The follow-up is a suggestion the parent may ignore and is not worded as an instruction to the parent"
+      ]
     }
   ]
 }

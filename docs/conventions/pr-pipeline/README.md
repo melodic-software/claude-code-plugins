@@ -802,7 +802,8 @@ and its queued entries leave; two different identities, or an unreadable head co
   - a workflow or pipeline file with no patch.
 
   The hold clears only when the pull request body links an owner decision that covers it: a
-  comment on the pull request's closing issue or on the pull request itself, in this repository,
+  comment on the pull request's linked issue (its closing issue, or its `Refs:` issue as
+  [The pr-merge lane](#the-pr-merge-lane) reads it) or on the pull request itself, in this repository,
   whose first line starts `**Decision recorded.** Cost:`, written by a User with admin permission
   who is not the agent identity or one of the gate's own logins, not posted through an App, and
   never edited; one on the closing issue must also be created after the pull request was. A link
@@ -883,13 +884,24 @@ head, and keeps every read above
 except six:
 
 - **Eligibility.** Not a fork or a dependency manager's pull request, opened by
-  `merge.agent-identity` (the lanes App) or adopted, exactly one closing issue
-  (`closingIssuesReferences`) in this repository, and a diff where no path, either side of a
-  rename, matches `merge.diff-check.denied-paths`. Such a pull request is class C2, as a
+  `merge.agent-identity` (the lanes App) or adopted, exactly one linked issue in this repository,
+  and a diff where no path, either side of a rename, matches `merge.diff-check.denied-paths`. The
+  linked issue is the closing issue (`closingIssuesReferences`), or, for a pull request with no
+  closing issue at all, the one issue its body's `Refs: #<n>` lines name (owner decision
+  2026-10-23: "why would we limit this? Seems like useless friction for now?"). A `Refs:` line
+  counts only as a plain `Refs: #<n>` from the first column, outside an HTML comment and a fenced
+  code block; a `Refs:` line in any other form (another repository's issue, a URL, two issues, any
+  other case) refuses `refs-line-not-plain`, two or more issues refuse `refs-issues:<n>`, and a
+  number that is a pull request, or names nothing (GitHub's NOT_FOUND, a typo), refuses
+  `refs-not-an-issue`. A closing issue always wins, and the
+  `Refs:` issue is read with the same fields, so the cost decision, the verifier verdict, the
+  enqueue recheck and the worker tier's class, provenance and claim checks read it as they read a
+  closing issue. Nothing closes it on merge: GitHub closes only on a closing keyword, and the lane
+  closes no issue. Such a pull request is class C2, as a
   Dependabot pull request is: no `work-class:` label is read, on the issue or the pull request,
   and the diff-derived C2 checks of the risk score still apply. No opt-in label or lane claim is
-  read. No closing issue, or more than one, refuses (`linked-issues:<n>`); right before the
-  enqueue the closing issue is read again and a different one refuses
+  read. No linked issue, or more than one closing issue, refuses (`linked-issues:<n>`); right
+  before the enqueue the linked issue is read again and a different one refuses
   (`closing-issue-changed:<was>><now>`). A pull request into any branch but the default refuses
   `base-not-default:<ref>`, read at eligibility and again before the enqueue; any read that fails
   refuses. An adopted pull request (owner decisions Q22 and 2026-10-22, [Adoption](#adoption)) is
@@ -1303,7 +1315,16 @@ parse bug shows in the run log instead of quietly spending AI reviews; fix the c
 `.github/workflows/pr-verify.yml` runs on main after each successful `pr-require-checks` run of a
 same-repository, non-draft pull request into main. It never runs the pull request's code: a model
 (the `verify-pr` route of [Models](#models)) reads the diff, the trusted pull request text and its linked issues as
-data, and judges whether the diff delivers the issue's intent correctly and safely. The model runs
+data, and judges whether the diff delivers the issue's intent correctly and safely. Its linked
+issues are its closing issues, or, when it closes none, the one `Refs:` issue
+[The pr-merge lane](#the-pr-merge-lane) reads. A closing issue is judged whole. A `Refs:` issue is
+judged as a partial slice (owner decision 2026-10-23, the recommended option): only the part the
+pull request body says it delivers, which must be in the issue's scope, correct and coherent on
+its own, with the body naming what remains; a body that names no delivered part or no remaining
+work, or claims the whole issue, fails. The body only narrows what is judged, never adds a
+requirement, and the spec trust rules below are unchanged. resolve-pr marks each spec entry's
+`spec_kind` (`closes`, `refs` or `pull-request`), and the verdict records it, so the gate refuses a
+pass (`verify:spec-changed`) when the issue is now linked the other way. The model runs
 on ci-workflows' `run-claude-cli` as the `automations` role ([Funding](#funding)), with the Read
 tool alone, allowed only on the data files in the working directory's `pr-verify-data`. The run
 uploads one artifact, `pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>`, holding the verdict JSON. Every
@@ -1373,23 +1394,28 @@ head:
   request, tied as in the item after next, refuse (`verify:repeated-fail`) whatever a later pass
   says, a `fail` at the head included. A value that is not a count of 1 or more, an empty or
   non-scalar one included, is 1, so any earlier `fail` holds. Before a `fail` at the head or a
-  pass decides, the counted `fail` verdicts of every other pull
-  request in this repository, open or closed, that closes one of its closing issues count too, at
-  their own heads, so a new pull request for the same issue does not reset the count; such a
-  `fail` whose run cannot be read refuses `verify:unreadable`, and a cut list of those pull
-  requests refuses the same way. This cap is what bounds pushing until the verifier passes once:
-  the carry-forward below stops only a head that changes nothing of its own, and a one-line edit
-  gives a new change. Every counted `fail` whose name carries one of the closing issues counts too,
-  from the listing the gate already reads, so it costs no request; such a `fail` whose run cannot
-  be read refuses `verify:unreadable`. Such a `fail` keeps counting until its artifact expires, even
-  after its pull request stops closing the issue: the name records the issues the verdict judged,
-  and this only adds holds. Editing a pull request's body never lowers a count its `fail` verdicts
-  added, so a hostile pull request that closes an issue only to inflate its cap is undone by deleting
-  that pull request's `fail` artifacts. A pull request that names the issue without closing it, or
-  whose closing reference was removed, is otherwise not counted. Closing a newly filed duplicate issue instead starts the
-  count of other pull requests again; a pass then needs that issue written by a trusted human,
-  as below. More than 50 pull requests that claim to close one issue make
-  every pull request for that issue refuse `verify:unreadable`: a hold, not a way past the cap;
+  pass decides, counted `fail` verdicts of other pull requests in this repository, open or closed,
+  for its linked issues count too, at their own heads, so a new pull request for the same issue,
+  closing or `Refs:`, does not reset the count. Every `fail` of a pull request that closes one of
+  the issues counts. Every counted `fail` whose name carries one of the issues counts too, from
+  the listing the gate already reads, so it costs no request: pr-verify names a `fail` with a
+  `Refs:` issue as with a closing one, so this is how a `Refs:` pull request's `fail` verdicts
+  count. Such a `fail` whose run cannot be read refuses `verify:unreadable`. Such a `fail` keeps
+  counting until its artifact expires, even after its pull request stops closing or naming the
+  issue: the name records the issues the verdict judged, and this only adds holds. Editing a pull
+  request's body never lowers a count its `fail` verdicts added, so a hostile pull request that
+  names an issue only to inflate its cap is undone by deleting that pull request's `fail`
+  artifacts. The gate reads no issue timeline, so cross-references to an issue, which anyone can
+  add, hold nothing. A plain `fail`, which pr-verify writes when the issues fit no name (more than
+  10, or a number of 11 digits or more), still counts for its own pull request and at the head,
+  but not toward another pull request's cap for those issues; it is rare, and the per-pull-request
+  cap still bounds it. A pull request whose `fail` names do not carry the issue is otherwise not
+  counted. More than 50 pull requests that claim to close one issue make every pull request for
+  that issue refuse `verify:unreadable`: a hold, not a way past the cap. This cap is what bounds
+  pushing until the verifier passes once: the carry-forward below stops only a head that changes
+  nothing of its own, and a one-line edit gives a new change. Closing a newly filed duplicate issue
+  instead starts the count of other pull requests again; a pass then needs that issue written by a
+  trusted human, as below;
 - a counted `fail` at the head, under any pull request number, refuses (`verify:fail`);
 - a counted `fail` at another head of the pull request (its number, one of its commits, or a
   verdict recording its head branch, read from the name's digest, or for a name without one from
@@ -1420,7 +1446,8 @@ head:
 - every counted `pass` or `pass-notes` for this pull request at the head is checked, whatever order
   the listing returns them in, and the merge is allowed only when each allows (a changed spec is
   reported before an untrusted one). Each refuses (`verify:spec-changed`) unless the
-  pull request's closing issues in this repository now are the ones its verdict recorded, none
+  pull request's closing issues in this repository now (or, with none, its `Refs:` issue, read as
+  resolve-pr reads it) are the ones its verdict recorded, none
   was edited after the verdict's run started, and each issue's spec comments (written, and last
   edited if ever, by a `User` on the trusted-actor list's humans, the pull request's author
   included) are the ones it recorded by id and update time, none added, edited or deleted; a partial
@@ -1562,9 +1589,14 @@ them on every `pull_request` run, contract-only runs included:
 
 A review usually finishes after ci-status has read it, so `pr-feedback-dispatch.yml`'s
 `rerun-ci-status` job re-runs the ci-status job of the newest `pr-require-checks` run on the head
-whenever either review caller completes (not when GitHub skipped it) on an open same-repository PR
-still at that head. A ci-status not started yet is left to read the reviews itself; one in progress
-is polled every 60 seconds for at most 10 minutes first. The merge-group run re-checks the labels.
+when a review caller completes (not when GitHub skipped it) on an open same-repository PR still at
+that head and the other lane's newest run on the head has finished or never ran. While the other
+lane is still going a re-run could only be red, and that lane's completion re-runs it, so a head
+gets one re-run, not one per lane. A ci-status not started yet, or one that started after both
+lanes finished, is left to read the reviews itself; an earlier one in progress is polled every 60
+seconds for at most 10 minutes first. A read refused by the token's primary rate limit waits for
+the reset inside the same 10 minutes; a reset past them fails the job, naming the reset, since
+nothing else re-runs a ci-status left stale. The merge-group run re-checks the labels.
 `fix-ci` keys on `ci-lanes`, so a hold or a pending review never summons it.
 
 ## Trust-root paths

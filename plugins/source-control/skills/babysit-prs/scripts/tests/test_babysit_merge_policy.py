@@ -95,7 +95,7 @@ class GhFake:
 
     `rest` maps an endpoint to a payload, a `RawText` printed as it is, or to
     an int HTTP status for a failure. `graphql` maps an operation name to a payload or to a callable of
-    the query's string variables. Any other call fails the test.
+    the query's string variables, which may return a whole gh result. Any other call fails the test.
     """
 
     def __init__(self) -> None:
@@ -116,9 +116,10 @@ class GhFake:
                 if f"query {name}" in query:
                     if isinstance(answer, int):
                         return http_error(answer)
-                    return ok(
-                        {"data": answer(variables) if callable(answer) else answer}
-                    )
+                    got = answer(variables) if callable(answer) else answer
+                    if isinstance(got, subprocess.CompletedProcess):
+                        return got
+                    return ok({"data": got})
             raise AssertionError(f"unexpected graphql call: {query[:80]}")
         endpoint = args[1]
         if endpoint not in self.rest:
@@ -2996,6 +2997,7 @@ class LaneEligibility(unittest.TestCase):
         closing: list[dict[str, Any]] | None = None,
         author: dict[str, str] | None = None,
         base_ref: str = "main",
+        body: str | None = None,
     ) -> GhFake:
         issues = [self.issue_node(labels=labels)] if closing is None else closing
         names = pr_labels or []
@@ -3005,6 +3007,7 @@ class LaneEligibility(unittest.TestCase):
             "repository": {
                 "pullRequest": {
                     "number": 7,
+                    "body": body,
                     "baseRefName": base_ref,
                     "createdAt": PR_CREATED,
                     "lastEditedAt": "2026-10-12T13:00:00Z",
@@ -3201,6 +3204,206 @@ class LaneEligibility(unittest.TestCase):
         # No issue from the eligibility read: nothing to hold the recheck to.
         self.fake()
         self.assertEqual(recheck(None), "closing-issue-changed:None>41")
+
+
+def refs_answer(*issues: dict[str, Any], pulls: tuple[int, ...] = ()) -> Any:
+    """The PolicyRefsIssue answer: each issue node by number, a pull request
+    for each number in `pulls`, and for any other number GitHub's NOT_FOUND
+    answer, as a live read of a missing number returned it: gh exits 1."""
+    by_number = {issue["number"]: issue for issue in issues}
+
+    def answer(variables: dict[str, str]) -> Any:
+        number = int(variables["n"])
+        if number in pulls:
+            node: dict[str, Any] = {"__typename": "PullRequest"}
+        elif number in by_number:
+            node = {"__typename": "Issue"} | by_number[number]
+        else:
+            missing = {
+                "data": {"repository": {"issueOrPullRequest": None}},
+                "errors": [
+                    {"type": "NOT_FOUND", "path": ["repository", "issueOrPullRequest"]}
+                ],
+            }
+            return subprocess.CompletedProcess(
+                [], 1, json.dumps(missing), "gh: Could not resolve"
+            )
+        return {"repository": {"issueOrPullRequest": node}}
+
+    return answer
+
+
+class RefsIssueEligibility(unittest.TestCase):
+    """Owner decision 2026-10-23: a pull request that closes no issue and
+    names one with a plain `Refs: #<n>` line is read as if that issue closed
+    it. The expected numbers are the ones each body names."""
+
+    issue_node = LaneEligibility.issue_node
+    fake = LaneEligibility.fake
+    FILES = LaneEligibility.FILES
+    eligibility = LaneEligibility.eligibility
+
+    def refs_calls(self, gh: GhFake) -> int:
+        return sum("query PolicyRefsIssue" in " ".join(c) for c in gh.calls)
+
+    def test_a_lane_pr_naming_one_issue_with_refs_is_eligible(self) -> None:
+        gh = self.fake(closing=[], body="Refs: #41\n\n## Summary\n\nPart one.")
+        gh.graphql["PolicyRefsIssue"] = refs_answer(self.issue_node())
+        result = self.eligibility()
+        self.assertTrue(result.eligible, result.reason)
+        # The issue the cost-decision lookup and the enqueue recheck bind to.
+        self.assertEqual((result.work_class, result.issue), ("C2", 41))
+        self.assertIsNone(policy.recheck_lane_issue(REPO, 7, issue=41))
+
+    def test_hidden_refs_lines_name_nothing(self) -> None:
+        for body in (
+            "<!-- Refs: #41 -->",
+            "<!--\nRefs: #41",
+            "```\nRefs: #41\n```",
+            "~~~~\nRefs: #41\n~~~\n~~~~",
+            "````md\nRefs: #41",
+            "    Refs: #41",
+            "> Refs: #41",
+            "Fixes nothing. Refs: #41",
+        ):
+            with self.subTest(body=body):
+                gh = self.fake(closing=[], body=body)
+                self.assertEqual(self.eligibility().reason, "linked-issues:0")
+                self.assertEqual(self.refs_calls(gh), 0)
+
+    def test_a_refs_line_after_a_closed_fence_counts(self) -> None:
+        gh = self.fake(closing=[], body="```\nRefs: #9\n```\r\nRefs: #41")
+        gh.graphql["PolicyRefsIssue"] = refs_answer(self.issue_node())
+        result = self.eligibility()
+        self.assertEqual((result.reason, result.issue), (None, 41))
+
+    def test_another_repository_or_several_issues_refuse(self) -> None:
+        for body, reason in (
+            ("Refs: other/repo#41", "refs-line-not-plain"),
+            ("Refs: https://github.com/other/repo/issues/41", "refs-line-not-plain"),
+            ("Refs: #41, #42", "refs-line-not-plain"),
+            ("refs: #41", "refs-line-not-plain"),
+            ("Refs: #41\nRefs: other/repo#42", "refs-line-not-plain"),
+            ("Refs: #41\n\nRefs: #42", "refs-issues:2"),
+        ):
+            with self.subTest(body=body):
+                gh = self.fake(closing=[], body=body)
+                self.assertEqual(self.eligibility().reason, reason)
+                self.assertEqual(self.refs_calls(gh), 0)
+        # The same issue named twice is one issue.
+        gh = self.fake(closing=[], body="Refs: #41\nRefs: #41")
+        gh.graphql["PolicyRefsIssue"] = refs_answer(self.issue_node())
+        self.assertEqual(self.eligibility().issue, 41)
+
+    def test_a_refs_number_that_is_a_pull_request_or_moved_refuses(self) -> None:
+        gh = self.fake(closing=[], body="Refs: #41")
+        gh.graphql["PolicyRefsIssue"] = refs_answer(pulls=(41,))
+        self.assertEqual(self.eligibility().reason, "refs-not-an-issue")
+        gh = self.fake(closing=[], body="Refs: #41")
+        gh.graphql["PolicyRefsIssue"] = refs_answer(
+            self.issue_node(repository="other/repo")
+        )
+        self.assertEqual(self.eligibility().reason, "linked-issue-other-repository")
+        gh = self.fake(closing=[], body="Refs: #41")
+        gh.graphql["PolicyRefsIssue"] = 502
+        self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
+
+    def test_a_refs_number_that_names_nothing_refuses_as_no_issue(self) -> None:
+        # A typo: no issue or pull request has the number. It names no
+        # issue here (`no_issue_here`), never a read error.
+        gh = self.fake(closing=[], body="Refs: #99999")
+        gh.graphql["PolicyRefsIssue"] = refs_answer(self.issue_node())
+        self.assertEqual(self.eligibility().reason, "refs-not-an-issue")
+        self.assertTrue(policy.no_issue_here("refs-not-an-issue"))
+        self.assertEqual(
+            policy.recheck_lane_issue(REPO, 7, issue=41), "refs-not-an-issue"
+        )
+        # NOT_FOUND anywhere else, or beside another error, stays unreadable.
+        for errors in (
+            [{"type": "NOT_FOUND", "path": ["repository"]}],
+            [
+                {"type": "NOT_FOUND", "path": ["repository", "issueOrPullRequest"]},
+                {"type": "INTERNAL"},
+            ],
+            [{"type": "RATE_LIMITED", "path": ["repository", "issueOrPullRequest"]}],
+        ):
+            with self.subTest(errors=errors):
+                gh = self.fake(closing=[], body="Refs: #99999")
+                answer = {
+                    "data": {"repository": {"issueOrPullRequest": None}},
+                    "errors": errors,
+                }
+                gh.graphql["PolicyRefsIssue"] = subprocess.CompletedProcess(
+                    [], 1, json.dumps(answer), "gh: error"
+                )
+                self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
+        # An answer with no errors and no repository is no answer.
+        gh = self.fake(closing=[], body="Refs: #41")
+        gh.graphql["PolicyRefsIssue"] = {}
+        self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
+        # Nor is a null issue without NOT_FOUND "no issue".
+        gh = self.fake(closing=[], body="Refs: #41")
+        gh.graphql["PolicyRefsIssue"] = {"repository": {"issueOrPullRequest": None}}
+        self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
+
+    def test_a_closing_issue_wins_over_refs(self) -> None:
+        gh = self.fake(body="Refs: #42")
+        result = self.eligibility()
+        self.assertEqual((result.reason, result.issue), (None, 41))
+        self.assertEqual(self.refs_calls(gh), 0)
+        # Two closing issues still refuse; a Refs line does not pick one.
+        self.fake(
+            closing=[self.issue_node(), self.issue_node(number=42)], body="Refs: #41"
+        )
+        self.assertEqual(self.eligibility().reason, "linked-issues:2")
+        # Another repository's closing issue is not "none": Refs is not read.
+        self.fake(closing=[self.issue_node(repository="other/repo")], body="Refs: #41")
+        self.assertEqual(self.eligibility().reason, "linked-issue-other-repository")
+
+    def test_the_enqueue_recheck_reads_the_refs_line_again(self) -> None:
+        gh = self.fake(closing=[], body="Refs: #42")
+        gh.graphql["PolicyRefsIssue"] = refs_answer(self.issue_node(number=42))
+        self.assertEqual(
+            policy.recheck_lane_issue(REPO, 7, issue=41), "closing-issue-changed:41>42"
+        )
+        self.fake(closing=[], body="<!-- Refs: #41 -->")
+        self.assertEqual(
+            policy.recheck_lane_issue(REPO, 7, issue=41), "linked-issues:0"
+        )
+
+    def test_the_worker_tier_reads_class_and_claim_from_the_refs_issue(self) -> None:
+        refs_issue = {
+            "number": ISSUE,
+            "lastEditedAt": None,
+            "repository": {"nameWithOwner": REPO},
+            "labels": {"totalCount": 1, "nodes": [{"name": "work-class: structural"}]},
+        }
+        gh = eligibility_fake(self, issues=[], pr={"body": f"Refs: #{ISSUE}"})
+        gh.graphql["PolicyRefsIssue"] = refs_answer(refs_issue)
+        timeline = gh.rest[f"repos/{REPO}/issues/{ISSUE}/timeline?per_page=100"]
+        timeline[0]["label"]["name"] = "work-class: structural"
+        result = eligibility()
+        self.assertTrue(result.eligible, result.reason)
+        self.assertEqual((result.work_class, result.issue), ("C3", ISSUE))
+        # An agent's label on the Refs issue is not a human's class.
+        timeline[0]["actor"] = {"login": "agent-lanes[bot]", "type": "Bot"}
+        self.assertEqual(eligibility().reason, "class-provenance:labeler-not-human")
+
+    def test_an_unclaimed_refs_issue_is_refused_claim_missing(self) -> None:
+        gh = eligibility_fake(self, issues=[], pr={"body": f"Refs: #{ISSUE}"})
+        gh.graphql["PolicyRefsIssue"] = refs_answer(
+            {
+                "number": ISSUE,
+                "lastEditedAt": None,
+                "repository": {"nameWithOwner": REPO},
+                "labels": {
+                    "totalCount": 1,
+                    "nodes": [{"name": "work-class: mechanical"}],
+                },
+            }
+        )
+        gh.rest[f"repos/{REPO}/issues/{ISSUE}/comments?per_page=100"] = []
+        self.assertEqual(eligibility().reason, "claim-missing")
 
 
 OWNER_LOGIN = "kyle-sexton"
@@ -3568,6 +3771,24 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         # Before the enqueue the issue is read again: still none here holds.
         self.fake_lane(author=user(OWNER_LOGIN), closing=[])
         self.assertIsNone(policy.recheck_lane_issue(REPO, 7, issue=None))
+
+    def test_an_adopted_pr_reads_a_refs_issue_as_a_closing_one(self) -> None:
+        # One Refs issue is its issue, as resolve-pr gives the verifier; Refs
+        # lines that name none or several leave the body as its intent.
+        committed = {"sha": HEAD, "commit": {"committer": {"date": IDLE}}}
+        for body, issue in (
+            ("Refs: #41", 41),
+            ("Refs: #41\nRefs: #42", None),
+            ("Refs: other/repo#41", None),
+        ):
+            with self.subTest(body=body):
+                gh = self.fake_lane(author=user(OWNER_LOGIN), closing=[], body=body)
+                gh.graphql["PolicyRefsIssue"] = refs_answer(self.issue_node())
+                gh.rest[self.COMMIT] = committed
+                result = self.eligibility(owner_pr(body=body))
+                self.assertEqual((result.reason, result.issue), (None, issue))
+                self.assertEqual(result.body_is_intent, True)
+                self.assertIsNone(policy.recheck_lane_issue(REPO, 7, issue=issue))
 
     def test_only_a_script_written_apps_body_is_its_intent(self) -> None:
         # A model-written App body (claude[bot]) would grade the diff against

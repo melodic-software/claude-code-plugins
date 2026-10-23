@@ -328,6 +328,23 @@ class TheKeyCoversEveryInput(unittest.TestCase):
                 self.assertIsNone(skip.pr_state(node))
 
 
+class ARefsPullRequestIsNeverSkipped(unittest.TestCase):
+    """The key carries closing issues' update times only, so a pull request
+    linked by a `Refs:` line has no key and is gated every run."""
+
+    def test_a_refs_issue_gives_no_state(self) -> None:
+        refs = _node()
+        refs["closingIssuesReferences"] = {"totalCount": 0, "nodes": []}
+        refs["body"] = "Refs: #3\n\nPart one."
+        self.assertIsNone(skip.pr_state(refs))
+        # No issue at all, or a closing one beside a Refs line, keeps a key.
+        refs["body"] = "Part one."
+        self.assertIsNotNone(skip.pr_state(refs))
+        closing = _node()
+        closing["body"] = "Refs: #4"
+        self.assertIsNotNone(skip.pr_state(closing))
+
+
 class ASkipRepeatsOnlyAnUnchangedAllowedRefusal(unittest.TestCase):
     def test_when_every_candidate_would_be_skipped_the_first_is_gated(self) -> None:
         kept, rows, carried = _select({"7": _stored(_key())})

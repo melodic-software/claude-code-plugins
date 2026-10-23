@@ -94,6 +94,10 @@ the span). Should-not-trigger probes are exempt.
 
 ## emit-plugin-eval results
 
+Each emitted `prompt.md` allows `Skill`, `Read`, `Glob` and `Grep`, so an exploratory read
+is not a denied call that marks the run INVALID. Run the emitted cases with `--keep-temp`:
+`run-validity.py` checks the traces, and they do not resolve without it.
+
 No script ingests `plugin-eval` or `claude -p` results. Turning them into a report JSON
 that matches `score` output, so `compare` can diff it against the baseline, is a manual step
 today.

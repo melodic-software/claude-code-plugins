@@ -550,7 +550,7 @@ description: invocation probe ${skill} ${id} (${split}, expect_trigger=${expect}
 tags: [invocation-probe, ${split}]
 runs: ${runs}
 max_turns: 8
-allowed_tools: [Skill]
+allowed_tools: [Skill, Read, Glob, Grep]
 expected_outcome: Skill ${skill} $(if [[ "$expect" == "true" ]]; then echo fires; else echo does not fire; fi)
 ---
 
