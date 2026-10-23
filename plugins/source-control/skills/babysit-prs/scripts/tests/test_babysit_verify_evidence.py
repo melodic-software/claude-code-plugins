@@ -1097,7 +1097,7 @@ class FailsOnARefsPullRequestForTheSameIssueCount(unittest.TestCase):
                 self.assertEqual(read(fake).refusal, refusal)
 
     def test_a_long_cross_reference_timeline_holds_nothing(self) -> None:
-        # Anyone can cross-reference an issue: 101 mentions of it, from
+        # Anyone can cross-reference an issue, so a hundred and one mentions, from
         # issues here or in another repository, a page of 100 cut from the
         # count, hold no pull request for it, closing or `Refs:`, and its
         # FAILs still count by name.
@@ -1766,7 +1766,7 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
 
     def test_a_refs_number_that_names_nothing_names_no_issue(self) -> None:
         # GitHub answers a number with no issue or pull request NOT_FOUND
-        # and gh exits 1: no issue, so the pass recording issue 7 refuses
+        # and gh exits 1: no issue, so the pass recording the issue refuses
         # as for any other link that names none, and no read error.
         self.assertEqual(read(self.refs("Refs: #99999")).refusal, "verify:spec-changed")
         # Any other failed read stays unreadable.
