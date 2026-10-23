@@ -652,16 +652,17 @@ job. The caller calls the read file twice, each call with one secret, named for 
 `fix-ci-subscription` passes only `claude-code-oauth-token`
 (`AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN`); its `fix-docs`, `address-feedback` and
 `review-dependency` calls and their `-subscription` calls do the same. Both queue in
-`pr-pipeline-write-<pr>`. Each fallback call but fix-docs's starts on no first-call output: a
-handoff job (`fix-ci-handoff`, `fix-ci-rung-up-handoff`, `address-feedback-handoff`,
-`review-dependency-handoff`) with only `actions: read` that checks out nothing reads this run's
-jobs through the Actions API once, and the fallback runs unless the first call's
-`<call> / report` job has a `Post the check run` step that succeeded. A failed read runs the
-fallback too. These fallback calls pass `fallback: handoff`, so the lane record says the key
-posted no check, not why: only the run job, which head code can forge, knows whether it was a
-credit stop or an empty key. `fix-docs-subscription` still runs when `fix-docs`'s `lane-class`
-output is `credit-stop` or its `credential-present` is `false`, each compared to that fixed
-string, and passes `fallback: credit-stop` or `no-key`.
+`pr-pipeline-write-<pr>`. Each fallback call starts on no first-call output: a handoff job
+(`fix-ci-handoff`, `fix-ci-rung-up-handoff`, `address-feedback-handoff`,
+`review-dependency-handoff`, and `pr-refine.yml`'s `fix-docs-handoff`) with only `actions: read`
+that checks out nothing reads this run's jobs through the Actions API once, and the fallback runs
+unless the first call's `<call> / report` job has a `Post the check run` step that succeeded. A
+failed read runs the fallback too, except for `fix-docs`. `fix-docs-subscription` also needs the
+first call's `<call> / broker-check` job to show the broker's allow: `fix-docs` posts nothing on a
+decline, so a kill switch or a refusal starts no second leg, and a failed read starts none either,
+since with no check posted `fix-docs-dispatch.mjs` dispatches the PR again. These fallback calls
+pass `fallback: handoff`, so the lane record says the key posted no check, not why: only the run
+job, which head code can forge, knows whether it was a credit stop or an empty key.
 
 1. Before any head code, the run job fails red unless the `role` is lower-case kebab, the model
    route resolves an alias (`default` resolves to none) and the skill is advisory. While sudo
@@ -1222,14 +1223,17 @@ refusal posts nothing.
 The run's `escalation-reason` output is the script's reason, else the select step's. The runner
 accepts the script's reasons only in this mode.
 
-In `pr-unblock.yml` the same leaf, as the `apply-docs-patch` job, follows `fix-docs`, which has
+In `pr-refine.yml` the same leaf, as the `apply-docs-patch` job, follows `fix-docs`, which has
 no prepare mode: the caller passes no `patch-prepare`, so the script takes the `default` row, and
-runs the job only on a `written` patch. That row refuses the universal set, escalating
+runs the job only on a `written` patch. As fix-ci's `apply-patch` does, it takes one leg (the
+fallback call when it ran, else the first) and every patch input from that leg's scan job
+(`scan-patch-state`, `scan-patch-sha256`, `scan-patch-attempt`, `scan-reply-attempt`), never from
+a run job. That row refuses the universal set, escalating
 `patch-protected-path`, caps a patch at 300 paths (`patch-invalid`), takes a moved head with
 `--3way` when the moved commits touch no patched path (`skip-moved-head: false`), and commits
-`Apply fix-docs on <head ref>` with the trailer `Lane-Activity: pr-unblock/fix-docs`.
-`report-escalation` does not need `apply-docs-patch` and takes no `patch-*` reason, so an
-escalation leaves only the neutral `awaiting-human` check.
+`Apply fix-docs on <head ref>` with the trailer `Lane-Activity: pr-refine/fix-docs`.
+`pr-refine.yml` has no escalation job, so a refusal leaves only the neutral `awaiting-human`
+check.
 
 In issue mode the same leaf is `apply-issue-patch`, which runs
 [`apply-patch.mjs`](../../../.github/scripts/apply-patch/apply-patch.mjs) with `PATCH_TARGET=issue`
@@ -1417,7 +1421,8 @@ outputs are sent), so the report job differs:
   goes posts its check on the head it ran on, not failure on the new head. They also pass
   `post-decline: false`: fix-docs is dispatched once per PR, so a run that stops before its
   trigger gate posts no `not-assessed` neutral and the PR is dispatched again; and
-  `apply-docs-patch` passes the read runner's `head-sha` output as `patch-head-sha`; apply-patch still applies onto the head its own gate reads and measures the
+  `apply-docs-patch` passes `fix-docs-head`'s head as `patch-head-sha`, never the read runner's
+  run-job `head-sha` output; apply-patch still applies onto the head its own gate reads and measures the
   `default` row's refusals from there.
 
 What it trusts:

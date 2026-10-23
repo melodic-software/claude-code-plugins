@@ -111,13 +111,13 @@ reader applies.
 
 | Lane | Starts on |
 |---|---|
-| `pr-refine` | no caller today; `fix-docs` runs in `pr-unblock` |
+| `pr-refine` | a `fix-docs` dispatch from `pr-unblock-dispatch.yml` for each ready PR that changes Markdown and never had `fix-docs`, after a push to the default branch, or a trusted human's dispatch |
 | `pr-run-checks` | dispatch from `pr-refine` |
 | `pr-review`, `pr-review-security` | dispatch from `pr-refine` |
 | `pr-verify` | dispatch from `pr-refine` |
 | `pr-explain` | dispatch from `pr-refine`, alongside verify |
 | `pr-require-checks` | each verify result |
-| `pr-unblock` | a dispatch for each conflicting PR, each unreviewed review-tier Dependabot PR, each failing lanes App PR and each ready PR a person opened that changes Markdown and never had `fix-docs` after a push to the default branch, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, or a trusted human's dispatch |
+| `pr-unblock` | a dispatch for each conflicting PR, each unreviewed review-tier Dependabot PR, and each failing lanes App PR after a push to the default branch, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, or a trusted human's dispatch |
 | `pr-merge` | final check green, or a hold removed |
 | `work-unblock` | an issue closing, by a listed human, and an hourly sweep of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran); labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue`. The sweep also restarts or re-fires stopped issue runs and relabels a red-main fix issue a repeat failure reopened |
 | `post-merge-verify` | push to the default branch |
@@ -284,24 +284,28 @@ and no `fix-ci` run for the PR still queued or going, at most `limits.fix-ci-per
 lowest number first. Their run ids join the dispatched-runs record. The dispatcher job's
 concurrency group cancels a run in progress, so a burst of pushes ends in one listing.
 
-`pr-unblock`'s `fix-docs` runs the same way in three jobs of `pr-unblock.yml`: `fix-docs` (a
+`pr-refine`'s `fix-docs` runs the same way in three jobs of `pr-refine.yml`: `fix-docs` (a
 `read` skill in patch output mode with no prepare mode, on run-claude-cli with the automations
 role's API key) runs `ai-slop:audit fix` on the PR's changed Markdown files;
-`fix-docs-subscription` runs the same on the role's OAuth token, only after a credit stop or with
-the key empty; and `apply-docs-patch` runs the `apply-patch` activity on a `written` patch,
+`fix-docs-subscription` runs the same on the role's OAuth token, only when `fix-docs-handoff`'s
+read of this run's jobs shows the broker allowed `fix-docs` and `fix-docs` posted no check, as a
+credit stop or an empty key leaves it; and `apply-docs-patch` runs the `apply-patch` activity on a `written` patch,
 pushing it as one commit under `patch-rules.json`'s `default` row, which refuses the universal
 set, every agent instruction path and more than 300 paths. No change is the common case, so an
-`empty` patch runs no push job. `report-escalation` does not follow `fix-docs`: a refused or
-unappliable patch posts the `pr-unblock / apply-patch` check neutral `awaiting-human` and labels
+`empty` patch runs no push job. `pr-refine.yml` has no escalation job: a refused or
+unappliable patch posts the `pr-refine / apply-patch` check neutral `awaiting-human` and labels
 nothing. Every job trusts the default branch tip (`trusted-base: default-tip`). `fix-docs` routes
 to the `docs-fix` profile ([Models](#models)).
 
-The same `pr-unblock-dispatch.yml` run starts `fix-docs` once per pull request, as a PR opening
-ready or turning ready used to: one GraphQL query per page of 50 open pull requests, its
-`rateLimit.cost` logged, lists the non-draft, same-repository ones into `main` that a person
-opened (a `User` author, so no lanes App or other bot PR), with no `do-not-merge` or
-`needs-human` label, that change at least one `.md` file, and whose head has no
-`pr-unblock / fix-docs` check run from the GitHub Actions app. For each, lowest number first, one
+The same `pr-unblock-dispatch.yml` run dispatches `pr-refine.yml`'s `fix-docs` once per pull
+request: one GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, lists
+the non-draft, same-repository ones into `main`, whoever opened them, lanes App PRs included,
+except Dependabot (account 49699333, whose own rebases a lane commit stops), the release App
+(337859524) and the standards-sync App (300666570), whose files are generated or synced; an
+author with no account id is skipped. It keeps those with no `do-not-merge` or `needs-human`
+label, that change at least one `.md` file, and whose head has no `pr-refine / fix-docs` or
+`pr-unblock / fix-docs` (the lane `fix-docs` ran in before) check run from the GitHub Actions
+app. For each, lowest number first, one
 more query reads the check runs on its last 50 commits, and a PR with a `fix-docs` run on any of
 them is skipped for good; the dispatch record keeps its head so the next run skips that read. A
 run older than 50 commits, or a force-push that dropped its commit, costs one more run. It sends
@@ -456,7 +460,7 @@ Each leaf declares:
   paths `.github/CODEOWNERS` lists
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities); `changedPathTargets` in
   [`resolve.mjs`](../../../.github/actions/resolve-config/resolve.mjs)). When nothing is left, the
-  activity skips with `not-applicable-paths`: `pr-unblock / fix-docs` does not run on a PR whose
+  activity skips with `not-applicable-paths`: `pr-refine / fix-docs` does not run on a PR whose
   only changed Markdown is instruction surfaces or CODEOWNERS paths, such as this directory.
 - `scope` (`diff`, `tree`, `target`) and `applies-when` (paths, labels, `labels-absent`, work
   classes, events, `mergeable`, `draft`, `admission`). `mergeable` is `conflicting` or `clean`,
@@ -1281,8 +1285,8 @@ head:
   every pull request for that issue refuse `verify:unreadable`: a hold, not a way past the cap;
 - a counted `fail` at the head, under any pull request number, refuses (`verify:fail`);
 - a counted `fail` at another head of the pull request (its number, one of its commits, or a
-  verdict recording its head branch, read from the name's digest, or from the verdict JSON for a
-  name without one) refuses (`verify:earlier-fail`). The name is trusted only from a run of
+  verdict recording its head branch, read from the name's digest, or for a name without one from
+  the head-ref map below, else the verdict JSON) refuses (`verify:earlier-fail`). The name is trusted only from a run of
   verifier origin, as the JSON is, and equal branches always give equal digests, so a collision
   can only tie a `fail`, never untie one. A digest-named `fail` is decided by its name even when
   its JSON cannot be read, where a name without the digest refuses `verify:unreadable` then. Counted `pass` or
@@ -1359,7 +1363,7 @@ network error is read again, three reads in all with backoff, all inside the one
 read would get; any other failure, a timeout, a 429 or a rate-limit 403 included, is not. A failed listing is never
 saved, and is kept for that candidate's gate run: the pull request and every queued entry refuse `verify:unreadable` without the
 listing being paged again, so a listing outage holds the whole queue rather than merging blind.
-The lane token holds no Actions permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
+pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
 records, the download of a verdict.json (by the listed artifact's id, one request where `gh run
 download` lists the run's artifacts first) and the compare of a run's head to main (a `contents: read` call). The gate's
@@ -1374,7 +1378,7 @@ is refused with a 429, or a 403 whose message names a rate limit, the gate reads
 candidate's evidence again with the lane token (they are all GETs). It records the refusal in
 `BABYSIT_RUN_CACHE`, so later candidates in the run skip `GITHUB_TOKEN`. Any other refusal is not
 retried. The verdict downloads, the listing, the run records and the compares
-stay on `GITHUB_TOKEN`: the lane token holds no Actions permission. An untied FAIL whose record
+stay on `GITHUB_TOKEN`; the lane token holds Actions read (owner decision Q8) but these reads do not fall back to it. An untied FAIL whose record
 cannot be read refuses the run's later candidates through `BABYSIT_RUN_CACHE` without another
 download; the next run reads it again. `GITHUB_TOKEN`'s pool is shared with the full-run dispatch and the post-merge checks. Every other call, every write
 included, keeps the lane token. That job checks out only main and runs no pull request code.
@@ -1392,7 +1396,15 @@ counts whether its run is still running or finished, and a re-run keeps every fi
 whether the run is pr-verify's, so a stale record never turns a FAIL away. A PASS's run record is
 read by each gate process, because a re-run can undo a completed success. An untied FAIL whose
 name carries no head-ref digest has its recorded head ref shared for the run under the artifact's id, since the contents an id names
-never change (an overwrite uploads a new id). On the `--unattended` path only, the default branch
+never change (an overwrite uploads a new id). Those head refs, by artifact id, also carry to the
+next run as the `pr-merge-head-refs` artifact (`.github/scripts/pr-merge/head-ref-map.mjs`): each
+scheduled or hand-started run uploads the map it read plus its own downloads, kept while the
+artifact listing still lists the id, and the next run reads it from the newest such run, found the
+way the gate cursor is. Only a run's own steps can upload its artifacts, so the map was written by
+the default branch's `pr-merge.yml`; it never passes through `actions/cache`. An id the map holds
+ties or unties its FAIL as its downloaded record would, with no download; any other id is
+downloaded, and a missing, expired or malformed map leaves every one to download. The map holds
+no verdict. On the `--unattended` path only, the default branch
 and the base's rules are reused for two minutes, and a failed read is never shared; before an
 enqueue, a default branch or rules a gate took from the file are read again for the branch read,
 and any change holds. An attended gate run reads both fresh. Without the variable nothing is shared.

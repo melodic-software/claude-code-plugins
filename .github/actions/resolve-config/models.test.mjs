@@ -337,7 +337,7 @@ test("live config: the live issue-dimensions maps every org option and runs a kn
 });
 
 test("live config: an activity with no issue input takes no dimensions", () => {
-  const slot = liveSlot("pr-unblock", "fix-docs");
+  const slot = liveSlot("pr-refine", "fix-docs");
   assert.equal(slot["issue-dimensions"], undefined);
   assert.equal(slot["timeout-minutes"], undefined);
 });
@@ -495,7 +495,7 @@ for (const activity of ["fix-ci", "address-feedback"]) {
 // The role map's worker runs mechanical work on sonnet at its own effort,
 // medium; the profile keeps standard's 75 turns.
 test("live config: fix-docs runs as a mechanical worker, sonnet at the worker's effort, 75 turns", () => {
-  const slot = liveSlot("pr-unblock", "fix-docs");
+  const slot = liveSlot("pr-refine", "fix-docs");
   assert.deepEqual(slot.models, {
     profile: "docs-fix",
     role: "worker",

@@ -2,7 +2,8 @@
 # Structure test: pr-run-activity-read.yml admits a github-actions[bot]
 # workflow_dispatch only through a pr-unblock-dispatch.yml run, or a
 # pr-feedback-dispatch.yml run whose recorded review run reviewed the PR's
-# current head, that sent it to pr-unblock.yml, as
+# current head, that sent it to pr-unblock.yml, or to pr-refine.yml for the
+# pr-refine lane, as
 # docs/conventions/pr-pipeline/pr-run-activity.md (run job step 3) states. The gate's own checks are check-trusted-trigger's suite; this
 # asserts only the read file's wiring of them.
 # test-scope: .github/workflows/pr-run-activity-read.yml .github/standards/runner-policy/package.json
@@ -31,8 +32,8 @@ const gate = steps.find((s) => s.id === "gate")?.with ?? {};
 say(gate["dispatcher-run-id"] === "${{ inputs.dispatcher-run-id }}", "the trigger gate receives the dispatcher-run-id input");
 say(gate["dispatcher-workflow"] === ".github/workflows/pr-unblock-dispatch.yml",
   "the gate trusts only a pr-unblock-dispatch.yml dispatcher run");
-say(gate["dispatched-workflow"] === ".github/workflows/pr-unblock.yml",
-  "the gate admits a dispatcher-sent run only when it is pr-unblock.yml");
+say(gate["dispatched-workflow"] === "${{ inputs.lane == 'pr-refine' && '.github/workflows/pr-refine.yml' || '.github/workflows/pr-unblock.yml' }}",
+  "the gate admits a dispatcher-sent run only when it is pr-refine.yml for the pr-refine lane, else pr-unblock.yml");
 // pr-feedback-dispatch.yml, started by workflow_run after a review lane,
 // vouches for address-feedback's model calls only: the gate gets it only with
 // the select job's feedback context, which only a review-threads call passes.
