@@ -53,7 +53,6 @@
 //                        label (default .base/.work-item-tracker.json)
 //   RESOLVED_CONFIG      the resolve-config output, for the hold paths
 //   EVENT_NAME           the run's event; only READER_EVENTS read verdicts and arm
-//   MAX_VERIFY_FAILS     merge.max-verify-fails (default: the reader's)
 //   BABYSIT_VERIFY_*, BABYSIT_RUN_CACHE  the reader's Actions token (the
 //                        job's GITHUB_TOKEN), saved listing, head-ref map and
 //                        run cache, as the gate's
@@ -88,7 +87,7 @@ export const PULLS_QUERY = `query($owner: String!, $name: String!, $after: Strin
     pullRequests(states: OPEN, baseRefName: "main", first: 100, after: $after) {
       pageInfo { hasNextPage endCursor }
       nodes {
-        id number isDraft isCrossRepository headRefOid body
+        id number isDraft isCrossRepository headRefOid baseRefOid body
         author { __typename login }
         labels(first: 100) { totalCount nodes { name } }
         autoMergeRequest { enabledAt }
@@ -194,12 +193,13 @@ export function verifyHold(evidence, head) {
 // The gate's own reader, one process per pull request; the run shares its
 // artifact listing, head-ref map and run cache through the BABYSIT_* files.
 export function pythonVerify(env) {
-  const verify = async ({ number, headRefOid: head }) => {
-    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "evidence", "--repo", env.GITHUB_REPOSITORY];
-    if (env.MAX_VERIFY_FAILS) {
-      args.push("--max-fails", String(env.MAX_VERIFY_FAILS));
+  const verify = async ({ number, headRefOid: head, baseRefOid: base }) => {
+    if (!SHA.test(String(base))) {
+      throw new Error("its base commit is not a commit SHA");
     }
-    const done = spawnSync("python3", [...args, String(number), head], { encoding: "utf8", env, timeout: 240_000 });
+    // --base-sha: the gate's FAIL cap, the lower of the base's and main's.
+    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "evidence", "--repo", env.GITHUB_REPOSITORY, "--base-sha", base];
+    const done = spawnSync("python3", [...args, String(number), head], { encoding: "utf8", env, timeout: VERIFY_TIMEOUT_MS });
     if (done.status !== 0) {
       throw new Error(`babysit_verify_evidence.py exited ${done.status ?? done.signal}: ${String(done.stderr ?? "").trim().split("\n").at(-1)}`);
     }
@@ -212,10 +212,12 @@ export function pythonVerify(env) {
 // hand-started run, which a person starts to retry a pull request that looks
 // stuck.
 export const READER_EVENTS = Object.freeze(["schedule", "workflow_dispatch"]);
-// Reader time per run: past it, the rest of the pull requests are left for
-// the next run rather than cut off by the step's timeout (judgment, inside
-// the step's 10 minutes).
-const VERIFY_BUDGET_MS = 7 * 60_000;
+// The reader's per pull request limit, and when the run stops starting one:
+// a read started at the budget ends by VERIFY_BUDGET_MS + VERIFY_TIMEOUT_MS,
+// 9 minutes, inside the step's 10 (pr-merge.yml), so no read is cut off and
+// the rest of the pull requests are left for the next run.
+export const VERIFY_TIMEOUT_MS = 4 * 60_000;
+export const VERIFY_BUDGET_MS = 5 * 60_000;
 
 // What to do with one listed pull request: { action: arm | disarm | none, reason }.
 // `detail` is its discussion; undefined means not read yet, and an arm or a

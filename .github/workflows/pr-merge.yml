@@ -1404,8 +1404,7 @@ jobs:
           config=.base/docs/conventions/pr-pipeline.yaml
           REPORT_ONLY=$(yq '.merge."report-only"' "$config")
           LANES_BOT_LOGIN=$(yq '.merge."agent-identity" // ""' "$config")
-          MAX_VERIFY_FAILS=$(yq '.merge."max-verify-fails" // ""' "$config")
-          export REPORT_ONLY LANES_BOT_LOGIN MAX_VERIFY_FAILS
+          export REPORT_ONLY LANES_BOT_LOGIN
           node .base/.github/scripts/pr-merge/enable-auto-merge.mjs
 
       - name: Revoke the lane token

@@ -3646,5 +3646,111 @@ class EvidenceCommandTest(unittest.TestCase):
                 ve.main(argv)
 
 
+class EvidenceCommandReadsAsTheGateDoes(unittest.TestCase):
+    """The CLI runs once per pull request with the run's shared listing, so a
+    pass judged on that saved listing is judged again on its own, and the
+    FAIL cap is the lower of the base's and the default branch head's."""
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.path = str(pathlib.Path(tmp.name, "verify-listing.json"))
+        patcher = mock.patch.dict("os.environ", {ve.LISTING_ENV: self.path})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def cli(self, fake: FakeGitHub, *extra: str) -> dict[str, Any]:
+        out = io.StringIO()
+        with (
+            mock.patch.object(policy, "pull_request", return_value=pull()),
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+            contextlib.redirect_stdout(out),
+        ):
+            argv = ["evidence", "--repo", REPO, *extra, str(PR), HEAD]
+            self.assertEqual(ve.main(argv, now=NOW), 0)
+        return json.loads(out.getvalue())
+
+    def test_a_pass_on_the_saved_listing_meets_a_fail_uploaded_since(self) -> None:
+        # The first pull request of the run saves a listing with a pass only.
+        self.assertIsNone(self.cli(passing())["refusal"])
+        self.assertTrue(pathlib.Path(self.path).exists())
+        # A FAIL at the head lands; the next process's saved listing lacks it.
+        fake = passing(artifact(named(HEAD, "fail"), 2), runs={2: run(2)})
+        self.assertEqual(self.cli(fake)["refusal"], "verify:fail")
+        self.assertEqual(listings(fake), 1)
+
+    def test_a_refusal_on_the_saved_listing_reads_no_listing(self) -> None:
+        fake = FakeGitHub([artifact(named(HEAD, "fail"), 1)], {1: run(1)})
+        self.assertEqual(self.cli(fake)["refusal"], "verify:fail")
+        self.assertEqual(self.cli(fake)["refusal"], "verify:fail")
+        self.assertEqual(listings(fake), 1)
+
+    def cap(self, base_cap: int, main_cap: int) -> int:
+        """The cap the reader judges with for --base-sha, the default branch
+        head's config carrying `main_cap`."""
+        config = policy.PipelineConfig(MAIN_SHA, "C2", "pr-merge", None, None, (), None)
+        seen: list[int] = []
+
+        def judge(
+            reader: ve.Reader, number: int, head: str, pr: Any = None
+        ) -> ve.Evidence:
+            seen.append(reader.max_fails)
+            return ve.Evidence(None, head, (), 0)
+
+        with (
+            mock.patch.object(
+                policy,
+                "read_config_at",
+                return_value=dataclasses.replace(
+                    config, base_sha=EARLIER, max_verify_fails=base_cap
+                ),
+            ),
+            mock.patch.object(
+                policy,
+                "_default_branch_config",
+                return_value=dataclasses.replace(config, max_verify_fails=main_cap),
+            ),
+            mock.patch.object(ve.Reader, "evidence", judge),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            ve.main(
+                [
+                    "evidence",
+                    "--repo",
+                    REPO,
+                    "--max-fails",
+                    "9",
+                    "--base-sha",
+                    EARLIER,
+                    str(PR),
+                    HEAD,
+                ],
+                now=NOW,
+            )
+        return seen[0]
+
+    def test_main_raising_the_cap_does_not_raise_it(self) -> None:
+        self.assertEqual(self.cap(3, 5), 3)
+
+    def test_main_lowering_the_cap_lowers_it(self) -> None:
+        self.assertEqual(self.cap(3, 2), 2)
+
+    def test_an_unreadable_config_refuses(self) -> None:
+        out = io.StringIO()
+        with (
+            mock.patch.object(
+                policy,
+                "read_config_at",
+                side_effect=policy.PolicyReadError("contents 502"),
+            ),
+            contextlib.redirect_stdout(out),
+        ):
+            ve.main(
+                ["evidence", "--repo", REPO, "--base-sha", EARLIER, str(PR), HEAD],
+                now=NOW,
+            )
+        self.assertEqual(json.loads(out.getvalue())["refusal"], ve.UNREADABLE)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -49,6 +49,7 @@ const pull = (number, overrides = {}) => ({
   isDraft: false,
   isCrossRepository: false,
   headRefOid: HEAD,
+  baseRefOid: "d".repeat(40),
   body: `Closes #${number + 1000}\n\n## Summary\n\nDone.`,
   author: LANES,
   labels: { totalCount: 0, nodes: [] },
@@ -456,6 +457,7 @@ test("verifyHold allows only the reader's null refusal at the head read", () => 
 // from pr-verify.yml's completed, successful workflow_run run on main here.
 test("verdictHold counts a pass only from a successful pr-verify run on main", () => {
   const run = (overrides = {}) => ({
+    id: 11,
     path: VERIFY_PATH,
     event: "workflow_run",
     head_branch: "main",
@@ -465,7 +467,7 @@ test("verdictHold counts a pass only from a successful pr-verify run on main", (
     head_repository: { full_name: REPO },
     ...overrides,
   });
-  const hold = (records) => verdictHold(records, REPO);
+  const hold = (records) => verdictHold(Array.isArray(records) ? records.map((record) => ({ runId: 11, ...record })) : records, REPO);
   assert.equal(hold([{ verdict: "pass", run: run() }]), null);
   assert.equal(hold([{ verdict: "pass-notes", run: run() }]), null);
   assert.equal(hold([{ verdict: "pass", run: run({ conclusion: "failure" }) }, { verdict: "pass-notes", run: run() }]), null);
@@ -481,6 +483,9 @@ test("verdictHold counts a pass only from a successful pr-verify run on main", (
     assert.match(hold([{ verdict: "pass", run: run(bad) }]), /has not passed this head/, JSON.stringify(bad));
   }
   assert.match(hold([{ verdict: "fail", run: run() }]), /has not passed this head/);
+  // A record of another run than the one its artifact names counts nothing.
+  assert.match(hold([{ verdict: "pass", runId: 12, run: run() }]), /has not passed this head/);
+  assert.match(hold([{ verdict: "pass", runId: "11", run: run() }]), /has not passed this head/);
   assert.match(hold([]), /has not passed this head/);
   assert.match(hold(null), /could not be read/);
   assert.match(verdictHold([], "not a repo"), /could not be read/);
@@ -530,7 +535,7 @@ test("a reader that fails, prints no JSON or reports another head arms nothing a
     exits: "import sys\nsys.stderr.write('boom\\n')\nsys.exit(1)\n",
     garbage: "print('not json')\n",
     other: `import json\nprint(json.dumps({"refusal": None, "head": "${"c".repeat(40)}"}))\n`,
-    passes: `import json, sys\nprint(json.dumps({"refusal": None, "head": sys.argv[-1]}))\n`,
+    passes: `import json, sys\nassert sys.argv[-4:-2] == ["--base-sha", "${"d".repeat(40)}"], sys.argv\nprint(json.dumps({"refusal": None, "head": sys.argv[-1]}))\n`,
   };
   for (const [name, body] of Object.entries(scripts)) {
     writeFileSync(join(dir, `${name}.py`), body);

@@ -12,6 +12,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
+import { VERIFY_BUDGET_MS, VERIFY_TIMEOUT_MS } from "./enable-auto-merge.mjs";
+
 const read = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
 const merge = read("pr-merge.yml");
 const jobs = merge.slice(merge.indexOf("\njobs:\n"));
@@ -162,6 +164,13 @@ test("the issue lane finishing wakes only the enable-auto-merge job", () => {
   assert.match(arm, /\n {4}concurrency:\n {6}group: pr-merge-enable-auto-merge\n {6}queue: max\n/);
 });
 
+test("the last verifier read enable-auto-merge starts ends inside its step's timeout", () => {
+  const arm = job("enable-auto-merge");
+  const step = /- name: Arm and disarm auto-merge\n {8}if: .*\n {8}timeout-minutes: ([0-9]+)\n/.exec(arm);
+  assert.ok(step, "the arm step names its timeout");
+  assert.ok(VERIFY_BUDGET_MS + VERIFY_TIMEOUT_MS < Number(step[1]) * 60_000);
+});
+
 test("enable-auto-merge asks the broker for its own activity's merge token", () => {
   const arm = job("enable-auto-merge");
   const steps = [...arm.matchAll(/\n {10}lane: (.*)\n {10}activity: (.*)\n/g)].map((m) => `${m[1]}/${m[2]}`);
@@ -196,7 +205,8 @@ test("enable-auto-merge asks the broker for its own activity's merge token", () 
     arm,
     /- name: Read the head refs the last gate run kept\n {8}if: steps\.lane-token\.outputs\.token != '' && \(github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch'\)\n/,
   );
-  assert.match(arm, /MAX_VERIFY_FAILS=\$\(yq '\.merge\."max-verify-fails" \/\/ ""' "\$config"\)\n/);
+  // The reader resolves the FAIL cap itself, from the base and main (--base-sha).
+  assert.doesNotMatch(arm, /MAX_VERIFY_FAILS/);
 });
 
 // The dispatch POST's retry, run under bash against a stub gh that answers

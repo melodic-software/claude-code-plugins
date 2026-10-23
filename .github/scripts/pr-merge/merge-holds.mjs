@@ -26,8 +26,8 @@
 //
 // Command line: merge-holds.mjs <number> <body-file> <discussion-file>
 // <files-file> <denied-paths-file> <trusted-actors-file> <head-sha>
-// [<verdicts-file>]. The verdicts file holds one {name, verdict, run} per
-// line, run as GET actions/runs/{id} gives it, for each unexpired artifact
+// [<verdicts-file>]. The verdicts file holds one {name, verdict, runId, run}
+// per line, run as GET actions/runs/{runId} gives it, for each unexpired artifact
 // named a pass at the head; GITHUB_REPOSITORY names the repository. The
 // discussion file holds one REST issue comment, review or review comment per
 // line; the files file one JSON array per changed file, its path then any
@@ -184,9 +184,11 @@ export function verdictHold(records, repo, branch = "main") {
     return "its pr-verify verdicts could not be read";
   }
   const pass = records.find(
-    ({ verdict, run } = {}) =>
+    ({ verdict, runId, run } = {}) =>
       PASSES.includes(verdict) &&
-      run?.path === VERIFY_PATH &&
+      Number.isSafeInteger(runId) &&
+      run?.id === runId &&
+      run.path === VERIFY_PATH &&
       run.event === "workflow_run" &&
       run.head_branch === branch &&
       run.repository?.full_name === repo &&

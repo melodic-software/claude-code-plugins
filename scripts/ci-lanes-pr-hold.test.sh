@@ -292,6 +292,8 @@ $(run 13 .github/workflows/other.yml)
 $(run 14 .github/workflows/pr-verify.yml pull_request)
 $(run 15 .github/workflows/pr-verify.yml workflow_run work-resolve-issue/issue-1)
 $(run 16 .github/workflows/pr-verify.yml workflow_run main completed failure)")"
+# Run 17's read answers with run 11's record: another run than its artifact names.
+STUB_RUNS="$(jq -c '. + {"17": .["11"]}' <<<"$STUB_RUNS")"
 export STUB_RUNS
 
 STUB_PULL="$(pull 'Closes #1')"
@@ -317,7 +319,7 @@ else
 fi
 STUB_PULL="$(STUB_ARMED=1 pull 'Closes #1')"
 export STUB_DISARM_FAILS=1
-expect "a disarm that fails only warns, so ci-status stays green for pr-verify" 0 3 "::warning::could not turn off native auto-merge on #7"
+expect "a disarm that fails holds this head red until a re-run turns it off" 1 0 "::error::could not turn off native auto-merge on #7 after a push to its head, so this head stays red"
 unset STUB_DISARM_FAILS
 for action in edited labeled; do
   STUB_PULL="$(STUB_ARMED=1 pull 'Closes #1')" ACTION=$action
@@ -354,7 +356,7 @@ STUB_ARTIFACTS="{\"pr-verify-7-$OLD-pass\":[11],\"pr-verify-7-$SHA-fail\":[11]}"
 expect "in the merge queue, a pass at an older head and a FAIL at this one fail the group" 1 3 "pr-verify has not passed this head"
 STUB_ARTIFACTS="{\"pr-verify-8-$SHA-pass\":[11]}"
 expect "in the merge queue, another pull request's pass fails the group" 1 3 "pr-verify has not passed this head"
-for bad in 12:in-progress 13:another-workflow 14:a-pull-request-event 15:another-branch 16:a-failed-run 99:an-unreadable-run; do
+for bad in 12:in-progress 13:another-workflow 14:a-pull-request-event 15:another-branch 16:a-failed-run 17:another-run-s-record 99:an-unreadable-run; do
   STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[${bad%%:*}]}"
   if [[ ${bad%%:*} == 99 ]]; then
     expect "in the merge queue, a pass from ${bad#*:} fails closed" 1 3 "could not read run 99"

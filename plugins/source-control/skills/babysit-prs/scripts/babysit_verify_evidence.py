@@ -1255,12 +1255,18 @@ class Reader:
         return self.evidence(number, head, pr).refusal
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     """`evidence <number> <head>`: one pull request's evidence at `head` as
     one JSON line (`Evidence.report`), as pr-merge's gate judges it.
     enable-auto-merge.mjs arms native auto-merge only on a null `refusal`
     at the head it read. Exit 0 whenever the line is printed, a refusal
-    included."""
+    included.
+
+    With `--base-sha`, the FAIL cap is the gate's: `merge.max-verify-fails`
+    of the config at that base commit and at the default branch head, the
+    lower one (`with_default_branch`); a config that cannot be read refuses
+    `verify:unreadable`. A pass judged on the run's saved listing is judged
+    again on a listing of its own, as the gate does before it allows."""
     parser = argparse.ArgumentParser(
         prog="babysit_verify_evidence.py", allow_abbrev=False
     )
@@ -1269,13 +1275,39 @@ def main(argv: list[str] | None = None) -> int:
     cmd.add_argument("--repo", required=True)
     cmd.add_argument("--branch", default="main")
     cmd.add_argument("--max-fails", type=int, default=merge_policy.MAX_VERIFY_FAILS)
+    cmd.add_argument("--base-sha", default=None)
     cmd.add_argument("number", type=int)
     cmd.add_argument("head")
     args = parser.parse_args(argv)
-    if args.max_fails < 1 or not merge_policy.SHA_RE.fullmatch(args.head):
-        parser.error("--max-fails must be 1 or more and head a full commit SHA")
-    reader = Reader(args.repo, args.branch, max_fails=args.max_fails)
-    print(json.dumps(reader.evidence(args.number, args.head).report()))
+    if (
+        args.max_fails < 1
+        or not merge_policy.SHA_RE.fullmatch(args.head)
+        or (
+            args.base_sha is not None
+            and not merge_policy.SHA_RE.fullmatch(args.base_sha)
+        )
+    ):
+        parser.error(
+            "--max-fails must be 1 or more, and head and --base-sha full commit SHAs"
+        )
+    max_fails = args.max_fails
+    if args.base_sha is not None:
+        try:
+            base = merge_policy.read_config_at(args.repo, args.base_sha)
+            if base.error:
+                raise merge_policy.PolicyReadError(base.error)
+            config = merge_policy.with_default_branch(args.repo, base)
+        except merge_policy.PolicyReadError as exc:
+            refusal = Evidence(UNREADABLE, args.head, (), 0, f"config: {exc}")
+            print(json.dumps(refusal.report()))
+            return 0
+        max_fails = config.max_verify_fails
+    reader = Reader(args.repo, args.branch, now=now, max_fails=max_fails)
+    evidence = reader.evidence(args.number, args.head)
+    if evidence.refusal is None and reader.saved:
+        reader.refresh()
+        evidence = reader.evidence(args.number, args.head)
+    print(json.dumps(evidence.report()))
     return 0
 
 
