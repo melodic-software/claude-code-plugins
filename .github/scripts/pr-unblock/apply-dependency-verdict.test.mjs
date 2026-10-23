@@ -492,7 +492,6 @@ function mainFiles({ context = runOf(), verdict = output(), env = {} } = {}) {
     DEPENDENCY_RUN_SHA256: sha256(contextText),
     DEPENDENCY_VERDICT_SHA256: verdict === null ? "" : sha256(verdictText),
     DEPENDENCY_PATCH_STATE: "",
-    DEPENDENCY_SCAN_REFUSED: "",
     SKIP_REASON_FILE: join(dir, "skip"),
     ESCALATION_REASON_FILE: join(dir, "escalation"),
     ...env,
@@ -540,6 +539,12 @@ test("main acts on a context and a verdict each matching the SHA-256 its job rec
 // Plan Q4: a missing verdict counts the round; it is a neutral no-model-turn
 // only when the same call's scan handed on no patch, refused nothing, and the
 // head is still the select job's.
+// The scan-refusal job's marker, as the write runner downloads it.
+const marker = (kind) => {
+  const dir = mkdtempSync(join(tmpdir(), "scan-refused-"));
+  writeFileSync(join(dir, "scan-refused-1.txt"), `${kind}\n`);
+  return { SCAN_REFUSED_DIR: dir, SCAN_REFUSED_READ: "success" };
+};
 test("main counts a round with no verdict and skips no-model-turn only on the scan's own evidence", async () => {
   const none = await outcome(mainFiles({ verdict: null }));
   assert.deepEqual([none.escalation, none.skip], ["", "no-model-turn"]);
@@ -552,16 +557,22 @@ test("main counts a round with no verdict and skips no-model-turn only on the sc
     ["a written patch", { DEPENDENCY_PATCH_STATE: "written" }, fakeApi(), "dependency-invalid"],
     ["an empty patch, so the model ran", { DEPENDENCY_PATCH_STATE: "empty" }, fakeApi(), "dependency-invalid"],
     ["a moved head", {}, fakeApi({ head: FIX }), "dependency-invalid"],
-    ["a scan that refused the output", { DEPENDENCY_SCAN_REFUSED: "output" }, fakeApi(), "dependency-invalid"],
+    // The scan-refusal job's marker alone decides a refusal (#9340): every
+    // leg output is empty here.
+    ["a scan that refused the output", marker("output"), fakeApi(), "dependency-invalid"],
     // Plan Q5: a lockfile patch over the carry cap never lands.
-    ["a scan that refused an oversize patch", { DEPENDENCY_SCAN_REFUSED: "patch" }, fakeApi(), "dependency-fix-not-landed"],
+    ["a scan that refused an oversize patch", marker("patch"), fakeApi(), "dependency-fix-not-landed"],
+    ["a marker naming neither", marker("yes"), fakeApi(), "dependency-invalid"],
+    ["a marker download that failed", { SCAN_REFUSED_DIR: "/nonexistent", SCAN_REFUSED_READ: "failure" }, fakeApi(), "dependency-invalid"],
   ]) {
     const result = await outcome(mainFiles({ verdict: null, env }), api);
     assert.deepEqual([result.escalation, result.skip], [want, "awaiting-human"], why);
     assert.equal(result.comments.length, 1, `${why}: the round counts`);
   }
+  // An empty marker directory is no refusal.
+  const empty = mkdtempSync(join(tmpdir(), "scan-refused-"));
+  assert.deepEqual(Object.values(await outcome(mainFiles({ verdict: null, env: { SCAN_REFUSED_DIR: empty, SCAN_REFUSED_READ: "success" } }))).slice(0, 2), ["", "no-model-turn"]);
   // A scan output outside its closed set fails the job.
-  await assert.rejects(main(mainFiles({ env: { DEPENDENCY_SCAN_REFUSED: "yes" } }), { api: fakeApi(), log: () => {} }), /scan output/);
   await assert.rejects(main(mainFiles({ env: { DEPENDENCY_PATCH_STATE: "true" } }), { api: fakeApi(), log: () => {} }), /scan output/);
 });
 
