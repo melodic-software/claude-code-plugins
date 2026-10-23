@@ -73,12 +73,13 @@ export const DEFAULTS = Object.freeze({
     ".github/workflows/pr-review-security-hosted.yml",
   ]),
   // The lanes each review workflow names in its reviewed-head marker
-  // (melodic-software/ci-workflows pr-review.yml and pr-review-cli.yml).
+  // (melodic-software/ci-workflows pr-review-cli.yml).
   markerLanes: Object.freeze(["claude-review", "claude-security-review"]),
   holdLabels: Object.freeze(["do-not-merge"]),
-  // claude[bot], the code lane's reviewer (.github/standards/trusted-actors/trusted-actors.json).
-  // pr-review-cli posts as github-actions[bot]; threadAuthors accepts those
-  // comments only when the lane footer is their last line.
+  // claude[bot], which posted reviews before both lanes moved to pr-review-cli
+  // (.github/standards/trusted-actors/trusted-actors.json). pr-review-cli posts
+  // as github-actions[bot]; threadAuthors accepts those comments only when the
+  // lane footer is their last line.
   reviewerId: 209825114,
   // github-actions[bot], which writes the reviewed-head markers.
   markerAuthorId: 41898282,

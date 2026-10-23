@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.2.1] - 2026-10-23
+
+### Fixed
+
+- The README now says the tracker's capabilities are split across nine focused skills (plus a setup skill), not seven.
+
 ## [3.2.0] - 2026-10-23
 
 ### Added

@@ -241,6 +241,11 @@ test("a github-actions[bot] thread ending in the lane footer dispatches like the
   assert.equal((await decide(api)).result.number, 42);
 });
 
+test("the code lane's github-actions[bot] thread dispatches like the reviewer bot's", async () => {
+  const api = fakeApi({ threads: [laneThread("The loop skips the last item.\n\nclaude-lane: claude-review")] });
+  assert.equal((await decide(api)).result.number, 42);
+});
+
 test("a github-actions[bot] thread without a review lane's footer last dispatches nothing", async () => {
   for (const body of ["Unquoted input.", "claude-lane: claude-security-review\nUnquoted input."]) {
     const api = fakeApi({ threads: [laneThread(body)] });
