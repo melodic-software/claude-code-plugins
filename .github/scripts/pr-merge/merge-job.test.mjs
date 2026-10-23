@@ -50,6 +50,7 @@ test("the re-dispatch for earlier lane merges waits on neither the listing nor t
       "Set up Node",
       "Check the kill switch",
       "Read report-only",
+      "Read the lane records the last run kept",
       "Check earlier lane merges",
       "Start the full CI run on main",
       "Record the dispatched run",
@@ -315,6 +316,48 @@ test("the gate reads the head-ref map the last run uploaded and uploads the next
   }
   for (const s of steps.filter((s) => s.block.includes("actions/cache/"))) {
     assert.ok(!s.block.includes("head-refs"), s.name);
+  }
+});
+
+// The lane records (lane-records.mjs): read before every post-merge check,
+// the gate's included, from the last trusted run's artifact; written after
+// the gate and uploaded by scheduled and hand-started runs of the merge job
+// only, the runs a later read accepts; never through actions/cache.
+test("every post-merge check reads the lane records, and only the merge job uploads them", () => {
+  const file = "${{ runner.temp }}/lane-records.json";
+  const out = "${{ runner.temp }}/lane-records/lane-records.json";
+  const early = stepsOf(jobBlock("post-merge-dispatch"));
+  for (const list of [steps, early]) {
+    const names = list.map((s) => s.name);
+    const read = step("Read the lane records the last run kept", list);
+    assert.ok(names.indexOf("Read the lane records the last run kept") < names.indexOf("Check earlier lane merges"));
+    assert.match(read, /run: node \.base\/\.github\/scripts\/pr-merge\/lane-records\.mjs read\n/);
+    assert.ok(read.includes(`LANE_RECORDS_PATH: ${file}\n`) && read.includes("ACTIONS_TOKEN: ${{ github.token }}\n"));
+    assert.match(read, /\n {8}continue-on-error: true\n/);
+    assert.ok(step("Check earlier lane merges", list).includes(`BABYSIT_POSTMERGE_LANE_RECORDS: ${file}\n`));
+  }
+  for (const name of ["Record a failed lane merge", "Run the merge gate on each candidate"]) {
+    assert.ok(step(name).includes(`BABYSIT_POSTMERGE_LANE_RECORDS: ${file}\n`), name);
+  }
+  const names = steps.map((s) => s.name);
+  const keep = step("Keep the lane records the checks proved");
+  assert.ok(names.indexOf("Run the merge gate on each candidate") < names.indexOf("Keep the lane records the checks proved"));
+  assert.match(keep, /lane-records\.mjs write\n/);
+  for (const line of [`LANE_RECORDS_PATH: ${file}`, "BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json", `LANE_RECORDS_OUT: ${out}`]) {
+    assert.ok(keep.includes(`${line}\n`), line);
+  }
+  assert.ok(
+    keep.includes(
+      "always() && steps.post-merge.outcome != 'skipped'\n          && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')\n",
+    ),
+  );
+  const upload = step("Upload the lane records for the next run");
+  assert.match(upload, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 /);
+  assert.ok(upload.includes("name: pr-merge-lane-records\n") && upload.includes(`path: ${out}\n`));
+  assert.match(upload, /\n {8}if: always\(\) && steps\.lane-records\.outcome == 'success'\n/);
+  assert.doesNotMatch(jobBlock("post-merge-dispatch"), /name: pr-merge-lane-records|lane-records\.mjs write/);
+  for (const s of steps.filter((s) => s.block.includes("actions/cache/"))) {
+    assert.ok(!s.block.includes("lane-records"), s.name);
   }
 });
 

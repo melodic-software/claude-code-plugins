@@ -169,11 +169,24 @@ jobs:
             echo "::notice::the lane is report-only; no full CI run started"
           fi
 
+      # The lane dispatch and re-run records earlier checks proved, from the
+      # last scheduled or hand-started run's pr-merge-lane-records artifact;
+      # the merge job uploads it. Any error leaves no file, and the check
+      # reads each record. Rules: .github/scripts/pr-merge/lane-records.mjs.
+      - name: Read the lane records the last run kept
+        if: steps.mode.outputs.live == 'true'
+        continue-on-error: true
+        env:
+          ACTIONS_TOKEN: ${{ github.token }}
+          LANE_RECORDS_PATH: ${{ runner.temp }}/lane-records.json
+        run: node .base/.github/scripts/pr-merge/lane-records.mjs read
+
       - name: Check earlier lane merges
         id: post-merge
         if: steps.mode.outputs.live == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -723,6 +736,19 @@ jobs:
           CARRY_TO: ${{ runner.temp }}/babysit-run-cache.json
         run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs
 
+      # The lane dispatch and re-run records earlier post-merge checks proved
+      # (the pr-merge-lane-records artifact, found the way the cursor is):
+      # each check below, the gate's included, answers those with no read and
+      # adds the ones it proves. Any error leaves no file, and the checks read
+      # each record. Rules: .github/scripts/pr-merge/lane-records.mjs.
+      - name: Read the lane records the last run kept
+        if: steps.lane-token.outputs.token != ''
+        continue-on-error: true
+        env:
+          ACTIONS_TOKEN: ${{ github.token }}
+          LANE_RECORDS_PATH: ${{ runner.temp }}/lane-records.json
+        run: node .base/.github/scripts/pr-merge/lane-records.mjs read
+
       # The post-merge check, read-only, on every run whether or not any PR is
       # a candidate: after the queue lands the last lane PR there is none, yet
       # that merge still needs its full CI run to be verified. It looks only
@@ -741,6 +767,7 @@ jobs:
         if: steps.lane-token.outputs.token != ''
         env:
           GH_TOKEN: ${{ github.token }}
+          BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -772,6 +799,7 @@ jobs:
         if: steps.mode.outputs.live == 'true' && steps.post-merge.outputs.code == '1'
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -888,6 +916,9 @@ jobs:
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
           # The head-ref map read above, if any.
           BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
+          # The lane records read and added to above, for a gate that checks
+          # earlier lane merges again.
+          BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
           # Reads that are the same for every candidate (acting login,
           # credential pass, permissions, trusted list, run heads on main,
           # FAIL run records, default branch, base rules, the queued entries
@@ -1026,6 +1057,34 @@ jobs:
         with:
           name: pr-merge-head-refs
           path: ${{ runner.temp }}/head-refs/head-refs.json
+          retention-days: 2
+          if-no-files-found: ignore
+
+      # The next run's lane records: those the checks above read in and
+      # proved, unexpired, and listed by the run's last artifact listing when
+      # it has one. Only a scheduled or hand-started run's file is read back,
+      # so only one uploads it. Rules: .github/scripts/pr-merge/lane-records.mjs.
+      - name: Keep the lane records the checks proved
+        id: lane-records
+        if: >-
+          always() && steps.post-merge.outcome != 'skipped'
+          && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
+        env:
+          LANE_RECORDS_PATH: ${{ runner.temp }}/lane-records.json
+          BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
+          LANE_RECORDS_OUT: ${{ runner.temp }}/lane-records/lane-records.json
+        run: |
+          mkdir -p "${LANE_RECORDS_OUT%/*}"
+          node .base/.github/scripts/pr-merge/lane-records.mjs write
+
+      - name: Upload the lane records for the next run
+        if: always() && steps.lane-records.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-merge-lane-records
+          path: ${{ runner.temp }}/lane-records/lane-records.json
           retention-days: 2
           if-no-files-found: ignore
 
