@@ -3330,12 +3330,13 @@ def _first_line(text: Any) -> str:
 
 
 def _floor_held(risk: babysit_risk.RiskResult) -> bool:
-    """Whether the HIGH floor holds the pull request: a `high-path:` reason
-    for a floor or configured path. An unsafe path scores HIGH with the floor
-    off, so it is not a floor hold."""
+    """Whether the HIGH floor or a trust gate holds the pull request: a
+    `high-path:` reason for a floor or configured path, or a `trust-gate:`
+    one. An unsafe path scores HIGH with the floor off, so it is not a floor
+    hold."""
     return any(
         r.severity is babysit_risk.Risk.HIGH
-        and r.code.startswith("high-")
+        and r.code.startswith(("high-", babysit_risk.TRUST_GATE_PREFIX))
         and r.code != babysit_risk.UNSAFE_PATH_CODE
         for r in risk.reasons
     )
@@ -3357,7 +3358,8 @@ def risk_comment_body(risk: babysit_risk.RiskResult, head: str) -> str:
     lines = [
         RISK_MARKER,
         f"Unattended merge: risk **{risk.score.name}** at head `{head}`. Only LOW, "
-        f"or MED on class and size reasons alone, merges without a human. {wait}",
+        "or MED on class, size and reported review-finding reasons alone, merges "
+        f"without a human. {wait}",
         "",
         "```text",
     ]

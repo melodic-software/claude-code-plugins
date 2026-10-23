@@ -60,6 +60,7 @@ from babysit_risk import (
     HIGH_FLOOR,
     ChangedFile,
     glob_match,
+    is_trusted_actors_path,
     is_workflow_path,
     is_manifest_path,
 )
@@ -3496,16 +3497,19 @@ def _text_at(owner: str, name: str, path: str, sha: str) -> str | None:
 def with_contents(
     repo: str, pr: Mapping[str, Any], files: tuple[ChangedFile, ...]
 ) -> tuple[ChangedFile, ...]:
-    """Each changed manifest or workflow (not removed) with its base text at
-    the base SHA, from its previous path on a rename or copy, and its head
-    text at the head SHA, or the reason either could not be read."""
+    """Each changed manifest, workflow or trusted-actor list (not removed)
+    with its base text at the base SHA, from its previous path on a rename or
+    copy, and its head text at the head SHA, or the reason either could not be
+    read."""
     owner, name = _split_repo(repo)
     base = json_object(pr.get("base")).get("sha")
     head = json_object(pr.get("head")).get("sha")
     read = []
     for changed in files:
         if changed.status == "removed" or not (
-            is_manifest_path(changed.path) or is_workflow_path(changed.path)
+            is_manifest_path(changed.path)
+            or is_workflow_path(changed.path)
+            or is_trusted_actors_path(changed.path)
         ):
             read.append(changed)
             continue

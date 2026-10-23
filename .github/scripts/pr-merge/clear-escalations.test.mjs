@@ -361,3 +361,67 @@ test("a feedback-protected-path label comes off once the PR changes nothing unde
     assert.equal(w.writes().at(-1)?.method === "DELETE", clears, pullFiles[0].filename);
   }
 });
+
+// A review lane's hold: its marker comment, by claude[bot], or by
+// github-actions[bot] when the comment ends in the lane's footer (the
+// pr-review-cli shape). Adding a label the PR already carries writes no
+// `labeled` event, so the hold may sit under the App's own label.
+const HOLD = "<!-- claude-lane-hold lane=claude-security-review sha=" + HEAD + " criteria=trust-gate -->";
+const laneHold = (user, at, { footer = true, updatedAt = at } = {}) =>
+  commented(user, `${HOLD}\nChanges a trust gate.${footer ? "\n\n`claude-lane: claude-security-review`\n" : ""}`, at, updatedAt);
+const unlabeled = (actor, at) => ({ event: "unlabeled", actor, label: { name: "needs-human" }, created_at: at });
+
+test("a review-lane hold keeps the label a clearing pr-unblock escalation would take off", async () => {
+  for (const hold of [laneHold(ACTIONS_BOT, "2026-10-18T11:00:00Z"), laneHold(CLAUDE_BOT, "2026-10-18T11:00:00Z")]) {
+    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(), hold] });
+    const { logs } = await run(w);
+    assert.deepEqual(w.writes(), [], hold.user.login);
+    assert.match(logs.join("\n"), /#7 kept: a review lane holds it/, hold.user.login);
+  }
+});
+
+test("a review-lane hold written before the App's label, with no unlabel since, keeps it", async () => {
+  const w = world({ timeline: [laneHold(ACTIONS_BOT, "2026-10-18T09:00:00Z"), labeled(BOT, "2026-10-18T10:00:00Z"), escalated()] });
+  await run(w);
+  assert.deepEqual(w.writes(), []);
+});
+
+test("a review-lane hold keeps a pr-merge head-moved escalation too", async () => {
+  const w = world({ timeline: [...mergeEscalated(verifyBody(OLD)), laneHold(ACTIONS_BOT, "2026-10-18T11:00:00Z")] });
+  await run(w);
+  assert.deepEqual(w.writes(), []);
+});
+
+test("a review-lane hold a person approved by unlabeling no longer keeps a later escalation", async () => {
+  const w = world({
+    timeline: [
+      laneHold(ACTIONS_BOT, "2026-10-18T08:00:00Z"),
+      unlabeled(OWNER, "2026-10-18T09:00:00Z"),
+      labeled(BOT, "2026-10-18T10:00:00Z"),
+      escalated(),
+    ],
+  });
+  await run(w);
+  assert.equal(w.writes().at(-1)?.method, "DELETE");
+});
+
+test("a review-lane hold edited after the unlabel keeps it", async () => {
+  const w = world({
+    timeline: [
+      laneHold(ACTIONS_BOT, "2026-10-18T08:00:00Z", { updatedAt: "2026-10-18T09:30:00Z" }),
+      unlabeled(OWNER, "2026-10-18T09:00:00Z"),
+      labeled(BOT, "2026-10-18T10:00:00Z"),
+      escalated(),
+    ],
+  });
+  await run(w);
+  assert.deepEqual(w.writes(), []);
+});
+
+test("a hold marker from github-actions[bot] with no lane footer, or from another bot, is not a review-lane hold", async () => {
+  for (const hold of [laneHold(ACTIONS_BOT, "2026-10-18T11:00:00Z", { footer: false }), laneHold(CODEX_BOT, "2026-10-18T11:00:00Z")]) {
+    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(), hold] });
+    await run(w);
+    assert.equal(w.writes().at(-1)?.method, "DELETE", hold.user.login);
+  }
+});
