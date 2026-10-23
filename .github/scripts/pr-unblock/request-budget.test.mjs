@@ -216,3 +216,32 @@ test("a POST answered 500 is returned at once", async () => {
   assert.deepEqual(time.slept, []);
   assert.equal(gh.sent.length, 1);
 });
+
+test("each response's rate-limit headers are appended as a reading under API_BUDGET_TOKEN", async () => {
+  const { mkdtempSync, readFileSync, rmSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const { tmpdir } = await import("node:os");
+  const dir = mkdtempSync(join(tmpdir(), "request-budget-"));
+  const saved = { token: process.env.API_BUDGET_TOKEN, temp: process.env.RUNNER_TEMP };
+  process.env.API_BUDGET_TOKEN = "github-token";
+  process.env.RUNNER_TEMP = dir;
+  try {
+    const gh = github([
+      { status: 200, body: "{}", headers: rate(4000) },
+      { status: 403, body: '{"message":"Resource not accessible by integration"}', headers: rate(3999) },
+    ]);
+    const budget = budgetedFetch({ fetch: gh.fetch, log: () => {} });
+    await budget.fetch("https://api.example/repos/o/r/a");
+    await budget.fetch("https://api.example/repos/o/r/b");
+    assert.equal(
+      readFileSync(join(dir, "api-budget", "github-token"), "utf8"),
+      "200 5000 4000 1000 1792378942 core\n403 5000 3999 1001 1792378942 core\n",
+    );
+  } finally {
+    for (const [key, value] of [["API_BUDGET_TOKEN", saved.token], ["RUNNER_TEMP", saved.temp]]) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

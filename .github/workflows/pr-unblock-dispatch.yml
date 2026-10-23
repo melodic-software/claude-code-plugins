@@ -28,8 +28,9 @@ name: pr-unblock-dispatch
 # author and hold label: fix-ci to spend no model run on a PR the lane would
 # skip, fix-docs to leave alone PRs whose files are generated or synced.
 #
-# The token's budget is logged at the start and end of the job
-# (.github/actions/log-api-budget), and the script logs its own call counts.
+# The job token's rate-limit readings, from the script's own responses, are
+# logged at the end of the job (.github/actions/log-api-budget), and the
+# script logs its own call counts.
 # The heads whose check runs already handle them for good are carried from
 # run to run in the Actions cache (dispatch-record.mjs), so a later run skips
 # their reads. A run only skips work on the record, never dispatches on it.
@@ -75,14 +76,6 @@ jobs:
         with:
           node-version-file: .base/.node-version
           package-manager-cache: false
-
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
 
       - name: Check the kill switch
         id: kill
@@ -150,6 +143,7 @@ jobs:
           && (steps.gate.outcome == 'skipped' || steps.gate.outputs.proceed == 'true')
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
           # fix-ci starts on PRs the lanes App opened, matched by this id, and
           # on idle PRs of the owners in the config's `adoption` section.
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
@@ -207,5 +201,4 @@ jobs:
         timeout-minutes: 1
         uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
-          phase: end
-          tokens: github-token ${{ github.token }}
+          tokens: github-token

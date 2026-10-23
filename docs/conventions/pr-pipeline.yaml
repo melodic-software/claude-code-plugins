@@ -360,8 +360,9 @@ activities:
         - agent-ready
   report-outcome:
     # Opens a ready pull request from the branch, or comments on the issue
-    # and labels it needs-human. A Refs pull request also labels the issue
-    # needs-human, with a refs-hold comment. A script, no model.
+    # and labels it needs-human. It writes nothing to a Refs pull request's
+    # issue; work-unblock still lifts an existing refs-hold through its
+    # marker. A script, no model.
     script: .github/scripts/work-resolve-issue/report-outcome.mjs
     effect: publish-artifact
     gating: advisory

@@ -182,11 +182,13 @@ function ms(value, what) {
 
 const PULL_QUERY =
   "query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){" +
-  "number headRefOid mergedAt lastEditedAt mergeCommit{oid} mergedBy{__typename login} labels(first:100){pageInfo{hasNextPage} nodes{name}} " +
+  "number headRefOid mergedAt lastEditedAt mergeCommit{oid} mergedBy{__typename login} author{__typename login} isCrossRepository labels(first:100){pageInfo{hasNextPage} nodes{name}} " +
   "closingIssuesReferences(first:50){pageInfo{hasNextPage} nodes{number labels(first:100){pageInfo{hasNextPage} nodes{name}}}} " +
   "timelineItems(first:100,itemTypes:[CONNECTED_EVENT,DISCONNECTED_EVENT,ADDED_TO_MERGE_QUEUE_EVENT]){pageInfo{hasNextPage} nodes{__typename " +
   "... on ConnectedEvent{createdAt subject{__typename ... on Issue{number}}} ... on DisconnectedEvent{createdAt subject{__typename ... on Issue{number}}} " +
-  "... on AddedToMergeQueueEvent{createdAt actor{__typename login} enqueuer{__typename login}}}}}}}";
+  "... on AddedToMergeQueueEvent{createdAt actor{__typename login} enqueuer{__typename login}}}} " +
+  "autoMerge:timelineItems(itemTypes:[AUTO_MERGE_ENABLED_EVENT,AUTO_MERGE_DISABLED_EVENT],last:1){nodes{__typename " +
+  "... on AutoMergeEnabledEvent{createdAt actor{__typename login}} ... on AutoMergeDisabledEvent{createdAt actor{__typename login}}}}}}}";
 const CELLS = ["C2-auto-merge", "C3-ai-review-blocking", "C3-auto-merge"];
 
 // A REST login (`app[bot]` for an App), compared exactly and case-insensitively.
@@ -257,8 +259,9 @@ function eventKey(event) {
 // Where check() files a Failure, this emits a gate-failure, so demotion counts match: a red full
 // or canary run (at the run's update time); no dispatch run by a lane identity created within
 // DISPATCH_DEADLINE of the merge, once that deadline has passed (at the deadline); and, for a
-// merge a lane identity enqueued, the pin read-back (read_pin): no unedited lane pin once the
-// deadline has passed (at the deadline), or a pinned SHA that is not headRefOid (at the merge).
+// merge a lane identity enqueued, other than its own native auto-merge, the pin read-back
+// (read_pin): no unedited lane pin once the deadline has passed (at the deadline), or a pinned
+// SHA that is not headRefOid (at the merge).
 const FULL_RUN_WORKFLOW = "pr-require-checks.yml";
 const CANARY_WORKFLOW = "post-merge-detect-silent-revert.yml";
 const DISPATCH_DEADLINE_MS = 6 * 3_600_000;
@@ -300,10 +303,29 @@ function postMergeRuns(gh, repo, branch, merges, { lane, throughMs }) {
   const floor = Math.min(...merges.map((m) => ms(m.mergedAt, `#${m.number} mergedAt`)));
   const created = encodeURIComponent(`>=${new Date(floor).toISOString().replace(/\.\d{3}Z$/, "Z")}`);
   const byCreated = (a, b) => a.createdMs - b.createdMs;
+  // check()'s _Context.on_branch: a run's head_branch is only a name, which a run on a tag named
+  // like the branch carries too, so a run counts only when its commit is on refs/heads/<branch>.
+  // Residual: the tip is read here, before the run listings, where check() reads it after them,
+  // so a run on a commit that lands between the two reads is off the branch here alone.
+  const ref = gh(`repos/${repo}/git/ref/heads/${branch.split("/").map(encodeURIComponent).join("/")}`);
+  const tip = ref?.object?.sha;
+  if (!/^[0-9a-f]{40}$/.test(tip ?? "")) throw new PublishError(`refusing to publish: branch ${branch} has no tip commit`);
+  const onBranches = new Map();
+  const onBranch = (sha) => {
+    if (!/^[0-9a-f]{40}$/.test(sha ?? "")) return false;
+    if (!onBranches.has(sha)) {
+      const status = sha === tip ? "identical" : gh(`repos/${repo}/compare/${sha}...${tip}?per_page=1&page=1`)?.status;
+      if (!["ahead", "identical", "behind", "diverged"].includes(status)) {
+        throw new PublishError(`refusing to publish: compare ${sha}...${tip} is ${JSON.stringify(status)}, so whether that run is on ${branch} is unknown`);
+      }
+      onBranches.set(sha, status === "ahead" || status === "identical");
+    }
+    return onBranches.get(sha);
+  };
   const list = (workflow, event) =>
     pages(gh, `repos/${repo}/actions/workflows/${workflow}/runs?event=${event}&branch=${encodeURIComponent(branch)}&created=${created}`, "workflow_runs")
       .map((run) => ({ ...run, createdMs: ms(run.created_at, `run ${run.id}`), check: `${workflow} ${event}` }))
-      .filter((run) => run.head_branch === branch && run.createdMs >= floor);
+      .filter((run) => run.head_branch === branch && run.createdMs >= floor && onBranch(run.head_sha));
   const fullRuns = [...list(FULL_RUN_WORKFLOW, "schedule"), ...list(FULL_RUN_WORKFLOW, "workflow_dispatch")].sort(byCreated);
   const canaryRuns = list(CANARY_WORKFLOW, "push").sort(byCreated);
 
@@ -591,7 +613,20 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
     const queued = timeline.filter((e) => e.__typename === "AddedToMergeQueueEvent").sort((a, b) => ms(a.createdAt, "a merge-queue event") - ms(b.createdAt, "a merge-queue event"));
     const actors = queued.length > 0 ? [queued.at(-1).actor, queued.at(-1).enqueuer] : [g.mergedBy];
     const byIdentity = actors.some((actor) => actor && lane.has(actorKey(actor)));
-    return { autonomous: actors.some((actor) => !human(actor)) || lane.has(actorKey(g.mergedBy)), byIdentity };
+    // babysit_postmerge.py native_auto_merge: a lane identity's own native auto-merge posts no
+    // pin. One lane identity opened it from this repository, enqueued it, and made its newest
+    // auto-merge enable or disable, an enable no later than the enqueue. When that identity
+    // opened it from this repository, unreadable auto-merge events refuse the publish, as the
+    // check reads them unreadable.
+    const who = actorKey(g.author);
+    const owned = byIdentity && lane.has(who) && actors.some((actor) => actor && actorKey(actor) === who) && g.isCrossRepository === false;
+    if (owned && !Array.isArray(g.autoMerge?.nodes)) throw new PublishError(`refusing to publish: #${g.number} has no auto-merge events`);
+    const armed = owned ? g.autoMerge.nodes.at(-1) : undefined;
+    const native =
+      armed?.__typename === "AutoMergeEnabledEvent" &&
+      actorKey(armed.actor) === who &&
+      (queued.length === 0 || ms(armed.createdAt, "an auto-merge event") <= ms(queued.at(-1).createdAt, "a merge-queue event"));
+    return { autonomous: actors.some((actor) => !human(actor)) || lane.has(actorKey(g.mergedBy)), byIdentity, native };
   };
 
   const details = new Map();
@@ -705,7 +740,7 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   // Then the post-merge workflow runs on later SHAs containing the merge (postMergeRuns).
   for (const r of tracked.filter((c) => c.autonomous)) {
     const wf = judgeWorkflows(r);
-    const pin = r.byIdentity ? readBack(r) : {};
+    const pin = r.byIdentity && !r.native ? readBack(r) : {};
     if (pin.failure) wf.failures.push(pin.failure);
     if (pin.pending) wf.unsettled = true;
     for (const failure of wf.failures) {

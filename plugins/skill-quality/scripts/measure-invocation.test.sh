@@ -208,6 +208,12 @@ else
   fail "emit-plugin-eval layout wrong (n=$n_cases)"
 fi
 
+if grep -qxF 'allowed_tools: [Skill, Read, Glob, Grep]' "$emit_dir/fixture-target-pos-train-01/prompt.md"; then
+  pass "emit-plugin-eval allows read-only tools beside Skill"
+else
+  fail "emit-plugin-eval prompt.md lacks the four-tool allowed_tools line"
+fi
+
 if run emit-plugin-eval "$TMP/probes" "$emit_dir" >/dev/null 2>&1; then
   fail "emit-plugin-eval into a non-empty dir should refuse"
 else

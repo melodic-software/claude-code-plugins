@@ -13,5 +13,8 @@
         "enqueuer": {"__typename": "User", "login": "example-sync[bot]"}
       }
     ]
-  }
+  },
+  "autoMerge": {"nodes": []},
+  "author": {"__typename": "Bot", "login": "agent-lanes"},
+  "isCrossRepository": false
 }

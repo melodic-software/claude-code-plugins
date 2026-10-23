@@ -3,6 +3,36 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.13.6] - 2026-10-23
+
+### Changed
+
+- The babysit scripts' gh seam (`babysit_gh._run_gh`) records rate-limit readings from its own `gh api` responses when the job names the token. That needs `API_BUDGET_TOKEN` (or `API_BUDGET_OVERRIDE_TOKEN`, for a call that carries its own `GH_TOKEN`) and `RUNNER_TEMP`. A call that is not `--paginate` then runs with `-i`, and the leading header block's `x-ratelimit-*` values become one line in `$RUNNER_TEMP/api-budget/<token>`. The rest of stdout comes back byte for byte, so the caller gets the output it would have had without `-i`. With those variables unset, nothing changes.
+
+## [2.13.5] - 2026-10-23
+
+### Fixed
+
+- The post-merge check takes the newest green full run for a red run's affected set (`_Context.affected`) and the newest completed run for its baseline (`_Context._baseline`). It now picks only a run whose head commit is the branch's tip or an ancestor of `refs/heads/<branch>` (`_Context.on_branch`, through `_Context.contains`). The same check now filters the scheduled, dispatched and canary runs a merge is judged on, the runs read by commit to prove a listing incomplete, and the lane re-run probe, so a red run on such a tag can no longer fail a merge. The promotion evidence (`publish-promotion-evidence.mjs`) filters its post-merge runs the same way. Before, it trusted any run that reported `head_branch: main`, and a run on a tag named `main` reports that too. Such a run could check out a writer's own commit and run its plan script, or narrow the affected set so that a red main run read as unaffected and filed no demotion.
+
+- The post-merge check (`babysit_postmerge.py`) recognizes a native auto-merge of the agent identity's pull request: the identity opened it from a branch of this repository, and the newest auto-merge enable or disable event is the identity's enable, made no later than the merge-queue enqueue. Such a merge posts no `babysit-merge-pin` comment, so it no longer waits for a pin read-back and fails it at the dispatch deadline, which filed a demotion record and held pr-merge for owner and Dependabot pull requests. It is still the identity's merge, so post-merge-dispatch starts its full run, and it verifies on the dispatch and canary runs alone; a red full run or canary after it still fails it. The auto-merge events come from a second aliased `timelineItems` connection in the same merged-pull-request query, and a native merge skips the pin read, so no read is added. The promotion evidence (`publish-promotion-evidence.mjs`) applies the same rule, requiring one lane identity as author, enqueuer and armer, and refuses to publish when that identity's auto-merge events cannot be read, so its demotion counts still match. A gate merge keeps its read-back: the gate disarms an armed auto-merge before it pins, and an arm made after the enqueue does not count.
+
+## [2.13.4] - 2026-10-23
+
+### Added
+
+- `babysit_verify_evidence.py evidence --repo R [--max-fails N] <pr> <head>` prints the gate's verifier evidence for one pull request as one JSON line, which the pr-merge lane's native auto-merge arms on.
+
+## [2.13.3] - 2026-10-23
+
+### Changed
+
+- The post-merge check (`babysit_postmerge.py`) answers a lane dispatch or re-run record from the file pr-merge.yml names in `BABYSIT_POSTMERGE_LANE_RECORDS` before listing it: a record an earlier check proved is present with no request once it is unexpired and the run that uploaded it passes the check's sender rule again (pr-merge.yml on the branch, an event of the job that writes the record, a head commit on the branch tip). The check writes back, to the same file, the records it read in and each it proves whose uploading run completed and whose artifact was listed unexpired, merged with the file as another check of the run left it since (a record this check read in but never asked for, which that check dropped, stays dropped), keeping those unexpired and created at or after the lowest floor any check of the run used; a file it cannot parse at all, a nesting too deep to read included, is no file. A record it holds decides as a successful read would; the decision differs only where today's read fails: a failed listing or sender read leaves the verdict unreadable, and a listing that reads empty twice is an unlisted-record hold, where the carried record reads present, as an earlier successful read found it. Any other record is read as before, and a missing, unreadable or malformed file (another version or repository, a name that is no lane record, an entry missing its dates, artifact id or completed sender) is no file. Without the variable nothing changes.
+
+### Fixed
+
+- The pr-merge gate's verdict reader (`babysit_verify_evidence`) compares the number of a name that starts like a FAIL's but is no verdict name as text, so any length of digits is read without raising, and a number over 10 digits never counts toward the cap. pr-verify now writes the FAIL names with `-i` and the verdict's issues that 2.13.1 described as not written yet.
+
 ## [2.13.2] - 2026-10-23
 
 ### Removed

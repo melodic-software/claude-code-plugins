@@ -1,5 +1,38 @@
 # Changelog for the PR pipeline convention
 
+## [4.12.3] - 2026-10-23
+
+### Changed
+
+- API budget logging reads the rate limit from each job's own responses. It no longer reads `GET /rate_limit`, which reports a different bucket from the one the job spends. `.github/actions/log-api-budget` holds three parts:
+  - `api-budget.bash`: a `gh` wrapper and the notice
+  - `api-budget.mjs`: the fetch side
+  - an end-of-job emitter
+- Each named token gets one notice for its last reading and one for each refused (403/429) reading: `token=<name> workflow=<path> job=<id> run=<id> attempt=<n> limit= remaining= used= reset=<epoch> resource= cost=<N or na>`. `cost` is how much `used` rose since the first reading with the same reset.
+- Where the notices come from:
+  - `ci-status` wraps its own `gh api` reads and writes its notice before the aggregate step.
+  - pr-merge's merge job reads through the babysit gh seam.
+  - The pr-feedback-dispatch and pr-unblock-dispatch jobs read through `request-budget.mjs`.
+  - Those three jobs write their notices from their existing end steps.
+- The start-of-job `/rate_limit` steps are gone, including those in work-unblock, intake-triage and pr-run-activity-write.
+- The lanes App token is now named `lanes-app` (it was `lane`). The monitor-signals ceiling reads both names and both notice shapes.
+
+- `pr-feedback-dispatch.yml`'s `rerun-ci-status` re-runs a head's ci-status once, after the last review lane finishes, instead of once per lane: while the other lane's newest run on the head is still going it stops after one read, since ci-status would still be red and that lane's completion starts the job again. A head with no run of the other lane re-runs on one lane. A ci-status that started after both lanes finished, or a re-run already queued, is left alone. The job list is read once, and each 60-second poll reads only the run. A read refused by the token's primary rate limit (403 or 429) waits `retry-after` seconds, else, with `x-ratelimit-remaining: 0`, until one second past `x-ratelimit-reset` inside the same 10-minute cap instead of failing; a reset past the cap fails the job with an error naming the reset, since nothing else re-runs a ci-status left stale.
+
+## [4.12.2] - 2026-10-23
+
+### Fixed
+
+- Native auto-merge of a lanes App pull request now needs the verifier verdict pr-merge's gate needs. `enable-auto-merge.mjs` arms, and keeps armed, only when pr-merge's gate reader refuses nothing at the head it read (a pr-verify pass, no FAIL at the head, FAILs under `merge.max-verify-fails`, an unchanged trusted spec), and only on its scheduled or hand-started run; event runs never arm. `ci-status` turns an armed lanes App pull request's auto-merge off on each push to its head. In the merge queue, `ci-status` requires a pass or pass-notes artifact at the queued head from a successful pr-verify run on main; a trusted approval of the head lifts it. Pull request events read no verdict, since pr-verify runs only after a green pull request run.
+
+## [4.12.1] - 2026-10-23
+
+### Changed
+
+- pr-verify names a FAIL verdict's artifact with `-i` and the issues its verdict records, ascending and joined by dots (`write-verdict.mjs` `artifactName`), so the pr-merge gate counts it toward each issue's repeated-fail cap from the artifact listing alone. PASS and PASS-NOTES names are unchanged. The writer checks every name against the readers' pattern (`NAME`, now kept in `write-verdict.mjs` and re-exported by `resolve-pr.mjs`) and fails the job before upload on one no reader takes. The resolver checks the names without issues first and skips a head judged under one without reading the linked issues; only then does it read them, which the spec needs anyway, and look up its own FAIL under the `-i` name; a FAIL another pull request left at the same head is still missed and that head judged again, at the cost of a run, and so is this pull request's own FAIL once a body edit changes its linked issues at the same head, one run per change of the issue set; neither changes the gate's decision, since the earlier FAIL stays tied and refuses the head. A FAIL whose issues no name carries (more than 10, or a number over 10 digits) keeps the plain name with a warning, and the resolver never looks such a name up, so that pull request is still judged.
+
+- pr-merge carries the `pr-merge-dispatched-<id>` and `pr-merge-rerun-<id>-attempt-2` records the post-merge check proved from one run to the next as the `pr-merge-lane-records` artifact (`.github/scripts/pr-merge/lane-records.mjs`), so the check stops listing each record and reading the run that uploaded it on every run. Before each post-merge check, in the `merge` job and in `post-merge-dispatch`, a step reads the file from the newest scheduled or hand-started `pr-merge.yml` run on main other than itself whose head commit is on main, found the way the gate cursor and the head-ref map are; the check steps, the `--remediate` step and the gate step name it in `BABYSIT_POSTMERGE_LANE_RECORDS`. After the gate a scheduled or hand-started `merge` job uploads the records the checks read in and proved, while unexpired and still listed by the run's artifact listing under the record's name and sender run; the read step removes any file already at its path first; with no listing file (no candidates, or a listing the run could not read), unexpired records are carried as they are and pruned on the next run that saves a listing; a listing file that exists but cannot be parsed uploads nothing, and the next run reads an older file. Only a run's own steps can upload its artifacts, and the file never passes through `actions/cache`. Any failure leaves no file, and the check reads each record as before. Permissions are unchanged.
+
 ## [4.12.0] - 2026-10-23
 
 ### Changed
