@@ -36,7 +36,7 @@ if [[ ! -s "$TMP_ROOT/body.sh" ]]; then
   exit 1
 fi
 # shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell
-for env in 'HEAD_SHA: ${{ github.event.workflow_run.head_sha }}' 'PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}' "POLL_LIMIT_SECONDS: '1740'"; do
+for env in 'HEAD_SHA: ${{ github.event.workflow_run.head_sha }}' 'PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}' "POLL_LIMIT_SECONDS: '600'"; do
   if [[ "$step" == *"$env"* ]]; then ok "step env carries $env"; else fail "step env lacks $env"; fi
 done
 job="$(awk '/^  rerun-ci-status:$/ { on = 1; next } on && /^  [a-z]/ { exit } on { print }' "$WORKFLOW")"

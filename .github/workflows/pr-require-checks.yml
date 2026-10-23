@@ -3104,26 +3104,28 @@ jobs:
     # `ci-lanes` commit status the last full run recorded on this SHA.
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
-    # 9 s p95 and 42 s max in full mode, about 10 s contract-only. The cap
-    # holds two rate-limit windows of RATE_LIMIT_WAIT_SECONDS (10 minutes):
-    # one shared by check-contract and the gh_read steps, which wait only
-    # until RATE_LIMIT_WAIT_SECONDS past the job's start, and aggregate-results'
-    # own. Core and graphql reset on separate hourly windows, so each window
-    # can hold a reset wait. Then about eight minutes of other waits: 45 s of
-    # own-gate retries, 7 s of status-write retries and the 90 s
-    # `rerun-wait-seconds` wait, up to 15 s of retry sleeps for each of the
-    # hold-lift step's two reads, the review-lane step's four and the
-    # lanes-hold step's eight, the cost-hold step's reads (one for most pull
-    # requests, which stop at the label events; for a lane-labeled one whose
-    # body cites a decision, about eight, and two more per review run since
-    # the window opened), and the base-config checkout's fetch.
-    # pr-feedback-dispatch.yml polls an in-progress ci-status for longer than
-    # this cap.
-    timeout-minutes: 28
+    # 9 s p95 and 42 s max in full mode, about 10 s contract-only. The cap is
+    # the worst case of the pinned composites' waits: two 60 s rate-limit waits
+    # (`rate-limit-wait-seconds` on check-contract and aggregate-results), 45 s
+    # of own-gate retries, 7 s of status-write retries and the 90 s
+    # `rerun-wait-seconds` wait, about four and a half minutes, plus up to
+    # 15 s of retry sleeps for each of the hold-lift step's two reads, the
+    # review-lane step's four and the lanes-hold step's eight, about four
+    # minutes, plus the cost-hold step's reads: one for most pull requests,
+    # which stop at the label events; for a lane-labeled one whose body cites a
+    # decision, about eight, and two more per review run since the window
+    # opened, plus the base-config checkout's fetch (seconds; its retries
+    # replace the contents reads' 15 s each).
+    timeout-minutes: 11
     env:
-      # The rate-limit wait ceiling of each window above. The limit-events
-      # rows that set it needed 399 to 523 s.
-      RATE_LIMIT_WAIT_SECONDS: 600
+      # gh_read's wait budget: a rate-limit wait must end by
+      # GH_READ_JOB_SECONDS (timeout-minutes in seconds) less
+      # GH_READ_MARGIN_SECONDS after the first step starts. The margin keeps
+      # five minutes for the job's setup and the steps after the wait:
+      # aggregate-results' 60 s rate-limit wait, 45 s of own-gate retries, 7 s
+      # of status writes and the 90 s rerun wait, plus retry sleeps.
+      GH_READ_JOB_SECONDS: 660
+      GH_READ_MARGIN_SECONDS: 300
     permissions:
       # `yield-to-full-run` lists this workflow's runs on the head SHA, and
       # `rerun-contract-only-siblings` re-runs the red contract-only ones once
@@ -3152,10 +3154,14 @@ jobs:
       # five seconds past x-ratelimit-reset while remaining is 0, one second
       # when the probe shows the limit has cleared, else 60 s. It is a rate
       # limit when gh's error names one, or is an HTTP 403 or 429 while the
-      # probe reads remaining 0 or retry-after. A wait that would end past the
-      # deadline this step sets, RATE_LIMIT_WAIT_SECONDS after it
-      # runs, fails the read with an error naming the reset, and later reads
-      # of that resource before the reset fail without a call. Any other
+      # probe reads remaining 0 or retry-after. The job's timeout is not raised
+      # for it: a wait is taken only when it ends inside the budget the job
+      # env sets, so the steps after it still fit. A wait past that fails the
+      # read at once, red and never neutral (a neutral required check counts
+      # as passing), with an error naming the reset and asking for a re-run
+      # after it; later reads of that resource before the reset fail without
+      # a call. Nothing here re-runs the job: the next review lane's
+      # rerun-ci-status, or a person, re-runs it after the reset. Any other
       # failure, or a second rate limit after the wait, returns gh's status at
       # once, so each caller's own retries and fail-closed exit stay as they
       # were. The cost-hold step keeps plain `gh api`: an unreadable input
@@ -3209,7 +3215,7 @@ jobs:
               fi
               if [ $((now + wait)) -gt "$deadline" ]; then
                 at=$(jq -rn --argjson t "$reset" '$t | todate')
-                echo "::error::GitHub's $resource API rate limit blocks 'gh api $*' until $at, after ci-status stops waiting at $(jq -rn --argjson t "$deadline" '$t | todate'); re-run this run after $at." >&9
+                echo "::error::GitHub's $resource API rate limit blocks 'gh api $*' until $at, past the $(jq -rn --argjson t "$deadline" '$t | todate') ci-status can wait to inside its timeout; a re-run after $at is needed." >&9
                 echo "$reset" >"$blocked"
                 rm -f "$err"
                 return 1
@@ -3219,7 +3225,7 @@ jobs:
               waited=1
             done
           }
-          echo $(($(date +%s) + RATE_LIMIT_WAIT_SECONDS)) >"$RUNNER_TEMP/gh-read.deadline"
+          echo $(($(date +%s) + GH_READ_JOB_SECONDS - GH_READ_MARGIN_SECONDS)) >"$RUNNER_TEMP/gh-read.deadline"
           # fd 9 is each sourcing step's stderr, so the notices reach the log
           # when a caller captures or redirects gh_read's own stderr.
           { echo 'exec 9>&2'; declare -f gh_read; } >"$RUNNER_TEMP/gh-read.sh"
@@ -3227,7 +3233,6 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
         with:
           token: ${{ github.token }}
-          rate-limit-wait-seconds: ${{ env.RATE_LIMIT_WAIT_SECONDS }}
           # Carried over verbatim from `pr-issue-linkage.yml`, the caller this
           # step replaces: dependabot PR bodies cannot carry the closing keyword
           # and the four contract sections, so its login is exempt from the
@@ -4120,4 +4125,3 @@ jobs:
           # how many steps of the job are in progress.
           step-name: Aggregate lane results
           token: ${{ github.token }}
-          rate-limit-wait-seconds: ${{ env.RATE_LIMIT_WAIT_SECONDS }}

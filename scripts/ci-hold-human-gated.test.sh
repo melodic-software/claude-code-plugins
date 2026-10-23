@@ -231,7 +231,7 @@ else
 fi
 export STUB_RATE_LIMIT='0 1792803000'
 expect "a reset past the deadline fails closed naming the reset" 1 1 "enhancement" 3 \
-  "::error::GitHub's core API rate limit blocks 'gh api repos/o/r/issues/6419/labels?per_page=100 --paginate --jq .[].name' until 2026-10-24T00:50:00Z, after ci-status stops waiting at 2026-10-24T00:10:00Z; re-run this run after 2026-10-24T00:50:00Z."
+  "::error::GitHub's core API rate limit blocks 'gh api repos/o/r/issues/6419/labels?per_page=100 --paginate --jq .[].name' until 2026-10-24T00:50:00Z, past the 2026-10-24T00:10:00Z ci-status can wait to inside its timeout; a re-run after 2026-10-24T00:50:00Z is needed."
 if [[ "$(sleeps)" == "5 10" ]]; then
   ok "a reset past the deadline is not waited for, and the retries make no call"
 else

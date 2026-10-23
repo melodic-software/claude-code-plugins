@@ -5,8 +5,9 @@
 #   ci_gh_read::install <workflow> <dir>
 #
 # Runs the `Write the rate-limit-aware read helper` step body of <workflow>
-# with RUNNER_TEMP=<dir>, which leaves <dir>/gh-read.sh for the step bodies
-# under test to source. Returns non-zero when the step is missing or fails.
+# with RUNNER_TEMP=<dir> and the job's GH_READ_* env values, which leaves
+# <dir>/gh-read.sh for the step bodies under test to source. Returns non-zero
+# when the step is missing or fails.
 #
 #   ci_gh_read::reset <dir> <deadline>
 #
@@ -21,7 +22,12 @@ ci_gh_read::install() {
     body && /^[[:blank:]]*$/ { print ""; next }
     body { exit }' "$workflow" >"$dir/gh-read-step.sh"
   [[ -s "$dir/gh-read-step.sh" ]] || return 1
-  RUNNER_TEMP="$dir" bash -e "$dir/gh-read-step.sh" && [[ -s "$dir/gh-read.sh" ]]
+  local job_seconds margin
+  job_seconds=$(sed -nE 's/^      GH_READ_JOB_SECONDS: ([0-9]+)$/\1/p' "$workflow")
+  margin=$(sed -nE 's/^      GH_READ_MARGIN_SECONDS: ([0-9]+)$/\1/p' "$workflow")
+  [[ -n "$job_seconds" && -n "$margin" ]] || return 1
+  RUNNER_TEMP="$dir" GH_READ_JOB_SECONDS="$job_seconds" GH_READ_MARGIN_SECONDS="$margin" \
+    bash -e "$dir/gh-read-step.sh" && [[ -s "$dir/gh-read.sh" ]]
 }
 
 ci_gh_read::reset() {
