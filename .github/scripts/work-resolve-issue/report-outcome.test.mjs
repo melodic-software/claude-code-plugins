@@ -624,7 +624,7 @@ test("stopped removes agent-ready and names the branch that holds partial work",
   assert.deepEqual(plan.addLabels, ["needs-human"]);
   assert.deepEqual(plan.removeLabels, ["agent-ready"]);
   assert.ok(plan.comment.includes(BRANCH));
-  assert.match(plan.comment, /A retry continues from it; delete the branch first to start again from the default branch\./);
+  assert.match(plan.comment, /A retry continues from it while it is not behind the default branch, and otherwise starts fresh from the default branch; delete the branch first to always start fresh\./);
   assert.ok(plan.comment.includes("remove `needs-human` and add `agent-ready` again"), plan.comment);
 });
 
@@ -1701,8 +1701,8 @@ test("a marked run's branch with any commit not the lanes App's, or a cut-short 
 // A resumed branch carries its base into the runner's whole-branch checks, so
 // one behind main starts fresh from main under a new branch, and the old
 // branch is left for a person to delete.
-test("a marked run's branch behind main, or of unknown distance, starts fresh instead of resuming", () => {
-  for (const behindBy of [1, 865, null]) {
+test("a marked run's branch behind main starts fresh instead of resuming", () => {
+  for (const behindBy of [1, 865]) {
     const branches = [branchFact(lane(400), { sha: SHA_400, behindBy })];
     assert.deepEqual(
       prior({ branches, markers: [marked("stopped", "400")] }),
@@ -1796,7 +1796,7 @@ async function runPrior({
   closingAnswer = graphql(nodes),
   refs = [],
   pulls = [],
-  comparison = { ahead_by: 2 },
+  comparison = { ahead_by: 2, behind_by: 0 },
   repoAnswer = { default_branch: "main" },
   commitAnswer = LANE_TIP,
   graphqlPages,
@@ -1961,6 +1961,12 @@ test("--find-prior fails on a tip commit with no readable time when a marker nam
   const comments = [{ user: { login: BOT }, body: "<!-- work-resolve-issue outcome=stopped -->", created_at: "2026-10-16T11:00:00Z" }];
   for (const commitAnswer of [{}, { ...LANE_TIP, commit: { ...LANE_TIP.commit, committer: { date: "not a date" } } }]) {
     await failsClosed(JSON.stringify(commitAnswer), { comments, refs: [refOf(lane(400))], commitAnswer });
+  }
+});
+
+test("--find-prior fails on a comparison with no whole-number behind_by", async () => {
+  for (const behind of [undefined, "3", null, 1.5, -1]) {
+    await failsClosed(String(behind), { refs: [refOf(lane(400))], comparison: { ahead_by: 1, behind_by: behind } });
   }
 });
 

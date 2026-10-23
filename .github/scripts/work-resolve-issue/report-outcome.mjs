@@ -336,7 +336,7 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
       "",
       pushback
         ? `Partial work is on the branch \`${branch}\`.`
-        : `Partial work is on the branch \`${branch}\`. A retry continues from it; delete the branch first to start again from the default branch.`,
+        : `Partial work is on the branch \`${branch}\`. A retry continues from it while it is not behind the default branch, and otherwise starts fresh from the default branch; delete the branch first to always start fresh.`,
     );
   }
   if (runUrl) {
@@ -427,7 +427,7 @@ function fundingPlan({ issueNumber, branch, regain, runId, runUrl, onResumed }) 
       : "The work-resolve-issue lane stopped on its funding (`funding`: no credit or a disabled key), not on this issue. It keeps `agent-ready`; once the lane is funded again, a person removes and adds `agent-ready` to restart it.",
   ];
   if (branch) {
-    lines.push("", `Partial work is on the branch \`${branch}\`; the restart continues from it.`);
+    lines.push("", `Partial work is on the branch \`${branch}\`; the restart continues from it while it is not behind the default branch, and otherwise starts fresh.`);
   }
   if (runUrl) {
     lines.push("", `Run: ${runUrl}`);
@@ -443,20 +443,20 @@ function turnCapPlan({ issueNumber, branch, cap, restart, humanLabel, runId, run
   const lines = [
     turnCapMarker({ cap, runId, onResumed }),
     restart
-      ? `The work-resolve-issue lane stopped on this issue: ${reached}. It keeps \`agent-ready\`, and work-unblock starts it again from the branch.`
+      ? `The work-resolve-issue lane stopped on this issue: ${reached}. It keeps \`agent-ready\`, and work-unblock starts it again from the branch, or fresh from the default branch once the branch is behind it.`
       : `The work-resolve-issue lane stopped on this issue: ${reached}. It has used its restarts, so it needs a person.`,
   ];
   lines.push(
     "",
     branch
-      ? `Partial work is on the branch \`${branch}\`; a restart or retry continues from it. Delete the branch first to start again from the default branch.`
+      ? `Partial work is on the branch \`${branch}\`; a restart or retry continues from it while it is not behind the default branch, and otherwise starts fresh. Delete the branch first to always start fresh.`
       : "The run committed nothing.",
   );
   if (runUrl) {
     lines.push("", `Run: ${runUrl}`);
   }
   if (!restart) {
-    lines.push("", `To retry from the branch, remove \`${humanLabel}\` and add \`agent-ready\` again; a smaller issue, or a larger Size or Complexity field, may fit the cap.`);
+    lines.push("", `To retry (from the branch while it is not behind the default branch, else fresh), remove \`${humanLabel}\` and add \`agent-ready\` again; a smaller issue, or a larger Size or Complexity field, may fit the cap.`);
   }
   return {
     action: restart ? "turn-cap" : "hand-back",
@@ -1168,6 +1168,9 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
       if (!Number.isSafeInteger(comparison?.ahead_by) || comparison.ahead_by < 0) {
         throw new Error(`the commits ${ref.name} holds ahead of ${base} could not be read`);
       }
+      if (!Number.isSafeInteger(comparison.behind_by) || comparison.behind_by < 0) {
+        throw new Error(`the commits ${ref.name} lacks from ${base} could not be read`);
+      }
       const pulls = await paginate(github, `${repo}/pulls?state=all&head=${encodeURIComponent(`${owner}:${ref.name}`)}`);
       if (!/^[0-9a-f]{40}$/.test(ref.sha ?? "")) {
         throw new Error(`the tip of ${ref.name} could not be read`);
@@ -1197,13 +1200,10 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
         }
       : { proceed: "false", "skip-reason": "not-applicable", "reuse-branch": prior.action === "reuse" ? prior.branch : "" };
     appendFileSync(env.GITHUB_OUTPUT, Object.entries(outputs).map(([key, value]) => `${key}=${value}\n`).join(""));
-    if (prior.stale) {
-      console.log(
-        `report-outcome: ${prior.stale.branch} is ${prior.stale.behindBy ?? "an unknown number of"} commits behind the default branch, so the model starts fresh from the default branch instead of resuming it; the branch is left as it is`,
-      );
-    }
     console.log(
-      prior.action === "run"
+      prior.stale
+        ? `report-outcome: ${prior.stale.branch} is ${prior.stale.behindBy} commits behind the default branch, so the model starts issue #${issueNumber} fresh from the default branch instead of resuming it; the branch is left as it is`
+        : prior.action === "run"
         ? `report-outcome: no earlier run of issue #${issueNumber} left work to report; the model runs`
         : prior.action === "resume"
           ? `report-outcome: the model resumes issue #${issueNumber} from ${prior.branch} at ${prior.tip} (${prior.cause})`

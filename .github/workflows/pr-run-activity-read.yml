@@ -807,7 +807,7 @@ jobs:
       # human opened a PR that closes the issue (stop), or a lane branch
       # holds commits no report handed on (reuse-branch, which report-outcome
       # opens a PR from). Both skip not-applicable. When the newest outcome
-      # marker is turn-cap, stopped or limited for a run whose lane branch
+      # marker is turn-cap, stopped, limited or funding for a run whose lane branch
       # passes the same tip check and is not behind the default branch, the
       # model runs on that branch's tip instead (resume-branch, resume-tip,
       # resume-cause); a branch behind it starts fresh from the default tip.
