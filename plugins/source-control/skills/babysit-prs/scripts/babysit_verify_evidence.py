@@ -1261,9 +1261,11 @@ def main(argv: list[str] | None = None) -> int:
     enable-auto-merge.mjs arms native auto-merge only on a null `refusal`
     at the head it read. Exit 0 whenever the line is printed, a refusal
     included."""
-    parser = argparse.ArgumentParser(prog="babysit_verify_evidence.py")
+    parser = argparse.ArgumentParser(
+        prog="babysit_verify_evidence.py", allow_abbrev=False
+    )
     sub = parser.add_subparsers(dest="command", required=True)
-    cmd = sub.add_parser("evidence")
+    cmd = sub.add_parser("evidence", allow_abbrev=False)
     cmd.add_argument("--repo", required=True)
     cmd.add_argument("--branch", default="main")
     cmd.add_argument("--max-fails", type=int, default=merge_policy.MAX_VERIFY_FAILS)
