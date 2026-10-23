@@ -516,6 +516,8 @@ test("main pauses at this repository's held cap of 10, past pause-from, and logs
 // WIP_STATE names (owner decision 2026-10-21, #8804).
 const pastConfig = () =>
   readFileSync(new URL(`../../../${CONFIG}`, import.meta.url), "utf8").replace(/^( +pause-from: ).*$/m, '$1"2026-10-01"');
+const unsetConfig = () =>
+  readFileSync(new URL(`../../../${CONFIG}`, import.meta.url), "utf8").replace(/^( +pause-from: ).*$/m, '$1""');
 function stateFile(prior) {
   const path = join(mkdtempSync(join(tmpdir(), "check-wip-cap-state-")), "state.json");
   if (prior !== undefined) {
@@ -677,7 +679,7 @@ test("over a cap with an unreadable base config the warning names the config, no
   const unset = await runMain(
     { open: Array.from({ length: 60 }, () => pr({ labels: ["needs-human"] })), merged: 24 },
     {},
-    readFileSync(new URL(`../../../${CONFIG}`, import.meta.url), "utf8"),
+    unsetConfig(),
   );
   const unsetWarning = unset.logs.find((line) => line.startsWith("::warning title=check-wip-cap::"));
   assert.ok(unsetWarning?.includes("the lane keeps running (pause-from is not set)"), unset.logs.join("\n"));

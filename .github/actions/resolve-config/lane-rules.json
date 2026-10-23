@@ -7,7 +7,7 @@
   "intake-triage": {
     "stage": "intake",
     "forbidden-effects": ["mutate-branch", "publish-artifact", "merge"],
-    "never": "Writes to a branch, or adds agent-ready"
+    "never": "Writes to a branch"
   },
   "work-unblock": {
     "stage": "work",
