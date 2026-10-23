@@ -33,8 +33,9 @@ reversal is a bounded revert; verifiability combines deterministic gates with AI
 ### `C4`: structural
 
 Refactors, migrations, contract changes. Blast radius is cross-cutting and reversal is hard,
-so no merge rung reaches the class: a merge authority that reads the class leaves it to human
-review and human merge, and the class escalates for upfront plan approval before execution.
+so the class escalates for upfront plan approval before execution. Its risk shows in the diff
+the review lanes read, so a merge authority that reads the class merges it as `C3` (the
+babysit merge gate's `WORK_CLASS_LABELS`).
 A merge authority that reads no class works differently: see [Merge authorities that read no
 class](#merge-authorities-that-read-no-class).
 

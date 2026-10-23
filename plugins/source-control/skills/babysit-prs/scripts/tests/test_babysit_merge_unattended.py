@@ -736,7 +736,6 @@ class Unattended(unittest.TestCase):
                 side_effect=self._dependabot_eligibility,
             ),
             mock.patch.object(policy, "changed_files", return_value=self.files),
-            mock.patch.object(policy, "declarations_at", return_value=()),
             mock.patch.object(policy, "pulumi_dirs_at", return_value=()),
             mock.patch.object(
                 policy,
@@ -863,15 +862,16 @@ class LaneMode(Unattended):
         )
 
     def test_an_adopted_pr_scores_only_paths_its_author_did_not_write(self) -> None:
-        # Owner decision 2026-10-22: a trusted author's own floor lines need
-        # no person; a floor path a lane commit touched still holds.
-        self.files = ((dataclasses.replace(LOW_FILE, path=".github/x.yml"),), True)
+        # Owner decision 2026-10-22: a trusted author's own denied-path lines
+        # need no person; a denied path a lane commit touched still holds.
+        self.config = dataclasses.replace(self.config, denied_paths=("notes/**",))
+        self.files = ((dataclasses.replace(LOW_FILE, path="notes/x.md"),), True)
         self.lane_eligible = policy.Eligibility(
             True, None, "C2", 41, adoption="idle-owner:24h", body_is_intent=True
         )
         for others, score in (
             (frozenset(), "LOW"),
-            (frozenset({".github/x.yml"}), "HIGH"),
+            (frozenset({"notes/x.md"}), "HIGH"),
             (None, "HIGH"),
         ):
             with (
@@ -889,19 +889,21 @@ class LaneMode(Unattended):
         self.assertEqual(out["unattended"]["risk"]["score"], "HIGH")
 
     def test_a_model_app_own_lines_skip_the_floor_only_under_scripts(self) -> None:
-        # Owner decision Q14 (c): a model-driven App's own plugins/*/scripts/
-        # lines need no person; its other floor paths still score, top-level
-        # scripts/ included (credentialed jobs on main run it).
+        # Owner decision Q14 (c): a model-driven App's own lines skip the
+        # denied paths only under plugins/*/scripts/; the floor always scores.
         self.config = dataclasses.replace(self.config, high_path_floor=True)
         self.lane_eligible = policy.Eligibility(
             True, None, "C2", 41, adoption="trusted-app"
+        )
+        self.config = dataclasses.replace(
+            self.config, denied_paths=("plugins/p/**", "scripts/**")
         )
         own, held = (
             ("plugins/p/scripts/x.md",),
             (
                 "scripts/release-plugins.sh",
                 "plugins/p/hooks/x.md",
-                ".github/x.md",
+                ".gitmodules",
                 "plugins/p/skills/s/scripts/x.md",
             ),
         )
@@ -1136,11 +1138,11 @@ class LaneMode(Unattended):
         self.assertEqual([(o, n) for o, n, _ in self.base_reads], [("owner", "repo")])
 
     def test_an_ineligible_pr_is_refused(self) -> None:
-        self.lane_eligible = policy.Eligibility(False, "denied-path:.github/x.yml")
+        self.lane_eligible = policy.Eligibility(False, "denied-path:.gitmodules")
         code, out = self.lane()
         self.assert_no_merge(code)
         self.assertEqual(
-            out["unattended"]["reason"], "ineligible:denied-path:.github/x.yml"
+            out["unattended"]["reason"], "ineligible:denied-path:.gitmodules"
         )
 
     def test_report_only_reports_the_decision_and_writes_nothing(self) -> None:
@@ -1817,6 +1819,45 @@ class EachRefusalMakesNoMergeCall(Unattended):
         code, out = self.run_main()
         self.assert_no_merge(code)
         self.assertEqual(out["unattended"]["reason"], "risk:MED")
+
+    BINARY = dataclasses.replace(
+        LOW_FILE, path="docs/logo.png", has_patch=False, patch=None
+    )
+
+    def test_a_med_on_path_reasons_alone_merges(self) -> None:
+        # #9270: both lanes bound and clean, the only reason a path's.
+        self.files = ((self.BINARY,), True)
+        code, out = self.run_main()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(out["unattended"]["risk"]["score"], "MED")
+        self.assertIsNone(out["unattended"]["reason"])
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+
+    def test_a_med_with_an_open_review_finding_holds(self) -> None:
+        self.files = ((self.BINARY,), True)
+        self.lanes = (LaneEvidence("claude-review", True, None, 1), BOUND[1])
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "risk:MED")
+
+    def test_a_med_with_an_unbound_lane_holds(self) -> None:
+        self.files = ((self.BINARY,), True)
+        self.lanes = (BOUND[0], UNBOUND[1])
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "risk:MED")
+
+    def test_a_cost_hold_holds(self) -> None:
+        patch = "@@ -1,1 +1,1 @@\n-  max-in-flight: 5\n+  max-in-flight: 50"
+        pipeline = dataclasses.replace(
+            LOW_FILE, path="docs/conventions/pr-pipeline.yaml", patch=patch
+        )
+        self.files = ((pipeline,), True)
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
+        codes = [r["code"] for r in out["unattended"]["risk"]["reasons"]]
+        self.assertEqual(codes, ["cost-review-required"])
 
 
 class BaseConfigParseError(Unattended):
@@ -2635,14 +2676,14 @@ class ReasonsComment(Unattended):
 
     def test_a_floor_hold_says_a_human_merges_it(self) -> None:
         # Owner decision Q648: only the owner merges a floor-held PR.
-        self.files = ((dataclasses.replace(LOW_FILE, path=".github/x.yml"),), True)
+        self.files = ((dataclasses.replace(LOW_FILE, path=".gitmodules"),), True)
         self.run_main()
         body = next(
             c.args[0][-1]
             for c in self.capture.call_args_list
             if "babysit-merge-risk" in " ".join(c.args[0])
         )
-        self.assertIn("high-path:.github/**", body)
+        self.assertIn("high-path:**/.gitmodules", body)
         self.assertIn("a human merges it in person, never an agent or a lane", body)
 
     def test_a_med_hold_does_not_claim_the_floor(self) -> None:
@@ -2831,7 +2872,7 @@ class ReasonsComment(Unattended):
         # labeled, the reasons comment first extended to say so.
         for name, files in (
             ("MED", ((LOW_FILE,), True)),
-            ("HIGH", ((dataclasses.replace(LOW_FILE, path=".github/x.yml"),), True)),
+            ("HIGH", ((dataclasses.replace(LOW_FILE, path=".gitmodules"),), True)),
         ):
             with self.subTest(name):
                 self.setUp()

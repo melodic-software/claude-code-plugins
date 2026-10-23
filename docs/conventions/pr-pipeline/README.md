@@ -645,7 +645,10 @@ and its queued entries leave; two different identities, or an unreadable head co
   `github-actions[bot]` and `dependabot[bot]` are refused in any letter case. With no `merge:` block,
   or no `authority`, the wrapper merges nothing.
 - **Same repository.** The pull request's head is in this repository, never a fork.
-- **Risk score.** Only a diff the risk scorer rates LOW merges; MEDIUM and HIGH are refused.
+- **Risk score.** A diff the risk scorer rates LOW merges, and so does a MEDIUM one whose every
+  reason is a class or size reason (`class-contradicted`, `blast-radius-missing`, `lines-over`,
+  `files-over`, `no-patch:*`). Every other MEDIUM reason (unbound or missing review evidence, an
+  open claude-review finding, an unread file listing, the rung) and every HIGH one refuse.
 - **Review evidence.** For each review lane, the newest run of the lane's caller workflow on the
   pinned head SHA concluded success and carries the lane's completion record for that SHA.
 - **Effective rung.** The lowest of `merge.rung`, the `babysit_loop_merge` key in
@@ -683,41 +686,20 @@ and its queued entries leave; two different identities, or an unreadable head co
   and the diff risk score still decides. It counts only when a human added it last and the pull
   request body was not edited afterwards.
 - **HIGH path floor.** A fixed set of paths in the wrapper's code, joined with
-  `merge.diff-check.denied-paths` and, while `high-path-floor` is true, `floor-paths`,
-  `floor-script-scopes` and the capability check (see the pr-merge lane), matched
-  case-insensitively. A diff that touches any of them
-  scores HIGH and is never merged unattended. Two changes are exempt, as `babysit_risk.py`'s
-  docstring states: adding only the line `disable-model-invocation: true` to a
-  `plugins/<plugin>/skills/<skill>/SKILL.md` frontmatter that no agent's `skills` list could
-  preload takes no capability hold, and a non-script file under `plugins/<plugin>/evals/` takes no
-  capability hold and none from the `plugins/review/**`, `plugins/guardrails/**`,
-  `plugins/work-items/**` or `plugins/**/scripts/**` entries; a manifest, a named file such as
-  `CLAUDE.md`, a declared path and `denied-paths` still hold it. Any changed file in an eval case
-  directory whose `case.yaml` could name a `context.scaffold_script`, or could not be read, scores
-  HIGH as `eval-scaffold-review-required`, since `--scaffold` runs that script outside the
-  sandbox; so does any `*.sh`, `*.bash`, `*.py`, `*.mjs`, `*.js`, `*.cjs`, `*.ps1` or mode 100755
-  file under `plugins/*/evals/**`, whatever the floor says, since a scaffold may source it. A
+  `merge.diff-check.denied-paths` and matched case-insensitively: agent permission config
+  (`**/settings*.json`), `.gitmodules`, `CODEOWNERS`, package manifests and lockfiles, the
+  workflows that publish a release or hold `id-token: write`, and the trusted-trigger check they
+  run. A diff that touches any of them scores HIGH and is never merged unattended. A
   `plugins/<plugin>/.claude-plugin/plugin.json` or the top-level
-  `.claude-plugin/marketplace.json` leaves the floor: its parsed base and head are compared against
-  allow-lists, and any difference outside them scores HIGH as `manifest-review-required`. In
-  `plugin.json` only `version`, `description`, `keywords`, `author`, `homepage`, `repository`,
-  and `license` may differ, and `version` may not be removed; an existing `userConfig` entry may
-  change only its `title` or `description`, and an added or removed entry or a `defaultEnabled`
-  change holds. In `marketplace.json` only `plugins` and
-  `metadata.description` or `metadata.version` may differ; an existing plugin entry may change only
-  `version`, `description`, `keywords`, `author`, `homepage`, `repository`, `license`, `category`
-  and `tags`, and an added, removed or renamed entry holds. A side that cannot be read, does not
-  parse or repeats a key holds, and so does a new `plugin.json`. Values are compared as sorted
-  JSON, so `false` and `0` differ, and a listed key clears only with the expected type: a string, a
-  list of strings for `keywords` and `tags`, and a string or an object of strings for `author`.
-  That reason waits for a human like any other HIGH one. A file whose every path is a test (a `*.test.mjs`,
-  `*.test.sh`, `*.test.js` or `test_*.py` name, matched case-sensitively; a `tests/` or
-  `fixtures/` directory alone is not one),
-  safe, under no path a plugin declares as run, and named by no other changed file in the diff,
-  does not take the floor's `plugins/*/scripts/**`, `plugins/*/skills/*/scripts/**` and
-  `plugins/**/scripts/**` entries, `floor-paths` globs that end in a `scripts` directory (such as
-  `plugins/x/scripts/**`), or `floor-script-scopes`; every other floor entry, every other
-  `floor-paths` glob and `denied-paths` still hold it.
+  `.claude-plugin/marketplace.json` change scores HIGH as `manifest-review-required` when it
+  installs or runs something new: a differing `hooks`, `mcpServers`, `lspServers`, `monitors` or
+  `experimental.monitors` value, or a marketplace plugin added, removed, renamed or re-sourced, or
+  the marketplace renamed. A removed, renamed or copied manifest, and a side that cannot be read,
+  does not parse or repeats a key, holds. That reason waits for a human like any other HIGH one.
+- **Security findings.** The security lane flags; only a CRITICAL finding holds the merge, as
+  `security-finding`. Its inline comments and summary carry the severity lines
+  `plugins/review/skills/security-review/SKILL.md` defines, and a finding whose severity the gate
+  cannot read counts as CRITICAL.
 - **Cost hold.** A change that could add or raise a charge needs the owner (owner rule,
   2026-10-22). It scores HIGH as `cost-review-required` in both lanes, whatever `high-path-floor`
   says and whatever an adopted author's own paths leave off the floor, and waits for a human like
@@ -755,8 +737,8 @@ and its queued entries leave; two different identities, or an unreadable head co
   inside an HTML comment in the body counts for nothing. A push after the decision is an accepted
   residual: the decision is not bound to a head. The gate reads the linked comments only for a
   pull request the hold catches, and a failed read leaves the hold. A decision
-  clears only this reason: a workflow or `docs/conventions/pr-pipeline.yaml` change still sits on
-  the HIGH path floor here and waits for a person to merge it. Cite the decision before the
+  clears only this reason: a change to a workflow on the HIGH path floor still sits there and
+  waits for a person to merge it. Cite the decision before the
   human-gated label lands; a body edit does not remove that label (only a new head or a person
   does). Not detected: budgets, billing settings and new paid services outside these files, and
   the shapes [#9241](https://github.com/melodic-software/claude-code-plugins/issues/9241) lists.
@@ -863,27 +845,15 @@ except six:
   reports and sets `false` to let it merge.
 - **Risk switches.** Each check below is a `merge.diff-check` setting that is off when absent:
   `denied-paths` (an empty list denies no path; a listed path makes the pull request ineligible),
-  `high-path-floor` (true scores the scorer's fixed HIGH path set HIGH, and a SKILL.md,
-  agents/**/*.md or commands/**/*.md file whose head text, compared with its base text, gains or
-  changes `hooks`, `allowed-tools`, `tools`, `permissionMode`, `mcpServers`, `memory` or another
-  frontmatter key `babysit_risk.py` lists, adds or changes a `!` backtick command, gains a
-  ```` ```! ```` block,
-  changes a line inside a ```` ```! ```` block, has changed frontmatter the strict reader cannot
-  follow, or cannot be read, and a rename or copy into such a path), `floor-paths` (globs joined to
-  that floor while it applies; a HIGH pull request waits for a human), `floor-script-scopes`
-  (globs inside which, as at the top level, a `.ps1`, `.cjs` or mode-100755 file other than a test
-  file scores HIGH with the floor), `c2-contradictions` (true
+  `high-path-floor` (true scores the scorer's fixed HIGH path set and the manifest review HIGH),
+  `c2-contradictions` (true
   scores a removed, renamed or copied file, a schema change or more than one plugin MED),
-  `max-changed-files` and `max-changed-lines` (absent is no cap). This repository lists
-  `floor-paths` and `floor-script-scopes` and sets `high-path-floor: true` (owner decision
-  2026-10-18, reversing Q661: lanes may edit runnable plugin files and fix-ci's patch guard
-  covers only `.github/**` and agent instruction paths), so a lane pull request on the floor waits for a human; the non-author verifier
+  `max-changed-files` and `max-changed-lines` (absent is no cap). This repository sets
+  `high-path-floor: true`, so a lane pull request on the floor waits for a human; the non-author verifier
   verdict, both AI review lanes, `ci-status` and the post-merge revert breaker gate the rest. It
   leaves the rest off (owner decision,
-  2026-10-17). The local babysit lane ignores the other switches and keeps the rest of
-  the fixed floor, both caps and the C2 contradictions, but `high-path-floor` governs it too:
-  false leaves out `floor-paths`, `floor-script-scopes`, the capability check and the floor
-  entries for plugin monitors and workflows. The review evidence and the security lane's findings
+  2026-10-17). The local babysit lane ignores these switches and keeps the fixed floor, both
+  caps and the C2 contradictions. The review evidence and the security lane's CRITICAL findings
   still count.
 
   What is left with every switch off: a lane pull request may change the merge gate, the
@@ -904,7 +874,7 @@ except six:
 - **Post-merge check and merges in flight.** Only merges the agent identity enqueued count. A
   merge by a person or by another App, such as a release pull request, is not the lane's.
 
-An eligible pull request scored MED or HIGH gets one `<!-- babysit-merge-risk -->` reasons comment
+An eligible pull request its score holds gets one `<!-- babysit-merge-risk -->` reasons comment
 naming the score, the reasons and the head. While `merge.report-only` is false, a run that finds the
 lane identity's reasons comment from an earlier run unchanged (same score, reasons and head) for at
 least `merge.risk-escalation-minutes` (default 60, timed from the comment's last change; 0 is no
@@ -1764,21 +1734,15 @@ The body counts only if it was never edited, or was last edited by its author or
 the verdict records its sha256 (`intent_sha256`), and the gate refuses the pass
 (`verify:spec-changed`) once the live title and body differ.
 
-In the pr-merge lane, for an adopted PR a person or a `spec-from-body-apps` App opened, the HIGH
-path floor and the manifest review score only the PR's changed paths that a commit not its
+In the pr-merge lane, for an adopted PR a person or a `spec-from-body-apps` App opened, the
+denied paths and the manifest review score only the PR's changed paths that a commit not its
 author's own touched (a lane's fix among them): that author's own lines need no person. Any other
 App's PR (claude[bot], cursor[bot], cursoragent, melodic-ai[bot]) gets that exemption only for its
 own lines under `plugins/*/scripts/` (owner decision Q14 (c)); its other paths score whole, like
-the lanes App's, top-level `scripts/` included (credentialed jobs on main run it), while it stays
-adoptable for fix-and-merge. `.github/standards/**`, `.github/workflows/**`,
-`.github/scripts/**`, `.github/actions/**` and any `CODEOWNERS` always score, whoever wrote them:
-CI runs that code from main with tokens. So do the merge gate
-(`plugins/source-control/skills/babysit-prs/**`), the review lanes (`plugins/review/**`),
-`docs/conventions/**`, `REVIEW.md` and `settings*.json` (owner decision 2026-10-20, clause 5 of
-the gated PR merge decision), and every instruction or runnable plugin path pr-unblock's thread
-scope names (`INSTRUCTION_PATH` in `thread-scope.mjs`, whose Python twin a test holds equal):
-`.claude/` and `.claude-plugin/` directories, `CLAUDE.md`, `AGENTS.md`, `.mcp.json`, `.lsp.json`,
-`.gitmodules`, `CODEOWNERS`, and `plugins/*/hooks`, `monitors` and `bin`. Paths match
+the lanes App's, while it stays adoptable for fix-and-merge. The HIGH path floor always scores,
+whoever wrote it, and so does every file pr-unblock's thread scope names (`INSTRUCTION_PATH` in
+`thread-scope.mjs`, whose Python twin a test holds equal): `.gitmodules`, `CODEOWNERS`,
+`settings*.json` and package manifests. Paths match
 case-insensitively. The lanes App and
 Dependabot are never adopted. A commit is the author's own
 only when GitHub verified its signature and its author account is the PR's author, and, for a

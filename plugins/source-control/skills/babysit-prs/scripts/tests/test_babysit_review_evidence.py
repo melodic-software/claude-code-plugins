@@ -1601,5 +1601,72 @@ class FailClosedTests(Base):
         self.assertFalse(result[0].bound)
 
 
+class SeverityTests(Base):
+    """The security lane's blocking count holds only its CRITICAL findings;
+    a finding of unreadable severity counts as CRITICAL."""
+
+    SEC = "claude-security-review"
+
+    def comment(self, severity: str | None) -> str:
+        line = f"severity: {severity}\n" if severity else ""
+        return f"finding\n\n{line}`claude-lane: {self.SEC}`"
+
+    def summary_markers(self, text: str) -> list[dict[str, Any]]:
+        found = both_markers()
+        for item in found:
+            if f"lane={self.SEC}" in item["body"]:
+                item["body"] += f"\n\n{text}"
+        return found
+
+    def test_inline_findings_block_by_severity(self) -> None:
+        for severity, blocking in (
+            ("IMPORTANT", 0),
+            ("SUGGESTION", 0),
+            ("CRITICAL", 1),
+            (None, 1),
+        ):
+            with self.subTest(severity=severity):
+                runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]
+                threads = [thread(self.comment(severity))]
+                result = self.bind(runs, threads=threads)[self.SEC]
+                self.assertEqual(result.open_findings, 1)
+                self.assertEqual(result.blocking_findings, blocking)
+
+    def test_two_severity_lines_count_as_critical(self) -> None:
+        body = self.comment("IMPORTANT").replace(
+            "severity: IMPORTANT", "severity: IMPORTANT\nseverity: SUGGESTION"
+        )
+        runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]
+        result = self.bind(runs, threads=[thread(body)])[self.SEC]
+        self.assertEqual(result.blocking_findings, 1)
+
+    def test_summary_findings_block_by_the_critical_line(self) -> None:
+        runs = [whole("claude-review", S), whole(self.SEC, S, n=3, k=0)]
+        for text, blocking in (
+            ("critical-findings: 0", 0),
+            ("critical-findings: 2", 2),
+            ("critical-findings: 9", 3),
+            ("no line", 3),
+            ("critical-findings: 0\ncritical-findings: 0", 3),
+        ):
+            with self.subTest(text=text):
+                result = self.bind(runs, comments=self.summary_markers(text))[self.SEC]
+                self.assertEqual(result.open_findings, 3)
+                self.assertEqual(result.blocking_findings, blocking)
+
+    def test_a_thread_less_inline_finding_counts_as_critical(self) -> None:
+        runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]
+        result = self.bind(runs, comments=self.summary_markers("critical-findings: 0"))[
+            self.SEC
+        ]
+        self.assertEqual(result.blocking_findings, 1)
+
+    def test_claude_review_findings_all_block(self) -> None:
+        runs = [whole("claude-review", S, n=1, k=0), whole(self.SEC, S)]
+        result = self.bind(runs)["claude-review"]
+        self.assertEqual(result.open_findings, 1)
+        self.assertIsNone(result.blocking_findings)
+
+
 if __name__ == "__main__":
     unittest.main()

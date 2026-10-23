@@ -2716,19 +2716,17 @@ class LaneRequiresAVerdict(unattended.Unattended):
             self.config, high_path_floor=True, max_changed_files=8,
             c2_contradictions=True,
         )  # fmt: skip
-        self.files = ((changed(".github/x.yml"),), True)
+        self.files = ((changed(".gitmodules"),), True)
         _, out = self.lane()
         self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
 
     def test_the_lane_scores_a_floor_path_from_the_config_high(self) -> None:
-        self.config = dataclasses.replace(
-            self.config, high_path_floor=True, floor_paths=("notes/held/**",)
-        )
-        self.files = ((changed("notes/held/x.md"),), True)
+        self.config = dataclasses.replace(self.config, high_path_floor=True)
+        self.files = ((changed(".gitmodules"),), True)
         _, out = self.lane()
         self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
         codes = [r["code"] for r in out["unattended"]["risk"]["reasons"]]
-        self.assertEqual(codes, ["high-path:notes/held/**"])
+        self.assertEqual(codes, ["high-path:**/.gitmodules"])
 
     def unlabeled_lane_pr(self, real_denied_paths: bool = False) -> None:
         """The real lane eligibility over a lanes-App pull request whose one
@@ -2787,23 +2785,18 @@ class LocalBabysitReadsNoVerdict(unattended.Unattended):
             self.config, high_path_floor=False, max_changed_files=None,
             c2_contradictions=False,
         )  # fmt: skip
-        self.files = ((changed(".github/x.yml"),), True)
+        self.files = ((changed(".gitmodules"),), True)
         code, out = self.run_main()
         self.assert_no_merge(code)
         self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
 
-    def test_the_floor_switch_governs_the_local_floor_paths(self) -> None:
-        # Owner decision 2026-10-18: the additions follow the switch in every lane.
-        self.files = ((changed("notes/held/x.md"),), True)
+    def test_the_local_floor_holds_whatever_the_switch_says(self) -> None:
+        self.files = ((changed(".gitmodules"),), True)
         for on in (False, True):
             with self.subTest(high_path_floor=on):
-                self.config = dataclasses.replace(
-                    self.config, high_path_floor=on, floor_paths=("notes/held/**",)
-                )
+                self.config = dataclasses.replace(self.config, high_path_floor=on)
                 _, out = self.run_main()
-                self.assertEqual(
-                    out["unattended"]["risk"]["score"], "HIGH" if on else "LOW"
-                )
+                self.assertEqual(out["unattended"]["risk"]["score"], "HIGH")
 
 
 class TheConfigKey(unittest.TestCase):

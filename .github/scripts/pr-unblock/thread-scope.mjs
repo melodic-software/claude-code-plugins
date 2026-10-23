@@ -8,12 +8,10 @@ export function isProtectedPath(path) {
   return /^\.github(\/|$)/i.test(String(path));
 }
 
-// Run or loaded as instructions by the harness, git or GitHub: agent rules,
-// MCP, language-server and submodule config, code owners, a .claude or
-// .claude-plugin directory, and a plugin's hooks, monitors and bin, each
-// matched as the whole segment.
+// Submodule, code-owner, agent permission and package manifest files, each
+// matched as the whole last segment.
 const INSTRUCTION_PATH =
-  /(^|\/)((claude|agents)\.md|\.mcp\.json|\.lsp\.json|\.gitmodules|codeowners)$|(^|\/)\.claude(-plugin)?(\/|$)|(^|\/)plugins\/[^/]+\/(hooks|monitors|bin)(\/|$)/i;
+  /(^|\/)(\.gitmodules|codeowners|settings[^/]*\.json|package(-lock)?\.json|requirements[^/]*\.txt)$/i;
 export const isInstructionPath = (path) => INSTRUCTION_PATH.test(String(path));
 
 const PLUGIN_DIR = /^plugins\/[^/]+\//;

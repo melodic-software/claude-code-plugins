@@ -1031,20 +1031,13 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    - **Pointer**: when the commits list's cap matters, fetch
      [list commits on a pull request](https://docs.github.com/en/rest/pulls/pulls#list-commits-on-a-pull-request)
      live. **As of**: 2026-10-12. **Recheck trigger**: that section changes the cap or its paging.
-   Only LOW merges. Adding only `disable-model-invocation: true` to a plugin skill no agent
-   preloads, and a non-script file under `plugins/<plugin>/evals/`, take no hold from the floor
-   entries `babysit_risk.py`'s docstring names, unless the file sits in an eval case whose
-   `case.yaml` could name a `scaffold_script` (HIGH as `eval-scaffold-review-required`). A script
-   or mode 100755 file anywhere under `plugins/<plugin>/evals/` takes that hold too, floor or not,
-   since a scaffold may source it. A plugin
-   or marketplace manifest takes no floor hold; its parsed change clears only when every key that
-   differs is on that docstring's allow-lists (version, description and other metadata, or a
-   title or description edit on an existing `userConfig` key), and anything else, an added
-   `userConfig` key or a `defaultEnabled` change included, scores HIGH as
-   `manifest-review-required`, as does a listed key whose value has the wrong type. A test file
-   under a plugin `scripts/` directory, a `floor-paths` glob ending in a `scripts` directory or a
-   `floor-script-scopes` glob, named by no other changed file, takes no HIGH path floor hold for
-   that reason alone; the rule is in `babysit_risk.py`'s docstring. A change that could add or
+   A LOW score merges, and so does a MED one whose every reason is a class or size reason
+   (`babysit_risk.holds`, #9270): an unbound or missing review lane, an open claude-review
+   finding, an unread file listing and every HIGH reason hold. The security lane holds only on
+   a CRITICAL finding. The HIGH path floor holds only the external-effect set
+   `babysit_risk.py`'s docstring names. A plugin or marketplace manifest change scores HIGH as
+   `manifest-review-required` only when it installs or runs something new: an executable
+   `plugin.json` key, or a marketplace plugin added, removed, renamed or re-sourced. A change that could add or
    raise a charge scores HIGH as `cost-review-required` in both lanes, floor or not, until the body
    links an owner `**Decision recorded.** Cost:` comment on the closing issue or the pull request
    (`cost_decision`); which changes count is in that docstring. A C3 pull request also needs a

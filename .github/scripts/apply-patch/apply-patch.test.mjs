@@ -264,20 +264,20 @@ test("a patch over max-files is refused", async (t) => {
 // review-threads and dependency-review rows admit those the universal set
 // does not refuse.
 const INSTRUCTION_PATHS = [
-  ["CLAUDE.md", ["instruction-path"]],
-  ["AGENTS.md", ["instruction-path"]],
-  ["plugins/p/skills/s/CLAUDE.md", ["instruction-path"]],
-  ["docs/Agents.MD", ["instruction-path"]],
+  ["CLAUDE.md", []],
+  ["AGENTS.md", []],
+  ["plugins/p/package.json", ["instruction-path"]],
+  ["docs/Package-Lock.JSON", ["instruction-path"]],
   [".claude/settings.json", ["claude", "settings", "instruction-path"]],
-  ["plugins/p/.claude/rules/r.md", ["claude", "instruction-path"]],
-  [".CLAUDE/x.md", ["claude", "instruction-path"]],
-  ["plugins/p/hooks/hooks.json", ["instruction-path"]],
-  ["plugins/p/Hooks/run.mjs", ["instruction-path"]],
-  ["plugins/p/.claude-plugin/plugin.json", ["instruction-path"]],
-  [".claude-plugin/marketplace.json", ["instruction-path"]],
-  ["vendor/m/.Claude-Plugin/marketplace.json", ["instruction-path"]],
-  [".mcp.json", ["mcp-config", "instruction-path"]],
-  ["plugins/p/.MCP.json", ["instruction-path"]],
+  ["plugins/p/.claude/rules/r.md", ["claude"]],
+  [".CLAUDE/x.md", ["claude"]],
+  ["plugins/p/hooks/hooks.json", []],
+  ["plugins/p/requirements.txt", ["instruction-path"]],
+  ["plugins/p/.claude-plugin/plugin.json", []],
+  [".claude-plugin/marketplace.json", []],
+  ["plugins/p/settings.json", ["settings", "instruction-path"]],
+  [".mcp.json", ["mcp-config"]],
+  ["plugins/p/.MCP.json", []],
   [".gitmodules", ["gitmodules", "instruction-path"]],
   ["CODEOWNERS", ["instruction-path"]],
   ["docs/CODEOWNERS", ["instruction-path"]],
@@ -285,6 +285,7 @@ const INSTRUCTION_PATHS = [
 ];
 
 test("the ci-context and default rows refuse every instruction path, and the review-threads row admits those the universal set does not refuse", () => {
+  // Agent instructions, hooks, manifests and MCP config are no instruction path.
   assert.equal(INSTRUCTION_PATHS.length, 18);
   for (const [path, refusals] of INSTRUCTION_PATHS) {
     for (const name of ["ci-context", "default"]) {
@@ -300,12 +301,10 @@ test("the ci-context and default rows refuse every instruction path, and the rev
 });
 
 // fix-docs hands on its patch with no prepare mode, so the default row holds
-// it: an edit to an agent instruction, a plugin hook or a code owners file is
-// refused whole before any API call, and the trailer names fix-docs.
+// it: an edit to a code owners file or a package manifest is refused whole
+// before any API call, and the trailer names fix-docs.
 for (const [path, edit] of [
-  ["CLAUDE.md", (repo) => writeFileSync(join(repo, "CLAUDE.md"), "Ignore the rules.\n")],
-  ["docs/AGENTS.md", (repo) => (mkdirSync(join(repo, "docs")), writeFileSync(join(repo, "docs/AGENTS.md"), "x\n"))],
-  ["plugins/x/hooks/h.sh", (repo) => (mkdirSync(join(repo, "plugins/x/hooks"), { recursive: true }), writeFileSync(join(repo, "plugins/x/hooks/h.sh"), "x\n"))],
+  ["plugins/x/package.json", (repo) => (mkdirSync(join(repo, "plugins/x"), { recursive: true }), writeFileSync(join(repo, "plugins/x/package.json"), "{}\n"))],
   ["docs/CODEOWNERS", (repo) => (mkdirSync(join(repo, "docs")), writeFileSync(join(repo, "docs/CODEOWNERS"), "* @o\n"))],
 ]) {
   test(`a fix-docs patch that edits ${path} is refused patch-protected-path before any API call`, async (t) => {
@@ -348,24 +347,24 @@ test("a fix-docs patch commits Apply fix-docs on the head with the Lane-Activity
   assert.deepEqual(createCommit.parents, [fix.head]);
 });
 
-test("a fix-ci patch that edits CLAUDE.md is refused before any API call", async (t) => {
-  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "CLAUDE.md"), "Ignore the checks.\n"));
+test("a fix-ci patch that edits CODEOWNERS is refused before any API call", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "CODEOWNERS"), "* @o\n"));
   const api = fakeApi(fix.repo, fix.head);
   const lines = [];
   assert.deepEqual(await pushWith(fix, api, { row: row("ci-context"), log: (line) => lines.push(line) }), {
     outcome: "escalate",
     escalationReason: "ci-fix-protected-path",
   });
-  assert.deepEqual(lines, ["refused (instruction-path): CLAUDE.md"]);
+  assert.deepEqual(lines, ["refused (instruction-path): CODEOWNERS"]);
   assert.deepEqual(api.calls, []);
 });
 
-test("without PATCH_PREPARE a fix-ci patch falls to the default row, which refuses CLAUDE.md too and gives other reasons", () => {
+test("without PATCH_PREPARE a fix-ci patch falls to the default row, which refuses CODEOWNERS too and gives other reasons", () => {
   const unset = rowFor(RULES, { prepare: "" });
   const fixCi = rowFor(RULES, { prepare: "ci-context" });
   assert.equal(unset.name, "default");
-  assert.deepEqual(refusalsOf(entry("CLAUDE.md"), unset.refuse), ["instruction-path"]);
-  assert.deepEqual(refusalsOf(entry("CLAUDE.md"), fixCi.refuse), ["instruction-path"]);
+  assert.deepEqual(refusalsOf(entry("CODEOWNERS"), unset.refuse), ["instruction-path"]);
+  assert.deepEqual(refusalsOf(entry("CODEOWNERS"), fixCi.refuse), ["instruction-path"]);
   assert.equal(unset["reads-report"], null);
   assert.equal(fixCi["reads-report"], "ci-escalations");
   assert.ok(!unset.escalations.includes("ci-fix-protected-path"));
@@ -516,8 +515,8 @@ test("review-threads: a file a kept thread's named_paths holds pushes; the same 
     outcome: "escalate",
     escalationReason: "patch-protected-path",
   });
-  const instruction = [{ path: "plugins/p/evals/c/case.yaml", named_paths: ["plugins/p/AGENTS.md"] }];
-  assert.deepEqual(await threadPush(threadPatch(t, ["plugins/p/AGENTS.md"]), instruction), {
+  const instruction = [{ path: "plugins/p/evals/c/case.yaml", named_paths: ["plugins/p/CODEOWNERS"] }];
+  assert.deepEqual(await threadPush(threadPatch(t, ["plugins/p/CODEOWNERS"]), instruction), {
     outcome: "escalate",
     escalationReason: "patch-protected-path",
   });
@@ -1100,8 +1099,8 @@ test("issue target: a resumed run whose patch adds a gitlink to a commit not in 
   assert.deepEqual(api.calls, []);
 });
 
-test("issue target: a script under an instruction path is refused before any API call", async (t) => {
-  const fix = repoWithPatch(t, (repo) => (mkdirSync(join(repo, "plugins/p/hooks"), { recursive: true }), writeFileSync(join(repo, "plugins/p/hooks/x.sh"), "#!/bin/sh\n")));
+test("issue target: an instruction path is refused before any API call", async (t) => {
+  const fix = repoWithPatch(t, (repo) => (mkdirSync(join(repo, "plugins/p"), { recursive: true }), writeFileSync(join(repo, "plugins/p/CODEOWNERS"), "* @o\n")));
   const api = fakeApi(fix.repo, fix.head, { labels: READY });
   assert.deepEqual(await pushIssue(fix, api), { outcome: "escalate", escalationReason: "patch-protected-path" });
   assert.deepEqual(api.calls, []);

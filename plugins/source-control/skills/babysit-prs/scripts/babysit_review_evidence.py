@@ -79,6 +79,19 @@ MARKER_RE = re.compile(
 )
 CLAUDE_APP_LOGINS = frozenset({"claude", "claude[bot]"})
 LANE_TAG_RE = re.compile(r"^\s*`?claude-lane: ([\w-]+)`?\s*$", re.MULTILINE)
+# The lane whose findings hold the merge only at its top tier, CRITICAL
+# (plugins/review/skills/security-review/SKILL.md, "Reporting"): each inline
+# comment carries one `severity:` line, and the summary one
+# `critical-findings:` line counting its CRITICAL findings with no inline
+# comment. A comment or summary without exactly one readable line counts every
+# finding it holds as CRITICAL.
+SEVERITY_LANE = "claude-security-review"
+SEVERITY_RE = re.compile(
+    r"^\s*`?severity: (CRITICAL|IMPORTANT|SUGGESTION)`?\s*$", re.MULTILINE
+)
+SUMMARY_CRITICAL_RE = re.compile(
+    r"^\s*`?critical-findings: (\d{1,6})`?\s*$", re.MULTILINE
+)
 MAX_CHAIN = 100
 
 
@@ -181,14 +194,23 @@ def _bind_lane(
     try:
         lane_runs = _lane_runs(lane, runs)
         reviewed, chain = _resolve(lane, head, lane_runs)
-        _require_marker(lane, head, comments)
+        marker = _require_marker(lane, head, comments)
         _require_marked_runs(lane, lane_runs, comments)
-        count, clears = _open_findings(
-            lane, lane_runs, threads, is_human, claimed, reviewed, chain, head_file
+        count, clears, critical = _open_findings(
+            lane,
+            lane_runs,
+            threads,
+            is_human,
+            claimed,
+            reviewed,
+            chain,
+            head_file,
+            marker,
         )
     except Unbound as exc:
         return LaneEvidence(lane, False, exc.reason, None)
-    return LaneEvidence(lane, True, None, count, clears)
+    blocking = critical if lane == SEVERITY_LANE else None
+    return LaneEvidence(lane, True, None, count, clears, blocking)
 
 
 def _lane_runs(lane: str, runs: Sequence[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
@@ -388,13 +410,12 @@ def _record(lane: str, sha: str, job: Mapping[str, Any]) -> _Record | None:
     )
 
 
-def _require_marker(
-    lane: str, head: str, comments: Sequence[Mapping[str, Any]]
-) -> None:
-    """The newest reviewed-head marker the lane job wrote must name `head`."""
+def _require_marker(lane: str, head: str, comments: Sequence[Mapping[str, Any]]) -> str:
+    """The newest reviewed-head marker the lane job wrote must name `head`;
+    its body, which carries the covering review's summary."""
     if not isinstance(comments, list | tuple):
         raise Unbound("evidence-error")
-    newest: tuple[str, int, str] | None = None
+    newest: tuple[str, int, str, str] | None = None
     for comment in comments:
         if not isinstance(comment, Mapping):
             raise Unbound("evidence-error")
@@ -409,11 +430,13 @@ def _require_marker(
             str(comment.get("created_at") or ""),
             int(comment.get("id") or 0),
             match[2],
+            str(comment.get("body") or ""),
         )
         if newest is None or key[:2] > newest[:2]:
             newest = key
     if newest is None or newest[2] != head:
         raise Unbound("no-marker")
+    return newest[3]
 
 
 def _require_marked_runs(
@@ -443,7 +466,8 @@ def _open_findings(
     reviewed: str,
     chain: Sequence[_Record],
     head_file: Callable[[str, str], str | None] | None = None,
-) -> tuple[int, bool]:
+    marker: str = "",
+) -> tuple[int, bool, int]:
     """Summary findings of the review chain covering the pinned head
     (`chain`, from `_resolve`), plus inline threads still open, plus inline
     findings of the chain whose thread is gone. A summary or thread-less
@@ -479,7 +503,13 @@ def _open_findings(
 
     Also returns whether a clean whole review of `reviewed` would close every
     open finding: none is an unresolved thread, no completed review of
-    `reviewed` reported a finding, and none of them was a whole review."""
+    `reviewed` reported a finding, and none of them was a whole review; and
+    how many open findings are CRITICAL (`SEVERITY_RE`): open threads whose
+    comment is not marked IMPORTANT or SUGGESTION, every inline finding whose
+    thread is gone, and the summary findings, of which only the covering
+    review's own (`marker`, its `critical-findings:` line) may count fewer:
+    the lane rewrites one marker comment, so an earlier review's summary is
+    gone and all its findings count."""
     if threads is None:
         raise Unbound("threads-unread")
     # (job started, job completed, inline findings) per recorded attempt.
@@ -539,7 +569,7 @@ def _open_findings(
         raise Unbound("evidence-error")
     covered = [0] * len(windows)
     # Open threads: unresolved ones, and resolved ones nothing closed.
-    unresolved = held = 0
+    unresolved = held = critical = 0
     for thread in threads:
         if not isinstance(thread, Mapping):
             raise Unbound("evidence-error")
@@ -565,6 +595,11 @@ def _open_findings(
             and _line_changed(thread, head_file)
         ) and not is_human(thread.get("resolvedBy")):
             held += 1
+        else:
+            continue
+        severities = SEVERITY_RE.findall(str(thread["comments"][0].get("body") or ""))
+        if len(severities) != 1 or severities[0] == "CRITICAL":
+            critical += 1
     # Inline findings with no thread left, counted like summary findings:
     # per chain link, the most any review at its head left.
     gone = [max(k - n, 0) for (_, _, k), n in zip(windows, covered)]
@@ -573,7 +608,18 @@ def _open_findings(
         for rec in chain
     )
     count = summary + unresolved + held + missing
-    return count, count > 0 and not unresolved and not head_spent
+    # The covering review's summary findings, when it was the head's only
+    # summary count and its line reads no more than it reported.
+    own = chain[0].findings - chain[0].inline  # type: ignore[operator]
+    lines = SUMMARY_CRITICAL_RE.findall(marker)
+    rest = summary - summary_max.get(chain[0].sha, 0)
+    if own == summary_max.get(chain[0].sha, 0) and len(lines) == 1:
+        summary = rest + min(int(lines[0]), own)
+    return (
+        count,
+        count > 0 and not unresolved and not head_spent,
+        summary + critical + missing,
+    )
 
 
 def _line_changed(

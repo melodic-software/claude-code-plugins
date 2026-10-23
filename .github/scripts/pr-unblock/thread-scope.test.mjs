@@ -44,24 +44,36 @@ test("the four recorded trips are in scope", () => {
   }
 });
 
-test("hooks, manifests, agent rules and non-test code in the same plugin are refused", () => {
+test("permission config and non-test code in the same plugin are refused", () => {
   const named = new Set(["plugins/p/skills/s/SKILL.md"]);
   for (const path of [
-    "plugins/p/hooks/hooks.json",
-    "plugins/p/hooks/guard.md",
-    "plugins/p/.claude-plugin/plugin.json",
     "plugins/p/scripts/run.sh",
     "plugins/p/skills/s/scripts/helper.py",
     "plugins/p/lib/x.mjs",
     "plugins/p/lib/x.js",
     "plugins/p/lib/x.ts",
     "plugins/p/lib/X.SH",
+    "plugins/p/.claude/settings.json",
+    "plugins/p/package.json",
+  ]) {
+    assert.equal(inThreadScope(path, named), false, path);
+  }
+});
+
+test("hooks, manifests, agent rules, monitors, bin and MCP config in the same plugin are in scope", () => {
+  const named = new Set(["plugins/p/skills/s/SKILL.md"]);
+  for (const path of [
+    "plugins/p/hooks/hooks.json",
+    "plugins/p/.claude-plugin/plugin.json",
     "plugins/p/AGENTS.md",
     "plugins/p/skills/s/CLAUDE.md",
     "plugins/p/.claude/rules/r.md",
-    "plugins/p/.claude/settings.json",
+    "plugins/p/monitors/monitors.json",
+    "plugins/p/bin/tool",
+    "plugins/p/.mcp.json",
+    "plugins/p/.lsp.json",
   ]) {
-    assert.equal(inThreadScope(path, named), false, path);
+    assert.equal(inThreadScope(path, named), true, path);
   }
 });
 
@@ -130,8 +142,8 @@ test(".github/ is refused even when a kept thread names a file there", () => {
   assert.equal(isProtectedPath(".githubx/a"), false);
 });
 
-test("a plugin's .mcp.json, .gitmodules or CODEOWNERS is outside the plugin-wide part of its scope", () => {
-  for (const path of ["plugins/p/.mcp.json", "plugins/p/skills/s/.gitmodules", "plugins/p/CODEOWNERS"]) {
+test("a plugin's .gitmodules, CODEOWNERS or settings file is outside the plugin-wide part of its scope", () => {
+  for (const path of ["plugins/p/skills/s/.gitmodules", "plugins/p/CODEOWNERS", "plugins/p/settings.json"]) {
     assert.equal(inThreadScope(path, kept), false, path);
   }
 });
@@ -156,13 +168,8 @@ test("a named path in another plugin, under .github/, or on an instruction path 
     "plugins/knowledgebase/x.js",
     "src/x.js",
     ".github/workflows/x.yml",
-    "plugins/knowledge/AGENTS.md",
-    "plugins/knowledge/skills/s/claude.md",
-    "plugins/knowledge/hooks/guard.mjs",
-    "plugins/knowledge/Hooks/hooks.json",
-    "plugins/knowledge/.claude-plugin/plugin.json",
     "plugins/knowledge/.claude/settings.json",
-    "plugins/knowledge/.mcp.json",
+    "plugins/knowledge/package-lock.json",
     "plugins/knowledge/.gitmodules",
     "plugins/knowledge/CODEOWNERS",
   ]) {
@@ -191,14 +198,8 @@ test("a named path off normal form or outside plain ASCII is refused", () => {
 // From the security review of #8461: a segment named exactly hooks or
 // .claude, plugin monitors, bin and .lsp.json, more code extensions, and
 // non-ASCII letters JS /i does not fold (U+212A KELVIN SIGN, U+017F LONG S).
-test("instruction segments with no trailing /, plugin monitors, bin and .lsp.json, and more code files are refused", () => {
+test("more code files are refused", () => {
   for (const path of [
-    "plugins/p/hooks",
-    "plugins/p/.claude",
-    "plugins/p/skills/s/.claude-plugin",
-    "plugins/p/monitors/monitors.json",
-    "plugins/p/bin/tool",
-    "plugins/p/.lsp.json",
     "plugins/p/lib/x.cjs",
     "plugins/p/lib/x.mts",
     "plugins/p/lib/x.cts",
