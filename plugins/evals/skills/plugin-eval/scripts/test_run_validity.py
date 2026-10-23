@@ -442,6 +442,13 @@ class RunValidityTest(unittest.TestCase):
             "cat /proc/v skills/x",
             "cd /proc && cat ../tmp/eval-r2/plugins/evals/x",
             "cd .. && cat x /proc/v",
+            "(cd sub&&cat x /proc/v)",
+            "ls /proc ..",
+            "PYTHONPATH=/opt/lib:/tmp/eval-r2/plugins/evals/skills python3 -c 'import x'",
+            "cat /proc/version,/tmp/eval-r2/plugins/evals/x",
+            "cat /proc/version@/tmp/eval-r2/plugins/evals",
+            "cat /proc/self/cwd/SKILL.md",
+            "cat /dev/fd/3",
             "type C:\\eval\\x /proc/v",
         ):
             proc = self.denied_second_run("with", 1, root=self.PLUGIN, command=command)

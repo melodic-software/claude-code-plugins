@@ -109,7 +109,11 @@ DENIAL_TEXT = "denied by your permission settings"  # in an is_error tool_result
 TARGET_KEYS = ("file_path", "path")
 BASH_TOOL, BASH_COMMAND = "Bash", "command"
 SHELL_SPLIT = re.compile(r"[<>|;&()'\"=]")  # where one shell word holds several
-UNRESOLVED = re.compile(r"[$`*?\[{]|^~")  # a word the shell would expand
+# A word the shell would expand, a parent directory, a path packed after another
+# character (/a,/b), or a path that resolves against the validator's own process.
+UNRESOLVED = re.compile(
+    r"[$`*?\[{]|^~|^\.\.$|[^\w./-]/|^/proc/(self|thread-self)(/|$)|^/dev/fd(/|$)"
+)
 
 # The suite's skill-fired convention and the no-trigger control markers.
 SKILL_TOOL = "Skill"
@@ -387,9 +391,9 @@ def rooted(path):
 def bash_paths(command):
     """The paths a Bash command names: each rooted word, split at quotes,
     redirects, pipes, parentheses and `=` so --flag=/x, >/x and '/x' count. A
-    word the shell would expand ($, a backtick, a glob, a leading ~), a relative
-    path with a slash, a backslash, a cd or pushd, no rooted word, or a command
-    that does not parse adds None, which inside() counts as inside."""
+    word UNRESOLVED matches, a relative path with a slash, a backslash, a cd,
+    pushd or popd, no rooted word, or a command that does not parse adds None,
+    which inside() counts as inside."""
     try:
         words = shlex.split(command) if isinstance(command, str) else None
     except ValueError:
@@ -400,7 +404,7 @@ def bash_paths(command):
     paths = tuple(v for v in values if rooted(v))
     unresolved = any(
         UNRESOLVED.search(v) or (not rooted(v) and "/" in v) for v in values
-    ) or any(w in ("cd", "pushd") for w in words)
+    ) or any(v in ("cd", "pushd", "popd") for v in values)
     return paths + (None,) if unresolved or not paths else paths
 
 
