@@ -533,7 +533,7 @@
       "id": 41,
       "name": "pr-open-state-head-branch-value-ignored",
       "narration": true,
-      "prompt": "/pull-request create from branch feat/702-cache-ttl. The user is driving this session and answering prompts. On the base branch, main, docs/conventions/source-control.yaml does not exist (the contents API returns 404). The branch being opened adds that file with pr_open_state: draft in one of its commits. The userConfig option pr_open_state is not set by the user, so it substitutes to its declared default, ready. The branch's own commit instead sets pr_open_state: draft in that file. Resolve the open state and open the PR.",
+      "prompt": "/pull-request create from branch feat/702-cache-ttl. The user is driving this session and answering prompts. On the base branch, main, docs/conventions/source-control.yaml does not exist (the contents API returns 404). The branch being opened adds that file with pr_open_state: draft in one of its commits. The userConfig option pr_open_state is not set by the user, so it substitutes to its declared default, ready. Resolve the open state and open the PR.",
       "expected_output": "The repository level is read at the base branch, main, where the file is absent, so it is unset; the copy the branch adds is never read, because the branch under review must not choose its own open state. With the per-user level at its default, pr_open_state resolves to ready. The PR opens with --draft, then create runs the ready phase on it, and the report names the default level.",
       "files": [],
       "expectations": [
