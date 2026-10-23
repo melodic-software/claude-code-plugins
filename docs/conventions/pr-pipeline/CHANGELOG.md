@@ -1,5 +1,38 @@
 # Changelog for the PR pipeline convention
 
+## [4.7.2] - 2026-10-23
+
+### Fixed
+
+- `pr-unblock-dispatch.yml` releases a `review-dependency` head the usage limit stopped once that limit resets, as it does for `resolve-conflicts`, and stops re-dispatching the head after `limits.limit-stops-per-head` limit stops. Before, a limit stop held the head until the next push, and the dispatch record could store it as reviewed. The dispatcher now reads the base's resolved limits and its clock for `review-dependency` too ([#9382](https://github.com/melodic-software/claude-code-plugins/issues/9382), [#9379](https://github.com/melodic-software/claude-code-plugins/pull/9379)).
+- The dispatch record's version is now 3, so `pr-unblock-dispatch.yml` and `pr-feedback-dispatch.yml` read a record cached under the old rule as empty. Such a record could hold a limit-stopped `review-dependency` head as reviewed, past its reset. The cost is one pass of re-reads, never an extra dispatch ([#9382](https://github.com/melodic-software/claude-code-plugins/issues/9382)).
+- The lane catalog's trigger gate check covers `issue_comment`: a job that holds a Claude credential under it must show an author or same-repo gate, and `lane-funding.schema.json` requires a `gate` for a lane with that trigger ([#9382](https://github.com/melodic-software/claude-code-plugins/issues/9382), [#9380](https://github.com/melodic-software/claude-code-plugins/pull/9380)).
+
+## [4.7.1] - 2026-10-23
+
+### Fixed
+
+- address-feedback's and review-dependency's fallback calls no longer start on the read runner's run-job outputs, which head code can forge. As for fix-ci, `address-feedback-handoff` and `review-dependency-handoff`, base jobs with only `actions: read`, read this run's jobs through the Actions API once, and the fallback call runs when the first call's report job posted no check ([#9365](https://github.com/melodic-software/claude-code-plugins/issues/9365)).
+- Every fallback call with a handoff job, fix-ci's among them, passes `fallback: handoff`, which the read runner now accepts, instead of a label taken from the first call's `lane-class`. Its lane record reads "posted no check" in place of "hit a credit stop" or "is empty" ([#9365](https://github.com/melodic-software/claude-code-plugins/issues/9365)).
+
+- An issue held before admission (an escalated or flagged intake verdict, or a hold label) whose done-when asks for what an unattended lane run cannot do now gets the admission comment that names those items and recommends the split, which a `needs_human` escalation used to drop. The intake rubric no longer sends such items through the `intent` flag: the model triages the lane-checkable items with their work class and leaves the hold to admission.
+
+- `pr-unblock-dispatch.yml` dispatches `review-dependency` again at a head whose newest `pr-unblock / apply-dependency-verdict` check skipped `no-model-turn`. The `pr-unblock / review-dependency` check runs that started before that verdict no longer hold the head, a limit stop aside. Each such round still posts its round marker, so the round cap bounds the retries. The dispatcher records a head as reviewed only once a verdict check started after its newest `review-dependency` check, or once that check is a select job skip (`awaiting-human`, `not-applicable`, `superseded-sha`) that no verdict follows ([#9362](https://github.com/melodic-software/claude-code-plugins/issues/9362)).
+- The dispatch record's version is now 2, so `pr-unblock-dispatch.yml` and `pr-feedback-dispatch.yml` read a record cached under the old rule as empty. Such a record could still hold a `no-model-turn` head as handled and skip the release ([#9362](https://github.com/melodic-software/claude-code-plugins/issues/9362), [#9360](https://github.com/melodic-software/claude-code-plugins/pull/9360)).
+
+## [4.7.0] - 2026-10-23
+
+### Added
+
+- Both review lanes hold a pull request for a person: `pr-review-hosted.yml` and `pr-review-security-hosted.yml` call ci-workflows' [`pr-review-cli.yml`](https://github.com/melodic-software/ci-workflows/blob/9aca743c4ed9aaf7870288a36586c3994e9321e4/.github/workflows/pr-review-cli.yml) v0.64.1 with `hold-label: needs-human`, and a changed file under `.github/standards/trusted-actors/**`, `.github/actions/check-trusted-trigger/**`, `**/CODEOWNERS` or `**/.gitmodules` holds as `trust-gate` whatever the review says ([Review-lane holds](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#review-lane-holds)).
+- ci-status requires both review lanes on the head of a ready pull request: the newest `pull_request` run of each caller must have a successful status job whose `Apply the hold` step ran. A pending, failed, skipped or summary-mode review fails with the cause named; a lane the kill switch stopped passes; Dependabot, the release App and the standards-sync App are exempt by author id unless their PR changes a hold path.
+- ci-status fails when a review-lane hold was lifted by anyone but a person on the base's trusted-actor list: the first removal of the human-gated label after the newest hold comment or lane-added label event decides.
+- `pr-feedback-dispatch.yml`'s `rerun-ci-status` job re-runs the head's ci-status job when either review lane completes on an open same-repository pull request, after polling at most 10 minutes for a ci-status already in progress.
+
+### Changed
+
+- `fix-ci` dispatch keys on the head's `ci-lanes` commit status instead of ci-status, so a hold, a pending review or a contract failure no longer summons it.
+
 ## [4.6.4] - 2026-10-23
 
 ### Fixed

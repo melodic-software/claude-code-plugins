@@ -223,9 +223,11 @@ so the gate and the broker check them as they check a conflict dispatch. After t
 dispatches it lists open, non-draft, same-repository Dependabot PRs into `main`, sorts each with
 `dependency-classify.mjs`, and dispatches `pr-unblock.yml` with `activity: review-dependency` for
 at most 2 `review`-tier PRs per run whose head has no `pr-unblock / review-dependency` check run
-from the GitHub Actions app (the untrusted-trigger skip aside). Their run ids join the same
-dispatched-runs record. It has no schedule: the broker accepts a dispatcher run started only by a
-push or a listed human, so a push to `main` or a hand run wakes it. In `pr-unblock.yml`, no
+from the GitHub Actions app (the untrusted-trigger skip aside; one that started before the head's
+newest `pr-unblock / apply-dependency-verdict` check run stops counting when that run skipped
+`no-model-turn`, unless it is a limit stop, and the round cap still bounds the retries). Their run
+ids join the same dispatched-runs record. It has no schedule: the broker accepts a dispatcher run
+started only by a push or a listed human, so a push to `main` or a hand run wakes it. In `pr-unblock.yml`, no
 model holds a write token: `review-dependency-select` (base code only, read-only token) selects
 the pull request or posts its check neutral; `review-dependency` (a `read` skill in
 [patch output mode](pr-run-activity.md#patch-output-mode), on run-claude-cli with the
@@ -1664,10 +1666,13 @@ the pipeline. A role's secrets are `<ROLE>_CLAUDE_API_KEY` and
 `<ROLE>_CLAUDE_CODE_OAUTH_TOKEN`, the role upper-snake, so `issue-lane` gives `ISSUE_LANE_`.
 
 [`.github/lane-funding.json`](../../../.github/lane-funding.json) is the source of truth: each
-role's secrets, whether it is keyed, and each lane's workflow, job, launcher, and the secrets its
-job reads today, which can still be another role's or the bare `CLAUDE_CODE_OAUTH_TOKEN` until
-its wiring moves. `callers.test.mjs` in `.github/actions/resolve-config/` fails when a job that
-reads a Claude secret is missing from the catalog, or reads secrets other than those listed.
+role's secrets, whether it is keyed, and each lane's workflow, job, launcher, triggers, gate, and
+the secrets its job reads today, which can still be another role's or the bare
+`CLAUDE_CODE_OAUTH_TOKEN` until its wiring moves. `callers.test.mjs` in
+`.github/actions/resolve-config/` fails when a job that reads a Claude secret is missing from the
+catalog, or reads secrets other than those listed, and when a job that holds one under
+`pull_request_target`, `issues` or `workflow_run` shows no author gate (check-trusted-trigger in a
+job it needs, or the intake reusable's `allowed-author-ids`) or same-repo gate.
 
 Only a lane on ci-workflows' `run-claude-cli` action gets an API key, so only a role with such a
 lane is keyed; claude-code-action runs take the OAuth token alone, since they are not paid from

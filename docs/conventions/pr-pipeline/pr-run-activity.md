@@ -1078,7 +1078,9 @@ warns of a [classifier gap](README.md#classifier-gaps).
      `dependency-invalid`. With no verdict, the round still counts: it skips `no-model-turn` only
      when the same call's scan handed on no patch, refused nothing, and the PR head is still the
      select job's; a scan that refused an oversize patch escalates `dependency-fix-not-landed`,
-     and any other case `dependency-invalid`;
+     and any other case `dependency-invalid`. The dispatcher dispatches a head whose newest
+     verdict job skipped `no-model-turn` again on its next run, a limit stop aside; the round cap
+     bounds those retries;
    - re-reads the pull request: a closed one gets nothing, unless it is a `close` this job
      started at the reviewed head (its issue or marker is there), which resumes. `merge`,
      `close` and `escalate` need the reviewed head; a moved head skips `superseded-sha` and the

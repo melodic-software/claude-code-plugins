@@ -3826,15 +3826,16 @@ class LaneEvidenceReadToken(unittest.TestCase):
         for kind in kinds:
             with self.subTest(kind):
                 self.assertTrue(any(kind in args[1] for args in carried), kind)
-        # Two lanes: listing, run, attempt, jobs and one annotations read each.
-        self.assertEqual(len(carried), 2 + 2 * 5)
+        # Two lanes: listing, run, jobs and one annotations read each; the run
+        # read is the latest attempt's record.
+        self.assertEqual(len(carried), 2 + 2 * 4)
         # The commits read is shared with other readers and keeps its token.
         others = [args[1] for args, env in calls if env is None]
         self.assertEqual(others, [f"repos/owner/repo/pulls/{PR}/commits?per_page=100"])
 
     def test_with_no_read_token_every_read_keeps_the_process_token(self) -> None:
         calls = self.calls({})
-        self.assertEqual(len(calls), 1 + 2 + 2 * 5)
+        self.assertEqual(len(calls), 1 + 2 + 2 * 4)
         self.assertEqual([env for _, env in calls], [None] * len(calls))
 
     # The floor's boundary from the default 0.3 of a 1,000 limit: 300 left
@@ -3842,7 +3843,7 @@ class LaneEvidenceReadToken(unittest.TestCase):
     def test_at_the_floor_the_evidence_reads_keep_the_read_token(self) -> None:
         self.core = (300, 1000)
         tokens = self.evidence_tokens(read_floor=0.3)
-        self.assertEqual(len(tokens), 2 + 2 * 5)
+        self.assertEqual(len(tokens), 2 + 2 * 4)
         self.assertEqual(tokens, [{"GH_TOKEN": "read-tok"}] * len(tokens))
 
     def test_under_the_floor_the_evidence_reads_use_the_lane_token(self) -> None:
@@ -3850,7 +3851,7 @@ class LaneEvidenceReadToken(unittest.TestCase):
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):
             tokens = self.evidence_tokens(read_floor=0.3)
-        self.assertEqual(len(tokens), 2 + 2 * 5)
+        self.assertEqual(len(tokens), 2 + 2 * 4)
         self.assertEqual(tokens, [None] * len(tokens))
         self.assertIn("core:299/1000 is under 0.3", stderr.getvalue())
 
@@ -3865,7 +3866,7 @@ class LaneEvidenceReadToken(unittest.TestCase):
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):
             tokens = self.evidence_tokens(read_floor=0.3)
-        self.assertEqual(len(tokens), 2 + 2 * 5)
+        self.assertEqual(len(tokens), 2 + 2 * 4)
         self.assertEqual(tokens, [None] * len(tokens))
         self.assertIn("unreadable", stderr.getvalue())
 
@@ -3947,8 +3948,7 @@ class LaneEvidenceReadTokenOutage(unittest.TestCase):
                 return [{"workflow_runs": [item]}]
             base = f"repos/owner/repo/actions/runs/{run}"
             if endpoint == base:
-                return {"id": run, "run_attempt": 1}
-            if endpoint == f"{base}/attempts/1":
+                # The run read is the latest attempt's record.
                 return {"id": run, "run_attempt": 1, **done}
             if endpoint == f"{base}/attempts/1/jobs?per_page=100":
                 return [
