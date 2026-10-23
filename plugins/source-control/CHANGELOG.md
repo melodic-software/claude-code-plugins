@@ -3,6 +3,20 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.11.6] - 2026-10-23
+
+### Fixed
+
+- `ci --ci` reads the open review findings in the fix-ci context file and fixes a reproduced check a finding already explains, rather than escalating it.
+
+## [2.11.5] - 2026-10-23
+
+### Changed
+
+- The HIGH path floor also holds `.github/actions/resolve-config/**`, so a change there scores HIGH and waits for the owner: the token broker runs that directory's code from main in its signer process.
+
+- The pr-merge gate accepts a verdict artifact named `pr-verify-<pr>-<sha>-<verdict>-<ref-digest>`, the digest being the first `babysit_verify_evidence.HEAD_REF_DIGEST_HEX` (16) hex digits of the SHA-256 of the head branch the verdict records. For an untied FAIL so named, the gate ties it to the pull request from the name instead of downloading its verdict.json; a name without the digest is downloaded and read as before. One decision changes: a digest-named untied FAIL whose verdict.json cannot be read used to refuse `verify:unreadable`, and now its name decides. That is safe because the name is trusted only from a run of verifier origin, the same check that authenticates the verdict.json, and because equal branches always give equal digests, so a collision can only tie a FAIL, never untie one. pr-verify still writes the name without the digest; a later change switches it once this reader has run on main.
+
 ## [2.11.4] - 2026-10-23
 
 ### Changed

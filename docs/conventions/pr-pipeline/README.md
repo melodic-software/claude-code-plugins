@@ -155,7 +155,14 @@ PR, it carries no `do-not-merge`, both lanes' newest reviewed-head markers
 name the head, an unresolved thread exists that `address-feedback` would keep (left only by the
 reviewer bot, one the lane never answered where a fix request, below, follows the reviewer bot's
 finding, or answered by a trusted human after the lane escalated it; on a PR carrying the
-human-gated label, only one whose answer is a fix request), the head has no
+human-gated label, only one whose answer is a fix request, unless a lane escalation put the label
+on: the lanes App added it last, its `work-items:escalation lane=pr-unblock` comment (pr-unblock
+or fix-ci) followed within a minute, no other marker is on its comments since, and no review-lane
+`claude-lane-hold` names the current head or is open, per
+`.github/scripts/pr-unblock/gate-source.mjs`; anything ambiguous keeps the fix-request rule, and
+the label stays on, and `clear-escalations.mjs` removes it only while no address-feedback round
+record is on the lanes App's comments since it went on; to stop the lane working such a PR, a
+person adds `do-not-merge`, since re-adding a label already on records no event), the head has no
 `pr-unblock / address-feedback` check run (one that started before the head's newest
 `pr-unblock / publish-feedback` check run stops counting when that run skipped `no-model-turn`:
 the round handled nothing, and the round cap still bounds the retries; a limit stop keeps its
@@ -2054,9 +2061,10 @@ Size the process to the change:
 
 ## Changing this config
 
-The config file is a lane-power file: a human merges every change to it, and no lane does. The
-same holds for the trusted-actor list and any change to a lane's permissions, tokens or triggers.
-Everything downstream of that human merge may propagate on its own.
+The config file is a lane-power file, like the trusted-actor list and any change to a lane's
+permissions, tokens or triggers. A change to it goes through review and `ci-status`, and the
+merge lane's cost hold (an edit to more than comments, a `description` or a `title` waits for a
+cited owner decision); no rule requires a human to merge it.
 
 A pull request that changes a lane and lists a not-verified item that could stop the lane from
 running checks that item live before it merges. An item only a merged run can exercise, such as
@@ -2065,14 +2073,21 @@ check and its owner; a line in the pull request body does not count. Evidence: m
 intake author gate as "unverified, fails closed", merged, and skipped every intake run here
 (melodic-software/ci-workflows#772).
 
-The lanes token broker parses this config with resolve-config code pinned in azure-iac
-(`src/lanes-token-broker/resolve-config.pin`, fetched by `scripts/deploy/fetch-resolve-config.sh`).
-A pull request that changes a file that script fetches carries the body line
-`Broker pin: melodic-software/azure-iac#<n>`, naming the azure-iac pull request that bumps the pin
-to its merge commit; `ci-status` fails it otherwise. The path list is the `BROKER_PATHS` value of
-`ci-status`'s "Require a broker pin PR for a broker-fetched change" step in
-`.github/workflows/pr-require-checks.yml`. Evidence: #8313 changed `resolve.mjs` with no pin bump,
-and the broker denied every pr-unblock token request as `config-invalid` until azure-iac#44.
+The lanes token broker in azure-iac parses each caller's config with the resolve-config modules it
+loads from claude-code-plugins' `main`, whichever repository calls, so a change to `resolve.mjs` or
+a module it imports needs no azure-iac change. These still pair with an azure-iac deploy:
+
+- resolve-config's `package.json` or `package-lock.json`: the broker imports `ajv` and `yaml` from
+  its own deployment and denies every token as `config-invalid` while `main`'s two files differ
+  from the deployed ones. The pull request carries the body line
+  `Broker deploy: melodic-software/azure-iac#<n>`, naming the azure-iac pull request that moves the
+  broker to them; `ci-status` fails it otherwise (the `BROKER_PATHS` value of `ci-status`'s
+  "Require a broker deploy PR for a resolve-config dependency change" step in
+  `.github/workflows/pr-require-checks.yml`).
+- A file `loadConfig` comes to need, a new export the broker calls, a module outside
+  `.github/actions/resolve-config`, or an import form the broker's loader does not walk:
+  [`broker-vendoring.test.mjs`](../../../.github/actions/resolve-config/broker-vendoring.test.mjs)
+  fails on each against its copy of the broker's lists.
 
 ## Outside this repository
 

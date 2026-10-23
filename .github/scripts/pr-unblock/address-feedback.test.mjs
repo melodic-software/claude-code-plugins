@@ -53,6 +53,10 @@ function fakeApi(overrides = {}) {
     listReviews: async () => overrides.reviews ?? [{ id: 10, user: { id: REVIEWER }, commit_id: HEAD }],
     listReviewComments: async () => overrides.reviewComments ?? [comment(100, REVIEWER)],
     listThreads: async () => overrides.threads ?? [thread("PRRT_1", [100])],
+    async listLabelEvents() {
+      overrides.labelEventReads?.push(1);
+      return overrides.labelEvents ?? [];
+    },
     listPullCommits: async () => Object.keys(overrides.checks ?? { [HEAD]: [] }).map((sha) => ({ sha })),
     listCheckRuns: async (sha) => (overrides.checks ?? {})[sha] ?? [],
     createIssueComment: async (pr, body) => posted.push({ pr, body }),
@@ -237,6 +241,52 @@ for (const [label, overrides] of [
     assert.equal(result.file, undefined);
   });
 }
+
+// Where needs-human came from (gate-source.mjs): a lane escalation is the
+// lanes App's label, then its marked comment; a review-lane hold is the review
+// lane's hold comment.
+const APP_USER = { login: "melodic-automation-lanes[bot]", id: APP, type: "Bot" };
+const LANE_ESCALATION = {
+  id: 2,
+  user: APP_USER,
+  body: `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${OLD_HEAD} -->\nThe pr-unblock lane stopped.`,
+  created_at: "2026-10-18T10:00:05Z",
+  updated_at: "2026-10-18T10:00:05Z",
+};
+const REVIEW_HOLD = {
+  id: 3,
+  user: { login: "github-actions[bot]", id: ACTIONS_BOT, type: "Bot" },
+  body: `<!-- claude-lane-hold lane=claude-review sha=${HEAD} criteria=cost -->\nHeld.\n\nclaude-lane: claude-review`,
+  created_at: "2026-10-18T09:00:00Z",
+  updated_at: "2026-10-18T09:00:00Z",
+};
+const APP_LABELED = [{ event: "labeled", actor: APP_USER, label: { name: "needs-human" }, created_at: "2026-10-18T10:00:00Z" }];
+const reviewedHead = { id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) };
+
+test("on a needs-human PR a lane escalation gated, a reviewer-bot thread proceeds and releases the label hold", async () => {
+  const result = await run(fakeApi({ labels: ["needs-human"], issueComments: [reviewedHead, LANE_ESCALATION], labelEvents: APP_LABELED }));
+  assert.equal(result.decision, "proceed");
+  assert.equal(result.fixRequested, true);
+  assert.equal(result.file.threads[0].root_comment_id, 100);
+});
+
+for (const [label, issueComments] of [
+  ["a review-lane hold", [reviewedHead, REVIEW_HOLD]],
+  ["a lane escalation beside a review-lane hold", [reviewedHead, REVIEW_HOLD, LANE_ESCALATION]],
+  ["an escalation marker with no resume-key line", [reviewedHead, { ...LANE_ESCALATION, body: "<!-- work-items:escalation lane=pr-unblock kind=escalated -->\nStopped." }]],
+]) {
+  test(`on a needs-human PR, a reviewer-bot thread under ${label} holds the PR (awaiting-human)`, async () => {
+    const result = await run(fakeApi({ labels: ["needs-human"], issueComments, labelEvents: APP_LABELED }));
+    assert.equal(result.decision, "skip");
+    assert.equal(result.skipReason, "awaiting-human");
+  });
+}
+
+test("without needs-human no label event is read", async () => {
+  const labelEventReads = [];
+  assert.equal((await run(fakeApi({ labelEventReads }))).decision, "proceed");
+  assert.deepEqual(labelEventReads, []);
+});
 
 test("without needs-human nothing changes and no permission is read", async () => {
   const api = fakeApi(escalated());
