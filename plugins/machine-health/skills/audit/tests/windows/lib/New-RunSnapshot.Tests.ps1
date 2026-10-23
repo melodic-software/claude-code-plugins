@@ -20,10 +20,10 @@ BeforeAll {
     $script:D = 'task:000000000000000d'
     $script:E = 'ext:000000000000000e'
 
-    function New-FixtureItem([string] $Key, [bool] $Muted = $false) {
+    function Get-FixtureItem([string] $Key, [bool] $Muted = $false) {
         [pscustomobject]@{ key = $Key; severity = 'INFO'; muted = $Muted; title = "item $Key" }
     }
-    function New-FixtureCheck([string] $Id, [string] $Severity, [object[]] $Items) {
+    function Get-FixtureCheck([string] $Id, [string] $Severity, [object[]] $Items) {
         [pscustomobject]@{ id = $Id; severity = $Severity; detail = [pscustomobject]@{ items = @($Items) } }
     }
     function Write-Previous([object[]] $Checks) {
@@ -36,18 +36,18 @@ BeforeAll {
 
 Describe 'Get-NewFindingKey' -Tag 'lib' {
     It 'returns only the unmuted key a check with a baseline did not hold before' {
-        $previous = Write-Previous @(New-FixtureCheck 'x' 'OK' @((New-FixtureItem $script:A), (New-FixtureItem $script:B)))
+        $previous = Write-Previous @(Get-FixtureCheck -Id 'x' -Severity 'OK' -Items @((Get-FixtureItem $script:A), (Get-FixtureItem $script:B)))
         $now = @(
-            (New-FixtureCheck 'x' 'WARN' @((New-FixtureItem $script:B), (New-FixtureItem $script:C)))
-            (New-FixtureCheck 'y' 'INFO' @(New-FixtureItem $script:D))
+            (Get-FixtureCheck -Id 'x' -Severity 'WARN' -Items @((Get-FixtureItem $script:B), (Get-FixtureItem $script:C)))
+            (Get-FixtureCheck -Id 'y' -Severity 'INFO' -Items @(Get-FixtureItem $script:D))
         )
 
         @(Get-NewFindingKey -PreviousPath $previous -Checks $now) | Should -Be @($script:C)
     }
 
     It 'leaves out a new key that is muted' {
-        $previous = Write-Previous @(New-FixtureCheck 'x' 'OK' @(New-FixtureItem $script:A))
-        $now = @(New-FixtureCheck 'x' 'OK' @((New-FixtureItem $script:C), (New-FixtureItem $script:E -Muted $true)))
+        $previous = Write-Previous @(Get-FixtureCheck -Id 'x' -Severity 'OK' -Items @(Get-FixtureItem $script:A))
+        $now = @(Get-FixtureCheck -Id 'x' -Severity 'OK' -Items @((Get-FixtureItem $script:C), (Get-FixtureItem $script:E -Muted $true)))
 
         @(Get-NewFindingKey -PreviousPath $previous -Checks $now) | Should -Be @($script:C)
     }
@@ -56,12 +56,12 @@ Describe 'Get-NewFindingKey' -Tag 'lib' {
         @{ Severity = 'UNKNOWN' }, @{ Severity = 'SKIPPED' }
     ) {
         $previous = Write-Previous @(
-            (New-FixtureCheck 'x' $Severity @(New-FixtureItem $script:A))
-            (New-FixtureCheck 'y' 'OK' @(New-FixtureItem $script:A))
+            (Get-FixtureCheck -Id 'x' -Severity $Severity -Items @(Get-FixtureItem $script:A))
+            (Get-FixtureCheck -Id 'y' -Severity 'OK' -Items @(Get-FixtureItem $script:A))
         )
         $now = @(
-            (New-FixtureCheck 'x' 'WARN' @(New-FixtureItem $script:C))
-            (New-FixtureCheck 'y' 'WARN' @(New-FixtureItem $script:D))
+            (Get-FixtureCheck -Id 'x' -Severity 'WARN' -Items @(Get-FixtureItem $script:C))
+            (Get-FixtureCheck -Id 'y' -Severity 'WARN' -Items @(Get-FixtureItem $script:D))
         )
 
         @(Get-NewFindingKey -PreviousPath $previous -Checks $now) | Should -Be @($script:D)
@@ -73,7 +73,7 @@ Describe 'Get-NewFindingKey' -Tag 'lib' {
     ) {
         $path = Join-Path $TestDrive "previous-$Case.json"
         if ($null -ne $Text) { Set-Content -LiteralPath $path -Value $Text -Encoding utf8 }
-        $now = @(New-FixtureCheck 'x' 'WARN' @(New-FixtureItem $script:C))
+        $now = @(Get-FixtureCheck -Id 'x' -Severity 'WARN' -Items @(Get-FixtureItem $script:C))
 
         @(Get-NewFindingKey -PreviousPath $path -Checks $now).Count | Should -Be 0
     }

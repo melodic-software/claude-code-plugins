@@ -76,7 +76,7 @@ function Get-SnapshotField($Object, [string] $Name) {
 # The non-null FindingKeys under each check's detail.items, by check id.
 function Get-CheckItemKey {
     [CmdletBinding()]
-    [OutputType([System.Collections.Generic.List[string]])]
+    [OutputType([object[]])]
     param([AllowNull()] $Check, [switch] $UnmutedOnly)
 
     $keys = [System.Collections.Generic.List[string]]::new()
