@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/work/scripts/package.sh",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "writing the conflicted script is allowed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/work/.github/workflows/release.yml",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ]
+}

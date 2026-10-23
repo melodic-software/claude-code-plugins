@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "build() {\n<<<<<<< HEAD\nbuild_bundle --compress\n=======\nmake_bundle\n>>>>>>> main\n}\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "make_bundle --compress\n",
+      "why": "resolved, so nothing escalates"
+    },
+    {
+      "answer": "build_bundle --compress\n=======\n",
+      "why": "a lone separator is no conflict"
+    }
+  ]
+}
