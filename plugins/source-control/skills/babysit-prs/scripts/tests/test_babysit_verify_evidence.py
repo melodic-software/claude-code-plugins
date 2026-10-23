@@ -21,6 +21,7 @@ at the `gh_capture` seam the reader shares with the post-merge check.
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import hashlib
 import io
@@ -3589,6 +3590,46 @@ class TheHeadRefMapSparesASweepItsDownloads(unittest.TestCase):
         ):
             after = self.sweep(fake)
         self.assertEqual(after[ZIP_KIND], 6)
+
+
+
+class EvidenceCommandTest(unittest.TestCase):
+    """`evidence <number> <head>` prints the gate's judgment for
+    enable-auto-merge.mjs, which arms only on a null refusal."""
+
+    def run_main(self, argv: list[str], evidence: ve.Evidence) -> tuple[dict[str, Any], ve.Reader]:
+        seen: list[ve.Reader] = []
+
+        def judge(reader: ve.Reader, number: int, head: str, pr: Any = None) -> ve.Evidence:
+            seen.append(reader)
+            self.assertEqual((number, head, pr), (PR, HEAD, None))
+            return evidence
+
+        out = io.StringIO()
+        with mock.patch.object(ve.Reader, "evidence", judge), contextlib.redirect_stdout(out):
+            self.assertEqual(ve.main(argv), 0)
+        return json.loads(out.getvalue()), seen[0]
+
+    def test_a_pass_prints_a_null_refusal_under_the_given_cap(self) -> None:
+        report, reader = self.run_main(
+            ["evidence", "--repo", REPO, "--max-fails", "2", str(PR), HEAD],
+            ve.Evidence(None, HEAD, (ve.Verdict(HEAD, "pass", 1),), 0),
+        )
+        self.assertEqual((report["refusal"], report["head"]), (None, HEAD))
+        self.assertEqual((reader.repo, reader.branch, reader.max_fails), (REPO, "main", 2))
+
+    def test_a_repeated_fail_prints_its_refusal(self) -> None:
+        report, _ = self.run_main(
+            ["evidence", "--repo", REPO, str(PR), HEAD],
+            ve.Evidence(ve.REPEATED_FAIL, HEAD, (), 0, "fails at 3 heads"),
+        )
+        self.assertEqual(report["refusal"], ve.REPEATED_FAIL)
+        self.assertTrue(report["needsHuman"])
+
+    def test_a_short_head_or_a_zero_cap_is_refused(self) -> None:
+        for argv in (["evidence", "--repo", REPO, str(PR), "abc"], ["evidence", "--repo", REPO, "--max-fails", "0", str(PR), HEAD]):
+            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                ve.main(argv)
 
 
 if __name__ == "__main__":

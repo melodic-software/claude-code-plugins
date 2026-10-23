@@ -14,7 +14,8 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
-import { ARM_MUTATION, BODY_HOLD, DETAIL_QUERY, DISARM_MUTATION, HUMAN_VETO, PULLS_QUERY, decide, main } from "./enable-auto-merge.mjs";
+import { ARM_MUTATION, BODY_HOLD, DETAIL_QUERY, DISARM_MUTATION, HUMAN_VETO, PULLS_QUERY, decide, main, verifyHold } from "./enable-auto-merge.mjs";
+import { VERIFY_PATH, verdictHold } from "./merge-holds.mjs";
 import { decide as decideOutcome } from "../work-resolve-issue/report-outcome.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
@@ -58,6 +59,7 @@ const said = (login, body, at, association = "OWNER", typename = "User") => ({
   createdAt: at,
   authorAssociation: association,
 });
+const PASSED = { refusal: null, head: HEAD };
 const labels = (...names) => ({ totalCount: names.length, nodes: names.map((name) => ({ name })) });
 
 function world(pulls, { failArm = false } = {}) {
@@ -83,21 +85,32 @@ function world(pulls, { failArm = false } = {}) {
     }
     return { data: {} };
   };
+  // The gate's verifier evidence: a pull request's `verdict` (a report, or
+  // an Error to throw), else a pass at its head.
+  const verified = [];
+  const verify = async (number, head) => {
+    verified.push(number);
+    const found = pulls.find((candidate) => candidate.number === number);
+    if (found?.verdict instanceof Error) {
+      throw found.verdict;
+    }
+    return found?.verdict ?? { refusal: null, head };
+  };
   const writes = () =>
     calls
       .filter(({ method, body }) => method === "POST" && body.query !== PULLS_QUERY && body.query !== DETAIL_QUERY)
       .map(({ body }) => ({ mutation: body.query === ARM_MUTATION ? "arm" : body.query === DISARM_MUTATION ? "disarm" : "?", ...body.variables }));
-  return { github, writes };
+  return { github, writes, verify, verified };
 }
 
 async function run(pulls, env = {}, options = {}) {
-  const { github, writes } = world(pulls, options);
+  const { github, writes, verify, verified } = world(pulls, options);
   const lines = [];
   const log = console.log;
   console.log = (line) => lines.push(line);
   try {
-    const code = await main({ env: { ...ENV, ...env }, github });
-    return { code, writes: writes(), lines };
+    const code = await main({ env: { ...ENV, ...env }, github, verify });
+    return { code, writes: writes(), lines, verified };
   } finally {
     console.log = log;
   }
@@ -242,7 +255,7 @@ test("report-outcome's own pull request body arms, and its hold and Refs bodies 
     const opened = plan(overrides);
     assert.equal(opened.action, "open-pr");
     // Files outside the hold paths, so only the body decides.
-    return decide(pull(1, { body: opened.body }), { bot: "melodic-automation-lanes", humanGated: "needs-human", holdPaths: [".github/**"] }, { ...detail(), files: [] });
+    return decide(pull(1, { body: opened.body }), { bot: "melodic-automation-lanes", humanGated: "needs-human", holdPaths: [".github/**"] }, { ...detail(), files: [], verify: PASSED });
   };
   assert.deepEqual(verdict({}), { action: "arm", reason: "no hold" });
   assert.equal(verdict({ humanMerge: true }).action, "none");
@@ -282,7 +295,7 @@ test("an armed pull request a member now vetoes is disarmed", async () => {
 test("a pull request whose discussion cannot all be read is not armed", async () => {
   const cut = { totalCount: 101, nodes: [] };
   const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
-  assert.equal(decide(pull(1), options, { ...detail(), files: [] }).action, "arm");
+  assert.equal(decide(pull(1), options, { ...detail(), files: [], verify: PASSED }).action, "arm");
   const held = (pr) => decide(pull(1), options, { ...detail(), files: [], ...pr });
   assert.equal(held({ comments: cut }).action, "none");
   assert.equal(held({ reviews: cut }).action, "none");
@@ -368,4 +381,94 @@ test("merge-holds.mjs holds a changed or renamed-from hold path from the command
 test("hold paths that cannot be read arm nothing", async () => {
   const { writes } = await run([pull(1)], { RESOLVED_CONFIG: "/nonexistent/resolved-config.json" });
   assert.deepEqual(writes, []);
+});
+
+// pr-merge's gate merges only on a pr-verify pass at the head, FAILs at fewer
+// than merge.max-verify-fails heads (babysit_verify_evidence.py), and native
+// auto-merge must not merge what the gate would refuse.
+test("no pass at the head, a FAIL or the repeated-FAIL cap arms nothing", async () => {
+  const { code, writes, verified } = await run([
+    pull(1, { verdict: { refusal: "verify:missing", head: HEAD } }),
+    pull(2, { verdict: { refusal: "verify:fail", head: HEAD } }),
+    pull(3, { verdict: { refusal: "verify:repeated-fail", head: HEAD, needsHuman: true } }),
+    pull(4, { verdict: { refusal: "verify:earlier-fail", head: HEAD } }),
+    pull(5, { verdict: { refusal: null, head: "c".repeat(40) } }),
+    pull(6, { verdict: new Error("gh: rate limited") }),
+    pull(7, { verdict: { refusal: "verify:unreadable", head: HEAD } }),
+    pull(8),
+  ]);
+  assert.equal(code, 0);
+  assert.deepEqual(verified, [1, 2, 3, 4, 5, 6, 7, 8]);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_8", head: HEAD }]);
+});
+
+test("an armed pull request whose head lost its pass, or passed the cap, is disarmed", async () => {
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  const { writes, lines } = await run([
+    // Armed on a passing head, then pushed: the gate finds no verdict at the new head.
+    pull(1, { autoMergeRequest: armed, verdict: { refusal: "verify:missing", head: HEAD } }),
+    pull(2, { autoMergeRequest: armed, verdict: { refusal: "verify:repeated-fail", head: HEAD } }),
+    pull(3, { autoMergeRequest: armed, verdict: new Error("listing failed") }),
+    pull(4, { autoMergeRequest: armed }),
+  ]);
+  assert.deepEqual(writes, [
+    { mutation: "disarm", id: "PR_1" },
+    { mutation: "disarm", id: "PR_2" },
+    { mutation: "disarm", id: "PR_3" },
+  ]);
+  assert.ok(lines.some((line) => /#2 disarmed: pr-merge's gate refuses its verifier verdict \(verify:repeated-fail\)/.test(line)));
+});
+
+test("the verdict is read only for a lanes App pull request nothing else holds", async () => {
+  const { writes, verified } = await run([
+    pull(1, { author: { __typename: "User", login: "kyle-sexton" } }),
+    pull(2, { labels: labels("do-not-merge") }),
+    pull(3, { isDraft: true }),
+    pull(4, { discussion: { comments: [said("kyle-sexton", "do not merge", "2026-10-23T10:00:00Z")] } }),
+    pull(5, { discussion: { disabledBy: { __typename: "User", login: "kyle-sexton" } } }),
+  ]);
+  assert.deepEqual(writes, []);
+  assert.deepEqual(verified, []);
+});
+
+test("verifyHold allows only the reader's null refusal at the head read", () => {
+  assert.equal(verifyHold(PASSED, HEAD), null);
+  assert.match(verifyHold({ refusal: null, head: "c".repeat(40) }, HEAD), /another head/);
+  assert.match(verifyHold(null, HEAD), /could not be read/);
+  assert.match(verifyHold({ head: HEAD }, HEAD), /could not be read/);
+  assert.match(verifyHold({ refusal: "verify:too-old", head: HEAD }, HEAD), /verify:too-old/);
+});
+
+// The merge queue's check (merge-holds.mjs verdictHold): a pass counts only
+// from pr-verify.yml's completed, successful workflow_run run on main here.
+test("verdictHold counts a pass only from a successful pr-verify run on main", () => {
+  const run = (overrides = {}) => ({
+    path: VERIFY_PATH,
+    event: "workflow_run",
+    head_branch: "main",
+    status: "completed",
+    conclusion: "success",
+    repository: { full_name: REPO },
+    head_repository: { full_name: REPO },
+    ...overrides,
+  });
+  const hold = (records) => verdictHold(records, REPO);
+  assert.equal(hold([{ verdict: "pass", run: run() }]), null);
+  assert.equal(hold([{ verdict: "pass-notes", run: run() }]), null);
+  assert.equal(hold([{ verdict: "pass", run: run({ conclusion: "failure" }) }, { verdict: "pass-notes", run: run() }]), null);
+  for (const bad of [
+    { path: ".github/workflows/other.yml" },
+    { event: "pull_request" },
+    { head_branch: "feature" },
+    { status: "in_progress", conclusion: null },
+    { conclusion: "failure" },
+    { repository: { full_name: "fork/claude-code-plugins" } },
+    { head_repository: { full_name: "fork/claude-code-plugins" } },
+  ]) {
+    assert.match(hold([{ verdict: "pass", run: run(bad) }]), /has not passed this head/, JSON.stringify(bad));
+  }
+  assert.match(hold([{ verdict: "fail", run: run() }]), /has not passed this head/);
+  assert.match(hold([]), /has not passed this head/);
+  assert.match(hold(null), /could not be read/);
+  assert.match(verdictHold([], "not a repo"), /could not be read/);
 });

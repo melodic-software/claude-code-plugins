@@ -87,16 +87,23 @@ a scheduled or hand-started run of main's pr-merge.yml, which only that run's
 steps can upload (.github/scripts/pr-merge/head-ref-map.mjs). An entry ties or
 unties the FAIL as the download would; a missing or malformed map is no map,
 and the FAIL is downloaded.
+
+`python3 babysit_verify_evidence.py evidence --repo R [--max-fails N] <pr>
+<head>` prints `Evidence.report()` for one pull request as one JSON line;
+.github/scripts/pr-merge/enable-auto-merge.mjs arms native auto-merge only on
+its null `refusal` at the head it read.
 """
 
 from __future__ import annotations
 
+import argparse
 import contextlib
 import hashlib
 import io
 import json
 import os
 import re
+import sys
 import tempfile
 import time
 import zipfile
@@ -1246,3 +1253,29 @@ class Reader:
             return None
         head = str(json_object(pr.get("head")).get("sha"))
         return self.evidence(number, head, pr).refusal
+
+
+def main(argv: list[str] | None = None) -> int:
+    """`evidence <number> <head>`: one pull request's evidence at `head` as
+    one JSON line (`Evidence.report`), as pr-merge's gate judges it.
+    enable-auto-merge.mjs arms native auto-merge only on a null `refusal`
+    at the head it read. Exit 0 whenever the line is printed, a refusal
+    included."""
+    parser = argparse.ArgumentParser(prog="babysit_verify_evidence.py")
+    sub = parser.add_subparsers(dest="command", required=True)
+    cmd = sub.add_parser("evidence")
+    cmd.add_argument("--repo", required=True)
+    cmd.add_argument("--branch", default="main")
+    cmd.add_argument("--max-fails", type=int, default=merge_policy.MAX_VERIFY_FAILS)
+    cmd.add_argument("number", type=int)
+    cmd.add_argument("head")
+    args = parser.parse_args(argv)
+    if args.max_fails < 1 or not merge_policy.SHA_RE.fullmatch(args.head):
+        parser.error("--max-fails must be 1 or more and head a full commit SHA")
+    reader = Reader(args.repo, args.branch, max_fails=args.max_fails)
+    print(json.dumps(reader.evidence(args.number, args.head).report()))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

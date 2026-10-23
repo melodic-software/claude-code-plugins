@@ -3110,7 +3110,8 @@ jobs:
     # of own-gate retries, 7 s of status-write retries and the 90 s
     # `rerun-wait-seconds` wait, about four and a half minutes, plus up to
     # 15 s of retry sleeps for each of the hold-lift step's three reads, the
-    # review-lane step's four and the lanes-hold step's eight, about four
+    # review-lane step's four and the lanes-hold step's eight (in the merge
+    # queue up to four verdict lookups and their run reads more), about four
     # minutes, plus the cost-hold step's reads: three for most pull requests,
     # which stop at the label events; for a lane-labeled one whose body cites a
     # decision, about ten, and two more per review run since the window opened.
@@ -3838,6 +3839,17 @@ jobs:
       # it); every other pull request merges through pr-merge's gate or a
       # person. An unreadable pull request, module, config, file list or
       # discussion fails closed.
+      # IN THE MERGE QUEUE A LANES APP PULL REQUEST ALSO NEEDS A VERIFIER PASS
+      # AT ITS HEAD: a PASS or PASS-NOTES artifact of a completed, successful
+      # pr-verify.yml run on main (merge-holds.mjs verdictHold), looked up by
+      # exact name, with and without the head-branch digest, stopping at the
+      # first such run: 2 reads for a plain-named pass, at most 4 lookups plus
+      # one run read per artifact found. The same approval of the head lifts
+      # it. Only in the queue: pr-verify runs only after a successful
+      # pull_request run of this workflow, so a red ci-status there would
+      # never get a verdict, and a pull request event reads nothing for it.
+      # A push after arming re-enters the queue, which checks the new head.
+      # FAILs and the repeated-FAIL cap are enable-auto-merge.mjs's.
       # Pinned by scripts/ci-lanes-pr-hold.test.sh, which runs this body.
       - name: Fail a lanes App pull request its body or a member holds
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
@@ -3922,14 +3934,44 @@ jobs:
             rows=$(read_api "the $kind of #$pr" "repos/$GITHUB_REPOSITORY/$kind?per_page=100" --paginate --jq '.[] | @json') || exit 1
             [ -z "$rows" ] || printf '%s\n' "$rows" >>"$RUNNER_TEMP/discussion.jsonl"
           done
+          verdicts=()
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            ref=$(jq -r '.head.ref // ""' <<<"$pull")
+            if [ -z "$ref" ]; then
+              echo "::error::the head branch of #$pr could not be read."
+              exit 1
+            fi
+            digest=$(printf '%s' "$ref" | sha256sum | cut -c1-16)
+            : >"$RUNNER_TEMP/verdicts.jsonl"
+            for name in "pr-verify-$pr-$head-pass" "pr-verify-$pr-$head-pass-$digest" \
+              "pr-verify-$pr-$head-pass-notes" "pr-verify-$pr-$head-pass-notes-$digest"; do
+              verdict=${name#"pr-verify-$pr-$head-"}
+              verdict=${verdict%"-$digest"}
+              runs=$(read_api "the $name artifacts" "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$name&per_page=100" \
+                --jq ".artifacts[] | select(.name == \"$name\" and .expired == false) | .workflow_run.id") || exit 1
+              for run in $runs; do
+                [[ $run =~ ^[1-9][0-9]*$ ]] || continue
+                record=$(read_api "run $run" "repos/$GITHUB_REPOSITORY/actions/runs/$run") || exit 1
+                jq -c --arg name "$name" --arg verdict "$verdict" '{name: $name, verdict: $verdict, run: .}' <<<"$record" >>"$RUNNER_TEMP/verdicts.jsonl" || exit 1
+              done
+              # A completed, successful run ends the lookup; merge-holds.mjs
+              # checks it is pr-verify's.
+              ! jq -se 'any(.run.status == "completed" and .run.conclusion == "success")' "$RUNNER_TEMP/verdicts.jsonl" >/dev/null || break
+            done
+            verdicts=("$RUNNER_TEMP/verdicts.jsonl")
+          fi
           out=$(node "$RUNNER_TEMP/merge-holds.mjs" "$pr" "$RUNNER_TEMP/pr-body.txt" "$RUNNER_TEMP/discussion.jsonl" \
-            "$RUNNER_TEMP/files.jsonl" "$RUNNER_TEMP/denied-paths.json" "$RUNNER_TEMP/trusted-actors.json" "$head") || {
+            "$RUNNER_TEMP/files.jsonl" "$RUNNER_TEMP/denied-paths.json" "$RUNNER_TEMP/trusted-actors.json" "$head" "${verdicts[@]}") || {
             printf '%s\n' "$out"
             exit 1
           }
           # Exit 0 without the module's no-hold line ran no check: fail closed.
           printf '%s\n' "$out"
           grep -qxF "#$pr: no body hold, no member veto and no hold path." <<<"$out" || { echo "::error::merge-holds.mjs exited 0 without its verdict."; exit 1; }
+          if [ "${#verdicts[@]}" -gt 0 ] && ! grep -qE "^#$pr: no verifier hold: " <<<"$out"; then
+            echo "::error::merge-holds.mjs exited 0 without its verifier verdict."
+            exit 1
+          fi
       # ORDERED SKIPS ARE CHECKED HERE. A test lane `test-<x>`, or `lint-shell`
       # on its `run_shell` row, skips as a job when `select-tests`'s `run_<x>`
       # row says the change gives it no work. Its

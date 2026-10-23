@@ -24,6 +24,13 @@
 //   group, so a push after arming is held without waiting for this job.
 // - No person turned its auto-merge off: the newest auto-merge-disabled event
 //   by a user account keeps it off until a person turns it on again.
+// - pr-merge's gate would take its verifier verdict at the head just read:
+//   babysit_verify_evidence.py's `evidence` refuses nothing (verifyHold), so
+//   a PASS or PASS-NOTES of pr-verify at that head stands, no FAIL at it, and
+//   FAILs at fewer than merge.max-verify-fails heads. It is read last, only
+//   for a pull request every other rule would arm or keep armed. The merge
+//   queue's ci-status checks the pass again at the head it merges
+//   (merge-holds.mjs verdictHold), since a push after arming keeps it armed.
 // Arming passes the head just read as expectedHeadOid, so a push in between
 // fails the arm rather than arming a head nobody read. An armed pull request
 // that fails any rule is disarmed. While merge.report-only is true it reports
@@ -38,7 +45,11 @@
 //   TRACKER_CONFIG       the base .work-item-tracker.json, for the human-gated
 //                        label (default .base/.work-item-tracker.json)
 //   RESOLVED_CONFIG      the resolve-config output, for the hold paths
+//   MAX_VERIFY_FAILS     merge.max-verify-fails (default: the reader's)
+//   BABYSIT_VERIFY_*, BABYSIT_RUN_CACHE  the reader's Actions token, saved
+//                        listing, head-ref map and run cache, as the gate's
 //   GITHUB_API_URL
+import { spawnSync } from "node:child_process";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -61,6 +72,7 @@ const MAX_PAGES = 10;
 // Changed files read per pull request, 100 a page; more is a head the run
 // does not arm on.
 const MAX_FILE_PAGES = 3;
+const VERIFY_SCRIPT = ".base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py";
 
 export const PULLS_QUERY = `query($owner: String!, $name: String!, $after: String) {
   repository(owner: $owner, name: $name) {
@@ -158,9 +170,38 @@ async function changedFiles(github, slug, number) {
   return null;
 }
 
+// Why the gate's verifier `evidence` (babysit_verify_evidence.py's report)
+// keeps a pull request at `head` from merging, or null when it allows it.
+export function verifyHold(evidence, head) {
+  if (evidence === null || typeof evidence !== "object" || !("refusal" in evidence)) {
+    return "its verifier verdict could not be read";
+  }
+  if (evidence.head !== head) {
+    return "its verifier verdict was read at another head";
+  }
+  return evidence.refusal === null ? null : `pr-merge's gate refuses its verifier verdict (${escapeCommand(evidence.refusal)})`;
+}
+
+// The gate's own reader, one process per pull request; the run shares its
+// artifact listing, head-ref map and run cache through the BABYSIT_* files.
+export function pythonVerify(env) {
+  return async (number, head) => {
+    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "evidence", "--repo", env.GITHUB_REPOSITORY];
+    if (env.MAX_VERIFY_FAILS) {
+      args.push("--max-fails", String(env.MAX_VERIFY_FAILS));
+    }
+    const done = spawnSync("python3", [...args, String(number), head], { encoding: "utf8", env, timeout: 240_000 });
+    if (done.status !== 0) {
+      throw new Error(`babysit_verify_evidence.py exited ${done.status ?? done.signal}: ${String(done.stderr ?? "").trim().split("\n").at(-1)}`);
+    }
+    return JSON.parse(String(done.stdout).trim().split("\n").at(-1));
+  };
+}
+
 // What to do with one listed pull request: { action: arm | disarm | none, reason }.
 // `detail` is its discussion; undefined means not read yet, and an arm or a
-// keep then waits on it (action `read`).
+// keep then waits on it (action `read`). Its `verify` is the gate's verifier
+// evidence; absent, an arm or a keep waits on it (action `verify`).
 export function decide(pull, { bot, humanGated, holdPaths = null }, detail) {
   if (pull.author?.__typename !== "Bot" || pull.author.login !== bot) {
     return { action: "none", reason: "not the lanes App's" };
@@ -187,13 +228,17 @@ export function decide(pull, { bot, humanGated, holdPaths = null }, detail) {
   if (vetoed !== null) {
     return { action: armed ? "disarm" : "none", reason: vetoed };
   }
-  if (armed) {
-    return { action: "none", reason: "already armed" };
-  }
-  if (detail.timelineItems?.nodes?.at(-1)?.actor?.__typename === "User") {
+  if (!armed && detail.timelineItems?.nodes?.at(-1)?.actor?.__typename === "User") {
     return { action: "none", reason: "a person turned its auto-merge off" };
   }
-  return { action: "arm", reason: "no hold" };
+  if (!("verify" in detail)) {
+    return { action: "verify", reason: "its verifier verdict is not read yet" };
+  }
+  const unverified = verifyHold(detail.verify, pull.headRefOid);
+  if (unverified !== null) {
+    return { action: armed ? "disarm" : "none", reason: unverified };
+  }
+  return armed ? { action: "none", reason: "already armed" } : { action: "arm", reason: "no hold" };
 }
 
 async function listPulls(github, owner, name) {
@@ -214,7 +259,7 @@ async function listPulls(github, owner, name) {
   throw new Error(`more than ${MAX_PAGES * 100} open pull requests into main`);
 }
 
-export async function main({ env = process.env, github } = {}) {
+export async function main({ env = process.env, github, verify } = {}) {
   try {
     const repo = REPO.exec(env.GITHUB_REPOSITORY ?? "");
     if (!repo) {
@@ -232,12 +277,13 @@ export async function main({ env = process.env, github } = {}) {
     const humanGated = humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json");
     const holdPaths = readHoldPaths(env.RESOLVED_CONFIG ?? "");
     github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
+    verify ??= pythonVerify(env);
     const pulls = await listPulls(github, repo[1], repo[2]);
     let failed = 0;
     for (const pull of pulls) {
       let { action, reason } = decide(pull, { bot: slug, humanGated, holdPaths });
+      let detail = null;
       if (action === "read") {
-        let detail = null;
         try {
           const variables = { owner: repo[1], name: repo[2], number: pull.number };
           detail = (await github("POST", "/graphql", { query: DETAIL_QUERY, variables }))?.data?.repository?.pullRequest ?? null;
@@ -248,6 +294,15 @@ export async function main({ env = process.env, github } = {}) {
           console.log(`enable-auto-merge: #${pull.number} discussion did not read: ${escapeCommand(error?.message ?? error)}`);
         }
         ({ action, reason } = decide(pull, { bot: slug, humanGated, holdPaths }, detail));
+      }
+      if (action === "verify") {
+        let evidence = null;
+        try {
+          evidence = await verify(pull.number, pull.headRefOid);
+        } catch (error) {
+          console.log(`enable-auto-merge: #${pull.number} verifier verdict did not read: ${escapeCommand(error?.message ?? error)}`);
+        }
+        ({ action, reason } = decide(pull, { bot: slug, humanGated, holdPaths }, { ...detail, verify: evidence }));
       }
       if (action === "none") {
         if (reason !== "not the lanes App's") {
