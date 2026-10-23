@@ -430,6 +430,18 @@ lanes:
         needs:
           - resolve-issue
           - apply-issue-patch
+  # Tidies a ready PR. Each activity is a model job and its push job, in
+  # .github/workflows/pr-refine.yml.
+  pr-refine:
+    stage: refine
+    slots:
+      # Started by pr-unblock-dispatch.yml once per ready PR that changes a
+      # Markdown file, whoever opened it except Dependabot, the release App
+      # and the standards-sync App.
+      - activity: fix-docs
+      # Runs after fix-docs, in its own job with its own token.
+      - activity: apply-patch
+        needs: [fix-docs]
   pr-unblock:
     stage: unblock
     slots:
@@ -454,12 +466,9 @@ lanes:
       # Started by pr-unblock-dispatch.yml for lanes App PRs whose ci-status
       # failed.
       - activity: fix-ci
-      # Started by pr-unblock-dispatch.yml once per ready PR that changes a
-      # Markdown file.
-      - activity: fix-docs
-      # Runs after fix-ci or fix-docs, in its own job with its own token.
+      # Runs after fix-ci, in its own job with its own token.
       - activity: apply-patch
-        needs: [fix-ci, fix-docs]
+        needs: [fix-ci]
       # Hands the pull request to a person when any of the others escalates.
       - activity: report-escalation
         needs: [resolve-conflicts, address-feedback, publish-feedback, review-dependency, apply-dependency-verdict, fix-ci, apply-patch]
@@ -813,11 +822,10 @@ merge:
   dependabot:
     mode: enforce
     majors: hold
-  # The HIGH path floor is on in both lanes. It holds only what has an effect
-  # outside the repository or its review (owner direction 2026-10-22): agent
-  # permission config, submodules, code owners, package manifests and
-  # lockfiles, and the workflows that publish a release or hold
-  # `id-token: write` (babysit_risk.py HIGH_FLOOR). A lane PR touching one
+  # The HIGH path floor is on in both lanes. It holds only the takeover set
+  # (owner direction 2026-10-23): the trusted-actor list, the trusted-trigger
+  # check, code owners, submodules and resolve-config (babysit_risk.py
+  # HIGH_FLOOR). A lane PR touching one
   # scores HIGH and waits for a human, who merges it in person; a denied path
   # would instead make the PR ineligible. The verifier verdict, both AI
   # review lanes, ci-status and the post-merge revert breaker still gate every

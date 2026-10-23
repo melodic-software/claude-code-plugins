@@ -111,13 +111,13 @@ reader applies.
 
 | Lane | Starts on |
 |---|---|
-| `pr-refine` | no caller today; `fix-docs` runs in `pr-unblock` |
+| `pr-refine` | a `fix-docs` dispatch from `pr-unblock-dispatch.yml` for each ready PR that changes Markdown and never had `fix-docs`, after a push to the default branch, or a trusted human's dispatch |
 | `pr-run-checks` | dispatch from `pr-refine` |
 | `pr-review`, `pr-review-security` | dispatch from `pr-refine` |
 | `pr-verify` | dispatch from `pr-refine` |
 | `pr-explain` | dispatch from `pr-refine`, alongside verify |
 | `pr-require-checks` | each verify result |
-| `pr-unblock` | a dispatch for each conflicting PR, each unreviewed review-tier Dependabot PR, each failing lanes App PR and each ready PR a person opened that changes Markdown and never had `fix-docs` after a push to the default branch, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, or a trusted human's dispatch |
+| `pr-unblock` | a dispatch for each conflicting PR, each unreviewed review-tier Dependabot PR, and each failing lanes App PR after a push to the default branch, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, or a trusted human's dispatch |
 | `pr-merge` | final check green, or a hold removed |
 | `work-unblock` | an issue closing, by a listed human, and an hourly sweep of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran); labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue`. The sweep also restarts or re-fires stopped issue runs and relabels a red-main fix issue a repeat failure reopened |
 | `post-merge-verify` | push to the default branch |
@@ -284,24 +284,28 @@ and no `fix-ci` run for the PR still queued or going, at most `limits.fix-ci-per
 lowest number first. Their run ids join the dispatched-runs record. The dispatcher job's
 concurrency group cancels a run in progress, so a burst of pushes ends in one listing.
 
-`pr-unblock`'s `fix-docs` runs the same way in three jobs of `pr-unblock.yml`: `fix-docs` (a
+`pr-refine`'s `fix-docs` runs the same way in three jobs of `pr-refine.yml`: `fix-docs` (a
 `read` skill in patch output mode with no prepare mode, on run-claude-cli with the automations
 role's API key) runs `ai-slop:audit fix` on the PR's changed Markdown files;
-`fix-docs-subscription` runs the same on the role's OAuth token, only after a credit stop or with
-the key empty; and `apply-docs-patch` runs the `apply-patch` activity on a `written` patch,
+`fix-docs-subscription` runs the same on the role's OAuth token, only when `fix-docs-handoff`'s
+read of this run's jobs shows the broker allowed `fix-docs` and `fix-docs` posted no check, as a
+credit stop or an empty key leaves it; and `apply-docs-patch` runs the `apply-patch` activity on a `written` patch,
 pushing it as one commit under `patch-rules.json`'s `default` row, which refuses the universal
 set, every agent instruction path and more than 300 paths. No change is the common case, so an
-`empty` patch runs no push job. `report-escalation` does not follow `fix-docs`: a refused or
-unappliable patch posts the `pr-unblock / apply-patch` check neutral `awaiting-human` and labels
+`empty` patch runs no push job. `pr-refine.yml` has no escalation job: a refused or
+unappliable patch posts the `pr-refine / apply-patch` check neutral `awaiting-human` and labels
 nothing. Every job trusts the default branch tip (`trusted-base: default-tip`). `fix-docs` routes
 to the `docs-fix` profile ([Models](#models)).
 
-The same `pr-unblock-dispatch.yml` run starts `fix-docs` once per pull request, as a PR opening
-ready or turning ready used to: one GraphQL query per page of 50 open pull requests, its
-`rateLimit.cost` logged, lists the non-draft, same-repository ones into `main` that a person
-opened (a `User` author, so no lanes App or other bot PR), with no `do-not-merge` or
-`needs-human` label, that change at least one `.md` file, and whose head has no
-`pr-unblock / fix-docs` check run from the GitHub Actions app. For each, lowest number first, one
+The same `pr-unblock-dispatch.yml` run dispatches `pr-refine.yml`'s `fix-docs` once per pull
+request: one GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, lists
+the non-draft, same-repository ones into `main`, whoever opened them, lanes App PRs included,
+except Dependabot (account 49699333, whose own rebases a lane commit stops), the release App
+(337859524) and the standards-sync App (300666570), whose files are generated or synced; an
+author with no account id is skipped. It keeps those with no `do-not-merge` or `needs-human`
+label, that change at least one `.md` file, and whose head has no `pr-refine / fix-docs` or
+`pr-unblock / fix-docs` (the lane `fix-docs` ran in before) check run from the GitHub Actions
+app. For each, lowest number first, one
 more query reads the check runs on its last 50 commits, and a PR with a `fix-docs` run on any of
 them is skipped for good; the dispatch record keeps its head so the next run skips that read. A
 run older than 50 commits, or a force-push that dropped its commit, costs one more run. It sends
@@ -456,7 +460,7 @@ Each leaf declares:
   paths `.github/CODEOWNERS` lists
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities); `changedPathTargets` in
   [`resolve.mjs`](../../../.github/actions/resolve-config/resolve.mjs)). When nothing is left, the
-  activity skips with `not-applicable-paths`: `pr-unblock / fix-docs` does not run on a PR whose
+  activity skips with `not-applicable-paths`: `pr-refine / fix-docs` does not run on a PR whose
   only changed Markdown is instruction surfaces or CODEOWNERS paths, such as this directory.
 - `scope` (`diff`, `tree`, `target`) and `applies-when` (paths, labels, `labels-absent`, work
   classes, events, `mergeable`, `draft`, `admission`). `mergeable` is `conflicting` or `clean`,
@@ -537,9 +541,9 @@ token has no `workflows` permission), `CODEOWNERS` at the root, in `.github/` or
 `.gitmodules`, `**/settings*.json`, a symbolic link, a gitlink, and a rename into any of those.
 The rest of `.github/`, `.claude/`, `.mcp.json`, plugin hooks, `.claude-plugin/`, `lib/`,
 `scripts/`, `CLAUDE.md`, `AGENTS.md` and an executable bit reach review, and merge on it: the
-[HIGH path floor](#merge-authority) holds for a human merge only agent permission config,
-`.gitmodules`, `CODEOWNERS`, package manifests and lockfiles, the workflows that publish a release
-or hold `id-token: write`, the trusted-trigger check, and `resolve-config`, whose code the token broker runs from main. The `ci-context`, `default` and `issue` rows cap a patch at 300 paths.
+[HIGH path floor](#merge-authority) holds for a human merge only the takeover set: the
+trusted-actor list, the trusted-trigger check, `CODEOWNERS`, `.gitmodules`, and `resolve-config`,
+whose code the token broker runs from main. The `ci-context`, `default` and `issue` rows cap a patch at 300 paths.
 `checkPatchRules` in
 [`patch-rules.mjs`](../../../.github/actions/resolve-config/patch-rules.mjs) rejects a row without that
 set, a `[head, base]` commit whose `allow` is not exactly `[merge-result]`, a refusal, allow or requirement name
@@ -731,11 +735,12 @@ and its queued entries leave; two different identities, or an unreadable head co
   and the diff risk score still decides. It counts only when a human added it last and the pull
   request body was not edited afterwards.
 - **HIGH path floor.** A fixed set of paths in the wrapper's code, joined with
-  `merge.diff-check.denied-paths` and matched case-insensitively: agent permission config
-  (`**/settings*.json`), `.gitmodules`, `CODEOWNERS`, package manifests and lockfiles, the
-  workflows that publish a release or hold `id-token: write`, the trusted-trigger check they
-  run, and `.github/actions/resolve-config/**`, whose code the token broker runs from main in its
-  signer process. A diff that touches any of them scores HIGH and is never merged unattended. A
+  `merge.diff-check.denied-paths` and matched case-insensitively. It holds only the takeover set
+  (owner direction 2026-10-23): `.github/standards/trusted-actors/**`,
+  `.github/actions/check-trusted-trigger/**`, `CODEOWNERS`, `.gitmodules`, and
+  `.github/actions/resolve-config/**`, whose code the token broker runs from main in its signer
+  process. Agent permission config, package manifests and workflows merge on the review lanes. A
+  diff that touches a floor path scores HIGH and is never merged unattended. A
   `plugins/<plugin>/.claude-plugin/plugin.json` or the top-level
   `.claude-plugin/marketplace.json` change scores HIGH as `manifest-review-required` when it
   installs or runs something new: a differing `hooks`, `mcpServers`, `lspServers`, `monitors` or
@@ -790,8 +795,8 @@ and its queued entries leave; two different identities, or an unreadable head co
   inside an HTML comment in the body counts for nothing. A push after the decision is an accepted
   residual: the decision is not bound to a head. The gate reads the linked comments only for a
   pull request the hold catches, and a failed read leaves the hold. A decision
-  clears only this reason: a change to a workflow on the HIGH path floor still sits there and
-  waits for a person to merge it. Cite the decision before the
+  clears only this reason: a change that is also on the HIGH path floor still waits for a person
+  to merge it. Cite the decision before the
   human-gated label lands; a body edit does not remove that label (only a new head or a person
   does). Not detected: budgets, billing settings and new paid services outside these files, and
   the shapes [#9241](https://github.com/melodic-software/claude-code-plugins/issues/9241) lists.
@@ -1394,7 +1399,7 @@ network error is read again, three reads in all with backoff, all inside the one
 read would get; any other failure, a timeout, a 429 or a rate-limit 403 included, is not. A failed listing is never
 saved, and is kept for that candidate's gate run: the pull request and every queued entry refuse `verify:unreadable` without the
 listing being paged again, so a listing outage holds the whole queue rather than merging blind.
-The lane token holds no Actions permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
+pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
 records, the download of a verdict.json (by the listed artifact's id, one request where `gh run
 download` lists the run's artifacts first) and the compare of a run's head to main (a `contents: read` call). The gate's
@@ -1409,7 +1414,7 @@ is refused with a 429, or a 403 whose message names a rate limit, the gate reads
 candidate's evidence again with the lane token (they are all GETs). It records the refusal in
 `BABYSIT_RUN_CACHE`, so later candidates in the run skip `GITHUB_TOKEN`. Any other refusal is not
 retried. The verdict downloads, the listing, the run records and the compares
-stay on `GITHUB_TOKEN`: the lane token holds no Actions permission. An untied FAIL whose record
+stay on `GITHUB_TOKEN`; the lane token holds Actions read (owner decision Q8) but these reads do not fall back to it. An untied FAIL whose record
 cannot be read refuses the run's later candidates through `BABYSIT_RUN_CACHE` without another
 download; the next run reads it again. `GITHUB_TOKEN`'s pool is shared with the full-run dispatch and the post-merge checks. Every other call, every write
 included, keeps the lane token. That job checks out only main and runs no pull request code.
@@ -1926,9 +1931,7 @@ author's own touched (a lane's fix among them): that author's own lines need no 
 App's PR (claude[bot], cursor[bot], cursoragent, melodic-ai[bot]) gets that exemption only for its
 own lines under `plugins/*/scripts/` (owner decision Q14 (c)); its other paths score whole, like
 the lanes App's, while it stays adoptable for fix-and-merge. The HIGH path floor always scores,
-whoever wrote it, and so does every file pr-unblock's thread scope names (`INSTRUCTION_PATH` in
-`thread-scope.mjs`, whose Python twin a test holds equal): `.gitmodules`, `CODEOWNERS`,
-`settings*.json` and package manifests. Paths match
+whoever wrote it. Paths match
 case-insensitively. The lanes App and
 Dependabot are never adopted. A commit is the author's own
 only when GitHub verified its signature and its author account is the PR's author, and, for a
