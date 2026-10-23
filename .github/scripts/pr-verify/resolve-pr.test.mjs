@@ -366,6 +366,8 @@ test("verdicts are looked up by exact name, never by listing every artifact", as
   assert.deepEqual(lookups.sort(), [
     `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-fail&per_page=100&page=1`,
     `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-fail-${REF_DIGEST}&per_page=100&page=1`,
+    `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-fail-${REF_DIGEST}-i7&per_page=100&page=1`,
+    `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-fail-i7&per_page=100&page=1`,
     `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-pass&per_page=100&page=1`,
     `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-pass-${REF_DIGEST}&per_page=100&page=1`,
     `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-pass-notes&per_page=100&page=1`,
@@ -373,6 +375,19 @@ test("verdicts are looked up by exact name, never by listing every artifact", as
     `/repos/${REPO}/actions/artifacts?name=pr-verify-99-${HEAD}-fail&per_page=100&page=1`,
     `/repos/${REPO}/actions/artifacts?name=pr-verify-99-${HEAD}-fail-${OTHER_DIGEST}&per_page=100&page=1`,
   ]);
+});
+
+test("a FAIL named with this pull request's issues stops a new judgment", async () => {
+  // The fake pull request closes one issue, so write-verdict.mjs named its
+  // FAIL with that number after -i.
+  const pulls = [pull()];
+  for (const name of [`pr-verify-41-${HEAD}-fail-i7`, `pr-verify-41-${HEAD}-fail-${REF_DIGEST}-i7`]) {
+    assert.equal(await reason({ pulls, artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77) } }), "already-judged", name);
+  }
+  // A suffix naming other issues is another judgment.
+  for (const name of [`pr-verify-41-${HEAD}-fail-i8`, `pr-verify-41-${HEAD}-fail-i7.8`]) {
+    assert.equal(await reason({ pulls, artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77) } }), "ok", name);
+  }
 });
 
 test("a verdict named with its head-ref digest stops a new judgment like one without", async () => {

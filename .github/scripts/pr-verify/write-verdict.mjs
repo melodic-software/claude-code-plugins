@@ -182,16 +182,17 @@ export const headRefDigest = (ref) =>
 // issue's repeated-fail cap from the artifact listing alone
 // (babysit_verify_evidence.NAME_RE, which takes at most NAMED_ISSUES_MAX).
 export const NAMED_ISSUES_MAX = 10;
-export function artifactName(verdict) {
-  const name = `pr-verify-${verdict.pr}-${verdict.head_sha}-${verdict.verdict}`;
-  const issues = [...new Set((verdict.linked_issues ?? []).map((issue) => issue.number))].sort((a, b) => a - b);
-  if (verdict.verdict !== "fail" || issues.length === 0) {
-    return name;
-  }
+// The `-i` part for issue numbers `numbers`, empty for none.
+export function issuesSuffix(numbers) {
+  const issues = [...new Set(numbers)].sort((a, b) => a - b);
   if (issues.length > NAMED_ISSUES_MAX) {
     throw new Error(`the verdict records ${issues.length} issues, more than a name carries`);
   }
-  return `${name}-i${issues.join(".")}`;
+  return issues.length === 0 ? "" : `-i${issues.join(".")}`;
+}
+export function artifactName(verdict) {
+  const name = `pr-verify-${verdict.pr}-${verdict.head_sha}-${verdict.verdict}`;
+  return verdict.verdict === "fail" ? name + issuesSuffix((verdict.linked_issues ?? []).map((issue) => issue.number)) : name;
 }
 
 export function main(env = process.env) {
