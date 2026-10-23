@@ -30,20 +30,26 @@ function jobBlock(file, job) {
   return lines.slice(start + 1, end === -1 ? undefined : end);
 }
 
+// The if: at lines[at], indented by `indent` spaces, single-line or folded.
+function ifAt(lines, at, indent) {
+  const gate = lines[at].slice(indent + "if: ".length);
+  if (gate !== ">-") {
+    return gate;
+  }
+  const folded = [];
+  for (const line of lines.slice(at + 1)) {
+    if (!line.startsWith(" ".repeat(indent + 2))) break;
+    folded.push(line.trim());
+  }
+  return folded.join(" ");
+}
+
 // A job's if:, single-line or folded, and its needs, as written.
 function jobGate(file, job) {
   const block = jobBlock(file, job);
   const at = block.findIndex((line) => /^ {4}if: /.test(line));
   assert.notEqual(at, -1, `${file}: job ${job} has an if:`);
-  let gate = block[at].slice("    if: ".length);
-  if (gate === ">-") {
-    const folded = [];
-    for (const line of block.slice(at + 1)) {
-      if (!/^ {6}/.test(line)) break;
-      folded.push(line.trim());
-    }
-    gate = folded.join(" ");
-  }
+  const gate = ifAt(block, at, 4);
   const needsLine = block.find((line) => /^ {4}needs: /.test(line)) ?? "    needs: []";
   const needs = needsLine.slice("    needs: ".length).replace(/^\[|\]$/g, "").split(",").map((name) => name.trim()).filter(Boolean);
   return { gate, needs };
@@ -455,4 +461,66 @@ test("pr-unblock.yml: address-feedback's and review-dependency's fallback calls 
       assert.equal(evaluate(jobGate(UNBLOCK, handoff).gate, { [`needs.${select}.outputs.proceed`]: proceed }), runs, `${handoff} ${JSON.stringify(proceed)}`);
     }
   }
+});
+
+// A step's if:, single-line or folded, by its name.
+function stepIf(file, name) {
+  const lines = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8").split("\n");
+  const start = lines.indexOf(`      - name: ${name}`);
+  assert.notEqual(start, -1, `${file}: step ${name}`);
+  const end = lines.findIndex((line, i) => i > start && /^ {6}- /.test(line));
+  const step = lines.slice(start + 1, end === -1 ? undefined : end);
+  const at = step.findIndex((line) => /^ {8}if: /.test(line));
+  assert.notEqual(at, -1, `${file}: step ${name} has an if:`);
+  return ifAt(step, at, 8);
+}
+
+// The minutes of a workflow's one `cron:` line.
+function cronMinutes(file) {
+  const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
+  const crons = [...text.matchAll(/^ {4}- cron: "([0-9,]+) \* \* \* \*"$/gm)];
+  assert.equal(crons.length, 1, `${file}: one hourly cron line`);
+  return crons[0][1].split(",").map(Number);
+}
+
+const DISPATCHER = "pr-unblock-dispatch.yml";
+
+test("pr-unblock-dispatch.yml gates a hand run and every re-run, and no first push or scheduled attempt", () => {
+  const gate = stepIf(DISPATCHER, "Check the trigger");
+  const runs = (event, attempt, kill = "true") =>
+    evaluate(gate, { "steps.kill.outputs.proceed": kill, "github.event_name": event, "github.run_attempt": attempt });
+  assert.equal(runs("push", "1"), false);
+  assert.equal(runs("schedule", "1"), false);
+  assert.equal(runs("workflow_dispatch", "1"), true);
+  assert.equal(runs("push", "2"), true);
+  assert.equal(runs("schedule", "2"), true);
+  assert.equal(runs("schedule", "1", "false"), false);
+  // A skipped gate lets the dispatch step run; a checked one must proceed.
+  const dispatches = (outcome, proceed = "") =>
+    evaluate(stepIf(DISPATCHER, "Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs"), {
+      "steps.kill.outputs.proceed": "true",
+      "steps.gate.outcome": outcome,
+      "steps.gate.outputs.proceed": proceed,
+    });
+  assert.equal(dispatches("skipped"), true);
+  assert.equal(dispatches("success", "true"), true);
+  assert.equal(dispatches("success", "false"), false);
+});
+
+test("pr-unblock-dispatch.yml ticks five minutes after each lost-run reconciler tick", () => {
+  const reconciler = cronMinutes("maintenance-reconcile-lost-runs.yml");
+  assert.deepEqual(cronMinutes(DISPATCHER), reconciler.map((minute) => (minute + 5) % 60));
+});
+
+test("pr-unblock-dispatch.yml: only a push cancels the dispatcher run going; a tick or hand run waits", () => {
+  const block = jobBlock(DISPATCHER, "dispatch");
+  const at = block.findIndex((line) => line === "    concurrency:");
+  assert.notEqual(at, -1, "the dispatch job sets concurrency");
+  assert.equal(block[at + 1], "      group: pr-unblock-dispatch");
+  const cancel = /^ {6}cancel-in-progress: (.+)$/.exec(block[at + 2]);
+  assert.ok(cancel, "cancel-in-progress follows the group");
+  const cancels = (event) => evaluate(cancel[1], { "github.event_name": event });
+  assert.equal(cancels("push"), true);
+  assert.equal(cancels("schedule"), false);
+  assert.equal(cancels("workflow_dispatch"), false);
 });

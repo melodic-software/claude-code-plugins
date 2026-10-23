@@ -54,8 +54,8 @@ The write runner takes a caller input `trusted-base`, `pr-base` by default or `d
   lane's check run is posted on the gated head, not on the merge commit, so the existing-check
   skip does not match the new head, and a dispatch sent while the lane is still running waits in
   the `pr-unblock-<n>` group and gates the PR's head as it is when it starts. A PR whose mergeable
-  state stays `UNKNOWN`, or that falls past the per-run cap, waits for the next push to `main` or
-  a hand run of the dispatcher. Basis:
+  state stays `UNKNOWN`, or that falls past the per-run cap, waits for the next push to `main`,
+  the dispatcher's half-hourly tick (ADR 0071) or a hand run of the dispatcher. Basis:
   [`dispatch.mjs:48-57,60-110`](../../.github/scripts/pr-unblock/dispatch.mjs);
   `pr-unblock.yml:31-33`;
   [`check-trusted-trigger.mjs:349-353`](../../.github/actions/check-trusted-trigger/check-trusted-trigger.mjs);
