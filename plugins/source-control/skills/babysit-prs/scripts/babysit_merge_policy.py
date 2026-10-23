@@ -4448,7 +4448,7 @@ def assess(
 class LaneRoom:
     """`lane_room`'s answer. `refusal`: the gate holds the lane off, so
     nothing is armed and armed lane pull requests are disarmed. `unreadable`:
-    a read failed, so nothing is armed and nothing is disarmed. Otherwise
+    a read failed, which the caller holds on as on a refusal. Otherwise
     `count` merges are in flight of `cap`, and `queued` holds the merge
     queue's pull request numbers."""
 

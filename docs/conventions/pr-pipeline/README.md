@@ -1072,11 +1072,12 @@ reads from the review lanes' evidence bound to the head (an open CRITICAL securi
 review not bound to the head), whether or not the lane applied its hold label. Each such run also
 waits for the same run's `post-merge-dispatch` job and reads the lane's room from the post-merge
 report that job keeps as an artifact (`babysit_verify_evidence.py lane-room`; with no report it
-arms nothing and disarms nothing): while the gate holds its lane off (a demotion record,
+holds as a refusal does): while the gate holds its lane off (a demotion record,
 `merge.rung`, the loop setting or the rung cap off, a lane merge that failed its post-merge check)
 nothing is armed and every armed lanes App pull request is disarmed; at `merge.max-in-flight`,
 counting the queue's lane entries, the lane's unverified merges and armed pull requests the queue
-has not taken, nothing more is armed; a room that cannot be read arms nothing and disarms nothing.
+has not taken, nothing more is armed; a room that cannot be read (no report, a failed read) holds
+as a refusal does.
 Only the scheduled run and a hand-started one read
 them and arm, last, for a pull request every other rule would arm or keep armed, with the gate's
 saved listing, head-ref map and run cache; an event run reads no link or verdict, never arms, and

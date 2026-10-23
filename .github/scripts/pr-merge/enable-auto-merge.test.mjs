@@ -756,12 +756,17 @@ test("at merge.max-in-flight nothing more is armed, counting armed pull requests
   );
 });
 
-test("a room that cannot be read arms nothing and disarms nothing", async () => {
+// Unknown holds: a room that cannot be read (no post-merge report, a failed
+// read) holds as the gate's refusal does, so an armed lane pull request is
+// disarmed rather than left to merge while the gate refuses.
+test("a room that cannot be read arms nothing and disarms every armed lane pull request", async () => {
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
-  const pulls = [pull(1), pull(2, { autoMergeRequest: armed })];
-  for (const lane of [{ ...ROOM, unreadable: "in-flight:merge-queue-unreadable" }, { refusal: null }, null]) {
-    const { writes } = await run(pulls, {}, {}, lane);
-    assert.deepEqual(writes, [], JSON.stringify(lane));
+  const pulls = [pull(1), pull(2, { autoMergeRequest: armed }), pull(3, { author: { __typename: "User", login: "kyle-sexton" }, autoMergeRequest: armed })];
+  for (const lane of [{ ...ROOM, unreadable: "post-merge answer missing or unreadable" }, { refusal: null }, null]) {
+    const { writes, verified, lines } = await run(pulls, {}, {}, lane);
+    assert.deepEqual(writes, [{ mutation: "disarm", id: "PR_2" }], JSON.stringify(lane));
+    assert.deepEqual(verified, [], JSON.stringify(lane));
+    assert.ok(lines.some((line) => line.includes("#2 disarmed: the lane's room could not be read")), JSON.stringify(lane));
   }
   const { github, writes } = world(pulls);
   const log = console.log;
@@ -778,7 +783,14 @@ test("a room that cannot be read arms nothing and disarms nothing", async () => 
   } finally {
     console.log = log;
   }
-  assert.deepEqual(writes(), []);
+  assert.deepEqual(writes(), [{ mutation: "disarm", id: "PR_2" }]);
+});
+
+// An event run reads no room, so it never disarms on one.
+test("an event run leaves an armed lane pull request armed whatever the room", async () => {
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  const { writes } = await run([pull(2, { autoMergeRequest: armed })], { EVENT_NAME: "pull_request_target" }, {}, null);
+  assert.deepEqual(writes, []);
 });
 
 test("an event run reads no room", async () => {

@@ -1477,7 +1477,8 @@ jobs:
       # room from (lane-room), so a demotion or a failed lane merge stops
       # native arming as it stops the gate. Downloaded from this run only (no
       # run-id is given, so no other run's artifact is read). With no report
-      # the room is unreadable: nothing is armed and nothing is disarmed.
+      # the room is unreadable, which holds as the gate's refusal does:
+      # nothing is armed and every armed lane pull request is disarmed.
       - name: Read this run's post-merge report
         if: >-
           steps.lane-token.outputs.token != ''

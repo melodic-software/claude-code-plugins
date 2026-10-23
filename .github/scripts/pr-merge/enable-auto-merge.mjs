@@ -51,8 +51,9 @@
 //   nothing is armed and every armed lanes App pull request is disarmed.
 //   Below merge.max-in-flight, counting the merge queue's lane entries, the
 //   lane's unverified merges and the armed pull requests not yet queued, it
-//   arms; at the cap it arms nothing more. A room that cannot be read arms
-//   nothing and disarms nothing.
+//   arms; at the cap it arms nothing more. A room that cannot be read (no
+//   post-merge report, a failed read) holds as a refusal does: nothing is
+//   armed and every armed lanes App pull request is disarmed.
 // - pr-merge's gate would not hold it on its review lanes: `evidence
 //   --lane-reviews` binds both lanes' evidence to the head as the gate does
 //   (babysit_merge._lane_evidence) and applies the gate's lane rule
@@ -414,11 +415,12 @@ export async function main({ env = process.env, github, verify, room } = {}) {
       if (lane.refusal !== null) {
         return { disarm: true, reason: `pr-merge's gate holds its lane off (${lane.refusal})` };
       }
+      // An unknown room holds as a refusal does: unknown holds.
+      if (lane.unreadable !== null) {
+        return { disarm: true, reason: `the lane's room could not be read (${lane.unreadable})` };
+      }
       if (pull.autoMergeRequest != null) {
         return null;
-      }
-      if (lane.unreadable !== null) {
-        return { disarm: false, reason: `the lane's room could not be read (${lane.unreadable})` };
       }
       return inFlight >= lane.cap ? { disarm: false, reason: `merge.max-in-flight is ${lane.cap} and ${inFlight} merges are in flight` } : null;
     };
