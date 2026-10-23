@@ -11,12 +11,11 @@
 // - Its body opens with `Closes #<issue>`: a `Refs:` pull request is merged
 //   by a person (report-outcome.mjs).
 // - It carries no hold: no `do-not-merge` and no human-gated label (the
-//   tracker's role label, `needs-human` by default), and no body hold, the
-//   gate's own rule (babysit_merge_policy.BODY_MERGE_HOLD_RE): a line opening
-//   with `Hold:`, or "do not merge" anywhere.
-// - No member vetoes it, the gate's rule (babysit_merge.human_veto_logins): an
-//   OWNER, MEMBER or COLLABORATOR whose newest comment, review or inline
-//   comment with text says "do not merge". A later comment lifts it.
+//   tracker's role label, `needs-human` by default), and no body hold
+//   (merge-holds.mjs).
+// - No member vetoes it (merge-holds.mjs). ci-status fails on both holds too,
+//   so one added after arming stops the merge queue rather than waiting for
+//   this job's next run.
 // - Its head changes no hold path: the merge lane's denied paths
 //   (report-outcome.readHoldPaths), read against the files, renamed-from paths
 //   included, that the head changes now, since a push after report-outcome
@@ -45,19 +44,15 @@ import { pathToFileURL } from "node:url";
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { humanGatedLabelFrom } from "../pr-unblock/address-feedback.mjs";
 import { readHoldPaths } from "../work-resolve-issue/report-outcome.mjs";
+import { BODY_HOLD, vetoers } from "./merge-holds.mjs";
+
+export { BODY_HOLD, HUMAN_VETO } from "./merge-holds.mjs";
 
 const REPO = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/;
 const SHA = /^[0-9a-f]{40}$/;
 const BOT_LOGIN = /^([a-z0-9][a-z0-9-]*)\[bot\]$/;
 // babysit_merge_policy.MERGE_HOLD_LABELS, plus the human-gated label.
 const HOLD_LABELS = Object.freeze(["do-not-merge"]);
-// babysit_merge_policy.BODY_MERGE_HOLD_RE; enable-auto-merge.test.mjs checks the two
-// agree on every body it tries.
-export const BODY_HOLD = /\bdo(?:n['’]?t| not)\s+merge\b|(?:^|\r)[^\S\r\n]*hold:/im;
-// babysit_merge.HUMAN_MERGE_VETO_RE; enable-auto-merge.test.mjs checks the two agree.
-export const HUMAN_VETO = /\bdo(?:n['’]?t| not|-not)[\s-]*merge\b/i;
-// babysit_merge_policy.BLOCKER_ASSOCIATIONS.
-const MEMBERS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 const CLOSES = /^Closes #[1-9][0-9]*\r?$/;
 // 100 pull requests a page; more than this many open is a listing the run
 // stops on rather than one it reads only part of.
@@ -134,23 +129,15 @@ export function discussionHold(detail) {
   if (![detail?.comments, detail?.reviews, threads].every(whole) || !threads.nodes.every((thread) => whole(thread?.comments))) {
     return "its comments could not all be read";
   }
-  const newest = new Map();
-  for (const item of [...detail.comments.nodes, ...detail.reviews.nodes, ...threads.nodes.flatMap((thread) => thread.comments.nodes)]) {
-    const body = String(item?.body ?? "");
-    if (item?.author?.__typename !== "User" || !MEMBERS.has(String(item.authorAssociation).toUpperCase()) || !body.trim()) {
-      continue;
-    }
-    const at = String(item.submittedAt ?? item.createdAt ?? "");
-    const login = item.author.login;
-    if (!newest.has(login) || at >= newest.get(login).at) {
-      newest.set(login, { at, body });
-    }
-  }
-  const vetoes = [...newest].filter(([, { body }]) => HUMAN_VETO.test(body)).map(([login]) => login);
-  if (vetoes.length) {
-    return `${vetoes.sort().join(", ")} asked not to merge it`;
-  }
-  return null;
+  const items = [...detail.comments.nodes, ...detail.reviews.nodes, ...threads.nodes.flatMap((thread) => thread.comments.nodes)].map((item) => ({
+    login: item?.author?.login,
+    isUser: item?.author?.__typename === "User",
+    association: item?.authorAssociation,
+    at: String(item?.submittedAt ?? item?.createdAt ?? ""),
+    body: String(item?.body ?? ""),
+  }));
+  const vetoes = vetoers(items);
+  return vetoes.length ? `${vetoes.join(", ")} asked not to merge it` : null;
 }
 
 // Why the head's changed `files` hold it, or null.

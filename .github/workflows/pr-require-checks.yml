@@ -3052,9 +3052,9 @@ jobs:
     # (`rate-limit-wait-seconds` on check-contract and aggregate-results), 45 s
     # of own-gate retries, 7 s of status-write retries and the 90 s
     # `rerun-wait-seconds` wait, about four and a half minutes, plus up to
-    # 15 s of retry sleeps for each of the hold-lift step's three reads and
-    # the review-lane step's four, under two minutes.
-    timeout-minutes: 7
+    # 15 s of retry sleeps for each of the hold-lift step's three reads, the
+    # review-lane step's four and the lanes-hold step's five, three minutes.
+    timeout-minutes: 9
     permissions:
       # `yield-to-full-run` lists this workflow's runs on the head SHA, and
       # `rerun-contract-only-siblings` re-runs the red contract-only ones once
@@ -3549,6 +3549,73 @@ jobs:
           fi
           [ "$held" -eq 0 ] || exit 1
           echo "#$pr carries neither 'do-not-merge' nor '$human_gated'."
+      # A LANES APP PULL REQUEST IS HELD BY ITS TEXT TOO. pr-merge.yml's
+      # enable-auto-merge job arms native auto-merge on lanes App pull
+      # requests, which then merge without pr-merge's gate, so this step fails
+      # on the two text holds that gate honours: a body hold and a member's
+      # veto comment, by the rules in .github/scripts/pr-merge/merge-holds.mjs,
+      # which this step runs as the base commit has it so a pull request cannot
+      # rewrite its own hold. On a pull request event and in the merge queue
+      # (the pull request named in the group's ref, as the step above reads
+      # it), the body, comments, reviews and inline comments are read live,
+      # never from the payload a re-run replays. A body edit re-runs this job;
+      # a comment does not, so a veto posted while armed is enforced when the
+      # queue builds the group, and after a veto is lifted ci-status needs a
+      # re-run. Only the lanes App's pull requests are read, by numeric id
+      # (pr-pipeline.yaml merge.agent-identity, as trusted-actors.json lists
+      # it); every other pull request merges through pr-merge's gate or a
+      # person. An unreadable pull request, module or discussion fails closed.
+      # Pinned by scripts/ci-lanes-pr-hold.test.sh, which runs this body.
+      - name: Fail a lanes App pull request its body or a member holds
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.merge_group.base_sha || github.event.pull_request.base.sha }}
+        run: |
+          lanes_app_id=337595936
+          pr=$PR_NUMBER
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            pr=$(sed -nE 's#^(refs/heads/)?gh-readonly-queue/.+/pr-([0-9]+)-[0-9a-f]{40}$#\2#p' <<<"$GITHUB_REF")
+            if [ -z "$pr" ]; then
+              echo "::error::cannot read a pull request number from the merge-group ref '$GITHUB_REF'."
+              exit 1
+            fi
+          fi
+          if [[ ! $pr =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::the pull request number '${pr//%/%25}' is not a number."
+            exit 1
+          fi
+          if [[ ! $BASE_SHA =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
+            exit 1
+          fi
+          read_api() {
+            local attempt body
+            for attempt in 1 2 3; do
+              if body=$(gh api "${@:2}"); then
+                printf '%s\n' "$body"
+                return 0
+              fi
+              [ "$attempt" -lt 3 ] || { echo "::error::could not read $1; re-run this run." >&2; return 1; }
+              sleep $((attempt * 5))
+            done
+          }
+          pull=$(read_api "#$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr") || exit 1
+          if ! jq -e --argjson id "$lanes_app_id" '.user.id == $id and .user.type == "Bot"' <<<"$pull" >/dev/null; then
+            echo "#$pr is not the lanes App's; pr-merge's gate or a person reads its holds."
+            exit 0
+          fi
+          module=.github/scripts/pr-merge/merge-holds.mjs
+          read_api "$module at $BASE_SHA" -H 'Accept: application/vnd.github.raw+json' \
+            "repos/$GITHUB_REPOSITORY/contents/$module?ref=$BASE_SHA" >"$RUNNER_TEMP/merge-holds.mjs" || exit 1
+          jq -r '.body // ""' <<<"$pull" >"$RUNNER_TEMP/pr-body.txt"
+          : >"$RUNNER_TEMP/discussion.jsonl"
+          for kind in "issues/$pr/comments" "pulls/$pr/reviews" "pulls/$pr/comments"; do
+            rows=$(read_api "the $kind of #$pr" "repos/$GITHUB_REPOSITORY/$kind?per_page=100" --paginate --jq '.[] | @json') || exit 1
+            [ -z "$rows" ] || printf '%s\n' "$rows" >>"$RUNNER_TEMP/discussion.jsonl"
+          done
+          node "$RUNNER_TEMP/merge-holds.mjs" "$pr" "$RUNNER_TEMP/pr-body.txt" "$RUNNER_TEMP/discussion.jsonl"
       # ORDERED SKIPS ARE CHECKED HERE. A test lane `test-<x>`, or `lint-shell`
       # on its `run_shell` row, skips as a job when `select-tests`'s `run_<x>`
       # row says the change gives it no work. Its

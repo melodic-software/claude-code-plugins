@@ -1031,6 +1031,14 @@ missed. The token broker mints `merge` only for `pr-merge.yml`, and outside the 
 listed human's run, so an issue run the lanes App started is armed by the next scheduled run. While
 `merge.report-only` is true it reports each decision and writes nothing.
 
+`ci-status` enforces the same two text holds on every lanes App pull request, so one added after
+arming stops the merge without waiting for this job: its step `Fail a lanes App pull request its
+body or a member holds` runs the base commit's `.github/scripts/pr-merge/merge-holds.mjs`, the
+module `enable-auto-merge.mjs` arms by, over the live body and discussion, on each pull request
+event and in the merge queue, where a red group removes the pull request. A body edit re-runs
+`ci-status` at once. A comment does not, so a veto posted while armed takes effect when the queue
+builds the group, and after a person lifts one with a later comment, `ci-status` needs a re-run.
+
 ### Dependabot pull requests
 
 No Dependabot pull request waits on a human
