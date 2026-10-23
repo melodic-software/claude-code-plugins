@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: load-mode-stops-at-mechanism
-description: Load mode on a staging CPU profile names the formatter built on every call in src/pricing/format.js, edits nothing, and deletes its SQLite directory
+description: Reading a staging CPU profile names the formatter built on every call in src/pricing/format.js, edits nothing, and deletes its SQLite directory
 tags: [analyze-profile, load-mode]
 expected_outcome: The answer converts profiles/checkout.cpuprofile to SQLite in a temporary directory, finds formatPrice (5 of 7 samples) in src/pricing/format.js, reads the function and names the new Intl.NumberFormat built on every call at line 7 as the mechanism, with the caller path through renderLineItems. No source file changes, no fix is applied, and the temporary directory is removed at the end.
 context:

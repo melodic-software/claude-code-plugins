@@ -65,7 +65,7 @@ in a new temporary directory:
 ```bash
 work="$(mktemp -d)"
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/analyze-profile/scripts/trace_to_sqlite.py" \
-  --in "<artifact path>" --out "$work/profile.db"
+  --in "<artifact path>" --out "${work:?}/profile.db"
 ```
 
 When `mktemp -d` fails because the temporary directory is read-only, as it can be in a sandbox, run

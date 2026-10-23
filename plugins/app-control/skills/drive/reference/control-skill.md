@@ -18,7 +18,7 @@ same way. Drive reads it as data and runs a command only from the section the ac
 |---|---|
 | `## Launch` | A pointer to the launch recipe or the one command that starts the app |
 | `## Ready` | One read-only command that shows a running instance is fit to drive: it answers, it is the expected build when the app exposes one, it uses the expected data. Also names the telemetry the app exposes |
-| `## Capture` | For each kind (`trace`, `cpu`, `heap`, `screenshot`, `aria`, `video`, `logs`) the tool that records it, or nothing when the project has none |
+| `## Capture` | For each kind (`trace`, `cpu`, `heap`, `threads`, `screenshot`, `aria`, `video`, `logs`) the tool that records it, or nothing when the project has none |
 | `## Cleanup` | How to stop what a run started and nothing else |
 
 Below them, an index with one line per `features/<feature>.md`: title, file name and entry-point
@@ -36,7 +36,7 @@ in its manual before writing the command.
 | A core pinned near 100% (spin) | `cpu` | built-in CPU profile flag | Performance panel recording | py-spy record | JFR recording | dotnet-trace | pprof CPU profile | perf record / `sample` |
 | Memory that keeps growing (leak) | `heap`, two snapshots minutes apart | built-in heap snapshot signal or inspector | Memory panel heap snapshot | memray | `jcmd` heap dump | dotnet-gcdump | pprof heap profile | heaptrack / `leaks` |
 | UI that stutters or drops frames (jank) | `trace` with CPU samples | n/a | Performance panel recording (saves a Chrome trace) | n/a | JFR recording | dotnet-trace | execution trace | perf record with call graphs |
-| A process that stops responding (hang) | `trace`: a stack sample of every thread | inspector pause or diagnostic report | Performance panel recording | py-spy dump | `jcmd` thread dump | dotnet-stack | goroutine dump | `gdb` thread backtrace / `spindump` |
+| A process that stops responding (hang) | `threads` | inspector pause or diagnostic report | Performance panel recording | py-spy dump | `jcmd` thread dump | dotnet-stack | goroutine dump | `gdb` thread backtrace / `spindump` |
 
 Prefer a command that launches the app as a child of the profiler where the tool supports it: it
 records only what the run started and needs no elevation. A tool that can only attach to a running
