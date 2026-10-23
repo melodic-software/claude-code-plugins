@@ -7,9 +7,7 @@
 # into `success` only where `select-tests` succeeded and its row is exactly
 # 'false'. Every other result passes
 # through unchanged, so a skip that hid work stays `skipped` and the aggregate
-# (treat-skipped-as: fail) reds it. `check-tests`, which runs only on the
-# schedule and on dispatch, turns into `success` from a skip on a pull request
-# or merge group only.
+# (treat-skipped-as: fail) reds it.
 # test-scope: .github/workflows/pr-require-checks.yml
 set -uo pipefail
 
@@ -35,7 +33,7 @@ if [[ ! -s "$TMP_ROOT/body.sh" ]]; then
   test_harness::report
   exit 1
 fi
-for line in "id: lanes" "LANES: \${{ toJSON(needs) }}" "EVENT: \${{ github.event_name }}" "if: \${{ !cancelled() }}"; do
+for line in "id: lanes" "LANES: \${{ toJSON(needs) }}" "if: \${{ !cancelled() }}"; do
   if [[ "$step" == *"$line"* ]]; then ok "step carries '$line'"; else fail "step lost '$line'"; fi
 done
 # shellcheck disable=SC2016 # a workflow literal to match, not a shell expansion
@@ -57,7 +55,7 @@ lanes() {
 expect() {
   local out rc got
   : >"$TMP_ROOT/out"
-  out="$(LANES="$4" EVENT="${EVENT-}" GITHUB_OUTPUT="$TMP_ROOT/out" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+  out="$(LANES="$4" GITHUB_OUTPUT="$TMP_ROOT/out" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   got="$(sed -n 's/^results=//p' "$TMP_ROOT/out")"
   if [[ "$2" == nonzero && "$rc" -ne 0 && -z "$got" ]]; then
     ok "$1"
@@ -86,14 +84,6 @@ expect "lint-repo does not borrow a run_repo row" 0 "success skipped success suc
   "$(lanes success false false false skipped skipped skipped | sed 's/"lint-repo":{"result":"success"/"lint-repo":{"result":"skipped"/; s/"run_shell"/"run_repo":"false","run_shell"/')"
 expect "a contract-only run passes every skip through" 0 "skipped skipped skipped skipped skipped skipped" \
   "$(lanes skipped "" "" "" skipped skipped skipped "" skipped | sed 's/"lint-repo":{"result":"success"/"lint-repo":{"result":"skipped"/')"
-# tests <check-tests-result>: the all-pass lanes plus a check-tests lane.
-tests() { lanes success false false false skipped skipped skipped false skipped | sed "s/}}\$/},\"check-tests\":{\"result\":\"$1\",\"outputs\":{}}}/"; }
-EVENT=pull_request expect "check-tests skipped on a pull request passes" 0 "success success success success success success success" "$(tests skipped)"
-EVENT=merge_group expect "check-tests skipped in a merge group passes" 0 "success success success success success success success" "$(tests skipped)"
-EVENT=schedule expect "check-tests skipped on the schedule stays skipped" 0 "success success success success success success skipped" "$(tests skipped)"
-EVENT=workflow_dispatch expect "check-tests skipped on dispatch stays skipped" 0 "success success success success success success skipped" "$(tests skipped)"
-EVENT=schedule expect "a failed check-tests keeps its failure" 0 "success success success success success success failure" "$(tests failure)"
-expect "check-tests skipped with no event stays skipped" 0 "success success success success success success skipped" "$(tests skipped)"
 expect "unreadable lanes fail and write no results" nonzero "" "not json"
 
 test_harness::report

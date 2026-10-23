@@ -110,8 +110,7 @@ concurrency:
 # (`bash`, `python`, `node`). One marker, `mark-lanes`, one resolver,
 # `select-tests`, nine working jobs,
 # `lint-repo`, `lint-shell`, `check-plugins`, `check-skills`, `test-bash`,
-# `test-python`, `test-node`, `check-managed-files` and `check-tests` (the
-# schedule and dispatch only), and one aggregate, `ci-status`, whose name,
+# `test-python`, `test-node`, `check-managed-files` and `check-tests`, and one aggregate, `ci-status`, whose name,
 # like this workflow's and this file's, is what the org ci-gate ruleset and its
 # verifiers read. No ordinals, no tool name for a multi-tool job, no runner OS
 # for a portable lane, and no job name another workflow here also uses. A gate
@@ -1635,8 +1634,8 @@ jobs:
       # A test that cannot fail (/testing:audit's scan: no assertion, or an
       # expected value recomputed from the actual) passes whatever the code
       # does. A diff scans only its changed test files, in seconds, and reports
-      # the gate not applicable when it changes none; the whole tree is
-      # `check-tests`'s, on the schedule and on dispatch.
+      # the gate not applicable when it changes none; with no diff base the
+      # whole tree is `check-tests`'s.
       - name: Check changed tests for tests that cannot fail
         id: cant_fail_scan
         continue-on-error: true
@@ -1645,7 +1644,7 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh cant-fail-scan {0}
         run: |
           if [ -z "$DIFF_BASE" ]; then
-            echo "::notice::No diff base on a $GITHUB_EVENT_NAME run; check-tests scans the whole tree."
+            echo "::notice::No diff base on this $GITHUB_EVENT_NAME run; check-tests scans the whole tree."
             exit 0
           fi
           scripts/check-cant-fail-scan.sh "$DIFF_BASE"
@@ -3044,18 +3043,23 @@ jobs:
       - name: Guard managed files
         uses: melodic-software/ci-workflows/.github/actions/check-managed-files@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
 
-  # THE WHOLE-TREE CAN'T-FAIL SCAN, ON THE SCHEDULE AND ON DISPATCH ONLY. A
-  # diff scans its changed test files in `check-plugins`. The whole tree took
-  # 133 and 132 s on a hosted runner, serial, with 1301 test files, which no
-  # existing job's timeout holds; a job of its own on a pull request would not
-  # shorten the critical path, so it runs only where nothing else scans the
-  # whole tree. Wall about 140 s with checkout, so ceil(max(210, 154) / 60) = 4
-  # minutes. Sharded over 4 cores it took 64 s, for 3 minutes, but needs a
-  # second fail-closed denominator: a shard with no test file exits 2. On a
-  # pull request or merge group this job skips, and ci-status counts that skip
-  # as success (`Check each skipped lane against scope`).
+  # THE WHOLE-TREE CAN'T-FAIL SCAN, WHENEVER THERE IS NO DIFF BASE: the
+  # schedule, a dispatch, and a pull request or merge group that
+  # `select-tests` resolves to the whole tree (no usable base, or a manifest
+  # change). With a base, `check-plugins` scans the changed test files and
+  # this job returns at once. The whole tree took 133 and 132 s on a hosted
+  # runner, serial, with 1301 test files, which no existing job's timeout
+  # holds. The job branches in the shell, not in `if:` (see `lint-repo`), so
+  # with a base it costs its setup and checkout and stays off the critical
+  # path. Wall about 140 s on the whole tree, so ceil(max(210, 154) / 60) = 4
+  # minutes. Sharded over 4 cores the scan took 64 s, for 3 minutes, but needs
+  # a second fail-closed denominator: a shard with no test file exits 2.
+  #
+  # The job skips only on a contract-only event or a draft (see `lint-repo`).
   check-tests:
-    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    needs: [select-tests]
+    # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
     timeout-minutes: 4
     permissions:
@@ -3066,7 +3070,14 @@ jobs:
         with:
           persist-credentials: false
       - name: Check every test for tests that cannot fail
-        run: scripts/check-cant-fail-scan.sh
+        env:
+          DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
+        run: |
+          if [ -n "$DIFF_BASE" ]; then
+            echo "::notice::check-plugins scans the test files changed since $DIFF_BASE."
+            exit 0
+          fi
+          scripts/check-cant-fail-scan.sh
 
   ci-status:
     needs:
@@ -3601,27 +3612,21 @@ jobs:
       # `skipped` becomes `success` for the aggregate only when `select-tests`
       # succeeded and that row is exactly 'false'; every other result passes
       # through as it is, so a skip that hid work stays `skipped` and the
-      # aggregate fails it. `check-tests` runs only on the schedule and on
-      # dispatch, so its skip is `success` on a pull request or merge group
-      # and stays `skipped` on any other event. Pinned by
-      # scripts/ci-ordered-skips.test.sh, which runs this body.
+      # aggregate fails it. Pinned by scripts/ci-ordered-skips.test.sh, which
+      # runs this body.
       - name: Check each skipped lane against scope
         id: lanes
         if: ${{ !cancelled() }}
         env:
           LANES: ${{ toJSON(needs) }}
-          EVENT: ${{ github.event_name }}
         run: |
-          results=$(jq -r --arg event "${EVENT-}" '
+          results=$(jq -r '
             .["select-tests"] as $s
             | to_entries
             | map(.key as $lane | .value.result as $r
                 | if $r == "skipped" and $s.result == "success"
                     and ($lane | test("^(test-[a-z]+|lint-shell)$"))
                     and ($s.outputs["run_" + ($lane | sub("^(test|lint)-"; ""))] == "false")
-                  then "success"
-                  elif $r == "skipped" and $lane == "check-tests"
-                    and ($event == "pull_request" or $event == "merge_group")
                   then "success" else $r end)
             | join(" ")' <<<"$LANES")
           if [ -z "$results" ]; then

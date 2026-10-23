@@ -65,7 +65,7 @@ while IFS= read -r path; do
 done <<<"$changed"
 
 if [[ $scanned -eq 0 ]]; then
-  printf '::notice::Not applicable: no test file changed since %s; check-tests scans the whole tree on the schedule.\n' "$1"
+  printf '::notice::Not applicable: no test file changed since %s; check-tests scans the whole tree when there is no diff base.\n' "$1"
   exit 0
 fi
 [[ $worst -eq 0 ]] && printf 'PASS: %d changed test file(s), no gating findings.\n' "$scanned"

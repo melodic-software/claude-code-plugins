@@ -136,6 +136,36 @@ gate 1 "the whole-tree scan finds a hollow test" "$r"
 
 gate 2 "an unknown base is an environment error" "$r" no-such-ref
 
+# check-tests' step: with no diff base (the schedule, a dispatch, or a merge
+# group resolved to the whole tree) it scans the whole tree; with a base it
+# defers to check-plugins. Run from a fixture holding a copy of the gate.
+WORKFLOW="$SELF_DIR/../.github/workflows/pr-require-checks.yml"
+awk '/^      - name: Check every test for tests that cannot fail$/ { on = 1; next }
+  on && /^        run: \|$/ { body = 1; next }
+  on && body && /^          / { print substr($0, 11); next }
+  on && body { exit }' "$WORKFLOW" >"$TMP_ROOT/check-tests.sh"
+new_repo
+put "$r" pkg/tests/test_hollow.py "$HOLLOW_TEST"
+# The gate is copied; plugins/ is a symlink to this checkout's, which the
+# scan's walk does not follow, so the fixture's own tests are all it reads.
+mkdir -p "$r/scripts"
+cp "$GATE" "$r/scripts/"
+ln -s "$(cd "$SELF_DIR/../plugins" && pwd)" "$r/plugins"
+step() { # <expected-exit> <name> <diff-base>
+  local rc
+  (cd "$r" && DIFF_BASE="$3" bash -e "$TMP_ROOT/check-tests.sh") >"$TMP_ROOT/out" 2>&1
+  rc=$?
+  OUT="$(cat "$TMP_ROOT/out")"
+  if [[ $rc -eq $1 ]]; then pass "$2"; else bad "$2" "exit $rc, want $1: $OUT"; fi
+}
+if [[ -s "$TMP_ROOT/check-tests.sh" ]]; then
+  step 1 "check-tests scans the whole tree when there is no diff base" ""
+  step 0 "check-tests defers to check-plugins beside a diff base" base
+  has "it names check-plugins" "$OUT" "check-plugins scans the test files changed since base"
+else
+  bad "check-tests has a run: | body" "none found in $WORKFLOW"
+fi
+
 # PRUNED must name exactly the directories the scanner's walk prunes.
 # The scanner prunes `fixtures` only at */evals/fixtures, which PRUNED's second
 # alternative carries.
