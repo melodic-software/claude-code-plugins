@@ -511,7 +511,9 @@ class GlobWorkTests(unittest.TestCase):
     factors and the interpreter's line events cancel out: doubling the path
     alone may at most double the work (2.5 allows slack, quadratic gives 4);
     doubling pattern and path may at most quadruple it (5 allows slack; a
-    blow-up in the stars gives far more)."""
+    blow-up in the stars gives far more). `**/` runs collapse to one `**`
+    and `*a` runs stay linear, so those two keep the 2.5 bound. The trace
+    counts Python lines only: work moved into a C builtin is not counted."""
 
     def assertScales(self, build, small, ratio, floor=None):
         matched, base = _glob_work(*build(small))
@@ -526,16 +528,18 @@ class GlobWorkTests(unittest.TestCase):
         return matched
 
     def test_star_heavy_globs_do_bounded_work(self):
-        for label, build, small in (
+        for label, build, small, ratio in (
             (
                 "**/ run",
                 lambda k: ("**/" * k + "z", "/".join(["a"] * 3 * k) + "/b.md"),
                 9,
+                2.5,
             ),
             (
                 "**/a/ run",
                 lambda k: ("**/a/" * k + "z", "/".join(["a"] * 3 * k) + "/b.md"),
                 9,
+                5,
             ),
             (
                 "*a run",
@@ -544,10 +548,11 @@ class GlobWorkTests(unittest.TestCase):
                     "plugins/foo/" + "a" * 3 * k + ".md",
                 ),
                 20,
+                2.5,
             ),
         ):
             with self.subTest(label):
-                self.assertFalse(self.assertScales(build, small, 5))
+                self.assertFalse(self.assertScales(build, small, ratio))
                 glob, path = build(small)
                 result = score(_input(files=(_file(path),), high_paths=(glob,)))
                 self.assertEqual(result.score, Risk.LOW)
