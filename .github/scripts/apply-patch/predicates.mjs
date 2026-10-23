@@ -30,7 +30,13 @@ export const PREDICATES = {
     }
     return (path) => inFixScope(path, dependabotConfig);
   },
-  "merge-result": () => {
-    throw new Error("allow merge-result is not supported by this apply-patch yet");
+  // A path the base merge left conflicted, which the patch resolves; the
+  // merge's own changes from the base side never face the predicates.
+  // `merge.unmerged` is a Set, read from the checkout's merge.
+  "merge-result": ({ merge }) => {
+    if (!(merge?.unmerged instanceof Set)) {
+      throw new Error("allow merge-result needs the merge's conflicted paths");
+    }
+    return (path) => merge.unmerged.has(path);
   },
 };

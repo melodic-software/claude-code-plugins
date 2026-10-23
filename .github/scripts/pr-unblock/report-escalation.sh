@@ -27,7 +27,9 @@
 #                       | dependency-fix-refused | ci-fix-round-cap
 #                       | ci-fix-empty | ci-fix-invalid
 #                       | ci-fix-protected-path | ci-fix-not-applied
-#                       | ci-fix-escalated
+#                       | ci-fix-escalated | conflict-patch-invalid
+#                       | conflict-patch-not-applied
+#                       | conflict-patch-protected-path
 #   TRACKER_CONFIG      base .work-item-tracker.json
 #                       (default .base/.work-item-tracker.json)
 #   LANES_BOT_LOGIN     the lanes App bot login, the only author whose marker
@@ -59,7 +61,7 @@ die() {
 case ${ESCALATION_REASON:-} in
   protected-path-conflict) why='a conflicted path is a workflow, submodule config or a settings file, which the lane does not resolve' ;;
   workflow-staged) why='the merge stages a change under .github/workflows/, which the lane does not push' ;;
-  unexpected-path-staged) why='the merge stages a symlink, gitlink, submodule config, settings or CODEOWNERS change outside the conflicts, which the lane does not push' ;;
+  unexpected-path-staged) why='the conflict resolution changes a path outside the conflicted ones, which the lane does not push' ;;
   repeat-cap) why='the lane has resolved conflicts on this branch as many times in a row as its cap allows' ;;
   unresolved-conflict) why='the lane could not resolve every conflict' ;;
   feedback-protected-path) why='the pull request changes .github/workflows/, which the lane token cannot push, so the lane does not address its review threads' ;;
@@ -86,6 +88,9 @@ case ${ESCALATION_REASON:-} in
   ci-fix-protected-path) why='the CI fix changes a path the lane does not push: .github/workflows/, CODEOWNERS, .gitmodules or a settings file' ;;
   ci-fix-not-applied) why='the CI fix did not apply to the head it was written for, so it was not pushed' ;;
   ci-fix-escalated) why='the lane could not fix every failing check; its run log names each one and why' ;;
+  conflict-patch-invalid) why='the conflict resolution the lane wrote did not pass validation, so the merge was not pushed' ;;
+  conflict-patch-not-applied) why='the conflict resolution did not apply to the merge it was written for, so the merge was not pushed' ;;
+  conflict-patch-protected-path) why='the conflict resolution changes a path the lane does not push: .github/workflows/, CODEOWNERS, .gitmodules or a settings file' ;;
   *) die "unknown escalation reason [${ESCALATION_REASON:-}]" ;;
 esac
 case $ESCALATION_REASON in

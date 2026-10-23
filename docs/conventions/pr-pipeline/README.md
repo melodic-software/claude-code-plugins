@@ -136,6 +136,15 @@ that runs on a push to `main` and on a trusted human's `workflow_dispatch`:
   `require-pr: false` and `require-kind: human`).
 - With the kill switch on, the run ends green with a notice and dispatches nothing.
 
+In `pr-unblock.yml` no model holds a write token or runs git: `resolve-conflicts-select` (base
+code only, read-only token) merges the default branch tip into the head and decides clean,
+conflicted or escalate, and posts the `resolve-conflicts` check neutral when no model is needed;
+`resolve-conflicts` (a `read` skill in [patch output mode](pr-run-activity.md#patch-output-mode),
+on run-claude-cli with the subscription fallback) resolves a conflicted merge from read-only
+context files with no shell; and `apply-conflict-patch` (a script, `mutate-branch`) commits the
+merge with the head and the pinned base as parents
+([`pr-run-activity.md`](pr-run-activity.md#prepare-merge-base)).
+
 GitHub starts no `pull_request` workflow on a PR with a merge conflict, so a conflicted head gets
 no CI. When `resolve-conflicts` escalates with `unresolved-conflict`, `pr-unblock.yml`'s
 `report-conflict-status` job (a script job with no model, the lane's only `statuses: write`, on its
@@ -379,11 +388,13 @@ Each leaf declares:
 - `skill` (`<plugin>:<skill>`) or `script` (a repository path), with optional `args` passed
   verbatim: after the skill name in that skill's own syntax, or to the script.
 - `prepare` (optional): what the runner does around the activity. `apply-patch` is the one mode
-  for a script (a `mutate-branch` one), `ci-context` and `review-threads` the modes the read
-  runner performs, each on a `read` skill that hands on a patch, and the others need a skill with
-  an effect other than `read` unless their activity hands its change on as a patch
-  ([`pr-run-activity.md`](pr-run-activity.md#prepare-ci-context)). `merge-base` merges the base tip into the gated head without committing before the
-  skill runs, and commits the result with both as parents after it. `review-threads` runs on the
+  for a script (a `mutate-branch` one), `ci-context`, `review-threads`, `dependency-review` and
+  `merge-base` the modes the read runner performs, each on a `read` skill that hands on a patch
+  ([`pr-run-activity.md`](pr-run-activity.md#prepare-ci-context)). `merge-base` runs on the read
+  runner after the caller's base job merged the base tip into the gated head and found it
+  conflicted: it merges the same base again, gives the skill the conflicts as read-only files, and
+  hands on its resolutions as a patch, which a `prepare: apply-patch` job commits with the head and
+  the base as parents ([`pr-run-activity.md`](pr-run-activity.md#prepare-merge-base)). `review-threads` runs on the
   read runner after the caller's base job kept the PR's unresolved reviewer-bot threads and
   decided skip, escalate or proceed before any model turn: it checks that job's thread file, gives
   the skill the review-thread tool, and hands on its fix as a patch and the replies it records
@@ -518,21 +529,22 @@ trusted base: one row per prepare mode a patch-producing skill uses (`ci-context
 `review-threads`, `dependency-review`, `merge-base`), `default` for one with no prepare mode, and
 `issue` for a patch that goes to a new issue-lane branch made at the run's base or resume tip.
 [`apply-patch.mjs`](../../../.github/scripts/apply-patch/apply-patch.mjs) reads it for fix-ci's,
-fix-docs's, address-feedback's, review-dependency's and resolve-issue's patches ([`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)).
+fix-docs's, resolve-conflicts's, address-feedback's, review-dependency's and resolve-issue's patches ([`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)).
 [`patch-rules.schema.json`](../../../.github/actions/resolve-config/patch-rules.schema.json) closes
 each row to these keys:
 
 | Key | Holds |
 |---|---|
 | `refuse` | Named refusals; any match refuses the whole patch. |
-| `allow` | What every other changed path must also meet: `any`, `kept-threads` (a path in the scope of a thread the select job kept, its `named_paths` included, or a file the pull request already changes that the patch does not add, its `pr_paths`, read from that job's thread file), `dependency-manifests` (an npm or pip manifest or lock file outside `.github/` in a directory the base `.github/dependabot.yml` lists for its ecosystem) or `merge-result` (the blob the base merge leaves there, or a conflicted path left with no conflict markers). |
+| `allow` | What every other changed path must also meet: `any`, `kept-threads` (a path in the scope of a thread the select job kept, its `named_paths` included, or a file the pull request already changes that the patch does not add, its `pr_paths`, read from that job's thread file), `dependency-manifests` (an npm or pip manifest or lock file outside `.github/` in a directory the base `.github/dependabot.yml` lists for its ecosystem) or `merge-result` (a path the base merge left conflicted; under a merge row only the patch's own changes, measured from the conflict tree, face the rules, every conflicted path left in the tree must hold no conflict markers, and the merge's base-side changes pass through). |
 | `max-files` | The most paths one patch may change, or `null`. |
+| `max-blobs` | Merge rows only: the most blobs one merge commit may upload, each one neither the head nor the base holds at its path; over it nothing is written. |
 | `requires` | What the producer's output must say before anything applies: `dependency-verdict: fix`, the scanned verdict's field. |
 | `content-rule` | Optional; what each changed file's bytes must also meet, on the local blobs before any commit is built, escalating as `protected-path`: `dependency-version-change` (`dependency-review`: modified in place, a regular file, changed only by a version, `fixRefusal` in `dependency-classify.mjs`). |
 | `commit` | `parents` (`[head]`, or `[head, base]` for a merge), `message` and `trailer`, with `{ref}`, `{base}`, `{lane}`, `{activity}` and `{issue}` filled in. |
 | `reads-report` | The producer report the apply reads (`ci-escalations`: the checks the model escalated), or `null`. |
-| `empty-at-push` | Optional; the kind a patch that applies but changes nothing escalates at push time: `empty` (the default) or `invalid` (`ci-context`, as the producer said it wrote a change). |
-| `skip-moved-head` | Optional, default `false`; `true` (`ci-context`, `review-threads`, `dependency-review`) skips `superseded-sha` on any PR head that moved since the producer ran, where other rows take the moved tip with `--3way` when the moved commits touch no patched path. `default` sets `false`: fix-docs runs once per pull request, so a skipped fix-docs patch would never run again. |
+| `empty-at-push` | Optional; the kind a patch that applies but changes nothing escalates at push time: `empty` (the default), `invalid` (`ci-context`, as the producer said it wrote a change) or `conflict` (`merge-base`: its `unresolved-conflict` reason, since the conflicts stay as git left them). |
+| `skip-moved-head` | Optional, default `false`; `true` (`ci-context`, `review-threads`, `dependency-review`, `merge-base`) skips `superseded-sha` on any PR head that moved since the producer ran, where other rows take the moved tip with `--3way` when the moved commits touch no patched path. `default` sets `false`: fix-docs runs once per pull request, so a skipped fix-docs patch would never run again. |
 | `script-exec-bit` | Optional, default `false`; `true` (`issue`) makes each new or changed file that ends in `.sh` or starts with `#!` executable after every refusal passes, since the model's tools set no file mode. |
 | `escalations` | The escalation reasons the apply may give for the row. |
 
@@ -543,7 +555,8 @@ The rest of `.github/`, `.claude/`, `.mcp.json`, plugin hooks, `.claude-plugin/`
 `scripts/`, `CLAUDE.md`, `AGENTS.md` and an executable bit reach review, and merge on it: the
 [HIGH path floor](#merge-authority) holds for a human merge only the takeover set: the
 trusted-actor list, the trusted-trigger check, `CODEOWNERS`, `.gitmodules`, and `resolve-config`,
-whose code the token broker runs from main. The `ci-context`, `default` and `issue` rows cap a patch at 300 paths.
+whose code the token broker runs from main. The `ci-context`, `default`, `issue` and `merge-base` rows cap a patch at 300 paths, and the
+`merge-base` row a merge commit at 300 new blobs.
 `checkPatchRules` in
 [`patch-rules.mjs`](../../../.github/actions/resolve-config/patch-rules.mjs) rejects a row without that
 set, a `[head, base]` commit whose `allow` is not exactly `[merge-result]`, a refusal, allow or requirement name
@@ -623,7 +636,8 @@ PR), `superseded-sha`, `disabled-by-config`, `untrusted-trigger` (a fork, no sam
 actor or author not on the trusted-actor list), `workflow-modified` (the token broker refused a
 write lane's mint for a workflow file the PR itself changes), `rung-up` (a fix-ci run's patch is
 held back for one retry one model rung up, [Lanes](#lanes)), `no-model-turn` (an address-feedback
-round whose model never ran, so the scan uploaded no replies), or, for an issue run under
+round whose model never ran, so the scan uploaded no replies), `clean-merge` (a resolve-conflicts
+round whose base merge left no conflict, so no model ran and the push job commits the merge), or, for an issue run under
 `models.issue-dimensions`, `research-first` or `probe-first` (its Uncertainty), or
 `split-required` (its Size is `split`). Issue mode posts no check, so work-resolve-issue.yml reports those three dimension skips
 on the issue instead: `needs-human`, no `agent-ready`, and a comment naming the next step

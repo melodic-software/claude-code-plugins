@@ -107,8 +107,8 @@ on:
       head-sha:
         description: >-
           The PR head the caller gated in a job that ran no head code (pr-unblock's
-          fix-ci-context, fix-docs-head, address-feedback-select or
-          review-dependency-select). The run job fails before the head
+          fix-ci-context, fix-docs-head, address-feedback-select,
+          review-dependency-select or resolve-conflicts-select). The run job fails before the head
           checkout when the head its trigger gate read is another. The report
           job posts the check on it or the event's PR head; a run job head-sha
           that is neither, or any run head when neither is set, posts failure
@@ -163,6 +163,24 @@ on:
       dependency-context-sha256:
         description: >-
           For a prepare: dependency-review activity, that context file's SHA-256.
+        required: false
+        type: string
+        default: ""
+      merge-base-sha:
+        description: >-
+          For a prepare: merge-base activity, the default branch commit the
+          caller's base job (pr-unblock's resolve-conflicts-select) pinned and
+          merged into head-sha, which must be on the default branch; empty
+          otherwise.
+        required: false
+        type: string
+        default: ""
+      merge-conflict-tree:
+        description: >-
+          For a prepare: merge-base activity, the conflict tree that base job's
+          merge reached: this run merges merge-base-sha again and fails red
+          unless it reaches the same tree, measures the patch from it, and the
+          scan job reads the patch as text only. Empty otherwise.
         required: false
         type: string
         default: ""
@@ -633,9 +651,9 @@ jobs:
           head-sha: ${{ steps.gate.outputs.head-sha }}
           issue-dimensions: ${{ inputs.issue-dimensions }}
           model-rung: ${{ inputs.model-rung }}
-          # This file performs prepare: ci-context, review-threads and
-          # dependency-review (the context, thread and dependency steps below)
-          # and refuses every other mode.
+          # This file performs prepare: ci-context, review-threads,
+          # dependency-review and merge-base (the context, thread, dependency
+          # and merge steps below) and refuses every other mode.
           prepare-supported: "true"
           # An activity whose applied-by names a patch leaves its change as a
           # patch artifact (patch mode); in issue mode it also uploads the
@@ -668,13 +686,14 @@ jobs:
           echo "::error::a gating: gate activity cannot hand on a patch"
           exit 1
 
-      # ci-context, review-threads and dependency-review are this file's
-      # prepare modes, PR mode only, and their edits leave only as a patch.
-      - name: Assert the prepare mode is ci-context, review-threads or dependency-review in patch mode
+      # ci-context, review-threads, dependency-review and merge-base are this
+      # file's prepare modes, PR mode only, and their edits leave only as a
+      # patch.
+      - name: Assert the prepare mode is ci-context, review-threads, dependency-review or merge-base in patch mode
         if: >-
           steps.config.outcome == 'success' && steps.config.outputs.prepare != ''
           && (steps.config.outputs.prepare != 'ci-context' && steps.config.outputs.prepare != 'review-threads'
-          && steps.config.outputs.prepare != 'dependency-review'
+          && steps.config.outputs.prepare != 'dependency-review' && steps.config.outputs.prepare != 'merge-base'
           || steps.config.outputs.applied-by-patch == '' || inputs.issue-number != '')
         env:
           PREPARE: ${{ steps.config.outputs.prepare }}
@@ -691,6 +710,33 @@ jobs:
         run: |
           echo "::error::a feedback context is passed only to a prepare: review-threads skill"
           exit 1
+
+      # The merge inputs go with prepare: merge-base and nothing else: the
+      # scan job reads a patch as text only when the caller passed a conflict
+      # tree. Each is a full commit or tree id, and the pinned base must be on
+      # the default branch. Before any head code.
+      - name: Check the merge inputs
+        if: >-
+          steps.config.outcome == 'success'
+          && (steps.config.outputs.prepare == 'merge-base' || inputs.merge-base-sha != '' || inputs.merge-conflict-tree != '')
+        env:
+          PREPARE: ${{ steps.config.outputs.prepare }}
+          MERGE_BASE_SHA: ${{ inputs.merge-base-sha }}
+          MERGE_TREE: ${{ inputs.merge-conflict-tree }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ "$PREPARE" != merge-base ]; then
+            echo "::error::merge-base-sha and merge-conflict-tree are passed only to a prepare: merge-base skill"
+            exit 1
+          fi
+          if ! [[ $MERGE_BASE_SHA =~ ^[0-9a-f]{40}$ && $MERGE_TREE =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::a prepare: merge-base skill needs the select job's merge-base-sha and merge-conflict-tree"
+            exit 1
+          fi
+          if ! git -C .base merge-base --is-ancestor "$MERGE_BASE_SHA" "refs/remotes/origin/$DEFAULT_BRANCH"; then
+            echo "::error::the pinned merge base is not on the default branch"
+            exit 1
+          fi
 
       # PR mode runs a skill on run-claude-cli: a role names its secret, a
       # model alias is set (`default` resolves to none, which the launcher
@@ -1019,9 +1065,38 @@ jobs:
           cp .base/.github/actions/seal-lane-output/action.yml .base/.github/actions/seal-lane-output/seal.mjs \
             .base/.github/lane-keys/scan-carrier.pub "$SEAL_DIR/"
 
+      # merge-base: the base's merge scripts, its version-bump script, the
+      # step around them and the context writer, never the head's, each with
+      # its SHA-256, which the merge step checks before it runs any; the
+      # repeat cap reads loop.no-progress from the resolved config now,
+      # before the head checkout replaces .base.
+      - name: Copy the merge scripts from the base
+        id: merge-bin
+        if: steps.go.outputs.run == 'true' && steps.config.outputs.prepare == 'merge-base'
+        env:
+          BIN: ${{ runner.temp }}/merge-base-bin
+          RESOLVED: ${{ runner.temp }}/resolved-config.json
+        run: |
+          mkdir -p "$BIN"
+          for file in .base/.github/scripts/merge-base/{prepare,run-prepare,context}.sh \
+            .base/plugins/source-control/scripts/resolve-version-bump-conflict.sh; do
+            name=$(basename "$file" .sh)
+            cp "$file" "$BIN/$name.sh"
+            sum=$(sha256sum <"$BIN/$name.sh")
+            echo "$name-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
+          done
+          no_progress=$(jq -r '.loop["no-progress"] // empty' "$RESOLVED")
+          if ! [[ $no_progress =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::the resolved config holds no loop.no-progress"
+            exit 1
+          fi
+          echo "no-progress=$no_progress" >>"$GITHUB_OUTPUT"
+
       # Issue mode checks out the trusted base, the default branch tip, or on
       # a resume the tip of the earlier run's lane branch that issue-prior
       # checked (the lanes App's verified commits), so the skill continues it.
+      # merge-base needs the history back to the merge base and the pinned
+      # base, so it fetches it all.
       - name: Check out the PR head
         if: steps.go.outputs.run == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1031,6 +1106,8 @@ jobs:
             && (steps.issue-prior.outputs.resume-tip || steps.trusted-base.outputs.commit)
             || steps.gate.outputs.head-sha }}
           persist-credentials: false
+          # Written as != so the 0 is not read as false.
+          fetch-depth: ${{ steps.config.outputs.prepare != 'merge-base' && 1 || 0 }}
 
       # The activity judges exactly the commit the check is posted on, and in
       # issue mode makes its patch on the commit the apply job starts from.
@@ -1048,6 +1125,59 @@ jobs:
             exit 1
           fi
           echo "sha=$HEAD_SHA" >>"$GITHUB_OUTPUT"
+
+      # merge-base, before any model turn and any head code: merge the
+      # pinned base into the head again with the base's prepare.sh, which
+      # must reach the select job's conflicted state and conflict tree, or
+      # the step fails red and no model runs. Then context.sh writes what the
+      # skill reads in place of git (each conflicted path's three versions
+      # and both sides' history) into the stage, which the next step copies to
+      # .lane/merge/ read-only. The identity is the lanes bot's, which git
+      # needs even for a --no-commit merge; nothing is committed here, and
+      # the checkout holds no credentials.
+      - name: Merge the base into the head
+        id: merge
+        if: steps.go.outputs.run == 'true' && steps.config.outputs.prepare == 'merge-base'
+        env:
+          GIT_AUTHOR_NAME: melodic-automation-lanes[bot]
+          GIT_AUTHOR_EMAIL: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}+melodic-automation-lanes[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: melodic-automation-lanes[bot]
+          GIT_COMMITTER_EMAIL: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}+melodic-automation-lanes[bot]@users.noreply.github.com
+          LOOP_NO_PROGRESS: ${{ steps.merge-bin.outputs.no-progress }}
+          # Replace refs from the head's history never stand in for objects.
+          GIT_NO_REPLACE_OBJECTS: "1"
+          BIN: ${{ runner.temp }}/merge-base-bin
+          OUT: ${{ runner.temp }}/merge-base-out
+          PREPARE_SHA256: ${{ steps.merge-bin.outputs.prepare-sha256 }}
+          BUMP_SHA256: ${{ steps.merge-bin.outputs.resolve-version-bump-conflict-sha256 }}
+          RUN_PREPARE_SHA256: ${{ steps.merge-bin.outputs.run-prepare-sha256 }}
+          CONTEXT_SHA256: ${{ steps.merge-bin.outputs.context-sha256 }}
+          HEAD_SHA: ${{ steps.start.outputs.sha }}
+          BASE_SHA: ${{ inputs.merge-base-sha }}
+          EXPECT_STATE: conflicted
+          EXPECT_TREE: ${{ inputs.merge-conflict-tree }}
+          STAGE: ${{ runner.temp }}/lane-stage
+        run: |
+          for name in run-prepare context; do
+            want=RUN_PREPARE_SHA256
+            [ "$name" = run-prepare ] || want=CONTEXT_SHA256
+            sum=$(sha256sum <"$BIN/$name.sh")
+            if [ "${sum%% *}" != "${!want}" ]; then
+              echo "::error::$name.sh does not match the SHA-256 recorded when it was copied from the base"
+              exit 1
+            fi
+          done
+          bash "$BIN/run-prepare.sh"
+          # git's output names head files: no workflow commands meanwhile.
+          token=$(openssl rand -hex 16)
+          echo "::stop-commands::$token"
+          rc=0
+          bash "$BIN/context.sh" "$HEAD_SHA" "$BASE_SHA" "$STAGE/merge" || rc=$?
+          echo "::$token::"
+          if [ "$rc" != 0 ]; then
+            echo "::error::context.sh exited $rc"
+            exit 1
+          fi
 
       # PR mode: run-claude-cli reads only inside the checkout, so the stage
       # the base copy left goes to .lane/, which a head may not hold. The
@@ -1079,6 +1209,9 @@ jobs:
           fi
           if [ -d .lane/dependency ]; then
             chmod -R a-w .lane/dependency
+          fi
+          if [ -d .lane/merge ]; then
+            chmod -R a-w .lane/merge
           fi
           if [ -d .lane/feedback ]; then
             chmod a-w .lane/feedback/threads.json .lane/feedback/run.json .lane/feedback/feedback-thread.sh
@@ -1688,6 +1821,9 @@ jobs:
       # In issue mode it also runs after a failed skill step (a turn cap or a
       # usage limit), so the partial work reaches a lane branch a resumed run
       # continues; the apply job holds it to the same rules.
+      # merge-base measures the patch from the conflict tree the merge step
+      # reached, so it holds the skill's resolutions alone, never the merge's
+      # base-side changes.
       - name: Collect the patch
         id: patch
         if: >-
@@ -1698,6 +1834,7 @@ jobs:
           && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure'))
         env:
           HEAD_SHA: ${{ steps.start.outputs.sha }}
+          FROM_TREE: ${{ steps.config.outputs.prepare == 'merge-base' && steps.merge.outputs.conflict-tree || '' }}
           PATCH_DIR: ${{ runner.temp }}/patch
         # A refusal (exit 3) still fails the step, and sets state refused, so
         # the scan job can hand the refused change to a person.
@@ -1705,7 +1842,7 @@ jobs:
           rm -rf "$PATCH_DIR"
           mkdir -p "$PATCH_DIR"
           rc=0
-          bash "$RUNNER_TEMP/read-patch/collect-patch.sh" "$HEAD_SHA" "$PATCH_DIR/patch.diff" >>"$GITHUB_OUTPUT" || rc=$?
+          bash "$RUNNER_TEMP/read-patch/collect-patch.sh" "$HEAD_SHA" "$PATCH_DIR/patch.diff" ${FROM_TREE:+"$FROM_TREE"} >>"$GITHUB_OUTPUT" || rc=$?
           if [ "$rc" = 3 ]; then
             echo "state=refused" >>"$GITHUB_OUTPUT"
           fi
@@ -2161,9 +2298,11 @@ jobs:
               core.setFailed(error instanceof Refused ? error.message : `payload-mismatch: the outputs could not be decoded (${error.name}); nothing is published`);
             }
 
-      # The gated head's objects, fresh: the patch applies onto them.
+      # The gated head's objects, fresh: the patch applies onto them. A
+      # merge-base patch is measured from a conflict tree GitHub does not
+      # hold, so it is scanned as text alone and needs none.
       - name: Check out the gated head
-        if: steps.decode.outputs.patch == 'true'
+        if: steps.decode.outputs.patch == 'true' && inputs.merge-conflict-tree == ''
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.run.outputs.head-sha }}
@@ -2201,6 +2340,9 @@ jobs:
           HEAD_SHA: ${{ needs.run.outputs.head-sha }}
           REPLY_DIR: ${{ steps.decode.outputs.dir }}
           PATCH_FILE: ${{ steps.decode.outputs.dir }}/patch.diff
+          # The caller's input, never a run job output: a merge-base patch is
+          # read as text only.
+          TEXT_PATCH: ${{ inputs.merge-conflict-tree != '' }}
         with:
           retries: 0
           script: |
@@ -2210,7 +2352,7 @@ jobs:
             const crypto = require('crypto');
             const { pathToFileURL } = require('url');
             const { execFileSync } = require('child_process');
-            const { HEAD_SHA, REPLY_DIR, PATCH_FILE, GITHUB_WORKSPACE } = process.env;
+            const { HEAD_SHA, REPLY_DIR, PATCH_FILE, GITHUB_WORKSPACE, TEXT_PATCH } = process.env;
             // The one findSecret label that warns instead of blocking.
             const WARN_ONLY = 'password or secret assignment';
             // A regular file's bytes, a link's target text; anything else holds none.
@@ -2408,6 +2550,12 @@ jobs:
               judge('the replies', replies);
               judge('the verdict', verdict);
               judge('the patch', patch, undefined, true);
+              // A merge-base patch applies to a conflict tree only the apply job
+              // rebuilds, so it is held to text hunks, whose every added byte
+              // the text scan above read; a binary hunk blocks.
+              if (!hit && TEXT_PATCH === 'true' && patch && /^GIT binary patch$/m.test(patch.toString('latin1'))) {
+                hit = { label: 'a merge-base patch holds a binary hunk', credential: false };
+              }
               // The patch as the apply job applies it, onto the gated head: every
               // file it makes, by name and bytes. git apply takes a blob the store
               // already holds in place of a binary hunk's bytes, so the head's
@@ -2415,7 +2563,7 @@ jobs:
               // own hash, into a store that borrows nothing. A patch that does
               // not apply blocks. A missing or blank patch file is no patch: the
               // collector writes none for no change.
-              if (!hit && patch && patch.toString('latin1').trim() !== '') {
+              if (!hit && TEXT_PATCH !== 'true' && patch && patch.toString('latin1').trim() !== '') {
                 const head = repo('head', true);
                 const apply = repo('apply', false);
                 apply(['index-pack', '--stdin'], head(['pack-objects', '--stdout', '-q'], head(['rev-list', '--objects', '--no-walk', HEAD_SHA])));

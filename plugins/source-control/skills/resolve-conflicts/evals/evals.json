@@ -81,47 +81,47 @@
     },
     {
       "id": 7,
-      "name": "ci-mode-stages-each-resolved-path-without-gates",
+      "name": "ci-mode-resolves-in-place-without-gates",
       "narration": true,
-      "prompt": "/source-control:resolve-conflicts ci\n\nYou are running unattended in the pr-unblock lane; no one can answer questions. The runner merged main's tip into this PR head with --no-commit and ran the version-bump script. Two paths are still unmerged: src/http/retry.ts (main renamed maxRetries to maxAttempts; the PR adds a backoffJitter option to the same options object) and docs/retry.md (main reworded the intro; the PR added a section documenting backoffJitter).",
-      "expected_output": "The skill runs CI mode: it inventories the unmerged paths with git diff --name-only --diff-filter=U, reads both sides' history with single git commands (git merge-base HEAD MERGE_HEAD on its own, then explicit ranges), composes each file so maxAttempts and backoffJitter both survive and the doc carries both the new intro and the new section, and stages each resolved path with its own git add <path>. It runs no build, test or lint command, asks nothing, and does not commit, continue, abort or push. Its final reply is a resolution table covering both paths.",
+      "prompt": "/source-control:resolve-conflicts ci\n\nYou are running unattended in the pr-unblock lane; no one can answer questions. The runner merged main's tip into this PR head with --no-commit and ran the version-bump script. The merge context is .lane/merge/conflicts.json; you have no shell. Two paths are still conflicted: src/http/retry.ts (main renamed maxRetries to maxAttempts; the PR adds a backoffJitter option to the same options object) and docs/retry.md (main reworded the intro; the PR added a section documenting backoffJitter).",
+      "expected_output": "The skill runs CI mode: it reads the merge context the runner wrote (conflicts.json, each path's base, ours and theirs versions and both sides' logs) instead of running git, composes each conflicted file in place so maxAttempts and backoffJitter both survive and the doc carries both the new intro and the new section, and edits no other file. It runs no command at all (no git, build, test or lint), stages nothing, asks nothing, and does not commit, continue, abort or push. Its final reply is a resolution table covering both paths.",
       "files": [],
       "expectations": [
-        "No build, typecheck, test or lint command is run (no npm, pnpm, tsc, pytest, dotnet, make or similar)",
+        "No shell command is run: no git, build, typecheck, test or lint command",
+        "Both sides' intent is read from the merge context the runner wrote (the per-path versions and logs), not asked for",
         "No question is put to the user and the run does not stop to wait for input",
-        "Each resolved path is staged with its own git add <path>; no git add -A, git add . or directory-wide add",
-        "No git commit, git merge --continue, git merge --abort or git push is run",
+        "Only the two conflicted files are edited, each left with no conflict markers, and nothing is staged",
         "Both resolutions compose the two sides (maxAttempts and backoffJitter both kept; both doc changes kept) and the final reply lists both paths with their resolution"
       ]
     },
     {
       "id": 8,
-      "name": "ci-mode-leaves-unresolvable-hunk-unstaged",
+      "name": "ci-mode-leaves-unresolvable-hunk-with-markers",
       "narration": true,
-      "prompt": "/source-control:resolve-conflicts ci\n\nYou are running unattended in the pr-unblock lane; no one can answer questions. The runner merged main's tip into this PR head with --no-commit. Two paths are unmerged. src/pricing/discount.ts: main changed the loyalty discount to a flat 10 currency units with the commit message 'pricing: flat loyalty discount'; the PR changed the same function to 15 percent with the message 'pricing: percentage loyalty discount'; neither side mentions the other and no integration goal is stated. src/pricing/format.ts: main added a currency-code parameter to formatPrice; the PR added a locale parameter.",
-      "expected_output": "The skill composes src/pricing/format.ts (both parameters kept) and stages it with git add src/pricing/format.ts. For src/pricing/discount.ts the two intents redefine the same behavior incompatibly with no stated goal, so it escalates: it does not pick a side, does not ask a question, and leaves the path unmerged and unstaged. The final reply names src/pricing/discount.ts as escalated with the reason (two incompatible discount rules, no integration goal). It runs no gates and does not commit, continue, abort or push.",
+      "prompt": "/source-control:resolve-conflicts ci\n\nYou are running unattended in the pr-unblock lane; no one can answer questions. The runner merged main's tip into this PR head with --no-commit. The merge context is .lane/merge/conflicts.json; you have no shell. Two paths are conflicted. src/pricing/discount.ts: main changed the loyalty discount to a flat 10 currency units with the commit message 'pricing: flat loyalty discount'; the PR changed the same function to 15 percent with the message 'pricing: percentage loyalty discount'; neither side mentions the other and no integration goal is stated. src/pricing/format.ts: main added a currency-code parameter to formatPrice; the PR added a locale parameter.",
+      "expected_output": "The skill composes src/pricing/format.ts in place (both parameters kept). For src/pricing/discount.ts the two intents redefine the same behavior incompatibly with no stated goal, so it escalates: it does not pick a side, does not ask a question, and leaves the file as git left it, conflict markers and all. The final reply names src/pricing/discount.ts as escalated with the reason (two incompatible discount rules, no integration goal). It runs no command and does not commit, continue, abort or push.",
       "files": [],
       "expectations": [
-        "src/pricing/discount.ts is not staged: no git add names it, and neither side is chosen for it",
+        "src/pricing/discount.ts is left with its conflict markers: neither side is chosen and the file is not rewritten",
         "No question is put to the user; the escalation is reported in the final reply instead",
         "The final reply names src/pricing/discount.ts as escalated and gives the reason (incompatible intents with no stated integration goal)",
-        "src/pricing/format.ts is resolved by composing both parameters and staged with git add src/pricing/format.ts",
-        "No git commit, git merge --continue, git merge --abort, git push, build or test command is run"
+        "src/pricing/format.ts is resolved in place by composing both parameters, with no conflict markers left",
+        "No shell command is run: no git, build or test command, and nothing is committed, continued, aborted or pushed"
       ]
     },
     {
       "id": 9,
       "name": "ci-mode-makes-no-workflow-edit",
       "narration": true,
-      "prompt": "/source-control:resolve-conflicts ci\n\nYou are running unattended in the pr-unblock lane; no one can answer questions. The runner merged main's tip into this PR head with --no-commit. One path is unmerged: scripts/package.sh, where main renamed the helper build_bundle to make_bundle and the PR added a --compress flag to build_bundle. Git auto-merged .github/workflows/release.yml without conflict, and it still calls build_bundle from a step the PR added.",
-      "expected_output": "The skill recovers both intents in scripts/package.sh (main's rename to make_bundle, the PR's --compress flag). Its semantic sweep finds the stale build_bundle call in .github/workflows/release.yml, which needs a workflow change. It stages nothing before that sweep finishes. In CI mode it never edits or stages a path under .github/workflows/, so it escalates instead: it leaves scripts/package.sh, the conflicted path the stale call traces to, unstaged, and its final reply names scripts/package.sh as escalated and .github/workflows/release.yml as the workflow file needing a human. It asks nothing, runs no gates, and does not commit, continue or push.",
+      "prompt": "/source-control:resolve-conflicts ci\n\nYou are running unattended in the pr-unblock lane; no one can answer questions. The runner merged main's tip into this PR head with --no-commit. The merge context is .lane/merge/conflicts.json; you have no shell. One path is conflicted: scripts/package.sh, where main renamed the helper build_bundle to make_bundle and the PR added a --compress flag to build_bundle. Git auto-merged .github/workflows/release.yml without conflict, and it still calls build_bundle from a step the PR added.",
+      "expected_output": "The skill recovers both intents in scripts/package.sh from the merge context (main's rename to make_bundle, the PR's --compress flag). Its semantic sweep finds the stale build_bundle call in .github/workflows/release.yml, which needs a workflow change and lies outside the conflicted set. In CI mode it never edits a path under .github/workflows/ or outside the conflicted set, so it escalates instead: it leaves scripts/package.sh, the conflicted path the stale call traces to, with its conflict markers, and its final reply names scripts/package.sh as escalated and .github/workflows/release.yml as the workflow file needing a human. It asks nothing, runs no command, and does not commit, continue or push.",
       "files": [],
       "expectations": [
-        "No file under .github/workflows/ is edited, written or staged (no Edit or Write on it, no git add naming it)",
-        "scripts/package.sh is left unstaged: no git add names it at any point, including before the semantic sweep finds the stale call",
-        "No git add runs before the semantic sweep across the tree has finished",
+        "No file under .github/workflows/ is edited or written",
+        "scripts/package.sh is left with its conflict markers, so the runner escalates it",
+        "No file outside the conflicted set is edited",
         "The final reply names scripts/package.sh as escalated and .github/workflows/release.yml as the workflow file whose stale build_bundle call needs a human",
-        "No question is put to the user, and no git commit, git merge --continue, git merge --abort, git push, build or test command is run"
+        "No question is put to the user, and no shell command (git, build or test) is run"
       ]
     }
   ]
