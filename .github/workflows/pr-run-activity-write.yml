@@ -172,16 +172,8 @@ on:
         description: >-
           With review-replies, the same read runner call's scan-patch-state.
           With no replies, the reply script skips no-model-turn only when this,
-          review-scan-refused, review-replies-attempt and review-replies-sha256
-          are empty.
-        required: false
-        type: string
-        default: ""
-      review-scan-refused:
-        description: >-
-          With review-replies, the same read runner call's scan-refused:
-          `patch`, `output` or empty. With no replies, a refusal escalates
-          feedback-invalid.
+          review-replies-attempt and review-replies-sha256 are empty and no
+          scan refusal marker downloaded.
         required: false
         type: string
         default: ""
@@ -240,14 +232,7 @@ on:
         description: >-
           With dependency-verdict, the same read runner call's scan-patch-state.
           With no verdict, the verdict script skips no-model-turn only when
-          this and dependency-scan-refused are empty.
-        required: false
-        type: string
-        default: ""
-      dependency-scan-refused:
-        description: >-
-          With dependency-verdict, the same read runner call's scan-refused:
-          `patch`, `output` or empty.
+          this is empty and no scan refusal marker downloaded.
         required: false
         type: string
         default: ""
@@ -1035,6 +1020,24 @@ jobs:
         with:
           name: dependency-verdict-${{ inputs.lane }}-review-dependency-${{ inputs.dependency-run-attempt }}
           path: ${{ runner.temp }}/dependency-verdict
+
+      # review-replies and dependency-verdict: every attempt's marker the read
+      # runner's scan-refusal job uploaded for the model call in this run, by
+      # name, never a job output (a failed job's outputs are not documented to
+      # reach this caller). A pattern that matches nothing downloads nothing
+      # and succeeds; a failed download reads as a refusal. An earlier
+      # attempt's marker after a re-run only hands the round to a person.
+      - name: Download the scan refusal markers
+        id: scan-refused
+        if: >-
+          steps.lane-token.outputs.token != '' && (inputs.review-replies || inputs.dependency-verdict)
+          && steps.config.outputs.kind == 'script'
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: scan-refused-${{ inputs.lane }}-${{ inputs.review-replies && 'address-feedback' || 'review-dependency' }}-*
+          path: ${{ runner.temp }}/scan-refused
+          merge-multiple: true
 
       # Also issue mode: report-outcome trusts a merge: human label only from
       # a listed human or the lanes App.
@@ -2010,7 +2013,6 @@ jobs:
           RUN_SHA256: ${{ inputs.review-run-sha256 }}
           REPLIES_SHA256: ${{ inputs.review-replies-sha256 }}
           REVIEW_PATCH_STATE: ${{ inputs.review-replies && inputs.review-patch-state || '' }}
-          REVIEW_SCAN_REFUSED: ${{ inputs.review-replies && inputs.review-scan-refused || '' }}
           # Issue mode, apply-patch: the new lane branch, named by the model
           # job's patch attempt so a re-run of this job names the same one.
           HEAD_REF: >-
@@ -2025,7 +2027,11 @@ jobs:
           DEPENDENCY_HEAD_SHA: ${{ inputs.dependency-head-sha }}
           DEPENDENCY_RUN_ATTEMPT: ${{ inputs.dependency-run-attempt }}
           DEPENDENCY_PATCH_STATE: ${{ inputs.dependency-verdict && inputs.dependency-patch-state || '' }}
-          DEPENDENCY_SCAN_REFUSED: ${{ inputs.dependency-verdict && inputs.dependency-scan-refused || '' }}
+          # review-replies and dependency-verdict: the scan refusal markers
+          # and whether their download failed (address-feedback.mjs
+          # scanRefusal).
+          SCAN_REFUSED_DIR: ${{ (inputs.review-replies || inputs.dependency-verdict) && format('{0}/scan-refused', runner.temp) || '' }}
+          SCAN_REFUSED_READ: ${{ steps.scan-refused.outcome }}
           # apply-patch only; empty otherwise. The select step checked the
           # patch before the mint; the script checks its SHA-256 again.
           PREPARE: ${{ steps.config.outputs.prepare }}

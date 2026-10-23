@@ -261,14 +261,6 @@ on:
           escalate, else empty. Only the scan job sets it; the verdict job
           validates the whole file.
         value: ${{ jobs.scan.outputs.dependency-verdict }}
-      scan-refused:
-        description: >-
-          PR mode: `patch` when the scan job refused the run's payloads because
-          the patch was over its cap, `output` when it failed or was cancelled
-          for any other reason, empty when it published them or did not run.
-          The scan-refusal job, which succeeds, sets it from the scan job's
-          result, so it does not depend on the failed scan job's own outputs.
-        value: ${{ jobs.scan-refusal.outputs.refused }}
       base-sha:
         description: >-
           The trusted base commit the run checked, set before any head code
@@ -2564,14 +2556,15 @@ jobs:
           if-no-files-found: error
           overwrite: false
 
-  # PR mode: the scan job's refusal, set by a job that succeeds, since no
-  # documentation says a failed job's outputs reach a workflow_call caller.
-  # The scan's own result decides it (a failed or cancelled scan published
-  # nothing); the failed scan job's outputs only name an oversize patch. The
-  # caller's job for this whole workflow still ends failed after a failed
-  # scan, so the caller reads this output from a failed job at that hop. It reads nothing from
-  # the run job, so head code can only fail the scan, which hands the round
-  # to a person.
+  # PR mode: the scan job's refusal, as an artifact a job that succeeds
+  # uploads. A failed scan fails the caller's job for this whole workflow, and
+  # no documentation says a failed job's outputs reach a workflow_call
+  # caller, so the reply and verdict jobs download this marker by name
+  # instead (address-feedback.mjs scanRefusal). The scan's own result decides
+  # it (a failed or cancelled scan published nothing); the scan's outputs
+  # only name an oversize patch. It reads nothing from the run job, so head
+  # code can only fail the scan or add a marker, either of which hands the
+  # round to a person.
   scan-refusal:
     needs: scan
     if: >-
@@ -2581,14 +2574,25 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
-    outputs:
-      refused: ${{ steps.refusal.outputs.refused }}
     steps:
-      - name: Name the scan's refusal
-        id: refusal
+      - name: Write the scan refusal marker
         env:
           REFUSED: ${{ needs.scan.outputs.refused == 'patch' && 'patch' || 'output' }}
-        run: echo "refused=$REFUSED" >>"$GITHUB_OUTPUT"
+          MARKER: ${{ runner.temp }}/scan-refused/scan-refused-${{ github.run_attempt }}${{ inputs.model-rung == '1' && '-rung-up' || '' }}.txt
+        run: |
+          mkdir -p "$(dirname "$MARKER")"
+          echo "$REFUSED" >"$MARKER"
+
+      # overwrite: false, so a second upload of a name this run already holds
+      # fails; the marker already there still escalates.
+      - name: Upload the scan refusal marker
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: scan-refused-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}${{ inputs.model-rung == '1' && '-rung-up' || '' }}
+          path: ${{ runner.temp }}/scan-refused/
+          retention-days: 1
+          if-no-files-found: error
+          overwrite: false
 
   # Issue mode, reuse: the summary pass, in its own job with a read-only
   # GITHUB_TOKEN. It starts only when the run job's issue-prior step named a

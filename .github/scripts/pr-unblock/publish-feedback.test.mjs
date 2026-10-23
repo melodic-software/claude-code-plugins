@@ -851,15 +851,27 @@ test("main: a missing replies.jsonl writes the no-model-turn skip and no escalat
   assert.equal(readFileSync(env.ESCALATION_REASON_FILE, "utf8"), "feedback-invalid\n");
   rmSync(env.ESCALATION_REASON_FILE);
   await assert.rejects(main({ ...env, REVIEW_PATCH_STATE: "maybe" }, { api: fakeApi() }), /REVIEW_PATCH_STATE/);
-  // A refused scan, or replies the scan named that never arrived, is no skip.
-  for (const extra of [{ REVIEW_SCAN_REFUSED: "patch" }, { REVIEW_SCAN_REFUSED: "output" }, { MODEL_RUN_ATTEMPT: "1" }, { REPLIES_SHA256: "a".repeat(64) }]) {
+  // The scan-refusal job's marker alone, with every leg output empty, is no
+  // skip (#9340); nor is a marker download that failed, or replies the scan
+  // named that never arrived (#9225).
+  const markers = join(dir, "scan-refused");
+  mkdirSync(markers);
+  writeFileSync(join(markers, "scan-refused-1.txt"), "output\n");
+  rmSync(env.SKIP_REASON_FILE, { force: true });
+  await main({ ...env, SCAN_REFUSED_DIR: join(dir, "no-markers"), SCAN_REFUSED_READ: "success" }, { api: fakeApi(), log: () => {} });
+  assert.equal(readFileSync(env.SKIP_REASON_FILE, "utf8"), "no-model-turn\n", "no marker downloaded");
+  for (const extra of [
+    { SCAN_REFUSED_DIR: markers, SCAN_REFUSED_READ: "success" },
+    { SCAN_REFUSED_DIR: join(dir, "no-markers"), SCAN_REFUSED_READ: "failure" },
+    { MODEL_RUN_ATTEMPT: "1" },
+    { REPLIES_SHA256: "a".repeat(64) },
+  ]) {
     rmSync(env.SKIP_REASON_FILE, { force: true });
     rmSync(env.ESCALATION_REASON_FILE, { force: true });
     await main({ ...env, ...extra }, { api: fakeApi(), log: () => {} });
     assert.equal(readFileSync(env.ESCALATION_REASON_FILE, "utf8"), "feedback-invalid\n", JSON.stringify(extra));
   }
   rmSync(env.ESCALATION_REASON_FILE);
-  await assert.rejects(main({ ...env, REVIEW_SCAN_REFUSED: "maybe" }, { api: fakeApi() }), /REVIEW_SCAN_REFUSED/);
 
   rmSync(env.SKIP_REASON_FILE, { force: true });
   const huge = JSON.stringify(RUN) + " ".repeat(1048577);

@@ -48,8 +48,9 @@
 //   RUN_SHA256            run.json's SHA-256, from the select job
 //   REPLIES_SHA256        replies.jsonl's SHA-256, from the scan job
 //   REVIEW_PATCH_STATE    the scan job's patch-state for the same model call
-//   REVIEW_SCAN_REFUSED   the same call's scan refusal: '' none, `patch` an
-//                         oversize patch, `output` any other
+//   SCAN_REFUSED_DIR, SCAN_REFUSED_READ  the scan-refusal job's markers for
+//                         the model call and their download's outcome
+//                         (address-feedback.mjs scanRefusal)
 //   GITHUB_WORKSPACE      the PR head checkout evidence paths are checked in
 //   SKIP_REASON_FILE, ESCALATION_REASON_FILE  where the runner reads them
 
@@ -69,6 +70,7 @@ import {
   positive,
   reviewerIdFrom,
   ROUND_MARKER,
+  scanRefusal,
   SHA,
   trustedHumansFrom,
 } from "./address-feedback.mjs";
@@ -477,10 +479,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   if (!["", "written", "empty"].includes(patchState)) {
     throw new Error("REVIEW_PATCH_STATE is not a patch state");
   }
-  const scanRefused = env.REVIEW_SCAN_REFUSED ?? "";
-  if (!["", "patch", "output"].includes(scanRefused)) {
-    throw new Error("REVIEW_SCAN_REFUSED is not a scan refusal");
-  }
+  const scanRefused = scanRefusal({ dir: env.SCAN_REFUSED_DIR ?? "", read: env.SCAN_REFUSED_READ ?? "" });
   const runId = positive(env.GITHUB_RUN_ID, "GITHUB_RUN_ID");
   const modelRun = attempt ? `${runId}-${attempt}` : null;
   const dir = env.FEEDBACK_REPLIES_DIR;

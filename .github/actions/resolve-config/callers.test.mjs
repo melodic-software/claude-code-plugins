@@ -1876,31 +1876,60 @@ test("scan job: a refusal names an oversize patch, and every other refusal `outp
   assert.equal(at("", { "steps.open.outcome": "skipped", "steps.decode.outcome": "success", "steps.leak-scan.outcome": "skipped" }), "", "a run with nothing to open");
 });
 
-// A failed job's outputs are not documented to reach a workflow_call caller
-// (#9340), so the refusal the callers read is relayed by the scan-refusal job,
-// which succeeds: the scan's result alone decides it, and its outputs only
-// name an oversize patch. It needs the scan job alone, never the run job.
-test("scan-refused: a failed or cancelled scan reads as a refusal even with no scan outputs", () => {
+// A failed scan fails the caller's job for the whole read workflow, and a
+// failed job's outputs are not documented to reach a workflow_call caller
+// (#9340). So the scan-refusal job, which needs the scan job alone, uploads a
+// marker artifact, and the reply and verdict jobs download it by name: the
+// marker alone decides the refusal, with every leg output empty.
+const read_ = read;
+test("scan refusal: a failed or cancelled scan's marker reaches the reply and verdict jobs by name, never by a job output", () => {
   const read = workflow("pr-run-activity-read.yml");
-  const caller = read.on.workflow_call.outputs["scan-refused"].value;
   const relay = read.jobs["scan-refusal"];
-  const outcome = (result, refusedOutput = "", issue = "") => {
-    const values = { "needs.scan.result": result, "needs.scan.outputs.refused": refusedOutput, "inputs.issue-number": issue };
-    const ran = evaluate(relay?.if ?? "true", values) === true;
-    const step = relay?.steps.find((s) => s.id === "refusal");
-    const relayed = ran && step ? { "jobs.scan-refusal.outputs.refused": evaluate(step.env.REFUSED, values) } : { "jobs.scan-refusal.outputs.refused": "" };
-    // Under the old wiring the caller read the failed scan job's own output.
-    return evaluate(caller, { ...relayed, "jobs.scan.outputs.refused": refusedOutput });
-  };
-  assert.equal(outcome("failure"), "output", "a failed scan whose outputs did not arrive");
-  assert.equal(outcome("cancelled"), "output");
-  assert.equal(outcome("failure", "patch"), "patch");
-  assert.equal(outcome("success"), "");
-  assert.equal(outcome("skipped"), "");
-  assert.equal(outcome("failure", "", "7"), "", "issue mode has no caller that reads it");
-  assert.deepEqual(relay.needs, "scan");
-  assert.equal(relay.outputs.refused, "${{ steps.refusal.outputs.refused }}");
+  assert.ok(relay, "the read runner has a scan-refusal job");
+  assert.equal(relay.needs, "scan");
   assert.doesNotMatch(JSON.stringify(relay), /needs\.run\./);
+  const write = relay.steps.find((step) => step.name === "Write the scan refusal marker");
+  const upload = relay.steps.find((step) => step.uses?.startsWith("actions/upload-artifact@"));
+  const ctx = (result, refused = "", issue = "") => ({
+    "needs.scan.result": result,
+    "needs.scan.outputs.refused": refused,
+    "inputs.issue-number": issue,
+    "inputs.model-rung": "",
+    "inputs.lane": "pr-unblock",
+    "github.run_attempt": "2",
+  });
+  const runs = (values) => evaluate(relay.if, values) === true;
+  assert.equal(runs(ctx("failure")), true);
+  assert.equal(runs(ctx("cancelled")), true);
+  assert.equal(runs(ctx("success")), false);
+  assert.equal(runs(ctx("skipped")), false);
+  assert.equal(runs(ctx("failure", "", "7")), false, "issue mode has no reply or verdict job");
+  assert.equal(evaluate(write.env.REFUSED, ctx("failure")), "output", "a failed scan whose outputs did not arrive");
+  assert.equal(evaluate(write.env.REFUSED, ctx("failure", "patch")), "patch");
+  const sub = (text, values) => text.replace(/\$\{\{([^}]*)\}\}/g, (_, expr) => String(evaluate(`\${{${expr}}}`, values)));
+  // The marker's file name is one scanRefusal reads.
+  assert.match(sub(write.env.MARKER, { ...ctx("failure"), "runner.temp": "/t" }).split("/").at(-1), /^scan-refused-[1-9][0-9]{0,4}(-rung-up)?\.txt$/);
+  assert.equal(upload.with.overwrite, false);
+  // The write runner downloads every attempt's marker for the model call's activity.
+  const steps = workflow("pr-run-activity-write.yml").jobs.run.steps;
+  const download = steps.find((step) => step.id === "scan-refused");
+  const script = steps.find((step) => step.id === "act-script");
+  for (const [mode, activity] of [["inputs.review-replies", "address-feedback"], ["inputs.dependency-verdict", "review-dependency"]]) {
+    const values = { "inputs.review-replies": mode === "inputs.review-replies", "inputs.dependency-verdict": mode === "inputs.dependency-verdict", "inputs.lane": "pr-unblock", "runner.temp": "/t" };
+    const name = sub(upload.with.name, { ...ctx("failure"), "inputs.activity": activity });
+    const pattern = sub(download.with.pattern, values);
+    assert.ok(pattern.endsWith("-*") && name.startsWith(pattern.slice(0, -1)), `${activity}: ${pattern} matches ${name}`);
+    assert.equal(sub(download.with.path, values), "/t/scan-refused", activity);
+  }
+  assert.equal(script.env.SCAN_REFUSED_DIR, "${{ (inputs.review-replies || inputs.dependency-verdict) && format('{0}/scan-refused', runner.temp) || '' }}");
+  assert.equal(download["continue-on-error"], true);
+  assert.equal(download.with["merge-multiple"], true);
+  assert.equal(script.env.SCAN_REFUSED_READ, "${{ steps.scan-refused.outcome }}");
+  // No decision reads a refusal from a job output.
+  assert.equal(read.on.workflow_call.outputs["scan-refused"], undefined);
+  assert.doesNotMatch(read_("../../workflows/pr-unblock.yml"), /outputs\.scan-refused/);
+  assert.equal(script.env.REVIEW_SCAN_REFUSED, undefined);
+  assert.equal(script.env.DEPENDENCY_SCAN_REFUSED, undefined);
 });
 
 test("leak scan: a clean run is clean", async (t) => {
@@ -3227,7 +3256,7 @@ test("leak scan: the split-line pass leaves out the R2 key pair pattern, so adja
 const MODEL_CALL_READS = {
   "address-feedback-subscription": ["credential-present", "lane-class"],
   "apply-feedback-patch": ["feedback-attempt", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt"],
-  "publish-feedback": ["feedback-attempt", "feedback-sha256", "scan-patch-state", "scan-refused"],
+  "publish-feedback": ["feedback-attempt", "feedback-sha256", "scan-patch-state"],
 };
 
 // One leg answers the round: the fallback call when it ran, else the first.
@@ -3237,7 +3266,7 @@ test("pr-unblock.yml: the apply and reply jobs take every model-call input from 
   const { jobs } = workflow("pr-unblock.yml");
   const apply = jobs["apply-feedback-patch"];
   const publish = jobs["publish-feedback"].with;
-  const OUT = ["scan-patch-state", "scan-patch-sha256", "scan-patch-attempt", "scan-reply-attempt", "feedback-attempt", "feedback-sha256", "scan-refused"];
+  const OUT = ["scan-patch-state", "scan-patch-sha256", "scan-patch-attempt", "scan-reply-attempt", "feedback-attempt", "feedback-sha256"];
   const legs = (subResult, sub, first) => {
     const values = { "needs.address-feedback-subscription.result": subResult };
     for (const output of OUT) {
@@ -3255,7 +3284,6 @@ test("pr-unblock.yml: the apply and reply jobs take every model-call input from 
     "review-replies-attempt": [publish, "feedback-attempt"],
     "review-replies-sha256": [publish, "feedback-sha256"],
     "review-patch-state": [publish, "scan-patch-state"],
-    "review-scan-refused": [publish, "scan-refused"],
   };
   for (const [subResult, from] of [["skipped", "first"], ["success", "sub"], ["failure", "sub"]]) {
     const context = legs(subResult, from === "sub" ? full("sub") : {}, from === "first" ? full("first") : {});
@@ -3291,7 +3319,6 @@ test("pr-unblock.yml: the apply and reply jobs take every model-call input from 
   const script = write.jobs.run.steps.find((step) => step.id === "act-script");
   assert.equal(script.env.REPLIES_SHA256, "${{ inputs.review-replies-sha256 }}");
   assert.equal(script.env.REVIEW_PATCH_STATE, "${{ inputs.review-replies && inputs.review-patch-state || '' }}");
-  assert.equal(script.env.REVIEW_SCAN_REFUSED, "${{ inputs.review-replies && inputs.review-scan-refused || '' }}");
 });
 
 // --- review-dependency on run-claude-cli: a select job, two model calls, a push job, a verdict job ---
@@ -3304,7 +3331,7 @@ test("pr-unblock.yml: the apply and reply jobs take every model-call input from 
 const DEPENDENCY_CALL_READS = {
   "review-dependency-subscription": ["credential-present", "lane-class"],
   "apply-dependency-patch": ["dependency-attempt", "dependency-sha256", "dependency-verdict", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt"],
-  "apply-dependency-verdict": ["dependency-attempt", "dependency-sha256", "scan-patch-state", "scan-refused"],
+  "apply-dependency-verdict": ["dependency-attempt", "dependency-sha256", "scan-patch-state"],
 };
 
 test("pr-unblock.yml: no job takes a gate, head or verdict input from a review-dependency model call but the outputs it needs", () => {
@@ -3359,7 +3386,7 @@ test("pr-unblock.yml: apply-dependency-patch and the verdict job take every mode
   const { jobs } = workflow("pr-unblock.yml");
   const apply = jobs["apply-dependency-patch"];
   const verdict = jobs["apply-dependency-verdict"].with;
-  const OUT = ["scan-patch-state", "scan-patch-sha256", "scan-patch-attempt", "scan-reply-attempt", "dependency-attempt", "dependency-sha256", "dependency-verdict", "scan-refused"];
+  const OUT = ["scan-patch-state", "scan-patch-sha256", "scan-patch-attempt", "scan-reply-attempt", "dependency-attempt", "dependency-sha256", "dependency-verdict"];
   const legs = (subResult, sub, first) => {
     const values = { "needs.review-dependency-subscription.result": subResult };
     for (const output of OUT) {
@@ -3379,7 +3406,6 @@ test("pr-unblock.yml: apply-dependency-patch and the verdict job take every mode
     "dependency-run-attempt": [verdict, "dependency-attempt"],
     "dependency-verdict-sha256": [verdict, "dependency-sha256"],
     "dependency-patch-state": [verdict, "scan-patch-state"],
-    "dependency-scan-refused": [verdict, "scan-refused"],
   };
   for (const [subResult, from] of [["skipped", "first"], ["success", "sub"], ["failure", "sub"]]) {
     const context = legs(subResult, from === "sub" ? full("sub") : {}, from === "first" ? full("first") : {});
@@ -3839,7 +3865,6 @@ test("pr-run-activity-write.yml: the verdict job reads context.json from the sel
   assert.equal(env.DEPENDENCY_RUN_SHA256, "${{ inputs.dependency-run-sha256 }}");
   assert.equal(env.DEPENDENCY_VERDICT_SHA256, "${{ inputs.dependency-verdict-sha256 }}");
   assert.equal(env.DEPENDENCY_PATCH_STATE, "${{ inputs.dependency-verdict && inputs.dependency-patch-state || '' }}");
-  assert.equal(env.DEPENDENCY_SCAN_REFUSED, "${{ inputs.dependency-verdict && inputs.dependency-scan-refused || '' }}");
   // A dependency-review skill on this runner fails red before the mint.
   const at = (name) => steps.findIndex((s) => s.name === name);
   const refuse = steps[at("Assert dependency-review runs in the read runner")];

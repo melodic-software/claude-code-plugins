@@ -67,8 +67,9 @@
 //   DEPENDENCY_RUN_SHA256   context.json's SHA-256, from the select job
 //   DEPENDENCY_VERDICT_SHA256  dependency-verdict.json's SHA-256, from the scan job
 //   DEPENDENCY_PATCH_STATE  the same call's scan patch state ('' for none)
-//   DEPENDENCY_SCAN_REFUSED the same call's scan refusal: '' none, `patch` an
-//                           oversize patch, `output` any other
+//   SCAN_REFUSED_DIR, SCAN_REFUSED_READ  the scan-refusal job's markers for
+//                           the model call and their download's outcome
+//                           (address-feedback.mjs scanRefusal)
 //   SKIP_REASON_FILE, ESCALATION_REASON_FILE  where the runner reads them
 
 import { createHash } from "node:crypto";
@@ -76,7 +77,7 @@ import { lstatSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { createGitHubApi, need, positive, SHA } from "./address-feedback.mjs";
+import { createGitHubApi, need, positive, scanRefusal, SHA } from "./address-feedback.mjs";
 import {
   bumpRefusal,
   COMMIT_FILES_LIMIT,
@@ -499,10 +500,10 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     throw new Error("DEPENDENCY_RUN_ATTEMPT is not a run attempt");
   }
   const patchState = env.DEPENDENCY_PATCH_STATE ?? "";
-  const refused = env.DEPENDENCY_SCAN_REFUSED ?? "";
-  if (!["", "written", "empty"].includes(patchState) || !["", "patch", "output"].includes(refused)) {
-    throw new Error("DEPENDENCY_PATCH_STATE or DEPENDENCY_SCAN_REFUSED is not a scan output");
+  if (!["", "written", "empty"].includes(patchState)) {
+    throw new Error("DEPENDENCY_PATCH_STATE is not a scan output");
   }
+  const refused = scanRefusal({ dir: env.SCAN_REFUSED_DIR ?? "", read: env.SCAN_REFUSED_READ ?? "" });
   const modelRun = attempt ? `${positive(env.GITHUB_RUN_ID, "GITHUB_RUN_ID")}-${attempt}` : null;
   let context = null;
   let run = null;
