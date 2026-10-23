@@ -13,13 +13,15 @@
 // when it has no pr-unblock / fix-ci check run from the GitHub Actions app,
 // or when every such run failed and there are at most `fix-ci-restarts` of
 // them; at most `fix-ci-per-run` per dispatcher run, lowest PR number first.
-// A head whose pr-require-checks failures are all infra (infra-failure.mjs) is
-// skipped while the lost-run reconciler still re-runs it (infra-failure.mjs
-// reconcilerRetries: attempt and lookback); past that, fix-ci takes it.
+// A head whose ci-status passed but whose pr-test-windows run failed is a
+// candidate too. A head is skipped while the lost-run reconciler still re-runs
+// its failed run (infra-failure.mjs reconcilerOwns: an infra-only failure for
+// its backoff re-runs, any other for one re-run at attempt 1, inside the
+// lookback); past that, fix-ci takes it.
 // The fix-ci-context job decides the round cap. Logs carry PR numbers, SHAs,
 // run ids and counts only.
 
-import { infraOnly, reconcilerRetries } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
+import { reconcilerOwns } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { runTitle } from "./feedback-dispatch.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -27,6 +29,11 @@ export const DEFAULTS = Object.freeze({
   workflow: "pr-unblock.yml",
   activity: "fix-ci",
   checkName: "pr-unblock / fix-ci",
+  // The run whose failure counts: pr-require-checks when ci-status failed,
+  // else the advisory pr-test-windows, which ci-status does not aggregate but
+  // the merge gate holds on (PR #9235, run 39867317913).
+  requiredWorkflow: ".github/workflows/pr-require-checks.yml",
+  advisoryWorkflow: ".github/workflows/pr-test-windows.yml",
   // The GitHub Actions app, as in dispatch.mjs: only its runs count.
   actionsAppId: 15368,
   holdLabels: Object.freeze(["do-not-merge", "needs-human"]),
@@ -106,6 +113,14 @@ function ownerIdle(node, idleHours, now) {
   return commit?.oid === node.headRefOid && Date.parse(node.updatedAt) <= since && Date.parse(commit.committedDate) <= since;
 }
 
+const ciStatusFailed = (checks) => checks.some((run) => run.name === "ci-status" && run.status === "COMPLETED" && run.conclusion === "FAILURE");
+
+// ci-status passed and another check failed: an advisory lane's, if any.
+const advisoryFailed = (checks, checkName) =>
+  !ciStatusFailed(checks) &&
+  checks.some((run) => run.name === "ci-status" && run.status === "COMPLETED" && run.conclusion === "SUCCESS") &&
+  checks.some((run) => run.name !== checkName && run.status === "COMPLETED" && run.conclusion === "FAILURE");
+
 // Why a listed PR is not dispatched, or "" when it is a candidate.
 export function skipReason(node, { base, appSenderId, actionsAppId, checkName, holdLabels, restarts, adoption = DEFAULTS.adoption, now = Date.now() }) {
   if (node.isDraft !== false || node.isCrossRepository !== false || node.baseRefName !== base) {
@@ -134,14 +149,22 @@ export function skipReason(node, { base, appSenderId, actionsAppId, checkName, h
   if (!checks) {
     return "head commit or its checks not listed whole";
   }
-  if (!checks.some((run) => run.name === "ci-status" && run.status === "COMPLETED" && run.conclusion === "FAILURE")) {
+  const advisory = advisoryFailed(checks, checkName);
+  if (!ciStatusFailed(checks) && !advisory) {
     return "ci-status has not failed";
   }
-  // node.requiredRun, the head's tested pr-require-checks run and its latest
-  // jobs, is attached by dispatchCiFixes just before it would dispatch.
+  // node.requiredRun, the head's tested pr-require-checks run (pr-test-windows
+  // when only an advisory check failed) and its latest jobs, is attached by
+  // dispatchCiFixes just before it would dispatch.
   const required = node.requiredRun;
-  if (required !== undefined && infraOnly(required.jobs) && reconcilerRetries(required.run, now)) {
-    return "infra failure, re-run job owns it";
+  if (required !== undefined) {
+    if (advisory && required.run?.conclusion !== "failure") {
+      return "ci-status passed and no pr-test-windows run failed";
+    }
+    const owned = reconcilerOwns(required, now);
+    if (owned !== "") {
+      return owned;
+    }
   }
   // An untrusted-trigger skip ran nothing, so it does not count.
   const runs = checks.filter(
@@ -221,11 +244,12 @@ export async function dispatchCiFixes({
       log(`defer fix-ci #${node.number}: ${maxDispatch} fix-ci dispatches this run; left for a later run`);
       continue;
     }
-    // A failure an outside outage explains is the lost-run reconciler's to
-    // re-run, never a model run's to fix.
+    // A failure an outside outage explains, or a first failure, is the
+    // lost-run reconciler's to re-run before a model run fixes it.
+    const path = ciStatusFailed(headChecks(node, actionsAppId)) ? DEFAULTS.requiredWorkflow : DEFAULTS.advisoryWorkflow;
     let requiredRun;
     try {
-      requiredRun = await api.readRequiredRun(node.headRefOid);
+      requiredRun = await api.readRequiredRun(node.headRefOid, path);
     } catch (error) {
       log(`::warning::#${node.number}: could not read its required run's jobs (${error.message}); left for a later run`);
       continue;

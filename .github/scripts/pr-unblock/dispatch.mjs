@@ -317,16 +317,17 @@ export function createGitHubApi({
       );
       return result.check_runs;
     },
-    // fix-ci-dispatch.mjs's infra check: the newest pr-require-checks
-    // pull_request run on the head that tested it and its latest jobs
-    // (infra-failure.mjs testedRun); a null run and no jobs when there is none.
-    async readRequiredRun(sha) {
+    // fix-ci-dispatch.mjs's re-run check: the newest pull_request run of the
+    // workflow at path (pr-require-checks unless named) on the head that
+    // tested it and its latest jobs (infra-failure.mjs testedRun); a null run
+    // and no jobs when there is none.
+    async readRequiredRun(sha, path = ".github/workflows/pr-require-checks.yml") {
       if (!/^[0-9a-f]{40}$/.test(sha)) {
         throw new Error("not a commit SHA");
       }
       const listing = await request(`${apiUrl}/repos/${owner}/${name}/actions/runs?head_sha=${sha}&event=pull_request&per_page=100`);
       const runs = (listing.workflow_runs ?? [])
-        .filter((run) => run.path === ".github/workflows/pr-require-checks.yml")
+        .filter((run) => run.path === path)
         .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || b.id - a.id);
       const tested = await testedRun(runs, async (run) => {
         const jobs = await request(`${apiUrl}/repos/${owner}/${name}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`);

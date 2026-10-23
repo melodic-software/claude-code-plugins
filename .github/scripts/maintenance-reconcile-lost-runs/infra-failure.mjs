@@ -1,7 +1,8 @@
 // infra-failure.mjs: whether a failed CI run's failures are all ones an outside
 // outage (npm, GitHub, a runner) explains, so a re-run, not a code change, is
-// the fix. reconcile.mjs re-runs such a run's failed jobs; pr-unblock's fix-ci
-// dispatcher spends no model run on one. Deterministic, no model.
+// the fix. reconcile.mjs re-runs such a run's failed jobs, and any other failed
+// run's once (firstFailure); pr-unblock's fix-ci dispatcher spends no model run
+// on a run the reconciler still re-runs (reconcilerOwns). Deterministic, no model.
 //
 // A job is a REST job record of the run's latest attempt
 // (GET /repos/{owner}/{repo}/actions/runs/{id}/jobs?filter=latest): its name,
@@ -40,6 +41,25 @@ export const reconcilerRetries = (run, now) =>
   run.run_attempt >= 1 &&
   run.run_attempt <= INFRA_BACKOFF_MINUTES.length &&
   Date.parse(run.created_at) >= now - LOOKBACK_HOURS * 3_600_000;
+
+// True for a failed run at attempt 1 inside the lookback: when its failures are
+// not infra only, the reconciler re-runs its failed jobs once, whatever the
+// status pages show, so a flaky test the diff did not cause spends no model
+// run. The attempt number is the cap: one re-run per run and head.
+export const firstFailure = (run, now) =>
+  run?.status === "completed" &&
+  run.conclusion === "failure" &&
+  run.run_attempt === 1 &&
+  Date.parse(run.created_at) >= now - LOOKBACK_HOURS * 3_600_000;
+
+// Why the reconciler still owns a tested run ({ run, jobs } from testedRun),
+// or "" when it re-runs it no more and fix-ci may take it.
+export function reconcilerOwns({ run, jobs }, now) {
+  if (infraOnly(jobs)) {
+    return reconcilerRetries(run, now) ? "infra failure, re-run job owns it" : "";
+  }
+  return firstFailure(run, now) ? "first failure, re-run job re-runs it once" : "";
+}
 
 // Why the failed job is infra ("time limit", "install", "lost runner"), or "" when it is real.
 export function infraCause(job) {
