@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/melodic-software/claude-code-plugins/.github/lane-funding.schema.json",
+  "title": "Lane funding",
+  "description": "Which funding role pays for each Claude lane, the role's target secrets, and the secrets each lane's job reads today. Contract: docs/conventions/pr-pipeline/README.md, Funding.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "org", "roles"],
+  "properties": {
+    "version": { "const": 1 },
+    "org": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The GitHub organization whose secrets the roles name."
+    },
+    "roles": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/role" }
+    }
+  },
+  "$defs": {
+    "secret": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+    "role": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "secretPrefix", "tokenSecret", "keySecret", "keyed", "category", "lanes"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+        "secretPrefix": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*$",
+          "description": "The role id in upper snake case."
+        },
+        "tokenSecret": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*_CLAUDE_CODE_OAUTH_TOKEN$",
+          "description": "secretPrefix + _CLAUDE_CODE_OAUTH_TOKEN: the subscription token the role's lanes are to read."
+        },
+        "keySecret": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]*_CLAUDE_API_KEY$",
+          "description": "secretPrefix + _CLAUDE_API_KEY: the API key the role's lanes are to read when keyed."
+        },
+        "keyed": {
+          "type": "boolean",
+          "description": "Whether the role holds an API key. True only when one of its lanes runs on run-claude-cli."
+        },
+        "category": { "enum": ["review", "issue", "intake", "pr-pipeline", "maintenance"] },
+        "lanes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/lane" }
+        }
+      }
+    },
+    "lane": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "workflow", "launcher", "currentSecrets"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$",
+          "description": "The job id in the workflow."
+        },
+        "workflow": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*\\.ya?ml$",
+          "description": "The file name under .github/workflows/."
+        },
+        "launcher": {
+          "enum": ["run-claude-cli", "claude-code-action", "claude-cli"],
+          "description": "What runs Claude for the job: ci-workflows' run-claude-cli action, anthropics/claude-code-action, or the claude CLI called from a run step. Only run-claude-cli takes an API key."
+        },
+        "currentSecrets": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/secret" },
+          "description": "The Claude secrets the job reads today, until its wiring moves to the role's tokenSecret and keySecret."
+        }
+      }
+    }
+  }
+}
