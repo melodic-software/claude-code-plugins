@@ -1,5 +1,29 @@
 # Changelog for the PR pipeline convention
 
+## [3.11.0] - 2026-10-23
+
+### Added
+
+- Intake admits clear issues with no person in the loop (owner decision Q51): after apply-verdict sets `status: ready`, `.github/scripts/intake-triage/admit.mjs` adds `agent-ready` as the lanes App when the issue meets the rules in `.github/actions/resolve-config/admission-rules.json` (type Bug or Task, or Feature under an open parent a listed human filed; class read-only, mechanical or scoped; Size Small or Medium; Uncertainty Known; a `- [ ]` task list; no open blocker (a blocking issue counts as done only when a listed human or a merge closed it), open pull request or refusing label; a listed author) and the issue lane's caps have room. Over a cap, or while an open pull request in the repository names the issue, it adds `admission-deferred`, which work-unblock's sweep admits once there is room and no such pull request is open; a refusal swaps `status: ready` for `status: needs-decision` and says why in one App comment ([#9214](https://github.com/melodic-software/claude-code-plugins/issues/9214)).
+
+### Changed
+
+- Lane patches reach review outside workflows and settings. Every [`patch-rules.json`](https://github.com/melodic-software/claude-code-plugins/blob/main/.github/actions/resolve-config/patch-rules.json) row now refuses `github-workflows` (`.github/workflows/**`, which the lane token cannot push), `codeowners` (a `CODEOWNERS` file at the root, in `.github/` or in `docs/`), `gitmodules`, `settings`, `symlink`, `gitlink` and `rename-into-refused`, plus `backslash` on every row. The rest of `.github/`, `.claude/`, the root `.mcp.json`, agent instruction files, plugin hooks, monitors and bin, and an executable bit the patch sets now reach the branch and its review.
+- `address-feedback` hands a pull request to a person as `feedback-protected-path` only when it changes `.github/workflows/**`, and a kept thread's scope may now hold a path elsewhere under `.github/`. `pr-merge` clears that reason once the pull request changes nothing under `.github/workflows/`.
+- `resolve-conflicts` escalates `protected-path-conflict` only for a conflicted workflow, `.gitmodules` or `settings*.json`; a conflicted `CLAUDE.md`, `.claude/` or `.mcp.json` goes to the model, and `post.sh` keeps the resolution it staged. It escalates `unexpected-path-staged` only for a symlink, gitlink, backslash path, `.gitmodules`, settings file or `CODEOWNERS` change outside the conflicts; any other change the model stages is committed and reaches review.
+
+- A pr-verify `fail` goes to an `address-feedback` round instead of a person. `pr-feedback-dispatch.yml` also runs when `pr-verify` completes: its new `post-verify-notes` job posts a fail verdict's summary and notes on the pull request, still at the judged head, as file-level review comments by `github-actions[bot]` whose first line is `<!-- pr-verify:fail-note -->` (`.github/scripts/pr-unblock/verify-notes.mjs`), posting only the comments the head does not hold yet, by file, so a retry after a partial post finishes it. An adopted pull request the lanes App did not open gets the notes but no round, so its author sees why the pr-merge lane refuses it. The dispatch job then decides as for a review run, with the newest completed review run at that head as its recorded upstream, so the gate and the broker check the same run as before. Only `pr-unblock / address-feedback` check runs started after the `pr-verify` run was created hold it, so a round an earlier review started at the same head does not swallow the notes.
+- `address-feedback` keeps such a thread as the `verifier`'s finding, beside the reviewer bot's, when its review is `github-actions[bot]`'s on a marker-confirmed head. The round cap, the scope rule and the reply job are unchanged.
+- The verifier prompt passes work the spec does not ask for with a note (`pass-notes`). It fails only a spec not delivered, a correctness or safety problem, a change of intent, or a change to a hold the owner keeps, and asks each note to start with its file path so the note lands on that file.
+
+- `wip.pause-from` is set (2026-10-22), so over the WIP or held cap the issue lane pauses its runs, and over the queued cap admissions pause, instead of only alerting.
+- Intake holds an issue on security only for a very-high risk, the security review's CRITICAL tier: the triage prompt sets the `security` flag only when the work would expose a credential, bypass a trust boundary or open an external attack surface, and apply-verdict no longer keeps an issue from `status: ready` for the `area: security` label alone.
+- work-unblock admits nothing, newly unblocked or deferred, while the issue lane is paused over its WIP or held cap, so its sweep no longer undoes intake's deferral during a pause.
+
+### Removed
+
+- The `github`, `claude`, `mcp-config`, `new-executable` and `instruction-path` refusals, and the rule that a `script-exec-bit` row must refuse `instruction-path`.
+
 ## [3.10.0] - 2026-10-23
 
 ### Added
