@@ -27,15 +27,43 @@ fix: never claim the report surfaces an enable-state mismatch, and never hand-pa
 files directly to work around the gap. The fix for this blind spot is extending `fleet-state.sh` to
 expose the raw per-scope maps, not something this skill's prompt layer can paper over. The one
 sanctioned settings read is the committed-enable check in Step 2: a read-only look at one
-`enabledPlugins` key in a tracked project settings file, which detects no mismatch. It is removed
-when #7458 moves project pin updates into `sync`.
+`enabledPlugins` key in a tracked project settings file, which detects no mismatch. `converge-plan.sh`
+makes that read, so the model never does. It is removed when #7458 moves project pin updates into
+`sync`.
 
 ## Step 1: Detect
 
-Call `fleet-state.sh` (default marketplace, named one, or the current invocation's target) and take
-`divergences[]` filtered to `versionsMatch: false`.
+Run the planning script for the default marketplace, the named one, or the current invocation's
+target. It calls `fleet-state.sh`, takes `divergences[]` filtered to `versionsMatch: false`, and
+applies Step 2's rules to every lagging pin:
+
+```bash
+"<skill-dir>/scripts/converge-plan.sh" [--marketplace <name>]
+```
+
+It prints one JSON object: `counts`, and `groups[]` of `{projectPath, rows[]}` sorted by path. A
+group whose `projectPath` is `null` holds the user-scope rows, which take no `cd`. Each row carries
+`id`, `scope`, `version`, `highest`, `class`, `strategy`, `command`, `default`, `warning` and `why`.
+The script is read-only and never runs a `claude plugin` command. Its `class` field is Step 2's
+verdict, so report it as printed and never re-derive it:
+
+| `class` | Meaning | `command` |
+|---|---|---|
+| `actionable` | The strategy can run | The exact command |
+| `worktree` | Linked worktree: update is not offered | The uninstall command, or `null` when no uninstall would bring the row current |
+| `blocked-absent` | `projectPath` is not present on this machine | `null` |
+| `blocked-home` | `projectPath` is a user home directory | `null` |
+| `blocked-catalog` | The catalog reads below the highest installed version | `null` |
+
+`blocked-*` rows are reported and never offered (Step 2 holds each one's reason). A `worktree` row
+is reported with the pointer to `/source-control:worktree cleanup`: removing the worktree reaps its
+records, which converging its pins does not. The invocation forms and exit codes are in
+[script-contracts.md](script-contracts.md).
 
 ## Step 2: Preview per-plugin intent
+
+Step 2 is the rule record behind `converge-plan.sh`: the script computes the strategy, the command and
+the class for every row, and this step says why. Read it to explain a row, never to recompute one.
 
 For each actionable divergence, first find which of its `scopes[]` holds the **highest version**
 (compare `scopes[].version` with a semver dotted-numeric compare, not string/lexicographic). Never choose
@@ -66,10 +94,11 @@ the removal deletes an enable every clone and worktree reads. `update -s project
 that file (the update exemption in the same file). For each `project`-scope row, in the row's own
 `scopes[].projectPath` (the precondition below applies first):
 
-1. Read `<projectPath>/.claude/settings.json` with the Read tool, never `jq` or a shell capture,
-   and look for an `enabledPlugins` entry for the id. This is the sanctioned exception to the
-   no-hand-parse rule: read-only, one key, tracked project settings file only. Write nothing, and
-   read no other settings file this way.
+1. Look in `<projectPath>/.claude/settings.json` for an `enabledPlugins` entry for the id.
+   `converge-plan.sh` does this for each present path, by reading that file's `enabledPlugins` keys
+   once. This is the sanctioned exception to the no-hand-parse rule: read-only, keys of one tracked
+   project settings file only. It writes nothing and reads no other settings file; the model never
+   makes this read itself.
 2. Run `git -C "<projectPath>" ls-files --error-unmatch .claude/settings.json`. Exit `0` means
    the file is tracked.
 
@@ -197,19 +226,35 @@ and hand-editing `installed_plugins.json` is outside this skill's boundary. Do n
 row either. The path may simply be an unmounted volume or an offline share, and a dropped row is
 drift the user never learns about. Report it and move on.
 
-Present every plugin's proposed strategy and exact CLI command(s) before running anything, and do
-not batch-apply. Confirm **every** pin individually, even when many plugins share the same strategy;
-consent to one pin is not consent to the next.
+Present every row's proposed strategy and exact CLI command before running anything. Confirm
+**every** pin individually, even when many plugins share the same strategy; consent to one pin is
+not consent to the next. Step 3 batches that confirmation by path, never across paths.
 
-## Step 3: Confirm
+## Step 3: Confirm, one batch per path
 
-Use `AskUserQuestion` per plugin (or a clearly-enumerated batch the user can approve/override/skip
-per row, never a single blanket "yes to all"). Options per plugin: apply the proposed strategy,
-choose the other strategy, or skip this one.
+Walk `groups[]` in order, one group at a time, and skip nothing silently. A real fleet runs to
+hundreds of pins, so first show the `counts` and the number of paths, then confirm path by path.
+
+For each group with at least one row whose `command` is not `null`, present one enumerated batch
+headed by its `projectPath`: one line per row with the id, `version` → `highest`, `strategy`, the
+exact `command`, and the `why`. A row with a `warning` shows it, and a row whose `default` is `false`
+is never marked as the proposed choice. Then ask with `AskUserQuestion`, one question per runnable
+row in that path's batch, each with its own distinct text (answers are keyed by it): **approve**
+(apply the proposed strategy), **choose the other strategy** (only where the row offers one, with
+its warning), or **skip**. The tool takes at most 4 questions per call, so a path with more than 4
+runnable rows takes successive calls, all inside that path's batch.
+
+A group with no runnable row (every row is `blocked-*`, or a `worktree` row with `command: null`) is
+reported in one line per class, with no question.
+
+Never offer a single approval that covers several paths, a "yes to all", or an "approve the rest"
+option, whatever the count. Consent to one path is not consent to the next, and a skipped or
+unanswered row is skipped. When the user wants to stop, stop: the rows not yet reached stay
+unconfirmed, and the report names how many.
 
 ## Step 4: Execute
 
-Run only the confirmed commands, one plugin at a time. Re-read `fleet-state.sh` state immediately
+Run only the confirmed commands, one row at a time, in the plan's order. Re-read `fleet-state.sh` state immediately
 before each mutation. Do not act on a snapshot taken during Step 1 if meaningful time has passed or
 another mutation already landed.
 
