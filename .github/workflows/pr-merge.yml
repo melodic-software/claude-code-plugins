@@ -193,15 +193,19 @@ jobs:
           echo "lane-rerun=$rerun" >>"$GITHUB_OUTPUT"
 
       # The same body as dispatch-full-run's step of this name; see there.
-      # WAIT_CAP: 15 minutes, less about 4 for the steps above, 3 for the
-      # re-run step's read-back and 1 for the uploads, leaves 7; 300 s of it.
+      # WAIT_CAP: of the 15 minutes, the whole job took 97-127 s on the last
+      # ten scheduled runs read on 2026-10-23 (the post-merge check 81-111 s
+      # of it). Add 180 s here, the re-run step's read-back sleeps (up to
+      # 170 s) and about 20 s of reads and uploads: about 8.5 minutes, which
+      # leaves 6.5 for slow reads. A timeout after the re-run POST would leave
+      # its attempt 2 unrecorded, so the cap gives way, not the timeout.
       - name: Start the full CI run on main
         id: dispatch
         if: steps.post-merge.outputs.needs-dispatch == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          WAIT_CAP: 300
+          WAIT_CAP: 180
         run: |
           set -euo pipefail
           if [ "$GITHUB_EVENT_NAME" = push ]; then
@@ -215,7 +219,8 @@ jobs:
           for try in 1 2 3; do
             code=0
             out=$(gh api -i -X POST "repos/$REPO/actions/workflows/pr-require-checks.yml/dispatches" \
-              -f ref=main -F return_run_details=true) || code=$?
+              -f ref=main -F return_run_details=true 2>"$RUNNER_TEMP/dispatch-stderr") || code=$?
+            cat "$RUNNER_TEMP/dispatch-stderr" >&2
             hdr=$(sed '/^\r\?$/q' <<<"$out")
             body=$(sed '1,/^\r\?$/d' <<<"$out")
             status=$(awk 'NR == 1 { print $2 }' <<<"$hdr")
@@ -241,8 +246,13 @@ jobs:
                 wait=60
               fi
             elif [ -z "$status" ]; then
-              why="no response (gh exit $code)"
-              wait=$((RANDOM % (10 * 2 ** (try - 1)) + 1))
+              error=$(tail -n 1 "$RUNNER_TEMP/dispatch-stderr")
+              if grep -qE 'dial tcp|tls: (handshake|first record)' "$RUNNER_TEMP/dispatch-stderr"; then
+                why="the connection failed before the request was sent (gh exit $code: $error)"
+                wait=$((RANDOM % (10 * 2 ** (try - 1)) + 1))
+              else
+                why="no response (gh exit $code: ${error:-no error text}), and the request may have been sent; not sent again"
+              fi
             else
               why="HTTP $status, not sent again"
             fi
@@ -1231,9 +1241,13 @@ jobs:
       # At most three POSTs. A rate-limited 403 or 429 waits as GitHub
       # documents: retry-after seconds, else until one second past
       # x-ratelimit-reset while remaining is 0, else 60 s (a secondary
-      # limit); no response at all waits a full-jitter backoff (up to 10 s,
-      # then 20 s). Any other answer, a 5xx included, is not sent again: the
-      # run may exist, and a second run would have no record. The waits sum to
+      # limit). No response is sent again, after a full-jitter backoff (up to
+      # 10 s, then 20 s), only when gh's error shows the connection failed
+      # before the request went out: a `dial tcp` error (a DNS lookup, a
+      # refused or unreachable connection, a connect timeout) or a failed TLS
+      # handshake. Any other answer, a 5xx, a timeout or a reset on an open
+      # connection included, is not sent again: the run may exist, and a
+      # second run would have no record. The waits sum to
       # at most WAIT_CAP seconds; one that does not fit is not taken. A
       # dispatch that still fails sets no run id and ends green with a
       # warning: nothing is recorded or waited on, and the next push, or the
@@ -1260,7 +1274,8 @@ jobs:
           for try in 1 2 3; do
             code=0
             out=$(gh api -i -X POST "repos/$REPO/actions/workflows/pr-require-checks.yml/dispatches" \
-              -f ref=main -F return_run_details=true) || code=$?
+              -f ref=main -F return_run_details=true 2>"$RUNNER_TEMP/dispatch-stderr") || code=$?
+            cat "$RUNNER_TEMP/dispatch-stderr" >&2
             hdr=$(sed '/^\r\?$/q' <<<"$out")
             body=$(sed '1,/^\r\?$/d' <<<"$out")
             status=$(awk 'NR == 1 { print $2 }' <<<"$hdr")
@@ -1286,8 +1301,13 @@ jobs:
                 wait=60
               fi
             elif [ -z "$status" ]; then
-              why="no response (gh exit $code)"
-              wait=$((RANDOM % (10 * 2 ** (try - 1)) + 1))
+              error=$(tail -n 1 "$RUNNER_TEMP/dispatch-stderr")
+              if grep -qE 'dial tcp|tls: (handshake|first record)' "$RUNNER_TEMP/dispatch-stderr"; then
+                why="the connection failed before the request was sent (gh exit $code: $error)"
+                wait=$((RANDOM % (10 * 2 ** (try - 1)) + 1))
+              else
+                why="no response (gh exit $code: ${error:-no error text}), and the request may have been sent; not sent again"
+              fi
             else
               why="HTTP $status, not sent again"
             fi
