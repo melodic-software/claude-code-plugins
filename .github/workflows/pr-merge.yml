@@ -1461,6 +1461,11 @@ jobs:
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
           BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
           BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
+          # Name the two tokens' rate-limit readings for the reader's gh calls
+          # (api-budget.bash): the lane token by default, the job token for
+          # the Actions reads that carry it.
+          API_BUDGET_TOKEN: lanes-app
+          API_BUDGET_OVERRIDE_TOKEN: github-token
         run: |
           set -euo pipefail
           config=.base/docs/conventions/pr-pipeline.yaml
@@ -1468,6 +1473,15 @@ jobs:
           LANES_BOT_LOGIN=$(yq '.merge."agent-identity" // ""' "$config")
           export REPORT_ONLY LANES_BOT_LOGIN
           node .base/.github/scripts/pr-merge/enable-auto-merge.mjs
+
+      - name: Log the API budget at job end
+        id: budget-end
+        if: always() && steps.lane-token.outputs.token != ''
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: lanes-app github-token
 
       - name: Revoke the lane token
         if: always() && steps.lane-token.outputs.token != ''

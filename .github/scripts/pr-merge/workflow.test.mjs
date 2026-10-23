@@ -171,6 +171,22 @@ test("the last verifier read enable-auto-merge starts ends inside its step's tim
   assert.ok(VERIFY_BUDGET_MS + VERIFY_TIMEOUT_MS < Number(step[1]) * 60_000);
 });
 
+test("enable-auto-merge logs both tokens' readings at job end, before the token is revoked", () => {
+  const arm = job("enable-auto-merge");
+  const block = /- name: Log the API budget at job end\n([\s\S]*?)(?=\n {6}- name: |$)/.exec(arm)?.[1];
+  assert.ok(block, "a job-end budget step");
+  assert.match(block, /\n {8}uses: \.\/\.base\/\.github\/actions\/log-api-budget /);
+  assert.match(block, /^ {8}id: budget-end\n {8}if: always\(\) && steps\.lane-token\.outputs\.token != ''\n/);
+  assert.match(block, /\n {8}continue-on-error: true\n {8}timeout-minutes: 1\n/);
+  assert.match(block, /\n {10}tokens: lanes-app github-token\n/);
+  // The reader's gh calls read into both names.
+  const step = /- name: Arm and disarm auto-merge\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)[1];
+  assert.match(step, /\n {10}API_BUDGET_TOKEN: lanes-app\n {10}API_BUDGET_OVERRIDE_TOKEN: github-token\n/);
+  const names = [...arm.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
+  assert.ok(names.indexOf("Arm and disarm auto-merge") < names.indexOf("Log the API budget at job end"));
+  assert.ok(names.indexOf("Log the API budget at job end") < names.indexOf("Revoke the lane token"));
+});
+
 test("enable-auto-merge asks the broker for its own activity's merge token", () => {
   const arm = job("enable-auto-merge");
   const steps = [...arm.matchAll(/\n {10}lane: (.*)\n {10}activity: (.*)\n/g)].map((m) => `${m[1]}/${m[2]}`);
