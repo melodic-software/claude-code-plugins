@@ -107,8 +107,8 @@ const UNRUNNABLE = [
       // an expiry or retention period passes.
       window: new RegExp(
         [
-          String.raw`\b(?:for|over|across|during) the (?:next|following|coming) (?:${N} )?${UNIT}`,
-          String.raw`\b(?:measure|observe|monitor|watch|track)\b[^,;:]{0,60}\b(?:for|over|across|during) (?:a |an |one |${N} )?${UNIT}`,
+          String.raw`\b(?:for|over|across|during) the (?:next|following|coming) (?:${N} )?${UNIT}\b`,
+          String.raw`\b(?:measure|observe|monitor|watch|track)\b[^,;:]{0,60}\b(?:for|over|across|during) (?:a |an |one |${N} )?${UNIT}\b`,
           String.raw`\b(?:measure|observe|monitor|watch|track|confirm|verify|check)\b[^,;:]{0,60}\bafter (?:a |an |one |${N} )?${UNIT} (?:of (?:use|running|runs|operation|traffic)|that)\b`,
         ].join("|"),
         "i",
