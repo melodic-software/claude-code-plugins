@@ -2,13 +2,15 @@
 
 The method rule comes from `gh api --help`: GET by default, POST once a
 parameter or `--input` is given, `-X/--method` overriding both. The route
-template replaces every value segment with `{}` so the log carries no
+template keeps only known route words and replaces every other segment with
+`{}`, so the log carries no
 identifier or branch name.
 """
 
 from __future__ import annotations
 
 import json
+import re
 import pathlib
 import subprocess
 import sys
@@ -82,6 +84,32 @@ class GhCallKindTests(unittest.TestCase):
             "default GET repos/{}/{}/pulls",
         )
 
+    def test_a_branch_after_heads_or_commits_is_templated_whatever_it_spells(
+        self,
+    ) -> None:
+        self.assertEqual(
+            self.kind("api", "repos/acme/widgets/git/ref/heads/secretfeature"),
+            "default GET repos/{}/{}/git/ref/heads/{}",
+        )
+        self.assertEqual(
+            self.kind("api", "repos/acme/widgets/git/ref/heads/release/hotfix-login"),
+            "default GET repos/{}/{}/git/ref/heads/{}",
+        )
+        self.assertEqual(
+            self.kind("api", "repos/acme/widgets/commits/secret-feature"),
+            "default GET repos/{}/{}/commits/{}",
+        )
+        self.assertEqual(
+            self.kind("api", "repos/acme/widgets/commits/status/status"),
+            "default GET repos/{}/{}/commits/{}/status",
+        )
+
+    def test_a_segment_outside_the_route_words_is_templated(self) -> None:
+        self.assertEqual(
+            self.kind("api", "repos/acme/widgets/issues/7/labels/needs-review"),
+            "default GET repos/{}/{}/issues/{}/labels/{}",
+        )
+
     def test_a_field_makes_it_post_and_an_explicit_method_wins(self) -> None:
         self.assertEqual(
             self.kind("api", "repos/acme/widgets/issues/7/labels", "-f", "labels[]=x"),
@@ -92,8 +120,10 @@ class GhCallKindTests(unittest.TestCase):
             "default PUT repos/{}/{}/pulls/{}/update-branch",
         )
         self.assertEqual(
-            self.kind("api", "--method=get", "search/issues", "-f", "q=is:pr"),
-            "default GET search/issues",
+            self.kind(
+                "api", "--method=get", "repos/acme/widgets/issues", "-f", "state=open"
+            ),
+            "default GET repos/{}/{}/issues",
         )
 
     def test_graphql_and_other_subcommands_have_their_own_kinds(self) -> None:
@@ -113,6 +143,36 @@ class GhCallKindTests(unittest.TestCase):
         self.assertEqual(
             self.kind("api", "user", env={"LC_ALL": "C"}), "default GET user"
         )
+
+
+class ScriptRoutesTests(unittest.TestCase):
+    """Every REST route literal the scripts build, with each `{...}` value
+    filled by a word-shaped sentinel, logs no sentinel and only route words."""
+
+    SENTINEL = "leakvalue"
+    ROUTE_RE = re.compile(r'f?"((?:repos|orgs|users)/[^"?]*)')
+
+    def routes(self) -> list[str]:
+        found = set()
+        for path in SCRIPTS.glob("*.py"):
+            for match in self.ROUTE_RE.finditer(path.read_text(encoding="utf-8")):
+                route = match.group(1)
+                # A single `{repo}` after `repos/` holds owner and name.
+                route = re.sub(r"^repos/\{[^{}]+\}(?=/(?!\{)|$)", "repos/x/x", route)
+                found.add(re.sub(r"\{[^{}]*\}", self.SENTINEL, route))
+        return sorted(found)
+
+    def test_every_built_route_maps_to_route_words_and_values(self) -> None:
+        routes = self.routes()
+        self.assertGreater(len(routes), 50)
+        for route in routes:
+            with self.subTest(route):
+                kind = gh.gh_call_kind(["api", route], None)
+                self.assertNotIn(self.SENTINEL, kind)
+                path = kind.split(" ")[2]
+                self.assertLessEqual(
+                    set(path.split("/")) - {"{}"}, set(gh._ROUTE_WORDS), kind
+                )
 
 
 class GhCallCounterTests(unittest.TestCase):

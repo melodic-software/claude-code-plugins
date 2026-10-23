@@ -83,10 +83,26 @@ _GH_API_VALUE_FLAGS = frozenset(
     | {"--hostname", "--cache"}
 )
 _GH_API_BODY_FLAGS = frozenset({"-f", "--raw-field", "-F", "--field", "--input"})
-_ROUTE_WORD_RE = re.compile(r"^[a-z][a-z_-]*$")
-# The segment after one of these words names an owner or a branch, which can
-# look like a route word (`orgs/melodic-software/repos`), so it is a value.
-_VALUE_AFTER_WORDS = frozenset({"orgs", "users", "branches"})
+# The REST route words the babysit scripts call. Any other segment is logged
+# as `{}`, so a value that happens to look like a word (a branch, an owner, a
+# label) never reaches the log; a new route word reads as `{}` until it is
+# added here.
+_ROUTE_WORDS = frozenset(
+    {"actions", "activity", "annotations", "app", "artifacts", "attempts"}
+    | {"branches", "check-runs", "collaborators", "comments", "commits"}
+    | {"compare", "contents", "dependabot", "dispatches", "files", "git"}
+    | {"heads", "issues", "jobs", "labels", "logs", "merge-async"}
+    | {"organization-variables", "orgs", "permission", "pulls", "reactions"}
+    | {"ref", "repos", "rerun", "rerun-failed-jobs", "reviews", "rules", "runs"}
+    | {"stacks", "status", "timeline", "trees", "update-branch", "user"}
+    | {"users", "variables", "workflows"}
+)
+# Everything after one of these is a single value that may hold slashes (a
+# branch, a file path), so the rest of the route is one `{}`.
+_REST_IS_VALUE_WORDS = frozenset({"contents", "heads"})
+# The segment after one of these is always a value (an owner, a branch, a
+# commit-ish, a range), even when it spells a route word.
+_VALUE_AFTER_WORDS = frozenset({"orgs", "users", "branches", "commits", "compare"})
 _gh_call_counts: dict[str, int] = {}
 
 
@@ -96,10 +112,10 @@ def gh_call_kind(args: list[str], env_overrides: Mapping[str, str] | None) -> st
     The token is `override` when the call carries its own `GH_TOKEN`, else
     `default`. An `api` call is `graphql` or its HTTP method and route template:
     `gh api` sends GET, or POST once a body flag is given, unless `-X` names one.
-    Owner (after `repos/`, `orgs/` or `users/`), repository, a branch, a
-    contents path, and every segment that is not
-    a lowercase route word become `{}`, and the query string is dropped, so no
-    identifier, branch name,
+    Every segment that is not one of `_ROUTE_WORDS`, the owner and repository
+    after `repos/`, the segment after a `_VALUE_AFTER_WORDS` word, and
+    everything after `contents` or `heads` become `{}`, and
+    the query string is dropped, so no identifier, branch name, path,
     or other value reaches the log. `+paginate` marks a key whose invocations
     each make one HTTP request per page. Any other subcommand is `gh <sub> <verb>`.
     """
@@ -127,13 +143,11 @@ def gh_call_kind(args: list[str], env_overrides: Mapping[str, str] | None) -> st
     segments = (endpoint or "").split("?", 1)[0].strip("/").split("/")
     route: list[str] = []
     for index, segment in enumerate(segments):
-        is_value = (
-            (segments[0] == "repos" and index in (1, 2))
-            or not _ROUTE_WORD_RE.match(segment)
-            or (index > 0 and segments[index - 1] in _VALUE_AFTER_WORDS)
+        owned = (segments[0] == "repos" and index in (1, 2)) or (
+            index > 0 and segments[index - 1] in _VALUE_AFTER_WORDS
         )
-        route.append("{}" if is_value else segment)
-        if segment == "contents":
+        route.append(segment if segment in _ROUTE_WORDS and not owned else "{}")
+        if segment in _REST_IS_VALUE_WORDS and not owned:
             route += ["{}"] if index < len(segments) - 1 else []
             break
     method = method or ("POST" if has_body else "GET")
