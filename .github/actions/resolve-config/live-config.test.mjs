@@ -8,7 +8,8 @@ import { test } from "node:test";
 
 import { parse } from "yaml";
 
-import { checkPatchRules, resolve, resolveGrant } from "./resolve.mjs";
+import { checkPatchRules } from "./patch-rules.mjs";
+import { resolve, resolveGrant } from "./resolve.mjs";
 
 const read = (relative) =>
   readFileSync(new URL(relative, import.meta.url), "utf8");

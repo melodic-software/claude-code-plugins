@@ -1,0 +1,9 @@
+{
+  "issue": {
+    "body": "## Problem\n\n`sample-kit clean --help` says `Removes all files.` Clean only removes cached files.\n\n## Fix\n\nChange the help line to `Removes cached files.`\n\n## Done when\n\n- [ ] `clean --help` prints the new line.\n\nOut of scope: any other help line."
+  },
+  "pr": {
+    "title": "docs(sample-kit): correct the clean help text",
+    "body": "Fixes the clean help line to say it removes cached files."
+  }
+}

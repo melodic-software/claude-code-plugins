@@ -1,0 +1,12 @@
+diff --git a/plugins/sample-kit/scripts/help.mjs b/plugins/sample-kit/scripts/help.mjs
+index 2f3a4b5..6c7d8e9 100644
+--- a/plugins/sample-kit/scripts/help.mjs
++++ b/plugins/sample-kit/scripts/help.mjs
+@@ -13,5 +13,5 @@
+ export const HELP = {
+-  status: "Shows whether the last sync succeeded.",
++  status: "Reports whether the last sync worked.",
+   sync: "Pulls remote changes into the local cache.",
+-  clean: "Removes all files.",
++  clean: "Removes cached files.",
+ };

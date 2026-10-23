@@ -33,6 +33,17 @@
 // The gate and the broker re-check the upstream run and the head; this script
 // only decides whether to spend a run.
 //
+// A completed pr-verify run starts the file too, once its post-verify-notes
+// job has posted a fail verdict's notes on the PR (verify-notes.mjs). For
+// that run, which ran on main, main() takes the head the notes name
+// (VERIFY_HEAD_SHA) and decides as above with the newest completed review
+// run at that head as the upstream (reviewRunAt); with none, the review run
+// that completes later dispatches. The dispatched-run record names that review
+// run, so the gate and the broker check one kind of upstream. The notes are
+// new work at a head an earlier round may have handled, so that dispatch
+// counts only check runs started after the pr-verify run was created
+// (notesSince, read back from the API) and skips the head's handled record.
+//
 // Both review lanes, and any re-run, finish on one head, so a run leaves a
 // record for the next run at that head (dispatch-record.mjs, carried in the
 // Actions cache): a head whose check runs handle it for good is skipped before
@@ -105,6 +116,18 @@ export function hasWorkableThread(threads, { reviewerId, appId, trustedHumans, r
   );
 }
 
+export const VERIFY_WORKFLOW = ".github/workflows/pr-verify.yml";
+
+// The newest completed review run at `head` that reviewed something (not
+// skipped or cancelled), or null.
+export async function reviewRunAt({ api, head, settings = DEFAULTS }) {
+  const runs = (await Promise.all(settings.reviewWorkflows.map((path) => api.listCompletedRuns(path, head))))
+    .flat()
+    .filter((run) => run.head_sha === head && run.event === "pull_request" && !["skipped", "cancelled"].includes(run.conclusion));
+  runs.sort((a, b) => Date.parse(b.created_at ?? "") - Date.parse(a.created_at ?? ""));
+  return runs[0] ?? null;
+}
+
 // pr-unblock.yml's run-name, which names the activity and the PR.
 export const runTitle = (activity, number) => `pr-unblock ${activity} #${number}`;
 
@@ -121,6 +144,7 @@ export async function dispatchFeedback({
   humanGatedLabel = "needs-human",
   now = Date.now(),
   record = emptyRecord(),
+  notesSince = null,
 }) {
   const skip = (why) => {
     log(`skip: ${why}`);
@@ -144,7 +168,7 @@ export async function dispatchFeedback({
     return skip(`run ${upstreamRunId} is not a completed same-repository review run`);
   }
   const head = upstream.head_sha;
-  if (isHandled(record, settings.checkName, head)) {
+  if (notesSince === null && isHandled(record, settings.checkName, head)) {
     return skip(`head ${head} already has a ${settings.checkName} check run (recorded)`);
   }
   const title = (number) => runTitle(settings.activity, number);
@@ -228,7 +252,10 @@ export async function dispatchFeedback({
   if (resolved.selected?.applies !== true) {
     return skip(`#${number}: ${settings.activity} does not apply (${resolved.selected?.["skip-reason"] ?? "unknown"})`);
   }
-  const existing = await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId });
+  const existing = (await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId })).filter(
+    // NaN compares false, so a run with no readable start still counts.
+    (run) => notesSince === null || !(Date.parse(run.started_at ?? "") <= notesSince),
+  );
   if (permanentlyHandles(existing)) {
     markHandled(record, settings.checkName, head);
   }
@@ -364,6 +391,11 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
       return (await request(`${repo}/actions/workflows/${workflow}/runs?event=workflow_dispatch&per_page=100`)).workflow_runs ?? [];
     },
     getWorkflowRun: (id) => request(`${repo}/actions/runs/${encodeURIComponent(id)}`),
+    // The newest completed pull_request runs of a workflow file at a head.
+    async listCompletedRuns(path, head) {
+      const query = new URLSearchParams({ head_sha: head, event: "pull_request", status: "completed", per_page: "10" });
+      return (await request(`${repo}/actions/workflows/${path.split("/").at(-1)}/runs?${query}`)).workflow_runs ?? [];
+    },
     async dispatchWorkflow({ workflow, ref, inputs }) {
       const result = await request(`${repo}/actions/workflows/${workflow}/dispatches`, "POST", {
         ref,
@@ -419,20 +451,39 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
   }
   const budget = api ? null : budgetedFetch({ log });
   const { record, text } = readRecord(env.DISPATCH_RECORD);
+  const client =
+    api ??
+    createGitHubApi({
+      token: env.GITHUB_TOKEN,
+      repository: env.GITHUB_REPOSITORY,
+      apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
+      graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+      fetch: budget.fetch,
+    });
+  let upstream = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8")).workflow_run;
+  let notesSince = null;
+  if (upstream?.path === VERIFY_WORKFLOW) {
+    const head = env.VERIFY_HEAD_SHA ?? "";
+    if (!SHA.test(head)) {
+      throw new Error("a pr-verify run names no posted head in VERIFY_HEAD_SHA");
+    }
+    notesSince = Date.parse((await client.getWorkflowRun(upstream.id)).created_at ?? "");
+    if (Number.isNaN(notesSince)) {
+      throw new Error(`pr-verify run ${upstream.id} has no readable creation time`);
+    }
+    upstream = await reviewRunAt({ api: client, head });
+    if (upstream === null) {
+      log(`skip: head ${head} has no completed review run yet; the review run dispatches when it completes`);
+      return 0;
+    }
+  }
   const dispatched = await dispatchFeedback({
-    api:
-      api ??
-      createGitHubApi({
-        token: env.GITHUB_TOKEN,
-        repository: env.GITHUB_REPOSITORY,
-        apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
-        graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
-        fetch: budget.fetch,
-      }),
+    api: client,
     record,
     repository: env.GITHUB_REPOSITORY,
     runId: env.GITHUB_RUN_ID,
-    upstream: JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8")).workflow_run,
+    upstream,
+    notesSince,
     appSenderId: Number(env.APP_SENDER_ID),
     // The base checkout's list, the one resolve-config reads beside it.
     trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`),
@@ -445,7 +496,7 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
     }
   });
   if (dispatched !== null) {
-    appendFileSync(env.GITHUB_OUTPUT, `run-id=${dispatched.workflowRunId}\n`);
+    appendFileSync(env.GITHUB_OUTPUT, `run-id=${dispatched.workflowRunId}\nupstream-run-id=${upstream.id}\n`);
   }
   if (writeRecord(env.DISPATCH_RECORD, record, text)) {
     appendFileSync(env.GITHUB_OUTPUT, "record-changed=true\n");
