@@ -58,19 +58,21 @@ export function trustedRun(run) {
   );
 }
 
-function ghDownload({ repo, token, dir }) {
+// `gh run download` of the artifact `name`'s file `file` from a run.
+export function ghDownload({ repo, token, dir, name = CURSOR_ARTIFACT, file = "cursor.json" }) {
   return (runId) => {
-    const target = mkdtempSync(join(dir, "gate-cursor-"));
-    execFileSync("gh", ["run", "download", String(runId), "-R", repo, "-n", CURSOR_ARTIFACT, "-D", target], {
+    const target = mkdtempSync(join(dir, `${name}-`));
+    execFileSync("gh", ["run", "download", String(runId), "-R", repo, "-n", name, "-D", target], {
       env: { ...process.env, GH_TOKEN: token },
       stdio: ["ignore", "ignore", "inherit"],
     });
-    return readFileSync(join(target, "cursor.json"), "utf8");
+    return readFileSync(join(target, file), "utf8");
   };
 }
 
-// The newest trusted cursor, {last, deferred}, or undefined when there is none.
-export async function readCursor({ repo, runId, actions, download }) {
+// The id of the newest trusted run, this one aside, holding an unexpired
+// artifact named `name`, or undefined when there is none.
+export async function newestTrustedRun({ repo, runId, actions, name }) {
   let asked = 0;
   for (let page = 1; page <= MAX_PAGES; page += 1) {
     const listing = await actions(
@@ -89,22 +91,30 @@ export async function readCursor({ repo, runId, actions, download }) {
         return undefined;
       }
       asked += 1;
-      const found = await actions("GET", `/repos/${repo}/actions/runs/${run.id}/artifacts?name=${CURSOR_ARTIFACT}`);
-      if (!Array.isArray(found?.artifacts) || !found.artifacts.some((a) => a?.expired === false)) {
-        continue;
+      const found = await actions("GET", `/repos/${repo}/actions/runs/${run.id}/artifacts?name=${name}`);
+      if (Array.isArray(found?.artifacts) && found.artifacts.some((a) => a?.expired === false)) {
+        return run.id;
       }
-      const cursor = JSON.parse(download(run.id));
-      const pr = (value) => Number.isInteger(value) && value >= 1;
-      if (!pr(cursor?.last) || (cursor.deferred !== undefined && !pr(cursor.deferred))) {
-        throw new Error(`the cursor of run ${run.id} is not a PR number`);
-      }
-      return { last: cursor.last, deferred: cursor.deferred };
     }
     if (listing.workflow_runs.length < 100) {
       return undefined;
     }
   }
   return undefined;
+}
+
+// The newest trusted cursor, {last, deferred}, or undefined when there is none.
+export async function readCursor({ repo, runId, actions, download }) {
+  const id = await newestTrustedRun({ repo, runId, actions, name: CURSOR_ARTIFACT });
+  if (id === undefined) {
+    return undefined;
+  }
+  const cursor = JSON.parse(download(id));
+  const pr = (value) => Number.isInteger(value) && value >= 1;
+  if (!pr(cursor?.last) || (cursor.deferred !== undefined && !pr(cursor.deferred))) {
+    throw new Error(`the cursor of run ${id} is not a PR number`);
+  }
+  return { last: cursor.last, deferred: cursor.deferred };
 }
 
 export async function main({ env = process.env, actions, download } = {}) {

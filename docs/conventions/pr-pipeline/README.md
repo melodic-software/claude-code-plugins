@@ -1273,8 +1273,8 @@ head:
   every pull request for that issue refuse `verify:unreadable`: a hold, not a way past the cap;
 - a counted `fail` at the head, under any pull request number, refuses (`verify:fail`);
 - a counted `fail` at another head of the pull request (its number, one of its commits, or a
-  verdict recording its head branch, read from the name's digest, or from the verdict JSON for a
-  name without one) refuses (`verify:earlier-fail`). The name is trusted only from a run of
+  verdict recording its head branch, read from the name's digest, or for a name without one from
+  the head-ref map below, else the verdict JSON) refuses (`verify:earlier-fail`). The name is trusted only from a run of
   verifier origin, as the JSON is, and equal branches always give equal digests, so a collision
   can only tie a `fail`, never untie one. A digest-named `fail` is decided by its name even when
   its JSON cannot be read, where a name without the digest refuses `verify:unreadable` then. Counted `pass` or
@@ -1384,7 +1384,15 @@ counts whether its run is still running or finished, and a re-run keeps every fi
 whether the run is pr-verify's, so a stale record never turns a FAIL away. A PASS's run record is
 read by each gate process, because a re-run can undo a completed success. An untied FAIL whose
 name carries no head-ref digest has its recorded head ref shared for the run under the artifact's id, since the contents an id names
-never change (an overwrite uploads a new id). On the `--unattended` path only, the default branch
+never change (an overwrite uploads a new id). Those head refs, by artifact id, also carry to the
+next run as the `pr-merge-head-refs` artifact (`.github/scripts/pr-merge/head-ref-map.mjs`): each
+scheduled or hand-started run uploads the map it read plus its own downloads, kept while the
+artifact listing still lists the id, and the next run reads it from the newest such run, found the
+way the gate cursor is. Only a run's own steps can upload its artifacts, so the map was written by
+the default branch's `pr-merge.yml`; it never passes through `actions/cache`. An id the map holds
+ties or unties its FAIL as its downloaded record would, with no download; any other id is
+downloaded, and a missing, expired or malformed map leaves every one to download. The map holds
+no verdict. On the `--unattended` path only, the default branch
 and the base's rules are reused for two minutes, and a failed read is never shared; before an
 enqueue, a default branch or rules a gate took from the file are read again for the branch read,
 and any change holds. An attended gate run reads both fresh. Without the variable nothing is shared.

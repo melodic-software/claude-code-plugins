@@ -1942,6 +1942,32 @@ CARRY = (
 )
 
 
+def restore(directory: pathlib.Path, sections: dict[str, Any]) -> None:
+    """Carry `sections`, as the cache restored them, into the run cache
+    `directory`/run.json, as pr-merge.yml does before the gate."""
+    at = datetime.now(UTC).isoformat()
+    restored = directory / "restored.json"
+    restored.write_text(
+        json.dumps(
+            {
+                s: {k: {"at": at, "value": v} for k, v in e.items()}
+                for s, e in sections.items()
+            }
+        )
+    )
+    subprocess.run(
+        ["node", str(CARRY)],
+        env={
+            "PATH": os.environ["PATH"],
+            "CARRY_FROM": str(restored),
+            "CARRY_TO": str(directory / "run.json"),
+            "GITHUB_REPOSITORY": REPO,
+        },
+        check=True,
+        capture_output=True,
+    )
+
+
 class APoisonedCarriedCacheNeverRemovesARefusal(unittest.TestCase):
     """pr-merge restores the newest `pr-merge-run-cache-` entry its ref can
     read, which a job in the default branch's cache scope may have written.
@@ -1960,28 +1986,7 @@ class APoisonedCarriedCacheNeverRemovesARefusal(unittest.TestCase):
         self.addCleanup(patcher.stop)
 
     def restore(self, sections: dict[str, Any]) -> None:
-        """Carry `sections`, as the cache restored them, into the run cache."""
-        at = datetime.now(UTC).isoformat()
-        restored = self.dir / "restored.json"
-        restored.write_text(
-            json.dumps(
-                {
-                    s: {k: {"at": at, "value": v} for k, v in e.items()}
-                    for s, e in sections.items()
-                }
-            )
-        )
-        subprocess.run(
-            ["node", str(CARRY)],
-            env={
-                "PATH": os.environ["PATH"],
-                "CARRY_FROM": str(restored),
-                "CARRY_TO": str(self.dir / "run.json"),
-                "GITHUB_REPOSITORY": REPO,
-            },
-            check=True,
-            capture_output=True,
-        )
+        restore(self.dir, sections)
 
     def test_a_forged_run_head_does_not_turn_a_fail_away(self) -> None:
         fake = passing(artifact(named(HEAD, "fail"), 2), runs={2: run(2)})
@@ -3318,6 +3323,272 @@ class AnUntiedFailIsTiedByItsNamedHeadRef(unittest.TestCase):
                     [artifact(named(TIE, "fail", 97) + suffix, 4)], {4: run(4)}
                 )
                 self.assertEqual(read(fake).refusal, "verify:missing")
+
+
+# --- The head-ref map an earlier pr-merge run kept ------------------------------
+
+HEAD_REF_MAP = (
+    pathlib.Path(__file__).resolve().parents[6]
+    / ".github/scripts/pr-merge/head-ref-map.mjs"
+)
+ZIP_KIND = "override GET repos/{}/{}/actions/artifacts/{}/zip"
+
+
+def head_ref_map(
+    path: pathlib.Path, refs: dict[int, Any], *, repo: str = REPO, version: Any = 1
+) -> str:
+    """Write a head-ref map, in the shape head-ref-map.mjs writes, to `path`."""
+    payload = {
+        "version": version,
+        "repo": repo,
+        "head_refs": {str(k): v for k, v in refs.items()},
+    }
+    path.write_text(json.dumps(payload))
+    return str(path)
+
+
+def keep_head_refs(directory: pathlib.Path, previous: str | None) -> dict[str, Any]:
+    """Run head-ref-map.mjs `write` as pr-merge.yml does after the gate, and
+    return the map it wrote."""
+    out = directory / "out.json"
+    env = {
+        "PATH": os.environ["PATH"],
+        "GITHUB_REPOSITORY": REPO,
+        "BABYSIT_RUN_CACHE": os.environ["BABYSIT_RUN_CACHE"],
+        "BABYSIT_VERIFY_LISTING": os.environ["BABYSIT_VERIFY_LISTING"],
+        "HEAD_REFS_OUT": str(out),
+    }
+    if previous:
+        env["HEAD_REFS_PATH"] = previous
+    subprocess.run(
+        ["node", str(HEAD_REF_MAP), "write"], env=env, check=True, capture_output=True
+    )
+    return json.loads(out.read_text())
+
+
+class TheHeadRefMapDecidesAsTheDownloads(unittest.TestCase):
+    """An untied FAIL whose id the head-ref map holds is tied or untied from
+    the map with no download; any id it lacks is downloaded. Expected
+    decisions come from the module docstring's rules and are pinned to what
+    the downloads decide on the same artifacts: the multi-head fixture has a
+    pass at the head, an earlier FAIL of this pull request, PR 98's FAIL
+    recording another ref and PR 97's recording `feat/x`."""
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.dir = pathlib.Path(tmp.name)
+
+    def judge(self, tie_created: str, refs_path: str | None) -> tuple[Any, int]:
+        """The report and download requests with the map at `refs_path`, the
+        untied FAILs' records deleted whenever the map should answer for
+        them, so a download the map should have spared reads nothing."""
+        fake = EachVerdictIsOneRequest.heads(tie_created)
+        mapped = ve.load_head_refs(refs_path, REPO)
+        for name, artifact_id in (
+            (named(UNRELATED, "fail", 98), 30),
+            (named(TIE, "fail", 97), 40),
+        ):
+            if artifact_id in mapped:
+                del fake.records[name]
+        env = {ve.HEAD_REFS_ENV: refs_path} if refs_path else {}
+        with mock.patch.dict("os.environ", env):
+            evidence = read(fake)
+        return evidence.report(), download_requests(fake)
+
+    def cases(self) -> dict[str, tuple[str | None, int]]:
+        """Each map, with the download requests it leaves: the pass's record
+        and each untied FAIL the map does not answer for."""
+        both = {30: "feat/other", 40: "feat/x"}
+        return {
+            "the map ties PR 97 and unties PR 98": (
+                head_ref_map(self.dir / "both.json", both),
+                1,
+            ),
+            "an entry for an id no longer listed": (
+                head_ref_map(self.dir / "stale.json", {**both, 990: "feat/x"}),
+                1,
+            ),
+            "the map holds only PR 98": (
+                head_ref_map(self.dir / "one.json", {30: "feat/other"}),
+                2,
+            ),
+            "no map": (str(self.dir / "absent.json"), 3),
+            "not JSON": (self.corrupt("{"), 3),
+            "another version": (head_ref_map(self.dir / "v.json", both, version=2), 3),
+            "another repository": (
+                head_ref_map(self.dir / "r.json", both, repo="example-org/other"),
+                3,
+            ),
+            "an entry that is no string": (
+                head_ref_map(self.dir / "s.json", {30: "feat/other", 40: None}),
+                3,
+            ),
+            "a key that is no artifact id": (
+                head_ref_map(self.dir / "k.json", {**both, "x": "feat/x"}),
+                3,
+            ),
+        }
+
+    def corrupt(self, text: str) -> str:
+        path = self.dir / "corrupt.json"
+        path.write_text(text)
+        return str(path)
+
+    def test_a_later_pass_clears_both_fails_with_or_without_the_map(self) -> None:
+        downloaded, requests = self.judge(OLDER_START, None)
+        self.assertIsNone(downloaded["refusal"])
+        self.assertEqual(downloaded["earlierFails"], sorted([EARLIER, TIE]))
+        self.assertEqual(requests, 3)
+        for label, (path, expected) in self.cases().items():
+            with self.subTest(label):
+                self.assertEqual(self.judge(OLDER_START, path), (downloaded, expected))
+
+    def test_a_tied_fail_after_the_pass_holds_with_or_without_the_map(self) -> None:
+        downloaded, requests = self.judge("2026-10-15T00:00:01Z", None)
+        self.assertEqual(downloaded["refusal"], "verify:earlier-fail")
+        self.assertEqual(requests, 2)
+        for label, (path, expected) in self.cases().items():
+            with self.subTest(label):
+                # The pass decides nothing, so its record is never read.
+                self.assertEqual(
+                    self.judge("2026-10-15T00:00:01Z", path),
+                    (downloaded, expected - 1),
+                )
+
+    def test_a_map_entry_answers_where_the_record_is_unreadable(self) -> None:
+        # The map holds what a successful download read, so the FAIL is
+        # judged as that download would judge it.
+        path = head_ref_map(self.dir / "m.json", {30: "feat/other", 40: "feat/x"})
+        fake = EachVerdictIsOneRequest.heads()
+        fake.records.pop(named(UNRELATED, "fail", 98))
+        self.assertEqual(read(fake).refusal, "verify:unreadable")
+        with mock.patch.dict("os.environ", {ve.HEAD_REFS_ENV: path}):
+            self.assertIsNone(read(fake).refusal)
+
+
+class TheHeadRefMapCarriesOnlyDownloads(unittest.TestCase):
+    """head-ref-map.mjs `write` keeps the map's entries and this run's own
+    downloads for ids still listed. A restored actions/cache entry, which any
+    job in the default branch's cache scope can write, never reaches the map:
+    there an entry could untie a FAIL, which a carried read must never do."""
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.dir = pathlib.Path(tmp.name)
+        patcher = mock.patch.dict(
+            "os.environ",
+            {
+                "BABYSIT_RUN_CACHE": str(self.dir / "run.json"),
+                ve.LISTING_ENV: str(self.dir / "listing.json"),
+            },
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_the_gate_downloads_become_the_next_map(self) -> None:
+        fake = EachVerdictIsOneRequest.heads()
+        old = head_ref_map(self.dir / "old.json", {990: "feat/x", 40: "feat/x"})
+        with mock.patch.dict("os.environ", {ve.HEAD_REFS_ENV: old}):
+            self.assertIsNone(read(fake).refusal)
+        written = keep_head_refs(self.dir, old)
+        # 30 was downloaded, 40 came from the map, 990 is no longer listed.
+        self.assertEqual(
+            written,
+            {
+                "version": 1,
+                "repo": REPO,
+                "head_refs": {"30": "feat/other", "40": "feat/x"},
+            },
+        )
+
+    def test_a_forged_cache_entry_never_reaches_the_map(self) -> None:
+        # PR 98's FAIL (id 30) records feat/other. A forged untie is read
+        # again from the record; a forged tie holds this run, and the map
+        # lacks the id, so the next run downloads it.
+        for forged_ref, kept in (("feat/forged", "feat/other"), ("feat/x", None)):
+            with self.subTest(forged_ref):
+                (self.dir / "run.json").unlink(missing_ok=True)
+                forged = {f"{REPO}|30": {"head_ref": forged_ref}}
+                restore(
+                    self.dir, {"fail-head-ref": forged, "carried-fail-head-ref": forged}
+                )
+                read(EachVerdictIsOneRequest.heads())
+                written = keep_head_refs(self.dir, None)
+                self.assertEqual(written["head_refs"].get("30"), kept)
+                self.assertEqual(written["head_refs"].get("40"), "feat/x")
+
+
+class TheHeadRefMapSparesASweepItsDownloads(unittest.TestCase):
+    """Requests per sweep by the R0 counter (`babysit-gh-calls`): 200 untied
+    old-format FAILs of other pull requests and a pass at the head. With no
+    map each FAIL's record is one by-id download; the next run, with the map
+    this one kept and five FAILs uploaded since, downloads only those five."""
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.dir = pathlib.Path(tmp.name)
+        patcher = mock.patch.dict(
+            "os.environ",
+            {
+                "BABYSIT_RUN_CACHE": str(self.dir / "run.json"),
+                ve.LISTING_ENV: str(self.dir / "listing.json"),
+                # As in pr-merge.yml: the Actions reads carry the job's token.
+                ve.TOKEN_ENV: "job-token",
+            },
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    @staticmethod
+    def add_fails(fake: FakeGitHub, runs: range) -> None:
+        for run_id in runs:
+            sha = f"{run_id:040x}"
+            name = named(sha, "fail", run_id)
+            fake.artifacts.append(artifact(name, run_id))
+            fake.runs[run_id] = run(run_id)
+            fake.records[name] = record(
+                run_id, sha, verdict="fail", head_ref=f"b{run_id}"
+            )
+
+    @staticmethod
+    def sweep(fake: FakeGitHub) -> dict[str, int]:
+        import babysit_gh as gh
+
+        def answer(cmd: list[str], **kwargs: Any) -> Any:
+            return fake(
+                cmd[1:],
+                env_overrides=kwargs.get("env_overrides"),
+                binary=kwargs.get("binary"),
+            )
+
+        gh.reset_gh_call_counts()
+        with mock.patch.object(gh, "run_command", side_effect=answer):
+            evidence = ve.Reader(REPO, "main", now=NOW).evidence(PR, HEAD, pull())
+        assert evidence.refusal is None, evidence
+        return gh.gh_call_counts()
+
+    def test_the_next_sweep_downloads_only_the_new_fails(self) -> None:
+        fake = passing()
+        self.add_fails(fake, range(1000, 1200))
+        before = self.sweep(fake)
+        self.assertEqual(before[ZIP_KIND], 201)
+        kept = self.dir / "kept.json"
+        kept.write_text(json.dumps(keep_head_refs(self.dir, None)))
+        # The next run: a new run cache, five FAILs uploaded since.
+        self.add_fails(fake, range(1200, 1205))
+        with mock.patch.dict(
+            "os.environ",
+            {
+                "BABYSIT_RUN_CACHE": str(self.dir / "next.json"),
+                ve.LISTING_ENV: str(self.dir / "next-listing.json"),
+                ve.HEAD_REFS_ENV: str(kept),
+            },
+        ):
+            after = self.sweep(fake)
+        self.assertEqual(after[ZIP_KIND], 6)
 
 
 if __name__ == "__main__":
