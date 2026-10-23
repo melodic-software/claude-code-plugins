@@ -417,6 +417,14 @@ test("an unjudged head reads its linked issues once", async () => {
   assert.deepEqual(await specReads({}), ["ok", 1]);
 });
 
+test("a pull request closing more issues than a FAIL's name carries is still judged", async () => {
+  // No FAIL is named with eleven issues or an 11-digit one, so none is looked up.
+  for (const numbers of [Array.from({ length: 11 }, (_, i) => i + 1), [10000000000]]) {
+    const issues = numbers.map((number) => ({ ...ISSUE, number }));
+    assert.equal(await reason({ issues }), "ok", JSON.stringify(numbers));
+  }
+});
+
 test("a verdict named with its head-ref digest stops a new judgment like one without", async () => {
   const pulls = [pull(), pull({ number: 99, state: "closed", head: { sha: HEAD, ref: "feat/other", repo: { full_name: REPO } } })];
   for (const name of [`pr-verify-41-${HEAD}-pass-${REF_DIGEST}`, `pr-verify-99-${HEAD}-fail-${OTHER_DIGEST}`]) {

@@ -39,7 +39,7 @@ import {
   graphQLReader,
   loadTrustedList,
 } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { headRefDigest, issuesSuffix, NAME } from "./write-verdict.mjs";
+import { headRefDigest, issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 
 // The name grammar lives with its writer; the resolver checks names against it.
 export { isVerdictName, NAME, NAME_MAX } from "./write-verdict.mjs";
@@ -164,10 +164,13 @@ async function pullsOfCommit(github, repository, head) {
 // (90-day retention), and then go. Given `issues`, this PR's linked issue
 // numbers, it looks up only this PR's FAIL names with `-i` and those issues
 // (write-verdict.mjs artifactName), so the caller reads the issues only for a
-// head the names without them leave unjudged. A FAIL another PR left at the
+// head the names without them leave unjudged; issues no name carries (over
+// the cap, or a number the pattern refuses) are never looked up, since the
+// writer names that FAIL plainly. A FAIL another PR left at the
 // head names issues this run never reads, so its suffixed name is missed and
-// the head is judged again, which costs a run and changes nothing the gate
-// decides.
+// the head is judged again; so is a head whose linked issues a body edit
+// changed since this PR's FAIL there. Each costs a run and changes nothing
+// the gate decides: the earlier FAIL stays tied and refuses the head.
 async function judged({ github, repository, number, head, base, refs, issues }) {
   // The digest is hex whatever the branch holds, so any non-empty one is looked up.
   const named = (pr, verdict) => {
@@ -182,7 +185,9 @@ async function judged({ github, repository, number, head, base, refs, issues }) 
           ...[...refs.keys()].filter((other) => other !== number).flatMap((other) => named(other, "fail")),
         ]
       : suffix
-        ? named(number, "fail").map((name) => name + suffix)
+        ? named(number, "fail")
+            .map((name) => name + suffix)
+            .filter(isVerdictName)
         : [];
   for (const name of names) {
     const [, , , verdict] = NAME.exec(name);

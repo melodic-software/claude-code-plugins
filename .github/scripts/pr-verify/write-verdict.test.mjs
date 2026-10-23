@@ -62,15 +62,27 @@ test("a FAIL's name carries the issues it records, ascending and once each", () 
   assert.equal(name("pass-notes", [issue(7)]), `pr-verify-41-${HEAD}-pass-notes`);
   const ten = Array.from({ length: 10 }, (_, i) => issue(i + 1));
   assert.equal(name("fail", ten), `pr-verify-41-${HEAD}-fail-i1.2.3.4.5.6.7.8.9.10`);
-  assert.throws(() => name("fail", [...ten, issue(11)]), /more than a name carries/);
+});
+
+test("a FAIL whose issues no name can carry is written under the plain name, with one warning", (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const fail = (numbers) => ({ pr: 41, head_sha: HEAD, verdict: "fail", linked_issues: numbers.map((number) => ({ number })) });
+  // Eleven issues pass the cap; an 11-digit issue number passes the pattern.
+  const eleven = Array.from({ length: 11 }, (_, i) => i + 1);
+  for (const numbers of [eleven, [10000000000]]) {
+    log.mock.resetCalls();
+    assert.equal(artifactName(fail(numbers)), `pr-verify-41-${HEAD}-fail`, JSON.stringify(numbers));
+    assert.equal(log.mock.callCount(), 1);
+    assert.match(log.mock.calls[0].arguments[0], /^::warning::/);
+  }
 });
 
 test("a name the readers would not take is refused before any upload", () => {
-  // An 11-digit pull request number, or an issue number past 10 digits:
+  // An 11-digit pull request number, or a head that is not lowercase hex:
   // the readers' pattern (resolve-pr NAME) refuses both, so the writer does.
   const fail = (overrides) => ({ pr: 41, head_sha: HEAD, verdict: "fail", linked_issues: [], ...overrides });
   assert.equal(artifactName(fail({ pr: 9999999999 })), `pr-verify-9999999999-${HEAD}-fail`);
-  for (const verdict of [fail({ pr: 10000000000 }), fail({ linked_issues: [{ number: 10000000000 }] }), fail({ head_sha: "A".repeat(40) })]) {
+  for (const verdict of [fail({ pr: 10000000000 }), fail({ head_sha: "A".repeat(40) })]) {
     assert.throws(() => artifactName(verdict), /no reader takes/, JSON.stringify(verdict));
   }
 });

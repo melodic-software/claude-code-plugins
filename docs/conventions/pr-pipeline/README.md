@@ -1292,7 +1292,8 @@ the gate refuses `verify:unreadable` when its run is of verifier origin, or is t
 request and cannot be read, and pr-feedback-dispatch fails its run. One of verifier origin holds
 every pull request in the repository until its artifact is deleted or expires; deleting it clears
 the hold. The writer adds the issues to every `fail` that records one, ascending and once each,
-and checks the name against the readers' pattern before uploading. GitHub refuses
+and checks the name against the readers' pattern before uploading; a `fail` whose issues no name
+carries (more than 10, or a number over 10 digits) keeps the plain name, with a warning. GitHub refuses
 an artifact name holding `"`, `:`, `<`, `>`, `|`, `*`, `?`, `\`, `/`, a carriage return or a
 line feed
 ([`validateArtifactName`](https://github.com/actions/toolkit/blob/main/packages/artifact/src/internal/upload/path-and-artifact-name-validation.ts)),
@@ -1304,8 +1305,10 @@ uploads nothing, and the run fails. A head that already has a counted verdict fr
 pull request number) is not judged again. The resolver first looks up the names without issues;
 only when none holds a counted verdict does it read the pull request's linked issues, which the
 spec needs anyway, and look up its own `fail` under the name with `-i`. A `fail` another pull request
-left at the same head names issues it never reads, and that head is judged again, which costs a
-run and changes nothing the gate decides. Runs share one concurrency group per pull request and
+left at the same head names issues it never reads, and that head is judged again. So is a head
+whose linked issues a body edit changed after this pull request's `fail` there: the new set names
+another `-i`, so one run follows each change of the issue set. Neither changes what the gate
+decides, since the earlier `fail` stays tied to the pull request and refuses the head. Runs share one concurrency group per pull request and
 head and never cancel a running judgment.
 
 `merge.verify-authors` decides whose pull requests are judged. Under `lane`, the default, only one

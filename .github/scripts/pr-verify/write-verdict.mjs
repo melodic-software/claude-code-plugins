@@ -182,12 +182,11 @@ export const headRefDigest = (ref) =>
 // issue's repeated-fail cap from the artifact listing alone
 // (babysit_verify_evidence.NAME_RE, which takes at most NAMED_ISSUES_MAX).
 export const NAMED_ISSUES_MAX = 10;
-// The `-i` part for issue numbers `numbers`, empty for none.
+// The `-i` part for issue numbers `numbers`: empty for none, null for more
+// than a name carries.
 export function issuesSuffix(numbers) {
   const issues = [...new Set(numbers)].sort((a, b) => a - b);
-  if (issues.length > NAMED_ISSUES_MAX) {
-    throw new Error(`the verdict records ${issues.length} issues, more than a name carries`);
-  }
+  if (issues.length > NAMED_ISSUES_MAX) return null;
   return issues.length === 0 ? "" : `-i${issues.join(".")}`;
 }
 // A verdict's name (babysit_verify_evidence.NAME_RE): the head-ref digest is
@@ -203,10 +202,21 @@ export function isVerdictName(name) {
 }
 
 // The verdict's artifact name, checked against the readers' pattern before
-// anything uploads: a name no reader takes throws, so the job fails loudly.
+// anything uploads: a name no reader takes throws, so the job fails loudly. A
+// FAIL whose issues no name carries (over the cap, or a number the pattern
+// refuses) keeps the plain name, which still counts per pull request and at
+// the head.
 export function artifactName(verdict) {
   const plain = `pr-verify-${verdict.pr}-${verdict.head_sha}-${verdict.verdict}`;
-  const name = verdict.verdict === "fail" ? plain + issuesSuffix((verdict.linked_issues ?? []).map((issue) => issue.number)) : plain;
+  let name = plain;
+  if (verdict.verdict === "fail") {
+    const suffix = issuesSuffix((verdict.linked_issues ?? []).map((issue) => issue.number));
+    if (suffix === null || (suffix && !isVerdictName(plain + suffix))) {
+      console.log(`::warning::the FAIL's issues fit no artifact name, so it is named ${plain}`);
+    } else {
+      name = plain + suffix;
+    }
+  }
   if (!isVerdictName(name)) {
     throw new Error(`the artifact name ${name} is one no reader takes`);
   }
@@ -270,8 +280,9 @@ export function main(env = process.env) {
   });
   mkdirSync(env.VERDICT_DIR, { recursive: true });
   writeFileSync(path.join(env.VERDICT_DIR, "verdict.json"), `${JSON.stringify(verdict, null, 2)}\n`);
-  appendFileSync(env.GITHUB_OUTPUT, `name=${artifactName(verdict)}\nverdict=${verdict.verdict}\n`);
-  console.log(`write-verdict: ${artifactName(verdict)}`);
+  const name = artifactName(verdict);
+  appendFileSync(env.GITHUB_OUTPUT, `name=${name}\nverdict=${verdict.verdict}\n`);
+  console.log(`write-verdict: ${name}`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
