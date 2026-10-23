@@ -331,16 +331,41 @@ jobs:
             exit 1
             ;;
           esac
+          # read_api <var> <what> <path>: GET <path> into <var>. A primary rate
+          # limit (403 or 429 with x-ratelimit-remaining 0) waits until one
+          # second past x-ratelimit-reset when that fits in what is left of
+          # POLL_LIMIT_SECONDS, shared with the poll below; a reset past it
+          # ends the job green, since the next lane completion re-runs
+          # ci-status. Any other failure is read three times, then fails.
+          waited=0
           read_api() {
-            local attempt body
+            local attempt out hdr status left reset wait
             for attempt in 1 2 3; do
-              if body=$(gh api "$2"); then
-                printf '%s\n' "$body"
+              if out=$(gh api -i "$3"); then
+                printf -v "$1" '%s' "$(sed '1,/^\r\?$/d' <<<"$out")"
                 return 0
               fi
-              [ "$attempt" -lt 3 ] || { echo "::error::could not read $1; re-run this run." >&2; return 1; }
+              hdr=$(sed '/^\r\?$/q' <<<"$out")
+              status=$(awk 'NR == 1 { print $2 }' <<<"$hdr")
+              left=$(awk -F': *' 'tolower($1) == "x-ratelimit-remaining" { sub(/\r$/, "", $2); print $2; exit }' <<<"$hdr")
+              reset=$(awk -F': *' 'tolower($1) == "x-ratelimit-reset" { sub(/\r$/, "", $2); print $2; exit }' <<<"$hdr")
+              if [[ $status =~ ^(403|429)$ && $left == 0 && $reset =~ ^[0-9]+$ ]]; then
+                wait=$((reset - $(date +%s)))
+                wait=$((wait < 0 ? 1 : wait + 1))
+                if [ $((waited + wait)) -gt "$POLL_LIMIT_SECONDS" ]; then
+                  echo "::warning::the token's rate limit is spent until $(date -u -d "@$reset" +%H:%M:%SZ), past this job's ${POLL_LIMIT_SECONDS}s cap; the next review lane completion re-runs ci-status."
+                  exit 0
+                fi
+                echo "Rate limited reading $2; waiting ${wait}s for the reset."
+                sleep "$wait"
+                waited=$((waited + wait))
+                continue
+              fi
+              [ "$attempt" -lt 3 ] || { echo "::error::could not read $2; re-run this run." >&2; exit 1; }
               sleep $((attempt * 5))
             done
+            echo "::error::could not read $2 after the rate-limit waits; re-run this run." >&2
+            exit 1
           }
           # ci-status's own choice of run: the newest pull_request run of the file on the head.
           newest() {
@@ -348,8 +373,8 @@ jobs:
               | select(.path == $path and .head_sha == $sha and .event == "pull_request")]
               | max_by(.id) // empty'
           }
-          runs=$(read_api "the $other runs on $HEAD_SHA" \
-            "repos/$GITHUB_REPOSITORY/actions/workflows/$other/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=100") || exit 1
+          read_api runs "the $other runs on $HEAD_SHA" \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/$other/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=100"
           lane=$(newest "$other" <<<"$runs")
           done_at=$LANE_DONE_AT
           if [ -n "$lane" ]; then
@@ -362,15 +387,15 @@ jobs:
               done_at=$other_at
             fi
           fi
-          runs=$(read_api "the pr-require-checks runs on $HEAD_SHA" \
-            "repos/$GITHUB_REPOSITORY/actions/workflows/pr-require-checks.yml/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=100") || exit 1
+          read_api runs "the pr-require-checks runs on $HEAD_SHA" \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/pr-require-checks.yml/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=100"
           run=$(newest pr-require-checks.yml <<<"$runs")
           if [ -z "$run" ]; then
             echo "No pr-require-checks run on $HEAD_SHA yet; its ci-status reads the reviews when it runs."
             exit 0
           fi
           id=$(jq -r .id <<<"$run")
-          jobs=$(read_api "the jobs of run $id" "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?filter=latest&per_page=100") || exit 1
+          read_api jobs "the jobs of run $id" "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?filter=latest&per_page=100"
           job=$(jq -c '[.jobs[] | select(.name == "ci-status")] | max_by(.id) // empty' <<<"$jobs")
           if [ "$(jq -r .status <<<"$run")" != completed ]; then
             case $(jq -r '.status // "absent"' <<<"${job:-null}") in
@@ -387,7 +412,6 @@ jobs:
             echo "ci-status of run $id started at $started_at, after both lanes finished ($done_at); it read them."
             exit 0
           fi
-          waited=0
           while [ "$(jq -r .status <<<"$run")" != completed ]; do
             if [ "$waited" -ge "$POLL_LIMIT_SECONDS" ]; then
               echo "::error::run $id on $HEAD_SHA has not finished after ${waited}s; re-run its ci-status job once it does."
@@ -395,14 +419,14 @@ jobs:
             fi
             sleep "$POLL_SECONDS"
             waited=$((waited + POLL_SECONDS))
-            run=$(read_api "run $id" "repos/$GITHUB_REPOSITORY/actions/runs/$id") || exit 1
+            read_api run "run $id" "repos/$GITHUB_REPOSITORY/actions/runs/$id"
           done
           job_id=$(jq -r '.id // empty' <<<"${job:-null}")
           if [[ ! $job_id =~ ^[1-9][0-9]{0,14}$ ]]; then
             echo "::error::run $id on $HEAD_SHA has no ci-status job to re-run."
             exit 1
           fi
-          pr=$(read_api "#$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER") || exit 1
+          read_api pr "#$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER"
           if [ "$(jq -r '"\(.state) \(.head.sha)"' <<<"$pr")" != "open $HEAD_SHA" ]; then
             echo "#$PR_NUMBER is closed or no longer at $HEAD_SHA; nothing to re-run."
             exit 0

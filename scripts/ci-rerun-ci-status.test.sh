@@ -9,8 +9,9 @@
 # pr-require-checks pull_request run on the reviewed head, after that run
 # finishes, polling at most POLL_LIMIT_SECONDS. The other lane still going, a
 # closed PR, a moved head, no run yet, a ci-status not started or one started
-# after both lanes finished is left alone. Unreadable reads fail. Each path's
-# API call count is pinned.
+# after both lanes finished is left alone. A primary rate limit waits for its
+# reset within the cap, or ends green past it. Unreadable reads fail. Each
+# path's API call count is pinned.
 # test-scope: .github/workflows/pr-feedback-dispatch.yml
 set -uo pipefail
 
@@ -54,27 +55,37 @@ fi
 # runs read prints STUB_LANE_RUNS and a pr-require-checks runs read STUB_RUNS,
 # each failing when its *_FAIL is set. A jobs read prints STUB_JOBS. A read of
 # one run prints the next line of STUB_RUN_SEQ (the last line once used up).
-# A POST re-run fails when STUB_RERUN_FAIL is set. The sleep stub logs its
-# seconds.
+# A POST re-run fails when STUB_RERUN_FAIL is set. While STUB_LIMIT_FILE
+# holds a count above 0, a pr-require-checks runs read is refused as a
+# primary rate limit resetting at STUB_RESET, and the count drops by one. The
+# sleep stub logs its seconds.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$STUB_LOG"
+# A GET read with -i prints a status line and a blank line before the body.
+ok200() { printf 'HTTP/2.0 200 OK\r\nX-Ratelimit-Remaining: 9\r\n\r\n%s\n' "$1"; }
+if [[ -n "${STUB_LIMIT_FILE:-}" && "$*" == *"/actions/workflows/pr-require-checks.yml/runs"* ]] &&
+  [[ "$(cat "$STUB_LIMIT_FILE")" -gt 0 ]]; then
+  echo $(($(cat "$STUB_LIMIT_FILE") - 1)) >"$STUB_LIMIT_FILE"
+  printf 'HTTP/2.0 403 Forbidden\r\nX-Ratelimit-Remaining: 0\r\nX-Ratelimit-Reset: %s\r\n\r\n{"message":"API rate limit exceeded for installation"}\n' "$STUB_RESET"
+  exit 1
+fi
 case "$*" in
-*/pulls/*) printf '%s\n' "$STUB_PR" ;;
+*/pulls/*) ok200 "$STUB_PR" ;;
 */actions/workflows/pr-review-hosted.yml/runs* | */actions/workflows/pr-review-security-hosted.yml/runs*)
   [[ -z "${STUB_LANE_FAIL:-}" ]] || exit 1
-  printf '%s\n' "$STUB_LANE_RUNS"
+  ok200 "$STUB_LANE_RUNS"
   ;;
 */actions/workflows/pr-require-checks.yml/runs*)
   [[ -z "${STUB_RUNS_FAIL:-}" ]] || exit 1
-  printf '%s\n' "$STUB_RUNS"
+  ok200 "$STUB_RUNS"
   ;;
-*/actions/runs/*/jobs*) printf '%s\n' "$STUB_JOBS" ;;
-"api repos/o/r/actions/runs/"[0-9]*)
-  n=$(grep -c '^api repos/o/r/actions/runs/[0-9]*$' "$STUB_LOG")
+*/actions/runs/*/jobs*) ok200 "$STUB_JOBS" ;;
+"api -i repos/o/r/actions/runs/"[0-9]*)
+  n=$(grep -c '^api -i repos/o/r/actions/runs/[0-9]*$' "$STUB_LOG")
   total=$(wc -l <<<"$STUB_RUN_SEQ")
-  sed -n "$((n < total ? n : total))p" <<<"$STUB_RUN_SEQ"
+  ok200 "$(sed -n "$((n < total ? n : total))p" <<<"$STUB_RUN_SEQ")"
   ;;
 "api -X POST "*/rerun)
   [[ -z "${STUB_RERUN_FAIL:-}" ]] || exit 1
@@ -85,7 +96,11 @@ esac
 EOF
 # shellcheck disable=SC2016 # the stub expands $* and $STUB_LOG when it runs
 printf '#!/usr/bin/env bash\necho "sleep $*" >>"$STUB_LOG"\n' >"$TMP_ROOT/bin/sleep"
-chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep"
+# The clock reads 1000 s past the epoch; any other date call runs the real date.
+REAL_DATE="$(command -v date)"
+# shellcheck disable=SC2016 # the stub expands its arguments when it runs
+printf '#!/usr/bin/env bash\nif [ "$*" = +%%s ]; then echo 1000; else exec %q "$@"; fi\n' "$REAL_DATE" >"$TMP_ROOT/bin/date"
+chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep" "$TMP_ROOT/bin/date"
 
 HEAD=0123456789abcdef0123456789abcdef01234567
 RCF=.github/workflows/pr-require-checks.yml
@@ -143,9 +158,9 @@ STUB_RUNS="$(runs "$(run 5)" "$(run 9)" "$(run 8)")" STUB_JOBS="$(cijob complete
 expect "both lanes finished: a finished run's ci-status is re-run" 0 "Re-ran ci-status (job 77) of run 9 on $HEAD."
 check_reran 1 "only the ci-status job of the newest run is re-run"
 check_calls 5 "the last lane reads the other lane, the runs, the jobs and the PR, then re-runs"
-if grep -qxF "api repos/o/r/actions/workflows/pr-review-security-hosted.yml/runs?head_sha=$HEAD&event=pull_request&per_page=100" "$TMP_ROOT/log" &&
-  grep -qxF "api repos/o/r/actions/workflows/pr-require-checks.yml/runs?head_sha=$HEAD&event=pull_request&per_page=100" "$TMP_ROOT/log" &&
-  grep -qxF "api repos/o/r/actions/runs/9/jobs?filter=latest&per_page=100" "$TMP_ROOT/log"; then
+if grep -qxF "api -i repos/o/r/actions/workflows/pr-review-security-hosted.yml/runs?head_sha=$HEAD&event=pull_request&per_page=100" "$TMP_ROOT/log" &&
+  grep -qxF "api -i repos/o/r/actions/workflows/pr-require-checks.yml/runs?head_sha=$HEAD&event=pull_request&per_page=100" "$TMP_ROOT/log" &&
+  grep -qxF "api -i repos/o/r/actions/runs/9/jobs?filter=latest&per_page=100" "$TMP_ROOT/log"; then
   ok "the other lane's, then the head's pull_request runs and the newest run's latest jobs are read"
 else
   fail "unexpected reads: '$(sort -u "$TMP_ROOT/log")'"
@@ -251,6 +266,24 @@ HEAD_SHA=main expect "a head that is not a commit SHA fails" 1 "::error::the rev
 LANE_PATH=.github/workflows/pr-verify.yml expect "a run of another file fails" 1 "::error::'.github/workflows/pr-verify.yml' is not a review lane."
 LANE_DONE_AT='2026-10-23 10:00' expect "a finish time that is not a UTC timestamp fails" 1 "is not a UTC timestamp."
 if [[ -s "$TMP_ROOT/log" ]]; then fail "a bad finish time read the API"; else ok "a bad finish time reads nothing"; fi
+
+# A primary rate limit waits for its reset inside the cap, then reads again.
+export STUB_LIMIT_FILE="$TMP_ROOT/limit" STUB_RESET=1119
+STUB_PR="$(pr)" STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC")")" STUB_RUNS="$(runs "$(run 9)")" STUB_JOBS="$(cijob completed)"
+echo 1 >"$STUB_LIMIT_FILE"
+expect "a rate-limited read waits for the reset, then re-runs" 0 "Rate limited reading the pr-require-checks runs on $HEAD; waiting 120s for the reset."
+check_reran 1 "the read after the reset goes on to the re-run"
+if [[ "$(grep -c '^sleep 120$' "$TMP_ROOT/log")" == 1 ]]; then ok "it slept until one second past the reset"; else fail "sleeps: $(grep '^sleep' "$TMP_ROOT/log" | paste -sd'|')"; fi
+echo 1 >"$STUB_LIMIT_FILE"
+STUB_RESET=1700 expect "a reset past the cap ends green with a warning" 0 "::warning::the token's rate limit is spent until"
+check_reran 0 "nothing is re-run when the reset is past the cap"
+if grep -q '^sleep' "$TMP_ROOT/log"; then fail "it waited for a reset past the cap"; else ok "a reset past the cap is not waited for"; fi
+echo 1 >"$STUB_LIMIT_FILE"
+STUB_RUNS="$(runs "$(run 9 in_progress)")" STUB_JOBS="$(cijob in_progress)" STUB_RUN_SEQ="$(run 9 in_progress)"
+expect "the reset wait counts toward the poll cap" 1 "has not finished after 600s"
+if [[ "$(grep -c '^sleep 60$' "$TMP_ROOT/log")" == 8 ]]; then ok "a 120 s reset wait leaves 8 polls"; else fail "polls: $(grep -c '^sleep 60$' "$TMP_ROOT/log")"; fi
+unset STUB_LIMIT_FILE STUB_RESET
+STUB_RUNS="$(runs "$(run 9)")" STUB_JOBS="$(cijob completed)"
 
 export STUB_LANE_FAIL=1
 expect "an unreadable other-lane run list fails" 1 "::error::could not read the pr-review-security-hosted.yml runs on $HEAD; re-run this run."
