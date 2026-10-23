@@ -919,17 +919,50 @@ jobs:
       claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
-  # The subscription fallback, as a second call on new VMs: it runs only when
-  # fix-ci's key leg hit a credit stop or its key is empty, which fix-ci then
-  # reports as a handoff with no upload, lane record or check. It reads only
-  # those two outputs, each compared to a fixed string, and holds the OAuth
-  # token alone; fallback picks between two literals.
-  fix-ci-subscription:
+  # Whether fix-ci's report job posted its check, read from this run's jobs
+  # through the Actions API, never from a fix-ci output: fix-ci's run job runs
+  # head code, so its handed-off, lane-class and credential-present outputs
+  # are forgeable, while its report job runs on its own runner and posts the
+  # check unless the call handed off. A failed read leaves posted empty,
+  # which starts the fallback call: a second leg, never a lost check.
+  fix-ci-handoff:
     needs: [fix-ci-context, fix-ci]
+    if: ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read # this run's jobs and their steps
+    outputs:
+      posted: ${{ steps.posted.outputs.posted }}
+    steps:
+      - name: Read whether fix-ci posted its check
+        id: posted
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: fix-ci
+        run: |
+          names=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=latest&per_page=100" \
+            --jq '.jobs[] | (select(any(.steps[]?; .name == "Post the check run" and .conclusion == "success")) | "posted \(.name)"),
+              (select(any(.steps[]?; .name == "Ask the broker whether the lane may run" and .conclusion == "success")) | "allowed \(.name)")')
+          posted=false
+          allowed=false
+          for call in $CALLS; do
+            if grep -qxF "posted $call / report" <<<"$names"; then posted=true; fi
+            if grep -qxF "allowed $call / broker-check" <<<"$names"; then allowed=true; fi
+          done
+          printf 'posted=%s\nallowed=%s\n' "$posted" "$allowed" >>"$GITHUB_OUTPUT"
+
+  # The subscription fallback, as a second call on new VMs: it runs only when
+  # fix-ci posted no check, which a credit stop or an empty key leaves as a
+  # handoff with no upload, lane record or check. Its start reads only
+  # fix-ci-handoff, and it holds the OAuth token alone. fallback, the lane
+  # record's label, picks between two literals on fix-ci's lane-class: a
+  # forged one only mislabels the record.
+  fix-ci-subscription:
+    needs: [fix-ci-context, fix-ci, fix-ci-handoff]
     if: >-
       ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true'
-      && (needs.fix-ci.outputs.lane-class == 'credit-stop'
-      || needs.fix-ci.outputs.credential-present == 'false') }}
+      && needs.fix-ci-handoff.outputs.posted != 'true' }}
     permissions:
       contents: read
       pull-requests: read
@@ -959,14 +992,19 @@ jobs:
   # The push job: apply-patch.mjs, a script with no model that runs no head
   # code. It checks the patch against the model job's SHA-256 and head,
   # applies it, refuses what patch-rules.json's ci-context row refuses, and
-  # pushes one commit without force. An empty or refused patch, or an
-  # escalated check, hands the PR to a person. The patch comes from whichever
-  # call ran the activity; a call that handed off left none.
+  # pushes one commit without force. An empty or refused patch, a collection
+  # the run's collector refused, or an escalated check, hands the PR to a
+  # person (a refused collection reaches select with no patch-state, which
+  # escalates ci-fix-invalid). One leg answers: the fallback call when it ran,
+  # else the first, and every input is that leg's scan job's, never a run
+  # job's; a call that handed off left none.
   apply-patch:
     needs: [fix-ci-context, fix-ci, fix-ci-subscription]
     if: >-
-      ${{ !cancelled() && ((needs.fix-ci-subscription.outputs.patch-state || needs.fix-ci.outputs.patch-state) == 'written'
-      || (needs.fix-ci-subscription.outputs.patch-state || needs.fix-ci.outputs.patch-state) == 'empty') }}
+      ${{ !cancelled()
+      && ((needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-patch-state || needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-patch-state || '') == 'written'
+      || (needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-patch-state || needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-patch-state || '') == 'empty'
+      || (needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-collect-refused || needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-collect-refused || '') == 'true') }}
     permissions:
       contents: read
       pull-requests: read
@@ -984,9 +1022,9 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
-      patch-state: ${{ needs.fix-ci-subscription.outputs.patch-state || needs.fix-ci.outputs.patch-state }}
-      patch-sha256: ${{ needs.fix-ci-subscription.outputs.patch-sha256 || needs.fix-ci.outputs.patch-sha256 }}
-      patch-attempt: ${{ needs.fix-ci-subscription.outputs.patch-attempt || needs.fix-ci.outputs.patch-attempt }}
+      patch-state: ${{ needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-patch-state || needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-patch-state || '' }}
+      patch-sha256: ${{ needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-patch-sha256 || needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-patch-sha256 || '' }}
+      patch-attempt: ${{ needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-patch-attempt || needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-patch-attempt || '' }}
       patch-activity: fix-ci
       patch-prepare: ci-context
       # The head fix-ci-context gated, from a job that ran no head code; the
@@ -996,7 +1034,7 @@ jobs:
       # own trigger gate reads at apply time, and its push needs the branch
       # still at that head.
       patch-head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
-      reply-attempt: ${{ needs.fix-ci-subscription.outputs.reply-attempt || needs.fix-ci.outputs.reply-attempt }}
+      reply-attempt: ${{ needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-reply-attempt || needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-reply-attempt || '' }}
 
   # fix-ci's one retry one model rung up, in this same run: when apply-patch
   # skipped rung-up (the run changed nothing and escalated only unfixed or
@@ -1036,12 +1074,42 @@ jobs:
       claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
-  fix-ci-rung-up-subscription:
+  # As fix-ci-handoff and fix-ci-subscription are for fix-ci.
+  fix-ci-rung-up-handoff:
     needs: [fix-ci-context, fix-ci-rung-up]
     if: >-
       ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true'
-      && (needs.fix-ci-rung-up.outputs.lane-class == 'credit-stop'
-      || needs.fix-ci-rung-up.outputs.credential-present == 'false') }}
+      && needs.fix-ci-rung-up.result != 'skipped' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read # this run's jobs and their steps
+    outputs:
+      posted: ${{ steps.posted.outputs.posted }}
+    steps:
+      - name: Read whether fix-ci-rung-up posted its check
+        id: posted
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: fix-ci-rung-up
+        run: |
+          names=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=latest&per_page=100" \
+            --jq '.jobs[] | (select(any(.steps[]?; .name == "Post the check run" and .conclusion == "success")) | "posted \(.name)"),
+              (select(any(.steps[]?; .name == "Ask the broker whether the lane may run" and .conclusion == "success")) | "allowed \(.name)")')
+          posted=false
+          allowed=false
+          for call in $CALLS; do
+            if grep -qxF "posted $call / report" <<<"$names"; then posted=true; fi
+            if grep -qxF "allowed $call / broker-check" <<<"$names"; then allowed=true; fi
+          done
+          printf 'posted=%s\nallowed=%s\n' "$posted" "$allowed" >>"$GITHUB_OUTPUT"
+
+  fix-ci-rung-up-subscription:
+    needs: [fix-ci-context, fix-ci-rung-up, fix-ci-rung-up-handoff]
+    if: >-
+      ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true'
+      && needs.fix-ci-rung-up.result != 'skipped'
+      && needs.fix-ci-rung-up-handoff.outputs.posted != 'true' }}
     permissions:
       contents: read
       pull-requests: read
@@ -1072,8 +1140,10 @@ jobs:
   apply-patch-rung-up:
     needs: [fix-ci-context, fix-ci-rung-up, fix-ci-rung-up-subscription]
     if: >-
-      ${{ !cancelled() && ((needs.fix-ci-rung-up-subscription.outputs.patch-state || needs.fix-ci-rung-up.outputs.patch-state) == 'written'
-      || (needs.fix-ci-rung-up-subscription.outputs.patch-state || needs.fix-ci-rung-up.outputs.patch-state) == 'empty') }}
+      ${{ !cancelled()
+      && ((needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-patch-state || needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-patch-state || '') == 'written'
+      || (needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-patch-state || needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-patch-state || '') == 'empty'
+      || (needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-collect-refused || needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-collect-refused || '') == 'true') }}
     permissions:
       contents: read
       pull-requests: read
@@ -1091,15 +1161,77 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
-      patch-state: ${{ needs.fix-ci-rung-up-subscription.outputs.patch-state || needs.fix-ci-rung-up.outputs.patch-state }}
-      patch-sha256: ${{ needs.fix-ci-rung-up-subscription.outputs.patch-sha256 || needs.fix-ci-rung-up.outputs.patch-sha256 }}
-      patch-attempt: ${{ needs.fix-ci-rung-up-subscription.outputs.patch-attempt || needs.fix-ci-rung-up.outputs.patch-attempt }}
+      patch-state: ${{ needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-patch-state || needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-patch-state || '' }}
+      patch-sha256: ${{ needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-patch-sha256 || needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-patch-sha256 || '' }}
+      patch-attempt: ${{ needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-patch-attempt || needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-patch-attempt || '' }}
       patch-activity: fix-ci
       patch-prepare: ci-context
       patch-head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
       # At rung 1 an escalation goes to a person: there is no rung above.
       patch-model-rung: "1"
-      reply-attempt: ${{ needs.fix-ci-rung-up-subscription.outputs.reply-attempt || needs.fix-ci-rung-up.outputs.reply-attempt }}
+      reply-attempt: ${{ needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-reply-attempt || needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-reply-attempt || '' }}
+
+  # A fix-ci round whose every call posted no check (a run that forged a
+  # handoff, or a report job that failed) would leave nothing for
+  # fix-ci-dispatch.mjs to count, so it would dispatch the head again with no
+  # end. This job reads this run's jobs as fix-ci-handoff does and posts
+  # fix-ci failure on the gated head, which counts toward fix-ci-restarts. As
+  # the report job does, it posts nothing unless a call's broker-check job
+  # allowed the lane: a kill switch, read there with its repository shadow,
+  # or a broker refusal is no merge blocker and spends no restart.
+  fix-ci-unreported:
+    needs: [fix-ci-context, fix-ci, fix-ci-subscription, fix-ci-rung-up, fix-ci-rung-up-subscription]
+    if: ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read # this run's jobs and their steps
+      checks: write
+      contents: read
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Read whether a fix-ci call posted its check
+        id: posted
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: fix-ci fix-ci-subscription fix-ci-rung-up fix-ci-rung-up-subscription
+        run: |
+          names=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=latest&per_page=100" \
+            --jq '.jobs[] | (select(any(.steps[]?; .name == "Post the check run" and .conclusion == "success")) | "posted \(.name)"),
+              (select(any(.steps[]?; .name == "Ask the broker whether the lane may run" and .conclusion == "success")) | "allowed \(.name)")')
+          posted=false
+          allowed=false
+          for call in $CALLS; do
+            if grep -qxF "posted $call / report" <<<"$names"; then posted=true; fi
+            if grep -qxF "allowed $call / broker-check" <<<"$names"; then allowed=true; fi
+          done
+          printf 'posted=%s\nallowed=%s\n' "$posted" "$allowed" >>"$GITHUB_OUTPUT"
+
+      - name: Post the check run
+        if: steps.posted.outputs.posted == 'false' && steps.posted.outputs.allowed == 'true'
+        uses: ./.base/.github/actions/report-check-run # zizmor: ignore[self-repository]
+        with:
+          lane: pr-unblock
+          activity: fix-ci
+          # No verdict: posts failure, "The run left no verdict."
+          run-result: failure
+          head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
+          can-commit: "false"
+          base-path: .base
+          head-sha-fallback: ${{ needs.fix-ci-context.outputs.head-sha }}
+          github-token: ${{ github.token }}
 
   # The PR head fix-docs's report posts its check on, read by a job that runs
   # no head code, as fix-ci-context's is for fix-ci. Without it the report
