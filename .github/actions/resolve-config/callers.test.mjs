@@ -262,7 +262,7 @@ test("intake-triage.yml: apply-verdict writes as the lanes App only after a tria
   const minting = Object.entries(jobs)
     .filter(([, j]) => j.permissions?.["id-token"] !== undefined || j.permissions === "write-all")
     .map(([id]) => id);
-  assert.deepEqual(minting, ["apply-verdict"], "only apply-verdict can request an OIDC token");
+  assert.deepEqual(minting, ["apply-verdict", "apply-refinement"], "only the two script writers can request an OIDC token");
   assert.deepEqual(workflow("intake-triage.yml").permissions, {}, "no workflow-level grant");
   assert.equal(job.concurrency["cancel-in-progress"], false);
   assert.notEqual(job.concurrency.group, jobs["intake-triage"].concurrency.group, "its own concurrency group");
@@ -296,6 +296,72 @@ test("intake-triage.yml: apply-verdict writes as the lanes App only after a tria
   assert.equal(write.env.KILL_SWITCH, "${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}");
   assert.equal(write.run, 'node ".base/$SCRIPT"');
   assert.deepEqual(stepSecrets(job), []);
+});
+
+test("intake-triage.yml: a thin issue's refinement runs its model with no write token and writes through the lanes App only", () => {
+  const { jobs } = workflow("intake-triage.yml");
+  const select = jobs["refine-select"];
+  const model = jobs["refine-issue"];
+  const apply = jobs["apply-refinement"];
+  const again = jobs["redispatch-refined"];
+  assert.deepEqual(select.permissions, { contents: "read", issues: "read", "pull-requests": "read" });
+  assert.deepEqual(model.permissions, { contents: "read" }, "the model job holds no write grant");
+  assert.deepEqual(apply.permissions, { contents: "read", "id-token": "write" });
+  assert.deepEqual(again.permissions, { actions: "write" }, "the dispatch grant is not on the job with the App token");
+  assert.deepEqual(select.needs, ["born-triaged", "apply-verdict"]);
+  assert.deepEqual(model.needs, ["refine-select"]);
+  assert.deepEqual(apply.needs, ["born-triaged", "refine-select", "refine-issue"]);
+  assert.deepEqual(again.needs, ["apply-refinement"]);
+
+  const groups = Object.values(jobs)
+    .map((job) => job.concurrency?.group)
+    .filter(Boolean);
+  assert.equal(new Set(groups).size, groups.length, "each job has its own concurrency group");
+  for (const job of [select, model, apply]) {
+    assert.equal(job.concurrency["cancel-in-progress"], false);
+  }
+
+  assert.equal(evaluate(select.if, { "needs.apply-verdict.result": "success" }), true);
+  assert.equal(evaluate(select.if, { "needs.apply-verdict.result": "failure" }), false);
+  assert.equal(evaluate(model.if, { "needs.refine-select.outputs.refine": "true" }), true);
+  assert.equal(evaluate(model.if, { "needs.refine-select.outputs.refine": "false" }), false);
+  assert.equal(evaluate(apply.if, { "needs.refine-issue.result": "success" }), true);
+  assert.equal(evaluate(apply.if, { "needs.refine-issue.result": "skipped" }), false);
+  assert.equal(evaluate(again.if, { "needs.apply-refinement.outputs.redispatch": "true" }), true);
+  assert.equal(evaluate(again.if, { "needs.apply-refinement.outputs.redispatch": "" }), false);
+
+  // Every checkout is the default branch without credentials.
+  for (const job of [select, model, apply]) {
+    const checkout = job.steps.find((s) => s.uses?.startsWith("actions/checkout@"));
+    assert.equal(checkout.with.ref, "refs/heads/main");
+    assert.equal(checkout.with["persist-credentials"], false);
+  }
+
+  // The model step: no project settings, an explicit permission mode, and
+  // no tool that writes or runs code.
+  const run = model.steps.find((s) => s.uses?.startsWith("anthropics/claude-code-action@"));
+  const args = run.with.claude_args;
+  assert.match(args, /--setting-sources user/);
+  assert.match(args, /--permission-mode dontAsk/);
+  assert.doesNotMatch(JSON.stringify(model), /bypassPermissions|dangerously/);
+  const prompt = model.steps.find((s) => s.id === "prompt").run;
+  assert.match(prompt, /denied="Bash,Edit,Write,NotebookEdit,WebSearch,Agent,Skill"/);
+  assert.match(prompt, /mcp__github,mcp__github_comment,mcp__github_file_ops,mcp__github_ci,mcp__github_inline_comment/);
+  assert.match(prompt, /WebFetch\(domain:\$domain\)/);
+  assert.deepEqual(stepSecrets(model), ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"]);
+  for (const job of [select, apply, again]) {
+    assert.deepEqual(stepSecrets(job), []);
+  }
+
+  const step = (job, id) => job.steps.find((s) => s.id === id);
+  assert.match(step(select, "who").run, /apply-verdict\.mjs --check$/);
+  assert.match(step(apply, "who").run, /apply-verdict\.mjs --check$/);
+  assert.equal(step(apply, "config").with.activity, "apply-refinement");
+  const token = step(apply, "lane-token");
+  assert.equal(token.with.lane, "intake-triage");
+  assert.equal(token.with.activity, "apply-refinement");
+  assert.equal(token.with["issue-number"], "${{ format('{0}', github.event.issue.number || inputs.issue-number) }}");
+  assert.equal(step(apply, "apply").run, 'node ".base/$SCRIPT" --apply');
 });
 
 test("intake-triage.yml: the model may not apply good first issue or help wanted, and is told the verdict lines", () => {
@@ -1088,9 +1154,13 @@ function ifTerms(condition) {
 // check-trusted-trigger run from the default branch (work-resolve-issue.yml's
 // admit), or the pinned intake reusable, whose claude job starts only for a
 // sender in allowed-author-ids (ci-workflows intake-triage.yml, the claude job's
-// if:) and whose other Claude job needs it.
+// if:) and whose other Claude job needs it, or a needed job's refine output
+// from refine.mjs --select run from the default branch, which refines only an
+// issue a listed human or the lanes App opened, in a run apply-verdict --check
+// admitted (intake-triage.yml's refine-issue).
 const SAME_REPO = "github.event.workflow_run.head_repository.full_name == github.repository";
 const TRUSTED_TRIGGER = "./.base/.github/actions/check-trusted-trigger";
+const REFINE_SELECT = "node .base/.github/scripts/intake-triage/refine.mjs --select";
 const INTAKE_REUSABLE = /^melodic-software\/ci-workflows\/\.github\/workflows\/intake-triage\.yml@[0-9a-f]{40}$/;
 function jobGates(doc, job) {
   const gates = new Set();
@@ -1102,6 +1172,8 @@ function jobGates(doc, job) {
     const gateJob = doc.jobs?.[need] ?? {};
     const [, stepId] = String(gateJob.outputs?.[output] ?? "").match(/^\$\{\{\s*steps\.([\w-]+)\.outputs\.proceed\s*\}\}$/) ?? [];
     if (stepId && (gateJob.steps ?? []).some((step) => step.id === stepId && step.uses === TRUSTED_TRIGGER)) gates.add("author");
+    const [, selectId] = String(gateJob.outputs?.[output] ?? "").match(/^\$\{\{\s*steps\.([\w-]+)\.outputs\.refine\s*\}\}$/) ?? [];
+    if (selectId && (gateJob.steps ?? []).some((step) => step.id === selectId && String(step.run ?? "").split("\n").some((line) => line.trim() === REFINE_SELECT))) gates.add("author");
   }
   if (INTAKE_REUSABLE.test(String(job.uses ?? "")) && String(job.with?.["allowed-author-ids"] ?? "").trim() !== "") gates.add("author");
   return [...gates].sort();
