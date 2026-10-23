@@ -1340,7 +1340,7 @@ const PATCH_OUTPUTS = { "patch-state": "patch-state", "patch-sha256": "patch-sha
 const SCAN_ONLY = new Set(["fix-ci", "address-feedback", "review-dependency"]);
 // The base-code job whose jobs-API read starts a lane's fallback call, in
 // place of the first call's own handoff outputs.
-const HANDOFF = { "fix-ci": "fix-ci-handoff" };
+const HANDOFF = { "fix-ci": "fix-ci-handoff", "fix-docs": "fix-docs-handoff" };
 const PATCH_OUTPUTS_OF = (firstId) =>
   SCAN_ONLY.has(firstId) ? Object.fromEntries(Object.entries(PATCH_OUTPUTS).map(([input, output]) => [input, `scan-${output}`])) : PATCH_OUTPUTS;
 const WRITE_RUNNER = "./.github/workflows/pr-run-activity-write.yml";
@@ -4024,6 +4024,69 @@ test("pr-unblock.yml: each fix-ci fallback call starts on a base job's jobs-API 
     assert.notEqual(failed.status, 0);
     assert.deepEqual(failed.outputs, {});
   }
+});
+
+// #8890 for fix-docs: fix-docs's run job is as hostile as fix-ci's, so its
+// fallback call starts on fix-docs-handoff's jobs-API read, the same step
+// fix-ci-handoff runs, never on a fix-docs output. fix-docs posts nothing on a
+// decline (post-decline: false), so the fallback also needs the broker's allow:
+// a kill switch or a refusal starts no second leg, and a failed read leaves
+// no check, so fix-docs-dispatch.mjs dispatches the PR again.
+test("pr-refine.yml: fix-docs-subscription starts on a base job's jobs-API read of fix-docs's report, never on a fix-docs output", (t) => {
+  const { jobs } = workflow("pr-refine.yml");
+  const sub = jobs["fix-docs-subscription"];
+  const handoff = jobs["fix-docs-handoff"];
+  assert.ok(handoff, "pr-refine.yml has a fix-docs-handoff job");
+  assert.doesNotMatch(sub.if, /needs\.fix-docs\.outputs\./, "the start reads no fix-docs output");
+  // The evaluator refuses any reference left unset: the start reads only these.
+  const starts = (posted, allowed, result = "success") =>
+    evaluate(sub.if, {
+      "needs.fix-docs.result": result,
+      "needs.fix-docs-handoff.outputs.posted": posted,
+      "needs.fix-docs-handoff.outputs.allowed": allowed,
+    });
+  assert.equal(starts("false", "true"), true, "a handoff after the broker's allow");
+  assert.equal(starts("true", "true"), false, "fix-docs posted its check");
+  assert.equal(starts("false", "false"), false, "a kill switch or broker refusal");
+  assert.equal(starts("", ""), false, "a failed read: no check, so the dispatcher sends the PR again");
+  assert.equal(starts("", "", "skipped"), false, "no fix-docs call, no fallback");
+  assert.deepEqual(handoff.needs, ["fix-docs-head", "fix-docs"]);
+  for (const [result, runs] of [["success", true], ["failure", true], ["skipped", false]]) {
+    assert.equal(evaluate(handoff.if, { "needs.fix-docs.result": result }), runs, result);
+  }
+  assert.deepEqual(handoff.permissions, { actions: "read" });
+  assert.deepEqual(handoff.steps.map((step) => step.uses ?? null), [null]);
+  assert.deepEqual(stepSecrets(handoff), []);
+  assert.doesNotMatch(JSON.stringify(handoff), /needs\.fix-docs\.outputs\./);
+  assert.deepEqual(handoff.outputs, { posted: "${{ steps.posted.outputs.posted }}", allowed: "${{ steps.posted.outputs.allowed }}" });
+  const step = handoff.steps[0];
+  assert.equal(step.env.CALLS, "fix-docs");
+  // The one read #9363 runs for fix-ci, byte for byte.
+  assert.equal(step.run, workflow("pr-unblock.yml").jobs["fix-ci-handoff"].steps[0].run);
+  const listing = ({ posted = false, reportRan = true, allowed = true } = {}) => ({
+    jobs: [
+      { name: "fix-docs-head", conclusion: "success", steps: [] },
+      { name: "fix-docs / broker-check", conclusion: "success", steps: [{ name: "Ask the broker whether the lane may run", conclusion: allowed ? "success" : "skipped" }] },
+      { name: "fix-docs / run", conclusion: "success", steps: [{ name: "Post the check run", conclusion: "success" }] },
+      {
+        name: "fix-docs / report",
+        conclusion: reportRan ? "success" : "skipped",
+        steps: reportRan ? [{ name: "Post the check run", conclusion: posted ? "success" : "skipped" }] : [],
+      },
+    ],
+  });
+  for (const [name, list, outputs] of [
+    ["fix-docs posted its check", listing({ posted: true }), { posted: "true", allowed: "true" }],
+    ["a handoff skipped the report job", listing({ reportRan: false }), { posted: "false", allowed: "true" }],
+    ["the broker allowed nothing", listing({ allowed: false }), { posted: "false", allowed: "false" }],
+  ]) {
+    const read = readPosted(t, step, list);
+    assert.equal(read.status, 0, name);
+    assert.deepEqual(read.outputs, outputs, name);
+  }
+  const failed = readPosted(t, step, listing({ posted: true }), { fail: true });
+  assert.notEqual(failed.status, 0);
+  assert.deepEqual(failed.outputs, {});
 });
 
 // #8890: a round in which no call posted left fix-ci-dispatch.mjs nothing to

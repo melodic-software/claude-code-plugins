@@ -272,8 +272,9 @@ concurrency group cancels a run in progress, so a burst of pushes ends in one li
 `pr-refine`'s `fix-docs` runs the same way in three jobs of `pr-refine.yml`: `fix-docs` (a
 `read` skill in patch output mode with no prepare mode, on run-claude-cli with the automations
 role's API key) runs `ai-slop:audit fix` on the PR's changed Markdown files;
-`fix-docs-subscription` runs the same on the role's OAuth token, only after a credit stop or with
-the key empty; and `apply-docs-patch` runs the `apply-patch` activity on a `written` patch,
+`fix-docs-subscription` runs the same on the role's OAuth token, only when `fix-docs-handoff`'s
+read of this run's jobs shows the broker allowed `fix-docs` and `fix-docs` posted no check, as a
+credit stop or an empty key leaves it; and `apply-docs-patch` runs the `apply-patch` activity on a `written` patch,
 pushing it as one commit under `patch-rules.json`'s `default` row, which refuses the universal
 set, every agent instruction path and more than 300 paths. No change is the common case, so an
 `empty` patch runs no push job. `pr-refine.yml` has no escalation job: a refused or

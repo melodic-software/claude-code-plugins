@@ -643,14 +643,19 @@ job. The caller calls the read file twice, each call with one secret, named for 
 `pr-unblock.yml`'s `fix-ci` passes only `claude-api-key` (`AUTOMATIONS_CLAUDE_API_KEY`), and
 `fix-ci-subscription` passes only `claude-code-oauth-token`
 (`AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN`); its `fix-docs` and `fix-docs-subscription`, and its
-`address-feedback` and `address-feedback-subscription`, do the same. The second runs only when the first's `lane-class` output
-is `credit-stop` or its `credential-present` is `false`, each compared to that fixed string, and
-passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr>`. fix-ci's
+`address-feedback` and `address-feedback-subscription`, do the same. Where no handoff job stands
+in (below), the second runs only when the first's `lane-class` output is `credit-stop` or its
+`credential-present` is `false`, each compared to that fixed string. It passes
+`fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr>`. fix-ci's
 fallback calls start on no first-call output: `fix-ci-handoff` (and `fix-ci-rung-up-handoff` for
 the rung-up call), a job with only `actions: read` that checks out nothing, reads this run's jobs
 through the Actions API, and the fallback runs unless the first call's `<call> / report` job has
-a `Post the check run` step that succeeded. A failed read runs the fallback too. Only `fallback`,
-the lane record's label, still reads `lane-class`; a forged one mislabels the record.
+a `Post the check run` step that succeeded. A failed read runs the fallback too. `pr-refine.yml`'s
+`fix-docs-handoff` runs the same read for `fix-docs`, and `fix-docs-subscription` also needs the
+first call's `<call> / broker-check` job to show the broker's allow: `fix-docs` posts nothing on a
+decline, so a kill switch or a refusal starts no second leg, and a failed read starts none either,
+since with no check posted `fix-docs-dispatch.mjs` dispatches the PR again. Only `fallback`, the
+lane record's label, still reads `lane-class`; a forged one mislabels the record.
 
 1. Before any head code, the run job fails red unless the `role` is lower-case kebab, the model
    route resolves an alias (`default` resolves to none) and the skill is advisory. While sudo
