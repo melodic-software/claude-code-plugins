@@ -257,6 +257,25 @@ describe("applyRefinement", () => {
     assert.equal(writes(fake.calls).length, 1, "the comment only");
   });
 
+  test("an exact refinement of a status: ready issue admission refused asks for re-triage, once", async () => {
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "status: ready" }] }), comments: [laneComment()], events: [] });
+    const result = await apply(fake, EXACT);
+    assert.equal(result.redispatch, true);
+    const done = writes(fake.calls).map(({ method, path, body }) => `${method} ${path} ${JSON.stringify(body)}`);
+    assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: ["needs-triage"] })}`);
+    assert.match(done[1], /^POST \/repos\/o\/r\/issues\/7\/comments /, "the marker comment goes last");
+    assert.equal(done.length, 2);
+    const again = fakeGitHub({ issue: issueOf({ labels: [{ name: "status: ready" }] }), comments: [laneComment(), appComment(`${REFINE_MARKER}\nfirst`)] });
+    assert.deepEqual(await apply(again, EXACT), { outcome: "skipped", redispatch: false });
+  });
+
+  test("an exact refinement of an issue already agent-ready asks for no re-triage", async () => {
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "status: ready" }, { name: "agent-ready" }] }), comments: [laneComment()], events: [] });
+    const result = await apply(fake, EXACT);
+    assert.equal(result.redispatch, false);
+    assert.equal(writes(fake.calls).length, 1, "the comment only");
+  });
+
   test("an inexact refinement posts the questions and keeps the issue at needs-decision", async () => {
     const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "status: ready" }] }), comments: [laneComment()], events: [] });
     const result = await apply(fake, INEXACT);

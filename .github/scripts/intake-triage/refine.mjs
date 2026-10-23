@@ -59,6 +59,7 @@ const NEEDS_DECISION = "status: needs-decision";
 const READY = "status: ready";
 const NEEDS_HUMAN = "needs-human";
 const NEEDS_TRIAGE = "needs-triage";
+const AGENT_READY = "agent-ready";
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const RELATIONS = new Set(["duplicate", "fixed-by", "related"]);
 const LIMITS = { criteria: 12, dependencies: 10, related: 10, questions: 5, sources: 15 };
@@ -296,11 +297,24 @@ export async function applyRefinement({ github, repository, number, appId, outpu
     log(`refine: #${number} is not exact; it waits at ${NEEDS_DECISION} with recommended answers`);
     return { outcome: "needs-decision", redispatch: false };
   }
+  // A `status: ready` issue admission has not taken (no needs-decision, no
+  // agent-ready) is triaged again so admission reads the new criteria.
+  if (!labels.includes(NEEDS_DECISION)) {
+    if (!labels.includes(READY) || labels.includes(AGENT_READY)) {
+      await post();
+      log(`refine: #${number} is exact; no needs-decision to lift and nothing awaits admission`);
+      return { outcome: "exact", redispatch: false };
+    }
+    await github("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
+    await post();
+    log(`refine: #${number} is exact; triage asked again so admission reads the criteria`);
+    return { outcome: "exact", redispatch: true };
+  }
   // Only the lanes App's own needs-decision gives way: a person's stays.
   const setter = (await paginate(github, `${base}/events`)).filter((event) => event?.event === "labeled" && event.label?.name === NEEDS_DECISION).at(-1)?.actor?.id;
-  if (!labels.includes(NEEDS_DECISION) || setter !== appId) {
+  if (setter !== appId) {
     await post();
-    log(`refine: #${number} is exact; ${labels.includes(NEEDS_DECISION) ? "a person set its needs-decision, so it stays" : "no needs-decision to lift"}`);
+    log(`refine: #${number} is exact; a person set its needs-decision, so it stays`);
     return { outcome: "exact", redispatch: false };
   }
   // needs-triage first: a failure between the two leaves a label a sweep picks up.
