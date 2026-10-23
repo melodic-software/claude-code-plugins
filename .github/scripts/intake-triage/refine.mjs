@@ -364,22 +364,19 @@ export function movedTexts(body, taskList, moved) {
 // deeper-indented lines with them: the first one's line becomes a plain list
 // line linking the child, the others go. Pure.
 export function splitBody(body, taskList, moved, child) {
-  const numbers = new Map();
+  // Every line a moved item owns, a nested task-list line under it included.
+  const gone = new Set();
   taskItems(body, taskList).forEach(({ line, more }, index) => {
-    for (const at of [line, ...more]) {
-      numbers.set(at, { n: index + 1, first: at === line });
+    if (moved.includes(index + 1)) {
+      [line, ...more].forEach((at) => gone.add(at));
     }
   });
   let linked = false;
   return String(body)
     .split("\n")
     .flatMap((text, index) => {
-      const at = numbers.get(index);
-      if (!moved.includes(at?.n)) {
+      if (!gone.has(index)) {
         return [text];
-      }
-      if (!at.first) {
-        return [];
       }
       if (linked) {
         return [];

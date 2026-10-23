@@ -568,6 +568,12 @@ describe("split", () => {
     assert.equal(parent, "- [ ] With exactly one row the line reads one question.\n- Done-when item 2 needs a person, so it moved to #70.\n- [ ] Tests pass.\n  - including the exporter suite");
   });
 
+  test("task-list lines nested under a moved item leave the parent with it", () => {
+    const body = ["- [ ] Tests pass.", "- [ ] Open the brief on a Windows 11 host:", "  - [ ] title renders", "  - [ ] table has 3 rows", "- [ ] Lint passes."].join("\n");
+    assert.deepEqual(movedTexts(body, "- [ ] ", [2]), ["- [ ] Open the brief on a Windows 11 host:\n  - [ ] title renders\n  - [ ] table has 3 rows"]);
+    assert.equal(splitBody(body, "- [ ] ", [2], 70), "- [ ] Tests pass.\n- Done-when item 2 needs a person, so it moved to #70.\n- [ ] Lint passes.");
+  });
+
   test("a body edited while the child was filed keeps the edit and the hold", async () => {
     const fake = fakeGitHub({ issue: held(), comments: heldComments, events: labeledBy(APP) });
     let reads = 0;
