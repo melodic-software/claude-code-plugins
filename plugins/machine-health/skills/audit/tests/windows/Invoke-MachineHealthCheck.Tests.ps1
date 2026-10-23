@@ -324,6 +324,27 @@ Describe 'Invoke-MachineHealthCheck run artifacts in latest.json' -Tag 'orchestr
     }
 }
 
+Describe 'Invoke-MachineHealthCheck with a checked TODO.md and no approvals.json' -Tag 'orchestrator' {
+    BeforeAll {
+        $script:root = New-MachineHealthTempDir -Prefix 'machine-health-orch-todo'
+        $script:stateBase = Initialize-QuietStateBase (Join-Path $script:root 'state-base')
+        Set-Content -LiteralPath (Join-Path $script:stateBase 'TODO.md') -Encoding utf8 `
+            -Value "- [x] restart-stopped-service`n- [x] Enable Clear-TempFiles"
+        $script:Run = Invoke-OrchestratorProcess -OutputBase (Join-Path $script:root 'output') -StateBase $script:stateBase
+    }
+
+    AfterAll {
+        Remove-MachineHealthTempDir -Path $script:root
+    }
+
+    It 'approves nothing: TODO.md text never becomes an approval' {
+        $script:Run.ExitCode | Should -Be 0
+        Join-Path $script:stateBase 'state\approvals.json' | Should -Not -Exist
+        Get-Content -Raw -LiteralPath (Get-ChildItem -LiteralPath (Join-Path $script:stateBase 'logs') -Filter 'run-*.log')[0].FullName |
+            Should -Not -Match 'approvals_migrated'
+    }
+}
+
 Describe 'Invoke-MachineHealthCheck without -OutputBase' -Tag 'orchestrator' {
     BeforeAll {
         $script:root = New-MachineHealthTempDir -Prefix 'machine-health-orch-default'

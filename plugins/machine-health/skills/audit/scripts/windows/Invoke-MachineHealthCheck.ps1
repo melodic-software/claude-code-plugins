@@ -233,8 +233,8 @@ if ($PSCmdlet.ParameterSetName -eq 'ElevatedPass') {
     exit 0
 }
 
-# Approval state is a standard-run read: it creates the state folder and may migrate,
-# so it loads only past the elevated-pass branch.
+# Approval state is a standard-run read that creates the state folder, so it loads only past
+# the elevated-pass branch.
 . (Join-Path $libRoot 'Get-ApprovalState.ps1')
 
 # Plugin state never goes into a cloud-synced folder; see the StateBase
@@ -592,10 +592,9 @@ public struct LASTINPUTINFO { public uint cbSize; public uint dwTime; }
 
     $todoPath = Get-TodoPath -StateBase $StateBase
     $queuedTodoTitles = [System.Collections.Generic.List[string]]::new()
-    # Get-ApprovalState creates the state folder and may run the one-time checkbox migration,
-    # so a synced StateBase skips it.
+    # Get-ApprovalState creates the state folder, so a synced StateBase skips it.
     $approvalState = if ($stateWritable) {
-        Get-ApprovalState -StateDir $stateDir -TodoPath $todoPath -LogPath $runLog
+        Get-ApprovalState -StateDir $stateDir -LogPath $runLog
     } else {
         New-DefaultApprovalState
     }
