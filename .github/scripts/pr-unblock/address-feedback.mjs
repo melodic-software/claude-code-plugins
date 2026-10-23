@@ -25,7 +25,8 @@
 // write-access fix request on, is marked as direction; every other body is
 // data.
 
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, lstatSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { isProtectedPath, namedInScope } from "./thread-scope.mjs";
@@ -720,6 +721,42 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
       await request(`${repo}/git/refs/${ref.split("/").map(encodeURIComponent).join("/")}`, "PATCH", { sha, force });
     },
   };
+}
+
+const MARKER_FILE = /^scan-refused-[1-9][0-9]{0,4}(-rung-up)?\.txt$/;
+
+// The model call's scan refusal for a reply or verdict script: '' none,
+// `patch` an oversize patch, `output` any other. It comes from the markers the
+// read runner's scan-refusal job uploads, never from a job output: a failed
+// job's outputs are not documented to reach a workflow_call caller. `dir` is
+// where the write runner downloaded every attempt's marker for the model
+// call's activity (SCAN_REFUSED_DIR), `read` that download's outcome
+// (SCAN_REFUSED_READ). A download that failed cannot rule a refusal out, so
+// it reads `output`; any marker reads `patch` only when one names it. A
+// forged marker only hands the round to a person.
+export function scanRefusal({ dir = "", read = "" } = {}) {
+  if (read === "failure") {
+    return "output";
+  }
+  if (dir === "") {
+    return "";
+  }
+  let names;
+  try {
+    names = readdirSync(dir);
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      return "";
+    }
+    throw error;
+  }
+  const kinds = names
+    .filter((name) => MARKER_FILE.test(name) && lstatSync(join(dir, name)).isFile())
+    .map((name) => readFileSync(join(dir, name), "utf8").trim());
+  if (kinds.length === 0) {
+    return "";
+  }
+  return kinds.includes("patch") ? "patch" : "output";
 }
 
 export function need(env, keys) {
