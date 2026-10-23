@@ -455,6 +455,7 @@ describe("unrunnableCriteria", () => {
     ["a measurement over time", "Monitor the queue for two weeks and confirm no backlog.", /over time/],
     ["after days", "Confirm after 7 days that the cache stays under 1 GB.", /over time/],
     ["a page outside the lane's hosts", "The page at https://example.com/docs shows the new flag.", /example\.com/],
+    ["a page an item compares against", "Confirm the table matches https://example.com/page.", /example\.com/],
   ];
   for (const [name, line, kind] of positives) {
     test(`flags ${name}`, () => {
@@ -473,16 +474,30 @@ describe("unrunnableCriteria", () => {
     ["a GitHub link", "The PR at https://github.com/o/r/pull/1 links the issue."],
     ["a lane docs host", "The section matches https://code.claude.com/docs/en/hooks."],
     ["a localhost URL", "The server answers on http://localhost:8080/health."],
+    ["a URL named as text to edit", "Replace https://example.com in README.md with https://code.claude.com."],
+    ["an expiry period", "Verify tokens expire after 30 days."],
+    ["a retention setting", "Confirm the config keeps transcripts for 30 days."],
+    ["a lane host at a sentence end", "The page matches https://code.claude.com."],
+    ["GitHub at a sentence end", "Check the repository at https://github.com."],
+    ["a subdomain of a wildcard host", "Confirm the step matches https://docs.example.org/en/actions.", ["*.example.org"]],
   ];
-  for (const [name, line] of negatives) {
+  for (const [name, line, hosts] of negatives) {
     test(`passes ${name}`, () => {
-      assert.deepEqual(kinds(line), []);
+      assert.deepEqual(kinds(line, hosts), []);
     });
   }
   test("any web host skips the URL check; no listed hosts allow only GitHub and local ones", () => {
     assert.deepEqual(kinds("See https://example.com.", "any"), []);
-    assert.equal(kinds("See https://code.claude.com/docs.", []).length, 1);
-    assert.equal(unrunnableCriteria("- [ ] See https://code.claude.com/docs.", "- [ ] ", undefined).found.length, 1);
+    assert.equal(kinds("Confirm it matches https://code.claude.com/docs.", []).length, 1);
+    assert.equal(unrunnableCriteria("- [ ] Confirm it matches https://code.claude.com/docs.", "- [ ] ", undefined).found.length, 1);
+  });
+  test("a *. host allows only that domain's subdomains", () => {
+    assert.equal(kinds("Confirm it matches https://example.org/x.", ["*.example.org"]).length, 1);
+    assert.equal(kinds("Confirm it matches https://badexample.org/x.", ["*.example.org"]).length, 1);
+  });
+  test("an observation window over time is flagged", () => {
+    assert.match(kinds("Check error rates over the next two weeks.").join(), /over time/);
+    assert.match(kinds("Track the hit rate for 14 days after release.").join(), /over time/);
   });
   test("reads only task-list lines and numbers items from 1", () => {
     const body = "Runs on a Windows 11 host today.\n- [ ] Fix line 3.\n- [ ] Run it on a Windows 11 host.";

@@ -83,6 +83,7 @@ export const openPullsNaming = (timeline, repository) =>
 // an action or a place within one clause of its subject, so an item that only
 // names a host, a threshold or a retention period passes.
 const N = String.raw`(?:\d+|two|three|four|five|seven|ten|fourteen|twenty|thirty|fifty|hundred)`;
+const UNIT = String.raw`(?:hours?|days?|weeks?|months?|nights?)`;
 const UNRUNNABLE = [
   [
     "a run on a host the lane is not",
@@ -101,13 +102,32 @@ const UNRUNNABLE = [
   ],
   [
     "a measurement over time",
-    new RegExp(
-      String.raw`\b(?:measure|observe|monitor|watch|track|confirm|verify|check)\b[^,;:]{0,60}\b(?:over|for|across|after) (?:the )?(?:next |following )?(?:a |an |one |${N} )?(?:hours?|days?|weeks?|months?|nights?)\b`,
-      "i",
-    ),
+    {
+      // An observation window, not a duration the lane can read from config:
+      // an expiry or retention period passes.
+      window: new RegExp(
+        [
+          String.raw`\b(?:for|over|across|during) the (?:next|following|coming) (?:${N} )?${UNIT}`,
+          String.raw`\b(?:measure|observe|monitor|watch|track)\b[^,;:]{0,60}\b(?:for|over|across|during) (?:a |an |one |${N} )?${UNIT}`,
+          String.raw`\b(?:measure|observe|monitor|watch|track|confirm|verify|check)\b[^,;:]{0,60}\bafter (?:a |an |one |${N} )?${UNIT} (?:of (?:use|running|runs|operation|traffic)|that)\b`,
+        ].join("|"),
+        "i",
+      ),
+      retention: /\b(?:expir\w*|keeps?|kept|retain\w*|retention|older than|ttl)\b/i,
+      test(text) {
+        return this.window.test(text) && !this.retention.test(text);
+      },
+    },
   ],
 ];
+// The lane can always reach these; a page elsewhere needs resolve-issue's
+// web access.
 const GITHUB_HOSTS = ["github.com", "api.github.com", "localhost", "127.0.0.1"];
+// An item reads a page only when its clause asks to open or compare against it,
+// not when it names a URL as text to edit.
+const READS_PAGE = /\b(?:read|fetch|open|visit|load|browse|check|confirm|verify|match(?:es)?|compare|against|according|shows?|says|lists?)\b/i;
+const allowedBy = (hosts) => (host) =>
+  hosts.some((entry) => (entry.startsWith("*.") ? host.endsWith(entry.slice(1)) : host === entry));
 // Backtick-free, mention-free, at most 80 characters: issue text
 // quoted back into an App comment.
 const excerpt = (text) => {
@@ -117,9 +137,10 @@ const excerpt = (text) => {
 
 // [{n, kind, text}] for each task-list item (1-based n) the lane cannot
 // perform. `webHosts` is resolve-issue's web-access domains: "any" skips the
-// URL check, and an absent list allows only GitHub and local hosts. Pure.
+// URL check, an absent list allows only GitHub and local hosts, and a `*.`
+// entry allows that domain's subdomains. Pure.
 export function unrunnableCriteria(body, taskList, webHosts) {
-  const allowed = webHosts === "any" ? null : new Set([...GITHUB_HOSTS, ...(Array.isArray(webHosts) ? webHosts : [])].map((h) => h.toLowerCase()));
+  const allowed = webHosts === "any" ? null : allowedBy([...GITHUB_HOSTS, ...(Array.isArray(webHosts) ? webHosts : [])].map((h) => h.toLowerCase()));
   const items = String(body ?? "")
     .split("\n")
     .map((line) => line.trimStart())
@@ -129,7 +150,12 @@ export function unrunnableCriteria(body, taskList, webHosts) {
   items.forEach((text, index) => {
     let kind = UNRUNNABLE.find(([, pattern]) => pattern.test(text))?.[0];
     if (!kind && allowed) {
-      const outside = [...text.matchAll(/\bhttps?:\/\/([a-z0-9.-]+)/gi)].map((m) => m[1].toLowerCase()).find((host) => !allowed.has(host));
+      // Clauses split on , ; and a colon that does not start ://.
+      const outside = text
+        .split(/[,;]|:(?!\/\/)/)
+        .filter((clause) => READS_PAGE.test(clause))
+        .flatMap((clause) => [...clause.matchAll(/\bhttps?:\/\/([a-z0-9.-]+)/gi)].map((m) => m[1].toLowerCase().replace(/\.+$/, "")))
+        .find((host) => !allowed(host));
       if (outside) {
         kind = `a page on ${outside}, outside the lane's web hosts`;
       }
