@@ -513,7 +513,8 @@ jobs:
       # lane's own PRs only `false` (or no setting at all) is live; for
       # Dependabot PRs only `merge.dependabot.mode: enforce` is, and only
       # `report` or `enforce` lists them at all. While neither is live this
-      # run starts no CI run either.
+      # run starts no CI run either. lane-prs is merge.lane-prs as
+      # resolve-config resolved it (absent: native).
       - name: Read report-only
         id: mode
         if: steps.config.outcome == 'success'
@@ -538,6 +539,7 @@ jobs:
             echo "report-only=$report_only"
             echo "dependabot=$dependabot"
             echo "live=$live"
+            echo "lane-prs=$(jq -r '.merge."lane-prs"' "$RUNNER_TEMP/resolved-config.json")"
             echo "gate-budget-minutes=$(yq '.merge."gate-budget-minutes" // ""' "$config")"
             echo "gate-candidate-minutes=$(yq '.merge."gate-candidate-minutes" // ""' "$config")"
             echo "gate-deferred-minutes=$(yq '.merge."gate-deferred-minutes" // ""' "$config")"
@@ -587,7 +589,10 @@ jobs:
 
       # Candidates: open, non-draft PRs into main that the lanes App
       # (merge.agent-identity on main) or the owner account opened, plus
-      # Dependabot's unless merge.dependabot.mode is off. This is only a shortlist; the gate checks
+      # Dependabot's unless merge.dependabot.mode is off. The lanes App's are
+      # listed only under `merge.lane-prs: gate`; under native they merge
+      # through GitHub's auto-merge (the enable-auto-merge job), so the gate
+      # never reads them. This is only a shortlist; the gate checks
       # the author, the closing issue and verifier verdict or the Dependabot
       # tier, and every other rule again. A candidate the gate would refuse on
       # its listed labels or body alone (the `do-not-merge` label, the
@@ -602,6 +607,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           DEPENDABOT: ${{ steps.mode.outputs.dependabot }}
+          LANE_PRS: ${{ steps.mode.outputs.lane-prs }}
         run: |
           set -euo pipefail
           identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
@@ -610,7 +616,8 @@ jobs:
             echo "::error::merge.agent-identity is not an App bot login: $identity"
             exit 1
           fi
-          authors=("app/$slug")
+          authors=()
+          [ "$LANE_PRS" = native ] || authors+=("app/$slug")
           # With adoption.idle-hours set, each trusted-actors.json account, a
           # person by login and an App as app/<slug>: the gate adopts their
           # pull requests (babysit_merge_policy.adoption_refusal) and checks
@@ -656,14 +663,14 @@ jobs:
               sleep $((attempt * 15))
             done
           done
-          jq -cs '[add[] | select(.isDraft | not)
+          jq -cs '[(add // [])[] | select(.isDraft | not)
               | {number, head: .headRefOid, updatedAt, labels: [.labels[].name], body}]
               | unique_by(.number)' "$listing" |
             python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_merge_prefilter.py \
               --human-gated="$human_gated" >"$RUNNER_TEMP/prefilter.json"
           jq -c .candidates "$RUNNER_TEMP/prefilter.json" >"$RUNNER_TEMP/candidates.json"
           jq -c .held "$RUNNER_TEMP/prefilter.json" >"$RUNNER_TEMP/held.json"
-          jq -cs '[add[] | select(.isDraft) | {number, id, head: .headRefOid, updatedAt,
+          jq -cs '[(add // [])[] | select(.isDraft) | {number, id, head: .headRefOid, updatedAt,
               labels: [.labels[].name]}] | unique_by(.number)' "$listing" >"$RUNNER_TEMP/drafts.json"
           echo "count=$(jq length "$RUNNER_TEMP/candidates.json")" >>"$GITHUB_OUTPUT"
 
