@@ -95,12 +95,15 @@ test("a name that carries issue numbers must carry the ones the verdict records"
   const issues = (...numbers) => numbers.map((number) => ({ number }));
   const digest = "79b4cc554b80dca6"; // feat/x, as above
   assert.equal(readVerdict(`${NAME}-i7`, verdictText({ linked_issues: issues(7) })).pr, 42);
-  assert.equal(readVerdict(`${NAME}-i12.7`, verdictText({ linked_issues: issues(7, 12) })).pr, 42);
+  assert.equal(readVerdict(`${NAME}-i7.12`, verdictText({ linked_issues: issues(12, 7) })).pr, 42);
   assert.equal(readVerdict(`${NAME}-${digest}-i7`, verdictText({ head_ref: "feat/x", linked_issues: issues(7) })).pr, 42);
   for (const [name, recorded] of [
     [`${NAME}-i7`, issues(8)],
     [`${NAME}-i7`, issues(7, 8)],
     [`${NAME}-i7.8`, issues(7)],
+    // One verdict has one name: issues ascending, each once.
+    [`${NAME}-i12.7`, issues(7, 12)],
+    [`${NAME}-i7.7`, issues(7)],
     [`${NAME}-i7`, issues()],
     [`${NAME}-i7`, undefined],
     [`${NAME}-i07`, issues(7)],

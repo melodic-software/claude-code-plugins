@@ -105,8 +105,17 @@ jobs:
             echo "::error::the upstream run id is not a run id"
             exit 1
           fi
-          names=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts?per_page=100" \
-            --jq '.artifacts[] | select(.expired == false) | .name | select(test("^pr-verify-[1-9][0-9]{0,9}-[0-9a-f]{40}-fail(-[0-9a-f]{16})?(-i[1-9][0-9]{0,9}([.][1-9][0-9]{0,9}){0,9})?$"))')
+          # Every FAIL-shaped name, then the ones the readers take (the
+          # grammar babysit_verify_evidence.NAME_RE holds, at most 194
+          # characters, issues ascending and once each). A FAIL-shaped name
+          # no reader takes fails the run rather than being skipped.
+          listed=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts?per_page=100" \
+            --jq '.artifacts[] | select(.expired == false) | .name | select(test("\\Apr-verify-[1-9][0-9]{0,9}-[0-9a-f]{40}-fail"))')
+          names=$(jq -Rr 'select(length <= 194 and test("\\Apr-verify-[1-9][0-9]{0,9}-[0-9a-f]{40}-fail(-[0-9a-f]{16})?(-i[1-9][0-9]{0,9}([.][1-9][0-9]{0,9}){0,9})?\\z") and ((capture("-i(?<n>[0-9.]+)\\z") // {n: ""}).n | . == "" or ((split(".") | map(tonumber)) as $a | $a == ($a | unique))))' <<<"$listed")
+          if [ "$names" != "$listed" ]; then
+            echo "::error::run $RUN_ID uploaded a fail verdict whose name no reader takes"
+            exit 1
+          fi
           if [ -z "$names" ]; then
             echo "::notice::run $RUN_ID uploaded no fail verdict; nothing to post"
             exit 0

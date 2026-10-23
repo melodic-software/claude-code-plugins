@@ -1026,27 +1026,64 @@ class AFailNamingTheIssueCounts(unittest.TestCase):
     def test_two_named_leave_the_pass_to_decide(self) -> None:
         self.assertIsNone(read(self.named_fails(*SIBLING_HEADS[:2])).refusal)
 
-    def test_any_listed_issue_counts_in_any_order(self) -> None:
-        for suffix in ("-i7.12", "-i12.7", "-i3.7.7"):
+    def test_any_listed_issue_counts(self) -> None:
+        ten = "-i" + ".".join(str(n) for n in range(1, 11))
+        for suffix in ("-i7.12", "-i3.7", ten):
             with self.subTest(suffix):
                 fake = self.named_fails(*SIBLING_HEADS, suffix=suffix)
                 self.assertEqual(read(fake).refusal, "verify:repeated-fail")
 
     def test_a_name_without_the_issue_does_not_count(self) -> None:
-        # Another issue, an older name, and names outside the grammar, which
-        # are not verdicts at all.
-        for suffix in (
-            "-i8",
-            "-i8.70",
-            "",
-            "-i07",
-            "-i",
-            "-i7.",
-            "-i" + ".".join(["7"] * 11),
-        ):
+        # Another issue, or an older name with no issues.
+        for suffix in ("-i8", "-i8.70", ""):
             with self.subTest(suffix):
                 fake = self.named_fails(*SIBLING_HEADS, suffix=suffix)
                 self.assertIsNone(read(fake).refusal)
+
+    OFF_GRAMMAR = (
+        "-i07",
+        "-i",
+        "-i7.",
+        "-i7,8",
+        "-I7",
+        "-i" + ".".join(str(n) for n in range(1, 12)),
+        # One verdict has one name: ascending, each issue once.
+        "-i12.7",
+        "-i7.7",
+        "-i3.7.7",
+    )
+
+    def test_an_off_grammar_fail_of_verifier_origin_holds(self) -> None:
+        # A FAIL name no reader takes is held, never skipped: it may be a
+        # FAIL the cap or the head should count.
+        for suffix in self.OFF_GRAMMAR:
+            with self.subTest(suffix):
+                fake = self.named_fails(*SIBLING_HEADS[:1], suffix=suffix)
+                self.assertEqual(read(fake).refusal, "verify:unreadable")
+                fake = passing(artifact(f"{named(HEAD, 'fail')}{suffix}", 9))
+                fake.runs[9] = judged(9, OLDER_START)
+                self.assertEqual(read(fake).refusal, "verify:unreadable")
+
+    def test_an_off_grammar_fail_of_another_run_is_ignored(self) -> None:
+        for suffix in self.OFF_GRAMMAR:
+            with self.subTest(suffix):
+                fake = passing(artifact(f"{named(HEAD, 'fail')}{suffix}", 9))
+                fake.runs[9] = judged(9, OLDER_START, event="push")
+                self.assertIsNone(read(fake).refusal)
+
+    def test_a_pass_never_carries_issues(self) -> None:
+        # Only a FAIL's name carries issues: a lone pass named with them at
+        # the head is no verdict, so the head still waits for one.
+        for name in (
+            f"{named(HEAD, 'pass')}-i7",
+            f"{named(HEAD, 'pass-notes')}-i7",
+            f"{named(HEAD, 'pass')}-{DIGEST_X}-i7",
+        ):
+            with self.subTest(name):
+                fake = FakeGitHub([artifact(name, 1)], {1: run(1)}, {name: record()})
+                self.assertEqual(read(fake).refusal, "verify:missing")
+        fake = passing()
+        self.assertIsNone(read(fake).refusal)
 
     def test_an_unreadable_run_of_a_named_fail_refuses(self) -> None:
         fake = self.named_fails(*SIBLING_HEADS[:1])
@@ -1203,11 +1240,17 @@ class UnauthenticatedArtifactsAreIgnored(unittest.TestCase):
         for name in (
             f"pr-verify-{PR}-{HEAD}-FAIL",
             f"pr-verify-{PR}-{HEAD[:39]}-fail",
-            f"pr-verify-{PR}-{HEAD}-fail-extra",
         ):
             with self.subTest(name):
                 fake = FakeGitHub([artifact(name, 1)], {1: run(1)})
                 self.assertEqual(read(fake).refusal, "verify:missing")
+
+    def test_a_fail_shaped_name_that_does_not_parse_holds(self) -> None:
+        # It starts like a FAIL of verifier origin, so it may be one: held.
+        fake = FakeGitHub(
+            [artifact(f"pr-verify-{PR}-{HEAD}-fail-extra", 1)], {1: run(1)}
+        )
+        self.assertEqual(read(fake).refusal, "verify:unreadable")
 
 
 class UnreadableReadsBlock(unittest.TestCase):
@@ -3395,13 +3438,15 @@ class AnUntiedFailIsTiedByItsNamedHeadRef(unittest.TestCase):
                 self.assertEqual(read(fake, pr).refusal, "verify:earlier-fail")
                 self.assertEqual(downloads(fake), 0)
 
-    def test_a_malformed_digest_is_no_verdict(self) -> None:
+    def test_a_malformed_digest_is_no_verdict_and_holds(self) -> None:
+        # No verdict name, but a FAIL-shaped one of verifier origin: held,
+        # never skipped.
         for suffix in ("-79B4CC554B80DCA6", "-79b4cc554b80dca", "-79b4cc554b80dca6x"):
             with self.subTest(suffix):
                 fake = FakeGitHub(
                     [artifact(named(TIE, "fail", 97) + suffix, 4)], {4: run(4)}
                 )
-                self.assertEqual(read(fake).refusal, "verify:missing")
+                self.assertEqual(read(fake).refusal, "verify:unreadable")
 
 
 # --- The head-ref map an earlier pr-merge run kept ------------------------------

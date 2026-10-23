@@ -1281,14 +1281,20 @@ tool alone, allowed only on the data files in the working directory's `pr-verify
 uploads one artifact, `pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>`, holding the verdict JSON. Every
 reader also accepts that name followed by `-<ref-digest>`, the first 16 hex digits of the SHA-256
 of the `head_ref` the JSON records (`HEAD_REF_DIGEST_HEX` in `write-verdict.mjs`), which the
-writer moves to once the readers have run on main. After that, every reader also accepts `-i` and
-the issue numbers the JSON's `linked_issues` records, joined by dots (`-i7` or `-i7.12`, in any
-order, at most 10, each 1 to 10 digits with no leading zero), so a `fail` carries its issues in a
-name the run authenticates; the writer adds them once the readers have run on main. GitHub refuses
+writer moves to once the readers have run on main. After that, a `fail` name may end with `-i`
+and the issue numbers the JSON's `linked_issues` records, ascending, each once, joined by dots
+(`-i7` or `-i7.12`, at most 10, each 1 to 10 digits with no leading zero), so a `fail` carries its
+issues in a name the run authenticates and one verdict has one name. Every reader refuses a `pass`
+or `pass-notes` name that carries issues, issues out of order or repeated, a pull request number
+over 10 digits, and a name over 194 characters. A name that starts like a `fail`'s
+(`pr-verify-<pr>-<sha>-fail`) but no reader takes holds rather than being skipped: the gate refuses
+`verify:unreadable` when its run is of verifier origin, or is tied to the pull request and cannot be
+read, and pr-feedback-dispatch fails its run. The writer adds the issues once the readers have run
+on main. GitHub refuses
 an artifact name holding `"`, `:`, `<`, `>`, `|`, `*`, `?`, `\`, `/`, a carriage return or a
 line feed
 ([`validateArtifactName`](https://github.com/actions/toolkit/blob/main/packages/artifact/src/internal/upload/path-and-artifact-name-validation.ts)),
-so digits, `-` and `.` are safe, and the longest name is 200 characters. The JSON holds `pr`, `head_sha`, `base_sha`, `head_ref`, `linked_issues` with each issue's author login, id and
+so digits, `-` and `.` are safe, and the longest name is 194 characters. The JSON holds `pr`, `head_sha`, `base_sha`, `head_ref`, `linked_issues` with each issue's author login, id and
 account type, `verdict`, `summary`, `notes` and `run_id`. The head SHA is the one `pr-require-checks`
 ran on, never the pull request's live head. A model error, an output that fails the schema, a
 summary or note matching a shared credential pattern (`findSecret` in `lib/publish-gate.mjs`), or a run with any permission denial
@@ -1338,7 +1344,11 @@ head:
   the carry-forward below stops only a head that changes nothing of its own, and a one-line edit
   gives a new change. Every counted `fail` whose name carries one of the closing issues counts too,
   from the listing the gate already reads, so it costs no request; such a `fail` whose run cannot
-  be read refuses `verify:unreadable`. A pull request that names the issue without closing it, or
+  be read refuses `verify:unreadable`. Such a `fail` keeps counting until its artifact expires, even
+  after its pull request stops closing the issue: the name records the issues the verdict judged,
+  and this only adds holds. Editing a pull request's body never lowers a count its `fail` verdicts
+  added, so a hostile pull request that closes an issue only to inflate its cap is undone by deleting
+  that pull request's `fail` artifacts. A pull request that names the issue without closing it, or
   whose closing reference was removed, is otherwise not counted. Closing a newly filed duplicate issue instead starts the
   count of other pull requests again; a pass then needs that issue written by a trusted human,
   as below. More than 50 pull requests that claim to close one issue make

@@ -127,13 +127,15 @@ HEAD_REFS_ENV = "BABYSIT_VERIFY_HEAD_REFS"
 # (head-ref-map.mjs writes both).
 HEAD_REFS_VERSION = 1
 ARTIFACT_ID_RE = re.compile(r"[1-9][0-9]{0,15}")
-# A verdict's name, then optionally the head-ref digest, then optionally
-# `-i` and the numbers of the issues the verdict records, joined by dots
-# (`NAMED_ISSUES_MAX` at most). write-verdict.mjs writes the issues after the
-# readers accept them; the readers take any order and repeats.
+# A verdict's name, then optionally the head-ref digest, then, for a FAIL
+# only, optionally `-i` and the numbers of the issues the verdict records,
+# ascending, each once, joined by dots (`NAMED_ISSUES_MAX` at most), so one
+# verdict has one name. write-verdict.mjs writes the issues after the readers
+# accept them. `verdict_name` applies the order; NAME_RE alone does not.
 NAMED_ISSUES_MAX = 10
 NAME_RE = re.compile(
-    r"pr-verify-([1-9][0-9]*)-([0-9a-f]{40})-(pass|pass-notes|fail)"
+    r"pr-verify-([1-9][0-9]{0,9})-([0-9a-f]{40})-"
+    r"(pass(?:-notes)?(?=(?:-[0-9a-f]{16})?\Z)|fail)"
     r"(?:-([0-9a-f]{16}))?"
     rf"(?:-i([1-9][0-9]{{0,9}}(?:\.[1-9][0-9]{{0,9}}){{0,{NAMED_ISSUES_MAX - 1}}}))?"
 )
@@ -148,6 +150,26 @@ HEAD_REF_DIGEST_HEX = 16
 def named_issues(match: re.Match[str]) -> frozenset[int]:
     """The issue numbers a `NAME_RE` match names; none for an older name."""
     return frozenset(int(n) for n in match[5].split(".")) if match[5] else frozenset()
+
+
+# The longest name the grammar allows: `pr-verify-` (10), a 10-digit number
+# and `-` (11), the SHA (40), `-fail` (5), `-` and the digest (17), `-i` (2),
+# then 10 issues of 10 digits and 9 dots (109).
+NAME_MAX = 10 + 11 + 40 + 5 + 17 + 2 + NAMED_ISSUES_MAX * 10 + NAMED_ISSUES_MAX - 1
+# What starts like a FAIL's name; one that is not a verdict name is held
+# (`Reader._evidence`), never skipped.
+FAIL_PREFIX_RE = re.compile(r"pr-verify-([1-9][0-9]{0,9})-([0-9a-f]{40})-fail")
+
+
+def verdict_name(name: str) -> re.Match[str] | None:
+    """`NAME_RE`'s full match of `name`, when it is at most `NAME_MAX` long
+    and its issues, if any, are ascending and each listed once; else None,
+    as for any other name."""
+    match = NAME_RE.fullmatch(name) if len(name) <= NAME_MAX else None
+    if match is None or not match[5]:
+        return match
+    numbers = [int(n) for n in match[5].split(".")]
+    return match if all(a < b for a, b in zip(numbers, numbers[1:])) else None
 
 
 PASSES = ("pass", "pass-notes")
@@ -978,8 +1000,14 @@ class Reader:
         unread_issues: set[int] = set()
         for item in map(json_object, self._listing()):
             name = str(item.get("name") or "")
-            match = NAME_RE.fullmatch(name)
-            if not match or item.get("expired") is not False:
+            match = verdict_name(name)
+            if item.get("expired") is not False:
+                continue
+            if not match:
+                if (off := FAIL_PREFIX_RE.match(name)) is not None:
+                    unreadable = unreadable or self._off_grammar(
+                        item, name, int(off[1]) == number or off[2] in commits
+                    )
                 continue
             pr_n, sha, verdict = int(match[1]), match[2], match[3]
             run_id = json_object(item.get("workflow_run")).get("id")
@@ -1089,6 +1117,19 @@ class Reader:
             if head_fails and refusal in (FAIL, REPEATED_FAIL)
             else None,
         )
+
+    def _off_grammar(self, item: dict[str, Any], name: str, tied: bool) -> str | None:
+        """Why a FAIL-shaped name no reader takes holds: its run is of
+        verifier origin, or, tied to this pull request, cannot be read. Such a
+        name may be a FAIL the cap or the head should count, so it holds
+        rather than being skipped; one from any other run is ignored."""
+        run_id = json_object(item.get("workflow_run")).get("id")
+        if not isinstance(run_id, int) or isinstance(run_id, bool):
+            return None
+        state = self._run_state(run_id, shared=True)
+        if state == FOREIGN or (state == UNREAD and not tied):
+            return None
+        return f"off-grammar FAIL name {name}"
 
     def _elsewhere(
         self,

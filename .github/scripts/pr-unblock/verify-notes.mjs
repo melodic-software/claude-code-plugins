@@ -32,8 +32,19 @@ import { headRefDigest } from "../pr-verify/write-verdict.mjs";
 import { createGitHubApi, MARKER_AUTHOR_ID, need, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 
 // The name may end with `-i` and the issue numbers the verdict records,
-// joined by dots (babysit_verify_evidence.NAME_RE).
+// ascending, each once, joined by dots (babysit_verify_evidence.NAME_RE);
+// `isFailName` checks the order.
 export const FAIL_NAME = /^pr-verify-([1-9][0-9]{0,9})-([0-9a-f]{40})-fail(?:-([0-9a-f]{16}))?(?:-i([1-9][0-9]{0,9}(?:\.[1-9][0-9]{0,9}){0,9}))?$/;
+const ascending = (named) => {
+  const numbers = named?.split(".").map(Number) ?? [];
+  return numbers.every((n, i) => i === 0 || numbers[i - 1] < n);
+};
+// The longest name FAIL_NAME allows (babysit_verify_evidence.NAME_MAX).
+export const NAME_MAX = 194;
+export const isFailName = (name) => {
+  const match = String(name).length <= NAME_MAX ? FAIL_NAME.exec(String(name)) : null;
+  return match !== null && ascending(match[4]);
+};
 // GitHub refuses a comment body over 65536 characters; leave room for the
 // framing (judgment).
 const BODY_MAX = 60000;
@@ -94,7 +105,7 @@ const sameIssues = (named, recorded) => {
 
 export function readVerdict(name, text) {
   const match = FAIL_NAME.exec(name ?? "");
-  if (!match) {
+  if (!match || !isFailName(name)) {
     throw new Error("the artifact name is not a pr-verify fail verdict");
   }
   const verdict = JSON.parse(text);

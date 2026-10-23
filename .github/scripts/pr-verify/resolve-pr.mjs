@@ -50,9 +50,17 @@ const VERIFY_AUTHORS = Object.freeze(["lane", "lane-or-owner", "any"]);
 
 const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
-// A verdict's name (babysit_verify_evidence.NAME_RE): the head-ref digest and
-// `-i` with the verdict's dot-joined issue numbers are optional.
-export const NAME = /^pr-verify-([1-9][0-9]*)-([0-9a-f]{40})-(pass|pass-notes|fail)(?:-[0-9a-f]{16})?(?:-i(?:[1-9][0-9]{0,9}(?:\.[1-9][0-9]{0,9}){0,9}))?$/;
+// A verdict's name (babysit_verify_evidence.NAME_RE): the head-ref digest is
+// optional, and so, on a FAIL only, is `-i` with the verdict's issue numbers,
+// ascending, each once, joined by dots (`isVerdictName` checks the order).
+export const NAME = /^pr-verify-([1-9][0-9]{0,9})-([0-9a-f]{40})-(pass(?:-notes)?(?=(?:-[0-9a-f]{16})?$)|fail)(?:-[0-9a-f]{16})?(?:-i([1-9][0-9]{0,9}(?:\.[1-9][0-9]{0,9}){0,9}))?$/;
+// The longest name NAME allows (babysit_verify_evidence.NAME_MAX).
+export const NAME_MAX = 194;
+export function isVerdictName(name) {
+  const match = String(name).length <= NAME_MAX ? NAME.exec(String(name)) : null;
+  const numbers = match?.[4]?.split(".").map(Number) ?? [];
+  return match !== null && numbers.every((n, i) => i === 0 || numbers[i - 1] < n);
+}
 const MAX_PAGES = 100;
 
 const SPEC_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
