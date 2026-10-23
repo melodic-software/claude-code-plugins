@@ -3272,7 +3272,12 @@ jobs:
       # removal, fails; adding the label back and having a trusted person
       # remove it approves.
       # It runs only when the step above read the live labels and found the
-      # label off. Unreadable comments, events or actor list fail closed.
+      # label off. A hold is the newest hold comment or the newest `labeled`
+      # event of the label by github-actions[bot] or claude[bot], whichever is
+      # later: an event cannot be deleted or edited, so removing the comment
+      # does not remove the hold, and a review re-run that labels the same head
+      # again starts a new hold. Unreadable comments, events or actor list fail
+      # closed.
       # Pinned by scripts/ci-hold-lifted-by.test.sh, which runs this body.
       - name: Fail a review-lane hold an untrusted account lifted
         if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.human_gated.outputs.held == 'false' }}
@@ -3299,17 +3304,28 @@ jobs:
             [ "$attempt" -lt 3 ] || { echo "::error::could not read the comments of #$PR_NUMBER; re-run this run."; exit 1; }
             sleep $((attempt * 5))
           done
-          held_at=$(sort <<<"$held_at" | tail -n 1)
+          for attempt in 1 2 3; do
+            if events=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/events?per_page=100" --paginate); then
+              break
+            fi
+            [ "$attempt" -lt 3 ] || { echo "::error::could not read the events of #$PR_NUMBER; re-run this run."; exit 1; }
+            sleep $((attempt * 5))
+          done
+          labeled_at=$(jq -rs --arg label "$HUMAN_GATED" '[add[] | select(.event == "labeled" and .label.name == $label
+            and (.actor.login == "github-actions[bot]" or .actor.login == "claude[bot]")) | .created_at] | max // empty' <<<"$events") || {
+            echo "::error::cannot read the events of #$PR_NUMBER."
+            exit 1
+          }
+          held_at=$(printf '%s\n%s\n' "$held_at" "$labeled_at" | sort | tail -n 1)
           if [ -z "$held_at" ]; then
             echo "No review lane has held #$PR_NUMBER."
             exit 0
           fi
           for attempt in 1 2 3; do
-            if actors=$(gh api -H 'Accept: application/vnd.github.raw+json' "repos/$GITHUB_REPOSITORY/contents/.github/standards/trusted-actors/trusted-actors.json?ref=$BASE_SHA") &&
-              events=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/events?per_page=100" --paginate); then
+            if actors=$(gh api -H 'Accept: application/vnd.github.raw+json' "repos/$GITHUB_REPOSITORY/contents/.github/standards/trusted-actors/trusted-actors.json?ref=$BASE_SHA"); then
               break
             fi
-            [ "$attempt" -lt 3 ] || { echo "::error::could not read the trusted-actor list at $BASE_SHA or the events of #$PR_NUMBER; re-run this run."; exit 1; }
+            [ "$attempt" -lt 3 ] || { echo "::error::could not read the trusted-actor list at $BASE_SHA; re-run this run."; exit 1; }
             sleep $((attempt * 5))
           done
           humans=$(jq -er '[.actors[] | select(.kind == "human") | .id | numbers | tostring] | select(length > 0) | join(" ")' <<<"$actors") || {

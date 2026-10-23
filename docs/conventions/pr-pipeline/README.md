@@ -1381,8 +1381,9 @@ them on every `pull_request` run, contract-only runs included:
 
 - **The label holds.** ci-status fails while the PR carries the human-gated label (`needs-human`
   unless the base's `.work-item-tracker.json` names another). Removing it approves.
-- **Only a trusted person lifts a review-lane hold.** Once a review lane has posted a hold comment,
-  the first removal of the label after the newest hold comment must be by a `human` of the base's
+- **Only a trusted person lifts a review-lane hold.** A hold is the newest hold comment or the
+  newest `labeled` event of the label by `github-actions[bot]` or `claude[bot]`, whichever is later,
+  so deleting the comment does not lift it. The first removal of the label after it must be by a `human` of the base's
   trusted-actor list; a later removal is of a later label, such as an escalation
   `clear-escalations` lifts. A bot's or anyone else's lift, or none recorded, fails; add the label
   back and have a trusted person remove it.

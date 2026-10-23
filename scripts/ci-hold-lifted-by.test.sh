@@ -95,7 +95,7 @@ SPOOF="$(comment '{"login":"someone","type":"User"}' $'<!-- claude-lane-hold lan
 NO_FOOTER="$(comment "$LANE" $'<!-- claude-lane-hold lane=claude-review -->\nNo footer.' 2026-10-23T12:00:00Z)"
 # unlabeled <label> <at> <actor-id> <login>
 unlabeled() { jq -cn --arg l "$1" --arg at "$2" --argjson id "$3" --arg login "$4" '{event: "unlabeled", created_at: $at, label: {name: $l}, actor: {id: $id, login: $login}}'; }
-labeled() { jq -cn --arg l "$1" --arg at "$2" '{event: "labeled", created_at: $at, label: {name: $l}, actor: {id: 337595936, login: "x"}}'; }
+labeled() { jq -cn --arg l "$1" --arg at "$2" --arg login "${3:-melodic-automation-lanes[bot]}" '{event: "labeled", created_at: $at, label: {name: $l}, actor: {id: 1, login: $login}}'; }
 OWNER_LIFT="$(unlabeled needs-human 2026-10-23T11:00:00Z 153232337 kyle-sexton)"
 BOT_LIFT="$(unlabeled needs-human 2026-10-23T11:30:00Z 337595936 'melodic-automation-lanes[bot]')"
 EARLY_LIFT="$(unlabeled needs-human 2026-10-23T09:00:00Z 153232337 kyle-sexton)"
@@ -118,13 +118,15 @@ expect() {
   fi
 }
 
-expect "a pull request no review lane held passes without reading events" 0 "No review lane has held #6419."
-if grep -qE '/events|/contents/' "$TMP_ROOT/log"; then fail "events or actors read with no hold"; else ok "events and actors are read only after a hold"; fi
+expect "a pull request no review lane held passes without reading the actor list" 0 "No review lane has held #6419."
+if grep -q '/contents/' "$TMP_ROOT/log"; then fail "actors read with no hold"; else ok "the actor list is read only after a hold"; fi
+export STUB_EVENTS
+STUB_EVENTS="[$(labeled needs-human 2026-10-23T09:00:00Z),$BOT_LIFT]"
+expect "a label the lanes App added (an escalation) is not a review-lane hold" 0 "No review lane has held #6419."
 export STUB_COMMENTS="[$SPOOF,$NO_FOOTER]"
 expect "a hold comment from a person or with no lane footer is not a hold" 0 "No review lane has held #6419."
 
 export STUB_COMMENTS="[$OLD_HOLD,$HOLD]"
-export STUB_EVENTS
 STUB_EVENTS="[$(labeled needs-human 2026-10-23T09:59:00Z),$OWNER_LIFT]"
 expect "a trusted person's removal after the hold passes" 0 "kyle-sexton, a person on the trusted-actor list, lifted"
 if grep -qxF "api -H Accept: application/vnd.github.raw+json repos/o/r/contents/.github/standards/trusted-actors/trusted-actors.json?ref=$BASE" "$TMP_ROOT/log"; then
@@ -153,6 +155,16 @@ STUB_EVENTS="[$(unlabeled owner-call 2026-10-23T11:00:00Z 153232337 kyle-sexton)
 expect "the label is the one the human-gated step resolved" 0 "kyle-sexton, a person on the trusted-actor list"
 unset HUMAN_GATED
 
+# The label events anchor the hold too: they cannot be deleted or edited.
+STUB_COMMENTS="[]"
+STUB_EVENTS="[$(labeled needs-human 2026-10-23T10:00:00Z 'github-actions[bot]'),$BOT_LIFT]"
+expect "a deleted hold comment leaves the lane's label event as the hold" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
+STUB_EVENTS="[$(labeled needs-human 2026-10-23T10:00:00Z 'claude[bot]'),$OWNER_LIFT]"
+expect "a trusted lift of a claude[bot] label passes with no comment" 0 "lifted the review-lane hold"
+STUB_COMMENTS="[$HOLD]"
+STUB_EVENTS="[$OWNER_LIFT,$(labeled needs-human 2026-10-23T11:10:00Z 'github-actions[bot]'),$BOT_LIFT]"
+expect "a review re-run that labels the same head again needs its own trusted lift" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
+
 export STUB_EVENTS="[$OWNER_LIFT]"
 export STUB_ACTORS='{"version":1,"actors":[{"id":153232337,"login":"kyle-sexton","kind":"bot"}]}'
 expect "an id listed only as a bot is not a trusted person" 1 "the trusted-actor list at $BASE names no person"
@@ -164,10 +176,10 @@ unset STUB_ACTORS
 export STUB_ACTORS_FAILS=1
 expect "a transient trusted-actor read failure is retried" 0 "lifted the review-lane hold"
 export STUB_ACTORS_FAILS=3
-expect "a trusted-actor list that never reads fails closed" 1 "::error::could not read the trusted-actor list at $BASE or the events of #6419"
+expect "a trusted-actor list that never reads fails closed" 1 "::error::could not read the trusted-actor list at $BASE; re-run this run."
 unset STUB_ACTORS_FAILS
 export STUB_EVENTS_FAIL=1
-expect "an unreadable event list fails closed" 1 "could not read the trusted-actor list at $BASE or the events of #6419"
+expect "an unreadable event list fails closed" 1 "::error::could not read the events of #6419; re-run this run."
 unset STUB_EVENTS_FAIL
 export STUB_COMMENTS_FAIL=1
 expect "an unreadable comment list fails closed" 1 "::error::could not read the comments of #6419"
