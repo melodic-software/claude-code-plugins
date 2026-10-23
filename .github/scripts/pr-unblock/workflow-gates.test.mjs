@@ -288,3 +288,74 @@ test("pr-unblock.yml: apply-dependency-patch runs only on a written patch beside
   assert.equal(runs("skipped", [], ["empty", "fix"]), false);
   assert.equal(runs("skipped", [], ["", "fix"]), false);
 });
+
+const FIX_CI_JOBS = [
+  "fix-ci-context",
+  "fix-ci",
+  "fix-ci-handoff",
+  "fix-ci-subscription",
+  "apply-patch",
+  "fix-ci-rung-up",
+  "fix-ci-rung-up-handoff",
+  "fix-ci-rung-up-subscription",
+  "apply-patch-rung-up",
+  "fix-ci-unreported",
+];
+const FIX_CI_CALLS = ["fix-ci", "fix-ci-subscription", "fix-ci-rung-up", "fix-ci-rung-up-subscription"];
+
+// As for address-feedback: a job that needs a skipped call and lacks
+// !cancelled() is skipped too, so the fallback, the push and the unreported
+// post would never run.
+test("pr-unblock.yml: every fix-ci job after a model call starts its if: with !cancelled()", () => {
+  const after = FIX_CI_JOBS.filter((job) => jobGate(UNBLOCK, job).needs.some((need) => FIX_CI_CALLS.includes(need)));
+  assert.deepEqual(after, ["fix-ci-handoff", "fix-ci-subscription", "apply-patch", "fix-ci-rung-up-handoff", "fix-ci-rung-up-subscription", "apply-patch-rung-up", "fix-ci-unreported"]);
+  for (const job of after) assert.match(jobGate(UNBLOCK, job).gate, /^\$\{\{ !cancelled\(\) && /, job);
+});
+
+// A hostile model job can forge handed-off, lane-class, credential-present or
+// any output of its own. The fallback calls start on the handoff jobs' reads,
+// and the unreported post on fix-ci-context alone, so no forged output turns them.
+test("pr-unblock.yml: fix-ci's fallback calls and unreported post decide on base jobs alone, whatever a model call reports", () => {
+  const forged = /needs\.fix-ci(?:-rung-up)?(?:-subscription)?\.outputs\./;
+  for (const job of ["fix-ci-handoff", "fix-ci-subscription", "fix-ci-rung-up-handoff", "fix-ci-rung-up-subscription", "fix-ci-unreported"]) {
+    assert.doesNotMatch(jobGate(UNBLOCK, job).gate, forged, job);
+  }
+  // The evaluator refuses any reference left unset: each gate reads nothing else.
+  const sub = (posted, proceed = "true") =>
+    evaluate(jobGate(UNBLOCK, "fix-ci-subscription").gate, { "needs.fix-ci-context.outputs.proceed": proceed, "needs.fix-ci-handoff.outputs.posted": posted });
+  assert.equal(sub("false"), true);
+  assert.equal(sub("true"), false);
+  assert.equal(sub("false", "false"), false);
+  const rungUp = (result, posted) =>
+    evaluate(jobGate(UNBLOCK, "fix-ci-rung-up-subscription").gate, {
+      "needs.fix-ci-context.outputs.proceed": "true",
+      "needs.fix-ci-rung-up.result": result,
+      "needs.fix-ci-rung-up-handoff.outputs.posted": posted,
+    });
+  assert.equal(rungUp("success", "false"), true);
+  assert.equal(rungUp("success", "true"), false);
+  assert.equal(rungUp("skipped", ""), false, "no rung-up call, no rung-up fallback");
+  for (const [proceed, runs] of [["true", true], ["false", false], ["", false]]) {
+    assert.equal(evaluate(jobGate(UNBLOCK, "fix-ci-unreported").gate, { "needs.fix-ci-context.outputs.proceed": proceed }), runs, JSON.stringify(proceed));
+  }
+});
+
+test("pr-unblock.yml: apply-patch runs on a written or empty patch, or a refused collection, from the leg that answered", () => {
+  const { gate } = jobGate(UNBLOCK, "apply-patch");
+  const runs = (subResult, sub, first) =>
+    evaluate(gate, {
+      "needs.fix-ci-subscription.result": subResult,
+      "needs.fix-ci-subscription.outputs.scan-patch-state": sub[0] ?? "",
+      "needs.fix-ci-subscription.outputs.scan-collect-refused": sub[1] ?? "",
+      "needs.fix-ci.outputs.scan-patch-state": first[0] ?? "",
+      "needs.fix-ci.outputs.scan-collect-refused": first[1] ?? "",
+    });
+  assert.equal(runs("skipped", [], ["written"]), true, "the key call's patch, its subscription call skipped");
+  assert.equal(runs("skipped", [], ["empty"]), true, "an empty patch escalates");
+  assert.equal(runs("success", ["written"], []), true, "the subscription call's patch after a handoff");
+  assert.equal(runs("skipped", [], ["", "true"]), true, "a refused collection escalates");
+  assert.equal(runs("success", ["", "true"], []), true, "the subscription call's refused collection");
+  assert.equal(runs("success", [], ["written"]), false, "the key call's patch is not taken once the subscription call ran");
+  assert.equal(runs("success", [], ["", "true"]), false, "nor its refusal");
+  assert.equal(runs("skipped", [], ["", ""]), false, "a call that left no patch and refused none");
+});

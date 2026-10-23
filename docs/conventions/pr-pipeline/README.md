@@ -233,13 +233,14 @@ never merges; the pr-merge lane merges on its `verdict=merge` marker at the curr
 ([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review);
 [ADR 0074](../../adr/0074-review-risky-dependabot-updates-in-a-model-job-and-act-in-a-scripted-job.md)).
 
-`pr-unblock`'s `fix-ci` runs in four jobs of `pr-unblock.yml`, so no model holds a write token:
+`pr-unblock`'s `fix-ci` runs in separate jobs of `pr-unblock.yml`, so no model holds a write token:
 `fix-ci-context` (base code only, read-only token) writes the failing checks' context or hands
 the pull request to a person once `loop.fix-ci-rounds` fixes were pushed; `fix-ci` (a `read`
 skill in [patch output mode](pr-run-activity.md#patch-output-mode), on run-claude-cli with the
 automations role's API key) runs `source-control:pull-request ci --ci`, which reruns, fixes and
-reruns the checks; `fix-ci-subscription` runs the same on the role's OAuth token, only after a
-credit stop or with the key empty
+reruns the checks; `fix-ci-subscription` runs the same on the role's OAuth token, only when
+`fix-ci-handoff`'s read of this run's jobs shows `fix-ci` posted no check, as a credit stop or an
+empty key leaves it
 ([two calls](pr-run-activity.md#two-calls-on-one-credential-each)); and `apply-patch` (a
 `mutate-branch` script, no model, no head code) pushes the patch as one commit without force,
 refusing the whole patch on any change `patch-rules.json`'s `ci-context` row refuses: the
