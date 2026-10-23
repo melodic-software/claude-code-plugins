@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: capture-request-routes-to-drive
+description: A request to profile a running process with no artifact in hand routes the capture to /app-control:drive capture and runs no profiler
+tags: [analyze-profile, routing]
+expected_outcome: The answer says analyze-profile reads an existing profile, trace or heap snapshot and does not record one, routes the recording to /app-control:drive capture with a CPU kind, and asks the user to come back with the file. No profiler, debugger or attach command runs.
+execution:
+  prompt: "/debugging:analyze-profile profile this process: our export worker (node workers/export.js orders.json) pins a core at 100% for minutes on every run. We have no profile yet. I'm at my desk; find out why."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: no-profiler-run
+    type: tool_used
+    tool: Bash
+    input_match: '--cpu-prof|--inspect|--prof\b|perf\s+record|py-spy|0x\s|clinic|gdb|sudo|node\s+[^\n]*workers/export\.js'
+    max: 0
+    arm: both
+  - name: routes-to-drive-capture
+    type: regex
+    pattern: '/app-control:drive\s+capture'
+    arm: both
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:debugging:)?analyze-profile"'
+    arm: with-only
