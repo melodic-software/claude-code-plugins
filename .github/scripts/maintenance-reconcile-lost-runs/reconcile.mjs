@@ -13,6 +13,11 @@
 //   re-run, through rerun-failed-jobs, at attempts 1 and 2 only, each
 //   INFRA_BACKOFF_MINUTES after the attempt ended, and only while npm's and
 //   GitHub's status pages show indicator none.
+// - Flake: the same run when it ended failure on anything else, at attempt 1
+//   only: its failed jobs are re-run once, at the next half-hourly run, so a
+//   flaky test the diff did not cause spends no model run. Which failure the
+//   diff caused is not decidable here, so every first failure gets the one
+//   re-run; a real one fails again and pr-unblock's fix-ci takes it.
 // - Lane: a pr-verify run. Its trigger check trusts a re-run github-actions[bot]
 //   starts only through this workflow's record of it, the artifact
 //   rerunRecordName(run id, head SHA) (check-trusted-trigger's README). The
@@ -50,7 +55,7 @@ import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, paginate, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { INFRA_BACKOFF_MINUTES, infraOnly, LOOKBACK_HOURS, reconcilerRetries, testedRun } from "./infra-failure.mjs";
+import { firstFailure, INFRA_BACKOFF_MINUTES, infraOnly, LOOKBACK_HOURS, reconcilerRetries, testedRun } from "./infra-failure.mjs";
 
 const STATUS_URL = "https://www.githubstatus.com/api/v2/components.json";
 // A failed run's failed jobs are re-run only while both pages show indicator none.
@@ -142,7 +147,7 @@ const lostNow = (item, r, since) => {
   if (r?.head_sha !== item.head) {
     return false;
   }
-  if (item.kind === "infra") {
+  if (item.kind === "infra" || item.kind === "flake") {
     return r.status === "completed" && r.conclusion === "failure" && r.run_attempt === item.attempt;
   }
   if (item.kind === "intake") {
@@ -248,7 +253,16 @@ async function plan({ repo, call, say, since, now, readStatus }) {
         continue;
       }
       for (const { run: r, jobs } of tested.filter(Boolean)) {
-        if (!jobs || !isRetryable(r, now) || !infraOnly(jobs)) {
+        if (!jobs) {
+          continue;
+        }
+        if (!infraOnly(jobs)) {
+          if (firstFailure(r, jobs, now)) {
+            set.push({ kind: "flake", pr: pull.number, id: r.id, path: r.path, conclusion: "failure", attempt: 1, head: pull.head.sha });
+          }
+          continue;
+        }
+        if (!isRetryable(r, now)) {
           continue;
         }
         const hold = await upstreamHold();
@@ -391,12 +405,13 @@ async function act({ repo, call, say, since, sleep, items }) {
         await sleep(WRITE_GAP_MS);
       }
       wrote = true;
-      if (item.kind === "intake" || item.kind === "infra") {
+      if (item.kind === "intake" || item.kind === "infra" || item.kind === "flake") {
         await call("POST", `/repos/${repo}/actions/runs/${item.id}/rerun-failed-jobs`);
+        const why = { intake: "", infra: ", which failed on infra only", flake: ", its one re-run before fix-ci takes it" }[item.kind];
         say(
           item.kind === "intake"
             ? `${where}: re-ran the failed jobs of floor-label run ${item.id}, whose first attempt failed`
-            : `${where}: re-ran the failed jobs of run ${item.id} (${item.path}) attempt ${item.attempt}, which failed on infra only`,
+            : `${where}: re-ran the failed jobs of run ${item.id} (${item.path}) attempt ${item.attempt}${why}`,
         );
         continue;
       }
