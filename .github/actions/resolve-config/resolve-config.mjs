@@ -252,6 +252,7 @@ function outputsFor({ lane, selected }) {
     contents: selected.grant.contents,
     "pull-requests": selected.grant["pull-requests"],
     issues: selected.grant.issues,
+    actions: selected.grant.actions ?? "",
     // Only a read grant cannot commit; any other value keeps the signed-commit check.
     "can-commit": String(selected.grant.contents !== "read"),
     ...(selected["applied-by"]?.patch === undefined ? {} : { "applied-by-patch": selected["applied-by"].patch }),
