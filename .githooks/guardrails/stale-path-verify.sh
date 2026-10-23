@@ -1,0 +1,908 @@
+#!/usr/bin/env bash
+# PostToolUse hook: verify that a repo-relative path cited in newly-written
+# markdown is not one this repository has since removed.
+# Triggered on Write|Edit of *.md files.
+#
+# ORACLE: disappearance, not absence. A finding requires the repository to prove
+# it once owned the path — the exact repo-relative path must appear in the set
+# of paths deleted across HEAD's history AND be gone from the working tree now.
+# Absence on its own is evidence of nothing: `docs/`, `scripts/`, `lib/`,
+# `.claude/` are conventional names shared by every repo that uses them, so a
+# path's SHAPE can never establish that it was a claim about THIS tree. Only
+# history can.
+#
+# ENFORCEABILITY TIER: Detect-then-judge — ADVISORY PLUS A HUMAN VERDICT, never
+# an auto-fix. The oracle is mechanical, but the conclusion is not: a doc may
+# cite a removed path deliberately, as a deletion or completion record, and such
+# a citation is correct exactly as written. Per the org convention on
+# enforceability tiers that makes the finding a prompt for a decision, not a
+# determination.
+#
+# WHAT THIS STRUCTURALLY CANNOT CATCH: a hallucinated path. An invented path was
+# never in this repository, so it never enters the deleted-path set and this
+# guard stays silent by construction. That class needs a signal this oracle does
+# not have — something separating "asserted about THIS tree" from "documented
+# about a consumer's tree", such as an explicit marker convention for
+# consumer-tree examples. Absent that signal it stays out of scope, because a
+# hallucinated path and a correctly-documented consumer path are the same
+# observation: absent locally, conventionally shaped.
+#
+# SCOPE: inline code spans only. Markdown link destinations are out — on-disk
+# link integrity belongs to the repo's offline link checker, and under this
+# oracle no link-kind candidate contributes a finding anyway.
+#
+# NON-BLOCKING (advisory): exits 0 with hookSpecificOutput additionalContext.
+#
+# Disable with the stale_path_verify_enabled userConfig option set to false.
+
+set -uo pipefail
+
+# High-res start stamp for telemetry (Bash 5.0+; empty on older bash → skip).
+start=${EPOCHREALTIME:-}
+
+# Kill switch FIRST, before any library is sourced: a disabled hook must not
+# pay to parse hook-utils.sh to learn it is off. Same predicate as
+# hook::is_enabled; scripts/check-killswitch-hoist.sh pins the two together.
+[[ "${CLAUDE_PLUGIN_OPTION_STALE_PATH_VERIFY_ENABLED:-true}" == "true" ]] || exit 0
+
+# The hook's own directory is derived with parameter expansion rather than
+# `dirname`. GNU Bash forks a subshell for every command substitution even when
+# the body is a builtin (Command Substitution, Bash Reference Manual;
+# https://mywiki.wooledge.org/CommandSubstitution). On Windows Git Bash that
+# fork is a process, and this line runs on every fire — including inside the
+# dispatcher, where the include guard makes `source` cheap but `$(dirname …)`
+# still execs. `${BASH_SOURCE[0]%/*}` equals `dirname` for every shape
+# BASH_SOURCE takes; the fallback covers a bare filename, where the strip is a
+# no-op and dirname answers `.`.
+_HOOK_SELF="${BASH_SOURCE[0]%/*}"
+[[ "$_HOOK_SELF" == "${BASH_SOURCE[0]}" ]] && _HOOK_SELF=.
+# shellcheck source=abort-boundary.sh
+source "$_HOOK_SELF/abort-boundary.sh"
+# Could-not-run posture (#3528): fail-open with a dual-channel "guard did not
+# run" notice; 0 is the only status this advisory verifier chooses. Nothing is
+# enforced here, so the loss on an abort is the advisory itself.
+guard::abort_boundary stale-path-verify PostToolUse open 0
+# shellcheck source=hook-utils.sh
+source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
+
+hook::ctx_reset
+
+hook::buffer_stdin_to INPUT || exit 0
+
+hook::require jq "PostToolUse" guardrails "$INPUT"
+
+FILE=""
+hook::read_file_path_to FILE "$INPUT" || exit 0
+case "$FILE" in
+# A CHANGELOG is an append-only historical record, and this oracle selects
+# precisely for removed paths — precisely what such a record documents. Mirrors
+# skill-reference-verify's exclusion for the same reason.
+*/CHANGELOG.md | CHANGELOG.md) exit 0 ;;
+*.md) ;;
+# Code files are out of scope: a path literal in a script resolves against the
+# runtime CWD, not the repo root, so a repo-root existence test is the wrong
+# oracle there.
+*) exit 0 ;;
+esac
+
+# Diff-scope: verify only the content THIS tool call wrote, never re-read the
+# whole file from disk. An Edit's pre-existing lines outside the changed hunk are
+# not this call's claims.
+#
+# Every payload field this hook can need, in ONE jq process (hook::jq_fields),
+# not three — a jq spawn is fork() emulation on Windows Git Bash. Both per-tool
+# content fields and replace_all are fetched together because selecting between
+# them would cost another process; jq reads the same envelope either way, and the
+# tool-specific choice happens below in the shell. `replace_all` keeps its
+# `// false | tostring` INSIDE the filter: hook::jq_fields wraps each filter in
+# `// ""`, and jq's `//` treats the boolean false as empty, so a bare
+# `.tool_input.replace_all` would come back "" instead of "false". That is kept
+# for parity with the pre-conversion output, not because a branch depends on it
+# — every consumer below tests `== "true"`, which "" and "false" fail alike.
+# Failure semantics are unchanged: a missing jq or an unparsable payload yields
+# rc 1 here, which exits 0 exactly as the unmatched-TOOL case did —
+# hook::require jq above has already made the degraded state visible once per
+# session and agent.
+hook::jq_fields "$INPUT" '.tool_name' '.tool_input.new_string' \
+  '.tool_input.content' '.tool_input.replace_all // false | tostring' || exit 0
+TOOL="${HOOK_JQ_FIELDS[0]}"
+# replace_all feeds reconstruction's uniqueness gate below: under replace_all
+# the same new_string landing in several places is the edit's own footprint
+# rather than an ambiguity. Relay: the pointer record for the Edit tool's
+# uniqueness rule sits beside the `replace_all` field in
+# skill-reference-verify.sh. As of: 2026-10-11. Recheck trigger: that record
+# leaves skill-reference-verify.sh or stops naming this file as one it serves,
+# or its own recheck trigger fires.
+REPLACE_ALL=false
+case "$TOOL" in
+Edit)
+  SCAN_CONTENT="${HOOK_JQ_FIELDS[1]}"
+  REPLACE_ALL="${HOOK_JQ_FIELDS[3]}"
+  case "$REPLACE_ALL" in
+  true | false) ;;
+  *)
+    # Advisory guard: a malformed replace_all extraction must not wear the permissive
+    # "false" branch. Well-formed payloads always stringify to true/false; anything
+    # else is an unreadable field — skip verification rather than guess.
+    exit 0
+    ;;
+  esac
+  ;;
+Write) SCAN_CONTENT="${HOOK_JQ_FIELDS[2]}" ;;
+*) exit 0 ;;
+esac
+[[ -n "$SCAN_CONTENT" ]] || exit 0
+
+# Parameter expansion, not a `$(dirname …)` subshell: this hook runs on every
+# Write and Edit, and a command substitution is a fork per call on Windows Git
+# Bash. The anchor is still the FILE's own directory, with `dirname`'s answers:
+# no slash -> `.`, and a root-level `/x` -> `/` rather than the empty string,
+# which hook::repo_root would read as `.`.
+FILE_DIR="${FILE%/*}"
+[[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR="."
+[[ -n "$FILE_DIR" ]] || FILE_DIR=/
+REPO_ROOT=""
+hook::repo_root_to REPO_ROOT "$FILE_DIR"
+[[ -d "$REPO_ROOT" ]] || exit 0
+
+# Inline-code spans, backticks stripped. Prose is deliberately NOT scanned: an
+# unquoted `a/b` in a sentence is as likely to be a ratio, a date, or an
+# either/or as a path.
+emit_tokens() {
+  # shellcheck disable=SC2016  # backticks are literal ERE data, not expansions
+  printf '%s' "$SCAN_CONTENT" | grep -oE '`[^`]+`' 2>/dev/null |
+    sed -E 's/^`+//; s/`+$//'
+}
+
+# Builtin twins of this file's grep/sed/sort pipelines, which cost up to nine
+# processes on a .md Edit. They answer only for text made of printable ASCII
+# and whitespace: there a character is a byte, a line ends at \n, and grep, sed
+# and bash read every bracket class the same way in any locale, so each twin
+# gives the pipeline's answer. Any other byte (non-ASCII, a control character)
+# keeps the pipeline. The twins run under LC_ALL=C (hook::_c_locale), so their
+# ranges are ASCII ranges on every bash. Each fills the SPV_OUT array.
+# shellcheck disable=SC2329 # reached through hook::_c_locale
+spv__plain() { [[ "$1" != *[![:print:][:space:]]* ]]; }
+spv_plain() { hook::_c_locale spv__plain "$1"; }
+# The occurrence counter's word-anchor test (no space, ASCII word start, then
+# ASCII word characters, dots and dashes).
+# shellcheck disable=SC2329 # reached through hook::_c_locale
+spv__word_anchor() { [[ "$1" != *' '* && "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; }
+# spv_word_occurrences <word-anchor> <file>: how many maximal [A-Za-z0-9_] runs
+# in <file> equal the anchor, bytes under C.
+spv_word_occurrences() {
+  HOOK_ANCHOR="$1" LC_ALL=C awk '
+    BEGIN { a = ENVIRON["HOOK_ANCHOR"]; n = 0 }
+    {
+      k = split($0, w, /[^A-Za-z0-9_]+/)
+      for (j = 1; j <= k; j++) if (w[j] == a) n++
+    }
+    END { print n + 0 }
+  ' "$2"
+}
+
+# spv_anchor_occurrences <anchor> <file>: how many times <anchor> starts in
+# <file>, overlapping starts included. The advance is one byte past each start,
+# awk's `p = p + i` when `i` is the 1-based index() of an ASCII anchor. No
+# process: the previous counter was an awk over the whole file on every
+# non-word anchor, including a path that contains `/`.
+spv_anchor_occurrences() {
+  local anchor="$1" file="$2" line rest prefix n=0
+  [[ -n "$anchor" && -f "$file" ]] || {
+    printf '0'
+    return 0
+  }
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    rest=$line
+    while [[ -n "$rest" ]]; do
+      prefix=${rest%%"$anchor"*}
+      [[ "$prefix" == "$rest" ]] && break
+      n=$((n + 1))
+      rest=${rest:$((${#prefix} + 1))}
+    done
+  done <"$file"
+  printf '%s' "$n"
+}
+
+# spv__lines <text>: SPV_LINES = <text>'s non-empty lines.
+# shellcheck disable=SC2329 # reached through hook::_c_locale
+spv__lines() {
+  local IFS=$'\n' noglob=0
+  [[ $- == *f* ]] && noglob=1
+  set -f
+  # shellcheck disable=SC2206 # splitting on newlines is the intent
+  SPV_LINES=($1)
+  ((noglob)) || set +f
+}
+
+# `grep -oE '`[^`]+`' | sed -E 's/^`+//; s/`+$//'`: per line, the leftmost
+# backtick opens a span when a non-empty run of non-backticks and a closing
+# backtick follow it, and the scan resumes after the closing one; otherwise the
+# next backtick is tried as the opener.
+# shellcheck disable=SC2329 # reached through hook::_c_locale
+spv__spans() {
+  SPV_OUT=()
+  local line rest tok
+  [[ "$1" == *'`'*'`'* ]] || return 0
+  spv__lines "$1"
+  for line in ${SPV_LINES[@]+"${SPV_LINES[@]}"}; do
+    rest=$line
+    while [[ "$rest" == *'`'*'`'* ]]; do
+      rest=${rest#*'`'}
+      tok=${rest%%'`'*}
+      [[ -n "$tok" ]] || continue
+      SPV_OUT+=("$tok")
+      rest=${rest#*'`'}
+    done
+  done
+}
+
+# `sed -E 's/`[^`]*`//g' | grep -oE '[A-Za-z0-9][A-Za-z0-9._-]{1,}' | sort -u`,
+# as a set: per line, backtick pairs are removed left to right; in what is left,
+# every maximal run of [A-Za-z0-9._-] yields its text from the first
+# alphanumeric on, when that is at least two characters. Order is not kept; the
+# one caller only tests membership.
+# shellcheck disable=SC2329 # reached through hook::_c_locale
+spv__residue_tokens() {
+  SPV_OUT=()
+  local line rest out w
+  local -A seen=()
+  local -a words=()
+  spv__lines "$1"
+  for line in ${SPV_LINES[@]+"${SPV_LINES[@]}"}; do
+    out="" rest=$line
+    while [[ "$rest" == *'`'*'`'* ]]; do
+      out+=${rest%%'`'*}
+      rest=${rest#*'`'}
+      rest=${rest#*'`'}
+    done
+    out+=$rest
+    out=${out//[^A-Za-z0-9._-]/ }
+    IFS=' ' read -r -a words <<<"$out"
+    for w in ${words[@]+"${words[@]}"}; do
+      w=${w#"${w%%[A-Za-z0-9]*}"}
+      ((${#w} >= 2)) || continue
+      [[ -n "${seen[$w]:-}" ]] && continue
+      seen[$w]=1
+      SPV_OUT+=("$w")
+    done
+  done
+}
+
+# `grep -vE '^[[:space:]]*$' | head -<max>`: the non-blank lines, at most <max>.
+# shellcheck disable=SC2329 # reached through hook::_c_locale
+spv__nonblank() {
+  SPV_OUT=()
+  local line
+  spv__lines "$1"
+  for line in ${SPV_LINES[@]+"${SPV_LINES[@]}"}; do
+    [[ "$line" == *[![:space:]]* ]] || continue
+    SPV_OUT+=("$line")
+    ((${#SPV_OUT[@]} < ${2:-2147483647})) || break
+  done
+}
+
+# emit_tokens' lines into SPV_OUT.
+spv_tokens() {
+  if spv_plain "$SCAN_CONTENT"; then
+    hook::_c_locale spv__spans "$SCAN_CONTENT"
+  else
+    mapfile -t SPV_OUT < <(emit_tokens)
+  fi
+}
+
+# Tracked-file list, read at most once per run and reused by root-basename
+# ambiguity and moved-file hint enrichment.
+TRACKED_FILES=""
+TRACKED_BUILT=0
+ensure_tracked_files() {
+  if ((TRACKED_BUILT == 0)); then
+    local out git_dir="" index="" cache="" n
+    local -a cached_lines=()
+    # Reuse the list only while the cache is strictly newer than the index, so
+    # a same-tick index rewrite is not trusted.
+    if spv_git_dir_to git_dir; then
+      index="$git_dir/index"
+      cache="$git_dir/guardrails-ls-files"
+    fi
+    if [[ -n "$cache" && -f "$cache" && -f "$index" && "$cache" -nt "$index" ]]; then
+      # One path per line, then `end <count>`. A parallel fire can be rewriting
+      # this file, and two writers that both truncate leave a mix of their bytes,
+      # so a file that is not exactly that shape is a miss. The count must equal
+      # the lines read, and a second sentinel-shaped line marks a mix.
+      mapfile -t cached_lines <"$cache"
+      n=$((${#cached_lines[@]} - 1))
+      if ((n >= 0)) && [[ "${cached_lines[n]}" == "end $n" ]]; then
+        local IFS=$'\n'
+        out="${cached_lines[*]:0:n}"
+        if [[ $'\n'"$out" != *$'\n'"end "[0-9]* ]]; then
+          TRACKED_FILES=$out
+          TRACKED_BUILT=1
+          return 0
+        fi
+      fi
+    fi
+    if out=$(git -C "$REPO_ROOT" ls-files 2>/dev/null); then
+      TRACKED_FILES=${out//$'\r'/}
+      TRACKED_BUILT=1
+      if [[ -n "$cache" ]]; then
+        # The whole file goes out in one printf, sentinel included, built in
+        # memory: a temp file plus mv would add a process to every cold write.
+        # mapfile counts the lines; `${x//[!$'\n']/}` is quadratic in bash.
+        n=0
+        out=""
+        if [[ -n "$TRACKED_FILES" ]]; then
+          mapfile -t cached_lines <<<"$TRACKED_FILES"
+          n=${#cached_lines[@]}
+          out=$TRACKED_FILES$'\n'
+        fi
+        printf '%send %d\n' "$out" "$n" 2>/dev/null >"$cache" || :
+      fi
+    fi
+  fi
+}
+
+# The tracked files whose basename equals <base>, into the caller's $matches.
+# Returns 1 when no tracked-file list could be read, leaving $matches empty; both
+# callers admit the citation in that case rather than judge it on a list they do
+# not have.
+#
+# Call as: tracked_basename_matches <base> -> $matches
+# shellcheck disable=SC2154  # matches is the caller's frame, per the call contract
+tracked_basename_matches() {
+  matches=()
+  ensure_tracked_files
+  [[ -n "$TRACKED_FILES" ]] || return 1
+  mapfile -t matches < <(printf '%s\n' "$TRACKED_FILES" | awk -F/ -v b="$1" '$NF == b')
+}
+
+# Root-level inline-code tokens (no '/') are admitted only when the basename is
+# referentially unambiguous — not when it names a class of file every repo has.
+# The discriminator is two-part, not a length or extension heuristic:
+#   (1) an enumerated set of semantically-generic root filenames that prose cites
+#       by kind rather than by location (`README.md`, `package.json`, …), and
+#   (2) more than one tracked file in this repo carrying the same basename, which
+#       makes a bare `` `name` `` referentially opaque even inside a code span.
+# Returns 0 (ambiguous → reject) or 1 (unambiguous → admit).
+root_basename_is_ambiguous() {
+  local base="$1"
+  local -a matches=()
+  case "$base" in
+  README.md | README | package.json | package-lock.json | LICENSE | LICENCE | CHANGELOG.md | Makefile | GNUmakefile | .gitignore | .gitattributes | .editorconfig) return 0 ;; # both license-file spellings are matched on purpose # spellchecker:disable-line
+  *) ;;
+  esac
+  tracked_basename_matches "$base" || return 1
+  ((${#matches[@]} > 1))
+}
+
+# Reduce a raw token to a repo-relative path candidate, or nothing.
+# Sets NORM_CAND in this shell. Empty when the token is not a candidate.
+# In-process on purpose: a command substitution would discard the tracked-file
+# cache this function fills, and the next candidate would list the repo again.
+normalize_candidate() {
+  local t="$1"
+  NORM_CAND=""
+
+  # A code span can hold a whole command; take only single-token spans. NOT
+  # because a path cannot contain whitespace — git permits spaces in pathnames —
+  # but because a whitespace-bearing span is far likelier to be a command than a
+  # path, and reading one as a path adjudicates its arguments: the suite pins
+  # `cp docs/gone.md docs/real.md` staying quiet even though it names a genuinely
+  # deleted path. The cost is that a spaced deleted path is never adjudicated;
+  # admitting one needs a discriminator against command spans, tracked in #1452.
+  [[ "$t" =~ [[:space:]] ]] && return 0
+
+  # Strip a trailing line/range citation suffix — this repo cites
+  # `docs/migration-playbook.md:576-580` and `SKILL.md:24` pervasively.
+  t="${t%%:[0-9]*}"
+
+  # Strip a trailing markdown-anchor fragment.
+  t="${t%%#*}"
+
+  # Strip surrounding and trailing prose punctuation.
+  t="${t#[\'\"\(]}"
+  t="${t%[\'\"\),;.]}"
+
+  # Leading ./ is the same path.
+  t="${t#./}"
+
+  local is_root=0
+  [[ "$t" == */* ]] || is_root=1
+
+  # Reject anything that is not a literal repo-relative path.
+  case "$t" in
+  # URLs, protocol-relative, mail, and anchors.
+  *://* | //* | mailto:* | \#*) return 0 ;;
+  # Absolute POSIX and Windows paths — hardcoded-path-check owns those.
+  /* | [A-Za-z]:[/\\]*) return 0 ;;
+  # Home-relative.
+  '~'*) return 0 ;;
+  # A repo-root-relative citation has nothing to ascend from.
+  ../* | */../*) return 0 ;;
+  # Glob, brace, or placeholder metacharacters — a pattern, not an assertion.
+  *'*'* | *'?'* | *'['* | *']'* | *'{'* | *'}'* | *'<'* | *'>'* | *'$'* | *'('* | *')'* | *'|'* | *'!'*) return 0 ;;
+  # Ellipsis stand-ins.
+  *...*) return 0 ;;
+  # Vendor and build trees are not tracked; their absence proves nothing.
+  node_modules/* | */node_modules/* | .git/* | */.git/*) return 0 ;;
+  *) ;;
+  esac
+
+  local last="${t##*/}"
+  if ((is_root)); then
+    # Deleted root-level paths such as `CONTRIBUTING.md` are valid repo-relative
+    # citations; admit them only when root_basename_is_ambiguous says the token is
+    # referentially unambiguous. Generic root names and multiply-occurring basenames
+    # stay out — see #1446.
+    root_basename_is_ambiguous "$t" && return 0
+    [[ "$last" == *.* ]] || return 0
+  else
+    # A bare directory reference with no extension and no trailing slash is
+    # ambiguous with a namespace, a module path, or a URL path fragment.
+    #
+    # A TRAILING SLASH clears that ambiguity but buys no finding: git records file
+    # deletions, never directory ones, so no DELETED key can ever carry a slash and
+    # the exact provenance lookup below can never match `docs/old/`. An absent
+    # directory citation therefore only ever reaches ABSENT — enough to trip the
+    # shallow-clone and failed-walk notices, never enough to emit a STALE_PATH.
+    # Directory citations are OUT OF SCOPE for adjudication; making them work means
+    # deriving deleted ancestors from the file entries, tracked in #1452.
+    if [[ "$t" != */ && "$last" != *.* ]]; then
+      return 0
+    fi
+  fi
+
+  NORM_CAND=$t
+}
+
+# grep -F -- "$1" "$2": matching lines, no extra process. A quoted needle is
+# literal inside [[ == ]].
+spv_fixed_hits() {
+  SPV_HITS=()
+  local line needle=$1 file=$2
+  [[ -f "$file" && -n "$needle" ]] || return 0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" == *"$needle"* ]] && SPV_HITS+=("$line")
+  done <"$file"
+}
+
+# Partial-replacement context reconstruction (Edit only), mirroring
+# skill-reference-verify's reconstruct_partial_edit.
+#
+# An Edit may replace an arbitrary substring: swapping `gone` for `real` inside an
+# existing `docs/gone.md` span leaves `docs/real.md` on disk, but the hunk is the
+# bare word `real` with no backtick pair around it, so emit_tokens finds no span
+# and a newly-stale citation would be silently missed. Write needs none of this —
+# its content is the whole file, already fully scanned.
+#
+# Recover bounded context: the edit is already applied by PostToolUse time, so pull
+# from disk only the lines the hunk's OWN TEXT appears in, scan those, and keep only
+# candidates containing one of the hunk's word tokens.
+#
+# The anchor match is a SUBSTRING match, so line-anchoring ALONE does not bound
+# what is recovered: when the hunk is a single bare fragment the anchor IS that
+# fragment and the line filter degenerates to the token filter. What bounds it is
+# the occurrence-uniqueness gate below — the same gate the sibling guard this
+# function mirrors already carries.
+reconstruct_partial_edit() {
+  RECON_OUT=()
+  [[ "$TOOL" == "Edit" && -f "$FILE" ]] || return 0
+  # The token filter reads the hunk with any COMPLETE code span removed first. A
+  # complete span is already handled by the direct scan, and leaving it in would
+  # contribute its own path segments as tokens — `docs` then passes every citation
+  # under that directory. What remains is the genuinely bare edited text.
+  local residue plain=0
+  spv_plain "$SCAN_CONTENT" && plain=1
+  # Minimum token length is two characters. A single-character token carries no
+  # filtering power; below two characters the token floor short-circuits (#1455).
+  # Path separators are deliberately NOT in the token charset: a prose fragment
+  # like `and/or` would then match far more candidates than a bare word does.
+  local -a toks=()
+  if ((plain)); then
+    hook::_c_locale spv__residue_tokens "$SCAN_CONTENT"
+    toks=(${SPV_OUT[@]+"${SPV_OUT[@]}"})
+  else
+    # shellcheck disable=SC2016  # backticks are literal ERE data, not expansions
+    residue=$(printf '%s' "$SCAN_CONTENT" | sed -E 's/`[^`]*`//g')
+    mapfile -t toks < <(printf '%s' "$residue" | grep -oE '[A-Za-z0-9][A-Za-z0-9._-]{1,}' 2>/dev/null | sort -u)
+  fi
+  ((${#toks[@]})) || return 0
+  # Lines are located by the hunk's own lines, never by its tokens. Every line of
+  # new_string is on disk verbatim, so it matches the line the edit landed in; a
+  # token, being shorter, also matches lines the edit never touched — a bare `docs`
+  # in unrelated prose pulls in every citation under docs/.
+  local -a anchors=()
+  if ((plain)); then
+    hook::_c_locale spv__nonblank "$SCAN_CONTENT"
+    anchors=(${SPV_OUT[@]+"${SPV_OUT[@]}"})
+  else
+    mapfile -t anchors < <(printf '%s' "$SCAN_CONTENT" | grep -vE '^[[:space:]]*$' 2>/dev/null)
+  fi
+  ((${#anchors[@]})) || return 0
+  # An anchor is used ONLY when it OCCURS exactly once in the file — occurrences,
+  # not matching lines. Counting lines is not enough: two occurrences on one
+  # physical line are one grep hit, and that is a real shape — editing `docs` into
+  # a line that already carries an untouched `` `docs/gone.md` `` leaves the anchor
+  # twice on that line, and adjudicating that citation would be an advisory about
+  # text this call never wrote. Occurrence uniqueness subsumes line uniqueness (one
+  # occurrence can only be on one line), so it is the only gate.
+  #
+  # This is what makes the recovered set diff-scoped rather than merely narrower.
+  # The edited line provably contains the anchor, so a single occurrence pins the
+  # edit to that line; a non-unique anchor cannot say WHICH occurrence the edit
+  # landed on, and is dropped rather than unioned. Cost: a missed advisory when an
+  # edit lands in text repeating verbatim elsewhere in the file. For a
+  # detect-then-judge guard that is the right side of the trade — it is degraded
+  # far worse by being wrong when it speaks than by staying quiet.
+  local anchor occ ctx=""
+  local -a hits=()
+  for anchor in "${anchors[@]}"; do
+    # Single-word anchors use word-boundary matching so a bare fragment like
+    # `docs` does not substring-match inside `docs/gone.md` on an untouched line (#1455).
+    if [[ "$anchor" != *' '* && "$anchor" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
+      mapfile -t hits < <(grep -w -F -- "$anchor" "$FILE" 2>/dev/null)
+    else
+      spv_fixed_hits "$anchor" "$FILE"
+      hits=()
+      if ((${#SPV_HITS[@]})); then
+        hits=("${SPV_HITS[@]}")
+      fi
+    fi
+    ((${#hits[@]})) || continue
+    # replace_all is the one case where repetition is expected rather than
+    # ambiguous: every occurrence is a place THIS call edited, so all of them are
+    # in scope and uniqueness must not be required. Accepted narrowing — a line
+    # that independently contained new_string and was never touched is kept too,
+    # since nothing in the payload distinguishes it from an edited one.
+    if [[ "$REPLACE_ALL" == "true" ]]; then
+      for occ in "${hits[@]}"; do ctx+="$occ"$'\n'; done
+      continue
+    fi
+    # Count anchor STARTS, including overlapping ones. `grep -o` emits only
+    # non-overlapping matches, so a self-overlapping anchor undercounts: with
+    # anchor `docs/docs` against `docs/docs/docs`, starts exist at offsets 0 and
+    # 5, but the two spans overlap and `grep -o` reports 1 — the anchor passes a
+    # uniqueness gate it should fail, and reconstruction then scans a line it
+    # cannot attribute, recreating the false STALE_PATH this gate exists to
+    # prevent. The counter walks every start, overlapping or not, and advances
+    # one byte past each start.
+    #
+    # A word anchor is counted by splitting each line on non-word bytes: the
+    # same maximal [A-Za-z0-9_] runs a character walk finds. Under C a
+    # non-ASCII byte is a separator. A `.` or `-` can never sit inside such a
+    # run, so an anchor carrying one counts 0 and needs no counter at all.
+    if hook::_c_locale spv__word_anchor "$anchor"; then
+      [[ "$anchor" != *[.-]* ]] || continue
+      occ=$(spv_word_occurrences "$anchor" "$FILE" 2>/dev/null)
+      ((occ == 1)) || continue
+      ctx+="${hits[0]}"$'\n'
+      continue
+    fi
+    occ=$(spv_anchor_occurrences "$anchor" "$FILE")
+    ((occ == 1)) || continue
+    ctx+="${hits[0]}"$'\n'
+  done
+  [[ -n "$ctx" ]] || return 0
+  local saved="$SCAN_CONTENT" raw cand seg
+  if spv_plain "$ctx"; then
+    hook::_c_locale spv__nonblank "$ctx" 40
+    SCAN_CONTENT=""
+    for raw in ${SPV_OUT[@]+"${SPV_OUT[@]}"}; do SCAN_CONTENT+=${SCAN_CONTENT:+$'\n'}$raw; done
+  else
+    SCAN_CONTENT=$(printf '%s' "$ctx" | grep -vE '^[[:space:]]*$' | head -40)
+  fi
+  spv_tokens
+  for raw in ${SPV_OUT[@]+"${SPV_OUT[@]}"}; do
+    [[ -n "$raw" ]] || continue
+    normalize_candidate "$raw"
+    cand=$NORM_CAND
+    [[ -n "$cand" ]] || continue
+    # SUBSTRING match against the CANDIDATE, not the raw span: an Edit can replace
+    # part of a segment (`gone` -> `real` turns `docs/gone.md` into `docs/real.md`),
+    # so the hunk token is a substring of the path rather than the whole of it, and
+    # the anchor must appear in the thing actually reported.
+    for seg in "${toks[@]}"; do
+      if [[ "$cand" == *"$seg"* ]]; then
+        RECON_OUT+=("$cand")
+        break
+      fi
+    done
+  done
+  SCAN_CONTENT="$saved"
+}
+
+# spv_git_dir_to <var>
+# A normal checkout's .git is a directory. A linked worktree's is a file
+# (`gitdir: …`). Builtin reads only.
+spv_git_dir_to() {
+  local g="$REPO_ROOT/.git" line
+  if [[ -d "$g" ]]; then
+    printf -v "$1" '%s' "$g"
+    return 0
+  fi
+  if [[ -f "$g" ]]; then
+    IFS= read -r line <"$g" || return 1
+    line=${line%$'\r'}
+    [[ "$line" == 'gitdir:'* ]] || return 1
+    line=${line#gitdir:}
+    line=${line#"${line%%[![:space:]]*}"}
+    if [[ "$line" != /* && "$line" != [A-Za-z]:[/\\]* ]]; then
+      line="$REPO_ROOT/$line"
+    fi
+    printf -v "$1" '%s' "$line"
+    return 0
+  fi
+  return 1
+}
+
+# spv_git_common_to <var> <git-dir>
+# `shallow` lives in the common git dir. A linked worktree records that path
+# in `commondir`; a normal checkout's git dir is the common dir.
+spv_git_common_to() {
+  local line="$2"
+  if [[ -f "$2/commondir" ]]; then
+    IFS= read -r line <"$2/commondir" || return 1
+    line=${line%$'\r'}
+    line=${line%"${line##*[![:space:]]}"}
+    line=${line#"${line%%[![:space:]]*}"}
+    if [[ "$line" != /* && "$line" != [A-Za-z]:[/\\]* ]]; then
+      line="$2/$line"
+    fi
+  fi
+  printf -v "$1" '%s' "$line"
+}
+
+declare -A DELETED=()
+DELETED_BUILT=0
+SHALLOW=0
+WALK_FAILED=0
+
+# The deleted-path set, built at most once and only after some candidate has
+# already failed the working-tree existence test — the overwhelmingly common
+# quiet path never pays for the history walk.
+build_deleted_set() {
+  ((DELETED_BUILT)) && return 0
+  DELETED_BUILT=1
+
+  # An unborn HEAD has no history to walk. The sha keys the on-disk set so a
+  # later edit at the same commit does not walk again. The redirect sits on the
+  # group: inside the substitution it would bill a second process for one git.
+  local head_sha="" git_dir="" common="" cache="" p n torn
+  local -a cached_lines=()
+  { head_sha=$(git -C "$REPO_ROOT" rev-parse --verify -q HEAD); } 2>/dev/null || return 0
+  head_sha=${head_sha//$'\r'/}
+  [[ -n "$head_sha" ]] || return 0
+
+  # Over truncated history the set is empty and the guard would do nothing while
+  # appearing healthy, so the degradation is announced rather than absorbed.
+  # `.git/shallow` is the file `--is-shallow-repository` reads. A linked
+  # worktree keeps it in the common dir. When the git dir cannot be read, fall
+  # back to the git query.
+  if spv_git_dir_to git_dir && spv_git_common_to common "$git_dir"; then
+    cache="$common/guardrails-deleted-paths"
+    if [[ -e "$common/shallow" ]]; then
+      SHALLOW=1
+      return 0
+    fi
+    # `<sha>\nok\n`, one deleted path per line, then `end <count>`. A failed walk
+    # is not cached, so the next fire retries it. A parallel fire can be
+    # rewriting this file, and two writers that both truncate leave a mix of
+    # their bytes: a header and a partial list would pass as a whole cache and
+    # every finding in the missing part would go silent. So the count must equal
+    # the lines read, and a second sentinel-shaped line marks a mix. Anything
+    # else is a miss and the walk below rebuilds it.
+    if [[ -f "$cache" ]]; then
+      mapfile -t cached_lines <"$cache"
+      n=$((${#cached_lines[@]} - 3))
+      if [[ "${cached_lines[0]-}" == "$head_sha" && "${cached_lines[1]-}" == ok ]] &&
+        ((n >= 0)) && [[ "${cached_lines[n + 2]}" == "end $n" ]]; then
+        torn=0
+        if ((n > 0)); then
+          for p in "${cached_lines[@]:2:n}"; do
+            if [[ "$p" == "end "[0-9]* ]]; then
+              torn=1
+              break
+            fi
+            [[ -n "$p" ]] || continue
+            DELETED["$p"]=1
+          done
+        fi
+        ((torn)) || return 0
+        DELETED=()
+      fi
+    fi
+  elif [[ "$(git -C "$REPO_ROOT" rev-parse --is-shallow-repository 2>/dev/null | tr -d '\r')" == "true" ]]; then
+    SHALLOW=1
+    return 0
+  fi
+
+  # --no-renames is MANDATORY. Under git's default rename detection a moved file
+  # is recorded as R and --name-only prints the NEW path, so the stale path never
+  # enters the set and the guard silently drops to zero findings. HEAD, not
+  # --all: a path that only ever existed on an abandoned branch is not a stale
+  # mainline citation.
+  #
+  # The walk is captured and its status checked BEFORE anything is populated. A
+  # non-shallow clone can still fail mid-walk — a partial/lazy clone offline, a
+  # damaged object store — emitting some deleted paths and then exiting nonzero.
+  # Read through a pipe or process substitution that status is invisible, and a
+  # truncated set is indistinguishable from a complete one: the guard would look
+  # healthy while adjudicating against a fraction of history. Same failure mode
+  # as a shallow clone, so it takes the same announced degradation.
+  local walk walk_status=0
+  walk=$(git -C "$REPO_ROOT" -c core.quotePath=false log HEAD -m --no-renames --diff-filter=D --name-only --pretty=format: 2>/dev/null) ||
+    walk_status=$?
+  if ((walk_status != 0)); then
+    WALK_FAILED=1
+    return 0
+  fi
+
+  local rest
+  walk=${walk//$'\r'/}
+  rest=$walk
+  while [[ -n "$rest" ]]; do
+    p=${rest%%$'\n'*}
+    [[ -n "$p" ]] && DELETED["$p"]=1
+    [[ "$rest" == *$'\n'* ]] || break
+    rest=${rest#*$'\n'}
+  done
+
+  if [[ -n "$cache" ]]; then
+    # Built in memory and written by one printf, sentinel last: a temp file plus
+    # mv would add a process to every cold write.
+    local body=$head_sha$'\n'ok$'\n'
+    if ((${#DELETED[@]} > 0)); then
+      for p in "${!DELETED[@]}"; do
+        body+=$p$'\n'
+      done
+    fi
+    printf '%send %d\n' "$body" "${#DELETED[@]}" 2>/dev/null >"$cache" || :
+  fi
+}
+
+# "Did you mean" enrichment, only once a finding exists. A basename match is far
+# too weak to trigger on — `README.md` and `SKILL.md` match hundreds of paths —
+# but once history has established the path was removed, a UNIQUE surviving
+# basename is very likely where it went.
+moved_hint() {
+  local -a matches=()
+  tracked_basename_matches "${1##*/}" || return 1
+  ((${#matches[@]} == 1)) && printf '%s' "${matches[0]}"
+}
+
+declare -A CHECKED=()
+MISSING=()
+ABSENT=0
+
+spv_tokens
+RAW_TOKENS=(${SPV_OUT[@]+"${SPV_OUT[@]}"})
+# Reconstruction runs on EVERY Edit, not only when the hunk yielded nothing. One
+# hunk can both carry a complete code span and change a substring inside another,
+# so gating on an empty scan would miss the partial half. Duplicates are harmless
+# — CHECKED dedupes below.
+if [[ "$TOOL" == "Edit" ]]; then
+  reconstruct_partial_edit
+  if ((${#RECON_OUT[@]})); then
+    RAW_TOKENS+=("${RECON_OUT[@]}")
+  fi
+fi
+# Warm before the candidate loop, and only when there is something to adjudicate.
+# `git ls-files` lists the whole index; a write that cites no token must not pay it.
+((${#RAW_TOKENS[@]})) && ensure_tracked_files
+
+for raw in "${RAW_TOKENS[@]}"; do
+  [[ -n "$raw" ]] || continue
+  normalize_candidate "$raw"
+  cand=$NORM_CAND
+  [[ -n "$cand" ]] || continue
+
+  [[ -n "${CHECKED[$cand]:-}" ]] && continue
+  CHECKED["$cand"]=1
+
+  # Present, not merely reachable: -L keeps a dangling symlink — the link itself is
+  # there, only its target is not — from reading as a removal.
+  [[ -e "$REPO_ROOT/${cand%/}" || -L "$REPO_ROOT/${cand%/}" ]] && continue
+  ABSENT=1
+
+  # PROVENANCE GATE: adjudicate only a path this repository demonstrably once
+  # had. Anything else is somebody else's tree, an example, or a plan.
+  build_deleted_set
+  [[ -n "${DELETED[$cand]:-}" ]] || continue
+
+  # Deleted once, tracked again now. Under a sparse checkout such a path is absent
+  # from the working tree BY DESIGN, so the filesystem alone cannot separate it from
+  # a real removal and the index has to be consulted. Placed after the provenance
+  # gate, not before it: only a path already headed for a finding pays for the call,
+  # which keeps the quiet path free of any per-candidate git invocation.
+  #
+  # The test is the SKIP-WORKTREE BIT, not mere presence in the index. An index
+  # entry exists in two different situations and `--error-unmatch` cannot tell them
+  # apart — it reports the entry either way:
+  #
+  #   sparse checkout      `ls-files -v` tags the entry `S` — or lowercase `s`
+  #                        when the assume-unchanged bit is ALSO set, since `-v`
+  #                        marks assume-unchanged by lowercasing the letter;
+  #                        either case carries the skip-worktree bit, so the
+  #                        path is absent BY DESIGN.
+  #   unstaged deletion    tag stays `H` and `git status` shows ` D`; the path is
+  #                        genuinely gone from the working tree, which is exactly
+  #                        the disappearance this guard adjudicates.
+  #
+  # Exempting on presence alone therefore suppressed the finding for a real removal
+  # a user had not committed yet. Only the skip-worktree letter, in either case,
+  # earns the exemption.
+  ls_line=$(git -C "$REPO_ROOT" ls-files -v -- ":(literal)${cand%/}" 2>/dev/null) || ls_line=""
+  ls_line=${ls_line//$'\r'/}
+  ls_tag=${ls_line:0:1}
+  [[ "$ls_tag" == [Ss] ]] && continue
+
+  MISSING+=("$cand")
+done
+
+emit_tel() {
+  [[ -n "$start" ]] || return 0
+  hook::telemetry_enabled || return 0
+  # The helper carries the redaction: a path it could not make repo-relative
+  # comes back as the basename, never an absolute path, which would embed the
+  # developer's username.
+  local findings_json="[]" file_rel
+  file_rel=""
+  hook::repo_relative_path_to file_rel "$FILE" "$REPO_ROOT"
+  if ((${#MISSING[@]} > 0)); then
+    findings_json=$(printf '%s\n' "${MISSING[@]}" | jq -Rn '[inputs]' 2>/dev/null) || findings_json="[]"
+  fi
+  local data
+  data=$(jq -n --arg file "$file_rel" --argjson findings "$findings_json" \
+    '{tool:"",file:$file,findings:$findings}' 2>/dev/null) ||
+    data='{"tool":"","file":"","findings":[]}'
+  # $1 is the envelope status, defaulting to a completed check. The degradation
+  # branches pass `skipped`: they run when the deleted-path oracle was unavailable,
+  # and reporting `ok` there would make a sink read an un-run check as a healthy
+  # one — the truncated-history failure looking exactly like a clean scan is the
+  # thing this guard already refuses to do on the user-visible path.
+  hook::emit_telemetry "stale-path-verify" "PostToolUse" "${1:-ok}" "$start" "$data" "$REPO_ROOT"
+}
+
+if ((SHALLOW)) && ((ABSENT)); then
+  if hook::notice_once "guardrails-stale-path-verify-shallow" "$INPUT"; then
+    hook::emit_skip_notice PostToolUse "" \
+      "stale-path-verify is off: this clone is shallow. \`git fetch --unshallow\` turns it on."
+  fi
+  emit_tel skipped
+  exit 0
+fi
+
+if ((WALK_FAILED)) && ((ABSENT)); then
+  if hook::notice_once "guardrails-stale-path-verify-walk-failed" "$INPUT"; then
+    hook::emit_skip_notice PostToolUse "" \
+      "stale-path-verify is off: \`git log --diff-filter=D\` failed here (a partial clone offline or a damaged object store are the usual causes)."
+  fi
+  emit_tel skipped
+  exit 0
+fi
+
+if ((${#MISSING[@]} > 0)); then
+  # The file as the model names it: repo-relative when it sits under the root
+  # spelled the same way, else as given.
+  show_file="$FILE"
+  [[ "$FILE" == "${REPO_ROOT%/}/"?* ]] && show_file="${FILE#"${REPO_ROOT%/}/"}"
+  lines=""
+  for m in "${MISSING[@]}"; do
+    hint=$(moved_hint "$m")
+    if [[ -n "$hint" ]]; then
+      lines+="$m (now at: $hint)"$'\n'
+    else
+      lines+="$m"$'\n'
+    fi
+  done
+  spv_ctx=""
+  hook::findings_to spv_ctx \
+    "stale-path-verify: cited path(s) in $show_file were deleted from this repo:" \
+    "$lines" --max 10
+  hook::ctx_append "$spv_ctx"
+  hook::ctx_append "A path cited as a deletion record is correct as written."
+  hook::ctx_flush PostToolUse
+fi
+
+emit_tel
+exit 0

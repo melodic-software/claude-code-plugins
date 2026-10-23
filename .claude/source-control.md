@@ -5,8 +5,9 @@ Commit-subject / PR-title convention for the source-control plugin, resolved by
 CLAUDE.md/rules/commit-msg hook or fall back to the bundled Conventional Commits default.
 Re-run `/source-control:setup` to change these values.
 
-Of the convention keys, only `pr_body_required_sections` is set here. Every other one falls
-through to `/source-control:setup`'s inference (this repo's commit history is already
+Of the convention keys, only `pr_body_required_sections` and `subject_pattern` are set here;
+the guardrails `commit-msg` job in `lefthook.yml` enforces `subject_pattern`. Every other key
+falls through to `/source-control:setup`'s inference (this repo's commit history is already
 Conventional-Commits-shaped) per config-resolution.md's per-key fallthrough, so this file
 deliberately does not restate them. The `babysit_loop_*` keys below are the other key family this
 file carries, and they are set explicitly.
@@ -45,3 +46,7 @@ c2-mechanical
 ## babysit_loop_grace_window_minutes
 
 30
+
+## subject_pattern
+
+^((build|chore|ci|docs|feat|fix|perf|refactor|revert|security|style|test)(\(.+\))?!?: .+|Merge .+|Revert ".+)

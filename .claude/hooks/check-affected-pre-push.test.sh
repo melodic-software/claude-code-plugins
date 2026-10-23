@@ -309,6 +309,7 @@ cp "$tmp/stub" "$lh/scripts/check-affected.sh"
 cp "$hook" "$lh/.claude/hooks/"
 cp "$repo_root/lib/hook-utils.sh" "$lh/lib/"
 cp "$repo_root/lefthook.yml" "$lh/"
+cp -R "$repo_root/.githooks" "$lh/"
 git_test_config "$lh" add -A
 git_test_config "$lh" commit -q -m base
 git_test_config "$lh" update-ref refs/remotes/origin/main HEAD

@@ -24,3 +24,16 @@ pre-push:
         git archive "$mb" -- .claude/hooks/check-affected-pre-push.sh lib/hook-utils.sh 2>/dev/null | tar -x -C "$tmp" 2>/dev/null
         [ -f "$tmp/.claude/hooks/check-affected-pre-push.sh" ] || exit 0
         bash "$tmp/.claude/hooks/check-affected-pre-push.sh" --git-hook </dev/null
+    - name: guardrails-reference-verify
+      run: bash .githooks/guardrails/reference-verify.sh {0}
+      use_stdin: true
+
+pre-commit:
+  jobs:
+    - name: guardrails-pre-commit-content
+      run: bash .githooks/guardrails/pre-commit-content.sh
+
+commit-msg:
+  jobs:
+    - name: guardrails-commit-msg-convention
+      run: bash .githooks/guardrails/commit-msg-convention.sh {0}
