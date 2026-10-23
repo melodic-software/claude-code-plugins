@@ -25,8 +25,7 @@ Inputs are raw GitHub API shapes the caller collects for one pull request:
   since, raising when neither is proven.
 
 The record format is the lane producer's (ci-workflows
-`.github/workflows/pr-review.yml`, "Report the review status" and "Record
-the reviewed head").
+`.github/workflows/pr-review-cli.yml`, and `pr-review.yml` for older runs).
 """
 
 from __future__ import annotations

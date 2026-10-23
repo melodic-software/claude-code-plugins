@@ -507,17 +507,14 @@ class RecordTests(Base):
     def test_a_subscription_leg_record_binds(self) -> None:
         # ci-workflows pr-review-cli.yml ends the record ` account=fallback`
         # when the subscription leg reviewed (publish-review publish.cjs).
-        runs = [
-            whole("claude-review", S),
-            run(
-                "claude-security-review",
-                S,
-                "findings=0 inline=0 scope=whole account=fallback",
-            ),
-        ]
-        result = self.bind(runs)["claude-security-review"]
-        self.assertTrue(result.bound)
-        self.assertEqual(result.open_findings, 0)
+        # Both lanes run on it.
+        for lane, other in (LANES, LANES[::-1]):
+            with self.subTest(lane=lane):
+                tail = "findings=0 inline=0 scope=whole account=fallback"
+                runs = [whole(other, S), run(lane, S, tail)]
+                result = self.bind(runs)[lane]
+                self.assertTrue(result.bound)
+                self.assertEqual(result.open_findings, 0)
 
     def test_another_account_suffix_is_malformed(self) -> None:
         for tail in (
@@ -1831,6 +1828,43 @@ class SeverityTests(Base):
         result = self.bind(runs)["claude-review"]
         self.assertEqual(result.open_findings, 1)
         self.assertIsNone(result.blocking_findings)
+
+
+class CodeLaneOnCliTests(Base):
+    """The code lane on ci-workflows pr-review-cli.yml posts as
+    github-actions[bot], each comment footed `claude-lane: claude-review`."""
+
+    ACTIONS = {"__typename": "Bot", "login": "github-actions"}
+    FOOTED = "finding\n\nclaude-lane: claude-review"
+
+    def test_its_thread_stands_for_the_recorded_finding(self) -> None:
+        runs = [whole("claude-review", S, n=1, k=1), whole("claude-security-review", S)]
+        open_thread = thread(self.FOOTED, author=self.ACTIONS)
+        result = self.bind(runs, threads=[open_thread])
+        self.assertEqual(result["claude-review"].open_findings, 1)
+        self.assertEqual(result["claude-security-review"].open_findings, 0)
+        # Resolved by a person, it closes the finding.
+        closed = thread(
+            self.FOOTED, author=self.ACTIONS, resolved=True, resolved_by=MAINTAINER
+        )
+        result = self.bind(runs, threads=[closed])["claude-review"]
+        self.assertEqual(result.open_findings, 0)
+
+    def test_a_thread_without_its_footer_last_does_not(self) -> None:
+        # Not the lane's thread, so the recorded inline finding has none and
+        # stays open however the thread was resolved.
+        runs = [whole("claude-review", S, n=1, k=1), whole("claude-security-review", S)]
+        for body in (
+            "finding",
+            "claude-lane: claude-review\nfinding",
+            "finding\n\nclaude-lane: claude-security-review",
+        ):
+            with self.subTest(body=body):
+                closed = thread(
+                    body, author=self.ACTIONS, resolved=True, resolved_by=MAINTAINER
+                )
+                result = self.bind(runs, threads=[closed])["claude-review"]
+                self.assertEqual(result.open_findings, 1)
 
 
 if __name__ == "__main__":
