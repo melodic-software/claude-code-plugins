@@ -4046,6 +4046,7 @@ jobs:
             # disarms a head it refuses within 15 minutes.
             if [ "${EVENT_ACTION:-}" = synchronize ] && jq -e '.auto_merge != null' <<<"$pull" >/dev/null; then
               # shellcheck disable=SC2016 # $id is a GraphQL variable
+              # gh-read-exempt: a GraphQL mutation, a write that is not retried; a failure only warns.
               if gh api graphql -f query='mutation($id: ID!) { disablePullRequestAutoMerge(input: {pullRequestId: $id}) { clientMutationId } }' \
                 -f id="$(jq -r '.node_id' <<<"$pull")" >/dev/null; then
                 echo "#$pr: a push moved its head, so its native auto-merge is off until enable-auto-merge's next scheduled run judges the new head."
