@@ -511,3 +511,16 @@ test("pr-unblock-dispatch.yml ticks five minutes after each lost-run reconciler 
   const reconciler = cronMinutes("maintenance-reconcile-lost-runs.yml");
   assert.deepEqual(cronMinutes(DISPATCHER), reconciler.map((minute) => (minute + 5) % 60));
 });
+
+test("pr-unblock-dispatch.yml: only a push cancels the dispatcher run going; a tick or hand run waits", () => {
+  const block = jobBlock(DISPATCHER, "dispatch");
+  const at = block.findIndex((line) => line === "    concurrency:");
+  assert.notEqual(at, -1, "the dispatch job sets concurrency");
+  assert.equal(block[at + 1], "      group: pr-unblock-dispatch");
+  const cancel = /^ {6}cancel-in-progress: (.+)$/.exec(block[at + 2]);
+  assert.ok(cancel, "cancel-in-progress follows the group");
+  const cancels = (event) => evaluate(cancel[1], { "github.event_name": event });
+  assert.equal(cancels("push"), true);
+  assert.equal(cancels("schedule"), false);
+  assert.equal(cancels("workflow_dispatch"), false);
+});

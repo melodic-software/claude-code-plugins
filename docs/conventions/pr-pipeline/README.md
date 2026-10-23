@@ -612,7 +612,7 @@ The reader also adds the config file's own path, `.github/**` and the trusted-ac
 | Within one run | Leaves run in slot order: `publish-feedback` after `address-feedback` once its skill ran; `report-escalation` after the others, and only when one escalated | the caller's `needs:` |
 | Across PRs | Unbounded: every group is per PR | group names |
 | Within one PR, across write lanes | One queue: a write job waits for the one ahead and never cancels it | job group `pr-pipeline-write-<n>`, `queue: max`, on every write caller job |
-| `pr-unblock-dispatch` | One run at a time; a newer push or tick cancels the one waiting or going | workflow group `pr-unblock-dispatch` |
+| `pr-unblock-dispatch` | One run at a time; a push cancels the run going, and a tick or hand run waits behind it; any newer run replaces one still waiting | workflow group `pr-unblock-dispatch`, `cancel-in-progress: ${{ github.event_name == 'push' }}` |
 | `pr-feedback-dispatch` | One run per reviewed head at a time; a waiting one is replaced | workflow group `pr-feedback-dispatch-<head SHA>` |
 
 The write group sits on each caller job, behind an `if:` that leaves out the lanes App's own

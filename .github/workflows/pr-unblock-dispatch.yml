@@ -57,13 +57,16 @@ jobs:
   dispatch:
     # A dispatch on another branch would run that branch's copy of this file.
     if: github.ref == 'refs/heads/main'
-    # A burst of pushes collapses into one listing: a newer run cancels the
-    # one waiting or going, since the newest listing reads main as it is
-    # now. The record steps run on cancel too (always()), so a run cancelled
-    # after a dispatch still records it.
+    # A burst of pushes collapses into one listing: a push cancels the run
+    # going, since the newest listing reads main as it is now. A tick or a
+    # hand run never cancels one going; it waits, and only replaces a run
+    # still waiting. The record steps run on cancel too (always()), so a run
+    # cancelled after a dispatch still records the runs it started; its
+    # dispatch-record changes are not saved, so the next run reads those heads
+    # again, and its in-flight check skips a PR whose dispatched run is queued.
     concurrency:
       group: pr-unblock-dispatch
-      cancel-in-progress: true
+      cancel-in-progress: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
