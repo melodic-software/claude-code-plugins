@@ -23,6 +23,11 @@ MODULE="$ROOT/.github/scripts/pr-merge/merge-holds.mjs"
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
+# shellcheck source=lib/ci-gh-read.sh
+. "$ROOT/scripts/lib/ci-gh-read.sh"
+export RUNNER_TEMP="$TMP_ROOT"
+ci_gh_read::install "$WORKFLOW" "$TMP_ROOT" || fail "the ci-status gh_read helper step is missing or fails"
+
 NAME='Fail a lanes App pull request its body or a member holds'
 step="$(awk -v name="      - name: $NAME" '$0 == name { on = 1; print; next }
   on && /^      - / { exit }

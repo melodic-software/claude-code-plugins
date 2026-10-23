@@ -949,6 +949,7 @@ function resolveMerge(merge = {}, configPath) {
     rung: merge.rung ?? "off",
     "diff-check": { ...diffCheck, "denied-paths": denied },
     "stack-landing": merge["stack-landing"] ?? "manual",
+    "lane-prs": merge["lane-prs"] ?? "native",
   };
 }
 

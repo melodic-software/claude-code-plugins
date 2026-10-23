@@ -85,7 +85,9 @@ test("the early re-dispatch keeps the trusted mechanics and skips untrusted even
 // fails its first `failures` calls, with `.base` pointing at this checkout,
 // or, given `edit`, at a copy whose pr-pipeline.yaml is `edit(text)` and whose
 // trusted-actors.json is `actors`, when given, else this checkout's.
-const runListing = (failures, edit, actors) => {
+// `env` overrides the step's environment: merge.lane-prs is `gate` unless it
+// says otherwise, the mode that lists the lanes App's own pull requests.
+const runListing = (failures, edit, actors, env = {}) => {
   const dir = mkdtempSync(join(tmpdir(), "pr-merge-listing-"));
   try {
     const bin = join(dir, "bin");
@@ -124,14 +126,19 @@ const runListing = (failures, edit, actors) => {
         GITHUB_OUTPUT: output,
         REPO: "o/r",
         DEPENDABOT: "off",
+        LANE_PRS: "gate",
+        ...env,
       },
     });
+    const read = (name) => (existsSync(join(dir, name)) ? readFileSync(join(dir, name), "utf8") : "");
     return {
       status: result.status,
       stdout: result.stdout,
       stderr: result.stderr,
-      calls: Number(readFileSync(join(dir, "calls"), "utf8")),
-      args: readFileSync(join(dir, "args"), "utf8"),
+      calls: Number(read("calls") || 0),
+      args: read("args"),
+      candidates: read("candidates.json"),
+      drafts: read("drafts.json"),
       prefiltered: existsSync(join(dir, "prefilter.json")),
       output: existsSync(output) ? readFileSync(output, "utf8") : "",
     };
@@ -173,6 +180,52 @@ test("without an adoption section no trusted actor is listed", () => {
   const noIdle = runListing(0, (config) => config.replace(/^ {2}idle-hours: 24\n/m, ""));
   assert.equal(noIdle.status, 0, noIdle.stderr);
   assert.deepEqual(authorsOf(noIdle.args), ["app/melodic-automation-lanes"]);
+});
+
+// merge.lane-prs: native leaves the lanes App's pull requests to GitHub's
+// auto-merge: the listing never asks for them, so the gate never reads them.
+test("under lane-prs native the listing skips the lanes App and keeps every other author", () => {
+  const actors = [
+    { id: 1, login: "a-person", kind: "human" },
+    { id: 3, login: "melodic-automation-lanes[bot]", kind: "bot" },
+  ];
+  const native = runListing(0, (config) => config, actors, { LANE_PRS: "native", DEPENDABOT: "enforce" });
+  assert.equal(native.status, 0, native.stderr);
+  assert.deepEqual(authorsOf(native.args), ["a-person", "app/dependabot"]);
+  assert.match(native.output, /^count=1$/m);
+  // gate lists the lanes App first, as before the setting existed.
+  const gate = runListing(0, (config) => config, actors, { LANE_PRS: "gate", DEPENDABOT: "enforce" });
+  assert.equal(gate.status, 0, gate.stderr);
+  assert.deepEqual(authorsOf(gate.args), ["app/melodic-automation-lanes", "a-person", "app/dependabot"]);
+});
+
+test("under lane-prs native with no other author the listing calls nothing and lists no candidate", () => {
+  const run = runListing(0, (config) => config.replace(/^adoption:\n( {2}.*\n)*/m, ""), undefined, { LANE_PRS: "native" });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.calls, 0);
+  assert.equal(run.candidates.trim(), "[]");
+  assert.equal(run.drafts.trim(), "[]");
+  assert.match(run.output, /^count=0$/m);
+});
+
+test("the mode step outputs merge.lane-prs as resolve-config resolved it, and the listing reads it", () => {
+  for (const mode of ["native", "gate"]) {
+    const dir = mkdtempSync(join(tmpdir(), "pr-merge-mode-"));
+    try {
+      symlinkSync(root, join(dir, ".base"));
+      writeFileSync(join(dir, "resolved-config.json"), JSON.stringify({ merge: { "lane-prs": mode } }));
+      const result = spawnSync("bash", ["-c", runScript("Read report-only")], {
+        cwd: dir,
+        encoding: "utf8",
+        env: { ...process.env, RUNNER_TEMP: dir, GITHUB_OUTPUT: join(dir, "output") },
+      });
+      assert.equal(result.status, 0, result.stderr);
+      assert.match(readFileSync(join(dir, "output"), "utf8"), new RegExp(`^lane-prs=${mode}$`, "m"));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+  assert.match(step("List the candidate PRs"), /\n {10}LANE_PRS: \$\{\{ steps\.mode\.outputs\.lane-prs \}\}\n/);
 });
 
 test("the listing fails with one clear error after three failed tries", () => {

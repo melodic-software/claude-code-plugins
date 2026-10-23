@@ -782,8 +782,18 @@ merge:
   agent-identity: melodic-automation-lanes[bot]
   # true: report each decision and write nothing.
   report-only: false
-  # A PR merges only with a passing pr-verify.yml verdict at its head. Must be
-  # true at a rung above off: the gate refuses otherwise.
+  # native: the lanes App's pull requests merge through GitHub's auto-merge
+  # (the enable-auto-merge activity arms them, ci-status gates them), and the
+  # gate below neither lists, scores nor enqueues them. gate: the gate also
+  # lists, scores and enqueues them. Owner PRs and Dependabot's are gated in
+  # both. Absent is native. This repository stays on gate until ci-status or
+  # enable-auto-merge requires the pr-verify verdict and the post-merge check
+  # judges a native merge with no pin comment: until then the gate is the only
+  # place either holds for a lanes App PR.
+  lane-prs: gate
+  # A PR the gate lists merges only with a passing pr-verify.yml verdict at its
+  # head (lane PRs under lane-prs native are not listed). Must be true at a
+  # rung above off: the gate refuses otherwise.
   require-verifier-verdict: true
   # Lane merges in flight at once (queued plus merged and not yet verified).
   # The merge queue tests each PR against the latest base plus the PRs ahead
@@ -823,20 +833,6 @@ merge:
   # 30-minute timeout with the minute before the loop and the closing steps
   # (judgment).
   gate-deferred-minutes: 20
-  # The share of GITHUB_TOKEN's core limit (GET /rate_limit) that must be
-  # left for the gate's review-evidence reads (timeline, comments, lane runs,
-  # attempts, jobs, annotations) to use it; below it, or when the limit cannot
-  # be read, they use the lane App token. An early switch only: a read refused
-  # for a rate limit also moves them to the lane App token for the rest of
-  # the run, since /rate_limit read 3934 of 5000 left while the token was
-  # already refused. Either token reads the same data, so no gate decision
-  # changes. The pool is 1,000 an hour per repository and shared by
-  # every job; moving these reads onto it added an estimated 600-1,500 an
-  # hour, and it ran out at 05:26Z on 2026-10-23, failing pr-merge's full-run
-  # dispatch on runs 39905758340, 39905868587 and 39906176584. 0.3 keeps 300
-  # for the dispatches, waits and post-merge checks, the share
-  # babysit_whole_review.py's MIN_SHARE keeps (judgment).
-  read-token-floor: 0.3
   # Minutes a MED or HIGH reasons comment must stand unchanged at the head
   # before the gate adds the human-gated label; 0 is no minimum. 60 is longer
   # than a review lane's run (judgment), so a review still running at the
