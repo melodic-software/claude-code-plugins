@@ -1733,11 +1733,13 @@ def _lane_reruns(ctx: _Context, now: datetime, tally: _Tally) -> list[str]:
         )
         for run in sorted(runs, key=lambda r: r.created_at, reverse=True):
             if (
-                ctx.on_branch(run)
-                and run.id not in tally.reruns
+                run.id not in tally.reruns
                 and run.attempt == 1
                 and ctx.outcome(run, attributable=True)[0] == RERUN
                 and ctx.lane_dispatched(run)
+                # Only a run that could be marked pays for the ancestry read,
+                # and one off the branch never reaches the affected set.
+                and ctx.on_branch(run)
                 and ctx.regressions(SIGNAL_DISPATCH, run, run.created_at)
             ):
                 tally.reruns[run.id] = Rerun(
