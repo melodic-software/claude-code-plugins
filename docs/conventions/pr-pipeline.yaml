@@ -278,9 +278,6 @@ activities:
       labels-absent: [needs-human, needs-owner-decision, "status: needs-decision"]
       # Read now, so removing agent-ready while a run waits stops it.
       labels: [agent-ready]
-      # Only issues labeled agent-ready after this time start a run; an issue
-      # labeled earlier starts nothing.
-      labeled-after: "2026-10-14T19:21:59Z"
   apply-issue-patch:
     # Commits resolve-issue's patch to a new branch,
     # work-resolve-issue/issue-<n>-<run id>-<attempt>, made at the commit the
@@ -547,8 +544,8 @@ models:
     uncertainty:
       # The approach is known: run it.
       known: run
-      # Answerable by reading or asking first: skip until it is (research-first).
-      knowable: research-first
+      # Answerable by reading first: the run researches, then works it.
+      knowable: run
       # Only an experiment answers it: skip until a probe has (probe-first).
       unknown: probe-first
 

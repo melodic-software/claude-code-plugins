@@ -93,9 +93,7 @@ predicate always reads labels from that response, never from the payload, so a h
 the event still holds a queued run.
 
 On an `issues` event there is no PR: `labeled` maps to the `labeled` event, labels come from the
-issue in the payload (a `labels-absent` or `admission` predicate reads `GET /issues/{n}` instead), and
-`labeled-after` compares its time with the issue's `updated_at`. A `labeled-after` predicate off
-an `issues` event cannot be decided and fails the step.
+issue in the payload (a `labels-absent` or `admission` predicate reads `GET /issues/{n}` instead).
 
 ## Output
 
@@ -130,7 +128,7 @@ leaf that sets `prepare` carries it.
 Each resolved slot carries `applies` and `skip-reason`: `disabled-by-config` when the lane or a
 slot on the path sets `enabled: false`, `not-applicable-paths` when a `paths` predicate misses,
 `awaiting-human` when a `labels-absent` label is on the PR, `not-applicable` when a `labels`,
-`events`, `work-classes`, `admission`, `mergeable`, `draft` or `labeled-after` predicate misses, and `prerequisite-missing` when
+`events`, `work-classes`, `admission`, `mergeable` or `draft` predicate misses, and `prerequisite-missing` when
 mergeability stayed unknown, in that order when several miss. An enabled slot whose predicate was
 not decided carries `applies` and `skip-reason` null. Its `grant` is the effect's row in
 `effect-grants.json`. The step fails when that row does not set exactly `contents`,

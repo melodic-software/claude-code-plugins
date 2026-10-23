@@ -1,7 +1,7 @@
 // Expected values come from the lane's plan: a missing or invalid outcome file
 // means `stopped`; `done` opens a ready PR whose body starts `Closes #<issue>`,
 // with a Conventional Commits title (the run's, else one from the issue title), no
-// label (the class lives on the issue only), and the hold line for structural and
+// label (the class lives on the issue only), and the hold line for
 // untrusted-provenance work or a trust or lane-power diff; `pushback` and
 // `stopped` comment, add needs-human and remove agent-ready.
 import assert from "node:assert/strict";
@@ -184,12 +184,16 @@ test("read-only work on ordinary files carries no hold line", () => {
   assert.ok(!decideDone().body.includes("Hold: a human merges this"));
 });
 
-for (const cls of ["structural", "untrusted-provenance"]) {
-  test(`${cls} work carries the hold line`, () => {
-    const plan = decideDone({ issueLabels: [`work-class: ${cls}`] });
-    assert.ok(plan.body.split("\n").includes("Hold: a human merges this"), plan.body);
-  });
-}
+test("untrusted-provenance work carries the hold line", () => {
+  const plan = decideDone({ issueLabels: ["work-class: untrusted-provenance"] });
+  assert.ok(plan.body.split("\n").includes("Hold: a human merges this"), plan.body);
+});
+
+// Structural risk shows in the diff, which the review lanes read.
+test("structural work on ordinary files carries no hold line", () => {
+  const plan = decideDone({ issueLabels: ["work-class: structural"] });
+  assert.ok(!plan.body.includes("Hold: a human merges this"), plan.body);
+});
 
 test("scoped work on ordinary files carries no hold line", () => {
   const plan = decideDone({ issueLabels: ["work-class: scoped"] });

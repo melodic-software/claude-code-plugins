@@ -145,10 +145,10 @@ function prTitle(runTitle, issueTitle, issueNumber) {
   }
   return (match && conventionalFrom(runTitle)) || conventionalFrom(issueTitle) || `fix: resolve issue ${issueNumber}`;
 }
-// Work a human merges: structural and untrusted-provenance work, and any diff
+// Work a human merges: untrusted-provenance work, and any diff
 // that touches a path the merge lane refuses (merge.diff-check.denied-paths in the base
 // pr-pipeline.yaml), so the two lists cannot drift apart.
-const HOLD_CLASSES = new Set(["work-class: structural", "work-class: untrusted-provenance"]);
+const HOLD_CLASSES = new Set(["work-class: untrusted-provenance"]);
 // An owner decision that a person merges the issue's PR. It holds only when the
 // lane's labeler check passes: the newest `labeled` event is a listed human's
 // (by id) or the lanes App's, so no one else can add the hold or stand in for it.
