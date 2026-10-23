@@ -3935,18 +3935,19 @@ jobs:
             BASE_SHA=$(jq -r '.base.sha' <<<"$pull")
             # A push gives an armed pull request a head enable-auto-merge's
             # reader has not judged: turn its auto-merge off until a reader
-            # run arms the new head. A failed mutation fails ci-status on this
-            # head, the required check, so the armed request cannot enqueue
-            # it; a re-run replays the push event and tries again, and once it
-            # is off ci-status goes green and pr-verify judges the head.
+            # run arms the new head. A failed mutation only warns: failing
+            # here would hold every push to an armed pull request red if this
+            # token cannot disarm. A missed disarm is backstopped by the merge
+            # queue's check for a pr-verify pass at the exact head it merges
+            # (below) and by enable-auto-merge's scheduled reader, which
+            # disarms a head it refuses within 15 minutes.
             if [ "${EVENT_ACTION:-}" = synchronize ] && jq -e '.auto_merge != null' <<<"$pull" >/dev/null; then
               # shellcheck disable=SC2016 # $id is a GraphQL variable
               if gh api graphql -f query='mutation($id: ID!) { disablePullRequestAutoMerge(input: {pullRequestId: $id}) { clientMutationId } }' \
                 -f id="$(jq -r '.node_id' <<<"$pull")" >/dev/null; then
                 echo "#$pr: a push moved its head, so its native auto-merge is off until enable-auto-merge's next scheduled run judges the new head."
               else
-                echo "::error::could not turn off native auto-merge on #$pr after a push to its head, so this head stays red; re-run ci-status to try again."
-                exit 1
+                echo "::warning::could not turn off native auto-merge on #$pr after a push to its head; the merge queue still needs a pr-verify pass at the head it merges, and the next scheduled enable-auto-merge run disarms a head its reader refuses."
               fi
             fi
           fi

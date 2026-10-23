@@ -319,7 +319,7 @@ else
 fi
 STUB_PULL="$(STUB_ARMED=1 pull 'Closes #1')"
 export STUB_DISARM_FAILS=1
-expect "a disarm that fails holds this head red until a re-run turns it off" 1 0 "::error::could not turn off native auto-merge on #7 after a push to its head, so this head stays red"
+expect "a disarm that fails only warns, so a token that cannot disarm never holds a push red" 0 3 "::warning::could not turn off native auto-merge on #7 after a push to its head"
 unset STUB_DISARM_FAILS
 for action in edited labeled; do
   STUB_PULL="$(STUB_ARMED=1 pull 'Closes #1')" ACTION=$action
@@ -366,6 +366,15 @@ for bad in 12:in-progress 13:another-workflow 14:a-pull-request-event 15:another
 done
 STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[16],\"pr-verify-7-$SHA-pass-$DIGEST\":[11]}"
 expect "in the merge queue, a failed run's pass does not hide a later name's good one" 0 3 "pr-verify passed this head"
+# Run 17's read answers with run 11's record, which would count but for the
+# id: the lookup must not stop on it, so the later real pass is still read.
+STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[17],\"pr-verify-7-$SHA-pass-$DIGEST\":[11]}"
+expect "in the merge queue, another run's record does not end the lookup before a real pass" 0 3 "pr-verify passed this head"
+if [[ "$(lookups)" -eq 2 ]]; then
+  ok "a record whose run id differs from its artifact's does not end the lookup"
+else
+  fail "a mismatched run record ended the lookup after $(lookups) lookup(s)"
+fi
 STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[13],\"pr-verify-7-$SHA-pass-$DIGEST\":[11]}"
 expect "in the merge queue, another workflow's successful run does not end the lookup before a real pass" 0 3 "pr-verify passed this head"
 if [[ "$(lookups)" -eq 2 ]]; then
