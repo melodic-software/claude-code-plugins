@@ -39,6 +39,7 @@ import {
   graphQLReader,
   loadTrustedList,
 } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { headRefDigest } from "./write-verdict.mjs";
 
 export const UPSTREAM_PATH = ".github/workflows/pr-require-checks.yml";
 export const VERIFY_PATH = ".github/workflows/pr-verify.yml";
@@ -49,7 +50,8 @@ const VERIFY_AUTHORS = Object.freeze(["lane", "lane-or-owner", "any"]);
 
 const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
-const NAME = /^pr-verify-([1-9][0-9]*)-([0-9a-f]{40})-(pass|pass-notes|fail)$/;
+const NAME = /^pr-verify-([1-9][0-9]*)-([0-9a-f]{40})-(pass|pass-notes|fail)(?:-[0-9a-f]{16})?$/;
+const REF = /^[A-Za-z0-9._/-]+$/;
 const MAX_PAGES = 100;
 
 const SPEC_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
@@ -154,11 +156,16 @@ async function pullsOfCommit(github, repository, head) {
 
 // The names that hold a counted verdict at the head: this PR's PASS,
 // PASS-NOTES and FAIL, and a FAIL under each other number the commit's pull
-// requests carry.
-async function judged({ github, repository, number, head, base, numbers }) {
+// requests carry, each without a head-ref digest (an older verdict) and with
+// the digest of that pull request's head branch (write-verdict.mjs).
+async function judged({ github, repository, number, head, base, refs }) {
+  const named = (pr, verdict) => [
+    `pr-verify-${pr}-${head}-${verdict}`,
+    ...(REF.test(refs.get(pr) ?? "") ? [`pr-verify-${pr}-${head}-${verdict}-${headRefDigest(refs.get(pr))}`] : []),
+  ];
   const names = [
-    ...["pass", "pass-notes", "fail"].map((verdict) => `pr-verify-${number}-${head}-${verdict}`),
-    ...[...new Set(numbers)].filter((other) => other !== number).map((other) => `pr-verify-${other}-${head}-fail`),
+    ...["pass", "pass-notes", "fail"].flatMap((verdict) => named(number, verdict)),
+    ...[...refs.keys()].filter((other) => other !== number).flatMap((other) => named(other, "fail")),
   ];
   for (const name of names) {
     const [, , , verdict] = NAME.exec(name);
@@ -270,8 +277,12 @@ export async function resolvePull({ github, repository, upstreamRunId, humans, b
   if (verifyAuthors === "lane-or-owner" && !laneAuthored(pull.user, laneIdentity) && !ownerAuthored(pull.user, owners)) {
     return skip("author-not-lane-or-owner");
   }
-  const numbers = associated.map((item) => item?.number).filter((n) => Number.isSafeInteger(n) && n > 0);
-  if (await judged({ github, repository, number: pull.number, head, base, numbers })) {
+  const refs = new Map(
+    associated
+      .filter((item) => Number.isSafeInteger(item?.number) && item.number > 0)
+      .map((item) => [item.number, String(item.head?.ref ?? "")]),
+  );
+  if (await judged({ github, repository, number: pull.number, head, base, refs })) {
     return skip("already-judged");
   }
   const specRead = await linkedIssues(github, repository, pull.number, humans);

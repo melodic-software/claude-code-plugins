@@ -79,9 +79,13 @@ test("the verdict must be the fail its artifact name names", () => {
     [NAME, verdictText({ pr: 43 })],
     [NAME, verdictText({ head_sha: "b".repeat(40) })],
     [NAME, verdictText({ notes: [1] })],
+    // 79b4cc554b80dca6 is the first 16 hex digits of `printf %s feat/x | sha256sum`.
+    [`${NAME}-79b4cc554b80dca6`, verdictText({ head_ref: "feat/other" })],
+    [`${NAME}-79b4cc554b80dca6`, verdictText()],
   ]) {
     assert.throws(() => readVerdict(name, text), name);
   }
+  assert.equal(readVerdict(`${NAME}-79b4cc554b80dca6`, verdictText({ head_ref: "feat/x" })).pr, 42);
 });
 
 test("the notes are posted as file comments on the judged head, once", async () => {

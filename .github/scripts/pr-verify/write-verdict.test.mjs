@@ -1,5 +1,6 @@
 // Expected values come from the verdict rules in
-// docs/conventions/pr-pipeline/README.md ("Verifier verdict"): the artifact is named pr-verify-<pr>-<head-sha>-<verdict>, the
+// docs/conventions/pr-pipeline/README.md ("Verifier verdict"): the artifact is named
+// pr-verify-<pr>-<head-sha>-<verdict>-<the first 16 hex digits of the head branch's SHA-256>, the
 // verdict JSON holds {pr, head_sha, base_sha, head_ref, linked_issues,
 // verdict, summary, notes, run_id}, each linked issue records its author, and
 // malformed output writes nothing. The output comes from the last result
@@ -48,7 +49,8 @@ test("each verdict names its artifact with the PR, the head and the verdict", ()
       notes: ["n"],
       run_id: 9001,
     });
-    assert.equal(artifactName(built), `pr-verify-41-${HEAD}-${verdict}`);
+    // 79b4cc554b80dca6: the first 16 hex digits of `printf %s feat/x | sha256sum`.
+    assert.equal(artifactName(built), `pr-verify-41-${HEAD}-${verdict}-79b4cc554b80dca6`);
   }
 });
 
@@ -240,7 +242,7 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
   assert.equal(written.verdict, "fail");
   assert.equal(written.summary, "wrong");
   assert.deepEqual(written.linked_issues, [ISSUE]);
-  assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), `name=pr-verify-41-${HEAD}-fail\nverdict=fail\n`);
+  assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), `name=pr-verify-41-${HEAD}-fail-79b4cc554b80dca6\nverdict=fail\n`);
 
   const okFile = execution("ok", JSON.parse(ok));
   const unparsable = path.join(dir, "unparsable.json");

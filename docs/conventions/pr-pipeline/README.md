@@ -1214,7 +1214,9 @@ same-repository, non-draft pull request into main. It never runs the pull reques
 data, and judges whether the diff delivers the issue's intent correctly and safely. The model runs
 on ci-workflows' `run-claude-cli` as the `automations` role ([Funding](#funding)), with the Read
 tool alone, allowed only on the data files in the working directory's `pr-verify-data`. The run
-uploads one artifact, `pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>`, holding the verdict JSON
+uploads one artifact, `pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>-<ref-digest>`, where
+`<ref-digest>` is the first 16 hex digits of the SHA-256 of the `head_ref` it records
+(`HEAD_REF_DIGEST_HEX` in `write-verdict.mjs`), holding the verdict JSON
 (`pr`, `head_sha`, `base_sha`, `head_ref`, `linked_issues` with each issue's author login, id and
 account type, `verdict`, `summary`, `notes`, `run_id`). The head SHA is the one `pr-require-checks`
 ran on, never the pull request's live head. A model error, an output that fails the schema, a
@@ -1270,7 +1272,10 @@ head:
   every pull request for that issue refuse `verify:unreadable`: a hold, not a way past the cap;
 - a counted `fail` at the head, under any pull request number, refuses (`verify:fail`);
 - a counted `fail` at another head of the pull request (its number, one of its commits, or a
-  verdict recording its head branch) refuses (`verify:earlier-fail`). Counted `pass` or
+  verdict recording its head branch, read from the name's digest, or from the verdict JSON for a
+  verdict uploaded before the digest) refuses (`verify:earlier-fail`). The name is trusted only
+  from a run of verifier origin, as the JSON is, and equal branches always give equal digests,
+  so a collision can only tie a `fail`, never untie one. Counted `pass` or
   `pass-notes` verdicts at the head whose runs were all created after every such `fail`'s run
   clear it, each `created_at` read fresh from GitHub (a missing one keeps the refusal; a
   re-attempt keeps its run's `created_at` and moves `run_started_at` later, so a re-run of an
@@ -1371,8 +1376,8 @@ shared permission or trusted list) was taken at most two minutes ago; a gate alw
 candidate, and a failed dequeue keeps nothing. A FAIL's run record is reused for two minutes: a FAIL
 counts whether its run is still running or finished, and a re-run keeps every field that decides
 whether the run is pr-verify's, so a stale record never turns a FAIL away. A PASS's run record is
-read by each gate process, because a re-run can undo a completed success. An untied FAIL's
-recorded head ref is shared for the run under the artifact's id, since the contents an id names
+read by each gate process, because a re-run can undo a completed success. An untied FAIL whose
+name carries no head-ref digest has its recorded head ref shared for the run under the artifact's id, since the contents an id names
 never change (an overwrite uploads a new id). On the `--unattended` path only, the default branch
 and the base's rules are reused for two minutes, and a failed read is never shared; before an
 enqueue, a default branch or rules a gate took from the file are read again for the branch read,
