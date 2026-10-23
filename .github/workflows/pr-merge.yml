@@ -1031,12 +1031,11 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-      # A pr-unblock or pr-refine run the broker refused as
-      # workflow-modified cannot pass on a rerun, which keeps its first
-      # event's workflow files. On the schedule, this pushes an empty commit
-      # with the lane token to each such PR whose head check-trusted-trigger
-      # would trust (no fork, no Dependabot PR), so the lane's next run uses
-      # main's files: at
+      # A pr-unblock run the broker refused as workflow-modified cannot
+      # pass on a rerun, which keeps its first event's workflow files. On
+      # the schedule, this pushes an empty commit with the lane token to
+      # each such PR whose head check-trusted-trigger would trust (no fork,
+      # no Dependabot PR), so the next pr-unblock run uses main's files: at
       # most five a run, and once per PR per version of the file the
       # broker named, recorded in a marker comment first. It runs after the
       # gate, which refuses a PR with a failing check, and not while the lane

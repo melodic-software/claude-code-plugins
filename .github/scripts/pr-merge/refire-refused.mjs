@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// refire-refused.mjs: gives a pull request a new head when a pr-unblock or
-// pr-refine run on its current head failed at "Request the lane token"
-// because the token broker refused it as workflow-modified. A rerun keeps its
-// first event's workflow files, so no rerun can pass; after the new head, the
-// lane's next run uses main's files. No model.
+// refire-refused.mjs: gives a pull request a new head when a pr-unblock run
+// on its current head failed at "Request the lane token" because the token
+// broker refused it as workflow-modified. A rerun keeps its first event's
+// workflow files, so no rerun can pass; after the new head, the next
+// pr-unblock run uses main's files. No model.
 //
 // The new head is an empty commit: the head's own tree, the head as its only
 // parent, made with the lanes App token through the Git Data API and moved
@@ -75,20 +75,11 @@ const LANES = Object.freeze({
       ".github/workflows/pr-feedback-dispatch.yml",
     ],
   },
-  // fix-docs-dispatch.mjs dispatches fix-docs once per pull request, and the
-  // refused run's check on the old head counts, so no dispatch follows.
-  "pr-refine.yml": {
-    events: ["workflow_dispatch"],
-    after: "pr-merge pushes an empty commit so the next pr-refine run uses main's files.",
-    starts:
-      " The push starts no pr-refine run itself: fix-docs runs once per pull request, so a listed person dispatches `pr-refine` with its number to run it again.",
-    files: [".github/workflows/pr-refine.yml", WRITE_RUNNER, ".github/workflows/pr-unblock-dispatch.yml"],
-  },
 });
 const REFUSED =
   /^lane-token-denied: the broker answered 403 with reason workflow-modified: (\.github\/workflows\/[A-Za-z0-9._-]+\.yml) differs from refs\/heads\/main$/;
 const MARKER = /^<!-- pr-lane-refire (\.github\/workflows\/[A-Za-z0-9._-]+\.yml)@([0-9a-f]{40}) head ([0-9a-f]{40}) -->/;
-const DISPATCH_TITLE = /^pr-(?:unblock|refine) [a-z]+(?:-[a-z]+)* #([1-9][0-9]{0,9})$/;
+const DISPATCH_TITLE = /^pr-unblock [a-z]+(?:-[a-z]+)* #([1-9][0-9]{0,9})$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 // check-trusted-trigger's head checks.
 const HEAD_REF = /^[A-Za-z0-9._/-]+$/;
