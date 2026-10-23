@@ -146,9 +146,9 @@ with your own edit tools. Never runs from bare `apply`.
    --scope local`. For `shared`, run `plan --scope remote` first: with lefthook, or no hook
    manager yet, the committed `lefthook.yml` gets one `remotes:` entry that fetches the hooks
    from the plugin's repository and refetches them daily, so nothing is copied and no refresh
-   is ever committed. When it returns `remote-needs-lefthook` (husky or plain hooks), run
-   `plan --scope shared` instead, which commits copies under `.githooks/guardrails/`. Read the
-   JSON: `manager`, `actions[]`, `decisions[]`.
+   is ever committed. When it returns `remote-needs-lefthook` (husky or plain hooks) or
+   `remote-source-dir`, run `plan --scope shared` instead, which commits copies under
+   `.githooks/guardrails/`. Read the JSON: `manager`, `actions[]`, `decisions[]`.
 3. **Manager conflict.** A `manager-conflict` decision lists the evidence (two managers, or one
    this installer does not drive, such as the pre-commit framework). Show it and ask which
    manager should carry the entries; rerun `plan` with `--manager lefthook|husky|plain`.
