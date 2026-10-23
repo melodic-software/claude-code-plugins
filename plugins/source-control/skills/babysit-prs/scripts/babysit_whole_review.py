@@ -107,11 +107,13 @@ def wanted(
     risk: babysit_risk.RiskResult,
     lanes: Sequence[babysit_risk.LaneEvidence],
 ) -> bool:
-    """Every other gate passed (`reason` is None), the score's only reasons
-    are open findings, and a clean whole review would close each lane's."""
-    if reason is not None or not babysit_risk.holds(risk):
+    """Every other gate passed (`reason` is None), the only reasons holding
+    the score are open findings, and a clean whole review would close each
+    lane's."""
+    held_by = babysit_risk.holding(risk)
+    if reason is not None or not held_by:
         return False
-    if not all(r.code in FINDING_CODES for r in risk.reasons):
+    if not all(r.code in FINDING_CODES for r in held_by):
         return False
     held = [lane for lane in lanes if (babysit_risk.blocking(lane) or 0) > 0]
     return bool(held) and all(lane.whole_review_clears for lane in held)

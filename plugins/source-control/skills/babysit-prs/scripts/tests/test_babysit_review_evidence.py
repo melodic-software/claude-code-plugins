@@ -1654,6 +1654,34 @@ class SeverityTests(Base):
                 self.assertEqual(result.open_findings, 3)
                 self.assertEqual(result.blocking_findings, blocking)
 
+    def test_a_summary_comment_the_review_posted_carries_the_line(self) -> None:
+        # The probe fixture's producer shape: the Claude App posts the summary
+        # and the head marker is a separate status comment.
+        runs = [whole("claude-review", S), whole(self.SEC, S, n=2, k=0)]
+
+        def summary(body: str, at: str) -> dict[str, Any]:
+            return {
+                "id": next(_ids),
+                "user": {"login": "claude[bot]", "type": "Bot"},
+                "created_at": at,
+                "body": body,
+            }
+
+        for body, at, blocking in (
+            ("summary\n\ncritical-findings: 0", "2026-01-01T00:30:00Z", 0),
+            (
+                "summary\n\ncritical-findings: 0\n\nclaude-lane: claude-review",
+                "2026-01-01T00:30:00Z",
+                2,
+            ),
+            ("summary\n\ncritical-findings: 0", "2026-01-01T02:00:00Z", 2),
+        ):
+            with self.subTest(body=body, at=at):
+                comments = [*both_markers(), summary(body, at)]
+                result = self.bind(runs, comments=comments)[self.SEC]
+                self.assertEqual(result.open_findings, 2)
+                self.assertEqual(result.blocking_findings, blocking)
+
     def test_a_thread_less_inline_finding_counts_as_critical(self) -> None:
         runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]
         result = self.bind(runs, comments=self.summary_markers("critical-findings: 0"))[

@@ -714,8 +714,8 @@ and its queued entries leave; two different identities, or an unreadable head co
   does not parse or repeats a key, holds. That reason waits for a human like any other HIGH one.
 - **Security findings.** The security lane flags; only a CRITICAL finding holds the merge, as
   `security-finding`. Its inline comments and summary carry the severity lines
-  `plugins/review/skills/security-review/SKILL.md` defines, and a finding whose severity the gate
-  cannot read counts as CRITICAL.
+  `/review:security-review` defines, and a finding whose severity the gate cannot read counts as
+  CRITICAL.
 - **Cost hold.** A change that could add or raise a charge needs the owner (owner rule,
   2026-10-22). It scores HIGH as `cost-review-required` in both lanes, whatever `high-path-floor`
   says and whatever an adopted author's own paths leave off the floor, and waits for a human like

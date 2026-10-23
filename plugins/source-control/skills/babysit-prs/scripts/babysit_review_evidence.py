@@ -205,7 +205,7 @@ def _bind_lane(
             reviewed,
             chain,
             head_file,
-            marker,
+            [(None, marker), *_summary_comments(lane, comments)],
         )
     except Unbound as exc:
         return LaneEvidence(lane, False, exc.reason, None)
@@ -439,6 +439,24 @@ def _require_marker(lane: str, head: str, comments: Sequence[Mapping[str, Any]])
     return newest[3]
 
 
+def _summary_comments(
+    lane: str, comments: Sequence[Mapping[str, Any]]
+) -> list[tuple[datetime | None, str]]:
+    """Each Claude App issue comment untagged or tagged for `lane`, with its
+    creation time: the summary comments an older lane producer posted."""
+    found = []
+    for comment in comments:
+        user = comment.get("user")
+        if not isinstance(user, Mapping) or user.get("login") not in CLAUDE_APP_LOGINS:
+            continue
+        body = str(comment.get("body") or "")
+        tag = LANE_TAG_RE.search(body)
+        created = _time(comment.get("created_at"))
+        if (tag is None or tag[1] == lane) and created is not None:
+            found.append((created, body))
+    return found
+
+
 def _require_marked_runs(
     lane: str,
     lane_runs: list[Mapping[str, Any]],
@@ -466,7 +484,7 @@ def _open_findings(
     reviewed: str,
     chain: Sequence[_Record],
     head_file: Callable[[str, str], str | None] | None = None,
-    marker: str = "",
+    summaries: Sequence[tuple[datetime | None, str]] = (),
 ) -> tuple[int, bool, int]:
     """Summary findings of the review chain covering the pinned head
     (`chain`, from `_resolve`), plus inline threads still open, plus inline
@@ -507,11 +525,14 @@ def _open_findings(
     how many open findings are CRITICAL (`SEVERITY_RE`): open threads whose
     comment is not marked IMPORTANT or SUGGESTION, every inline finding whose
     thread is gone, and the summary findings, of which only the covering
-    review's own (`marker`, its `critical-findings:` line) may count fewer:
-    the lane rewrites one marker comment, so an earlier review's summary is
-    gone and all its findings count."""
+    review's own may count fewer: its one `critical-findings:` line, read
+    from `summaries` (the reviewed-head marker, which carries the summary,
+    and each Claude App summary comment posted inside that review's job). An
+    earlier review's summary is not read, so all its findings count."""
     if threads is None:
         raise Unbound("threads-unread")
+    # The covering review's job window, to place its summary comments.
+    span: tuple[datetime | None, datetime | None] | None = None
     # (job started, job completed, inline findings) per recorded attempt.
     windows: list[tuple[datetime | None, datetime | None, int]] = []
     # The head per window, to count missing ones on the chain.
@@ -545,6 +566,8 @@ def _open_findings(
                 rec.findings - rec.inline,  # type: ignore[operator]
             )
             started = _time(job.get("started_at"))
+            if rec == chain[0]:
+                span = (started, rec.completed)
             windows.append(
                 (
                     started,
@@ -611,7 +634,13 @@ def _open_findings(
     # The covering review's summary findings, when it was the head's only
     # summary count and its line reads no more than it reported.
     own = chain[0].findings - chain[0].inline  # type: ignore[operator]
-    lines = SUMMARY_CRITICAL_RE.findall(marker)
+    start, end = span or (None, None)
+    lines = [
+        line
+        for at, body in summaries
+        if at is None or (start and end and start <= at <= end)
+        for line in SUMMARY_CRITICAL_RE.findall(body)
+    ]
     rest = summary - summary_max.get(chain[0].sha, 0)
     if own == summary_max.get(chain[0].sha, 0) and len(lines) == 1:
         summary = rest + min(int(lines[0]), own)

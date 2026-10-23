@@ -13,12 +13,17 @@ types (str, int, bool, None, list, tuple) built from parsed JSON; subclasses
 that override their own behavior are out of scope. A count outside
 0..10**9 is malformed. Each reason code appears once.
 
-The HIGH path floor and the lane table are fixed here on purpose: a weaker
-value could only come from a file a pull request can edit. The floor holds
-only what has an effect outside the repository or its review (owner direction
-2026-10-22): agent permission config, submodules, code owners, package
-manifests and lockfiles, and the workflows that publish a release or hold
-`id-token: write`. The configured `merge.diff-check.denied-paths` are joined to
+The HIGH path floor and the lane table are fixed here, never read from
+configuration. The floor holds only what has an effect outside the repository
+or its review: agent permission config, submodules, code owners, package
+manifests and lockfiles, the workflows that publish a release or hold
+`id-token: write`, and the trusted-trigger check that keeps work from outside
+the org away from their credentials. Everything else, this module, the merge
+gate, the review lanes, hooks, scripts and agent instructions included, merges
+on the two review lanes, which are the gate (owner direction 2026-10-22: the
+review lanes are the only gate, and bots may edit hooks, plugins, skills,
+scripts and workflows). So a pull request can change the rule it is judged by,
+and the review lanes, not this floor, are what read that change. The configured `merge.diff-check.denied-paths` are joined to
 the floor, never in place of it. Every glob matches case-insensitively,
 because a lane host on a case-insensitive filesystem treats `Codeowners` as
 `CODEOWNERS`.
@@ -187,8 +192,11 @@ HIGH_FLOOR: tuple[str, ...] = (
     "**/package.json",
     "**/package-lock.json",
     "**/requirements*.txt",
-    # Workflows that publish a release or hold `id-token: write`, and the
-    # trusted-trigger check they run from the default branch.
+    # Workflows that publish a release or hold `id-token: write`: external
+    # effects and the secrets behind them. The scripts and actions they run
+    # are open to review-gated merge (owner direction 2026-10-22), except the
+    # trusted-trigger check, which implements the outside-org hold the owner
+    # kept.
     ".github/workflows/release-*.yml",
     ".github/workflows/intake-triage.yml",
     ".github/workflows/pr-merge.yml",
@@ -1015,15 +1023,21 @@ MERGEABLE_MED = frozenset(
 _MERGEABLE_MED_PREFIX = "no-patch:"
 
 
-def holds(result: RiskResult) -> bool:
-    """Whether the score refuses an unattended merge: any HIGH reason, or a
+def holding(result: RiskResult) -> list[Reason]:
+    """The reasons that refuse an unattended merge: every HIGH one, and each
     MED one outside `MERGEABLE_MED`, such as unbound review evidence, an open
     finding or an unread file listing."""
-    return any(
-        r.severity is not Risk.MED
-        or not (r.code in MERGEABLE_MED or r.code.startswith(_MERGEABLE_MED_PREFIX))
+    return [
+        r
         for r in result.reasons
-    )
+        if r.severity is not Risk.MED
+        or not (r.code in MERGEABLE_MED or r.code.startswith(_MERGEABLE_MED_PREFIX))
+    ]
+
+
+def holds(result: RiskResult) -> bool:
+    """Whether the score refuses an unattended merge (`holding`)."""
+    return bool(holding(result))
 
 
 def score(inp: RiskInput) -> RiskResult:
