@@ -161,7 +161,8 @@ or fix-ci) followed within a minute, no other marker is on its comments since, a
 `claude-lane-hold` names the current head or is open, per
 `.github/scripts/pr-unblock/gate-source.mjs`; anything ambiguous keeps the fix-request rule, and
 the label stays on, and `clear-escalations.mjs` removes it only while no address-feedback round
-record is on the lanes App's comments since it went on), the head has no
+record is on the lanes App's comments since it went on; to stop the lane working such a PR, a
+person adds `do-not-merge`, since re-adding a label already on records no event), the head has no
 `pr-unblock / address-feedback` check run (one that started before the head's newest
 `pr-unblock / publish-feedback` check run stops counting when that run skipped `no-model-turn`:
 the round handled nothing, and the round cap still bounds the retries; a limit stop keeps its
