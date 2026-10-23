@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.14.6] - 2026-10-23
+
+### Fixed
+
+- `detect.sh --paths-file` keeps the last entry of a file with no trailing newline; a one-entry file no longer reports that it lists no paths.
+
 ## [0.14.5] - 2026-10-22
 
 ### Security

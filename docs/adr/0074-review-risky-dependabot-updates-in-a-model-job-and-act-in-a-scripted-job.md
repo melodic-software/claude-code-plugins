@@ -2,7 +2,9 @@
 
 - Status: accepted; amended 2026-10-18 (a major or unreadable Dependabot update waits for a
   human under `merge.dependabot.majors: hold`, see the
-  [ADR 0073 addendum](0073-merge-dependabot-pull-requests-in-the-pr-merge-lane.md#addendum-2026-10-18-a-major-update-waits-for-a-human))
+  [ADR 0073 addendum](0073-merge-dependabot-pull-requests-in-the-pr-merge-lane.md#addendum-2026-10-18-a-major-update-waits-for-a-human));
+  Decision 1 and the promote step superseded 2026-10-23 (see the
+  [addendum](#addendum-2026-10-23-the-model-job-holds-no-write-token))
 - Date: 2026-10-16
 - Amends: [ADR 0049](0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md),
   last consequence: relayed release notes reach a lane that holds no post, close or merge
@@ -103,3 +105,35 @@ unattended on the review's verdict, with two limits the runner enforces, not the
   whose files change a workflow or action file (a `github-actions` bump outside the allowlisted
   publishers, say) posts no merge marker and escalates `dependency-workflow-held`. Basis:
   [`apply-dependency-verdict.mjs`](../../.github/scripts/pr-unblock/apply-dependency-verdict.mjs).
+
+## Addendum (2026-10-23): the model job holds no write token
+
+Decision 1 and the promote step of Decision 2 and the 2026-10-22 addendum are superseded: the
+model job no longer holds `contents: write`.
+
+- **The model job is a read skill.** `review-dependency` is an `effect: read` skill leaf with
+  `applied-by` `{patch: apply-dependency-patch, dependency-verdict: apply-dependency-verdict}`, on
+  the read runner, on `run-claude-cli` (the automations role's API key, then its subscription
+  token after a credit stop or with an empty key). Its tools are Read, Grep, Glob, Skill, Edit,
+  Write and Agent, with no Bash, and WebFetch on the five configured hosts. It leaves a fix
+  uncommitted; the runner hands it on as a patch, and its verdict, the launcher's structured
+  output under the same schema, goes through the scan job's leak scan before upload. Basis:
+  [`pr-unblock.yml`](../../.github/workflows/pr-unblock.yml);
+  [`pr-run-activity-read.yml`](../../.github/workflows/pr-run-activity-read.yml).
+- **A base job selects, and every later input comes from it or a scan job.**
+  `review-dependency-select` runs `review-dependency.mjs select` before any model turn and writes
+  the context file and `context.json`, the run fields the verdict job reads. A select that does not
+  proceed posts the `review-dependency` check neutral, so the dispatcher does not send that head
+  again.
+- **A script pushes the fix, on a fix verdict only.** `apply-dependency-patch` runs
+  `apply-patch.mjs` under `patch-rules.json`'s `dependency-review` row: it needs the scanned
+  verdict `fix`, admits only `dependency-manifests` paths, holds each file to the
+  `dependency-version-change` content rule (`fixRefusal` on the local blobs, before any commit is
+  built), skips a moved head, and pushes one commit marked `[dependabot skip]`. A refused patch
+  leaves no fix commit, and the verdict job escalates `dependency-fix-not-landed`.
+- **A round with no verdict.** The verdict job counts it. It skips `no-model-turn` only when the
+  same call's scan handed on no patch, refused nothing, and the head is still the select job's;
+  a scan that refused an oversize patch escalates `dependency-fix-not-landed`, and any other gap
+  `dependency-invalid`.
+
+The verdict job's checks (Decision 3) and the dispatcher (Decision 4) are unchanged.

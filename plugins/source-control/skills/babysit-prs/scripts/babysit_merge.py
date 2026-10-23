@@ -110,7 +110,8 @@ Contract enforced here (encoded as code, not convention):
   promotion evidence is read, the kill switch is the workflow's own check
   passed as `--lane-kill-switch proceed` (missing or any other value stops),
   the rung cap is the workflow's `--lane-rung-cap` (empty is no cap),
-  only merges the identity enqueued are judged after the fact, and while
+  only merges the identity enqueued are judged after the fact, a person whose
+  newest comment says "do not merge" holds it until a later comment of theirs, and while
   `merge.report-only` is true `--merge` runs as a check that writes nothing.
   A Dependabot pull request there is its own class (`babysit_dependabot`):
   tier `auto` (every update non-major), or tier `review` with the review
@@ -127,18 +128,21 @@ effective branch rules (`rules/branches`), the review decision, unresolved
 review threads, and the status-check rollup.
 
 Exit codes: 0 ready (or merged, enqueued, or auto-merge armed), 10 not ready
-(blockers, or a merge request that failed or is still pending), 2 usage/runtime
-error, 3 owner out of scope (or no allowlist). Output is a single JSON object
-on stdout.
+(blockers, or a merge request that failed or is still pending), 11 unknown (the
+pr-merge lane's `--candidate-deadline-seconds` passed before a read; no write
+was cut short), 2 usage/runtime error, 3 owner out of scope (or no allowlist).
+Output is a single JSON object on stdout.
 """
 
 from __future__ import annotations
 
 import argparse
 import functools
+import hashlib
 import json
 import os
 import re
+import sys
 import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
@@ -190,6 +194,7 @@ from babysit_gh import (
     gh_capture,
     gh_http_status,
     gh_json,
+    gh_rate_limited,
     normalized_rest_author,
     parse_repo_number,
     pull_request_commits_once,
@@ -204,13 +209,16 @@ from babysit_review_trigger import (
 )
 from babysit_util import (
     MIN_HEAD_SHA_PREFIX_LENGTH,
+    DeadlineReached,
     configure_stdio,
+    deadline_after,
     is_json_array,
     is_json_object,
     json_array,
     json_object,
     parse_allowed_owners,
     parse_csv_set,
+    read_deadline,
     run_command,
     split_owner,
 )
@@ -972,6 +980,109 @@ def evaluate_decision_default_veto(
     return blockers, held
 
 
+def _human_comments(
+    repo: str,
+    number: int,
+    reviews: list[dict[str, Any]],
+    review_comments: list[dict[str, Any]] | None,
+    actor_config: FeedbackConfig,
+) -> list[tuple[str, str, str]]:
+    """(login, time, body, association) of every human-authored issue comment, review
+    summary and inline review comment on the pull request."""
+    corpus: list[dict[str, Any]] = list(fetch_issue_comments(repo, number))
+    corpus.extend(reviews)
+    # Inline review-thread comments are neither issue comments nor review
+    # summaries; a human veto left inline whose thread is later resolved would
+    # otherwise escape both the base unresolved-thread gate and this scan.
+    if review_comments is None:
+        review_comments = fetch_pull_request_review_comments(repo, number)
+    corpus.extend(
+        {
+            "author": normalized_rest_author(row),
+            "body": row.get("body"),
+            "createdAt": row.get("created_at"),
+            "authorAssociation": row.get("author_association"),
+        }
+        for row in review_comments
+    )
+    found = []
+    for item in corpus:
+        if actor_kind(item, actor_config) != "human":
+            continue
+        login = item.get("author")
+        login = login.get("login") if is_json_object(login) else login
+        at = item.get("submittedAt") or item.get("createdAt") or ""
+        found.append(
+            (
+                str(login or "unknown"),
+                str(at),
+                str(item.get("body") or ""),
+                str(item.get("authorAssociation") or "").upper(),
+            )
+        )
+    return found
+
+
+def human_blocking_logins(
+    repo: str,
+    number: int,
+    reviews: list[dict[str, Any]],
+    review_comments: list[dict[str, Any]] | None,
+    actor_config: FeedbackConfig,
+) -> list[str]:
+    """The logins of the people with any blocking comment, sorted (the tier).
+
+    A human "do not merge"/blocking comment that is not a formal
+    CHANGES_REQUESTED and not an unresolved inline thread (both gated by the
+    base gate) still halts the tier: the shared blocking-text and severity
+    predicates and `HUMAN_MERGE_VETO_RE` run over every human comment.
+    """
+    return sorted(
+        {
+            login
+            for login, _, body, _ in _human_comments(
+                repo, number, reviews, review_comments, actor_config
+            )
+            if has_blocking_text(body)
+            or has_blocking_severity(body)
+            or HUMAN_MERGE_VETO_RE.search(body)
+        }
+    )
+
+
+def human_veto_logins(
+    repo: str,
+    number: int,
+    reviews: list[dict[str, Any]],
+    review_comments: list[dict[str, Any]] | None,
+    actor_config: FeedbackConfig,
+) -> list[str]:
+    """The people whose newest comment on the pull request says "do not
+    merge" (`HUMAN_MERGE_VETO_RE` only), sorted (the pr-merge lane).
+
+    Each person's newest comment, review or inline comment with text decides,
+    so the same person lifts their hold with any later comment that does not
+    say it, such as "go ahead", or by editing the veto away. An item with no
+    text never lifts it: GitHub records an inline-only review, and an Approve
+    with no text, as a review summary with an empty body. Only an OWNER,
+    MEMBER or COLLABORATOR counts: on a public repository anyone else's
+    comment holds nothing.
+    """
+    newest: dict[str, tuple[str, str]] = {}
+    for login, at, body, association in _human_comments(
+        repo, number, reviews, review_comments, actor_config
+    ):
+        if association not in merge_policy.BLOCKER_ASSOCIATIONS:
+            continue
+        if not body.strip():
+            continue
+        if login not in newest or at >= newest[login][0]:
+            newest[login] = (at, body)
+    return sorted(
+        login for login, (_, body) in newest.items() if HUMAN_MERGE_VETO_RE.search(body)
+    )
+
+
 def evaluate_autopilot_tier(
     repo: str,
     number: int,
@@ -1051,43 +1162,18 @@ def evaluate_autopilot_tier(
             "(need author != approver via bot identity, approval unchanged since head)"
         )
 
-    # A human "do not merge"/blocking comment that is not a formal
-    # CHANGES_REQUESTED and not an unresolved inline thread (both already gated
-    # above) still halts the tier. Reuse the shared blocking-text/severity
-    # predicates over every human-authored issue comment and review summary.
-    human_blocking: list[str] = []
-    corpus: list[dict[str, Any]] = list(fetch_issue_comments(repo, number))
-    corpus.extend(reviews)
-    # Inline review-thread comments are neither issue comments nor review
-    # summaries; a human veto left inline whose thread is later resolved would
-    # otherwise escape both the base unresolved-thread gate and this scan.
-    if review_comments is None:
-        review_comments = fetch_pull_request_review_comments(repo, number)
-    corpus.extend(
-        {"author": normalized_rest_author(row), "body": row.get("body")}
-        for row in review_comments
-    )
     # A configured approver/lane account GitHub misreports as a `User` classifies
     # as a bot here, so its clean review body ("no blocking issues") does not
     # self-block the very approval `find_distinct_bot_approval` accepted -- the
     # "a bot's blocking-looking prose is not a human stop" rule extends to
     # configured bots that lack a `[bot]` suffix.
-    for item in corpus:
-        if actor_kind(item, tier.automation_actor_config) != "human":
-            continue
-        body = str(item.get("body") or "")
-        if (
-            has_blocking_text(body)
-            or has_blocking_severity(body)
-            or HUMAN_MERGE_VETO_RE.search(body)
-        ):
-            login = item.get("author")
-            login = login.get("login") if is_json_object(login) else login
-            human_blocking.append(str(login or "unknown"))
+    human_blocking = human_blocking_logins(
+        repo, number, reviews, review_comments, tier.automation_actor_config
+    )
     if human_blocking:
         blockers.append(
             "human blocking comment(s) from "
-            + ", ".join(sorted(set(human_blocking)))
+            + ", ".join(human_blocking)
             + " -- resolve before an autopilot merge"
         )
 
@@ -1120,7 +1206,7 @@ def evaluate_autopilot_tier(
             if approval
             else None
         ),
-        "humanBlockingComments": sorted(set(human_blocking)),
+        "humanBlockingComments": human_blocking,
         "decisionDefaultHeldIssues": decision_default_held,
     }
     return blockers, tier_result
@@ -1710,6 +1796,34 @@ def evaluate(
             review_comments,
         )
         blockers.extend(tier_blockers)
+
+    # The pr-merge lane enqueues with no person present, so a person whose
+    # newest comment says "do not merge" holds it before the enqueue. The tier,
+    # when configured, already ran its wider scan.
+    if (
+        tier is None
+        and unattended is not None
+        and (unattended.inputs or {}).get("authority") == merge_policy.PR_MERGE
+    ):
+        if reviews is None:
+            reviews = fetch_pull_request_reviews(repo, number)
+        identity = unattended.agent_identity
+        vetoes = human_veto_logins(
+            repo,
+            number,
+            reviews,
+            review_comments,
+            FeedbackConfig(
+                extra_bot_logins=frozenset({identity}) if identity else frozenset()
+            ),
+        )
+        if vetoes:
+            blockers.append(
+                "human merge veto from "
+                + ", ".join(vetoes)
+                + " -- their newest comment says do not merge; a later comment "
+                "from them lifts it"
+            )
 
     # The self-login exemption from the unprotected-base hold above exists for a
     # repository whose DEFAULT branch carries no rules -- a solo owner merging
@@ -2836,6 +2950,55 @@ class HeadPusherUnproven(Exception):
     """A head commit's pusher cannot be shown not to be a human."""
 
 
+# The run cache section where a gate process records that the read token hit
+# a rate limit, keyed by a digest of that token, so later candidates in the
+# run read their evidence with the lane token without trying it first.
+READ_TOKEN_LIMITED = "read-token-limited"
+
+
+class ReadTokenLimited(RuntimeError):
+    """A review-evidence read under the read token was refused for a rate
+    limit; the same GETs can be made with the lane token."""
+
+
+def _token_key(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def _evidence_read_env(floor: float) -> dict[str, str] | None:
+    """`env_overrides` for the review-evidence reads: the verdict reader's
+    token while its core bucket has at least `floor` of its limit left and no
+    earlier candidate in this run saw it rate limited, else None, the process
+    (lane) token. Both tokens read the same data, so the choice changes no
+    gate decision. A limit that cannot be read is treated as short; GET
+    /rate_limit spends no budget. The share is only an early switch: GitHub
+    can refuse the token while /rate_limit still shows room, which
+    `_lane_evidence` handles by reading again with the lane token."""
+    token = os.environ.get(verify_evidence.TOKEN_ENV)
+    if not token:
+        return None
+    if run_cache.get(READ_TOKEN_LIMITED, _token_key(token), None) is not None:
+        print(
+            f"read-token-floor: {verify_evidence.TOKEN_ENV} was rate limited earlier"
+            " in this run; the review-evidence reads use the lane token",
+            file=sys.stderr,
+        )
+        return None
+    env = {"GH_TOKEN": token}
+    try:
+        short = whole_review._short_bucket(env, share=floor, buckets=("core",))
+    except (RuntimeError, KeyError, TypeError, ValueError) as exc:
+        short = f"unreadable ({exc})"
+    if short is None:
+        return env
+    print(
+        f"read-token-floor: {verify_evidence.TOKEN_ENV} core {short} is under"
+        f" {floor}; the review-evidence reads use the lane token",
+        file=sys.stderr,
+    )
+    return None
+
+
 def _lane_evidence(
     repo: str,
     number: int,
@@ -2844,6 +3007,39 @@ def _lane_evidence(
     self_logins: frozenset[str],
     permission: Callable[[str], str | None],
     changed_paths: Sequence[str] | None,
+    read_floor: float = merge_policy.READ_TOKEN_FLOOR,
+) -> tuple[tuple[LaneEvidence, ...], list[dict[str, Any]]]:
+    """`_read_lane_evidence` under `_evidence_read_env`'s token. When a read
+    under the read token is refused for a rate limit, the run cache records
+    it for later candidates and every read is made again with the lane
+    token: all of them are GETs, so nothing is sent twice that changes
+    GitHub."""
+    args = (repo, number, pr, identity, self_logins, permission, changed_paths)
+    read_env = _evidence_read_env(read_floor)
+    if read_env is None:
+        return _read_lane_evidence(*args, None)
+    try:
+        return _read_lane_evidence(*args, read_env)
+    except ReadTokenLimited as exc:
+        run_cache.put(READ_TOKEN_LIMITED, _token_key(read_env["GH_TOKEN"]), True)
+        print(
+            f"read-token-floor: {verify_evidence.TOKEN_ENV} was rate limited"
+            f" ({str(exc)[-200:]}); reading the review evidence again with the"
+            " lane token",
+            file=sys.stderr,
+        )
+        return _read_lane_evidence(*args, None)
+
+
+def _read_lane_evidence(
+    repo: str,
+    number: int,
+    pr: dict[str, Any],
+    identity: str,
+    self_logins: frozenset[str],
+    permission: Callable[[str], str | None],
+    changed_paths: Sequence[str] | None,
+    read_env: dict[str, str] | None,
 ) -> tuple[tuple[LaneEvidence, ...], list[dict[str, Any]]]:
     """Each lane's evidence for the pull request's head, and its comments.
     `changed_paths` is `bind()`'s: None when the changed files are unproven.
@@ -2854,16 +3050,26 @@ def _lane_evidence(
     finding away. A commit with no linked author or committer, or a head with
     more commits than the list returns, raises `HeadPusherUnproven`. A retargeted base unbinds every lane.
 
-    The timeline, the comments and the lane runs are read under the verdict
-    reader's token when one is set, keeping them off the lane App's quota;
-    every read here is a GET."""
+    The timeline, the comments and the lane runs are read with `read_env`
+    (None: the process token), keeping them off the lane App's quota when it
+    names the verdict reader's token; every read here is a GET. A rate limit
+    on one of those reads raises `ReadTokenLimited`."""
     head = json_object(pr.get("head"))
-    token = os.environ.get(verify_evidence.TOKEN_ENV)
-    read_env = {"GH_TOKEN": token} if token else None
-    timeline = fetch_paginated_api(
-        f"repos/{repo}/issues/{number}/timeline?per_page=100",
-        f"#{number} timeline",
-        env_overrides=read_env,
+
+    def under_read_env(read: Callable[[], Any]) -> Any:
+        try:
+            return read()
+        except RuntimeError as exc:
+            if read_env is not None and gh_rate_limited(str(exc)):
+                raise ReadTokenLimited(str(exc)) from exc
+            raise
+
+    timeline = under_read_env(
+        lambda: fetch_paginated_api(
+            f"repos/{repo}/issues/{number}/timeline?per_page=100",
+            f"#{number} timeline",
+            env_overrides=read_env,
+        )
     )
     commits = pull_request_commits_once(
         repo,
@@ -2902,10 +3108,12 @@ def _lane_evidence(
     }
     excluded.add(str(json_object(pr.get("user")).get("login") or "").casefold())
     excluded.discard("")
-    comments = fetch_paginated_api(
-        f"repos/{repo}/issues/{number}/comments?per_page=100",
-        f"#{number} comments",
-        env_overrides=read_env,
+    comments = under_read_env(
+        lambda: fetch_paginated_api(
+            f"repos/{repo}/issues/{number}/comments?per_page=100",
+            f"#{number} comments",
+            env_overrides=read_env,
+        )
     )
     try:
         threads: list[Any] | None = fetch_review_threads(
@@ -2913,13 +3121,15 @@ def _lane_evidence(
         )
     except GraphQLUnavailableError:
         threads = None
-    runs = collect_lane_runs(
-        repo,
-        number,
-        str(head.get("ref")),
-        review_evidence.LANES.values(),
-        str(pr.get("created_at") or ""),
-        read_env,
+    runs = under_read_env(
+        lambda: collect_lane_runs(
+            repo,
+            number,
+            str(head.get("ref")),
+            review_evidence.LANES.values(),
+            str(pr.get("created_at") or ""),
+            read_env,
+        )
     )
 
     def human(actor: Any) -> bool:
@@ -3052,6 +3262,7 @@ def score_unattended(
             [p for f in files for p in (f.path, f.previous_path) if p]
             if complete
             else None,
+            read_floor=config.read_token_floor,
         )
     except HeadPusherUnproven as exc:
         # Fail closed: refused, and its own queued entry leaves.
@@ -3219,12 +3430,13 @@ def _first_line(text: Any) -> str:
 
 
 def _floor_held(risk: babysit_risk.RiskResult) -> bool:
-    """Whether the HIGH floor holds the pull request: a `high-path:` reason
-    for a floor or configured path. An unsafe path scores HIGH with the floor
-    off, so it is not a floor hold."""
+    """Whether the HIGH floor or a trust gate holds the pull request: a
+    `high-path:` reason for a floor or configured path, or a `trust-gate:`
+    one. An unsafe path scores HIGH with the floor off, so it is not a floor
+    hold."""
     return any(
         r.severity is babysit_risk.Risk.HIGH
-        and r.code.startswith("high-")
+        and r.code.startswith(("high-", babysit_risk.TRUST_GATE_PREFIX))
         and r.code != babysit_risk.UNSAFE_PATH_CODE
         for r in risk.reasons
     )
@@ -3246,7 +3458,8 @@ def risk_comment_body(risk: babysit_risk.RiskResult, head: str) -> str:
     lines = [
         RISK_MARKER,
         f"Unattended merge: risk **{risk.score.name}** at head `{head}`. Only LOW, "
-        f"or MED on class and size reasons alone, merges without a human. {wait}",
+        "or MED on class, size and reported review-finding reasons alone, merges "
+        f"without a human. {wait}",
         "",
         "```text",
     ]
@@ -4460,8 +4673,20 @@ def _main() -> int:
             "are read as without it"
         ),
     )
+    parser.add_argument(
+        "--candidate-deadline-seconds",
+        type=float,
+        default=None,
+        help=(
+            "with --authority pr-merge, how long this pull request's gate may "
+            "read: a read phase (the policy, then the verdict) starts no command "
+            "past it and the gate reports the pull request unknown (exit 11) for "
+            "a later run; a write is never stopped"
+        ),
+    )
     args = parser.parse_args()
     SHARE_BASE_READS = bool(args.unattended)
+    deadline = deadline_after(args.candidate_deadline_seconds)
 
     def _refuse(message: str, code: int, **envelope: object) -> int:
         """Emit one refusal envelope on stdout and return its exit code.
@@ -4589,11 +4814,25 @@ def _main() -> int:
         args.lane_kill_switch is not None
         or args.lane_rung_cap is not None
         or args.postmerge_result is not None
+        or args.candidate_deadline_seconds is not None
     ):
         return _refuse(
-            "--lane-kill-switch, --lane-rung-cap and --postmerge-result are only "
-            "meaningful with --authority pr-merge",
+            "--lane-kill-switch, --lane-rung-cap, --postmerge-result and "
+            "--candidate-deadline-seconds are only meaningful with --authority pr-merge",
             2,
+        )
+    if args.candidate_deadline_seconds is not None and not (
+        0 < args.candidate_deadline_seconds < float("inf")
+    ):
+        return _refuse("--candidate-deadline-seconds must be a positive number", 2)
+
+    def _deadline_stop() -> int:
+        return _refuse(
+            "unknown:candidate-deadline; the gate passed its "
+            f"{args.candidate_deadline_seconds:g}-second limit for one pull request "
+            "before its next read and stopped there, with no write cut short; "
+            "a later run gates it again",
+            11,
         )
 
     pending_path: Path | None = None
@@ -4648,25 +4887,28 @@ def _main() -> int:
             else None
         )
         try:
-            unattended = assess_unattended(
-                repo,
-                number,
-                self_logins=bot_selves,
-                authority=args.authority or merge_policy.LOCAL_BABYSIT,
-                lane_kill_switch=args.lane_kill_switch,
-                lane_rung_cap=args.lane_rung_cap,
-                shared=shared,
-                # Each recompute goes back to the file for the next candidate.
-                share=(
-                    None
-                    if args.postmerge_result is None
-                    else functools.partial(
-                        postmerge.write_shared, args.postmerge_result
-                    )
-                ),
-            )
+            with read_deadline(deadline):
+                unattended = assess_unattended(
+                    repo,
+                    number,
+                    self_logins=bot_selves,
+                    authority=args.authority or merge_policy.LOCAL_BABYSIT,
+                    lane_kill_switch=args.lane_kill_switch,
+                    lane_rung_cap=args.lane_rung_cap,
+                    shared=shared,
+                    # Each recompute goes back to the file for the next candidate.
+                    share=(
+                        None
+                        if args.postmerge_result is None
+                        else functools.partial(
+                            postmerge.write_shared, args.postmerge_result
+                        )
+                    ),
+                )
         except (RuntimeError, ValueError, OSError) as exc:
             return _refuse(f"unattended merge policy unreadable: {exc}", 10)
+        except DeadlineReached:
+            return _deadline_stop()
         if args.postmerge_result is not None and shared is None:
             unattended = replace(
                 unattended,
@@ -4799,29 +5041,32 @@ def _main() -> int:
         None,
     )
     try:
-        result = evaluate(
-            repo,
-            number,
-            args.expected_head,
-            allowed,
-            self_logins,
-            args.allow_dependency
-            or (
-                args.unattended
-                and lane_dependabot is not None
-                and lane_dependabot.mergeable
-            ),
-            args.allow_unprotected,
-            tier,
-            extra_dependency_manager_logins=extra_dependency_manager_logins,
-            settle=settle,
-            stacked=args.stacked_prs,
-            unattended=unattended if args.unattended else None,
-        )
+        with read_deadline(deadline):
+            result = evaluate(
+                repo,
+                number,
+                args.expected_head,
+                allowed,
+                self_logins,
+                args.allow_dependency
+                or (
+                    args.unattended
+                    and lane_dependabot is not None
+                    and lane_dependabot.mergeable
+                ),
+                args.allow_unprotected,
+                tier,
+                extra_dependency_manager_logins=extra_dependency_manager_logins,
+                settle=settle,
+                stacked=args.stacked_prs,
+                unattended=unattended if args.unattended else None,
+            )
     except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
         # Surface any gh/parse failure as JSON rather than a traceback.
         print(json.dumps({"pr": args.pr, "error": f"{type(exc).__name__}: {exc}"}))
         return 2
+    except DeadlineReached:
+        return _deadline_stop()
 
     result["action"] = "merge" if args.merge else "check"
     result["merged"] = False

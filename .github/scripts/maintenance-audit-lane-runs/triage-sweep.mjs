@@ -3,8 +3,10 @@
 // issue qualifies when it has no intake comment and no triage or status
 // label, is no pull request, was not born triaged, is over an hour old, and
 // its author is a listed human or the lanes App, as the intake lane admits on
-// open. github-actions[bot] issues are left out: the lane sweep's can quote
-// fork-controlled log lines. Per issue, one comment holds the runs
+// open. The needs-triage floor label is no triage label: it lands on open
+// whether or not intake runs, so an issue whose intake run failed still
+// qualifies. github-actions[bot] issues are left out: the lane sweep's can
+// quote fork-controlled log lines. Per issue, one comment holds the runs
 // dispatched; after 2 that left it untriaged the sweep files one needs-triage
 // issue and labels the original needs-triage. No model.
 //
@@ -27,9 +29,12 @@ const ATTEMPTS = 2;
 const MIN_AGE_MS = 3_600_000;
 const BOT = "github-actions[bot]";
 const INTAKE_MARKER = "<!-- claude-lane intake-triage -->";
-const STATE = /^<!-- claude-lane triage-sweep runs=([0-9,]*) filed=([0-9]*) -->/;
+// `filed` holds the filed issue's number, or FILING while the filing is under way.
+export const FILING = "?";
+const STATE = /^<!-- claude-lane triage-sweep runs=([0-9,]*) filed=([0-9]*|\?) -->/;
+const FLOOR = "needs-triage";
 // Labels intake triage or a person applies once an issue is triaged.
-const TRIAGED = /^(needs-triage|needs-human|needs-spec|agent-ready)$|^(status|priority|work-class): /;
+const TRIAGED = /^(needs-human|needs-spec|agent-ready)$|^(status|priority|work-class): /;
 
 export function selectCandidates({ issues, now, authorIds }) {
   return issues
@@ -57,7 +62,7 @@ export function readState(comments) {
       return {
         commentId: c.id,
         runs: m[1] ? m[1].split(",").map(Number) : [],
-        filed: m[2] ? Number(m[2]) : null,
+        filed: m[2] === FILING ? FILING : m[2] ? Number(m[2]) : null,
       };
     }
   }
@@ -66,7 +71,9 @@ export function readState(comments) {
 
 export const renderState = ({ runs, filed, runUrl }) =>
   `<!-- claude-lane triage-sweep runs=${runs.join(",")} filed=${filed ?? ""} -->\n` +
-  (filed
+  (filed === FILING
+    ? `Intake triage did not triage this issue after ${runs.length} dispatches; the sweep labeled it needs-triage for a maintainer.`
+    : filed
     ? `Intake triage did not triage this issue after ${runs.length} dispatches; #${filed} hands it to a maintainer.`
     : `The triage sweep dispatched [intake triage](${runUrl}) for this issue (attempt ${runs.length} of ${ATTEMPTS}).`);
 
@@ -77,11 +84,38 @@ export function decide({ state, latest }) {
   return state.runs.length >= ATTEMPTS ? "file" : "dispatch";
 }
 
+const FILED_TITLE = /^Intake triage left #([1-9][0-9]*) untriaged after /;
+const SEARCH_PAGES = 10;
+
+// The issues the sweep already filed a hand-off for, read from one search of
+// its own hand-off issues, open or closed, so their originals cost no comment
+// reads. Only a title the bot wrote counts. A failed or incomplete search
+// excludes nothing: those issues are then read and skipped by their state.
+async function handedOff(call, repo) {
+  const q = encodeURIComponent(`repo:${repo} is:issue author:app/github-actions in:title "Intake triage left"`);
+  const numbers = new Set();
+  try {
+    for (let page = 1; page <= SEARCH_PAGES; page += 1) {
+      const found = await call("GET", `/search/issues?q=${q}&per_page=100&page=${page}`);
+      if (found?.incomplete_results !== false) return new Set();
+      for (const item of found.items ?? []) {
+        const m = item.user?.login === BOT ? FILED_TITLE.exec(String(item.title ?? "")) : null;
+        if (m) numbers.add(Number(m[1]));
+      }
+      if ((found.items ?? []).length < 100) break;
+    }
+  } catch (error) {
+    if (/call budget/.test(error.message)) throw error;
+    return new Set();
+  }
+  return numbers;
+}
+
 export const renderFiledIssue = ({ number, runs, repoUrl }) => ({
   title: `Intake triage left #${number} untriaged after ${runs.length} dispatches`,
   labels: ["needs-triage"],
   body: [
-    `The hourly triage sweep dispatched intake triage for #${number} ${runs.length} times, and the issue still has no intake comment and no triage or status label. The sweep no longer dispatches it.`,
+    `The hourly triage sweep dispatched intake triage for #${number} ${runs.length} times, and the issue still has no intake comment. The sweep no longer dispatches it.`,
     "",
     ...runs.map((r) => `- ${repoUrl}/actions/runs/${r.id} (${r.conclusion ?? "unknown"})`),
     "",
@@ -99,13 +133,16 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
     if (batch.length < 100) break;
   }
   const result = { candidates: 0, dispatched: [], filed: [], handedOff: [], waiting: [], failed: [], truncated: null };
-  const candidates = selectCandidates({ issues, now, authorIds });
+  const selected = selectCandidates({ issues, now, authorIds });
+  const filed = selected.length > 0 ? await handedOff(call, repo) : new Set();
+  const candidates = selected.filter((i) => !filed.has(i.number));
   result.candidates = candidates.length;
-  const handOff = (number) => call("POST", `/repos/${repo}/issues/${number}/labels`, { labels: ["needs-triage"] });
-  // Issues intake already commented on cost one read and do not count toward
-  // MAX_CHECKED, so they cannot starve the issues behind them.
+  const handOff = (number) => call("POST", `/repos/${repo}/issues/${number}/labels`, { labels: [FLOOR] });
+  // Issues intake already commented on, and ones the sweep already handed
+  // off, cost their reads and do not count toward MAX_CHECKED, so they cannot
+  // starve the issues behind them.
   let checked = 0;
-  for (const { number } of candidates) {
+  for (const { number, labels } of candidates) {
     if (checked >= MAX_CHECKED) break;
     if (result.dispatched.length >= MAX_DISPATCHES && result.filed.length >= MAX_FILED) break;
     try {
@@ -118,14 +155,19 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
         if (!full) break;
       }
       if (hasIntakeComment(comments)) continue;
-      checked += 1;
-      // Past the pages read, the state comment may be hidden: a person decides.
+      // Past the pages read, the state comment may be hidden: a person
+      // decides, so the label goes on once.
       if (full) {
+        if ((labels ?? []).some((l) => l.name === FLOOR)) continue;
+        checked += 1;
         await handOff(number);
         result.handedOff.push(number);
         continue;
       }
       const state = readState(comments);
+      // Filed, or a filing under way: the needs-triage label hands it to a person.
+      if (state.filed) continue;
+      checked += 1;
       const latest = state.runs.length > 0 ? await call("GET", `/repos/${repo}/actions/runs/${state.runs.at(-1)}`) : null;
       // A run the API no longer has counts as finished.
       let action = decide({ state, latest: state.runs.length > 0 && latest === null ? { status: "completed" } : latest });
@@ -133,7 +175,7 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
       if (action === "dispatch" && result.dispatched.length >= MAX_DISPATCHES) action = "stop";
       if (action === "file" && result.filed.length >= MAX_FILED) action = "stop";
       // Never start a run the budget left cannot record, or a filing it cannot finish.
-      if ((action === "dispatch" && remaining() < 2) || (action === "file" && remaining() < state.runs.length + 2)) {
+      if ((action === "dispatch" && remaining() < 2) || (action === "file" && remaining() < state.runs.length + 3)) {
         result.truncated = `stopped at #${number}: too little call budget left`;
         break;
       }
@@ -161,9 +203,11 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
           const run = id === state.runs.at(-1) ? latest : await call("GET", `/repos/${repo}/actions/runs/${id}`);
           runs.push({ id, conclusion: run?.conclusion ?? null });
         }
-        // The label goes first: it takes the original out of later passes, so a
-        // write that fails after it can never file a second issue.
+        // The label and the in-progress record go first: the record stops
+        // later passes, so a write that fails after it can never file a second
+        // issue, and the label hands the original to a person either way.
         await handOff(number);
+        await writeState(call, repo, number, state, { runs: state.runs, filed: FILING });
         const filed = await call("POST", `/repos/${repo}/issues`, renderFiledIssue({ number, runs, repoUrl }));
         result.filed.push(filed.number);
         await writeState(call, repo, number, state, { runs: state.runs, filed: filed.number });

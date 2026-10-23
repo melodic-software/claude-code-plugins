@@ -6,7 +6,7 @@ name: work-unblock
 # This workflow labels `agent-ready` each blocked issue that is open, has every
 # blocker closed as completed by a listed human or a merge (a pull request
 # blocker: merged), carries no hold label (needs-owner-decision,
-# status: needs-decision, needs-human), and whose agent-ready label was never
+# status: needs-decision, status: needs-info, needs-human), and whose agent-ready label was never
 # removed. That label starts work-resolve-issue.yml. The rules are in
 # .github/scripts/work-unblock/label-unblocked.mjs; the lane and its
 # effect (mutate-tracker) are in docs/conventions/pr-pipeline.yaml.
@@ -198,6 +198,21 @@ jobs:
           pull-requests: ${{ steps.config.outputs.pull-requests }}
           issues: ${{ steps.config.outputs.issues }}
 
+      # Measures the run's spend on the lane token and on the job's own token:
+      # this reading and the one at job end bracket the run. The lanes App's
+      # bucket is shared by every job using it, so the lane figure includes
+      # their calls. Never fails the job.
+      - name: Log the API budget at mint
+        if: steps.lane-token.outputs.token != ''
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: start
+          tokens: |
+            lane ${{ steps.lane-token.outputs.token }}
+            github-token ${{ github.token }}
+
       # The script re-reads every blocked issue, its labels, blockers and
       # comments from the API; nothing is taken from the event but the closed
       # issue's number and who closed it (a sweep lists the closed issues from
@@ -215,6 +230,17 @@ jobs:
           ACTOR_ID: ${{ github.actor_id }}
           TRIGGERING_ACTOR: ${{ github.triggering_actor }}
         run: node ".base/$SCRIPT"
+
+      - name: Log the API budget at job end
+        if: always() && steps.lane-token.outputs.token != ''
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: end
+          tokens: |
+            lane ${{ steps.lane-token.outputs.token }}
+            github-token ${{ github.token }}
 
       # The token is cancelled as soon as the job is done; it would otherwise
       # expire within the hour. This never fails the job.
