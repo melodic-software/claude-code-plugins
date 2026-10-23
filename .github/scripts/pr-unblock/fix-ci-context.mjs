@@ -126,7 +126,7 @@ async function reviewFindings(api, pr, { appId, reviewerId }) {
     .map((thread) => ({ path: String(thread.path ?? ""), line: thread.line, body: String(thread.comments[0].body).slice(0, MAX_FINDING) }));
 }
 
-export async function select({ api, pr, appId, reviewerId, maxRounds }) {
+export async function select({ api, pr, appId, reviewerId, maxRounds, log = (line) => console.log(line) }) {
   const pull = await api.getPull(pr);
   const headSha = pull.head?.sha;
   if (!SHA.test(String(headSha))) {
@@ -152,7 +152,13 @@ export async function select({ api, pr, appId, reviewerId, maxRounds }) {
   if (checks.length === 0) {
     return { decision: "skip", skipReason: "not-applicable", rounds, headSha };
   }
-  const review_findings = await reviewFindings(api, pr, { appId, reviewerId });
+  // The findings are a lead, so a failed read costs them, not the run.
+  let review_findings = [];
+  try {
+    review_findings = await reviewFindings(api, pr, { appId, reviewerId });
+  } catch (error) {
+    log(`::warning::the review findings could not be read (${error.message}); the context holds none`);
+  }
   return { decision: "proceed", rounds, headSha, file: { pr, head_sha: headSha, checks, review_findings } };
 }
 
@@ -181,7 +187,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
       apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
       graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
     });
-  const result = await select({ api: client, pr, appId, reviewerId, maxRounds });
+  const result = await select({ api: client, pr, appId, reviewerId, maxRounds, log });
   let sha256 = "";
   if (result.file) {
     const text = `${JSON.stringify(result.file, null, 2)}\n`;

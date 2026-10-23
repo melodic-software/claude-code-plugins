@@ -113,6 +113,19 @@ test("a resolved thread, a person's thread and one a person replied to stay out 
   }
 });
 
+test("a review-findings read that fails leaves no findings and still proceeds with the checks", async () => {
+  const api = fakeApi(reviewed());
+  api.listThreads = async () => {
+    throw new Error("POST graphql returned 502");
+  };
+  const lines = [];
+  const result = await select({ api, pr: 42, appId: APP, reviewerId: REVIEWER, maxRounds: 3, log: (line) => lines.push(line) });
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.file.review_findings, []);
+  assert.deepEqual(result.file.checks.map((check) => check.name), ["lint-shell"]);
+  assert.deepEqual(lines, ["::warning::the review findings could not be read (POST graphql returned 502); the context holds none"]);
+});
+
 test("a finding's body and the number of findings are capped", async () => {
   const one = reviewed({ body: "b".repeat(5000) });
   const threads = Array.from({ length: 15 }, (_, i) => ({ ...one.threads[0], id: `T${i}` }));
