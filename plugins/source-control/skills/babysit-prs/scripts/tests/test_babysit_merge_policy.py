@@ -3337,6 +3337,10 @@ class RefsIssueEligibility(unittest.TestCase):
                     [], 1, json.dumps(answer), "gh: error"
                 )
                 self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
+        # An answer with no errors and no repository is no answer.
+        gh = self.fake(closing=[], body="Refs: #41")
+        gh.graphql["PolicyRefsIssue"] = {}
+        self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
 
     def test_a_closing_issue_wins_over_refs(self) -> None:
         gh = self.fake(body="Refs: #42")

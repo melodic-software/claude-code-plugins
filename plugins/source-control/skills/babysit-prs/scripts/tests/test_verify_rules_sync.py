@@ -338,6 +338,9 @@ REFS_BODIES = [
     "Refs: #5\u2028Refs: #6",
     "Refs: #5\x0bRefs: #6",
     "Closes #4\nRefs: #5",
+    # An off-form line beside a plain one still names none.
+    "Refs: #5\nrefs: #6",
+    "Refs: #5\nRefs: o/r#6",
 ]
 WRITER = RESOLVER.with_name("write-verdict.mjs")
 KIND_NODE = """

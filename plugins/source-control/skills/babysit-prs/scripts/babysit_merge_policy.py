@@ -1917,7 +1917,10 @@ def _linked_issue(pr: dict[str, Any], repo: str) -> tuple[dict[str, Any], str | 
     data = _graphql(
         REFS_ISSUE, f"#{number}", "issueOrPullRequest", o=owner, r=name, n=number
     )
-    node = json_object(json_object(data.get("repository")).get("issueOrPullRequest"))
+    repository = data.get("repository")
+    if not is_json_object(repository):
+        raise PolicyReadError(f"#{number}: the Refs issue answer has no repository")
+    node = json_object(repository.get("issueOrPullRequest"))
     if node.get("__typename") != "Issue":
         return {}, REFS_NOT_AN_ISSUE
     return _closing_issue(

@@ -277,6 +277,16 @@ class FakeGitHub:
                     return subprocess.CompletedProcess(
                         args, 1, "", "gh: boom (HTTP 502)"
                     )
+                if kind == "errors":
+                    # gh exits 0 on an answer that carries data and errors.
+                    return ok(
+                        {
+                            "data": {"repository": {"issueOrPullRequest": None}},
+                            "errors": [{"type": "INTERNAL"}],
+                        }
+                    )
+                if kind == "no-repository":
+                    return ok({"data": {}})
                 node = (
                     {"__typename": "PullRequest"}
                     if kind == "PullRequest"
@@ -1769,10 +1779,13 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
         # and gh exits 1: no issue, so the pass recording the issue refuses
         # as for any other link that names none, and no read error.
         self.assertEqual(read(self.refs("Refs: #99999")).refusal, "verify:spec-changed")
-        # Any other failed read stays unreadable.
-        self.assertEqual(
-            read(self.refs("Refs: #7", "error")).refusal, "verify:unreadable"
-        )
+        # Any other failed read stays unreadable: gh failing, an answer with
+        # other errors gh exits 0 on, and one with no repository.
+        for kind in ("error", "errors", "no-repository"):
+            with self.subTest(kind):
+                self.assertEqual(
+                    read(self.refs("Refs: #7", kind)).refusal, "verify:unreadable"
+                )
 
     def test_a_pass_binds_to_how_the_issue_was_linked(self) -> None:
         # A Refs pass was judged as a partial slice: it never covers the same

@@ -273,7 +273,7 @@ async function judged({ github, repository, number, head, base, refs, issues }) 
 // and last edited if ever, by a User on the trusted list's humans, the PR
 // author included (`specText`). Bots and Apps, the lanes App among them, are
 // left out even where select-trusted-text keeps them.
-async function linkedIssues(github, repository, number, humans) {
+async function linkedIssues(github, readRefs, repository, number, humans) {
   const [owner, name] = repository.split("/");
   const data = await github("POST", "/graphql", { query: SPEC_QUERY, variables: { owner, name, number } });
   const refs = data?.data?.repository?.pullRequest?.closingIssuesReferences;
@@ -285,11 +285,13 @@ async function linkedIssues(github, repository, number, humans) {
   let nodes = refs.nodes;
   const named = refs.totalCount === 0 ? refsIssue(data.data.repository.pullRequest.body) : null;
   if (named !== null) {
-    const answer = await github("POST", "/graphql", { query: REFS_QUERY, variables: { owner, name, number: named } });
-    if (answer?.errors && !namesNothing(answer, "issueOrPullRequest")) {
+    // `readRefs` keeps GraphQL errors, so a NOT_FOUND reaches namesNothing.
+    const answer = await readRefs("POST", "/graphql", { query: REFS_QUERY, variables: { owner, name, number: named } });
+    const repositoryRead = answer?.data?.repository;
+    if (answer?.errors ? !namesNothing(answer, "issueOrPullRequest") : repositoryRead === null || typeof repositoryRead !== "object") {
       throw new Error(`#${number}: the Refs issue could not be read`);
     }
-    const node = answer?.data?.repository?.issueOrPullRequest;
+    const node = repositoryRead.issueOrPullRequest;
     nodes = node?.__typename === "Issue" ? [node] : [];
   }
   const issues = nodes.filter(
@@ -328,7 +330,7 @@ async function linkedIssues(github, repository, number, humans) {
   };
 }
 
-export async function resolvePull({ github, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, ownerIds: owners = [], specFromBodyApps = [] }) {
+export async function resolvePull({ github, readRefs = github, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, ownerIds: owners = [], specFromBodyApps = [] }) {
   const skip = (reason) => ({ proceed: false, reason });
   if (!RUN_ID.test(String(upstreamRunId))) {
     throw new Error("the upstream run id is not a run id");
@@ -386,7 +388,7 @@ export async function resolvePull({ github, repository, upstreamRunId, humans, b
     return skip("already-judged");
   }
   // This PR's FAIL is named with the issues it records, read only now.
-  const specRead = await linkedIssues(github, repository, pull.number, humans);
+  const specRead = await linkedIssues(github, readRefs, repository, pull.number, humans);
   const issues = specRead.linkedIssues.map((issue) => issue.number);
   if (await judged({ github, repository, number: pull.number, head, base, refs, issues })) {
     return skip("already-judged");
@@ -419,7 +421,7 @@ export async function resolvePull({ github, repository, upstreamRunId, humans, b
   };
 }
 
-export async function main(env = process.env, { github } = {}) {
+export async function main(env = process.env, { github, fetchImpl } = {}) {
   for (const key of [
     "GITHUB_TOKEN",
     "GITHUB_REPOSITORY",
@@ -434,8 +436,11 @@ export async function main(env = process.env, { github } = {}) {
     }
   }
   const trusted = loadTrustedList(env.TRUSTED_ACTORS_PATH);
+  const api = (keepGraphQLErrors) => createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL, fetchImpl, keepGraphQLErrors });
   const result = await resolvePull({
-    github: github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL }),
+    github: github ?? api(false),
+    // The Refs read needs GraphQL errors back to tell a typo from a failure.
+    readRefs: github ?? api(true),
     repository: env.GITHUB_REPOSITORY,
     upstreamRunId: env.UPSTREAM_RUN_ID,
     humans: trusted.humans,

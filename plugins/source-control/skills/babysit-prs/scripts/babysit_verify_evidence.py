@@ -936,7 +936,10 @@ class Reader:
             raise _Unreadable(f"#{number} {what}: {exc}") from exc
         if payload.get("errors"):
             raise _Unreadable(f"#{number}: the {what} could not be read")
-        return json_object(json_object(payload.get("data")).get("repository"))
+        repository = json_object(payload.get("data")).get("repository")
+        if not is_json_object(repository):
+            raise _Unreadable(f"#{number}: the {what} answer has no repository")
+        return repository
 
     def _closing_issues(self, number: int) -> dict[Any, Any]:
         """The PR's closing issues in this repository now, each with its

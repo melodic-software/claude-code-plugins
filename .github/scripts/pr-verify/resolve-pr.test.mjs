@@ -221,6 +221,37 @@ test("a Refs number that names no issue or pull request names no spec, and any o
     const answer = { data: { repository: { issueOrPullRequest: null } }, errors };
     await assert.rejects(resolve({ issues: [], body: "Refs: #7", refs: { 7: { answer } } }), /the Refs issue could not be read/, JSON.stringify(errors));
   }
+  // No errors and no repository is no answer, not "no issue".
+  for (const answer of [{ data: {} }, { data: { repository: null } }, {}]) {
+    await assert.rejects(resolve({ issues: [], body: "Refs: #7", refs: { 7: { answer } } }), /the Refs issue could not be read/, JSON.stringify(answer));
+  }
+});
+
+// The production helper throws on any GraphQL `errors` unless asked to keep
+// them, so main must read the Refs issue with one that keeps them.
+test("main with the real GitHub helper reads a Refs typo as no linked issue", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-"));
+  const actors = path.join(dir, "trusted-actors.json");
+  writeFileSync(actors, JSON.stringify({ version: 1, actors: [{ id: 100, login: "maintainer", kind: "human" }] }));
+  const env = {
+    GITHUB_TOKEN: "t",
+    GITHUB_REPOSITORY: REPO,
+    GITHUB_OUTPUT: path.join(dir, "out"),
+    UPSTREAM_RUN_ID: String(RUN),
+    SPEC_FILE: path.join(dir, "spec.json"),
+    SPEC_TEXT_FILE: path.join(dir, "spec-text.json"),
+    TRUSTED_ACTORS_PATH: actors,
+    LANE_IDENTITY: LANE,
+  };
+  const github = fake({ issues: [], body: "Refs: #99999" });
+  const fetchImpl = async (url, init) => {
+    const body = init.body === undefined ? undefined : JSON.parse(init.body);
+    const json = await github(init.method, new URL(url).pathname + new URL(url).search, body);
+    return new Response(JSON.stringify(json), { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+  await main(env, { fetchImpl });
+  assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), /^proceed=true\nreason=ok\n/);
+  assert.deepEqual(JSON.parse(readFileSync(env.SPEC_FILE, "utf8")), []);
 });
 
 test("a run that is not a passing pr-require-checks pull_request run of this repository starts nothing", async () => {
