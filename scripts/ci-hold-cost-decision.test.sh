@@ -5,8 +5,9 @@
 #
 # A review lane's `cost` hold is cleared when every lane hold since a trusted
 # person last removed the human-gated label is cost-only, and the pull request
-# body cites the owner's unedited `**Decision recorded.** Cost:` comment on its
-# closing issue (newer than the pull request) or on the pull request itself.
+# body cites the owner's unedited `**Decision recorded.** Cost:` comment on the
+# pull request itself, or (newer than the pull request) on an issue it closes or
+# names on a `Refs:` line. The holds are read from the lanes' check-run notices.
 # The step then outputs cleared=true and the decision, and takes the label off
 # with one comment citing it. Anything else, an unreadable read included,
 # clears nothing and leaves the hold to the steps after it.
@@ -65,12 +66,16 @@ else
 fi
 
 # The stub logs its arguments and answers from STUB_* variables; a read whose
-# name is in STUB_FAIL fails.
+# name is in STUB_FAIL fails. Runs, jobs and annotations come from JSON maps
+# keyed by workflow file, run id and check-run id.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$STUB_LOG"
 failing() { [[ " ${STUB_FAIL:-} " == *" $1 "* ]] && exit 1; return 0; }
+from() { jq -ce --arg k "$2" '.[$k] // error' <<<"$1" || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }; }
+# The path segment after /<1>/ in the api path argument.
+key() { local a; for a in "${@:2}"; do [[ "$a" == */"$1"/* ]] && { a="${a##*/"$1"/}"; printf '%s' "${a%%[/?]*}"; return; }; done; }
 case "$*" in
 */contents/.work-item-tracker.json*)
   failing tracker
@@ -83,12 +88,16 @@ case "$*" in
 */issues/6419/events*) failing events; printf '%s\n' "$STUB_EVENTS" ;;
 *'-X POST'*/issues/6419/comments*) failing post ;;
 */issues/6419/comments*) failing comments; printf '%s\n' "$STUB_COMMENTS" ;;
-*/issues/comments/*)
-  failing decision
-  id="${*##*/issues/comments/}"
-  jq -ce --arg id "${id##* }" '.[$id] // error' <<<"$STUB_DECISIONS" || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
+*/issues/comments/*) failing decision; from "$STUB_DECISIONS" "$(key comments "$@")" ;;
+*/actions/workflows/*/runs*)
+  failing runs
+  [[ "$*" == *'branch=fix%2Fcost&'* ]] || exit 1
+  from "$STUB_RUNS" "$(key workflows "$@")"
   ;;
+*/actions/runs/*/jobs*) failing jobs; from "$STUB_JOBS" "$(key runs "$@")" ;;
+*/check-runs/*/annotations*) failing notes; from "$STUB_NOTES" "$(key check-runs "$@")" ;;
 */pulls/6419*) failing pull; printf '%s\n' "$STUB_PR" ;;
+*graphql*COMMENT_DELETED_EVENT*) failing deleted; printf '%s\n' "$STUB_DELETED" ;;
 *graphql*closingIssuesReferences*) failing closing; printf '%s\n' "$STUB_CLOSING" ;;
 *graphql*lastEditedAt*) failing edited; printf '%s\n' "$STUB_EDITED" ;;
 *) exit 1 ;;
@@ -100,40 +109,54 @@ chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep"
 BASE=89abcdef0123456789abcdef0123456789abcdef
 HEAD=0123456789abcdef0123456789abcdef01234567
 OWNER_ID=153232337
+APP_ID=777
 LINK='https://github.com/o/r/issues/9306#issuecomment-111'
-LANE='{"login":"github-actions[bot]","type":"Bot"}'
-CLAUDE='{"login":"claude[bot]","type":"Bot"}'
-APP='{"login":"melodic-automation-lanes[bot]","type":"Bot"}'
+LANE='{"login":"github-actions[bot]","id":41898282,"type":"Bot"}'
+APP="{\"login\":\"melodic-automation-lanes[bot]\",\"id\":$APP_ID,\"type\":\"Bot\"}"
 OWNER="{\"login\":\"owner\",\"id\":$OWNER_ID,\"type\":\"User\"}"
 STRANGER='{"login":"someone","id":42,"type":"User"}'
+CODE_CHECK='pr-review / claude-review-status'
+SEC_CHECK='pr-review-security / security-review'
 
-comment() { jq -cn --argjson user "$1" --arg at "$2" --arg body "$3" '{user: $user, created_at: $at, body: $body}'; }
-hold() {
-  comment "$LANE" "$1" "<!-- claude-lane-hold lane=${3:-claude-review} sha=$HEAD criteria=$2 -->
-**${3:-claude-review}** holds this pull request for a person ($2) at \`$HEAD\`.
-
-A reason.
-
-claude-lane: ${3:-claude-review}"
-}
 event() { jq -cn --arg e "$1" --argjson actor "$2" --arg at "$3" '{event: $e, actor: $actor, created_at: $at, label: {name: "needs-human"}}'; }
+comment() { jq -cn --argjson user "$1" --arg at "$2" --arg body "$3" '{user: $user, created_at: $at, updated_at: $at, body: $body}'; }
 decision() {
   jq -cn --arg url "https://api.github.com/repos/o/r/issues/$1" --argjson user "$2" --arg at "$3" --arg body "$4" \
     '{issue_url: $url, user: $user, performed_via_github_app: null, created_at: $at, body: $body, node_id: "IC_1"}'
 }
+note() { jq -cn --arg m "$1" '{annotation_level: "notice", message: $m}'; }
+hold_note() { note "claude-lane-hold lane=${2:-claude-review} sha=$HEAD criteria=$1 label=needs-human"; }
+# job <id> <name> <completed_at>
+job() { jq -cn --argjson id "$1" --arg name "$2" --arg at "$3" '{id: $id, name: $name, completed_at: $at}'; }
+# lanes <code-notes> <security-notes>: one run per lane, its status job done at 13:20:30 and 13:21:00.
+lanes() {
+  STUB_RUNS="$(jq -c . <<<'{"pr-review-hosted.yml":{"workflow_runs":[{"id":1,"updated_at":"2026-10-23T13:20:40Z"}]},"pr-review-security-hosted.yml":{"workflow_runs":[{"id":2,"updated_at":"2026-10-23T13:21:10Z"}]}}')"
+  STUB_JOBS="$(jq -cn --argjson a "$(job 11 "$CODE_CHECK" 2026-10-23T13:20:30Z)" --argjson b "$(job 21 "$SEC_CHECK" 2026-10-23T13:21:00Z)" \
+    '{"1": {jobs: [{id: 10, name: "kill-switch", completed_at: "2026-10-23T13:19:00Z"}, $a]}, "2": {jobs: [$b]}}')"
+  STUB_NOTES="$(jq -cn --argjson a "$1" --argjson b "$2" '{"11": $a, "21": $b, "10": []}')"
+  export STUB_RUNS STUB_JOBS STUB_NOTES
+}
 
 reset() {
-  export STUB_FAIL='' STUB_LABELS='needs-human'
+  export STUB_FAIL='' STUB_LABELS='needs-human' LANES_APP_ID="$APP_ID"
   export STUB_ACTORS="{\"actors\":[{\"kind\":\"human\",\"id\":$OWNER_ID},{\"kind\":\"bot\",\"id\":5}]}"
-  export STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"body\":\"Closes #9306\\n\\n- Cost decision: [Q50]($LINK)\"}"
-  export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"totalCount":1,"nodes":[{"number":9306,"repository":{"nameWithOwner":"o/r"}}]}}}}}'
+  export STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\"},\"body\":\"Closes #9306\\n\\n- Cost decision: [Q50]($LINK)\"}"
+  export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"nodes":[{"number":9306,"repository":{"nameWithOwner":"o/r"}}]}}}}}'
   STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T13:14:57Z '**Decision recorded.** Cost: accepted.')" '{"111": $c}')"
   export STUB_DECISIONS
   export STUB_EDITED='{"data":{"node":{"lastEditedAt":null}}}'
-  STUB_EVENTS="[$(event labeled "$LANE" 2026-10-23T13:20:00Z)]"
-  STUB_COMMENTS="[$(hold 2026-10-23T13:20:05Z cost)]"
+  export STUB_DELETED='{"data":{"repository":{"pullRequest":{"timelineItems":{"filteredCount":0,"nodes":[]}}}}}'
+  STUB_EVENTS="[$(event labeled "$LANE" 2026-10-23T13:20:20Z)]"
+  STUB_COMMENTS="[$(comment "$OWNER" 2026-10-23T05:40:00Z 'A comment.')]"
   export STUB_EVENTS STUB_COMMENTS
+  lanes "[$(hold_note cost),$(note "claude-lane-review-complete lane=claude-review sha=$HEAD findings=0")]" '[]'
   unset STUB_TRACKER
+}
+# The owner lifted an earlier hold at 13:15, so the 05:39 escalation is outside the window.
+lifted() {
+  STUB_EVENTS="[$(event labeled "$APP" 2026-10-23T05:39:30Z),$(event unlabeled "$OWNER" 2026-10-23T13:15:00Z),$(event labeled "$LANE" 2026-10-23T13:20:20Z)]"
+  STUB_COMMENTS="[$(comment "$APP" 2026-10-23T05:39:35Z '<!-- work-items:escalation lane=pr-unblock kind=escalated -->')]"
+  export STUB_EVENTS STUB_COMMENTS
 }
 
 # expect <label> <want-cleared: yes|no> <want-delete: yes|no> <want-post: yes|no> [want-out]
@@ -176,90 +199,118 @@ else
 fi
 
 reset
-STUB_COMMENTS="[$(hold 2026-10-23T13:20:05Z cost),$(comment "$LANE" 2026-10-23T13:21:00Z "<!-- ci-status cost-hold-cleared decision=111 -->
-ci-status took it off.")]"
+STUB_COMMENTS="[$(comment "$LANE" 2026-10-23T13:21:00Z '<!-- ci-status cost-hold-cleared decision=111 -->
+ci-status took it off.')]"
 expect "a decision already cited in a removal comment is not cited again" yes yes no
-STUB_COMMENTS="[$(hold 2026-10-23T13:20:05Z cost),$(comment "$STRANGER" 2026-10-23T13:21:00Z "<!-- ci-status cost-hold-cleared decision=111 -->")]"
+STUB_COMMENTS="[$(comment "$STRANGER" 2026-10-23T13:21:00Z '<!-- ci-status cost-hold-cleared decision=111 -->')]"
 expect "a removal comment by a person does not count as posted" yes yes yes
-
 reset
 export STUB_LABELS=''
 expect "with the label already off the hold reads cleared and nothing is written" yes no no
 
 reset
-STUB_PR='{"number":6419,"created_at":"2026-10-23T05:00:00Z","body":"Closes #9306"}'
+STUB_PR='{"number":6419,"created_at":"2026-10-23T05:00:00Z","head":{"ref":"fix/cost"},"body":"Closes #9306"}'
 expect "no decision cited in the body clears nothing" no no no
-STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"body\":\"<!-- $LINK -->\"}"
+STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\"},\"body\":\"<!-- $LINK -->\"}"
 expect "a decision cited only inside an HTML comment clears nothing" no no no
-STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"body\":\"<!-- unclosed $LINK\"}"
+STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\"},\"body\":\"<!-- unclosed $LINK\"}"
 expect "a decision cited inside an unclosed HTML comment clears nothing" no no no
-STUB_PR='{"number":6419,"created_at":"2026-10-23T05:00:00Z","body":"https://github.com/x/r/issues/9306#issuecomment-111"}'
+STUB_PR='{"number":6419,"created_at":"2026-10-23T05:00:00Z","head":{"ref":"fix/cost"},"body":"https://github.com/x/r/issues/9306#issuecomment-111"}'
 expect "a link to another repository clears nothing" no no no
-STUB_PR='{"number":6419,"created_at":"2026-10-23T05:00:00Z","body":"https://github.com/o/r/issues/77#issuecomment-111"}'
+STUB_PR='{"number":6419,"created_at":"2026-10-23T05:00:00Z","head":{"ref":"fix/cost"},"body":"https://github.com/o/r/issues/77#issuecomment-111"}'
 expect "a link to an issue that does not close the pull request clears nothing" no no no
 
 reset
-STUB_DECISIONS="{\"111\":$(decision 9306 "$OWNER" 2026-10-23T04:00:00Z '**Decision recorded.** Cost: accepted.')}"
+STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T04:00:00Z '**Decision recorded.** Cost: accepted.')" '{"111": $c}')"
 expect "an issue decision older than the pull request clears nothing" no no no
-STUB_DECISIONS="{\"111\":$(decision 6419 "$OWNER" 2026-10-23T13:14:57Z '**Decision recorded.** Cost: accepted.')}"
-STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"body\":\"https://github.com/o/r/pull/6419#issuecomment-111\"}"
+STUB_DECISIONS="$(jq -cn --argjson c "$(decision 6419 "$OWNER" 2026-10-23T04:00:00Z '**Decision recorded.** Cost: accepted.')" '{"111": $c}')"
+STUB_PR='{"number":6419,"created_at":"2026-10-23T05:00:00Z","head":{"ref":"fix/cost"},"body":"https://github.com/o/r/pull/6419#issuecomment-111"}'
 WANT_LINK=https://github.com/o/r/pull/6419#issuecomment-111 expect "a decision on the pull request itself clears the hold" yes yes yes
 reset
-STUB_DECISIONS="{\"111\":$(decision 9306 "$STRANGER" 2026-10-23T13:14:57Z '**Decision recorded.** Cost: accepted.')}"
+STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$STRANGER" 2026-10-23T13:14:57Z '**Decision recorded.** Cost: accepted.')" '{"111": $c}')"
 expect "a decision by someone off the trusted-actor list clears nothing" no no no
-STUB_DECISIONS="{\"111\":$(decision 9306 "$OWNER" 2026-10-23T13:14:57Z '**Decision recorded.** Trust: accepted.')}"
+STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T13:14:57Z '**Decision recorded.** Trust: accepted.')" '{"111": $c}')"
 expect "a decision recorded for something other than cost clears nothing" no no no
-STUB_DECISIONS="{\"111\":$(jq -c '.performed_via_github_app = {"slug": "x"}' <<<"$(decision 9306 "$OWNER" 2026-10-23T13:14:57Z '**Decision recorded.** Cost: accepted.')")}"
+STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T13:14:57Z '**Decision recorded.** Cost: accepted.')" '{"111": ($c | .performed_via_github_app = {slug: "x"})}')"
 expect "a decision posted through an App clears nothing" no no no
 reset
 export STUB_EDITED='{"data":{"node":{"lastEditedAt":"2026-10-23T13:30:00Z"}}}'
 expect "an edited decision clears nothing" no no no
 reset
-export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"totalCount":2,"nodes":[{"number":9306,"repository":{"nameWithOwner":"o/r"}},{"number":9307,"repository":{"nameWithOwner":"o/r"}}]}}}}}'
-expect "a pull request closing two issues clears nothing from an issue decision" no no no
+export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"nodes":[{"number":9306,"repository":{"nameWithOwner":"o/r"}},{"number":9307,"repository":{"nameWithOwner":"o/r"}}]}}}}}'
+expect "a decision on either of two closing issues clears the hold" yes yes yes
+export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"nodes":[{"number":9306,"repository":{"nameWithOwner":"x/r"}}]}}}}}'
+expect "a closing issue in another repository clears nothing" no no no
+export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"nodes":[]}}}}}'
+STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\"},\"body\":\"Refs: #8890, #9306\\n\\n- Cost decision: [Q50]($LINK)\"}"
+expect "a decision on an issue the body names on a Refs line clears the hold" yes yes yes
+STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\"},\"body\":\"See #9306 and o/r#9306.\\n<!--\\nRefs: #9306\\n-->\\nRefs: o/r#9306\\n- Cost decision: [Q50]($LINK)\"}"
+expect "an issue named outside a Refs line, or only in an HTML comment, clears nothing" no no no
 
 reset
-STUB_COMMENTS="[$(hold 2026-10-23T13:20:05Z cost,trust-gate)]"
-expect "a hold with cost and trust-gate clears nothing" no no no
-STUB_COMMENTS="[$(hold 2026-10-23T13:20:05Z critical-security claude-security-review)]"
-expect "a critical-security hold clears nothing" no no no
-STUB_COMMENTS="[$(hold 2026-10-23T13:10:00Z trust-gate),$(hold 2026-10-23T13:20:05Z cost)]"
-expect "an earlier trust-gate hold nobody trusted lifted keeps the label" no no no
-STUB_EVENTS="[$(event labeled "$LANE" 2026-10-23T13:09:58Z),$(event unlabeled "$STRANGER" 2026-10-23T13:15:00Z),$(event labeled "$LANE" 2026-10-23T13:20:00Z)]"
-expect "an untrusted removal of a trust-gate hold does not open the window" no no no
-STUB_EVENTS="[$(event labeled "$LANE" 2026-10-23T13:09:58Z),$(event unlabeled "$OWNER" 2026-10-23T13:15:00Z),$(event labeled "$LANE" 2026-10-23T13:20:00Z)]"
+lanes "[$(hold_note cost,trust-gate)]" '[]'
+expect "a hold with cost and trust-gate clears nothing" no no no "is not cost-only"
+lanes "[$(hold_note cost)]" "[$(hold_note critical-security claude-security-review)]"
+expect "a critical-security hold from the other lane clears nothing" no no no "is not cost-only"
+STUB_COMMENTS="[$(comment "$LANE" 2026-10-23T13:21:01Z "<!-- claude-lane-hold lane=claude-security-review sha=$HEAD criteria=cost -->
+claude-lane: claude-security-review")]"
+expect "a hold comment edited to read cost does not outweigh the lane's notice" no no no "is not cost-only"
+reset
+lanes "[$(note "claude-lane-hold lane=claude-review sha=$HEAD label=needs-human")]" '[]'
+expect "a hold notice with no criteria clears nothing" no no no "is not cost-only"
+reset
+STUB_JOBS="$(jq -cn --argjson a "$(job 11 "$CODE_CHECK" 2026-10-23T13:20:30Z)" --argjson c "$(job 12 "$CODE_CHECK" 2026-10-23T13:25:00Z)" \
+  --argjson b "$(job 21 "$SEC_CHECK" 2026-10-23T13:21:00Z)" '{"1": {jobs: [$a, $c]}, "2": {jobs: [$b]}}')"
+STUB_NOTES="$(jq -cn --argjson a "[$(hold_note cost)]" --argjson c "[$(hold_note trust-gate)]" '{"11": $a, "12": $c, "21": []}')"
+export STUB_JOBS STUB_NOTES
+expect "a re-run attempt that held for trust-gate clears nothing" no no no "is not cost-only"
+
+reset
+STUB_RUNS="$(jq -c . <<<'{"pr-review-hosted.yml":{"workflow_runs":[{"id":1,"updated_at":"2026-10-23T13:20:40Z"},{"id":3,"updated_at":"2026-10-23T13:10:10Z"}]},"pr-review-security-hosted.yml":{"workflow_runs":[{"id":2,"updated_at":"2026-10-23T13:21:10Z"}]}}')"
+STUB_JOBS="$(jq -c --argjson c "$(job 31 "$CODE_CHECK" 2026-10-23T13:10:00Z)" '. + {"3": {jobs: [$c]}}' <<<"$STUB_JOBS")"
+STUB_NOTES="$(jq -c --argjson c "[$(hold_note trust-gate)]" '. + {"31": $c}' <<<"$STUB_NOTES")"
+export STUB_RUNS STUB_JOBS STUB_NOTES
+expect "an earlier trust-gate hold nobody trusted lifted keeps the label" no no no "is not cost-only"
+STUB_EVENTS="[$(event labeled "$LANE" 2026-10-23T13:09:58Z),$(event unlabeled "$STRANGER" 2026-10-23T13:15:00Z),$(event labeled "$LANE" 2026-10-23T13:20:20Z)]"
+expect "an untrusted removal of a trust-gate hold does not open the window" no no no "is not cost-only"
+STUB_EVENTS="[$(event labeled "$LANE" 2026-10-23T13:09:58Z),$(event unlabeled "$OWNER" 2026-10-23T13:15:00Z),$(event labeled "$LANE" 2026-10-23T13:20:20Z)]"
 expect "a trusted person's removal of the trust-gate hold opens a new window" yes yes yes
-reset
-STUB_COMMENTS="[$(comment "$CLAUDE" 2026-10-23T13:20:05Z "<!-- claude-lane-hold lane=claude-review sha=$HEAD criteria=cost -->
-A claude[bot] hold.")]"
-expect "a claude[bot] hold is not read as cost-only" no no no
-STUB_COMMENTS="[$(comment "$LANE" 2026-10-23T13:20:05Z "<!-- claude-lane-hold lane=claude-review -->
-No criteria.
-
-claude-lane: claude-review")]"
-expect "a hold with no criteria is not read as cost-only" no no no
-STUB_COMMENTS="[$(comment "$LANE" 2026-10-23T13:20:05Z "Header first.
-<!-- claude-lane-hold lane=claude-review sha=$HEAD criteria=cost -->
-
-claude-lane: claude-review")]"
-expect "a hold whose marker is not its first line is not read as cost-only" no no no
-STUB_COMMENTS="[$(hold 2026-10-23T13:20:05Z cost),$(comment "$APP" 2026-10-23T13:22:00Z '<!-- work-items:escalation lane=pr-unblock kind=escalated -->
-Escalated.')]"
-expect "an escalation riding on the same label keeps it" no no no
-STUB_COMMENTS='[]'
-expect "a label with no hold comment clears nothing" no no no
 
 reset
-STUB_EVENTS="[$(event labeled "$OWNER" 2026-10-23T13:20:00Z)]"
-expect "a label a person added clears nothing" no no no
-STUB_EVENTS="[$(event labeled "$APP" 2026-10-23T13:20:00Z)]"
-expect "a label the lanes App added clears nothing" no no no
+STUB_COMMENTS="[$(comment "$APP" 2026-10-23T05:39:35Z '<!-- work-items:escalation lane=pr-unblock kind=escalated -->')]"
+expect "a lanes App escalation with no trusted removal since keeps the label" no no no "lanes App commented"
+lifted
+expect "a lanes App escalation before the window does not keep the label" yes yes yes
+STUB_COMMENTS="[$(comment "$APP" 2026-10-23T13:22:00Z '<!-- work-items:escalation lane=pr-unblock kind=escalated -->')]"
+expect "a lanes App comment in the window keeps the label" no no no "lanes App commented"
+STUB_COMMENTS="[$(jq -c '.updated_at = "2026-10-23T13:22:00Z"' <<<"$(comment "$APP" 2026-10-23T05:39:35Z 'Edited.')")]"
+expect "a lanes App comment edited in the window keeps the label" no no no "lanes App commented"
+reset
+lifted
+export STUB_DELETED='{"data":{"repository":{"pullRequest":{"timelineItems":{"filteredCount":1,"nodes":[{"createdAt":"2026-10-23T13:21:30Z"}]}}}}}'
+expect "a comment deleted in the window keeps the label" no no no "was deleted"
+export STUB_DELETED='{"data":{"repository":{"pullRequest":{"timelineItems":{"filteredCount":1,"nodes":[{"createdAt":"2026-10-23T10:00:00Z"}]}}}}}'
+expect "a comment deleted before the window does not keep the label" yes yes yes
+export STUB_DELETED='{"data":{"repository":{"pullRequest":{"timelineItems":{"filteredCount":101,"nodes":[]}}}}}'
+expect "more deletions than one page shows keeps the label" no no no "was deleted"
+
+reset
+STUB_EVENTS="[$(event labeled "$OWNER" 2026-10-23T13:20:20Z)]"
+expect "a label a person added clears nothing" no no no "someone other than a review lane"
+STUB_EVENTS="[$(event labeled "$APP" 2026-10-23T13:20:20Z)]"
+expect "a label the lanes App added clears nothing" no no no "someone other than a review lane"
 STUB_EVENTS="[$(event labeled "$LANE" 2026-10-23T13:00:00Z)]"
-expect "a lane label with no cost hold written right after it clears nothing" no no no
+expect "a lane label with no held review within ten minutes clears nothing" no no no "no held review after it"
 STUB_EVENTS='[]'
-expect "a hold with no label event clears nothing" no no no
+expect "a hold with no label event clears nothing" no no no "no label was added"
+reset
+lanes '[]' '[]'
+expect "a label with no recorded hold clears nothing" no no no "no review lane recorded a hold"
+reset
+export LANES_APP_ID=''
+expect "an unset lanes App id clears nothing" no no no
 
-for read in tracker actors events comments pull closing decision edited; do
+for read in tracker actors events pull runs jobs notes comments deleted closing decision edited; do
   reset
   export STUB_FAIL="$read"
   expect "an unreadable $read read clears nothing" no no no
