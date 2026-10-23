@@ -1,6 +1,7 @@
 # Push a lane merge as an API-made two-parent commit signed by the App
 
-- Status: accepted
+- Status: accepted; the commit moves to a script job with its own mint 2026-10-23 (see the
+  [addendum](#addendum-2026-10-23-a-script-job-commits-the-merge-and-the-model-holds-no-write-token))
 - Date: 2026-10-12
 
 ## Context
@@ -75,3 +76,30 @@ The runner, not the model, makes the merge commit through the Git Data API
   conflicted or model-staged workflow path escalates instead.
 - The merge scripts need git 2.41 or later (`GIT_ATTR_SOURCE`) and fail closed below it. Basis:
   [`prepare.sh:24,79`](../../.github/scripts/merge-base/prepare.sh).
+
+## Addendum (2026-10-23): a script job commits the merge, and the model holds no write token
+
+The rejected alternative "a separate push job with its own mint" is now the decision: the model
+job no longer holds `contents: write` or runs git, and the commit Decision describes is made by
+`apply-conflict-patch`, a `prepare: apply-patch` script job, through
+[`apply-patch.mjs`](../../.github/scripts/apply-patch/apply-patch.mjs) under
+`patch-rules.json`'s `merge-base` row. The commit is still made through the Git Data API with no
+author, committer or signature, parents `[gated head, trusted base]`, the trailer the repeat cap
+counts, and only the blobs `tree-entries.sh` flags uploaded; its tree is still checked against
+GitHub's.
+
+- **Three merges, one conflict tree.** `resolve-conflicts-select` (base code, read-only token) pins
+  the default branch tip and merges it with `prepare.sh`, which also prints the conflict tree T0.
+  The read runner and the push job each merge that pinned base again and fail red unless they
+  reach the same state and T0. A merge recomputed by `git merge-tree` was not used, since the
+  version-bump script needs a merge in progress (it reads `MERGE_HEAD`).
+- **The model edits files, not the index.** The skill runs on `run-claude-cli` with no Bash,
+  reads `.lane/merge/` (each conflicted path's stages and both sides' history, written by
+  `context.sh`), and resolves in place. Its edits leave as a patch measured from T0, so the patch
+  holds them alone.
+- **The push job admits only resolutions.** Only the patch's own changes face the refusals,
+  `max-files` and the `merge-result` predicate (a path the merge left conflicted); every
+  conflicted path left in the tree must be marker-free, and a `.github/workflows/` change must be
+  exactly the base's, as `post.sh` held it before. The base-side changes pass through. A merge that
+  needs more than `max-blobs` new blobs is refused before any write.
+- The accepted residual above stands; `apply-conflict-patch` has not been probed on that shape.

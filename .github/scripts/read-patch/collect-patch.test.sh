@@ -254,6 +254,41 @@ check 'a nested or differently cased name: state is written' written "$(field st
 check 'a nested sub/.npmrc is in the patch' 1 "$(in_patch sub/.npmrc)"
 check 'a new empty .ENV is in the patch' 1 "$(in_patch .ENV)"
 
+echo '# from-tree'
+# merge-base mode: the patch is measured from the conflict tree prepare.sh
+# wrote (a base-side file, and a marker file), so it holds only the model's
+# resolution, and it applies to that tree.
+new_repo
+put base-side.txt 'from main\n'
+put edit.txt '<<<<<<< HEAD\none\n=======\nuno\n>>>>>>> main\n'
+tg add -A
+T0=$(tg write-tree)
+tg reset -q
+put edit.txt 'one and uno\n'
+RC=0
+OUT=$(cd "$R" && bash "$COLLECT" "$HEAD_SHA" "$PATCH" "$T0" 2>"$TMP/err") || RC=$?
+check 'from-tree: exit 0' 0 "$RC"
+check 'from-tree: state is written' written "$(field state)"
+check 'from-tree: only the resolution is in the patch' 'edit.txt' "$(grep '^diff --git' "$PATCH" | sed 's#^diff --git a/\(.*\) b/.*#\1#' | tr '\n' ' ' | sed 's/ $//')"
+APPLIED=$(cd "$R" && GIT_INDEX_FILE="$TMP/from-index" git read-tree "$T0" && GIT_INDEX_FILE="$TMP/from-index" git apply --cached "$PATCH" && GIT_INDEX_FILE="$TMP/from-index" git write-tree)
+check 'from-tree: the patch on the conflict tree gives the working tree' "$(cd "$R" && GIT_INDEX_FILE="$TMP/wt-index" git read-tree "$T0" && GIT_INDEX_FILE="$TMP/wt-index" git add -A && GIT_INDEX_FILE="$TMP/wt-index" git write-tree)" "$APPLIED"
+put edit.txt '<<<<<<< HEAD\none\n=======\nuno\n>>>>>>> main\n'
+RC=0
+OUT=$(cd "$R" && bash "$COLLECT" "$HEAD_SHA" "$PATCH" "$T0" 2>"$TMP/err") || RC=$?
+check 'from-tree: no edit since the conflict tree is empty' 0/empty "$RC/$(field state)"
+OTHER_COMMIT=$(tg commit-tree -m other "$T0")
+for bad in "$OTHER_COMMIT" "$(tg rev-parse HEAD:edit.txt)" "${T0:0:12}"; do
+  RC=0
+  (cd "$R" && bash "$COLLECT" "$HEAD_SHA" "$PATCH" "$bad") >/dev/null 2>&1 || RC=$?
+  if [[ $bad == "$OTHER_COMMIT" ]]; then
+    check 'from-tree: a commit given as the tree fails' 1 "$RC"
+  elif [[ ${#bad} == 40 ]]; then
+    check 'from-tree: a blob given as the tree fails' 1 "$RC"
+  else
+    check 'from-tree: a short id is refused' 2 "$RC"
+  fi
+done
+
 echo '# unsafe input'
 new_repo
 put edit.txt 'changed\n'

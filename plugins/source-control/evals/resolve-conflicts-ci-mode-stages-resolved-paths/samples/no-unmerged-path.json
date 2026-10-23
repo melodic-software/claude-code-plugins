@@ -1,9 +1,0 @@
-{
-  "pass": [
-    {"answer": "DIRC\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0002\u0000\rdocs/retry.md\u0000\u0000\u0000\u0000\u0011src/http/retry.ts\u0000REUC", "why": "both paths staged: only stage-0 entries remain"}
-  ],
-  "fail": [
-    {"answer": "DIRC\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0004\u0000\rdocs/retry.md\u0000\u0000\u0000\u0010\u0011src/http/retry.ts\u0000\u0000 \u0011src/http/retry.ts\u0000\u00000\u0011src/http/retry.ts\u0000", "why": "src/http/retry.ts left unmerged"},
-    {"answer": "DIRC\u0000\u0000\u0000\u0002\u0000\u0000\u0000\u0006\u0010\rdocs/retry.md\u0000 \rdocs/retry.md\u00000\rdocs/retry.md\u0000\u0010\u0011src/http/retry.ts\u0000 \u0011src/http/retry.ts\u00000\u0011src/http/retry.ts\u0000", "why": "nothing staged"}
-  ]
-}
