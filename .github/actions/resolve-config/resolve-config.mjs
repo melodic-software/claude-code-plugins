@@ -252,6 +252,7 @@ function outputsFor({ lane, selected }) {
     contents: selected.grant.contents,
     "pull-requests": selected.grant["pull-requests"],
     issues: selected.grant.issues,
+    actions: selected.grant.actions ?? "",
     // Only a read grant cannot commit; any other value keeps the signed-commit check.
     "can-commit": String(selected.grant.contents !== "read"),
     ...(selected["applied-by"]?.patch === undefined ? {} : { "applied-by-patch": selected["applied-by"].patch }),
@@ -393,6 +394,15 @@ export function redMainFromBase(env) {
   const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
   const doc = loadConfig(filesUnderBase(basePath, configPath), { configPath });
   return { redMain: doc["red-main"] ?? {}, agentIdentity: doc.merge?.["agent-identity"] ?? "" };
+}
+
+// The hosts the issue lane (resolve-issue) may read, for intake admission:
+// its web-access domains, "any", or [] when web access is off.
+export function issueLaneWebHostsFromBase(env) {
+  const basePath = env.BASE_PATH || DEFAULT_BASE_PATH;
+  const configPath = env.CONFIG_PATH || DEFAULT_CONFIG_PATH;
+  const web = loadConfig(filesUnderBase(basePath, configPath), { configPath }).activities?.["resolve-issue"]?.["web-access"];
+  return web?.enabled ? web.domains : [];
 }
 
 // The base config's `branch-cleanup` leaf as set, likewise; its defaults have

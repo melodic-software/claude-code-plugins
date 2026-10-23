@@ -26,7 +26,9 @@ activities:
     skill: source-control:resolve-conflicts
     args: ci
     prepare: merge-base
-    effect: mutate-branch
+    effect: read
+    applied-by:
+      patch: apply-conflict-patch
     gating: advisory
     reads-untrusted: true
     inputs: [pr, base-sha, head-sha]
@@ -34,6 +36,13 @@ activities:
       mergeable: [conflicting]
       labels-absent: [do-not-merge, needs-human]
       draft: [false]
+  apply-conflict-patch:
+    script: .github/scripts/apply-patch/apply-patch.mjs
+    prepare: apply-patch
+    effect: mutate-branch
+    gating: advisory
+    reads-untrusted: true
+    inputs: [pr, head-sha, base-sha]
   address-feedback:
     skill: source-control:pull-request
     args: comments --ci
@@ -66,6 +75,8 @@ lanes:
     stage: unblock
     slots:
       - activity: resolve-conflicts
+      - activity: apply-conflict-patch
+        needs: [resolve-conflicts]
 ${addressFeedbackSlot}
       - activity: apply-feedback-patch
         needs: [address-feedback]

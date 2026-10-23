@@ -87,8 +87,9 @@ function fakeApi({
   workflowRuns = [],
   workflowRunId = 38779200001,
   permissions = { "kyle-sexton": "admin" },
+  labelEvents = [],
 } = {}) {
-  const calls = { dispatch: [], permission: [] };
+  const calls = { dispatch: [], permission: [], labelEvents: 0 };
   return {
     calls,
     // The event's workflow_run, which the script takes in place of a read.
@@ -110,11 +111,16 @@ function fakeApi({
     },
     listIssueComments: async () => comments,
     listReviewThreads: async () => threads,
+    async listLabelEvents() {
+      calls.labelEvents += 1;
+      return labelEvents;
+    },
     async getPermission(login) {
       calls.permission.push(login);
       return permissions[login] ?? "none";
     },
-    listCheckRuns: async () => checkRuns,
+    // A run that names no check is the address-feedback one.
+    listCheckRuns: async ({ checkName }) => checkRuns.filter((run) => (run.name ?? "pr-unblock / address-feedback") === checkName),
     listWorkflowRuns: async () => workflowRuns,
     async dispatchWorkflow(request) {
       calls.dispatch.push(request);
@@ -227,6 +233,31 @@ test("a slot that cannot be resolved fails the run", async () => {
 test("the security review workflow is an upstream too", async () => {
   const api = fakeApi({ run: { path: ".github/workflows/pr-review-security-hosted.yml" } });
   assert.equal((await decide(api)).result.number, 42);
+});
+
+// A pr-review-cli finding: github-actions[bot]'s, its body ending in the lane
+// footer (ci-workflows publish-review publish.cjs commentBody at v0.63.0).
+const laneThread = (body) => ({
+  isResolved: false,
+  comments: { nodes: [{ author: ACTIONS_BOT_NODE, body }], pageInfo: { hasNextPage: false } },
+});
+
+test("a github-actions[bot] thread ending in the lane footer dispatches like the reviewer bot's", async () => {
+  const api = fakeApi({ threads: [laneThread("severity: IMPORTANT\nUnquoted input.\n\nclaude-lane: claude-security-review")] });
+  assert.equal((await decide(api)).result.number, 42);
+});
+
+test("the code lane's github-actions[bot] thread dispatches like the reviewer bot's", async () => {
+  const api = fakeApi({ threads: [laneThread("The loop skips the last item.\n\nclaude-lane: claude-review")] });
+  assert.equal((await decide(api)).result.number, 42);
+});
+
+test("a github-actions[bot] thread without a review lane's footer last dispatches nothing", async () => {
+  for (const body of ["Unquoted input.", "claude-lane: claude-security-review\nUnquoted input."]) {
+    const api = fakeApi({ threads: [laneThread(body)] });
+    assert.equal((await decide(api)).result, null, body);
+    assert.deepEqual(api.calls.dispatch, []);
+  }
 });
 
 for (const [label, options] of [
@@ -346,6 +377,86 @@ test("a failed check on the head that is not a limit stop blocks a dispatch", as
   }
 });
 
+// A round whose reply job found no model turn (#9218): its publish-feedback
+// check skipped no-model-turn, so the address-feedback check runs before it
+// handled nothing, and the next trigger dispatches the head again. Every such
+// round posts its round marker, so the select job's round cap still ends it.
+const roundRun = (name, conclusion, title, started) => ({
+  name: `pr-unblock / ${name}`,
+  status: "completed",
+  conclusion,
+  started_at: started,
+  completed_at: started,
+  output: { title, summary: "" },
+});
+const noModelTurn = (started = "2026-10-17T10:05:00Z") => roundRun("publish-feedback", "neutral", "Skipped: no-model-turn", started);
+
+test("a head whose last round had no model turn dispatches again, and is not recorded as handled", async () => {
+  for (const [label, check] of [
+    ["the activity step failed", roundRun("address-feedback", "failure", "Failed", "2026-10-17T10:00:00Z")],
+    ["the broker refused the run", roundRun("address-feedback", "neutral", "Skipped: not-assessed", "2026-10-17T10:00:00Z")],
+  ]) {
+    const record = emptyRecord();
+    const api = fakeApi({ checkRuns: [check, noModelTurn()] });
+    const { result } = await decideWith(api, record);
+    assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" }, label);
+    assert.equal(record.handled.size, 0, label);
+  }
+});
+
+// A no-model-turn reply never releases a limit stop: it still holds the head
+// until its reset and counts toward limits.limit-stops-per-head.
+test("a no-model-turn reply after a limit stop leaves the stop's reset hold and cap in place", async () => {
+  const stop = (resets, started) => ({
+    ...failedRun(`lane=pr-unblock activity=address-feedback class=rate-limit resets=${resets}`, started),
+    started_at: started,
+  });
+  const at = async (runs, now) => {
+    const api = fakeApi({ checkRuns: runs });
+    const result = await dispatchFeedback({
+      api,
+      repository: REPOSITORY,
+      runId: RUN_ID,
+      upstream: api.upstream,
+      appSenderId: APP_ID,
+      resolveSlot: async () => resolvedLane(),
+      log: () => {},
+      now: Date.parse(now),
+    });
+    return result?.number;
+  };
+  const reply = noModelTurn("2026-10-17T10:05:00Z");
+  assert.equal(await at([stop("2026-10-17T13:00:00Z", "2026-10-17T10:00:00Z"), reply], "2026-10-17T12:00:00Z"), undefined, "before its reset");
+  assert.equal(await at([stop("2026-10-17T11:00:00Z", "2026-10-17T10:00:00Z"), reply], "2026-10-17T12:00:00Z"), 42, "after its reset");
+  const three = ["07", "08", "09"].map((h) => stop(`2026-10-17T${h}:30:00Z`, `2026-10-17T${h}:00:00Z`));
+  assert.equal(await at([...three, reply], "2026-10-17T12:00:00Z"), undefined, "three stops reach the per-head cap");
+});
+
+test("a round that answered, or a newer address-feedback check, still handles the head", async () => {
+  for (const [label, runs] of [
+    ["the last round escalated", [roundRun("address-feedback", "success", "Passed", "2026-10-17T10:00:00Z"), roundRun("publish-feedback", "neutral", "Skipped: awaiting-human", "2026-10-17T10:05:00Z")]],
+    ["a no-model-turn round before a round that answered", [
+      roundRun("address-feedback", "failure", "Failed", "2026-10-17T10:00:00Z"),
+      noModelTurn(),
+      roundRun("address-feedback", "success", "Passed", "2026-10-17T11:00:00Z"),
+      roundRun("publish-feedback", "success", "Passed", "2026-10-17T11:05:00Z"),
+    ]],
+    // The select job's round cap posts the address-feedback skip after the round.
+    ["the round cap was reached after it", [
+      roundRun("address-feedback", "failure", "Failed", "2026-10-17T10:00:00Z"),
+      noModelTurn(),
+      roundRun("address-feedback", "neutral", "Skipped: awaiting-human", "2026-10-17T11:00:00Z"),
+    ]],
+    ["no reply job ran", [roundRun("address-feedback", "failure", "Failed", "2026-10-17T10:00:00Z")]],
+  ]) {
+    const api = fakeApi({ checkRuns: runs });
+    const { result, lines } = await decide(api);
+    assert.equal(result, null, label);
+    assert.deepEqual(api.calls.dispatch, [], label);
+    assert.match(lines.at(-1), /already has a pr-unblock \/ address-feedback check run/, label);
+  }
+});
+
 test("a dispatch with no usable run id throws", async () => {
   await assert.rejects(decide(fakeApi({ workflowRunId: null })), /no valid workflow_run_id/);
 });
@@ -460,7 +571,7 @@ test("a pr-verify run dispatches past a check run and a handled record from befo
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const before = { name: "pr-unblock / address-feedback", status: "completed", conclusion: "neutral", started_at: "2026-10-17T11:00:00Z", output: { title: "Skipped: no-model-turn" } };
   const record = join(dir, "record.json");
-  writeFileSync(record, JSON.stringify({ version: 1, handled: { "pr-unblock / address-feedback": [HEAD] }, dispatched: {} }));
+  writeFileSync(record, JSON.stringify({ version: 3, handled: { "pr-unblock / address-feedback": [HEAD] }, dispatched: {} }));
   const api = verifyApi({ checkRuns: [before] });
   const { output } = await verifyMain(dir, api, HEAD, record);
   assert.equal(api.calls.dispatch.length, 1);
@@ -677,6 +788,89 @@ for (const [label, options] of [
   });
 }
 
+// Where needs-human came from (gate-source.mjs). A lane escalation:
+// report-escalation.sh's label, then its marked comment, by the lanes App. A
+// review-lane hold: the review lane's label and hold comment.
+const APP_USER = { login: "melodic-automation-lanes[bot]", id: APP_ID, type: "Bot" };
+const ACTIONS_USER = { ...ACTIONS_BOT, type: "Bot" };
+const RESUME = `<!-- pr-unblock resume-key=${OLD_HEAD} -->`;
+const escalationComment = ({ body = `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n${RESUME}\nThe pr-unblock lane stopped.\n\n- Reason: \`ci-fix-round-cap\``, user = APP_USER, at = "2026-10-18T10:00:05Z" } = {}) => ({
+  user,
+  body,
+  created_at: at,
+  updated_at: at,
+});
+const holdComment = ({ sha = HEAD, at = "2026-10-18T09:00:00Z" } = {}) => ({
+  user: ACTIONS_USER,
+  body: `<!-- claude-lane-hold lane=claude-security-review sha=${sha} criteria=trust-gate -->\nChanges a trust gate.\n\n\`claude-lane: claude-security-review\``,
+  created_at: at,
+  updated_at: at,
+});
+const labelEvent = (event, actor, at) => ({ event, actor, label: { name: "needs-human" }, created_at: at });
+const appLabeled = labelEvent("labeled", APP_USER, "2026-10-18T10:00:00Z");
+const reviewed = [marker("claude-review"), marker("claude-security-review")];
+
+test("a needs-human PR a lane escalation gated dispatches for a reviewer-bot thread", async () => {
+  const api = fakeApi({ pulls: humanGated(), comments: [...reviewed, escalationComment()], labelEvents: [appLabeled] });
+  const { result, lines } = await decide(api);
+  assert.equal(result?.number, 42, lines.join("\n"));
+  assert.equal(api.calls.dispatch.length, 1);
+});
+
+for (const [label, source, options] of [
+  ["a review-lane hold on the current head", "review-hold", {
+    comments: [...reviewed, holdComment()],
+    labelEvents: [labelEvent("labeled", ACTIONS_USER, "2026-10-18T09:00:00Z")],
+  }],
+  ["a lane escalation beside a review-lane hold on the current head", "review-hold", {
+    comments: [...reviewed, holdComment({ at: "2026-10-18T10:30:00Z" }), escalationComment()],
+    labelEvents: [appLabeled],
+  }],
+  ["a lane escalation beside an open review-lane hold on an older head", "review-hold", {
+    comments: [...reviewed, holdComment({ sha: OLD_HEAD }), escalationComment()],
+    labelEvents: [appLabeled],
+  }],
+  ["an escalation marker with no resume-key line", "unknown", {
+    comments: [...reviewed, escalationComment({ body: "<!-- work-items:escalation lane=pr-unblock kind=escalated -->\nThe pr-unblock lane stopped." })],
+    labelEvents: [appLabeled],
+  }],
+  ["a lane escalation beside an escalation marker out of place", "unknown", {
+    comments: [...reviewed, escalationComment(), escalationComment({ body: `Note.\n<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n${RESUME}`, at: "2026-10-18T10:05:00Z" })],
+    labelEvents: [appLabeled],
+  }],
+  ["a lane escalation beside a hold marker whose head does not parse", "unknown", {
+    comments: [...reviewed, holdComment({ sha: "bbbb" }), escalationComment()],
+    labelEvents: [appLabeled],
+  }],
+  ["an escalation marker someone other than the lanes App wrote", "unknown", {
+    comments: [...reviewed, escalationComment({ user: { login: "kyle-sexton", id: KYLE.databaseId, type: "User" } })],
+    labelEvents: [appLabeled],
+  }],
+  ["a lane escalation under a label a person added", "unknown", {
+    comments: [...reviewed, escalationComment()],
+    labelEvents: [labelEvent("labeled", { login: "kyle-sexton", id: KYLE.databaseId, type: "User" }, "2026-10-18T10:00:00Z")],
+  }],
+  ["a lane escalation older than the last label add", "unknown", {
+    comments: [...reviewed, escalationComment({ at: "2026-10-18T09:00:00Z" })],
+    labelEvents: [appLabeled],
+  }],
+]) {
+  test(`a needs-human PR dispatches nothing for a reviewer-bot thread under ${label} (${source})`, async () => {
+    const api = fakeApi({ pulls: humanGated(), ...options });
+    const { result, lines } = await decide(api);
+    assert.equal(result, null, lines.join("\n"));
+    assert.deepEqual(api.calls.dispatch, []);
+    // The skip names why the label does not admit the PR.
+    assert.ok(lines.at(-1).includes(`is labeled needs-human (${source}: `), lines.at(-1));
+  });
+}
+
+test("a PR without needs-human reads no label events", async () => {
+  const api = fakeApi();
+  assert.equal((await decide(api)).result.number, 42);
+  assert.equal(api.calls.labelEvents, 0);
+});
+
 test("without needs-human a trusted reply dispatches with no permission read", async () => {
   const api = fakeApi({ threads: [decidedThread({ author: KYLE_LOGIN })] });
   assert.equal((await decide(api)).result.number, 42);
@@ -799,17 +993,44 @@ async function decideWith(api, record, resolved = resolvedLane()) {
 }
 
 test("a head a finished run handled is recorded, and a later run at that head reads nothing", async () => {
-  const handled = { id: 7, name: "pr-unblock / address-feedback", status: "completed", conclusion: "success", output: { title: "Done" } };
+  const handled = { id: 7, name: "pr-unblock / address-feedback", status: "completed", conclusion: "success", started_at: "2026-10-17T10:00:00Z", output: { title: "Done" } };
+  // The round's reply job posted after it, so no no-model-turn skip can still release the head.
+  const reply = roundRun("publish-feedback", "success", "Passed", "2026-10-17T10:05:00Z");
   const record = emptyRecord();
-  const first = counting(fakeApi({ checkRuns: [handled] }));
+  const first = counting(fakeApi({ checkRuns: [handled, reply] }));
   assert.equal((await decideWith(first.api, record)).result, null);
-  // Without a record: the PR, comments, threads, run listing and check runs.
-  assert.deepEqual(first.counts, { pullsForCommit: 1, listIssueComments: 1, listReviewThreads: 1, listWorkflowRuns: 1, listCheckRuns: 1 });
-  const later = counting(fakeApi({ checkRuns: [handled] }));
+  // Without a record: the PR, comments, threads, run listing and both checks' runs.
+  assert.deepEqual(first.counts, { pullsForCommit: 1, listIssueComments: 1, listReviewThreads: 1, listWorkflowRuns: 1, listCheckRuns: 2 });
+  const later = counting(fakeApi({ checkRuns: [handled, reply] }));
   const { result, lines } = await decideWith(later.api, parseRecord(serializeRecord(record)));
   assert.equal(result, null);
   assert.deepEqual(later.counts, {});
   assert.deepEqual(lines, [`skip: head ${HEAD} already has a pr-unblock / address-feedback check run (recorded)`]);
+});
+
+// #9362 part 2: between the round's address-feedback check and its reply
+// job's check, a dispatcher run must not record the head, or the reply's
+// no-model-turn skip could never release it.
+test("a head whose newest address-feedback check has no later reply check is not recorded, and is released once the reply skips no-model-turn", async () => {
+  const record = emptyRecord();
+  const check = roundRun("address-feedback", "failure", "Failed", "2026-10-17T10:00:00Z");
+  const early = await decideWith(fakeApi({ checkRuns: [check] }), record);
+  assert.equal(early.result, null, "the head is handled for now");
+  assert.equal(record.handled.size, 0, "but not recorded");
+  // An older reply check, from an earlier round, does not count.
+  await decideWith(fakeApi({ checkRuns: [noModelTurn("2026-10-17T09:05:00Z"), check] }), record);
+  assert.equal(record.handled.size, 0);
+  const later = await decideWith(fakeApi({ checkRuns: [check, noModelTurn()] }), parseRecord(serializeRecord(record)));
+  assert.deepEqual(later.result, { number: 42, workflowRunId: "38779200001" });
+});
+
+// A record the dispatcher wrote before a no-model-turn reply released the
+// head holds it as handled; that record's version is read as empty.
+test("a version 1 record that holds a no-model-turn head is ignored, and the head dispatches again", async () => {
+  const old = parseRecord(JSON.stringify({ version: 1, handled: { "pr-unblock / address-feedback": [HEAD] }, dispatched: {} }));
+  const check = roundRun("address-feedback", "failure", "Failed", "2026-10-17T10:00:00Z");
+  const { result } = await decideWith(fakeApi({ checkRuns: [check, noModelTurn()] }), old);
+  assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" });
 });
 
 test("a limit-stopped run is not recorded", async () => {

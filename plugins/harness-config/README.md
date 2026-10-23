@@ -13,6 +13,8 @@ different question about the same surface:
 | `/harness-config:audit-instructions` | Are the INSTRUCTIONS you wrote (CLAUDE.md, a natively read AGENTS.md, rules, skill bodies, agents, hooks, output styles) still earning their context cost against current model capability, or is prior-model scar tissue holding the model back? |
 | `/harness-config:audit-pass` | Can all of that run as ONE ordered, resumable pass over a named target, with every scope inventoried before any check, one reconciled findings artifact, and one human gate, instead of several separate runs whose results nobody reconciles? |
 | `/harness-config:unhobble` | What does the CURRENT MODEL actually still need, measured rather than reasoned: reversibly strip the project's standing instructions to a bare baseline, log real stumbles, and re-add only what the evidence earns back? |
+| `/harness-config:audit-prompting-postures` | What posture guidance does an instruction component LACK that the official prompting guide says its purpose needs (delegation, guardrails, stop rules, destructive-action confirmation)? |
+| `/harness-config:draft-auto-mode-rules` | What should and should not be auto-approved, written as a paste-ready `autoMode` classifier block (each entry in the shape the classifier reads well, every section keeping `$defaults`) drafted by interview and printed only, never written to a settings file? |
 
 The instruction/memory-layer *hygiene* question (is `CLAUDE.md` too long, well-placed, free of
 inferable content) is owned by the `audit` skill in the separate `harness-memory` plugin;

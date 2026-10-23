@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Structure test: pr-run-activity-write.yml keeps every clause of the
-# resolve-conflicts `never` row in .github/actions/resolve-config/activity-rules.json
-# ("Force-pushes, pushes .github/workflows changes, or runs head code"), and
-# hands the report-escalation script the base's tracker config.
+# apply-conflict-patch `never` row in .github/actions/resolve-config/activity-rules.json
+# ("Runs a model or head code, force-pushes, or pushes a model edit outside the
+# conflicted paths"), and hands the report-escalation script the base's tracker
+# config.
 #
 # Reads the workflow as YAML (the runner-policy `yaml` package, which CI
 # installs for check-read-caller-keys.test.sh) and asserts on step order,
@@ -11,8 +12,9 @@
 #     with a contents-write token the model could push or run head code
 #     itself. The backstops are the App's missing `workflows` permission and
 #     ADR 0055's accepted residual, not this file.
-#   - That post.sh detects every workflow change; its own .test.sh owns that.
-# test-scope: .github/workflows/pr-run-activity-write.yml .github/actions/resolve-config/activity-rules.json .github/actions/collect-base-activity/action.yml .github/standards/runner-policy/package.json
+#   - That apply-patch.mjs refuses every workflow change a merge pushes;
+#     apply-patch.test.mjs owns that.
+# test-scope: .github/workflows/pr-run-activity-write.yml .github/actions/resolve-config/activity-rules.json .github/actions/collect-base-activity/action.yml .github/scripts/merge-base/run-prepare.sh .github/scripts/apply-patch/apply-patch.mjs .github/actions/resolve-config/patch-rules.json .github/standards/runner-policy/package.json
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -28,10 +30,13 @@ const YAML = require("yaml");
 
 const say = (good, text) => console.log(`${good ? "ok" : "fail"}\t${text}`);
 const rules = JSON.parse(readFileSync(".github/actions/resolve-config/activity-rules.json", "utf8"));
-const never = rules["resolve-conflicts"]?.never ?? "";
+const never = rules["apply-conflict-patch"]?.never ?? "";
 // The row this suite guards; a reworded row needs this suite reread.
-say(never === "Force-pushes, pushes .github/workflows changes, or runs head code",
-  `the resolve-conflicts never row is the one this suite asserts (got ${JSON.stringify(never)})`);
+say(never === "Runs a model or head code, force-pushes, or pushes a model edit outside the conflicted paths",
+  `the apply-conflict-patch never row is the one this suite asserts (got ${JSON.stringify(never)})`);
+// The merge step runs the base copy of run-prepare.sh, which holds the hash
+// checks, the stopped workflow commands and the escalation set.
+const runPrepare = readFileSync(".github/scripts/merge-base/run-prepare.sh", "utf8");
 
 const wf = YAML.parse(readFileSync(".github/workflows/pr-run-activity-write.yml", "utf8"));
 const steps = wf.jobs.run.steps;
@@ -42,34 +47,33 @@ const mint = at((s) => s.id === "lane-token");
 const body = (s) => `${s.run ?? ""}${s.with?.script ?? ""}`;
 const after = steps.slice(checkout + 1);
 
-// Clause 1: no force-push.
+// Clause 1: no force-push. The promote step moves a skill's lane branch;
+// apply-patch.mjs moves the PR branch for a patch, a merge's included.
+const applyPatch = readFileSync(".github/scripts/apply-patch/apply-patch.mjs", "utf8");
 const updates = steps.flatMap((s) => body(s).match(/updateRef\([^)]*\)/g) ?? []);
-say(updates.length >= 2, `the run job updates refs through updateRef (${updates.length} calls)`);
+say(updates.length >= 1, `the run job updates refs through updateRef (${updates.length} calls)`);
+say(/write: \(api, ref, commit\) => api\.updateRef\(`heads\/\$\{ref\}`, commit, false\)/.test(applyPatch)
+  && !/updateRef\([^)]*true\)/.test(applyPatch), "apply-patch.mjs moves the PR branch with force: false");
 say(updates.every((u) => /force: false/.test(u)), "every updateRef call passes force: false");
 say(!steps.some((s) => /git\s+push|--force|\+refs\//.test(body(s))), "no step runs git push or a forced refspec"); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 say(!steps.some((s) => /(update|create)Ref\(/.test(body(s)) && /Ref\([^)]*force:\s*true/.test(body(s))), // portability-ok: embedded node JavaScript regex, not a shell tool pattern
   "no ref update sets force: true");
 
 // Clause 2: no .github/workflows change is pushed by the runner.
-const post = byId("post");
-const commit = byId("commit");
-say(/bash "\$BIN\/post\.sh"/.test(post.run ?? ""), "the post step runs the base copy of post.sh");
-// The case arm naming the reason sets skip=awaiting-human on its next line.
-const escalates = (reason) =>
-  new RegExp(`^\\s*[a-z| -]*\\b${reason}\\b[a-z| -]*\\)\\s*\\n\\s*tree="" skip=awaiting-human$`, "m").test(post.run ?? ""); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
-for (const reason of ["unresolved-conflict", "workflow-staged", "unexpected-path-staged"]) {
-  say(escalates(reason), `the post step turns ${reason} into an escalation (awaiting-human)`);
-}
-say(/tree=""/.test(post.run ?? ""), "an escalating post step clears its tree output");
-const commitIf = String(commit.if ?? "");
-say(/steps\.post\.outcome == 'success'/.test(commitIf) && /steps\.post\.outputs\.escalation-reason == ''/.test(commitIf)
-  && /steps\.post\.outputs\.tree != ''/.test(commitIf),
-  "the commit step runs only after post.sh succeeded with no escalation reason and a tree");
-say(at((s) => s.id === "post") < at((s) => s.id === "commit") && at((s) => s.id === "commit") < at((s) => s.id === "promote"),
-  "post, commit and promote run in that order");
-say(/tree !== TREE/.test(commit.with?.script ?? ""), "the commit step refuses a tree other than post.sh's");
+// A merge-base skill runs on the read runner; this file commits a merge only
+// as apply-patch, under the merge-base row, which refuses a model edit to a
+// workflow and escalates a merged workflow set that is not exactly the base's.
+const refuseMerge = at((s) => s.name === "Assert merge-base runs in the read runner");
+say(refuseMerge >= 0 && refuseMerge < mint && /steps\.config\.outputs\.prepare == 'merge-base'/.test(steps[refuseMerge].if ?? "") && /exit 1/.test(steps[refuseMerge].run ?? ""),
+  "a merge-base skill fails red before the mint");
+say(!steps.some((s) => ["post", "commit"].includes(s.id)), "the write runner has no post or commit step of its own");
+const mergeRow = JSON.parse(readFileSync(".github/actions/resolve-config/patch-rules.json", "utf8"))["merge-base"];
+say(mergeRow?.refuse?.includes("github-workflows") && /if \(!workflowsAreBaseOwn\(git, headSha, merge\.baseSha, tree\)\) \{\n\s*return reason\("workflow-staged"/.test(applyPatch), // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+  "a merge's workflow change pushes only as the base's own, and a model edit to a workflow is refused");
 const prepare = byId("prepare");
-say(/protected-path-conflict/.test(prepare.run ?? ""), "a conflicted workflow path escalates before any model turn");
+say(/bash "\$BIN\/run-prepare\.sh"/.test(prepare.run ?? "") && /escalate:protected-path-conflict/.test(runPrepare)
+  && prepare.env?.EXPECT_STATE === "${{ inputs.patch-merge-state }}" && prepare.env?.EXPECT_TREE === "${{ inputs.patch-conflict-tree }}",
+  "the merge step reaches the select job's state and conflict tree, or fails red");
 
 // Clause 3: no head code runs with the write token.
 say(mint >= 0 && checkout > mint, "the lane token is minted before the head checkout");
@@ -93,18 +97,21 @@ for (const id of ["merge-bin", "hold-label", "stage"]) {
 const copy = byId("merge-bin").run ?? "";
 say(/\.base\/\.github\/scripts\/merge-base\//.test(copy) && /\.base\/plugins\/source-control\/scripts\/resolve-version-bump-conflict\.sh/.test(copy)
   && /sha256sum/.test(copy), "the merge scripts and the version-bump script are copied from .base with their SHA-256");
-for (const [id, scripts] of [["prepare", ["prepare", "resolve-version-bump-conflict"]], ["post", ["post"]]]) {
-  const run = byId(id).run ?? "";
+for (const [id, run, scripts] of [
+  ["prepare", byId("prepare").run ?? "", ["run-prepare"]],
+  ["run-prepare.sh", runPrepare, ["prepare", "resolve-version-bump-conflict"]],
+]) {
   for (const name of scripts) {
     const checked = run.search(new RegExp(`(check "\\$BIN/${name}\\.sh"|sha256sum <"\\$BIN/${name}\\.sh")`));
     const runs = run.search(new RegExp(`bash "\\$BIN/prepare\\.sh"|bash "\\$BIN/${name}\\.sh"`));
     say(checked >= 0 && runs > checked, `step ${id} checks ${name}.sh's SHA-256 before running it`);
   }
 }
-const cs = commit.with?.script ?? "";
-const treeCheck = cs.search(/createHash\('sha256'\)\.update\(readFileSync\(script\)\)\.digest\('hex'\) !== TREE_ENTRIES_SHA256\) \{\n[^\n]*setFailed[^\n]*\n\s*return;/); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
-say(treeCheck >= 0 && treeCheck < cs.indexOf("execFileSync('/usr/bin/bash'"),
-  "the commit step checks tree-entries.sh's SHA-256 before running it");
+const scriptEnv0 = byId("act-script").env ?? {};
+say(scriptEnv0.TREE_ENTRIES_SHA256 === "${{ inputs.patch-prepare == 'merge-base' && steps.merge-bin.outputs.tree-entries-sha256 || '' }}"
+  && /sha256Of\(script\) !== merge\.treeEntries\.sha256/.test(applyPatch)
+  && applyPatch.indexOf("sha256Of(script) !== merge.treeEntries.sha256") < applyPatch.indexOf('execFileSync("/usr/bin/bash", [merge.treeEntries.script'),
+  "apply-patch.mjs checks tree-entries.sh's SHA-256 before running it");
 // No step after the head checkout runs a program the head supplies.
 const headRun = /(^|[\s;&|(])(\.\/|npm |npx |yarn |pnpm |make\b|pytest|python |node \.|bash \.|sh \.)/m; // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 const offenders = after.filter((s) => s.run && headRun.test(s.run)).map((s) => s.name);
@@ -177,11 +184,14 @@ say(/:\?\*:dependency-invalid \| :\?\*:dependency-fix-not-landed\)/.test(byId("a
   && /:\?\*:dependency-files-truncated \| :\?\*:dependency-control-uncited \| :\?\*:dependency-workflow-held\)/.test(byId("act-script").run ?? "")
   && /:\?\*:dependency-fix-refused\)/.test(byId("act-script").run ?? ""),
   "a script escalates with the verdict script's reasons only in dependency-verdict mode");
-say(promoteScript.indexOf("verdict !== 'fix'") >= 0 && promoteScript.indexOf("verdict !== 'fix'") < promoteScript.indexOf("updateRef")
-  && /\[dependabot skip\]/.test(promoteScript) && /!inFixScope\(p, pairs\)/.test(promoteScript)
-  && /await fixRefusal\(data\.files, pairs,/.test(promoteScript)
-  && /CLASSIFY_SHA256/.test(promoteScript) && /cp \.base\/\.github\/scripts\/pr-unblock\/dependency-classify\.mjs/.test(byId("dependency-select").run ?? ""),
-  "dependency-review promotes only a fix verdict's commits, each with [dependabot skip], changing only the manifests and lock files the base's classifier copy admits, as regular files, by a version change");
+// dependency-review runs on the read runner, after its caller's select job:
+// this file refuses it before the mint, selects nothing, promotes no fix and
+// collects no verdict; apply-patch pushes the fix under the dependency-review row.
+const refuseDependency = at((s) => s.name === "Assert dependency-review runs in the read runner");
+say(refuseDependency >= 0 && refuseDependency < mint && /steps\.config\.outputs\.prepare == 'dependency-review'/.test(steps[refuseDependency].if ?? "") && /exit 1/.test(steps[refuseDependency].run ?? ""),
+  "a dependency-review activity fails red before the mint");
+say(!steps.some((s) => ["dependency-select", "dependency-collect"].includes(s.id)) && !/DEPENDENCY_REVIEW|CLASSIFY_SHA256|inFixScope|fixRefusal/.test(promoteScript),
+  "the write runner selects no dependency pull request, promotes no dependency fix and collects no verdict");
 // apply-patch runs from a base copy, so each pr-unblock module its
 // predicates import must be copied beside it.
 const predicateImports = [...readFileSync(".github/scripts/apply-patch/predicates.mjs", "utf8").matchAll(/from "\.\.\/pr-unblock\/([^"]+)"/g)].map((m) => m[1]);
@@ -204,16 +214,13 @@ say(trackerCheck >= 0 && trackerCheck < script.indexOf('"$RUNNER_TEMP/base-scrip
   "the script step fails on a tracker config whose SHA-256 differs, before running the script");
 
 // Hash checks compare and fail, not merely run.
-const prepRun = byId("prepare").run ?? "";
-say(/check\(\) \{[^}]*sum=\$\(sha256sum <"\$1"\)[^}]*if \[ "\$\{sum%% \*\}" != "\$2" \]; then[^}]*exit 1/s.test(prepRun),
-  "the prepare step's hash check fails on a differing SHA-256");
-say(/if \[ "\$\{sum%% \*\}" != "\$POST_SHA256" \]; then\n[^\n]*\n\s*exit 1/.test(post.run ?? ""), // portability-ok: embedded node JavaScript regex, not a shell tool pattern
-  "the post step fails on a post.sh whose SHA-256 differs");
+say(/check\(\) \{[^}]*sum=\$\(sha256sum <"\$1"\)[^}]*\[\[ \$\{sum%% \*\} == "\$2" \]\] \|\| fail/s.test(runPrepare) && /fail\(\) \{\n[^\n]*::error::[^\n]*\n\s*exit 1/.test(runPrepare) // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+  && /if \[ "\$\{sum%% \*\}" != "\$RUN_PREPARE_SHA256" \]; then\n[^\n]*\n\s*exit 1/.test(byId("prepare").run ?? ""), // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+  "the prepare step's hash checks fail on a differing SHA-256");
 
 // Head file names reach git's output: workflow commands are stopped while a
 // merge script runs, and resumed before the step's own ::error:: lines.
-for (const [id, name] of [["prepare", "prepare"], ["post", "post"]]) {
-  const run = byId(id).run ?? "";
+for (const [id, name, run] of [["prepare", "prepare", runPrepare]]) {
   const stop = run.indexOf('echo "::stop-commands::$token"');
   const call = run.indexOf(`bash "$BIN/${name}.sh"`);
   const resume = run.indexOf('echo "::$token::"');
@@ -224,39 +231,24 @@ for (const [id, name] of [["prepare", "prepare"], ["post", "post"]]) {
     `step ${id} writes skip-reason unconditionally`);
   say(String(byId(id).env?.GIT_NO_REPLACE_OBJECTS) === "1", `step ${id} sets GIT_NO_REPLACE_OBJECTS=1`);
 }
-say(/stop-commands/.test(cs), "the commit step stops workflow commands while tree-entries.sh and git run");
+// apply-patch.mjs's git, tree-entries.sh's included, runs with an allowlisted
+// environment and absolute binaries.
+say(/PATH: "\/usr\/bin:\/bin"/.test(applyPatch) && /GIT_NO_REPLACE_OBJECTS: "1"/.test(applyPatch) && /execFileSync\("\/usr\/bin\/bash"/.test(applyPatch),
+  "apply-patch.mjs runs git and tree-entries.sh under an allowlisted environment");
 
-// The commit step's git runs with an allowlisted environment.
-say(!/\.\.\.process\.env/.test(cs) && /PATH: '\/usr\/bin:\/bin'/.test(cs) && /GIT_NO_REPLACE_OBJECTS: '1'/.test(cs),
-  "the commit step's git environment is an allowlist");
-say(/'\/usr\/bin\/git'/.test(cs) && /'\/usr\/bin\/bash'/.test(cs) && !/execFileSync\('(git|bash)'/.test(cs),
-  "the commit step calls /usr/bin/git and /usr/bin/bash");
-
-// Holds placed mid-run stop the commit.
-const labels = cs.search(/fetch\(\s*`\$\{process\.env\.GITHUB_API_URL\}\/repos\/[^`]*\/issues\/\$\{Number\(PR_NUMBER\)\}\/labels/); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
-say(/Authorization: `Bearer \$\{READ_TOKEN\}`/.test(cs) && /if \(!labelsResponse\.ok\) \{\n[^\n]*setFailed/.test(cs),
-  "the label re-read uses the read-only token and fails the step when the read fails");
-// Only page 1 is read, so a PR with more labels fails rather than missing a hold.
-const nextPage = cs.search(/if \(\/rel="next"\/\.test\(labelsResponse\.headers\.get\('link'\)[^\n]*\) \{\n[^\n]*setFailed[^\n]*\n\s*return;/); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
-say(nextPage >= 0 && nextPage < cs.indexOf("createCommit"), "the label re-read fails the step when the labels span a second page");
 // actions/github-script v8.0.0 passes no getOctokit to the script.
 const octokitCallers = steps.filter((s) => /getOctokit/.test(s.with?.script ?? "")).map((s) => s.name);
 say(octokitCallers.length === 0, `no github-script step calls getOctokit (${octokitCallers.join(", ") || "none"})`);
-say(labels >= 0 && labels < cs.indexOf("createCommit") && /do-not-merge/.test(cs) && /HOLD_LABEL/.test(cs),
-  "the commit step re-reads the PR's hold labels before creating the commit");
+say(applyPatch.indexOf("await target.held(api, number,", applyPatch.indexOf("async function pushMerge")) < applyPatch.indexOf("await api.createCommit(message, tree, [headSha, merge.baseSha])"),
+  "apply-patch.mjs re-reads the PR's holds before creating a merge commit");
 const holdLabel = byId("hold-label").run ?? "";
 const promoteEnv = byId("promote").env ?? {};
 say(/\.base\/\.work-item-tracker\.json/.test(holdLabel) && /labels-absent/.test(holdLabel) && /echo "labels=\$labels"/.test(holdLabel)
-  && [commit.env, promoteEnv].every((env) => /^\$\{\{ steps\.hold-label\.outputs\.labels \}\}$/.test(String(env?.HOLD_LABELS))
-    && String(env?.READ_TOKEN) === "${{ github.token }}")
+  && /^\$\{\{ steps\.hold-label\.outputs\.labels \}\}$/.test(String(promoteEnv.HOLD_LABELS))
+  && String(promoteEnv.READ_TOKEN) === "${{ github.token }}"
+  && /^\$\{\{ steps\.hold-label\.outputs\.labels \}\}$/.test(String(byId("act-script").env?.HOLD_LABELS))
   && /^\$\{\{ steps\.gate\.outputs\.pr-number \}\}$/.test(String(promoteEnv.PR_NUMBER)),
-  "the hold labels are resolved from the base before the head checkout and reach the commit and promote steps with the read-only token");
-
-// Promote moves the PR branch only to the commit the commit step made.
-const promote = byId("promote");
-const ps = promote.with?.script ?? "";
-say(/COMMIT_SHA/.test(JSON.stringify(promote.env ?? {})) && /lane !== COMMIT_SHA/.test(ps) && /COMMIT_OUTCOME !== 'success'/.test(ps),
-  "in merge-base mode promote requires the commit step's success and its commit at the lane ref");
+  "the hold labels are resolved from the base before the head checkout and reach the promote step with the read-only token and the apply-patch script");
 
 // Issue mode runs its skill in the read runner, which holds no lane token:
 // these checks read that file. Only the skill run writes the outcome

@@ -768,11 +768,38 @@ assert_contains "injected failure names the hook on stderr" "$abort_err" \
 abort_lines=$(printf '%s\n' "$abort_err" | grep -c . || true)
 assert_eq "injected failure writes one stderr line" "1" "$abort_lines"
 
+# --- async Stop row: two audits can overlap on one transcript (#8772) ---
+# The marker's warn-once rule bounds a duplicate: two runs that both read an empty
+# marker warn once each, and any later run is silent. The cursor stays valid.
+T_OV="$TEST_TMPDIR/overlap.jsonl"
+DATA_OV="$TEST_TMPDIR/data-overlap"
+make_transcript "$T_OV"
+run_hook "$T_OV" "$DATA_OV" >"$TEST_TMPDIR/ov1.out" &
+ov_pid1=$!
+run_hook "$T_OV" "$DATA_OV" >"$TEST_TMPDIR/ov2.out" &
+ov_pid2=$!
+wait "$ov_pid1" "$ov_pid2"
+ov_warns=$(cat "$TEST_TMPDIR/ov1.out" "$TEST_TMPDIR/ov2.out" | grep -c 'PreToolUse:Bash' || true)
+if ((ov_warns >= 1 && ov_warns <= 2)); then
+  ok "overlapping audits warn about a registration at most twice ($ov_warns)"
+else
+  bad "overlapping audits warn about a registration at most twice: got $ov_warns"
+fi
+assert_silent "a run after the overlapping pair is silent" "$(run_hook "$T_OV" "$DATA_OV")"
+ov_cursor="$(find "$DATA_OV" -name '*.cursor' -type f | head -n 1)"
+if [[ -n "$ov_cursor" ]] && [[ "$(sed -n 1p "$ov_cursor")" =~ ^b[0-9]+$ ]] && [[ "$(sed -n 2p "$ov_cursor")" == "$T_OV" ]]; then
+  ok "overlapping audits leave a valid cursor file"
+else
+  bad "overlapping audits leave a valid cursor file: ${ov_cursor:-none found}"
+fi
+
 # --- the Stop row is shell form: a launcher through node could not report a missing node ---
 row="$(jq -c '[.hooks.Stop[].hooks[] | select((.command // "") | contains("hook-failure-audit.sh"))]' "$HOOK_DIR/hooks.json")"
 assert_eq "one hook-failure-audit Stop row" "1" "$(jq 'length' <<<"$row")"
 assert_eq "the row is shell-form bash with no args and no node" "true" \
   "$(jq '.[0] | .type == "command" and .shell == "bash" and (has("args") | not) and (.command | contains("node") | not)' <<<"$row")"
+# Advisory and always exit 0, so the turn does not wait on it (async, #8772).
+assert_eq "the row runs async so the audit stays off the Stop wall" "true" "$(jq '.[0].async == true' <<<"$row")"
 row_cmd="$(jq -r '.[0].command' <<<"$row")"
 row_rc=0
 printf '%s' '{"session_id":"s","transcript_path":"/no/such.jsonl","hook_event_name":"Stop"}' \

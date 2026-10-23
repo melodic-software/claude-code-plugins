@@ -50,6 +50,24 @@ class GhCaptureTests(unittest.TestCase):
                 _, call = self.capture(env_overrides=overrides)
                 self.assertIsNone(call["env"])
 
+    def test_binary_keeps_stdout_as_bytes_and_decodes_stderr(self) -> None:
+        # An artifact archive is not UTF-8; gh's message on stderr is.
+        archive = b"PK\x03\x04\xff\x00"
+        done = subprocess.CompletedProcess(["gh"], 0, archive, "réponse".encode())
+        with (
+            mock.patch.object(util.shutil, "which", return_value="/bin/gh"),
+            mock.patch.object(util.subprocess, "run", return_value=done) as run,
+        ):
+            proc = gh.gh_capture(
+                ["api", "repos/o/r/actions/artifacts/7/zip"], binary=True
+            )
+        self.assertEqual(proc.stdout, archive)
+        self.assertEqual(proc.stderr, "réponse")
+        self.assertFalse(run.call_args.kwargs["text"])
+        self.assertIsNone(run.call_args.kwargs["encoding"])
+        _, call = self.capture()
+        self.assertTrue(call["text"])
+
 
 class ParseRepoTests(unittest.TestCase):
     def test_repo_number_canonicalizes_owner_casing(self) -> None:
@@ -595,6 +613,18 @@ class GraphQLAvailabilityClassificationTests(unittest.TestCase):
     def test_http_status_reads_the_last_attempt(self) -> None:
         self.assertEqual(gh.gh_http_status("(HTTP 502) ... (HTTP 403)"), 403)
         self.assertIsNone(gh.gh_http_status("connection reset"))
+
+    def test_rate_limited_is_a_429_or_a_403_that_names_a_rate_limit(self) -> None:
+        for text, expected in (
+            ("gh: API rate limit exceeded for installation ID 1. (HTTP 403)", True),
+            ("gh: You have exceeded a secondary rate limit. (HTTP 403)", True),
+            ("gh: Too Many Requests (HTTP 429)", True),
+            ("gh: Resource not accessible by integration (HTTP 403)", False),
+            ("gh: API rate limit exceeded (HTTP 502)", False),
+            ("API rate limit exceeded, but no status", False),
+        ):
+            with self.subTest(text=text):
+                self.assertIs(gh.gh_rate_limited(text), expected)
 
 
 class ViewPrRestFallbackTests(unittest.TestCase):
@@ -1164,7 +1194,8 @@ class CollectLaneRunsTests(unittest.TestCase):
             base: {"id": 7, "run_attempt": fresh_attempts},
         }
         for n in range(1, fresh_attempts + 1):
-            answers[f"{base}/attempts/{n}"] = {"id": 7, "run_attempt": n}
+            if n < fresh_attempts:  # the run read stands in for the latest
+                answers[f"{base}/attempts/{n}"] = {"id": 7, "run_attempt": n}
             answers[f"{base}/attempts/{n}/jobs?per_page=100"] = [
                 {
                     "jobs": [
@@ -1235,6 +1266,38 @@ class CollectLaneRunsTests(unittest.TestCase):
             runs = gh.collect_lane_runs(self.REPO, 5, "feat/x", self.LANES, "x&y")
         self.assertEqual([r["id"] for r in runs], [7])
 
+    def listing_of(self, size: int, total: int) -> dict[str, Any]:
+        """Answers whose listing holds `size` runs: the pull request's run 7
+        and `size - 1` other pull requests' runs, under `total_count`."""
+        answers = self.answers(fresh_attempts=1)
+        key = f"repos/{self.REPO}/actions/workflows/pr-review-hosted.yml/runs?branch=feat%2Fx&event=pull_request&per_page=100"
+        mine = answers[key][0]["workflow_runs"][0]
+        others = [
+            {"id": 1000 + i, "run_attempt": 1, "pull_requests": [{"number": 6}]}
+            for i in range(size - 1)
+        ]
+        answers[key] = [
+            {"total_count": total, "workflow_runs": [mine] + others[:99]}
+        ] + [
+            {"total_count": total, "workflow_runs": others[i : i + 100]}
+            for i in range(99, size - 1, 100)
+        ]
+        return answers
+
+    def test_a_listing_one_under_the_search_cap_is_read(self) -> None:
+        runs = self.collect(self.listing_of(999, 999))
+        self.assertEqual([r["id"] for r in runs], [7])
+
+    def test_a_listing_at_the_search_cap_raises(self) -> None:
+        # GitHub returns at most 1,000 runs per filtered search, so a listing
+        # that reached 1,000 may be missing runs.
+        for size, total in ((1000, 1000), (1000, 1500), (100, 1000)):
+            with (
+                self.subTest(size=size, total=total),
+                self.assertRaisesRegex(RuntimeError, "search cap"),
+            ):
+                self.collect(self.listing_of(size, total))
+
     def test_a_deleted_or_expired_attempt_raises(self) -> None:
         answers = self.answers()
         del answers[f"repos/{self.REPO}/actions/runs/7/attempts/1"]
@@ -1251,17 +1314,18 @@ class CollectLaneRunsTests(unittest.TestCase):
 
         with mock.patch.object(gh, "gh_json", side_effect=fake):
             gh.collect_lane_runs(self.REPO, 5, "feat/x", self.LANES, env_overrides=env)
-        # The listing, the run, and two attempts' record, jobs and annotations.
+        # The listing, the run, attempt 1's record, and both attempts' jobs and
+        # annotations; the run read is attempt 2's record.
         self.assertEqual(sorted(e for e, _ in reads), sorted(answers))
         return reads
 
     def test_every_read_runs_under_the_token_it_is_given(self) -> None:
         reads = self.reads_under({"GH_TOKEN": "read"})
-        self.assertEqual([env for _, env in reads], [{"GH_TOKEN": "read"}] * 8)
+        self.assertEqual([env for _, env in reads], [{"GH_TOKEN": "read"}] * 7)
 
     def test_with_no_token_every_read_keeps_the_process_token(self) -> None:
         reads = self.reads_under(None)
-        self.assertEqual([env for _, env in reads], [None] * 8)
+        self.assertEqual([env for _, env in reads], [None] * 7)
 
 
 if __name__ == "__main__":

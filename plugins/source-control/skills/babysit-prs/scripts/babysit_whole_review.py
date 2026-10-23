@@ -115,7 +115,13 @@ def wanted(
         return False
     if not all(r.code in FINDING_CODES for r in held_by):
         return False
-    held = [lane for lane in lanes if (babysit_risk.blocking(lane) or 0) > 0]
+    codes = {r.code for r in held_by}
+    held = [
+        lane
+        for lane in lanes
+        if babysit_risk.LANES.get(lane.lane, ("",))[0] in codes
+        and (babysit_risk.blocking(lane) or 0) > 0
+    ]
     return bool(held) and all(lane.whole_review_clears for lane in held)
 
 
@@ -126,15 +132,19 @@ def _api(args: list[str], env: Mapping[str, str] | None = None) -> Any:
     return json.loads(proc.stdout or "null")
 
 
-def _short_bucket(env: Mapping[str, str] | None) -> str | None:
-    """`bucket:remaining/limit` for the first bucket under `MIN_SHARE` of its
-    limit, else None. GET /rate_limit does not count against any bucket."""
+def _short_bucket(
+    env: Mapping[str, str] | None,
+    share: float = MIN_SHARE,
+    buckets: Sequence[str] = ("core", "graphql"),
+) -> str | None:
+    """`bucket:remaining/limit` for the first of `buckets` under `share` of
+    its limit, else None. GET /rate_limit does not count against any bucket."""
     resources = _api(["rate_limit"], env)["resources"]
-    for bucket in ("core", "graphql"):
+    for bucket in buckets:
         left = int(resources[bucket]["remaining"])
         limit = int(resources[bucket]["limit"])
         # A limit of zero or less is no budget to judge against, so it refuses.
-        if limit <= 0 or left < MIN_SHARE * limit:
+        if limit <= 0 or left < share * limit:
             return f"{bucket}:{left}/{limit}"
     return None
 

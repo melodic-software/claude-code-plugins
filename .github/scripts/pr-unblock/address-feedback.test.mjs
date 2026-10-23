@@ -53,6 +53,10 @@ function fakeApi(overrides = {}) {
     listReviews: async () => overrides.reviews ?? [{ id: 10, user: { id: REVIEWER }, commit_id: HEAD }],
     listReviewComments: async () => overrides.reviewComments ?? [comment(100, REVIEWER)],
     listThreads: async () => overrides.threads ?? [thread("PRRT_1", [100])],
+    async listLabelEvents() {
+      overrides.labelEventReads?.push(1);
+      return overrides.labelEvents ?? [];
+    },
     listPullCommits: async () => Object.keys(overrides.checks ?? { [HEAD]: [] }).map((sha) => ({ sha })),
     listCheckRuns: async (sha) => (overrides.checks ?? {})[sha] ?? [],
     createIssueComment: async (pr, body) => posted.push({ pr, body }),
@@ -238,6 +242,52 @@ for (const [label, overrides] of [
   });
 }
 
+// Where needs-human came from (gate-source.mjs): a lane escalation is the
+// lanes App's label, then its marked comment; a review-lane hold is the review
+// lane's hold comment.
+const APP_USER = { login: "melodic-automation-lanes[bot]", id: APP, type: "Bot" };
+const LANE_ESCALATION = {
+  id: 2,
+  user: APP_USER,
+  body: `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${OLD_HEAD} -->\nThe pr-unblock lane stopped.`,
+  created_at: "2026-10-18T10:00:05Z",
+  updated_at: "2026-10-18T10:00:05Z",
+};
+const REVIEW_HOLD = {
+  id: 3,
+  user: { login: "github-actions[bot]", id: ACTIONS_BOT, type: "Bot" },
+  body: `<!-- claude-lane-hold lane=claude-review sha=${HEAD} criteria=cost -->\nHeld.\n\nclaude-lane: claude-review`,
+  created_at: "2026-10-18T09:00:00Z",
+  updated_at: "2026-10-18T09:00:00Z",
+};
+const APP_LABELED = [{ event: "labeled", actor: APP_USER, label: { name: "needs-human" }, created_at: "2026-10-18T10:00:00Z" }];
+const reviewedHead = { id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) };
+
+test("on a needs-human PR a lane escalation gated, a reviewer-bot thread proceeds and releases the label hold", async () => {
+  const result = await run(fakeApi({ labels: ["needs-human"], issueComments: [reviewedHead, LANE_ESCALATION], labelEvents: APP_LABELED }));
+  assert.equal(result.decision, "proceed");
+  assert.equal(result.fixRequested, true);
+  assert.equal(result.file.threads[0].root_comment_id, 100);
+});
+
+for (const [label, issueComments] of [
+  ["a review-lane hold", [reviewedHead, REVIEW_HOLD]],
+  ["a lane escalation beside a review-lane hold", [reviewedHead, REVIEW_HOLD, LANE_ESCALATION]],
+  ["an escalation marker with no resume-key line", [reviewedHead, { ...LANE_ESCALATION, body: "<!-- work-items:escalation lane=pr-unblock kind=escalated -->\nStopped." }]],
+]) {
+  test(`on a needs-human PR, a reviewer-bot thread under ${label} holds the PR (awaiting-human)`, async () => {
+    const result = await run(fakeApi({ labels: ["needs-human"], issueComments, labelEvents: APP_LABELED }));
+    assert.equal(result.decision, "skip");
+    assert.equal(result.skipReason, "awaiting-human");
+  });
+}
+
+test("without needs-human no label event is read", async () => {
+  const labelEventReads = [];
+  assert.equal((await run(fakeApi({ labelEventReads }))).decision, "proceed");
+  assert.deepEqual(labelEventReads, []);
+});
+
 test("without needs-human nothing changes and no permission is read", async () => {
   const api = fakeApi(escalated());
   const result = await run(api);
@@ -418,6 +468,47 @@ test("a github-actions[bot] thread without the note marker, or in another accoun
   // The marker from any other author opens nothing.
   const forged = fakeApi({ reviewComments: [comment(100, HUMAN, { body: VERIFY_NOTE })] });
   assert.equal((await run(forged)).decision, "skip");
+});
+
+// The pr-review-cli reusable posts each finding as github-actions[bot], the
+// body ending `\n\nclaude-lane: <lane>` (ci-workflows
+// .github/actions/publish-review/publish.cjs commentBody at v0.63.0).
+const LANE_FINDING = "severity: IMPORTANT\nThe input reaches the shell unquoted.\n\nclaude-lane: claude-security-review";
+const laneFinding = (body, reviewer = ACTIONS_BOT, lane = "claude-security-review") =>
+  fakeApi({
+    issueComments: [{ id: 1, user: { id: ACTIONS_BOT }, body: marker(lane, HEAD) }],
+    reviewComments: [comment(100, ACTIONS_BOT, { body })],
+    reviews: [{ id: 10, user: { id: reviewer }, commit_id: HEAD }],
+  });
+
+test("a github-actions[bot] finding ending in the lane footer is kept as the reviewer's", async () => {
+  const result = await run(laneFinding(LANE_FINDING));
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.threads[0].comments, [{ id: 100, author: "reviewer", body: LANE_FINDING }]);
+  // Trailing blank lines do not hide the footer.
+  assert.equal((await run(laneFinding(`${LANE_FINDING}\n\n`))).decision, "proceed");
+});
+
+test("the code lane's github-actions[bot] finding is kept as the reviewer's", async () => {
+  const body = "The loop skips the last item.\n\nclaude-lane: claude-review";
+  const result = await run(laneFinding(body, ACTIONS_BOT, "claude-review"));
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.threads[0].comments, [{ id: 100, author: "reviewer", body }]);
+});
+
+test("a github-actions[bot] comment whose last line is not a review lane's footer is no finding", async () => {
+  for (const body of [
+    "The input reaches the shell unquoted.",
+    "claude-lane: claude-security-review\nThe footer is not the last line.",
+    "The input reaches the shell.\n\nclaude-lane: pr-verify",
+  ]) {
+    assert.equal((await run(laneFinding(body))).decision, "skip", body);
+  }
+  // The footer on another account's comment, or in a review another account
+  // submitted, opens nothing.
+  const human = fakeApi({ reviewComments: [comment(100, HUMAN, { body: LANE_FINDING })] });
+  assert.equal((await run(human)).decision, "skip");
+  assert.equal((await run(laneFinding(LANE_FINDING, REVIEWER))).decision, "skip");
 });
 
 test("a later github-actions[bot] comment on a verifier note is no finding", async () => {

@@ -4,6 +4,18 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.27.3] - 2026-10-23
+
+### Changed
+
+- `docpage-digest` dual verification gives correction rounds a convergence rule and a cap. A correction for Summary or Implications prose that dropped part of a conditional rule removes the paraphrase and points at the claim labels carrying the rule, instead of adding scope words. After 3 correction rounds on a digest unit, its open findings move to the interview handoff with their round history and no fourth round runs; an open `high` finding still goes to the operator as a stop.
+
+## [0.27.2] - 2026-10-23
+
+### Fixed
+
+- `docpage-digest` names the checklist's `- Canonical URL:` value line wherever it reads or fills the Canonical URL (the run-start collision check, both fill sites, and the link-resolution and coverage reads), so a first-match read no longer lands on the template's prose and refuses a valid resume.
+
 ## [0.27.1] - 2026-10-22
 
 ### Fixed

@@ -1,5 +1,17 @@
 # Changelog: session-flow plugin
 
+## [1.2.0] - 2026-10-23
+
+### Added
+
+- `keep-going` now accounts for agent-team teammates and in-flight MCP calls after a stop. It reads a prior session's team task list when one exists and reports each task's last recorded status (or `none recorded`), reports an MCP call as not observable with the reason, and quotes a bounded excerpt of a background output file that a `claude mcp serve` result names, only when the path resolves inside Claude Code's temp directory, as untrusted partial output whose completion is unknown, instead of skipping either kind silently. The shared `off-thread-work.md` reference lists both kinds, each with a pointer, as-of date and recheck trigger, and a new `keep-going` eval covers the case ([#7906](https://github.com/melodic-software/claude-code-plugins/issues/7906)).
+
+## [1.1.0] - 2026-10-23
+
+### Added
+
+- `/session-flow:audit-friction` records which tool follows each hook-block denial. The session scanner adds `next_tool` (the next tool call in the same transcript file, `None` when none follows) and `next_ok` (whether that call succeeded) to each hook-block denial event, and `friction.py mine` tallies `next_tool` per event key and side, with ok, failed and unknown counts, in both the JSON and the markdown output. Sessions collected before this change carry no such field. The tally reads stored events, so a session past the per-session event cap contributes only the events it kept.
+
 ## [1.0.1] - 2026-10-22
 
 ### Fixed

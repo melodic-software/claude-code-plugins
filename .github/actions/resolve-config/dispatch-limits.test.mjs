@@ -43,10 +43,11 @@ function baseWith(text) {
 
 // The lanes App bot's user id (.github/standards/trusted-actors/trusted-actors.json).
 const LANES_APP = 337595936;
-// Lanes App PRs whose head's ci-status failed, as fix-ci-dispatch.mjs lists them.
+// Lanes App PRs whose head's lanes failed, as fix-ci-dispatch.mjs lists them.
 const ciFixPull = (number) => {
   const head = String(number).padStart(40, "c");
   const ciStatus = { __typename: "CheckRun", name: "ci-status", status: "COMPLETED", conclusion: "FAILURE", checkSuite: { app: { databaseId: 15368 } } };
+  const ciLanes = { __typename: "StatusContext", context: "ci-lanes", state: "FAILURE", creator: { login: "github-actions[bot]" } };
   return {
     number,
     isDraft: false,
@@ -55,11 +56,11 @@ const ciFixPull = (number) => {
     headRefOid: head,
     author: { databaseId: LANES_APP },
     labels: { nodes: [] },
-    commits: { nodes: [{ commit: { oid: head, statusCheckRollup: { contexts: { nodes: [ciStatus] } } } }] },
+    commits: { nodes: [{ commit: { oid: head, statusCheckRollup: { contexts: { nodes: [ciStatus, ciLanes] } } } }] },
   };
 };
 
-// Ready PRs a person opened that change Markdown and never had fix-docs, as
+// Ready PRs that change Markdown and never had fix-docs, as
 // fix-docs-dispatch.mjs lists them.
 const docsPull = (number) => {
   const head = String(number).padStart(40, "d");
@@ -69,7 +70,7 @@ const docsPull = (number) => {
     isCrossRepository: false,
     baseRefName: "main",
     headRefOid: head,
-    author: { __typename: "User", login: "someone" },
+    author: { __typename: "User", login: "someone", databaseId: 4242 },
     labels: { nodes: [] },
     files: { nodes: [{ path: "README.md" }], pageInfo: { hasNextPage: false } },
     commits: { nodes: [{ commit: { oid: head, statusCheckRollup: { contexts: { nodes: [] } } } }] },

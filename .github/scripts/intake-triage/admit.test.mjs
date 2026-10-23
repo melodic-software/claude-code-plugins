@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, admit, decide, loadRules } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, admit, decide, loadRules, noteUnrunnable, unrunnableCriteria } from "./admit.mjs";
+import { REFINE_MARKER, render, validateOutput } from "./refine.mjs";
 
 const RULES = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)));
 const HUMAN = 153232337;
@@ -15,6 +16,15 @@ const NEEDS_DECISION = "status: needs-decision";
 const BODY = ["## Problem", "", "`plugins/session-flow/README.md:3` says eighteen.", "", "## Done when", "", "- [ ] Line 3 says nineteen."].join(
   "\n",
 );
+// #9287's done-when, as filed.
+const CANARY = [
+  "## Done when",
+  "",
+  "- [ ] Line 9 of `plugins/machine-health/README.md` says 27 checks.",
+  "- [ ] Run `/machine-health:audit` on a Windows 11 host and confirm the report lists 27 check results.",
+  "- [ ] One changelog fragment made with `scripts/new-changelog-fragment.sh machine-health patch`.",
+].join("\n");
+const HOSTS = ["code.claude.com", "docs.github.com"];
 const issueOf = (overrides = {}) => ({
   number: 7,
   state: "open",
@@ -40,6 +50,7 @@ const facts = (overrides = {}) => ({
   events: [],
   humans,
   appId: APP,
+  webHosts: HOSTS,
   repository: "o/r",
   ...overrides,
 });
@@ -105,6 +116,11 @@ describe("decide", () => {
       /duplicate/,
     ],
     ["criterion 9: an author who is not listed", { issue: issueOf({ user: { id: OUTSIDER } }) }, /author/],
+    [
+      "a lane-runnable done-when: a Windows-host criterion (#9287)",
+      { issue: issueOf({ body: CANARY }) },
+      /item 2 \(a run on a host the lane is not: "Run \/machine-health:audit on a Windows 11 host.*recommended split/,
+    ],
   ];
   for (const [name, input, reason] of refusals) {
     test(`refuses for a person on ${name}`, () => {
@@ -220,15 +236,61 @@ describe("decide", () => {
     );
     assert.equal(result.verdict, "refuse");
   });
+
+  describe("criterion 7 from the lanes App's refinement comment", () => {
+    const thin = issueOf({ body: "Make the README skill count right." });
+    const refinement = (user, body = `${REFINE_MARKER}\n**Refinement.**\n\n- [ ] Line 3 says nineteen.`) => ({ id: 41, body, user, created_at: "2026-10-20T00:00:00Z" });
+    const app = { id: APP, login: "melodic-automation-lanes[bot]", type: "Bot" };
+
+    test("admits a thin issue whose task list is in the App's refinement comment", () => {
+      assert.deepEqual(decide(facts({ issue: thin, comments: [refinement(app)] })), { verdict: "admit", reasons: [] });
+    });
+
+    test("a rendered refinement criterion that reads a page outside the lane's web hosts is still refused", () => {
+      const output = { exact: true, outcome: "Match the spec.", criteria: ["The page at https://example.org/spec says nineteen."], dependencies: [], related: [], questions: [], sources: [] };
+      const body = render(validateOutput(output, new Set()));
+      assert.ok(!body.includes("https://"), "the rendered comment breaks the URL");
+      const result = decide(facts({ issue: thin, comments: [refinement(app, body)] }));
+      assert.equal(result.verdict, "refuse");
+      assert.match(result.reasons.join(), /example\.org/);
+    });
+
+    const lookalikes = [
+      ["github-actions[bot]", refinement({ id: 41898282, login: "github-actions[bot]", type: "Bot" })],
+      ["a listed human", refinement({ id: HUMAN, login: "maintainer", type: "User" })],
+      ["an outsider using the App's login text", refinement({ id: OUTSIDER, login: "melodic-automation-lanes[bot]", type: "User" })],
+      ["the App, with the marker mid-body", refinement(app, `See below.\n${REFINE_MARKER}\n- [ ] Line 3 says nineteen.`)],
+      ["the App, with only a quoted task list", refinement(app, `${REFINE_MARKER}\n> - [ ] Line 3 says nineteen.`)],
+      ["the App's admission comment", refinement(app, `${ADMIT_MARKER}\n- [ ] Line 3 says nineteen.`)],
+    ];
+    test("a refinement older than the body's last edit does not count; one newer does", () => {
+      const before = decide(facts({ issue: thin, comments: [refinement(app)], bodyEditedAt: "2026-10-21T00:00:00Z" }));
+      assert.equal(before.verdict, "refuse");
+      assert.match(before.reasons.join(), /task list/);
+      const after = decide(facts({ issue: thin, comments: [refinement(app)], bodyEditedAt: "2026-10-19T00:00:00Z" }));
+      assert.equal(after.verdict, "admit");
+    });
+
+    for (const [name, comment] of lookalikes) {
+      test(`a look-alike from ${name} does not count`, () => {
+        const result = decide(facts({ issue: thin, comments: [comment] }));
+        assert.equal(result.verdict, "refuse");
+        assert.match(result.reasons.join(), /task list/);
+      });
+    }
+  });
 });
 
 // A fake GitHub for admit(): the issue, its parent, blockers, timeline,
 // events and comments, recording every call.
-function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, timeline = [], events = [], comments = [] } = {}) {
+function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, timeline = [], events = [], comments = [], bodyEditedAt = null } = {}) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
     const base = "/repos/o/r/issues/7";
+    if (method === "POST" && path === "/graphql") {
+      return { data: { repository: { issue: { lastEditedAt: bodyEditedAt } } } };
+    }
     if (method !== "GET") {
       return null;
     }
@@ -278,6 +340,7 @@ const go = (fake, { status = open } = {}) =>
     rules: RULES,
     humans,
     appId: APP,
+    webHosts: HOSTS,
     status: async () => status,
     log: () => {},
   });
@@ -336,6 +399,17 @@ describe("admit", () => {
     assert.match(done[2], /task list/);
   });
 
+  test("a Windows-host done-when item stays out of the lane: needs-decision and a recommended split, never agent-ready", async () => {
+    const fake = fakeGitHub({ issue: issueOf({ body: CANARY }) });
+    const result = await go(fake);
+    assert.equal(result.outcome, "refused");
+    const done = writes(fake.calls);
+    assert.ok(!done.some((call) => call.includes("/labels ") && call.includes(AGENT_READY)));
+    assert.match(done[0], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/status%3A%20ready/);
+    assert.equal(done[1], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+    assert.match(done[2], /item 2 .*Windows 11 host.*recommended split: keep the other items here .* needs-human child issue/);
+  });
+
   test("a refusal edits the App's earlier admission comment instead of adding one", async () => {
     const fake = fakeGitHub({
       issue: issueOf({ body: "Make the README better." }),
@@ -349,6 +423,17 @@ describe("admit", () => {
     });
     await go(fake);
     assert.match(writes(fake.calls).at(-1), /^PATCH \/repos\/o\/r\/issues\/comments\/31 /);
+  });
+
+  test("a thin issue the App refined is admitted from the comment's task list; another author's copy is refused", async () => {
+    const thin = issueOf({ body: "Make the README skill count right." });
+    const comment = (user) => ({ id: 41, body: `${REFINE_MARKER}\n- [ ] Line 3 says nineteen.`, user });
+    const refined = await go(fakeGitHub({ issue: thin, comments: [comment({ id: APP, login: "melodic-automation-lanes[bot]", type: "Bot" })] }));
+    assert.equal(refined.outcome, "admitted");
+    const copied = await go(fakeGitHub({ issue: thin, comments: [comment({ id: OUTSIDER, login: "someone", type: "User" })] }));
+    assert.equal(copied.outcome, "refused");
+    const rewritten = await go(fakeGitHub({ issue: thin, bodyEditedAt: "2026-10-21T00:00:00Z", comments: [{ ...comment({ id: APP, login: "melodic-automation-lanes[bot]", type: "Bot" }), created_at: "2026-10-20T00:00:00Z" }] }));
+    assert.equal(rewritten.outcome, "refused", "the body changed after the refinement");
   });
 
   test("an open blocker posts the reason and keeps status: ready", async () => {
@@ -411,5 +496,132 @@ describe("admit", () => {
       await go(fake);
       assert.ok(writes(fake.calls).includes(`DELETE /repos/o/r/issues/7/labels/${DEFERRED} undefined`));
     }
+  });
+});
+
+
+describe("unrunnableCriteria", () => {
+  const kinds = (line, hosts = HOSTS) => unrunnableCriteria(`- [ ] ${line}`, "- [ ] ", hosts).found.map(({ kind }) => kind);
+  const positives = [
+    ["a Windows host run", "Run `/machine-health:audit` on a Windows 11 host and confirm 27 results.", /host/],
+    ["a macOS machine", "Install the plugin on a macOS machine and see the banner.", /host/],
+    ["a WSL box", "The hook fires from a WSL2 box.", /host/],
+    ["a paid eval", "Run a paid eval of the skill and record the delta.", /paid eval/],
+    ["a plugin eval run", "Run `claude plugin eval` on the suite and the delta is positive.", /paid eval/],
+    ["N consecutive runs", "Run the lane 20 consecutive runs without a failure.", /repeated run/],
+    ["consecutive runs pass", "Twenty consecutive runs pass on main.", /repeated run/],
+    ["a measurement over time", "Monitor the queue for two weeks and confirm no backlog.", /over time/],
+    ["after days", "Confirm after 7 days that the cache stays under 1 GB.", /over time/],
+    ["a page outside the lane's hosts", "The page at https://example.com/docs shows the new flag.", /example\.com/],
+    ["a page an item compares against", "Confirm the table matches https://example.com/page.", /example\.com/],
+  ];
+  for (const [name, line, kind] of positives) {
+    test(`flags ${name}`, () => {
+      assert.match(kinds(line).join(), kind);
+    });
+  }
+  const negatives = [
+    ["a Windows-host criterion named in prose", "A test covers a Windows-host criterion staying out of the lane."],
+    ["a host named without a run", "The README says Windows host support is fully implemented."],
+    ["the lane's own OS", "Run the script on a Linux host and it exits 0."],
+    ["a list that names a paid eval", "Intake's rubric marks a host or OS run, a paid eval, or a loaded multi-run."],
+    ["a no-spend eval", "Run `claude plugin eval --validate` on the suite and it passes."],
+    ["a failure threshold", "The lane pauses after 3 consecutive failures."],
+    ["a retention period", "The sweep deletes files older than 30 days."],
+    ["a config duration", "Set `cleanupPeriodDays` to keep transcripts for 30 days."],
+    ["a GitHub link", "The PR at https://github.com/o/r/pull/1 links the issue."],
+    ["a lane docs host", "The section matches https://code.claude.com/docs/en/hooks."],
+    ["a localhost URL", "The server answers on http://localhost:8080/health."],
+    ["a URL named as text to edit", "Replace https://example.com in README.md with https://code.claude.com."],
+    ["an expiry period", "Verify tokens expire after 30 days."],
+    ["a retention setting", "Confirm the config keeps transcripts for 30 days."],
+    ["a window naming kept data", "Monitor that transcripts are kept for the next 30 days."],
+    ["a window naming retention", "Track retention for the next 30 days."],
+    ["a monthly summary", "Monitor the logs for a monthly summary line."],
+    ["hourly rollups", "Watch the output for hourly rollups."],
+    ["a lane host at a sentence end", "The page matches https://code.claude.com."],
+    ["GitHub at a sentence end", "Check the repository at https://github.com."],
+    ["a subdomain of a wildcard host", "Confirm the step matches https://docs.example.org/en/actions.", ["*.example.org"]],
+  ];
+  for (const [name, line, hosts] of negatives) {
+    test(`passes ${name}`, () => {
+      assert.deepEqual(kinds(line, hosts), []);
+    });
+  }
+  test("any web host skips the URL check; no listed hosts allow only GitHub and local ones", () => {
+    assert.deepEqual(kinds("See https://example.com.", "any"), []);
+    assert.equal(kinds("Confirm it matches https://code.claude.com/docs.", []).length, 1);
+    assert.equal(unrunnableCriteria("- [ ] Confirm it matches https://code.claude.com/docs.", "- [ ] ", undefined).found.length, 1);
+  });
+  test("a *. host allows only that domain's subdomains", () => {
+    assert.equal(kinds("Confirm it matches https://example.org/x.", ["*.example.org"]).length, 1);
+    assert.equal(kinds("Confirm it matches https://badexample.org/x.", ["*.example.org"]).length, 1);
+  });
+  test("an observation window over time is flagged", () => {
+    assert.match(kinds("Check error rates over the next two weeks.").join(), /over time/);
+    assert.match(kinds("Track the hit rate for 14 days after release.").join(), /over time/);
+  });
+  test("reads only task-list lines and numbers items from 1", () => {
+    const body = "Runs on a Windows 11 host today.\n- [ ] Fix line 3.\n- [ ] Run it on a Windows 11 host.";
+    assert.deepEqual(unrunnableCriteria(body, "- [ ] ", HOSTS), {
+      items: 2,
+      found: [{ n: 2, kind: "a run on a host the lane is not", text: "Run it on a Windows 11 host." }],
+    });
+  });
+  test("quotes issue text without backticks or live mentions, cut to 80 characters", () => {
+    const [{ text }] = unrunnableCriteria(`- [ ] Ask @owner to run \`x\` on a Windows 11 host ${"and more ".repeat(20)}`, "- [ ] ", HOSTS).found;
+    assert.ok(!text.includes("`"));
+    assert.ok(text.includes("@\u200bowner"));
+    assert.equal(text.length, 80);
+  });
+});
+
+test("decide: every done-when item unrunnable says a person takes the issue, with no split", () => {
+  const result = decide(facts({ issue: issueOf({ body: "- [ ] Run it on a Windows 11 host." }) }));
+  assert.equal(result.verdict, "refuse");
+  assert.match(result.reasons.join("; "), /no done-when item is left for the lane, so a person takes the issue/);
+});
+
+describe("noteUnrunnable", () => {
+  const HELD = issueOf({ body: CANARY, labels: [{ name: NEEDS_DECISION }] });
+  const note = (fake, issue = HELD) => noteUnrunnable({ github: fake.github, repository: "o/r", issue, rules: RULES, webHosts: HOSTS, log: () => {} });
+  test("a held issue with a Windows-host item gets the split comment and no label change (#9372)", async () => {
+    const fake = fakeGitHub({ issue: HELD });
+    const result = await note(fake);
+    assert.equal(result.outcome, "noted");
+    const done = writes(fake.calls);
+    assert.equal(done.length, 1);
+    assert.match(done[0], /^POST \/repos\/o\/r\/issues\/7\/comments /);
+    assert.ok(done[0].includes(ADMIT_MARKER.replaceAll('"', '\\"')));
+    assert.match(done[0], /item 2 .*Windows 11 host.*recommended split: keep the other items here as the admissible issue/);
+  });
+  test("a held issue whose done-when the lane can run gets nothing", async () => {
+    const fake = fakeGitHub();
+    assert.deepEqual(await note(fake, issueOf()), { outcome: "none", reasons: [] });
+    assert.deepEqual(writes(fake.calls), []);
+  });
+  test("an issue a person already made agent-ready gets no note", async () => {
+    const issue = issueOf({ body: CANARY, labels: [{ name: NEEDS_DECISION }, { name: AGENT_READY }] });
+    const fake = fakeGitHub({ issue });
+    assert.deepEqual(await note(fake, issue), { outcome: "skipped", reasons: [`already ${AGENT_READY}`] });
+    assert.deepEqual(writes(fake.calls), []);
+  });
+  test("an issue whose agent-ready was removed before gets no note", async () => {
+    const fake = fakeGitHub({ issue: HELD, events: [{ event: "unlabeled", label: { name: AGENT_READY } }] });
+    assert.deepEqual(await note(fake), { outcome: "skipped", reasons: [`${AGENT_READY} was removed before`] });
+    assert.deepEqual(writes(fake.calls), []);
+  });
+  test("a repeated run leaves an unchanged note alone, and edits a changed one in place", async () => {
+    const first = fakeGitHub({ issue: HELD });
+    await note(first);
+    const posted = writes(first.calls)[0];
+    const body = JSON.parse(posted.slice(posted.indexOf("{"))).body;
+    const own = (text) => [{ id: 31, body: text, user: { login: "melodic-automation-lanes[bot]" } }];
+    const again = fakeGitHub({ issue: HELD, comments: own(body) });
+    assert.equal((await note(again)).outcome, "noted");
+    assert.deepEqual(writes(again.calls), []);
+    const changed = fakeGitHub({ issue: HELD, comments: own(`${ADMIT_MARKER}\nold`) });
+    await note(changed);
+    assert.match(writes(changed.calls)[0], /^PATCH \/repos\/o\/r\/issues\/comments\/31 /);
   });
 });

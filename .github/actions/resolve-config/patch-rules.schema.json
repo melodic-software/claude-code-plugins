@@ -42,11 +42,16 @@
           "minItems": 1,
           "uniqueItems": true,
           "items": { "enum": ["any", "kept-threads", "dependency-manifests", "merge-result"] },
-          "description": "What a path the refusals pass must also meet. any: nothing more; kept-threads: the path of a thread the run kept; dependency-manifests: an npm or pip manifest or lock file outside .github/; merge-result: the blob the base merge leaves there, or a conflicted path left with no conflict markers."
+          "description": "What a path the refusals pass must also meet. any: nothing more; kept-threads: the path of a thread the run kept; dependency-manifests: an npm or pip manifest or lock file outside .github/; merge-result: a path the base merge left conflicted, which the patch must leave with no conflict markers; the merge's own changes from the base side pass through without facing the rules."
         },
         "max-files": {
           "oneOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }],
-          "description": "The most paths one patch may change; null for no limit."
+          "description": "The most paths one patch may change; null for no limit. Under a merge row it counts only the patch's own changes, measured from the conflict tree, never the base side's."
+        },
+        "max-blobs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Merge rows: the most blobs one merge commit may upload, counting each blob that neither the head nor the base holds at its path; over it, nothing is written."
         },
         "requires": {
           "type": "array",
@@ -87,6 +92,10 @@
           "enum": [null, "ci-escalations"],
           "description": "The producer report apply-patch reads; ci-escalations: the checks the model escalated."
         },
+        "content-rule": {
+          "enum": ["dependency-version-change"],
+          "description": "What each changed file's bytes must also meet, after every refusal and allow rule passes and before any commit is built; a refusal escalates as protected-path. dependency-version-change: each file modified in place, a regular file, an npm or pip manifest or lock file in fix scope, changed only by a version (dependency-classify.mjs fixRefusal)."
+        },
         "skip-moved-head": {
           "type": "boolean",
           "default": false,
@@ -98,9 +107,9 @@
           "description": "true: after every refusal passes, apply-patch makes each new or changed file that ends in .sh or starts with #! executable, since the model's tools set no file mode."
         },
         "empty-at-push": {
-          "enum": ["empty", "invalid"],
+          "enum": ["empty", "invalid", "conflict"],
           "default": "empty",
-          "description": "The escalation kind for a patch that applies but changes nothing at push time: empty gives the row's empty reason, invalid its invalid reason (ci-context, since the producer said it wrote a change)."
+          "description": "The escalation kind for a patch that applies but changes nothing at push time: empty gives the row's empty reason, invalid its invalid reason (ci-context, since the producer said it wrote a change), conflict its unresolved-conflict reason (merge-base, where an empty patch leaves the conflicts as git left them)."
         },
         "escalations": {
           "type": "array",

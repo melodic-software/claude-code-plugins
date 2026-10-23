@@ -1031,10 +1031,12 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    - **Pointer**: when the commits list's cap matters, fetch
      [list commits on a pull request](https://docs.github.com/en/rest/pulls/pulls#list-commits-on-a-pull-request)
      live. **As of**: 2026-10-12. **Recheck trigger**: that section changes the cap or its paging.
-   A LOW score merges, and so does a MED one whose every reason is a class or size reason
-   (`babysit_risk.holds`, #9270): an unbound or missing review lane, an open claude-review
-   finding, an unread file listing and every HIGH reason hold. The security lane holds only on
-   a CRITICAL finding. The HIGH path floor holds only the external-effect set
+   A LOW score merges, and so does a MED one whose every reason is a class, size or reported
+   review-finding reason (`babysit_risk.holds`): an open claude-review finding and an IMPORTANT
+   or SUGGESTION security finding are reported and do not hold; an unbound or missing review
+   lane, an unread file listing and every HIGH reason hold. The security lane holds only on a
+   CRITICAL finding, and a change adding or widening a trusted-actors entry scores HIGH as
+   `trust-gate:trusted-actors`. The HIGH path floor holds only the takeover set
    `babysit_risk.py`'s docstring names. A plugin or marketplace manifest change scores HIGH as
    `manifest-review-required` only when it installs or runs something new: an executable
    `plugin.json` key, or a marketplace plugin added, removed, renamed or re-sourced. A change that could add or

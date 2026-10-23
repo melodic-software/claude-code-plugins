@@ -3,6 +3,98 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.11.7] - 2026-10-23
+
+### Changed
+
+- The HIGH path floor holds only the takeover set: `.github/standards/trusted-actors/**`, `.github/actions/check-trusted-trigger/**`, `**/CODEOWNERS`, `**/.gitmodules` and `.github/actions/resolve-config/**`. Agent permission config (`**/settings*.json`), package manifests and lockfiles, and every workflow, `release-*.yml` included, leave it and merge on the review lanes. With the floor on, any change under the trusted-actor directory scores HIGH, a pure list removal included. The cost hold and the outside-author hold are unchanged.
+- `own_paths` leaves out only `NEVER_FLOOR_EXEMPT` (the floor), so a trusted author's own `settings*.json`, package manifest and `requirements*.txt` lines are its own. `INSTRUCTION_PATH_RE` and its twin test are gone; `thread-scope.mjs` `INSTRUCTION_PATH`, which bounds pr-unblock's fix scope, is unchanged.
+
+## [2.11.6] - 2026-10-23
+
+### Fixed
+
+- `ci --ci` reads the open review findings in the fix-ci context file and fixes a reproduced check a finding already explains, rather than escalating it.
+
+## [2.11.5] - 2026-10-23
+
+### Changed
+
+- The HIGH path floor also holds `.github/actions/resolve-config/**`, so a change there scores HIGH and waits for the owner: the token broker runs that directory's code from main in its signer process.
+
+- The pr-merge gate accepts a verdict artifact named `pr-verify-<pr>-<sha>-<verdict>-<ref-digest>`, the digest being the first `babysit_verify_evidence.HEAD_REF_DIGEST_HEX` (16) hex digits of the SHA-256 of the head branch the verdict records. For an untied FAIL so named, the gate ties it to the pull request from the name instead of downloading its verdict.json; a name without the digest is downloaded and read as before. One decision changes: a digest-named untied FAIL whose verdict.json cannot be read used to refuse `verify:unreadable`, and now its name decides. That is safe because the name is trusted only from a run of verifier origin, the same check that authenticates the verdict.json, and because equal branches always give equal digests, so a collision can only tie a FAIL, never untie one. pr-verify still writes the name without the digest; a later change switches it once this reader has run on main.
+
+## [2.11.4] - 2026-10-23
+
+### Changed
+
+- The pr-merge gate fetches each verdict.json by the listed artifact's id (`GET .../actions/artifacts/{id}/zip`, one request) instead of `gh run download`, which first lists the run's artifacts (two requests). An artifact listed without an id still goes through `gh run download`. An untied FAIL record a gate process could not read is shared in `BABYSIT_RUN_CACHE` (`unreadable-fail-head-ref`, by artifact id), so the run's later candidates refuse on it without downloading it again; a failure only refuses, and `carry-run-cache.mjs` does not carry it to the next run. Any failure to unpack or parse an archive, a corrupt deflate stream's `zlib.error` included, is now an unreadable record, where before that error escaped the reader and failed the candidate's gate process. `fail_summary` fetches the head FAIL by the id its Reader's listing gives. No gate decision changes otherwise. `babysit_util.run_command` and `babysit_gh.gh_capture` take `binary=True` to keep stdout as bytes, for the zip.
+
+## [2.11.3] - 2026-10-23
+
+### Changed
+
+- `repository_is_archived` keeps each repository's archived flag for the life of the process, keyed by the casefolded repository, so a PR queue snapshot of N pull requests in one repository makes one archived read instead of N, and `request_review.py`'s re-read after the request reuses the first answer. A failed read is not kept.
+
+- `collect_lane_runs` uses each kept run's fresh `GET actions/runs/{id}` response as its latest attempt instead of also reading `actions/runs/{id}/attempts/{run_attempt}`, one fewer call per kept review-lane run on every merge gate. Earlier attempts are still read. The fresh run read stays: it gives the attempt count and is how a deleted run is noticed. A recorded live pair shows the two responses differ only in `jobs_url` and `logs_url`, which nothing reads.
+
+## [2.11.2] - 2026-10-23
+
+### Changed
+
+- Every babysit script counts its gh invocations by token (`default`, or `override` for a call with its own `GH_TOKEN`) and endpoint kind (`graphql`, a REST method and route template that keeps only the REST route words the scripts call and logs every other segment, an owner, branch or path included, as `{}`, or `gh <sub> <verb>`), and prints one `babysit-gh-calls` JSON line to stderr on exit, so a pr-merge job log carries each gate run's counts. A `--paginate` key is marked `+paginate`, since it counts invocations, not pages. Stdout and every decision are unchanged; a process that made no gh call prints nothing.
+
+## [2.11.1] - 2026-10-23
+
+### Changed
+
+- The unattended merge gate reads its review evidence under `BABYSIT_VERIFY_GH_TOKEN` only while that token's core bucket has at least `merge.read-token-floor` of its limit left (`PipelineConfig.read_token_floor`, default 0.3, taken from the default branch head). Below the floor, or when `GET /rate_limit` cannot be read, the reads keep the process (lane) token and a `read-token-floor:` line goes to stderr. A read under the read token refused for a rate limit (`babysit_gh.gh_rate_limited`: a 429, or a 403 naming one) makes `_lane_evidence` read everything again with the process token and record the token in `BABYSIT_RUN_CACHE` (`read-token-limited`), so later candidates skip it; any other refusal still raises. `babysit_whole_review._short_bucket` takes an optional `share` and `buckets`; whole-review requests keep `MIN_SHARE`.
+
+## [2.11.0] - 2026-10-23
+
+### Changed
+
+- `review-venue.sh` finds the code-review lane on ci-workflows' [`pr-review-cli.yml`](https://github.com/melodic-software/ci-workflows/blob/83b739f625b501ad40c65dee7168d836883195e1/.github/workflows/pr-review-cli.yml) from a caller whose path does not contain `security`; a caller whose path does still counts only for security-review.
+
+## [2.10.0] - 2026-10-23
+
+### Changed
+
+- The merge gate's review evidence accepts the security lane on ci-workflows' `pr-review-cli.yml`: a completion record ending in `account=fallback`, and a `github-actions[bot]` thread or summary comment whose last non-blank line is the lane's `claude-lane:` footer. A reviewed-head marker is never read a second time as a summary comment.
+- `review-venue.sh` finds the security lane on ci-workflows' `pr-review-cli.yml` when the caller's path contains `security`. It also reads a `<lane>: failure-class=skipped-validation` red as no verdict.
+- A `github-actions` summary comment counts for its lane only when it carries the REST bot identity: login `github-actions[bot]` and type `Bot`.
+
+## [2.9.0] - 2026-10-23
+
+### Changed
+
+- `pull-request dependency --ci` commits nothing and runs no command: it leaves a `fix` verdict's manifest change uncommitted in the working tree, and a later job with no model pushes it as one `[dependabot skip]` commit. It reads release notes with WebFetch on the hosts its preamble names, and its report names no fix commit ([`dependency-ci.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/pull-request/reference/dependency-ci.md)).
+
+- A branch- or head-scoped workflow-run listing that reaches GitHub's 1,000-run search cap (by `total_count` or by the runs its pages carried) is now an incomplete read, never a complete one. In `collect_lane_runs` it raises, so the unattended merge gate binds no lane (`evidence-missing`) and holds the pull request. In the post-merge check it makes the verdict unreadable (exit 3), so pr-merge holds and files no record; before, a listing past the cap read as complete with a `listing-capped` warning. `babysit_gh` gains `RUN_SEARCH_CAP` and `run_search_capped`.
+
+### Fixed
+
+- `babysit_merge.py --unattended --authority pr-merge` holds a pull request before it enqueues when an owner, member or collaborator's newest comment (issue comment, review summary or inline review comment) says "do not merge" (`HUMAN_MERGE_VETO_RE`). A later comment from that person lifts the hold. The autopilot tier's comment reading moves into one shared reader, and the tier's own wider scan is unchanged. A bare "wait", or a blocking word such as "regression", holds nothing on the lane ([#9216](https://github.com/melodic-software/claude-code-plugins/issues/9216)).
+
+## [2.8.0] - 2026-10-23
+
+### Changed
+
+- The unattended merge gate holds on a review flag only for a cost increase, a trusted-actor widening or a CRITICAL security finding. Open claude-review findings and lower security findings are listed in the reasons comment as `findings:<lane>` and no longer hold the merge.
+- A change that adds or widens an entry in `.github/standards/trusted-actors/trusted-actors.json` always scores HIGH as `trust-gate:trusted-actors` and waits for the owner, whatever `merge.diff-check.high-path-floor` says; a change that only removes entries merges.
+
+## [2.7.0] - 2026-10-23
+
+### Added
+
+- The merge gate takes `--candidate-deadline-seconds` with `--authority pr-merge`: its two read phases (the merge policy, then the verdict) start no command past the deadline and the gate exits 11 with an `unknown:candidate-deadline` error, before any further write. Writes are never bounded, so a merge-queue write is never cut short. Without the flag nothing changes.
+
+## [2.6.1] - 2026-10-23
+
+### Changed
+
+- The unattended merge gate reads its review evidence (the pull request's timeline and comments, and the review-lane runs with their attempts, jobs and annotations) under `BABYSIT_VERIFY_GH_TOKEN` when it is set, as the verdict reader's Actions reads already do, so those GETs no longer spend the lane App's rate limit. Every write keeps the process token; without the variable every read does too. `gh_json`, `fetch_paginated_api` and `collect_lane_runs` take an optional `env_overrides`.
+
 ## [2.6.0] - 2026-10-23
 
 ### Changed

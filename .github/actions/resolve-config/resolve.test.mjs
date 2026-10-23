@@ -804,6 +804,66 @@ test("a resolved grant is frozen and leaves effect-grants.json untouched", () =>
   assert.ok(Object.isFrozen(selected.grant));
 });
 
+const withActivityGrants = (activityGrants, lane = "pr-run-checks") => ({
+  laneRules: {
+    ...LANE_RULES,
+    [lane]: { ...LANE_RULES[lane], "activity-grants": activityGrants },
+  },
+});
+
+test("a lane-rules.json activity grant adds actions read to that activity alone", () => {
+  const overrides = withActivityGrants({ "run-tests": { actions: "read" } });
+  const widened = { ...READ_GRANT, actions: "read" };
+  assert.deepEqual(
+    grantOf(fixture("valid.yaml"), { activity: "run-tests" }, overrides),
+    { effect: "read", grant: widened },
+  );
+  assert.deepEqual(
+    grantOf(fixture("valid.yaml"), { activity: "measure-coverage" }, overrides),
+    { effect: "read", grant: READ_GRANT },
+  );
+  const { selected, lane } = run(fixture("valid.yaml"), { activity: "run-tests" }, overrides);
+  assert.deepEqual(selected.grant, widened);
+  assert.ok(Object.isFrozen(selected.grant));
+  assert.deepEqual(lane.slots.find((slot) => slot.name === "measure-coverage").grant, READ_GRANT);
+  assert.deepEqual(EFFECT_GRANTS.read, READ_GRANT);
+});
+
+test("an activity grant other than exactly actions read is rejected", () => {
+  const grants = [
+    null,
+    [],
+    "actions",
+    { "run-tests": { actions: "write" } },
+    { "run-tests": { contents: "write" } },
+    { "run-tests": { actions: "read", contents: "write" } },
+    { "run-tests": {} },
+    { "run-tests": null },
+    { "no-such-activity": { actions: "write" } },
+  ];
+  for (const activityGrants of grants) {
+    const overrides = withActivityGrants(activityGrants);
+    assertRejected(
+      () => grantOf(fixture("valid.yaml"), { activity: "measure-coverage" }, overrides),
+      "lane-grant",
+    );
+    assertRejected(
+      () => run(fixture("valid.yaml"), { activity: "measure-coverage" }, overrides),
+      "lane-grant",
+    );
+  }
+});
+
+test("an activity grant naming an activity the lane does not hold adds nothing", () => {
+  const overrides = withActivityGrants({ "fix-prose": { actions: "read" }, constructor: { actions: "read" } });
+  for (const activity of ["run-tests", "measure-coverage"]) {
+    assert.deepEqual(
+      grantOf(fixture("valid.yaml"), { activity }, overrides),
+      { effect: "read", grant: READ_GRANT },
+    );
+  }
+});
+
 test("a non-string effect is rejected even when the schema lets it through", () => {
   const schema = structuredClone(SCHEMA);
   schema.$defs.leaf.properties.effect = {};
@@ -1278,11 +1338,13 @@ test("prepare: review-threads on a non-read skill leaf resolves and is carried o
   assert.equal(runRefine(config, { activity: "simplify", facts: LINT_FACTS }).selected.prepare, "review-threads");
 });
 
-test("prepare on a read skill leaf is rejected", () => {
+// A read merge-base skill must hand its resolutions on as a patch: the schema
+// requires applied-by.patch of it.
+test("prepare on a read skill leaf with no applied-by.patch is rejected", () => {
   const config = withPrepare((doc) => {
     doc.activities.simplify.effect = "read";
   });
-  assertRejected(() => runRefine(config), "invalid-prepare");
+  assertRejected(() => runRefine(config), "invalid-config");
 });
 
 test("prepare on a script leaf, or a value other than merge-base, fails the schema", () => {
@@ -1497,7 +1559,7 @@ function resolveEveryExampleSlot(vocabulary) {
 
 test("the README example validates and resolves for each of its lanes", () => {
   const results = resolveEveryExampleSlot(VOCABULARY);
-  assert.equal(Object.keys(results).length, 15);
+  assert.equal(Object.keys(results).length, 16);
   // The example's models block routes claude to review and leaves the rest
   // on default-profile standard.
   assert.deepEqual(results["pr-review / claude"].models, {
@@ -1521,7 +1583,7 @@ test("the README example validates and resolves for each of its lanes", () => {
       resolveConflicts["reads-untrusted"],
       resolveConflicts.effect,
     ],
-    [true, "merge-base", true, "mutate-branch"],
+    [true, "merge-base", true, "read"],
   );
   assert.deepEqual(resolveConflicts["applies-when"], {
     mergeable: ["conflicting"],
@@ -1530,6 +1592,7 @@ test("the README example validates and resolves for each of its lanes", () => {
   });
   assert.deepEqual(results["pr-unblock / report-escalation"].needs, [
     "resolve-conflicts",
+    "apply-conflict-patch",
   ]);
   assert.equal(
     results["post-merge-sweep-comments / sweep-comments"]["skip-reason"],
@@ -1546,7 +1609,7 @@ test("integration: the README example resolves against the synced standards voca
   const results = resolveEveryExampleSlot(
     JSON.parse(readFileSync(LIVE_VOCABULARY, "utf8")),
   );
-  assert.equal(Object.keys(results).length, 15);
+  assert.equal(Object.keys(results).length, 16);
 });
 
 // applied-by: a read skill names the script activity that applies each thing
@@ -1573,18 +1636,25 @@ test("prepare: a read skill that hands on a patch may set a writing skill's prep
     const handsOn = appliedByEdit((doc) => {
       doc.activities["fix-ci"].prepare = prepare;
       if (prepare === "review-threads") doc.activities["fix-ci"]["applied-by"]["feedback-replies"] = "apply-patch";
+      if (prepare === "dependency-review") doc.activities["fix-ci"]["applied-by"]["dependency-verdict"] = "apply-patch";
     });
     assert.equal(unblock(handsOn).prepare, prepare, prepare);
     const noPatch = appliedByEdit((doc) => {
       doc.activities["fix-ci"].prepare = prepare;
       delete doc.activities["fix-ci"]["applied-by"];
     });
-    assertRejected(() => unblock(noPatch), prepare === "review-threads" ? "invalid-config" : "invalid-prepare");
+    // The schema requires applied-by.patch of a read skill in each mode.
+    assertRejected(() => unblock(noPatch), "invalid-config");
   }
   const noReplies = appliedByEdit((doc) => {
     doc.activities["fix-ci"].prepare = "review-threads";
   });
   assertRejected(() => unblock(noReplies), "invalid-config");
+  // A read dependency-review skill hands on its verdict too.
+  const noVerdict = appliedByEdit((doc) => {
+    doc.activities["fix-ci"].prepare = "dependency-review";
+  });
+  assertRejected(() => unblock(noVerdict), "invalid-config");
 });
 
 test("applied-by: a read skill whose patch an apply-patch script in its lane needs resolves and carries the map", () => {

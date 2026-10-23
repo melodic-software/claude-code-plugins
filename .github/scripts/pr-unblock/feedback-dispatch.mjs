@@ -22,10 +22,14 @@
 //   every comment is the reviewer bot's, a trusted person with write access
 //   asked the lane to fix it (isFixRequest), or a trusted person answered the
 //   lane's escalation (address-feedback.mjs threadAuthors); on a PR carrying
-//   the human-gated label, only a thread where a trusted person with write
-//   access asked the lane to fix it (isFixRequest);
+//   the human-gated label, the same when a lane escalation put the label on
+//   and no review lane holds the PR (gate-source.mjs gateSource), and
+//   otherwise only a thread where a trusted person with write access asked
+//   the lane to fix it (isFixRequest);
 // - that head has no pr-unblock / address-feedback check run yet (one the
-//   usage limit stopped stops counting once its limit resets), and no
+//   usage limit stopped stops counting once its limit resets, and one that
+//   started before the head's newest pr-unblock / publish-feedback check run
+//   when that run skipped no-model-turn: that round handled nothing), and no
 //   pr-unblock.yml address-feedback run for the PR is still queued or going;
 // - the base config's pr-unblock lane is enabled, holds enabled
 //   address-feedback and publish-feedback slots, and address-feedback applies
@@ -46,7 +50,8 @@
 //
 // Both review lanes, and any re-run, finish on one head, so a run leaves a
 // record for the next run at that head (dispatch-record.mjs, carried in the
-// Actions cache): a head whose check runs handle it for good is skipped before
+// Actions cache): a head whose check runs handle it for good, once a reply
+// check started after its newest address-feedback check, is skipped before
 // any read, and a head whose dispatched run for this PR is still queued or
 // going is skipped after the PR read, with one read of that run in place of
 // the comment, thread and run listings. Each shortcut stands for a skip the
@@ -57,8 +62,9 @@ import { pathToFileURL } from "node:url";
 
 import { commitPulls } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { fixRequesters, humanGatedLabelFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
+import { commentItems, gateSource, listLabelEvents } from "./gate-source.mjs";
 import { emptyRecord, isHandled, markHandled, readRecord, writeRecord } from "./dispatch-record.mjs";
-import { anyHandles, permanentlyHandles } from "./limit-stop.mjs";
+import { anyHandles, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -68,15 +74,21 @@ export const DEFAULTS = Object.freeze({
   activity: "address-feedback",
   replyActivity: "publish-feedback",
   checkName: "pr-unblock / address-feedback",
+  // The reply job's check: its no-model-turn skip releases the round's
+  // address-feedback check runs.
+  replyCheckName: "pr-unblock / publish-feedback",
   reviewWorkflows: Object.freeze([
     ".github/workflows/pr-review-hosted.yml",
     ".github/workflows/pr-review-security-hosted.yml",
   ]),
   // The lanes each review workflow names in its reviewed-head marker
-  // (melodic-software/ci-workflows pr-review.yml and pr-review-security.yml).
+  // (melodic-software/ci-workflows pr-review-cli.yml).
   markerLanes: Object.freeze(["claude-review", "claude-security-review"]),
   holdLabels: Object.freeze(["do-not-merge"]),
-  // claude[bot], the reviewer (.github/standards/trusted-actors/trusted-actors.json).
+  // claude[bot], which posted reviews before both lanes moved to pr-review-cli
+  // (.github/standards/trusted-actors/trusted-actors.json). pr-review-cli posts
+  // as github-actions[bot]; threadAuthors accepts those comments only when the
+  // lane footer is their last line.
   reviewerId: 209825114,
   // github-actions[bot], which writes the reviewed-head markers.
   markerAuthorId: 41898282,
@@ -218,8 +230,19 @@ export async function dispatchFeedback({
   }
   const threads = await api.listReviewThreads(number);
   // A human-gated PR dispatches only for a thread a trusted person with
-  // write access asked the lane to fix.
-  const gated = (pull.labels ?? []).some((label) => label.name === humanGatedLabel);
+  // write access asked the lane to fix, unless a lane escalation put the
+  // label on and no review lane holds the PR. The label stays on either way:
+  // clear-escalations.mjs owns taking it off.
+  const labeled = (pull.labels ?? []).some((label) => label.name === humanGatedLabel);
+  const gate = labeled
+    ? gateSource({
+        timeline: [...commentItems(comments), ...(await api.listLabelEvents(number))],
+        label: humanGatedLabel,
+        head,
+        isLanesApp: (user) => user?.id === appSenderId && user?.type === "Bot",
+      })
+    : null;
+  const gated = labeled && gate.source !== "lane-escalation";
   const fixers = await fixRequesters({
     comments: threads.flatMap((thread) =>
       thread.comments.nodes.map((node) => ({ authorId: node.author?.databaseId, login: node.author?.login, body: node.body })),
@@ -231,7 +254,7 @@ export async function dispatchFeedback({
   if (!hasWorkableThread(threads, { reviewerId: settings.reviewerId, appId: appSenderId, trustedHumans, requesters, fixers })) {
     return skip(
       gated
-        ? `#${number} is labeled ${humanGatedLabel} and has no thread a trusted person with write access asked the lane to fix`
+        ? `#${number} is labeled ${humanGatedLabel} (${gate.source}: ${gate.reason}) and has no thread a trusted person with write access asked the lane to fix`
         : `#${number} has no unresolved thread left by the reviewer bot alone, asked to be fixed, or answered by a trusted person`,
     );
   }
@@ -252,11 +275,32 @@ export async function dispatchFeedback({
   if (resolved.selected?.applies !== true) {
     return skip(`#${number}: ${settings.activity} does not apply (${resolved.selected?.["skip-reason"] ?? "unknown"})`);
   }
-  const existing = (await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId })).filter(
-    // NaN compares false, so a run with no readable start still counts.
-    (run) => notesSince === null || !(Date.parse(run.started_at ?? "") <= notesSince),
-  );
-  if (permanentlyHandles(existing)) {
+  // NaN compares false, so a run with no readable start still counts.
+  const sinceNotes = (run) => notesSince === null || !(Date.parse(run.started_at ?? "") <= notesSince);
+  let existing = (await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId })).filter(sinceNotes);
+  // A round whose reply job skipped no-model-turn (decided from the scan
+  // job's outputs and the select job's head) handled nothing: the
+  // address-feedback check runs that started before that reply job stop
+  // counting, so the next trigger dispatches the head again. Each such
+  // round posted its round marker, so the select job's round cap ends it. A
+  // limit stop is never released: limit-stop.mjs still holds the head until
+  // its reset and counts it toward limits.limit-stops-per-head.
+  const startOf = (run) => Date.parse(run.started_at ?? "");
+  let replies = [];
+  if (anyHandles(existing, { now, limits: resolved.limits })) {
+    replies = (await api.listCheckRuns({ sha: head, checkName: settings.replyCheckName, appId: settings.appId })).filter(sinceNotes);
+    const newest = replies.reduce((a, b) => (startOf(b) > startOf(a) ? b : a), replies[0]);
+    if (newest?.status === "completed" && newest.conclusion === "neutral" && newest.output?.title === "Skipped: no-model-turn") {
+      const cut = startOf(newest);
+      existing = existing.filter((run) => limitResetsAt(run, resolved.limits) !== null || !(startOf(run) < cut));
+    }
+  }
+  // The round's reply job posts its check after the round's address-feedback
+  // check, so until a reply check started after the newest address-feedback
+  // check, a no-model-turn skip may still release the head: it is not
+  // recorded as handled yet (#9362). An unreadable start records nothing.
+  const newestCheck = Math.max(...existing.map(startOf));
+  if (permanentlyHandles(existing) && replies.some((run) => startOf(run) > newestCheck)) {
     markHandled(record, settings.checkName, head);
   }
   if (anyHandles(existing, { now, limits: resolved.limits })) {
@@ -363,6 +407,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
       }
       throw new Error(`#${number} has more than 5000 comments`);
     },
+    listLabelEvents: (number) => listLabelEvents({ graphql, repository, number }),
     async listReviewThreads(number) {
       const threads = [];
       let after = null;

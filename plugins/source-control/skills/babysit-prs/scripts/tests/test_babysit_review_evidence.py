@@ -19,6 +19,7 @@ from typing import Any
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_review_evidence as ev
+import babysit_risk as risk
 
 FIXTURES = pathlib.Path(__file__).resolve().parent / "fixtures" / "review_evidence"
 PROBE = json.loads((FIXTURES / "probe_rerun_after_success.json").read_text())
@@ -502,6 +503,27 @@ class RecordTests(Base):
     def test_no_completion_record(self) -> None:
         result = self.bind([run("claude-review", S)])
         self.assertUnbound(result["claude-review"], "no-record")
+
+    def test_a_subscription_leg_record_binds(self) -> None:
+        # ci-workflows pr-review-cli.yml ends the record ` account=fallback`
+        # when the subscription leg reviewed (publish-review publish.cjs).
+        # Both lanes run on it.
+        for lane, other in (LANES, LANES[::-1]):
+            with self.subTest(lane=lane):
+                tail = "findings=0 inline=0 scope=whole account=fallback"
+                runs = [whole(other, S), run(lane, S, tail)]
+                result = self.bind(runs)[lane]
+                self.assertTrue(result.bound)
+                self.assertEqual(result.open_findings, 0)
+
+    def test_another_account_suffix_is_malformed(self) -> None:
+        for tail in (
+            "findings=0 inline=0 scope=whole account=primary",
+            "findings=0 inline=0 scope=whole account=fallback extra",
+        ):
+            with self.subTest(tail=tail):
+                result = self.bind([run("claude-review", S, tail)])
+                self.assertUnbound(result["claude-review"], "record-malformed")
 
     def test_record_for_another_lane(self) -> None:
         item = run(
@@ -1632,6 +1654,50 @@ class SeverityTests(Base):
                 self.assertEqual(result.open_findings, 1)
                 self.assertEqual(result.blocking_findings, blocking)
 
+    def test_each_severity_holds_or_is_reported_through_the_score(self) -> None:
+        # Q33: only the lane's top tier (CRITICAL, SKILL.md "Reporting") holds;
+        # a line the gate cannot read, a missing one or a word outside the
+        # lane's vocabulary holds too (fail closed). Every finding appears in
+        # the reasons.
+        for severity, held in (
+            ("SUGGESTION", False),
+            ("IMPORTANT", False),
+            ("CRITICAL", True),
+            (None, True),
+            ("LOW", True),
+            ("MEDIUM", True),
+            ("HIGH", True),
+        ):
+            with self.subTest(severity=severity):
+                runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]
+                lanes = tuple(
+                    self.bind(runs, threads=[thread(self.comment(severity))]).values()
+                )
+                result = risk.score(
+                    risk.RiskInput(
+                        work_class="C2",
+                        rung=risk.Rung.C2,
+                        files=(
+                            risk.ChangedFile(
+                                "plugins/foo/a.md", None, "added", 1, 0, True, "100644"
+                            ),
+                        ),  # fmt: skip
+                        files_complete=True,
+                        max_changed_lines=200,
+                        high_paths=(),
+                        lanes=lanes,
+                        blast_radius=None,
+                    )
+                )
+                codes = [r.code for r in result.reasons]
+                self.assertEqual(risk.holds(result), held, result.reasons)
+                self.assertEqual(
+                    codes,
+                    ["security-finding"]
+                    if held
+                    else ["findings:claude-security-review"],
+                )
+
     def test_two_severity_lines_count_as_critical(self) -> None:
         body = self.comment("IMPORTANT").replace(
             "severity: IMPORTANT", "severity: IMPORTANT\nseverity: SUGGESTION"
@@ -1682,6 +1748,74 @@ class SeverityTests(Base):
                 self.assertEqual(result.open_findings, 2)
                 self.assertEqual(result.blocking_findings, blocking)
 
+    # ci-workflows pr-review-cli.yml posts as github-actions[bot] and foots
+    # each comment `\n\nclaude-lane: <lane>` (publish-review publish.cjs).
+    ACTIONS = {"__typename": "Bot", "login": "github-actions"}
+
+    def test_a_github_actions_finding_with_the_lane_footer_is_the_lanes(self) -> None:
+        for severity, blocking in (("IMPORTANT", 0), ("CRITICAL", 1), (None, 1)):
+            with self.subTest(severity=severity):
+                line = f"severity: {severity}\n" if severity else ""
+                body = f"finding\n{line}\nclaude-lane: {self.SEC}"
+                runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]
+                threads = [thread(body, author=self.ACTIONS)]
+                result = self.bind(runs, threads=threads)[self.SEC]
+                self.assertEqual(result.open_findings, 1)
+                self.assertEqual(result.blocking_findings, blocking)
+
+    def test_a_github_actions_thread_without_the_lanes_footer_last_is_not_the_lanes(
+        self,
+    ) -> None:
+        # Not the lane's thread, so the recorded inline finding has none left
+        # and counts as CRITICAL even though the body reads IMPORTANT.
+        for body in (
+            "finding\nseverity: IMPORTANT",
+            f"claude-lane: {self.SEC}\nfinding\nseverity: IMPORTANT",
+            "finding\nseverity: IMPORTANT\n\nclaude-lane: claude-review",
+        ):
+            with self.subTest(body=body):
+                runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]
+                threads = [thread(body, author=self.ACTIONS)]
+                result = self.bind(runs, threads=threads)[self.SEC]
+                self.assertEqual(result.blocking_findings, 1)
+
+    def test_a_github_actions_summary_comment_counts_only_with_the_lanes_footer(
+        self,
+    ) -> None:
+        runs = [whole("claude-review", S), whole(self.SEC, S, n=2, k=0)]
+
+        def summary(body: str, user: dict[str, str] | None = None) -> dict[str, Any]:
+            return {
+                "id": next(_ids),
+                "user": user or {"login": "github-actions[bot]", "type": "Bot"},
+                "created_at": "2026-01-01T00:30:00Z",
+                "body": body,
+            }
+
+        footed = f"summary\n\ncritical-findings: 0\n\nclaude-lane: {self.SEC}"
+        # REST names the bot `github-actions[bot]` with type Bot; a bare login
+        # or a User account under either login is not the lane's.
+        for body, user, blocking in (
+            (footed, None, 0),
+            ("summary\n\ncritical-findings: 0", None, 2),
+            (f"claude-lane: {self.SEC}\n\ncritical-findings: 0", None, 2),
+            (footed, {"login": "github-actions", "type": "User"}, 2),
+            (footed, {"login": "github-actions", "type": "Bot"}, 2),
+            (footed, {"login": "github-actions[bot]", "type": "User"}, 2),
+        ):
+            with self.subTest(body=body, user=user):
+                comments = [*both_markers(), summary(body, user)]
+                result = self.bind(runs, comments=comments)[self.SEC]
+                self.assertEqual(result.blocking_findings, blocking)
+
+    def test_a_marker_ending_in_the_lane_footer_is_read_once(self) -> None:
+        runs = [whole("claude-review", S), whole(self.SEC, S, n=2, k=0)]
+        comments = self.summary_markers(
+            f"critical-findings: 0\n\nclaude-lane: {self.SEC}"
+        )
+        result = self.bind(runs, comments=comments)[self.SEC]
+        self.assertEqual(result.blocking_findings, 0)
+
     def test_a_thread_less_inline_finding_counts_as_critical(self) -> None:
         runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]
         result = self.bind(runs, comments=self.summary_markers("critical-findings: 0"))[
@@ -1694,6 +1828,43 @@ class SeverityTests(Base):
         result = self.bind(runs)["claude-review"]
         self.assertEqual(result.open_findings, 1)
         self.assertIsNone(result.blocking_findings)
+
+
+class CodeLaneOnCliTests(Base):
+    """The code lane on ci-workflows pr-review-cli.yml posts as
+    github-actions[bot], each comment footed `claude-lane: claude-review`."""
+
+    ACTIONS = {"__typename": "Bot", "login": "github-actions"}
+    FOOTED = "finding\n\nclaude-lane: claude-review"
+
+    def test_its_thread_stands_for_the_recorded_finding(self) -> None:
+        runs = [whole("claude-review", S, n=1, k=1), whole("claude-security-review", S)]
+        open_thread = thread(self.FOOTED, author=self.ACTIONS)
+        result = self.bind(runs, threads=[open_thread])
+        self.assertEqual(result["claude-review"].open_findings, 1)
+        self.assertEqual(result["claude-security-review"].open_findings, 0)
+        # Resolved by a person, it closes the finding.
+        closed = thread(
+            self.FOOTED, author=self.ACTIONS, resolved=True, resolved_by=MAINTAINER
+        )
+        result = self.bind(runs, threads=[closed])["claude-review"]
+        self.assertEqual(result.open_findings, 0)
+
+    def test_a_thread_without_its_footer_last_does_not(self) -> None:
+        # Not the lane's thread, so the recorded inline finding has none and
+        # stays open however the thread was resolved.
+        runs = [whole("claude-review", S, n=1, k=1), whole("claude-security-review", S)]
+        for body in (
+            "finding",
+            "claude-lane: claude-review\nfinding",
+            "finding\n\nclaude-lane: claude-security-review",
+        ):
+            with self.subTest(body=body):
+                closed = thread(
+                    body, author=self.ACTIONS, resolved=True, resolved_by=MAINTAINER
+                )
+                result = self.bind(runs, threads=[closed])["claude-review"]
+                self.assertEqual(result.open_findings, 1)
 
 
 if __name__ == "__main__":

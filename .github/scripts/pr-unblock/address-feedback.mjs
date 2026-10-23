@@ -17,7 +17,8 @@
 //           record the reply job checks the replies against (runRecord). On a PR carrying the
 //           human-gated label it keeps only threads a trusted person with
 //           write access asked it to fix (isFixRequest), and skips
-//           awaiting-human when there are none.
+//           awaiting-human when there are none, unless a lane escalation put
+//           the label on and no review lane holds the PR (gate-source.mjs).
 //
 // Every comment body is copied into the thread file and never logged or
 // interpolated into a command. Only a trusted person's reply to the lane's
@@ -25,15 +26,17 @@
 // write-access fix request on, is marked as direction; every other body is
 // data.
 
-import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, lstatSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { commentItems, gateSource, listLabelEvents, ROUND_MARKER } from "./gate-source.mjs";
 import { isProtectedPath, namedInScope } from "./thread-scope.mjs";
 
 // The round cap is the config's `loop.review-rounds`, passed in as
 // REVIEW_ROUNDS; the resolver's default is the fallback.
 export const DEFAULT_MAX_ROUNDS = 2;
-export const ROUND_MARKER = "<!-- pr-unblock:address-feedback-round -->";
+export { ROUND_MARKER };
 // github-actions[bot], the author of the review lanes' reviewed-head markers.
 export const MARKER_AUTHOR_ID = 41898282;
 const REVIEWED_HEAD =
@@ -50,6 +53,20 @@ const THREAD_COMMENT_CAP = 100;
 const FILES_CAP = 3000;
 
 const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "");
+
+// A review lane's own comment as the pr-review-cli reusable posts it: by
+// github-actions[bot] (MARKER_AUTHOR_ID), its last non-blank line the lane's
+// `claude-lane: <lane>` footer. Any other github-actions[bot] comment is not a
+// finding.
+const LANE_FOOTER = /^`?claude-lane: (?:claude-review|claude-security-review)`?$/;
+export const isLaneComment = (comment) =>
+  comment.authorId === MARKER_AUTHOR_ID &&
+  LANE_FOOTER.test(
+    String(comment.body ?? "")
+      .split("\n")
+      .map((line) => line.trim())
+      .findLast((line) => line !== "") ?? "",
+  );
 
 // Round markers the lanes App posted; any other author's copy is ignored.
 export const isRoundMarker = (comment, appId) => comment.user?.id === appId && firstLine(comment.body) === ROUND_MARKER;
@@ -258,7 +275,8 @@ export function humanGatedLabelFrom(path) {
 
 // Who wrote each comment of a thread, or null when it is not one to work.
 // `comments` are oldest first, each { authorId, createdAt, body, lastEditedAt,
-// editorId }. The first is the reviewer bot's, or a verifier note
+// editorId }. The first is the reviewer bot's, a lane comment (isLaneComment,
+// which counts as the reviewer bot's throughout), or a verifier note
 // (github-actions[bot]'s, its first line VERIFY_NOTE_MARKER), and one of these
 // holds:
 // - every comment is the reviewer bot's, but a verifier note's own;
@@ -278,10 +296,11 @@ export function humanGatedLabelFrom(path) {
 // escalation when there is one.
 export function threadAuthors(comments, { reviewerId, appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set() }) {
   const verifier = comments.length > 0 && comments[0].authorId === MARKER_AUTHOR_ID && firstLine(comments[0].body) === VERIFY_NOTE_MARKER;
-  if (comments.length === 0 || (comments[0].authorId !== reviewerId && !verifier)) {
+  const reviewer = (comment) => comment.authorId === reviewerId || isLaneComment(comment);
+  if (comments.length === 0 || (!reviewer(comments[0]) && !verifier)) {
     return null;
   }
-  const finder = (comment, i) => (i === 0 && verifier ? { author: "verifier" } : comment.authorId === reviewerId ? { author: "reviewer" } : null);
+  const finder = (comment, i) => (i === 0 && verifier ? { author: "verifier" } : reviewer(comment) ? { author: "reviewer" } : null);
   if (comments.every((comment, i) => finder(comment, i) !== null)) {
     return requesters ? null : comments.map(finder);
   }
@@ -368,7 +387,8 @@ export function keepThreads({ threads, reviewComments, reviews, heads, reviewerI
     // escalation) asks for the thread, so its review may be on an earlier head.
     const directed = authors.some((a) => a.direction === true);
     const review = reviewsById.get(rows[0].pull_request_review_id);
-    const reviewAuthor = authors[0].author === "verifier" ? MARKER_AUTHOR_ID : reviewerId;
+    // A verifier note's or a lane comment's review is github-actions[bot]'s.
+    const reviewAuthor = authors[0].author === "verifier" || rows[0].user?.id === MARKER_AUTHOR_ID ? MARKER_AUTHOR_ID : reviewerId;
     if (review?.user?.id !== reviewAuthor || (!directed && !heads.has(review.commit_id))) {
       continue;
     }
@@ -404,8 +424,18 @@ export async function select({
     api.listThreads(pr),
   ]);
   // The human-gated label holds the PR except for threads a trusted person
-  // with write access asked the lane to fix.
-  const gated = (pull.labels ?? []).some((label) => label.name === humanGatedLabel);
+  // with write access asked the lane to fix, unless a lane escalation put it
+  // on and no review lane holds the PR (gate-source.mjs). The label stays on.
+  const labeled = (pull.labels ?? []).some((label) => label.name === humanGatedLabel);
+  const escalated =
+    labeled &&
+    gateSource({
+      timeline: [...commentItems(issueComments), ...(await api.listLabelEvents(pr))],
+      label: humanGatedLabel,
+      head: headSha,
+      isLanesApp: (user) => user?.id === appId && user?.type === "Bot",
+    }).source === "lane-escalation";
+  const gated = labeled && !escalated;
   const fixers = await reviewFixers({ reviewComments, trustedHumans, permission: api.getPermission });
   const kept = keepThreads({
     threads,
@@ -463,7 +493,10 @@ export async function select({
   return {
     decision: "proceed",
     rounds,
-    fixRequested: gated,
+    // True drops the human-gated label from the write runner's holds: every
+    // kept thread carries a write-access fix request, or a lane escalation
+    // put the label on.
+    fixRequested: labeled,
     threads: worked,
     file: { version: 1, repository, pr, head_sha: headSha, threads: worked },
   };
@@ -574,6 +607,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
   const repo = `${apiUrl}/repos/${owner}/${name}`;
   return {
     getPull: async (pr) => (await request(`${repo}/pulls/${pr}`)).data,
+    listLabelEvents: (pr) => listLabelEvents({ graphql, repository, number: pr }),
     // Metadata read, which every token holds. A 404 (not a collaborator) is none.
     async getPermission(login) {
       const url = `${repo}/collaborators/${encodeURIComponent(login)}/permission`;
@@ -705,6 +739,42 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
   };
 }
 
+const MARKER_FILE = /^scan-refused-[1-9][0-9]{0,4}(-rung-up)?\.txt$/;
+
+// The model call's scan refusal for a reply or verdict script: '' none,
+// `patch` an oversize patch, `output` any other. It comes from the markers the
+// read runner's scan-refusal job uploads, never from a job output: a failed
+// job's outputs are not documented to reach a workflow_call caller. `dir` is
+// where the write runner downloaded every attempt's marker for the model
+// call's activity (SCAN_REFUSED_DIR), `read` that download's outcome
+// (SCAN_REFUSED_READ). A download that failed cannot rule a refusal out, so
+// it reads `output`; any marker reads `patch` only when one names it. A
+// forged marker only hands the round to a person.
+export function scanRefusal({ dir = "", read = "" } = {}) {
+  if (read === "failure") {
+    return "output";
+  }
+  if (dir === "") {
+    return "";
+  }
+  let names;
+  try {
+    names = readdirSync(dir);
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      return "";
+    }
+    throw error;
+  }
+  const kinds = names
+    .filter((name) => MARKER_FILE.test(name) && lstatSync(join(dir, name)).isFile())
+    .map((name) => readFileSync(join(dir, name), "utf8").trim());
+  if (kinds.length === 0) {
+    return "";
+  }
+  return kinds.includes("patch") ? "patch" : "output";
+}
+
 export function need(env, keys) {
   for (const key of keys) {
     if (!env[key]) {
@@ -777,7 +847,8 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
     }
     output("proceed", String(result.decision === "proceed"));
     // The write runner drops the human-gated label from the hold list only
-    // when this is true: every kept thread carries a write-access fix request.
+    // when this is true: every kept thread carries a write-access fix request,
+    // or a lane escalation put the label on.
     output("fix-requested", String(result.fixRequested === true));
     output("skip-reason", result.decision === "skip" ? result.skipReason : result.decision === "escalate" ? "awaiting-human" : "");
     output("escalation-reason", result.escalationReason ?? "");

@@ -1,14 +1,20 @@
 #!/usr/bin/env node
 // apply-dependency-verdict.mjs: the verdict job of the pr-unblock lane's
-// review-dependency round, a script activity with no model. The model job's
-// runner step recorded the verdict in an artifact; this validates it and acts
-// on it with the lane token (pull-requests and issues write, contents read),
-// adding no judgment of its own.
+// review-dependency round, a script activity with no model. The select job
+// recorded the round's run fields, and the read runner's scan job uploaded the
+// model's verdict after its leak scan; this validates both and acts on them
+// with the lane token (pull-requests and issues write, contents read), adding
+// no judgment of its own.
 //
-//   1. Validates run.json strictly: the bytes the model job's runner wrote
-//      (SHA-256 from that job), its gated head, and the model's structured
-//      verdict, with exactly the template's fields within the limits below.
-//      Anything else escalates dependency-invalid.
+//   1. Validates context.json, the select job's run fields (SHA-256 and head
+//      from that job, which ran no model or head code), and dependency-verdict.json, the
+//      model's structured verdict (SHA-256 from the scan job), each strictly,
+//      with exactly the template's fields within the limits below. Anything
+//      else escalates dependency-invalid. No verdict at all, with the same
+//      call's scan handing on no patch, refusing nothing, and the head still
+//      the select job's, is a round with no model turn: it counts and skips
+//      no-model-turn. A scan that refused an oversize patch escalates
+//      dependency-fix-not-landed.
 //   2. Re-reads the pull request. Closed: nothing, unless it is a close this
 //      job started (its issue or marker is there), which resumes. merge,
 //      close and escalate need the head the model reviewed; a moved head is
@@ -17,7 +23,7 @@
 //      on top of that head, listed whole (else dependency-invalid), each file
 //      only modified, a regular file, an npm or pip manifest or lock file
 //      outside .github/ in a directory the base's dependabot.yml (read here,
-//      never from run.json) lists, and changed only by a version change
+//      never from context.json) lists, and changed only by a version change
 //      (fixRefusal; else dependency-fix-refused), else
 //      dependency-fix-not-landed (no commit) or superseded (Dependabot
 //      rebased, or another commit).
@@ -33,17 +39,17 @@
 //      fix rule above against its parent; else dependency-fix-refused, so a
 //      commit the lanes App pushed outside a fix round is never merged on.
 //      A merge on a review-only dependency whose evidence does not quote each
-//      matched entry's control (run.json `controls`) escalates
+//      matched entry's control (context.json `controls`) escalates
 //      dependency-control-uncited instead.
 //      close: never on a security update (the security label or an advisory
-//      in the body, read fresh here, or the model job's flag), which escalates
+//      in the body, read fresh here, or the select job's flag), which escalates
 //      dependency-security-close; otherwise finds or files the issue
 //      proposing the dependabot.yml ignore entry (keyed by PR and head), posts
 //      the marker, then closes the pull request, so a re-run after any
 //      partial failure resumes. escalate: dependency-escalate. fix: nothing
 //      more; CI judges the push.
 //   4. Posts the round marker, as the lanes App, once per model run (a run
-//      with no attempt is named `none`).
+//      with no verdict attempt is named `none`, and its marker always posts).
 //
 // Environment:
 //   GH_TOKEN                the lane token
@@ -51,20 +57,27 @@
 //   PR_NUMBER, HEAD_SHA     the gated pull request and its head
 //   BASE_SHA                the trusted base commit; its .github/dependabot.yml
 //                           gives the fix rule's [ecosystem, directory] pairs
-//   DEPENDENCY_HEAD_SHA     the head the model job's gate passed, which
-//                           run.json's head_sha must name
-//   GITHUB_RUN_ID, DEPENDENCY_RUN_ATTEMPT  the model run the round marker names
+//   DEPENDENCY_HEAD_SHA     the head the select job read, which context.json's
+//                           head_sha must name
+//   GITHUB_RUN_ID, DEPENDENCY_RUN_ATTEMPT  the model run the round marker
+//                           names: the scan job's verdict attempt
 //   APP_SENDER_ID           the lanes App bot's user id
-//   DEPENDENCY_VERDICT_DIR  the downloaded artifact holding run.json
-//   DEPENDENCY_RUN_SHA256   run.json's SHA-256, from the model job's runner step
+//   DEPENDENCY_VERDICT_DIR  the downloaded artifacts: the select job's
+//                           context.json and the scan job's dependency-verdict.json
+//   DEPENDENCY_RUN_SHA256   context.json's SHA-256, from the select job
+//   DEPENDENCY_VERDICT_SHA256  dependency-verdict.json's SHA-256, from the scan job
+//   DEPENDENCY_PATCH_STATE  the same call's scan patch state ('' for none)
+//   SCAN_REFUSED_DIR, SCAN_REFUSED_READ  the scan-refusal job's markers for
+//                           the model call and their download's outcome
+//                           (address-feedback.mjs scanRefusal)
 //   SKIP_REASON_FILE, ESCALATION_REASON_FILE  where the runner reads them
 
 import { createHash } from "node:crypto";
 import { lstatSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { createGitHubApi, need, positive, SHA } from "./address-feedback.mjs";
+import { createGitHubApi, need, positive, scanRefusal, SHA } from "./address-feedback.mjs";
 import {
   bumpRefusal,
   COMMIT_FILES_LIMIT,
@@ -88,8 +101,8 @@ export const CONFIG_PATH = ".github/dependabot.yml";
 
 // A commit GitHub signed for the lanes App during this workflow run: author
 // the App, committer web-flow, signature valid, committed no earlier than
-// run.json's started_at, which the model job's select step recorded before
-// any model turn. An author id alone is whatever a pusher claims.
+// context.json's started_at, which the select job recorded before any model
+// turn. An author id alone is whatever a pusher claims.
 export const isLaneCommit = (commit, appId, started) =>
   Number.isInteger(commit?.author?.id) &&
   commit.author.id === appId &&
@@ -100,7 +113,7 @@ export const isLaneCommit = (commit, appId, started) =>
 
 class Invalid extends Error {}
 
-// `date -u +%Y-%m-%dT%H:%M:%SZ`, as the model job's select step records it.
+// `date -u +%Y-%m-%dT%H:%M:%SZ`, as the select job records it.
 const STARTED_AT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 
 const exactKeys = (value, keys) =>
@@ -121,11 +134,14 @@ function plain(text, max) {
   );
 }
 
-export function validateRun(run, pr) {
+export const CONTEXT_KEYS = Object.freeze(["version", "pr", "head_sha", "security", "config_unreadable", "files_truncated", "started_at", "controls", "config"]);
+
+// The select job's run fields.
+export function validateContext(run, pr) {
   const fail = (why) => {
-    throw new Invalid(`run.json is invalid: ${why}`);
+    throw new Invalid(`context.json is invalid: ${why}`);
   };
-  if (!exactKeys(run, ["version", "pr", "head_sha", "security", "config_unreadable", "files_truncated", "started_at", "controls", "config", "output"])) fail("its fields are not the runner's");
+  if (!exactKeys(run, CONTEXT_KEYS)) fail("its fields are not the select job's");
   if (run.version !== 1) fail("version is not 1");
   if (run.pr !== pr) fail("it names another pull request");
   if (!SHA.test(String(run.head_sha))) fail("head_sha is not a commit id");
@@ -139,14 +155,30 @@ export function validateRun(run, pr) {
   if (!Array.isArray(run.config) || run.config.length > LIMITS.config || !run.config.every((pair) => Array.isArray(pair) && pair.length === 2 && pair.every((part) => typeof part === "string" && part.length >= 1))) {
     fail("config is not a list of [ecosystem, directory] pairs");
   }
-  const out = run.output;
+  return run;
+}
+
+// The model's structured verdict, as the scan job uploaded it.
+export function validateVerdict(out) {
+  const fail = (why) => {
+    throw new Invalid(`dependency-verdict.json is invalid: ${why}`);
+  };
   if (!exactKeys(out, ["verdict", "reasons", "evidence"])) fail("the verdict's fields are not the template's");
   if (!VERDICTS.includes(out.verdict)) fail("the verdict is not merge, fix, close or escalate");
   if (!Array.isArray(out.reasons) || out.reasons.length < 1 || out.reasons.length > LIMITS.reasons) fail("reasons is not 1-10 entries");
   if (!out.reasons.every((reason) => plain(reason, LIMITS.reason))) fail("a reason is not plain prose within the limit");
   if (!Array.isArray(out.evidence) || out.evidence.length > LIMITS.evidence) fail("evidence is not 0-20 entries");
   if (!out.evidence.every((item) => plain(item, LIMITS.evidenceItem))) fail("an evidence entry is not plain prose within the limit");
-  return run;
+  return out;
+}
+
+// Both, as the one record apply() acts on.
+export function validateRun(run, pr) {
+  if (run === null || typeof run !== "object" || Array.isArray(run)) {
+    throw new Invalid("the round's record is not an object");
+  }
+  const { output, ...context } = run;
+  return { ...validateContext(context, pr), output: validateVerdict(output) };
 }
 
 // The tree entry for `path` at `sha`, or undefined.
@@ -246,18 +278,23 @@ function ignoreIssue({ pr, head, title, reasons }) {
   };
 }
 
-export async function apply({ api, pr, appId, modelRun, run, baseSha, log }) {
-  // One value names the model run in the marker and in the re-run check.
+// `context` is the select job's valid run fields when `run` is null; with
+// `missing` true no verdict arrived, and `patchState` and `refused` are the
+// same call's scan outputs.
+export async function apply({ api, pr, appId, modelRun, run, context = null, missing = false, patchState = "", refused = "", baseSha, log }) {
+  // One value names the model run in the marker and in the re-run check. A
+  // run with none is always posted: counting a round twice hands the PR to a
+  // person sooner, and skipping one would not.
   const runKey = modelRun ?? "none";
   const pull = await api.getPull(pr);
   const comments = await api.listIssueComments(pr);
-  const posted = rounds(comments, appId).some((round) => round.run === runKey);
+  const posted = modelRun !== null && modelRun !== undefined && rounds(comments, appId).some((round) => round.run === runKey);
   const record = async (verdict, output = {}) => {
     if (posted) {
       log(`the round marker for model run ${runKey} is already posted`);
       return;
     }
-    await api.createIssueComment(pr, roundBody({ head: run?.head_sha ?? pull.head.sha, verdict, run: runKey, ...output }));
+    await api.createIssueComment(pr, roundBody({ head: (run ?? context)?.head_sha ?? pull.head.sha, verdict, run: runKey, ...output }));
   };
   if (pull.state !== "open") {
     // A close this job started and did not finish resumes: the PR is closed
@@ -272,7 +309,20 @@ export async function apply({ api, pr, appId, modelRun, run, baseSha, log }) {
     }
   }
   if (!run) {
+    // The round counts whatever arrived. Only the scan job's own outputs and
+    // the select job's head decide a round with no model turn: no patch, no
+    // refusal, and the head unmoved.
     await record("invalid");
+    if (context !== null && missing) {
+      if (refused === "patch") {
+        log(`#${pr}: the scan refused the round's patch as too large, so no fix can land`);
+        return { escalationReason: "dependency-fix-not-landed", skipReason: "" };
+      }
+      if (refused === "" && patchState === "" && pull.head.sha === context.head_sha) {
+        log(`#${pr}: no verdict and no patch: the model took no turn`);
+        return { escalationReason: "", skipReason: "no-model-turn" };
+      }
+    }
     return { escalationReason: "dependency-invalid", skipReason: "" };
   }
   const { verdict, reasons, evidence } = run.output;
@@ -306,8 +356,8 @@ export async function apply({ api, pr, appId, modelRun, run, baseSha, log }) {
       log(`#${pr}: the head moved from ${run.head_sha} to ${head} by more than the lane's fix; the next run reviews it`);
       return { escalationReason: "", skipReason: "superseded-sha" };
     }
-    // The promote step already refuses this; checked again on what landed,
-    // since the model job's token could write the branch itself.
+    // apply-patch's content rule already refuses this; checked again on what
+    // landed, since anyone with write access could push the branch.
     const pairs = await basePairs(api, baseSha);
     if (pairs === null) {
       await record("invalid", { reasons, evidence });
@@ -406,6 +456,26 @@ export async function apply({ api, pr, appId, modelRun, run, baseSha, log }) {
   return { escalationReason: "dependency-escalate", skipReason: "" };
 }
 
+// A regular file of at most LIMITS.bytes whose SHA-256 is `sha256`, parsed;
+// null when it is absent.
+function readChecked(path, sha256, who) {
+  let stat;
+  try {
+    stat = lstatSync(path);
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  }
+  if (!stat.isFile() || stat.size > LIMITS.bytes) {
+    throw new Invalid(`${basename(path)} is not a regular file within the size limit`);
+  }
+  const text = readFileSync(path, "utf8");
+  if (!/^[0-9a-f]{64}$/.test(sha256 ?? "") || createHash("sha256").update(text).digest("hex") !== sha256) {
+    throw new Invalid(`${basename(path)} does not match the SHA-256 ${who} recorded`);
+  }
+  return JSON.parse(text);
+}
+
 export async function main(env, { api, log = (line) => console.log(line) } = {}) {
   need(env, [
     "GH_TOKEN",
@@ -429,26 +499,41 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   if (attempt !== "" && !/^[1-9][0-9]{0,4}$/.test(attempt)) {
     throw new Error("DEPENDENCY_RUN_ATTEMPT is not a run attempt");
   }
+  const patchState = env.DEPENDENCY_PATCH_STATE ?? "";
+  if (!["", "written", "empty"].includes(patchState)) {
+    throw new Error("DEPENDENCY_PATCH_STATE is not a scan output");
+  }
+  const refused = scanRefusal({ dir: env.SCAN_REFUSED_DIR ?? "", read: env.SCAN_REFUSED_READ ?? "" });
   const modelRun = attempt ? `${positive(env.GITHUB_RUN_ID, "GITHUB_RUN_ID")}-${attempt}` : null;
+  let context = null;
   let run = null;
+  let missing = false;
   try {
-    const path = join(env.DEPENDENCY_VERDICT_DIR, "run.json");
-    const stat = lstatSync(path);
-    if (!stat.isFile() || stat.size > LIMITS.bytes) {
-      throw new Invalid("run.json is not a regular file within the size limit");
-    }
-    const text = readFileSync(path, "utf8");
-    if (!/^[0-9a-f]{64}$/.test(env.DEPENDENCY_RUN_SHA256 ?? "") || createHash("sha256").update(text).digest("hex") !== env.DEPENDENCY_RUN_SHA256) {
-      throw new Invalid("run.json does not match the SHA-256 the model job recorded");
-    }
-    run = validateRun(JSON.parse(text), pr);
-    // The head comes from the model job's gate, not from the file.
-    if (!SHA.test(env.DEPENDENCY_HEAD_SHA) || run.head_sha !== env.DEPENDENCY_HEAD_SHA) {
-      throw new Invalid("run.json's head_sha is not the head the model job's gate passed");
+    context = readChecked(join(env.DEPENDENCY_VERDICT_DIR, "context.json"), env.DEPENDENCY_RUN_SHA256, "the select job");
+    if (context === null) throw new Invalid("context.json is missing");
+    validateContext(context, pr);
+    // The head comes from the select job, not from the file.
+    if (!SHA.test(env.DEPENDENCY_HEAD_SHA) || context.head_sha !== env.DEPENDENCY_HEAD_SHA) {
+      throw new Invalid("context.json's head_sha is not the head the select job read");
     }
   } catch (error) {
-    log(`the verdict is refused: ${String(error?.message ?? error).slice(0, 300)}`);
-    run = null;
+    log(`the round's record is refused: ${String(error?.message ?? error).slice(0, 300)}`);
+    context = null;
+  }
+  if (context !== null) {
+    try {
+      // No attempt: the scan uploaded no verdict, so none is read.
+      const output = attempt ? readChecked(join(env.DEPENDENCY_VERDICT_DIR, "dependency-verdict.json"), env.DEPENDENCY_VERDICT_SHA256, "the scan job") : null;
+      if (output === null) {
+        missing = true;
+        log("no verdict arrived from the model call");
+      } else {
+        run = { ...context, output: validateVerdict(output) };
+      }
+    } catch (error) {
+      log(`the verdict is refused: ${String(error?.message ?? error).slice(0, 300)}`);
+      run = null;
+    }
   }
   const { escalationReason, skipReason } = await apply({
     api:
@@ -463,6 +548,10 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     appId,
     modelRun,
     run,
+    context,
+    missing,
+    patchState,
+    refused,
     baseSha: env.BASE_SHA,
     log,
   });

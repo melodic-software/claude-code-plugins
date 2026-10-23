@@ -8,6 +8,12 @@
 //   App bot as its actor, and the App's first escalation comment after it
 //   came within PAIRED_MS (report-escalation.sh writes the label, then the
 //   comment).
+// - No review lane holds it: no comment carrying a REVIEW_HOLD marker line, by
+//   claude[bot] or by github-actions[bot] ending in the lane's `claude-lane:`
+//   footer, was written or edited since the label was last removed (ever,
+//   when it never was). A lane adding a label the PR already carries writes
+//   no `labeled` event, so its hold can sit under the App's label, and a
+//   person removing the label is what lifts it.
 // - Every escalation comment since that label event is the App's: its author
 //   is the bot login and a Bot account, its first line is the pr-unblock
 //   escalation marker, its second the resume-key line, and its `- Reason:`
@@ -58,14 +64,25 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHub, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { humanGatedLabelFrom } from "../pr-unblock/address-feedback.mjs";
+import {
+  CLEARED,
+  ESCALATION,
+  escalationsSince,
+  foreignMarker,
+  isApp,
+  labelHistory,
+  laneHold,
+  lines,
+  openReviewHold,
+  PAIRED_MS,
+  RESUME_KEY,
+  same,
+} from "../pr-unblock/gate-source.mjs";
 import { isProtectedPath } from "../pr-unblock/thread-scope.mjs";
 
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
-const ESCALATION = "<!-- work-items:escalation lane=pr-unblock kind=escalated -->";
-const RESUME_KEY = /^<!-- pr-unblock resume-key=([0-9a-f]{40}|[0-9a-f]{64}) -->$/;
 const REASON = /^- Reason: `([a-z-]+)`$/m;
 const clearedMarker = (reason, head) => `<!-- pr-pipeline needs-human-cleared reason=${reason} head=${head} -->`;
-const CLEARED = /^<!-- pr-pipeline needs-human-cleared reason=[a-z,-]+ head=[0-9a-f]{40} -->$/;
 // babysit_merge.py's verifier-refusal escalation, reasons comment and
 // shared-copy escalation: the marker on the first or second line, the next
 // line naming `at head `<sha>``.
@@ -81,18 +98,12 @@ const SHA = /^[0-9a-f]{40}$/;
 // The compare API lists at most 300 files, the PR files API at most 3000.
 const COMPARE_CAP = 300;
 const FILES_CAP = 3000;
-// report-escalation.sh writes the label, then the comment, retrying the
-// comment for up to 15 seconds; a minute covers that (judgment).
-const PAIRED_MS = 60_000;
 // Each clear lets the lanes run on the PR again (judgment).
 export const CLEARS_PER_RUN = 5;
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 const reportError = (number, error) =>
   console.log(`::error title=clear-escalations::#${number}: ${escapeCommand(error?.message ?? error)}`);
-const lines = (body) => String(body ?? "").split("\n").map((line) => line.replace(/\r$/, ""));
-const same = (a, b) => String(a ?? "").toLowerCase() === String(b).toLowerCase();
-const isApp = (user, bot) => user?.login === bot && user?.type === "Bot";
 
 // Why each reason no longer holds at `pull`'s head, or null while it holds.
 const CHECKS = Object.freeze({
@@ -178,17 +189,20 @@ function spoken(item) {
 // What to clear on `number`, or { reason } saying why nothing is.
 async function verdict({ github, repo, number, label, bot, mainSha }) {
   const timeline = await paginate(github, `/repos/${repo}/issues/${number}/timeline`);
-  const labeled = timeline.filter((item) => item.event === "labeled" && same(item.label?.name, label)).at(-1);
+  const { labeled, since, lifted } = labelHistory(timeline, label);
   if (!isApp(labeled?.actor, bot)) {
     return { reason: `${label} was last added by ${labeled?.actor?.login ?? "no one on the timeline"}, not the lanes App` };
   }
-  const since = Date.parse(labeled.created_at);
+  // A comment's writes are its creation and its last edit; a tie, or a time
+  // that does not parse, keeps the label.
+  const held = openReviewHold(timeline, lifted);
+  if (held !== undefined) {
+    return { reason: `a review lane holds it: ${laneHold(held).slice(0, 120)}` };
+  }
   // Every escalation since the label went on: a later one posts no new label
   // event, so each reason it recorded must have cleared.
   const appComments = timeline.filter((item) => item.event === "commented" && isApp(item.user, bot));
-  const escalations = appComments
-    .map((item) => ({ body: lines(item.body), at: Date.parse(item.created_at) }))
-    .filter(({ body, at }) => body[0] === ESCALATION && RESUME_KEY.test(body[1] ?? "") && at >= since);
+  const escalations = escalationsSince(appComments, since);
   const merged = escalations.length === 0 && pairedWithPrMerge(appComments, since) ? prMergeEscalations(appComments) : [];
   let reasons = [];
   if (merged.length === 0) {
@@ -207,10 +221,7 @@ async function verdict({ github, repo, number, label, bot, mainSha }) {
   // label that is not the escalation being judged or this script's own keeps
   // it, so a marker this script does not know fails closed.
   const known = merged.length > 0 ? (line) => PR_MERGE_MARKERS.includes(line) : (line) => line === ESCALATION || RESUME_KEY.test(line);
-  const foreign = appComments
-    .filter((item) => !(Date.parse(item.created_at) < since) || !(Date.parse(item.updated_at ?? item.created_at) < since))
-    .flatMap((item) => lines(item.body).filter((line) => line.includes("<!--")))
-    .find((line) => !known(line) && !CLEARED.test(line));
+  const foreign = foreignMarker(appComments, since, known);
   if (foreign !== undefined) {
     return { reason: `a lanes App comment since ${label} went on carries another marker: ${foreign.slice(0, 120)}` };
   }

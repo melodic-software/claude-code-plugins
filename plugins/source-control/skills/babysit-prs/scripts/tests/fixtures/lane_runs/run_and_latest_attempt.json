@@ -1,0 +1,125 @@
+{
+  "latest_attempt": {
+    "artifacts_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/runs/39903146480/artifacts",
+    "cancel_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/runs/39903146480/cancel",
+    "check_suite_id": 108152846810,
+    "check_suite_node_id": "CS_kwDOTCGFQM8AAAAZLml52g",
+    "check_suite_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/check-suites/108152846810",
+    "conclusion": "success",
+    "created_at": "2026-10-23T04:58:01Z",
+    "display_title": "fix(source-control): hold pr-merge enqueues on a human veto comment",
+    "event": "pull_request",
+    "head_branch": "fix/9216-pr-merge-human-veto-scan",
+    "head_sha": "cdfc5036ba13427a9b49968b27da512ff117e422",
+    "html_url": "https://github.com/melodic-software/claude-code-plugins/actions/runs/39903146480",
+    "id": 39903146480,
+    "jobs_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/runs/39903146480/attempts/1/jobs",
+    "logs_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/runs/39903146480/attempts/1/logs",
+    "name": "pr-review-hosted",
+    "node_id": "WFR_kwLOTCGFQM8AAAAJSmmx8A",
+    "path": ".github/workflows/pr-review-hosted.yml",
+    "previous_attempt_url": null,
+    "pull_requests": [
+      {
+        "base": {
+          "ref": "main",
+          "repo": {
+            "id": 1277265216,
+            "name": "claude-code-plugins",
+            "url": "https://api.github.com/repos/melodic-software/claude-code-plugins"
+          },
+          "sha": "8648d753c81a28054ced9d1708a7e1d5165cb63c"
+        },
+        "head": {
+          "ref": "fix/9216-pr-merge-human-veto-scan",
+          "repo": {
+            "id": 1277265216,
+            "name": "claude-code-plugins",
+            "url": "https://api.github.com/repos/melodic-software/claude-code-plugins"
+          },
+          "sha": "cdfc5036ba13427a9b49968b27da512ff117e422"
+        },
+        "id": 4977814782,
+        "number": 9308,
+        "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/pulls/9308"
+      }
+    ],
+    "referenced_workflows": [
+      {
+        "path": "melodic-software/ci-workflows/.github/workflows/pr-review.yml@2fe38c031867900824c164e33a140a335ed9ecf0",
+        "sha": "2fe38c031867900824c164e33a140a335ed9ecf0"
+      }
+    ],
+    "rerun_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/runs/39903146480/rerun",
+    "run_attempt": 1,
+    "run_number": 6846,
+    "run_started_at": "2026-10-23T04:58:01Z",
+    "status": "completed",
+    "updated_at": "2026-10-23T04:59:39Z",
+    "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/runs/39903146480",
+    "workflow_id": 374687473,
+    "workflow_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/workflows/374687473"
+  },
+  "recorded": "2026-10-23",
+  "run": {
+    "artifacts_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/runs/39903146480/artifacts",
+    "cancel_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/runs/39903146480/cancel",
+    "check_suite_id": 108152846810,
+    "check_suite_node_id": "CS_kwDOTCGFQM8AAAAZLml52g",
+    "check_suite_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/check-suites/108152846810",
+    "conclusion": "success",
+    "created_at": "2026-10-23T04:58:01Z",
+    "display_title": "fix(source-control): hold pr-merge enqueues on a human veto comment",
+    "event": "pull_request",
+    "head_branch": "fix/9216-pr-merge-human-veto-scan",
+    "head_sha": "cdfc5036ba13427a9b49968b27da512ff117e422",
+    "html_url": "https://github.com/melodic-software/claude-code-plugins/actions/runs/39903146480",
+    "id": 39903146480,
+    "jobs_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/runs/39903146480/jobs",
+    "logs_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/runs/39903146480/logs",
+    "name": "pr-review-hosted",
+    "node_id": "WFR_kwLOTCGFQM8AAAAJSmmx8A",
+    "path": ".github/workflows/pr-review-hosted.yml",
+    "previous_attempt_url": null,
+    "pull_requests": [
+      {
+        "base": {
+          "ref": "main",
+          "repo": {
+            "id": 1277265216,
+            "name": "claude-code-plugins",
+            "url": "https://api.github.com/repos/melodic-software/claude-code-plugins"
+          },
+          "sha": "8648d753c81a28054ced9d1708a7e1d5165cb63c"
+        },
+        "head": {
+          "ref": "fix/9216-pr-merge-human-veto-scan",
+          "repo": {
+            "id": 1277265216,
+            "name": "claude-code-plugins",
+            "url": "https://api.github.com/repos/melodic-software/claude-code-plugins"
+          },
+          "sha": "cdfc5036ba13427a9b49968b27da512ff117e422"
+        },
+        "id": 4977814782,
+        "number": 9308,
+        "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/pulls/9308"
+      }
+    ],
+    "referenced_workflows": [
+      {
+        "path": "melodic-software/ci-workflows/.github/workflows/pr-review.yml@2fe38c031867900824c164e33a140a335ed9ecf0",
+        "sha": "2fe38c031867900824c164e33a140a335ed9ecf0"
+      }
+    ],
+    "rerun_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/runs/39903146480/rerun",
+    "run_attempt": 1,
+    "run_number": 6846,
+    "run_started_at": "2026-10-23T04:58:01Z",
+    "status": "completed",
+    "updated_at": "2026-10-23T04:59:39Z",
+    "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/runs/39903146480",
+    "workflow_id": 374687473,
+    "workflow_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/workflows/374687473"
+  }
+}

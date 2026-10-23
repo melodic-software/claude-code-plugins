@@ -86,18 +86,6 @@ const DEFAULT_RUN = {
   "max-turns": 75,
 };
 
-for (const [lane, activity] of [
-  ["pr-unblock", "resolve-conflicts"],
-  ["pr-unblock", "review-dependency"],
-]) {
-  test(`live config: ${lane} / ${activity} keeps no --model and 75 turns`, () => {
-    const slot = liveSlot(lane, activity);
-    assert.deepEqual(slot.models, { profile: "standard", ...DEFAULT_RUN });
-    assert.equal(modelArgs(slot.models), "--max-turns 75");
-    assert.equal(modelSettings(slot.models), "");
-  });
-}
-
 // models.issue-dimensions: the live config's field and option ids (the org's,
 // 2026-10-18) with fixture budgets in place of its tuning, so a tuning PR is a
 // config-only edit. Turn cap = ceil(base-turns x complexity factor); the
@@ -340,7 +328,7 @@ test("live config: the live issue-dimensions maps every org option and runs a kn
 });
 
 test("live config: an activity with no issue input takes no dimensions", () => {
-  const slot = liveSlot("pr-unblock", "fix-docs");
+  const slot = liveSlot("pr-refine", "fix-docs");
   assert.equal(slot["issue-dimensions"], undefined);
   assert.equal(slot["timeout-minutes"], undefined);
 });
@@ -433,6 +421,14 @@ test("live config: a script activity resolves no models", () => {
   assert.equal(liveSlot("pr-unblock", "report-escalation").models, null);
 });
 
+// run-claude-cli needs a model alias (the read runner refuses `default`), so
+// review-dependency routes to verify-pr's profile (plan Q3).
+test("live config: pr-unblock / review-dependency runs opus at 60 turns, the review profile", () => {
+  const slot = liveSlot("pr-unblock", "review-dependency");
+  assert.deepEqual(slot.models, { profile: "review", model: "opus", effort: null, "subagent-model": "inherit", "max-turns": 60 });
+  assert.equal(modelArgs(slot.models), "--model opus --max-turns 60");
+});
+
 test("live config: verify-pr keeps --model opus and 60 turns", () => {
   const models = resolveRoute(LIVE, { route: "verify-pr", configPath: CONFIG_PATH });
   assert.deepEqual(models, {
@@ -469,9 +465,9 @@ for (const [route, profile, args] of [
 // (plugins/multi-agent/reference/defaults.yaml): worker's model is inherit and
 // its mechanical workload sonnet, verifier's effort high; the owner's rule
 // sends inherit, and any role route that resolves no alias, to opus.
-// address-feedback runs on run-claude-cli, which cannot pass the default
-// model, so it takes fix-ci's code-fix route.
-for (const activity of ["fix-ci", "address-feedback"]) {
+// address-feedback and resolve-conflicts run on run-claude-cli, which cannot
+// pass the default model, so they take fix-ci's code-fix route.
+for (const activity of ["fix-ci", "address-feedback", "resolve-conflicts"]) {
   test(`live config: ${activity} runs as a worker on code, opus at the verifier's effort, 75 turns`, () => {
     const slot = liveSlot("pr-unblock", activity);
     assert.deepEqual(slot.models, {
@@ -490,7 +486,7 @@ for (const activity of ["fix-ci", "address-feedback"]) {
 // The role map's worker runs mechanical work on sonnet at its own effort,
 // medium; the profile keeps standard's 75 turns.
 test("live config: fix-docs runs as a mechanical worker, sonnet at the worker's effort, 75 turns", () => {
-  const slot = liveSlot("pr-unblock", "fix-docs");
+  const slot = liveSlot("pr-refine", "fix-docs");
   assert.deepEqual(slot.models, {
     profile: "docs-fix",
     role: "worker",

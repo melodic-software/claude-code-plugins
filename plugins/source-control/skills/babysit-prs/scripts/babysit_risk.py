@@ -4,8 +4,9 @@
 `score(RiskInput) -> RiskResult` is a pure function: no I/O, no GitHub calls.
 The caller reads the PR, its linked issue's class, the base-SHA config and the
 review-lane evidence, and hands them in; this module only judges them. A LOW
-score merges unattended, and so does a MED one whose every reason is a class
-or size reason (`holds`, #9270); every other reason holds. So every doubtful
+score merges unattended, and so does a MED one whose every reason is a class,
+size or reported review-finding reason (`holds`); every other reason holds.
+So every doubtful
 input rates a holding reason: missing or unrecognized data is a miss, never a
 pass, and it never raises: input it cannot read at all rates HIGH as
 `high-path:**`. Inputs are plain built-in
@@ -14,16 +15,15 @@ that override their own behavior are out of scope. A count outside
 0..10**9 is malformed. Each reason code appears once.
 
 The HIGH path floor and the lane table are fixed here, never read from
-configuration. The floor holds only what has an effect outside the repository
-or its review: agent permission config, submodules, code owners, package
-manifests and lockfiles, the workflows that publish a release or hold
-`id-token: write`, and the trusted-trigger check that keeps work from outside
-the org away from their credentials. Everything else, this module, the merge
-gate, the review lanes, hooks, scripts and agent instructions included, merges
-on the two review lanes, which are the gate (owner direction 2026-10-22: the
-review lanes are the only gate, and bots may edit hooks, plugins, skills,
-scripts and workflows). So a pull request can change the rule it is judged by,
-and the review lanes, not this floor, are what read that change. The configured `merge.diff-check.denied-paths` are joined to
+configuration. The floor holds only the takeover set, what could hand the
+repository to someone outside the org: the trusted-actor list and the
+trusted-trigger check that enforces it, code owners, submodules, and
+resolve-config, whose code the token broker runs from main in its signer
+process. Everything else, agent permission config, package manifests,
+workflows, this module, the merge gate, the review lanes, hooks, scripts and
+agent instructions included, merges on the two review lanes, which are the
+gate (owner direction 2026-10-23), except the cost and trusted-actor holds
+below. The configured `merge.diff-check.denied-paths` are joined to
 the floor, never in place of it. Every glob matches case-insensitively,
 because a lane host on a case-insensitive filesystem treats `Codeowners` as
 `CODEOWNERS`.
@@ -35,6 +35,21 @@ or `experimental.monitors`, in marketplace.json a plugin entry added, removed
 or renamed, a changed entry `source`, or a changed marketplace `name`. A
 manifest removed, renamed or copied, or whose side cannot be read or parsed,
 or repeats a key, holds; an added plugin.json is compared with `{}`.
+
+A change that adds or widens an entry in the trusted-actor list
+(`TRUSTED_ACTORS_PATH`) rates HIGH as `trust-gate:trusted-actors` in every
+lane, whatever the floor switch and `floor_exempt` say, and waits for the
+owner. Base and head text are compared: only removing entries passes this
+check, though with the floor on the list's directory holds anyway; an
+added or changed entry, any other key changed, a side that cannot be read or
+parsed or repeats a key, and an added, removed, renamed or copied file hold.
+
+A review finding holds only as a CRITICAL security finding
+(`security-finding`): the security lane's `blocking_findings`. Every other open
+finding, a code-review finding or an IMPORTANT or SUGGESTION security one, is
+reported as a MED `findings:<lane>` reason that does not hold (owner decisions
+Q25, Q33 and Q693). A cost increase holds through `cost-review-required` and a
+trusted-actor widening through `trust-gate:trusted-actors`.
 
 A change that could add or raise a charge rates HIGH as `cost-review-required`
 in every lane, floor or not and whatever `floor_exempt` says (owner rule,
@@ -136,8 +151,9 @@ class LaneEvidence:
     # was reported at the head, no whole review of it is recorded, and no
     # lane thread is unresolved.
     whole_review_clears: bool = False
-    # The open findings that hold the merge; None when every one does. The
-    # security lane counts only CRITICAL ones (babysit_review_evidence.py).
+    # The security lane's open findings that hold the merge (CRITICAL, read
+    # by babysit_review_evidence.py); None when every one does. A
+    # claude-review finding never holds, whatever this says.
     blocking_findings: int | None = None
 
 
@@ -184,42 +200,37 @@ class RiskResult:
     reasons: tuple[Reason, ...]  # sorted by severity desc, then code
 
 
+# What would hand the repository to someone outside the org: who is trusted
+# (the trusted-actor list and the check that enforces it), who owns review
+# (code owners), what code is pulled in from elsewhere (submodules), and the
+# code the token broker runs from main in its signer process (resolve-config,
+# owner decision Q51).
 HIGH_FLOOR: tuple[str, ...] = (
-    "**/settings*.json",  # agent permission config
-    "**/.gitmodules",
-    "**/CODEOWNERS",
-    # Package manifests and lockfiles: the dependency supply chain.
-    "**/package.json",
-    "**/package-lock.json",
-    "**/requirements*.txt",
-    # Workflows that publish a release or hold `id-token: write`: external
-    # effects and the secrets behind them. The scripts and actions they run
-    # are open to review-gated merge (owner direction 2026-10-22), except the
-    # trusted-trigger check, which implements the outside-org hold the owner
-    # kept.
-    ".github/workflows/release-*.yml",
-    ".github/workflows/intake-triage.yml",
-    ".github/workflows/pr-merge.yml",
-    ".github/workflows/pr-review-hosted.yml",
-    ".github/workflows/pr-review-security-hosted.yml",
-    ".github/workflows/pr-run-activity-read.yml",
-    ".github/workflows/pr-run-activity-write.yml",
-    ".github/workflows/pr-unblock.yml",
-    ".github/workflows/work-resolve-issue.yml",
-    ".github/workflows/work-unblock.yml",
+    ".github/standards/trusted-actors/**",
     ".github/actions/check-trusted-trigger/**",
+    "**/CODEOWNERS",
+    "**/.gitmodules",
+    ".github/actions/resolve-config/**",
 )
 
 # plugin.json keys whose values Claude Code runs or reads as run config.
 _EXECUTABLE_KEYS = ("hooks", "mcpServers", "lspServers", "monitors")
 
-# Lane -> (code, severity) for an open blocking finding on that lane
-# (`LaneEvidence.blocking_findings`). Both lanes are required: a lane absent
-# from the input is unbound.
+# Lane -> (code, severity) for an open finding on that lane. Only the
+# security lane's blocking findings hold (`LaneEvidence.blocking_findings`);
+# claude-review's code is reported and never holds (`MERGEABLE_MED`). Both
+# lanes are required: a lane absent from the input is unbound.
 LANES: dict[str, tuple[str, Risk]] = {
     "claude-review": ("findings:claude-review", Risk.MED),
     "claude-security-review": ("security-finding", Risk.HIGH),
 }
+_HOLDING_LANE = "claude-security-review"
+# The security lane's open findings below the holding tier: reported only.
+REPORTED_SECURITY_CODE = "findings:claude-security-review"
+
+TRUST_GATE_PREFIX = "trust-gate:"
+TRUST_GATE_CODE = f"{TRUST_GATE_PREFIX}trusted-actors"
+TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
 
 # GitHub's documented pull request file statuses.
 STATUSES = frozenset(
@@ -573,6 +584,49 @@ def _high_path_reasons(
     if review:
         reasons.append(Reason(_MANIFEST_CODE, Risk.HIGH, "; ".join(review)))
     return reasons
+
+
+def is_trusted_actors_path(path: str) -> bool:
+    return glob_match(TRUSTED_ACTORS_PATH, path)
+
+
+def _actors_widened(f: _File, raw: Any) -> str | None:
+    """Why a trusted-actor list change widens trust, None when it only
+    removes entries."""
+    if f.status != "modified" or len(f.paths) != 1:
+        return f"{f.status} trusted-actor list"
+    contents = getattr(raw, "contents", None)
+    if getattr(raw, "contents_error", None) is not None or not (
+        isinstance(contents, tuple) and len(contents) == 2
+    ):
+        return "contents unreadable"
+    base, head = _manifest(contents[0]), _manifest(contents[1])
+    if base is None or head is None:
+        return "unreadable, malformed or a repeated key"
+    old, new = base.get("actors"), head.get("actors")
+    if not isinstance(old, list) or not isinstance(new, list):
+        return "actors is not a list"
+    if {k: v for k, v in base.items() if k != "actors"} != {
+        k: v for k, v in head.items() if k != "actors"
+    }:
+        return "a key other than actors changed"
+    gained = Counter(json.dumps(e, sort_keys=True) for e in new)
+    gained.subtract(json.dumps(e, sort_keys=True) for e in old)
+    added = sorted(e for e, n in gained.items() if n > 0)
+    return f"entries added or changed: {', '.join(added)}" if added else None
+
+
+def _trust_gate_reasons(files: list[_File], raw_files: list[Any]) -> list[Reason]:
+    found = []
+    for f, raw in zip(files, raw_files):
+        if any(is_trusted_actors_path(p) for p in f.paths if p):
+            why = _actors_widened(f, raw)
+            if why:
+                found.append(f"{f.path}: {why}")
+    if not found:
+        return []
+    detail = "; ".join(found) + "; the owner merges it"
+    return [Reason(TRUST_GATE_CODE, Risk.HIGH, detail)]
 
 
 COST_CODE = "cost-review-required"
@@ -992,8 +1046,20 @@ def _lane_reasons(raw_lanes: Any) -> list[Reason]:
             reasons.append(
                 Reason(f"evidence-unbound:{name}", Risk.MED, ": ".join(parts))
             )
-        elif count > 0:
+            continue
+        total = getattr(lane, "open_findings", None)
+        if name != _HOLDING_LANE:
+            seen = total if _is_count(total) else count
+            if seen > 0:
+                reasons.append(
+                    Reason(finding_code, Risk.MED, f"{seen} open, reported only")
+                )
+            continue
+        if count > 0:
             reasons.append(Reason(finding_code, finding_severity, f"{count} open"))
+        if _is_count(total) and total > count:
+            detail = f"{total - count} open below CRITICAL, reported only"
+            reasons.append(Reason(REPORTED_SECURITY_CODE, Risk.MED, detail))
     return reasons
 
 
@@ -1008,25 +1074,33 @@ def _score(inp: RiskInput) -> RiskResult:
         *_lane_reasons(inp.lanes),
         *_high_path_reasons(inp, files or [], list(raw_files or ())),
         *_cost_reasons(inp, files or [], list(raw_files or ())),
+        *_trust_gate_reasons(files or [], list(raw_files or ())),
     ]
     reasons.sort(key=lambda reason: (-reason.severity, reason.code))
     worst = max((reason.severity for reason in reasons), default=Risk.LOW)
     return RiskResult(Risk(worst), tuple(reasons))
 
 
-# MED reasons an unattended merge passes (#9270): the work class's own
-# contradictions and rating, and the diff's size. `class-missing` and
-# `class-above-rung` hold: the rung is the owner's cap.
+# MED reasons an unattended merge passes: the work class's own contradictions
+# and rating, the diff's size, and the review findings that are reported only.
+# `class-missing` and `class-above-rung` hold: the rung is the owner's cap.
 MERGEABLE_MED = frozenset(
-    {"class-contradicted", "blast-radius-missing", "lines-over", "files-over"}
+    {
+        "class-contradicted",
+        "blast-radius-missing",
+        "lines-over",
+        "files-over",
+        LANES["claude-review"][0],
+        REPORTED_SECURITY_CODE,
+    }
 )
 _MERGEABLE_MED_PREFIX = "no-patch:"
 
 
 def holding(result: RiskResult) -> list[Reason]:
     """The reasons that refuse an unattended merge: every HIGH one, and each
-    MED one outside `MERGEABLE_MED`, such as unbound review evidence, an open
-    finding or an unread file listing."""
+    MED one outside `MERGEABLE_MED`, such as unbound review evidence or an
+    unread file listing."""
     return [
         r
         for r in result.reasons

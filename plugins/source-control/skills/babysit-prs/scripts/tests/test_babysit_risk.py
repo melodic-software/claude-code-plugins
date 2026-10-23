@@ -289,24 +289,19 @@ class HighReasonTests(unittest.TestCase):
 
     def test_floor_paths_are_high(self):
         cases = [
-            (".claude/settings.json", "high-path:**/settings*.json"),
-            ("plugins/foo/settings.local.json", "high-path:**/settings*.json"),
             (".gitmodules", "high-path:**/.gitmodules"),
             (".github/CODEOWNERS", "high-path:**/CODEOWNERS"),
-            ("package.json", "high-path:**/package.json"),
-            ("plugins/foo/package-lock.json", "high-path:**/package-lock.json"),
-            ("plugins/foo/requirements.txt", "high-path:**/requirements*.txt"),
             (
-                ".github/workflows/release-publish-plugins.yml",
-                "high-path:.github/workflows/release-*.yml",
-            ),
-            (
-                ".github/workflows/work-resolve-issue.yml",
-                "high-path:.github/workflows/work-resolve-issue.yml",
+                ".github/standards/trusted-actors/trusted-actors.json",
+                "high-path:.github/standards/trusted-actors/**",
             ),
             (
                 ".github/actions/check-trusted-trigger/action.yml",
                 "high-path:.github/actions/check-trusted-trigger/**",
+            ),
+            (
+                ".github/actions/resolve-config/resolve.mjs",
+                "high-path:.github/actions/resolve-config/**",
             ),
         ]
         for path, code in cases:
@@ -314,6 +309,23 @@ class HighReasonTests(unittest.TestCase):
                 result = score(_input(files=(_file(path),)))
                 self.assertEqual(result.score, Risk.HIGH)
                 self.assertIn(code, _codes(result))
+
+    def test_paths_off_the_floor_take_no_path_code(self):
+        # Owner direction 2026-10-23: only a takeover path waits for the owner.
+        for path in (
+            ".claude/settings.json",
+            "plugins/foo/settings.local.json",
+            "package.json",
+            "plugins/foo/package-lock.json",
+            "plugins/foo/requirements.txt",
+            ".github/workflows/release-publish-plugins.yml",
+            ".github/workflows/pr-merge.yml",
+            ".github/workflows/pr-review-security-hosted.yml",
+            ".github/workflows/work-resolve-issue.yml",
+        ):
+            with self.subTest(path):
+                codes = _codes(score(_input(files=(_file(path),))))
+                self.assertFalse([c for c in codes if c.startswith("high-path:")])
 
     def test_skill_prose_edit_stays_low(self):
         after = FRONT.replace("Body.", "Body, reworded.")
@@ -323,12 +335,11 @@ class HighReasonTests(unittest.TestCase):
     def test_case_folded_paths_are_high(self):
         cases = [
             (
-                ".GitHub/Workflows/PR-Merge.yml",
-                "high-path:.github/workflows/pr-merge.yml",
+                ".GitHub/Standards/Trusted-Actors/README.MD",
+                "high-path:.github/standards/trusted-actors/**",
             ),
             ("plugins/foo/Codeowners", "high-path:**/CODEOWNERS"),
             (".GITMODULES", "high-path:**/.gitmodules"),
-            ("Package.JSON", "high-path:**/package.json"),
         ]
         for path, code in cases:
             with self.subTest(path):
@@ -366,13 +377,13 @@ class RenameTests(unittest.TestCase):
             _file(
                 "plugins/foo/x.json",
                 status="renamed",
-                previous_path="plugins/foo/package.json",
+                previous_path="plugins/foo/CODEOWNERS",
             ),
         )
         result = score(_input(files=files))
         self.assertEqual(result.score, Risk.HIGH)
         self.assertEqual(
-            _codes(result), ("high-path:**/package.json", "class-contradicted")
+            _codes(result), ("high-path:**/CODEOWNERS", "class-contradicted")
         )
 
     def test_rename_into_a_workflow_takes_the_cost_hold(self):
@@ -418,7 +429,7 @@ class OrderingTests(unittest.TestCase):
             _lane("claude-security-review", open_findings=1),
         )
         files = (
-            _file("package.json"),
+            _file("CODEOWNERS"),
             _file(".gitmodules", has_patch=False),
             _file("plugins/foo/c.md", additions=500),
         )
@@ -429,7 +440,7 @@ class OrderingTests(unittest.TestCase):
             _codes(result),
             (
                 "high-path:**/.gitmodules",
-                "high-path:**/package.json",
+                "high-path:**/CODEOWNERS",
                 "security-finding",
                 "blast-radius-missing",
                 "class-above-rung",
@@ -892,6 +903,14 @@ class MalformedInputTests(unittest.TestCase):
                 ".github/actions/check-trusted-trigger",
                 "high-path:.github/actions/check-trusted-trigger/**",
             ),
+            (
+                ".github/standards/trusted-actors",
+                "high-path:.github/standards/trusted-actors/**",
+            ),
+            (
+                ".github/actions/resolve-config",
+                "high-path:.github/actions/resolve-config/**",
+            ),
         ):
             with self.subTest(path):
                 result = score(_input(files=(_file(path),)))
@@ -1129,28 +1148,28 @@ def _lane_input(files):
 
 
 class LanePathFloorTests(unittest.TestCase):
-    """The live pr-merge config holds only the external-effect set."""
+    """The live pr-merge config holds only the takeover set."""
 
     def test_the_live_config_has_the_floor_on(self):
         self.assertIs(_lane_config().high_path_floor, True)
 
     def test_the_keep_set_holds(self):
         for path in (
-            ".claude/settings.json",
-            "plugins/foo/.claude/settings.local.json",
             ".gitmodules",
             ".github/CODEOWNERS",
-            "package.json",
-            "plugins/foo/package-lock.json",
-            ".github/requirements-ci.txt",
-            ".github/workflows/release-publish-plugins.yml",
-            ".github/workflows/pr-merge.yml",
-            ".github/workflows/pr-unblock.yml",
+            ".github/standards/trusted-actors/trusted-actors.json",
             ".github/actions/check-trusted-trigger/action.yml",
+            ".github/actions/resolve-config/lane-rules.json",
         ):
             with self.subTest(path):
                 result = score(_lane_input((_file(path),)))
                 self.assertEqual(result.score, Risk.HIGH, result.reasons)
+
+    def test_resolve_config_waits_for_the_owner(self):
+        # Owner decision Q51: the token broker runs this code from main.
+        result = score(_lane_input((_file(".github/actions/resolve-config/resolve.mjs"),)))
+        self.assertEqual(result.score, Risk.HIGH, result.reasons)
+        self.assertIn("high-path:.github/actions/resolve-config/**", _codes(result))
 
     def test_instructions_hooks_and_scripts_merge(self):
         # Owner direction 2026-10-22: the review lanes are the gate for these.
@@ -1186,6 +1205,14 @@ class LanePathFloorTests(unittest.TestCase):
             ".github/scripts/pr-merge/x.mjs",
             "plugins/foo/evals/case/case.yaml",
             "plugins/foo/evals/case/scaffold.sh",
+            ".claude/settings.json",
+            "plugins/foo/.claude/settings.local.json",
+            "package.json",
+            "plugins/foo/package-lock.json",
+            ".github/requirements-ci.txt",
+            ".github/workflows/release-publish-plugins.yml",
+            ".github/workflows/pr-merge.yml",
+            ".github/workflows/pr-review-security-hosted.yml",
         ):
             with self.subTest(path):
                 result = score(_lane_input((_file(path),)))
@@ -1345,13 +1372,17 @@ class HoldsTests(unittest.TestCase):
                 self.assertEqual(result.score, Risk.MED)
                 self.assertFalse(holds(result), result.reasons)
 
-    def test_an_open_review_finding_holds(self):
+    def test_an_open_code_review_finding_is_reported_and_does_not_hold(self):
+        # Q25: a review flag other than cost, a trusted-actor widening or a
+        # CRITICAL security finding is reported and merges.
         lanes = (
             _lane("claude-review", open_findings=1),
             _lane("claude-security-review"),
         )
         files = (_file("plugins/foo/logo.png", has_patch=False),)
-        self.assertTrue(self._holds(lanes=lanes, files=files))
+        result = score(_input(lanes=lanes, files=files))
+        self.assertIn("findings:claude-review", _codes(result))
+        self.assertFalse(holds(result), result.reasons)
 
     def test_an_unbound_or_missing_lane_holds(self):
         for lanes in (
@@ -1386,7 +1417,7 @@ class HoldsTests(unittest.TestCase):
 
 class SecurityBlockingTests(unittest.TestCase):
     """The security lane holds only on its CRITICAL findings
-    (`blocking_findings`); claude-review holds on every open finding."""
+    (`blocking_findings`); the rest are reported and do not hold."""
 
     def _security(self, open_findings, blocking):
         lane = LaneEvidence(
@@ -1398,13 +1429,179 @@ class SecurityBlockingTests(unittest.TestCase):
         )
         return score(_input(lanes=(_lane("claude-review"), lane)))
 
-    def test_a_non_critical_security_finding_adds_no_reason(self):
-        self.assertEqual(self._security(3, 0).reasons, ())
+    def test_a_non_critical_security_finding_is_reported_and_does_not_hold(self):
+        result = self._security(3, 0)
+        self.assertEqual(result.score, Risk.MED)
+        self.assertEqual(_codes(result), ("findings:claude-security-review",))
+        self.assertIn("3 open", result.reasons[0].detail)
+        self.assertFalse(holds(result))
 
     def test_a_critical_security_finding_is_high(self):
         result = self._security(3, 1)
         self.assertEqual(result.score, Risk.HIGH)
-        self.assertEqual(_codes(result), ("security-finding",))
+        self.assertEqual(
+            _codes(result), ("security-finding", "findings:claude-security-review")
+        )
+        self.assertIn("2 open", result.reasons[1].detail)
+        self.assertTrue(holds(result))
 
     def test_no_severity_count_holds_on_every_finding(self):
         self.assertEqual(_codes(self._security(2, None)), ("security-finding",))
+
+
+B = "plugins/source-control/skills/babysit-prs/scripts/"
+ACTORS = ".github/standards/trusted-actors/trusted-actors.json"
+TRUSTED = "trust-gate:trusted-actors"
+_KYLE = '{ "id": 1, "login": "kyle", "kind": "human" }'
+_BOT = '{ "id": 2, "login": "lanes[bot]", "kind": "bot" }'
+
+
+def _actors(*entries, version=1):
+    return '{\n  "version": %d,\n  "actors": [\n    %s\n  ]\n}\n' % (
+        version,
+        ",\n    ".join(entries),
+    )
+
+
+BASE_ACTORS = _actors(_KYLE, _BOT)
+
+
+class TrustGateTests(unittest.TestCase):
+    """The owner's direction: the one trust-gate hold is a change that adds
+    or widens entries in the trusted-actor list; a pure removal is not held,
+    whatever the floor switch and the trusted author's own paths say."""
+
+    def _score(self, after, before=BASE_ACTORS, path=ACTORS, **changes):
+        changed = _edit(path, before, after)
+        return score(_input(files=(changed,), high_floor=False, **changes))
+
+    def test_a_widening_holds_with_the_floor_off_and_exempt(self):
+        widen = {
+            "an entry added": _actors(
+                _KYLE, _BOT, '{ "id": 3, "login": "new", "kind": "bot" }'
+            ),
+            "an entry's kind changed": _actors(
+                _KYLE, _BOT.replace('"bot"', '"human"')
+            ),
+            "an entry's id changed": _actors(_KYLE, _BOT.replace("2", "4")),
+            "a removal beside an addition": _actors(
+                _KYLE, '{ "id": 5, "login": "x", "kind": "bot" }'
+            ),
+            "another key changed": _actors(_KYLE, _BOT, version=2),
+            "unparsable head": "{",
+            "a repeated key": BASE_ACTORS.replace('"version": 1', '"version": 1, "version": 1'),
+            "actors not a list": '{"version": 1, "actors": {}}',
+        }  # fmt: skip
+        for name, after in widen.items():
+            for changes in (dict(), dict(floor_exempt=frozenset({ACTORS}))):
+                with self.subTest(name, changes=changes):
+                    result = self._score(after, **changes)
+                    self.assertEqual(result.score, Risk.HIGH)
+                    self.assertEqual(_codes(result), (TRUSTED,))
+                    self.assertTrue(holds(result))
+
+    def test_a_pure_removal_does_not_hold(self):
+        for after in (_actors(_KYLE), _actors(_BOT), BASE_ACTORS.replace("  ", " ")):
+            with self.subTest(after=after):
+                result = self._score(after)
+                self.assertEqual(result.score, Risk.LOW, result.reasons)
+
+    def test_a_pure_removal_holds_on_the_floor(self):
+        # The trusted-actor directory is on the floor: with the floor on, even
+        # a removal waits for the owner.
+        result = score(_input(files=(_edit(ACTORS, BASE_ACTORS, _actors(_KYLE)),)))
+        self.assertEqual(result.score, Risk.HIGH)
+        self.assertEqual(_codes(result), ("high-path:.github/standards/trusted-actors/**",))
+
+    def test_an_unread_or_structural_change_holds(self):
+        cases = (
+            _file(ACTORS, contents=None),
+            dataclasses.replace(_file(ACTORS), contents_error="boom"),
+            _file(ACTORS, status="added", previous_mode="000000"),
+            _file(ACTORS, status="removed"),
+            _file("plugins/foo/x.json", status="renamed", previous_path=ACTORS),
+            _file(ACTORS, status="renamed", previous_path="plugins/foo/x.json"),
+        )
+        for changed in cases:
+            with self.subTest(changed=changed):
+                result = score(
+                    _input(files=(changed,), high_floor=False, c2_contradictions=False)
+                )
+                self.assertEqual(_codes(result), (TRUSTED,))
+
+    def test_a_case_folded_path_holds(self):
+        result = self._score(
+            _actors(_KYLE, _BOT, '{ "id": 3 }'),
+            path=".GitHub/Standards/Trusted-Actors/Trusted-Actors.JSON",
+        )
+        self.assertEqual(_codes(result), (TRUSTED,))
+
+    def test_paths_the_owner_lifted_do_not_hold_with_the_floor_off(self):
+        # The scorer, the merge gate, the pipeline config, workflows and the
+        # security review merge normally.
+        for path in (
+            f"{B}babysit_risk.py",
+            f"{B}babysit_merge.py",
+            f"{B}babysit_review_evidence.py",
+            ".github/workflows/pr-merge.yml",
+            ".github/scripts/pr-merge/gate.mjs",
+            ".github/workflows/pr-review-security-hosted.yml",
+            ".github/standards/trusted-actors/README.md",
+            "plugins/foo/trusted-actors/trusted-actors.json",
+        ):
+            with self.subTest(path):
+                result = score(_input(files=(_file(path),), high_floor=False))
+                self.assertEqual(result.score, Risk.LOW, result.reasons)
+
+
+class ReviewFlagClassTests(unittest.TestCase):
+    """Q25: a review flag holds only as a cost increase, a trusted-actor
+    widening or a CRITICAL security finding (Q693); any other is reported."""
+
+    def _lanes(self, review=0, security=0, critical=None):
+        return (
+            _lane("claude-review", open_findings=review),
+            LaneEvidence(
+                "claude-security-review", True, None, security,
+                blocking_findings=critical,
+            ),
+        )  # fmt: skip
+
+    def test_cost_flag_holds(self):
+        patch = "@@ -1,1 +1,2 @@\n on: push\n+  cron: '0 * * * *'"
+        result = score(_input(files=(_file(".github/workflows/x.yml", patch=patch),)))
+        self.assertEqual(_codes(result), ("cost-review-required",))
+        self.assertTrue(holds(result))
+
+    def test_trust_gate_flag_holds(self):
+        widened = _edit(ACTORS, BASE_ACTORS, _actors(_KYLE, _BOT, '{ "id": 3 }'))
+        result = score(_input(files=(widened,), high_floor=False))
+        self.assertEqual(_codes(result), (TRUSTED,))
+        self.assertTrue(holds(result))
+
+    def test_critical_security_flag_holds(self):
+        result = score(_input(lanes=self._lanes(security=1, critical=1)))
+        self.assertEqual(_codes(result), ("security-finding",))
+        self.assertTrue(holds(result))
+
+    def test_other_flags_are_reported_and_do_not_hold(self):
+        result = score(_input(lanes=self._lanes(review=2, security=3, critical=0)))
+        self.assertEqual(result.score, Risk.MED)
+        self.assertEqual(
+            {r.code: r.detail for r in result.reasons},
+            {
+                "findings:claude-review": "2 open, reported only",
+                "findings:claude-security-review": "3 open below CRITICAL, reported only",
+            },
+        )
+        self.assertFalse(holds(result))
+
+    def test_a_reported_flag_beside_a_hold_is_still_listed(self):
+        result = score(
+            _input(
+                files=(_file(".gitmodules"),),
+                lanes=self._lanes(review=1),
+            )
+        )
+        self.assertIn("findings:claude-review", _codes(result))
+        self.assertTrue(holds(result))

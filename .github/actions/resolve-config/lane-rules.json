@@ -63,7 +63,8 @@
   "pr-merge": {
     "stage": "merge",
     "forbidden-effects": [],
-    "never": "Merges above the rung, past a hold, or a PR that touches a denied path"
+    "never": "Merges above the rung, past a hold, or a PR that touches a denied path",
+    "activity-grants": { "merge-pr": { "actions": "read" } }
   },
   "post-merge-verify": {
     "stage": "post-merge",

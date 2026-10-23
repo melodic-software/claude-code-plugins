@@ -18,7 +18,6 @@ import io
 import json
 import os
 import pathlib
-import re
 import shutil
 import subprocess
 import sys
@@ -335,6 +334,35 @@ class ReadConfigAt(unittest.TestCase):
                 self.assertEqual(config.rung, "C2")
                 self.assertEqual(
                     any("max-verify-fails" in n for n in config.notes), noted
+                )
+
+    def test_read_token_floor_defaults_to_three_tenths_and_a_bad_value_too(
+        self,
+    ) -> None:
+        # The schema's range is 0 to 1; anything else is noted and the
+        # default stands. It picks a token, never a decision, so the rung holds.
+        def with_floor(value: str) -> str:
+            return PIPELINE.replace(
+                "merge:\n", f"merge:\n  read-token-floor: {value}\n"
+            )
+
+        for text, expected, noted in (
+            (PIPELINE, 0.3, False),
+            (with_floor("0.5"), 0.5, False),
+            (with_floor(".25"), 0.25, False),
+            (with_floor("0"), 0.0, False),
+            (with_floor("1"), 1.0, False),
+            (with_floor("1.5"), 0.3, True),
+            (with_floor("-0.1"), 0.3, True),
+            (with_floor("half"), 0.3, True),
+        ):
+            with self.subTest(text=text):
+                config_fake(self, text)
+                config = policy.read_config_at(REPO, SHA)
+                self.assertEqual(config.read_token_floor, expected)
+                self.assertEqual(config.rung, "C2")
+                self.assertEqual(
+                    any("read-token-floor" in n for n in config.notes), noted
                 )
 
     def test_a_flow_mapping_max_verify_fails_turns_the_lane_off(self) -> None:
@@ -3827,6 +3855,8 @@ class ForeignPaths(unittest.TestCase):
                 ".github/workflows/pr-merge.yml",
                 ".github/workflows/release-publish-plugins.yml",
                 ".github/actions/check-trusted-trigger/action.yml",
+                ".github/standards/trusted-actors/trusted-actors.json",
+                ".github/actions/resolve-config/resolve.mjs",
                 "CODEOWNERS",
                 "docs/CODEOWNERS",
                 ".claude/settings.json",
@@ -3844,6 +3874,13 @@ class ForeignPaths(unittest.TestCase):
             }
         )
         own = {
+            ".github/workflows/pr-merge.yml",
+            ".github/workflows/release-publish-plugins.yml",
+            ".claude/settings.json",
+            "config/settings.local.json",
+            "package.json",
+            "plugins/x/package-lock.json",
+            ".github/requirements-ci.txt",
             "docs/x.md",
             "plugins/x/skills/y/SKILL.md",
             "AGENTS.md",
@@ -3891,18 +3928,6 @@ class ForeignPaths(unittest.TestCase):
                 ),
                 {"plugins/x/scripts/y.py", "Plugins/X/Scripts/Z.SH"},
             )
-
-    def test_the_instruction_path_twin_matches_thread_scope(self) -> None:
-        # One list: the Python twin is the regex thread-scope.mjs defines.
-        root = pathlib.Path(__file__).resolve().parents[6]
-        source = (root / ".github/scripts/pr-unblock/thread-scope.mjs").read_text(
-            encoding="utf-8"
-        )
-        found = re.search(r"const INSTRUCTION_PATH =\s*/(.+)/(\w*);", source)
-        assert found is not None
-        self.assertEqual(policy.INSTRUCTION_PATH_RE.pattern, found.group(1))
-        self.assertEqual(found.group(2), "i")
-        self.assertTrue(policy.INSTRUCTION_PATH_RE.flags & re.IGNORECASE)
 
     def test_a_merge_commit_scores_its_files_the_pr_changed(self) -> None:
         resolved = self.commit("m1", self.LANES, parents=2)
@@ -4448,6 +4473,20 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
             main_source=LOOSE_SOURCE,
         )
         self.assert_strict(self.config(), 10)
+
+    def test_the_read_token_floor_is_mains_whichever_is_higher(self) -> None:
+        # It picks which token reads, not a decision, so neither side is
+        # stricter: the default branch head's value applies, so a pull
+        # request's base cannot set it.
+        def floor(value: str) -> str:
+            return LOOSE_PIPELINE.replace(
+                "merge:\n", f"merge:\n  read-token-floor: {value}\n"
+            )
+
+        for base, main, expected in (("0.9", "0.1", 0.1), ("0.1", "0.9", 0.9)):
+            with self.subTest(base=base, main=main):
+                self.moved(floor(base), floor(main))
+                self.assertEqual(self.config().read_token_floor, expected)
 
     def test_main_turning_report_only_on_reports_the_base_pull_request(
         self,
@@ -6489,6 +6528,13 @@ class FileContents(unittest.TestCase):
         self.assertEqual([f.contents for f in out[:2]], [("old", "new")] * 2)
         self.assertIsNone(out[2].contents)
         self.assertEqual(len(calls), 2)
+
+    def test_the_trusted_actor_list_is_read_on_both_sides(self) -> None:
+        # The trust-gate hold compares its base and head entries.
+        path = ".github/standards/trusted-actors/trusted-actors.json"
+        texts = {(path, "b" * 40): "old", (path, "c" * 40): "new"}
+        out, _ = self.read([self.changed(path)], texts)
+        self.assertEqual(out[0].contents, ("old", "new"))
 
     def test_a_rename_reads_the_base_at_its_previous_path(self) -> None:
         moved = self.changed(

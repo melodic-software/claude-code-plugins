@@ -1,6 +1,11 @@
 {
   "resolve-conflicts": {
-    "never": "Force-pushes, pushes .github/workflows changes, or runs head code"
+    "forbidden-effects": ["publish-artifact", "mutate-tracker", "mutate-branch", "merge"],
+    "never": "Holds a write token, runs a command, or posts to the pull request: its resolutions leave only as a patch"
+  },
+  "apply-conflict-patch": {
+    "forbidden-effects": ["publish-artifact", "mutate-tracker", "merge"],
+    "never": "Runs a model or head code, force-pushes, or pushes a model edit outside the conflicted paths"
   },
   "report-outcome": {
     "forbidden-effects": ["mutate-branch", "merge"],
@@ -23,8 +28,12 @@
     "never": "Writes to the branch, or posts anything but the recorded replies"
   },
   "review-dependency": {
+    "forbidden-effects": ["publish-artifact", "mutate-tracker", "mutate-branch", "merge"],
+    "never": "Holds a write token, posts to the pull request, merges or closes: its fix leaves only as a patch"
+  },
+  "apply-dependency-patch": {
     "forbidden-effects": ["publish-artifact", "mutate-tracker", "merge"],
-    "never": "Posts to the pull request, merges, closes, or pushes under .github/"
+    "never": "Runs a model or head code, force-pushes, or pushes anything but a version change of manifest and lock files outside .github/"
   },
   "fix-docs": {
     "forbidden-effects": ["publish-artifact", "mutate-tracker", "mutate-branch", "merge"],

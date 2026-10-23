@@ -155,8 +155,8 @@ on:
           only by its scan job: the attempt whose
           feedback-replies-<lane>-address-feedback-<attempt> artifact holds
           the scanned replies, and the model run the round marker names. Empty
-          downloads none: no model turn, which the reply script posts as a
-          no-model-turn skip.
+          downloads none: with no replies, no patch and no scan refusal, the
+          reply script posts a no-model-turn skip.
         required: false
         type: string
         default: ""
@@ -171,39 +171,68 @@ on:
       review-patch-state:
         description: >-
           With review-replies, the same read runner call's scan-patch-state.
-          With no replies, the reply script skips no-model-turn only when this
-          is empty.
+          With no replies, the reply script skips no-model-turn only when this,
+          review-replies-attempt and review-replies-sha256 are empty and no
+          scan refusal marker downloaded.
         required: false
         type: string
         default: ""
       dependency-verdict:
         description: >-
           For the verdict script of a review-dependency round: download the
-          verdict the model run's runner step uploaded in this workflow run
-          and pass it to the script as DEPENDENCY_VERDICT_DIR.
+          select job's context.json and the verdict the read runner's scan job
+          uploaded in this workflow run, and pass both to the script as
+          DEPENDENCY_VERDICT_DIR.
         required: false
         type: boolean
         default: false
+      dependency-context-attempt:
+        description: >-
+          With dependency-verdict, the select job's context-attempt output: the
+          attempt whose dependency-context-<attempt> artifact holds
+          context.json. Empty downloads nothing, which the verdict script
+          refuses as dependency-invalid.
+        required: false
+        type: string
+        default: ""
       dependency-run-sha256:
         description: >-
-          With dependency-verdict, the model run's dependency-run-sha256
-          output; the verdict script refuses a run.json with any other SHA-256.
+          With dependency-verdict, the SHA-256 of the context.json the caller's
+          select job wrote (pr-unblock's review-dependency-select run-sha256);
+          the verdict script refuses a context.json with any other SHA-256.
         required: false
         type: string
         default: ""
       dependency-head-sha:
         description: >-
-          With dependency-verdict, the model run's head-sha output: the head
-          its gate passed, which the verdict script requires run.json to name.
+          With dependency-verdict, the head the select job read, which the
+          verdict script requires context.json to name.
         required: false
         type: string
         default: ""
       dependency-run-attempt:
         description: >-
-          With dependency-verdict, the model run's dependency-run-attempt
-          output: the attempt whose verdict artifact to download. Empty
-          downloads nothing, which the verdict script refuses as
-          dependency-invalid.
+          With dependency-verdict, the read runner's dependency-attempt output,
+          set only by its scan job: the attempt whose
+          dependency-verdict-<lane>-review-dependency-<attempt> artifact holds
+          the scanned verdict, and the model run the round marker names. Empty
+          downloads none: no verdict arrived.
+        required: false
+        type: string
+        default: ""
+      dependency-verdict-sha256:
+        description: >-
+          With dependency-verdict, the read runner's dependency-sha256 output,
+          set only by its scan job from the verdict it uploaded. A verdict with
+          another SHA-256 is refused as dependency-invalid.
+        required: false
+        type: string
+        default: ""
+      dependency-patch-state:
+        description: >-
+          With dependency-verdict, the same read runner call's scan-patch-state.
+          With no verdict, the verdict script skips no-model-turn only when
+          this is empty and no scan refusal marker downloaded.
         required: false
         type: string
         default: ""
@@ -245,6 +274,30 @@ on:
         required: false
         type: string
         default: ""
+      patch-merge-base-sha:
+        description: >-
+          apply-patch with patch-prepare merge-base: the default branch commit
+          the caller's select job pinned and merged, the merge commit's second
+          parent; it must be on the default branch.
+        required: false
+        type: string
+        default: ""
+      patch-merge-state:
+        description: >-
+          apply-patch with patch-prepare merge-base: the select job's
+          merge-state, clean (committed with no patch) or conflicted.
+        required: false
+        type: string
+        default: ""
+      patch-conflict-tree:
+        description: >-
+          apply-patch with patch-prepare merge-base: the conflict tree the
+          select job's merge reached. This job merges patch-merge-base-sha into
+          the gated head again and fails red unless it reaches the same state
+          and tree, then applies the patch to that tree.
+        required: false
+        type: string
+        default: ""
       patch-threads-attempt:
         description: >-
           apply-patch with patch-prepare review-threads: the attempt whose
@@ -258,12 +311,27 @@ on:
         required: false
         type: string
         default: ""
+      patch-verdict-attempt:
+        description: >-
+          apply-patch with patch-prepare dependency-review: the read runner's
+          dependency-attempt output, the attempt whose
+          dependency-verdict-<lane>-review-dependency-<attempt> artifact holds
+          the scanned verdict the row's dependency-verdict requirement reads.
+        required: false
+        type: string
+        default: ""
+      patch-verdict-sha256:
+        description: With patch-verdict-attempt, that verdict's SHA-256 from the scan job.
+        required: false
+        type: string
+        default: ""
       patch-fix-requested:
         description: >-
           apply-patch with patch-prepare review-threads: the select job's
           fix-requested output. `true` leaves the human-gated label out of
           the holds, since that job kept only threads a trusted person with
-          write access asked the lane to fix.
+          write access asked the lane to fix, or a lane escalation put the
+          label on.
         required: false
         type: string
         default: ""
@@ -313,13 +381,10 @@ on:
     outputs:
       escalation-reason:
         description: >-
-          Why the activity handed the PR to a person: for merge-base
-          protected-path-conflict, workflow-staged, unexpected-path-staged,
-          repeat-cap or unresolved-conflict; for the
+          Why the activity handed the PR to a person: for the
           review-replies script feedback-uncertain, feedback-not-landed or
           feedback-invalid, feedback-partial, feedback-incomplete or
-          feedback-disputed; for dependency-review, before any model turn,
-          dependency-round-cap; for the dependency-verdict script
+          feedback-disputed; for the dependency-verdict script
           dependency-invalid, dependency-fix-not-landed, dependency-config-unreadable,
           dependency-files-truncated, dependency-control-uncited,
           dependency-workflow-held, dependency-fix-refused,
@@ -327,7 +392,11 @@ on:
           ci-fix-empty, ci-fix-invalid or ci-fix-escalated, and from its
           script ci-fix-invalid, ci-fix-protected-path or ci-fix-not-applied;
           for issue-mode apply-patch, patch-empty, patch-invalid,
-          patch-not-applied or patch-protected-path; empty otherwise.
+          patch-not-applied or patch-protected-path; for apply-patch under
+          patch-prepare merge-base, unresolved-conflict, workflow-staged,
+          unexpected-path-staged, conflict-patch-invalid,
+          conflict-patch-not-applied or conflict-patch-protected-path; empty
+          otherwise.
           Set only by runner steps and the base's reply and verdict scripts.
         value: ${{ jobs.run.outputs.escalation-reason }}
       rung-up:
@@ -343,22 +412,6 @@ on:
       head-sha:
         description: The PR head the gate passed, before any push of this run. Set only by runner steps.
         value: ${{ jobs.run.outputs.head-sha }}
-      dependency-round:
-        description: >-
-          `true` once a dependency-review skill ran, so its verdict was
-          uploaded (or the run ended before it could be) and its verdict job
-          must run. Set only by runner steps.
-        value: ${{ jobs.run.outputs.dependency-round }}
-      dependency-run-sha256:
-        description: >-
-          The SHA-256 of the run.json the dependency-review runner step wrote;
-          the caller passes it to the verdict job. Set only by runner steps.
-        value: ${{ jobs.run.outputs.dependency-run-sha256 }}
-      dependency-run-attempt:
-        description: >-
-          The run attempt whose dependency-verdict-<attempt> artifact holds
-          the round's verdict. Set only by runner steps.
-        value: ${{ jobs.run.outputs.dependency-run-attempt }}
 
 permissions: {}
 
@@ -382,19 +435,15 @@ jobs:
       pull-requests: read
       id-token: write
     # The report job trusts only these, all computed by runner steps. Every
-    # one but act-outcome, merge-state and escalation-reason is a step outcome
-    # or an output of a step that ran before any PR head code. act-outcome
-    # reads steps that run after the skill: for a gate skill the verdict step,
-    # so a gate skill must not execute head code; its promote, commit and
-    # turn terms only turn a success into a failure. The act-result step
-    # turns a failed skill step into a success only when the execution
-    # file's result message is a success over the turn cap, a shape the CLI
-    # writes and a finished run could report anyway. merge-state and a
-    # pre-model escalation-reason come from the prepare step, before any
-    # model turn; a post-model escalation-reason comes from post.sh after it,
-    # and a forged one can only hand the PR to a person. The reply job's
-    # escalation-reason comes from the base's reply script, which runs no
-    # model and no head code.
+    # one but act-outcome and escalation-reason is a step outcome or an
+    # output of a step that ran before any PR head code. act-outcome reads
+    # steps that run after the skill: for a gate skill the verdict step, so a
+    # gate skill must not execute head code; its promote and turn terms only
+    # turn a success into a failure. The act-result step turns a failed skill
+    # step into a success only when the execution file's result message is a
+    # success over the turn cap, a shape the CLI writes and a finished run
+    # could report anyway. escalation-reason comes from the base's reply,
+    # verdict and apply-patch scripts, which run no model and no head code.
     outputs:
       base-sha: ${{ steps.trusted-base.outputs.commit }}
       head-sha: ${{ steps.gate.outputs.head-sha }}
@@ -405,18 +454,10 @@ jobs:
         || steps.gate.outputs.proceed != 'true' && steps.gate.outputs.reason
         || '' }}
       can-commit: ${{ steps.config.outputs.can-commit }}
-      merge-state: ${{ steps.prepare.outputs.merge-state }}
       escalation-reason: >-
-        ${{ steps.prepare.outputs.escalation-reason || steps.post.outputs.escalation-reason
-        || steps.dependency-select.outputs.escalation-reason
-        || steps.act-script.outputs.escalation-reason || steps.patch-select.outputs.escalation-reason }}
+        ${{ steps.act-script.outputs.escalation-reason || steps.patch-select.outputs.escalation-reason }}
       rung-up: ${{ steps.patch-select.outputs.skip-reason == 'rung-up' }}
       patch-skip-reason: ${{ steps.patch-select.outputs.skip-reason }}
-      dependency-round: >-
-        ${{ steps.config.outputs.prepare == 'dependency-review'
-        && steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome != '' }}
-      dependency-run-sha256: ${{ steps.dependency-collect.outputs.run-sha256 }}
-      dependency-run-attempt: ${{ steps.dependency-collect.outcome == 'success' && github.run_attempt || '' }}
       # The base action's own failure text, so the report names why the run
       # job failed before its act step.
       run-failure: ${{ steps.lane-token.outputs.failure-reason }}
@@ -434,21 +475,13 @@ jobs:
       lane-profile: ${{ steps.lane-record.outcome == 'success' && steps.config.outputs.profile || '' }}
       # A gate skill succeeds only on a `pass` verdict, a skill that took no
       # model turn fails, and a skill whose commits could not be moved onto
-      # the PR branch fails. In merge-base mode a clean merge skips the skill
-      # and succeeds only once its commit is made and promoted (or post.sh
-      # escalates), and a staged merge that post.sh cleared but that was not
-      # committed fails. A skill step that failed only on the turn cap
+      # the PR branch fails. A skill step that failed only on the turn cap
       # counts as succeeded (act-result). The verdict step's ACT_OUTCOME repeats this
       # expression: runner-policy refuses YAML aliases.
       act-outcome: >-
-        ${{ steps.act-skill.outcome == 'skipped' && steps.prepare.outputs.merge-state == 'clean'
-        && ((steps.post.outputs.escalation-reason != ''
-        || steps.commit.outcome == 'success' && steps.promote.outcome == 'success') && 'success' || 'failure')
-        || steps.act-result.outputs.outcome == 'success'
+        ${{ steps.act-result.outputs.outcome == 'success'
         && (steps.config.outputs.gating == 'gate' && steps.skill-verdict.outcome != 'success'
-        || steps.promote.outcome == 'failure' || steps.act-turns.outcome != 'success'
-        || steps.commit.outcome == 'failure'
-        || steps.post.outputs.tree != '' && steps.commit.outcome != 'success') && 'failure'
+        || steps.promote.outcome == 'failure' || steps.act-turns.outcome != 'success') && 'failure'
         || steps.act-skill.outcome != 'skipped' && (steps.act-result.outputs.outcome || steps.act-skill.outcome)
         || steps.act-script.outcome }}
     steps:
@@ -472,6 +505,10 @@ jobs:
           PATCH_BASE_SHA: ${{ inputs.patch-base-sha }}
           PATCH_RESUME_TIP: ${{ inputs.patch-resume-tip }}
           DIMENSION_SKIP: ${{ inputs.dimension-skip }}
+          PATCH_PREPARE: ${{ inputs.patch-prepare }}
+          PATCH_MERGE_BASE_SHA: ${{ inputs.patch-merge-base-sha }}
+          PATCH_MERGE_STATE: ${{ inputs.patch-merge-state }}
+          PATCH_CONFLICT_TREE: ${{ inputs.patch-conflict-tree }}
         run: |
           # Issue mode runs only on the issues event that names that issue,
           # trusting the default branch tip, with none of the PR inputs.
@@ -494,6 +531,17 @@ jobs:
             ! [[ $PATCH_BASE_SHA =~ ^[0-9a-f]{40}$ ]] || ! [[ $PATCH_RESUME_TIP =~ ^([0-9a-f]{40})?$ ]]; }; then
             echo "::error::patch-base-sha and patch-resume-tip are an issue patch's commit ids"
             exit 1
+          fi
+          # The merge inputs go with patch-prepare merge-base, in PR mode: a
+          # pinned base commit, a clean or conflicted state, and its conflict
+          # tree.
+          if [ "$PATCH_PREPARE" = merge-base ] || [ -n "$PATCH_MERGE_BASE_SHA$PATCH_MERGE_STATE$PATCH_CONFLICT_TREE" ]; then
+            if [ "$PATCH_PREPARE" != merge-base ] || [ -n "$ISSUE_NUMBER" ] ||
+              ! [[ $PATCH_MERGE_BASE_SHA =~ ^[0-9a-f]{40}$ && $PATCH_CONFLICT_TREE =~ ^[0-9a-f]{40}$ ]] ||
+              ! [[ $PATCH_MERGE_STATE =~ ^(clean|conflicted)$ ]]; then
+              echo "::error::patch-prepare merge-base needs patch-merge-base-sha, patch-merge-state and patch-conflict-tree, in PR mode, and they go with nothing else"
+              exit 1
+            fi
           fi
           # A dimension skip is one of the four issue-dimension reasons, only in issue mode.
           if [ -n "$DIMENSION_SKIP" ] && { [ -z "$ISSUE_NUMBER" ] ||
@@ -519,6 +567,7 @@ jobs:
             dependency-fix-refused) ;;
             ci-fix-round-cap | ci-fix-empty | ci-fix-invalid | ci-fix-escalated) ;;
             ci-fix-protected-path | ci-fix-not-applied) ;;
+            conflict-patch-invalid | conflict-patch-not-applied | conflict-patch-protected-path) ;;
             patch-empty | patch-invalid | patch-not-applied | patch-protected-path)
               if [ -z "$ISSUE_NUMBER" ]; then
                 echo "::error::a patch-* escalation-reason input is for issue mode only"
@@ -584,15 +633,15 @@ jobs:
           # gated, and only the lanes App's signed commits may follow it.
           expected-upstream-head: ${{ inputs.expected-upstream-head }}
           lanes-app-id: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
-          dispatched-workflow: .github/workflows/pr-unblock.yml
+          # A dispatcher sends pr-refine.yml for the pr-refine lane, pr-unblock.yml otherwise.
+          dispatched-workflow: ${{ inputs.lane == 'pr-refine' && '.github/workflows/pr-refine.yml' || '.github/workflows/pr-unblock.yml' }}
           # Issue mode reads no PR: the account that applied the label, and
           # any re-runner, must be listed as a human.
           require-pr: ${{ inputs.issue-number == '' }}
           require-kind: ${{ inputs.issue-number != '' && 'human' || '' }}
           app-label: ${{ inputs.issue-number != '' && inputs.app-label || '' }}
 
-      # The trusted base is the config, actions and trusted-actor source and,
-      # in prepare: merge-base mode, the merge's second parent.
+      # The trusted base is the config, actions and trusted-actor source.
       - name: Assert the base is on the default branch
         id: trusted-base
         if: steps.gate.outputs.proceed == 'true'
@@ -615,8 +664,9 @@ jobs:
           pr-number: ${{ steps.gate.outputs.pr-number }}
           head-sha: ${{ steps.gate.outputs.head-sha }}
           issue-dimensions: ${{ inputs.issue-dimensions }}
-          # This file performs prepare: merge-base (the prepare, post and
-          # commit steps below).
+          # This file performs prepare: apply-patch, under the merge-base row
+          # too (the merge steps below), and refuses a skill's merge-base,
+          # review-threads and dependency-review.
           prepare-supported: "true"
 
       # An issue's skill runs model-chosen commands, so it runs in
@@ -635,6 +685,23 @@ jobs:
         if: steps.config.outcome == 'success' && steps.config.outputs.prepare == 'review-threads'
         run: |
           echo "::error::review-threads-in-write-runner: a review-threads skill runs in pr-run-activity-read.yml after its caller's select job"
+          exit 1
+
+      # merge-base runs in pr-run-activity-read.yml, after its caller's select
+      # job merged the base: this file commits a merge only as apply-patch.
+      - name: Assert merge-base runs in the read runner
+        if: steps.config.outcome == 'success' && steps.config.outputs.prepare == 'merge-base'
+        run: |
+          echo "::error::merge-base-in-write-runner: a merge-base skill runs in pr-run-activity-read.yml after its caller's select job; apply-patch commits the merge"
+          exit 1
+
+      # dependency-review runs in pr-run-activity-read.yml, after its
+      # caller's select job wrote the context: this file selects nothing and
+      # collects no verdict.
+      - name: Assert dependency-review runs in the read runner
+        if: steps.config.outcome == 'success' && steps.config.outputs.prepare == 'dependency-review'
+        run: |
+          echo "::error::dependency-review-in-write-runner: a dependency-review skill runs in pr-run-activity-read.yml after its caller's select job"
           exit 1
 
       # Issue mode, apply-patch, before the mint: the new lane branch starts
@@ -658,40 +725,20 @@ jobs:
           fi
           echo "sha=${PATCH_RESUME_TIP:-$PATCH_BASE_SHA}" >>"$GITHUB_OUTPUT"
 
-      # dependency-review, before the mint and any model turn, with the job's
-      # read-only token: skips a PR Dependabot did not open or one sorted
-      # `auto` (pr-merge owns those), escalates once the round cap is reached,
-      # or writes the context file the skill reads: the PR's files and
-      # patches, its classification and its body (release notes, data). It
-      # also copies out the base's dependency-classify.mjs with its SHA-256,
-      # which the promote step checks before it imports the copy to judge a
-      # fix: the model's turn can reach both.
-      - name: Select the dependency pull request
-        id: dependency-select
-        if: steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'dependency-review'
+      # apply-patch under the merge-base row, before the mint: the base the
+      # select job pinned must be on the default branch.
+      - name: Check the merge patch's pinned base
+        if: >-
+          steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'apply-patch'
+          && inputs.patch-prepare == 'merge-base'
         env:
-          GITHUB_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
-          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
-          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
-          DEPENDENCY_DIR: ${{ runner.temp }}/lane-dependency
-          CLASSIFY_BIN: ${{ runner.temp }}/lane-dependency-bin
-          TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
-          # The content rule's ecosystems and directories, read from the base.
-          DEPENDABOT_CONFIG: .base/.github/dependabot.yml
-          # The review-only dependencies, read from the base.
-          DEPENDABOT_POLICY: .base/.github/standards/dependabot-policy/policy.json
-          RESOLVED: ${{ runner.temp }}/resolved-config.json
+          MERGE_BASE_SHA: ${{ inputs.patch-merge-base-sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          # Before any model turn: no lanes App fix commit of this job is older.
-          echo "started-at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$GITHUB_OUTPUT"
-          mkdir -p "$DEPENDENCY_DIR" "$CLASSIFY_BIN"
-          cp .base/.github/scripts/pr-unblock/dependency-classify.mjs "$CLASSIFY_BIN/dependency-classify.mjs"
-          sum=$(sha256sum <"$CLASSIFY_BIN/dependency-classify.mjs")
-          echo "classify-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
-          DEPENDENCY_REVIEW_ROUNDS=$(jq -r '.loop["dependency-review-rounds"] // empty' "$RESOLVED")
-          export DEPENDENCY_REVIEW_ROUNDS
-          DEPENDENCY_FILE="$DEPENDENCY_DIR/dependency.json" node .base/.github/scripts/pr-unblock/review-dependency.mjs select
+          if ! git -C .base merge-base --is-ancestor "$MERGE_BASE_SHA" "refs/remotes/origin/$DEFAULT_BRANCH"; then
+            echo "::error::the merge patch's pinned base is not on the default branch"
+            exit 1
+          fi
 
       # apply-patch, before the mint: the patch and the report the read model
       # job of this workflow run uploaded, each downloaded by that job's
@@ -752,6 +799,47 @@ jobs:
           fi
           echo "file=$THREADS_FILE" >>"$GITHUB_OUTPUT"
 
+      # apply-patch under the dependency-review row, before the mint: the
+      # verdict the read runner's scan job uploaded, by its attempt, and its
+      # SHA-256; the row's dependency-verdict requirement reads its verdict
+      # field. A missing or altered file fails the job, so nothing is
+      # minted and no patch applies without a scanned verdict.
+      - name: Download the dependency verdict for the patch
+        if: >-
+          steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'apply-patch'
+          && inputs.patch-prepare == 'dependency-review'
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dependency-verdict-${{ inputs.lane }}-${{ inputs.patch-activity }}-${{ inputs.patch-verdict-attempt }}
+          path: ${{ runner.temp }}/lane-patch-verdict
+
+      - name: Check the dependency verdict for the patch
+        id: patch-verdict
+        if: >-
+          steps.config.outputs.applies == 'true' && steps.config.outputs.prepare == 'apply-patch'
+          && inputs.patch-prepare == 'dependency-review'
+        env:
+          VERDICT_FILE: ${{ runner.temp }}/lane-patch-verdict/dependency-verdict.json
+          VERDICT_SHA256: ${{ inputs.patch-verdict-sha256 }}
+        run: |
+          if [ -L "$VERDICT_FILE" ] || [ ! -f "$VERDICT_FILE" ] || [ "$(stat -c %s "$VERDICT_FILE")" -gt 49152 ]; then
+            echo "::error::the dependency-verdict artifact holds no verdict of at most 49152 bytes"
+            exit 1
+          fi
+          sum=$(sha256sum <"$VERDICT_FILE")
+          if ! [[ $VERDICT_SHA256 =~ ^[0-9a-f]{64}$ ]] || [ "${sum%% *}" != "$VERDICT_SHA256" ]; then
+            echo "::error::the verdict does not match the SHA-256 the scan job recorded"
+            exit 1
+          fi
+          # Model output, held to the closed set before it becomes an output.
+          verdict=$(jq -r 'if type == "object" and (.verdict | type) == "string" then .verdict else "" end' "$VERDICT_FILE") || verdict=""
+          case $verdict in
+            merge | fix | close | escalate) ;;
+            *) verdict="" ;;
+          esac
+          echo "verdict=$verdict" >>"$GITHUB_OUTPUT"
+
       # apply-patch, before the mint and the head checkout, with no token:
       # the activity's script, from the base, checks the patch artifact
       # against the model job's SHA-256 and head, and reads its report. Under
@@ -776,6 +864,8 @@ jobs:
           PATCH_DIR: ${{ runner.temp }}/lane-patch
           REPORT_DIR: ${{ runner.temp }}/lane-patch-report
           MODEL_RUNG: ${{ inputs.patch-model-rung }}
+          # Under the merge-base row: clean commits with no patch.
+          MERGE_STATE: ${{ inputs.patch-merge-state }}
         run: node ".base/$SCRIPT" select
 
       # A read activity belongs in pr-run-activity-read.yml, whose run holds no
@@ -795,7 +885,6 @@ jobs:
         id: head-recheck
         if: >-
           steps.config.outputs.applies == 'true' && steps.config.outputs.effect != 'read'
-          && steps.dependency-select.outputs.proceed != 'false'
           && steps.patch-select.outputs.proceed != 'false'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
@@ -855,6 +944,21 @@ jobs:
           contents: ${{ steps.config.outputs.contents }}
           pull-requests: ${{ steps.config.outputs.pull-requests }}
           issues: ${{ steps.config.outputs.issues }}
+
+      # The lane token's and the job token's budget at mint, before the head
+      # checkout replaces .base: no step after the activity runs from the base
+      # with the token, so this reading has no job-end pair. The lanes App's
+      # bucket is shared by every job using it. Never fails the job.
+      - name: Log the API budget at mint
+        if: steps.lane-token.outputs.token != ''
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: start
+          tokens: |
+            lane ${{ steps.lane-token.outputs.token }}
+            github-token ${{ github.token }}
 
       - name: Select the trusted PR text
         if: >-
@@ -944,10 +1048,24 @@ jobs:
           name: feedback-replies-${{ inputs.lane }}-address-feedback-${{ inputs.review-replies-attempt }}
           path: ${{ runner.temp }}/feedback-replies
 
-      # dependency-verdict: the verdict script reads the model run's artifact
-      # from this workflow run. A missing artifact leaves the directory empty,
-      # which the script refuses as dependency-invalid after it still records
-      # the round.
+      # dependency-verdict: the verdict script reads context.json, the select
+      # job's, and the verdict the read runner's scan job uploaded, both from
+      # this workflow run, before the head checkout replaces .base. A missing
+      # artifact leaves its file absent; the script still records the round,
+      # then refuses a missing context.json as dependency-invalid and reads a
+      # missing verdict as no model turn only on the scan's own evidence.
+      - name: Download the dependency context
+        if: >-
+          steps.lane-token.outputs.token != '' && inputs.dependency-verdict
+          && steps.config.outputs.kind == 'script' && inputs.dependency-context-attempt != ''
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          # The other jobs' attempts, not this one: "Re-run failed jobs" on
+          # this job alone keeps their outputs from their attempt.
+          name: dependency-context-${{ inputs.dependency-context-attempt }}
+          path: ${{ runner.temp }}/dependency-verdict
+
       - name: Download the dependency verdict
         if: >-
           steps.lane-token.outputs.token != '' && inputs.dependency-verdict
@@ -955,8 +1073,26 @@ jobs:
         continue-on-error: true
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: dependency-verdict-${{ inputs.dependency-run-attempt }}
+          name: dependency-verdict-${{ inputs.lane }}-review-dependency-${{ inputs.dependency-run-attempt }}
           path: ${{ runner.temp }}/dependency-verdict
+
+      # review-replies and dependency-verdict: every attempt's marker the read
+      # runner's scan-refusal job uploaded for the model call in this run, by
+      # name, never a job output (a failed job's outputs are not documented to
+      # reach this caller). A pattern that matches nothing downloads nothing
+      # and succeeds; a failed download reads as a refusal. An earlier
+      # attempt's marker after a re-run only hands the round to a person.
+      - name: Download the scan refusal markers
+        id: scan-refused
+        if: >-
+          steps.lane-token.outputs.token != '' && (inputs.review-replies || inputs.dependency-verdict)
+          && steps.config.outputs.kind == 'script'
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: scan-refused-${{ inputs.lane }}-${{ inputs.review-replies && 'address-feedback' || 'review-dependency' }}-*
+          path: ${{ runner.temp }}/scan-refused
+          merge-multiple: true
 
       # Also issue mode: report-outcome trusts a merge: human label only from
       # a listed human or the lanes App.
@@ -970,20 +1106,23 @@ jobs:
           COPY: ${{ runner.temp }}/base-script/.trusted-actors.json
         run: cp .base/.github/standards/trusted-actors/trusted-actors.json "$COPY"
 
-      # prepare: merge-base runs the base's merge scripts and the base's
-      # version-bump script, never the head's: copied out here, each with its
-      # SHA-256 as a step output that every later step checks its copy
-      # against before running it. The repeat cap reads loop.no-progress from
-      # the resolved config now, before any head code could rewrite the file.
+      # apply-patch under the merge-base row runs the base's merge scripts and
+      # the base's version-bump script, never the head's: copied out here,
+      # each with its SHA-256 as a step output that every later step checks
+      # its copy against before running it. The repeat cap reads
+      # loop.no-progress from the resolved config now, before the head
+      # checkout replaces .base.
       - name: Copy the merge scripts from the base
         id: merge-bin
-        if: steps.lane-token.outputs.token != '' && steps.config.outputs.prepare == 'merge-base'
+        if: >-
+          steps.lane-token.outputs.token != '' && steps.config.outputs.prepare == 'apply-patch'
+          && inputs.patch-prepare == 'merge-base'
         env:
           BIN: ${{ runner.temp }}/merge-base-bin
           RESOLVED: ${{ runner.temp }}/resolved-config.json
         run: |
           mkdir -p "$BIN"
-          for file in .base/.github/scripts/merge-base/{prepare,post,tree-entries}.sh \
+          for file in .base/.github/scripts/merge-base/{prepare,run-prepare,tree-entries}.sh \
             .base/plugins/source-control/scripts/resolve-version-bump-conflict.sh; do
             name=$(basename "$file" .sh)
             cp "$file" "$BIN/$name.sh"
@@ -1004,7 +1143,8 @@ jobs:
       # human-gated label is left out only for apply-patch under the
       # review-threads row, when the caller's select job kept nothing but
       # threads a trusted person with write access asked the lane to fix on a
-      # PR carrying it, unless labels-absent lists it.
+      # PR carrying it, or a lane escalation put it on, unless labels-absent
+      # lists it.
       - name: Read the hold labels from the base
         id: hold-label
         if: >-
@@ -1054,8 +1194,9 @@ jobs:
 
       # apply-patch: the head checkout replaces .base, so the script's sibling
       # imports (thread-scope.mjs and dependency-classify.mjs, beside the
-      # script's base-script copy) and
-      # the patch-rules.json it reads are copied out of the base first.
+      # script's base-script copy), the patch-rules.json it reads, and the
+      # dependabot.yml whose pairs the dependency-manifests rule reads are
+      # copied out of the base first.
       - name: Copy the apply-patch base files
         id: apply-base
         if: steps.lane-token.outputs.token != '' && steps.config.outputs.prepare == 'apply-patch'
@@ -1067,6 +1208,11 @@ jobs:
           cp .base/.github/scripts/pr-unblock/thread-scope.mjs "$RUNNER_TEMP/pr-unblock/"
           cp .base/.github/scripts/pr-unblock/dependency-classify.mjs "$RUNNER_TEMP/pr-unblock/"
           cp ".base/$RULES" "$DEST/$RULES"
+          # A base without one leaves the rule's pairs unreadable: a row that
+          # needs them fails before any write.
+          if [ -f .base/.github/dependabot.yml ]; then
+            cp .base/.github/dependabot.yml "$DEST/.github/dependabot.yml"
+          fi
           echo "dir=$DEST" >>"$GITHUB_OUTPUT"
 
       # Nothing after this step needs sudo or docker.
@@ -1110,13 +1256,13 @@ jobs:
             || steps.gate.outputs.head-sha }}
           token: ${{ steps.lane-token.outputs.token }}
           persist-credentials: false
-          # The merge needs the history back to the merge base and the trusted
+          # A merge needs the history back to the merge base and the pinned
           # base commit, and an issue patch the history back to where its start
           # commit forked from the default branch. Written as != so the 0 is
           # not read as false.
           fetch-depth: >-
-            ${{ steps.config.outputs.prepare != 'merge-base'
-            && !(inputs.issue-number != '' && steps.config.outputs.prepare == 'apply-patch') && 1 || 0 }}
+            ${{ !(inputs.issue-number != '' && steps.config.outputs.prepare == 'apply-patch')
+            && !(steps.config.outputs.prepare == 'apply-patch' && inputs.patch-prepare == 'merge-base') && 1 || 0 }}
 
       # The activity judges exactly the commit the check is posted on.
       - name: Assert the head is the gated SHA
@@ -1132,17 +1278,19 @@ jobs:
             exit 1
           fi
 
-      # prepare: merge-base, before any model turn: merge the trusted base
-      # into the gated head without committing, run the base's version-bump
-      # script, and decide clean (commit with no model turn), conflicted (the
-      # skill resolves) or escalate (awaiting-human, reason for the
-      # report-escalation leaf). Only whitelisted, validated key=value lines
-      # become outputs. The identity is the lanes bot's: git refuses even a
-      # --no-commit merge without one, and the repeat cap counts commits by
-      # that author name.
-      - name: Start the merge of the trusted base
+      # apply-patch under the merge-base row: merge the select job's pinned
+      # base into the gated head without committing and run the base's
+      # version-bump script, through run-prepare.sh, which fails red unless
+      # the merge reaches the select job's state and conflict tree;
+      # apply-patch.mjs then applies the patch to that tree. Only whitelisted,
+      # validated key=value lines become outputs. The identity is the lanes
+      # bot's: git refuses even a --no-commit merge without one, and the
+      # repeat cap counts commits by that author name.
+      - name: Start the merge of the pinned base
         id: prepare
-        if: steps.lane-token.outputs.token != '' && steps.config.outputs.prepare == 'merge-base'
+        if: >-
+          steps.lane-token.outputs.token != '' && steps.config.outputs.prepare == 'apply-patch'
+          && inputs.patch-prepare == 'merge-base'
         env:
           GIT_AUTHOR_NAME: melodic-automation-lanes[bot]
           GIT_AUTHOR_EMAIL: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}+melodic-automation-lanes[bot]@users.noreply.github.com
@@ -1155,54 +1303,18 @@ jobs:
           OUT: ${{ runner.temp }}/merge-base-out
           PREPARE_SHA256: ${{ steps.merge-bin.outputs.prepare-sha256 }}
           BUMP_SHA256: ${{ steps.merge-bin.outputs.resolve-version-bump-conflict-sha256 }}
+          RUN_PREPARE_SHA256: ${{ steps.merge-bin.outputs.run-prepare-sha256 }}
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
-          BASE_SHA: ${{ steps.trusted-base.outputs.commit }}
+          BASE_SHA: ${{ inputs.patch-merge-base-sha }}
+          EXPECT_STATE: ${{ inputs.patch-merge-state }}
+          EXPECT_TREE: ${{ inputs.patch-conflict-tree }}
         run: |
-          check() {
-            local sum
-            sum=$(sha256sum <"$1")
-            if [ "${sum%% *}" != "$2" ]; then
-              echo "::error::$1 does not match the SHA-256 recorded when it was copied from the base"
-              exit 1
-            fi
-          }
-          check "$BIN/prepare.sh" "$PREPARE_SHA256"
-          check "$BIN/resolve-version-bump-conflict.sh" "$BUMP_SHA256"
-          # git's merge output names head files, so no line of it may run a
-          # workflow command; commands resume before this step's own lines.
-          token=$(openssl rand -hex 16)
-          echo "::stop-commands::$token"
-          result=$(bash "$BIN/prepare.sh" "$HEAD_SHA" "$BASE_SHA" "$BIN/resolve-version-bump-conflict.sh" "$OUT")
-          echo "::$token::"
-          state="" reason="" skip=""
-          while IFS='=' read -r key value; do
-            case $key in
-              config-sha256 | snapshot-sha256)
-                [[ $value =~ ^[0-9a-f]{64}$ ]] || { echo "::error::prepare.sh printed a malformed $key"; exit 1; }
-                echo "$key=$value" >>"$GITHUB_OUTPUT"
-                ;;
-              attributes-sha256)
-                [[ $value =~ ^([0-9a-f]{64}|absent)$ ]] || { echo "::error::prepare.sh printed a malformed $key"; exit 1; }
-                echo "$key=$value" >>"$GITHUB_OUTPUT"
-                ;;
-              merge-state) state=$value ;;
-              escalation-reason) reason=$value ;;
-              *) echo "::error::prepare.sh printed an unknown key"; exit 1 ;;
-            esac
-          done <<<"$result"
-          case $state:$reason in
-            clean: | conflicted:) ;;
-            escalate:protected-path-conflict | escalate:repeat-cap | escalate:unresolved-conflict)
-              skip=awaiting-human
-              ;;
-            *) echo "::error::prepare.sh printed no valid merge-state and escalation-reason"; exit 1 ;;
-          esac
-          {
-            echo "skip-reason=$skip"
-            echo "merge-state=$state"
-            echo "escalation-reason=$reason"
-          } >>"$GITHUB_OUTPUT"
-          echo "merge-state=$state escalation-reason=$reason"
+          sum=$(sha256sum <"$BIN/run-prepare.sh")
+          if [ "${sum%% *}" != "$RUN_PREPARE_SHA256" ]; then
+            echo "::error::run-prepare.sh does not match the SHA-256 recorded when it was copied from the base"
+            exit 1
+          fi
+          bash "$BIN/run-prepare.sh"
 
       # claude-code-action's commit_files builds each commit on the live tip of
       # CLAUDE_BRANCH with file bytes from this checkout
@@ -1210,14 +1322,12 @@ jobs:
       # the PR branch during the run would have its edits to the same files
       # overwritten. The skill commits to a branch made at the gated SHA
       # instead, and a later step moves the PR branch to it only while the PR
-      # branch is still at the gated SHA. In merge-base mode the commit step
-      # below writes the merge commit to this branch; an escalation needs none.
+      # branch is still at the gated SHA.
       - name: Make the lane's commit branch at the gated SHA
         id: lane-branch
         if: >-
           steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'skill'
           && steps.config.outputs.can-commit == 'true'
-          && steps.prepare.outputs.merge-state != 'escalate'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
@@ -1233,7 +1343,6 @@ jobs:
       - name: Set up Python for the skill
         if: >-
           steps.setup-env.outputs.ready == 'true'
-          && (steps.config.outputs.prepare != 'merge-base' || steps.prepare.outputs.merge-state == 'conflicted')
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: ${{ runner.temp }}/setup-env/.python-version
@@ -1243,7 +1352,6 @@ jobs:
       - name: Install the skill's dependencies
         if: >-
           steps.setup-env.outputs.ready == 'true'
-          && (steps.config.outputs.prepare != 'merge-base' || steps.prepare.outputs.merge-state == 'conflicted')
         env:
           SETUP_ENV_VENV: ${{ runner.temp }}/setup-env-venv
         run: |
@@ -1257,16 +1365,14 @@ jobs:
             cp -R "$RUNNER_TEMP/setup-env/$dir/node_modules" "$GITHUB_WORKSPACE/$dir/"
           done
 
-      # In merge-base mode only a conflicted merge needs the model. A failure
-      # does not stop the job here: the next step fails it unless the failure
+      # A failure does not stop the job here: the next step fails it unless the failure
       # is only the turn cap on a successful result.
       - name: Run the skill activity
         id: act-skill
         if: >-
           steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'skill'
-          && (steps.config.outputs.prepare != 'merge-base' || steps.prepare.outputs.merge-state == 'conflicted')
         continue-on-error: true
-        uses: anthropics/claude-code-action@6b6870e649b5ff408753befeaee5fc7989d4e6a9 # v1.0.258
+        uses: anthropics/claude-code-action@ae68417a745a5df4b2124873632bd73a2255e6f6 # v1.0.259
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
           # MCP subprocesses and gives Bash its own PID namespace, so /proc
@@ -1565,215 +1671,6 @@ jobs:
             exit 1
           fi
 
-      # merge-base mode, after the skill (or straight after a clean merge):
-      # post.sh checks prepare's saved copies and snapshot against their
-      # hashes, repairs the sensitive paths the action reset, and escalates
-      # unresolved-conflict, workflow-staged or unexpected-path-staged;
-      # otherwise it writes the validated index as a tree, the only tree the
-      # commit step accepts.
-      - name: Check the staged merge
-        id: post
-        if: >-
-          steps.config.outputs.prepare == 'merge-base' && steps.prepare.outcome == 'success'
-          && (steps.prepare.outputs.merge-state == 'clean'
-          || steps.act-result.outputs.outcome == 'success' && steps.act-turns.outcome == 'success')
-        env:
-          BIN: ${{ runner.temp }}/merge-base-bin
-          OUT: ${{ runner.temp }}/merge-base-out
-          POST_SHA256: ${{ steps.merge-bin.outputs.post-sha256 }}
-          CONFIG_SHA256: ${{ steps.prepare.outputs.config-sha256 }}
-          ATTRIBUTES_SHA256: ${{ steps.prepare.outputs.attributes-sha256 }}
-          SNAPSHOT_SHA256: ${{ steps.prepare.outputs.snapshot-sha256 }}
-          GATED_HEAD: ${{ steps.gate.outputs.head-sha }}
-          TRUSTED_BASE: ${{ steps.trusted-base.outputs.commit }}
-          GIT_NO_REPLACE_OBJECTS: "1"
-        run: |
-          sum=$(sha256sum <"$BIN/post.sh")
-          if [ "${sum%% *}" != "$POST_SHA256" ]; then
-            echo "::error::post.sh does not match the SHA-256 recorded when it was copied from the base"
-            exit 1
-          fi
-          # git's output can name head files: no workflow commands meanwhile.
-          token=$(openssl rand -hex 16)
-          echo "::stop-commands::$token"
-          result=$(bash "$BIN/post.sh" "$OUT")
-          echo "::$token::"
-          reason="" tree="" skip=""
-          while IFS='=' read -r key value; do
-            case $key in
-              escalation-reason) reason=$value ;;
-              tree) tree=$value ;;
-              *) echo "::error::post.sh printed an unknown key"; exit 1 ;;
-            esac
-          done <<<"$result"
-          case $reason in
-            "")
-              [[ $tree =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]] || { echo "::error::post.sh printed no tree"; exit 1; }
-              ;;
-            unresolved-conflict | workflow-staged | unexpected-path-staged)
-              tree="" skip=awaiting-human
-              ;;
-            *) echo "::error::post.sh printed an unknown escalation reason"; exit 1 ;;
-          esac
-          {
-            echo "skip-reason=$skip"
-            echo "escalation-reason=$reason"
-            echo "tree=$tree"
-          } >>"$GITHUB_OUTPUT"
-          echo "escalation-reason=$reason tree=$tree"
-
-      # The merge commit, made through the Git Data API so GitHub signs it as
-      # the App: parents [gated head, trusted base], no author, committer or
-      # signature (T8-C). Its tree is post.sh's: tree-entries.sh lists what it
-      # changes against the gated head, only blobs neither parent holds are
-      # uploaded, and the tree GitHub builds must hash to post.sh's tree. The
-      # commit goes to the lane branch, which must still be at the gated head;
-      # the promote step below moves the PR branch. A pinned action with
-      # /usr/bin/git under an allowlisted env, since the activity could have
-      # changed PATH. A do-not-merge or human-gated label added during the run
-      # stops it uncommitted (awaiting-human).
-      - name: Commit the merge
-        id: commit
-        if: >-
-          steps.post.outcome == 'success' && steps.post.outputs.escalation-reason == ''
-          && steps.post.outputs.tree != ''
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        env:
-          BIN: ${{ runner.temp }}/merge-base-bin
-          TREE_ENTRIES_SHA256: ${{ steps.merge-bin.outputs.tree-entries-sha256 }}
-          TREE: ${{ steps.post.outputs.tree }}
-          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
-          HEAD_REF: ${{ steps.gate.outputs.head-ref }}
-          BASE_SHA: ${{ steps.trusted-base.outputs.commit }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          LANE_BRANCH: ${{ steps.lane-branch.outputs.branch }}
-          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
-          HOLD_LABELS: ${{ steps.hold-label.outputs.labels }}
-          READ_TOKEN: ${{ github.token }}
-        with:
-          github-token: ${{ steps.lane-token.outputs.token }}
-          retries: 0
-          script: |
-            const { createHash, randomBytes } = require('crypto');
-            const { execFileSync } = require('child_process');
-            const { readFileSync } = require('fs');
-            const { BIN, TREE_ENTRIES_SHA256, TREE, HEAD_SHA, HEAD_REF, BASE_SHA, DEFAULT_BRANCH, LANE_BRANCH } = process.env;
-            const { PR_NUMBER, HOLD_LABELS, READ_TOKEN } = process.env;
-            // Throws on a missing list, so the step fails before any commit.
-            const holds = new Set(['do-not-merge', ...JSON.parse(HOLD_LABELS)]);
-            core.setOutput('commit', '');
-            core.setOutput('skip-reason', '');
-            if (!LANE_BRANCH) {
-              core.setFailed('No lane branch to commit the merge to');
-              return;
-            }
-            const script = `${BIN}/tree-entries.sh`;
-            if (createHash('sha256').update(readFileSync(script)).digest('hex') !== TREE_ENTRIES_SHA256) {
-              core.setFailed('tree-entries.sh does not match the SHA-256 recorded when it was copied from the base');
-              return;
-            }
-            const laneRef = `heads/${LANE_BRANCH}`;
-            const ref = async (name) =>
-              (await github.request('GET /repos/{owner}/{repo}/git/ref/{ref}', { ...context.repo, ref: name })).data.object.sha;
-            const laneTip = await ref(laneRef);
-            if (laneTip !== HEAD_SHA) {
-              core.setFailed(`The lane branch moved from ${HEAD_SHA} to ${laneTip}; the merge is not committed`);
-              return;
-            }
-            // An allowlisted environment and absolute binaries: nothing the
-            // activity left in this job's env or PATH reaches git.
-            const gitEnv = {
-              PATH: '/usr/bin:/bin',
-              HOME: process.env.HOME,
-              GIT_CONFIG_GLOBAL: '/dev/null',
-              GIT_CONFIG_NOSYSTEM: '1',
-              GIT_NO_REPLACE_OBJECTS: '1',
-            };
-            // git's stderr can name head files, so workflow commands stop
-            // while it runs and resume before this step's own messages.
-            const quiet = (run) => {
-              const token = randomBytes(16).toString('hex');
-              console.log(`::stop-commands::${token}`);
-              try {
-                return run();
-              } finally {
-                console.log(`::${token}::`);
-              }
-            };
-            const git = (args) =>
-              quiet(() =>
-                execFileSync('/usr/bin/git', ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=', '-c', 'diff.external=', ...args], {
-                  env: gitEnv,
-                  maxBuffer: 1 << 30,
-                }),
-              );
-            const listing = quiet(() =>
-              execFileSync('/usr/bin/bash', [script, HEAD_SHA, BASE_SHA, TREE], { env: gitEnv, encoding: 'utf8', maxBuffer: 1 << 28 }),
-            );
-            const entries = [];
-            let created = 0;
-            for (const line of listing.split('\n').filter(Boolean)) {
-              const tab = line.indexOf('\t');
-              const [mode, sha, flag] = line.slice(0, tab).split(' ');
-              const path = line.slice(tab + 1);
-              if (sha === 'null') {
-                entries.push({ path, mode, type: mode === '160000' ? 'commit' : 'blob', sha: null });
-                continue;
-              }
-              if (flag === 'create-blob') {
-                const content = git(['cat-file', 'blob', sha]).toString('base64');
-                const blob = await github.rest.git.createBlob({ ...context.repo, content, encoding: 'base64' });
-                if (blob.data.sha !== sha) {
-                  core.setFailed(`GitHub stored the blob for ${JSON.stringify(path)} as ${blob.data.sha}, not ${sha}`);
-                  return;
-                }
-                created += 1;
-              }
-              entries.push({ path, mode, type: mode === '160000' ? 'commit' : 'blob', sha });
-            }
-            core.info(`created ${created} blobs`);
-            const headTree = (await github.rest.git.getCommit({ ...context.repo, commit_sha: HEAD_SHA })).data.tree.sha;
-            const tree = entries.length
-              ? (await github.rest.git.createTree({ ...context.repo, base_tree: headTree, tree: entries })).data.sha
-              : headTree;
-            if (tree !== TREE) {
-              core.setFailed(`GitHub built tree ${tree}, not the checked tree ${TREE}; the merge is not committed`);
-              return;
-            }
-            // A hold placed while the run worked stops it here, before any
-            // commit: the kill switch only stops new runs. Labels are read
-            // fresh with the job's read-only token.
-            // github-script v8.0.0 gives the script no way to build a second
-            // client, so the read-only token is used through fetch.
-            const labelsResponse = await fetch(
-              `${process.env.GITHUB_API_URL}/repos/${context.repo.owner}/${context.repo.repo}/issues/${Number(PR_NUMBER)}/labels?per_page=100`,
-              { headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${READ_TOKEN}`, 'X-GitHub-Api-Version': '2022-11-28' } },
-            );
-            if (!labelsResponse.ok) {
-              core.setFailed(`Reading the PR labels answered ${labelsResponse.status}; the merge is not committed`);
-              return;
-            }
-            // Only the first page is read; more labels than one page holds
-            // could hide a hold, so that fails instead.
-            if (/rel="next"/.test(labelsResponse.headers.get('link') ?? '')) {
-              core.setFailed('The PR has more labels than one page holds; the merge is not committed');
-              return;
-            }
-            const labels = await labelsResponse.json();
-            const held = labels.map((label) => label.name).filter((name) => holds.has(name));
-            if (held.length) {
-              core.info(`The PR is held (${held.join(', ')}); the merge is not committed`);
-              core.setOutput('skip-reason', 'awaiting-human');
-              return;
-            }
-            // The trailer is what prepare.sh's repeat cap counts.
-            const message = `Merge ${DEFAULT_BRANCH} into ${HEAD_REF}\n\nLane-Activity: pr-unblock/resolve-conflicts\n`;
-            const commit = await github.rest.git.createCommit({ ...context.repo, message, tree, parents: [HEAD_SHA, BASE_SHA] });
-            // force: false refuses anything but a fast-forward from the gated head.
-            await github.rest.git.updateRef({ ...context.repo, ref: laneRef, sha: commit.data.sha, force: false });
-            core.setOutput('commit', commit.data.sha);
-            core.info(`Committed ${commit.data.sha} (parents ${HEAD_SHA}, ${BASE_SHA}) to ${LANE_BRANCH}`);
-
       # Fast-forwards the PR branch to the lane's commits only while it is
       # still at the gated SHA; otherwise the commits are dropped and the run
       # the new head started redoes the activity. A do-not-merge or human-gated
@@ -1788,29 +1685,6 @@ jobs:
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
           HEAD_REF: ${{ steps.gate.outputs.head-ref }}
           LANE_BRANCH: ${{ steps.lane-branch.outputs.branch }}
-          # merge-base mode moves the PR branch only to the commit step's own
-          # commit: the model holds a contents-write token and could have
-          # written the lane branch itself.
-          MERGE_BASE: ${{ steps.config.outputs.prepare == 'merge-base' }}
-          COMMIT_OUTCOME: ${{ steps.commit.outcome }}
-          COMMIT_SHA: ${{ steps.commit.outputs.commit }}
-          # dependency-review mode moves the PR branch only when every path
-          # the lane branch changes is an npm or pip manifest or lock file
-          # outside .github/ in a directory the base dependabot.yml lists for
-          # its ecosystem, as the base's dependency-classify.mjs decides,
-          # and every commit's message carries [dependabot skip], so
-          # Dependabot may still rebase the PR. A fix it refuses does not
-          # land, and the verdict job hands the PR to a person
-          # (dependency-fix-not-landed).
-          DEPENDENCY_REVIEW: ${{ steps.config.outputs.prepare == 'dependency-review' }}
-          CLASSIFY_SCRIPT: ${{ runner.temp }}/lane-dependency-bin/dependency-classify.mjs
-          CLASSIFY_SHA256: ${{ steps.dependency-select.outputs.classify-sha256 }}
-          # The base dependabot.yml's [ecosystem, directory] pairs, from the
-          # select step before any model turn.
-          CONFIG_PAIRS: ${{ steps.dependency-select.outputs.config-pairs }}
-          # ...and only when the skill's structured verdict is `fix`: commits
-          # made beside any other verdict are discarded.
-          DEPENDENCY_OUTPUT: ${{ steps.config.outputs.prepare == 'dependency-review' && steps.act-skill.outputs.structured_output || '' }}
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
           HOLD_LABELS: ${{ steps.hold-label.outputs.labels }}
           READ_TOKEN: ${{ github.token }}
@@ -1818,9 +1692,8 @@ jobs:
           github-token: ${{ steps.lane-token.outputs.token }}
           retries: 0
           script: |
-            const { HEAD_SHA, HEAD_REF, LANE_BRANCH, MERGE_BASE, COMMIT_OUTCOME, COMMIT_SHA } = process.env;
-            const { DEPENDENCY_REVIEW, DEPENDENCY_OUTPUT, PR_NUMBER, HOLD_LABELS, READ_TOKEN } = process.env;
-            const { CLASSIFY_SCRIPT, CLASSIFY_SHA256, CONFIG_PAIRS } = process.env;
+            const { HEAD_SHA, HEAD_REF, LANE_BRANCH } = process.env;
+            const { PR_NUMBER, HOLD_LABELS, READ_TOKEN } = process.env;
             core.setOutput('skip-reason', '');
             const tip = async (branch) =>
               (await github.request('GET /repos/{owner}/{repo}/git/ref/{ref}', { ...context.repo, ref: `heads/${branch}` }))
@@ -1831,82 +1704,8 @@ jobs:
                 core.info('The activity made no commits');
                 return;
               }
-              if (MERGE_BASE === 'true' && (COMMIT_OUTCOME !== 'success' || !COMMIT_SHA || lane !== COMMIT_SHA)) {
-                core.setFailed(`The lane branch is at ${lane}, not a merge commit the commit step made; the PR branch is not moved`);
-                return;
-              }
-              if (DEPENDENCY_REVIEW === 'true') {
-                let verdict = '';
-                try {
-                  verdict = JSON.parse(DEPENDENCY_OUTPUT || 'null')?.verdict ?? '';
-                } catch {
-                  verdict = '';
-                }
-                if (verdict !== 'fix') {
-                  core.info(`The verdict is ${JSON.stringify(String(verdict).slice(0, 20))}, not fix; the lane's commits (${lane}) are discarded`);
-                  return;
-                }
-                // Imported from the bytes just hashed, so a rewrite after the
-                // check cannot reach the import.
-                const classify = require('fs').readFileSync(CLASSIFY_SCRIPT);
-                if (!CLASSIFY_SHA256 || require('crypto').createHash('sha256').update(classify).digest('hex') !== CLASSIFY_SHA256) {
-                  core.setFailed("dependency-classify.mjs does not match the base's copy; the PR branch is not moved");
-                  return;
-                }
-                const { inFixScope, fixRefusal } = await import(`data:text/javascript;base64,${classify.toString('base64')}`);
-                // Unreadable pairs admit no path.
-                let pairs = [];
-                try {
-                  pairs = JSON.parse(CONFIG_PAIRS || '[]');
-                } catch {
-                  pairs = [];
-                }
-                const { data } = await github.rest.repos.compareCommitsWithBasehead({ ...context.repo, basehead: `${HEAD_SHA}...${lane}` });
-                const bad = data.files.length >= 300 ? ['(300 or more files)'] : data.files
-                  .flatMap((f) => [f.filename, f.previous_filename].filter(Boolean))
-                  .filter((p) => !inFixScope(p, pairs));
-                if (bad.length > 0) {
-                  core.setFailed(`The lane branch changes a path that is not an npm or pip manifest or lock file outside .github/ (${bad.slice(0, 5).join(', ')}); the PR branch is not moved`);
-                  return;
-                }
-                if (data.commits.length >= 250 || data.commits.some((c) => !/\[dependabot skip\]/i.test(c.commit.message))) {
-                  core.setFailed('The lane branch holds a commit without [dependabot skip]; the PR branch is not moved');
-                  return;
-                }
-                // The compare lists names, not modes or content: each file
-                // must be modified in place, a regular file at the lane tip
-                // (read before any content, since a contents read follows a
-                // symbolic link), and changed only by a version change.
-                const trees = new Map();
-                const refusal = await fixRefusal(data.files, pairs, {
-                  entry: async (path) => {
-                    const dir = path.slice(0, Math.max(path.lastIndexOf('/'), 0));
-                    if (!trees.has(dir)) {
-                      const { repository } = await github.graphql(
-                        'query($owner: String!, $name: String!, $expression: String!) { repository(owner: $owner, name: $name) { object(expression: $expression) { ... on Tree { entries { name type mode } } } } }',
-                        { owner: context.repo.owner, name: context.repo.repo, expression: `${lane}:${dir}` },
-                      );
-                      trees.set(dir, repository.object?.entries ?? []);
-                    }
-                    return trees.get(dir).find((e) => e.name === path.slice(dir ? dir.length + 1 : 0));
-                  },
-                  text: async (side, path) => {
-                    try {
-                      const { data: text } = await github.rest.repos.getContent({ ...context.repo, path, ref: side === 'before' ? HEAD_SHA : lane, mediaType: { format: 'raw' } });
-                      return typeof text === 'string' ? text : null;
-                    } catch (error) {
-                      if (error.status === 404) return null;
-                      throw error;
-                    }
-                  },
-                });
-                if (refusal) {
-                  core.setFailed(`The lane branch's fix is not a version change of regular manifest files (${refusal.slice(0, 200)}); the PR branch is not moved`);
-                  return;
-                }
-              }
-              // A hold or a draft set while the model worked stops the push,
-              // as the merge commit step does: the config decided the hold
+              // A hold or a draft set while the model worked stops the push:
+              // the config decided the hold
               // predicates only at the start of the job. Read fresh with the
               // job's read-only token through fetch, since github-script gives
               // the script no second client.
@@ -1957,85 +1756,6 @@ jobs:
                 .deleteRef({ ...context.repo, ref: `heads/${LANE_BRANCH}` })
                 .catch((error) => core.warning(`Could not delete ${LANE_BRANCH}: ${error.message}`));
             }
-
-      # dependency-review, after any model turn, also after a failed,
-      # cancelled or timed-out skill: this job posts nothing to the PR.
-      # run.json is the runner's own record: the gated head, the select
-      # step's security, config-unreadable and files-truncated flags and
-      # start time, and the skill's structured output (the verdict
-      # JSON, model output, null when absent or unparsable), which the
-      # verdict job validates and acts on.
-      - name: Collect the dependency verdict
-        id: dependency-collect
-        if: >-
-          always() && steps.config.outputs.prepare == 'dependency-review'
-          && steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome != ''
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        env:
-          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
-          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
-          SECURITY: ${{ steps.dependency-select.outputs.security }}
-          CONFIG_UNREADABLE: ${{ steps.dependency-select.outputs.config-unreadable }}
-          FILES_TRUNCATED: ${{ steps.dependency-select.outputs.files-truncated }}
-          STARTED_AT: ${{ steps.dependency-select.outputs.started-at }}
-          # The matched review-only controls a merge verdict must quote.
-          CONTROLS: ${{ steps.dependency-select.outputs.controls }}
-          # The base config's pairs, which bound what a fix may have changed.
-          CONFIG_PAIRS: ${{ steps.dependency-select.outputs.config-pairs }}
-          STRUCTURED_OUTPUT: ${{ steps.act-skill.outputs.structured_output }}
-          OUT_DIR: ${{ runner.temp }}/lane-dependency-out
-        with:
-          retries: 0
-          script: |
-            const fs = require('fs');
-            const { HEAD_SHA, PR_NUMBER, SECURITY, CONFIG_UNREADABLE, FILES_TRUNCATED, STARTED_AT, CONTROLS, CONFIG_PAIRS, STRUCTURED_OUTPUT, OUT_DIR } = process.env;
-            fs.rmSync(OUT_DIR, { recursive: true, force: true });
-            fs.mkdirSync(OUT_DIR);
-            let output = null;
-            try {
-              output = JSON.parse(STRUCTURED_OUTPUT || 'null');
-            } catch {
-              core.warning('the skill returned no parsable structured output; the verdict job escalates');
-            }
-            const run = {
-              version: 1,
-              pr: Number(PR_NUMBER),
-              head_sha: HEAD_SHA,
-              security: SECURITY === 'true',
-              config_unreadable: CONFIG_UNREADABLE === 'true',
-              files_truncated: FILES_TRUNCATED === 'true',
-              started_at: STARTED_AT,
-              // Unreadable controls leave a value the verdict job refuses.
-              controls: (() => {
-                try {
-                  return JSON.parse(CONTROLS);
-                } catch {
-                  return null;
-                }
-              })(),
-              // Unreadable pairs leave a value the verdict job refuses.
-              config: (() => {
-                try {
-                  return JSON.parse(CONFIG_PAIRS);
-                } catch {
-                  return null;
-                }
-              })(),
-              output,
-            };
-            const text = `${JSON.stringify(run)}\n`;
-            fs.writeFileSync(`${OUT_DIR}/run.json`, text);
-            core.setOutput('run-sha256', require('crypto').createHash('sha256').update(text).digest('hex'));
-            core.info(`run.json holds ${text.length} byte(s)`);
-
-      - name: Upload the dependency verdict
-        if: always() && steps.dependency-collect.outcome == 'success'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: dependency-verdict-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/lane-dependency-out/run.json
-          retention-days: 7
-          if-no-files-found: error
 
       # Issue mode, script activity: what the resolve-issue run left. A
       # missing artifact leaves the directory empty, which reads as stopped.
@@ -2103,8 +1823,15 @@ jobs:
           # dependency-verdict only; empty otherwise.
           DEPENDENCY_VERDICT_DIR: ${{ inputs.dependency-verdict && format('{0}/dependency-verdict', runner.temp) || '' }}
           DEPENDENCY_RUN_SHA256: ${{ inputs.dependency-run-sha256 }}
+          DEPENDENCY_VERDICT_SHA256: ${{ inputs.dependency-verdict-sha256 }}
           DEPENDENCY_HEAD_SHA: ${{ inputs.dependency-head-sha }}
           DEPENDENCY_RUN_ATTEMPT: ${{ inputs.dependency-run-attempt }}
+          DEPENDENCY_PATCH_STATE: ${{ inputs.dependency-verdict && inputs.dependency-patch-state || '' }}
+          # review-replies and dependency-verdict: the scan refusal markers
+          # and whether their download failed (address-feedback.mjs
+          # scanRefusal).
+          SCAN_REFUSED_DIR: ${{ (inputs.review-replies || inputs.dependency-verdict) && format('{0}/scan-refused', runner.temp) || '' }}
+          SCAN_REFUSED_READ: ${{ steps.scan-refused.outcome }}
           # apply-patch only; empty otherwise. The select step checked the
           # patch before the mint; the script checks its SHA-256 again.
           PREPARE: ${{ steps.config.outputs.prepare }}
@@ -2127,6 +1854,19 @@ jobs:
           # Under the review-threads row: the thread file the check step
           # matched to the select job's SHA-256; empty otherwise.
           KEPT_THREADS_FILE: ${{ steps.patch-threads.outputs.file }}
+          # Under the dependency-review row: the verdict field of the scanned
+          # verdict the check step matched to the scan job's SHA-256.
+          DEPENDENCY_VERDICT: ${{ steps.patch-verdict.outputs.verdict }}
+          # Under the merge-base row: the pinned base, the state and conflict
+          # tree the prepare step reached (the select job's, or it failed),
+          # the default branch's name for the message, and the base copy of
+          # tree-entries.sh with its SHA-256.
+          MERGE_BASE_SHA: ${{ inputs.patch-prepare == 'merge-base' && inputs.patch-merge-base-sha || '' }}
+          MERGE_STATE: ${{ inputs.patch-prepare == 'merge-base' && steps.prepare.outputs.merge-state || '' }}
+          CONFLICT_TREE: ${{ inputs.patch-prepare == 'merge-base' && steps.prepare.outputs.conflict-tree || '' }}
+          BASE_REF: ${{ inputs.patch-prepare == 'merge-base' && github.event.repository.default_branch || '' }}
+          TREE_ENTRIES_SCRIPT: ${{ inputs.patch-prepare == 'merge-base' && format('{0}/merge-base-bin/tree-entries.sh', runner.temp) || '' }}
+          TREE_ENTRIES_SHA256: ${{ inputs.patch-prepare == 'merge-base' && steps.merge-bin.outputs.tree-entries-sha256 || '' }}
         run: |
           if [ "$TRACKER_SHA256" = absent ]; then
             if [ -e "$TRACKER_CONFIG" ]; then
@@ -2165,6 +1905,16 @@ jobs:
           escalation=""
           if [ -s "$ESCALATION_REASON_FILE" ]; then
             escalation=$(head -n 1 "$ESCALATION_REASON_FILE" | tr -d '\r')
+            # apply-patch under the merge-base row gives the merge's reasons alone.
+            if [ "$PREPARE:$PATCH_PREPARE" = apply-patch:merge-base ]; then
+              case $escalation in
+                unresolved-conflict | workflow-staged | unexpected-path-staged) ;;
+                conflict-patch-invalid | conflict-patch-not-applied | conflict-patch-protected-path) ;;
+                *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
+              esac
+              echo "escalation-reason=$escalation" >>"$GITHUB_OUTPUT"
+              exit 0
+            fi
             case "$FEEDBACK_REPLIES_DIR:$escalation" in
               ?*:feedback-uncertain | ?*:feedback-not-landed | ?*:feedback-invalid) ;;
               ?*:feedback-partial | ?*:feedback-incomplete | ?*:feedback-disputed) ;;
@@ -2238,20 +1988,13 @@ jobs:
           SKIP_REASON: >-
             ${{ steps.config.outputs.skip-reason || steps.head-recheck.outputs.skip-reason
             || steps.lane-token.outputs.skip-reason
-            || steps.prepare.outputs.skip-reason || steps.post.outputs.skip-reason
-            || steps.commit.outputs.skip-reason || steps.promote.outputs.skip-reason
+            || steps.prepare.outputs.skip-reason || steps.promote.outputs.skip-reason
             || steps.act-script.outputs.skip-reason
-            || steps.dependency-select.outputs.skip-reason
             || steps.patch-select.outputs.skip-reason }}
           ACT_OUTCOME: >-
-            ${{ steps.act-skill.outcome == 'skipped' && steps.prepare.outputs.merge-state == 'clean'
-            && ((steps.post.outputs.escalation-reason != ''
-            || steps.commit.outcome == 'success' && steps.promote.outcome == 'success') && 'success' || 'failure')
-            || steps.act-result.outputs.outcome == 'success'
+            ${{ steps.act-result.outputs.outcome == 'success'
             && (steps.config.outputs.gating == 'gate' && steps.skill-verdict.outcome != 'success'
-            || steps.promote.outcome == 'failure' || steps.act-turns.outcome != 'success'
-            || steps.commit.outcome == 'failure'
-            || steps.post.outputs.tree != '' && steps.commit.outcome != 'success') && 'failure'
+            || steps.promote.outcome == 'failure' || steps.act-turns.outcome != 'success') && 'failure'
             || steps.act-skill.outcome != 'skipped' && (steps.act-result.outputs.outcome || steps.act-skill.outcome)
             || steps.act-script.outcome }}
           VERDICT_DIR: ${{ runner.temp }}/verdict

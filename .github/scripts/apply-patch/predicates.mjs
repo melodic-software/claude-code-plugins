@@ -18,14 +18,20 @@ export const PREDICATES = {
   },
   // An npm or pip manifest or lock file outside .github/, in a directory of
   // its ecosystem among the base dependabot.yml's [ecosystem, directory]
-  // pairs. No runner hands those on yet, so a row naming it refuses.
+  // pairs, which apply-patch.mjs reads from the trusted base copy.
   "dependency-manifests": ({ dependabotConfig }) => {
     if (!Array.isArray(dependabotConfig) || dependabotConfig.length === 0) {
       throw new Error("allow dependency-manifests needs the base dependabot.yml's [ecosystem, directory] pairs");
     }
     return (path) => inFixScope(path, dependabotConfig);
   },
-  "merge-result": () => {
-    throw new Error("allow merge-result is not supported by this apply-patch yet");
+  // A path the base merge left conflicted, which the patch resolves; the
+  // merge's own changes from the base side never face the predicates.
+  // `merge.unmerged` is a Set, read from the checkout's merge.
+  "merge-result": ({ merge }) => {
+    if (!(merge?.unmerged instanceof Set)) {
+      throw new Error("allow merge-result needs the merge's conflicted paths");
+    }
+    return (path) => merge.unmerged.has(path);
   },
 };

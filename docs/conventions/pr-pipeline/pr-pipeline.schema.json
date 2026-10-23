@@ -403,7 +403,8 @@
         "probe-first",
         "workflow-modified",
         "rung-up",
-        "no-model-turn"
+        "no-model-turn",
+        "clean-merge"
       ],
       "description": "The one reason a skipped activity's neutral check carries. Not used by the config file; the runner and check-run reporter validate reasons against it. Meaning: README.md, Outputs and skips."
     },
@@ -482,19 +483,23 @@
       },
       "allOf": [
         {
-          "if": { "required": ["effect", "prepare"], "properties": { "effect": { "const": "read" }, "prepare": { "enum": ["ci-context", "review-threads"] } } },
+          "if": { "required": ["effect", "prepare"], "properties": { "effect": { "const": "read" }, "prepare": { "enum": ["ci-context", "review-threads", "merge-base"] } } },
           "then": { "required": ["applied-by"], "properties": { "applied-by": { "required": ["patch"] } } }
         },
         {
           "if": { "required": ["effect", "prepare"], "properties": { "effect": { "const": "read" }, "prepare": { "const": "review-threads" } } },
           "then": { "properties": { "applied-by": { "required": ["feedback-replies"] } } }
+        },
+        {
+          "if": { "required": ["effect", "prepare"], "properties": { "effect": { "const": "read" }, "prepare": { "const": "dependency-review" } } },
+          "then": { "required": ["applied-by"], "properties": { "applied-by": { "required": ["patch", "dependency-verdict"] } } }
         }
       ],
       "properties": {
         "skill": { "$ref": "#/$defs/skill" },
         "prepare": {
           "enum": ["merge-base", "review-threads", "dependency-review", "ci-context", "apply-patch"],
-          "description": "What the runner does around the activity (README.md, Activities; pr-run-activity.md, the prepare sections). apply-patch is the one mode for a script, a mutate-branch one; the others run around a skill. ci-context needs effect read and hands its change on as a patch; merge-base, review-threads and dependency-review need an effect other than read unless their activity hands its change on as a patch, and review-threads with effect read also hands on its replies (applied-by.feedback-replies). ci-context: download the failing-check context file a base job wrote, check its SHA-256 and head, make it read-only and name it to the skill, which also gets Bash, Edit and Write. apply-patch: check the patch artifact a producer left (one patch.diff with its SHA-256, on the head it worked on), apply it to the gated head, and push it as one commit without force; patch-rules.json registers the rules each producer's patch is to be held to (README.md, Patch rules). merge-base: merge the base tip without committing before the skill, then commit with the gated head and the base tip as parents. review-threads: before any model turn, keep the PR's unresolved reviewer-bot threads on a reviewed head and escalate on a .github/** diff or the round cap (on the read runner, a base job of the caller does this and the runner checks its thread file); give the skill the review-thread tool; after it, upload the replies it recorded for a script job to validate and post. dependency-review: before any model turn, skip a PR Dependabot did not open or one sorted auto, and escalate on the round cap; give the skill a read-only context file and a verdict schema for its structured output; after it, upload the verdict for a script job to validate and act on."
+          "description": "What the runner does around the activity (README.md, Activities; pr-run-activity.md, the prepare sections). apply-patch is the one mode for a script, a mutate-branch one; the others run around a skill. ci-context needs effect read and hands its change on as a patch; merge-base, review-threads and dependency-review need an effect other than read unless their activity hands its change on as a patch, review-threads with effect read also hands on its replies (applied-by.feedback-replies), and dependency-review with effect read its verdict (applied-by.dependency-verdict). ci-context: download the failing-check context file a base job wrote, check its SHA-256 and head, make it read-only and name it to the skill, which also gets Bash, Edit and Write. apply-patch: check the patch artifact a producer left (one patch.diff with its SHA-256, on the head it worked on), apply it to the gated head, and push it as one commit without force; patch-rules.json registers the rules each producer's patch is to be held to (README.md, Patch rules). merge-base: merge the base tip without committing before the skill, then commit with the gated head and the base tip as parents (with effect read, a base job of the caller merges first and decides, the read runner merges the same base again and hands the skill's resolutions on as a patch measured from the conflict tree, and a prepare: apply-patch script commits the merge). review-threads: before any model turn, keep the PR's unresolved reviewer-bot threads on a reviewed head and escalate on a .github/** diff or the round cap (on the read runner, a base job of the caller does this and the runner checks its thread file); give the skill the review-thread tool; after it, upload the replies it recorded for a script job to validate and post. dependency-review: before any model turn, skip a PR Dependabot did not open or one sorted auto, and escalate on the round cap (on the read runner, a base job of the caller does this and the runner checks its context file); give the skill a read-only context file and a verdict schema for its structured output; after it, upload the verdict for a script job to validate and act on, and the fix as a patch a prepare: apply-patch script pushes only on a fix verdict."
         },
         "applied-by": {
           "type": "object",
@@ -874,6 +879,23 @@
           "minimum": 1,
           "description": "Minutes the pr-merge workflow's gate loop runs before it starts no further candidate. The candidate in progress finishes, so no gate stops between its check and its enqueue; the next run starts after the last candidate reached. Keep it below the merge job's timeout-minutes less the longest single candidate. Absent: no budget."
         },
+        "gate-candidate-minutes": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Minutes one candidate's gate may spend in its read phases (the merge policy, then the verdict). Past it the gate starts no further read command and reports the candidate unknown (exit 11, reason unknown:candidate-deadline), never ready; no write is bounded, so none is cut short. The loop goes on to the next candidate within gate-budget-minutes. The first candidate a run stops is gated first in the next run under gate-deferred-minutes, so one that always runs past it still gets a longer gate. Absent: no limit."
+        },
+        "gate-deferred-minutes": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Minutes the gate may read for the candidate the last run deferred at gate-candidate-minutes, gated first in its run; writes are never bounded, as there. A candidate stopped at this ceiling gets a warning annotation and goes back to the capped rotation, never deferred again. Keep it below the merge job's timeout-minutes less the closing steps. Absent: no limit."
+        },
+        "read-token-floor": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.3,
+          "description": "Share of GITHUB_TOKEN's core limit, as GET /rate_limit reports it, that must be left, at or above which the pr-merge gate reads its review evidence (timeline, comments, review-lane runs with their attempts, jobs and annotations) with BABYSIT_VERIFY_GH_TOKEN; below it, or when /rate_limit cannot be read, those reads use the lane App token. It is an early switch only: /rate_limit can show room while GitHub already refuses the token, so a read refused with a 429, or a 403 naming a rate limit, also sends that candidate's evidence reads to the lane App token and marks the token spent for the rest of the run. Both tokens read the same data, so no gate decision changes. Read at the default branch head. Absent, or not a number from 0 to 1: 0.3."
+        },
         "skip-unchanged": {
           "type": "object",
           "additionalProperties": false,
@@ -960,7 +982,7 @@
             "high-path-floor": {
               "type": "boolean",
               "default": false,
-              "description": "true scores a diff touching the risk scorer's fixed HIGH path floor (agent permission config, submodules, code owners, package manifests and lockfiles, and the workflows that publish a release or hold id-token: write) HIGH, as it does a plugin or marketplace manifest change that installs or runs something new. Absent or false: only denied-paths count. The local babysit lane always applies the floor."
+              "description": "true scores a diff touching the risk scorer's fixed HIGH path floor (the trusted-actor list, the trusted-trigger check, code owners, submodules and resolve-config) HIGH, as it does a plugin or marketplace manifest change that installs or runs something new. Absent or false: only denied-paths count. The local babysit lane always applies the floor."
             },
             "c2-contradictions": {
               "type": "boolean",

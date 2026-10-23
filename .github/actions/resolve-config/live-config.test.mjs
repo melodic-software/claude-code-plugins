@@ -57,12 +57,27 @@ const skipReason = (lane, activity, facts) => {
   return slot["skip-reason"];
 };
 
-test("live config: resolve-conflicts applies to a conflicting ready PR with prepare merge-base", () => {
+test("live config: resolve-conflicts applies to a conflicting ready PR with prepare merge-base, as a read skill that hands on a patch", () => {
   const slot = selected("pr-unblock", "resolve-conflicts");
   assert.equal(slot.applies, true);
   assert.equal(slot.prepare, "merge-base");
-  assert.equal(slot.effect, "mutate-branch");
+  assert.equal(slot.effect, "read");
+  assert.deepEqual(slot["applied-by"], { patch: "apply-conflict-patch" });
   assert.equal(slot.skill, "source-control:resolve-conflicts");
+});
+
+test("live config: resolve-conflicts holds no write token; its push job may only write its branch", () => {
+  const grant = (activity) => resolveGrant(FILES, { lane: "pr-unblock", activity, configPath: CONFIG_PATH });
+  assert.deepEqual(grant("resolve-conflicts"), { effect: "read", grant: { contents: "read", "pull-requests": "read", issues: "read" } });
+  assert.deepEqual(grant("apply-conflict-patch"), { effect: "mutate-branch", grant: { contents: "write", "pull-requests": "read", issues: "read" } });
+  const push = selected("pr-unblock", "apply-conflict-patch");
+  assert.equal(push.script, ".github/scripts/apply-patch/apply-patch.mjs");
+  assert.equal(push.prepare, "apply-patch");
+  assert.deepEqual(push.needs, ["resolve-conflicts"]);
+  for (const labels of [["needs-human"], ["do-not-merge"]]) {
+    assert.equal(selected("pr-unblock", "apply-conflict-patch", { labels }).applies, false, labels[0]);
+  }
+  assert.equal(selected("pr-unblock", "apply-conflict-patch", { draft: true }).applies, false);
 });
 
 test("live config: resolve-conflicts waits for a human while a hold label is on the PR", () => {
@@ -110,6 +125,13 @@ test("live config: report-escalation applies and is granted publish-artifact onl
 });
 
 // Expected values from #7032's acceptance criteria and effect-grants.json.
+test("live config: pr-refine is the refine stage: fix-docs, then its push job", () => {
+  const { lane } = resolve(FILES, { lane: "pr-refine", activity: "fix-docs", configPath: CONFIG_PATH, basePath: ".base", facts: FACTS });
+  assert.equal(lane.stage, "refine");
+  assert.deepEqual(lane.slots.map((slot) => slot.activity ?? slot.name), ["fix-docs", "apply-patch"]);
+  assert.deepEqual(selected("pr-unblock", "apply-patch").needs, ["fix-ci"]);
+});
+
 test("live config: pr-unblock runs its slots in order", () => {
   const { lane } = resolve(FILES, {
     lane: "pr-unblock",
@@ -122,13 +144,14 @@ test("live config: pr-unblock runs its slots in order", () => {
     lane.slots.map((slot) => slot.activity ?? slot.name),
     [
       "resolve-conflicts",
+      "apply-conflict-patch",
       "address-feedback",
       "apply-feedback-patch",
       "publish-feedback",
       "review-dependency",
+      "apply-dependency-patch",
       "apply-dependency-verdict",
       "fix-ci",
-      "fix-docs",
       "apply-patch",
       "report-escalation",
     ],
@@ -189,7 +212,7 @@ test("live config: every other PR activity still waits on needs-human", () => {
   for (const [lane, activity, facts] of [
     ["pr-unblock", "resolve-conflicts", {}],
     ["pr-unblock", "review-dependency", { mergeable: "clean" }],
-    ["pr-unblock", "fix-docs", {}],
+    ["pr-refine", "fix-docs", {}],
   ]) {
     assert.equal(skipReason(lane, activity, { ...facts, labels: ["needs-human"] }), "awaiting-human", activity);
   }
@@ -209,10 +232,10 @@ test("live config: publish-feedback runs the reply script after address-feedback
   );
 });
 
-// fix-docs hands no PR to a person, so report-escalation does not follow it.
-test("live config: report-escalation follows every other pr-unblock activity but fix-docs", () => {
+test("live config: report-escalation follows every pr-unblock activity", () => {
   assert.deepEqual(selected("pr-unblock", "report-escalation").needs, [
     "resolve-conflicts",
+    "apply-conflict-patch",
     "address-feedback",
     "publish-feedback",
     "review-dependency",
@@ -239,9 +262,10 @@ test("live config: fix-ci holds no write token and its push job may only write i
   assert.equal(selected("pr-unblock", "fix-ci", { labels: ["needs-human"] }).applies, false);
 });
 
-test("live config: review-dependency may only write its branch; its verdict job may only write PRs and issues", () => {
+test("live config: review-dependency holds no write token; its push job may only write its branch, its verdict job only PRs and issues", () => {
   const grant = (activity) => resolveGrant(FILES, { lane: "pr-unblock", activity, configPath: CONFIG_PATH });
-  assert.deepEqual(grant("review-dependency"), {
+  assert.deepEqual(grant("review-dependency"), { effect: "read", grant: { contents: "read", "pull-requests": "read", issues: "read" } });
+  assert.deepEqual(grant("apply-dependency-patch"), {
     effect: "mutate-branch",
     grant: { contents: "write", "pull-requests": "read", issues: "read" },
   });
@@ -252,7 +276,16 @@ test("live config: review-dependency may only write its branch; its verdict job 
   const review = selected("pr-unblock", "review-dependency");
   assert.equal(review.prepare, "dependency-review");
   assert.equal(review.args, "dependency --ci");
-  assert.equal(selected("pr-unblock", "apply-dependency-verdict").script, ".github/scripts/pr-unblock/apply-dependency-verdict.mjs");
+  assert.deepEqual(review["applied-by"], { patch: "apply-dependency-patch", "dependency-verdict": "apply-dependency-verdict" });
+  const push = selected("pr-unblock", "apply-dependency-patch");
+  assert.equal(push.script, ".github/scripts/apply-patch/apply-patch.mjs");
+  assert.equal(push.prepare, "apply-patch");
+  assert.deepEqual(push.needs, ["review-dependency"]);
+  assert.equal(selected("pr-unblock", "apply-dependency-patch", { labels: ["needs-human"] }).applies, false);
+  const verdict = selected("pr-unblock", "apply-dependency-verdict");
+  assert.equal(verdict.script, ".github/scripts/pr-unblock/apply-dependency-verdict.mjs");
+  // After the push, so the verdict judges what landed.
+  assert.deepEqual(verdict.needs, ["review-dependency", "apply-dependency-patch"]);
 });
 
 // An agent-ready label event on an issue.
@@ -276,7 +309,7 @@ test("live config: resolve-issue starts on the agent-ready label alone, whatever
 
 // The holds stay: a person decides these, so the issue waits for them.
 test("live config: resolve-issue starts nothing for an issue carrying a hold label", () => {
-  for (const hold of ["needs-human", "needs-owner-decision", "status: needs-decision"]) {
+  for (const hold of ["needs-human", "needs-owner-decision", "status: needs-decision", "status: needs-info"]) {
     assert.equal(skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labels: ["agent-ready", hold] }), "awaiting-human", hold);
   }
 });
@@ -348,7 +381,7 @@ test("live config: resolve-issue reads official docs hosts only; review-dependen
     enabled: true,
     domains: ["github.com", "raw.githubusercontent.com", "www.npmjs.com", "registry.npmjs.org", "pypi.org"],
   });
-  assert.notEqual(selected("pr-unblock", "fix-docs")["web-access"]?.enabled, true);
+  assert.notEqual(selected("pr-refine", "fix-docs")["web-access"]?.enabled, true);
   const others = Object.entries(doc.activities).filter(
     ([name, a]) => !["resolve-issue", "review-dependency"].includes(name) && a["web-access"]?.enabled,
   );
@@ -434,31 +467,31 @@ test("live config: label-unblocked may only write issues", () => {
 });
 
 test("live config: fix-docs applies to a Markdown change and waits on needs-human", () => {
-  assert.equal(selected("pr-unblock", "fix-docs").applies, true);
+  assert.equal(selected("pr-refine", "fix-docs").applies, true);
   assert.equal(
-    skipReason("pr-unblock", "fix-docs", { labels: ["needs-human"] }),
+    skipReason("pr-refine", "fix-docs", { labels: ["needs-human"] }),
     "awaiting-human",
   );
 });
 
 test("live config: fix-docs does not apply to a draft PR", () => {
-  assert.equal(skipReason("pr-unblock", "fix-docs", { draft: true }), "not-applicable");
+  assert.equal(skipReason("pr-refine", "fix-docs", { draft: true }), "not-applicable");
 });
 
 // The model run holds no write token; only the script that pushes its patch
-// may write the branch, from its own job in pr-unblock.
-test("live config: fix-docs holds no write token and its push job in pr-unblock may only write its branch", () => {
-  const grant = (activity) => resolveGrant(FILES, { lane: "pr-unblock", activity, configPath: CONFIG_PATH });
+// may write the branch, from its own job in pr-refine.
+test("live config: fix-docs holds no write token and its push job in pr-refine may only write its branch", () => {
+  const grant = (activity) => resolveGrant(FILES, { lane: "pr-refine", activity, configPath: CONFIG_PATH });
   assert.deepEqual(grant("fix-docs"), { effect: "read", grant: { contents: "read", "pull-requests": "read", issues: "read" } });
   assert.deepEqual(grant("apply-patch"), {
     effect: "mutate-branch",
     grant: { contents: "write", "pull-requests": "read", issues: "read" },
   });
-  const fix = selected("pr-unblock", "fix-docs");
+  const fix = selected("pr-refine", "fix-docs");
   assert.equal(fix.prepare, undefined, "no prepare mode: apply-patch takes the default row");
   assert.deepEqual(fix["applied-by"], { patch: "apply-patch" });
-  const apply = selected("pr-unblock", "apply-patch");
-  assert.deepEqual(apply.needs, ["fix-ci", "fix-docs"]);
+  const apply = selected("pr-refine", "apply-patch");
+  assert.deepEqual(apply.needs, ["fix-docs"]);
   assert.equal(apply.script, ".github/scripts/apply-patch/apply-patch.mjs");
   assert.equal(apply.prepare, "apply-patch");
 });
@@ -467,7 +500,7 @@ test("live config: fix-docs holds no write token and its push job in pr-unblock 
 // auto, so no activity asks for it; fix-docs takes the dontAsk default and
 // runs only what the stage's allow rules name.
 test("live config: no activity sets permission-mode", () => {
-  assert.equal(selected("pr-unblock", "fix-docs")["permission-mode"], undefined);
+  assert.equal(selected("pr-refine", "fix-docs")["permission-mode"], undefined);
   const { activities } = parse(FILES.config);
   assert.deepEqual(Object.keys(activities).filter((name) => Object.hasOwn(activities[name], "permission-mode")), []);
 });
@@ -475,7 +508,7 @@ test("live config: no activity sets permission-mode", () => {
 // fix-docs hands on a patch, so its targets leave out instruction surfaces
 // and CODEOWNERS paths, as a write activity's do.
 test("live config: fix-docs is not asked to fix an instruction surface", () => {
-  const slot = selected("pr-unblock", "fix-docs", { changedTargets: ["docs/guide.md", "CLAUDE.md", "plugins/p/skills/s/SKILL.md"] });
+  const slot = selected("pr-refine", "fix-docs", { changedTargets: ["docs/guide.md", "CLAUDE.md", "plugins/p/skills/s/SKILL.md"] });
   assert.deepEqual(slot["changed-paths"], ["docs/guide.md"]);
 });
 
@@ -485,15 +518,16 @@ test("live config: fix-docs with a write effect is refused", () => {
   const writes = FILES.config.replace("effect: read\n    applied-by:\n      patch: apply-patch\n", "effect: mutate-branch\n");
   assert.notEqual(writes, FILES.config);
   assert.throws(
-    () => resolve({ ...FILES, config: writes }, { lane: "pr-unblock", activity: "fix-docs", configPath: CONFIG_PATH, basePath: ".base", facts: FACTS }),
+    () => resolve({ ...FILES, config: writes }, { lane: "pr-refine", activity: "fix-docs", configPath: CONFIG_PATH, basePath: ".base", facts: FACTS }),
     (error) => error.code === "forbidden-by-activity",
   );
 });
 
 // Each activity's applied-by lands with the phase that moves it to the read
 // runner, after the broker serves a reader that knows the field; fix-docs,
-// address-feedback, fix-ci and resolve-issue so far.
-test("live config: only fix-docs, address-feedback, fix-ci and resolve-issue set applied-by, each to its own appliers", () => {
+// resolve-conflicts, address-feedback, review-dependency, fix-ci and
+// resolve-issue so far.
+test("live config: only fix-docs, resolve-conflicts, address-feedback, review-dependency, fix-ci and resolve-issue set applied-by, each to its own appliers", () => {
   const { activities } = parse(FILES.config);
   assert.deepEqual(
     Object.entries(activities)
@@ -501,7 +535,9 @@ test("live config: only fix-docs, address-feedback, fix-ci and resolve-issue set
       .map(([name, activity]) => [name, activity["applied-by"]]),
     [
       ["fix-docs", { patch: "apply-patch" }],
+      ["resolve-conflicts", { patch: "apply-conflict-patch" }],
       ["address-feedback", { patch: "apply-feedback-patch", "feedback-replies": "publish-feedback" }],
+      ["review-dependency", { patch: "apply-dependency-patch", "dependency-verdict": "apply-dependency-verdict" }],
       ["fix-ci", { patch: "apply-patch" }],
       ["resolve-issue", { patch: "apply-issue-patch", "work-outcome": "report-outcome" }],
     ],
@@ -512,4 +548,24 @@ test("live config: only fix-docs, address-feedback, fix-ci and resolve-issue set
 test("live config: the shipped patch rules pass against the live activities", () => {
   const rules = json("./patch-rules.json");
   assert.equal(checkPatchRules(rules, json("./patch-rules.schema.json"), parse(FILES.config).activities), rules);
+});
+
+// Owner decision Q8: actions read for pr-merge's verdict and run reads, on its
+// merge-pr grant alone.
+test("live config: only pr-merge's merge-pr grant carries actions, and only read", () => {
+  assert.deepEqual(
+    resolveGrant(FILES, { lane: "pr-merge", activity: "merge-pr", configPath: CONFIG_PATH }),
+    {
+      effect: "merge",
+      grant: { contents: "write", "pull-requests": "write", issues: "write", actions: "read" },
+    },
+  );
+  const doc = parse(FILES.config);
+  for (const lane of Object.keys(doc.lanes)) {
+    const { lane: resolved } = resolve(FILES, { lane, configPath: CONFIG_PATH, basePath: ".base", facts: FACTS });
+    for (const slot of resolved.slots) {
+      const expected = lane === "pr-merge" && slot.name === "merge-pr" ? "read" : undefined;
+      assert.equal(slot.grant.actions, expected, `${lane}/${slot.name}`);
+    }
+  }
 });

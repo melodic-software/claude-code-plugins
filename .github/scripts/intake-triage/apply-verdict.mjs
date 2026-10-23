@@ -25,7 +25,8 @@
 // must be one of the repository's work-class labels. When it applied a class it rewrites the comment's
 // "a maintainer confirms" lines. On `status: ready` it hands the verdict to
 // admit.mjs, which adds `agent-ready` when the admission rules and the caps
-// allow.
+// allow. Otherwise, when a done-when item is one the lane cannot perform,
+// admit.mjs's noteUnrunnable posts the split it recommends.
 //
 // Issue text can only refuse: a line the model quotes is prefixed `> ` and
 // matches nothing, a duplicated, missing or unknown value writes no fields, and
@@ -58,7 +59,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { admit, loadRules } from "./admit.mjs";
+import { admit, loadRules, noteUnrunnable } from "./admit.mjs";
 
 export const MARKER = "<!-- claude-lane intake-triage -->";
 const LANE_BOT = "github-actions[bot]";
@@ -287,7 +288,7 @@ async function readFields(github, repository, number, fieldSetters) {
   return fields;
 }
 
-export async function run({ env, github, dimensionsConfig, fieldSetters, admitIssue, log = console.log }) {
+export async function run({ env, github, dimensionsConfig, fieldSetters, admitIssue, noteSplit, log = console.log }) {
   if (env.KILL_SWITCH !== "proceed") {
     log("apply-verdict: the kill switch did not answer proceed; nothing read or written");
     return { outcome: "stopped" };
@@ -388,6 +389,15 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
       admission = { outcome: "error", reasons: [String(error?.message ?? error)] };
     }
   }
+  // A held issue never reaches admission, so its split note, when a done-when
+  // item is one the lane cannot perform, is written here.
+  if (!plan.ready && noteSplit) {
+    try {
+      admission = await noteSplit(issue);
+    } catch (error) {
+      admission = { outcome: "error", reasons: [String(error?.message ?? error)] };
+    }
+  }
   if (plan.classApplied) {
     const reworded = rewordComment(comment.body);
     if (reworded !== null) {
@@ -423,7 +433,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     console.log(`apply-verdict: the broker ${proceed ? "would" : "would not"} mint for this run's actors`);
   } else {
     try {
-      const { issueDimensionsFromBase, fieldSetters } = await import(
+      const { issueDimensionsFromBase, issueLaneWebHostsFromBase, fieldSetters } = await import(
         new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href
       );
       const rate = searchRateLimit();
@@ -445,6 +455,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
           rules: loadRules(`${env.BASE_PATH}/.github/actions/resolve-config/admission-rules.json`),
           humans,
           appId: logins.get(LANES_APP_LOGIN),
+          webHosts: issueLaneWebHostsFromBase(env),
           status: () =>
             checkWip(github, {
               repo: repository,
@@ -455,12 +466,21 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
               remaining: rate.remaining,
             }),
         });
+      const noteSplit = (issue) =>
+        noteUnrunnable({
+          github,
+          repository,
+          issue,
+          rules: loadRules(`${env.BASE_PATH}/.github/actions/resolve-config/admission-rules.json`),
+          webHosts: issueLaneWebHostsFromBase(env),
+        });
       const result = await run({
         env,
         github,
         dimensionsConfig: issueDimensionsFromBase(env),
         fieldSetters,
         admitIssue,
+        noteSplit,
       });
       if (result.summary && env.GITHUB_STEP_SUMMARY) {
         appendFileSync(env.GITHUB_STEP_SUMMARY, `${result.summary}\n`);

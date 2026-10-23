@@ -14,17 +14,52 @@ import os
 import shutil
 import subprocess
 import sys
-from collections.abc import Collection, Mapping
-from contextlib import suppress
+import time
+from collections.abc import Collection, Iterator, Mapping
+from contextlib import contextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, TypeGuard
+from typing import Any, Literal, TypeGuard, overload
 
 # Minimum accepted hex-prefix length for --expected-head-sha pins. Lives here --
 # not in the state module -- so the guarded mutation CLIs can validate pins
 # without importing any snapshot/state machinery.
 MIN_HEAD_SHA_PREFIX_LENGTH = 12
 DEFAULT_COMMAND_TIMEOUT_SECONDS = 60.0
+
+# The clock value a read phase must not start a command past, or None outside
+# one (`read_deadline`).
+_clock = time.monotonic
+_read_deadline: float | None = None
+
+
+class DeadlineReached(BaseException):
+    """A read phase reached its deadline before its next command started.
+
+    A BaseException, so no `except Exception` (or narrower) handler on the way
+    up turns it into a verdict."""
+
+
+def deadline_after(seconds: float | None) -> float | None:
+    """The deadline `seconds` from now, for `read_deadline`; None for None."""
+    return None if seconds is None else _clock() + seconds
+
+
+@contextmanager
+def read_deadline(at: float | None) -> Iterator[None]:
+    """Bound a phase that only reads: past `at` (from `deadline_after`),
+    entering it or starting any command inside it raises `DeadlineReached`.
+    Outside the phase nothing is bounded, so a write is never cut short; a
+    command already running finishes under its own timeout. `None` bounds
+    nothing."""
+    global _read_deadline
+    if at is not None and _clock() >= at:
+        raise DeadlineReached
+    _read_deadline = at
+    try:
+        yield
+    finally:
+        _read_deadline = None
 
 
 def is_json_object(value: Any) -> TypeGuard[dict[Any, Any]]:
@@ -126,6 +161,32 @@ def split_owner(repo: str) -> str:
     return repo.split("/", 1)[0]
 
 
+@overload
+def run_command(
+    argv: list[str],
+    *,
+    allowed_executables: Collection[str],
+    timeout_seconds: float = ...,
+    check: bool = ...,
+    cwd: str | Path | None = ...,
+    env_overrides: Mapping[str, str] | None = ...,
+    binary: Literal[False] = ...,
+) -> subprocess.CompletedProcess[str]: ...
+
+
+@overload
+def run_command(
+    argv: list[str],
+    *,
+    allowed_executables: Collection[str],
+    timeout_seconds: float = ...,
+    check: bool = ...,
+    cwd: str | Path | None = ...,
+    env_overrides: Mapping[str, str] | None = ...,
+    binary: Literal[True],
+) -> subprocess.CompletedProcess[Any]: ...
+
+
 def run_command(
     argv: list[str],
     *,
@@ -134,7 +195,8 @@ def run_command(
     check: bool = True,
     cwd: str | Path | None = None,
     env_overrides: Mapping[str, str] | None = None,
-) -> subprocess.CompletedProcess[str]:
+    binary: bool = False,
+) -> subprocess.CompletedProcess[Any]:
     """Run one allowlisted executable and capture its output.
 
     The single subprocess seam for every babysit script: argv is never a shell
@@ -146,9 +208,13 @@ def run_command(
     `env_overrides` layers onto the inherited environment for this call only --
     the seam a caller uses to pin a child's locale when it must read a decision
     out of that child's human-readable output, which is otherwise translated.
+    `binary` keeps stdout as bytes, for a payload such as a zip archive; stderr
+    is still text.
     """
     if not argv:
         raise ValueError("argv must name an executable")
+    if _read_deadline is not None and _clock() >= _read_deadline:
+        raise DeadlineReached
     name = argv[0]
     if name not in allowed_executables:
         raise ValueError(f"executable {name!r} is not in the caller's allowlist")
@@ -159,9 +225,9 @@ def run_command(
         proc = subprocess.run(
             [executable, *argv[1:]],
             check=False,
-            text=True,
+            text=not binary,
             capture_output=True,
-            encoding="utf-8",
+            encoding=None if binary else "utf-8",
             timeout=timeout_seconds,
             cwd=str(cwd) if cwd is not None else None,
             env=({**os.environ, **env_overrides} if env_overrides else None),
@@ -170,6 +236,8 @@ def run_command(
         raise RuntimeError(
             f"{' '.join(argv)} timed out after {timeout_seconds:g}s"
         ) from exc
+    if binary:
+        proc.stderr = proc.stderr.decode("utf-8", "replace")
     if check and proc.returncode != 0:
         detail = proc.stderr.strip() or proc.stdout.strip()
         raise RuntimeError(f"{' '.join(argv)} failed: {detail}")

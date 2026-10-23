@@ -13,10 +13,11 @@ name: pr-unblock-dispatch
 # run failed) after the lost-run reconciler's re-run, and has no fix-ci run yet,
 # at most limits.fix-ci-per-run per run, from one GraphQL query whose
 # rateLimit.cost it logs (.github/scripts/pr-unblock/fix-ci-dispatch.mjs). It
-# also dispatches fix-docs once per open, ready PR a person opened into main
+# also dispatches pr-refine.yml's fix-docs once per open, ready PR into main
 # that changes a Markdown file, carries no hold label and never had a fix-docs
-# check run, at most limits.fix-docs-per-run per run, from its own logged
-# GraphQL listing (.github/scripts/pr-unblock/fix-docs-dispatch.mjs). No
+# check run, whoever opened it except Dependabot, the release App and the
+# standards-sync App, at most limits.fix-docs-per-run per run, from its own
+# logged GraphQL listing (.github/scripts/pr-unblock/fix-docs-dispatch.mjs). No
 # schedule: the broker accepts a dispatcher run started by a push or a listed
 # human only.
 #
@@ -24,7 +25,8 @@ name: pr-unblock-dispatch
 # workflow runs. A run started by hand, or a re-run of a push run, must come
 # from a listed trusted human. The dispatched lane runs its own trigger gate,
 # kill switch and config. Only the fix-ci and fix-docs listings filter by
-# author and hold label, to spend no model run on a PR the lane would skip.
+# author and hold label: fix-ci to spend no model run on a PR the lane would
+# skip, fix-docs to leave alone PRs whose files are generated or synced.
 #
 # The token's budget is logged at the start and end of the job
 # (.github/actions/log-api-budget), and the script logs its own call counts.
@@ -56,7 +58,7 @@ jobs:
       contents: read # check out main
       pull-requests: read # list open PRs and their mergeable state
       checks: read # skip a PR whose head already has a pr-unblock check run; read ci-status
-      actions: write # list and dispatch pr-unblock.yml runs
+      actions: write # list and dispatch pr-unblock.yml and pr-refine.yml runs
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

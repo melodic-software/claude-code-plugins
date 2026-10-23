@@ -123,7 +123,7 @@ resolve_targets() {
       echo "detect.sh: cannot read --paths-file: $paths_file" >&2
       return 2
     fi
-    while IFS= read -r line; do
+    while IFS= read -r line || [[ -n $line ]]; do
       [[ -n "${line//[[:space:]]/}" ]] || continue
       rest="${line#*$'\t'}"
       [[ "$rest" != "$line" && "$rest" != *$'\t'* ]] && line="$rest"

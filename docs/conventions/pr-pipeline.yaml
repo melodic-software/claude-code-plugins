@@ -24,12 +24,21 @@ activities:
       # alone.
       draft: [false]
   resolve-conflicts:
+    # Resolves the conflicts of merging the default branch's tip into a pull
+    # request. It runs no command and holds no write token: the read runner
+    # merges the base tip before the skill and hands the skill's resolutions
+    # on as a patch, which apply-conflict-patch commits with both parents.
     skill: source-control:resolve-conflicts
     args: ci
-    # The write runner merges the base tip before the skill and commits the
-    # result with both parents after it.
+    # pr-unblock.yml's resolve-conflicts-select job, which runs only base
+    # code, merges the base tip and decides clean, conflicted or escalate
+    # before any model turn; the read runner merges the same base again and
+    # checks it reaches the same conflict tree.
     prepare: merge-base
-    effect: mutate-branch
+    # Edits head files, so no write token: the resolutions leave as a patch.
+    effect: read
+    applied-by:
+      patch: apply-conflict-patch
     # ci-status judges the merged tree.
     gating: advisory
     # Reads PR head files.
@@ -38,6 +47,24 @@ activities:
     applies-when:
       # A PR that is only behind stays with the merge queue.
       mergeable: [conflicting]
+      labels-absent: [do-not-merge, needs-human]
+      draft: [false]
+  apply-conflict-patch:
+    # Merges the base tip resolve-conflicts-select pinned into the head it
+    # gated, applies resolve-conflicts's patch to the conflict tree, and
+    # pushes one merge commit with the head and that base as parents, without
+    # force; a clean merge needs no patch. A script, no model, and it runs no
+    # head code; patch-rules.json's merge-base row admits only marker-free
+    # resolutions of the conflicted paths, and a head that moved since skips.
+    script: .github/scripts/apply-patch/apply-patch.mjs
+    prepare: apply-patch
+    # Pushes the merge to the pull request's branch, nothing else.
+    effect: mutate-branch
+    gating: advisory
+    # Reads the patch the model wrote.
+    reads-untrusted: true
+    inputs: [pr, head-sha, base-sha]
+    applies-when:
       labels-absent: [do-not-merge, needs-human]
       draft: [false]
   address-feedback:
@@ -112,28 +139,56 @@ activities:
     # Reviews one Dependabot pull request the classifier sorts `review` (a
     # major bump, an action publisher outside the allowlist, a group holding
     # a major, a red ci-status, or a file outside the content rule) and
-    # returns a verdict: merge, fix, close or escalate. It posts nothing
-    # itself. pr-unblock-dispatch.yml starts it; a trusted person may also
-    # dispatch it by hand.
+    # returns a verdict: merge, fix, close or escalate. It posts nothing and
+    # holds no write token: the read runner hands its verdict to
+    # apply-dependency-verdict and, on a fix verdict, its uncommitted fix as
+    # a patch that apply-dependency-patch pushes. pr-unblock-dispatch.yml
+    # starts it; a trusted person may also dispatch it by hand.
     skill: source-control:pull-request
-    # The skill's CI mode for dependency bumps: reads the runner's context
-    # file, the checkout and upstream release notes, runs no head code, and
-    # pushes a fix only to npm or pip manifest and lock files outside
-    # .github/, with [dependabot skip]; the runner lands no other fix.
+    # The skill's CI mode for dependency bumps: reads the context file, the
+    # checkout and upstream release notes, runs no command, and leaves a fix
+    # to npm or pip manifest and lock files outside .github/ uncommitted;
+    # patch-rules.json's dependency-review row lands no other fix.
     args: dependency --ci
-    # Before any model turn the runner skips a pull request Dependabot did
-    # not open or one sorted `auto`, and hands it to a person once
-    # `loop.dependency-review-rounds` rounds already ran.
+    # Before any model turn pr-unblock.yml's review-dependency-select job,
+    # which runs only base code, skips a pull request Dependabot did not open
+    # or one sorted `auto`, hands it to a person once
+    # `loop.dependency-review-rounds` rounds already ran, and writes the
+    # context file; the read runner checks it and gives the skill a verdict
+    # schema for its structured output.
     prepare: dependency-review
     # Reads the upstream changelog and release notes for the bumped versions.
     web-access:
       enabled: true
       domains: [github.com, raw.githubusercontent.com, www.npmjs.com, registry.npmjs.org, pypi.org]
-    # Pushes a fix to the pull request's branch, nothing else.
-    effect: mutate-branch
+    # Edits head files, so no write token: the fix leaves as a patch.
+    effect: read
+    applied-by:
+      patch: apply-dependency-patch
+      dependency-verdict: apply-dependency-verdict
     # ci-status judges the pushed fix; the verdict job acts on the verdict.
     gating: advisory
     # Reads the PR body's release notes, the upstream changelog and head files.
+    reads-untrusted: true
+    inputs: [pr, head-sha]
+    applies-when:
+      labels-absent: [do-not-merge, needs-human]
+      draft: [false]
+  apply-dependency-patch:
+    # Applies review-dependency's patch, on a fix verdict only, to the head
+    # the select job gated and pushes it as one commit with [dependabot skip],
+    # without force. A script, no model, and it runs no head code;
+    # patch-rules.json's dependency-review row admits only a version change of
+    # npm or pip manifest and lock files outside .github/ in a directory the
+    # base dependabot.yml lists, and a head that moved since skips. A patch
+    # that does not land leaves no fix commit, so apply-dependency-verdict
+    # hands the pull request to a person.
+    script: .github/scripts/apply-patch/apply-patch.mjs
+    prepare: apply-patch
+    # Pushes the fix to the pull request's branch, nothing else.
+    effect: mutate-branch
+    gating: advisory
+    # Reads the patch the model wrote.
     reads-untrusted: true
     inputs: [pr, head-sha]
     applies-when:
@@ -275,7 +330,7 @@ activities:
       # trigger gate checks that a listed human or the lanes App added it.
       # No `work-class:` label admits or refuses it. A person decides an
       # issue carrying one of these labels, so it starts nothing.
-      labels-absent: [needs-human, needs-owner-decision, "status: needs-decision"]
+      labels-absent: [needs-human, needs-owner-decision, "status: needs-decision", "status: needs-info"]
       # Read now, so removing agent-ready while a run waits stops it.
       labels: [agent-ready]
   apply-issue-patch:
@@ -300,6 +355,7 @@ activities:
         - needs-human
         - needs-owner-decision
         - "status: needs-decision"
+        - "status: needs-info"
       labels:
         - agent-ready
   report-outcome:
@@ -370,6 +426,22 @@ activities:
     # Reads the lane comment, which carries model text.
     reads-untrusted: true
     inputs: [issue]
+  apply-refinement:
+    # After intake triage, for a thin issue (Flags: intent, or no task list in
+    # the body): posts the read-only refine-issue run's output as one marked
+    # comment, never a body edit. Exact: the drafted criteria as a task list
+    # (admission's criterion 7 counts it), the lanes App's
+    # `status: needs-decision` lifted and one more triage. Not exact: numbered
+    # questions with RECOMMENDED answers at `status: needs-decision`. Never
+    # agent-ready or needs-human. A script, no model.
+    # .github/workflows/intake-triage.yml runs it (#9215).
+    script: .github/scripts/intake-triage/refine.mjs
+    # Comments on and labels issues; nothing else.
+    effect: mutate-tracker
+    gating: advisory
+    # Reads the model's output, written while it read issue and web text.
+    reads-untrusted: true
+    inputs: [issue]
 
 lanes:
   # Started by the agent-ready label on an issue (.github/workflows/work-resolve-issue.yml).
@@ -385,10 +457,26 @@ lanes:
         needs:
           - resolve-issue
           - apply-issue-patch
+  # Tidies a ready PR. Each activity is a model job and its push job, in
+  # .github/workflows/pr-refine.yml.
+  pr-refine:
+    stage: refine
+    slots:
+      # Started by pr-unblock-dispatch.yml once per ready PR that changes a
+      # Markdown file, whoever opened it except Dependabot, the release App
+      # and the standards-sync App.
+      - activity: fix-docs
+      # Runs after fix-docs, in its own job with its own token.
+      - activity: apply-patch
+        needs: [fix-docs]
   pr-unblock:
     stage: unblock
     slots:
       - activity: resolve-conflicts
+      # Runs after resolve-conflicts, in its own job with its own token: the
+      # merge commit, with or without the model's patch.
+      - activity: apply-conflict-patch
+        needs: [resolve-conflicts]
       # Started by pr-feedback-dispatch.yml after both review lanes reviewed
       # the head.
       - activity: address-feedback
@@ -400,21 +488,21 @@ lanes:
         needs: [address-feedback, apply-feedback-patch]
       # Started by pr-unblock-dispatch.yml for review-tier Dependabot PRs.
       - activity: review-dependency
-      # Runs after review-dependency, in its own job with its own token.
-      - activity: apply-dependency-verdict
+      # Run after review-dependency, each in its own job with its own token:
+      # the push of a fix, then the verdict, which judges what landed.
+      - activity: apply-dependency-patch
         needs: [review-dependency]
+      - activity: apply-dependency-verdict
+        needs: [review-dependency, apply-dependency-patch]
       # Started by pr-unblock-dispatch.yml for lanes App PRs whose ci-status
       # failed.
       - activity: fix-ci
-      # Started by pr-unblock-dispatch.yml once per ready PR that changes a
-      # Markdown file.
-      - activity: fix-docs
-      # Runs after fix-ci or fix-docs, in its own job with its own token.
+      # Runs after fix-ci, in its own job with its own token.
       - activity: apply-patch
-        needs: [fix-ci, fix-docs]
+        needs: [fix-ci]
       # Hands the pull request to a person when any of the others escalates.
       - activity: report-escalation
-        needs: [resolve-conflicts, address-feedback, publish-feedback, review-dependency, apply-dependency-verdict, fix-ci, apply-patch]
+        needs: [resolve-conflicts, apply-conflict-patch, address-feedback, publish-feedback, review-dependency, apply-dependency-verdict, fix-ci, apply-patch]
   pr-merge:
     stage: merge
     slots:
@@ -431,6 +519,8 @@ lanes:
     stage: intake
     slots:
       - activity: apply-verdict
+      - activity: apply-refinement
+        needs: [apply-verdict]
 
 # The model, effort and turn budget of every model run (README.md, Models).
 # Aliases only, never full model IDs. `default` passes no --model, so the
@@ -485,12 +575,18 @@ models:
       max-turns: 75
   default-profile: standard
   routes:
+    # Resolves code conflicts, a fix on code like address-feedback's.
+    resolve-conflicts: code-fix
     address-feedback: code-fix
+    # Judges a dependency update against its release notes, as verify-pr
+    # judges a pull request against its spec.
+    review-dependency: review
     fix-ci: code-fix
     fix-docs: docs-fix
     verify-pr: review
     review-code: pr-review
     review-security: pr-review
+    # Also intake-triage.yml's refine-issue pass on a thin issue.
     triage-issue: triage
     # work-resolve-issue's read-only pass that describes a reused lane branch.
     summarize-reuse: summary
@@ -698,6 +794,31 @@ merge:
   # 157-164 s, about 1 minute before the loop. 10 keeps a run, its longest
   # candidate included, inside the 15 minutes between scheduled runs.
   gate-budget-minutes: 10
+  # Minutes one candidate's gate may spend reading before it stops at its next
+  # read, reported unknown; a write in progress always finishes. The first
+  # candidate a run stops is gated first next run under gate-deferred-minutes. Run 39883357253 spent 21.5 minutes on one candidate and held
+  # the queue behind it. 4 is above the longest measured candidate (157-164 s,
+  # above) and leaves the budget room for others (judgment).
+  gate-candidate-minutes: 4
+  # Minutes the deferred candidate's gate may read; one stopped here is warned
+  # about and goes back to the capped rotation. 20 fits inside the merge job's
+  # 30-minute timeout with the minute before the loop and the closing steps
+  # (judgment).
+  gate-deferred-minutes: 20
+  # The share of GITHUB_TOKEN's core limit (GET /rate_limit) that must be
+  # left for the gate's review-evidence reads (timeline, comments, lane runs,
+  # attempts, jobs, annotations) to use it; below it, or when the limit cannot
+  # be read, they use the lane App token. An early switch only: a read refused
+  # for a rate limit also moves them to the lane App token for the rest of
+  # the run, since /rate_limit read 3934 of 5000 left while the token was
+  # already refused. Either token reads the same data, so no gate decision
+  # changes. The pool is 1,000 an hour per repository and shared by
+  # every job; moving these reads onto it added an estimated 600-1,500 an
+  # hour, and it ran out at 05:26Z on 2026-10-23, failing pr-merge's full-run
+  # dispatch on runs 39905758340, 39905868587 and 39906176584. 0.3 keeps 300
+  # for the dispatches, waits and post-merge checks, the share
+  # babysit_whole_review.py's MIN_SHARE keeps (judgment).
+  read-token-floor: 0.3
   # Minutes a MED or HIGH reasons comment must stand unchanged at the head
   # before the gate adds the human-gated label; 0 is no minimum. 60 is longer
   # than a review lane's run (judgment), so a review still running at the
@@ -735,11 +856,10 @@ merge:
   dependabot:
     mode: enforce
     majors: hold
-  # The HIGH path floor is on in both lanes. It holds only what has an effect
-  # outside the repository or its review (owner direction 2026-10-22): agent
-  # permission config, submodules, code owners, package manifests and
-  # lockfiles, and the workflows that publish a release or hold
-  # `id-token: write` (babysit_risk.py HIGH_FLOOR). A lane PR touching one
+  # The HIGH path floor is on in both lanes. It holds only the takeover set
+  # (owner direction 2026-10-23): the trusted-actor list, the trusted-trigger
+  # check, code owners, submodules and resolve-config (babysit_risk.py
+  # HIGH_FLOOR). A lane PR touching one
   # scores HIGH and waits for a human, who merges it in person; a denied path
   # would instead make the PR ineligible. The verifier verdict, both AI
   # review lanes, ci-status and the post-merge revert breaker still gate every

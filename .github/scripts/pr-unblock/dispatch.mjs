@@ -17,8 +17,9 @@
 // (dependency-dispatch.mjs), fix-ci for lanes App PRs and, with an
 // `adoption` section, PRs of the base's trusted actors, whose ci-status or
 // pr-test-windows run failed past the lost-run reconciler's re-run
-// (fix-ci-dispatch.mjs) and fix-docs once per ready PR that changes
-// Markdown (fix-docs-dispatch.mjs), and their run ids join the same record.
+// (fix-ci-dispatch.mjs) and pr-refine.yml's fix-docs once per ready PR that
+// changes Markdown (fix-docs-dispatch.mjs), and their run ids join the same
+// record.
 // resolve-conflicts and review-dependency read the one open-PR listing. A head whose check runs handle it for
 // good is kept in DISPATCH_RECORD (dispatch-record.mjs), which the workflow
 // carries to the next run through the Actions cache; the next run skips that
@@ -280,8 +281,8 @@ export function createGitHubApi({
       const data = await graphql(DOCS_FIX_QUERY, { owner, name, base, after: after ?? null });
       return { rateLimit: data.rateLimit, pullRequests: data.repository.pullRequests };
     },
-    async readDocsFixHistory({ number, appId, checkName }) {
-      const data = await graphql(DOCS_FIX_HISTORY_QUERY, { owner, name, number, appId, checkName });
+    async readDocsFixHistory({ number, appId, checkName, earlierCheckName }) {
+      const data = await graphql(DOCS_FIX_HISTORY_QUERY, { owner, name, number, appId, checkName, earlierCheckName });
       return { rateLimit: data.rateLimit, pullRequest: data.repository.pullRequest };
     },
     async getPulls(numbers) {
@@ -456,6 +457,8 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
     api: client,
     runId: env.GITHUB_RUN_ID,
     log,
+    limits,
+    now,
     listed,
     record,
     config: readConfig(env.DEPENDABOT_CONFIG ?? ".base/.github/dependabot.yml", log),

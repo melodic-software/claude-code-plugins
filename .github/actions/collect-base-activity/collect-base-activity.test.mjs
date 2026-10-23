@@ -2,13 +2,16 @@
 // checkout and reads the outputs it appends to GITHUB_OUTPUT. Expected values
 // come from the contract (pr-run-activity.md, "Skill activities" and
 // "prepare: merge-base"): a writing skill gets the signed-commit tool and the
-// instruction to commit, except in merge-base mode, where the runner commits.
+// instruction to commit; a merge-base skill runs on run-claude-cli alone.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
+
+import { LIMITS } from "../../scripts/pr-unblock/apply-dependency-verdict.mjs";
+import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
 
 const ACTION = new URL("./action.yml", import.meta.url);
 const COMMIT_TOOL = "mcp__github_file_ops__commit_files";
@@ -58,41 +61,11 @@ const SHELL_DENIED = [
   "Read(//proc/**)",
   `Read(/${WORKSPACE}/.git/**)`,
 ];
-// The write lanes' git deny rules: all of git, or in merge-base mode, whose
-// skill resolves the merge with git, every form that reads config, reaches a
-// remote, reads a file outside the index or runs a program.
+// The write lanes' git deny rule: all of git.
 const WRITE_GIT_DENIED = ["Bash(git *)"];
-const MERGE_BASE_GIT_DENIED = [
-  "Bash(git -*)",
-  "Bash(git config *)",
-  "Bash(git remote *)",
-  "Bash(git ls-remote *)",
-  "Bash(git credential *)",
-  "Bash(git var *)",
-  "Bash(git fetch *)",
-  "Bash(git push *)",
-  "Bash(git pull *)",
-  "Bash(git submodule *)",
-  "Bash(git *--no-i*)",
-  "Bash(git *--out*)",
-  "Bash(git *--git-dir*)",
-  "Bash(git *--work-tree*)",
-  "Bash(git *.git/*)",
-  "Bash(git *--ext*)",
-  "Bash(git *--text*)",
-  "Bash(git blame *)",
-  "Bash(git *--cont*)",
-  "Bash(git grep *)",
-  "Bash(git *--pathspec*)",
-  "Bash(git * /*)",
-  "Bash(git *../*)",
-  "Bash(git *..)",
-  "Bash(git *'*)",
-  'Bash(git *"*)',
-];
 // The deny rules other than the write lanes' shell and git sets.
 const ownDenied = (denied) =>
-  denied.filter((rule) => !SHELL_DENIED.includes(rule) && !WRITE_GIT_DENIED.includes(rule) && !MERGE_BASE_GIT_DENIED.includes(rule));
+  denied.filter((rule) => !SHELL_DENIED.includes(rule) && !WRITE_GIT_DENIED.includes(rule));
 
 // The Bash rules other than the commit grant's chmod rule.
 const wrapperRules = (allowed) => allowed.filter((rule) => rule.startsWith("Bash") && rule !== CHMOD_RULE);
@@ -196,7 +169,7 @@ test("a writing skill that can commit gets the commit tool and the instruction t
 });
 
 test("a writing skill gets the Grep and Glob tools, since its shell cannot grep or find", () => {
-  for (const overrides of [{}, { PREPARE: "merge-base" }]) {
+  for (const overrides of [{}, { CAN_COMMIT: "false" }]) {
     const { status, args, allowed } = stage(overrides);
     assert.equal(status, 0);
     assert.ok(allowed.includes("Grep") && allowed.includes("Glob"), allowed.join(" | "));
@@ -219,18 +192,16 @@ test("a writing skill that cannot commit gets no chmod rule and no chmod instruc
   assert.ok(!args.includes("chmod"), args);
 });
 
-test("prepare: merge-base leaves out the commit tool and the instruction to commit", () => {
-  const { status, args, allowed } = stage({ PREPARE: "merge-base" });
-  assert.equal(status, 0);
-  assert.ok(!allowed.includes(COMMIT_TOOL), allowed.join(" | "));
-  assert.ok(!args.includes(COMMIT_TOOL), args);
-  assert.ok(!args.includes(COMMIT_SENTENCE), args);
-  // The runner commits the staged index, whose modes the merge set.
-  assert.ok(!allowed.includes(CHMOD_RULE), allowed.join(" | "));
-  assert.ok(!args.includes("chmod"), args);
-  // Still a writing skill: it edits and stages its resolution.
-  assert.match(args, /--allowedTools "Skill\(source-control:resolve-conflicts\),Read\([^)]*\),Edit,Write,Agent,Grep,Glob,Edit\(/);
-  assert.ok(args.includes(`--disallowedTools "WebFetch,WebSearch,${MERGE_BASE_GIT_DENIED.map((rule) => rule.replaceAll('"', '\\"')).join(",")},${SHELL_DENIED.join(",")}"`), args);
+// prepare: merge-base runs only on run-claude-cli, in the read runner (the
+// launcher tests below); the claude-code-action path fails red, with checks
+// or without.
+test("prepare: merge-base on claude-code-action fails red before any output", () => {
+  for (const run of [() => stage({ PREPARE: "merge-base" }), () => withChecks(["scripts/check-x.sh --check"], { PREPARE: "merge-base" })]) {
+    const { status, stdout, args } = run();
+    assert.notEqual(status, 0);
+    assert.match(stdout, /::error::merge-base: the skill runs on run-claude-cli, in the read runner/);
+    assert.equal(args, "");
+  }
 });
 
 // pr-run-activity.md, "Skill activities": each listed check runs from the base
@@ -356,17 +327,6 @@ test("a committing skill with checks is told to commit after the checks and thei
   assert.ok(allowed.includes(COMMIT_TOOL), allowed.join(" | "));
   const systemPrompt = /--append-system-prompt "([^"]*)"/.exec(args)?.[1] ?? "";
   assert.match(systemPrompt, /Run the checks before you commit: run them, fix, run them again, then commit/);
-});
-
-// A skill with checks but no commit tool (merge-base: the runner commits what
-// the skill staged) must not be told to commit its check fixes.
-test("prepare: merge-base with checks is never told to commit", () => {
-  const { status, args, allowed } = withChecks(["scripts/check-x.sh --check"], { PREPARE: "merge-base" });
-  assert.equal(status, 0);
-  assert.ok(!allowed.includes(COMMIT_TOOL), allowed.join(" | "));
-  const systemPrompt = /--append-system-prompt "([^"]*)"/.exec(args)?.[1] ?? "";
-  assert.match(systemPrompt, /run each of these repository checks/);
-  assert.doesNotMatch(systemPrompt, /\bcommit/i);
 });
 
 // #8319 review: a check's wrapper gets the verify-script wrapper's
@@ -967,39 +927,18 @@ test("prepare: review-threads on claude-code-action fails red before any output"
   assert.equal(args, "");
 });
 
-// pr-run-activity.md, "prepare: dependency-review": the skill keeps the commit
-// tool, reads the runner's read-only context file, gets no Bash rule, and
-// must return the verdict schema's structured output.
-function withDependency({ file = true, gating = "advisory" } = {}) {
-  const dir = mkdtempSync(path.join(root, "dependency-"));
-  const dependencyDir = path.join(dir, "lane-dependency");
-  mkdirSync(dependencyDir, { recursive: true });
-  if (file) writeFileSync(path.join(dependencyDir, "dependency.json"), "{}");
-  return { dependencyDir, ...stage({ PREPARE: "dependency-review", DEPENDENCY_DIR: dependencyDir, GATING: gating }) };
-}
-
-test("prepare: dependency-review reads the context file and returns the verdict schema", () => {
-  const { status, args, allowed, denied, dependencyDir } = withDependency();
-  assert.equal(status, 0);
-  assert.ok(allowed.includes(COMMIT_TOOL), allowed.join(" | "));
-  assert.ok(allowed.includes(`Read(/${dependencyDir}/**)`), allowed.join(" | "));
-  assert.ok(wrapperRules(allowed).length === 0, allowed.join(" | "));
-  assert.ok(denied.includes(`Edit(/${dependencyDir}/**)`) && denied.includes(`Write(/${dependencyDir}/**)`), denied.join(" | "));
-  const schema = JSON.parse(/--json-schema '([^']+)'/.exec(args)[1]);
-  assert.deepEqual(schema.properties.verdict.enum, ["merge", "fix", "close", "escalate"]);
-  assert.deepEqual(schema.required, ["verdict", "reasons", "evidence"]);
-  const write = spawnSync("bash", ["-c", 'echo x >>"$1"', "_", path.join(dependencyDir, "dependency.json")]);
-  assert.notEqual(write.status, 0, "the context file is read-only");
-});
-
-test("prepare: dependency-review with no context file, or as a gate, fails red before any output", () => {
-  const missing = withDependency({ file: false });
-  assert.notEqual(missing.status, 0);
-  assert.match(missing.stdout, /::error::dependency-review: the runner wrote no context file/);
-  assert.equal(missing.args, "");
-  const gate = withDependency({ gating: "gate" });
-  assert.notEqual(gate.status, 0);
-  assert.match(gate.stdout, /::error::dependency-review: the activity must be advisory/);
+// prepare: dependency-review runs only on run-claude-cli, in the read runner
+// (the launcher tests below); the claude-code-action path fails red.
+test("prepare: dependency-review on claude-code-action, or as a gate, fails red before any output", () => {
+  for (const [overrides, message] of [
+    [{ PREPARE: "dependency-review" }, /::error::dependency-review: the skill runs on run-claude-cli, in the read runner/],
+    [{ PREPARE: "dependency-review", LAUNCHER: "run-claude-cli", GATING: "gate" }, /::error::dependency-review: the activity must be advisory/],
+  ]) {
+    const { status, stdout, args } = stage(overrides);
+    assert.notEqual(status, 0, JSON.stringify(overrides));
+    assert.match(stdout, message);
+    assert.equal(args, "");
+  }
 });
 
 // pr-run-activity.md, "prepare: ci-context": a read skill that holds no write
@@ -1245,8 +1184,6 @@ for (const [name, run] of [
   ["publish-artifact", () => stage({ EFFECT: "publish-artifact" })],
   ["merge", () => stage({ EFFECT: "merge" })],
   ["a lane that cannot commit", () => stage({ CAN_COMMIT: "false" })],
-  ["prepare: merge-base", () => stage({ PREPARE: "merge-base" })],
-  ["prepare: dependency-review", () => withDependency()],
   ["verify-scripts", () => withVerify([VERIFY])],
   ["checks", () => withChecks(["scripts/check-x.sh --check"])],
   ["web-access any", () => withWebAccess({ enabled: true, domains: "any" })],
@@ -1261,14 +1198,12 @@ for (const [name, run] of [
       assert.ok(denied.includes(expected), `${expected} in ${denied.join(" | ")}`);
     }
   });
-  test(`a write lane denies git, in merge-base mode every form that reaches config, a remote or a file outside the index: ${name}`, () => {
+  test(`a write lane denies all of git: ${name}`, () => {
     const { status, denied } = run();
     assert.equal(status, 0);
-    const mergeBase = name === "prepare: merge-base";
-    for (const rule of mergeBase ? MERGE_BASE_GIT_DENIED : WRITE_GIT_DENIED) {
+    for (const rule of WRITE_GIT_DENIED) {
       assert.ok(denied.includes(rule), `${rule} in ${denied.join(" | ")}`);
     }
-    assert.equal(denied.includes("Bash(git *)"), !mergeBase, denied.join(" | "));
   });
 }
 
@@ -1351,8 +1286,7 @@ test("run-claude-cli refuses an issue lane, a writing skill, a patch-producing s
     [{ EFFECT: "mutate-branch", CAN_COMMIT: "true" }, /only a read skill/],
     [{ PREPARE: "review-threads" }, /only a read skill/],
     [{ PREPARE: "merge-base" }, /only a read skill/],
-    [{ RESOLVED: appliedBy, PREPARE: "dependency-review" }, /only a read skill/],
-    [{ RESOLVED: appliedBy, PREPARE: "merge-base" }, /only a read skill/],
+    [{ PREPARE: "dependency-review" }, /only a read skill/],
     [{ GATING: "gate" }, /a gate skill's verdict is not read from the launcher/],
     [{ RESOLVED: launchResolved({ ...PATCH, checks: ["scripts/check-x.sh --check"] }) }, /checks, self-checks and verify-scripts have no wrapper/],
     [{ RESOLVED: launchResolved({ ...PATCH, "self-checks": ["scripts/check-x.sh"] }) }, /checks, self-checks and verify-scripts have no wrapper/],
@@ -1613,11 +1547,30 @@ test("run-claude-cli: a patch skill without web-access gets no web tools and onl
   assert.doesNotMatch(run.preamble, /WebFetch/);
 });
 
-test("run-claude-cli: web-access with a domain list, or a research plugin missing from the base, fails red before any output", () => {
+test("run-claude-cli: web-access with a host list gives one WebFetch rule per host and WebSearch, and stages no research plugin", () => {
+  const run = launch({
+    BASE_PATH: webBase(),
+    RESOLVED: launchResolved({ ...PATCH, "web-access": { enabled: true, domains: ["github.com", "pypi.org"] } }),
+    SKILL: "source-control:pull-request",
+  });
+  assert.equal(run.status, 0, run.stdout);
+  assert.ok(run.tools.includes("WebFetch") && run.tools.includes("WebSearch"), run.tools.join(" | "));
+  assert.deepEqual(
+    run.allowedTools.filter((rule) => rule.startsWith("Web") || rule.startsWith("Skill(")),
+    ["Skill(source-control:pull-request)", "WebFetch(domain:github.com)", "WebFetch(domain:pypi.org)", "WebSearch"],
+  );
+  assert.ok(!run.allowedTools.includes("WebFetch(domain:*)"), run.allowedTools.join(" | "));
+  assert.ok(!run.deniedTools.includes("WebFetch") && !run.deniedTools.includes("WebSearch"), run.deniedTools.join(" | "));
+  assert.equal(run.pluginDirs, ".lane/plugins/source-control");
+  assert.match(run.preamble, /read pages only on these hosts: github\.com pypi\.org\. Read each page with WebFetch/);
+});
+
+test("run-claude-cli: web-access with a malformed host, or a research plugin missing from the base, fails red before any output", () => {
   const noKnowledge = webBase();
   rmSync(path.join(noKnowledge, "plugins", "knowledge"), { recursive: true });
   for (const [overrides, message] of [
-    [{ BASE_PATH: webBase(), RESOLVED: launchResolved({ ...PATCH, "web-access": { enabled: true, domains: ["code.claude.com"] } }) }, /web-access takes domains: any/],
+    [{ BASE_PATH: webBase(), RESOLVED: launchResolved({ ...PATCH, "web-access": { enabled: true, domains: ["code.claude.com/x"] } }) }, /web-access: a domain is not a host name/],
+    [{ BASE_PATH: webBase(), RESOLVED: launchResolved({ ...PATCH, "web-access": { enabled: true, domains: [] } }) }, /web-access: domains must be any or a list of host names/],
     [{ BASE_PATH: noKnowledge, RESOLVED: launchResolved({ ...PATCH, "web-access": { enabled: true, domains: "any" } }) }, /the knowledge plugin is not in the base/],
   ]) {
     const run = launch({ SKILL: "source-control:pull-request", ...overrides });
@@ -1625,4 +1578,131 @@ test("run-claude-cli: web-access with a domain list, or a research plugin missin
     assert.match(run.stdout, message);
     assert.deepEqual(run.tools, []);
   }
+});
+
+// review-dependency on the launcher: Edit, Write and Agent with no Bash, the
+// context file staged read-only under .lane/dependency/ and denied to the file
+// tools, git and the shell read commands denied though no Bash is granted,
+// one WebFetch rule per configured host, and the verdict schema written for
+// the launcher's json-schema-file.
+const DEPENDENCY_APPLIED_BY = { "applied-by": { patch: "apply-dependency-patch", "dependency-verdict": "apply-dependency-verdict" } };
+const DEPENDENCY_HOSTS = ["github.com", "raw.githubusercontent.com", "www.npmjs.com", "registry.npmjs.org", "pypi.org"];
+function launchDependency({ file = true, web = true } = {}) {
+  const dir = mkdtempSync(path.join(root, "dependency-launch-"));
+  const dependencyDir = path.join(dir, "lane-dependency");
+  const schemaDir = path.join(dir, "lane-dependency-schema");
+  mkdirSync(dependencyDir, { recursive: true });
+  if (file) writeFileSync(path.join(dependencyDir, "dependency.json"), '{"pr":7}');
+  const extra = web ? { "web-access": { enabled: true, domains: DEPENDENCY_HOSTS } } : {};
+  return {
+    schemaDir,
+    ...launch({
+      BASE_PATH: webBase(),
+      RESOLVED: launchResolved({ ...DEPENDENCY_APPLIED_BY, ...extra }),
+      PREPARE: "dependency-review",
+      DEPENDENCY_DIR: dependencyDir,
+      SCHEMA_DIR: schemaDir,
+      SKILL: "source-control:pull-request",
+    }),
+  };
+}
+const DEPENDENCY_FILE_DENIED = ["Edit(./.lane/dependency/**)", "Write(./.lane/dependency/**)", "NotebookEdit(./.lane/dependency/**)"];
+
+test("run-claude-cli: a dependency-review skill gets Edit, Write and Agent with no Bash, the staged context, and per-host web rules", () => {
+  const run = launchDependency();
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(run.tools.toSorted(), ["Agent", "Edit", "Glob", "Grep", "Read", "Skill", "WebFetch", "WebSearch", "Write"]);
+  assert.deepEqual(
+    run.allowedTools.toSorted(),
+    ["Agent", "Edit", "Edit(./.lane/scratch/**)", "Glob", "Grep", "Skill(source-control:pull-request)", ...DEPENDENCY_HOSTS.map((host) => `WebFetch(domain:${host})`), "WebSearch", "Write"].toSorted(),
+  );
+  for (const rule of [
+    "Bash(git *)",
+    ...SHELL_DENIED.filter((rule) => rule.startsWith("Bash(") || rule === "Read(//proc/**)"),
+    "NotebookEdit(./.lane/plugins/**)",
+    "Edit(./.lane/plugins/**)",
+    "Write(./.lane/plugins/**)",
+    ...DEPENDENCY_FILE_DENIED,
+    ...GIT_DENIED,
+  ]) {
+    assert.ok(run.deniedTools.includes(rule), `${rule} in ${run.deniedTools.join(" | ")}`);
+  }
+  // A deny rule beats an allow rule: nothing the skill may write reaches the context copy.
+  assert.ok(!run.deniedTools.includes("WebFetch") && !run.deniedTools.includes("WebSearch"), run.deniedTools.join(" | "));
+  assert.equal(readFileSync(path.join(run.stageDir, "dependency", "dependency.json"), "utf8"), '{"pr":7}');
+  assert.equal(run.pluginDirs, ".lane/plugins/source-control", "no research plugin under a host list");
+  assert.ok(run.preamble.includes(`The dependency context file is ${WORKSPACE}/.lane/dependency/dependency.json.`), run.preamble);
+  assert.match(run.preamble, /Your verdict is your structured output; a later job acts on it, and you post nothing\./);
+  assert.match(run.preamble, /pushes only on a fix verdict/);
+  assert.doesNotMatch(run.preamble, /shell command/, "no Bash, so no shell instruction");
+  assert.equal(run.promptFile, "Call the Skill tool with skill source-control:pull-request and args fix, then follow the skill instructions to the end.\n");
+  assert.equal(run.args, "", "no claude_args for the launcher");
+});
+
+// The schema the launcher holds the verdict to is the shape the verdict job
+// validates: the verdicts review-dependency.mjs names and the limits
+// apply-dependency-verdict.mjs enforces.
+test("run-claude-cli: the dependency verdict schema matches the verdict job's verdicts and limits", () => {
+  const run = launchDependency({ web: false });
+  assert.equal(run.status, 0, run.stdout);
+  const schema = JSON.parse(readFileSync(path.join(run.schemaDir, "verdict.schema.json"), "utf8"));
+  assert.deepEqual(schema.properties.verdict.enum, [...VERDICTS]);
+  assert.deepEqual(schema.required, ["verdict", "reasons", "evidence"]);
+  assert.equal(schema.additionalProperties, false);
+  assert.deepEqual(
+    [schema.properties.reasons.minItems, schema.properties.reasons.maxItems, schema.properties.reasons.items.maxLength],
+    [1, LIMITS.reasons, LIMITS.reason],
+  );
+  assert.deepEqual([schema.properties.evidence.maxItems, schema.properties.evidence.items.maxLength], [LIMITS.evidence, LIMITS.evidenceItem]);
+  // With no web access the web tools stay denied.
+  assert.ok(run.deniedTools.includes("WebFetch") && run.deniedTools.includes("WebSearch"), run.deniedTools.join(" | "));
+});
+
+test("run-claude-cli: a dependency-review skill with no context file fails red before any output", () => {
+  const run = launchDependency({ file: false });
+  assert.notEqual(run.status, 0);
+  assert.match(run.stdout, /::error::dependency-review: the runner wrote no context file/);
+  assert.deepEqual(run.tools, []);
+  assert.equal(run.promptFile, "");
+});
+
+// resolve-conflicts on the launcher: Edit, Write and Agent with no Bash, git
+// and the shell read commands denied though no Bash is granted, and the merge
+// context the runner writes after the stage under .lane/merge/ denied to the
+// file tools.
+const MERGE_FILE_DENIED = ["Edit(./.lane/merge/**)", "Write(./.lane/merge/**)", "NotebookEdit(./.lane/merge/**)"];
+
+test("run-claude-cli: a merge-base skill gets Edit, Write and Agent with no Bash, and the merge context denied to the file tools", () => {
+  const run = launch({ RESOLVED: launchResolved({ "applied-by": { patch: "apply-conflict-patch" }, args: "ci" }), PREPARE: "merge-base", SKILL: "source-control:resolve-conflicts" });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(run.tools.toSorted(), ["Agent", "Edit", "Glob", "Grep", "Read", "Skill", "Write"]);
+  assert.deepEqual(run.allowedTools.toSorted(), ["Agent", "Edit", "Edit(./.lane/scratch/**)", "Glob", "Grep", "Skill(source-control:resolve-conflicts)", "Write"].toSorted());
+  for (const rule of [
+    "Bash(git *)",
+    ...SHELL_DENIED.filter((rule) => rule.startsWith("Bash(") || rule === "Read(//proc/**)"),
+    "NotebookEdit(./.lane/plugins/**)",
+    "Edit(./.lane/plugins/**)",
+    "Write(./.lane/plugins/**)",
+    "WebFetch",
+    "WebSearch",
+    ...MERGE_FILE_DENIED,
+    ...GIT_DENIED,
+  ]) {
+    assert.ok(run.deniedTools.includes(rule), `${rule} in ${run.deniedTools.join(" | ")}`);
+  }
+  // A deny rule beats an allow rule: no allowed tool reaches the merge context or .git.
+  assert.ok(!run.allowedTools.some((rule) => rule.startsWith("Bash")), run.allowedTools.join(" | "));
+  assert.ok(run.preamble.includes(`the merge context is ${WORKSPACE}/.lane/merge/conflicts.json`), run.preamble);
+  assert.match(run.preamble, /leave a path you cannot resolve with its conflict markers, and edit no other file/);
+  assert.match(run.preamble, /You run no command and post nothing\./);
+  assert.doesNotMatch(run.preamble, /shell command|commit tool|commit your/i, "no Bash and no commit tool, so no such instruction");
+  assert.equal(run.promptFile, "Call the Skill tool with skill source-control:resolve-conflicts and args ci, then follow the skill instructions to the end.\n");
+  assert.equal(run.args, "", "no claude_args for the launcher");
+});
+
+test("run-claude-cli: a merge-base skill that hands on no patch fails red before any output", () => {
+  const run = launch({ PREPARE: "merge-base", SKILL: "source-control:resolve-conflicts" });
+  assert.notEqual(run.status, 0);
+  assert.match(run.stdout, /only a read skill/);
+  assert.deepEqual(run.tools, []);
 });
