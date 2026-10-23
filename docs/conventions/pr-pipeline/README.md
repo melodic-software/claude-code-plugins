@@ -1414,7 +1414,7 @@ network error is read again, three reads in all with backoff, all inside the one
 read would get; any other failure, a timeout, a 429 or a rate-limit 403 included, is not. A failed listing is never
 saved, and is kept for that candidate's gate run: the pull request and every queued entry refuse `verify:unreadable` without the
 listing being paged again, so a listing outage holds the whole queue rather than merging blind.
-pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
+The lane token holds no Actions permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
 records, the download of a verdict.json (by the listed artifact's id, one request where `gh run
 download` lists the run's artifacts first) and the compare of a run's head to main (a `contents: read` call). The gate's
