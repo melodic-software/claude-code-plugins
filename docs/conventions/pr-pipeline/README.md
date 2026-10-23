@@ -499,7 +499,7 @@ The rest of `.github/`, `.claude/`, `.mcp.json`, plugin hooks, `.claude-plugin/`
 [HIGH path floor](#merge-authority) holds a pull request that touches the floored ones for a
 human merge. The `ci-context`, `default` and `issue` rows cap a patch at 300 paths.
 `checkPatchRules` in
-[`resolve.mjs`](../../../.github/actions/resolve-config/resolve.mjs) rejects a row without that
+[`patch-rules.mjs`](../../../.github/actions/resolve-config/patch-rules.mjs) rejects a row without that
 set, a `[head, base]` commit whose `allow` is not exactly `[merge-result]`, a refusal, allow or requirement name
 the schema does not list, and a patch-producing activity whose prepare mode has no row;
 `resolve-config` runs it before every lane resolve and fails closed when either file is missing.
