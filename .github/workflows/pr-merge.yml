@@ -1085,7 +1085,7 @@ jobs:
         with:
           name: pr-merge-lane-records
           path: ${{ runner.temp }}/lane-records/lane-records.json
-          retention-days: 2
+          retention-days: 1
           if-no-files-found: ignore
 
       # The next run's verdict reads, under this run's own key; also after a
