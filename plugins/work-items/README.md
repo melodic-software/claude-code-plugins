@@ -6,7 +6,7 @@ file-based TODO lists, designed for teams where humans and autonomous agents
 pick work from the same queue. The skill core is backend-agnostic; GitHub is the
 bound adapter today.
 
-The tracker's capabilities are split across seven focused skills (plus a setup
+The tracker's capabilities are split across nine focused skills (plus a setup
 skill). Invoke the one that matches the job (or let Claude invoke it when you ask
 about work items, tickets, issues, tracked work, or what to do next):
 
@@ -28,6 +28,8 @@ about work items, tickets, issues, tracked work, or what to do next):
 |---|---|
 | `/work-items:track` | Backlog CRUD, the sub-action router over `stats`, `list`, `add`, `start`, `done`, `due`, `recheck`, `search`, `audit` (default: the stats dashboard). |
 | `/work-items:work` | Auto-select one item by priority tiers, claim it race-safe (assignee + lease), and execute it end-to-end. |
+| `/work-items:work-loop` | Drain the backlog as a self-paced autonomous loop launched via `/loop`: each cycle triages raw intake, admits items through the fail-closed work-class gate, runs them through `/work-items:work` under an adaptive cap, and checks the drain exit. Authors PRs, never merges. |
+| `/work-items:attend-queue` | Attend the loop-lane human queue: drive escalated items to resolution and list untriaged intake beside them, handing each intake row to `/work-items:triage`. Answers escalations by interview, ratifies first-drain admissions, and flips unblocked items autonomous-eligible. Never executes or merges. |
 | `/work-items:triage` | Evaluate raw intake, issues and unsolicited PRs (a PR is an item with attached code), through raw → verified → briefed → autonomous-eligible, with an attention view. |
 | `/work-items:decompose` | Break a plan/PRD/item into vertical-slice items with AFK/HITL classification and dependency ordering. When a spec container is published and the design behind the plan produced typed artifacts (frontmatter carrying `scope` and `dialect`), each is inlined into the container body as a fenced block plus a one-line provenance note naming the scope and dialect, with no file path; an `integration` design labels two, and both are inlined. Slice bodies are unchanged. |
 | `/work-items:ship` | Macro-journey router over one spec container: rollup + scoped frontier, the container's recorded execution shape (per-item PRs vs integration branch → single PR) with that mode's discipline, and the routed next step. `run` works the container's ready items in parallel through `/implementation:implement-dispatch` and lands them one at a time, attended only. Mechanics stay with their owners. |
