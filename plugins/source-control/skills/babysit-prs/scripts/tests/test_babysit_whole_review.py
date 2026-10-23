@@ -22,8 +22,9 @@ import babysit_whole_review as wr
 HEAD = "a" * 40
 MED = risk.Reason("findings:claude-review", risk.Risk.MED, "1 open")
 HIGH = risk.Reason("security-finding", risk.Risk.HIGH, "1 open")
-CLEARS = risk.LaneEvidence("claude-review", True, None, 1, True)
-CLEAN = risk.LaneEvidence("claude-security-review", True, None, 0)
+CLEARS = risk.LaneEvidence("claude-security-review", True, None, 1, True)
+CLEAN = risk.LaneEvidence("claude-review", True, None, 0)
+REVIEW_STUCK = risk.LaneEvidence("claude-review", True, None, 1, False)
 
 
 def result(*reasons: risk.Reason) -> risk.RiskResult:
@@ -38,28 +39,33 @@ def done(stdout: Any = None, code: int = 0) -> subprocess.CompletedProcess[str]:
 
 class Wanted(unittest.TestCase):
     def test_only_clearable_findings(self) -> None:
-        self.assertTrue(wr.wanted(None, result(MED), (CLEARS, CLEAN)))
+        self.assertTrue(wr.wanted(None, result(HIGH), (CLEAN, CLEARS)))
 
-    def test_security_findings_count_too(self) -> None:
-        lane = risk.LaneEvidence("claude-security-review", True, None, 1, True)
-        self.assertTrue(wr.wanted(None, result(HIGH), (CLEAN, lane)))
+    def test_a_reported_code_review_finding_alone_is_not_a_hold(self) -> None:
+        # Q25: a code-review finding does not hold, so nothing needs clearing.
+        self.assertFalse(wr.wanted(None, result(MED), (REVIEW_STUCK, CLEAN)))
+
+    def test_a_reported_code_review_finding_does_not_block_the_request(self) -> None:
+        # The code-review lane's findings a whole review cannot close do not
+        # keep a whole review from clearing the security finding that holds.
+        self.assertTrue(wr.wanted(None, result(HIGH, MED), (REVIEW_STUCK, CLEARS)))
 
     def test_another_gate_refusing(self) -> None:
-        self.assertFalse(wr.wanted("checks-failing", result(MED), (CLEARS, CLEAN)))
+        self.assertFalse(wr.wanted("checks-failing", result(HIGH), (CLEAN, CLEARS)))
 
     def test_another_risk_reason(self) -> None:
         other = risk.Reason("files-incomplete", risk.Risk.MED, "unread")
-        self.assertFalse(wr.wanted(None, result(MED, other), (CLEARS, CLEAN)))
+        self.assertFalse(wr.wanted(None, result(HIGH, other), (CLEAN, CLEARS)))
 
     def test_a_reason_that_does_not_hold_leaves_the_findings_alone(self) -> None:
-        # #9270: blast-radius-missing no longer holds, so the finding is the
-        # only hold and a whole review can clear it.
+        # blast-radius-missing does not hold, so the finding is the only hold
+        # and a whole review can clear it.
         other = risk.Reason("blast-radius-missing", risk.Risk.MED, "C3 unrated")
-        self.assertTrue(wr.wanted(None, result(MED, other), (CLEARS, CLEAN)))
+        self.assertTrue(wr.wanted(None, result(HIGH, other), (CLEAN, CLEARS)))
 
     def test_a_lane_whose_findings_a_whole_review_cannot_close(self) -> None:
         stuck = risk.LaneEvidence("claude-security-review", True, None, 1, False)
-        self.assertFalse(wr.wanted(None, result(MED, HIGH), (CLEARS, stuck)))
+        self.assertFalse(wr.wanted(None, result(MED, HIGH), (CLEAN, stuck)))
 
     def test_low(self) -> None:
         self.assertFalse(wr.wanted(None, result(), (CLEAN,)))

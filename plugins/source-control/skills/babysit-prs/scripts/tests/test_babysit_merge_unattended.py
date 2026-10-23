@@ -39,6 +39,7 @@ import babysit_merge_prefilter as prefilter
 import babysit_merge_policy as policy
 import babysit_postmerge as postmerge
 import babysit_run_cache as run_cache
+import babysit_util as util
 import test_babysit_merge as fixtures
 import test_babysit_merge_async as async_fixtures
 from babysit_risk import ChangedFile, LaneEvidence
@@ -1230,6 +1231,70 @@ class LaneMode(Unattended):
                 ):
                     self.assertEqual(merge.main(), 2)
 
+    # merge.gate-candidate-minutes: the lane passes the limit in seconds; a
+    # fake clock stands in for time, and `true` for the command a read or a
+    # write starts through the one subprocess seam.
+    def _clocked(self, *flags: str) -> tuple[int, dict[str, Any]]:
+        self.now = 0.0
+        with mock.patch.object(util, "_clock", lambda: self.now):
+            return self.lane(*flags)
+
+    def _command_at(self, now: float) -> None:
+        self.now = now
+        util.run_command(["true"], allowed_executables=("true",))
+
+    def test_a_read_past_the_candidate_deadline_stops_before_any_write(self) -> None:
+        read_on: list[float] = []
+
+        def slow_read(*args: Any) -> Any:
+            self._command_at(241.0)
+            read_on.append(self.now)
+            return self.lanes, self.comments
+
+        self._lane_evidence = slow_read  # type: ignore[method-assign]
+        code, out = self._clocked("--candidate-deadline-seconds", "240")
+        self.assertEqual(code, 11)
+        self.assertEqual(read_on, [], "the command past the deadline started")
+        self.assertEqual(out["error"].split(";")[0], "unknown:candidate-deadline")
+        self.assertNotIn("ready", out)
+        self.assertEqual(self.log, [])
+        self.async_merge.assert_not_called()
+        self.dequeue.assert_not_called()
+
+    def test_the_same_slow_read_without_a_deadline_still_enqueues(self) -> None:
+        def slow_read(*args: Any) -> Any:
+            self._command_at(10_000.0)
+            return self.lanes, self.comments
+
+        self._lane_evidence = slow_read  # type: ignore[method-assign]
+        code, out = self._clocked()
+        self.assertEqual(code, 0, out.get("blockers"))
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+
+    def test_a_deadline_passing_during_the_enqueue_never_stops_it(self) -> None:
+        def slow_enqueue(repo: str, number: int, **kwargs: Any) -> dict[str, Any]:
+            self._command_at(10_000.0)
+            self.log.append(f"enqueue:{kwargs['sha']}:{kwargs['merge_action']}")
+            return dict(ENQUEUED)
+
+        self._async_merge = slow_enqueue  # type: ignore[method-assign]
+        code, out = self._clocked("--candidate-deadline-seconds", "240")
+        self.assertEqual(code, 0, out.get("blockers"))
+        self.assertTrue(out["enqueued"])
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+
+    def test_the_candidate_deadline_is_the_lane_s_alone(self) -> None:
+        code, out = self.run_main("--candidate-deadline-seconds", "240")
+        self.assertEqual(code, 2)
+        self.assertIn("--candidate-deadline-seconds", out["error"])
+        self.async_merge.assert_not_called()
+
+    def test_a_deadline_that_is_not_positive_is_refused(self) -> None:
+        for value in ("0", "-5", "nan", "inf"):
+            code, out = self._clocked("--candidate-deadline-seconds", value)
+            self.assertEqual(code, 2, value)
+            self.assertIn("positive", out["error"])
+
 
 AUTO_TIER = dependabot.Classification("auto")
 DEPENDABOT_AUTO = policy.Eligibility(True, None, "C2", dependabot=AUTO_TIER)
@@ -1874,12 +1939,26 @@ class EachRefusalMakesNoMergeCall(Unattended):
         self.assertIsNone(out["unattended"]["reason"])
         self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
 
-    def test_a_med_with_an_open_review_finding_holds(self) -> None:
+    def test_a_med_with_an_open_code_review_finding_merges(self) -> None:
+        # Q25: a code-review finding is reported and does not hold.
         self.files = ((self.BINARY,), True)
         self.lanes = (LaneEvidence("claude-review", True, None, 1), BOUND[1])
         code, out = self.run_main()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertIsNone(out["unattended"]["reason"])
+        codes = [r["code"] for r in out["unattended"]["risk"]["reasons"]]
+        self.assertIn("findings:claude-review", codes)
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+
+    def test_a_critical_security_finding_holds(self) -> None:
+        self.files = ((self.BINARY,), True)
+        self.lanes = (
+            BOUND[0],
+            LaneEvidence("claude-security-review", True, None, 2, False, 1),
+        )
+        code, out = self.run_main()
         self.assert_no_merge(code)
-        self.assertEqual(out["unattended"]["reason"], "risk:MED")
+        self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
 
     def test_a_med_with_an_unbound_lane_holds(self) -> None:
         self.files = ((self.BINARY,), True)
@@ -2727,6 +2806,19 @@ class ReasonsComment(Unattended):
         self.assertIn("high-path:**/.gitmodules", body)
         self.assertIn("a human merges it in person, never an agent or a lane", body)
 
+    def test_a_trust_gate_hold_says_a_human_merges_it(self) -> None:
+        # A trusted-actor widening waits for the owner.
+        gate = merge.babysit_risk.Reason(
+            merge.babysit_risk.TRUST_GATE_CODE,
+            merge.babysit_risk.Risk.HIGH,
+            "x",
+        )
+        risk = merge.babysit_risk.RiskResult(merge.babysit_risk.Risk.HIGH, (gate,))
+        self.assertIn(
+            "a human merges it in person, never an agent or a lane",
+            merge.risk_comment_body(risk, HEAD),
+        )
+
     def test_a_med_hold_does_not_claim_the_floor(self) -> None:
         self.assertNotIn("never an agent", self.body())
 
@@ -3061,8 +3153,8 @@ class ReasonsComment(Unattended):
 
 # Held only by a finding a clean whole review of the head would close.
 CARRIED = (
-    LaneEvidence("claude-review", True, None, 1, True),
-    LaneEvidence("claude-security-review", True, None, 0),
+    LaneEvidence("claude-review", True, None, 0),
+    LaneEvidence("claude-security-review", True, None, 1, True),
 )
 
 
@@ -3231,14 +3323,17 @@ class WholeReviewRequest(Unattended):
 
     def test_another_refusal_is_not_toggled(self) -> None:
         self.lanes = (
-            CARRIED[0],
-            LaneEvidence("claude-security-review", False, "no-marker", None),
+            LaneEvidence("claude-review", False, "no-marker", None),
+            CARRIED[1],
         )
         self.run_main()
         self.assertNotIn("toggle", self.log)
 
     def test_a_finding_at_the_head_is_not_toggled(self) -> None:
-        self.lanes = (LaneEvidence("claude-review", True, None, 1, False), CARRIED[1])
+        self.lanes = (
+            CARRIED[0],
+            LaneEvidence("claude-security-review", True, None, 1, False),
+        )
         self.run_main()
         self.assertNotIn("toggle", self.log)
 

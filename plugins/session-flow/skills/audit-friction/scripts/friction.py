@@ -144,6 +144,8 @@ def aggregate(records: list[dict]) -> dict:
     shapes: Counter = Counter()
     flags: Counter = Counter()
     perf: Counter = Counter()
+    # (side, event key) -> next tool -> {count, ok, failed, unknown}, from the stored events (capped per session).
+    next_tools: dict[tuple[str, str], dict[str, dict[str, int]]] = defaultdict(dict)
     events, dropped, active_s, turns = [], 0, 0, 0
     classes = Counter(census.session_class(r) for r in records)
     for record in records:
@@ -168,6 +170,12 @@ def aggregate(records: list[dict]) -> dict:
             if event.get("kind") in ("denied", "prompt-approved") and event.get("shape"):
                 shapes[(event["kind"], event.get("cause"), event.get("tool"), event["shape"])] += 1
                 flags.update(event.get("flags") or [])
+            if "next_tool" in event and event.get("key"):
+                tally = next_tools[(event.get("side"), event["key"])].setdefault(
+                    event["next_tool"] or "none", {"count": 0, "ok": 0, "failed": 0, "unknown": 0}
+                )
+                tally["count"] += 1
+                tally["ok" if event.get("next_ok") is True else "failed" if event.get("next_ok") is False else "unknown"] += 1
             if len(events) < EVENT_LIMIT:
                 events.append({"session_id": record.get("session_id"), **event})
             else:
@@ -182,6 +190,7 @@ def aggregate(records: list[dict]) -> dict:
             "per_session": round(c["count"] / len(records), 3) if records else 0,
             "per_active_hour": round(c["count"] / hours, 3) if hours else None,
             "class_hint": class_hint(key),
+            **({"next_tool": next_tools[(side, key)]} if (side, key) in next_tools else {}),
         }
         for (side, key), c in counts.items()
     ]
@@ -222,6 +231,14 @@ def render_mine(data: dict) -> str:
         )
     if len(data["rows"]) > TOP:
         lines.append(f"\n{len(data['rows']) - TOP} more keys in the JSON output.")
+    followed = [r for r in data["rows"] if r.get("next_tool")]
+    if followed:
+        lines += ["", "Next tool after a hook-block denial (ok/failed/unknown):", "",
+                  "| Side | Key | Next tool | Count | Ok | Failed | Unknown |", "|---|---|---|---|---|---|---|"]
+        for row in followed[:TOP]:
+            key = row["key"].replace("|", "\\|")
+            for tool, t in sorted(row["next_tool"].items(), key=lambda kv: (-kv[1]["count"], kv[0])):
+                lines.append(f"| {row['side']} | {key} | {tool.replace('|', chr(92) + '|')} | {t['count']} | {t['ok']} | {t['failed']} | {t['unknown']} |")
     lines += ["", "Shape flags: " + (", ".join(f"{k} {v}" for k, v in sorted(data["shape_flags"].items())) or "none")]
     lines += ["", "Perf: " + (", ".join(f"{k} {v}" for k, v in sorted(data["perf"].items())) or "none")]
     return "\n".join(lines)

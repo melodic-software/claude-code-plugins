@@ -55,7 +55,7 @@ const HOUR_MS = 3_600_000;
 export const HOLD_LABELS = new Set(["needs-human", "do-not-merge"]);
 export const HOLD_LINE = "Hold: a human merges this";
 // Issue labels a person decides; an issue carrying one is not queued work.
-const ISSUE_HOLDS = ["needs-human", "needs-owner-decision", "status: needs-decision"];
+const ISSUE_HOLDS = ["needs-human", "needs-owner-decision", "status: needs-decision", "status: needs-info"];
 // The issue a lane PR's first body line names, as report-outcome writes it.
 const NAMES_ISSUE = /^(?:Closes|Refs:) #([1-9][0-9]*)$/;
 // The search API returns at most 1000 results, 100 per page.
