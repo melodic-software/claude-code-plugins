@@ -241,7 +241,7 @@ test("enable-auto-merge asks the broker for its own activity's merge token", () 
   const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(arm)[1];
   assert.deepEqual(
     [...block.matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => `${m[1]}: ${m[2]}`),
-    ["contents: read", "actions: read", "pull-requests: read", "checks: read", "id-token: write"],
+    ["contents: read", "actions: read", "pull-requests: read", "checks: read", "issues: read", "id-token: write"],
   );
   // The verifier evidence is read as the gate reads it: the job's
   // GITHUB_TOKEN for the Actions reads, with the run's head-ref map and
