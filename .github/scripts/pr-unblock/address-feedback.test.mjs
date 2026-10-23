@@ -424,9 +424,9 @@ test("a github-actions[bot] thread without the note marker, or in another accoun
 // body ending `\n\nclaude-lane: <lane>` (ci-workflows
 // .github/actions/publish-review/publish.cjs commentBody at v0.63.0).
 const LANE_FINDING = "severity: IMPORTANT\nThe input reaches the shell unquoted.\n\nclaude-lane: claude-security-review";
-const laneFinding = (body, reviewer = ACTIONS_BOT) =>
+const laneFinding = (body, reviewer = ACTIONS_BOT, lane = "claude-security-review") =>
   fakeApi({
-    issueComments: [{ id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-security-review", HEAD) }],
+    issueComments: [{ id: 1, user: { id: ACTIONS_BOT }, body: marker(lane, HEAD) }],
     reviewComments: [comment(100, ACTIONS_BOT, { body })],
     reviews: [{ id: 10, user: { id: reviewer }, commit_id: HEAD }],
   });
@@ -437,6 +437,13 @@ test("a github-actions[bot] finding ending in the lane footer is kept as the rev
   assert.deepEqual(result.threads[0].comments, [{ id: 100, author: "reviewer", body: LANE_FINDING }]);
   // Trailing blank lines do not hide the footer.
   assert.equal((await run(laneFinding(`${LANE_FINDING}\n\n`))).decision, "proceed");
+});
+
+test("the code lane's github-actions[bot] finding is kept as the reviewer's", async () => {
+  const body = "The loop skips the last item.\n\nclaude-lane: claude-review";
+  const result = await run(laneFinding(body, ACTIONS_BOT, "claude-review"));
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.threads[0].comments, [{ id: 100, author: "reviewer", body }]);
 });
 
 test("a github-actions[bot] comment whose last line is not a review lane's footer is no finding", async () => {

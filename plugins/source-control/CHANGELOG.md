@@ -3,6 +3,26 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.11.1] - 2026-10-23
+
+### Changed
+
+- The unattended merge gate reads its review evidence under `BABYSIT_VERIFY_GH_TOKEN` only while that token's core bucket has at least `merge.read-token-floor` of its limit left (`PipelineConfig.read_token_floor`, default 0.3, taken from the default branch head). Below the floor, or when `GET /rate_limit` cannot be read, the reads keep the process (lane) token and a `read-token-floor:` line goes to stderr. A read under the read token refused for a rate limit (`babysit_gh.gh_rate_limited`: a 429, or a 403 naming one) makes `_lane_evidence` read everything again with the process token and record the token in `BABYSIT_RUN_CACHE` (`read-token-limited`), so later candidates skip it; any other refusal still raises. `babysit_whole_review._short_bucket` takes an optional `share` and `buckets`; whole-review requests keep `MIN_SHARE`.
+
+## [2.11.0] - 2026-10-23
+
+### Changed
+
+- `review-venue.sh` finds the code-review lane on ci-workflows' [`pr-review-cli.yml`](https://github.com/melodic-software/ci-workflows/blob/83b739f625b501ad40c65dee7168d836883195e1/.github/workflows/pr-review-cli.yml) from a caller whose path does not contain `security`; a caller whose path does still counts only for security-review.
+
+## [2.10.0] - 2026-10-23
+
+### Changed
+
+- The merge gate's review evidence accepts the security lane on ci-workflows' `pr-review-cli.yml`: a completion record ending in `account=fallback`, and a `github-actions[bot]` thread or summary comment whose last non-blank line is the lane's `claude-lane:` footer. A reviewed-head marker is never read a second time as a summary comment.
+- `review-venue.sh` finds the security lane on ci-workflows' `pr-review-cli.yml` when the caller's path contains `security`. It also reads a `<lane>: failure-class=skipped-validation` red as no verdict.
+- A `github-actions` summary comment counts for its lane only when it carries the REST bot identity: login `github-actions[bot]` and type `Bot`.
+
 ## [2.9.0] - 2026-10-23
 
 ### Changed

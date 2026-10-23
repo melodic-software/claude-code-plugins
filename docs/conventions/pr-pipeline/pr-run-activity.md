@@ -97,7 +97,8 @@ and, set by the scan job alone, `feedback-attempt` and `feedback-sha256`, the at
 skill's scanned verdict, its SHA-256 and its `verdict` field held to the four verdicts
 ([`prepare: dependency-review`](#prepare-dependency-review)); `scan-refused`, `patch` when the
 scan job refused the run's payloads for a patch over its cap, `output` for any other refusal;
-and `scan-patch-state`, `scan-patch-sha256`, `scan-patch-attempt` and `scan-reply-attempt`, the
+`scan-collect-refused`, `true` when the run's collector refused the change (step 2 of
+[Patch output mode](#patch-output-mode)); and `scan-patch-state`, `scan-patch-sha256`, `scan-patch-attempt` and `scan-reply-attempt`, the
 patch outputs with no run job fallback, which a caller that takes nothing from a run job reads.
 
 Secrets are passed by name, never `inherit`: `claude-code-oauth-token` (skill activities, both
@@ -600,7 +601,11 @@ set `applied-by`, and an issue-mode activity must set it. The steps:
    a fixed set of names (`package.json`, `.env` and others) that the gated head does not track. A
    name from that set the head does not track that holds anything other than an empty regular
    file makes the collector exit 3 with no patch written: the collect step fails, nothing is
-   collected and `patch-state` stays empty, and the dirty-tree check counts it as dirty.
+   collected and `patch-state` stays empty, and the dirty-tree check counts it as dirty. The
+   collect step sets `state` `refused` on exit 3 alone; the scan job holds the run's
+   `patch-collected` output to `written`, `empty` or `refused` and sets `scan-collect-refused`
+   `true` on `refused`, so a caller can hand the refused change to a person. A forged `refused`
+   can only do that.
 3. A non-empty patch is uploaded as the artifact `patch-<lane>-<activity>-<run attempt>`, holding
    one file, `patch.diff` (7-day retention): in PR mode by the [scan job](#the-scan-job), after
    its scan, in issue mode by the run job. The run's `patch-state` output is then `written`,
@@ -640,7 +645,12 @@ job. The caller calls the read file twice, each call with one secret, named for 
 (`AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN`); its `fix-docs` and `fix-docs-subscription`, and its
 `address-feedback` and `address-feedback-subscription`, do the same. The second runs only when the first's `lane-class` output
 is `credit-stop` or its `credential-present` is `false`, each compared to that fixed string, and
-passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr>`.
+passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr>`. fix-ci's
+fallback calls start on no first-call output: `fix-ci-handoff` (and `fix-ci-rung-up-handoff` for
+the rung-up call), a job with only `actions: read` that checks out nothing, reads this run's jobs
+through the Actions API, and the fallback runs unless the first call's `<call> / report` job has
+a `Post the check run` step that succeeded. A failed read runs the fallback too. Only `fallback`,
+the lane record's label, still reads `lane-class`; a forged one mislabels the record.
 
 1. Before any head code, the run job fails red unless the `role` is lower-case kebab, the model
    route resolves an alias (`default` resolves to none) and the skill is advisory. While sudo
@@ -798,7 +808,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
 1. Before any model turn, the select job reads the PR head, resolves the slot as the read file
    does (a draft or `do-not-merge` skips it), and runs `address-feedback.mjs select` with its
    `GITHUB_TOKEN`. It keeps each unresolved thread whose first comment's review
-   the reviewer bot (`claude[bot]` in the base's trusted-actors list, by id) submitted on a head
+   the reviewer bot (`claude[bot]` in the base's trusted-actors list, by id, or `github-actions[bot]`
+   for a comment whose last non-blank line is a review lane's `claude-lane:` footer) submitted on a head
    that a `claude-lane-reviewed-head` marker from `github-actions[bot]` names, or
    `github-actions[bot]` submitted there for a verifier note (a first comment by it whose first
    line is `<!-- pr-verify:fail-note -->`, author `verifier`), when every comment is the reviewer
@@ -1108,7 +1119,7 @@ warns of a [classifier gap](README.md#classifier-gaps).
 ### prepare: ci-context
 
 pr-unblock's `fix-ci` fixes a lanes App or [adopted](README.md#adoption) owner pull request's
-failing checks in four jobs, so no model
+failing checks in separate jobs, so no model
 holds a write token: a base job, a read model job in this mode on the automations role's API key,
 its fallback call on the role's OAuth token after a credit stop or with the key empty
 ([Two calls on one credential each](#two-calls-on-one-credential-each)), and an
@@ -1151,9 +1162,17 @@ A `mutate-branch` script leaf, the `apply-patch` job after `fix-ci`, with no mod
 [`apply-patch.mjs`](../../../.github/scripts/apply-patch/apply-patch.mjs) with the `ci-context` row
 of `patch-rules.json`. The caller passes the outputs of whichever `fix-ci` call ran the activity
 ([Two calls on one credential each](#two-calls-on-one-credential-each)): `patch-state`,
-`patch-sha256`, `patch-attempt`, `head-sha` (as `patch-head-sha`) and `reply-attempt`, each as
-`needs.fix-ci-subscription.outputs.<name> || needs.fix-ci.outputs.<name>`, the activity as
-`patch-activity`, and its prepare mode as `patch-prepare` (`ci-context`).
+`patch-sha256`, `patch-attempt` and `reply-attempt` from that call's scan job (`scan-patch-state`
+and the rest), the fallback call's when it ran and the first's otherwise, never a run job's;
+`fix-ci-context`'s head as `patch-head-sha`; the activity as `patch-activity`; and its prepare
+mode as `patch-prepare` (`ci-context`). The job runs on a `written` or `empty` patch, or on that
+call's `scan-collect-refused`, which reaches `select` with no `patch-state` and so escalates
+`ci-fix-invalid`.
+`fix-ci-unreported`, after every fix-ci call, reads this run's jobs as `fix-ci-handoff` does and,
+when a call's broker-check job allowed the lane and no call's report posted, posts fix-ci
+failure on `fix-ci-context`'s head, so fix-ci-dispatch counts the round toward
+`fix-ci-restarts` whatever the calls reported. As in the report job, a kill switch or a broker
+refusal posts nothing.
 
 1. Before the mint, the write file downloads `patch-<lane>-<patch-activity>-<patch-attempt>`
    and the model job's reply, and runs the script's `select` with no token. A gated head other
@@ -1361,9 +1380,10 @@ outputs are sent), so the report job differs:
   run job `pr-number` that names another PR fails closed.
 - It posts on the run job's `head-sha` only when that equals the gated head: the caller's
   `head-sha` input (pr-unblock passes `fix-ci-context`'s) or the event's PR head. The PR head it
-  reads counts only when neither is set, since a head that moved mid-run was never gated. Any
-  other value or a mismatched PR number posts failure on the trusted head and never on the run's
-  SHA. With no trusted head it posts nothing and fails. A handoff skips the report job; the fallback
+  reads is never a gated head, since a head that moved mid-run was never gated: with neither set,
+  any run head is forged and posts failure on it. Any other value or a mismatched PR number posts
+  failure on the trusted head and never on the run's SHA. The run job itself fails before the
+  head checkout when its trigger gate read a head other than a non-empty `head-sha` input. With no trusted head it posts nothing and fails. A handoff skips the report job; the fallback
   call posts that check.
 - An empty run head (the run stopped before its trigger gate passed) never posts failure, which
   babysit reads as a merge blocker. After the kill switch, which the report job reads from its

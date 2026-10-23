@@ -3,9 +3,9 @@
 # pull requests and is healthy, so a local review runs only where CI does not.
 #
 # A lane is a workflow whose pull_request runs call the org's reusable review
-# workflow: ci-workflows pr-review.yml (code-review), or pr-review-security.yml
-# or, from a caller whose path names security, pr-review-cli.yml
-# (security-review). It is healthy when its workflow is active and its newest
+# workflow: ci-workflows pr-review.yml (code-review) or pr-review-security.yml
+# (security-review), or pr-review-cli.yml: security-review from a caller whose
+# path names security, code-review from any other. It is healthy when its workflow is active and its newest
 # pull_request run that reached a verdict (completed, and neither skipped nor
 # cancelled) succeeded and was created within --max-age-days. A failed run whose
 # every failed job says failure-class=skipped-validation reached no verdict: the
@@ -70,9 +70,10 @@ REUSABLE=(
   '^melodic-software/ci-workflows/\.github/workflows/pr-review-security\.yml@'
 )
 # pr-review-cli.yml serves either lane through an input the run listing does
-# not show, so it counts for a lane only from a caller whose path names it.
+# not show, so its caller's path decides the lane: security-review when it
+# names security, code-review otherwise.
 CLI='^melodic-software/ci-workflows/\.github/workflows/pr-review-cli\.yml@'
-CLI_CALLER=('' 'security')
+CLI_SECURITY=(false true)
 WORKFLOW_ID=("" "") WORKFLOW_PATH=("" "")
 PAGES=3
 # Skipped-validation reds passed over per lane before it reads stale.
@@ -103,9 +104,9 @@ for ((page = 1; page <= PAGES; page++)); do
     die 2 "cannot list the workflow runs of $REPO"
   for i in "${!LANES[@]}"; do
     [[ -n "${WORKFLOW_ID[i]}" ]] && continue
-    hit=$(jq -r --arg re "${REUSABLE[i]}" --arg cli "$CLI" --arg caller "${CLI_CALLER[i]}" '
+    hit=$(jq -r --arg re "${REUSABLE[i]}" --arg cli "$CLI" --argjson sec "${CLI_SECURITY[i]}" '
       [.workflow_runs[]? | select(any(.referenced_workflows[]?; .path | test($re))
-        or ($caller != "" and (.path // "" | test($caller))
+        or ((.path // "" | test("security")) == $sec
           and any(.referenced_workflows[]?; .path | test($cli))))][0]
       | select(. != null) | "\(.workflow_id)\t\(.path)"' <<<"$runs") ||
       die 2 "cannot parse the workflow runs of $REPO"

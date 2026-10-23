@@ -232,13 +232,14 @@ never merges; the pr-merge lane merges on its `verdict=merge` marker at the curr
 ([`pr-run-activity.md`](pr-run-activity.md#prepare-dependency-review);
 [ADR 0074](../../adr/0074-review-risky-dependabot-updates-in-a-model-job-and-act-in-a-scripted-job.md)).
 
-`pr-unblock`'s `fix-ci` runs in four jobs of `pr-unblock.yml`, so no model holds a write token:
+`pr-unblock`'s `fix-ci` runs in separate jobs of `pr-unblock.yml`, so no model holds a write token:
 `fix-ci-context` (base code only, read-only token) writes the failing checks' context or hands
 the pull request to a person once `loop.fix-ci-rounds` fixes were pushed; `fix-ci` (a `read`
 skill in [patch output mode](pr-run-activity.md#patch-output-mode), on run-claude-cli with the
 automations role's API key) runs `source-control:pull-request ci --ci`, which reruns, fixes and
-reruns the checks; `fix-ci-subscription` runs the same on the role's OAuth token, only after a
-credit stop or with the key empty
+reruns the checks; `fix-ci-subscription` runs the same on the role's OAuth token, only when
+`fix-ci-handoff`'s read of this run's jobs shows `fix-ci` posted no check, as a credit stop or an
+empty key leaves it
 ([two calls](pr-run-activity.md#two-calls-on-one-credential-each)); and `apply-patch` (a
 `mutate-branch` script, no model, no head code) pushes the patch as one commit without force,
 refusing the whole patch on any change `patch-rules.json`'s `ci-context` row refuses: the
@@ -1342,8 +1343,17 @@ The lane token holds no Actions permission, so pr-merge.yml grants its job `acti
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
 records, the download and the compare of a run's head to main (a `contents: read` call). The gate's
 review-evidence reads use it too: the timeline, the comments, and the lane runs with their attempts,
-jobs and annotations. Every other call, every write included, keeps the lane token. That job checks
-out only main and runs no pull request code.
+jobs and annotations. Two things send them back to the lane token, as before; both tokens read
+the same data, so neither changes a gate decision. First, `GITHUB_TOKEN` must have at least
+`merge.read-token-floor` of its core limit left by `GET /rate_limit` (default 0.3, read at the
+default branch head; an unreadable limit counts as short). That is only an early switch: in the
+05:26Z outage on 2026-10-23, `/rate_limit` showed 3,934 of 5,000 left while `GITHUB_TOKEN` was
+already refused with "API rate limit exceeded for installation". Second, when any of those reads
+is refused with a 429, or a 403 whose message names a rate limit, the gate reads all of that
+candidate's evidence again with the lane token (they are all GETs). It records the refusal in
+`BABYSIT_RUN_CACHE`, so later candidates in the run skip `GITHUB_TOKEN`. Any other refusal is not
+retried. `GITHUB_TOKEN`'s pool is shared with the full-run dispatch and the post-merge checks. Every other call, every write
+included, keeps the lane token. That job checks out only main and runs no pull request code.
 
 pr-merge.yml also names a file in `BABYSIT_RUN_CACHE`, where the run's gate processes share reads
 that are the same for every candidate. The acting login and a credential pass are reused only under
@@ -2014,7 +2024,7 @@ the lanes.
 | `trust-root` ruleset, merge queues, code-owner review settings | github-iac `OrgRulesets.cs`; ADR 0015 Decision 5; [ADR 0007](https://github.com/melodic-software/github-iac/blob/main/docs/adr/0007-no-required-approving-reviews.md). Its rollback is not yet tracked: [github-iac#677](https://github.com/melodic-software/github-iac/issues/677) |
 | Test repository | [`melodic-software/pr-pipeline-sandbox`](https://github.com/melodic-software/pr-pipeline-sandbox), whose README states its purpose |
 | Trusted actors, runner policy, Actions naming vocabulary | `melodic-software/standards` components [`trusted-actors`](https://github.com/melodic-software/standards/tree/main/components/trusted-actors), [`runner-policy`](https://github.com/melodic-software/standards/tree/main/components/runner-policy) and [`github-actions-conventions`](https://github.com/melodic-software/standards/tree/main/components/github-actions-conventions), synced into `.github/standards/` |
-| Review and intake reusable workflows | [`melodic-software/ci-workflows`](https://github.com/melodic-software/ci-workflows) `.github/workflows/pr-review.yml`, `pr-review-cli.yml` (the security lane) and `intake-triage.yml`, called by this repository's synced `*-hosted.yml` callers and `intake-triage.yml` |
+| Review and intake reusable workflows | [`melodic-software/ci-workflows`](https://github.com/melodic-software/ci-workflows) `.github/workflows/pr-review-cli.yml` (both review lanes) and `intake-triage.yml`, called by this repository's `*-hosted.yml` review callers and `intake-triage.yml` |
 
 In this repository, the lane runners and their contract are in [Lanes](#lanes), the config is
 `docs/conventions/pr-pipeline.yaml`, and the decisions are ADRs 0049 to 0051, 0053 to 0055 and 0058 in `docs/adr/`.

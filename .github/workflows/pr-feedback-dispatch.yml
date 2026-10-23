@@ -49,11 +49,14 @@ concurrency:
 
 jobs:
   # A pr-verify run of main, which only steps of that run could upload to.
+  # A run GitHub skipped (pr-require-checks did not pass) ran no judgment and
+  # uploaded nothing, so it starts no runner.
   post-verify-notes:
     if: >-
       github.ref == 'refs/heads/main'
       && github.event.workflow_run.path == '.github/workflows/pr-verify.yml'
       && github.event.workflow_run.event == 'workflow_run'
+      && github.event.workflow_run.conclusion != 'skipped'
       && github.event.workflow_run.head_branch == 'main'
       && github.event.workflow_run.repository.full_name == github.repository
       && github.event.workflow_run.head_repository.full_name == github.repository
@@ -120,14 +123,17 @@ jobs:
   dispatch:
     # A review run GitHub skipped (a draft PR) has reviewed nothing, and a
     # cancelled one (most often superseded by a newer push) finished no review.
-    # A pr-verify run dispatches only once its notes are on the PR. A job
-    # skipped here starts no runner.
+    # The lanes App opens PRs only from work-resolve-issue lane branches
+    # (work-resolve-issue/report-outcome.mjs), so a review run on any other
+    # branch is not on a lanes App PR. A pr-verify run dispatches only once its
+    # notes are on the PR. A job skipped here starts no runner.
     if: >-
       ${{ !cancelled()
       && github.ref == 'refs/heads/main'
       && (needs.post-verify-notes.outputs.head-sha != ''
       || github.event.workflow_run.event == 'pull_request'
       && github.event.workflow_run.head_repository.full_name == github.repository
+      && startsWith(github.event.workflow_run.head_branch, 'work-resolve-issue/issue-')
       && github.event.workflow_run.conclusion != 'skipped'
       && github.event.workflow_run.conclusion != 'cancelled') }}
     needs: post-verify-notes

@@ -10,7 +10,7 @@
       "keyed": true,
       "category": "review",
       "lanes": [
-        { "id": "pr-review", "workflow": "pr-review-hosted.yml", "launcher": "claude-code-action", "currentSecrets": ["CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "pr-review", "workflow": "pr-review-hosted.yml", "launcher": "run-claude-cli", "currentSecrets": ["REVIEWS_CLAUDE_API_KEY", "REVIEWS_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "pr-review-security", "workflow": "pr-review-security-hosted.yml", "launcher": "run-claude-cli", "currentSecrets": ["REVIEWS_CLAUDE_API_KEY", "REVIEWS_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     },

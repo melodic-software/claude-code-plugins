@@ -1,5 +1,36 @@
 # Changelog for the PR pipeline convention
 
+## [4.6.1] - 2026-10-23
+
+### Added
+
+- `merge.read-token-floor` (default 0.3): the pr-merge gate reads its review evidence (timeline, comments, review-lane runs with their attempts, jobs and annotations) with `GITHUB_TOKEN` only while that token has at least this share of its hourly core limit left. Below it, or when the limit cannot be read, those reads use the lane App token, as they did before. The floor is only an early switch: when one of those reads is refused for a rate limit (a 429, or a 403 naming one), the gate reads that candidate's evidence again with the lane App token and marks `GITHUB_TOKEN` spent in the run cache for later candidates. Either token reads the same data, so no gate decision changes. The value is read at the default branch head. The repository's `GITHUB_TOKEN` pool, 1,000 requests an hour shared by every job, ran out on 2026-10-23 once these reads moved onto it.
+
+### Fixed
+
+- pr-merge.yml's `post-merge-dispatch` job caps its dispatch waits at 180 s instead of 300 s. Its whole run took 97-127 s on recent scheduled runs, and the re-run step after the dispatch sleeps up to 170 s while it reads back attempt 2. The lower cap leaves about 6.5 of the job's 15 minutes free, so a timeout no longer lands after the re-run POST and leaves attempt 2 unrecorded.
+- Both dispatch steps send the dispatch again after no response only when gh's error shows the connection failed before the request was sent (a `dial tcp` error or a failed TLS handshake). A reset or timeout on an open connection may follow GitHub creating the run, so the step now warns and stops, as it does on exhaustion.
+
+## [4.6.0] - 2026-10-23
+
+### Changed
+
+- The code review lane (`pr-review-hosted.yml`) runs on ci-workflows' [`pr-review-cli.yml`](https://github.com/melodic-software/ci-workflows/blob/83b739f625b501ad40c65dee7168d836883195e1/.github/workflows/pr-review-cli.yml) (v0.63.1), lane `code`: the reviews role's API key first, and its subscription token only after the key hands off or when the repository variable `REVIEWS_KEY_EXHAUSTED` is `true`. The check stays `pr-review / claude-review-status`; the review now posts as `github-actions[bot]`, each comment ending in its `claude-lane: claude-review` footer. A newer push no longer cancels a running review: it waits for it.
+- Both review lanes now run on `pr-review-cli.yml`, funded by the `reviews` role's `REVIEWS_CLAUDE_API_KEY` and `REVIEWS_CLAUDE_CODE_OAUTH_TOKEN`; the code lane no longer reads the bare `CLAUDE_CODE_OAUTH_TOKEN`.
+
+### Fixed
+
+- pr-merge.yml's `dispatch-full-run` and `post-merge-dispatch` jobs send the full-run dispatch at most three times: a rate-limited 403 or 429 waits retry-after seconds, else until one second past `x-ratelimit-reset` while none remain, else 60 s, and a request that got no response waits a full-jitter backoff, all within a per-job cap (180 s and 300 s) that keeps each job inside its timeout. Any other answer, a 5xx included, is not sent again, since the run may exist. A dispatch that still fails ends the job green with a warning naming the merge commit, uploads no `pr-merge-dispatched-<id>` record and skips the wait, so the next push or scheduled run starts the run instead of a red job.
+- The wait for the dispatched run reads its status every three minutes instead of every minute, 13 reads over 39 minutes.
+
+## [4.5.0] - 2026-10-23
+
+### Changed
+
+- The security review lane (`pr-review-security-hosted.yml`) runs on ci-workflows' `pr-review-cli.yml` (v0.63.1), lane `security`: the reviews role's API key first, and its subscription token only after the key hands off or when the repository variable `REVIEWS_KEY_EXHAUSTED` is `true`. The check stays `pr-review-security / security-review`; the review now posts as `github-actions[bot]`, each comment ending in its `claude-lane: claude-security-review` footer. A newer push no longer cancels a running review: it waits for it.
+- `address-feedback` and `pr-feedback-dispatch.yml` treat a `github-actions[bot]` comment as the reviewer's when its last non-blank line is a review lane's footer and its review is `github-actions[bot]`'s; `claude[bot]` findings are unchanged.
+- One funding role, `reviews`, backs both review lanes and is keyed; the `reviews-security` role is gone.
+
 ## [4.4.0] - 2026-10-23
 
 ### Changed

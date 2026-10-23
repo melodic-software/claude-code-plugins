@@ -168,6 +168,14 @@ def gh_http_status(text: str) -> int | None:
     return int(matches[-1]) if matches else None
 
 
+def gh_rate_limited(text: str) -> bool:
+    """Whether a `gh` failure message reports a rate limit: HTTP 429, or a 403
+    whose message names one ("API rate limit exceeded", "secondary rate
+    limit"). Any other 403 is a refusal, not a limit."""
+    status = gh_http_status(text)
+    return status == 429 or (status == 403 and "rate limit" in text.casefold())
+
+
 def is_graphql_unavailable(failure: BaseException | str) -> bool:
     """Whether a failed GraphQL-backed `gh` call was refused the API itself.
 

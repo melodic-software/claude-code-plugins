@@ -7,6 +7,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
+import { laneBranchIssue } from "../work-resolve-issue/report-outcome.mjs";
+
 // A job's folded `if: >-` scalar, joined the way YAML folds it.
 function jobIf(file, job) {
   const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
@@ -48,28 +50,33 @@ function jobGate(file, job) {
 }
 
 // Evaluates the expression with each context reference replaced by its value.
-// Covers only the operators and function these gates use (&&, ||, ==, !=, !,
-// format('{0}', x)); GitHub compares strings case-insensitively, and every
-// value here is already in the case the gate names.
+// Covers only the operators and functions these gates use (&&, ||, ==, !=, !,
+// format('{0}', x), startsWith(x, 'y')); GitHub compares strings
+// case-insensitively, and every value here is already in the case the gate
+// names.
 function evaluate(expression, context) {
   let body = expression.replace(/^\$\{\{([\s\S]*)\}\}$/, "$1").replaceAll("!cancelled()", "true");
   for (const name of Object.keys(context).sort((a, b) => b.length - a.length)) {
     body = body.replaceAll(name, JSON.stringify(context[name]));
   }
   body = body.replace(/format\('\{0\}', ([^)]*)\)/g, "String($1)");
+  body = body.replace(/startsWith\(([^,]*), ('[^']*')\)/g, "String($1).startsWith($2)");
   // String literals, a workflow path among them, hold no reference.
   assert.doesNotMatch(body.replace(/'[^']*'|"[^"]*"/g, "''"), /[A-Za-z_][\w-]*\.[\w.-]+/, `an unresolved context reference in ${body}`);
   return Function(`return (${body});`)();
 }
 
+const LANE_BRANCH = "work-resolve-issue/issue-12-345-1";
+
 test("pr-feedback-dispatch.yml starts no runner for a skipped or cancelled review run", () => {
   const gate = jobIf("pr-feedback-dispatch.yml", "dispatch");
-  const runs = (conclusion, event = "pull_request", posted = "") =>
+  const runs = (conclusion, event = "pull_request", posted = "", branch = LANE_BRANCH) =>
     evaluate(gate, {
       "github.ref": "refs/heads/main",
       "github.repository": "melodic-software/claude-code-plugins",
       "github.event.workflow_run.event": event,
       "github.event.workflow_run.head_repository.full_name": "melodic-software/claude-code-plugins",
+      "github.event.workflow_run.head_branch": branch,
       "github.event.workflow_run.conclusion": conclusion,
       "needs.post-verify-notes.outputs.head-sha": posted,
     });
@@ -81,6 +88,34 @@ test("pr-feedback-dispatch.yml starts no runner for a skipped or cancelled revie
   // A pr-verify run dispatches only once its notes are on the PR.
   assert.equal(runs("success", "workflow_run"), false);
   assert.equal(runs("success", "workflow_run", "a".repeat(40)), true);
+  // A pr-verify run's branch is main, and its notes still dispatch.
+  assert.equal(runs("success", "workflow_run", "a".repeat(40), "main"), true);
+});
+
+test("pr-feedback-dispatch.yml starts no runner for a review run off a lane branch", () => {
+  const gate = jobIf("pr-feedback-dispatch.yml", "dispatch");
+  const prefix = /startsWith\(github\.event\.workflow_run\.head_branch, '([^']+)'\)/.exec(gate)?.[1];
+  assert.ok(prefix, "the dispatch gate checks the head branch");
+  const runs = (branch) =>
+    evaluate(gate, {
+      "github.ref": "refs/heads/main",
+      "github.repository": "melodic-software/claude-code-plugins",
+      "github.event.workflow_run.event": "pull_request",
+      "github.event.workflow_run.head_repository.full_name": "melodic-software/claude-code-plugins",
+      "github.event.workflow_run.head_branch": branch,
+      "github.event.workflow_run.conclusion": "success",
+      "needs.post-verify-notes.outputs.head-sha": "",
+    });
+  // Every branch the issue lane opens a PR from passes; a rename of the lane
+  // branch fails here instead of silently stopping dispatches.
+  assert.equal(laneBranchIssue(LANE_BRANCH), 12);
+  assert.ok(LANE_BRANCH.startsWith(prefix), `${LANE_BRANCH} starts with ${prefix}`);
+  assert.equal(laneBranchIssue(`x${LANE_BRANCH}`), null);
+  assert.equal(runs(LANE_BRANCH), true);
+  for (const branch of ["feat/x", "release/plugins", "dependabot/npm/x", "work-resolve-issue"]) {
+    assert.equal(laneBranchIssue(branch), null, branch);
+    assert.equal(runs(branch), false, branch);
+  }
 });
 
 test("pr-feedback-dispatch.yml posts verifier notes only for a pr-verify run of main", () => {
@@ -93,6 +128,7 @@ test("pr-feedback-dispatch.yml posts verifier notes only for a pr-verify run of 
       "github.event.workflow_run.path": ".github/workflows/pr-verify.yml",
       "github.event.workflow_run.event": "workflow_run",
       "github.event.workflow_run.head_branch": "main",
+      "github.event.workflow_run.conclusion": "success",
       "github.event.workflow_run.repository.full_name": repo,
       "github.event.workflow_run.head_repository.full_name": repo,
       ...overrides,
@@ -102,6 +138,11 @@ test("pr-feedback-dispatch.yml posts verifier notes only for a pr-verify run of 
   assert.equal(runs({ "github.event.workflow_run.event": "pull_request" }), false);
   assert.equal(runs({ "github.event.workflow_run.head_branch": "feat/x" }), false);
   assert.equal(runs({ "github.event.workflow_run.head_repository.full_name": "fork/repo" }), false);
+  // A skipped pr-verify run judged nothing and uploaded no verdict.
+  assert.equal(runs({ "github.event.workflow_run.conclusion": "skipped" }), false);
+  for (const conclusion of ["success", "failure", "cancelled"]) {
+    assert.equal(runs({ "github.event.workflow_run.conclusion": conclusion }), true, conclusion);
+  }
 });
 
 const UNBLOCK = "pr-unblock.yml";
@@ -214,4 +255,75 @@ test("pr-unblock.yml: apply-dependency-patch runs only on a written patch beside
   for (const verdict of ["merge", "close", "escalate", ""]) assert.equal(runs("skipped", [], ["written", verdict]), false, verdict);
   assert.equal(runs("skipped", [], ["empty", "fix"]), false);
   assert.equal(runs("skipped", [], ["", "fix"]), false);
+});
+
+const FIX_CI_JOBS = [
+  "fix-ci-context",
+  "fix-ci",
+  "fix-ci-handoff",
+  "fix-ci-subscription",
+  "apply-patch",
+  "fix-ci-rung-up",
+  "fix-ci-rung-up-handoff",
+  "fix-ci-rung-up-subscription",
+  "apply-patch-rung-up",
+  "fix-ci-unreported",
+];
+const FIX_CI_CALLS = ["fix-ci", "fix-ci-subscription", "fix-ci-rung-up", "fix-ci-rung-up-subscription"];
+
+// As for address-feedback: a job that needs a skipped call and lacks
+// !cancelled() is skipped too, so the fallback, the push and the unreported
+// post would never run.
+test("pr-unblock.yml: every fix-ci job after a model call starts its if: with !cancelled()", () => {
+  const after = FIX_CI_JOBS.filter((job) => jobGate(UNBLOCK, job).needs.some((need) => FIX_CI_CALLS.includes(need)));
+  assert.deepEqual(after, ["fix-ci-handoff", "fix-ci-subscription", "apply-patch", "fix-ci-rung-up-handoff", "fix-ci-rung-up-subscription", "apply-patch-rung-up", "fix-ci-unreported"]);
+  for (const job of after) assert.match(jobGate(UNBLOCK, job).gate, /^\$\{\{ !cancelled\(\) && /, job);
+});
+
+// A hostile model job can forge handed-off, lane-class, credential-present or
+// any output of its own. The fallback calls start on the handoff jobs' reads,
+// and the unreported post on fix-ci-context alone, so no forged output turns them.
+test("pr-unblock.yml: fix-ci's fallback calls and unreported post decide on base jobs alone, whatever a model call reports", () => {
+  const forged = /needs\.fix-ci(?:-rung-up)?(?:-subscription)?\.outputs\./;
+  for (const job of ["fix-ci-handoff", "fix-ci-subscription", "fix-ci-rung-up-handoff", "fix-ci-rung-up-subscription", "fix-ci-unreported"]) {
+    assert.doesNotMatch(jobGate(UNBLOCK, job).gate, forged, job);
+  }
+  // The evaluator refuses any reference left unset: each gate reads nothing else.
+  const sub = (posted, proceed = "true") =>
+    evaluate(jobGate(UNBLOCK, "fix-ci-subscription").gate, { "needs.fix-ci-context.outputs.proceed": proceed, "needs.fix-ci-handoff.outputs.posted": posted });
+  assert.equal(sub("false"), true);
+  assert.equal(sub("true"), false);
+  assert.equal(sub("false", "false"), false);
+  const rungUp = (result, posted) =>
+    evaluate(jobGate(UNBLOCK, "fix-ci-rung-up-subscription").gate, {
+      "needs.fix-ci-context.outputs.proceed": "true",
+      "needs.fix-ci-rung-up.result": result,
+      "needs.fix-ci-rung-up-handoff.outputs.posted": posted,
+    });
+  assert.equal(rungUp("success", "false"), true);
+  assert.equal(rungUp("success", "true"), false);
+  assert.equal(rungUp("skipped", ""), false, "no rung-up call, no rung-up fallback");
+  for (const [proceed, runs] of [["true", true], ["false", false], ["", false]]) {
+    assert.equal(evaluate(jobGate(UNBLOCK, "fix-ci-unreported").gate, { "needs.fix-ci-context.outputs.proceed": proceed }), runs, JSON.stringify(proceed));
+  }
+});
+
+test("pr-unblock.yml: apply-patch runs on a written or empty patch, or a refused collection, from the leg that answered", () => {
+  const { gate } = jobGate(UNBLOCK, "apply-patch");
+  const runs = (subResult, sub, first) =>
+    evaluate(gate, {
+      "needs.fix-ci-subscription.result": subResult,
+      "needs.fix-ci-subscription.outputs.scan-patch-state": sub[0] ?? "",
+      "needs.fix-ci-subscription.outputs.scan-collect-refused": sub[1] ?? "",
+      "needs.fix-ci.outputs.scan-patch-state": first[0] ?? "",
+      "needs.fix-ci.outputs.scan-collect-refused": first[1] ?? "",
+    });
+  assert.equal(runs("skipped", [], ["written"]), true, "the key call's patch, its subscription call skipped");
+  assert.equal(runs("skipped", [], ["empty"]), true, "an empty patch escalates");
+  assert.equal(runs("success", ["written"], []), true, "the subscription call's patch after a handoff");
+  assert.equal(runs("skipped", [], ["", "true"]), true, "a refused collection escalates");
+  assert.equal(runs("success", ["", "true"], []), true, "the subscription call's refused collection");
+  assert.equal(runs("success", [], ["written"]), false, "the key call's patch is not taken once the subscription call ran");
+  assert.equal(runs("success", [], ["", "true"]), false, "nor its refusal");
+  assert.equal(runs("skipped", [], ["", ""]), false, "a call that left no patch and refused none");
 });
