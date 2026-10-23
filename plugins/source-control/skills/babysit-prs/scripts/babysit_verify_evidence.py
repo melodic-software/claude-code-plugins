@@ -21,8 +21,9 @@ from a completed, successful one. Any other artifact is ignored.
   (tied as in the item after next): `verify:repeated-fail`, whatever a pass
   says, a FAIL at the head included. Before a FAIL at the head or a pass
   decides, FAILs of other pull requests in this repository, open or closed, that close one of its
-  closing issues count too, at their own heads (a FAIL among them whose run
-  cannot be read is `verify:unreadable`);
+  closing issues count too, at their own heads, and so does every FAIL whose
+  name carries one of those issues (a FAIL among them whose run cannot be
+  read is `verify:unreadable`);
 - a counted FAIL at the head, under any pull request number: `verify:fail`;
 - a counted FAIL at another head of this pull request: its number, one of its
   commits (`pulls/<n>/commits`), or a verdict recording its head branch (read
@@ -133,8 +134,17 @@ HEAD_REFS_ENV = "BABYSIT_VERIFY_HEAD_REFS"
 # (head-ref-map.mjs writes both).
 HEAD_REFS_VERSION = 1
 ARTIFACT_ID_RE = re.compile(r"[1-9][0-9]{0,15}")
+# A verdict's name, then optionally the head-ref digest, then, for a FAIL
+# only, optionally `-i` and the numbers of the issues the verdict records,
+# ascending, each once, joined by dots (`NAMED_ISSUES_MAX` at most), so one
+# verdict has one name. write-verdict.mjs writes the issues after the readers
+# accept them. `verdict_name` applies the order; NAME_RE alone does not.
+NAMED_ISSUES_MAX = 10
 NAME_RE = re.compile(
-    r"pr-verify-([1-9][0-9]*)-([0-9a-f]{40})-(pass|pass-notes|fail)(?:-([0-9a-f]{16}))?"
+    r"pr-verify-([1-9][0-9]{0,9})-([0-9a-f]{40})-"
+    r"(pass(?:-notes)?(?=(?:-[0-9a-f]{16})?\Z)|fail)"
+    r"(?:-([0-9a-f]{16}))?"
+    rf"(?:-i([1-9][0-9]{{0,9}}(?:\.[1-9][0-9]{{0,9}}){{0,{NAMED_ISSUES_MAX - 1}}}))?"
 )
 # The head-ref digest in a verdict's name: the first HEAD_REF_DIGEST_HEX hex
 # digits of the SHA-256 of the head branch's UTF-8 bytes. write-verdict.mjs
@@ -142,6 +152,34 @@ NAME_RE = re.compile(
 # them. Equal branches always give equal digests, so a collision can only tie
 # a FAIL to a branch it did not judge: it holds, never clears.
 HEAD_REF_DIGEST_HEX = 16
+
+
+def named_issues(match: re.Match[str]) -> frozenset[int]:
+    """The issue numbers a `NAME_RE` match names; none for an older name."""
+    return frozenset(int(n) for n in match[5].split(".")) if match[5] else frozenset()
+
+
+# The longest name the grammar allows: `pr-verify-` (10), a 10-digit number
+# and `-` (11), the SHA (40), `-fail` (5), `-` and the digest (17), `-i` (2),
+# then 10 issues of 10 digits and 9 dots (109).
+NAME_MAX = 10 + 11 + 40 + 5 + 17 + 2 + NAMED_ISSUES_MAX * 10 + NAMED_ISSUES_MAX - 1
+# What starts like a FAIL's name, with any digits for the number (leading
+# zeros and more than 10 included); one that is not a verdict name is held
+# (`Reader._evidence`), never skipped.
+FAIL_PREFIX_RE = re.compile(r"pr-verify-([0-9]+)-([0-9a-f]{40})-fail")
+
+
+def verdict_name(name: str) -> re.Match[str] | None:
+    """`NAME_RE`'s full match of `name`, when it is at most `NAME_MAX` long
+    and its issues, if any, are ascending and each listed once; else None,
+    as for any other name."""
+    match = NAME_RE.fullmatch(name) if len(name) <= NAME_MAX else None
+    if match is None or not match[5]:
+        return match
+    numbers = [int(n) for n in match[5].split(".")]
+    return match if all(a < b for a, b in zip(numbers, numbers[1:])) else None
+
+
 PASSES = ("pass", "pass-notes")
 # Artifacts last at most 90 days in this repository (the retention maximum,
 # and the repository's setting), so a verdict on an older pull request may be
@@ -965,10 +1003,23 @@ class Reader:
         # requests (`_closers`).
         failed_by_pr: dict[int, set[str]] = {}
         unread_prs: set[int] = set()
+        # The same by each issue a FAIL's name carries (`named_issues`).
+        failed_by_issue: dict[int, set[str]] = {}
+        unread_issues: set[int] = set()
         for item in map(json_object, self._listing()):
             name = str(item.get("name") or "")
-            match = NAME_RE.fullmatch(name)
-            if not match or item.get("expired") is not False:
+            match = verdict_name(name)
+            if item.get("expired") is not False:
+                continue
+            if not match:
+                if (off := FAIL_PREFIX_RE.match(name)) is not None:
+                    hold, unread = self._off_grammar(
+                        item, name, int(off[1]) == number or off[2] in commits
+                    )
+                    unreadable = unreadable or hold
+                    if unread:
+                        # Held only if its pull request is one the cap counts.
+                        unread_prs.add(int(off[1]))
                 continue
             pr_n, sha, verdict = int(match[1]), match[2], match[3]
             run_id = json_object(item.get("workflow_run")).get("id")
@@ -993,12 +1044,15 @@ class Reader:
                 continue
             if state == UNREAD:
                 unread_prs.add(pr_n)
+                unread_issues.update(named_issues(match))
                 if tied:
                     unreadable = unreadable or f"run of {name}"
                 else:
                     ignored += 1
                 continue
             failed_by_pr.setdefault(pr_n, set()).add(sha)
+            for issue in named_issues(match):
+                failed_by_issue.setdefault(issue, set()).add(sha)
             if not tied and match[4] is not None:
                 # The name, which the run authenticates, carries the head
                 # branch the verdict records: no download.
@@ -1025,7 +1079,9 @@ class Reader:
         elif head in failed:
             # A FAIL here gets a fix round, so the cap counts the other pull
             # requests for its issues first: a round past it cannot merge.
-            _, elsewhere = self._elsewhere(number, failed_by_pr, unread_prs)
+            _, elsewhere = self._elsewhere(
+                number, failed_by_pr, unread_prs, failed_by_issue, unread_issues
+            )
             refusal = FAIL
             if len(failed | elsewhere) >= self.max_fails:
                 refusal = REPEATED_FAIL
@@ -1043,7 +1099,9 @@ class Reader:
         elif passes:
             # Every pass at the head must allow, so listing order decides
             # nothing; any unreadable one refuses (`_Unreadable`).
-            live, elsewhere = self._elsewhere(number, failed_by_pr, unread_prs)
+            live, elsewhere = self._elsewhere(
+                number, failed_by_pr, unread_prs, failed_by_issue, unread_issues
+            )
             if len(failed | elsewhere) >= self.max_fails:
                 refusal = REPEATED_FAIL
                 detail = (
@@ -1072,17 +1130,46 @@ class Reader:
             else None,
         )
 
+    def _off_grammar(
+        self, item: dict[str, Any], name: str, tied: bool
+    ) -> tuple[str | None, bool]:
+        """Why a FAIL-shaped name no reader takes holds, and whether its run
+        cannot be read. It holds when its run is of verifier origin, or, tied
+        to this pull request, cannot be read: it may be a FAIL the cap or the
+        head should count, so it is never skipped. One from any other run is
+        ignored; an untied one whose run cannot be read is left to the cap
+        (`_elsewhere`), as any such FAIL is."""
+        run_id = json_object(item.get("workflow_run")).get("id")
+        if not isinstance(run_id, int) or isinstance(run_id, bool):
+            return None, False
+        state = self._run_state(run_id, shared=True)
+        if state == FOREIGN:
+            return None, False
+        if state == UNREAD and not tied:
+            return None, True
+        return f"off-grammar FAIL name {name}", state == UNREAD
+
     def _elsewhere(
-        self, number: int, failed_by_pr: dict[int, set[str]], unread_prs: set[int]
+        self,
+        number: int,
+        failed_by_pr: dict[int, set[str]],
+        unread_prs: set[int],
+        failed_by_issue: dict[int, set[str]],
+        unread_issues: set[int],
     ) -> tuple[dict[Any, Any], set[str]]:
         """The live closing issues, and the heads of counted FAILs of the
-        other pull requests that close one of them. A FAIL among those whose
-        run cannot be read raises `_Unreadable`."""
+        other pull requests that close one of them, and of every counted FAIL
+        whose name carries one of them (`named_issues`), from the listing
+        already read. A FAIL among those whose run cannot be read raises
+        `_Unreadable`."""
         live = self._closing_issues(number)
         others = self._closers(live) - {number}
-        if others & unread_prs:
+        if others & unread_prs or unread_issues & set(live):
             raise _Unreadable("a FAIL run of a pull request for the same issue")
-        return live, set().union(*(failed_by_pr.get(n, set()) for n in others))
+        return live, set().union(
+            *(failed_by_pr.get(n, set()) for n in others),
+            *(failed_by_issue.get(n, set()) for n in live),
+        )
 
     def _fresh_created(self, run_id: int) -> datetime | None:
         """When the run was created, from a record this process read from
