@@ -176,7 +176,8 @@ class FakeGh:
         # SHAs main reached at or after MERGE_SHA; anything else does not contain it.
         self.descendants = {MERGE_SHA, LATER_SHA}
         # Commits on main itself: the history of its tip, `refs/heads/main`.
-        self.on_main = {MERGE_SHA, LATER_SHA, TIP_SHA}
+        # HEAD_SHA stands for a commit before the merge.
+        self.on_main = {HEAD_SHA, MERGE_SHA, LATER_SHA, TIP_SHA}
         self.main_tip = TIP_SHA
         # What a compare against the bare name `main` reaches; None means the
         # branch, a set stands in for a same-named tag on another history.
@@ -1873,6 +1874,19 @@ class Baseline(CheckCase):
         )
         if jobs:
             self.gh.jobs[(30, 1)] = list(jobs)
+
+    def test_a_baseline_run_on_a_commit_not_on_main_is_ignored(self) -> None:
+        # A red run on a tag named main cannot excuse a check: its commit is
+        # not main's, so the merge is judged as if it had no baseline.
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "schedule",
+            schedule_run(30, "failure", head_sha=FORK_SHA, created_at=self.BEFORE),
+        )
+        self.gh.jobs[(30, 1)] = [failed_job(301, "test-bash", "Run the bash tests")]
+        self.red_after_merge(failed_job(312, "test-bash", "Run the bash tests"))
+        verdict = self.check()
+        self.assertEqual([f.signal for f in verdict.failures], ["schedule"])
 
     def test_a_check_already_red_before_the_merge_is_not_charged_to_it(self) -> None:
         self.before_merge("failure", failed_job(301, "test-bash", "Run the bash tests"))

@@ -1114,11 +1114,26 @@ class _Context:
                     and r.created_at < run.created_at
                     and r.head_sha != run.head_sha
                 ]
-            green = max(greens, key=lambda r: r.created_at, default=None)
+            green = self._newest_on_branch(greens)
             self.affected_cache[run.id] = (
                 None if green is None else affected_suites(green.head_sha, run.head_sha)
             )
         return self.affected_cache[run.id]
+
+    def _newest_on_branch(self, runs: list[Run]) -> Run | None:
+        """The newest of `runs` whose head commit is on the branch as
+        `refs/heads/` names it. A run's `head_branch` is only a name: a run on
+        a tag named like the branch carries it too, and its commit (and plan
+        script) can be anyone's with write access."""
+        return next(
+            (
+                r
+                for r in sorted(runs, key=lambda r: r.created_at, reverse=True)
+                if _FULL_SHA.fullmatch(r.head_sha or "")
+                and self.contains(r.head_sha, self._branch_tip())
+            ),
+            None,
+        )
 
     def _quarantine_days(self, sha: str) -> int:
         if self.quarantine_days is None:
@@ -1178,7 +1193,7 @@ class _Context:
                 and r.head_branch == self.branch
                 and r.status == "completed"
             ]
-            newest = max(runs, key=lambda r: r.created_at, default=None)
+            newest = self._newest_on_branch(runs)
             self.baseline_cache[key] = (
                 None
                 if newest is None
