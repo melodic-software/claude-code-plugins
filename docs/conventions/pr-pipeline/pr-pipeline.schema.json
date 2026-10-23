@@ -403,7 +403,8 @@
         "probe-first",
         "workflow-modified",
         "rung-up",
-        "no-model-turn"
+        "no-model-turn",
+        "clean-merge"
       ],
       "description": "The one reason a skipped activity's neutral check carries. Not used by the config file; the runner and check-run reporter validate reasons against it. Meaning: README.md, Outputs and skips."
     },
@@ -482,7 +483,7 @@
       },
       "allOf": [
         {
-          "if": { "required": ["effect", "prepare"], "properties": { "effect": { "const": "read" }, "prepare": { "enum": ["ci-context", "review-threads"] } } },
+          "if": { "required": ["effect", "prepare"], "properties": { "effect": { "const": "read" }, "prepare": { "enum": ["ci-context", "review-threads", "merge-base"] } } },
           "then": { "required": ["applied-by"], "properties": { "applied-by": { "required": ["patch"] } } }
         },
         {
@@ -498,7 +499,7 @@
         "skill": { "$ref": "#/$defs/skill" },
         "prepare": {
           "enum": ["merge-base", "review-threads", "dependency-review", "ci-context", "apply-patch"],
-          "description": "What the runner does around the activity (README.md, Activities; pr-run-activity.md, the prepare sections). apply-patch is the one mode for a script, a mutate-branch one; the others run around a skill. ci-context needs effect read and hands its change on as a patch; merge-base, review-threads and dependency-review need an effect other than read unless their activity hands its change on as a patch, review-threads with effect read also hands on its replies (applied-by.feedback-replies), and dependency-review with effect read its verdict (applied-by.dependency-verdict). ci-context: download the failing-check context file a base job wrote, check its SHA-256 and head, make it read-only and name it to the skill, which also gets Bash, Edit and Write. apply-patch: check the patch artifact a producer left (one patch.diff with its SHA-256, on the head it worked on), apply it to the gated head, and push it as one commit without force; patch-rules.json registers the rules each producer's patch is to be held to (README.md, Patch rules). merge-base: merge the base tip without committing before the skill, then commit with the gated head and the base tip as parents. review-threads: before any model turn, keep the PR's unresolved reviewer-bot threads on a reviewed head and escalate on a .github/** diff or the round cap (on the read runner, a base job of the caller does this and the runner checks its thread file); give the skill the review-thread tool; after it, upload the replies it recorded for a script job to validate and post. dependency-review: before any model turn, skip a PR Dependabot did not open or one sorted auto, and escalate on the round cap (on the read runner, a base job of the caller does this and the runner checks its context file); give the skill a read-only context file and a verdict schema for its structured output; after it, upload the verdict for a script job to validate and act on, and the fix as a patch a prepare: apply-patch script pushes only on a fix verdict."
+          "description": "What the runner does around the activity (README.md, Activities; pr-run-activity.md, the prepare sections). apply-patch is the one mode for a script, a mutate-branch one; the others run around a skill. ci-context needs effect read and hands its change on as a patch; merge-base, review-threads and dependency-review need an effect other than read unless their activity hands its change on as a patch, review-threads with effect read also hands on its replies (applied-by.feedback-replies), and dependency-review with effect read its verdict (applied-by.dependency-verdict). ci-context: download the failing-check context file a base job wrote, check its SHA-256 and head, make it read-only and name it to the skill, which also gets Bash, Edit and Write. apply-patch: check the patch artifact a producer left (one patch.diff with its SHA-256, on the head it worked on), apply it to the gated head, and push it as one commit without force; patch-rules.json registers the rules each producer's patch is to be held to (README.md, Patch rules). merge-base: merge the base tip without committing before the skill, then commit with the gated head and the base tip as parents (with effect read, a base job of the caller merges first and decides, the read runner merges the same base again and hands the skill's resolutions on as a patch measured from the conflict tree, and a prepare: apply-patch script commits the merge). review-threads: before any model turn, keep the PR's unresolved reviewer-bot threads on a reviewed head and escalate on a .github/** diff or the round cap (on the read runner, a base job of the caller does this and the runner checks its thread file); give the skill the review-thread tool; after it, upload the replies it recorded for a script job to validate and post. dependency-review: before any model turn, skip a PR Dependabot did not open or one sorted auto, and escalate on the round cap (on the read runner, a base job of the caller does this and the runner checks its context file); give the skill a read-only context file and a verdict schema for its structured output; after it, upload the verdict for a script job to validate and act on, and the fix as a patch a prepare: apply-patch script pushes only on a fix verdict."
         },
         "applied-by": {
           "type": "object",
