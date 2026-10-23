@@ -74,6 +74,12 @@ inputs:
     description: The resolved grant's `issues`, `read` or `write`. Required in `token` mode, empty in `check` mode.
     required: false
     default: ""
+  actions:
+    description: >-
+      The resolved grant's `actions`: `read` when lane-rules.json's
+      `activity-grants` adds it, else empty. `token` mode only.
+    required: false
+    default: ""
   superseded-ok:
     description: >-
       `true` ends the step green, with a warning and no token, when the broker
@@ -146,6 +152,7 @@ runs:
         CONTENTS: ${{ inputs.contents }}
         PULL_REQUESTS: ${{ inputs.pull-requests }}
         ISSUES: ${{ inputs.issues }}
+        ACTIONS: ${{ inputs.actions }}
         SUPERSEDED_OK: ${{ inputs.superseded-ok }}
         PR_WORKFLOW_CHANGE_OK: ${{ inputs.pr-workflow-change-ok }}
         HEAD_SHA: ${{ inputs.head-sha }}
@@ -188,6 +195,7 @@ runs:
             [[ $value == read || $value == write ]] ||
               fail "the resolved grant must be read or write for contents, pull-requests and issues"
           done
+          [[ -z ${ACTIONS:-} || $ACTIONS == read ]] || fail "the resolved grant's actions must be read or empty"
           [[ -z ${PR_NUMBER:-} || $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ ]] || fail "the PR number is malformed"
           [[ -z ${ISSUE_NUMBER:-} || $ISSUE_NUMBER =~ ^[1-9][0-9]{0,9}$ ]] || fail "the issue number is malformed"
           [[ -z ${ISSUE_NUMBER:-} || -z $PR_NUMBER$DISPATCHER_RUN_ID ]] ||
@@ -201,7 +209,7 @@ runs:
         check)
           # The check job resolves no grant and gates no PR, and the broker's
           # check endpoint answers 400 to any body field but lane and activity.
-          [[ -z $EFFECT$CONTENTS$PULL_REQUESTS$ISSUES$PR_NUMBER$ISSUE_NUMBER$DISPATCHER_RUN_ID${EXPECTED_UPSTREAM_HEAD:-} ]] ||
+          [[ -z $EFFECT$CONTENTS$PULL_REQUESTS$ISSUES${ACTIONS:-}$PR_NUMBER$ISSUE_NUMBER$DISPATCHER_RUN_ID${EXPECTED_UPSTREAM_HEAD:-} ]] ||
             fail "check mode takes no effect, grant, PR or issue number, or dispatcher run id"
           [[ $BROKER_URL =~ ^https://[^/]+/(.+/)?token$ ]] ||
             fail "lane-token-unconfigured: LANES_BROKER_URL does not end in a /token path segment, so it names no check endpoint"
@@ -382,8 +390,8 @@ runs:
         # base-SHA actions on its own resolution. Any difference fails red.
         got=$(jq -c '{effect, permissions, lane, activity, repository_ids}' "$response")
         want=$(jq -cn --arg effect "$EFFECT" --arg c "$CONTENTS" --arg p "$PULL_REQUESTS" --arg i "$ISSUES" \
-          --arg lane "$LANE" --arg activity "$ACTIVITY" --arg repo "$GITHUB_REPOSITORY_ID" \
-          '{effect: $effect, permissions: {contents: $c, pull_requests: $p, issues: $i},
+          --arg a "${ACTIONS:-}" --arg lane "$LANE" --arg activity "$ACTIVITY" --arg repo "$GITHUB_REPOSITORY_ID" \
+          '{effect: $effect, permissions: ({contents: $c, pull_requests: $p, issues: $i} + (if $a == "" then {} else {actions: $a} end)),
             lane: $lane, activity: $activity, repository_ids: [($repo | tonumber)]}')
         if [ "$(jq -n --argjson got "$got" --argjson want "$want" '$got == $want')" != true ]; then
           fail "effect-mismatch: the broker granted $(one_line <<<"$got"), this job resolved $want"
