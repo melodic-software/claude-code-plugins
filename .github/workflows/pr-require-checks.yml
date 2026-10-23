@@ -3147,15 +3147,17 @@ jobs:
         # (`na` for a missing value). api-budget.mjs and babysit_gh.py append the same
         # lines. Never fails the caller.
         #
-        #   api_budget_read <token>     gh api -i output on stdin: the header block at
-        #                               the start becomes a reading, the body passes to
-        #                               stdout unchanged
+        #   api_budget_read <token> <file>
+        #                               gh api -i output: the header block at the start
+        #                               becomes a reading, the body goes to stdout byte
+        #                               for byte
         #   api_budget_wrap_gh <token>  defines gh() so `gh api` runs with -i through
         #                               api_budget_read, keeping stdout, stderr and the
         #                               exit status as they were (not --paginate, whose
         #                               per-page header blocks are left out)
         #   api_budget_emit <token>...  the hub collector's notice for each refused
-        #                               (403/429) reading and for the last one; cost is
+        #                               (403/429) reading and for the last reading of
+        #                               each resource, core last; cost is
         #                               the rise in used since the first earlier reading
         #                               with the same reset and resource, else na
         #
@@ -3164,35 +3166,38 @@ jobs:
         # log-api-budget.test.mjs keeps the two the same.
 
         api_budget_read() {
-          local state=${RUNNER_TEMP:-}/api-budget/${1:-}
+          local state=${RUNNER_TEMP:-}/api-budget/${1:-} lines
           if [[ -z ${RUNNER_TEMP:-} || ! ${1:-} =~ ^[a-z][a-z0-9-]{0,39}$ ]] || ! mkdir -p "${state%/*}" 2>/dev/null; then
             state=/dev/null
           fi
-          awk -v state="$state" '
+          # Only the block at the very start is headers, so a body line shaped like a
+          # status line stays body. awk reads the block and prints its line count;
+          # tail then writes the body byte for byte.
+          lines=$(awk -v state="$state" '
             function val(k, re) { return (k in h && h[k] ~ re) ? h[k] : "na" }
             function flush() {
               printf "%s %s %s %s %s %s\n", status, val("limit", "^[0-9]+$"), val("remaining", "^[0-9]+$"),
                 val("used", "^[0-9]+$"), val("reset", "^[0-9]+$"), val("resource", "^[a-z_]+$") >>state
               close(state)
-              inhdr = 0
+              print NR
+              done = 1
+              exit
             }
-            # Only the block at the very start is headers: a body line that looks
-            # like a status line is body.
-            NR == 1 && /^HTTP\/[0-9.]+ [0-9][0-9][0-9]/ { inhdr = 1; status = $2; next }
-            inhdr {
+            NR == 1 && !/^HTTP\/[0-9.]+ [0-9][0-9][0-9]/ { print 0; done = 1; exit }
+            NR == 1 { status = $2; next }
+            {
               line = $0
               sub(/\r$/, "", line)
-              if (line == "") { flush(); next }
+              if (line == "") flush()
               if (tolower(line) ~ /^x-ratelimit-(limit|remaining|used|reset|resource):/) {
                 k = tolower(line); sub(/^x-ratelimit-/, "", k); sub(/:.*/, "", k)
                 v = line; sub(/^[^:]*:[ \t]*/, "", v)
                 h[k] = v
               }
-              next
             }
-            { print }
-            END { if (inhdr) flush() }
-          '
+            END { if (!done && NR) flush(); if (!done) print 0 }
+          ' "$2") || lines=0
+          tail -n +"$((${lines:-0} + 1))" "$2"
         }
 
         api_budget_wrap_gh() {
@@ -3214,7 +3219,7 @@ jobs:
             done
             out=$(mktemp 2>/dev/null) || { command gh "$@"; return; }
             command gh api -i "${@:2}" >"$out" || rc=$?
-            api_budget_read "$API_BUDGET_GH_TOKEN" <"$out"
+            api_budget_read "$API_BUDGET_GH_TOKEN" "$out"
             rm -f "$out"
             return "$rc"
           }
@@ -3240,8 +3245,10 @@ jobs:
                   token, where, l[i], r[i], u[i], t[i], res[i], cost
               }
               END {
-                for (i = 1; i < n; i++) if (s[i] == 403 || s[i] == 429) line(i)
-                if (n) line(n)
+                for (i = 1; i <= n; i++) last[res[i]] = i
+                for (i = 1; i <= n; i++) if ((s[i] == 403 || s[i] == 429) && last[res[i]] != i) line(i)
+                for (i = 1; i <= n; i++) if (last[res[i]] == i && res[i] != "core") line(i)
+                if ("core" in last) line(last["core"])
               }' "$file"
           done
           return 0

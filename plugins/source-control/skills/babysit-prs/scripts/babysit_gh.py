@@ -246,7 +246,13 @@ _API_BUDGET_VALUES = {
 def _api_budget_token(
     args: list[str], env_overrides: Mapping[str, str] | None
 ) -> str | None:
-    if not args or args[0] != "api" or _API_BUDGET_SKIP_FLAGS.intersection(args):
+    # GET /rate_limit reports another bucket than the one the calls spend.
+    if (
+        not args
+        or args[0] != "api"
+        or "rate_limit" in args
+        or _API_BUDGET_SKIP_FLAGS.intersection(args)
+    ):
         return None
     own = bool(env_overrides and "GH_TOKEN" in env_overrides)
     name = os.environ.get(

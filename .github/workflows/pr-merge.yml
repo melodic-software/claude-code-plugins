@@ -1197,8 +1197,9 @@ jobs:
         with:
           tokens: lanes-app github-token
 
-      # One line per sweep, in the log and the summary: the two tokens' spend
-      # since mint (`unknown` when the hourly window rolled), the candidates
+      # One line per sweep, in the log and the summary: the two tokens' core
+      # spend across the job's own calls, from their rate-limit headers
+      # (`unknown` without two readings in one window), the candidates
       # listed, how many the gate reached before it ended, and how many it
       # skipped as unchanged.
       - name: Write the sweep cost

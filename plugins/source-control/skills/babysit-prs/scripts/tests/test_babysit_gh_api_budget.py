@@ -159,6 +159,12 @@ class ApiBudgetTests(unittest.TestCase):
                 ["gh", "api", "x", "--paginate", "--jq", "."],
             ],
         )
+        self.run_gh(
+            "{}",
+            ["api", "rate_limit"],
+            env={"RUNNER_TEMP": self.dir, "API_BUDGET_TOKEN": "lanes-app"},
+        )
+        self.assertEqual(self.calls[-1], ["gh", "api", "rate_limit"])
         self.assertFalse(pathlib.Path(self.dir, "api-budget").exists())
 
 

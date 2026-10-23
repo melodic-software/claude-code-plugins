@@ -48,6 +48,7 @@ test("parseBudget reads pr-merge's api-budget notice", () => {
     { phase: "end", name: "lanes-app", remaining: 494, used: 4706, limit: 5200 },
   );
   assert.equal(parseBudget("token=lanes-app workflow=w job=j run=1 attempt=1 limit=na remaining=na used=na reset=na resource=na cost=na"), null);
+  assert.equal(parseBudget("token=lanes-app workflow=w job=j run=1 attempt=1 limit=5000 remaining=1 used=4999 reset=1 resource=graphql cost=na"), null);
 });
 
 test("signal 2: a lane reading over 90% fires, 90% exactly stays quiet", () => {

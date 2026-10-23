@@ -18,6 +18,8 @@ const RUNNER = {
 };
 const WHERE = "workflow=.github/workflows/pr-require-checks.yml job=ci-status run=39931677333 attempt=2";
 const NOTICE = "::notice title=api-budget::";
+// api_budget_read takes a file, as the gh wrapper gives it one.
+const READ = 'f=$(mktemp -p "$RUNNER_TEMP"); cat >"$f"; api_budget_read';
 
 // A `gh api -i` header block, CRLF header lines as gh prints them.
 const head = ({ status = 200, used, reset = 1792748042, resource = "core" }) =>
@@ -47,18 +49,30 @@ function bash(dir, script, { input = "", env = {}, path = process.env.PATH } = {
 const state = (dir, token) => readFileSync(join(dir, "api-budget", token), "utf8");
 
 // One response per api_budget_read, as each gh api call makes.
-const readEach = (dir, token, ...blocks) => blocks.forEach((input) => bash(dir, `api_budget_read ${token} >/dev/null`, { input }));
+const readEach = (dir, token, ...blocks) => blocks.forEach((input) => bash(dir, `${READ} ${token} "$f" >/dev/null`, { input }));
 
 test("api_budget_read reads only the leading header block and passes the body through unchanged", () =>
   withDir((dir) => {
     // A body line shaped like a status line is body, never a second block.
     const body = "keep1\nHTTP/1.1 200 x\nflagged()\n\nafter\n";
-    const out = bash(dir, "api_budget_read github-token", { input: head({ used: 120 }) + body });
+    const out = bash(dir, `${READ} github-token "$f"`, { input: head({ used: 120 }) + body });
     assert.equal(out.stdout, body);
     assert.equal(state(dir, "github-token"), "200 5000 4880 120 1792748042 core\n");
     // Output with no header block is passed on and read as nothing.
-    assert.equal(bash(dir, "api_budget_read lanes-app", { input: "[1]\n" }).stdout, "[1]\n");
+    assert.equal(bash(dir, `${READ} lanes-app "$f"`, { input: "[1]\n" }).stdout, "[1]\n");
     assert.equal(existsSync(join(dir, "api-budget", "lanes-app")), false);
+    // A body with no final newline keeps none.
+    assert.equal(bash(dir, `${READ} x "$f"`, { input: `${head({ used: 1 })}{"a":1}` }).stdout, '{"a":1}');
+  }));
+
+test("api_budget_emit writes the last reading of each resource, core last", () =>
+  withDir((dir) => {
+    readEach(dir, "lanes-app", head({ used: 10 }), head({ used: 4, resource: "graphql" }), head({ used: 12 }), head({ used: 9, resource: "graphql" }));
+    const lines = bash(dir, "api_budget_emit lanes-app").stdout.split("\n").filter(Boolean);
+    assert.deepEqual(
+      lines.map((line) => line.slice(line.indexOf(" used="))),
+      [" used=9 reset=1792748042 resource=graphql cost=5", " used=12 reset=1792748042 resource=core cost=2"],
+    );
   }));
 
 test("the gh wrapper keeps stdout, stderr and the exit status, and reads the headers", () =>

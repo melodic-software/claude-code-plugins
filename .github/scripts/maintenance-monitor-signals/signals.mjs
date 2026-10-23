@@ -46,12 +46,13 @@ function finding({ key, signal, title, area, summary, facts, evidence, observedA
 
 // pr-merge's api-budget notices, from .github/actions/log-api-budget: at
 // start `<phase> <name> core remaining=R used=U limit=L reset=<ISO> ...`, at
-// end `token=<name> workflow=... limit=L remaining=R used=U ...`.
+// end `token=<name> workflow=... limit=L remaining=R used=U ... resource=core ...`
+// (a graphql or search reading is not the REST quota).
 export function parseBudget(message) {
   const text = String(message);
   const m = /^([a-z]+) ([a-z][a-z0-9-]*) core remaining=(\d+) used=(\d+) limit=(\d+) /.exec(text);
   if (m) return { phase: m[1], name: m[2], remaining: Number(m[3]), used: Number(m[4]), limit: Number(m[5]) };
-  const e = /^token=([a-z][a-z0-9-]*) .* limit=(\d+) remaining=(\d+) used=(\d+) /.exec(text);
+  const e = /^token=([a-z][a-z0-9-]*) .* limit=(\d+) remaining=(\d+) used=(\d+) reset=\S+ resource=core /.exec(text);
   if (e) return { phase: "end", name: e[1], remaining: Number(e[3]), used: Number(e[4]), limit: Number(e[2]) };
   return null;
 }
