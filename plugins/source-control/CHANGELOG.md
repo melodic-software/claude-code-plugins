@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.11.0] - 2026-10-23
+
+### Changed
+
+- `review-venue.sh` finds the code-review lane on ci-workflows' [`pr-review-cli.yml`](https://github.com/melodic-software/ci-workflows/blob/83b739f625b501ad40c65dee7168d836883195e1/.github/workflows/pr-review-cli.yml) from a caller whose path does not contain `security`; a caller whose path does still counts only for security-review.
+
 ## [2.10.0] - 2026-10-23
 
 ### Changed
