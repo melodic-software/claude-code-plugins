@@ -456,3 +456,58 @@ test("pr-unblock.yml: address-feedback's and review-dependency's fallback calls 
     }
   }
 });
+
+// A step's if:, single-line or folded, by its name.
+function stepIf(file, name) {
+  const lines = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8").split("\n");
+  const start = lines.indexOf(`      - name: ${name}`);
+  assert.notEqual(start, -1, `${file}: step ${name}`);
+  const at = lines.findIndex((line, i) => i > start && /^ {8}if: /.test(line));
+  const gate = lines[at].slice("        if: ".length);
+  if (gate !== ">-") {
+    return gate;
+  }
+  const folded = [];
+  for (const line of lines.slice(at + 1)) {
+    if (!/^ {10}/.test(line)) break;
+    folded.push(line.trim());
+  }
+  return folded.join(" ");
+}
+
+// The minutes of a workflow's one `cron:` line.
+function cronMinutes(file) {
+  const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
+  const cron = /\n {4}- cron: "([0-9,]+) \* \* \* \*"\n/.exec(text);
+  assert.ok(cron, `${file}: one hourly cron line`);
+  return cron[1].split(",").map(Number);
+}
+
+const DISPATCHER = "pr-unblock-dispatch.yml";
+
+test("pr-unblock-dispatch.yml gates a hand run and every re-run, and no first push or scheduled attempt", () => {
+  const gate = stepIf(DISPATCHER, "Check the trigger");
+  const runs = (event, attempt, kill = "true") =>
+    evaluate(gate, { "steps.kill.outputs.proceed": kill, "github.event_name": event, "github.run_attempt": attempt });
+  assert.equal(runs("push", "1"), false);
+  assert.equal(runs("schedule", "1"), false);
+  assert.equal(runs("workflow_dispatch", "1"), true);
+  assert.equal(runs("push", "2"), true);
+  assert.equal(runs("schedule", "2"), true);
+  assert.equal(runs("schedule", "1", "false"), false);
+  // A skipped gate lets the dispatch step run; a checked one must proceed.
+  const dispatches = (outcome, proceed = "") =>
+    evaluate(stepIf(DISPATCHER, "Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs"), {
+      "steps.kill.outputs.proceed": "true",
+      "steps.gate.outcome": outcome,
+      "steps.gate.outputs.proceed": proceed,
+    });
+  assert.equal(dispatches("skipped"), true);
+  assert.equal(dispatches("success", "true"), true);
+  assert.equal(dispatches("success", "false"), false);
+});
+
+test("pr-unblock-dispatch.yml ticks five minutes after each lost-run reconciler tick", () => {
+  const reconciler = cronMinutes("maintenance-reconcile-lost-runs.yml");
+  assert.deepEqual(cronMinutes(DISPATCHER), reconciler.map((minute) => (minute + 5) % 60));
+});

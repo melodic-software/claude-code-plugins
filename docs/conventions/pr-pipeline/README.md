@@ -111,20 +111,21 @@ reader applies.
 
 | Lane | Starts on |
 |---|---|
-| `pr-refine` | a `fix-docs` dispatch from `pr-unblock-dispatch.yml` for each ready PR that changes Markdown and never had `fix-docs`, after a push to the default branch, or a trusted human's dispatch |
+| `pr-refine` | a `fix-docs` dispatch from `pr-unblock-dispatch.yml` for each ready PR that changes Markdown and never had `fix-docs`, after a push to the default branch or at the dispatcher's half-hourly tick, or a trusted human's dispatch |
 | `pr-run-checks` | dispatch from `pr-refine` |
 | `pr-review`, `pr-review-security` | dispatch from `pr-refine` |
 | `pr-verify` | dispatch from `pr-refine` |
 | `pr-explain` | dispatch from `pr-refine`, alongside verify |
 | `pr-require-checks` | each verify result |
-| `pr-unblock` | a dispatch for each conflicting PR, each unreviewed review-tier Dependabot PR, and each failing lanes App PR after a push to the default branch, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, or a trusted human's dispatch |
+| `pr-unblock` | a dispatch for each conflicting PR, each unreviewed review-tier Dependabot PR, and each failing lanes App PR after a push to the default branch or at the dispatcher's half-hourly tick, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, or a trusted human's dispatch |
 | `pr-merge` | final check green, or a hold removed |
 | `work-unblock` | an issue closing, by a listed human, and an hourly sweep of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran); labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue`. The sweep also restarts or re-fires stopped issue runs and relabels a red-main fix issue a repeat failure reopened |
 | `post-merge-verify` | push to the default branch |
 | `post-merge-sweep-comments` | push to the default branch |
 
 `pr-unblock`'s dispatches come from `pr-unblock-dispatch.yml`, a scripted workflow with no model
-that runs on a push to `main` and on a trusted human's `workflow_dispatch`:
+that runs on a push to `main`, half-hourly five minutes after each lost-run reconciler tick, and on
+a trusted human's `workflow_dispatch`:
 
 - It lists open, non-draft, same-repository PRs into `main` that GitHub reports as `CONFLICTING`,
   re-querying an `UNKNOWN` PR up to 5 times, 10 s apart.
@@ -133,7 +134,8 @@ that runs on a push to `main` and on a trusted human's `workflow_dispatch`:
 - It dispatches `pr-unblock.yml` on `refs/heads/main` for at most 3 PRs per run, lowest number
   first, passing `pr-number` and `dispatcher-run-id`.
 - A hand run or a re-run must be started by a listed human (`check-trusted-trigger` with
-  `require-pr: false` and `require-kind: human`).
+  `require-pr: false` and `require-kind: human`). That mode handles no `schedule` event, so a
+  re-run of a scheduled run fails; the next tick replaces it.
 - With the kill switch on, the run ends green with a notice and dispatches nothing.
 
 In `pr-unblock.yml` no model holds a write token or runs git: `resolve-conflicts-select` (base
@@ -242,8 +244,8 @@ at most 2 `review`-tier PRs per run whose head has no `pr-unblock / review-depen
 from the GitHub Actions app (the untrusted-trigger skip aside; one that started before the head's
 newest `pr-unblock / apply-dependency-verdict` check run stops counting when that run skipped
 `no-model-turn`, unless it is a limit stop, and the round cap still bounds the retries). Their run
-ids join the same dispatched-runs record. It has no schedule: the broker accepts a dispatcher run
-started only by a push or a listed human, so a push to `main` or a hand run wakes it. In `pr-unblock.yml`, no
+ids join the same dispatched-runs record. A push to `main`, the half-hourly tick or a hand run
+wakes it. In `pr-unblock.yml`, no
 model holds a write token: `review-dependency-select` (base code only, read-only token) selects
 the pull request or posts its check neutral; `review-dependency` (a `read` skill in
 [patch output mode](pr-run-activity.md#patch-output-mode), on run-claude-cli with the
@@ -610,7 +612,7 @@ The reader also adds the config file's own path, `.github/**` and the trusted-ac
 | Within one run | Leaves run in slot order: `publish-feedback` after `address-feedback` once its skill ran; `report-escalation` after the others, and only when one escalated | the caller's `needs:` |
 | Across PRs | Unbounded: every group is per PR | group names |
 | Within one PR, across write lanes | One queue: a write job waits for the one ahead and never cancels it | job group `pr-pipeline-write-<n>`, `queue: max`, on every write caller job |
-| `pr-unblock-dispatch` | One run at a time; a newer push replaces a waiting run | workflow group `pr-unblock-dispatch` |
+| `pr-unblock-dispatch` | One run at a time; a newer push or tick cancels the one waiting or going | workflow group `pr-unblock-dispatch` |
 | `pr-feedback-dispatch` | One run per reviewed head at a time; a waiting one is replaced | workflow group `pr-feedback-dispatch-<head SHA>` |
 
 The write group sits on each caller job, behind an `if:` that leaves out the lanes App's own

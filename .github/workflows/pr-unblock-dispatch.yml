@@ -17,13 +17,19 @@ name: pr-unblock-dispatch
 # that changes a Markdown file, carries no hold label and never had a fix-docs
 # check run, whoever opened it except Dependabot, the release App and the
 # standards-sync App, at most limits.fix-docs-per-run per run, from its own
-# logged GraphQL listing (.github/scripts/pr-unblock/fix-docs-dispatch.mjs). No
-# schedule: the broker accepts a dispatcher run started by a push or a listed
-# human only.
+# logged GraphQL listing (.github/scripts/pr-unblock/fix-docs-dispatch.mjs).
+#
+# It also runs half-hourly, five minutes after each
+# maintenance-reconcile-lost-runs tick, so a PR whose reconciler re-run failed
+# gets fix-ci within one interval, not at the next push to main. A tick runs the
+# same listings as a push run; with nothing to dispatch it reads nothing per PR
+# past them. The gate and the broker accept a dispatcher run started by a
+# push, a schedule or a listed human.
 #
 # No model and no App token: the job's GITHUB_TOKEN can only read and start
 # workflow runs. A run started by hand, or a re-run of a push run, must come
-# from a listed trusted human. The dispatched lane runs its own trigger gate,
+# from a listed trusted human. A re-run of a scheduled run fails at the trigger
+# check, which handles no schedule event; the next tick replaces it. The dispatched lane runs its own trigger gate,
 # kill switch and config. Only the fix-ci and fix-docs listings filter by
 # author and hold label: fix-ci to spend no model run on a PR the lane would
 # skip, fix-docs to leave alone PRs whose files are generated or synced.
@@ -38,6 +44,10 @@ name: pr-unblock-dispatch
 on:
   push:
     branches: [main]
+  # Minutes 9 and 39: five after the reconciler's 4 and 34, and used by no
+  # other schedule here.
+  schedule:
+    - cron: "9,39 * * * *"
   workflow_dispatch: {}
 
 permissions: {}
@@ -91,9 +101,10 @@ jobs:
         run: |
           echo "::notice::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); nothing dispatched"
 
-      # A push run on its first attempt was started by the push itself. A hand
-      # run, or any re-run, is checked against the base list: the sender and
-      # the re-runner must be listed, and the lanes App bot is denied.
+      # A push or scheduled run on its first attempt was started by the event
+      # itself. A hand run, or any re-run, is checked against the base list:
+      # the sender and the re-runner must be listed, and the lanes App bot is
+      # denied. A scheduled run's re-run stops here with no-pr.
       - name: Check the trigger
         id: gate
         if: >-
