@@ -18,8 +18,9 @@
 //           throws before any write), checks the row's requirements and the
 //           patch again, applies it to the index with git's hooks and config
 //           off, and refuses the whole patch when any change matches a
-//           refusal, exceeds max-files, or fails an allow predicate, or a new
-//           blob carries a credential shape. On a PR, a head that moved since
+//           refusal, exceeds max-files, fails an allow predicate or the row's
+//           content rule, or a new blob carries a credential shape. On a PR, a
+//           head that moved since
 //           the model job skips superseded-sha under a skip-moved-head row,
 //           and otherwise takes the patch with --3way only when the moved
 //           commits touch no patched path, else it skips superseded-sha; an
@@ -39,8 +40,10 @@
 // PATCH_ACTIVITY, PATCH_FILE, PATCH_SHA256, HOLD_LABELS, SKIP_REASON_FILE,
 // ESCALATION_REASON_FILE; optional BASE_REF, KEPT_THREADS_FILE (the select
 // job's threads.json, whose threads' path and named_paths the kept-threads
-// predicate reads), DEPENDENCY_VERDICT and GITHUB_OUTPUT (gets commit=<sha>
-// and branch=<ref>).
+// predicate reads), DEPENDENCY_VERDICT (the scanned verdict the
+// dependency-verdict requirement reads) and GITHUB_OUTPUT (gets commit=<sha>
+// and branch=<ref>). A row that allows dependency-manifests reads the
+// [ecosystem, directory] pairs from BASE_DIR's .github/dependabot.yml.
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -48,6 +51,7 @@ import { appendFileSync, existsSync, lstatSync, readdirSync, readFileSync, write
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { fixRefusal, parseConfig } from "../pr-unblock/dependency-classify.mjs";
 import { PREDICATES } from "./predicates.mjs";
 
 export const MAX_PATCH_BYTES = 1024 * 1024;
@@ -56,6 +60,7 @@ export const MAX_PATCH_BYTES = 1024 * 1024;
 export const MAX_BLOB_BYTES = 5 * 1024 * 1024;
 export const MAX_TOTAL_BLOB_BYTES = 20 * 1024 * 1024;
 export const RULES_PATH = ".github/actions/resolve-config/patch-rules.json";
+export const DEPENDABOT_PATH = ".github/dependabot.yml";
 const SHA = /^[0-9a-f]{40}$/;
 const NAME = /^[a-z][a-z0-9-]*$/;
 const SYMLINK = "120000";
@@ -167,6 +172,32 @@ const REQUIREMENTS = {
   "dependency-verdict: fix": (context) => context.dependencyVerdict === "fix",
 };
 
+// git's raw status letter as the REST file listing names it.
+const STATUS = { M: "modified", A: "added", D: "removed", T: "changed" };
+
+// A row's content rule: what each changed file's bytes must also meet, read
+// from the local objects. It returns the first refusal, or null.
+export const CONTENT_RULES = {
+  // A version change of a regular npm or pip manifest or lock file modified in
+  // place, as dependency-classify.mjs's fixRefusal decides; the verdict job
+  // runs the same rule again on what landed.
+  "dependency-version-change": async ({ entries, git, context }) => {
+    const byPath = new Map(entries.map((entry) => [entry.path, entry]));
+    const blob = (sha) => (ZERO.test(sha) ? null : git(["cat-file", "blob", sha]).toString("utf8"));
+    return fixRefusal(
+      entries.map((entry) => ({ filename: entry.path, status: STATUS[entry.status?.[0]] ?? String(entry.status) })),
+      context.dependabotConfig,
+      {
+        entry: async (path) => {
+          const mode = byPath.get(path).newMode;
+          return { type: mode === GITLINK ? "commit" : "blob", mode: Number.parseInt(mode, 8) };
+        },
+        text: async (side, path) => blob(side === "before" ? byPath.get(path).oldSha : byPath.get(path).newSha),
+      },
+    );
+  },
+};
+
 export function loadRules(baseDir) {
   if (!baseDir) {
     throw new Error("BASE_DIR, the trusted base checkout, is not set");
@@ -267,6 +298,9 @@ export function checkRow(row) {
   }
   if (!Array.isArray(row.allow) || row.allow.length === 0) {
     fail("allows nothing");
+  }
+  if (row["content-rule"] !== undefined && !Object.hasOwn(CONTENT_RULES, String(row["content-rule"]))) {
+    fail(`names an unknown content rule: ${row["content-rule"]}`);
   }
   if (row["reads-report"] !== null && !Object.hasOwn(REPORTS, row["reads-report"])) {
     fail(`reads an unknown report: ${row["reads-report"]}`);
@@ -381,12 +415,12 @@ function changes(raw) {
   const fields = raw.toString("utf8").split("\0");
   const entries = [];
   for (let i = 0; i + 1 < fields.length; ) {
-    const [oldMode, newMode, , newSha, status] = fields[i].replace(/^:/, "").split(" ");
+    const [oldMode, newMode, oldSha, newSha, status] = fields[i].replace(/^:/, "").split(" ");
     if (/^[RC]/.test(status)) {
-      entries.push({ oldMode, newMode, newSha, renamedFrom: fields[i + 1], path: fields[i + 2] });
+      entries.push({ oldMode, newMode, oldSha, newSha, status, renamedFrom: fields[i + 1], path: fields[i + 2] });
       i += 3;
     } else {
-      entries.push({ oldMode, newMode, newSha, path: fields[i + 1] });
+      entries.push({ oldMode, newMode, oldSha, newSha, status, path: fields[i + 1] });
       i += 2;
     }
   }
@@ -553,6 +587,12 @@ export async function push({
   if (leaked) {
     return escalate("invalid", `the patched ${leaked.entry.path} carries a credential shape`);
   }
+  // Before any tree or commit is built: each file's change must also meet the
+  // row's content rule.
+  const contentRefusal = row["content-rule"] === undefined ? null : await CONTENT_RULES[row["content-rule"]]({ entries, git, context });
+  if (contentRefusal) {
+    return escalate("protected-path", `refused by the ${row["content-rule"]} rule (${String(contentRefusal).slice(0, 200)})`);
+  }
   // The model's tools set no file mode, so under script-exec-bit each new or
   // changed script, a .sh file or one starting with #!, is made executable
   // here, in the index the patch was applied to.
@@ -663,6 +703,16 @@ export function keptThreadsFrom(file) {
   return { paths: new Set(threads.map((thread) => thread.path)), threads: threads.map(({ path, named_paths }) => ({ path, named_paths })) };
 }
 
+// The base dependabot.yml's [ecosystem, directory] pairs, or null when the
+// file does not read; the dependency-manifests predicate then throws.
+export function dependabotPairs(baseDir) {
+  try {
+    return parseConfig(readFileSync(join(baseDir, DEPENDABOT_PATH), "utf8"));
+  } catch {
+    return null;
+  }
+}
+
 function labelList(env, key) {
   const labels = JSON.parse(env[key]);
   if (!Array.isArray(labels) || !labels.every((label) => typeof label === "string")) {
@@ -728,7 +778,12 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
     cwd,
     gitBin,
     row,
-    context: { keptThreads: keptThreadsFrom(env.KEPT_THREADS_FILE), dependencyVerdict: env.DEPENDENCY_VERDICT ?? "" },
+    context: {
+      keptThreads: keptThreadsFrom(env.KEPT_THREADS_FILE),
+      dependencyVerdict: env.DEPENDENCY_VERDICT ?? "",
+      // Read from the trusted base copy, and only for a row that needs it.
+      dependabotConfig: row.allow.includes("dependency-manifests") ? dependabotPairs(env.BASE_DIR) : undefined,
+    },
     [target.number]: Number(env[numberKey]),
     headSha: env.HEAD_SHA,
     patchHeadSha: env.PATCH_HEAD_SHA,

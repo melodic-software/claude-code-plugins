@@ -14,7 +14,9 @@ name: pr-unblock
 # review-dependency:
 # pr-unblock-dispatch.yml also sends one per review-tier Dependabot PR (a major
 # bump, an action publisher outside the allowlist, a group holding a major, or
-# a red ci-status) whose head has no review yet. fix-ci: pr-unblock-dispatch.yml
+# a red ci-status) whose head has no review yet; a base job selects the PR, a
+# read model job returns a verdict and any fix as a patch, and script jobs
+# push a fix verdict's patch and act on the verdict. fix-ci: pr-unblock-dispatch.yml
 # also sends one per lanes App PR whose ci-status or pr-test-windows run failed
 # past the lost-run reconciler's re-run. fix-docs:
 # pr-unblock-dispatch.yml also sends one per ready PR a person opened that
@@ -300,16 +302,45 @@ jobs:
       claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
-  # The subscription fallback, as fix-ci-subscription is for fix-ci: it runs
-  # only when address-feedback's key leg hit a credit stop or its key is
-  # empty, reads only those two outputs, each compared to a fixed string,
-  # and holds the OAuth token alone. A forged value only adds a second leg.
-  address-feedback-subscription:
+  # Whether address-feedback's report job posted its check, read from this run's
+  # jobs as fix-ci-handoff reads fix-ci's, never from an address-feedback
+  # output: the run job runs head code and can forge them. A failed read
+  # leaves posted empty, which starts the fallback call.
+  address-feedback-handoff:
     needs: [address-feedback-select, address-feedback]
+    if: ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read # this run's jobs and their steps
+    outputs:
+      posted: ${{ steps.posted.outputs.posted }}
+    steps:
+      - name: Read whether address-feedback posted its check
+        id: posted
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: address-feedback
+        run: |
+          names=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=latest&per_page=100" \
+            --jq '.jobs[] | (select(any(.steps[]?; .name == "Post the check run" and .conclusion == "success")) | "posted \(.name)"),
+              (select(any(.steps[]?; .name == "Ask the broker whether the lane may run" and .conclusion == "success")) | "allowed \(.name)")')
+          posted=false
+          allowed=false
+          for call in $CALLS; do
+            if grep -qxF "posted $call / report" <<<"$names"; then posted=true; fi
+            if grep -qxF "allowed $call / broker-check" <<<"$names"; then allowed=true; fi
+          done
+          printf 'posted=%s\nallowed=%s\n' "$posted" "$allowed" >>"$GITHUB_OUTPUT"
+
+  # The subscription fallback, as fix-ci-subscription is for fix-ci: it runs
+  # only when address-feedback-handoff read no check posted, which a credit
+  # stop or an empty key leaves, and holds the OAuth token alone.
+  address-feedback-subscription:
+    needs: [address-feedback-select, address-feedback, address-feedback-handoff]
     if: >-
       ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true'
-      && (needs.address-feedback.outputs.lane-class == 'credit-stop'
-      || needs.address-feedback.outputs.credential-present == 'false') }}
+      && needs.address-feedback-handoff.outputs.posted != 'true' }}
     permissions:
       contents: read
       pull-requests: read
@@ -324,7 +355,7 @@ jobs:
       role: automations
       lane: pr-unblock
       activity: address-feedback
-      fallback: ${{ needs.address-feedback.outputs.lane-class == 'credit-stop' && 'credit-stop' || 'no-key' }}
+      fallback: handoff
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
@@ -417,7 +448,8 @@ jobs:
       review-run-attempt: ${{ needs.address-feedback-select.outputs.context-attempt }}
       # The replies, their SHA-256 and the patch state, all from the one leg
       # apply-feedback-patch reads; only the scan job, which ran no model or
-      # head code, sets these outputs.
+      # head code, sets these outputs. The scan's refusal arrives as the
+      # scan-refusal job's marker artifact, which the reply job downloads.
       review-replies-attempt: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '' }}
       review-replies-sha256: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-sha256 || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-sha256 || '' }}
       review-patch-state: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-state || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-state || '' }}
@@ -428,18 +460,300 @@ jobs:
       expected-upstream-head: >-
         ${{ inputs.dispatcher-run-id != '' && needs.address-feedback-select.outputs.head-sha || '' }}
 
-  # review-dependency's model job holds contents: write, posts nothing, and
-  # returns its verdict as structured output that the runner uploads; it
-  # pushes a fix only to npm or pip manifest and lock files outside .github/,
-  # with [dependabot skip]. Its upstream
-  # release notes are untrusted text, so it holds no pull-requests or issues
-  # write. The verdict job, with no model, holds those and acts on the
-  # verdict: the round marker, a close (never a security update) with an
-  # ignore-entry issue, or an escalation. Neither job merges.
-  review-dependency:
+  # review-dependency is six jobs, so no model ever holds a write token. This
+  # one runs only base code with a read-only token and checks out no PR head.
+  # Before any model turn it reads the PR head, resolves the slot (draft and
+  # held PRs skip it) and selects the PR (review-dependency.mjs select): it
+  # skips one Dependabot did not open or one sorted auto, hands the PR to a
+  # person once the round cap is reached, or writes the context file the
+  # model job reads and context.json, the run fields the verdict job reads.
+  # Every gate and head the jobs after it take comes from here, and every
+  # model-call input from a model call's scan job, never from its run job,
+  # whose runner head code could forge.
+  review-dependency-select:
     if: >-
       inputs.pr-number != '' && inputs.activity == 'review-dependency'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # check out main
+      pull-requests: read # the PR, its commits and files
+      checks: read # ci-status and the model check runs that count rounds
+      issues: read # the round markers
+    outputs:
+      # true once the context is uploaded; false on a skip or an escalation;
+      # empty when the job stopped before deciding.
+      proceed: >-
+        ${{ steps.upload.outcome == 'success' && 'true'
+        || (steps.slot.outputs.applies == 'false' || steps.select.outputs.proceed == 'false') && 'false' || '' }}
+      head-sha: ${{ steps.head.outputs.sha }}
+      escalation-reason: ${{ steps.select.outputs.escalation-reason }}
+      skip-reason: ${{ steps.slot.outputs.applies == 'false' && steps.slot.outputs.skip-reason || steps.select.outputs.skip-reason }}
+      # dependency.json's, which the model call checks, and context.json's,
+      # which the verdict job checks.
+      context-sha256: ${{ steps.select.outputs.context-sha256 }}
+      run-sha256: ${{ steps.select.outputs.run-sha256 }}
+      # The artifact name's attempt, so a re-run of a later job alone still
+      # finds it.
+      context-attempt: ${{ steps.upload.outcome == 'success' && github.run_attempt || '' }}
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Read the PR head
+        id: head
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr-number }}
+        run: |
+          if ! [[ $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ ]]; then
+            echo "::error::the pr-number input is not a PR number"
+            exit 1
+          fi
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)
+          if ! [[ $sha =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the PR names no head SHA"
+            exit 1
+          fi
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+
+      # As the read runner resolves it: its applies-when decides on the head
+      # just read, before the PR is classified.
+      - name: Resolve the slot
+        id: slot
+        if: steps.head.outcome == 'success'
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          lane: pr-unblock
+          activity: review-dependency
+          base-path: .base
+          output-path: ${{ runner.temp }}/resolved-config.json
+          pr-number: ${{ inputs.pr-number }}
+          head-sha: ${{ steps.head.outputs.sha }}
+          prepare-supported: "true"
+          applied-by-supported: patch dependency-verdict
+
+      - name: Select the dependency pull request
+        id: select
+        if: steps.slot.outputs.applies == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr-number }}
+          HEAD_SHA: ${{ steps.head.outputs.sha }}
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          DEPENDENCY_DIR: ${{ runner.temp }}/dependency-context
+          TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
+          # The content rule's ecosystems and directories, read from the base.
+          DEPENDABOT_CONFIG: .base/.github/dependabot.yml
+          # The review-only dependencies, read from the base.
+          DEPENDABOT_POLICY: .base/.github/standards/dependabot-policy/policy.json
+          RESOLVED: ${{ runner.temp }}/resolved-config.json
+        run: |
+          mkdir -p "$DEPENDENCY_DIR"
+          DEPENDENCY_REVIEW_ROUNDS=$(jq -r '.loop["dependency-review-rounds"] // empty' "$RESOLVED")
+          export DEPENDENCY_REVIEW_ROUNDS
+          DEPENDENCY_FILE="$DEPENDENCY_DIR/dependency.json" CONTEXT_RUN_FILE="$DEPENDENCY_DIR/context.json" \
+            node .base/.github/scripts/pr-unblock/review-dependency.mjs select
+          if [ -f "$DEPENDENCY_DIR/dependency.json" ]; then
+            sum=$(sha256sum <"$DEPENDENCY_DIR/dependency.json")
+            echo "context-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
+            sum=$(sha256sum <"$DEPENDENCY_DIR/context.json")
+            echo "run-sha256=${sum%% *}" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload the dependency context
+        id: upload
+        if: steps.select.outputs.proceed == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dependency-context-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/dependency-context/dependency.json
+            ${{ runner.temp }}/dependency-context/context.json
+          retention-days: 1
+          if-no-files-found: error
+
+  # A select that skipped, or handed the PR to a person, runs no model job,
+  # so no review-dependency check would land on the head and
+  # dependency-dispatch.mjs would dispatch it again on every run. This job
+  # posts it neutral on the head the select job read; a kill-switch stop
+  # reads none, and nothing is posted.
+  review-dependency-not-run:
+    needs: review-dependency-select
+    if: >-
+      ${{ !cancelled() && inputs.activity == 'review-dependency'
+      && needs.review-dependency-select.outputs.proceed == 'false'
+      && needs.review-dependency-select.outputs.head-sha != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      checks: write
+      contents: read
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Post the review-dependency check run
+        uses: ./.base/.github/actions/report-check-run # zizmor: ignore[self-repository]
+        with:
+          lane: pr-unblock
+          activity: review-dependency
+          run-result: skipped
+          not-run-reason: ${{ needs.review-dependency-select.outputs.skip-reason || 'awaiting-human' }}
+          head-sha: ${{ needs.review-dependency-select.outputs.head-sha }}
+          can-commit: "false"
+          base-path: .base
+          head-sha-fallback: ${{ needs.review-dependency-select.outputs.head-sha }}
+          github-token: ${{ github.token }}
+
+  # The model job: a read activity with no write token and no OIDC token in
+  # the job that runs head code. The skill reviews the update and returns its
+  # verdict as structured output; on a fix it leaves the fix uncommitted, and
+  # the runner hands it on as a patch. Its upstream release notes are
+  # untrusted text. It runs on the automations role's API key alone, in the
+  # per-PR write queue.
+  review-dependency:
+    needs: review-dependency-select
+    if: ${{ !cancelled() && needs.review-dependency-select.outputs.proceed == 'true' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
+    with:
+      role: automations
+      lane: pr-unblock
+      activity: review-dependency
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      dependency-context-attempt: ${{ needs.review-dependency-select.outputs.context-attempt }}
+      dependency-context-sha256: ${{ needs.review-dependency-select.outputs.context-sha256 }}
+      head-sha: ${{ needs.review-dependency-select.outputs.head-sha }}
+      # The 50-minute launcher step and the CLI install.
+      timeout-minutes: 60
+    secrets:
+      claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+
+  # Whether review-dependency's report job posted its check, read from this run's
+  # jobs as fix-ci-handoff reads fix-ci's, never from an review-dependency
+  # output: the run job runs head code and can forge them. A failed read
+  # leaves posted empty, which starts the fallback call.
+  review-dependency-handoff:
+    needs: [review-dependency-select, review-dependency]
+    if: ${{ !cancelled() && needs.review-dependency-select.outputs.proceed == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read # this run's jobs and their steps
+    outputs:
+      posted: ${{ steps.posted.outputs.posted }}
+    steps:
+      - name: Read whether review-dependency posted its check
+        id: posted
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: review-dependency
+        run: |
+          names=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=latest&per_page=100" \
+            --jq '.jobs[] | (select(any(.steps[]?; .name == "Post the check run" and .conclusion == "success")) | "posted \(.name)"),
+              (select(any(.steps[]?; .name == "Ask the broker whether the lane may run" and .conclusion == "success")) | "allowed \(.name)")')
+          posted=false
+          allowed=false
+          for call in $CALLS; do
+            if grep -qxF "posted $call / report" <<<"$names"; then posted=true; fi
+            if grep -qxF "allowed $call / broker-check" <<<"$names"; then allowed=true; fi
+          done
+          printf 'posted=%s\nallowed=%s\n' "$posted" "$allowed" >>"$GITHUB_OUTPUT"
+
+  # The subscription fallback, as fix-ci-subscription is for fix-ci: it runs
+  # only when review-dependency-handoff read no check posted, which a credit
+  # stop or an empty key leaves, and holds the OAuth token alone.
+  review-dependency-subscription:
+    needs: [review-dependency-select, review-dependency, review-dependency-handoff]
+    if: >-
+      ${{ !cancelled() && needs.review-dependency-select.outputs.proceed == 'true'
+      && needs.review-dependency-handoff.outputs.posted != 'true' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      issues: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
+    with:
+      role: automations
+      lane: pr-unblock
+      activity: review-dependency
+      fallback: handoff
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+      dependency-context-attempt: ${{ needs.review-dependency-select.outputs.context-attempt }}
+      dependency-context-sha256: ${{ needs.review-dependency-select.outputs.context-sha256 }}
+      head-sha: ${{ needs.review-dependency-select.outputs.head-sha }}
+      timeout-minutes: 60
+    secrets:
+      claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+
+  # The push job: apply-patch.mjs under patch-rules.json's dependency-review
+  # row, a script with no model that runs no head code. It admits only a
+  # version change of npm or pip manifest and lock files outside .github/ in
+  # a directory the base dependabot.yml lists, skips a head that moved since
+  # the select job read it, and pushes one commit with [dependabot skip]
+  # without force. It runs only on a written patch beside a scanned fix
+  # verdict; a patch beside any other verdict is dropped. report-escalation
+  # does not need it: a patch that does not land leaves no fix commit, and
+  # the verdict job hands the PR to a person as dependency-fix-not-landed.
+  apply-dependency-patch:
+    needs: [review-dependency-select, review-dependency, review-dependency-subscription]
+    # One leg answers the round: the fallback call when it ran, else the
+    # first, and every model-call input below is that leg's scan job's, so
+    # one leg's patch never pairs with the other's verdict and an empty
+    # field never falls through.
+    if: >-
+      ${{ !cancelled()
+      && (needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.scan-patch-state || needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.scan-patch-state || '') == 'written'
+      && (needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.dependency-verdict || needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.dependency-verdict || '') == 'fix' }}
     permissions:
       contents: read
       pull-requests: read
@@ -453,16 +767,32 @@ jobs:
     with:
       role: automations
       lane: pr-unblock
-      activity: review-dependency
+      activity: apply-dependency-patch
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
-    secrets:
-      claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+      # The scan job's outputs alone, never a run job's, from the one leg.
+      patch-state: ${{ needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.scan-patch-state || needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.scan-patch-state || '' }}
+      patch-sha256: ${{ needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.scan-patch-sha256 || needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.scan-patch-sha256 || '' }}
+      patch-attempt: ${{ needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.scan-patch-attempt || needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.scan-patch-attempt || '' }}
+      patch-activity: review-dependency
+      patch-prepare: dependency-review
+      # The head the select job read, from a job that ran no head code.
+      patch-head-sha: ${{ needs.review-dependency-select.outputs.head-sha }}
+      # The scanned verdict the row's dependency-verdict requirement reads.
+      patch-verdict-attempt: ${{ needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.dependency-attempt || needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.dependency-attempt || '' }}
+      patch-verdict-sha256: ${{ needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.dependency-sha256 || needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.dependency-sha256 || '' }}
+      reply-attempt: ${{ needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.scan-reply-attempt || needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.scan-reply-attempt || '' }}
 
+  # The verdict job, a script with no model: it holds pull-requests and
+  # issues write and acts on the verdict: the round marker, a close (never a
+  # security update) with an ignore-entry issue, or an escalation. It runs
+  # whenever the select job proceeded, whatever the model and push jobs did,
+  # so every round is counted; a hostile model job cannot skip it. Neither
+  # job merges.
   apply-dependency-verdict:
-    needs: review-dependency
-    if: ${{ !cancelled() && needs.review-dependency.outputs.dependency-round == 'true' }}
+    needs: [review-dependency-select, review-dependency, review-dependency-subscription, apply-dependency-patch]
+    if: ${{ !cancelled() && needs.review-dependency-select.outputs.proceed == 'true' }}
     permissions:
       contents: read
       pull-requests: read
@@ -481,11 +811,19 @@ jobs:
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
       dependency-verdict: true
-      dependency-run-sha256: ${{ needs.review-dependency.outputs.dependency-run-sha256 }}
-      dependency-head-sha: ${{ needs.review-dependency.outputs.head-sha }}
-      # The model job's attempt names the verdict artifact, so "Re-run failed
+      # context.json, its SHA-256 and the head, from the select job.
+      dependency-context-attempt: ${{ needs.review-dependency-select.outputs.context-attempt }}
+      dependency-run-sha256: ${{ needs.review-dependency-select.outputs.run-sha256 }}
+      dependency-head-sha: ${{ needs.review-dependency-select.outputs.head-sha }}
+      # The verdict, its SHA-256 and the patch state, all from the one leg
+      # apply-dependency-patch reads; only the scan job, which ran no model
+      # or head code, sets these outputs. The scan's refusal arrives as the
+      # scan-refusal job's marker artifact, which the verdict job downloads. The verdict's
+      # attempt names the model run in the round marker, so "Re-run failed
       # jobs" on this job alone still downloads it.
-      dependency-run-attempt: ${{ needs.review-dependency.outputs.dependency-run-attempt }}
+      dependency-run-attempt: ${{ needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.dependency-attempt || needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.dependency-attempt || '' }}
+      dependency-verdict-sha256: ${{ needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.dependency-sha256 || needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.dependency-sha256 || '' }}
+      dependency-patch-state: ${{ needs.review-dependency-subscription.result != 'skipped' && needs.review-dependency-subscription.outputs.scan-patch-state || needs.review-dependency-subscription.result == 'skipped' && needs.review-dependency.outputs.scan-patch-state || '' }}
 
   # fix-ci is four jobs, so no model ever holds a write token. This one runs
   # only base code with a read-only token and checks out no PR head: it hands
@@ -639,17 +977,50 @@ jobs:
       claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
-  # The subscription fallback, as a second call on new VMs: it runs only when
-  # fix-ci's key leg hit a credit stop or its key is empty, which fix-ci then
-  # reports as a handoff with no upload, lane record or check. It reads only
-  # those two outputs, each compared to a fixed string, and holds the OAuth
-  # token alone; fallback picks between two literals.
-  fix-ci-subscription:
+  # Whether fix-ci's report job posted its check, read from this run's jobs
+  # through the Actions API, never from a fix-ci output: fix-ci's run job runs
+  # head code, so its handed-off, lane-class and credential-present outputs
+  # are forgeable, while its report job runs on its own runner and posts the
+  # check unless the call handed off. A failed read leaves posted empty,
+  # which starts the fallback call: a second leg, never a lost check.
+  fix-ci-handoff:
     needs: [fix-ci-context, fix-ci]
+    if: ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read # this run's jobs and their steps
+    outputs:
+      posted: ${{ steps.posted.outputs.posted }}
+    steps:
+      - name: Read whether fix-ci posted its check
+        id: posted
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: fix-ci
+        run: |
+          names=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=latest&per_page=100" \
+            --jq '.jobs[] | (select(any(.steps[]?; .name == "Post the check run" and .conclusion == "success")) | "posted \(.name)"),
+              (select(any(.steps[]?; .name == "Ask the broker whether the lane may run" and .conclusion == "success")) | "allowed \(.name)")')
+          posted=false
+          allowed=false
+          for call in $CALLS; do
+            if grep -qxF "posted $call / report" <<<"$names"; then posted=true; fi
+            if grep -qxF "allowed $call / broker-check" <<<"$names"; then allowed=true; fi
+          done
+          printf 'posted=%s\nallowed=%s\n' "$posted" "$allowed" >>"$GITHUB_OUTPUT"
+
+  # The subscription fallback, as a second call on new VMs: it runs only when
+  # fix-ci posted no check, which a credit stop or an empty key leaves as a
+  # handoff with no upload, lane record or check. Its start reads only
+  # fix-ci-handoff, and it holds the OAuth token alone. fallback is handoff,
+  # the one fact that read attests: the lane record says the key posted no
+  # check, not why, since only the run job knows.
+  fix-ci-subscription:
+    needs: [fix-ci-context, fix-ci, fix-ci-handoff]
     if: >-
       ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true'
-      && (needs.fix-ci.outputs.lane-class == 'credit-stop'
-      || needs.fix-ci.outputs.credential-present == 'false') }}
+      && needs.fix-ci-handoff.outputs.posted != 'true' }}
     permissions:
       contents: read
       pull-requests: read
@@ -664,7 +1035,7 @@ jobs:
       role: automations
       lane: pr-unblock
       activity: fix-ci
-      fallback: ${{ needs.fix-ci.outputs.lane-class == 'credit-stop' && 'credit-stop' || 'no-key' }}
+      fallback: handoff
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
@@ -679,14 +1050,19 @@ jobs:
   # The push job: apply-patch.mjs, a script with no model that runs no head
   # code. It checks the patch against the model job's SHA-256 and head,
   # applies it, refuses what patch-rules.json's ci-context row refuses, and
-  # pushes one commit without force. An empty or refused patch, or an
-  # escalated check, hands the PR to a person. The patch comes from whichever
-  # call ran the activity; a call that handed off left none.
+  # pushes one commit without force. An empty or refused patch, a collection
+  # the run's collector refused, or an escalated check, hands the PR to a
+  # person (a refused collection reaches select with no patch-state, which
+  # escalates ci-fix-invalid). One leg answers: the fallback call when it ran,
+  # else the first, and every input is that leg's scan job's, never a run
+  # job's; a call that handed off left none.
   apply-patch:
     needs: [fix-ci-context, fix-ci, fix-ci-subscription]
     if: >-
-      ${{ !cancelled() && ((needs.fix-ci-subscription.outputs.patch-state || needs.fix-ci.outputs.patch-state) == 'written'
-      || (needs.fix-ci-subscription.outputs.patch-state || needs.fix-ci.outputs.patch-state) == 'empty') }}
+      ${{ !cancelled()
+      && ((needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-patch-state || needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-patch-state || '') == 'written'
+      || (needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-patch-state || needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-patch-state || '') == 'empty'
+      || (needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-collect-refused || needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-collect-refused || '') == 'true') }}
     permissions:
       contents: read
       pull-requests: read
@@ -704,9 +1080,9 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
-      patch-state: ${{ needs.fix-ci-subscription.outputs.patch-state || needs.fix-ci.outputs.patch-state }}
-      patch-sha256: ${{ needs.fix-ci-subscription.outputs.patch-sha256 || needs.fix-ci.outputs.patch-sha256 }}
-      patch-attempt: ${{ needs.fix-ci-subscription.outputs.patch-attempt || needs.fix-ci.outputs.patch-attempt }}
+      patch-state: ${{ needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-patch-state || needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-patch-state || '' }}
+      patch-sha256: ${{ needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-patch-sha256 || needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-patch-sha256 || '' }}
+      patch-attempt: ${{ needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-patch-attempt || needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-patch-attempt || '' }}
       patch-activity: fix-ci
       patch-prepare: ci-context
       # The head fix-ci-context gated, from a job that ran no head code; the
@@ -716,7 +1092,7 @@ jobs:
       # own trigger gate reads at apply time, and its push needs the branch
       # still at that head.
       patch-head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
-      reply-attempt: ${{ needs.fix-ci-subscription.outputs.reply-attempt || needs.fix-ci.outputs.reply-attempt }}
+      reply-attempt: ${{ needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-reply-attempt || needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-reply-attempt || '' }}
 
   # fix-ci's one retry one model rung up, in this same run: when apply-patch
   # skipped rung-up (the run changed nothing and escalated only unfixed or
@@ -756,12 +1132,42 @@ jobs:
       claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
-  fix-ci-rung-up-subscription:
+  # As fix-ci-handoff and fix-ci-subscription are for fix-ci.
+  fix-ci-rung-up-handoff:
     needs: [fix-ci-context, fix-ci-rung-up]
     if: >-
       ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true'
-      && (needs.fix-ci-rung-up.outputs.lane-class == 'credit-stop'
-      || needs.fix-ci-rung-up.outputs.credential-present == 'false') }}
+      && needs.fix-ci-rung-up.result != 'skipped' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read # this run's jobs and their steps
+    outputs:
+      posted: ${{ steps.posted.outputs.posted }}
+    steps:
+      - name: Read whether fix-ci-rung-up posted its check
+        id: posted
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: fix-ci-rung-up
+        run: |
+          names=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=latest&per_page=100" \
+            --jq '.jobs[] | (select(any(.steps[]?; .name == "Post the check run" and .conclusion == "success")) | "posted \(.name)"),
+              (select(any(.steps[]?; .name == "Ask the broker whether the lane may run" and .conclusion == "success")) | "allowed \(.name)")')
+          posted=false
+          allowed=false
+          for call in $CALLS; do
+            if grep -qxF "posted $call / report" <<<"$names"; then posted=true; fi
+            if grep -qxF "allowed $call / broker-check" <<<"$names"; then allowed=true; fi
+          done
+          printf 'posted=%s\nallowed=%s\n' "$posted" "$allowed" >>"$GITHUB_OUTPUT"
+
+  fix-ci-rung-up-subscription:
+    needs: [fix-ci-context, fix-ci-rung-up, fix-ci-rung-up-handoff]
+    if: >-
+      ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true'
+      && needs.fix-ci-rung-up.result != 'skipped'
+      && needs.fix-ci-rung-up-handoff.outputs.posted != 'true' }}
     permissions:
       contents: read
       pull-requests: read
@@ -776,7 +1182,7 @@ jobs:
       role: automations
       lane: pr-unblock
       activity: fix-ci
-      fallback: ${{ needs.fix-ci-rung-up.outputs.lane-class == 'credit-stop' && 'credit-stop' || 'no-key' }}
+      fallback: handoff
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
@@ -792,8 +1198,10 @@ jobs:
   apply-patch-rung-up:
     needs: [fix-ci-context, fix-ci-rung-up, fix-ci-rung-up-subscription]
     if: >-
-      ${{ !cancelled() && ((needs.fix-ci-rung-up-subscription.outputs.patch-state || needs.fix-ci-rung-up.outputs.patch-state) == 'written'
-      || (needs.fix-ci-rung-up-subscription.outputs.patch-state || needs.fix-ci-rung-up.outputs.patch-state) == 'empty') }}
+      ${{ !cancelled()
+      && ((needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-patch-state || needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-patch-state || '') == 'written'
+      || (needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-patch-state || needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-patch-state || '') == 'empty'
+      || (needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-collect-refused || needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-collect-refused || '') == 'true') }}
     permissions:
       contents: read
       pull-requests: read
@@ -811,15 +1219,77 @@ jobs:
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
-      patch-state: ${{ needs.fix-ci-rung-up-subscription.outputs.patch-state || needs.fix-ci-rung-up.outputs.patch-state }}
-      patch-sha256: ${{ needs.fix-ci-rung-up-subscription.outputs.patch-sha256 || needs.fix-ci-rung-up.outputs.patch-sha256 }}
-      patch-attempt: ${{ needs.fix-ci-rung-up-subscription.outputs.patch-attempt || needs.fix-ci-rung-up.outputs.patch-attempt }}
+      patch-state: ${{ needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-patch-state || needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-patch-state || '' }}
+      patch-sha256: ${{ needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-patch-sha256 || needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-patch-sha256 || '' }}
+      patch-attempt: ${{ needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-patch-attempt || needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-patch-attempt || '' }}
       patch-activity: fix-ci
       patch-prepare: ci-context
       patch-head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
       # At rung 1 an escalation goes to a person: there is no rung above.
       patch-model-rung: "1"
-      reply-attempt: ${{ needs.fix-ci-rung-up-subscription.outputs.reply-attempt || needs.fix-ci-rung-up.outputs.reply-attempt }}
+      reply-attempt: ${{ needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-reply-attempt || needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-reply-attempt || '' }}
+
+  # A fix-ci round whose every call posted no check (a run that forged a
+  # handoff, or a report job that failed) would leave nothing for
+  # fix-ci-dispatch.mjs to count, so it would dispatch the head again with no
+  # end. This job reads this run's jobs as fix-ci-handoff does and posts
+  # fix-ci failure on the gated head, which counts toward fix-ci-restarts. As
+  # the report job does, it posts nothing unless a call's broker-check job
+  # allowed the lane: a kill switch, read there with its repository shadow,
+  # or a broker refusal is no merge blocker and spends no restart.
+  fix-ci-unreported:
+    needs: [fix-ci-context, fix-ci, fix-ci-subscription, fix-ci-rung-up, fix-ci-rung-up-subscription]
+    if: ${{ !cancelled() && needs.fix-ci-context.outputs.proceed == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read # this run's jobs and their steps
+      checks: write
+      contents: read
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Read whether a fix-ci call posted its check
+        id: posted
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: fix-ci fix-ci-subscription fix-ci-rung-up fix-ci-rung-up-subscription
+        run: |
+          names=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=latest&per_page=100" \
+            --jq '.jobs[] | (select(any(.steps[]?; .name == "Post the check run" and .conclusion == "success")) | "posted \(.name)"),
+              (select(any(.steps[]?; .name == "Ask the broker whether the lane may run" and .conclusion == "success")) | "allowed \(.name)")')
+          posted=false
+          allowed=false
+          for call in $CALLS; do
+            if grep -qxF "posted $call / report" <<<"$names"; then posted=true; fi
+            if grep -qxF "allowed $call / broker-check" <<<"$names"; then allowed=true; fi
+          done
+          printf 'posted=%s\nallowed=%s\n' "$posted" "$allowed" >>"$GITHUB_OUTPUT"
+
+      - name: Post the check run
+        if: steps.posted.outputs.posted == 'false' && steps.posted.outputs.allowed == 'true'
+        uses: ./.base/.github/actions/report-check-run # zizmor: ignore[self-repository]
+        with:
+          lane: pr-unblock
+          activity: fix-ci
+          # No verdict: posts failure, "The run left no verdict."
+          run-result: failure
+          head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
+          can-commit: "false"
+          base-path: .base
+          head-sha-fallback: ${{ needs.fix-ci-context.outputs.head-sha }}
+          github-token: ${{ github.token }}
 
   # The PR head fix-docs's report posts its check on, read by a job that runs
   # no head code, as fix-ci-context's is for fix-ci. Without it the report
@@ -988,17 +1458,17 @@ jobs:
       - resolve-conflicts
       - address-feedback-select
       - publish-feedback
-      - review-dependency
+      - review-dependency-select
       - apply-dependency-verdict
       - fix-ci-context
       - apply-patch
       - apply-patch-rung-up
     # escalation-reason is set only by the write runner's own steps, the
     # base's reply, verdict and apply-patch scripts, and the base scripts of
-    # address-feedback-select and fix-ci-context. A later failure in that run (a failed verdict upload)
-    # still escalates. At most one escalates: one activity runs per dispatch,
-    # a reply, verdict or push job runs only after a model turn, and a model
-    # job, or fix-ci-context, escalates only before one. A rung-up stop
+    # address-feedback-select, review-dependency-select and fix-ci-context.
+    # At most one escalates: one activity runs per dispatch, a reply, verdict
+    # or push job runs only after a select job proceeded, and a select job,
+    # or fix-ci-context, escalates only before any model turn. A rung-up stop
     # escalates here too unless apply-patch-rung-up applied the retry's patch
     # cleanly: its own reason, else ci-fix-escalated. On a cancelled run this
     # always() branch fires, but the write workflow's run job skips, so no
@@ -1007,7 +1477,7 @@ jobs:
       ${{ (!cancelled() && (needs.resolve-conflicts.outputs.escalation-reason != ''
       || needs.address-feedback-select.outputs.escalation-reason != ''
       || needs.publish-feedback.outputs.escalation-reason != ''
-      || needs.review-dependency.outputs.escalation-reason != ''
+      || needs.review-dependency-select.outputs.escalation-reason != ''
       || needs.apply-dependency-verdict.outputs.escalation-reason != ''
       || needs.fix-ci-context.outputs.escalation-reason != ''
       || needs.apply-patch.outputs.escalation-reason != ''))
@@ -1034,7 +1504,7 @@ jobs:
         ${{ needs.resolve-conflicts.outputs.escalation-reason
         || needs.address-feedback-select.outputs.escalation-reason
         || needs.publish-feedback.outputs.escalation-reason
-        || needs.review-dependency.outputs.escalation-reason
+        || needs.review-dependency-select.outputs.escalation-reason
         || needs.apply-dependency-verdict.outputs.escalation-reason
         || needs.fix-ci-context.outputs.escalation-reason
         || needs.apply-patch.outputs.escalation-reason

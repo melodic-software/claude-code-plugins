@@ -321,6 +321,50 @@ echo 'not json' >"$TEST_TMPDIR/page-1.json"
 run >/dev/null 2>&1
 assert_exit "an unparsable run listing fails closed" 2 "$?"
 
+# pr-review-cli.yml serves either lane; it counts for security-review only from
+# a caller whose path names security, so the security lane never takes a
+# code-lane caller of it.
+CLI='melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@83b739f625b501ad40c65dee7168d836883195e1'
+reset
+page 1 "$(other_run)" "$(lane_run 11 .github/workflows/pr-review-hosted.yml "$CODE")" \
+  "$(lane_run 33 .github/workflows/pr-review-cli-code.yml "$CLI")" \
+  "$(lane_run 22 .github/workflows/pr-review-security-hosted.yml "$CLI")"
+wf 11 completed:success:2
+wf 22 completed:success:2
+out=$(run)
+assert_exit "a security caller of pr-review-cli exits 0" 0 "$?"
+assert_contains "a security caller of pr-review-cli covers the security lane" "$out" \
+  "security-review ci healthy"
+assert_contains "the security line names the pr-review-cli caller" "$out" \
+  ".github/workflows/pr-review-security-hosted.yml"
+
+# Both lanes on pr-review-cli: code-review takes the caller whose path does not
+# name security, even when the security caller's run is listed first.
+reset
+page 1 "$(other_run)" "$(lane_run 22 .github/workflows/pr-review-security-hosted.yml "$CLI")" \
+  "$(lane_run 11 .github/workflows/pr-review-hosted.yml "$CLI")"
+wf 11 completed:success:2
+wf 22 completed:failure:2
+out=$(run)
+assert_exit "two pr-review-cli callers exit 0" 0 "$?"
+assert_contains "a code caller of pr-review-cli covers the code lane" "$out" \
+  "code-review ci healthy"
+assert_contains "the code line names its own caller" "$out" \
+  "(.github/workflows/pr-review-hosted.yml)"
+assert_contains "the security lane keeps its own caller's verdict" "$out" \
+  "security-review local failing"
+
+# pr-review-cli writes the class after the lane id: still a skipped-validation red.
+reset
+page 1 "${BOTH_PAGE[@]}"
+wf 11 completed:success:2
+wf 22 completed:failure:1::skipped-validation completed:success:3
+jq '.[1].message |= "claude-security-review: " + .' "$TEST_TMPDIR/ann-$(((NEXT_RUN - 2) * 10)).json" >"$TEST_TMPDIR/ann.tmp" &&
+  mv "$TEST_TMPDIR/ann.tmp" "$TEST_TMPDIR/ann-$(((NEXT_RUN - 2) * 10)).json"
+out=$(run)
+assert_contains "a lane-prefixed skipped-validation red reaches no verdict" "$out" \
+  "security-review ci healthy"
+
 run --repo 'acme app' >/dev/null 2>&1
 assert_exit "a malformed --repo exits 1" 1 "$?"
 run --max-age-days 0 >/dev/null 2>&1
