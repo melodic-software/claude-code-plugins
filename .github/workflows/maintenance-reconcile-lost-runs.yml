@@ -28,8 +28,9 @@ name: maintenance-reconcile-lost-runs
 # pr-verify's trigger check trusts a re-run github-actions[bot] starts only
 # through this run's record of it: the plan step names an artifact
 # reconcile-rerun-<run id>-2-<head sha> for each pr-verify run it will re-run,
-# the upload steps below write them, and only then does the act step re-run
-# those runs. That no other run can upload into this run's artifacts is
+# and for each pr-require-checks run whose re-run makes its attempt 2 (pr-verify
+# runs after it), the upload steps below write them, and only then does the act
+# step re-run those runs. That no other run can upload into this run's artifacts is
 # UNVERIFIED: GitHub does not document that it scopes the runtime upload token
 # to its own run, and the REST API has no endpoint that creates an artifact.
 # A forged record still needs a github-actions[bot] attempt-2 re-run of the
@@ -105,9 +106,10 @@ jobs:
           mkdir -p "$RUNNER_TEMP/reconcile-record"
           node .base/.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs
 
-      # One record per pr-verify run the act step re-runs, uploaded first. A
-      # failed upload fails the job, so that run is not re-run.
-      - name: Record lane re-run 1
+      # One record per pr-verify run, and per pr-require-checks run made attempt
+      # 2, the act step re-runs, uploaded first. A failed upload fails the job,
+      # so that run is not re-run.
+      - name: Record re-run 1
         if: steps.plan.outputs.record-1 != ''
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -116,7 +118,7 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-      - name: Record lane re-run 2
+      - name: Record re-run 2
         if: steps.plan.outputs.record-2 != ''
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -125,7 +127,7 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-      - name: Record lane re-run 3
+      - name: Record re-run 3
         if: steps.plan.outputs.record-3 != ''
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
