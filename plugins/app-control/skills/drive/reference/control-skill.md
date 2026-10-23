@@ -43,8 +43,9 @@ records only what the run started.
 
 A `## Capture` command never carries an elevation prefix (such as `sudo`, `doas` or `runas`). When
 a capture needs root or administrator rights, elevate only the recorder against the app's pid, never
-the app, and leave the elevation to drive's shown-script step. Drive also takes that step when an
-unprefixed command fails for lack of permission.
+the app, and leave the elevation to drive's shown-script step. Drive treats an unprefixed command
+that fails for lack of permission the same way: a shown script when interactive, blocked when
+unattended.
 
 Manuals, each record a pointer, as-of date and recheck trigger:
 
