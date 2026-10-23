@@ -781,6 +781,14 @@ timed_run "15000 inline spans on a line ending in closes #1" long-spans.md 0
 } >"$GATED/long-newlines.md"
 timed_run "Closes #5, an unterminated comment, 65400 newlines and x" long-newlines.md 2
 
+# The same shape behind an unclosed code fence, which masks every later line.
+{
+  printf 'Closes #5\n```\n'
+  printf '\n%.0s' {1..65400}
+  printf 'x'
+} >"$GATED/long-fence.md"
+timed_run "Closes #5, an unclosed fence, 65400 newlines and x" long-fence.md 2
+
 # Differential: the functions this change replaced, kept verbatim as the oracle.
 old_chomp_to() {
   local __plv_dest="$1" __plv_s="$2"
@@ -812,7 +820,7 @@ old_negation_trigger_to() {
   done
 }
 
-diff_chomp_inputs=("" $'\n' $'\n\n\n' "x" $'x\n' $'x\n\n\n' $'\nx' $'a\n\nb\n\n' $'a\r\n' $'  \n \n' $'\n\nx\n')
+diff_chomp_inputs=("" $'\xff\n' $'a\xff\n\n' $'\n' $'\n\n\n' "x" $'x\n' $'x\n\n\n' $'\nx' $'a\n\nb\n\n' $'a\r\n' $'  \n \n' $'\n\nx\n')
 # Built without a command substitution, which would itself strip the newlines.
 printf -v diff_nl_run '%300s' ''
 diff_nl_run="${diff_nl_run// /$'\n'}"

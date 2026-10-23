@@ -71,7 +71,9 @@ UNICODE_SPACES=(
 # non-newline, so one try scans one newline run; an all-newline text has no
 # such start and is the second pattern's.
 linkage::chomp_to() {
-  local __plv_dest="$1" __plv_s="$2"
+  # Bytes, whatever the caller's locale: under UTF-8 `[^\n]` does not match an
+  # invalid byte, which would leave its trailing newlines in place.
+  local __plv_dest="$1" __plv_s="$2" LC_ALL=C
   if [[ "$__plv_s" =~ $_PLV_CHOMP_TAIL_ERE ]]; then
     __plv_s="${__plv_s:0:${#__plv_s}-${#BASH_REMATCH[0]}+1}"
   elif [[ "$__plv_s" =~ $_PLV_ALL_NEWLINES_ERE ]]; then
