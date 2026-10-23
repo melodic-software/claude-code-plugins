@@ -9,7 +9,7 @@ metadata:
 ---
 
 **Arguments.** `[ready|capture --kind <kind>|cleanup] [<app>] [<feature>] [--out <dir>] [--attach|--unattended]`.
-`<kind>` is `trace`, `cpu`, `heap`, `threads` (a stack sample of every thread), `screenshot`, `aria`, `video` or `logs`. e.g. /app-control:drive ready, or /app-control:drive checkout --unattended --out ./evidence
+`<kind>` is `trace`, `cpu`, `heap`, `screenshot`, `aria`, `video` or `logs`. e.g. /app-control:drive ready, or /app-control:drive checkout --unattended --out ./evidence
 
 ## Purpose
 
@@ -105,7 +105,7 @@ feature and entry point it came from. The layout and the `report.json` fields ar
 ## Next
 
 - Evidence in hand, needs a judgment: /verification:confirm.
-- A trace, cpu, heap or threads artifact to read: /debugging:analyze-profile.
+- A trace, cpu or heap artifact to read: /debugging:analyze-profile.
 
 ## Gotchas
 

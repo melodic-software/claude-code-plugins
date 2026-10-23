@@ -17,7 +17,7 @@ names a mechanism at file:line: what reference holds memory alive, which thread 
 what, or where CPU time went. Fixes and reproduction loops belong to `/debugging:debug`, which
 sends an artifact here when it has one but cannot reproduce the failure.
 
-No artifact yet: stop. Name `/app-control:drive capture --kind <trace|cpu|heap|threads>` as the command
+No artifact yet: stop. Name `/app-control:drive capture --kind <trace|cpu|heap>` as the command
 for the person to run, and ask them to come back with the file. Never invoke that skill or any
 recorder yourself, whether or not someone is present.
 
@@ -57,7 +57,7 @@ and the table says where those queries begin and when the search is over:
 | Heap snapshot, `heapsnapshot.md` | The largest objects, or the type whose count keeps rising | Inbound edges lead back to a GC root that anchors the chain |
 | Chrome trace, `chrome-trace.md` | The longest events on the main thread | You hold the samples that fall inside those events |
 | V8 CPU profile, `cpuprofile.md` | Frames ranked by sample count | Parent links from the heaviest frame show which caller path pays |
-| pprof, perf, spindump, thread dump, .NET or JVM capture, `other-formats.md` | The exporter that page names for the format, writing its output under `${work:?}` | Its output is in one of the formats above |
+| pprof, perf, spindump, .NET or JVM capture, `other-formats.md` | The exporter that page names for the format, writing its output under `${work:?}` | Its output is in one of the formats above |
 
 **Convert before you read rows.** Every question after this point is a query against SQLite, built
 in a new temporary directory:
