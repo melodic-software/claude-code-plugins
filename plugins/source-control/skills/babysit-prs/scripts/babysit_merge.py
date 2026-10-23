@@ -1045,14 +1045,18 @@ def human_veto_logins(
     """The people whose newest comment on the pull request says "do not
     merge" (`HUMAN_MERGE_VETO_RE` only), sorted (the pr-merge lane).
 
-    Each person's newest comment, review or inline comment decides, so the
-    same person lifts their hold with any later comment that does not say it,
-    such as "go ahead", or by editing the veto away.
+    Each person's newest comment, review or inline comment with text decides,
+    so the same person lifts their hold with any later comment that does not
+    say it, such as "go ahead", or by editing the veto away. An item with no
+    text never lifts it: GitHub records an inline-only review, and an Approve
+    with no text, as a review summary with an empty body.
     """
     newest: dict[str, tuple[str, str]] = {}
     for login, at, body in _human_comments(
         repo, number, reviews, review_comments, actor_config
     ):
+        if not body.strip():
+            continue
         if login not in newest or at >= newest[login][0]:
             newest[login] = (at, body)
     return sorted(

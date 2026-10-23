@@ -145,6 +145,7 @@ def _evaluate(
     compare: dict[str, Any] = fixtures.UP_TO_DATE,
     issue_comments: list[dict[str, Any]] | None = None,
     review_comments: list[dict[str, Any]] | None = None,
+    reviews: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Run `evaluate` over one fixture with every gh seam stubbed."""
 
@@ -162,7 +163,9 @@ def _evaluate(
         mock.patch.object(merge, "gh_json", side_effect=gh_json),
         mock.patch.object(merge, "fetch_review_threads", return_value=[]),
         mock.patch.object(
-            merge, "fetch_pull_request_reviews", return_value=fixtures.CLEAN_APPROVAL
+            merge,
+            "fetch_pull_request_reviews",
+            return_value=fixtures.CLEAN_APPROVAL + (reviews or []),
         ),
         mock.patch.object(
             merge, "fetch_issue_comments", return_value=issue_comments or []
@@ -375,10 +378,10 @@ def _comment(
 
 
 class PrMergeHoldsOnAHumanVeto(unittest.TestCase):
-    """The pr-merge lane enqueues with no person present, so a person's "do
-    not merge" or blocking comment holds it before the enqueue, through the
-    same scan the autopilot tier runs. Only "do not merge" and the blocking
-    vocabulary count: a bare "wait for CI" holds nothing."""
+    """The pr-merge lane enqueues with no person present, so a person whose
+    newest comment with text says "do not merge" (`HUMAN_MERGE_VETO_RE` only)
+    holds it before the enqueue, until a later comment of theirs. A bare "wait
+    for CI" or a blocking word such as "regression" holds nothing."""
 
     PR_MERGE = policy.UnattendedPolicy(
         None,
@@ -458,6 +461,38 @@ class PrMergeHoldsOnAHumanVeto(unittest.TestCase):
             fixtures._pr(), HEAD, None, self.PR_MERGE, issue_comments=[veto, lifted]
         )
         self.assertEqual(result["blockers"], [])
+
+    def test_an_empty_review_after_the_veto_does_not_lift_it(self) -> None:
+        # GitHub records an inline-only review, or an Approve with no text, as a
+        # review summary with an empty body and a later submittedAt.
+        def empty_review(state: str) -> dict[str, Any]:
+            return {
+                "author": {"login": "maintainer"},
+                "body": "",
+                "state": state,
+                "submittedAt": "2026-10-12T10:01:00Z",
+                "commit": {"oid": HEAD},
+            }
+
+        inline = {
+            "user": {"login": "maintainer", "type": "User"},
+            "body": "Do not merge until X.",
+            "created_at": "2026-10-12T10:00:00Z",
+        }
+        cases = {
+            "inline veto, empty review summary": {
+                "review_comments": [inline],
+                "reviews": [empty_review("COMMENTED")],
+            },
+            "issue-comment veto, approve with no text": {
+                "issue_comments": [_comment("maintainer", "Do not merge yet.")],
+                "reviews": [empty_review("APPROVED")],
+            },
+        }
+        for name, kwargs in cases.items():
+            with self.subTest(name):
+                result = _evaluate(fixtures._pr(), HEAD, None, self.PR_MERGE, **kwargs)
+                self.assertEqual(len(self._vetoes(result)), 1, result["blockers"])
 
     def test_another_persons_later_comment_does_not_lift_it(self) -> None:
         veto = _comment("maintainer", "Do not merge yet.", at="2026-10-12T10:00:00Z")

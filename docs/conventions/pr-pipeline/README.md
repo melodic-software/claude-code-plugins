@@ -893,7 +893,8 @@ Before it enqueues, the lane reads every person's comments on the pull request: 
 review summaries and inline review comments. When a person's newest one says "do not merge"
 (`HUMAN_MERGE_VETO_RE`), the pull request is held (`human merge veto from <logins>`). That person
 lifts the hold with any later comment that does not say it, such as "go ahead", or by editing the
-veto away. Another person's comment does not lift it. Comments from a bot or from
+veto away. Another person's comment does not lift it, and neither does an item with no text, such
+as an Approve with no comment or the empty summary of an inline-only review. Comments from a bot or from
 `merge.agent-identity` hold nothing. A bare "wait" is not a veto, and neither are blocking words
 such as "regression" (the autopilot tier's wider scan).
 
