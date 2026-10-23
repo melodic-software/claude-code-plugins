@@ -146,3 +146,26 @@ test("pr-require-checks.yml never cancels a dispatched or scheduled run", () => 
   const group = /\nconcurrency:\n {2}group: >-\n([\s\S]*?)\n {2}cancel-in-progress:/.exec(checks)[1];
   assert.match(group, /github\.event\.pull_request\.number \|\| github\.run_id/);
 });
+
+// #9276 plan item 8: the lanes App token arms a lane pull request as soon as
+// the issue lane finishes, in pr-merge.yml, the one caller the token broker
+// mints `merge` for; the merge job's gate never runs on that event.
+test("the issue lane finishing wakes only the enable-auto-merge job", () => {
+  assert.match(merge, /\n {2}workflow_run: # zizmor: ignore\[dangerous-triggers\]\n {4}workflows: \[work-resolve-issue\]\n {4}types: \[completed\]\n/);
+  assert.match(job("merge"), /\n {6}&& github\.event_name != 'workflow_run'\n/);
+  const arm = job("enable-auto-merge");
+  assert.doesNotMatch(/\n {4}if: >-\n([\s\S]*?)\n {4}[a-z-]+:/.exec(arm)[1], /workflow_run'\n/);
+  assert.match(arm, /\n {4}concurrency:\n {6}group: pr-merge-enable-auto-merge\n {6}queue: max\n/);
+});
+
+test("enable-auto-merge asks the broker for its own activity's merge token", () => {
+  const arm = job("enable-auto-merge");
+  const steps = [...arm.matchAll(/\n {10}lane: (.*)\n {10}activity: (.*)\n/g)].map((m) => `${m[1]}/${m[2]}`);
+  assert.deepEqual(steps, ["pr-merge/enable-auto-merge", "pr-merge/enable-auto-merge"]);
+  assert.match(arm, /node \.base\/\.github\/scripts\/pr-merge\/enable-auto-merge\.mjs/);
+  const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(arm)[1];
+  assert.deepEqual(
+    [...block.matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => `${m[1]}: ${m[2]}`),
+    ["contents: read", "id-token: write"],
+  );
+});

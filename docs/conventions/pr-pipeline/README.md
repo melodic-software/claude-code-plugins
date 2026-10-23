@@ -1003,6 +1003,22 @@ such as a demotion record, a ruleset, an edit to a comment older than the newest
 outside the keyed paths, delays re-gating by at most those limits; a skip never merges, enqueues or
 drops an escalation.
 
+#### Native auto-merge
+
+The lane's `enable-auto-merge` activity, the `enable-auto-merge` job of `pr-merge.yml` with its
+own lanes App token (`.github/scripts/pr-merge/enable-auto-merge.mjs`, no model), turns on GitHub's
+native auto-merge (`enablePullRequestAutoMerge`, squash, `expectedHeadOid` the head it read) for
+each open lanes App pull request into main from a branch of this repository that is not a draft,
+opens with `Closes #<issue>`, and carries no hold: no `Hold:` line or "do not merge" in its body
+(the gate's own rule) and no `do-not-merge` or human-gated label. It turns auto-merge off on an
+armed one that now fails any of those. GitHub then merges the pull request through the merge queue
+once `ci-status` passes. The issue lane finishing (`workflow_run`) wakes it, so a pull request is
+armed right after report-outcome opens it; a listed human's edit, unlabel or ready wakes it too, so
+adding a `Hold:` line disarms at once; and the 15-minute schedule arms or disarms what the events
+missed. The token broker mints `merge` only for `pr-merge.yml`, and outside the schedule only for a
+listed human's run, so an issue run the lanes App started is armed by the next scheduled run. While
+`merge.report-only` is true it reports each decision and writes nothing.
+
 ### Dependabot pull requests
 
 No Dependabot pull request waits on a human
