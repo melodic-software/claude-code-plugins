@@ -1070,8 +1070,9 @@ no FAIL is at it, no earlier FAIL is uncleared, FAILs sit at fewer than `merge.m
 heads, and the spec is unchanged and trusted; and `evidence --lane-reviews` finds no hold the gate
 reads from the review lanes' evidence bound to the head (an open CRITICAL security finding, or a
 review not bound to the head), whether or not the lane applied its hold label. Each such run also
-runs the post-merge check, as the `merge` job does, and reads the lane's room from it
-(`babysit_verify_evidence.py lane-room`): while the gate holds its lane off (a demotion record,
+waits for the same run's `post-merge-dispatch` job and reads the lane's room from the post-merge
+report that job keeps as an artifact (`babysit_verify_evidence.py lane-room`; with no report it
+arms nothing and disarms nothing): while the gate holds its lane off (a demotion record,
 `merge.rung`, the loop setting or the rung cap off, a lane merge that failed its post-merge check)
 nothing is armed and every armed lanes App pull request is disarmed; at `merge.max-in-flight`,
 counting the queue's lane entries, the lane's unverified merges and armed pull requests the queue

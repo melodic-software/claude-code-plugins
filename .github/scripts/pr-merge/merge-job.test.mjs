@@ -52,6 +52,7 @@ test("the re-dispatch for earlier lane merges waits on neither the listing nor t
       "Read report-only",
       "Read the lane records the last run kept",
       "Check earlier lane merges",
+      "Keep the post-merge report for enable-auto-merge",
       "Start the full CI run on main",
       "Record the dispatched run",
       "Re-run a red lane-dispatched full run",
