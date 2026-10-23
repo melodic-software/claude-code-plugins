@@ -215,7 +215,7 @@ describe("decide", () => {
     assert.equal(result.verdict, "skip");
   });
 
-  test("issue text cannot admit: a quoted task list still counts, a missing one refuses", () => {
+  test("issue text cannot admit: a quoted task list does not count, so the issue is refused", () => {
     const result = decide(
       facts({
         issue: issueOf({ body: "> - [ ] quoted from elsewhere" }),
