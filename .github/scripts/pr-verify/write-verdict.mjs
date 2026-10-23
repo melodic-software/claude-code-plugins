@@ -1,8 +1,9 @@
 // Checks the verifier's structured output, the last result message of
 // run-claude-cli's execution file, and writes the verdict file that
-// pr-verify.yml uploads as pr-verify-<pr>-<head-sha>-<verdict>-<ref-digest>,
-// the last part `headRefDigest` of the head branch the file records, so the
-// pr-merge lane can tie a FAIL to a branch without downloading it. The output
+// pr-verify.yml uploads as pr-verify-<pr>-<head-sha>-<verdict>. Every reader
+// also accepts that name followed by `-<headRefDigest of the head branch>`,
+// which lets the pr-merge lane tie a FAIL to a branch without downloading it;
+// this writer moves to it once the readers have run on main. The output
 // must be exactly {verdict, summary, notes}: verdict pass, pass-notes or fail,
 // summary a string, notes an array of strings, none matching the shared
 // credential patterns (lib/publish-gate.mjs findSecret), since the verdict is
@@ -175,8 +176,7 @@ export const HEAD_REF_DIGEST_HEX = 16;
 export const headRefDigest = (ref) =>
   createHash("sha256").update(String(ref), "utf8").digest("hex").slice(0, HEAD_REF_DIGEST_HEX);
 
-export const artifactName = (verdict) =>
-  `pr-verify-${verdict.pr}-${verdict.head_sha}-${verdict.verdict}-${headRefDigest(verdict.head_ref)}`;
+export const artifactName = (verdict) => `pr-verify-${verdict.pr}-${verdict.head_sha}-${verdict.verdict}`;
 
 export function main(env = process.env) {
   for (const key of [

@@ -155,8 +155,11 @@ async function pullsOfCommit(github, repository, head) {
 
 // The names that hold a counted verdict at the head: this PR's PASS,
 // PASS-NOTES and FAIL, and a FAIL under each other number the commit's pull
-// requests carry, each without a head-ref digest (an older verdict) and with
-// the digest of that pull request's head branch (write-verdict.mjs).
+// requests carry, each without a head-ref digest and with the digest of that
+// pull request's head branch (write-verdict.mjs headRefDigest), which doubles
+// the lookups. Once write-verdict writes only digest names, the digest-free
+// lookups are needed only until the last artifact named that way expires
+// (90-day retention), and then go.
 async function judged({ github, repository, number, head, base, refs }) {
   // The digest is hex whatever the branch holds, so any non-empty one is looked up.
   const named = (pr, verdict) => {

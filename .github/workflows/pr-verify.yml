@@ -2,8 +2,8 @@ name: pr-verify
 
 # The verifier: a model that did not write the pull request judges each head
 # that passes pr-require-checks against its linked issue, and the run uploads
-# its verdict as the artifact pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>-<ref-digest>
-# (write-verdict.mjs headRefDigest).
+# its verdict as the artifact pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>; its
+# readers also accept that name followed by -<ref-digest> (write-verdict.mjs headRefDigest).
 # Only steps of a run of this file on main can upload that run's artifacts, so
 # the pr-merge lane counts a verdict only through its run record
 # (plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py).

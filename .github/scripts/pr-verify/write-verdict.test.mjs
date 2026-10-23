@@ -1,6 +1,5 @@
 // Expected values come from the verdict rules in
-// docs/conventions/pr-pipeline/README.md ("Verifier verdict"): the artifact is named
-// pr-verify-<pr>-<head-sha>-<verdict>-<the first 16 hex digits of the head branch's SHA-256>, the
+// docs/conventions/pr-pipeline/README.md ("Verifier verdict"): the artifact is named pr-verify-<pr>-<head-sha>-<verdict>, the
 // verdict JSON holds {pr, head_sha, base_sha, head_ref, linked_issues,
 // verdict, summary, notes, run_id}, each linked issue records its author, and
 // malformed output writes nothing. The output comes from the last result
@@ -16,7 +15,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { artifactName, buildVerdict, checkKeyLeg, main, structuredOutput } from "./write-verdict.mjs";
+import { artifactName, buildVerdict, checkKeyLeg, HEAD_REF_DIGEST_HEX, headRefDigest, main, structuredOutput } from "./write-verdict.mjs";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
@@ -49,9 +48,16 @@ test("each verdict names its artifact with the PR, the head and the verdict", ()
       notes: ["n"],
       run_id: 9001,
     });
-    // 79b4cc554b80dca6: the first 16 hex digits of `printf %s feat/x | sha256sum`.
-    assert.equal(artifactName(built), `pr-verify-41-${HEAD}-${verdict}-79b4cc554b80dca6`);
+    assert.equal(artifactName(built), `pr-verify-41-${HEAD}-${verdict}`);
   }
+});
+
+test("the head-ref digest is the first 16 hex digits of the branch's SHA-256", () => {
+  // `printf %s <ref> | sha256sum`, cut to 16 digits.
+  assert.equal(HEAD_REF_DIGEST_HEX, 16);
+  assert.equal(headRefDigest("feat/x"), "79b4cc554b80dca6");
+  assert.equal(headRefDigest("feat/a+b"), "a27da2afd9962004");
+  assert.equal(headRefDigest("fix/\u00e9"), "8c8a071ad0e51f5e");
 });
 
 test("output outside the schema throws", () => {
@@ -242,7 +248,7 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
   assert.equal(written.verdict, "fail");
   assert.equal(written.summary, "wrong");
   assert.deepEqual(written.linked_issues, [ISSUE]);
-  assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), `name=pr-verify-41-${HEAD}-fail-79b4cc554b80dca6\nverdict=fail\n`);
+  assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), `name=pr-verify-41-${HEAD}-fail\nverdict=fail\n`);
 
   const okFile = execution("ok", JSON.parse(ok));
   const unparsable = path.join(dir, "unparsable.json");

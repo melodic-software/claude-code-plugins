@@ -1214,11 +1214,11 @@ same-repository, non-draft pull request into main. It never runs the pull reques
 data, and judges whether the diff delivers the issue's intent correctly and safely. The model runs
 on ci-workflows' `run-claude-cli` as the `automations` role ([Funding](#funding)), with the Read
 tool alone, allowed only on the data files in the working directory's `pr-verify-data`. The run
-uploads one artifact, `pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>-<ref-digest>`, where
-`<ref-digest>` is the first 16 hex digits of the SHA-256 of the `head_ref` it records
-(`HEAD_REF_DIGEST_HEX` in `write-verdict.mjs`), holding the verdict JSON
-(`pr`, `head_sha`, `base_sha`, `head_ref`, `linked_issues` with each issue's author login, id and
-account type, `verdict`, `summary`, `notes`, `run_id`). The head SHA is the one `pr-require-checks`
+uploads one artifact, `pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>`, holding the verdict JSON. Every
+reader also accepts that name followed by `-<ref-digest>`, the first 16 hex digits of the SHA-256
+of the `head_ref` the JSON records (`HEAD_REF_DIGEST_HEX` in `write-verdict.mjs`), which the
+writer moves to once the readers have run on main. The JSON holds `pr`, `head_sha`, `base_sha`, `head_ref`, `linked_issues` with each issue's author login, id and
+account type, `verdict`, `summary`, `notes` and `run_id`. The head SHA is the one `pr-require-checks`
 ran on, never the pull request's live head. A model error, an output that fails the schema, a
 summary or note matching a shared credential pattern (`findSecret` in `lib/publish-gate.mjs`), or a run with any permission denial
 uploads nothing, and the run fails. A head that already has a counted verdict from a completed run (a `fail` under any
@@ -1273,9 +1273,10 @@ head:
 - a counted `fail` at the head, under any pull request number, refuses (`verify:fail`);
 - a counted `fail` at another head of the pull request (its number, one of its commits, or a
   verdict recording its head branch, read from the name's digest, or from the verdict JSON for a
-  verdict uploaded before the digest) refuses (`verify:earlier-fail`). The name is trusted only
-  from a run of verifier origin, as the JSON is, and equal branches always give equal digests,
-  so a collision can only tie a `fail`, never untie one. Counted `pass` or
+  name without one) refuses (`verify:earlier-fail`). The name is trusted only from a run of
+  verifier origin, as the JSON is, and equal branches always give equal digests, so a collision
+  can only tie a `fail`, never untie one. A digest-named `fail` is decided by its name even when
+  its JSON cannot be read, where a name without the digest refuses `verify:unreadable` then. Counted `pass` or
   `pass-notes` verdicts at the head whose runs were all created after every such `fail`'s run
   clear it, each `created_at` read fresh from GitHub (a missing one keeps the refusal; a
   re-attempt keeps its run's `created_at` and moves `run_started_at` later, so a re-run of an
