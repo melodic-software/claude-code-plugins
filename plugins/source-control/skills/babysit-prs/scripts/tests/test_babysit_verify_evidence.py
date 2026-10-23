@@ -215,9 +215,6 @@ class FakeGitHub:
         self.actors: Any = {"version": 1, "actors": [MAINTAINER, LANES]}
         self.calls: list[list[str]] = []
         self.envs: list[tuple[list[str], Any]] = []
-        # A download's refusal (gh's stderr) by the GH_TOKEN it carries,
-        # None for the process token.
-        self.download_refusals: dict[str | None, str] = {}
         self.fail: set[str] = set()
         self.fail_status = 502
         # The PR's closing issues now: (number, repository).
@@ -238,16 +235,6 @@ class FakeGitHub:
     ) -> subprocess.CompletedProcess[str]:
         self.calls.append(args)
         self.envs.append((args, kwargs.get("env_overrides")))
-        token = (kwargs.get("env_overrides") or {}).get("GH_TOKEN")
-        if token in self.download_refusals and (
-            args[:2] == ["run", "download"] or args[1].endswith("/zip")
-        ):
-            return subprocess.CompletedProcess(
-                args,
-                1,
-                b"" if kwargs.get("binary") else "",
-                self.download_refusals[token],
-            )
 
         def ok(payload: Any) -> subprocess.CompletedProcess[str]:
             return subprocess.CompletedProcess(args, 0, json.dumps(payload), "")
@@ -3022,115 +3009,50 @@ class EachVerdictIsOneRequest(unittest.TestCase):
         self.assertIsNone(read(fake).refusal)
 
 
-class ARateLimitedDownloadUsesTheLaneToken(unittest.TestCase):
-    """GitHub can refuse `BABYSIT_VERIFY_GH_TOKEN` (`github.token`) for a
-    rate limit: pr-merge run 39930321434 at 09:24Z on 2026-10-23 read 200
-    verdicts, failed on 122 of them, and its next candidate fetched those 122
-    again. A download refused for a rate limit is made again with the
-    process (lane) token, and the run cache moves the run's later downloads
-    to it, as `_lane_evidence` does for the review-evidence reads; any other
-    refusal is not retried."""
-
-    LIMITED = (
-        "gh: API rate limit exceeded for installation ID 4242. If you reach out"
-        " to GitHub Support for help, please include the request ID"
-        " 0000:0000:0000:0000. (HTTP 403)"
-    )
-    REFUSED = "gh: Resource not accessible by integration (HTTP 403)"
+class AnUnreadableRecordIsSharedForTheRun(unittest.TestCase):
+    """An untied FAIL record a gate process could not read refuses the run's
+    later candidates without another download: pr-merge run 39930321434's
+    second candidate fetched 122 records the first had failed on. A failure
+    only refuses, so sharing it can only hold; the next run reads again."""
 
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
-        path = str(pathlib.Path(tmp.name, "run.json"))
-        patcher = mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": path})
+        self.cache = str(pathlib.Path(tmp.name, "run.json"))
+        patcher = mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": self.cache})
         patcher.start()
         self.addCleanup(patcher.stop)
 
     @staticmethod
-    def judge(fake: FakeGitHub, token: str | None = "tok") -> ve.Evidence:
-        with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
-            reader = ve.Reader(REPO, "main", now=NOW, actions_token=token)
-            return reader.evidence(PR, HEAD, pull())
+    def foreign() -> FakeGitHub:
+        """A pass at the head and PR 98's FAIL (run 3) whose record is gone."""
+        fake = passing(artifact(named(UNRELATED, "fail", 98), 3), runs={3: run(3)})
+        return fake
 
-    @staticmethod
-    def download_tokens(fake: FakeGitHub) -> list[str | None]:
-        return [
-            (env or {}).get("GH_TOKEN")
-            for args, env in fake.envs
-            if args[:2] == ["run", "download"] or args[1].endswith("/zip")
-        ]
-
-    @staticmethod
-    def limited(token: str) -> bool:
-        key = ve.run_cache.token_key(token)
-        return ve.run_cache.get(ve.run_cache.READ_TOKEN_LIMITED, key, None) is True
-
-    def test_a_rate_limited_download_is_made_again_with_the_lane_token(self) -> None:
-        for ids in (True, False):
-            with self.subTest(ids=ids):
-                self.setUp()
-                fake = passing()
-                if not ids:
-                    del fake.artifacts[0]["id"]
-                fake.download_refusals = {"tok": self.LIMITED}
-                self.assertIsNone(self.judge(fake).refusal)
-                self.assertEqual(self.download_tokens(fake), ["tok", None])
-                self.assertTrue(self.limited("tok"))
-                # A later candidate of the run does not try the token again.
-                fake.calls.clear()
-                fake.envs.clear()
-                self.assertIsNone(self.judge(fake).refusal)
-                self.assertEqual(self.download_tokens(fake), [None])
-
-    def test_a_flag_the_review_evidence_reads_set_moves_downloads(self) -> None:
-        ve.run_cache.put(
-            ve.run_cache.READ_TOKEN_LIMITED, ve.run_cache.token_key("tok"), True
+    def test_a_later_candidate_refuses_without_downloading_again(self) -> None:
+        fake = self.foreign()
+        self.assertEqual(read(fake).refusal, "verify:unreadable")
+        # The record is readable now, but this run already failed on it.
+        fake.records[named(UNRELATED, "fail", 98)] = record(
+            98, UNRELATED, verdict="fail", head_ref="feat/other"
         )
-        fake = passing()
-        self.assertIsNone(self.judge(fake).refusal)
-        self.assertEqual(self.download_tokens(fake), [None])
+        evidence = read(fake)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertEqual(evidence.detail, f"record of {named(UNRELATED, 'fail', 98)}")
+        self.assertEqual(OneRunSharesItsFailRunReads.downloads(fake, 3), 1)
+        # The next run reads it again, and the pass allows.
+        with mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": self.cache + "2"}):
+            self.assertIsNone(read(fake).refusal)
+        self.assertEqual(OneRunSharesItsFailRunReads.downloads(fake, 3), 2)
 
-    def test_another_refusal_is_not_made_again(self) -> None:
-        for refusal in (
-            self.REFUSED,
-            "gh: Not Found (HTTP 404)",
-            "gh: boom (HTTP 502)",
-        ):
-            with self.subTest(refusal=refusal):
-                self.setUp()
-                fake = passing()
-                fake.download_refusals = {"tok": refusal}
-                self.assertEqual(self.judge(fake).refusal, "verify:unreadable")
-                self.assertEqual(self.download_tokens(fake), ["tok"])
-                self.assertFalse(self.limited("tok"))
-
-    def test_without_an_actions_token_nothing_is_made_again(self) -> None:
-        fake = passing()
-        fake.download_refusals = {None: self.LIMITED}
-        self.assertEqual(self.judge(fake, None).refusal, "verify:unreadable")
-        self.assertEqual(self.download_tokens(fake), [None])
-
-    def test_a_lane_token_refused_the_download_is_not_tried_again(self) -> None:
-        # The lane token holds no Actions permission (request-lane-token
-        # grants contents, pull requests and issues), so GitHub may refuse it.
-        fake = passing()
-        fake.download_refusals = {"tok": self.LIMITED, None: self.REFUSED}
-        self.assertEqual(self.judge(fake).refusal, "verify:unreadable")
-        self.assertEqual(self.download_tokens(fake), ["tok", None])
-        fake.calls.clear()
-        fake.envs.clear()
-        self.assertEqual(self.judge(fake).refusal, "verify:unreadable")
-        self.assertEqual(self.download_tokens(fake), ["tok"])
-
-    def test_a_lane_token_rate_limited_too_is_tried_again(self) -> None:
-        fake = passing()
-        fake.download_refusals = {"tok": self.LIMITED, None: self.LIMITED}
-        self.assertEqual(self.judge(fake).refusal, "verify:unreadable")
-        fake.calls.clear()
-        fake.envs.clear()
-        del fake.download_refusals[None]
-        self.assertIsNone(self.judge(fake).refusal)
-        self.assertEqual(self.download_tokens(fake), [None])
+    def test_an_artifact_without_an_id_is_read_again(self) -> None:
+        fake = self.foreign()
+        del fake.artifacts[1]["id"]
+        self.assertEqual(read(fake).refusal, "verify:unreadable")
+        fake.records[named(UNRELATED, "fail", 98)] = record(
+            98, UNRELATED, verdict="fail", head_ref="feat/other"
+        )
+        self.assertIsNone(read(fake).refusal)
 
 
 if __name__ == "__main__":

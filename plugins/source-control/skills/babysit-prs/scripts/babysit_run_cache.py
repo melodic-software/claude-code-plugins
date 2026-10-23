@@ -26,10 +26,6 @@ ENV = "BABYSIT_RUN_CACHE"
 # required check, so a queued entry whose FAIL lands mid-run must be held
 # before the merge queue can land it.
 MAX_AGE = timedelta(minutes=2)
-# The section where a gate process records that the verdict reader's token
-# (`BABYSIT_VERIFY_GH_TOKEN`) hit a rate limit, keyed by `token_key`, so later
-# reads in the run use the process (lane) token without trying it first.
-READ_TOKEN_LIMITED = "read-token-limited"
 # What gh reads its credentials from: these variables and hosts.yml.
 CREDENTIAL_ENV = (
     "GH_TOKEN",
@@ -125,11 +121,6 @@ def put(section: str, key: str, value: Any, at: datetime | None = None) -> None:
     with contextlib.suppress(OSError):
         tmp.write_text(json.dumps(data), encoding="utf-8")
         os.replace(tmp, path)
-
-
-def token_key(token: str) -> str:
-    """A digest naming `token` in the cache without writing it there."""
-    return hashlib.sha256(token.encode()).hexdigest()
 
 
 def credentials() -> str:

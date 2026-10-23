@@ -1358,9 +1358,10 @@ already refused with "API rate limit exceeded for installation". Second, when an
 is refused with a 429, or a 403 whose message names a rate limit, the gate reads all of that
 candidate's evidence again with the lane token (they are all GETs). It records the refusal in
 `BABYSIT_RUN_CACHE`, so later candidates in the run skip `GITHUB_TOKEN`. Any other refusal is not
-retried. A verdict download refused that way is made again with the lane token and sets the same
-record, which moves the run's later downloads too; once the lane token is refused a download with a
-401 or 403 that names no rate limit, the run's later downloads stay on `GITHUB_TOKEN`. `GITHUB_TOKEN`'s pool is shared with the full-run dispatch and the post-merge checks. Every other call, every write
+retried. The verdict downloads, the listing, the run records and the compares
+stay on `GITHUB_TOKEN`: the lane token holds no Actions permission. An untied FAIL whose record
+cannot be read refuses the run's later candidates through `BABYSIT_RUN_CACHE` without another
+download; the next run reads it again. `GITHUB_TOKEN`'s pool is shared with the full-run dispatch and the post-merge checks. Every other call, every write
 included, keeps the lane token. That job checks out only main and runs no pull request code.
 
 pr-merge.yml also names a file in `BABYSIT_RUN_CACHE`, where the run's gate processes share reads

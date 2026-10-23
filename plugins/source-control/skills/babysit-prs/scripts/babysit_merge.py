@@ -138,6 +138,7 @@ from __future__ import annotations
 
 import argparse
 import functools
+import hashlib
 import json
 import os
 import re
@@ -2949,9 +2950,19 @@ class HeadPusherUnproven(Exception):
     """A head commit's pusher cannot be shown not to be a human."""
 
 
+# The run cache section where a gate process records that the read token hit
+# a rate limit, keyed by a digest of that token, so later candidates in the
+# run read their evidence with the lane token without trying it first.
+READ_TOKEN_LIMITED = "read-token-limited"
+
+
 class ReadTokenLimited(RuntimeError):
     """A review-evidence read under the read token was refused for a rate
     limit; the same GETs can be made with the lane token."""
+
+
+def _token_key(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
 
 
 def _evidence_read_env(floor: float) -> dict[str, str] | None:
@@ -2966,10 +2977,7 @@ def _evidence_read_env(floor: float) -> dict[str, str] | None:
     token = os.environ.get(verify_evidence.TOKEN_ENV)
     if not token:
         return None
-    if (
-        run_cache.get(run_cache.READ_TOKEN_LIMITED, run_cache.token_key(token), None)
-        is not None
-    ):
+    if run_cache.get(READ_TOKEN_LIMITED, _token_key(token), None) is not None:
         print(
             f"read-token-floor: {verify_evidence.TOKEN_ENV} was rate limited earlier"
             " in this run; the review-evidence reads use the lane token",
@@ -3013,11 +3021,7 @@ def _lane_evidence(
     try:
         return _read_lane_evidence(*args, read_env)
     except ReadTokenLimited as exc:
-        run_cache.put(
-            run_cache.READ_TOKEN_LIMITED,
-            run_cache.token_key(read_env["GH_TOKEN"]),
-            True,
-        )
+        run_cache.put(READ_TOKEN_LIMITED, _token_key(read_env["GH_TOKEN"]), True)
         print(
             f"read-token-floor: {verify_evidence.TOKEN_ENV} was rate limited"
             f" ({str(exc)[-200:]}); reading the review evidence again with the"
