@@ -227,7 +227,7 @@ test("a closed pull request is skipped", async () => {
   assert.equal(result.decision, "skip");
 });
 
-test("a log excerpt keeps the last lines, drops timestamps and colour codes, and is capped", () => {
+test("a log excerpt keeps the last lines, drops timestamps and color codes, and is capped", () => {
   assert.equal(logExcerpt("2026-10-18T00:00:01.1234567Z \u001b[31mred\u001b[0m\nplain\n"), "red\nplain");
   const long = Array.from({ length: 500 }, (_, i) => `line ${i} ${"x".repeat(40)}`).join("\n");
   const excerpt = logExcerpt(long);
