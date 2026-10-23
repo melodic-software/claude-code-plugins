@@ -1768,9 +1768,11 @@ step under an `outcome=<reason>` marker. What changes from the PR flow:
   those markers that carry `branch=resumed`, left by a resumed run that kept no branch of its own)
   and names a run whose newest lane branch passes the same commit, tip and PR checks
   with every commit ahead of the default branch verified, authored by the lanes App and committed
-  by `web-flow` (a listing the compare cuts short resumes nothing), the run resumes it; when that
-  run's branch is gone or fails a check, the run starts from the default branch, never from an
-  older run's branch: `issue-prior`
+  by `web-flow` (a listing the compare cuts short resumes nothing) and no commit behind the default
+  branch, the run resumes it; when that run's branch is gone, fails a check or is behind the
+  default branch (its stale base would fail the runner's whole-branch checks), the run starts from
+  the default branch under a new lane branch, never from an older run's branch, and leaves the old
+  branch as it is: `issue-prior`
   outputs `resume-branch`, `resume-tip` (the tip it read) and `resume-cause`, and the job checks
   out that tip, so its patch is made there instead of on the default branch tip. Any failed
   read, or an answer of the wrong shape, fails the step, so no model runs.

@@ -30,7 +30,7 @@ const escalated = (reason = "workflow-staged", { user = BOT, at = "2026-10-18T10
 
 // One open pull request (number 7) labeled needs-human; `timeline` is its timeline and
 // `mainFiles` the files main changed since its merge base with the head.
-function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [] }) {
+function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], author }) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
@@ -45,7 +45,7 @@ function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = 
       return path.endsWith("page=1") ? timeline : [];
     }
     if (method === "GET" && route === `/repos/${REPO}/pulls/7`) {
-      return { number: 7, state: "open", base: { ref: "main" }, head: { sha: HEAD }, labels: [{ name: "needs-human" }], mergeable };
+      return { number: 7, state: "open", user: author, base: { ref: "main" }, head: { sha: HEAD }, labels: [{ name: "needs-human" }], mergeable };
     }
     if (method === "GET" && route === `/repos/${REPO}/compare/${HEAD}...${MAIN}`) {
       return { files: mainFiles };
@@ -61,12 +61,12 @@ function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = 
   return { github, calls, writes: () => calls.filter((call) => call.method !== "GET") };
 }
 
-const run = async (w) => {
+const run = async (w, env = {}) => {
   const logs = [];
   const original = console.log;
   console.log = (line) => logs.push(line);
   try {
-    return { code: await main({ env: ENV, github: w.github }), logs };
+    return { code: await main({ env: { ...ENV, ...env }, github: w.github }), logs };
   } finally {
     console.log = original;
   }
@@ -248,6 +248,22 @@ test("a pr-merge risk comment at an old head comes off as head-moved", async () 
   await run(w);
   assert.equal(w.writes().length, 2);
   assert.equal(w.writes()[0].body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=head-moved head=${HEAD} -->`);
+});
+
+// Under merge.lane-prs native pr-merge never lists a lanes App PR, so nothing
+// would judge its new head and escalate again: the label stays.
+test("a pr-merge escalation at an old head on a lanes App PR is kept under lane-prs native, cleared under gate", async () => {
+  const native = world({ timeline: mergeEscalated(riskBody(OLD)), author: BOT });
+  const { logs } = await run(native, { LANE_PRS: "native" });
+  assert.equal(native.writes().length, 0);
+  assert.ok(logs.some((line) => /#7 kept: under merge\.lane-prs native/.test(line)), logs.join("\n"));
+  const gate = world({ timeline: mergeEscalated(riskBody(OLD)), author: BOT });
+  await run(gate, { LANE_PRS: "gate" });
+  assert.equal(gate.writes().length, 2);
+  // An adopted owner PR is still gated under native, so it clears.
+  const owner = world({ timeline: mergeEscalated(riskBody(OLD)), author: OWNER });
+  await run(owner, { LANE_PRS: "native" });
+  assert.equal(owner.writes().length, 2);
 });
 
 const sharedCopyBody = (head) =>

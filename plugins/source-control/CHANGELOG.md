@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.13.0] - 2026-10-23
+
+### Changed
+
+- The review-thread tool (`feedback-thread.sh`) of `/source-control:pull-request comments --ci` admits a file in the thread file's `pr_paths`, the files the pull request already changes, in every kept thread's scope while the gated head holds it. `reference/comments-ci.md` tells the model to run `check-paths` before calling a fix out of scope, and to cite a changed line in such a file as evidence.
+
 ## [2.12.0] - 2026-10-23
 
 ### Changed

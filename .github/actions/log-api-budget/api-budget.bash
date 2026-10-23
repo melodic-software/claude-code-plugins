@@ -78,6 +78,7 @@ api_budget_wrap_gh() {
       esac
     done
     out=$(mktemp 2>/dev/null) || { command gh "$@"; return; }
+    # gh-read-exempt: the wrapper under every call, gh_read included: the same call with -i.
     command gh api -i "${@:2}" >"$out" || rc=$?
     api_budget_read "$API_BUDGET_GH_TOKEN" "$out"
     rm -f "$out"
