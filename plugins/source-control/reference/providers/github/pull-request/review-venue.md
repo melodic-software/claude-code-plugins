@@ -11,10 +11,11 @@ workflows, fixed in the script:
 
 | Lane | Reusable workflow the caller's runs reference |
 |---|---|
-| `code-review` | `melodic-software/ci-workflows/.github/workflows/pr-review.yml@<sha>` |
-| `security-review` | `melodic-software/ci-workflows/.github/workflows/pr-review-security.yml@<sha>` |
+| `code-review` | `melodic-software/ci-workflows/.github/workflows/pr-review.yml@<sha>`, or `pr-review-cli.yml@<sha>` from a caller whose path does not contain `security` |
+| `security-review` | `melodic-software/ci-workflows/.github/workflows/pr-review-security.yml@<sha>`, or `pr-review-cli.yml@<sha>` from a caller whose path contains `security` |
 
-The caller's own file name does not matter (`pr-review-hosted.yml` on a public repository,
+The run listing does not show `pr-review-cli.yml`'s `lane` input, so the caller's path decides its
+lane. Otherwise the caller's own file name does not matter (`pr-review-hosted.yml` on a public repository,
 `pr-review.yml` on a private one). The script reads the `referenced_workflows` field of the
 repository's newest pull request runs, up to three pages of 100:
 
@@ -65,7 +66,7 @@ Any other class, `rate-limit` included, or a failed run with no failed job, keep
 After 10 such runs in a row the lane reads `local stale`. Pointer: the annotation is the reusable
 workflow's last step, `echo "::error title=$LANE failed::failure-class=..."`, in
 [ci-workflows `pr-review.yml`](https://github.com/melodic-software/ci-workflows/blob/main/.github/workflows/pr-review.yml)
-and `pr-review-security.yml`; the reads are at
+and `pr-review-security.yml` (`pr-review-cli.yml`'s publish step writes it after the lane id, `<lane>: failure-class=...`); the reads are at
 [REST API: list jobs for a workflow run](https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run)
 and [REST API: list check run annotations](https://docs.github.com/en/rest/checks/runs#list-check-run-annotations).
 As of: 2026-10-21, read from runs 39610040287 and 39610040502. Recheck trigger: the reusable

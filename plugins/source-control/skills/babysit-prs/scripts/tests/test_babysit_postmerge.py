@@ -908,19 +908,57 @@ class DroppedDispatchListing(CheckCase):
         ]
         self.assertTrue(self.check().merges[0].verified)
 
-    def test_a_listing_over_the_search_cap_reads_with_a_warning(self) -> None:
+    def red_canary_listing(self, size: int, total: int | None = None) -> None:
+        """A canary listing of `size` runs, the first red, and a green
+        dispatch run: read as complete, the merge fails on the canary."""
         self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
         self.gh.runs[("post-merge-detect-silent-revert.yml", "push")] = [
-            canary_run(21 + i) for i in range(1000)
-        ]
-        self.gh.total_counts[("post-merge-detect-silent-revert.yml", "push")] = 1500
+            canary_run(21, conclusion="failure")
+        ] + [canary_run(22 + i) for i in range(size - 1)]
+        if total is not None:
+            self.gh.total_counts[("post-merge-detect-silent-revert.yml", "push")] = (
+                total
+            )
+
+    def test_a_listing_one_under_the_search_cap_reads_as_complete(self) -> None:
+        self.red_canary_listing(999)
         verdict = self.check()
         self.assertTrue(verdict.readable, verdict.reason)
-        self.assertIn(
-            "listing-capped: post-merge-detect-silent-revert.yml push runs "
-            "total_count 1500",
-            verdict.warnings,
-        )
+        self.assertEqual([f.signal for f in verdict.failures], ["canary"])
+
+    def test_a_listing_at_the_search_cap_is_unreadable(self) -> None:
+        # GitHub returns at most 1,000 runs per filtered search, so a listing
+        # that reached 1,000 may be missing runs.
+        for total in (1000, 1500):
+            with self.subTest(total=total):
+                self.red_canary_listing(1000, total)
+                verdict = self.check()
+                self.assertFalse(verdict.readable)
+                self.assertIn("search cap", verdict.reason)
+                self.assertEqual(verdict.failures, ())
+
+    def test_a_listing_at_the_search_cap_files_no_record_under_remediate(
+        self,
+    ) -> None:
+        self.red_canary_listing(1000)
+        out = io.StringIO()
+        with (
+            contextlib.redirect_stdout(out),
+            mock.patch.object(pm, "_default_is_human", return_value=human),
+        ):
+            code = pm.main(
+                [
+                    "--repo",
+                    REPO,
+                    "--agent-identity",
+                    IDENTITY,
+                    "--since",
+                    SINCE.isoformat(),
+                    "--remediate",
+                ]
+            )
+        self.assertEqual(code, 3)
+        self.assertEqual(self.gh.writes(), [])
 
     def test_a_short_listing_claiming_past_the_cap_is_unreadable(self) -> None:
         # A degraded answer can carry a large total_count with few items;

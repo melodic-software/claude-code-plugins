@@ -18,7 +18,7 @@ export const PREDICATES = {
   },
   // An npm or pip manifest or lock file outside .github/, in a directory of
   // its ecosystem among the base dependabot.yml's [ecosystem, directory]
-  // pairs. No runner hands those on yet, so a row naming it refuses.
+  // pairs, which apply-patch.mjs reads from the trusted base copy.
   "dependency-manifests": ({ dependabotConfig }) => {
     if (!Array.isArray(dependabotConfig) || dependabotConfig.length === 0) {
       throw new Error("allow dependency-manifests needs the base dependabot.yml's [ecosystem, directory] pairs");

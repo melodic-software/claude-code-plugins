@@ -25,8 +25,10 @@
     "allow": ["dependency-manifests"],
     "max-files": 300,
     "requires": ["dependency-verdict: fix"],
+    "content-rule": "dependency-version-change",
     "commit": { "parents": ["head"], "message": "Fix the dependency update on {ref} [dependabot skip]", "trailer": "Lane-Activity: {lane}/{activity}" },
     "reads-report": null,
+    "skip-moved-head": true,
     "escalations": ["dependency-fix-not-landed", "patch-invalid", "patch-not-applied", "patch-protected-path"]
   },
   "merge-base": {
