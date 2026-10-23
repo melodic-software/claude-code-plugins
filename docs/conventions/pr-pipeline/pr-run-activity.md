@@ -82,9 +82,9 @@ permissions, and passes no App key.
 | `patch-state`, `patch-sha256`, `patch-attempt`, `patch-head-sha`, `patch-activity`, `patch-prepare`, `reply-attempt` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), the read model job's outputs, its activity name and that activity's prepare mode, which picks the `patch-rules.json` row (empty: `default`) |
 
 In the write file's `workflow_call` outputs, `head-sha` is the PR head the gate passed, before
-any push of the run, and `escalation-reason` is empty, or why a
-[`prepare: merge-base`](#prepare-merge-base) activity or a reply, verdict or apply-patch script
-handed the PR to a person.
+any push of the run, and `escalation-reason` is empty, or why a reply, verdict or apply-patch
+script handed the PR to a person (under the `merge-base` row, the
+[`prepare: merge-base`](#prepare-merge-base) push job's reasons).
 
 The read file has five `workflow_call` outputs: `head-sha`, as in the write file,
 `patch-state`, `patch-sha256` and `patch-attempt`, described with
@@ -214,8 +214,9 @@ the broker request, and no other permission; it never holds `checks: write` or `
    With `trusted-base: default-tip` (`mode: default-tip`) it checks out the
    default branch tip instead, after the same checks: a PR in merge conflict keeps a stale base
    SHA, and the lane must run the tip's config and actions and merge the tip. The checked-out SHA
-   is the `base-sha` output either way, and the merge's second parent in
-   [`prepare: merge-base`](#prepare-merge-base).
+   is the `base-sha` output either way. A [`prepare: merge-base`](#prepare-merge-base) round
+   merges the tip its select job pinned instead, which both files check is on the default
+   branch.
 5. `resolve-config`, with the gated `head-sha` and `prepare-supported: true`; the read file also
    passes `applied-by-supported: patch` ([Patch output mode](#patch-output-mode)). The read file then
    fails red for any `prepare` but [`ci-context`](#prepare-ci-context), and for `ci-context`
@@ -247,10 +248,11 @@ the broker request, and no other permission; it never holds `checks: write` or `
    that closes an issue may fail the step red.
 8. `collect-base-activity` copies what the activity runs from the base out of `.base`: a script's whole
    directory to `$RUNNER_TEMP/base-script`, or for a skill the base `plugins/` and
-   `.claude-plugin/` to `$RUNNER_TEMP/base-marketplace`. For `prepare: merge-base` the write file
-   also copies the base's `.github/scripts/merge-base/` scripts and
+   `.claude-plugin/` to `$RUNNER_TEMP/base-marketplace`. For
+   [`prepare: merge-base`](#prepare-merge-base) the read file, and the write file under the
+   `merge-base` patch row, also copy the base's `.github/scripts/merge-base/` scripts and
    `plugins/source-control/scripts/resolve-version-bump-conflict.sh` to
-   `$RUNNER_TEMP/merge-base-bin`, recording each copy's SHA-256 as a step output, and reads
+   `$RUNNER_TEMP/merge-base-bin`, recording each copy's SHA-256 as a step output, and read
    `loop.no-progress` from the resolved config.
 9. `setup-runner-isolation`: for a skill, installs bubblewrap and socat with `apt-get` (three tries) and, where
    `/proc/sys/kernel/apparmor_restrict_unprivileged_userns` exists, sets it to `0`. It fails red
@@ -263,7 +265,7 @@ the broker request, and no other permission; it never holds `checks: write` or `
     `.github/standards/runner-policy` `package.json` and `package-lock.json`) to
     `$RUNNER_TEMP/setup-env`; a base without the script skips this and step 12's install with a
     notice. Then checks out the trigger gate's `head-sha` with `persist-credentials: false` (full
-    history for `prepare: merge-base`, else depth 1), then fails red unless `git rev-parse HEAD`
+    history for a merge, else depth 1), then fails red unless `git rev-parse HEAD`
     equals that SHA. This replaces `.base`.
 12. For a skill, sets up Python from the copied `.python-version` and runs the copied
     `setup-env.sh`, which installs the hash-pinned wheels in `.github/requirements-ci.txt` into a
@@ -293,23 +295,21 @@ A stacked PR, one whose base is not the default branch, gets a failure check fro
 it to the default branch to run its lanes.
 
 Its outputs are `base-sha`, `head-sha`, `pr-number`, `gate-reason`, `can-commit` and
-`act-outcome`, plus, in the write file, `head-ref`, `merge-state`, `escalation-reason` and
+`act-outcome`, plus, in the write file, `head-ref`, `escalation-reason` and
 `run-failure`, the reason the lane-token step failed with, from the base's `request-lane-token`. Every
-one is computed by a runner step, never read from model text. All but `act-outcome`,
-`merge-state` and `escalation-reason` are outputs of steps that ran before any head code:
+one is computed by a runner step, never read from model text. All but `act-outcome` and
+`escalation-reason` are outputs of steps that ran before any head code:
 `gate-reason` is the kill switch's reason if it stopped, else the trigger's if it stopped, else
 empty; `head-sha` and `head-ref` are the trigger gate's; `base-sha` is set only by step 4, so it
-is always on the default branch. `merge-state` and a pre-model `escalation-reason` come from the
-prepare step, before any model turn; a post-model `escalation-reason` comes from `post.sh` after
-it, and a forged one can only hand the PR to a person. `act-outcome` is the activity step's
+is always on the default branch. `escalation-reason` comes from the base's reply, verdict and
+apply-patch scripts, which run no model and no head code. `act-outcome` is the activity step's
 outcome, except that a skill step claude-code-action failed only because a `success` result went
 over `--max-turns` counts as succeeded. That holds only when the execution file's last result
 message has subtype `success`, `is_error` false and `num_turns` over the cap; any other failure,
 or a missing or unreadable execution file, still fails the job. A skill whose step succeeded is a
 failure when it took no model turn, when it is a gate skill and the verdict check (below) fails,
-when its commits could not be moved onto the PR branch, or when its merge commit failed or was not
-made; in `prepare: merge-base`, a clean merge that skipped the skill is a success once its commit
-is promoted. These checks are steps that run after the skill.
+or when its commits could not be moved onto the PR branch. These checks are steps that run after
+the skill.
 
 The write file also outputs the lane record of a skill run: `lane-class` and `lane-resets`, the
 failure class and usage-limit reset that ci-workflows' `report-lane-outcome` reads from the
@@ -376,9 +376,8 @@ skill leaves its edits uncommitted and the lane moves nothing. `commit_files` ta
 mode from disk, and `Write` creates a file without the executable bit, so that grant also allows
 `Bash(chmod +x *)` and the sentence says to run `chmod +x` first on every new or changed file that
 starts with `#!` or ends in `.sh`. A `read` skill that hands on a patch gets neither tool, and its
-sentence says to leave every change uncommitted for the runner to collect. A `prepare: merge-base` skill
-gets neither tool nor those sentences: it stages its resolution and the runner commits
-([below](#prepare-merge-base)). Under `--permission-mode dontAsk` a skill's own `allowed-tools`
+sentence says to leave every change uncommitted for the runner to collect; a
+`prepare: merge-base` skill is one ([below](#prepare-merge-base)). Under `--permission-mode dontAsk` a skill's own `allowed-tools`
 grants nothing: its `Bash` is only what this list allows, one rule per entry in the activity's
 `checks` and `self-checks`: `collect-base-activity` copies the base `scripts/` to `$RUNNER_TEMP/lane-checks`, outside
 the working directory, writes a wrapper there that runs the copy with the entry's fixed flags,
@@ -444,12 +443,8 @@ including read-only ones that run with no allow rule (`echo`, `printf`, `cat`, `
 `tr`, `base64`, `nl`, `tac`, `rev`, `uniq`, `fold`, `column`, `jq`, `xargs`, `more`, `less`, `wc`, each as
 `Bash(<command> *)`), and `Read(//proc/**)`; the skill reads files with `Read`, `Grep` and `Glob`.
 Every activity whose effect is not `read` also gets `Bash(git *)`: it reaches git only through
-the base wrappers. In `merge-base` mode, whose skill resolves the merge with git, the rules instead
-deny git's global options, the subcommands that read config or reach a remote, absolute and parent
-paths, quotes, and the flags (in any prefix form) or commands that read a file outside the index
-(including `blame` and `grep`) or run a diff or text-conversion program. Rules match command text,
-so that list is best-effort; it goes when `resolve-conflicts` moves to the read runner.
-`WebFetch` and
+the base wrappers. A `prepare: merge-base` skill runs only on the read file's launcher, with no
+Bash. `WebFetch` and
 `WebSearch` stay off (`--disallowedTools`) unless the activity sets `web-access`. With it on, the
 runner allows `WebSearch`, one `WebFetch(domain:<host>)` rule per listed domain
 (`WebFetch(domain:*)` for `any`), and `Skill` for `/discovery:read-docs`, `/discovery:research`,

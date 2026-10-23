@@ -2,7 +2,7 @@
 // checkout and reads the outputs it appends to GITHUB_OUTPUT. Expected values
 // come from the contract (pr-run-activity.md, "Skill activities" and
 // "prepare: merge-base"): a writing skill gets the signed-commit tool and the
-// instruction to commit, except in merge-base mode, where the runner commits.
+// instruction to commit; a merge-base skill runs on run-claude-cli alone.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -61,41 +61,11 @@ const SHELL_DENIED = [
   "Read(//proc/**)",
   `Read(/${WORKSPACE}/.git/**)`,
 ];
-// The write lanes' git deny rules: all of git, or in merge-base mode, whose
-// skill resolves the merge with git, every form that reads config, reaches a
-// remote, reads a file outside the index or runs a program.
+// The write lanes' git deny rule: all of git.
 const WRITE_GIT_DENIED = ["Bash(git *)"];
-const MERGE_BASE_GIT_DENIED = [
-  "Bash(git -*)",
-  "Bash(git config *)",
-  "Bash(git remote *)",
-  "Bash(git ls-remote *)",
-  "Bash(git credential *)",
-  "Bash(git var *)",
-  "Bash(git fetch *)",
-  "Bash(git push *)",
-  "Bash(git pull *)",
-  "Bash(git submodule *)",
-  "Bash(git *--no-i*)",
-  "Bash(git *--out*)",
-  "Bash(git *--git-dir*)",
-  "Bash(git *--work-tree*)",
-  "Bash(git *.git/*)",
-  "Bash(git *--ext*)",
-  "Bash(git *--text*)",
-  "Bash(git blame *)",
-  "Bash(git *--cont*)",
-  "Bash(git grep *)",
-  "Bash(git *--pathspec*)",
-  "Bash(git * /*)",
-  "Bash(git *../*)",
-  "Bash(git *..)",
-  "Bash(git *'*)",
-  'Bash(git *"*)',
-];
 // The deny rules other than the write lanes' shell and git sets.
 const ownDenied = (denied) =>
-  denied.filter((rule) => !SHELL_DENIED.includes(rule) && !WRITE_GIT_DENIED.includes(rule) && !MERGE_BASE_GIT_DENIED.includes(rule));
+  denied.filter((rule) => !SHELL_DENIED.includes(rule) && !WRITE_GIT_DENIED.includes(rule));
 
 // The Bash rules other than the commit grant's chmod rule.
 const wrapperRules = (allowed) => allowed.filter((rule) => rule.startsWith("Bash") && rule !== CHMOD_RULE);
@@ -199,7 +169,7 @@ test("a writing skill that can commit gets the commit tool and the instruction t
 });
 
 test("a writing skill gets the Grep and Glob tools, since its shell cannot grep or find", () => {
-  for (const overrides of [{}, { PREPARE: "merge-base" }]) {
+  for (const overrides of [{}, { CAN_COMMIT: "false" }]) {
     const { status, args, allowed } = stage(overrides);
     assert.equal(status, 0);
     assert.ok(allowed.includes("Grep") && allowed.includes("Glob"), allowed.join(" | "));
@@ -222,18 +192,16 @@ test("a writing skill that cannot commit gets no chmod rule and no chmod instruc
   assert.ok(!args.includes("chmod"), args);
 });
 
-test("prepare: merge-base leaves out the commit tool and the instruction to commit", () => {
-  const { status, args, allowed } = stage({ PREPARE: "merge-base" });
-  assert.equal(status, 0);
-  assert.ok(!allowed.includes(COMMIT_TOOL), allowed.join(" | "));
-  assert.ok(!args.includes(COMMIT_TOOL), args);
-  assert.ok(!args.includes(COMMIT_SENTENCE), args);
-  // The runner commits the staged index, whose modes the merge set.
-  assert.ok(!allowed.includes(CHMOD_RULE), allowed.join(" | "));
-  assert.ok(!args.includes("chmod"), args);
-  // Still a writing skill: it edits and stages its resolution.
-  assert.match(args, /--allowedTools "Skill\(source-control:resolve-conflicts\),Read\([^)]*\),Edit,Write,Agent,Grep,Glob,Edit\(/);
-  assert.ok(args.includes(`--disallowedTools "WebFetch,WebSearch,${MERGE_BASE_GIT_DENIED.map((rule) => rule.replaceAll('"', '\\"')).join(",")},${SHELL_DENIED.join(",")}"`), args);
+// prepare: merge-base runs only on run-claude-cli, in the read runner (the
+// launcher tests below); the claude-code-action path fails red, with checks
+// or without.
+test("prepare: merge-base on claude-code-action fails red before any output", () => {
+  for (const run of [() => stage({ PREPARE: "merge-base" }), () => withChecks(["scripts/check-x.sh --check"], { PREPARE: "merge-base" })]) {
+    const { status, stdout, args } = run();
+    assert.notEqual(status, 0);
+    assert.match(stdout, /::error::merge-base: the skill runs on run-claude-cli, in the read runner/);
+    assert.equal(args, "");
+  }
 });
 
 // pr-run-activity.md, "Skill activities": each listed check runs from the base
@@ -359,17 +327,6 @@ test("a committing skill with checks is told to commit after the checks and thei
   assert.ok(allowed.includes(COMMIT_TOOL), allowed.join(" | "));
   const systemPrompt = /--append-system-prompt "([^"]*)"/.exec(args)?.[1] ?? "";
   assert.match(systemPrompt, /Run the checks before you commit: run them, fix, run them again, then commit/);
-});
-
-// A skill with checks but no commit tool (merge-base: the runner commits what
-// the skill staged) must not be told to commit its check fixes.
-test("prepare: merge-base with checks is never told to commit", () => {
-  const { status, args, allowed } = withChecks(["scripts/check-x.sh --check"], { PREPARE: "merge-base" });
-  assert.equal(status, 0);
-  assert.ok(!allowed.includes(COMMIT_TOOL), allowed.join(" | "));
-  const systemPrompt = /--append-system-prompt "([^"]*)"/.exec(args)?.[1] ?? "";
-  assert.match(systemPrompt, /run each of these repository checks/);
-  assert.doesNotMatch(systemPrompt, /\bcommit/i);
 });
 
 // #8319 review: a check's wrapper gets the verify-script wrapper's
@@ -1227,7 +1184,6 @@ for (const [name, run] of [
   ["publish-artifact", () => stage({ EFFECT: "publish-artifact" })],
   ["merge", () => stage({ EFFECT: "merge" })],
   ["a lane that cannot commit", () => stage({ CAN_COMMIT: "false" })],
-  ["prepare: merge-base", () => stage({ PREPARE: "merge-base" })],
   ["verify-scripts", () => withVerify([VERIFY])],
   ["checks", () => withChecks(["scripts/check-x.sh --check"])],
   ["web-access any", () => withWebAccess({ enabled: true, domains: "any" })],
@@ -1242,14 +1198,12 @@ for (const [name, run] of [
       assert.ok(denied.includes(expected), `${expected} in ${denied.join(" | ")}`);
     }
   });
-  test(`a write lane denies git, in merge-base mode every form that reaches config, a remote or a file outside the index: ${name}`, () => {
+  test(`a write lane denies all of git: ${name}`, () => {
     const { status, denied } = run();
     assert.equal(status, 0);
-    const mergeBase = name === "prepare: merge-base";
-    for (const rule of mergeBase ? MERGE_BASE_GIT_DENIED : WRITE_GIT_DENIED) {
+    for (const rule of WRITE_GIT_DENIED) {
       assert.ok(denied.includes(rule), `${rule} in ${denied.join(" | ")}`);
     }
-    assert.equal(denied.includes("Bash(git *)"), !mergeBase, denied.join(" | "));
   });
 }
 

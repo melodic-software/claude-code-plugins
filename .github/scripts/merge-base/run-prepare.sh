@@ -8,9 +8,9 @@
 # 1. Checks prepare.sh and the version-bump script against their SHA-256s.
 # 2. Runs prepare.sh with workflow commands stopped, since git's output names
 #    head files.
-# 3. Takes only prepare.sh's known keys, each held to its shape, and a valid
-#    merge-state and escalation-reason pair; a clean or conflicted merge must
-#    name its conflict tree, and an escalation none.
+# 3. Takes only prepare.sh's known keys, once each, and a valid merge-state and
+#    escalation-reason pair; a clean or conflicted merge must name its conflict
+#    tree, and an escalation none.
 # 4. With EXPECT_STATE set (a later job of the round), fails unless the merge
 #    reaches the select job's state and conflict tree: three merges of one
 #    head and one pinned base must agree, or nothing is resolved or pushed.
@@ -20,9 +20,8 @@
 # GITHUB_OUTPUT, and the lanes bot identity and LOOP_NO_PROGRESS prepare.sh
 # reads; optional EXPECT_STATE and EXPECT_TREE.
 #
-# Outputs: config-sha256, attributes-sha256, snapshot-sha256, merge-state,
-# escalation-reason, conflict-tree, and skip-reason (awaiting-human on an
-# escalation). Exit 1 on a hash mismatch, a prepare.sh failure, malformed
+# Outputs: merge-state, escalation-reason, conflict-tree, and skip-reason
+# (awaiting-human on an escalation). Exit 1 on a hash mismatch, a prepare.sh failure, malformed
 # output, or a merge that does not reach the expected state and tree.
 set -euo pipefail
 
@@ -50,19 +49,10 @@ echo "::$token::"
 ((rc == 0)) || fail "prepare.sh exited $rc"
 
 state="" reason="" tree="" seen=""
-hashes=()
 while IFS='=' read -r key value; do
   [[ $seen != *" $key "* ]] || fail "prepare.sh printed $key twice"
   seen+=" $key "
   case $key in
-    config-sha256 | snapshot-sha256)
-      [[ $value =~ ^[0-9a-f]{64}$ ]] || fail "prepare.sh printed a malformed $key"
-      hashes+=("$key=$value")
-      ;;
-    attributes-sha256)
-      [[ $value =~ ^([0-9a-f]{64}|absent)$ ]] || fail "prepare.sh printed a malformed $key"
-      hashes+=("$key=$value")
-      ;;
     merge-state) state=$value ;;
     escalation-reason) reason=$value ;;
     conflict-tree) tree=$value ;;
@@ -89,7 +79,6 @@ if [[ -n ${EXPECT_STATE:-} ]]; then
 fi
 
 {
-  printf '%s\n' "${hashes[@]}"
   echo "merge-state=$state"
   echo "escalation-reason=$reason"
   echo "conflict-tree=$tree"

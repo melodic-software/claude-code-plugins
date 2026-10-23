@@ -386,9 +386,7 @@ on:
     outputs:
       escalation-reason:
         description: >-
-          Why the activity handed the PR to a person: for merge-base
-          protected-path-conflict, workflow-staged, unexpected-path-staged,
-          repeat-cap or unresolved-conflict; for the
+          Why the activity handed the PR to a person: for the
           review-replies script feedback-uncertain, feedback-not-landed or
           feedback-invalid, feedback-partial, feedback-incomplete or
           feedback-disputed; for the dependency-verdict script
@@ -442,19 +440,15 @@ jobs:
       pull-requests: read
       id-token: write
     # The report job trusts only these, all computed by runner steps. Every
-    # one but act-outcome, merge-state and escalation-reason is a step outcome
-    # or an output of a step that ran before any PR head code. act-outcome
-    # reads steps that run after the skill: for a gate skill the verdict step,
-    # so a gate skill must not execute head code; its promote, commit and
-    # turn terms only turn a success into a failure. The act-result step
-    # turns a failed skill step into a success only when the execution
-    # file's result message is a success over the turn cap, a shape the CLI
-    # writes and a finished run could report anyway. merge-state and a
-    # pre-model escalation-reason come from the prepare step, before any
-    # model turn; a post-model escalation-reason comes from post.sh after it,
-    # and a forged one can only hand the PR to a person. The reply job's
-    # escalation-reason comes from the base's reply script, which runs no
-    # model and no head code.
+    # one but act-outcome and escalation-reason is a step outcome or an
+    # output of a step that ran before any PR head code. act-outcome reads
+    # steps that run after the skill: for a gate skill the verdict step, so a
+    # gate skill must not execute head code; its promote and turn terms only
+    # turn a success into a failure. The act-result step turns a failed skill
+    # step into a success only when the execution file's result message is a
+    # success over the turn cap, a shape the CLI writes and a finished run
+    # could report anyway. escalation-reason comes from the base's reply,
+    # verdict and apply-patch scripts, which run no model and no head code.
     outputs:
       base-sha: ${{ steps.trusted-base.outputs.commit }}
       head-sha: ${{ steps.gate.outputs.head-sha }}
@@ -465,10 +459,8 @@ jobs:
         || steps.gate.outputs.proceed != 'true' && steps.gate.outputs.reason
         || '' }}
       can-commit: ${{ steps.config.outputs.can-commit }}
-      merge-state: ${{ steps.prepare.outputs.merge-state }}
       escalation-reason: >-
-        ${{ steps.prepare.outputs.escalation-reason || steps.post.outputs.escalation-reason
-        || steps.act-script.outputs.escalation-reason || steps.patch-select.outputs.escalation-reason }}
+        ${{ steps.act-script.outputs.escalation-reason || steps.patch-select.outputs.escalation-reason }}
       rung-up: ${{ steps.patch-select.outputs.skip-reason == 'rung-up' }}
       patch-skip-reason: ${{ steps.patch-select.outputs.skip-reason }}
       # The base action's own failure text, so the report names why the run
@@ -488,21 +480,13 @@ jobs:
       lane-profile: ${{ steps.lane-record.outcome == 'success' && steps.config.outputs.profile || '' }}
       # A gate skill succeeds only on a `pass` verdict, a skill that took no
       # model turn fails, and a skill whose commits could not be moved onto
-      # the PR branch fails. In merge-base mode a clean merge skips the skill
-      # and succeeds only once its commit is made and promoted (or post.sh
-      # escalates), and a staged merge that post.sh cleared but that was not
-      # committed fails. A skill step that failed only on the turn cap
+      # the PR branch fails. A skill step that failed only on the turn cap
       # counts as succeeded (act-result). The verdict step's ACT_OUTCOME repeats this
       # expression: runner-policy refuses YAML aliases.
       act-outcome: >-
-        ${{ steps.config.outputs.prepare == 'merge-base' && steps.act-skill.outcome == 'skipped' && steps.prepare.outputs.merge-state == 'clean'
-        && ((steps.post.outputs.escalation-reason != ''
-        || steps.commit.outcome == 'success' && steps.promote.outcome == 'success') && 'success' || 'failure')
-        || steps.act-result.outputs.outcome == 'success'
+        ${{ steps.act-result.outputs.outcome == 'success'
         && (steps.config.outputs.gating == 'gate' && steps.skill-verdict.outcome != 'success'
-        || steps.promote.outcome == 'failure' || steps.act-turns.outcome != 'success'
-        || steps.commit.outcome == 'failure'
-        || steps.post.outputs.tree != '' && steps.commit.outcome != 'success') && 'failure'
+        || steps.promote.outcome == 'failure' || steps.act-turns.outcome != 'success') && 'failure'
         || steps.act-skill.outcome != 'skipped' && (steps.act-result.outputs.outcome || steps.act-skill.outcome)
         || steps.act-script.outcome }}
     steps:
@@ -661,8 +645,7 @@ jobs:
           require-kind: ${{ inputs.issue-number != '' && 'human' || '' }}
           app-label: ${{ inputs.issue-number != '' && inputs.app-label || '' }}
 
-      # The trusted base is the config, actions and trusted-actor source and,
-      # in prepare: merge-base mode, the merge's second parent.
+      # The trusted base is the config, actions and trusted-actor source.
       - name: Assert the base is on the default branch
         id: trusted-base
         if: steps.gate.outputs.proceed == 'true'
@@ -685,8 +668,9 @@ jobs:
           pr-number: ${{ steps.gate.outputs.pr-number }}
           head-sha: ${{ steps.gate.outputs.head-sha }}
           issue-dimensions: ${{ inputs.issue-dimensions }}
-          # This file performs prepare: merge-base (the prepare, post and
-          # commit steps below).
+          # This file performs prepare: apply-patch, under the merge-base row
+          # too (the merge steps below), and refuses a skill's merge-base,
+          # review-threads and dependency-review.
           prepare-supported: "true"
 
       # An issue's skill runs model-chosen commands, so it runs in
@@ -705,6 +689,14 @@ jobs:
         if: steps.config.outcome == 'success' && steps.config.outputs.prepare == 'review-threads'
         run: |
           echo "::error::review-threads-in-write-runner: a review-threads skill runs in pr-run-activity-read.yml after its caller's select job"
+          exit 1
+
+      # merge-base runs in pr-run-activity-read.yml, after its caller's select
+      # job merged the base: this file commits a merge only as apply-patch.
+      - name: Assert merge-base runs in the read runner
+        if: steps.config.outcome == 'success' && steps.config.outputs.prepare == 'merge-base'
+        run: |
+          echo "::error::merge-base-in-write-runner: a merge-base skill runs in pr-run-activity-read.yml after its caller's select job; apply-patch commits the merge"
           exit 1
 
       # dependency-review runs in pr-run-activity-read.yml, after its
@@ -1100,23 +1092,23 @@ jobs:
           COPY: ${{ runner.temp }}/base-script/.trusted-actors.json
         run: cp .base/.github/standards/trusted-actors/trusted-actors.json "$COPY"
 
-      # prepare: merge-base, and apply-patch under the merge-base row, run
-      # the base's merge scripts and the base's version-bump script, never
-      # the head's: copied out here, each with its SHA-256 as a step output
-      # that every later step checks its copy against before running it. The
-      # repeat cap reads loop.no-progress from the resolved config now, before
-      # any head code could rewrite the file.
+      # apply-patch under the merge-base row runs the base's merge scripts and
+      # the base's version-bump script, never the head's: copied out here,
+      # each with its SHA-256 as a step output that every later step checks
+      # its copy against before running it. The repeat cap reads
+      # loop.no-progress from the resolved config now, before the head
+      # checkout replaces .base.
       - name: Copy the merge scripts from the base
         id: merge-bin
         if: >-
-          steps.lane-token.outputs.token != '' && (steps.config.outputs.prepare == 'merge-base'
-          || steps.config.outputs.prepare == 'apply-patch' && inputs.patch-prepare == 'merge-base')
+          steps.lane-token.outputs.token != '' && steps.config.outputs.prepare == 'apply-patch'
+          && inputs.patch-prepare == 'merge-base'
         env:
           BIN: ${{ runner.temp }}/merge-base-bin
           RESOLVED: ${{ runner.temp }}/resolved-config.json
         run: |
           mkdir -p "$BIN"
-          for file in .base/.github/scripts/merge-base/{prepare,run-prepare,post,tree-entries}.sh \
+          for file in .base/.github/scripts/merge-base/{prepare,run-prepare,tree-entries}.sh \
             .base/plugins/source-control/scripts/resolve-version-bump-conflict.sh; do
             name=$(basename "$file" .sh)
             cp "$file" "$BIN/$name.sh"
@@ -1249,13 +1241,12 @@ jobs:
             || steps.gate.outputs.head-sha }}
           token: ${{ steps.lane-token.outputs.token }}
           persist-credentials: false
-          # The merge needs the history back to the merge base and the trusted
+          # A merge needs the history back to the merge base and the pinned
           # base commit, and an issue patch the history back to where its start
           # commit forked from the default branch. Written as != so the 0 is
           # not read as false.
           fetch-depth: >-
-            ${{ steps.config.outputs.prepare != 'merge-base'
-            && !(inputs.issue-number != '' && steps.config.outputs.prepare == 'apply-patch')
+            ${{ !(inputs.issue-number != '' && steps.config.outputs.prepare == 'apply-patch')
             && !(steps.config.outputs.prepare == 'apply-patch' && inputs.patch-prepare == 'merge-base') && 1 || 0 }}
 
       # The activity judges exactly the commit the check is posted on.
@@ -1272,22 +1263,19 @@ jobs:
             exit 1
           fi
 
-      # prepare: merge-base, before any model turn: merge the trusted base
-      # into the gated head without committing, run the base's version-bump
-      # script, and decide clean (commit with no model turn), conflicted (the
-      # skill resolves) or escalate (awaiting-human, reason for the
-      # report-escalation leaf). Under the merge-base row, apply-patch merges
-      # the select job's pinned base instead and fails red unless it reaches
-      # the select job's state and conflict tree; apply-patch.mjs then applies
-      # the patch to that tree. run-prepare.sh takes only whitelisted,
-      # validated key=value lines as outputs. The identity is the lanes bot's:
-      # git refuses even a --no-commit merge without one, and the repeat cap
-      # counts commits by that author name.
-      - name: Start the merge of the trusted base
+      # apply-patch under the merge-base row: merge the select job's pinned
+      # base into the gated head without committing and run the base's
+      # version-bump script, through run-prepare.sh, which fails red unless
+      # the merge reaches the select job's state and conflict tree;
+      # apply-patch.mjs then applies the patch to that tree. Only whitelisted,
+      # validated key=value lines become outputs. The identity is the lanes
+      # bot's: git refuses even a --no-commit merge without one, and the
+      # repeat cap counts commits by that author name.
+      - name: Start the merge of the pinned base
         id: prepare
         if: >-
-          steps.lane-token.outputs.token != '' && (steps.config.outputs.prepare == 'merge-base'
-          || steps.config.outputs.prepare == 'apply-patch' && inputs.patch-prepare == 'merge-base')
+          steps.lane-token.outputs.token != '' && steps.config.outputs.prepare == 'apply-patch'
+          && inputs.patch-prepare == 'merge-base'
         env:
           GIT_AUTHOR_NAME: melodic-automation-lanes[bot]
           GIT_AUTHOR_EMAIL: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}+melodic-automation-lanes[bot]@users.noreply.github.com
@@ -1302,11 +1290,9 @@ jobs:
           BUMP_SHA256: ${{ steps.merge-bin.outputs.resolve-version-bump-conflict-sha256 }}
           RUN_PREPARE_SHA256: ${{ steps.merge-bin.outputs.run-prepare-sha256 }}
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
-          BASE_SHA: >-
-            ${{ steps.config.outputs.prepare == 'apply-patch' && inputs.patch-merge-base-sha
-            || steps.trusted-base.outputs.commit }}
-          EXPECT_STATE: ${{ steps.config.outputs.prepare == 'apply-patch' && inputs.patch-merge-state || '' }}
-          EXPECT_TREE: ${{ steps.config.outputs.prepare == 'apply-patch' && inputs.patch-conflict-tree || '' }}
+          BASE_SHA: ${{ inputs.patch-merge-base-sha }}
+          EXPECT_STATE: ${{ inputs.patch-merge-state }}
+          EXPECT_TREE: ${{ inputs.patch-conflict-tree }}
         run: |
           sum=$(sha256sum <"$BIN/run-prepare.sh")
           if [ "${sum%% *}" != "$RUN_PREPARE_SHA256" ]; then
@@ -1321,14 +1307,12 @@ jobs:
       # the PR branch during the run would have its edits to the same files
       # overwritten. The skill commits to a branch made at the gated SHA
       # instead, and a later step moves the PR branch to it only while the PR
-      # branch is still at the gated SHA. In merge-base mode the commit step
-      # below writes the merge commit to this branch; an escalation needs none.
+      # branch is still at the gated SHA.
       - name: Make the lane's commit branch at the gated SHA
         id: lane-branch
         if: >-
           steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'skill'
           && steps.config.outputs.can-commit == 'true'
-          && steps.prepare.outputs.merge-state != 'escalate'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
@@ -1344,7 +1328,6 @@ jobs:
       - name: Set up Python for the skill
         if: >-
           steps.setup-env.outputs.ready == 'true'
-          && (steps.config.outputs.prepare != 'merge-base' || steps.prepare.outputs.merge-state == 'conflicted')
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: ${{ runner.temp }}/setup-env/.python-version
@@ -1354,7 +1337,6 @@ jobs:
       - name: Install the skill's dependencies
         if: >-
           steps.setup-env.outputs.ready == 'true'
-          && (steps.config.outputs.prepare != 'merge-base' || steps.prepare.outputs.merge-state == 'conflicted')
         env:
           SETUP_ENV_VENV: ${{ runner.temp }}/setup-env-venv
         run: |
@@ -1368,14 +1350,12 @@ jobs:
             cp -R "$RUNNER_TEMP/setup-env/$dir/node_modules" "$GITHUB_WORKSPACE/$dir/"
           done
 
-      # In merge-base mode only a conflicted merge needs the model. A failure
-      # does not stop the job here: the next step fails it unless the failure
+      # A failure does not stop the job here: the next step fails it unless the failure
       # is only the turn cap on a successful result.
       - name: Run the skill activity
         id: act-skill
         if: >-
           steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'skill'
-          && (steps.config.outputs.prepare != 'merge-base' || steps.prepare.outputs.merge-state == 'conflicted')
         continue-on-error: true
         uses: anthropics/claude-code-action@6b6870e649b5ff408753befeaee5fc7989d4e6a9 # v1.0.258
         env:
@@ -1676,215 +1656,6 @@ jobs:
             exit 1
           fi
 
-      # merge-base mode, after the skill (or straight after a clean merge):
-      # post.sh checks prepare's saved copies and snapshot against their
-      # hashes, repairs the sensitive paths the action reset, and escalates
-      # unresolved-conflict, workflow-staged or unexpected-path-staged;
-      # otherwise it writes the validated index as a tree, the only tree the
-      # commit step accepts.
-      - name: Check the staged merge
-        id: post
-        if: >-
-          steps.config.outputs.prepare == 'merge-base' && steps.prepare.outcome == 'success'
-          && (steps.prepare.outputs.merge-state == 'clean'
-          || steps.act-result.outputs.outcome == 'success' && steps.act-turns.outcome == 'success')
-        env:
-          BIN: ${{ runner.temp }}/merge-base-bin
-          OUT: ${{ runner.temp }}/merge-base-out
-          POST_SHA256: ${{ steps.merge-bin.outputs.post-sha256 }}
-          CONFIG_SHA256: ${{ steps.prepare.outputs.config-sha256 }}
-          ATTRIBUTES_SHA256: ${{ steps.prepare.outputs.attributes-sha256 }}
-          SNAPSHOT_SHA256: ${{ steps.prepare.outputs.snapshot-sha256 }}
-          GATED_HEAD: ${{ steps.gate.outputs.head-sha }}
-          TRUSTED_BASE: ${{ steps.trusted-base.outputs.commit }}
-          GIT_NO_REPLACE_OBJECTS: "1"
-        run: |
-          sum=$(sha256sum <"$BIN/post.sh")
-          if [ "${sum%% *}" != "$POST_SHA256" ]; then
-            echo "::error::post.sh does not match the SHA-256 recorded when it was copied from the base"
-            exit 1
-          fi
-          # git's output can name head files: no workflow commands meanwhile.
-          token=$(openssl rand -hex 16)
-          echo "::stop-commands::$token"
-          result=$(bash "$BIN/post.sh" "$OUT")
-          echo "::$token::"
-          reason="" tree="" skip=""
-          while IFS='=' read -r key value; do
-            case $key in
-              escalation-reason) reason=$value ;;
-              tree) tree=$value ;;
-              *) echo "::error::post.sh printed an unknown key"; exit 1 ;;
-            esac
-          done <<<"$result"
-          case $reason in
-            "")
-              [[ $tree =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]] || { echo "::error::post.sh printed no tree"; exit 1; }
-              ;;
-            unresolved-conflict | workflow-staged | unexpected-path-staged)
-              tree="" skip=awaiting-human
-              ;;
-            *) echo "::error::post.sh printed an unknown escalation reason"; exit 1 ;;
-          esac
-          {
-            echo "skip-reason=$skip"
-            echo "escalation-reason=$reason"
-            echo "tree=$tree"
-          } >>"$GITHUB_OUTPUT"
-          echo "escalation-reason=$reason tree=$tree"
-
-      # The merge commit, made through the Git Data API so GitHub signs it as
-      # the App: parents [gated head, trusted base], no author, committer or
-      # signature (T8-C). Its tree is post.sh's: tree-entries.sh lists what it
-      # changes against the gated head, only blobs neither parent holds are
-      # uploaded, and the tree GitHub builds must hash to post.sh's tree. The
-      # commit goes to the lane branch, which must still be at the gated head;
-      # the promote step below moves the PR branch. A pinned action with
-      # /usr/bin/git under an allowlisted env, since the activity could have
-      # changed PATH. A do-not-merge or human-gated label added during the run
-      # stops it uncommitted (awaiting-human).
-      - name: Commit the merge
-        id: commit
-        if: >-
-          steps.post.outcome == 'success' && steps.post.outputs.escalation-reason == ''
-          && steps.post.outputs.tree != ''
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        env:
-          BIN: ${{ runner.temp }}/merge-base-bin
-          TREE_ENTRIES_SHA256: ${{ steps.merge-bin.outputs.tree-entries-sha256 }}
-          TREE: ${{ steps.post.outputs.tree }}
-          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
-          HEAD_REF: ${{ steps.gate.outputs.head-ref }}
-          BASE_SHA: ${{ steps.trusted-base.outputs.commit }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          LANE_BRANCH: ${{ steps.lane-branch.outputs.branch }}
-          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
-          HOLD_LABELS: ${{ steps.hold-label.outputs.labels }}
-          READ_TOKEN: ${{ github.token }}
-        with:
-          github-token: ${{ steps.lane-token.outputs.token }}
-          retries: 0
-          script: |
-            const { createHash, randomBytes } = require('crypto');
-            const { execFileSync } = require('child_process');
-            const { readFileSync } = require('fs');
-            const { BIN, TREE_ENTRIES_SHA256, TREE, HEAD_SHA, HEAD_REF, BASE_SHA, DEFAULT_BRANCH, LANE_BRANCH } = process.env;
-            const { PR_NUMBER, HOLD_LABELS, READ_TOKEN } = process.env;
-            // Throws on a missing list, so the step fails before any commit.
-            const holds = new Set(['do-not-merge', ...JSON.parse(HOLD_LABELS)]);
-            core.setOutput('commit', '');
-            core.setOutput('skip-reason', '');
-            if (!LANE_BRANCH) {
-              core.setFailed('No lane branch to commit the merge to');
-              return;
-            }
-            const script = `${BIN}/tree-entries.sh`;
-            if (createHash('sha256').update(readFileSync(script)).digest('hex') !== TREE_ENTRIES_SHA256) {
-              core.setFailed('tree-entries.sh does not match the SHA-256 recorded when it was copied from the base');
-              return;
-            }
-            const laneRef = `heads/${LANE_BRANCH}`;
-            const ref = async (name) =>
-              (await github.request('GET /repos/{owner}/{repo}/git/ref/{ref}', { ...context.repo, ref: name })).data.object.sha;
-            const laneTip = await ref(laneRef);
-            if (laneTip !== HEAD_SHA) {
-              core.setFailed(`The lane branch moved from ${HEAD_SHA} to ${laneTip}; the merge is not committed`);
-              return;
-            }
-            // An allowlisted environment and absolute binaries: nothing the
-            // activity left in this job's env or PATH reaches git.
-            const gitEnv = {
-              PATH: '/usr/bin:/bin',
-              HOME: process.env.HOME,
-              GIT_CONFIG_GLOBAL: '/dev/null',
-              GIT_CONFIG_NOSYSTEM: '1',
-              GIT_NO_REPLACE_OBJECTS: '1',
-            };
-            // git's stderr can name head files, so workflow commands stop
-            // while it runs and resume before this step's own messages.
-            const quiet = (run) => {
-              const token = randomBytes(16).toString('hex');
-              console.log(`::stop-commands::${token}`);
-              try {
-                return run();
-              } finally {
-                console.log(`::${token}::`);
-              }
-            };
-            const git = (args) =>
-              quiet(() =>
-                execFileSync('/usr/bin/git', ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=', '-c', 'diff.external=', ...args], {
-                  env: gitEnv,
-                  maxBuffer: 1 << 30,
-                }),
-              );
-            const listing = quiet(() =>
-              execFileSync('/usr/bin/bash', [script, HEAD_SHA, BASE_SHA, TREE], { env: gitEnv, encoding: 'utf8', maxBuffer: 1 << 28 }),
-            );
-            const entries = [];
-            let created = 0;
-            for (const line of listing.split('\n').filter(Boolean)) {
-              const tab = line.indexOf('\t');
-              const [mode, sha, flag] = line.slice(0, tab).split(' ');
-              const path = line.slice(tab + 1);
-              if (sha === 'null') {
-                entries.push({ path, mode, type: mode === '160000' ? 'commit' : 'blob', sha: null });
-                continue;
-              }
-              if (flag === 'create-blob') {
-                const content = git(['cat-file', 'blob', sha]).toString('base64');
-                const blob = await github.rest.git.createBlob({ ...context.repo, content, encoding: 'base64' });
-                if (blob.data.sha !== sha) {
-                  core.setFailed(`GitHub stored the blob for ${JSON.stringify(path)} as ${blob.data.sha}, not ${sha}`);
-                  return;
-                }
-                created += 1;
-              }
-              entries.push({ path, mode, type: mode === '160000' ? 'commit' : 'blob', sha });
-            }
-            core.info(`created ${created} blobs`);
-            const headTree = (await github.rest.git.getCommit({ ...context.repo, commit_sha: HEAD_SHA })).data.tree.sha;
-            const tree = entries.length
-              ? (await github.rest.git.createTree({ ...context.repo, base_tree: headTree, tree: entries })).data.sha
-              : headTree;
-            if (tree !== TREE) {
-              core.setFailed(`GitHub built tree ${tree}, not the checked tree ${TREE}; the merge is not committed`);
-              return;
-            }
-            // A hold placed while the run worked stops it here, before any
-            // commit: the kill switch only stops new runs. Labels are read
-            // fresh with the job's read-only token.
-            // github-script v8.0.0 gives the script no way to build a second
-            // client, so the read-only token is used through fetch.
-            const labelsResponse = await fetch(
-              `${process.env.GITHUB_API_URL}/repos/${context.repo.owner}/${context.repo.repo}/issues/${Number(PR_NUMBER)}/labels?per_page=100`,
-              { headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${READ_TOKEN}`, 'X-GitHub-Api-Version': '2022-11-28' } },
-            );
-            if (!labelsResponse.ok) {
-              core.setFailed(`Reading the PR labels answered ${labelsResponse.status}; the merge is not committed`);
-              return;
-            }
-            // Only the first page is read; more labels than one page holds
-            // could hide a hold, so that fails instead.
-            if (/rel="next"/.test(labelsResponse.headers.get('link') ?? '')) {
-              core.setFailed('The PR has more labels than one page holds; the merge is not committed');
-              return;
-            }
-            const labels = await labelsResponse.json();
-            const held = labels.map((label) => label.name).filter((name) => holds.has(name));
-            if (held.length) {
-              core.info(`The PR is held (${held.join(', ')}); the merge is not committed`);
-              core.setOutput('skip-reason', 'awaiting-human');
-              return;
-            }
-            // The trailer is what prepare.sh's repeat cap counts.
-            const message = `Merge ${DEFAULT_BRANCH} into ${HEAD_REF}\n\nLane-Activity: pr-unblock/resolve-conflicts\n`;
-            const commit = await github.rest.git.createCommit({ ...context.repo, message, tree, parents: [HEAD_SHA, BASE_SHA] });
-            // force: false refuses anything but a fast-forward from the gated head.
-            await github.rest.git.updateRef({ ...context.repo, ref: laneRef, sha: commit.data.sha, force: false });
-            core.setOutput('commit', commit.data.sha);
-            core.info(`Committed ${commit.data.sha} (parents ${HEAD_SHA}, ${BASE_SHA}) to ${LANE_BRANCH}`);
-
       # Fast-forwards the PR branch to the lane's commits only while it is
       # still at the gated SHA; otherwise the commits are dropped and the run
       # the new head started redoes the activity. A do-not-merge or human-gated
@@ -1899,12 +1670,6 @@ jobs:
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
           HEAD_REF: ${{ steps.gate.outputs.head-ref }}
           LANE_BRANCH: ${{ steps.lane-branch.outputs.branch }}
-          # merge-base mode moves the PR branch only to the commit step's own
-          # commit: the model holds a contents-write token and could have
-          # written the lane branch itself.
-          MERGE_BASE: ${{ steps.config.outputs.prepare == 'merge-base' }}
-          COMMIT_OUTCOME: ${{ steps.commit.outcome }}
-          COMMIT_SHA: ${{ steps.commit.outputs.commit }}
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
           HOLD_LABELS: ${{ steps.hold-label.outputs.labels }}
           READ_TOKEN: ${{ github.token }}
@@ -1912,7 +1677,7 @@ jobs:
           github-token: ${{ steps.lane-token.outputs.token }}
           retries: 0
           script: |
-            const { HEAD_SHA, HEAD_REF, LANE_BRANCH, MERGE_BASE, COMMIT_OUTCOME, COMMIT_SHA } = process.env;
+            const { HEAD_SHA, HEAD_REF, LANE_BRANCH } = process.env;
             const { PR_NUMBER, HOLD_LABELS, READ_TOKEN } = process.env;
             core.setOutput('skip-reason', '');
             const tip = async (branch) =>
@@ -1924,12 +1689,8 @@ jobs:
                 core.info('The activity made no commits');
                 return;
               }
-              if (MERGE_BASE === 'true' && (COMMIT_OUTCOME !== 'success' || !COMMIT_SHA || lane !== COMMIT_SHA)) {
-                core.setFailed(`The lane branch is at ${lane}, not a merge commit the commit step made; the PR branch is not moved`);
-                return;
-              }
-              // A hold or a draft set while the model worked stops the push,
-              // as the merge commit step does: the config decided the hold
+              // A hold or a draft set while the model worked stops the push:
+              // the config decided the hold
               // predicates only at the start of the job. Read fresh with the
               // job's read-only token through fetch, since github-script gives
               // the script no second client.
@@ -2208,19 +1969,13 @@ jobs:
           SKIP_REASON: >-
             ${{ steps.config.outputs.skip-reason || steps.head-recheck.outputs.skip-reason
             || steps.lane-token.outputs.skip-reason
-            || steps.prepare.outputs.skip-reason || steps.post.outputs.skip-reason
-            || steps.commit.outputs.skip-reason || steps.promote.outputs.skip-reason
+            || steps.prepare.outputs.skip-reason || steps.promote.outputs.skip-reason
             || steps.act-script.outputs.skip-reason
             || steps.patch-select.outputs.skip-reason }}
           ACT_OUTCOME: >-
-            ${{ steps.config.outputs.prepare == 'merge-base' && steps.act-skill.outcome == 'skipped' && steps.prepare.outputs.merge-state == 'clean'
-            && ((steps.post.outputs.escalation-reason != ''
-            || steps.commit.outcome == 'success' && steps.promote.outcome == 'success') && 'success' || 'failure')
-            || steps.act-result.outputs.outcome == 'success'
+            ${{ steps.act-result.outputs.outcome == 'success'
             && (steps.config.outputs.gating == 'gate' && steps.skill-verdict.outcome != 'success'
-            || steps.promote.outcome == 'failure' || steps.act-turns.outcome != 'success'
-            || steps.commit.outcome == 'failure'
-            || steps.post.outputs.tree != '' && steps.commit.outcome != 'success') && 'failure'
+            || steps.promote.outcome == 'failure' || steps.act-turns.outcome != 'success') && 'failure'
             || steps.act-skill.outcome != 'skipped' && (steps.act-result.outputs.outcome || steps.act-skill.outcome)
             || steps.act-script.outcome }}
           VERDICT_DIR: ${{ runner.temp }}/verdict

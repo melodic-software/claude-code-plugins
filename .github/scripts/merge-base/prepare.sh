@@ -11,20 +11,18 @@
 # conflict tree is the select job's. These checks guard against model mistakes
 # and hostile head content.
 #
-# 1. Save copies of .git/config and .git/info/attributes in <out-dir>; the
-#    action run later rewrites .git/config and post.sh puts the copies back.
-# 2. Repeat cap: count the first-parent commits back to the last commit not
+# 1. Repeat cap: count the first-parent commits back to the last commit not
 #    authored by the lanes bot that carry the resolve-conflicts lane trailer;
 #    at LOOP_NO_PROGRESS (loop.no-progress, default 3) escalate before merging.
-# 3. Merge <trusted-base-sha> without committing, then run the version-bump
+# 2. Merge <trusted-base-sha> without committing, then run the version-bump
 #    script under LC_ALL=C, so the common version-bump collision needs no
 #    model and the three runs of a round sort alike.
-# 4. Snapshot the index (stage 0 and unmerged entries) to <out-dir>, list the
+# 3. Snapshot the index (stage 0 and unmerged entries) to <out-dir>, list the
 #    unmerged paths, and escalate when one is a protected path (a workflow,
 #    submodule config or a settings file), or when one is a conflict a model
 #    cannot resolve from markers: a side missing (modify or rename against
 #    delete) or no markers in the file (binary).
-# 5. For a clean or conflicted merge, write the conflict tree, T0: the
+# 4. For a clean or conflicted merge, write the conflict tree, T0: the
 #    snapshot's stage-0 entries, plus each unmerged path's file as git left it,
 #    markers and all, hashed with --no-filters under its stage-2 (head) mode,
 #    built in a scratch index so the merge's own index is untouched. A model's
@@ -39,12 +37,10 @@
 # git refuses even a --no-commit merge without one); the author name also
 # identifies lane commits for the repeat cap.
 #
-# Stdout, one key=value line each, for step outputs: config-sha256,
-# attributes-sha256 (`absent` when there is no file), snapshot-sha256,
-# merge-state (clean | conflicted | escalate), escalation-reason
+# Stdout, one key=value line each, for step outputs (run-prepare.sh reads
+# them): merge-state (clean | conflicted | escalate), escalation-reason
 # (protected-path-conflict | unresolved-conflict | repeat-cap, empty
-# otherwise), conflict-tree (T0, empty on an escalation). The caller keeps the hashes as step outputs and hands them to
-# post.sh; files under <out-dir> are not trusted on their own.
+# otherwise), conflict-tree (T0, empty on an escalation).
 #
 # Exit: 0 with a merge-state; 1 on a failed precondition or git failure.
 # shellcheck disable=SC2310  # g wraps one git call, so its status is that call's
@@ -56,11 +52,6 @@ die() {
   printf 'prepare.sh: %s\n' "$*" >&2
   exit 1
 }
-sha256() {
-  local s
-  s=$(sha256sum <"$1")
-  printf '%s' "${s%% *}"
-}
 
 TRAILER_VALUE=pr-unblock/resolve-conflicts
 OID_RE='^([0-9a-f]{40}|[0-9a-f]{64})$'
@@ -70,7 +61,7 @@ OID_RE='^([0-9a-f]{40}|[0-9a-f]{64})$'
 PROTECTED_RE='^\.github/workflows/|(^|/)(\.gitmodules|settings[^/]*\.json)$'
 # Marker lines in order, any length from seven (conflict-marker-size): a run of
 # <, then a run of =, then a run of >, the outer two followed by a space or the
-# line end. post.sh holds the same program.
+# line end. apply-patch.mjs's hasConflictMarkers holds the same rule.
 # shellcheck disable=SC2016  # an awk program, expanded by awk
 MARKER_AWK='
   s == 0 && (/^<<<<<<<+$/ || /^<<<<<<<+ /) { s = 1; next }
@@ -104,14 +95,6 @@ export GIT_ATTR_SOURCE=$base
 [[ -z $(g status --porcelain --untracked-files=no) ]] || die 'the checkout has staged or unstaged changes'
 
 mkdir -p "$out"
-cp .git/config "$out/config"
-printf 'config-sha256=%s\n' "$(sha256 "$out/config")"
-if [[ -f .git/info/attributes ]]; then
-  cp .git/info/attributes "$out/attributes"
-  printf 'attributes-sha256=%s\n' "$(sha256 "$out/attributes")"
-else
-  printf 'attributes-sha256=absent\n'
-fi
 
 escalate() {
   printf 'merge-state=escalate\nescalation-reason=%s\nconflict-tree=\n' "$1"
@@ -148,7 +131,6 @@ GIT_CONFIG_COUNT=3 \
 g rev-parse -q --verify MERGE_HEAD >/dev/null || die 'the version-bump script ended the merge'
 
 g ls-files -s -z >"$out/index-snapshot"
-printf 'snapshot-sha256=%s\n' "$(sha256 "$out/index-snapshot")"
 
 declare -A stages=() ours=() ours_mode=()
 paths=()

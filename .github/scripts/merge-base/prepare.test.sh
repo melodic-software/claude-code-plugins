@@ -111,10 +111,8 @@ check 'text-conflict: merge-state' conflicted "$(val merge-state)"
 check 'text-conflict: no escalation' '' "$(val escalation-reason)"
 check 'text-conflict: MERGE_HEAD is the trusted base' "$(tg rev-parse main)" "$(merge_head)"
 check 'text-conflict: snapshot holds stages 1 2 3' 123 "$(stages a.txt)"
-check 'text-conflict: snapshot hash printed' "$(sha_of "$DIR/index-snapshot")" "$(val snapshot-sha256)"
-check 'text-conflict: config copy hash is the pre-merge config' "$CONFIG_BEFORE" "$(val config-sha256)"
-check 'text-conflict: config copy saved' "$CONFIG_BEFORE" "$(sha_of "$DIR/config")"
-check 'text-conflict: no attributes file recorded as absent' absent "$(val attributes-sha256)"
+check 'text-conflict: prints only the merge keys' 'merge-state escalation-reason conflict-tree' "$(cut -d= -f1 <<<"$OUT" | paste -sd ' ')"
+check 'text-conflict: the config is untouched' "$CONFIG_BEFORE" "$(sha_of "$R/.git/config")"
 check 'text-conflict: unmerged path recorded' a.txt "$(tr '\0' '\n' <"$DIR/unmerged-paths")"
 
 echo '# conflict-tree'

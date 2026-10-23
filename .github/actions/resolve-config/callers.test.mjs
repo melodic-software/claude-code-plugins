@@ -4134,3 +4134,35 @@ test("pr-run-activity-write.yml: apply-patch under the merge-base row merges the
   assert.equal(script.env.TREE_ENTRIES_SHA256, "${{ inputs.patch-prepare == 'merge-base' && steps.merge-bin.outputs.tree-entries-sha256 || '' }}");
   assert.equal(steps.find((s) => s.id === "patch-select").env.MERGE_STATE, "${{ inputs.patch-merge-state }}");
 });
+
+// report-escalation passes the select and push jobs' merge reasons to the
+// write runner as its escalation-reason input, which the first step holds to
+// the runner's reasons: each must pass it, and a reason outside the set fails.
+test("pr-run-activity-write.yml: the first step admits every resolve-conflicts escalation reason as the escalation-reason input", () => {
+  const step = workflow("pr-run-activity-write.yml").jobs.run.steps[0];
+  const run = (reason, extra = {}) =>
+    spawnSync("bash", ["-c", step.run], {
+      encoding: "utf8",
+      env: { PATH: process.env.PATH, APP_SENDER_ID: "1", DEFAULT_BRANCH: "main", ESCALATION_REASON: reason, ...extra },
+    }).status;
+  for (const reason of [
+    "repeat-cap",
+    "protected-path-conflict",
+    "unresolved-conflict",
+    "workflow-staged",
+    "unexpected-path-staged",
+    "conflict-patch-invalid",
+    "conflict-patch-not-applied",
+    "conflict-patch-protected-path",
+  ]) {
+    assert.equal(run(reason), 0, reason);
+  }
+  assert.equal(run("conflict-patch-bogus"), 1);
+  // The merge inputs go with patch-prepare merge-base alone, in PR mode.
+  const merge = { PATCH_PREPARE: "merge-base", PATCH_MERGE_BASE_SHA: "a".repeat(40), PATCH_MERGE_STATE: "conflicted", PATCH_CONFLICT_TREE: "b".repeat(40) };
+  assert.equal(run("", merge), 0);
+  assert.equal(run("", { ...merge, PATCH_MERGE_STATE: "escalate" }), 1);
+  assert.equal(run("", { ...merge, PATCH_CONFLICT_TREE: "" }), 1);
+  assert.equal(run("", { ...merge, PATCH_PREPARE: "ci-context" }), 1, "merge inputs beside another row");
+  assert.equal(run("", { PATCH_PREPARE: "merge-base" }), 1, "the merge row with no inputs");
+});

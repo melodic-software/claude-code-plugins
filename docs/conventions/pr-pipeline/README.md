@@ -364,11 +364,13 @@ Each leaf declares:
 - `skill` (`<plugin>:<skill>`) or `script` (a repository path), with optional `args` passed
   verbatim: after the skill name in that skill's own syntax, or to the script.
 - `prepare` (optional): what the runner does around the activity. `apply-patch` is the one mode
-  for a script (a `mutate-branch` one), `ci-context` and `review-threads` the modes the read
-  runner performs, each on a `read` skill that hands on a patch, and the others need a skill with
-  an effect other than `read` unless their activity hands its change on as a patch
-  ([`pr-run-activity.md`](pr-run-activity.md#prepare-ci-context)). `merge-base` merges the base tip into the gated head without committing before the
-  skill runs, and commits the result with both as parents after it. `review-threads` runs on the
+  for a script (a `mutate-branch` one), `ci-context`, `review-threads`, `dependency-review` and
+  `merge-base` the modes the read runner performs, each on a `read` skill that hands on a patch
+  ([`pr-run-activity.md`](pr-run-activity.md#prepare-ci-context)). `merge-base` runs on the read
+  runner after the caller's base job merged the base tip into the gated head and found it
+  conflicted: it merges the same base again, gives the skill the conflicts as read-only files, and
+  hands on its resolutions as a patch, which a `prepare: apply-patch` job commits with the head and
+  the base as parents ([`pr-run-activity.md`](pr-run-activity.md#prepare-merge-base)). `review-threads` runs on the
   read runner after the caller's base job kept the PR's unresolved reviewer-bot threads and
   decided skip, escalate or proceed before any model turn: it checks that job's thread file, gives
   the skill the review-thread tool, and hands on its fix as a patch and the replies it records

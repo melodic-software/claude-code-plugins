@@ -23,7 +23,6 @@ sha() {
   printf '%s' "${s%% *}"
 }
 
-H64=$(printf 'a%.0s' {1..64})
 T0=$(printf 'b%.0s' {1..40})
 BIN="$TMP/bin"
 mkdir -p "$BIN"
@@ -44,22 +43,17 @@ run() {
   OUTPUT=$(cat "$TMP/output")
 }
 out() { sed -n "s/^$1=//p" <<<"$OUTPUT"; }
-HASHES="config-sha256=$H64
-attributes-sha256=absent
-snapshot-sha256=$H64"
-CONFLICTED="$HASHES
-merge-state=conflicted
+CONFLICTED="merge-state=conflicted
 escalation-reason=
 conflict-tree=$T0"
 
 run "$CONFLICTED"
 check 'a conflicted merge passes' 0 "$RC"
-check 'its outputs' "conflicted||$T0|$H64|absent" "$(out merge-state)|$(out escalation-reason)|$(out conflict-tree)|$(out config-sha256)|$(out attributes-sha256)"
+check 'its outputs' "conflicted||$T0" "$(out merge-state)|$(out escalation-reason)|$(out conflict-tree)"
 check 'no skip reason' '' "$(out skip-reason)"
 if [[ $LOG == *'::stop-commands::'* ]]; then ok 'workflow commands stop while prepare.sh runs'; else not_ok 'workflow commands stop while prepare.sh runs'; fi
 
-run "$HASHES
-merge-state=escalate
+run "merge-state=escalate
 escalation-reason=repeat-cap
 conflict-tree="
 check 'an escalation passes with awaiting-human' 0/escalate/repeat-cap/awaiting-human "$RC/$(out merge-state)/$(out escalation-reason)/$(out skip-reason)"
@@ -73,14 +67,11 @@ for expect in "EXPECT_STATE=conflicted EXPECT_TREE=$(printf 'c%.0s' {1..40})" "E
 done
 
 for bad in "$CONFLICTED
-extra=1" "$HASHES
-merge-state=conflicted
+extra=1" "merge-state=conflicted
 escalation-reason=
-conflict-tree=" "$HASHES
-merge-state=escalate
+conflict-tree=" "merge-state=escalate
 escalation-reason=repeat-cap
-conflict-tree=$T0" "$HASHES
-merge-state=clean
+conflict-tree=$T0" "merge-state=clean
 escalation-reason=repeat-cap
 conflict-tree=$T0" "config-sha256=x
 merge-state=clean
