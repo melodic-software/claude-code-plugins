@@ -47,8 +47,10 @@ inputs:
   prepare:
     description: >
       The activity's prepare mode from resolve-config, empty for none. With
-      `merge-base` the runner commits the staged merge after the skill, so
-      the skill gets neither the commit tool nor the instruction to commit.
+      `merge-base` (run-claude-cli only, a read skill that hands on a patch)
+      the skill gets Edit and Write but no Bash, and reads the conflicts the
+      runner writes to .lane/merge/ after the merge, read-only and denied to
+      the file tools; a later job commits the merge.
       With `review-threads` (run-claude-cli only) the skill also gets the
       review-thread tool, a read-only wrapper over the base's
       feedback-thread.sh staged under .lane/feedback/ with the thread file the
@@ -84,7 +86,7 @@ inputs:
       $RUNNER_TEMP/lane-stage for the runner to copy to .lane/ after the head
       checkout, and the tool rules name them there. It takes a read skill
       only (ci-context included, and one that hands on a patch with no
-      prepare mode, review-threads or dependency-review), never a gate, an
+      prepare mode, review-threads, dependency-review or merge-base), never a gate, an
       issue lane or an activity with checks, self-checks or verify-scripts.
     required: false
     default: claude-code-action
@@ -184,7 +186,8 @@ runs:
         [[ $marketplace =~ $name ]] || fail "the base marketplace name is malformed"
         [[ $SKILL =~ ^[a-z0-9-]+:[a-z0-9-]+$ ]] || fail "the skill must be <plugin>:<skill>"
         case "$PREPARE" in
-          "" | merge-base) ;;
+          "") ;;
+          merge-base) [ "$LAUNCHER" = run-claude-cli ] || fail "merge-base: the skill runs on run-claude-cli, in the read runner" ;;
           review-threads) [ "$LAUNCHER" = run-claude-cli ] || fail "review-threads: the skill runs on run-claude-cli, in the read runner" ;;
           dependency-review)
             [ "$LAUNCHER" = run-claude-cli ] || fail "dependency-review: the skill runs on run-claude-cli, in the read runner"
@@ -234,8 +237,8 @@ runs:
         if [ "$LAUNCHER" = run-claude-cli ]; then
           [ -z "${ISSUE_NUMBER:-}" ] || fail "run-claude-cli: an issue lane runs on claude-code-action"
           { [ "$edits" = read ] && { [ -z "$PREPARE" ] || [ "$PREPARE" = ci-context ]; }; } ||
-            { [ "$edits" = patch ] && { [ -z "$PREPARE" ] || [ "$PREPARE" = review-threads ] || [ "$PREPARE" = dependency-review ]; }; } ||
-            fail "run-claude-cli: only a read skill runs on the launcher, ci-context included, or one that hands on a patch with no prepare mode, review-threads or dependency-review"
+            { [ "$edits" = patch ] && { [ -z "$PREPARE" ] || [ "$PREPARE" = review-threads ] || [ "$PREPARE" = dependency-review ] || [ "$PREPARE" = merge-base ]; }; } ||
+            fail "run-claude-cli: only a read skill runs on the launcher, ci-context included, or one that hands on a patch with no prepare mode, review-threads, dependency-review or merge-base"
           [ "$GATING" = advisory ] || fail "run-claude-cli: a gate skill's verdict is not read from the launcher"
           jq -e '[.selected.checks, .selected["self-checks"], .selected["verify-scripts"]] | all(. == null or . == [])' "$RESOLVED" >/dev/null ||
             fail "run-claude-cli: checks, self-checks and verify-scripts have no wrapper on the launcher"
@@ -298,6 +301,20 @@ runs:
             denied+=("NotebookEdit(./.lane/plugins/**)" "Bash(git *)" "${shell_denied[@]}"
               "Edit(./.lane/dependency/**)" "Write(./.lane/dependency/**)" "NotebookEdit(./.lane/dependency/**)")
             preamble="$preamble Run every step the skill instructions name. Your scratchpad directory is $lane/scratch: put every temporary or state file there. The dependency context file is $lane/dependency/dependency.json. Leave a fix uncommitted in the working tree: the runner turns it into a patch that a later job pushes only on a fix verdict. Your verdict is your structured output; a later job acts on it, and you post nothing."
+          elif [ "$edits" = patch ] && [ "$PREPARE" = merge-base ]; then
+            # merge-base: the runner merges the pinned base before the skill
+            # and writes each conflicted path's versions and history to
+            # .lane/merge/; the skill resolves the conflicted files in place
+            # and runs nothing, so it gets Edit and Write but no Bash, and
+            # git and the shell rules are denied all the same. The merge
+            # context is read-only and denied to the file tools. The runner
+            # measures its edits from the conflict tree, and the push job
+            # admits only marker-free resolutions of the conflicted paths.
+            tools+=(Edit Write Agent)
+            allowed+=(Edit Write Agent "Edit(./.lane/scratch/**)")
+            denied+=("NotebookEdit(./.lane/plugins/**)" "Bash(git *)" "${shell_denied[@]}"
+              "Edit(./.lane/merge/**)" "Write(./.lane/merge/**)" "NotebookEdit(./.lane/merge/**)")
+            preamble="$preamble Run every step the skill instructions name. Your scratchpad directory is $lane/scratch: put every temporary or state file there. The runner has merged the default branch into this checkout without committing; the merge context is $lane/merge/conflicts.json, which lists each conflicted path with the directory under $lane/merge/ holding its base, ours and theirs versions and both sides' history. Resolve each conflicted file in place, leave a path you cannot resolve with its conflict markers, and edit no other file: the runner turns your edits into a patch that a later job commits as the merge. You run no command and post nothing."
           elif [ "$edits" = patch ]; then
             tools+=(Bash Edit Write Agent)
             # A shell redirect is checked against Edit rules for its target
@@ -437,8 +454,6 @@ runs:
             # tool. The lane does not rely on the skill's allowed-tools
             # frontmatter: Bash runs what a rule in this list allows. The PR
             # is the review step; no tool here limits which files it changes.
-            # In merge-base mode the runner commits what the skill staged,
-            # so the skill gets no commit tool and no instruction to commit.
             # On Linux the Grep and Glob tools exist only when --allowedTools
             # names them (https://code.claude.com/docs/en/tools-reference,
             # "Glob tool behavior"), and the Bash deny list below removes grep
@@ -447,14 +462,14 @@ runs:
             allowed="$allowed,Edit,Write,Agent,Grep,Glob"
             # delete_files carries a rename's old path or a removal to the
             # branch, which commit_files cannot.
-            if [ "$PREPARE" != merge-base ] && [ "$edits" != patch ]; then
+            if [ "$edits" != patch ]; then
               allowed="$allowed,mcp__github_file_ops__commit_files,mcp__github_file_ops__delete_files"
             fi
             allowed="$allowed,Edit(/$SCRATCH/**)"
             system_prompt="You run unattended as a CI lane activity on $subject, and no one can answer a question. Run every step the skill instructions name. Your scratchpad directory is $SCRATCH: put every temporary or state file there."
             if [ "$edits" = patch ]; then
               system_prompt="$system_prompt Leave every change uncommitted in the working tree: the runner turns it into a patch that a later job applies."
-            elif [ "$CAN_COMMIT" = true ] && [ "$PREPARE" != merge-base ]; then
+            elif [ "$CAN_COMMIT" = true ]; then
               # The slash command never says the edits reach the PR only as
               # commits on CLAUDE_BRANCH. commit_files takes each file's mode
               # from disk, and Write creates a file without the executable bit.
@@ -571,7 +586,7 @@ runs:
               system_prompt="$system_prompt Before you report done, run each of these repository checks as written, with no arguments:$wrappers. Fix each failure a check reports in the working tree and run the check again; name any failure you could not fix in your report."
               # The checks read the working tree, so a run that commits runs
               # them first and commits after, or its fixes stay uncommitted.
-              if [ "$CAN_COMMIT" = true ] && [ "$PREPARE" != merge-base ]; then
+              if [ "$CAN_COMMIT" = true ]; then
                 system_prompt="$system_prompt Run the checks before you commit: run them, fix, run them again, then commit your changes and the fixes."
               fi
             fi
@@ -662,23 +677,8 @@ runs:
             # action stores its token.
             [[ $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ ]] || fail "the workspace path is missing or has a name a rule cannot carry"
             # A write skill reaches git only through the base wrappers, so its
-            # Bash runs no git command. Merge-base mode's skill resolves the
-            # merge with git diff, show, merge-base, add, status, log, ls-files
-            # and rev-parse on repository-relative paths and revisions, with no
-            # quotes, commit or --continue, so there git loses only its global
-            # options, the subcommands that read config or reach a remote,
-            # absolute and parent paths, quotes, and the flags (any prefix
-            # git accepts) that read a file outside the index or run a
-            # program. A rule matches the whole command text, * at any
-            # position (https://code.claude.com/docs/en/permissions#wildcard-patterns),
-            # so this list is best-effort; the double quote is escaped for
-            # claude_args' quoted --disallowedTools.
-            if [ "$PREPARE" = merge-base ]; then
-              git_denied=("Bash(git -*)" "Bash(git config *)" "Bash(git remote *)" "Bash(git ls-remote *)" "Bash(git credential *)" "Bash(git var *)" "Bash(git fetch *)" "Bash(git push *)" "Bash(git pull *)" "Bash(git submodule *)" "Bash(git *--no-i*)" "Bash(git *--out*)" "Bash(git *--git-dir*)" "Bash(git *--work-tree*)" "Bash(git *.git/*)" "Bash(git *--ext*)" "Bash(git *--text*)" "Bash(git blame *)" "Bash(git *--cont*)" "Bash(git grep *)" "Bash(git *--pathspec*)" "Bash(git * /*)" "Bash(git *../*)" "Bash(git *..)" "Bash(git *'*)" 'Bash(git *\"*)')
-            else
-              git_denied=("Bash(git *)")
-            fi
-            disallowed="${disallowed:+$disallowed,}$(IFS=,; echo "${git_denied[*]}")"
+            # Bash runs no git command.
+            disallowed="${disallowed:+$disallowed,}Bash(git *)"
             disallowed="${disallowed:+$disallowed,}$(IFS=,; echo "${shell_denied[*]}"),Read(//proc/**),Read(/$WORKSPACE/.git/**)"
             ;;
           *) fail "the activity's effect is not a known effect" ;;

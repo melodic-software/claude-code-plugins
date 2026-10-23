@@ -6,7 +6,10 @@
 # untouched. Ignored files, .lane/ and the CLI's empty scrub stubs are left
 # out.
 #
-# Usage: collect-patch.sh <head-sha> <patch-file>
+# Usage: collect-patch.sh <head-sha> <patch-file> [<from-tree>]
+# With <from-tree> (merge-base mode: the conflict tree prepare.sh wrote, whose
+# objects the checkout holds), the patch is measured from that tree instead of
+# the head, so it holds only what the activity changed after the merge.
 # Prints `state=empty` (no change, no patch file) or `state=written`, then
 # `sha256=<hex>` of the patch file (empty when there is none): lines for
 # $GITHUB_OUTPUT. Exit 2 for bad arguments, 1 when git fails, 3 when a scrub
@@ -24,7 +27,7 @@
 set -euo pipefail
 
 usage() {
-  echo 'usage: collect-patch.sh <40-hex head SHA> <patch file>' >&2
+  echo 'usage: collect-patch.sh <40-hex head SHA> <patch file> [<40-hex tree id>]' >&2
   exit 2
 }
 fail() {
@@ -32,10 +35,11 @@ fail() {
   exit 1
 }
 
-[[ $# -eq 2 && -n $2 ]] || usage
+[[ ($# -eq 2 || $# -eq 3) && -n $2 ]] || usage
 head=$1
 patch=$2
-[[ $head =~ ^[0-9a-f]{40}$ ]] || usage
+from=${3:-$head}
+[[ $head =~ ^[0-9a-f]{40}$ && $from =~ ^[0-9a-f]{40}$ ]] || usage
 
 rm -f -- "$patch"
 work=$(pwd -P)
@@ -51,6 +55,7 @@ g=("${clean[@]}" GIT_DIR="$scratch/git" GIT_WORK_TREE="$work" GIT_INDEX_FILE="$s
   git -c core.hooksPath=/dev/null -c core.fsmonitor=false -c core.untrackedCache=false)
 
 "${g[@]}" cat-file -e "$head^{commit}" 2>/dev/null || fail "the head $head is not a commit here"
+[[ $from == "$head" || $("${g[@]}" cat-file -t "$from" 2>/dev/null) == tree ]] || fail "$from is not a tree here"
 
 # .lane/ holds what the runner staged for the skill (pr-run-activity-read.yml),
 # never the activity's change.
@@ -65,7 +70,7 @@ stubs=(bunfig.toml package.json .npmrc .yarnrc .yarnrc.yml .gitmodules package-l
   pnpm-lock.yaml .env .env.local .env.development .env.development.local .env.test .env.test.local
   .env.production .env.production.local)
 for name in "${stubs[@]}"; do
-  "${g[@]}" cat-file -e "$head:$name" 2>/dev/null && continue
+  "${g[@]}" cat-file -e "$from:$name" 2>/dev/null && continue
   if [[ ! -L $work/$name && -f $work/$name && ! -s $work/$name ]]; then
     paths+=(":(top,exclude,literal)$name")
   elif [[ -L $work/$name || -e $work/$name ]]; then
@@ -74,10 +79,10 @@ for name in "${stubs[@]}"; do
   fi
 done
 
-"${g[@]}" read-tree "$head" || fail 'could not read the head into a scratch index'
+"${g[@]}" read-tree "$from" || fail 'could not read the start tree into a scratch index'
 "${g[@]}" add -A -- "${paths[@]}" || fail 'could not stage the working tree in the scratch index'
 "${g[@]}" diff --cached --binary --full-index --no-color --no-ext-diff --no-textconv \
-  --no-renames --no-relative --submodule=short --src-prefix=a/ --dst-prefix=b/ -U3 "$head" -- "${paths[@]}" >"$patch" ||
+  --no-renames --no-relative --submodule=short --src-prefix=a/ --dst-prefix=b/ -U3 "$from" -- "${paths[@]}" >"$patch" ||
   fail 'could not write the patch'
 
 if [[ ! -s $patch ]]; then

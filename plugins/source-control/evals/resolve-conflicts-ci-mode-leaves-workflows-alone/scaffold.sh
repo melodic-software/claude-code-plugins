@@ -78,3 +78,25 @@ git merge --no-commit --no-ff main >/dev/null 2>&1 || true
 test -f .git/MERGE_HEAD
 test "$(git diff --name-only --diff-filter=U)" = "scripts/package.sh"
 grep -q 'build_bundle --compress' .github/workflows/release.yml
+
+# The merge context the lane's runner writes for CI mode (context.sh), which
+# the skill reads in place of git: each conflicted path's three versions and
+# both sides' history, read-only under .lane/merge/.
+head=$(git rev-parse HEAD) base=$(git rev-parse MERGE_HEAD)
+mkdir -p .lane/merge
+i=0
+entries=()
+while IFS= read -r path; do
+  dir=$(printf '%04d' "$i")
+  mkdir -p ".lane/merge/$dir"
+  git show ":1:$path" >".lane/merge/$dir/base" 2>/dev/null || rm -f ".lane/merge/$dir/base"
+  git show ":2:$path" >".lane/merge/$dir/ours"
+  git show ":3:$path" >".lane/merge/$dir/theirs"
+  git log -p --format='commit %H%nAuthor: %an%nDate: %aI%n%n%B' "$base..$head" -- "$path" >".lane/merge/$dir/head.log"
+  git log -p --format='commit %H%nAuthor: %an%nDate: %aI%n%n%B' "$head..$base" -- "$path" >".lane/merge/$dir/base.log"
+  entries+=("{\"path\":\"$path\",\"dir\":\"$dir\",\"omitted\":false}")
+  i=$((i + 1))
+done < <(git diff --name-only --diff-filter=U)
+printf '{"head":"%s","base":"%s","merge_bases":["%s"],"paths":[%s]}\n' "$head" "$base" "$(git merge-base "$head" "$base")" \
+  "$(IFS=,; echo "${entries[*]}")" >.lane/merge/conflicts.json
+echo /.lane/ >>.git/info/exclude
