@@ -167,13 +167,15 @@ It also runs on `workflow_run` `completed` of `pr-verify`. When that run of `pr-
 `pull-requests: write`) posts the verdict's summary and notes on the PR as file-level review
 comments by `github-actions[bot]`, each starting `<!-- pr-verify:fail-note -->`, on the head the
 verdict judged (`.github/scripts/pr-unblock/verify-notes.mjs`). It posts only on an open PR still at
-that head, and only once per head; on an adopted PR the lanes App did not open, no round starts and
+that head, and only the comments that head does not hold yet, by file; on an adopted PR the lanes App did not open, no round starts and
 the notes tell its author why the lane refuses it. A note that starts with a path the PR changes goes on
 that file; the summary and the other notes go on the first such file, or on the PR's first changed
 file. `address-feedback` keeps such a thread as the `verifier`'s finding, as it keeps the reviewer
 bot's, when its review is `github-actions[bot]`'s on a head the reviewed-head markers name. The
 dispatch job then decides as above, with the newest completed review run at that head as the
-upstream it records; with none yet, the review run dispatches when it completes. The fix round's
+upstream it records, except that only `pr-unblock / address-feedback` check runs started after the
+`pr-verify` run was created count, and the head's handled record is not read, since the notes are
+new work at a head an earlier round may have handled; with none yet, the review run dispatches when it completes. The fix round's
 push gives a head the verifier judges again.
 In `pr-unblock.yml`, `address-feedback-select` (a base job with no model and a read-only token)
 keeps the threads, `address-feedback` (the model job, `read`, on the read runner with a

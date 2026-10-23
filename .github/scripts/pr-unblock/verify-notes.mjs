@@ -8,8 +8,9 @@
 // main can upload; the workflow checks the run before this runs.
 //
 // It posts only for an open pull request whose current head is the one the
-// FAIL judged, and only when no verifier note names that head yet, so a re-run
-// posts nothing twice. On a pull request the lanes App did not open (an
+// FAIL judged, and only the comments not on it yet: a verifier note at that
+// head on the same file is that comment, so a re-run after a partial post
+// posts the rest and nothing twice. On a pull request the lanes App did not open (an
 // adopted one, `merge.verify-authors: lane-or-owner`) no round starts, and the
 // notes tell its author why the pr-merge lane refuses it. Each note that starts with a path the pull
 // request changes (`path` or `path:line`, backticks allowed) goes on that
@@ -103,23 +104,22 @@ export async function postNotes({ api, verdict, log }) {
     log(`skip: #${pr} is not open at head ${head}`);
     return false;
   }
-  const posted = (await api.listReviewComments(pr)).some(
-    (comment) => comment.user?.id === MARKER_AUTHOR_ID && comment.commit_id === head && firstLine(comment.body) === VERIFY_NOTE_MARKER,
+  const posted = new Set(
+    (await api.listReviewComments(pr))
+      .filter((comment) => comment.user?.id === MARKER_AUTHOR_ID && comment.commit_id === head && firstLine(comment.body) === VERIFY_NOTE_MARKER)
+      .map((comment) => comment.path),
   );
-  if (posted) {
-    log(`#${pr}: the notes of the fail at ${head} are already posted`);
-    return true;
-  }
   const files = (await api.listPullFiles(pr)).map((file) => file.filename);
   const comments = noteComments({ ...verdict, files });
   if (comments.length === 0) {
     log(`skip: #${pr} changes no file to comment on`);
     return false;
   }
-  for (const { path, body } of comments) {
+  const missing = comments.filter(({ path }) => !posted.has(path));
+  for (const { path, body } of missing) {
     await api.createReviewComment(pr, { body, commit_id: head, path, subject_type: "file" });
   }
-  log(`#${pr}: posted ${comments.length} verifier note comment(s) on head ${head}`);
+  log(`#${pr}: posted ${missing.length} of ${comments.length} verifier note comment(s) on head ${head}`);
   return true;
 }
 

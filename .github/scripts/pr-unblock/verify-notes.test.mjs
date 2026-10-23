@@ -93,9 +93,27 @@ test("the notes are posted as file comments on the judged head, once", async () 
     [{ pr: 42, path: "plugins/x/a.py", commit_id: HEAD, subject_type: "file" }],
   );
   // A re-run finds its own note at that head and posts nothing.
-  const again = fakeApi({ reviewComments: [{ user: { id: ACTIONS_BOT }, commit_id: HEAD, body: api.created[0].body }] });
+  const again = fakeApi({ reviewComments: [{ user: { id: ACTIONS_BOT }, commit_id: HEAD, path: api.created[0].path, body: api.created[0].body }] });
   assert.equal(await postNotes({ api: again, verdict, log: () => {} }), true);
   assert.deepEqual(again.created, []);
+});
+
+test("a retry after a partial post posts only the comments still missing", async () => {
+  const verdict = readVerdict(NAME, verdictText({ notes: ["plugins/x/a.py: one", "plugins/x/b.md: two"] }));
+  const full = fakeApi();
+  await postNotes({ api: full, verdict, log: () => {} });
+  assert.deepEqual(
+    full.created.map((c) => c.path),
+    FILES,
+  );
+  // The second POST failed: only the first file's comment is on the PR.
+  const [first] = full.created;
+  const retry = fakeApi({ reviewComments: [{ user: { id: ACTIONS_BOT }, commit_id: HEAD, path: first.path, body: first.body }] });
+  assert.equal(await postNotes({ api: retry, verdict, log: () => {} }), true);
+  assert.deepEqual(
+    retry.created.map((c) => c.path),
+    ["plugins/x/b.md"],
+  );
 });
 
 test("a posted note opens a thread address-feedback keeps", async () => {

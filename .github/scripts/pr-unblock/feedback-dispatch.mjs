@@ -39,7 +39,10 @@
 // (VERIFY_HEAD_SHA) and decides as above with the newest completed review
 // run at that head as the upstream (reviewRunAt); with none, the review run
 // that completes later dispatches. The dispatched-run record names that review
-// run, so the gate and the broker check one kind of upstream.
+// run, so the gate and the broker check one kind of upstream. The notes are
+// new work at a head an earlier round may have handled, so that dispatch
+// counts only check runs started after the pr-verify run was created
+// (notesSince, read back from the API) and skips the head's handled record.
 //
 // Both review lanes, and any re-run, finish on one head, so a run leaves a
 // record for the next run at that head (dispatch-record.mjs, carried in the
@@ -141,6 +144,7 @@ export async function dispatchFeedback({
   humanGatedLabel = "needs-human",
   now = Date.now(),
   record = emptyRecord(),
+  notesSince = null,
 }) {
   const skip = (why) => {
     log(`skip: ${why}`);
@@ -164,7 +168,7 @@ export async function dispatchFeedback({
     return skip(`run ${upstreamRunId} is not a completed same-repository review run`);
   }
   const head = upstream.head_sha;
-  if (isHandled(record, settings.checkName, head)) {
+  if (notesSince === null && isHandled(record, settings.checkName, head)) {
     return skip(`head ${head} already has a ${settings.checkName} check run (recorded)`);
   }
   const title = (number) => runTitle(settings.activity, number);
@@ -248,7 +252,10 @@ export async function dispatchFeedback({
   if (resolved.selected?.applies !== true) {
     return skip(`#${number}: ${settings.activity} does not apply (${resolved.selected?.["skip-reason"] ?? "unknown"})`);
   }
-  const existing = await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId });
+  const existing = (await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId })).filter(
+    // NaN compares false, so a run with no readable start still counts.
+    (run) => notesSince === null || !(Date.parse(run.started_at ?? "") <= notesSince),
+  );
   if (permanentlyHandles(existing)) {
     markHandled(record, settings.checkName, head);
   }
@@ -454,10 +461,15 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
       fetch: budget.fetch,
     });
   let upstream = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8")).workflow_run;
+  let notesSince = null;
   if (upstream?.path === VERIFY_WORKFLOW) {
     const head = env.VERIFY_HEAD_SHA ?? "";
     if (!SHA.test(head)) {
       throw new Error("a pr-verify run names no posted head in VERIFY_HEAD_SHA");
+    }
+    notesSince = Date.parse((await client.getWorkflowRun(upstream.id)).created_at ?? "");
+    if (Number.isNaN(notesSince)) {
+      throw new Error(`pr-verify run ${upstream.id} has no readable creation time`);
     }
     upstream = await reviewRunAt({ api: client, head });
     if (upstream === null) {
@@ -471,6 +483,7 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
     repository: env.GITHUB_REPOSITORY,
     runId: env.GITHUB_RUN_ID,
     upstream,
+    notesSince,
     appSenderId: Number(env.APP_SENDER_ID),
     // The base checkout's list, the one resolve-config reads beside it.
     trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`),
