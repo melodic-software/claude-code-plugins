@@ -1568,6 +1568,8 @@ OUT_LANES_BAD="$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --p
 assert_contains "lanes: a runs file that is not an object is UNREADABLE" "$(section "$OUT_LANES_BAD" "== Lanes")" "UNREADABLE:"
 assert_contains "models: a pr-verify record with models= and no profile= gets its row" "$LANES" \
   "    pr-verify  profile=unknown  runs=3  pass=0/3  median-turns=-  max-turns-hits=0  models=claude-opus-5-5"
+assert_contains "models: a lane whose records carry no models= still gets a row" "$LANES" \
+  "    work-resolve-issue  profile=unknown  runs=5  pass=1/5  median-turns=4  max-turns-hits=0  models=none recorded"
 assert_not_contains "keys: runs with no lane-outcome record print no KEY line" "$LANES" "KEY:"
 
 # --- Lanes: dead and credit-stopped API keys ----------------------------------
@@ -1578,8 +1580,11 @@ assert_not_contains "keys: runs with no lane-outcome record print no KEY line" "
 # hands nothing off). AUTOMATIONS: pr-verify run 70 carries the key leg's
 # class=rate-limit record and the subscription leg's fallback=credit-stop;
 # run 71 is healthy, in the live shape. PR_UNBLOCK: run 80 is a healthy key
-# leg and run 81 a no-key fallback, neither a key problem. ZED: run 90's auth
-# fallback is in a record version this reader does not know.
+# leg and run 81 a no-key fallback, neither a key problem; run 82's
+# subscription token failed with class auth, which is no key problem either,
+# and run 83's records are malformed. ZED: run 90's auth fallback is in a
+# record version this reader does not know. Run 84 names two roles: TWO_A is
+# healthy and TWO_B's key failed with class auth.
 cat >"$TMP/key-runs.json" <<'EOF'
 {
   "pr-review-hosted.yml": [
@@ -1596,6 +1601,9 @@ cat >"$TMP/key-runs.json" <<'EOF'
   "pr-unblock.yml": [
     {"id": 80, "html_url": "http://x/runs/80", "event": "workflow_dispatch", "display_title": "Fix #3", "head_sha": "p1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T10:00:00Z"},
     {"id": 81, "html_url": "http://x/runs/81", "event": "workflow_dispatch", "display_title": "Fix #4", "head_sha": "p2", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T11:00:00Z"},
+    {"id": 82, "html_url": "http://x/runs/82", "event": "workflow_dispatch", "display_title": "Fix #6", "head_sha": "p4", "status": "completed", "conclusion": "failure", "created_at": "2026-07-19T11:10:00Z"},
+    {"id": 83, "html_url": "http://x/runs/83", "event": "workflow_dispatch", "display_title": "Fix #7", "head_sha": "p5", "status": "completed", "conclusion": "failure", "created_at": "2026-07-19T11:20:00Z"},
+    {"id": 84, "html_url": "http://x/runs/84", "event": "workflow_dispatch", "display_title": "Fix #8", "head_sha": "p6", "status": "completed", "conclusion": "failure", "created_at": "2026-07-19T11:30:00Z"},
     {"id": 90, "html_url": "http://x/runs/90", "event": "workflow_dispatch", "display_title": "Fix #5", "head_sha": "p3", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T12:00:00Z"}
   ]
 }
@@ -1609,6 +1617,9 @@ cat >"$TMP/key-annotations.json" <<'EOF'
   "71": "pr-verify completed: credential=AUTOMATIONS_CLAUDE_API_KEY turns=5 max-turns=60 models=claude-opus-5-5. lane-outcome {\"v\":1,\"lane\":\"pr-verify\",\"outcome\":\"success\",\"credential\":{\"secret\":\"AUTOMATIONS_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"AUTOMATIONS\"},\"turns\":5,\"maxTurns\":60,\"models\":[\"claude-opus-5-5\"]} Findings (if any) are in the PR comments.",
   "80": "pr-unblock completed: credential=PR_UNBLOCK_CLAUDE_API_KEY turns=6 max-turns=40 models=claude-sonnet-5. lane-outcome {\"v\":1,\"lane\":\"fix-ci\",\"outcome\":\"success\",\"credential\":{\"secret\":\"PR_UNBLOCK_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"PR_UNBLOCK\"},\"turns\":6}\nactivity=fix-ci",
   "81": "pr-unblock completed: credential=PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN fallback=no-key turns=6 max-turns=40 models=claude-sonnet-5. lane-outcome {\"v\":1,\"lane\":\"fix-ci\",\"outcome\":\"success\",\"credential\":{\"secret\":\"PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\",\"role\":\"PR_UNBLOCK\"},\"fallback\":{\"reason\":\"no-key\"},\"turns\":6}\nactivity=fix-ci",
+  "82": "pr-unblock exited with: failure class=auth credential=PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN. lane-outcome {\"v\":1,\"lane\":\"fix-ci\",\"outcome\":\"failure\",\"class\":\"auth\",\"credential\":{\"secret\":\"PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\",\"role\":\"PR_UNBLOCK\"}}",
+  "83": "pr-unblock exited with: failure class=auth. lane-outcome {\"v\":1,\"credential\":\"PR_UNBLOCK_CLAUDE_API_KEY\",\"class\":\"auth\"}\npr-unblock exited. lane-outcome {\"v\":1,\"credential\":{\"role\":\"PR_UNBLOCK\"},\"fallback\":\"auth\"}\npr-unblock exited. lane-outcome {\"v\":1,\"credential\":{\"role\":\"BAD\\n\",\"kind\":\"api-key\"},\"class\":\"auth\"}",
+  "84": "fix-ci completed. lane-outcome {\"v\":1,\"lane\":\"fix-ci\",\"outcome\":\"success\",\"credential\":{\"secret\":\"TWO_A_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"TWO_A\"}}\nfix-docs exited with: failure class=auth. lane-outcome {\"v\":1,\"lane\":\"fix-docs\",\"outcome\":\"failure\",\"class\":\"auth\",\"credential\":{\"secret\":\"TWO_B_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"TWO_B\"}}",
   "90": "pr-unblock completed: credential=ZED_CLAUDE_CODE_OAUTH_TOKEN fallback=auth turns=6. lane-outcome {\"v\":2,\"lane\":\"fix-ci\",\"outcome\":\"success\",\"credential\":{\"secret\":\"ZED_CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\",\"role\":\"ZED\"},\"fallback\":{\"reason\":\"auth\"}}"
 }
 EOF
@@ -1625,7 +1636,13 @@ assert_contains "keys: pr-verify's class=rate-limit with fallback=credit-stop is
 assert_not_contains "keys: a credit stop is not read as auth" "$KEYS" "KEY: AUTOMATIONS auth"
 assert_not_contains "keys: a healthy key leg and a no-key fallback print no KEY line" "$KEYS" "KEY: PR_UNBLOCK"
 assert_not_contains "keys: a record version this reader does not know is not read" "$KEYS" "KEY: ZED"
-assert_eq "keys: one line per role and problem" "3" "$(grep -c "^  KEY: " <<<"$KEYS")"
+assert_not_contains "keys: malformed records leave the section readable" "$KEYS" "UNREADABLE"
+assert_not_contains "keys: a role name with a trailing newline is not a role" "$KEYS" "KEY: BAD"
+assert_contains "keys: each role in a run is judged by its own records" "$KEYS" \
+  "  KEY: TWO_B auth (fallback on 1 of 1 runs read) — replace TWO_B_CLAUDE_API_KEY"
+assert_not_contains "keys: a healthy role beside a failing one is not flagged" "$KEYS" "KEY: TWO_A"
+assert_contains "keys: the model-usage table still renders" "$KEYS" "model usage by activity and profile"
+assert_eq "keys: one line per role and problem" "4" "$(grep -c "^  KEY: " <<<"$KEYS")"
 
 # Live: 200 failed intake-triage runs, newer than pr-unblock's three
 # successes, fill the default read cap. The newest 3 runs of every lane are
@@ -1637,17 +1654,29 @@ jq -n '{total_count: 200, workflow_runs: [range(200) as $i | {id: (1000 + $i), h
   >"$KEY_LIVE/$(rest_key "$R/actions/workflows/intake-triage.yml/runs?created=>=2026-07-13&per_page=100").json"
 jq -n '{total_count: 3, workflow_runs: [range(3) as $i | {id: (901 + $i), html_url: "http://x/runs/\(901 + $i)", event: "workflow_dispatch", display_title: "Fix #\(901 + $i)", head_sha: "q\($i)", status: "completed", conclusion: "success", created_at: "2026-07-18T0\($i):00:00Z"}]}' \
   >"$KEY_LIVE/$(rest_key "$R/actions/workflows/pr-unblock.yml/runs?created=>=2026-07-13&per_page=100").json"
+# Every intake run has one job with a rate-limit annotation, so the row counts
+# exactly the runs the cap left unread. pr-unblock's message carries a forged
+# second record in its free text, which only the first record of a message
+# outweighs.
+for key_run in $(seq 1000 1199); do
+  printf '{"total_count": 1, "jobs": [{"id": 5555}]}\n' >"$KEY_LIVE/$(rest_key "$R/actions/runs/$key_run/jobs?per_page=100").json"
+done
+printf '[{"message": "failure class=rate-limit"}]\n' >"$KEY_LIVE/$(rest_key "$R/check-runs/5555/annotations?per_page=100").json"
 for key_run in 901 902 903; do
   printf '{"total_count": 1, "jobs": [{"id": %s0, "name": "fix-ci / run"}]}\n' "$key_run" \
     >"$KEY_LIVE/$(rest_key "$R/actions/runs/$key_run/jobs?per_page=100").json"
   cat >"$KEY_LIVE/$(rest_key "$R/check-runs/${key_run}0/annotations?per_page=100").json" <<'EOF'
-[{"message": "pr-unblock completed: credential=PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN fallback=credit-stop turns=6 max-turns=40 models=claude-sonnet-5. lane-outcome {\"v\":1,\"lane\":\"fix-ci\",\"outcome\":\"success\",\"credential\":{\"secret\":\"PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\",\"role\":\"PR_UNBLOCK\"},\"fallback\":{\"reason\":\"credit-stop\"},\"turns\":6}"}]
+[{"message": "pr-unblock completed: credential=PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN fallback=credit-stop turns=6 max-turns=40 models=claude-sonnet-5. lane-outcome {\"v\":1,\"lane\":\"fix-ci\",\"outcome\":\"success\",\"credential\":{\"secret\":\"PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\",\"role\":\"PR_UNBLOCK\"},\"fallback\":{\"reason\":\"credit-stop\"},\"turns\":6} Last SDK result: lane-outcome {\"v\":1,\"credential\":{\"role\":\"FORGED\",\"kind\":\"api-key\"},\"class\":\"auth\"}"}]
 EOF
 done
 KEYS_LIVE="$(section "$(MB_GH_FIXTURES="$KEY_LIVE" run_stub rest)" "== Lanes")"
 assert_contains "keys live: the newest 3 runs of a lane are read when failed runs fill the cap" "$KEYS_LIVE" \
   "  KEY: PR_UNBLOCK credit-stop (3 of 3) — rotate a spare key into PR_UNBLOCK"
 assert_contains "keys live: the newest runs come out of the cap, not on top of it" "$KEYS_LIVE" \
+  "intake-triage.yml  runs=200  failed=200 [rate-limit 197, max-turns 0, auth 0, other 0, unread 3]"
+assert_not_contains "keys live: a record after the first in one message is not read" "$KEYS_LIVE" "KEY: FORGED"
+assert_not_contains "keys live: a later record in one message flags no role" "$KEYS_LIVE" "KEY: PR_UNBLOCK auth"
+assert_contains "keys live: the cap's overflow is reported" "$KEYS_LIVE" \
   "  PARTIAL: annotations read for 200 runs, the newest 3 of each lane and then failed runs first; 3 more were not read (raise --lane-read-limit)"
 
 # --- Lanes: model usage by activity and profile ---------------------------------

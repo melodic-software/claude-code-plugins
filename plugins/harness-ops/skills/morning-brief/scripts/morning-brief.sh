@@ -1936,12 +1936,13 @@ LANE_DEFS='
     elif test("class=max-turns(?![a-z-])|error_max_turns|exceeding the configured maximum of [0-9]+|maximum number of turns"; "i") then "max-turns"
     else "other" end;
   def hot($cap): $cap != null and . != null and . * 100 >= 80 * $cap;
-  # The v1 lane-outcome records in a run text: after each marker, the shortest
-  # prefix ending at a "}" that parses, since free text may follow the JSON.
+  # The v1 lane-outcome records in a run text, at most 8: after each marker,
+  # the shortest prefix ending at a "}" that parses, since free text may follow
+  # the JSON. A record whose credential or fallback is not an object is dropped.
   def records:
-    [ split("lane-outcome ")[1:][] | .[:1100] | split("}") as $p
+    [ split("lane-outcome ")[1:9][] | .[:1100] | split("}") as $p
       | first(range(1; $p | length) as $k | $p[:$k] | join("}") + "}" | fromjson? | objects) ]
-    | map(select(.v == 1));
+    | map(select(.v == 1 and (.credential | type) == "object" and ((.fallback // {}) | type) == "object"));
   def lane_runs($wf):
     ($ann[0]) as $texts
     | ($wf | sub("\\.ya?ml$"; "")) as $lane
@@ -1960,8 +1961,7 @@ LANE_DEFS='
           number: ([(.display_title // "") | capture(" #(?<n>[0-9]+)$") | .n] | first),
           name: (if $act != null and $act != $lane then "\($lane) / \($act)" else $lane end),
           profile: ((if $t != null then ($t | tok("profile")) else null end) // "unknown"),
-          models: (if $t != null then (($t | tok("models")) // "" | split(",") | map(select(. != ""))) else [] end),
-          recs: (if $t != null then ($t | records) else [] end)
+          models: (if $t != null then (($t | tok("models")) // "" | split(",") | map(select(. != ""))) else [] end)
         }
       | . + {
           key: (if .head then "head \(.head_sha)" elif .number then "\(.event) #\(.number)" else "title \(.display_title)" end)
@@ -2028,23 +2028,21 @@ MODELS_JQ="$LANE_DEFS"'
 # the runs whose key was refused (a fallback for auth, or a key leg that
 # failed with class auth) and the runs that fell back on a credit stop. The
 # fallback reason, not the class, marks a credit stop: pr-verify records one
-# as class rate-limit. The secret to replace is the run's API key record's,
-# else the role's <ROLE>_CLAUDE_API_KEY.
+# as class rate-limit. The secret to replace is the role's
+# <ROLE>_CLAUDE_API_KEY, the name the record contract builds the role from.
 # shellcheck disable=SC2016  # jq variables, as above
 KEYS_JQ="$LANE_DEFS"'
-  def name: strings | select(test("^[A-Z0-9_]+$"));
-  [ $lanes[] as $wf | lane_runs($wf)[] | .recs as $k
-    | ([$k[].credential.role | name] | first) as $role
-    | select($role != null)
-    | {role: $role,
-       secret: ([$k[] | select(.credential.kind == "api-key") | .credential.secret | name] | first // "\($role)_CLAUDE_API_KEY"),
-       auth: any($k[]; .fallback.reason == "auth" or (.credential.kind == "api-key" and .class == "auth")),
-       credit: any($k[]; .fallback.reason == "credit-stop")} ]
+  [ $lanes[] as $wf | lane_runs($wf)[] | ($ann[0][.id | tostring] // "" | records)
+    | map(select(.credential.role | strings | test("\\A[A-Z0-9_]+\\z")))
+    | group_by(.credential.role)[]
+    | {role: .[0].credential.role,
+       auth: any(.[]; .fallback.reason == "auth" or (.credential.kind == "api-key" and .class == "auth")),
+       credit: any(.[]; .fallback.reason == "credit-stop")} ]
   | group_by(.role)[]
   | length as $m
-  | map(select(.auth)) as $a
+  | (map(select(.auth)) | length) as $a
   | (map(select(.credit)) | length) as $c
-  | (if ($a | length) > 0 then "  KEY: \(.[0].role) auth (fallback on \($a | length) of \($m) runs read) — replace \($a[0].secret)" else empty end),
+  | (if $a > 0 then "  KEY: \(.[0].role) auth (fallback on \($a) of \($m) runs read) — replace \(.[0].role)_CLAUDE_API_KEY" else empty end),
     (if $c > 0 then "  KEY: \(.[0].role) credit-stop (\($c) of \($m)) — rotate a spare key into \(.[0].role)" else empty end)
 '
 
@@ -2095,7 +2093,11 @@ fetch_lane_annotations() {
         ok=0
         break
       }
-      jq -r '.[]?.message // empty' "$WORK/lane.one" >>"$WORK/lane.msgs" 2>/dev/null
+      # A message's lane-outcome record comes before its free text, so a later
+      # marker in the same message is text, never a record.
+      jq -r '.[]?.message // empty | split("lane-outcome ")
+        | if length > 2 then .[0] + "lane-outcome " + (.[1:] | join("lane-outcome-")) else join("lane-outcome ") end' \
+        "$WORK/lane.one" >>"$WORK/lane.msgs" 2>/dev/null
       [[ "$jname" =~ $CALLER_JOB_RE ]] && jq -e 'length > 0' "$WORK/lane.one" >/dev/null 2>&1 &&
         echo "activity=${BASH_REMATCH[1]}" >>"$WORK/lane.msgs"
     done < <(jq -r -s '.[].jobs[]? | [.id, (.name // "")] | @tsv' "$WORK/lane.jobs" 2>/dev/null)
@@ -2165,8 +2167,9 @@ print_lanes() {
   ((LANES_PARTIAL)) && echo "  PARTIAL: annotations read for $LANE_READ_LIMIT runs, the newest 3 of each lane and then failed runs first; $LANES_PARTIAL more were not read (raise --lane-read-limit)"
   rows="$(jq -n -r --argjson since "$since" --slurpfile runs "$runs" --slurpfile ann "$ann" \
     --argjson lanes "$(printf '%s\n' "${LANE_WORKFLOWS[@]}" | jq -R . | jq -s .)" "$KEYS_JQ" 2>&1)" || {
-    unreadable lanes "could not parse the lane-outcome records: ${rows%%$'\n'*}"
-    return
+    UNREADABLE=$((UNREADABLE + 1))
+    UNREADABLE_NAMES+=(lanes)
+    rows="  UNREADABLE: could not parse the lane-outcome records: ${rows%%$'\n'*}"
   }
   [[ -n "$rows" ]] && echo "$rows"
   rows="$(jq -n -r --argjson since "$since" --slurpfile runs "$runs" --slurpfile ann "$ann" \
