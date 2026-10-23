@@ -940,7 +940,14 @@ no full CI run either; its summary says whether it would have.
 
 The workflow's gate loop starts no further candidate once it has run `merge.gate-budget-minutes`
 (absent: no budget); the candidate in progress finishes first, so the budget never stops a gate
-between its check and its enqueue. Each run starts after the last candidate the previous loop
+between its check and its enqueue. One candidate's gate reads for at most
+`merge.gate-candidate-minutes` (absent: no limit): past it the gate starts no further read and the
+candidate is reported `unknown:candidate-deadline`, never ready, while a write already started
+finishes; the loop goes on to the next candidate. The first candidate a run stops so is recorded in
+the cursor as deferred, and the next run gates it first under the longer
+`merge.gate-deferred-minutes` (absent: no limit), so a pull request whose gate always runs past the
+limit still gets a longer gate. One stopped at that ceiling too gets a warning annotation naming it
+and goes back to the capped rotation, never deferred again. Each run starts after the last candidate the previous loop
 reached and wraps round to the lowest PR number, so every candidate is reached across runs. The
 position is the `pr-merge-gate-cursor` artifact, read only from a scheduled or hand-started
 `pr-merge.yml` run on the default branch, found through that workflow's run list; it sets the order
@@ -1299,8 +1306,10 @@ saved, and is kept for that candidate's gate run: the pull request and every que
 listing being paged again, so a listing outage holds the whole queue rather than merging blind.
 The lane token holds no Actions permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
-records, the download and the compare of a run's head to main (a `contents: read` call) alone, and
-every other call keeps the lane token. That job checks out only main and runs no pull request code.
+records, the download and the compare of a run's head to main (a `contents: read` call). The gate's
+review-evidence reads use it too: the timeline, the comments, and the lane runs with their attempts,
+jobs and annotations. Every other call, every write included, keeps the lane token. That job checks
+out only main and runs no pull request code.
 
 pr-merge.yml also names a file in `BABYSIT_RUN_CACHE`, where the run's gate processes share reads
 that are the same for every candidate. The acting login and a credential pass are reused only under

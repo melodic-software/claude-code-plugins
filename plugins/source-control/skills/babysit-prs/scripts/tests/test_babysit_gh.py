@@ -1221,7 +1221,9 @@ class CollectLaneRunsTests(unittest.TestCase):
             )
         self.assertEqual([r["id"] for r in runs], [7])
 
-    def test_a_creation_time_that_is_not_a_utc_timestamp_leaves_the_listing_unbounded(self) -> None:
+    def test_a_creation_time_that_is_not_a_utc_timestamp_leaves_the_listing_unbounded(
+        self,
+    ) -> None:
         answers = self.answers(fresh_attempts=1)
 
         def fake(args: list[str]) -> Any:
@@ -1238,6 +1240,28 @@ class CollectLaneRunsTests(unittest.TestCase):
         del answers[f"repos/{self.REPO}/actions/runs/7/attempts/1"]
         with self.assertRaises(RuntimeError):
             self.collect(answers)
+
+    def reads_under(self, env: dict[str, str] | None) -> list[tuple[str, Any]]:
+        answers = self.answers()
+        reads: list[tuple[str, Any]] = []
+
+        def fake(args: list[str], env_overrides: Any = None) -> Any:
+            reads.append((args[1], env_overrides))
+            return answers[args[1]]
+
+        with mock.patch.object(gh, "gh_json", side_effect=fake):
+            gh.collect_lane_runs(self.REPO, 5, "feat/x", self.LANES, env_overrides=env)
+        # The listing, the run, and two attempts' record, jobs and annotations.
+        self.assertEqual(sorted(e for e, _ in reads), sorted(answers))
+        return reads
+
+    def test_every_read_runs_under_the_token_it_is_given(self) -> None:
+        reads = self.reads_under({"GH_TOKEN": "read"})
+        self.assertEqual([env for _, env in reads], [{"GH_TOKEN": "read"}] * 8)
+
+    def test_with_no_token_every_read_keeps_the_process_token(self) -> None:
+        reads = self.reads_under(None)
+        self.assertEqual([env for _, env in reads], [None] * 8)
 
 
 if __name__ == "__main__":

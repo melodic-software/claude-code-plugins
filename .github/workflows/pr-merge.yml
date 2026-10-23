@@ -317,8 +317,11 @@ jobs:
     # A ceiling above the gate's time budget (merge.gate-budget-minutes, 10),
     # which is what ends a long sweep: the budget stops between candidates,
     # a timeout can stop one between its check and its merge-queue write.
-    # 30 leaves the budget, about a minute before the loop, the longest
-    # measured candidate (about 3 minutes) and the closing steps well inside.
+    # 30 leaves about a minute before the loop, then the longer of the
+    # budget plus the last candidate's read limit (merge.gate-candidate-minutes,
+    # 4) and a deferred candidate's ceiling (merge.gate-deferred-minutes, 20;
+    # it is always gated first), plus one read's own timeout, the writes and
+    # the closing steps.
     timeout-minutes: 30
     permissions:
       contents: read # check out main
@@ -329,6 +332,7 @@ jobs:
       # Read a refused lane run's annotations and its PR head's checks. Never
       # write: the gate-check job below writes the check runs.
       checks: read
+      issues: read # the post-merge check's demotion records, read with this job's token
       id-token: write # prove to the token broker which workflow this is
     outputs:
       # `true` when the gate's rows were handed to the gate-check job.
@@ -461,6 +465,8 @@ jobs:
             echo "dependabot=$dependabot"
             echo "live=$live"
             echo "gate-budget-minutes=$(yq '.merge."gate-budget-minutes" // ""' "$config")"
+            echo "gate-candidate-minutes=$(yq '.merge."gate-candidate-minutes" // ""' "$config")"
+            echo "gate-deferred-minutes=$(yq '.merge."gate-deferred-minutes" // ""' "$config")"
             echo "skip-max-minutes=$(yq '.merge."skip-unchanged"."max-minutes" // ""' "$config")"
             echo "skip-max-skips=$(yq '.merge."skip-unchanged"."max-skips" // ""' "$config")"
           } >>"$GITHUB_OUTPUT"
@@ -638,12 +644,14 @@ jobs:
       # (--postmerge-result); a PR that merges during the run is in the
       # gate's own `dispatch` output. The post-merge-dispatch job runs the
       # same check to start the full run an earlier merge needs, so neither a
-      # failed listing nor a long gate loop holds that run back.
+      # failed listing nor a long gate loop holds that run back. Read-only,
+      # so it reads with this job's own token, off the lane App's quota; only
+      # --remediate below needs the lane token.
       - name: Check earlier lane merges
         id: post-merge
         if: steps.lane-token.outputs.token != ''
         env:
-          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -761,16 +769,25 @@ jobs:
       # candidate and ends; the candidate in progress finishes first, so no
       # gate stops between its check and its merge-queue write. The rest wait
       # for the next run, which starts after the last one reached here
-      # (cursor.json, uploaded below). No setting: no budget.
+      # (cursor.json, uploaded below). No setting: no budget. Each candidate's
+      # gate reads for at most merge.gate-candidate-minutes, then stops before
+      # its next read and is reported unknown (exit 11); the gate bounds only
+      # its reads, so a write it started finishes. No setting: no limit. The
+      # first candidate stopped so is recorded in the cursor as deferred, and
+      # the next run gates it first under merge.gate-deferred-minutes instead
+      # (rotation.mjs). One stopped at that ceiling is warned about and goes
+      # back to the capped rotation, never deferred again.
       - name: Run the merge gate on each candidate
         id: gate
         if: steps.candidates.outcome == 'success'
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
-          # Only the verdict reader's Actions calls and the whole-review
-          # request's limit reads use this, as their own GH_TOKEN
-          # (babysit_verify_evidence.py, babysit_whole_review.py); the job
-          # runs main's code alone, never a PR's.
+          # The verdict reader's Actions calls, the review-evidence reads
+          # (timeline, comments, lane runs, attempts, jobs, annotations) and
+          # the whole-review request's limit reads use this, as their own
+          # GH_TOKEN (babysit_verify_evidence.py, babysit_merge.py
+          # _lane_evidence, babysit_whole_review.py); every write keeps the
+          # lane token. The job runs main's code alone, never a PR's.
           BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}
           # At most one whole-review request per run: the first candidate to
           # reach its limits creates this file (babysit_whole_review.py).
@@ -792,6 +809,8 @@ jobs:
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           RUNG_CAP: ${{ vars.CLAUDE_LANES_MERGE_RUNG_CAP }}
           BUDGET_MINUTES: ${{ steps.mode.outputs.gate-budget-minutes }}
+          CANDIDATE_MINUTES: ${{ steps.mode.outputs.gate-candidate-minutes }}
+          DEFERRED_MINUTES: ${{ steps.mode.outputs.gate-deferred-minutes }}
         run: |
           set -euo pipefail
           budget=${BUDGET_MINUTES:-}
@@ -799,10 +818,23 @@ jobs:
             echo "::warning::merge.gate-budget-minutes is not a whole number of minutes ($budget); the gate runs with no budget"
             budget=
           fi
+          # The read limit for a candidate, then for a deferred one.
+          limit=() ceiling=()
+          if [[ ${CANDIDATE_MINUTES:-} =~ ^[1-9][0-9]*$ ]]; then
+            limit=(--candidate-deadline-seconds $((CANDIDATE_MINUTES * 60)))
+          elif [ -n "${CANDIDATE_MINUTES:-}" ]; then
+            echo "::warning::merge.gate-candidate-minutes is not a whole number of minutes ($CANDIDATE_MINUTES); each candidate runs with no limit"
+          fi
+          if [[ ${DEFERRED_MINUTES:-} =~ ^[1-9][0-9]*$ ]]; then
+            ceiling=(--candidate-deadline-seconds $((DEFERRED_MINUTES * 60)))
+          elif [ -n "${DEFERRED_MINUTES:-}" ]; then
+            echo "::warning::merge.gate-deferred-minutes is not a whole number of minutes ($DEFERRED_MINUTES); a deferred candidate runs with no limit"
+          fi
           cursor="$RUNNER_TEMP/gate-cursor/cursor.json"
           mkdir -p "${cursor%/*}"
           started=$(date +%s)
           reached=0
+          deferred=
           # The script and its flags come from the merge-pr activity on main.
           read -ra args < <(jq -r '.selected.args // ""' "$RUNNER_TEMP/resolved-config.json")
           results="$RUNNER_TEMP/results.jsonl"
@@ -822,7 +854,7 @@ jobs:
           summary="$RUNNER_TEMP/pr-merge-summary.json"
           save() { jq -s . "$results" >"$summary.tmp" && mv "$summary.tmp" "$summary"; }
           save
-          while read -r number head updated; do
+          while read -r number head updated was_deferred; do
             if [ -n "$budget" ] && (($(date +%s) - started >= budget * 60)); then
               stop="the ${budget}-minute gate budget is used after $reached of $(jq length "$RUNNER_TEMP/candidates.json") candidates; the next run starts after #$(jq .last "$cursor" 2>/dev/null || echo none)"
               echo "::notice::$stop"
@@ -831,9 +863,11 @@ jobs:
             fi
             out="$RUNNER_TEMP/gate-$number.json"
             code=0
+            cap=("${limit[@]}")
+            [ "$was_deferred" = true ] && cap=("${ceiling[@]}")
             ".base/$SCRIPT" "${args[@]}" --allowed-owners "$OWNER" \
               --lane-kill-switch "$KILL_SWITCH" --lane-rung-cap "$RUNG_CAP" \
-              --postmerge-result "$RUNNER_TEMP/post-merge.json" \
+              --postmerge-result "$RUNNER_TEMP/post-merge.json" "${cap[@]}" \
               --expected-head "$head" "$REPO#$number" </dev/null >"$out" || code=$?
             echo "::group::PR #$number at $head: exit $code"
             cat "$out"
@@ -852,8 +886,13 @@ jobs:
             ' "$out" >>"$results"
             save
             reached=$((reached + 1))
-            echo "{\"last\":$number}" >"$cursor"
-          done < <(jq -r '.[] | "\(.number) \(.head) \(.updatedAt)"' "$RUNNER_TEMP/candidates.json")
+            if [ "$code" = 11 ] && [ "$was_deferred" = true ]; then
+              echo "::warning::PR #$number's gate ran past merge.gate-deferred-minutes ($DEFERRED_MINUTES) after a deferral; it goes back to the capped rotation"
+            elif [ "$code" = 11 ] && [ -z "$deferred" ]; then
+              deferred=$number
+            fi
+            echo "{\"last\":$number${deferred:+,\"deferred\":$deferred}}" >"$cursor"
+          done < <(jq -r '.[] | "\(.number) \(.head) \(.updatedAt) \(.deferred == true)"' "$RUNNER_TEMP/candidates.json")
           dispatch=$(jq 'any(.[]; .merged and .dispatched != true)' "$summary")
           echo "dispatch=$dispatch" >>"$GITHUB_OUTPUT"
 
