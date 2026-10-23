@@ -18,6 +18,7 @@ import contextlib
 import dataclasses
 import io
 import json
+import os
 import pathlib
 import re
 import subprocess
@@ -469,6 +470,22 @@ UNBOUND = tuple(
 PROMOTED = policy.Promotion(dict.fromkeys(policy.PROMOTABLE_CELLS, "promoted"), None)
 PROCEED = policy.KillSwitch(True, "proceed")
 REAL_ASYNC_MERGE = merge.async_merge
+
+# Flags with which `gh api` sends something: a method, or fields or a body
+# (which turn the request into a POST).
+WRITE_FLAGS = frozenset(
+    {"-X", "--method", "-f", "-F", "--field", "--raw-field", "--input"}
+)
+
+
+def is_write(args: list[str]) -> bool:
+    """A gh call that changes GitHub: anything but a plain `gh api` GET."""
+    if not args or args[0] != "api":
+        return True
+    joined = " ".join(args)
+    return bool(WRITE_FLAGS & set(args)) or "mutation" in joined
+
+
 ENQUEUED = {
     "attempted": True,
     "api": "merge-async",
@@ -1051,6 +1068,30 @@ class LaneMode(Unattended):
         self.assertTrue(out["enqueued"])
         self.assertEqual(self.log, ["pin", f"graphql-enqueue:id=PR_self:head={HEAD}"])
         self.assertEqual(out["merge"]["api"], "graphql")
+
+    def test_no_write_runs_under_the_read_token(self) -> None:
+        # The job hands the gate its read-only token for reads; the pin
+        # comment and the enqueue must still go out under the lane token.
+        self._async_merge = REAL_ASYNC_MERGE  # type: ignore[method-assign]
+        tokens: list[tuple[list[str], str | None]] = []
+        record = self._capture
+
+        def capture(args: list[str], **kwargs: Any) -> Any:
+            env = kwargs.get("env_overrides") or {}
+            tokens.append((args, env.get("GH_TOKEN", os.environ.get("GH_TOKEN"))))
+            return record(args)
+
+        self._capture = capture  # type: ignore[method-assign]
+        environ = {"GH_TOKEN": "lane-tok", "BABYSIT_VERIFY_GH_TOKEN": "read-tok"}
+        with mock.patch.dict("os.environ", environ):
+            code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(self.log, ["pin", f"graphql-enqueue:id=PR_self:head={HEAD}"])
+        writes = [(args, token) for args, token in tokens if is_write(args)]
+        self.assertGreaterEqual(len(writes), 2)
+        for args, token in writes:
+            with self.subTest(" ".join(args)[:80]):
+                self.assertEqual(token, "lane-tok")
 
     def test_a_missing_workflow_kill_switch_stops_the_lane(self) -> None:
         # A stop like the switch itself: no enqueue, and the identity's own
@@ -3257,7 +3298,7 @@ class HeadPushers(unittest.TestCase):
             "commits": len(commits) if total is None else total,
         }
 
-        def paginated(endpoint: str, label: str) -> list[dict[str, Any]]:
+        def paginated(endpoint: str, label: str, **_: Any) -> list[dict[str, Any]]:
             return commits if endpoint.endswith("/commits?per_page=100") else []
 
         with (
@@ -3306,6 +3347,101 @@ class HeadPushers(unittest.TestCase):
         bot = {"login": IDENTITY}
         lanes, _ = self.read([{"sha": "a" * 40, "author": bot, "committer": bot}])
         self.assertEqual(len(lanes), 2)
+
+
+class LaneEvidenceReadToken(unittest.TestCase):
+    """The gate's review-evidence reads (timeline, comments, lane runs and
+    their attempts, jobs and annotations) run under the job's read-only token
+    (`BABYSIT_VERIFY_GH_TOKEN`), off the lane App's quota; each is a GET."""
+
+    RUN = 11
+    JOB = 21
+
+    def answer(self, args: list[str]) -> Any:
+        endpoint = args[1]
+        runs = f"repos/owner/repo/actions/runs/{self.RUN}"
+        bot = {"login": IDENTITY}
+        if endpoint.endswith(f"/pulls/{PR}/commits?per_page=100"):
+            return [[{"sha": HEAD, "author": bot, "committer": bot}]]
+        if "/actions/workflows/" in endpoint:
+            return [
+                {"workflow_runs": [{"id": self.RUN, "pull_requests": [{"number": PR}]}]}
+            ]
+        if endpoint == runs:
+            return {"id": self.RUN, "run_attempt": 1}
+        if endpoint == f"{runs}/attempts/1":
+            return {"id": self.RUN, "run_attempt": 1}
+        if endpoint == f"{runs}/attempts/1/jobs?per_page=100":
+            suffixes = [s for _, s in merge.review_evidence.LANES.values()]
+            return [
+                {
+                    "jobs": [
+                        {"id": self.JOB, "name": f"pr-review / {n}"} for n in suffixes
+                    ]
+                }
+            ]
+        if endpoint.endswith(("/timeline?per_page=100", "/comments?per_page=100")):
+            return [[]]
+        if endpoint.endswith("/annotations?per_page=100"):
+            return [[]]
+        raise AssertionError(f"unexpected gh call: {args}")
+
+    def calls(self, environ: dict[str, str]) -> list[tuple[list[str], Any]]:
+        calls: list[tuple[list[str], Any]] = []
+
+        def fake_gh(
+            args: list[str], *, env_overrides: Any = None, **_: Any
+        ) -> subprocess.CompletedProcess[str]:
+            calls.append((args, env_overrides))
+            return subprocess.CompletedProcess(
+                args, 0, json.dumps(self.answer(args)), ""
+            )
+
+        pr = {
+            "number": PR,
+            "head": {"ref": "feat", "sha": HEAD},
+            "user": {"login": IDENTITY},
+            "commits": 1,
+            "created_at": "2026-10-22T00:00:00Z",
+        }
+        with (
+            mock.patch.dict("os.environ", environ, clear=True),
+            mock.patch.object(gh, "_run_gh", side_effect=fake_gh),
+            mock.patch.object(merge, "fetch_review_threads", return_value=[]),
+        ):
+            merge._lane_evidence(
+                "owner/repo", PR, pr, IDENTITY, frozenset(), lambda login: "write", ()
+            )
+        return calls
+
+    def test_the_evidence_reads_carry_the_read_token_and_are_gets(self) -> None:
+        calls = self.calls({"BABYSIT_VERIFY_GH_TOKEN": "read-tok"})
+        carried = [args for args, env in calls if env == {"GH_TOKEN": "read-tok"}]
+        for args in carried:
+            with self.subTest(args[1]):
+                self.assertFalse(is_write(args), args)
+        kinds = (
+            "/timeline?",
+            "/comments?",
+            "/actions/workflows/",
+            f"/actions/runs/{self.RUN}",
+            "/attempts/1",
+            "/jobs?",
+            "/annotations?",
+        )
+        for kind in kinds:
+            with self.subTest(kind):
+                self.assertTrue(any(kind in args[1] for args in carried), kind)
+        # Two lanes: listing, run, attempt, jobs and one annotations read each.
+        self.assertEqual(len(carried), 2 + 2 * 5)
+        # The commits read is shared with other readers and keeps its token.
+        others = [args[1] for args, env in calls if env is None]
+        self.assertEqual(others, [f"repos/owner/repo/pulls/{PR}/commits?per_page=100"])
+
+    def test_with_no_read_token_every_read_keeps_the_process_token(self) -> None:
+        calls = self.calls({})
+        self.assertEqual(len(calls), 1 + 2 + 2 * 5)
+        self.assertEqual([env for _, env in calls], [None] * len(calls))
 
 
 class CandidateReadsOnce(unittest.TestCase):
