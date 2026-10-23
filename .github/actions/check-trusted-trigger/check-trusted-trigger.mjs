@@ -750,8 +750,9 @@ function checkDispatchedRerunner({ ids }, deniedIds, own) {
 }
 
 // A re-run github-actions[bot] started names no human, so it is trusted only
-// as the lost-run reconciler's re-run of this run: this run's attempt
-// RERUN_ATTEMPT, started by github-actions[bot], and an unexpired
+// as the lost-run reconciler's re-run of runId, this run or the upstream run a
+// workflow_run event names: its attempt RERUN_ATTEMPT, started by
+// github-actions[bot], and an unexpired
 // rerunRecordName artifact, created no later than that attempt started, of a
 // reconcilerWorkflow run in this repository on the default branch, started by
 // its schedule or a listed human's dispatch, any re-run of it by a listed
@@ -759,10 +760,10 @@ function checkDispatchedRerunner({ ids }, deniedIds, own) {
 // started between that run's start and WINDOW_MS after it. A run id names one
 // run and its second attempt starts once, so a record vouches for one attempt.
 // The reconciler uploads the record before it re-runs; one more read follows
-// RECORD_WAIT_MS for any lag in the artifact list. Every refusal is
-// untrusted-rerunner, as for an unlisted re-runner.
-async function verifyReconcilerRerun({ github, repository, event, list, deniedIds, reconcilerWorkflow, runId, runAttempt, sleep }) {
-  const refuse = "untrusted-rerunner";
+// RECORD_WAIT_MS for any lag in the artifact list. Every refusal is refuse:
+// untrusted-rerunner for this run, as for an unlisted re-runner, and
+// untrusted-actor for an upstream run, as for an unlisted actor.
+async function verifyReconcilerRerun({ github, repository, event, list, deniedIds, reconcilerWorkflow, runId, runAttempt, sleep, refuse = "untrusted-rerunner" }) {
   const defaultBranch = event.repository?.default_branch;
   if (
     deniedIds.has(ACTIONS_BOT_ID) ||
@@ -1011,8 +1012,31 @@ export async function evaluateTrigger({
   } else if (expectedUpstreamHead !== "") {
     throw new Stop("untrusted-actor");
   } else {
-    if (!actors.every((actor) => isListed(ids, actor))) {
+    // A CI run the reconciler re-ran is started by github-actions[bot] at
+    // attempt RERUN_ATTEMPT; that actor is vouched for only by its record, and
+    // every other actor must still be listed.
+    const upstream = eventName === "workflow_run" ? event.workflow_run : undefined;
+    const upstreamRerun =
+      reconcilerWorkflow !== "" &&
+      upstream?.triggering_actor?.id === ACTIONS_BOT_ID &&
+      upstream.run_attempt === RERUN_ATTEMPT;
+    const vouched = upstreamRerun ? [event.sender, upstream.actor] : actors;
+    if (!vouched.every((actor) => isListed(ids, actor))) {
       throw new Stop("untrusted-actor");
+    }
+    if (upstreamRerun) {
+      await verifyReconcilerRerun({
+        github,
+        repository,
+        event,
+        list,
+        deniedIds,
+        reconcilerWorkflow,
+        runId: String(upstream.id),
+        runAttempt: String(RERUN_ATTEMPT),
+        sleep,
+        refuse: "untrusted-actor",
+      });
     }
     if (reconcilerWorkflow !== "" && String(triggeringActor).toLowerCase() === "github-actions[bot]") {
       await verifyReconcilerRerun({ github, repository, event, list, deniedIds, reconcilerWorkflow, runId, runAttempt, sleep });

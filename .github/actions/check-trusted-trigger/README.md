@@ -128,7 +128,8 @@ condition 1 and the actor and author parts of condition 2).
   repository. The PR is looked up from the run's head SHA, because `pull_requests` is empty for
   more than forks: exactly one open same-repository PR whose head is still that SHA, or `no-pr`.
   Actors are `sender`, `workflow_run.actor` and `workflow_run.triggering_actor`: all three must
-  be listed, because ADR 0051 requires the actor that started the failed run to be trusted.
+  be listed, because ADR 0051 requires the actor that started the failed run to be trusted. The
+  one exception is the reconciler's re-run of the upstream run, below.
 - **Author.** The PR's `user.id` must be listed.
 - **Re-runner.** A re-run keeps the original event and its actors, so the account that started
   this attempt is checked as well, by id: this run's own record, read through
@@ -163,6 +164,15 @@ condition 1 and the actor and author parts of condition 2).
   attempt, which starts once, so a record cannot vouch for another run or a later attempt. The
   reconciler uploads the record before it calls the re-run, so an absent record is read once more
   after 5 s and then refused.
+
+  The same record vouches for the upstream run on the `workflow_run` path. When
+  `reconciler-workflow` is set, `workflow_run.run_attempt` is `2` and
+  `workflow_run.triggering_actor.id` is 41898282, that actor need not be listed; `sender` and
+  `workflow_run.actor` still must be. Every check above then runs against the upstream run,
+  `workflow_run.id` in place of `github.run_id`, and any failure stops with `untrusted-actor`.
+  The reconciler records each re-run that makes attempt 2 of a CI run this lane runs after. A
+  github-actions[bot] upstream at any other attempt, or with no record, stops with
+  `untrusted-actor`. This run's own re-runner is then checked as above.
 
   Residuals: whether one run can write another run's artifacts is unverified, as for the
   dispatcher record. A re-run that waits in a queue past the ten-minute window is refused, red;
