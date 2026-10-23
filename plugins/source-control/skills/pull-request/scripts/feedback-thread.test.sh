@@ -102,21 +102,22 @@ assert_exit "check-paths refuses a test file beside a .github/workflows/ thread 
 run check-paths .github/scripts/x.mjs .github/scripts/x.test.mjs >/dev/null 2>&1
 assert_exit "check-paths allows a .github/scripts/ thread path and a test file beside it" 0 "$?"
 
-# check-paths: a file in a kept thread's plugins/<p>/ directory other than hooks, manifests,
-# agent rules and non-test code, and test files beside a thread path
+# check-paths: a file in a kept thread's plugins/<p>/ directory other than permission config,
+# package manifests and non-test code, and test files beside a thread path
 setup
 jq '.threads += [{"id":"PRRT_e","path":"plugins/p/evals/c/case.yaml","root_comment_id":400,"comments":[]},
   {"id":"PRRT_s","path":"plugins/planning/surface/round.py","root_comment_id":401,"comments":[]}]' \
   "$STUB/threads.json" >"$STUB/t2" && mv "$STUB/t2" "$STUB/threads.json"
 for path in plugins/p/evals/c/samples/y.json plugins/p/evals/c/samples/deep/z.json \
   plugins/p/evals/other/samples/y.json plugins/p/skills/s/SKILL.md plugins/p/evals/x.json \
+  plugins/p/hooks/hooks.json plugins/p/.claude-plugin/plugin.json plugins/p/AGENTS.md \
+  plugins/p/skills/s/CLAUDE.md plugins/p/.claude/rules/r.md \
   plugins/planning/README.md plugins/planning/surface/test_round.py plugins/planning/surface/round_test.py src/a.test.js src/a.spec.ts; do
   run check-paths "$path" >/dev/null 2>&1
   assert_exit "check-paths allows $path" 0 "$?"
 done
 for path in plugins/q/evals/c/samples/y.json plugins/pp/README.md plugins/README.md \
-  plugins/p/hooks/hooks.json plugins/p/.claude-plugin/plugin.json plugins/p/scripts/run.sh \
-  plugins/p/AGENTS.md plugins/p/skills/s/CLAUDE.md plugins/p/.claude/rules/r.md plugins/p/lib/X.TS \
+  plugins/p/scripts/run.sh plugins/p/.claude/settings.json plugins/p/package.json plugins/p/lib/X.TS \
   plugins/planning/surface/helper.py plugins/planning/test_round.py \
   src/lib/a.test.js src/helper.js src/test_a.sh test_root.py \
   plugins/p/evals/c/../../../../.github/workflows/x.yml plugins/p/evals/c/./y.json plugins/p/evals/c//y.json \
@@ -140,19 +141,25 @@ jq --arg t "$T" '.threads += [{"id":"PRRT_n","path":($t + "/write-transcript.js"
   "$STUB/threads.json" >"$STUB/t2" && mv "$STUB/t2" "$STUB/threads.json"
 run check-paths "$T/run-transcript.js" >/dev/null 2>&1
 assert_exit "check-paths allows a same-plugin file a fix request named" 0 "$?"
-for path in plugins/other/x.js .github/workflows/x.yml plugins/knowledge/AGENTS.md plugins/knowledge/hooks/guard.sh \
-  plugins/knowledge/.claude-plugin/plugin.json plugins/knowledge/.mcp.json plugins/knowledge/skills/s/CLAUDE.md \
+for path in plugins/knowledge/AGENTS.md plugins/knowledge/hooks/guard.sh plugins/knowledge/.claude-plugin/plugin.json \
+  plugins/knowledge/.mcp.json plugins/knowledge/skills/s/CLAUDE.md; do
+  run check-paths "$path" >/dev/null 2>&1
+  assert_exit "check-paths allows named $path" 0 "$?"
+done
+for path in plugins/other/x.js .github/workflows/x.yml \
   plugins/knowledge/.claude/settings.json plugins/knowledge/../other/x.js "plugins/knowledge/a b.js" "$T/run-watch.js"; do
   run check-paths "$path" >/dev/null 2>&1
   assert_exit "check-paths refuses named $path" 1 "$?"
 done
 
-# check-paths: instruction segments with no trailing /, plugin monitors, bin and .lsp.json, more
-# code files, and non-ASCII letters stay out of the plugin-wide scope
-run check-paths plugins/knowledge/README.md >/dev/null 2>&1
-assert_exit "check-paths allows a plain file in the named thread's plugin" 0 "$?"
-for path in plugins/knowledge/hooks plugins/knowledge/.claude plugins/knowledge/monitors/monitors.json plugins/knowledge/bin/tool \
-  plugins/knowledge/.lsp.json plugins/knowledge/lib/x.cjs plugins/knowledge/lib/x.ps1 "plugins/knowledge/hooKs/hooks.json" "plugins/knowledge/AGENTſ.md"; do
+# check-paths: more code files, package manifests and non-ASCII letters stay out of the
+# plugin-wide scope; plugin monitors, bin and .lsp.json are in it
+for path in plugins/knowledge/README.md plugins/knowledge/monitors/monitors.json plugins/knowledge/bin/tool \
+  plugins/knowledge/.lsp.json; do
+  run check-paths "$path" >/dev/null 2>&1
+  assert_exit "check-paths allows $path in the named thread's plugin" 0 "$?"
+done
+for path in plugins/knowledge/package-lock.json plugins/knowledge/lib/x.cjs plugins/knowledge/lib/x.ps1 "plugins/knowledge/hooKs/hooks.json" "plugins/knowledge/AGENTſ.md"; do
   run check-paths "$path" >/dev/null 2>&1
   assert_exit "check-paths refuses $path" 1 "$?"
 done

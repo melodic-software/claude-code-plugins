@@ -532,8 +532,8 @@ test("review-threads: a file a kept thread's named_paths holds pushes; the same 
     outcome: "escalate",
     escalationReason: "patch-protected-path",
   });
-  const instruction = [{ path: "plugins/p/evals/c/case.yaml", named_paths: ["plugins/p/AGENTS.md"] }];
-  assert.deepEqual(await threadPush(threadPatch(t, ["plugins/p/AGENTS.md"]), instruction), {
+  const instruction = [{ path: "plugins/p/evals/c/case.yaml", named_paths: ["plugins/p/CODEOWNERS"] }];
+  assert.deepEqual(await threadPush(threadPatch(t, ["plugins/p/CODEOWNERS"]), instruction), {
     outcome: "escalate",
     escalationReason: "patch-protected-path",
   });

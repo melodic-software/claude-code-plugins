@@ -46,9 +46,8 @@ scratch_dir=${FEEDBACK_SCRATCH:-} workspace=${FEEDBACK_WORKSPACE:-}
 
 # Not under .github/workflows/ in any letter case, with no empty, . or .. segment, of
 # plain ASCII segments, and in a kept thread's scope: its path, a file in the
-# plugins/<p>/ directory it sits in that is no instruction path (CLAUDE.md,
-# AGENTS.md, .mcp.json, .lsp.json, .gitmodules, CODEOWNERS, a .claude or
-# .claude-plugin directory, a plugin's hooks, monitors or bin) and no script
+# plugins/<p>/ directory it sits in that is no instruction path (.gitmodules,
+# CODEOWNERS, a settings*.json, a package manifest or lockfile) and no script
 # or code file, a test file in its directory, or a path in its named_paths
 # (the files a write-access fix request named) in that same plugins/<p>/
 # directory that is no instruction path. The same rule as
@@ -60,7 +59,7 @@ allowed() {
       def dir: sub("[^/]*$"; "");
       def plugin: first(capture("^(?<c>plugins/[^/]+/)").c) // null;
       ($p | test("^[A-Za-z0-9_@+.-]+(/[A-Za-z0-9_@+.-]+)*$")) as $plain
-      | ($p | test("(^|/)((claude|agents)\\.md|\\.mcp\\.json|\\.lsp\\.json|\\.gitmodules|codeowners)$|(^|/)\\.claude(-plugin)?(/|$)|(^|/)plugins/[^/]+/(hooks|monitors|bin)(/|$)"; "i")) as $instruction
+      | ($p | test("(^|/)(\\.gitmodules|codeowners|settings[^/]*\\.json|package(-lock)?\\.json|requirements[^/]*\\.txt)$"; "i")) as $instruction
       | (if $instruction or ($p | test("\\.(sh|bash|zsh|ps1|py|mjs|cjs|js|ts|mts|cts)$"; "i"))
          then null else $p | plugin end) as $plugin
       | ($p | sub("^.*/"; "") | test("^(test_[^/]*\\.py|[^/]*_test\\.py|[^/]*\\.(test|spec)\\.[^/]+)$")) as $test

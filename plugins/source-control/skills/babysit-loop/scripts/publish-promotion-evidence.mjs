@@ -104,7 +104,9 @@ const CLASS_LABELS = {
   "work-class: read-only": "C1",
   "work-class: mechanical": "C2",
   "work-class: scoped": "C3",
-  "work-class: structural": "C4",
+  // Structural risk shows in the diff the review lanes read: it counts as
+  // scoped work.
+  "work-class: structural": "C3",
   "work-class: untrusted-provenance": "C5",
 };
 const GATE_FAILED = new Set(["failure", "timed_out", "startup_failure"]);

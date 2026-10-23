@@ -1045,6 +1045,26 @@ class Eligibility(unittest.TestCase):
         self.assertTrue(result.eligible, result.reason)
         self.assertEqual((result.work_class, result.issue), ("C2", ISSUE))
 
+    def test_a_structural_issue_scores_as_scoped_and_provenance_stays_c5(
+        self,
+    ) -> None:
+        # Structural risk shows in the diff the review lanes read.
+        for label, work_class in (
+            ("work-class: structural", "C3"),
+            ("work-class: untrusted-provenance", "C5"),
+        ):
+            with self.subTest(label):
+                gh = eligibility_fake(
+                    self,
+                    issue={"labels": {"totalCount": 1, "nodes": [{"name": label}]}},
+                )
+                gh.rest[f"repos/{REPO}/issues/{ISSUE}/timeline?per_page=100"][0][
+                    "label"
+                ]["name"] = label
+                result = eligibility()
+                self.assertTrue(result.eligible, result.reason)
+                self.assertEqual(result.work_class, work_class)
+
     def test_fork_and_dependency_prs_are_ineligible(self) -> None:
         for name, pr, reason in (
             ("cross repository", {"isCrossRepository": True}, "fork"),
@@ -3800,44 +3820,37 @@ class ForeignPaths(unittest.TestCase):
                 )
 
     def test_some_paths_are_never_the_authors_own(self) -> None:
-        # S&C C: the trust list, workflows and CODEOWNERS always score, even
-        # in a standards-sync PR whose every commit is its own.
+        # The HIGH path floor always scores, even in a standards-sync PR whose
+        # every commit is its own; everything else is the author's own.
         changed = frozenset(
             {
-                ".github/standards/trusted-actors/trusted-actors.json",
-                ".github/workflows/x.yml",
+                ".github/workflows/pr-merge.yml",
+                ".github/workflows/release-publish-plugins.yml",
+                ".github/actions/check-trusted-trigger/action.yml",
                 "CODEOWNERS",
                 "docs/CODEOWNERS",
-                # CI code pr-verify runs from main with tokens.
-                ".github/standards/runner-policy/runner-policy.mjs",
-                ".github/scripts/pr-verify/resolve-pr.mjs",
-                ".github/actions/x/action.yml",
-                # Owner decision 2026-10-20 (Gated PR Merge clause 5): the
-                # merge gate, the review lanes and agent permission config
-                # stay human-merged even in the owner's own PRs.
-                "plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py",
-                "plugins/review/skills/code-review/SKILL.md",
-                "docs/conventions/pr-pipeline.yaml",
-                "AGENTS.md",
-                "plugins/x/Agents.md",
-                "plugins/x/CLAUDE.md",
-                "REVIEW.md",
                 ".claude/settings.json",
-                "plugins/x/.claude-plugin/plugin.json",
-                ".mcp.json",
-                "plugins/x/.lsp.json",
                 "config/settings.local.json",
-                # Runnable plugin code and submodule wiring
-                # (thread-scope.mjs INSTRUCTION_PATH).
-                "plugins/x/hooks/h.sh",
-                "plugins/x/monitors/m.json",
-                "plugins/x/bin/tool",
                 ".gitmodules",
+                "package.json",
+                "plugins/x/package-lock.json",
+                ".github/requirements-ci.txt",
                 "docs/x.md",
                 "plugins/x/skills/y/SKILL.md",
+                "AGENTS.md",
+                "plugins/x/hooks/h.sh",
+                "plugins/x/.claude-plugin/plugin.json",
+                ".github/scripts/pr-verify/resolve-pr.mjs",
             }
         )
-        own = {"docs/x.md", "plugins/x/skills/y/SKILL.md"}
+        own = {
+            "docs/x.md",
+            "plugins/x/skills/y/SKILL.md",
+            "AGENTS.md",
+            "plugins/x/hooks/h.sh",
+            "plugins/x/.claude-plugin/plugin.json",
+            ".github/scripts/pr-verify/resolve-pr.mjs",
+        }
         for user in (
             {"login": "melodic-standards-sync[bot]", "id": 300666570, "type": "Bot"},
             {"login": OWNER_LOGIN, "id": OWNER_ID, "type": "User"},
@@ -4306,8 +4319,6 @@ merge:
     majors: review
   diff-check:
     denied-paths: [".github/**"]
-    floor-paths: ["a/**"]
-    floor-script-scopes: ["s/**"]
     high-path-floor: false
     c2-contradictions: false
     max-changed-lines: 500
@@ -4328,8 +4339,6 @@ merge:
     majors: hold
   diff-check:
     denied-paths: [".github/**", "docs/**"]
-    floor-paths: ["b/**"]
-    floor-script-scopes: ["t/**"]
     high-path-floor: true
     c2-contradictions: true
     max-changed-lines: 100
@@ -4411,8 +4420,6 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
                 self.assertEqual(getattr(config, name), value)
         unions = {
             "denied_paths": {".github/**", "docs/**"},
-            "floor_paths": {"a/**", "b/**"},
-            "floor_script_scopes": {"s/**", "t/**"},
         }
         for name, value in unions.items():
             with self.subTest(setting=name):
@@ -6441,9 +6448,9 @@ def tearDownModule() -> None:
     _role_label.stop()
 
 
-class CapabilityContents(unittest.TestCase):
-    """The floor's capability check reads each changed capability file once
-    per side, at the pull request's base and head SHAs."""
+class FileContents(unittest.TestCase):
+    """The manifest review and the cost hold read each changed manifest or
+    workflow once per side, at the pull request's base and head SHAs."""
 
     PR = {"base": {"sha": "b" * 40}, "head": {"sha": "c" * 40}}
 
@@ -6469,14 +6476,14 @@ class CapabilityContents(unittest.TestCase):
             return found
 
         with mock.patch.object(policy, "_file_at", side_effect=file_at):
-            out = policy.with_capability_contents("o/r", self.PR, tuple(files))
+            out = policy.with_contents("o/r", self.PR, tuple(files))
         return out, calls
 
     def test_each_side_is_read_once_and_cached(self) -> None:
-        skill = self.changed("p/skills/s/SKILL.md")
+        skill = self.changed("plugins/p/.claude-plugin/plugin.json")
         texts = {
-            ("p/skills/s/SKILL.md", "b" * 40): "old",
-            ("p/skills/s/SKILL.md", "c" * 40): "new",
+            ("plugins/p/.claude-plugin/plugin.json", "b" * 40): "old",
+            ("plugins/p/.claude-plugin/plugin.json", "c" * 40): "new",
         }
         out, calls = self.read([skill, skill, self.changed("docs/x.md")], texts)
         self.assertEqual([f.contents for f in out[:2]], [("old", "new")] * 2)
@@ -6485,35 +6492,42 @@ class CapabilityContents(unittest.TestCase):
 
     def test_a_rename_reads_the_base_at_its_previous_path(self) -> None:
         moved = self.changed(
-            "p/agents/a.md", status="renamed", previous_path="p/notes/a.md"
+            ".github/workflows/a.yml",
+            status="renamed",
+            previous_path=".github/workflows/b.yml",
         )
-        texts = {("p/notes/a.md", "b" * 40): "old", ("p/agents/a.md", "c" * 40): "new"}
+        texts = {
+            (".github/workflows/b.yml", "b" * 40): "old",
+            (".github/workflows/a.yml", "c" * 40): "new",
+        }
         out, _ = self.read([moved], texts)
         self.assertEqual(out[0].contents, ("old", "new"))
 
     def test_an_added_file_reads_only_its_head(self) -> None:
-        added = self.changed("p/commands/go.md", status="added")
-        out, calls = self.read([added], {("p/commands/go.md", "c" * 40): "new"})
+        added = self.changed(".github/workflows/go.yml", status="added")
+        out, calls = self.read([added], {(".github/workflows/go.yml", "c" * 40): "new"})
         self.assertEqual((out[0].contents, len(calls)), ((None, "new"), 1))
 
     def test_a_path_is_quoted_so_it_cannot_pick_another_ref(self) -> None:
-        odd = self.changed("p/x?ref=main#/SKILL.md")
-        quoted = "p/x%3Fref%3Dmain%23/SKILL.md"
+        odd = self.changed(".github/workflows/x?ref=main#.yml")
+        quoted = ".github/workflows/x%3Fref%3Dmain%23.yml"
         out, calls = self.read(
             [odd], {(quoted, "b" * 40): "a", (quoted, "c" * 40): "a"}
         )
         self.assertEqual({path for path, _ in calls}, {quoted})
 
     def test_any_exception_is_carried_with_its_type(self) -> None:
-        skill = self.changed("p/skills/s/SKILL.md")
-        texts = {("p/skills/s/SKILL.md", "b" * 40): TypeError("bad payload")}
+        skill = self.changed("plugins/p/.claude-plugin/plugin.json")
+        texts = {
+            ("plugins/p/.claude-plugin/plugin.json", "b" * 40): TypeError("bad payload")
+        }
         out, _ = self.read([skill], texts)
         self.assertIsNone(out[0].contents)
         self.assertIn("TypeError", out[0].contents_error)
 
     def test_the_logged_path_cannot_start_a_workflow_command(self) -> None:
         # Review thread L2597: a newline in a changed path must stay escaped.
-        path = "p/agents/a\n::set-output name=dispatch::true\nb.md"
+        path = ".github/workflows/a\n::set-output name=dispatch::true\nb.yml"
         texts = {(path, "b" * 40): TypeError("bad\n::error::x")}
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
@@ -6524,9 +6538,11 @@ class CapabilityContents(unittest.TestCase):
         )
 
     def test_a_read_error_is_carried_for_the_scorer(self) -> None:
-        skill = self.changed("p/skills/s/SKILL.md")
+        skill = self.changed("plugins/p/.claude-plugin/plugin.json")
         texts = {
-            ("p/skills/s/SKILL.md", "b" * 40): policy.PolicyReadError("status 502")
+            ("plugins/p/.claude-plugin/plugin.json", "b" * 40): policy.PolicyReadError(
+                "status 502"
+            )
         }
         out, _ = self.read([skill], texts)
         self.assertIsNone(out[0].contents)

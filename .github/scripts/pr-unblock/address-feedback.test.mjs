@@ -750,7 +750,7 @@ test("a repository-relative name with a :line suffix in the same plugin is added
 test("a name in another plugin, under .github/ or on an instruction path is not added, and no tree is read for it", async () => {
   const body =
     "PR-fix lane: please fix this finding. Edit plugins/other/x.js, .github/workflows/x.yml, " +
-    "plugins/knowledge/AGENTS.md and `plugins/knowledge/hooks/hooks.json`.";
+    "plugins/knowledge/CODEOWNERS and `plugins/knowledge/.claude/settings.json`.";
   const { api, reads } = named([[101, HUMAN, body]]);
   const result = await run(api);
   assert.equal(result.decision, "proceed");
