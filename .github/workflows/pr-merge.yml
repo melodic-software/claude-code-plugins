@@ -557,6 +557,7 @@ jobs:
           contents: ${{ steps.config.outputs.contents }}
           pull-requests: ${{ steps.config.outputs.pull-requests }}
           issues: ${{ steps.config.outputs.issues }}
+          actions: ${{ steps.config.outputs.actions }}
           superseded-ok: true
 
       # Measures the run's spend on the lane token and on the job's own token
