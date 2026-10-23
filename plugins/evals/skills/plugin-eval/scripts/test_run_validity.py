@@ -419,6 +419,8 @@ class RunValidityTest(unittest.TestCase):
             "ls -la /proc %s/skills" % self.PLUGIN,
             "ls /tmp/eval-r2",
             "grep --file=%s/x /proc/version" % self.PLUGIN,
+            "cat /proc/v>%s/out" % self.PLUGIN,
+            "python3 -c \"open('%s/x')\" /proc/v" % self.PLUGIN,
         ):
             proc = self.denied_second_run("with", 1, root=self.PLUGIN, command=command)
             self.assertVerdict(proc, "INVALID", 1)
@@ -430,6 +432,26 @@ class RunValidityTest(unittest.TestCase):
         for command in ("ls -la", "cat notes.txt", ""):
             proc = self.denied_second_run("with", 1, root=self.PLUGIN, command=command)
             self.assertVerdict(proc, "INVALID", 1)
+
+    def test_a_with_arm_bash_denial_with_a_path_it_cannot_resolve_is_a_fail(self):
+        for command in (
+            "cat $CLAUDE_PLUGIN_ROOT/x /proc/v",
+            "cat `pwd`/x /proc/v",
+            "cat ~/.claude/plugins/x /proc/v",
+            "cat /tmp/eval-r2/*/evals/x /proc/v",
+            "cat /proc/v skills/x",
+            "cd /proc && cat ../tmp/eval-r2/plugins/evals/x",
+            "cd .. && cat x /proc/v",
+            "type C:\\eval\\x /proc/v",
+        ):
+            proc = self.denied_second_run("with", 1, root=self.PLUGIN, command=command)
+            self.assertVerdict(proc, "INVALID", 1)
+
+    def test_a_with_arm_denial_on_a_path_with_a_nul_byte_is_a_fail_with_a_verdict(
+        self,
+    ):
+        proc = self.denied_second_run("with", 1, root=self.PLUGIN, path="/tmp/a\0b")
+        self.assertVerdict(proc, "INVALID", 1)
 
     def test_a_with_arm_bash_denial_that_does_not_parse_is_a_fail(self):
         proc = self.denied_second_run(

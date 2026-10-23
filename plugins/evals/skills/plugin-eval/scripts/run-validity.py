@@ -108,6 +108,8 @@ DENIAL_TEXT = "denied by your permission settings"  # in an is_error tool_result
 # else the call's first input value.
 TARGET_KEYS = ("file_path", "path")
 BASH_TOOL, BASH_COMMAND = "Bash", "command"
+SHELL_SPLIT = re.compile(r"[<>|;&()'\"=]")  # where one shell word holds several
+UNRESOLVED = re.compile(r"[$`*?\[{]|^~")  # a word the shell would expand
 
 # The suite's skill-fired convention and the no-trigger control markers.
 SKILL_TOOL = "Skill"
@@ -383,15 +385,23 @@ def rooted(path):
 
 
 def bash_paths(command):
-    """A Bash command's rooted arguments, a --flag=/x or VAR=/x value included,
-    or (None,), which inside() counts as inside, when it has none or does not
-    parse."""
+    """The paths a Bash command names: each rooted word, split at quotes,
+    redirects, pipes, parentheses and `=` so --flag=/x, >/x and '/x' count. A
+    word the shell would expand ($, a backtick, a glob, a leading ~), a relative
+    path with a slash, a backslash, a cd or pushd, no rooted word, or a command
+    that does not parse adds None, which inside() counts as inside."""
     try:
-        tokens = shlex.split(command) if isinstance(command, str) else []
+        words = shlex.split(command) if isinstance(command, str) else None
     except ValueError:
-        tokens = []
-    values = [v for t in tokens for v in (t, t.partition("=")[2])]
-    return tuple(v for v in values if rooted(v)) or (None,)
+        words = None
+    if not words or "\\" in command:
+        return (None,)
+    values = [v for w in words for v in SHELL_SPLIT.split(w) if v]
+    paths = tuple(v for v in values if rooted(v))
+    unresolved = any(
+        UNRESOLVED.search(v) or (not rooted(v) and "/" in v) for v in values
+    ) or any(w in ("cd", "pushd") for w in words)
+    return paths + (None,) if unresolved or not paths else paths
 
 
 def denials(run):
@@ -440,9 +450,9 @@ def denials(run):
 def inside(path, roots):
     """True unless path is rooted and neither under nor above any plugin root.
     An ancestor of a root covers the plugin's files, so it counts as inside; so
-    do no path, a relative path and no known root. A root on another drive
+    do no path, a relative path, a path holding a NUL byte and no known root. A root on another drive
     cannot hold path. Symlinks resolve on both sides."""
-    if not rooted(path) or not roots:
+    if not rooted(path) or not roots or "\0" in path:
         return True
     path = os.path.realpath(path)
     drive = os.path.normcase(os.path.splitdrive(path)[0])
