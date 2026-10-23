@@ -23,8 +23,12 @@
     "never": "Writes to the branch, or posts anything but the recorded replies"
   },
   "review-dependency": {
+    "forbidden-effects": ["publish-artifact", "mutate-tracker", "mutate-branch", "merge"],
+    "never": "Holds a write token, posts to the pull request, merges or closes: its fix leaves only as a patch"
+  },
+  "apply-dependency-patch": {
     "forbidden-effects": ["publish-artifact", "mutate-tracker", "merge"],
-    "never": "Posts to the pull request, merges, closes, or pushes under .github/"
+    "never": "Runs a model or head code, force-pushes, or pushes anything but a version change of manifest and lock files outside .github/"
   },
   "fix-docs": {
     "forbidden-effects": ["publish-artifact", "mutate-tracker", "mutate-branch", "merge"],

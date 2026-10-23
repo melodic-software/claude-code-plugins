@@ -726,6 +726,37 @@ describe("run", () => {
     assert.equal(seen.length, 1);
   });
 
+  test("an escalated or flagged verdict hands the issue to the split note; a ready one does not", async () => {
+    const seen = [];
+    const noteSplit = async (issue) => {
+      seen.push(issue.number);
+      return { outcome: "noted", reasons: ["its done-when asks for what an unattended lane run cannot perform"] };
+    };
+    const held = await run({
+      env: ENV,
+      github: fakeGitHub({ comments: [laneComment(ESCALATED_BODY)] }).github,
+      dimensionsConfig: DIMS,
+      fieldSetters: noSetters,
+      admitIssue: async () => assert.fail("a held verdict is not admitted"),
+      noteSplit,
+      log: () => {},
+    });
+    assert.equal(held.outcome, "needs-decision");
+    assert.equal(held.admission.outcome, "noted");
+    assert.match(held.summary, /- Admission: noted/);
+    const ready = await run({
+      env: ENV,
+      github: fakeGitHub({ comments: [laneComment()] }).github,
+      dimensionsConfig: DIMS,
+      fieldSetters: noSetters,
+      admitIssue: async () => ({ outcome: "refused", reasons: [] }),
+      noteSplit,
+      log: () => {},
+    });
+    assert.equal(ready.outcome, "ready");
+    assert.equal(seen.length, 1);
+  });
+
   test("admits before rewording, so a refused comment edit does not stop admission", async () => {
     const seen = [];
     const fake = fakeGitHub({ comments: [laneComment()] });

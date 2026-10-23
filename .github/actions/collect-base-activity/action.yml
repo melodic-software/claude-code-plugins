@@ -52,10 +52,12 @@ inputs:
       With `review-threads` (run-claude-cli only) the skill also gets the
       review-thread tool, a read-only wrapper over the base's
       feedback-thread.sh staged under .lane/feedback/ with the thread file the
-      runner checked in $RUNNER_TEMP/lane-feedback. With
-      `dependency-review` the skill gets read access to the context file the
-      runner wrote to $RUNNER_TEMP/lane-dependency, made read-only, and must
-      end with the verdict JSON schema's structured output. With `ci-context`
+      runner checked in $RUNNER_TEMP/lane-feedback. With `dependency-review`
+      (run-claude-cli only) the skill gets the context file the runner
+      checked in $RUNNER_TEMP/lane-dependency, staged read-only under
+      .lane/dependency/, Edit and Write but no Bash, and the verdict JSON
+      schema, written to $RUNNER_TEMP/lane-dependency-schema for the
+      launcher's json-schema-file. With `ci-context`
       (effect read only) the skill gets Bash, Edit and Write and read access
       to the context file the runner wrote to $RUNNER_TEMP/lane-ci, made
       read-only.
@@ -82,8 +84,8 @@ inputs:
       $RUNNER_TEMP/lane-stage for the runner to copy to .lane/ after the head
       checkout, and the tool rules name them there. It takes a read skill
       only (ci-context included, and one that hands on a patch with no
-      prepare mode or with review-threads), never a gate, an issue lane or an
-      activity with checks, self-checks or verify-scripts.
+      prepare mode, review-threads or dependency-review), never a gate, an
+      issue lane or an activity with checks, self-checks or verify-scripts.
     required: false
     default: claude-code-action
 
@@ -159,6 +161,7 @@ runs:
         VERIFY_DIR: ${{ runner.temp }}/lane-verify
         FEEDBACK_DIR: ${{ runner.temp }}/lane-feedback
         DEPENDENCY_DIR: ${{ runner.temp }}/lane-dependency
+        SCHEMA_DIR: ${{ runner.temp }}/lane-dependency-schema
         CI_DIR: ${{ runner.temp }}/lane-ci
         WORKSPACE: ${{ github.workspace }}
         ISSUE_NUMBER: ${{ inputs.issue-number }}
@@ -183,7 +186,10 @@ runs:
         case "$PREPARE" in
           "" | merge-base) ;;
           review-threads) [ "$LAUNCHER" = run-claude-cli ] || fail "review-threads: the skill runs on run-claude-cli, in the read runner" ;;
-          dependency-review) [ "$GATING" = advisory ] || fail "dependency-review: the activity must be advisory, since its verdict is the structured output" ;;
+          dependency-review)
+            [ "$LAUNCHER" = run-claude-cli ] || fail "dependency-review: the skill runs on run-claude-cli, in the read runner"
+            [ "$GATING" = advisory ] || fail "dependency-review: the activity must be advisory, since its verdict is the structured output"
+            ;;
           ci-context) [ "$EFFECT" = read ] || fail "ci-context: the activity's effect must be read, since it runs head code" ;;
           *) fail "the activity's prepare mode is not a known mode" ;;
         esac
@@ -228,8 +234,8 @@ runs:
         if [ "$LAUNCHER" = run-claude-cli ]; then
           [ -z "${ISSUE_NUMBER:-}" ] || fail "run-claude-cli: an issue lane runs on claude-code-action"
           { [ "$edits" = read ] && { [ -z "$PREPARE" ] || [ "$PREPARE" = ci-context ]; }; } ||
-            { [ "$edits" = patch ] && { [ -z "$PREPARE" ] || [ "$PREPARE" = review-threads ]; }; } ||
-            fail "run-claude-cli: only a read skill runs on the launcher, ci-context included, or one that hands on a patch with no prepare mode or with review-threads"
+            { [ "$edits" = patch ] && { [ -z "$PREPARE" ] || [ "$PREPARE" = review-threads ] || [ "$PREPARE" = dependency-review ]; }; } ||
+            fail "run-claude-cli: only a read skill runs on the launcher, ci-context included, or one that hands on a patch with no prepare mode, review-threads or dependency-review"
           [ "$GATING" = advisory ] || fail "run-claude-cli: a gate skill's verdict is not read from the launcher"
           jq -e '[.selected.checks, .selected["self-checks"], .selected["verify-scripts"]] | all(. == null or . == [])' "$RESOLVED" >/dev/null ||
             fail "run-claude-cli: checks, self-checks and verify-scripts have no wrapper on the launcher"
@@ -272,7 +278,27 @@ runs:
           # rule beats a frontmatter grant. The scripts run from the read-only
           # base copy under .lane/plugins, denied to the file tools.
           plugin_dirs=(".lane/plugins/$plugin")
-          if [ "$edits" = patch ]; then
+          if [ "$edits" = patch ] && [ "$PREPARE" = dependency-review ]; then
+            # dependency-review: the skill reads the context file the runner
+            # checked and edits manifests, and runs nothing, so it gets Edit
+            # and Write but no Bash; the git and shell rules are denied all
+            # the same. The context copy is read-only and denied to the file
+            # tools. Its verdict is the launcher's structured output, held to
+            # the schema below, which apply-dependency-verdict.mjs validates
+            # again; the runner reads it from the execution file.
+            [ -f "$DEPENDENCY_DIR/dependency.json" ] || fail "dependency-review: the runner wrote no context file"
+            [[ $SCHEMA_DIR =~ ^/[A-Za-z0-9_./-]+$ ]] || fail "the verdict schema directory has a name a rule cannot carry"
+            mkdir -p "$STAGE/dependency" "$SCHEMA_DIR"
+            cp "$DEPENDENCY_DIR/dependency.json" "$STAGE/dependency/dependency.json"
+            # The verdict job validates the same shape (apply-dependency-verdict.mjs).
+            printf '%s\n' '{"type":"object","properties":{"verdict":{"enum":["merge","fix","close","escalate"]},"reasons":{"type":"array","minItems":1,"maxItems":10,"items":{"type":"string","minLength":1,"maxLength":500}},"evidence":{"type":"array","maxItems":20,"items":{"type":"string","minLength":1,"maxLength":300}}},"required":["verdict","reasons","evidence"],"additionalProperties":false}' \
+              >"$SCHEMA_DIR/verdict.schema.json"
+            tools+=(Edit Write Agent)
+            allowed+=(Edit Write Agent "Edit(./.lane/scratch/**)")
+            denied+=("NotebookEdit(./.lane/plugins/**)" "Bash(git *)" "${shell_denied[@]}"
+              "Edit(./.lane/dependency/**)" "Write(./.lane/dependency/**)" "NotebookEdit(./.lane/dependency/**)")
+            preamble="$preamble Run every step the skill instructions name. Your scratchpad directory is $lane/scratch: put every temporary or state file there. The dependency context file is $lane/dependency/dependency.json. Leave a fix uncommitted in the working tree: the runner turns it into a patch that a later job pushes only on a fix verdict. Your verdict is your structured output; a later job acts on it, and you post nothing."
+          elif [ "$edits" = patch ]; then
             tools+=(Bash Edit Write Agent)
             # A shell redirect is checked against Edit rules for its target
             # path (https://code.claude.com/docs/en/permissions#redirections),
@@ -323,12 +349,15 @@ runs:
               done
               preamble="$preamble The review-thread tool is $tool: run it by exactly this path as $tool list, $tool check-paths <path>... and $tool record <thread-id> <file>, with each disposition file in $lane/scratch. The tool posts and commits nothing: a later job pushes your uncommitted fix and posts what you record."
             fi
-            # web-access `any` only: the research plugins load from .lane/
-            # too, read-only like the skill's own. The docs scripts are not
-            # staged, so the run reads pages with WebFetch.
-            if [ "$(jq -r '.selected["web-access"].enabled // false' "$RESOLVED")" = true ]; then
-              jq -e '.selected["web-access"].domains == "any"' "$RESOLVED" >/dev/null ||
-                fail "run-claude-cli: web-access takes domains: any"
+          fi
+          # web-access with `any`: the research plugins load from .lane/ too,
+          # read-only like the skill's own. The docs scripts are not staged,
+          # so the run reads pages with WebFetch. With a list of hosts, one
+          # WebFetch(domain:) rule each and no research plugins, whose docs
+          # scripts would reach any host.
+          if [ "$edits" = patch ] && [ "$(jq -r '.selected["web-access"].enabled // false' "$RESOLVED")" = true ]; then
+            tools+=(WebFetch WebSearch)
+            if jq -e '.selected["web-access"].domains == "any"' "$RESOLVED" >/dev/null; then
               for research in discovery knowledge; do
                 [ -d "$BASE_PATH/plugins/$research" ] || fail "web-access: the $research plugin is not in the base"
                 [ -d "$STAGE/plugins/$research" ] || cp -R "$BASE_PATH/plugins/$research" "$STAGE/plugins/"
@@ -339,16 +368,27 @@ runs:
                 [ "$research" = "$plugin" ] || plugin_dirs+=(".lane/plugins/$research")
               done
               [ -z "$(find "$STAGE/plugins" -type l -print -quit)" ] || fail "a research plugin holds a symbolic link"
-              tools+=(WebFetch WebSearch)
               allowed+=("WebFetch(domain:*)" WebSearch "Skill(discovery:read-docs)" "Skill(discovery:research)" "Skill(knowledge:docpage-digest)" "Skill(knowledge:map-corpus)")
-              # A deny rule beats an allow rule.
-              kept=()
-              for rule in "${denied[@]}"; do
-                [[ $rule == WebFetch || $rule == WebSearch ]] || kept+=("$rule")
-              done
-              denied=("${kept[@]}")
               preamble="$preamble This run may search the web and read any page with WebFetch; the docs scripts the research skills use are not available, so read each page with WebFetch, and cite each page you read."
+            else
+              domains=$(jq -r '.selected["web-access"].domains
+                | if type == "array" and length > 0 and all(type == "string") then .[]
+                  else error("bad") end' "$RESOLVED") ||
+                fail "web-access: domains must be any or a list of host names"
+              host='^(\*\.)?([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
+              while IFS= read -r domain; do
+                [[ $domain =~ $host ]] || fail "web-access: a domain is not a host name"
+                allowed+=("WebFetch(domain:$domain)")
+              done <<<"$domains"
+              allowed+=(WebSearch)
+              preamble="$preamble This run may search the web and read pages only on these hosts: $(paste -sd ' ' <<<"$domains"). Read each page with WebFetch, and cite each page you read."
             fi
+            # A deny rule beats an allow rule.
+            kept=()
+            for rule in "${denied[@]}"; do
+              [[ $rule == WebFetch || $rule == WebSearch ]] || kept+=("$rule")
+            done
+            denied=("${kept[@]}")
           fi
           skill_args=$(jq -r '.selected.args // ""' "$RESOLVED")
           for target in "${targets[@]}"; do
@@ -617,17 +657,6 @@ runs:
                 system_prompt="$system_prompt Run a test file only through $VERIFY_DIR/bin/run-test-file <test file>, with the path from the checkout root: it picks the runner, vitest included, and a compound command such as cd <dir>; <command> is refused."
               fi
             fi
-            # dependency-review: the skill reads the runner's context file,
-            # which its Edit and Write cannot reach, and returns its verdict
-            # as structured output; a later job with no model acts on it.
-            if [ "$PREPARE" = dependency-review ]; then
-              [[ $DEPENDENCY_DIR =~ ^/[A-Za-z0-9_./-]+$ ]] || fail "the dependency context directory has a name a rule cannot carry"
-              [ -f "$DEPENDENCY_DIR/dependency.json" ] || fail "dependency-review: the runner wrote no context file"
-              chmod -R a-w "$DEPENDENCY_DIR"
-              allowed="$allowed,Read(/$DEPENDENCY_DIR/**)"
-              disallowed="${disallowed:+$disallowed,}Edit(/$DEPENDENCY_DIR/**),Write(/$DEPENDENCY_DIR/**)"
-              system_prompt="$system_prompt The dependency context file is $DEPENDENCY_DIR/dependency.json. Your verdict is your structured output; a later job acts on it, and you post nothing."
-            fi
             # The shell deny set above; the Read rules keep the skill out of
             # process files and out of the checkout's git config, where the
             # action stores its token.
@@ -671,11 +700,6 @@ runs:
           advisory) ;;
           *) fail "the activity's gating must be gate or advisory" ;;
         esac
-        # The verdict job validates the same shape (apply-dependency-verdict.mjs).
-        if [ "$PREPARE" = dependency-review ]; then
-          schema='{"type":"object","properties":{"verdict":{"enum":["merge","fix","close","escalate"]},"reasons":{"type":"array","minItems":1,"maxItems":10,"items":{"type":"string","minLength":1,"maxLength":500}},"evidence":{"type":"array","maxItems":20,"items":{"type":"string","minLength":1,"maxLength":300}}},"required":["verdict","reasons","evidence"],"additionalProperties":false}'
-          claude_args="$claude_args --json-schema '$schema'"
-        fi
         args=$(jq -r '.selected.args // ""' "$RESOLVED")
         command_line="/$SKILL"
         for word in "${ISSUE_NUMBER:+--issue $ISSUE_NUMBER}" "$args" "${targets[@]}"; do

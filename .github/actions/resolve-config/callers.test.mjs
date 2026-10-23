@@ -20,7 +20,9 @@ import { fileURLToPath } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
 import { parse } from "yaml";
 
+import { loadRules, rowFor, select as selectPatch } from "../../scripts/apply-patch/apply-patch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, skipReason } from "../../scripts/pr-unblock/fix-ci-dispatch.mjs";
+import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
 import { main as checkTrustedTrigger } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { generate as generateCarrierKey } from "../open-lane-output/keygen.mjs";
 import { decide } from "../report-check-run/decide.mjs";
@@ -452,7 +454,7 @@ test("pr-unblock.yml: address-feedback and publish-feedback are reported neutral
 // fix-ci's one retry one model rung up runs inside the same pr-unblock run,
 // so whatever it ends in reaches report-escalation: only a clean apply of
 // the retry's patch leaves the PR unlabeled.
-const ESCALATING = ["resolve-conflicts", "address-feedback-select", "publish-feedback", "review-dependency", "apply-dependency-verdict", "fix-ci-context", "apply-patch"];
+const ESCALATING = ["resolve-conflicts", "address-feedback-select", "publish-feedback", "review-dependency-select", "apply-dependency-verdict", "fix-ci-context", "apply-patch"];
 const rungUpContext = ({ rungUp = "true", result = "success", escalation = "", skip = "" } = {}) => ({
   ...Object.fromEntries(ESCALATING.map((job) => [`needs.${job}.outputs.escalation-reason`, ""])),
   "needs.apply-patch.outputs.rung-up": rungUp,
@@ -570,7 +572,9 @@ test("pr-unblock.yml: fix-ci is reported neutral when fix-ci-context skips, and 
                     conclusion: calls[0].conclusion.toUpperCase(),
                     title: calls[0].output.title,
                   },
-                ].map((run) => ({ __typename: "CheckRun", checkSuite: { app: { databaseId: 15368 } }, ...run })),
+                ]
+                  .map((run) => ({ __typename: "CheckRun", checkSuite: { app: { databaseId: 15368 } }, ...run }))
+                  .concat({ __typename: "StatusContext", context: "ci-lanes", state: "FAILURE", creator: { login: "github-actions[bot]" } }),
                 pageInfo: { hasNextPage: false },
               },
             },
@@ -1027,6 +1031,8 @@ test("every read-runner caller job passes exactly one Claude secret, named for i
     "pr-unblock.yml fix-ci-subscription",
     "pr-unblock.yml fix-docs",
     "pr-unblock.yml fix-docs-subscription",
+    "pr-unblock.yml review-dependency",
+    "pr-unblock.yml review-dependency-subscription",
     "work-resolve-issue.yml resolve-issue",
   ]);
 });
@@ -1036,14 +1042,147 @@ test("every read-runner caller job passes exactly one Claude secret, named for i
 // Read inside each test, so a missing catalog fails every one of them.
 const fundingCatalog = () => JSON.parse(read("../../lane-funding.json"));
 const catalogLanes = () => fundingCatalog().roles.flatMap((role) => role.lanes.map((lane) => ({ role, lane, key: `${lane.workflow} ${lane.id}` })));
-// Every job that reads a role's Claude secret or the bare token, with the names it reads.
-function claudeSecretJobs() {
-  const jobs = new Map();
-  for (const file of workflowFiles()) {
-    for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
-      const names = stepSecrets(job).filter((name) => /^([A-Z][A-Z0-9_]*_)?CLAUDE_(API_KEY|CODE_OAUTH_TOKEN)$/.test(name));
-      if (names.length) jobs.set(`${file} ${id}`, { job, names });
+// What a node can read of the secrets context. A reference is a name (secrets.NAME,
+// secrets['NAME'], or an ANTHROPIC_* env name) or ALL_SECRETS, a form that
+// reaches every secret: toJSON(secrets), secrets[expression], secrets: inherit.
+const ALL_SECRETS = "*";
+// Expression syntax and secret names are case-insensitive in GitHub Actions.
+const CLAUDE_CREDENTIAL = /^(?:(?:[A-Z][A-Z0-9_]*_)?CLAUDE_(?:API_KEY|CODE_OAUTH_TOKEN)|ANTHROPIC_[A-Z0-9_]+)$/i;
+const NAMED_ACCESS = String.raw`\s*\.\s*[\w-]|\s*\[\s*['"][\w-]+['"]\s*\]`;
+const BARE_SECRETS = new RegExp(String.raw`(?<![\w.-])secrets(?![\w-])(?!${NAMED_ACCESS})`, "i");
+function secretRefs(node, key = "", refs = new Set()) {
+  if (typeof node === "string") {
+    for (const [, dotted, quoted] of node.matchAll(/secrets\.([\w-]+)|secrets\[\s*['"]([\w-]+)['"]\s*\]/gi)) refs.add(dotted ?? quoted);
+    // An `if` value is a bare expression; elsewhere only ${{ }} holds one.
+    const expressions = key === "if" ? [node] : [...node.matchAll(/\$\{\{([\s\S]*?)\}\}/g)].map((m) => m[1]);
+    if (expressions.some((expression) => BARE_SECRETS.test(expression))) refs.add(ALL_SECRETS);
+  } else if (Array.isArray(node)) {
+    for (const item of node) secretRefs(item, key, refs);
+  } else if (node && typeof node === "object") {
+    for (const [name, value] of Object.entries(node)) {
+      if (name.toLowerCase() === "secrets" && value === "inherit") refs.add(ALL_SECRETS);
+      if (key === "env" && /^ANTHROPIC_/i.test(name)) refs.add(name);
+      secretRefs(value, name, refs);
     }
+  }
+  return refs;
+}
+// The Claude credentials the given nodes can read, sorted.
+const claudeReads = (...nodes) => {
+  const refs = new Set();
+  for (const node of nodes) secretRefs(node, "", refs);
+  return [...refs].filter((name) => name === ALL_SECRETS || CLAUDE_CREDENTIAL.test(name)).sort();
+};
+const isApiKey = (name) => name === ALL_SECRETS || /(^|_)CLAUDE_API_KEY$|^ANTHROPIC_/i.test(name);
+// Every job that can read a role's Claude credential, with the names it reads. The
+// workflow-level env reaches every job, so it counts toward each.
+function claudeSecretJobs(files = workflowFiles(), load = workflow) {
+  const jobs = new Map();
+  for (const file of files) {
+    const doc = load(file);
+    for (const [id, job] of Object.entries(doc.jobs ?? {})) {
+      const names = claudeReads({ env: doc.env }, job);
+      if (names.length) jobs.set(`${file} ${id}`, { doc, job, names });
+    }
+  }
+  return jobs;
+}
+// The one step that runs Claude: the pinned action, or for claude-cli the run
+// step that invokes the `claude` command.
+const LAUNCHER_ACTION = {
+  "run-claude-cli": "melodic-software/ci-workflows/.github/actions/run-claude-cli@",
+  "claude-code-action": "anthropics/claude-code-action@",
+};
+const isLauncherStep = (step, launcher) =>
+  launcher === "claude-cli"
+    ? typeof step.run === "string" && step.uses === undefined && /^\s*claude\s+\S/m.test(step.run)
+    : String(step.uses ?? "").startsWith(LAUNCHER_ACTION[launcher]);
+// A value that is only whether a secret is set, ${{ secrets.NAME != '' }}, carries no credential.
+const PRESENCE_ONLY = /^\s*(?:\$\{\{\s*)?secrets\.[\w-]+\s*[!=]=\s*''\s*(?:\}\})?\s*$/;
+const withoutPresenceChecks = (node) =>
+  typeof node === "string"
+    ? PRESENCE_ONLY.test(node) ? "" : node
+    : Array.isArray(node)
+      ? node.map(withoutPresenceChecks)
+      : node && typeof node === "object"
+        ? Object.fromEntries(Object.entries(node).map(([name, value]) => [name, withoutPresenceChecks(value)]))
+        : node;
+// The places a job lets its Claude credentials go beyond the launcher step: the
+// workflow or job env (every step), or any other step that reads more than whether
+// a secret is set.
+function strayClaudeReaders({ doc, job }, launcher) {
+  const stray = [];
+  if (claudeReads({ env: doc.env }).length) stray.push("workflow env");
+  if (claudeReads({ env: job.env }).length) stray.push("job env");
+  for (const step of job.steps ?? []) {
+    if (claudeReads(withoutPresenceChecks(step)).length && !isLauncherStep(step, launcher)) stray.push(`step ${step.name ?? step.id ?? step.run}`);
+  }
+  return stray;
+}
+// Triggers that run a job holding this repository's secrets for an event someone
+// outside it can start, so such a job must show a gate.
+const GATED_TRIGGERS = ["pull_request_target", "issues", "issue_comment", "workflow_run"];
+// The event names under a workflow's on:, in its string, list or map form.
+const workflowTriggers = ({ on }) =>
+  (typeof on === "string" ? [on] : Array.isArray(on) ? on : Object.keys(on ?? {})).map((name) => name.toLowerCase()).sort();
+const hasGatedTrigger = (triggers) => triggers.some((name) => GATED_TRIGGERS.includes(name));
+// The top-level && terms of an if:, or none when a top-level || lets a run past them.
+function ifTerms(condition) {
+  if (typeof condition !== "string") return [];
+  const expression = condition.replace(/^\s*\$\{\{([\s\S]*)\}\}\s*$/, "$1").replace(/\s+/g, " ").trim();
+  const terms = [];
+  let depth = 0;
+  let quoted = false;
+  let start = 0;
+  for (let i = 0; i < expression.length; i++) {
+    const c = expression[i];
+    if (c === "'") quoted = !quoted;
+    else if (quoted) continue;
+    else if (c === "(") depth++;
+    else if (c === ")") depth--;
+    else if (depth === 0 && expression.startsWith("||", i)) return [];
+    else if (depth === 0 && expression.startsWith("&&", i)) {
+      terms.push(expression.slice(start, i).trim());
+      start = i + 2;
+      i++;
+    }
+  }
+  return [...terms, expression.slice(start).trim()];
+}
+// The gate shapes the lanes use. same-repo: pr-verify.yml's if: on the
+// workflow_run head repository. author: a needed job's proceed output from
+// check-trusted-trigger run from the default branch (work-resolve-issue.yml's
+// admit), or the pinned intake reusable, whose claude job starts only for a
+// sender in allowed-author-ids (ci-workflows intake-triage.yml, the claude job's
+// if:) and whose other Claude job needs it, or a needed job's refine output
+// from refine.mjs --select run from the default branch, which refines only an
+// issue a listed human or the lanes App opened, in a run apply-verdict --check
+// admitted (intake-triage.yml's refine-issue).
+const SAME_REPO = "github.event.workflow_run.head_repository.full_name == github.repository";
+const TRUSTED_TRIGGER = "./.base/.github/actions/check-trusted-trigger";
+const REFINE_SELECT = "node .base/.github/scripts/intake-triage/refine.mjs --select";
+const INTAKE_REUSABLE = /^melodic-software\/ci-workflows\/\.github\/workflows\/intake-triage\.yml@[0-9a-f]{40}$/;
+function jobGates(doc, job) {
+  const gates = new Set();
+  const needs = [job.needs ?? []].flat();
+  for (const term of ifTerms(job.if)) {
+    if (term === SAME_REPO) gates.add("same-repo");
+    const [, need, output] = term.match(/^needs\.([\w-]+)\.outputs\.([\w-]+) == 'true'$/) ?? [];
+    if (!needs.includes(need)) continue;
+    const gateJob = doc.jobs?.[need] ?? {};
+    const [, stepId] = String(gateJob.outputs?.[output] ?? "").match(/^\$\{\{\s*steps\.([\w-]+)\.outputs\.proceed\s*\}\}$/) ?? [];
+    if (stepId && (gateJob.steps ?? []).some((step) => step.id === stepId && step.uses === TRUSTED_TRIGGER)) gates.add("author");
+    const [, selectId] = String(gateJob.outputs?.[output] ?? "").match(/^\$\{\{\s*steps\.([\w-]+)\.outputs\.refine\s*\}\}$/) ?? [];
+    if (selectId && (gateJob.steps ?? []).some((step) => step.id === selectId && String(step.run ?? "").split("\n").some((line) => line.trim() === REFINE_SELECT))) gates.add("author");
+  }
+  if (INTAKE_REUSABLE.test(String(job.uses ?? "")) && String(job.with?.["allowed-author-ids"] ?? "").trim() !== "") gates.add("author");
+  return [...gates].sort();
+}
+// Each job that holds a Claude credential under a gated trigger, with the gates it shows.
+function gatedTriggerJobs(files = workflowFiles(), load = workflow) {
+  const jobs = new Map();
+  for (const [key, { doc, job }] of claudeSecretJobs(files, load)) {
+    if (hasGatedTrigger(workflowTriggers(doc))) jobs.set(key, jobGates(doc, job));
   }
   return jobs;
 }
@@ -1070,9 +1209,117 @@ test("every job that reads a Claude secret is a catalog lane, and every catalog 
 
 test("a job reads a Claude API key only when its catalog lane runs on run-claude-cli", () => {
   const lanes = new Map(catalogLanes().map(({ lane, key }) => [key, lane]));
-  const keyed = [...claudeSecretJobs()].filter(([, { names }]) => names.some((name) => name.endsWith("_CLAUDE_API_KEY")));
+  const keyed = [...claudeSecretJobs()].filter(([, { names }]) => names.some(isApiKey));
   assert.ok(keyed.length > 0);
   for (const [key] of keyed) assert.equal(lanes.get(key)?.launcher, "run-claude-cli", key);
+});
+
+test("a Claude credential reaches only the launcher step of its catalog lane", () => {
+  const jobs = claudeSecretJobs();
+  for (const { lane, key } of catalogLanes()) {
+    assert.deepEqual(strayClaudeReaders(jobs.get(key), lane.launcher), [], key);
+  }
+});
+
+test("the Claude credential scan sees every form a secret can be read in", () => {
+  const KEY = "REVIEWS_CLAUDE_API_KEY";
+  const step = (env) => ({ jobs: { j: { steps: [{ name: "s", run: "true", env }] } } });
+  const forms = {
+    "secrets.NAME": [step({ K: `\${{ secrets.${KEY} }}` }), [KEY]],
+    "secrets['NAME']": [step({ K: `\${{ secrets['${KEY}'] }}` }), [KEY]],
+    'secrets["NAME"]': [step({ K: `\${{ secrets["${KEY}"] }}` }), [KEY]],
+    "toJSON(secrets)": [step({ K: "${{ toJSON(secrets) }}" }), [ALL_SECRETS]],
+    "secrets[expression]": [step({ K: "${{ secrets[matrix.name] }}" }), [ALL_SECRETS]],
+    "if: toJSON(secrets)": [{ jobs: { j: { if: "toJSON(secrets) != ''", steps: [] } } }, [ALL_SECRETS]],
+    "secrets: inherit": [{ jobs: { j: { uses: "./.github/workflows/x.yml", secrets: "inherit" } } }, [ALL_SECRETS]],
+    "reusable secrets mapping": [{ jobs: { j: { uses: "./.github/workflows/x.yml", secrets: { k: `\${{ secrets.${KEY} }}` } } } }, [KEY]],
+    "workflow env": [{ env: { K: `\${{ secrets.${KEY} }}` }, jobs: { j: { steps: [{ run: "true" }] } } }, [KEY]],
+    "ANTHROPIC_ secret name": [step({ K: "${{ secrets.ANTHROPIC_API_KEY }}" }), ["ANTHROPIC_API_KEY"]],
+    "mixed-case context": [step({ K: `\${{ Secrets.${KEY} }}` }), [KEY]],
+    "lowercase secret name": [step({ K: "${{ secrets.reviews_claude_api_key }}" }), ["reviews_claude_api_key"]],
+    "lowercase bracket name": [step({ K: "${{ secrets['anthropic_api_key'] }}" }), ["anthropic_api_key"]],
+    "mixed-case toJSON(Secrets)": [step({ K: "${{ toJSON(SECRETS) }}" }), [ALL_SECRETS]],
+    "mixed-case secrets: inherit": [{ jobs: { j: { uses: "./.github/workflows/x.yml", Secrets: "inherit" } } }, [ALL_SECRETS]],
+    "job env ANTHROPIC_ name": [{ jobs: { j: { env: { ANTHROPIC_API_KEY: "x" }, steps: [{ run: "true" }] } } }, ["ANTHROPIC_API_KEY"]],
+    "lowercase anthropic_ env name": [step({ anthropic_api_key: "x" }), ["anthropic_api_key"]],
+    "ANTHROPIC_ env name": [step({ ANTHROPIC_API_KEY: "${{ secrets.OTHER }}" }), ["ANTHROPIC_API_KEY"]],
+    "workflow env ANTHROPIC_ name": [{ env: { ANTHROPIC_AUTH_TOKEN: "x" }, jobs: { j: { steps: [{ run: "true" }] } } }, ["ANTHROPIC_AUTH_TOKEN"]],
+  };
+  for (const [form, [doc, expected]] of Object.entries(forms)) {
+    assert.deepEqual([...claudeSecretJobs(["f.yml"], () => doc).values()].flatMap(({ names }) => names), expected, form);
+  }
+  // A named secret that is not a Claude credential and a literal mention stay quiet.
+  const quiet = { jobs: { j: { steps: [{ run: "echo secrets", env: { T: "${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}" } }] } } };
+  assert.equal(claudeSecretJobs(["f.yml"], () => quiet).size, 0);
+});
+
+test("the stray-reader check names an extra step and an env that reaches every step", () => {
+  const launcher = { uses: "melodic-software/ci-workflows/.github/actions/run-claude-cli@abc", with: { "api-key": "${{ secrets.REVIEWS_CLAUDE_API_KEY }}" } };
+  const extra = { name: "extra", run: "true", env: { K: "${{ secrets.REVIEWS_CLAUDE_API_KEY }}" } };
+  const check = (doc, job) => strayClaudeReaders({ doc, job }, "run-claude-cli");
+  assert.deepEqual(check({}, { steps: [launcher] }), []);
+  assert.deepEqual(check({}, { steps: [launcher, extra] }), ["step extra"]);
+  const other = { ...launcher, name: "other-owner", uses: "someone-else/ci-workflows/.github/actions/run-claude-cli@abc" };
+  assert.deepEqual(check({}, { steps: [other] }), ["step other-owner"], "the launcher is pinned to its owner");
+  assert.deepEqual(check({ env: { ANTHROPIC_AUTH_TOKEN: "x" } }, { steps: [launcher] }), ["workflow env"]);
+  assert.deepEqual(check({}, { env: { ANTHROPIC_API_KEY: "x" }, steps: [launcher] }), ["job env"]);
+  const cli = { name: "eval", run: "set -e\nclaude plugin eval x", env: { CLAUDE_CODE_OAUTH_TOKEN: "${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}" } };
+  const sibling = { name: "sibling", run: "echo hi", env: cli.env };
+  assert.deepEqual(strayClaudeReaders({ doc: {}, job: { steps: [cli] } }, "claude-cli"), []);
+  assert.deepEqual(strayClaudeReaders({ doc: {}, job: { steps: [cli, sibling] } }, "claude-cli"), ["step sibling"], "a run step that does not invoke claude is no launcher");
+  assert.deepEqual(check({}, { env: extra.env, steps: [launcher] }), ["job env"]);
+  assert.deepEqual(check({ env: extra.env }, { steps: [launcher] }), ["workflow env"]);
+  assert.deepEqual(check({}, { steps: [{ ...launcher, name: "wrong", uses: "actions/checkout@abc" }] }), ["step wrong"]);
+  const presence = { name: "presence", run: "true", if: "secrets.REVIEWS_CLAUDE_API_KEY != ''", env: { P: "${{ secrets.REVIEWS_CLAUDE_API_KEY != '' }}" } };
+  assert.deepEqual(check({}, { steps: [presence, launcher] }), [], "whether a secret is set is not the secret");
+  const value = { ...presence, env: { P: "${{ secrets.REVIEWS_CLAUDE_API_KEY != '' && secrets.REVIEWS_CLAUDE_API_KEY }}" } };
+  assert.deepEqual(check({}, { steps: [value, launcher] }), ["step presence"]);
+});
+
+test("each catalog lane names its workflow's triggers, and the gate its job shows", () => {
+  const jobs = claudeSecretJobs();
+  for (const { lane, key } of catalogLanes()) {
+    const { doc, job } = jobs.get(key);
+    assert.deepEqual([...lane.triggers].sort(), workflowTriggers(doc), key);
+    if (lane.gate !== undefined) assert.ok(jobGates(doc, job).includes(lane.gate), `${key} shows no ${lane.gate} gate`);
+  }
+});
+
+test("a pull_request_target, issues, issue_comment or workflow_run job that holds a Claude credential shows an author or same-repo gate", () => {
+  const jobs = gatedTriggerJobs();
+  for (const [key, gates] of jobs) assert.notDeepEqual(gates, [], `${key} holds a Claude credential with no author or same-repo gate`);
+  const gatedLanes = catalogLanes().filter(({ lane }) => hasGatedTrigger(lane.triggers));
+  assert.deepEqual([...jobs.keys()].sort(), gatedLanes.map(({ key }) => key).sort());
+});
+
+test("the trigger-gate check names an ungated job and accepts only the lanes' gate shapes", () => {
+  const launcher = { uses: "anthropics/claude-code-action@abc", with: { claude_code_oauth_token: "${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN }}" } };
+  const admit = (step = { id: "gate", uses: TRUSTED_TRIGGER }) => ({ outputs: { proceed: "${{ steps.gate.outputs.proceed }}" }, steps: [step] });
+  const gates = (on, jobs) => Object.fromEntries(gatedTriggerJobs(["f.yml"], () => ({ on, jobs })));
+  const intake = (uses, ids) => ({ uses, with: { "allowed-author-ids": ids }, secrets: { CLAUDE_CODE_OAUTH_TOKEN: "${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}" } });
+  const PINNED = "melodic-software/ci-workflows/.github/workflows/intake-triage.yml@2fe38c031867900824c164e33a140a335ed9ecf0";
+  const cases = {
+    "ungated issues job": [{ issues: { types: ["labeled"] } }, { run: { steps: [launcher] } }, { "f.yml run": [] }],
+    "ungated issue_comment job": [{ issue_comment: { types: ["created"] } }, { run: { steps: [launcher] } }, { "f.yml run": [] }],
+    "ungated pull_request_target job": [{ pull_request_target: {} }, { run: { steps: [launcher] } }, { "f.yml run": [] }],
+    "ungated workflow_run job": [{ workflow_run: {} }, { run: { steps: [launcher] } }, { "f.yml run": [] }],
+    "on: as a string": ["issues", { run: { steps: [launcher] } }, { "f.yml run": [] }],
+    "on: as a list": [["push", "workflow_run"], { run: { steps: [launcher] } }, { "f.yml run": [] }],
+    "same-repo if:": [{ workflow_run: {} }, { run: { if: `github.ref == 'refs/heads/main' && ${SAME_REPO}`, steps: [launcher] } }, { "f.yml run": ["same-repo"] }],
+    "same-repo inside an ||": [{ workflow_run: {} }, { run: { if: `github.event_name == 'push' || ${SAME_REPO}`, steps: [launcher] } }, { "f.yml run": [] }],
+    "same-repo beside a top-level ||": [{ workflow_run: {} }, { run: { if: `${SAME_REPO} && a || b`, steps: [launcher] } }, { "f.yml run": [] }],
+    "check-trusted-trigger in a needed job": [{ issues: {} }, { admit: admit(), run: { needs: ["admit"], if: "needs.admit.outputs.proceed == 'true'", steps: [launcher] } }, { "f.yml run": ["author"] }],
+    "a gate job outside needs": [{ issues: {} }, { admit: admit(), run: { if: "needs.admit.outputs.proceed == 'true'", steps: [launcher] } }, { "f.yml run": [] }],
+    "another action's proceed": [{ issues: {} }, { admit: admit({ id: "gate", uses: "./.base/.github/actions/check-kill-switch" }), run: { needs: "admit", if: "needs.admit.outputs.proceed == 'true'", steps: [launcher] } }, { "f.yml run": [] }],
+    "a gate output compared to false": [{ issues: {} }, { admit: admit(), run: { needs: "admit", if: "needs.admit.outputs.proceed != 'true'", steps: [launcher] } }, { "f.yml run": [] }],
+    "the pinned intake reusable with author ids": [{ issues: {} }, { triage: intake(PINNED, "${{ needs.x.outputs.human-ids }}") }, { "f.yml triage": ["author"] }],
+    "the intake reusable with no author ids": [{ issues: {} }, { triage: intake(PINNED, "") }, { "f.yml triage": [] }],
+    "an intake reusable from another owner": [{ issues: {} }, { triage: intake(PINNED.replace("melodic-software", "someone-else"), "1") }, { "f.yml triage": [] }],
+    "an unpinned intake reusable": [{ issues: {} }, { triage: intake(PINNED.replace(/@.*/, "@main"), "1") }, { "f.yml triage": [] }],
+    "a pull_request job": [{ pull_request: {} }, { run: { steps: [launcher] } }, {}],
+    "a gated trigger with no Claude credential": [{ issues: {} }, { run: { steps: [{ run: "true" }] } }, {}],
+  };
+  for (const [name, [on, jobs, expected]] of Object.entries(cases)) assert.deepEqual(gates(on, jobs), expected, name);
 });
 
 test("each catalog role names its secrets from its prefix, and is keyed only with a run-claude-cli lane", () => {
@@ -1333,7 +1580,18 @@ test("pr-run-activity-read.yml: the fallback call's lane record names why it ran
   assert.equal(lane(""), "pr-unblock/fix-ci");
   assert.equal(lane("credit-stop"), "pr-unblock/fix-ci (key AUTOMATIONS_CLAUDE_API_KEY hit a credit stop)");
   assert.equal(lane("no-key"), "pr-unblock/fix-ci (key AUTOMATIONS_CLAUDE_API_KEY is empty)");
+  assert.equal(lane("handoff"), "pr-unblock/fix-ci (key AUTOMATIONS_CLAUDE_API_KEY posted no check)");
   assert.equal(record.with["step-timeout-minutes"], 50, "the launcher step's timeout");
+});
+
+// A caller whose handoff job read only that the first call posted no check
+// passes fallback handoff; the run job's input check must let it through.
+test("pr-run-activity-read.yml: the fallback input takes empty, credit-stop, no-key or handoff, and nothing else", () => {
+  const step = workflow("pr-run-activity-read.yml").jobs.run.steps.find((s) => s.env?.FALLBACK === "${{ inputs.fallback }}");
+  const check = /^ *case "\$FALLBACK" in\n[\s\S]*?^ *esac$/m.exec(step.run)[0];
+  const status = (fallback) => spawnSync("bash", ["-c", check], { env: { FALLBACK: fallback }, encoding: "utf8" }).status;
+  for (const fallback of ["", "credit-stop", "no-key", "handoff"]) assert.equal(status(fallback), 0, fallback);
+  for (const fallback of ["handoff ", "posted", "credit-stop\nno-key"]) assert.equal(status(fallback), 1, JSON.stringify(fallback));
 });
 
 // Each patch producer run on run-claude-cli, as [file, first job,
@@ -1357,9 +1615,25 @@ const PATCH_LANES = [
     { "needs.address-feedback-select.outputs.proceed": "true" },
     "apply-feedback-patch",
   ],
+  // apply-dependency-patch stays out of report-escalation too: a refused
+  // patch leaves no fix commit, and the verdict job escalates
+  // dependency-fix-not-landed (apply-dependency-verdict.test.mjs).
+  [
+    "pr-unblock.yml",
+    "review-dependency",
+    "review-dependency-subscription",
+    ["review-dependency-select"],
+    { "needs.review-dependency-select.outputs.proceed": "true" },
+    "apply-dependency-patch",
+  ],
 ];
 // The activity each push job runs in the write runner.
-const APPLY_ACTIVITY = { "fix-ci": "apply-patch", "fix-docs": "apply-patch", "address-feedback": "apply-feedback-patch" };
+const APPLY_ACTIVITY = {
+  "fix-ci": "apply-patch",
+  "fix-docs": "apply-patch",
+  "address-feedback": "apply-feedback-patch",
+  "review-dependency": "apply-dependency-patch",
+};
 const CARRIER_SECRETS = { "scan-carrier-private-key": "${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}" };
 // The head apply-patch holds the patch to, per producer. fix-ci's push job
 // takes the head fix-ci-context gated, from a job that ran no head code.
@@ -1370,28 +1644,35 @@ const PATCH_HEAD = {
   "fix-ci": { needs: ["fix-ci-context"], value: "${{ needs.fix-ci-context.outputs.head-sha }}" },
   "fix-docs": { needs: [], value: null },
   "address-feedback": { needs: ["address-feedback-select"], value: "${{ needs.address-feedback-select.outputs.head-sha }}" },
+  "review-dependency": { needs: ["review-dependency-select"], value: "${{ needs.review-dependency-select.outputs.head-sha }}" },
 };
 // Whether an empty patch still runs the push job, and its escalation reaches
 // report-escalation, which hands the PR to a person: fix-ci's does; no change
 // is fix-docs's common case, and its refused patch posts its check neutral and
 // labels nothing (report-escalation takes no patch-* reason).
-// address-feedback's empty patch is a round whose every reply needs no fix.
-const EMPTY_RUNS_APPLY = { "fix-ci": true, "fix-docs": false, "address-feedback": false };
+// address-feedback's empty patch is a round whose every reply needs no fix,
+// and review-dependency's one whose verdict needs none.
+const EMPTY_RUNS_APPLY = { "fix-ci": true, "fix-docs": false, "address-feedback": false, "review-dependency": false };
 const PATCH_OUTPUTS = { "patch-state": "patch-state", "patch-sha256": "patch-sha256", "patch-attempt": "patch-attempt", "reply-attempt": "reply-attempt" };
-// The read runner output each push job reads per input: address-feedback's,
-// a lane the brief holds to no run job output, the scan job's alone.
+// The read runner output each push job reads per input: address-feedback's
+// and review-dependency's, lanes the briefs hold to no run job output, the
+// scan job's alone.
+const SCAN_ONLY = new Set(["fix-ci", "address-feedback", "review-dependency"]);
+// The base-code job whose jobs-API read starts a lane's fallback call, in
+// place of the first call's own handoff outputs.
+const HANDOFF = { "fix-ci": "fix-ci-handoff", "address-feedback": "address-feedback-handoff", "review-dependency": "review-dependency-handoff" };
 const PATCH_OUTPUTS_OF = (firstId) =>
-  firstId === "address-feedback" ? Object.fromEntries(Object.entries(PATCH_OUTPUTS).map(([input, output]) => [input, `scan-${output}`])) : PATCH_OUTPUTS;
+  SCAN_ONLY.has(firstId) ? Object.fromEntries(Object.entries(PATCH_OUTPUTS).map(([input, output]) => [input, `scan-${output}`])) : PATCH_OUTPUTS;
 const WRITE_RUNNER = "./.github/workflows/pr-run-activity-write.yml";
 
 for (const [file, firstId, subId, extraNeeds, extraProceed, applyId] of PATCH_LANES) {
-  test(`${file}: ${subId} runs only on ${firstId}'s credit stop or empty key and reads only those two outputs`, () => {
+  test(`${file}: ${subId} runs only after ${firstId} handed off, read ${HANDOFF[firstId] ? `by ${HANDOFF[firstId]}` : "from its credit stop or empty key alone"}`, () => {
     const { jobs } = workflow(file);
     const first = jobs[firstId];
     const sub = jobs[subId];
     assert.equal(first.uses, READ_RUNNER);
     assert.equal(sub.uses, READ_RUNNER);
-    assert.deepEqual([sub.needs].flat(), [...extraNeeds, firstId]);
+    assert.deepEqual([sub.needs].flat(), [...extraNeeds, firstId, ...(HANDOFF[firstId] ? [HANDOFF[firstId]] : [])]);
     assert.deepEqual(first.secrets, { "claude-api-key": "${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}", ...CARRIER_SECRETS });
     assert.deepEqual(sub.secrets, { "claude-code-oauth-token": "${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}", ...CARRIER_SECRETS });
     // The report job posts and labels through the caller's grant.
@@ -1400,32 +1681,40 @@ for (const [file, firstId, subId, extraNeeds, extraProceed, applyId] of PATCH_LA
     assert.equal(first.with.fallback, undefined);
     const { fallback, ...same } = sub.with;
     assert.deepEqual(same, first.with, "the fallback call runs the same activity on the same inputs");
-    // The first call's outputs reach the fallback call only through two exact compares.
+    // The first call's outputs reach the fallback call only through two exact
+    // compares, and a lane with a handoff job not at all: its fallback is the
+    // one fact the handoff job's read attests, that the first call posted no check.
     const outputsOf = new RegExp(`needs\\.${firstId}\\.outputs\\.`);
     const text = JSON.stringify(sub);
     const compares = [...text.matchAll(new RegExp(`needs\\.${firstId}\\.outputs\\.([\\w-]+) == '([^']*)'`, "g"))].map((m) => `${m[1]} == ${m[2]}`);
-    assert.deepEqual([...new Set(compares)].sort(), ["credential-present == false", "lane-class == credit-stop"]);
+    assert.deepEqual([...new Set(compares)].sort(), HANDOFF[firstId] ? [] : ["credential-present == false", "lane-class == credit-stop"]);
     assert.doesNotMatch(
       text.replace(new RegExp(`needs\\.${firstId}\\.outputs\\.(lane-class == 'credit-stop'|credential-present == 'false')`, "g"), ""),
       outputsOf,
     );
-    const runs = (laneClass, present, proceed = extraProceed) =>
-      evaluate(sub.if, {
-        ...proceed,
-        [`needs.${firstId}.outputs.lane-class`]: laneClass,
-        [`needs.${firstId}.outputs.credential-present`]: present,
-      });
-    assert.equal(runs("credit-stop", "true"), true);
-    assert.equal(runs("", "false"), true);
-    for (const laneClass of ["", "rate-limit", "max-turns", "timeout", "other", "credit-stop "]) {
-      assert.equal(runs(laneClass, "true"), false, JSON.stringify(laneClass));
+    if (!HANDOFF[firstId]) {
+      const runs = (laneClass, present, proceed = extraProceed) =>
+        evaluate(sub.if, {
+          ...proceed,
+          [`needs.${firstId}.outputs.lane-class`]: laneClass,
+          [`needs.${firstId}.outputs.credential-present`]: present,
+        });
+      assert.equal(runs("credit-stop", "true"), true);
+      assert.equal(runs("", "false"), true);
+      for (const laneClass of ["", "rate-limit", "max-turns", "timeout", "other", "credit-stop "]) {
+        assert.equal(runs(laneClass, "true"), false, JSON.stringify(laneClass));
+      }
+      assert.equal(runs("", ""), false, `a ${firstId} that stopped before its credential step`);
+      for (const name of Object.keys(extraProceed)) {
+        assert.equal(runs("credit-stop", "true", { ...extraProceed, [name]: "false" }), false, `${name} false`);
+      }
     }
-    assert.equal(runs("", ""), false, `a ${firstId} that stopped before its credential step`);
-    for (const name of Object.keys(extraProceed)) {
-      assert.equal(runs("credit-stop", "true", { ...extraProceed, [name]: "false" }), false, `${name} false`);
+    if (HANDOFF[firstId]) {
+      assert.equal(fallback, "handoff");
+    } else {
+      assert.equal(evaluate(fallback, { [`needs.${firstId}.outputs.lane-class`]: "credit-stop" }), "credit-stop");
+      assert.equal(evaluate(fallback, { [`needs.${firstId}.outputs.lane-class`]: "" }), "no-key");
     }
-    assert.equal(evaluate(fallback, { [`needs.${firstId}.outputs.lane-class`]: "credit-stop" }), "credit-stop");
-    assert.equal(evaluate(fallback, { [`needs.${firstId}.outputs.lane-class`]: "" }), "no-key");
     // No run: script in the lane reads the first call's outputs.
     for (const [id, job] of Object.entries(jobs)) {
       for (const step of job.steps ?? []) {
@@ -1483,6 +1772,10 @@ for (const [file, firstId, subId, extraNeeds, extraProceed, applyId] of PATCH_LA
         [`needs.${firstId}.outputs.${state}`]: firstState,
         [`needs.${subId}.outputs.feedback-attempt`]: "1",
         [`needs.${firstId}.outputs.feedback-attempt`]: "1",
+        [`needs.${subId}.outputs.dependency-verdict`]: "fix",
+        [`needs.${firstId}.outputs.dependency-verdict`]: "fix",
+        [`needs.${subId}.outputs.scan-collect-refused`]: "",
+        [`needs.${firstId}.outputs.scan-collect-refused`]: "",
       });
     assert.equal(runs("written", ""), true);
     assert.equal(runs("", "written"), true);
@@ -1634,11 +1927,12 @@ test("pr-run-activity-read.yml: in PR mode the model job uploads nothing and wri
       assert.equal(atStep(step.if, prRun(step.if, overrides)), false, `${step.name} ${JSON.stringify(overrides)}`);
     }
   }
-  // The leak scan and the verdict are the scan job's alone.
+  // The leak scan and the verdict are the scan job's alone; a
+  // dependency-review skill's dependency-verdict.json is a payload it carries.
   for (const step of steps) {
     assert.notEqual(step.id, "leak-scan");
     assert.doesNotMatch(String(step.with?.name ?? ""), /^verdict-/, step.name);
-    assert.doesNotMatch(String(step.run ?? ""), /verdict\.json/, step.name);
+    assert.doesNotMatch(String(step.run ?? ""), /(?<![\w-])verdict\.json/, step.name);
   }
 });
 
@@ -1692,12 +1986,13 @@ test("pr-run-activity-read.yml: the leak scan runs after the decode and gates ev
   assert.deepEqual(["base", "key", "open", "decode"].map(at), [1, 2, 3, 4]);
   assert.ok(at("decode") < scan);
   const outputs = steps.filter((step) => (isUpload(step) && !String(step.with.name).startsWith("verdict-")) || writesSummary(step));
-  assert.equal(outputs.length, 4);
+  assert.equal(outputs.length, 5);
   const context = (clean) => ({
     "steps.leak-scan.outputs.clean": clean,
     "steps.decode.outputs.reply": "true",
     "steps.decode.outputs.patch": "true",
     "steps.decode.outputs.replies": "true",
+    "steps.decode.outputs.dependency-verdict": "true",
   });
   for (const step of outputs) {
     assert.ok(steps.indexOf(step) > scan, `${step.name} comes after the scan`);
@@ -1856,6 +2151,123 @@ async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs"), 
   );
   return { clean: outputs.clean, failed, work, temp, warnings, outputs };
 }
+
+// dependency-review: the verdict file is scanned like the reply, hashed from
+// the scanned bytes, and only its verdict field, held to review-dependency.mjs
+// VERDICTS, leaves as an output.
+test("leak scan: a dependency verdict is scanned and hashed, and only a known verdict field leaves", async (t) => {
+  const plantVerdict = (text) => ({ temp }) => writeFileSync(join(temp, "skill-reply", "dependency-verdict.json"), text);
+  const fix = '{"verdict":"fix","reasons":["a"],"evidence":[]}\n';
+  const scanned = await scanWith(t, plantVerdict(fix));
+  assert.equal(scanned.clean, "true");
+  assert.equal(scanned.outputs["dependency-verdict"], "fix");
+  assert.equal(scanned.outputs["verdict-sha256"], createHash("sha256").update(fix).digest("hex"));
+  assert.equal(readFileSync(join(scanned.outputs.dir, "dependency-verdict.json"), "utf8"), fix);
+  for (const verdict of VERDICTS) {
+    assert.equal((await scanWith(t, plantVerdict(JSON.stringify({ verdict })))).outputs["dependency-verdict"], verdict);
+  }
+  for (const text of ['{"verdict":"approve"}', '{"verdict":["fix"]}', "fix", '"fix"', "null"]) {
+    const other = await scanWith(t, plantVerdict(text));
+    assert.equal(other.outputs["dependency-verdict"], "", text);
+    assert.match(other.outputs["verdict-sha256"], /^[0-9a-f]{64}$/, `${text}: still uploaded for the verdict job to refuse`);
+  }
+  assert.equal((await scanWith(t, () => {})).outputs["dependency-verdict"], undefined, "no file, no output");
+  const leaked = await scanWith(t, plantVerdict(`{"verdict":"fix","reasons":["${KEY}"],"evidence":[]}`));
+  assert.equal(leaked.clean, "false");
+  assert.doesNotMatch(String(leaked.failed), new RegExp(KEY));
+  // The scan's list is review-dependency.mjs's.
+  const script = scanSteps().find((s) => s.id === "leak-scan").with.script;
+  assert.match(script, new RegExp(`\\[${VERDICTS.map((v) => `'${v}'`).join(", ")}\\]\\.includes\\(value\\)`));
+});
+
+// Plan Q5: a lockfile fix over the patch cap is refused with the rest of the
+// run's payloads; the scan names the patch so the verdict job escalates
+// dependency-fix-not-landed instead of reading a round with no model turn.
+test("scan job: a refusal names an oversize patch, and every other refusal `output`", async (t) => {
+  const over = await scanIn(t, runOutputsAfterCarry(t, { "patch/patch.diff": Buffer.alloc(262145, 0x61) }));
+  assert.match(over.failed, /^too-large: the patch /);
+  assert.equal(over.outputs.refused, "patch");
+  const reply = await scanIn(t, runOutputsAfterCarry(t, { "skill-reply/reply.txt": Buffer.alloc(16385, 0x61), "patch/patch.diff": "diff\n" }));
+  assert.match(reply.failed, /^too-large: the reply /);
+  assert.equal(reply.outputs.refused, undefined, "the reply is refused first");
+  const ok = await scanIn(t, runOutputsAfterCarry(t, { "patch/patch.diff": Buffer.alloc(262144, 0x61) }));
+  assert.equal(ok.outputs.refused, undefined);
+  // The job output: the decode step's patch, else any failed step of this job is `output`.
+  const refused = workflow("pr-run-activity-read.yml").jobs.scan.outputs.refused;
+  const at = (decodeRefused, outcomes = {}) =>
+    evaluate(refused, {
+      "steps.decode.outputs.refused": decodeRefused,
+      "steps.open.outcome": "success",
+      "steps.decode.outcome": "success",
+      "steps.leak-scan.outcome": "success",
+      ...outcomes,
+    });
+  assert.equal(at("patch", { "steps.decode.outcome": "failure" }), "patch");
+  assert.equal(at("", { "steps.decode.outcome": "failure" }), "output");
+  assert.equal(at("", { "steps.open.outcome": "failure", "steps.decode.outcome": "skipped" }), "output");
+  assert.equal(at("", { "steps.leak-scan.outcome": "failure" }), "output");
+  assert.equal(at(""), "");
+  assert.equal(at("", { "steps.open.outcome": "skipped", "steps.decode.outcome": "success", "steps.leak-scan.outcome": "skipped" }), "", "a run with nothing to open");
+});
+
+// A failed scan fails the caller's job for the whole read workflow, and a
+// failed job's outputs are not documented to reach a workflow_call caller
+// (#9340). So the scan-refusal job, which needs the scan job alone, uploads a
+// marker artifact, and the reply and verdict jobs download it by name: the
+// marker alone decides the refusal, with every leg output empty.
+const read_ = read;
+test("scan refusal: a failed or cancelled scan's marker reaches the reply and verdict jobs by name, never by a job output", () => {
+  const read = workflow("pr-run-activity-read.yml");
+  const relay = read.jobs["scan-refusal"];
+  assert.ok(relay, "the read runner has a scan-refusal job");
+  assert.equal(relay.needs, "scan");
+  assert.doesNotMatch(JSON.stringify(relay), /needs\.run\./);
+  const write = relay.steps.find((step) => step.name === "Write the scan refusal marker");
+  const upload = relay.steps.find((step) => step.uses?.startsWith("actions/upload-artifact@"));
+  const ctx = (result, refused = "", issue = "") => ({
+    "needs.scan.result": result,
+    "needs.scan.outputs.refused": refused,
+    "inputs.issue-number": issue,
+    "inputs.model-rung": "",
+    "inputs.lane": "pr-unblock",
+    "github.run_attempt": "2",
+  });
+  // cancelled() as the runner reads it: true once the scan was cancelled,
+  // which evaluate's !cancelled() shortcut would hide.
+  const runs = (values, cancelled = false) =>
+    evaluate(relay.if.replaceAll("cancelled()", String(cancelled)).replaceAll("always()", "true"), values) === true;
+  assert.equal(runs(ctx("failure")), true);
+  assert.equal(runs(ctx("cancelled"), true), true, "a cancelled scan");
+  assert.equal(runs(ctx("success")), false);
+  assert.equal(runs(ctx("skipped")), false);
+  assert.equal(runs(ctx("failure", "", "7")), false, "issue mode has no reply or verdict job");
+  assert.equal(evaluate(write.env.REFUSED, ctx("failure")), "output", "a failed scan whose outputs did not arrive");
+  assert.equal(evaluate(write.env.REFUSED, ctx("failure", "patch")), "patch");
+  const sub = (text, values) => text.replace(/\$\{\{([^}]*)\}\}/g, (_, expr) => String(evaluate(`\${{${expr}}}`, values)));
+  // The marker's file name is one scanRefusal reads.
+  assert.match(sub(write.env.MARKER, { ...ctx("failure"), "runner.temp": "/t" }).split("/").at(-1), /^scan-refused-[1-9][0-9]{0,4}(-rung-up)?\.txt$/);
+  assert.equal(upload.with.overwrite, false);
+  // The write runner downloads every attempt's marker for the model call's activity.
+  const steps = workflow("pr-run-activity-write.yml").jobs.run.steps;
+  const download = steps.find((step) => step.id === "scan-refused");
+  const script = steps.find((step) => step.id === "act-script");
+  for (const [mode, activity] of [["inputs.review-replies", "address-feedback"], ["inputs.dependency-verdict", "review-dependency"]]) {
+    const values = { "inputs.review-replies": mode === "inputs.review-replies", "inputs.dependency-verdict": mode === "inputs.dependency-verdict", "inputs.lane": "pr-unblock", "runner.temp": "/t" };
+    const name = sub(upload.with.name, { ...ctx("failure"), "inputs.activity": activity });
+    const pattern = sub(download.with.pattern, values);
+    assert.ok(pattern.endsWith("-*") && name.startsWith(pattern.slice(0, -1)), `${activity}: ${pattern} matches ${name}`);
+    assert.equal(sub(download.with.path, values), "/t/scan-refused", activity);
+  }
+  assert.equal(script.env.SCAN_REFUSED_DIR, "${{ (inputs.review-replies || inputs.dependency-verdict) && format('{0}/scan-refused', runner.temp) || '' }}");
+  assert.equal(download["continue-on-error"], true);
+  assert.equal(download.with["merge-multiple"], true);
+  assert.equal(script.env.SCAN_REFUSED_READ, "${{ steps.scan-refused.outcome }}");
+  // No decision reads a refusal from a job output.
+  assert.equal(read.on.workflow_call.outputs["scan-refused"], undefined);
+  assert.doesNotMatch(read_("../../workflows/pr-unblock.yml"), /outputs\.scan-refused/);
+  assert.equal(script.env.REVIEW_SCAN_REFUSED, undefined);
+  assert.equal(script.env.DEPENDENCY_SCAN_REFUSED, undefined);
+});
 
 test("leak scan: a clean run is clean", async (t) => {
   const { clean, failed } = await scanWith(t, () => {});
@@ -2647,7 +3059,7 @@ test("pr-run-activity-read.yml: the scan-carrier key is passed by name by each r
       }
     }
   }
-  assert.equal(callers, 9, "address-feedback, fix-ci, fix-docs and their subscription calls, fix-ci's rung-up pair, and resolve-issue");
+  assert.equal(callers, 11, "address-feedback, review-dependency, fix-ci, fix-docs and their subscription calls, fix-ci's rung-up pair, and resolve-issue");
   // In the read runner, one step of one job.
   for (const [id, job] of Object.entries(read.jobs)) {
     const steps = (job.steps ?? []).filter((step) => /scan-carrier-private-key|SCAN_CARRIER_PRIVATE_KEY/i.test(JSON.stringify(step)));
@@ -2873,13 +3285,27 @@ function posted(head, { verdictHead = head.outputs.sha, runResult = "success", g
   return decision.report;
 }
 
-test("report job: a run head that is the gated head posts normally on it; the PR head read counts only when nothing gated one", (t) => {
-  for (const env of [{ CALLER_HEAD: TRUSTED }, { CALLER_HEAD: TRUSTED, API_HEAD: OTHER }, { EVENT_HEAD: TRUSTED }, { API_HEAD: TRUSTED }]) {
+test("report job: a run head that is the gated head posts normally on it", (t) => {
+  for (const env of [{ CALLER_HEAD: TRUSTED }, { CALLER_HEAD: TRUSTED, API_HEAD: OTHER }, { EVENT_HEAD: TRUSTED }]) {
     const head = chooseHead(t, { RUN_HEAD: TRUSTED, ...env });
     assert.equal(head.status, 0, head.log);
     assert.deepEqual(head.outputs, { post: "true", sha: TRUSTED, forged: "false" }, JSON.stringify(env));
     const report = posted(head);
     assert.deepEqual([report.head_sha, report.conclusion], [TRUSTED, "success"], JSON.stringify(env));
+  }
+});
+
+// #8945: the PR head read at report time may have moved during the run, so
+// with no caller or event head nothing was gated and no run head can match.
+test("report job: with no caller or event head, any run head is forged, and the PR head read is only where failure is posted", (t) => {
+  for (const runHead of [TRUSTED, OTHER]) {
+    const head = chooseHead(t, { RUN_HEAD: runHead, API_HEAD: TRUSTED });
+    assert.equal(head.status, 0, head.log);
+    assert.deepEqual(head.outputs, { post: "true", sha: TRUSTED, forged: "true" }, runHead);
+    assert.match(head.log, /^::error::the run job's head-sha or pr-number is not the gated PR's/m);
+    // Even a verdict that agrees with the run's head.
+    const report = posted(head, { verdictHead: runHead });
+    assert.deepEqual([report.head_sha, report.conclusion], [TRUSTED, "failure"], runHead);
   }
 });
 
@@ -3122,7 +3548,9 @@ test("report job: fix-ci-dispatch reads the neutral not-assessed post as the hea
             oid: head,
             statusCheckRollup: {
               contexts: {
-                nodes: [{ name: "ci-status", status: "COMPLETED", conclusion: "FAILURE" }, ...runs].map((run) => ({ __typename: "CheckRun", checkSuite: { app: { databaseId: 15368 } }, ...run })),
+                nodes: [{ name: "ci-status", status: "COMPLETED", conclusion: "FAILURE" }, ...runs]
+                  .map((run) => ({ __typename: "CheckRun", checkSuite: { app: { databaseId: 15368 } }, ...run }))
+                  .concat({ __typename: "StatusContext", context: "ci-lanes", state: "FAILURE", creator: { login: "github-actions[bot]" } }),
                 pageInfo: { hasNextPage: false },
               },
             },
@@ -3175,11 +3603,11 @@ test("leak scan: the split-line pass leaves out the R2 key pair pattern, so adja
 // --- address-feedback on run-claude-cli: a select job, two model calls, a push job, a reply job ---
 
 // The outputs of a model call (the read runner) each address-feedback job may
-// read: the subscription call its fallback compares, the push job the patch
-// the scan job uploaded, the reply job the replies it uploaded. No job takes a
-// gate, a head or a reply input from anything else a model call reports.
+// read: the push job the patch the scan job uploaded, the reply job the
+// replies it uploaded. No job takes a gate, a head or a reply input from
+// anything else a model call reports; the subscription call starts on
+// address-feedback-handoff's read and reads none.
 const MODEL_CALL_READS = {
-  "address-feedback-subscription": ["credential-present", "lane-class"],
   "apply-feedback-patch": ["feedback-attempt", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt"],
   "publish-feedback": ["feedback-attempt", "feedback-sha256", "scan-patch-state"],
 };
@@ -3244,6 +3672,162 @@ test("pr-unblock.yml: the apply and reply jobs take every model-call input from 
   const script = write.jobs.run.steps.find((step) => step.id === "act-script");
   assert.equal(script.env.REPLIES_SHA256, "${{ inputs.review-replies-sha256 }}");
   assert.equal(script.env.REVIEW_PATCH_STATE, "${{ inputs.review-replies && inputs.review-patch-state || '' }}");
+});
+
+// --- review-dependency on run-claude-cli: a select job, two model calls, a push job, a verdict job ---
+
+// The outputs of a model call each review-dependency job may read: the push
+// job the patch, its report and the verdict the scan job uploaded; the
+// verdict job the verdict, the patch state and the scan's refusal. No job
+// takes a gate or a head from a model call; the subscription call starts on
+// review-dependency-handoff's read and reads none.
+const DEPENDENCY_CALL_READS = {
+  "apply-dependency-patch": ["dependency-attempt", "dependency-sha256", "dependency-verdict", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt"],
+  "apply-dependency-verdict": ["dependency-attempt", "dependency-sha256", "scan-patch-state"],
+};
+
+test("pr-unblock.yml: no job takes a gate, head or verdict input from a review-dependency model call but the outputs it needs", () => {
+  const { jobs } = workflow("pr-unblock.yml");
+  for (const [id, job] of Object.entries(jobs)) {
+    const read = [...JSON.stringify(job).matchAll(/needs\.review-dependency(?:-subscription)?\.outputs\.([\w-]+)/g)].map((m) => m[1]);
+    assert.deepEqual([...new Set(read)].sort(), DEPENDENCY_CALL_READS[id] ?? [], id);
+  }
+  const SELECT = (output) => `\${{ needs.review-dependency-select.outputs.${output} }}`;
+  for (const id of ["review-dependency", "review-dependency-subscription"]) {
+    assert.equal(jobs[id].with["head-sha"], SELECT("head-sha"), id);
+    assert.equal(jobs[id].with["dependency-context-attempt"], SELECT("context-attempt"), id);
+    assert.equal(jobs[id].with["dependency-context-sha256"], SELECT("context-sha256"), id);
+  }
+  const apply = jobs["apply-dependency-patch"].with;
+  assert.equal(apply["patch-head-sha"], SELECT("head-sha"));
+  assert.equal(apply["patch-prepare"], "dependency-review");
+  const verdict = jobs["apply-dependency-verdict"];
+  assert.equal(verdict.with["dependency-verdict"], true);
+  assert.equal(verdict.with["dependency-context-attempt"], SELECT("context-attempt"));
+  assert.equal(verdict.with["dependency-run-sha256"], SELECT("run-sha256"));
+  assert.equal(verdict.with["dependency-head-sha"], SELECT("head-sha"));
+  assert.equal(verdict.with["expected-upstream-head"], undefined, "the dispatcher run vouches for the PR; the head the push moved is checked by the script");
+  // The verdict job counts every round the select job proceeded on, whatever a model call reports.
+  assert.deepEqual(verdict.needs, ["review-dependency-select", "review-dependency", "review-dependency-subscription", "apply-dependency-patch"]);
+  for (const [proceed, runs] of [["true", true], ["false", false], ["", false]]) {
+    assert.equal(evaluate(verdict.if, { "needs.review-dependency-select.outputs.proceed": proceed }), runs, JSON.stringify(proceed));
+  }
+  // The read runner's dependency and refusal outputs come from its scan job alone.
+  const read = workflow("pr-run-activity-read.yml");
+  for (const [output, value] of [
+    ["dependency-attempt", "dependency-attempt"],
+    ["dependency-sha256", "dependency-sha256"],
+    ["dependency-verdict", "dependency-verdict"],
+  ]) {
+    assert.equal(read.on.workflow_call.outputs[output].value, `\${{ jobs.scan.outputs.${value} }}`, output);
+    assert.equal(read.jobs.run.outputs[output], undefined, output);
+  }
+  assert.equal(read.jobs.run.outputs["scan-refused"], undefined);
+  assert.equal(read.jobs.scan.outputs["dependency-sha256"], "${{ steps.dependency-upload.outcome == 'success' && steps.leak-scan.outputs.verdict-sha256 || '' }}");
+  assert.equal(read.jobs.scan.outputs["dependency-verdict"], "${{ steps.dependency-upload.outcome == 'success' && steps.leak-scan.outputs.dependency-verdict || '' }}");
+  // report-escalation reads the select job's escalation, never a model call's.
+  const escalation = jobs["report-escalation"];
+  assert.ok(escalation.needs.includes("review-dependency-select") && escalation.needs.includes("apply-dependency-verdict"));
+  assert.match(escalation.with["escalation-reason"], /needs\.review-dependency-select\.outputs\.escalation-reason/);
+});
+
+// One leg answers the round: the fallback call when it ran, else the first;
+// the push needs a written patch beside a fix verdict from that same leg, and
+// an empty field never falls through to the other.
+test("pr-unblock.yml: apply-dependency-patch and the verdict job take every model-call input from one leg", () => {
+  const { jobs } = workflow("pr-unblock.yml");
+  const apply = jobs["apply-dependency-patch"];
+  const verdict = jobs["apply-dependency-verdict"].with;
+  const OUT = ["scan-patch-state", "scan-patch-sha256", "scan-patch-attempt", "scan-reply-attempt", "dependency-attempt", "dependency-sha256", "dependency-verdict"];
+  const legs = (subResult, sub, first) => {
+    const values = { "needs.review-dependency-subscription.result": subResult };
+    for (const output of OUT) {
+      values[`needs.review-dependency-subscription.outputs.${output}`] = sub[output] ?? "";
+      values[`needs.review-dependency.outputs.${output}`] = first[output] ?? "";
+    }
+    return values;
+  };
+  const full = (leg) => ({ ...Object.fromEntries(OUT.map((o) => [o, `${leg}:${o}`])), "scan-patch-state": "written", "dependency-verdict": "fix" });
+  const inputs = {
+    "patch-state": [apply.with, "scan-patch-state"],
+    "patch-sha256": [apply.with, "scan-patch-sha256"],
+    "patch-attempt": [apply.with, "scan-patch-attempt"],
+    "reply-attempt": [apply.with, "scan-reply-attempt"],
+    "patch-verdict-attempt": [apply.with, "dependency-attempt"],
+    "patch-verdict-sha256": [apply.with, "dependency-sha256"],
+    "dependency-run-attempt": [verdict, "dependency-attempt"],
+    "dependency-verdict-sha256": [verdict, "dependency-sha256"],
+    "dependency-patch-state": [verdict, "scan-patch-state"],
+  };
+  for (const [subResult, from] of [["skipped", "first"], ["success", "sub"], ["failure", "sub"]]) {
+    const context = legs(subResult, from === "sub" ? full("sub") : {}, from === "first" ? full("first") : {});
+    for (const [input, [block, output]] of Object.entries(inputs)) {
+      const want = output === "scan-patch-state" ? "written" : `${from}:${output}`;
+      assert.equal(evaluate(block[input], context), want, `${input} when the fallback call is ${subResult}`);
+    }
+    assert.equal(evaluate(apply.if, context), true, `a written patch beside a fix verdict when the fallback call is ${subResult}`);
+  }
+  // The fallback call ran and left its verdict empty: the first call's fix never pairs with it.
+  const mixed = legs("success", { "scan-patch-state": "written" }, full("first"));
+  assert.equal(evaluate(apply.if, mixed), false);
+  for (const [input, [block]] of Object.entries(inputs)) {
+    if (input !== "patch-state" && input !== "dependency-patch-state") assert.equal(evaluate(block[input], mixed), "", `${input} never falls through to the first call`);
+  }
+  // Any verdict but fix, or no patch, pushes nothing.
+  for (const [state, value] of [["written", "merge"], ["written", "close"], ["written", "escalate"], ["written", ""], ["empty", "fix"], ["", "fix"]]) {
+    const leg = { ...full("first"), "scan-patch-state": state, "dependency-verdict": value };
+    assert.equal(evaluate(apply.if, legs("skipped", {}, leg)), false, `${state} patch beside a ${JSON.stringify(value)} verdict`);
+  }
+});
+
+// A select that skips or escalates runs no model job: a neutral check on the
+// head it read keeps dependency-dispatch.mjs from sending the head again, and
+// countCheckRounds counts no round for it.
+test("pr-unblock.yml: review-dependency is reported neutral when the select job does not proceed", async () => {
+  const head = "d".repeat(40);
+  const { jobs } = workflow("pr-unblock.yml");
+  const notRun = jobs["review-dependency-not-run"];
+  const context = (proceed, headSha, skip = "", activity = "review-dependency") => ({
+    "inputs.activity": activity,
+    "needs.review-dependency-select.outputs.proceed": proceed,
+    "needs.review-dependency-select.outputs.head-sha": headSha,
+    "needs.review-dependency-select.outputs.skip-reason": skip,
+  });
+  assert.deepEqual([notRun.needs].flat(), ["review-dependency-select"]);
+  assert.deepEqual(notRun.permissions, { checks: "write", contents: "read" });
+  for (const id of ["review-dependency", "apply-dependency-verdict"]) {
+    assert.equal(evaluate(jobs[id].if, context("true", head)), true, id);
+    assert.equal(evaluate(jobs[id].if, context("false", head)), false, id);
+    assert.equal(evaluate(jobs[id].if, context("", "")), false, `${id} after a kill-switch stop`);
+  }
+  assert.equal(evaluate(notRun.if, context("true", head)), false);
+  assert.equal(evaluate(notRun.if, context("false", head, "not-applicable")), true);
+  assert.equal(evaluate(notRun.if, context("false", "")), false, "a stop before the head read names no head to post on");
+  assert.equal(evaluate(notRun.if, context("false", head, "", "fix-ci")), false);
+  for (const [skip, summary] of [
+    ["not-applicable", "Skip reason: not-applicable"],
+    ["superseded-sha", "Skip reason: superseded-sha"],
+    ["", "Skip reason: awaiting-human"],
+  ]) {
+    const calls = await postNotRunChecks(notRun, context("false", head, skip));
+    assert.deepEqual(
+      calls.map((call) => [call.name, call.head_sha, call.conclusion, call.output.summary]),
+      [["pr-unblock / review-dependency", head, "neutral", summary]],
+      JSON.stringify(skip),
+    );
+  }
+});
+
+test("pr-unblock.yml: review-dependency-select reads the slot with the read runner's applied-by keys and uploads both files under its attempt", () => {
+  const select = workflow("pr-unblock.yml").jobs["review-dependency-select"];
+  assert.deepEqual(select.permissions, { contents: "read", "pull-requests": "read", checks: "read", issues: "read" });
+  assert.equal(select.uses, undefined, "a base job, never a runner that checks out the head");
+  const step = (id) => select.steps.find((s) => s.id === id);
+  assert.equal(step("slot").with["applied-by-supported"], "patch dependency-verdict");
+  assert.equal(step("slot").with.activity, "review-dependency");
+  assert.match(step("select").run, /CONTEXT_RUN_FILE="\$DEPENDENCY_DIR\/context\.json"/);
+  assert.equal(step("upload").with.name, "dependency-context-${{ github.run_attempt }}");
+  assert.deepEqual(stepSecrets(select), []);
 });
 
 // The pr-feedback-dispatch.yml trust reaches the read gate only for a
@@ -3375,9 +3959,9 @@ test("pr-run-activity-read.yml: a pr-feedback-dispatch.yml dispatch passes the t
   assert.equal(read["expected-upstream-head"], undefined, "the model calls run on the reviewed head");
 });
 
-test("pr-run-activity-read.yml: review-threads and ci-context are its prepare modes, PR mode only, each handing on a patch", () => {
+test("pr-run-activity-read.yml: review-threads, ci-context and dependency-review are its prepare modes, PR mode only, each handing on a patch", () => {
   const steps = workflow("pr-run-activity-read.yml").jobs.run.steps;
-  const guard = steps.find((s) => s.name === "Assert the prepare mode is ci-context or review-threads in patch mode");
+  const guard = steps.find((s) => s.name === "Assert the prepare mode is ci-context, review-threads or dependency-review in patch mode");
   const refuses = (prepare, patch, issue = "") =>
     evaluate(guard.if, {
       "steps.config.outcome": "success",
@@ -3390,11 +3974,13 @@ test("pr-run-activity-read.yml: review-threads and ci-context are its prepare mo
   assert.equal(refuses("", ""), false);
   assert.equal(refuses("review-threads", ""), true);
   assert.equal(refuses("merge-base", "apply-patch"), true);
-  assert.equal(refuses("dependency-review", "apply-patch"), true);
+  assert.equal(refuses("dependency-review", "apply-dependency-patch"), false);
+  assert.equal(refuses("dependency-review", ""), true);
+  assert.equal(refuses("dependency-review", "apply-dependency-patch", "7"), true, "issue mode");
   assert.equal(refuses("review-threads", "apply-feedback-patch", "7"), true, "issue mode");
   assert.equal(spawnSync("bash", ["-c", guard.run]).status, 1);
   const config = steps.find((s) => s.id === "config");
-  assert.equal(evaluate(config.with["applied-by-supported"], { "inputs.issue-number": "" }), "patch feedback-replies");
+  assert.equal(evaluate(config.with["applied-by-supported"], { "inputs.issue-number": "" }), "patch feedback-replies dependency-verdict");
   assert.equal(evaluate(config.with["applied-by-supported"], { "inputs.issue-number": "7" }), "patch work-outcome");
 });
 
@@ -3578,6 +4164,68 @@ test("pr-run-activity-write.yml: apply-patch under the review-threads row reads 
   assert.deepEqual(runCheck(""), { status: 1, output: "" });
 });
 
+// S&C 7.2 finding 2, carried into review-dependency: no patch applies
+// without a scanned verdict. The push reads the scan job's verdict, checked
+// against its SHA-256 before the mint, and only its closed-set verdict field
+// reaches the row's dependency-verdict requirement.
+test("pr-run-activity-write.yml: apply-patch under the dependency-review row reads the scanned verdict, checked against its SHA-256 before the mint", (t) => {
+  const steps = workflow("pr-run-activity-write.yml").jobs.run.steps;
+  const at = (name) => steps.findIndex((s) => s.name === name);
+  const download = steps[at("Download the dependency verdict for the patch")];
+  const check = steps[at("Check the dependency verdict for the patch")];
+  assert.equal(download.with.name, "dependency-verdict-${{ inputs.lane }}-${{ inputs.patch-activity }}-${{ inputs.patch-verdict-attempt }}");
+  assert.ok(at("Check the dependency verdict for the patch") < at("Request the lane token"));
+  const context = (prepare) => ({ "steps.config.outputs.applies": "true", "steps.config.outputs.prepare": "apply-patch", "inputs.patch-prepare": prepare });
+  for (const step of [download, check]) {
+    assert.equal(evaluate(step.if, context("dependency-review")), true);
+    assert.equal(evaluate(step.if, context("review-threads")), false);
+    assert.equal(evaluate(step.if, context("")), false);
+  }
+  assert.equal(steps.find((s) => s.id === "act-script").env.DEPENDENCY_VERDICT, "${{ steps.patch-verdict.outputs.verdict }}");
+  const dir = mkdtempSync(join(tmpdir(), "patch-verdict-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const file = join(dir, "dependency-verdict.json");
+  const runCheck = (text, sha = createHash("sha256").update(text).digest("hex")) => {
+    writeFileSync(file, text);
+    const out = join(dir, "out");
+    writeFileSync(out, "");
+    const result = spawnSync("bash", ["-e", "-c", check.run], { encoding: "utf8", env: { PATH: process.env.PATH, GITHUB_OUTPUT: out, VERDICT_FILE: file, VERDICT_SHA256: sha } });
+    return { status: result.status, output: readFileSync(out, "utf8") };
+  };
+  assert.deepEqual(runCheck('{"verdict":"fix","reasons":["r"],"evidence":[]}'), { status: 0, output: "verdict=fix\n" });
+  assert.deepEqual(runCheck('{"verdict":"merge"}'), { status: 0, output: "verdict=merge\n" });
+  assert.deepEqual(runCheck('{"verdict":"fix\\nverdict=fix"}'), { status: 0, output: "verdict=\n" }, "a value outside the set");
+  assert.deepEqual(runCheck("not json"), { status: 0, output: "verdict=\n" });
+  assert.deepEqual(runCheck('{"verdict":"fix"}', "0".repeat(64)), { status: 1, output: "" });
+  assert.deepEqual(runCheck('{"verdict":"fix"}', ""), { status: 1, output: "" });
+  rmSync(file);
+  const missing = spawnSync("bash", ["-e", "-c", check.run], { encoding: "utf8", env: { PATH: process.env.PATH, GITHUB_OUTPUT: join(dir, "out"), VERDICT_FILE: file, VERDICT_SHA256: "0".repeat(64) } });
+  assert.equal(missing.status, 1, "no verdict, no patch");
+  // The base dependabot.yml, whose pairs the dependency-manifests rule reads, is copied beside the rules.
+  assert.match(steps.find((s) => s.id === "apply-base").run, /cp \.base\/\.github\/dependabot\.yml "\$DEST\/\.github\/dependabot\.yml"/);
+});
+
+test("pr-run-activity-write.yml: the verdict job reads context.json from the select job's artifact and the verdict from the scan job's", () => {
+  const steps = workflow("pr-run-activity-write.yml").jobs.run.steps;
+  const context = steps.find((s) => s.name === "Download the dependency context");
+  const verdict = steps.find((s) => s.name === "Download the dependency verdict");
+  assert.equal(context.with.name, "dependency-context-${{ inputs.dependency-context-attempt }}");
+  assert.equal(verdict.with.name, "dependency-verdict-${{ inputs.lane }}-review-dependency-${{ inputs.dependency-run-attempt }}");
+  assert.equal(context.with.path, verdict.with.path);
+  const env = steps.find((s) => s.id === "act-script").env;
+  assert.equal(env.DEPENDENCY_VERDICT_DIR, "${{ inputs.dependency-verdict && format('{0}/dependency-verdict', runner.temp) || '' }}");
+  assert.equal(env.DEPENDENCY_RUN_SHA256, "${{ inputs.dependency-run-sha256 }}");
+  assert.equal(env.DEPENDENCY_VERDICT_SHA256, "${{ inputs.dependency-verdict-sha256 }}");
+  assert.equal(env.DEPENDENCY_PATCH_STATE, "${{ inputs.dependency-verdict && inputs.dependency-patch-state || '' }}");
+  // A dependency-review skill on this runner fails red before the mint.
+  const at = (name) => steps.findIndex((s) => s.name === name);
+  const refuse = steps[at("Assert dependency-review runs in the read runner")];
+  assert.ok(at("Assert dependency-review runs in the read runner") < at("Request the lane token"));
+  assert.equal(evaluate(refuse.if, { "steps.config.outcome": "success", "steps.config.outputs.prepare": "dependency-review" }), true);
+  assert.equal(evaluate(refuse.if, { "steps.config.outcome": "success", "steps.config.outputs.prepare": "apply-patch" }), false);
+  assert.equal(spawnSync("bash", ["-c", refuse.run]).status, 1);
+});
+
 // A needs-human PR's fix request reaches the push: the select job's
 // fix-requested output leaves the human-gated label out of the holds.
 test("pr-run-activity-write.yml: apply-patch under the review-threads row drops the human-gated hold only on the select job's fix request", () => {
@@ -3637,4 +4285,400 @@ test("pr-run-activity-write.yml: a patch-* escalation reason passes the input ch
   }
   assert.equal(status("", false), 0, "the PR-mode control passes with no reason");
   assert.equal(status("patch-unknown", true), 1);
+});
+
+// --- pr-unblock fix-ci: trusted handoff, unreported rounds, refused collections ---
+
+const FIX_CI_CALLS = ["fix-ci", "fix-ci-subscription", "fix-ci-rung-up", "fix-ci-rung-up-subscription"];
+
+// A job listing in the shape GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs
+// returns: a reusable call's jobs are named "<caller job> / <called job>", as
+// run 39911047185's listing names "fix-docs / report" with its "Post the check
+// run" step and "fix-docs / broker-check" with its "Ask the broker whether
+// the lane may run" step. `posted` names the calls whose report posted;
+// `reportSkipped` the calls whose report job was skipped, as a handoff, forged
+// or not, leaves it; `unallowed` the calls whose broker step did not succeed
+// (skipped on a kill switch, failed on a refusal).
+function jobListing(posted, { reportSkipped = [], unallowed = [], calls = FIX_CI_CALLS } = {}) {
+  const jobs = [{ name: "fix-ci-context", conclusion: "success", steps: [] }];
+  for (const call of calls) {
+    jobs.push({
+      name: `${call} / broker-check`,
+      conclusion: "success",
+      steps: [{ name: "Ask the broker whether the lane may run", conclusion: unallowed.includes(call) ? "skipped" : "success" }],
+    });
+    // A run job's own step of that name, which no read may count.
+    jobs.push({ name: `${call} / run`, conclusion: "success", steps: [{ name: "Post the check run", conclusion: "success" }] });
+    const ran = !reportSkipped.includes(call);
+    jobs.push({
+      name: `${call} / report`,
+      conclusion: ran ? "success" : "skipped",
+      steps: ran ? [{ name: "Post the check run", conclusion: posted.includes(call) ? "success" : "skipped" }] : [],
+    });
+  }
+  jobs.push({ name: "fix-docs / report", conclusion: "success", steps: [{ name: "Post the check run", conclusion: "success" }] });
+  return { total_count: jobs.length, jobs };
+}
+
+// Runs a "Read whether ... posted" step with a gh stub that answers the jobs
+// listing through the step's own --jq filter; returns its exit, outputs and
+// the arguments it was called with.
+function readPosted(t, step, listing, { fail = false } = {}) {
+  const root = mkdtempSync(join(tmpdir(), "fix-ci-posted-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(join(root, "bin"));
+  writeFileSync(join(root, "listing.json"), JSON.stringify(listing));
+  writeFileSync(
+    join(root, "bin", "gh"),
+    `#!/bin/bash\nprintf '%s\\n' "$*" >>"${join(root, "calls")}"\n${fail ? "exit 1\n" : ""}` +
+      `while [ $# -gt 0 ]; do if [ "$1" = --jq ]; then filter=$2; fi; shift; done\njq -r "$filter" "${join(root, "listing.json")}"\n`,
+    { mode: 0o755 },
+  );
+  const output = join(root, "out");
+  writeFileSync(output, "");
+  const result = runStep(step, root, {
+    PATH: `${join(root, "bin")}:${process.env.PATH}`,
+    GITHUB_REPOSITORY: "o/r",
+    GITHUB_RUN_ID: "99",
+    GH_TOKEN: "x",
+    GITHUB_OUTPUT: output,
+    CALLS: step.env.CALLS,
+  });
+  const calls = existsSync(join(root, "calls")) ? readFileSync(join(root, "calls"), "utf8") : "";
+  return { status: result.status, outputs: outputLines(output), calls };
+}
+
+// #8890: a hostile run job can forge handed-off, lane-class and
+// credential-present, so no fix-ci fallback call may start on them.
+test("pr-unblock.yml: each fix-ci fallback call starts on a base job's jobs-API read of the first call's report, never on a fix-ci output", (t) => {
+  const { jobs } = workflow("pr-unblock.yml");
+  for (const [subId, firstId, handoffId, extra] of [
+    ["fix-ci-subscription", "fix-ci", "fix-ci-handoff", {}],
+    ["fix-ci-rung-up-subscription", "fix-ci-rung-up", "fix-ci-rung-up-handoff", { "needs.fix-ci-rung-up.result": "success" }],
+  ]) {
+    const sub = jobs[subId];
+    const handoff = jobs[handoffId];
+    assert.doesNotMatch(sub.if, /needs\.fix-ci(-rung-up)?\.outputs\./, `${subId}'s start reads no fix-ci output`);
+    // The evaluator refuses any reference left unset: the start reads only these.
+    const starts = (posted, overrides = {}) =>
+      evaluate(sub.if, { "needs.fix-ci-context.outputs.proceed": "true", ...extra, [`needs.${handoffId}.outputs.posted`]: posted, ...overrides });
+    assert.equal(starts("false"), true, `${subId} after a call that posted no check`);
+    assert.equal(starts(""), true, `${subId} after a failed read: a second leg, never a lost check`);
+    assert.equal(starts("true"), false, `${subId} after a call that posted its check`);
+    assert.equal(starts("false", { "needs.fix-ci-context.outputs.proceed": "false" }), false);
+    if (extra["needs.fix-ci-rung-up.result"]) assert.equal(starts("", { "needs.fix-ci-rung-up.result": "skipped" }), false, "no rung-up, no rung-up fallback");
+    // The handoff job runs one shell step on a read-only token: no checkout, no action, no secret.
+    assert.deepEqual(handoff.needs, ["fix-ci-context", firstId]);
+    assert.deepEqual(handoff.permissions, { actions: "read" });
+    assert.deepEqual(handoff.steps.map((step) => step.uses ?? null), [null]);
+    assert.deepEqual(stepSecrets(handoff), []);
+    assert.doesNotMatch(JSON.stringify(handoff), /needs\.fix-ci(-rung-up)?\.outputs\./);
+    assert.equal(handoff.outputs.posted, "${{ steps.posted.outputs.posted }}");
+    const step = handoff.steps[0];
+    assert.equal(step.env.CALLS, firstId);
+    // The first call's report posted: no fallback.
+    const posted = readPosted(t, step, jobListing([firstId]));
+    assert.equal(posted.status, 0);
+    assert.deepEqual(posted.outputs, { posted: "true", allowed: "true" });
+    assert.match(posted.calls, /^api --paginate repos\/o\/r\/actions\/runs\/99\/jobs\?filter=latest&per_page=100 --jq /);
+    // A handoff, forged or not, skips the report job; a report that ran and
+    // posted nothing, or another call's posted check, is no post either.
+    for (const [name, listing] of Object.entries({
+      "a skipped report job": jobListing([], { reportSkipped: [firstId] }),
+      "a report that posted nothing": jobListing([]),
+      "only other calls posted": jobListing(FIX_CI_CALLS.filter((call) => call !== firstId)),
+    })) {
+      const read = readPosted(t, step, listing);
+      assert.equal(read.status, 0, name);
+      assert.equal(read.outputs.posted, "false", `${handoffId}: ${name}`);
+    }
+    // A failed read fails the job and leaves posted empty.
+    const failed = readPosted(t, step, jobListing([firstId]), { fail: true });
+    assert.notEqual(failed.status, 0);
+    assert.deepEqual(failed.outputs, {});
+  }
+});
+
+// #8890: a round in which no call posted left fix-ci-dispatch.mjs nothing to
+// count, so it dispatched the head again with no end.
+test("pr-unblock.yml: a fix-ci round with no posted check posts fix-ci failure on the gated head, which fix-ci-dispatch counts toward fix-ci-restarts", (t) => {
+  const { jobs } = workflow("pr-unblock.yml");
+  const job = jobs["fix-ci-unreported"];
+  assert.deepEqual(job.needs, ["fix-ci-context", ...FIX_CI_CALLS]);
+  assert.deepEqual(job.permissions, { actions: "read", checks: "write", contents: "read" });
+  assert.deepEqual(stepSecrets(job), []);
+  for (const [proceed, runs] of [["true", true], ["false", false], ["", false]]) {
+    assert.equal(evaluate(job.if, { "needs.fix-ci-context.outputs.proceed": proceed }), runs, JSON.stringify(proceed));
+  }
+  const checkout = job.steps.find((step) => String(step.uses ?? "").startsWith("actions/checkout@"));
+  assert.equal(checkout.with.ref, "${{ github.event.repository.default_branch }}");
+  const read = job.steps.find((step) => step.id === "posted");
+  const post = job.steps.find((step) => step.name === "Post the check run");
+  // The handoff jobs' read, over every call of the round.
+  assert.equal(read.run, jobs["fix-ci-handoff"].steps[0].run);
+  assert.equal(read.env.CALLS, FIX_CI_CALLS.join(" "));
+  // As the report job, it trusts the broker-check job's allow alone: a kill
+  // switch (with its repository shadow) or a refusal posts nothing.
+  assert.equal(job.steps.find((step) => step.id === "kill"), undefined);
+  for (const [name, listing, outputs, posts] of [
+    ["every report job skipped after an allow", jobListing([], { reportSkipped: FIX_CI_CALLS }), { posted: "false", allowed: "true" }, true],
+    ["the fallback call posted", jobListing(["fix-ci-subscription"]), { posted: "true", allowed: "true" }, false],
+    ["the rung-up call posted", jobListing(["fix-ci-rung-up"]), { posted: "true", allowed: "true" }, false],
+    ["the broker allowed no call", jobListing([], { unallowed: FIX_CI_CALLS }), { posted: "false", allowed: "false" }, false],
+    ["the broker allowed only the fallback call", jobListing([], { unallowed: ["fix-ci", "fix-ci-rung-up", "fix-ci-rung-up-subscription"] }), { posted: "false", allowed: "true" }, true],
+  ]) {
+    assert.deepEqual(readPosted(t, read, listing).outputs, outputs, name);
+    assert.equal(evaluate(post.if, { "steps.posted.outputs.posted": outputs.posted, "steps.posted.outputs.allowed": outputs.allowed }), posts, name);
+  }
+  assert.equal(evaluate(post.if, { "steps.posted.outputs.posted": "", "steps.posted.outputs.allowed": "" }), false, "a failed read posts nothing");
+  // The check it posts, as report-check-run decides it with no verdict.
+  assert.equal(post.with["head-sha"], "${{ needs.fix-ci-context.outputs.head-sha }}");
+  assert.equal(post.with["verdict-path"], undefined);
+  const decision = decide(null, {
+    lane: post.with.lane,
+    activity: post.with.activity,
+    runResult: post.with["run-result"],
+    notRunReason: post.with["not-run-reason"] ?? "",
+    actOutcome: "",
+    signedCommits: null,
+    gateReason: "",
+    headSha: TRUSTED,
+    headShaFallback: TRUSTED,
+    prHeadSha: TRUSTED,
+    gateSkipReasons: {},
+    skipReasons: [],
+  });
+  assert.deepEqual([decision.report.name, decision.report.head_sha, decision.report.conclusion], ["pr-unblock / fix-ci", TRUSTED, "failure"]);
+  // fix-ci-dispatch reads each such post as one failed fix-ci run: with one
+  // restart, the third unreported round is never dispatched.
+  const node = (rounds) => ({
+    number: 9002,
+    isDraft: false,
+    isCrossRepository: false,
+    baseRefName: "main",
+    headRefOid: TRUSTED,
+    author: { databaseId: 7 },
+    labels: { nodes: [] },
+    commits: {
+      nodes: [
+        {
+          commit: {
+            oid: TRUSTED,
+            statusCheckRollup: {
+              contexts: {
+                nodes: [
+                  { name: "ci-status", status: "COMPLETED", conclusion: "FAILURE" },
+                  ...Array.from({ length: rounds }, () => ({
+                    name: decision.report.name,
+                    status: decision.report.status.toUpperCase(),
+                    conclusion: decision.report.conclusion.toUpperCase(),
+                    title: decision.report.output.title,
+                  })),
+                ]
+                  .map((run) => ({ __typename: "CheckRun", checkSuite: { app: { databaseId: 15368 } }, ...run }))
+                  .concat({ __typename: "StatusContext", context: "ci-lanes", state: "FAILURE", creator: { login: "github-actions[bot]" } }),
+                pageInfo: { hasNextPage: false },
+              },
+            },
+          },
+        },
+      ],
+    },
+  });
+  const options = { ...CI_FIX_DEFAULTS, appSenderId: 7, restarts: 1 };
+  assert.equal(skipReason(node(0), options), "", "the first dispatch");
+  assert.equal(skipReason(node(1), options), "", "one restart");
+  assert.equal(skipReason(node(2), options), "head's pr-unblock / fix-ci failed 2 time(s), past 1 restart(s)");
+});
+
+// #8912: a refused collection left patch-state empty, so apply-patch was
+// skipped and no person was told.
+test("pr-run-activity-read.yml: a collector refusal sets state refused, which the scan job hands on as collect-refused", async (t) => {
+  const collect = runSteps().find((step) => step.id === "patch");
+  const collectIn = (setup) => {
+    const state = plantedCheckout(t);
+    setup(state);
+    const output = join(state.root, "github-output");
+    writeFileSync(output, "");
+    const result = runStep(collect, state.work, { HEAD_SHA: state.head, PATCH_DIR: join(state.temp, "patch"), RUNNER_TEMP: state.temp, GITHUB_OUTPUT: output });
+    return { status: result.status, outputs: outputLines(output) };
+  };
+  // A scrub stub name with content is the collector's exit 3; the step still fails.
+  assert.deepEqual(collectIn(({ work }) => writeFileSync(join(work, ".env"), "TOKEN=x\n")), { status: 3, outputs: { state: "refused" } });
+  assert.deepEqual(collectIn(() => {}), { status: 0, outputs: { state: "empty", sha256: "" } });
+  // Any other collector failure is no refusal.
+  assert.deepEqual(
+    collectIn(({ temp }) => writeFileSync(join(temp, "read-patch", "collect-patch.sh"), "exit 1\n")),
+    { status: 1, outputs: {} },
+  );
+  // The scan job: refused passes the closed set with no patch, and becomes collect-refused.
+  const refused = await scanIn(t, { ...runOutputsAfterCarry(t, { "skill-reply/reply.txt": "ok\n" }), "patch-collected": "refused" });
+  assert.equal(refused.failed, null);
+  assert.deepEqual([refused.outputs["collect-refused"], refused.outputs["patch-state"], refused.outputs.patch], ["true", "", "false"]);
+  const empty = await scanIn(t, runOutputsAfterCarry(t, { "skill-reply/reply.txt": "ok\n" }));
+  assert.deepEqual([empty.outputs["collect-refused"], empty.outputs["patch-state"]], ["false", "empty"]);
+  const { jobs, on } = workflow("pr-run-activity-read.yml");
+  for (const value of ["true", "false", ""]) {
+    assert.equal(evaluate(jobs.scan.outputs["collect-refused"], { "steps.decode.outputs.collect-refused": value }), value === "true" ? "true" : "");
+  }
+  assert.equal(on.workflow_call.outputs["scan-collect-refused"].value, "${{ jobs.scan.outputs.collect-refused }}");
+});
+
+test("pr-unblock.yml: a refused fix-ci collection runs apply-patch, whose select escalates ci-fix-invalid through report-escalation", () => {
+  const { jobs } = workflow("pr-unblock.yml");
+  for (const [applyId, firstId, subId] of [
+    ["apply-patch", "fix-ci", "fix-ci-subscription"],
+    ["apply-patch-rung-up", "fix-ci-rung-up", "fix-ci-rung-up-subscription"],
+  ]) {
+    const apply = jobs[applyId];
+    // Every model-call input is one leg's scan output, never a run job's.
+    const outputs = [...JSON.stringify(apply).matchAll(/needs\.fix-ci(?:-rung-up)?(?:-subscription)?\.outputs\.([\w-]+)/g)].map((m) => m[1]);
+    assert.deepEqual([...new Set(outputs)].sort(), ["scan-collect-refused", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt"], applyId);
+    const leg = (from, values) => {
+      const context = { [`needs.${subId}.result`]: from === subId ? "success" : "skipped" };
+      for (const job of [subId, firstId]) {
+        for (const output of ["scan-patch-state", "scan-collect-refused"]) context[`needs.${job}.outputs.${output}`] = job === from ? (values[output] ?? "") : "";
+      }
+      return context;
+    };
+    for (const from of [firstId, subId]) {
+      const refused = leg(from, { "scan-collect-refused": "true" });
+      assert.equal(evaluate(apply.if, refused), true, `${applyId} after ${from}'s refused collection`);
+      assert.equal(evaluate(apply.with["patch-state"], refused), "", "select gets no patch-state");
+      // The paired control: a leg that left no patch and refused nothing (a failed model turn) runs no push.
+      assert.equal(evaluate(apply.if, leg(from, {})), false, `${applyId} after ${from} left no patch`);
+    }
+    // The first call's refusal is never taken once the fallback call ran.
+    assert.equal(evaluate(apply.if, { ...leg(subId, {}), [`needs.${firstId}.outputs.scan-collect-refused`]: "true" }), false);
+  }
+  // select, with the empty patch-state a refused collection passes, escalates.
+  const row = rowFor(loadRules(fileURLToPath(new URL("../../../", import.meta.url))), { prepare: "ci-context" });
+  const decision = selectPatch({ row, patchState: "", patchSha256: "", patchHeadSha: TRUSTED, headSha: TRUSTED, patchDir: "/nonexistent", reportDir: "/nonexistent" });
+  assert.deepEqual(decision, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-invalid" });
+  // report-escalation runs on that reason, and on nothing else here.
+  const escalation = jobs["report-escalation"];
+  const quiet = Object.fromEntries([...escalation.if.matchAll(/needs\.[\w-]+\.(?:outputs\.[\w-]+|result)/g)].map(([ref]) => [ref, ""]));
+  assert.equal(evaluate(escalation.if, quiet), false, "nothing to escalate");
+  assert.equal(evaluate(escalation.if, { ...quiet, "needs.apply-patch.outputs.escalation-reason": decision.escalationReason }), true);
+  assert.match(escalation.with["escalation-reason"], /needs\.apply-patch\.outputs\.escalation-reason/);
+});
+
+// #8954, fix-ci's half: the run job binds the head it works on to the head
+// the caller gated, before any head code.
+test("pr-run-activity-read.yml: a trigger gate that read another head than the caller's fails the run before the head checkout", (t) => {
+  const steps = runSteps();
+  const check = steps.find((step) => step.name === "Assert the gated head is the caller's");
+  assert.ok(steps.indexOf(check) > steps.findIndex((step) => step.id === "gate"));
+  assert.ok(steps.indexOf(check) < steps.findIndex((step) => step.name === "Check out the PR head"));
+  assert.deepEqual(check.env, { CALLER_HEAD: "${{ inputs.head-sha }}", HEAD_SHA: "${{ steps.gate.outputs.head-sha }}" });
+  const runs = (proceed, caller) => atStep(check.if, { "steps.gate.outputs.proceed": proceed, "inputs.head-sha": caller });
+  assert.equal(runs("true", TRUSTED), true);
+  assert.equal(runs("true", ""), false, "a caller that gated no head, issue mode among them");
+  assert.equal(runs("false", TRUSTED), false);
+  const root = mkdtempSync(join(tmpdir(), "gated-head-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const moved = runStep(check, root, { CALLER_HEAD: TRUSTED, HEAD_SHA: OTHER });
+  assert.equal(moved.status, 1);
+  assert.match(moved.stdout, /^::error::the PR head the trigger gate read is not the head the caller gated/m);
+  assert.equal(runStep(check, root, { CALLER_HEAD: TRUSTED, HEAD_SHA: TRUSTED }).status, 0);
+  // Every fix-ci call passes the head fix-ci-context gated.
+  const { jobs } = workflow("pr-unblock.yml");
+  for (const id of FIX_CI_CALLS) assert.equal(jobs[id].with["head-sha"], "${{ needs.fix-ci-context.outputs.head-sha }}", id);
+});
+
+// --- pr-unblock subscription legs: every start from a trusted value ---
+
+// The read runner's outputs its run job sets. The run job runs head code
+// (rule h16), so a caller's start may read none of them.
+const RUN_JOB_OUTPUTS = () =>
+  Object.entries(workflow("pr-run-activity-read.yml").on.workflow_call.outputs)
+    .filter(([, output]) => /\bjobs\.run\.outputs\./.test(output.value))
+    .map(([name]) => name);
+// Automation Lanes' PR-B (#9332) gives fix-docs its handoff job; until then
+// its subscription leg still starts on the run job's outputs.
+const SUBSCRIPTION_START_PENDING = new Set(["pr-unblock.yml fix-docs-subscription"]);
+
+// #9365: a forged run job could start or suppress a subscription leg.
+test("no subscription leg's if: reads a read runner run-job output", () => {
+  const runOutputs = RUN_JOB_OUTPUTS();
+  assert.ok(["lane-class", "credential-present", "handed-off"].every((name) => runOutputs.includes(name)), runOutputs.join(" "));
+  const legs = [];
+  for (const file of workflowFiles()) {
+    const { jobs } = workflow(file);
+    const calls = new Set(Object.entries(jobs ?? {}).filter(([, job]) => job?.uses === READ_RUNNER).map(([id]) => id));
+    for (const id of calls) {
+      if (jobs[id].with?.fallback === undefined) continue;
+      const leg = `${file} ${id}`;
+      legs.push(leg);
+      const read = [...String(jobs[id].if).matchAll(/needs\.([\w-]+)\.outputs\.([\w-]+)/g)]
+        .filter(([, job, output]) => calls.has(job) && runOutputs.includes(output))
+        .map(([ref]) => ref);
+      if (SUBSCRIPTION_START_PENDING.has(leg)) assert.notDeepEqual(read, [], `${leg} no longer reads a run-job output: drop it from SUBSCRIPTION_START_PENDING`);
+      else assert.deepEqual(read, [], leg);
+    }
+  }
+  assert.deepEqual(legs.sort(), [
+    "pr-unblock.yml address-feedback-subscription",
+    "pr-unblock.yml fix-ci-rung-up-subscription",
+    "pr-unblock.yml fix-ci-subscription",
+    "pr-unblock.yml fix-docs-subscription",
+    "pr-unblock.yml review-dependency-subscription",
+  ]);
+});
+
+// #9365: address-feedback's and review-dependency's fallback calls start as
+// fix-ci's do, on a base job's jobs-API read of the first call's report. The
+// read runner's report job is one job for every activity: run 39894065797's
+// listing names "address-feedback / report" with its "Post the check run"
+// step and "address-feedback / broker-check" with its broker step.
+test("pr-unblock.yml: address-feedback's and review-dependency's fallback calls start on a handoff job's jobs-API read, never on a model call's output", (t) => {
+  const { jobs } = workflow("pr-unblock.yml");
+  const helper = jobs["fix-ci-handoff"].steps[0];
+  for (const [firstId, subId, handoffId, selectId] of [
+    ["address-feedback", "address-feedback-subscription", "address-feedback-handoff", "address-feedback-select"],
+    ["review-dependency", "review-dependency-subscription", "review-dependency-handoff", "review-dependency-select"],
+  ]) {
+    const sub = jobs[subId];
+    const handoff = jobs[handoffId];
+    const proceed = `needs.${selectId}.outputs.proceed`;
+    // The evaluator refuses any reference left unset: the start reads only these.
+    const starts = (posted, proceeds = "true") => evaluate(sub.if, { [proceed]: proceeds, [`needs.${handoffId}.outputs.posted`]: posted });
+    assert.equal(starts("false"), true, `${subId} after a call that posted no check`);
+    assert.equal(starts(""), true, `${subId} after a failed read: a second leg, never a lost check`);
+    assert.equal(starts("true"), false, `${subId} after a call that posted its check`);
+    assert.equal(starts("false", "false"), false);
+    assert.equal(sub.with.fallback, "handoff");
+    // The handoff job: fix-ci-handoff's one shell step on a read-only token.
+    assert.deepEqual(handoff.needs, [selectId, firstId]);
+    assert.equal(evaluate(handoff.if, { [proceed]: "true" }), true);
+    assert.equal(evaluate(handoff.if, { [proceed]: "false" }), false);
+    assert.deepEqual(handoff.permissions, { actions: "read" });
+    assert.deepEqual(handoff.outputs, { posted: "${{ steps.posted.outputs.posted }}" });
+    assert.equal(handoff.steps.length, 1);
+    assert.deepEqual(stepSecrets(handoff), []);
+    assert.doesNotMatch(JSON.stringify(handoff), new RegExp(`needs\\.${firstId}\\.outputs\\.`));
+    const step = handoff.steps[0];
+    assert.equal(step.uses, undefined);
+    assert.equal(step.id, "posted");
+    assert.equal(step.run, helper.run, "fix-ci-handoff's read");
+    assert.deepEqual(step.env, { GH_TOKEN: "${{ github.token }}", CALLS: firstId });
+    // Its read over this lane's calls: the first call's report posted, or not.
+    const listing = (posted, options = {}) => jobListing(posted, { calls: [firstId, subId], ...options });
+    const read = readPosted(t, step, listing([firstId]));
+    assert.equal(read.status, 0);
+    assert.equal(read.outputs.posted, "true");
+    assert.match(read.calls, /^api --paginate repos\/o\/r\/actions\/runs\/99\/jobs\?filter=latest&per_page=100 --jq /);
+    for (const [name, value] of Object.entries({
+      "a skipped report job": listing([], { reportSkipped: [firstId] }),
+      "a report that posted nothing": listing([]),
+      "only the fallback call posted": listing([subId]),
+    })) {
+      const other = readPosted(t, step, value);
+      assert.equal(other.status, 0, name);
+      assert.equal(other.outputs.posted, "false", `${handoffId}: ${name}`);
+    }
+    const failed = readPosted(t, step, listing([firstId]), { fail: true });
+    assert.notEqual(failed.status, 0);
+    assert.deepEqual(failed.outputs, {});
+  }
 });

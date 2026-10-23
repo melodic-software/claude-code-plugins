@@ -1573,18 +1573,24 @@ test("prepare: a read skill that hands on a patch may set a writing skill's prep
     const handsOn = appliedByEdit((doc) => {
       doc.activities["fix-ci"].prepare = prepare;
       if (prepare === "review-threads") doc.activities["fix-ci"]["applied-by"]["feedback-replies"] = "apply-patch";
+      if (prepare === "dependency-review") doc.activities["fix-ci"]["applied-by"]["dependency-verdict"] = "apply-patch";
     });
     assert.equal(unblock(handsOn).prepare, prepare, prepare);
     const noPatch = appliedByEdit((doc) => {
       doc.activities["fix-ci"].prepare = prepare;
       delete doc.activities["fix-ci"]["applied-by"];
     });
-    assertRejected(() => unblock(noPatch), prepare === "review-threads" ? "invalid-config" : "invalid-prepare");
+    assertRejected(() => unblock(noPatch), prepare === "merge-base" ? "invalid-prepare" : "invalid-config");
   }
   const noReplies = appliedByEdit((doc) => {
     doc.activities["fix-ci"].prepare = "review-threads";
   });
   assertRejected(() => unblock(noReplies), "invalid-config");
+  // A read dependency-review skill hands on its verdict too.
+  const noVerdict = appliedByEdit((doc) => {
+    doc.activities["fix-ci"].prepare = "dependency-review";
+  });
+  assertRejected(() => unblock(noVerdict), "invalid-config");
 });
 
 test("applied-by: a read skill whose patch an apply-patch script in its lane needs resolves and carries the map", () => {

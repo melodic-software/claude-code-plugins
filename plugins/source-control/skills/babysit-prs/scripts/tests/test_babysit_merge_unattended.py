@@ -144,6 +144,9 @@ def _evaluate(
     unattended: Any = None,
     *,
     compare: dict[str, Any] = fixtures.UP_TO_DATE,
+    issue_comments: list[dict[str, Any]] | None = None,
+    review_comments: list[dict[str, Any]] | None = None,
+    reviews: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Run `evaluate` over one fixture with every gh seam stubbed."""
 
@@ -161,10 +164,18 @@ def _evaluate(
         mock.patch.object(merge, "gh_json", side_effect=gh_json),
         mock.patch.object(merge, "fetch_review_threads", return_value=[]),
         mock.patch.object(
-            merge, "fetch_pull_request_reviews", return_value=fixtures.CLEAN_APPROVAL
+            merge,
+            "fetch_pull_request_reviews",
+            return_value=fixtures.CLEAN_APPROVAL + (reviews or []),
         ),
-        mock.patch.object(merge, "fetch_issue_comments", return_value=[]),
-        mock.patch.object(merge, "fetch_pull_request_review_comments", return_value=[]),
+        mock.patch.object(
+            merge, "fetch_issue_comments", return_value=issue_comments or []
+        ),
+        mock.patch.object(
+            merge,
+            "fetch_pull_request_review_comments",
+            return_value=review_comments or [],
+        ),
     ):
         return merge.evaluate(
             "owner/repo",
@@ -351,6 +362,215 @@ class NeedsHumanHoldsOnlyAutonomous(unittest.TestCase):
         for run in (None, permits):
             with self.subTest(unattended=run is not None):
                 self.assertFalse(_evaluate(pr, HEAD, None, unattended=run)["ready"])
+
+
+def _comment(
+    login: str,
+    body: str,
+    *,
+    bot: bool = False,
+    at: str = "2026-10-12T10:00:00Z",
+    association: str = "MEMBER",
+) -> dict[str, Any]:
+    return {
+        "authorAssociation": association,
+        "author": {
+            "login": login,
+            "__typename": "Bot" if bot else "User",
+            "is_bot": bot,
+        },
+        "body": body,
+        "createdAt": at,
+    }
+
+
+class PrMergeHoldsOnAHumanVeto(unittest.TestCase):
+    """The pr-merge lane enqueues with no person present, so a person whose
+    newest comment with text says "do not merge" (`HUMAN_MERGE_VETO_RE` only)
+    holds it before the enqueue, until a later comment of theirs. A bare "wait
+    for CI" or a blocking word such as "regression" holds nothing."""
+
+    PR_MERGE = policy.UnattendedPolicy(
+        None,
+        IDENTITY,
+        enabled=True,
+        promoted=True,
+        inputs={"authority": policy.PR_MERGE},
+    )
+    LOCAL = policy.UnattendedPolicy(
+        None,
+        IDENTITY,
+        enabled=True,
+        promoted=True,
+        inputs={"authority": policy.LOCAL_BABYSIT},
+    )
+
+    def _vetoes(self, result: dict[str, Any]) -> list[str]:
+        return [b for b in result["blockers"] if "human blocking comment" in b or "human merge veto" in b]
+
+    def test_a_human_do_not_merge_comment_holds(self) -> None:
+        result = _evaluate(
+            fixtures._pr(),
+            HEAD,
+            None,
+            self.PR_MERGE,
+            issue_comments=[_comment("maintainer", "Please don't merge this yet.")],
+        )
+        self.assertFalse(result["ready"])
+        self.assertEqual(len(self._vetoes(result)), 1, result["blockers"])
+        self.assertIn("maintainer", self._vetoes(result)[0])
+
+    def test_a_human_inline_veto_holds(self) -> None:
+        inline = {
+            "user": {"login": "maintainer", "type": "User"},
+            "author_association": "MEMBER",
+            "body": "Do not merge: this is a regression.",
+        }
+        result = _evaluate(
+            fixtures._pr(), HEAD, None, self.PR_MERGE, review_comments=[inline]
+        )
+        self.assertFalse(result["ready"])
+        self.assertEqual(len(self._vetoes(result)), 1, result["blockers"])
+
+    def test_a_bare_wait_holds_nothing(self) -> None:
+        result = _evaluate(
+            fixtures._pr(),
+            HEAD,
+            None,
+            self.PR_MERGE,
+            issue_comments=[_comment("maintainer", "Wait for CI, then it can go.")],
+        )
+        self.assertEqual(result["blockers"], [])
+
+    def test_blocking_words_without_a_veto_hold_nothing(self) -> None:
+        # The tier's wider vocabulary is not the lane's: these are not vetoes.
+        for body in (
+            "Fixed the regression you flagged.",
+            "Pushed a fix, this is no longer blocking.",
+        ):
+            with self.subTest(body):
+                result = _evaluate(
+                    fixtures._pr(),
+                    HEAD,
+                    None,
+                    self.PR_MERGE,
+                    issue_comments=[_comment("maintainer", body)],
+                )
+                self.assertEqual(result["blockers"], [])
+
+    def test_a_later_comment_from_the_same_person_lifts_the_veto(self) -> None:
+        veto = _comment(
+            "maintainer", "Do not merge until the release is cut.", at="2026-10-12T10:00:00Z"
+        )
+        lifted = _comment(
+            "maintainer", "Release is out, go ahead.", at="2026-10-12T11:00:00Z"
+        )
+        result = _evaluate(
+            fixtures._pr(), HEAD, None, self.PR_MERGE, issue_comments=[veto, lifted]
+        )
+        self.assertEqual(result["blockers"], [])
+
+    def test_an_empty_review_after_the_veto_does_not_lift_it(self) -> None:
+        # GitHub records an inline-only review, or an Approve with no text, as a
+        # review summary with an empty body and a later submittedAt.
+        def empty_review(state: str) -> dict[str, Any]:
+            return {
+                "author": {"login": "maintainer"},
+                "authorAssociation": "MEMBER",
+                "body": "",
+                "state": state,
+                "submittedAt": "2026-10-12T10:01:00Z",
+                "commit": {"oid": HEAD},
+            }
+
+        inline = {
+            "user": {"login": "maintainer", "type": "User"},
+            "author_association": "COLLABORATOR",
+            "body": "Do not merge until X.",
+            "created_at": "2026-10-12T10:00:00Z",
+        }
+        cases = {
+            "inline veto, empty review summary": {
+                "review_comments": [inline],
+                "reviews": [empty_review("COMMENTED")],
+            },
+            "issue-comment veto, approve with no text": {
+                "issue_comments": [_comment("maintainer", "Do not merge yet.")],
+                "reviews": [empty_review("APPROVED")],
+            },
+        }
+        for name, kwargs in cases.items():
+            with self.subTest(name):
+                result = _evaluate(fixtures._pr(), HEAD, None, self.PR_MERGE, **kwargs)
+                self.assertEqual(len(self._vetoes(result)), 1, result["blockers"])
+
+    def test_only_owner_member_or_collaborator_can_veto(self) -> None:
+        for association, holds in (
+            ("NONE", False),
+            ("CONTRIBUTOR", False),
+            ("FIRST_TIME_CONTRIBUTOR", False),
+            ("", False),
+            ("MEMBER", True),
+            ("OWNER", True),
+            ("COLLABORATOR", True),
+        ):
+            with self.subTest(association):
+                veto = _comment("someone", "Do not merge.", association=association)
+                inline = {
+                    "user": {"login": "someone", "type": "User"},
+                    "author_association": association,
+                    "body": "Do not merge.",
+                    "created_at": "2026-10-12T10:00:00Z",
+                }
+                for kwargs in ({"issue_comments": [veto]}, {"review_comments": [inline]}):
+                    result = _evaluate(fixtures._pr(), HEAD, None, self.PR_MERGE, **kwargs)
+                    self.assertEqual(
+                        len(self._vetoes(result)), int(holds), result["blockers"]
+                    )
+
+    def test_another_persons_later_comment_does_not_lift_it(self) -> None:
+        veto = _comment("maintainer", "Do not merge yet.", at="2026-10-12T10:00:00Z")
+        other = _comment("someone", "Looks good to me.", at="2026-10-12T11:00:00Z")
+        result = _evaluate(
+            fixtures._pr(), HEAD, None, self.PR_MERGE, issue_comments=[veto, other]
+        )
+        self.assertEqual(len(self._vetoes(result)), 1, result["blockers"])
+        self.assertIn("maintainer", self._vetoes(result)[0])
+
+    def test_a_bot_or_the_lane_identity_holds_nothing(self) -> None:
+        for comment in (
+            _comment("reviewer[bot]", "Do not merge: blocking regression.", bot=True),
+            _comment(IDENTITY, "Do not merge until the queue drains."),
+        ):
+            with self.subTest(comment["author"]["login"]):
+                result = _evaluate(
+                    fixtures._pr(),
+                    HEAD,
+                    None,
+                    self.PR_MERGE,
+                    issue_comments=[comment],
+                )
+                self.assertEqual(result["blockers"], [])
+
+    def test_another_authority_does_not_scan(self) -> None:
+        result = _evaluate(
+            fixtures._pr(),
+            HEAD,
+            None,
+            self.LOCAL,
+            issue_comments=[_comment("maintainer", "Do not merge.")],
+        )
+        self.assertEqual(result["blockers"], [])
+
+    def test_the_tier_scan_is_not_repeated(self) -> None:
+        result = _evaluate(
+            fixtures._pr(),
+            HEAD,
+            fixtures.TIER,
+            self.PR_MERGE,
+            issue_comments=[_comment("maintainer", "Do not merge.")],
+        )
+        self.assertEqual(len(self._vetoes(result)), 1, result["blockers"])
 
 
 class EvaluateWithoutPolicyIsUnchanged(unittest.TestCase):
@@ -592,8 +812,9 @@ class Unattended(unittest.TestCase):
             else self.dependabot_reads[0]
         )
 
-    def _lane_evidence(self, *args: Any) -> Any:
+    def _lane_evidence(self, *args: Any, **kwargs: Any) -> Any:
         self.lane_args = args
+        self.lane_kwargs = kwargs
         if self.lane_error is not None:
             raise self.lane_error
         return self.lanes, self.comments
@@ -603,6 +824,9 @@ class Unattended(unittest.TestCase):
         # (a verifier refusal skips it).
         if endpoint == f"repos/owner/repo/issues/{PR}/comments?per_page=100":
             return self.comments
+        # The pr-merge human-veto scan reads the inline review comments too.
+        if endpoint == f"repos/owner/repo/pulls/{PR}/comments?per_page=100":
+            return []
         return self._real_paginated(endpoint, label, **kwargs)
 
     def _default_branch(self, repo: str, *, shared: bool = False) -> str:
@@ -766,6 +990,9 @@ class Unattended(unittest.TestCase):
             mock.patch.object(
                 merge, "fetch_paginated_api", side_effect=self._paginated
             ),
+            # The comment readers `babysit_merge` imports from `babysit_gh`
+            # page through that module's own reader.
+            mock.patch.object(gh, "fetch_paginated_api", side_effect=self._paginated),
             mock.patch.object(
                 policy,
                 "recheck_opt_in",
@@ -1062,6 +1289,24 @@ class LaneMode(Unattended):
             {"proceed": True, "reason": "proceed"},
         )
 
+    def test_a_human_do_not_merge_comment_holds_the_enqueue(self) -> None:
+        self.comments = [
+            {
+                "id": 93,
+                "user": {"login": "maintainer", "type": "User"},
+                "author_association": "OWNER",
+                "created_at": "2026-10-12T10:00:00Z",
+                "body": "Do not merge until the release is cut.",
+            }
+        ]
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertTrue(
+            any("human merge veto from maintainer" in b for b in out["blockers"]),
+            out["blockers"],
+        )
+        self.assertNotIn(f"enqueue:{HEAD}:merge_queue", self.log)
+
     def test_the_lane_enqueues_through_graphql_not_merge_async(self) -> None:
         self._async_merge = REAL_ASYNC_MERGE  # type: ignore[method-assign]
         code, out = self.lane()
@@ -1246,7 +1491,7 @@ class LaneMode(Unattended):
     def test_a_read_past_the_candidate_deadline_stops_before_any_write(self) -> None:
         read_on: list[float] = []
 
-        def slow_read(*args: Any) -> Any:
+        def slow_read(*args: Any, **_: Any) -> Any:
             self._command_at(241.0)
             read_on.append(self.now)
             return self.lanes, self.comments
@@ -1262,7 +1507,7 @@ class LaneMode(Unattended):
         self.dequeue.assert_not_called()
 
     def test_the_same_slow_read_without_a_deadline_still_enqueues(self) -> None:
-        def slow_read(*args: Any) -> Any:
+        def slow_read(*args: Any, **_: Any) -> Any:
             self._command_at(10_000.0)
             return self.lanes, self.comments
 
@@ -1831,6 +2076,19 @@ class EachRefusalMakesNoMergeCall(Unattended):
         self.assert_no_merge(code)
         self.assertEqual(
             out["unattended"]["reason"], "head-pusher-unproven:aaaaaaaaaaaa"
+        )
+
+    def test_a_lane_run_listing_at_the_search_cap_binds_no_lane(self) -> None:
+        # collect_lane_runs raises on a listing at the search cap.
+        self.lane_error = RuntimeError(
+            "pr-review-hosted.yml runs: total_count 1000, 1000 returned, "
+            "at the 1000-run search cap"
+        )
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(
+            {(e["bound"], e["unboundReason"]) for e in out["unattended"]["evidence"]},
+            {(False, "evidence-missing")},
         )
 
     def test_an_armed_auto_merge_is_disarmed_and_refused(self) -> None:
@@ -2769,6 +3027,11 @@ class LaneEvidenceGetsTheChangedPaths(Unattended):
         self.run_main(merge_flag=False)
         self.assertIsNone(self.lane_args[-1])
 
+    def test_the_configured_read_token_floor_reaches_the_lane_evidence(self) -> None:
+        self.config = dataclasses.replace(self.config, read_token_floor=0.75)
+        self.run_main(merge_flag=False)
+        self.assertEqual(self.lane_kwargs, {"read_floor": 0.75})
+
 
 class ReasonsComment(Unattended):
     """MED/HIGH on an eligible pull request: one upserted comment (T14, D15)."""
@@ -3447,13 +3710,22 @@ class HeadPushers(unittest.TestCase):
 class LaneEvidenceReadToken(unittest.TestCase):
     """The gate's review-evidence reads (timeline, comments, lane runs and
     their attempts, jobs and annotations) run under the job's read-only token
-    (`BABYSIT_VERIFY_GH_TOKEN`), off the lane App's quota; each is a GET."""
+    (`BABYSIT_VERIFY_GH_TOKEN`), off the lane App's quota, while that token
+    has `merge.read-token-floor` of its core limit left; each is a GET."""
 
     RUN = 11
     JOB = 21
+    # GET /rate_limit's core bucket for the read token: (remaining, limit),
+    # or None for a read that fails.
+    core: tuple[int, int] | None = (1000, 1000)
 
     def answer(self, args: list[str]) -> Any:
         endpoint = args[1]
+        if endpoint == "rate_limit":
+            assert self.core is not None
+            left, limit = self.core
+            bucket = {"remaining": left, "limit": limit}
+            return {"resources": {"core": bucket, "graphql": bucket}}
         runs = f"repos/owner/repo/actions/runs/{self.RUN}"
         bot = {"login": IDENTITY}
         if endpoint.endswith(f"/pulls/{PR}/commits?per_page=100"):
@@ -3481,13 +3753,22 @@ class LaneEvidenceReadToken(unittest.TestCase):
             return [[]]
         raise AssertionError(f"unexpected gh call: {args}")
 
-    def calls(self, environ: dict[str, str]) -> list[tuple[list[str], Any]]:
+    def calls(
+        self, environ: dict[str, str], **floor: float
+    ) -> list[tuple[list[str], Any]]:
+        return self.read(environ, **floor)[0]
+
+    def read(
+        self, environ: dict[str, str], **floor: float
+    ) -> tuple[list[tuple[list[str], Any]], Any]:
         calls: list[tuple[list[str], Any]] = []
 
         def fake_gh(
             args: list[str], *, env_overrides: Any = None, **_: Any
         ) -> subprocess.CompletedProcess[str]:
             calls.append((args, env_overrides))
+            if args[1] == "rate_limit" and self.core is None:
+                return subprocess.CompletedProcess(args, 1, "", "HTTP 502")
             return subprocess.CompletedProcess(
                 args, 0, json.dumps(self.answer(args)), ""
             )
@@ -3504,13 +3785,31 @@ class LaneEvidenceReadToken(unittest.TestCase):
             mock.patch.object(gh, "_run_gh", side_effect=fake_gh),
             mock.patch.object(merge, "fetch_review_threads", return_value=[]),
         ):
-            merge._lane_evidence(
-                "owner/repo", PR, pr, IDENTITY, frozenset(), lambda login: "write", ()
+            result = merge._lane_evidence(
+                "owner/repo",
+                PR,
+                pr,
+                IDENTITY,
+                frozenset(),
+                lambda login: "write",
+                (),
+                **floor,
             )
-        return calls
+        return calls, result
+
+    def evidence_tokens(self, **floor: float) -> list[Any]:
+        """The env of every evidence read, the limit read and the shared
+        commits read left out."""
+        calls = self.calls({"BABYSIT_VERIFY_GH_TOKEN": "read-tok"}, **floor)
+        return [
+            env
+            for args, env in calls
+            if args[1] != "rate_limit" and not args[1].endswith("/commits?per_page=100")
+        ]
 
     def test_the_evidence_reads_carry_the_read_token_and_are_gets(self) -> None:
         calls = self.calls({"BABYSIT_VERIFY_GH_TOKEN": "read-tok"})
+        calls = [(args, env) for args, env in calls if args[1] != "rate_limit"]
         carried = [args for args, env in calls if env == {"GH_TOKEN": "read-tok"}]
         for args in carried:
             with self.subTest(args[1]):
@@ -3527,16 +3826,254 @@ class LaneEvidenceReadToken(unittest.TestCase):
         for kind in kinds:
             with self.subTest(kind):
                 self.assertTrue(any(kind in args[1] for args in carried), kind)
-        # Two lanes: listing, run, attempt, jobs and one annotations read each.
-        self.assertEqual(len(carried), 2 + 2 * 5)
+        # Two lanes: listing, run, jobs and one annotations read each; the run
+        # read is the latest attempt's record.
+        self.assertEqual(len(carried), 2 + 2 * 4)
         # The commits read is shared with other readers and keeps its token.
         others = [args[1] for args, env in calls if env is None]
         self.assertEqual(others, [f"repos/owner/repo/pulls/{PR}/commits?per_page=100"])
 
     def test_with_no_read_token_every_read_keeps_the_process_token(self) -> None:
         calls = self.calls({})
-        self.assertEqual(len(calls), 1 + 2 + 2 * 5)
+        self.assertEqual(len(calls), 1 + 2 + 2 * 4)
         self.assertEqual([env for _, env in calls], [None] * len(calls))
+
+    # The floor's boundary from the default 0.3 of a 1,000 limit: 300 left
+    # is at the floor and keeps the read token, 299 is under it.
+    def test_at_the_floor_the_evidence_reads_keep_the_read_token(self) -> None:
+        self.core = (300, 1000)
+        tokens = self.evidence_tokens(read_floor=0.3)
+        self.assertEqual(len(tokens), 2 + 2 * 4)
+        self.assertEqual(tokens, [{"GH_TOKEN": "read-tok"}] * len(tokens))
+
+    def test_under_the_floor_the_evidence_reads_use_the_lane_token(self) -> None:
+        self.core = (299, 1000)
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            tokens = self.evidence_tokens(read_floor=0.3)
+        self.assertEqual(len(tokens), 2 + 2 * 4)
+        self.assertEqual(tokens, [None] * len(tokens))
+        self.assertIn("core:299/1000 is under 0.3", stderr.getvalue())
+
+    def test_the_default_floor_is_the_settings_default(self) -> None:
+        self.core = (299, 1000)
+        with contextlib.redirect_stderr(io.StringIO()):
+            tokens = self.evidence_tokens()
+        self.assertEqual(tokens, [None] * len(tokens))
+
+    def test_a_limit_read_that_fails_uses_the_lane_token(self) -> None:
+        self.core = None
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            tokens = self.evidence_tokens(read_floor=0.3)
+        self.assertEqual(len(tokens), 2 + 2 * 4)
+        self.assertEqual(tokens, [None] * len(tokens))
+        self.assertIn("unreadable", stderr.getvalue())
+
+    def test_a_limit_reply_without_its_bucket_uses_the_lane_token(self) -> None:
+        answer = self.answer
+
+        def no_core(args: list[str]) -> Any:
+            return {"resources": {}} if args[1] == "rate_limit" else answer(args)
+
+        self.answer = no_core  # type: ignore[method-assign]
+        with contextlib.redirect_stderr(io.StringIO()):
+            tokens = self.evidence_tokens(read_floor=0.3)
+        self.assertEqual(tokens, [None] * len(tokens))
+
+
+
+class LaneEvidenceReadTokenOutage(unittest.TestCase):
+    """GitHub can refuse the read token for a rate limit while GET
+    /rate_limit still shows room: at 05:3xZ on 2026-10-23 it read 3934 of
+    5000 left as `github.token` answered 403 "API rate limit exceeded for
+    installation". The evidence is then read again with the lane token and
+    still binds, and later candidates in the run skip the read token. The
+    fixture is a complete, passing review on the head for both lanes, so a
+    bound result proves the reads that fed `bind()` succeeded."""
+
+    LIMITED = (
+        "gh: API rate limit exceeded for installation ID 4242. If you reach out"
+        " to GitHub Support for help, please include the request ID"
+        " 0000:0000:0000:0000. (HTTP 403)"
+    )
+    REFUSED = "gh: Resource not accessible by integration (HTTP 403)"
+
+    def setUp(self) -> None:
+        self.refusal: str | None = self.LIMITED
+        self.ids = {
+            lane: (100 + i, 200 + i)
+            for i, lane in enumerate(merge.review_evidence.LANES)
+        }
+        cache = tempfile.TemporaryDirectory()
+        self.addCleanup(cache.cleanup)
+        self.cache = str(pathlib.Path(cache.name, "run-cache.json"))
+
+    def answer(self, endpoint: str) -> Any:
+        bot = {"login": IDENTITY}
+        if endpoint == "rate_limit":
+            bucket = {"remaining": 3934, "limit": 5000}
+            return {"resources": {"core": bucket, "graphql": bucket}}
+        if endpoint.endswith(f"/pulls/{PR}/commits?per_page=100"):
+            return [[{"sha": HEAD, "author": bot, "committer": bot}]]
+        if endpoint.endswith("/timeline?per_page=100"):
+            return [[]]
+        if endpoint.endswith("/comments?per_page=100"):
+            return [
+                [
+                    {
+                        "id": 300 + i,
+                        "user": {"login": "github-actions[bot]", "type": "Bot"},
+                        "created_at": "2026-10-22T02:00:00Z",
+                        "body": f"<!-- claude-lane-reviewed-head lane={lane}"
+                        f" sha={HEAD} -->\n{lane} has reviewed this pull request"
+                        f" through {HEAD}.",
+                    }
+                    for i, lane in enumerate(merge.review_evidence.LANES)
+                ]
+            ]
+        for lane, (path, suffix) in merge.review_evidence.LANES.items():
+            run, job = self.ids[lane]
+            done = {"status": "completed", "conclusion": "success", "head_sha": HEAD}
+            if f"/actions/workflows/{path.rsplit('/', 1)[-1]}/" in endpoint:
+                item = {
+                    "id": run,
+                    "path": path,
+                    "event": "pull_request",
+                    "run_attempt": 1,
+                    "created_at": "2026-10-22T01:00:00Z",
+                    "pull_requests": [{"number": PR}],
+                    **done,
+                }
+                return [{"workflow_runs": [item]}]
+            base = f"repos/owner/repo/actions/runs/{run}"
+            if endpoint == base:
+                # The run read is the latest attempt's record.
+                return {"id": run, "run_attempt": 1, **done}
+            if endpoint == f"{base}/attempts/1/jobs?per_page=100":
+                return [
+                    {
+                        "jobs": [
+                            {
+                                "id": job,
+                                "run_id": run,
+                                "run_attempt": 1,
+                                "name": f"pr-review / {suffix}",
+                                "started_at": "2026-10-22T01:00:00Z",
+                                "completed_at": "2026-10-22T01:30:00Z",
+                                **done,
+                            }
+                        ]
+                    }
+                ]
+            if endpoint == f"repos/owner/repo/check-runs/{job}/annotations?per_page=100":
+                message = (
+                    f"claude-lane-review-complete lane={lane} sha={HEAD}"
+                    " findings=0 inline=0 scope=whole"
+                )
+                return [
+                    [
+                        {
+                            "path": ".github",
+                            "annotation_level": "notice",
+                            "title": "claude-lane-review-complete",
+                            "message": message,
+                        }
+                    ]
+                ]
+        raise AssertionError(f"unexpected gh call: {endpoint}")
+
+    def read(self) -> tuple[list[tuple[str, str]], Any]:
+        """(endpoint, token) of every call, and `_lane_evidence`'s result or
+        the exception it raised."""
+        calls: list[tuple[str, str]] = []
+
+        def fake_gh(
+            args: list[str], *, check: bool = True, env_overrides: Any = None, **_: Any
+        ) -> subprocess.CompletedProcess[str]:
+            token = (env_overrides or {}).get("GH_TOKEN", "lane-tok")
+            calls.append((args[1], token))
+            if token == "read-tok" and args[1] != "rate_limit" and self.refusal:
+                if check:
+                    raise RuntimeError(f"gh {' '.join(args)} failed: {self.refusal}")
+                return subprocess.CompletedProcess(args, 1, "", self.refusal)
+            return subprocess.CompletedProcess(
+                args, 0, json.dumps(self.answer(args[1])), ""
+            )
+
+        pr = {
+            "number": PR,
+            "head": {"ref": "feat", "sha": HEAD},
+            "user": {"login": IDENTITY},
+            "commits": 1,
+            "created_at": "2026-10-22T00:00:00Z",
+        }
+        environ = {
+            "GH_TOKEN": "lane-tok",
+            "BABYSIT_VERIFY_GH_TOKEN": "read-tok",
+            "BABYSIT_RUN_CACHE": self.cache,
+        }
+        result: Any
+        with (
+            mock.patch.dict("os.environ", environ, clear=True),
+            mock.patch.object(gh, "_run_gh", side_effect=fake_gh),
+            mock.patch.object(merge, "fetch_review_threads", return_value=[]),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            try:
+                result = merge._lane_evidence(
+                    "owner/repo",
+                    PR,
+                    pr,
+                    IDENTITY,
+                    frozenset(),
+                    lambda login: "write",
+                    (),
+                    read_floor=0.3,
+                )
+            except RuntimeError as exc:
+                result = exc
+        return calls, result
+
+    def test_a_rate_limited_read_token_reads_again_on_the_lane_token(self) -> None:
+        calls, result = self.read()
+        lanes, comments = result
+        self.assertEqual([lane.bound for lane in lanes], [True, True])
+        self.assertEqual([lane.open_findings for lane in lanes], [0, 0])
+        self.assertEqual(len(comments), 2)
+        # 3934 of 5000 is above the 0.3 floor, so the read token was tried
+        # first, refused once, and every evidence read then ran on the lane
+        # token.
+        tried = [e for e, token in calls if token == "read-tok" and e != "rate_limit"]
+        self.assertEqual(tried, [f"repos/owner/repo/issues/{PR}/timeline?per_page=100"])
+        after = calls[calls.index((tried[0], "read-tok")) + 1 :]
+        self.assertTrue(after)
+        self.assertEqual({token for _, token in after}, {"lane-tok"})
+
+    def test_a_later_candidate_skips_the_limited_read_token(self) -> None:
+        self.read()
+        self.refusal = None
+        calls, result = self.read()
+        lanes, _ = result
+        self.assertEqual([lane.bound for lane in lanes], [True, True])
+        # Not even the limit read: the run cache says the token is spent.
+        self.assertEqual([e for e, token in calls if token == "read-tok"], [])
+
+    def test_a_refusal_that_is_no_rate_limit_is_not_read_again(self) -> None:
+        self.refusal = self.REFUSED
+        calls, result = self.read()
+        self.assertIsInstance(result, RuntimeError)
+        self.assertIn("Resource not accessible", str(result))
+        evidence = [
+            e
+            for e, token in calls
+            if token == "lane-tok" and not e.endswith("/commits?per_page=100")
+        ]
+        self.assertEqual(evidence, [])
+        # Nor is the token marked spent for the rest of the run.
+        self.refusal = None
+        calls, _ = self.read()
+        self.assertIn(("rate_limit", "read-tok"), calls)
 
 
 class CandidateReadsOnce(unittest.TestCase):

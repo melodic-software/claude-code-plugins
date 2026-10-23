@@ -112,28 +112,56 @@ activities:
     # Reviews one Dependabot pull request the classifier sorts `review` (a
     # major bump, an action publisher outside the allowlist, a group holding
     # a major, a red ci-status, or a file outside the content rule) and
-    # returns a verdict: merge, fix, close or escalate. It posts nothing
-    # itself. pr-unblock-dispatch.yml starts it; a trusted person may also
-    # dispatch it by hand.
+    # returns a verdict: merge, fix, close or escalate. It posts nothing and
+    # holds no write token: the read runner hands its verdict to
+    # apply-dependency-verdict and, on a fix verdict, its uncommitted fix as
+    # a patch that apply-dependency-patch pushes. pr-unblock-dispatch.yml
+    # starts it; a trusted person may also dispatch it by hand.
     skill: source-control:pull-request
-    # The skill's CI mode for dependency bumps: reads the runner's context
-    # file, the checkout and upstream release notes, runs no head code, and
-    # pushes a fix only to npm or pip manifest and lock files outside
-    # .github/, with [dependabot skip]; the runner lands no other fix.
+    # The skill's CI mode for dependency bumps: reads the context file, the
+    # checkout and upstream release notes, runs no command, and leaves a fix
+    # to npm or pip manifest and lock files outside .github/ uncommitted;
+    # patch-rules.json's dependency-review row lands no other fix.
     args: dependency --ci
-    # Before any model turn the runner skips a pull request Dependabot did
-    # not open or one sorted `auto`, and hands it to a person once
-    # `loop.dependency-review-rounds` rounds already ran.
+    # Before any model turn pr-unblock.yml's review-dependency-select job,
+    # which runs only base code, skips a pull request Dependabot did not open
+    # or one sorted `auto`, hands it to a person once
+    # `loop.dependency-review-rounds` rounds already ran, and writes the
+    # context file; the read runner checks it and gives the skill a verdict
+    # schema for its structured output.
     prepare: dependency-review
     # Reads the upstream changelog and release notes for the bumped versions.
     web-access:
       enabled: true
       domains: [github.com, raw.githubusercontent.com, www.npmjs.com, registry.npmjs.org, pypi.org]
-    # Pushes a fix to the pull request's branch, nothing else.
-    effect: mutate-branch
+    # Edits head files, so no write token: the fix leaves as a patch.
+    effect: read
+    applied-by:
+      patch: apply-dependency-patch
+      dependency-verdict: apply-dependency-verdict
     # ci-status judges the pushed fix; the verdict job acts on the verdict.
     gating: advisory
     # Reads the PR body's release notes, the upstream changelog and head files.
+    reads-untrusted: true
+    inputs: [pr, head-sha]
+    applies-when:
+      labels-absent: [do-not-merge, needs-human]
+      draft: [false]
+  apply-dependency-patch:
+    # Applies review-dependency's patch, on a fix verdict only, to the head
+    # the select job gated and pushes it as one commit with [dependabot skip],
+    # without force. A script, no model, and it runs no head code;
+    # patch-rules.json's dependency-review row admits only a version change of
+    # npm or pip manifest and lock files outside .github/ in a directory the
+    # base dependabot.yml lists, and a head that moved since skips. A patch
+    # that does not land leaves no fix commit, so apply-dependency-verdict
+    # hands the pull request to a person.
+    script: .github/scripts/apply-patch/apply-patch.mjs
+    prepare: apply-patch
+    # Pushes the fix to the pull request's branch, nothing else.
+    effect: mutate-branch
+    gating: advisory
+    # Reads the patch the model wrote.
     reads-untrusted: true
     inputs: [pr, head-sha]
     applies-when:
@@ -417,9 +445,12 @@ lanes:
         needs: [address-feedback, apply-feedback-patch]
       # Started by pr-unblock-dispatch.yml for review-tier Dependabot PRs.
       - activity: review-dependency
-      # Runs after review-dependency, in its own job with its own token.
-      - activity: apply-dependency-verdict
+      # Run after review-dependency, each in its own job with its own token:
+      # the push of a fix, then the verdict, which judges what landed.
+      - activity: apply-dependency-patch
         needs: [review-dependency]
+      - activity: apply-dependency-verdict
+        needs: [review-dependency, apply-dependency-patch]
       # Started by pr-unblock-dispatch.yml for lanes App PRs whose ci-status
       # failed.
       - activity: fix-ci
@@ -505,6 +536,9 @@ models:
   default-profile: standard
   routes:
     address-feedback: code-fix
+    # Judges a dependency update against its release notes, as verify-pr
+    # judges a pull request against its spec.
+    review-dependency: review
     fix-ci: code-fix
     fix-docs: docs-fix
     verify-pr: review
@@ -729,6 +763,20 @@ merge:
   # 30-minute timeout with the minute before the loop and the closing steps
   # (judgment).
   gate-deferred-minutes: 20
+  # The share of GITHUB_TOKEN's core limit (GET /rate_limit) that must be
+  # left for the gate's review-evidence reads (timeline, comments, lane runs,
+  # attempts, jobs, annotations) to use it; below it, or when the limit cannot
+  # be read, they use the lane App token. An early switch only: a read refused
+  # for a rate limit also moves them to the lane App token for the rest of
+  # the run, since /rate_limit read 3934 of 5000 left while the token was
+  # already refused. Either token reads the same data, so no gate decision
+  # changes. The pool is 1,000 an hour per repository and shared by
+  # every job; moving these reads onto it added an estimated 600-1,500 an
+  # hour, and it ran out at 05:26Z on 2026-10-23, failing pr-merge's full-run
+  # dispatch on runs 39905758340, 39905868587 and 39906176584. 0.3 keeps 300
+  # for the dispatches, waits and post-merge checks, the share
+  # babysit_whole_review.py's MIN_SHARE keeps (judgment).
+  read-token-floor: 0.3
   # Minutes a MED or HIGH reasons comment must stand unchanged at the head
   # before the gate adds the human-gated label; 0 is no minimum. 60 is longer
   # than a review lane's run (judgment), so a review still running at the

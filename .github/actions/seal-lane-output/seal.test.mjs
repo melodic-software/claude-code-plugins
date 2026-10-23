@@ -120,12 +120,16 @@ test("each seal takes a fresh ephemeral key and a fresh nonce", () => {
 
 // The read runner's run job carries each payload at most at its cap and seals
 // them all into the chunks its outputs map (pr-run-activity-read.yml's carry
-// and seal steps). Every payload at its cap, with incompressible bytes, still
-// fits: the real sealer, at the caps and chunk count read from that file.
+// and seal steps). A review-threads skill's replies and a dependency-review
+// skill's verdict are never carried together, so each run's payloads at their
+// caps, with incompressible bytes, still fit: the real sealer, at the caps
+// and chunk count read from that file.
 test("the read runner's payloads, each at its cap, seal into the chunks its run job carries", (t) => {
   const workflow = readFileSync(path.join(HERE, "../../workflows/pr-run-activity-read.yml"), "utf8");
   const caps = Object.fromEntries([...workflow.matchAll(/^ +carry [a-z-]+ "\$[A-Z_]+(?:\/[a-z.-]+)?" ([a-z.-]+) ([0-9]+)$/gm)].map((m) => [m[1], Number(m[2])]));
-  assert.deepEqual(caps, { "reply.txt": 16384, "act-turns.json": 32768, "patch.diff": 262144, "replies.jsonl": 49152 });
+  assert.deepEqual(caps, { "reply.txt": 16384, "act-turns.json": 32768, "patch.diff": 262144, "replies.jsonl": 49152, "dependency-verdict.json": 49152 });
+  // One of the two, never both: an if/elif in the carry step.
+  assert.match(workflow, /\n +if \[ -n "\$REPLIES_FILE" \]; then\n +carry replies [^\n]+\n +elif \[ -n "\$VERDICT_FILE" \]; then\n +carry dependency-verdict [^\n]+\n +fi\n/);
   const seal = /- name: Seal the reply, run fields and patch for the scan job\n[\s\S]*?payloads: \|\n((?: {12}.*\n)+) {10}job-id: run\n {10}max-chunks: ([0-9]+)\n/.exec(workflow);
   assert.ok(seal, "the seal step");
   const names = seal[1].trim().split("\n").map((line) => line.trim().split("=")[0]);
@@ -133,22 +137,20 @@ test("the read runner's payloads, each at its cap, seal into the chunks its run 
   const dir = tempDir(t);
   writeFileSync(path.join(dir, "key.pub"), publicLine());
   for (const [name, cap] of Object.entries(caps)) writeFileSync(path.join(dir, name), crypto.randomBytes(cap));
-  const result = runSeal(t, dir, {
-    "public-key-file": "key.pub",
-    payloads: names.map((name) => `${name}=${name}`).join("\n"),
-    "job-id": "run",
-    "max-chunks": seal[2],
-  });
-  assert.equal(result.status, 0, result.stdout);
-  assert.ok(Number(result.outputs["sealed-length"]) <= Number(seal[2]) * CHUNK);
-  assert.equal(Object.keys(result.outputs).length, 1 + Math.ceil(Number(result.outputs["sealed-length"]) / CHUNK));
-  // The caps sit near the seal's limit: one more payload of the replies' size does not fit.
-  writeFileSync(path.join(dir, "extra.jsonl"), crypto.randomBytes(caps["replies.jsonl"]));
-  const over = runSeal(t, dir, {
-    "public-key-file": "key.pub",
-    payloads: [...names, "extra.jsonl"].map((name) => `${name}=${name}`).join("\n"),
-    "job-id": "run",
-    "max-chunks": seal[2],
-  });
-  assert.equal(over.status, 1, "another replies-sized payload would not fit");
+  const sealOf = (payloads) =>
+    runSeal(t, dir, {
+      "public-key-file": "key.pub",
+      payloads: payloads.map((name) => `${name}=${name}`).join("\n"),
+      "job-id": "run",
+      "max-chunks": seal[2],
+    });
+  const shared = ["reply.txt", "act-turns.json", "patch.diff"];
+  for (const exclusive of ["replies.jsonl", "dependency-verdict.json"]) {
+    const result = sealOf([...shared, exclusive]);
+    assert.equal(result.status, 0, `${exclusive}: ${result.stdout}`);
+    assert.ok(Number(result.outputs["sealed-length"]) <= Number(seal[2]) * CHUNK, exclusive);
+    assert.equal(Object.keys(result.outputs).length, 1 + Math.ceil(Number(result.outputs["sealed-length"]) / CHUNK), exclusive);
+  }
+  // The caps sit near the seal's limit: both exclusive payloads together do not fit.
+  assert.equal(sealOf(names).status, 1, "replies and a verdict together would not fit");
 });

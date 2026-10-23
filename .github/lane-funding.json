@@ -7,21 +7,11 @@
       "secretPrefix": "REVIEWS",
       "tokenSecret": "REVIEWS_CLAUDE_CODE_OAUTH_TOKEN",
       "keySecret": "REVIEWS_CLAUDE_API_KEY",
-      "keyed": false,
+      "keyed": true,
       "category": "review",
       "lanes": [
-        { "id": "pr-review", "workflow": "pr-review-hosted.yml", "launcher": "claude-code-action", "currentSecrets": ["CLAUDE_CODE_OAUTH_TOKEN"] }
-      ]
-    },
-    {
-      "id": "reviews-security",
-      "secretPrefix": "REVIEWS_SECURITY",
-      "tokenSecret": "REVIEWS_SECURITY_CLAUDE_CODE_OAUTH_TOKEN",
-      "keySecret": "REVIEWS_SECURITY_CLAUDE_API_KEY",
-      "keyed": false,
-      "category": "review",
-      "lanes": [
-        { "id": "pr-review-security", "workflow": "pr-review-security-hosted.yml", "launcher": "claude-code-action", "currentSecrets": ["CLAUDE_CODE_OAUTH_TOKEN"] }
+        { "id": "pr-review", "workflow": "pr-review-hosted.yml", "launcher": "run-claude-cli", "triggers": ["pull_request"], "currentSecrets": ["REVIEWS_CLAUDE_API_KEY", "REVIEWS_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "pr-review-security", "workflow": "pr-review-security-hosted.yml", "launcher": "run-claude-cli", "triggers": ["pull_request"], "currentSecrets": ["REVIEWS_CLAUDE_API_KEY", "REVIEWS_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     },
     {
@@ -32,7 +22,7 @@
       "keyed": false,
       "category": "issue",
       "lanes": [
-        { "id": "resolve-issue", "workflow": "work-resolve-issue.yml", "launcher": "claude-code-action", "currentSecrets": ["ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN"] }
+        { "id": "resolve-issue", "workflow": "work-resolve-issue.yml", "launcher": "claude-code-action", "triggers": ["issues"], "gate": "author", "currentSecrets": ["ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     },
     {
@@ -43,8 +33,8 @@
       "keyed": true,
       "category": "intake",
       "lanes": [
-        { "id": "intake-triage", "workflow": "intake-triage.yml", "launcher": "run-claude-cli", "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY", "AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "refine-issue", "workflow": "intake-triage.yml", "launcher": "claude-code-action", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] }
+        { "id": "intake-triage", "workflow": "intake-triage.yml", "launcher": "run-claude-cli", "triggers": ["issues", "workflow_dispatch"], "gate": "author", "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY", "AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "refine-issue", "workflow": "intake-triage.yml", "launcher": "claude-code-action", "triggers": ["issues", "workflow_dispatch"], "gate": "author", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     },
     {
@@ -55,16 +45,17 @@
       "keyed": true,
       "category": "pr-pipeline",
       "lanes": [
-        { "id": "fix-ci", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
-        { "id": "fix-ci-subscription", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "fix-ci-rung-up", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
-        { "id": "fix-ci-rung-up-subscription", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "fix-docs", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
-        { "id": "fix-docs-subscription", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "address-feedback", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
-        { "id": "address-feedback-subscription", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "review-dependency", "workflow": "pr-unblock.yml", "launcher": "claude-code-action", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "resolve-conflicts", "workflow": "pr-unblock.yml", "launcher": "claude-code-action", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] }
+        { "id": "fix-ci", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
+        { "id": "fix-ci-subscription", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "fix-ci-rung-up", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
+        { "id": "fix-ci-rung-up-subscription", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "fix-docs", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
+        { "id": "fix-docs-subscription", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "address-feedback", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
+        { "id": "address-feedback-subscription", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "review-dependency", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
+        { "id": "review-dependency-subscription", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "resolve-conflicts", "workflow": "pr-unblock.yml", "launcher": "claude-code-action", "triggers": ["workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     },
     {
@@ -75,8 +66,8 @@
       "keyed": true,
       "category": "pr-pipeline",
       "lanes": [
-        { "id": "check-intent", "workflow": "pr-verify.yml", "launcher": "run-claude-cli", "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
-        { "id": "check-intent-subscription", "workflow": "pr-verify.yml", "launcher": "run-claude-cli", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] }
+        { "id": "check-intent", "workflow": "pr-verify.yml", "launcher": "run-claude-cli", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
+        { "id": "check-intent-subscription", "workflow": "pr-verify.yml", "launcher": "run-claude-cli", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     },
     {
@@ -87,8 +78,8 @@
       "keyed": false,
       "category": "maintenance",
       "lanes": [
-        { "id": "eval", "workflow": "eval-browser-dispatch.yml", "launcher": "claude-cli", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "judge", "workflow": "maintenance-audit-lane-runs.yml", "launcher": "claude-code-action", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] }
+        { "id": "eval", "workflow": "eval-browser-dispatch.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "judge", "workflow": "maintenance-audit-lane-runs.yml", "launcher": "claude-code-action", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     }
   ]
