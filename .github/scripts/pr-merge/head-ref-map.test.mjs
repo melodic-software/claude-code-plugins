@@ -41,7 +41,7 @@ async function readRun({ pages = [[]], maps = {}, offMain = [], fail } = {}) {
     if (fail) throw fail;
     const page = /\/actions\/workflows\/pr-merge\.yml\/runs\?branch=main&.*&page=(\d+)$/.exec(url)?.[1];
     if (page) return { workflow_runs: pages[Number(page) - 1] ?? [] };
-    const base = /\/compare\/([0-9a-f]{40})\.\.\.main\?per_page=1$/.exec(url)?.[1];
+    const base = /\/compare\/([0-9a-f]{40})\.\.\.refs\/heads\/main\?per_page=1$/.exec(url)?.[1];
     if (base) return { status: offMain.includes(base) ? "diverged" : "ahead" };
     const id = /\/actions\/runs\/(\d+)\/artifacts\?name=pr-merge-head-refs$/.exec(url)?.[1];
     assert.ok(id, `unexpected call ${url}`);

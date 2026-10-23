@@ -77,10 +77,11 @@ function writeAtomic(path, text) {
   renameSync(`${path}.tmp`, path);
 }
 
-// Whether commit `sha` is main's head or an ancestor of it.
+// Whether commit `sha` is main's head or an ancestor of it. The branch is
+// named in full: a bare `main` would also match a tag named main.
 export async function onMain({ repo, actions, sha }) {
   if (!SHA.test(sha ?? "")) return false;
-  const compare = await actions("GET", `/repos/${repo}/compare/${sha}...main?per_page=1`);
+  const compare = await actions("GET", `/repos/${repo}/compare/${sha}...refs/heads/main?per_page=1`);
   return compare?.status === "identical" || compare?.status === "ahead";
 }
 
