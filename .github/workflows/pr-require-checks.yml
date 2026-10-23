@@ -3052,9 +3052,9 @@ jobs:
     # (`rate-limit-wait-seconds` on check-contract and aggregate-results), 45 s
     # of own-gate retries, 7 s of status-write retries and the 90 s
     # `rerun-wait-seconds` wait, about four and a half minutes, plus up to
-    # 15 s of retry sleeps for each of the hold-lift step's three reads and
-    # the review-lane step's four, under two minutes.
-    timeout-minutes: 7
+    # 15 s of retry sleeps for each of the hold-lift step's three reads, the
+    # review-lane step's four and the cost-hold step's nine, under four minutes.
+    timeout-minutes: 9
     permissions:
       # `yield-to-full-run` lists this workflow's runs on the head SHA, and
       # `rerun-contract-only-siblings` re-runs the red contract-only ones once
@@ -3192,6 +3192,147 @@ jobs:
           msg="draft: lanes not run; the ready_for_review run lints and tests this SHA"
           echo "::notice::$msg"
           echo "$msg" >>"$GITHUB_STEP_SUMMARY"
+      # A COST HOLD THE OWNER ALREADY DECIDED COMES OFF. A review lane re-holds
+      # every new head, so its `cost` hold went back on after the owner had
+      # recorded the cost decision (#9403). This step clears a hold only when all
+      # of these hold, else it changes nothing and the two steps below judge
+      # the label as before:
+      # - The window opens at the newest removal of the human-gated label by a
+      #   `human` of the base commit's trusted-actor list (ever, when none).
+      # - The label was added in it, and only by github-actions[bot] or
+      #   claude[bot], each time followed within five minutes by a cost hold.
+      # - Every review-lane hold comment in it (as the step below reads them)
+      #   is github-actions[bot]'s with a first line of exactly
+      #   `<!-- claude-lane-hold lane=<lane> sha=<sha> criteria=cost -->`, and
+      #   no other bot wrote a marked comment in it (a lanes App escalation
+      #   adds no label event to a label already on).
+      # - The pull request body, outside HTML comments, links a comment that
+      #   babysit_merge_policy.py's cost_decision would accept: on the one
+      #   closing issue in this repository (written after the pull request) or
+      #   on the pull request itself, by a User on the trusted-actor list, not
+      #   through an App, never edited, first line `**Decision recorded.** Cost:`.
+      # It then outputs cleared=true and the decision link, and, with the label
+      # on, posts one comment citing the decision and removes the label. A
+      # GITHUB_TOKEN removal starts no run, so the steps below read the label
+      # off in this run, and the hold-lift step skips on cleared=true.
+      # Unreadable input clears nothing; the step itself never fails the job.
+      # Pinned by scripts/ci-hold-cost-decision.test.sh, which runs this body.
+      - name: Clear a cost-only review hold the owner decided
+        id: cost_hold
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          keep() {
+            echo "The cost hold stays for a person: $1."
+            exit 0
+          }
+          read_api() {
+            local attempt out
+            for attempt in 1 2 3; do
+              if out=$(gh api "$@" 2>"$RUNNER_TEMP/cost-hold.err"); then
+                printf '%s\n' "$out"
+                return 0
+              fi
+              ! grep -q 'HTTP 404' "$RUNNER_TEMP/cost-hold.err" || return 2
+              [ "$attempt" -lt 3 ] || return 1
+              sleep $((attempt * 5))
+            done
+          }
+          [[ $BASE_SHA =~ ^[0-9a-f]{40}$ && $HEAD_SHA =~ ^[0-9a-f]{40}$ && $PR_NUMBER =~ ^[1-9][0-9]*$ ]] || keep "the event names no commit or pull request"
+          repo=$GITHUB_REPOSITORY
+          tracker=$(read_api -H 'Accept: application/vnd.github.raw+json' "repos/$repo/contents/.work-item-tracker.json?ref=$BASE_SHA") && rc=0 || rc=$?
+          [ "$rc" -ne 1 ] || keep "the tracker config is unreadable"
+          label=needs-human
+          if [ "$rc" -eq 0 ] && [ -n "$tracker" ]; then
+            label=$(jq -er '[objects | .config | objects | .role_labels | objects
+              | .["human-gated"] | strings | gsub("^\\s+|\\s+$"; "")][0] // ""
+              | if . == "" then "needs-human" else . end' <<<"$tracker") || keep "the tracker config is invalid"
+          fi
+          actors=$(read_api -H 'Accept: application/vnd.github.raw+json' "repos/$repo/contents/.github/standards/trusted-actors/trusted-actors.json?ref=$BASE_SHA") || keep "the trusted-actor list is unreadable"
+          humans=$(jq -ec '[.actors[] | select(.kind == "human") | .id | numbers] | select(length > 0)' <<<"$actors") || keep "the trusted-actor list names no person"
+          events=$(read_api "repos/$repo/issues/$PR_NUMBER/events?per_page=100" --paginate) || keep "the events are unreadable"
+          comments=$(read_api "repos/$repo/issues/$PR_NUMBER/comments?per_page=100" --paginate) || keep "the comments are unreadable"
+          # The window, then whether only cost holds put the label on in it.
+          # shellcheck disable=SC2016 # the $ in the jq filters are jq variables and regex anchors
+          verdict=$(jq -nr --arg label "$label" --argjson humans "$humans" --slurpfile events <(printf '%s\n' "$events") \
+            --slurpfile comments <(printf '%s\n' "$comments") '
+            def t: fromdateiso8601;
+            def lane: .user.type == "Bot" and (.body | test("(^|\n)<!-- claude-lane-hold lane="))
+              and (.user.login == "claude[bot]" or (.user.login == "github-actions[bot]"
+                and ([.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "") | select(. != "")] | last // ""
+                  | test("^`?claude-lane: (claude-review|claude-security-review)`?$"))));
+            def cost: .user.login == "github-actions[bot]"
+              and (.body | split("\n")[0] | rtrimstr("\r")
+                | test("^<!-- claude-lane-hold lane=(claude-review|claude-security-review) sha=[0-9a-f]{40} criteria=cost -->$"));
+            ([$events[][] | select(.label.name == $label)]) as $ev
+            | ([$ev[] | select(.event == "unlabeled" and (.actor.id as $id | $humans | index($id)))
+                | .created_at | t] | max // -1) as $since
+            | ([$ev[] | select(.event == "labeled" and (.created_at | t) > $since)]) as $added
+            | ([$comments[][] | select((.created_at | t) > $since)]) as $window
+            | ([$window[] | select(lane)]) as $holds
+            | if ($added | length) == 0 then "no label was added since a trusted person last removed it"
+              elif any($added[]; .actor.login != "github-actions[bot]" and .actor.login != "claude[bot]") then "someone other than a review lane added the label"
+              elif ($holds | length) == 0 then "no review-lane hold was written since a trusted person last removed the label"
+              elif any($holds[]; cost | not) then "a review-lane hold since then is not cost-only"
+              elif any($window[]; .user.type == "Bot" and .user.login != "github-actions[bot]"
+                and .user.login != "claude[bot]" and (.body | contains("<!--"))) then "another lane marked this pull request since then"
+              elif any($added[]; (.created_at | t) as $at
+                | any($holds[]; (.created_at | t) as $c | $c >= $at and $c - $at <= 300) | not) then "a label was added with no cost hold written after it"
+              else "cost" end' 2>/dev/null) || keep "the events or comments do not parse"
+          [ "$verdict" = cost ] || keep "$verdict"
+          pr=$(read_api "repos/$repo/pulls/$PR_NUMBER") || keep "the pull request is unreadable"
+          # shellcheck disable=SC2016 # GraphQL variables, not shell
+          closing=$(read_api graphql -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){closingIssuesReferences(first:2){totalCount nodes{number repository{nameWithOwner}}}}}}' \
+            -F owner="${repo%%/*}" -F name="${repo#*/}" -F number="$PR_NUMBER") || keep "the closing issues are unreadable"
+          issue=$(jq -r --arg repo "$repo" '.data.repository.pullRequest.closingIssuesReferences
+            | if .totalCount == 1 and (.nodes[0].repository.nameWithOwner | ascii_downcase) == ($repo | ascii_downcase)
+              then .nodes[0].number else "" end' <<<"$closing" 2>/dev/null) || issue=
+          opened=$(jq -r '.created_at | fromdateiso8601' <<<"$pr") || keep "the pull request has no creation time"
+          links=$(jq -r '.body // "" | gsub("<!--[\\s\\S]*?(?:-->|\\z)"; "")
+            | match("https://github\\.com/([A-Za-z0-9-]+)/([A-Za-z0-9._-]+)/(?:issues|pull)/([0-9]+)#issuecomment-([0-9]+)"; "g")
+            | [.string, (.captures[] | .string)] | @tsv' <<<"$pr") || links=
+          decision= decision_id=
+          while IFS=$'\t' read -r link owner name number id; do
+            [ -n "$link" ] || continue
+            [ "$(tr '[:upper:]' '[:lower:]' <<<"$owner/$name")" = "$(tr '[:upper:]' '[:lower:]' <<<"$repo")" ] || continue
+            [ "$number" = "$PR_NUMBER" ] || [ "$number" = "$issue" ] || continue
+            comment=$(read_api "repos/$repo/issues/comments/$id") || continue
+            jq -e --arg number "$number" --arg pr "$PR_NUMBER" --argjson humans "$humans" --argjson opened "$opened" '
+              (.issue_url // "" | endswith("/issues/\($number)"))
+              and .user.type == "User" and .performed_via_github_app == null
+              and (.user.id as $id | $humans | index($id) != null)
+              and (.body // "" | sub("\\A\\s+"; "") | test("\\A\\*\\*Decision recorded\\.\\*\\*[ \\t]+Cost:"))
+              and ($number == $pr or (.created_at | fromdateiso8601) > $opened)' <<<"$comment" >/dev/null 2>&1 || continue
+            node=$(jq -r .node_id <<<"$comment")
+            edited=$(read_api graphql -f query='query($id:ID!){node(id:$id){... on IssueComment{lastEditedAt}}}' -F id="$node") || continue
+            jq -e '.data.node | objects | has("lastEditedAt") and .lastEditedAt == null' <<<"$edited" >/dev/null 2>&1 || continue
+            decision=$link decision_id=$id
+            break
+          done <<<"$links"
+          [ -n "$decision" ] || keep "the body cites no recorded owner cost decision covering it"
+          {
+            echo "cleared=true"
+            echo "decision=$decision"
+          } >>"$GITHUB_OUTPUT"
+          echo "::notice::the review-lane hold on #$PR_NUMBER is cost-only, and $decision records the owner's cost decision."
+          labels=$(read_api "repos/$repo/issues/$PR_NUMBER/labels?per_page=100" --paginate --jq '.[].name') || {
+            echo "::warning::could not read the labels of #$PR_NUMBER, so '$label' was not removed."
+            exit 0
+          }
+          grep -qxF -- "$label" <<<"$labels" || exit 0
+          marker="<!-- ci-status cost-hold-cleared decision=$decision_id -->"
+          if ! jq -se --arg marker "$marker" 'any(.[][]; .user.login == "github-actions[bot]" and (.body | startswith($marker)))' \
+            <<<"$comments" >/dev/null; then
+            gh api -X POST "repos/$repo/issues/$PR_NUMBER/comments" -f body="$marker
+          ci-status removed \`$label\`: every review-lane hold since a trusted person last removed it is cost-only, and the owner recorded the cost decision in $decision. A person adding \`$label\` back holds it again." >/dev/null ||
+              echo "::warning::could not post the removal comment on #$PR_NUMBER."
+          fi
+          gh api -X DELETE "repos/$repo/issues/$PR_NUMBER/labels/$(jq -rn --arg l "$label" '$l | @uri')" >/dev/null ||
+            echo "::warning::could not remove '$label' from #$PR_NUMBER; the step below holds it."
       # A PULL REQUEST CARRYING THE HUMAN-GATED LABEL IS HELD. A review lane or
       # an escalation puts the label on so a person decides; removing it is the
       # approval, and the `unlabeled` event re-runs this job. The label's name
@@ -3278,10 +3419,11 @@ jobs:
       # later: an event cannot be deleted or edited, so removing the comment
       # does not remove the hold, and a review re-run that labels the same head
       # again starts a new hold. Unreadable comments, events or actor list fail
-      # closed.
+      # closed. It skips when the cost_hold step cleared a cost-only hold, whose
+      # label that step (or anyone) may have removed.
       # Pinned by scripts/ci-hold-lifted-by.test.sh, which runs this body.
       - name: Fail a review-lane hold an untrusted account lifted
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.human_gated.outputs.held == 'false' }}
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.human_gated.outputs.held == 'false' && steps.cost_hold.outputs.cleared != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
