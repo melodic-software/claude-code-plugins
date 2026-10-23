@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.9.0] - 2026-10-23
+
+### Changed
+
+- `pull-request dependency --ci` commits nothing and runs no command: it leaves a `fix` verdict's manifest change uncommitted in the working tree, and a later job with no model pushes it as one `[dependabot skip]` commit. It reads release notes with WebFetch on the hosts its preamble names, and its report names no fix commit ([`dependency-ci.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/pull-request/reference/dependency-ci.md)).
+
+- A branch- or head-scoped workflow-run listing that reaches GitHub's 1,000-run search cap (by `total_count` or by the runs its pages carried) is now an incomplete read, never a complete one. In `collect_lane_runs` it raises, so the unattended merge gate binds no lane (`evidence-missing`) and holds the pull request. In the post-merge check it makes the verdict unreadable (exit 3), so pr-merge holds and files no record; before, a listing past the cap read as complete with a `listing-capped` warning. `babysit_gh` gains `RUN_SEARCH_CAP` and `run_search_capped`.
+
+### Fixed
+
+- `babysit_merge.py --unattended --authority pr-merge` holds a pull request before it enqueues when an owner, member or collaborator's newest comment (issue comment, review summary or inline review comment) says "do not merge" (`HUMAN_MERGE_VETO_RE`). A later comment from that person lifts the hold. The autopilot tier's comment reading moves into one shared reader, and the tier's own wider scan is unchanged. A bare "wait", or a blocking word such as "regression", holds nothing on the lane ([#9216](https://github.com/melodic-software/claude-code-plugins/issues/9216)).
+
 ## [2.8.0] - 2026-10-23
 
 ### Changed
