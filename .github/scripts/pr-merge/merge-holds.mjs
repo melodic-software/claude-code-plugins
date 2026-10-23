@@ -16,9 +16,19 @@
 //   merge.diff-check.denied-paths plus HOLD_PATH_FLOOR. A person on the
 //   trusted-actor list lifts it by approving the head: their newest review of
 //   the head that approves, requests changes or was dismissed must approve.
+// - No verifier pass, when a verdicts file is given (ci-status gives one in
+//   the merge queue only): the head merges on a PASS or PASS-NOTES that
+//   pr-verify.yml uploaded from a completed, successful run on main
+//   (verdictHold). The same approval of the head lifts it, the human merge
+//   path for a pull request pr-merge's gate sends to a person. FAILs and the
+//   repeated-FAIL cap are enable-auto-merge.mjs's, through pr-merge's own
+//   reader, which disarms such a pull request.
 //
 // Command line: merge-holds.mjs <number> <body-file> <discussion-file>
-// <files-file> <denied-paths-file> <trusted-actors-file> <head-sha>. The
+// <files-file> <denied-paths-file> <trusted-actors-file> <head-sha>
+// [<verdicts-file>]. The verdicts file holds one {name, verdict, runId, run}
+// per line, run as GET actions/runs/{runId} gives it, for each unexpired artifact
+// named a pass at the head; GITHUB_REPOSITORY names the repository. The
 // discussion file holds one REST issue comment, review or review comment per
 // line; the files file one JSON array per changed file, its path then any
 // renamed-from path; the denied-paths file the config's
@@ -157,12 +167,44 @@ export function holds(body, items, files, holdPaths, lifters = []) {
   return reasons;
 }
 
+// The verifier workflow (resolve-pr.mjs VERIFY_PATH).
+export const VERIFY_PATH = ".github/workflows/pr-verify.yml";
+const PASSES = Object.freeze(["pass", "pass-notes"]);
+
+// Why the head has no verifier pass, or null when a record shows one: a pass
+// or pass-notes artifact whose run is pr-verify.yml's, event workflow_run, on
+// `branch` of `repo` with its head in `repo`, completed with success: the
+// fields of babysit_verify_evidence `_origin` and a counted run, without its
+// compare read that main holds the run's commit, since main's ruleset
+// forbids the force push that could drop it. The records are
+// read for the head alone, by exact name, so a record of another head never
+// reaches here.
+export function verdictHold(records, repo, branch = "main") {
+  if (!Array.isArray(records) || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(String(repo))) {
+    return "its pr-verify verdicts could not be read";
+  }
+  const pass = records.find(
+    ({ verdict, runId, run } = {}) =>
+      PASSES.includes(verdict) &&
+      Number.isSafeInteger(runId) &&
+      run?.id === runId &&
+      run.path === VERIFY_PATH &&
+      run.event === "workflow_run" &&
+      run.head_branch === branch &&
+      run.repository?.full_name === repo &&
+      run.head_repository?.full_name === repo &&
+      run.status === "completed" &&
+      run.conclusion === "success",
+  );
+  return pass ? null : "pr-verify has not passed this head";
+}
+
 // A log line can carry a changed file's name: escape what would start a
 // workflow command on a new line.
 const escape = (text) => String(text).replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
 
 export function main(argv = process.argv.slice(2)) {
-  const [number, bodyFile, discussionFile, filesFile, deniedFile, actorsFile, head] = argv;
+  const [number, bodyFile, discussionFile, filesFile, deniedFile, actorsFile, head, verdictsFile] = argv;
   try {
     if (
       !/^[1-9][0-9]*$/.test(String(number)) ||
@@ -174,7 +216,7 @@ export function main(argv = process.argv.slice(2)) {
       !/^[0-9a-f]{40}$/.test(String(head))
     ) {
       throw new Error(
-        "usage: merge-holds.mjs <number> <body-file> <discussion-file> <files-file> <denied-paths-file> <trusted-actors-file> <head-sha>",
+        "usage: merge-holds.mjs <number> <body-file> <discussion-file> <files-file> <denied-paths-file> <trusted-actors-file> <head-sha> [<verdicts-file>]",
       );
     }
     const lines = (file) => readFileSync(file, "utf8").split("\n").filter((line) => line.trim());
@@ -193,6 +235,18 @@ export function main(argv = process.argv.slice(2)) {
     const held = pathHold(files, holdPaths);
     if (held && lifters.length && Array.isArray(holdPaths)) {
       console.log(`#${number}: ${lifters.join(", ")} approved this head, which lifts its hold path (${escape(held)}).`);
+    }
+    if (verdictsFile) {
+      const unverified = verdictHold(lines(verdictsFile).map((line) => JSON.parse(line)), process.env.GITHUB_REPOSITORY);
+      if (!unverified) {
+        console.log(`#${number}: no verifier hold: pr-verify passed this head.`);
+      } else if (lifters.length) {
+        console.log(`#${number}: no verifier hold: ${lifters.join(", ")} approved this head, which lifts '${unverified}'.`);
+      } else {
+        reasons.push(
+          `${unverified}; wait for pr-verify to pass it, after which enable-auto-merge arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue`,
+        );
+      }
     }
     for (const reason of reasons) {
       console.log(`::error::#${number}: ${escape(reason)}.`);

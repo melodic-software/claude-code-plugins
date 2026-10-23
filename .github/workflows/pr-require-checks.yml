@@ -3110,7 +3110,8 @@ jobs:
     # of own-gate retries, 7 s of status-write retries and the 90 s
     # `rerun-wait-seconds` wait, about four and a half minutes, plus up to
     # 15 s of retry sleeps for each of the hold-lift step's two reads, the
-    # review-lane step's four and the lanes-hold step's eight, about four
+    # review-lane step's four and the lanes-hold step's eight (in the merge
+    # queue up to four verdict lookups and their run reads more), about four
     # minutes, plus the cost-hold step's reads: one for most pull requests,
     # which stop at the label events; for a lane-labeled one whose body cites a
     # decision, about eight, and two more per review run since the window
@@ -3971,12 +3972,27 @@ jobs:
       # it); every other pull request merges through pr-merge's gate or a
       # person. An unreadable pull request, module, config, file list or
       # discussion fails closed.
+      # IN THE MERGE QUEUE A LANES APP PULL REQUEST ALSO NEEDS A VERIFIER PASS
+      # AT ITS HEAD: a PASS or PASS-NOTES artifact of a completed, successful
+      # pr-verify.yml run on main (merge-holds.mjs verdictHold), looked up by
+      # exact name, with and without the head-branch digest, stopping at the
+      # first name that holds such a run: 2 reads for a plain-named pass, at most 4 lookups plus
+      # one run read per artifact found. The same approval of the head lifts
+      # it. Only in the queue: pr-verify runs only after a successful
+      # pull_request run of this workflow, so a red ci-status there would
+      # never get a verdict, and a pull request event reads nothing for it.
+      # A push to an armed lanes App pull request turns its auto-merge off
+      # (one mutation, no read), so enable-auto-merge's reader judges each
+      # new head before it is armed again; the queue still checks the head
+      # it merges.
+      # FAILs and the repeated-FAIL cap are enable-auto-merge.mjs's.
       # Pinned by scripts/ci-lanes-pr-hold.test.sh, which runs this body.
       - name: Fail a lanes App pull request its body or a member holds
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_ACTION: ${{ github.event.action }}
           GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
         run: |
           . "$RUNNER_TEMP/gh-read.sh"
@@ -4020,6 +4036,24 @@ jobs:
               exit 0
             fi
             BASE_SHA=$(jq -r '.base.sha' <<<"$pull")
+            # A push gives an armed pull request a head enable-auto-merge's
+            # reader has not judged: turn its auto-merge off until a reader
+            # run arms the new head. A failed mutation only warns: failing
+            # here would hold every push to an armed pull request red if this
+            # token cannot disarm. A missed disarm is backstopped by the merge
+            # queue's check for a pr-verify pass at the exact head it merges
+            # (below) and by enable-auto-merge's scheduled reader, which
+            # disarms a head it refuses within 15 minutes.
+            if [ "${EVENT_ACTION:-}" = synchronize ] && jq -e '.auto_merge != null' <<<"$pull" >/dev/null; then
+              # shellcheck disable=SC2016 # $id is a GraphQL variable
+              # gh-read-exempt: a GraphQL mutation, a write that is not retried; a failure only warns.
+              if gh api graphql -f query='mutation($id: ID!) { disablePullRequestAutoMerge(input: {pullRequestId: $id}) { clientMutationId } }' \
+                -f id="$(jq -r '.node_id' <<<"$pull")" >/dev/null; then
+                echo "#$pr: a push moved its head, so its native auto-merge is off until enable-auto-merge's next scheduled run judges the new head."
+              else
+                echo "::warning::could not turn off native auto-merge on #$pr after a push to its head; the merge queue still needs a pr-verify pass at the head it merges, and the next scheduled enable-auto-merge run disarms a head its reader refuses."
+              fi
+            fi
           fi
           if [[ ! $BASE_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
@@ -4056,14 +4090,45 @@ jobs:
             rows=$(read_api "the $kind of #$pr" "repos/$GITHUB_REPOSITORY/$kind?per_page=100" --paginate --jq '.[] | @json') || exit 1
             [ -z "$rows" ] || printf '%s\n' "$rows" >>"$RUNNER_TEMP/discussion.jsonl"
           done
+          verdicts=()
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            ref=$(jq -r '.head.ref // ""' <<<"$pull")
+            if [ -z "$ref" ]; then
+              echo "::error::the head branch of #$pr could not be read."
+              exit 1
+            fi
+            digest=$(printf '%s' "$ref" | sha256sum | cut -c1-16)
+            : >"$RUNNER_TEMP/verdicts.jsonl"
+            for name in "pr-verify-$pr-$head-pass" "pr-verify-$pr-$head-pass-$digest" \
+              "pr-verify-$pr-$head-pass-notes" "pr-verify-$pr-$head-pass-notes-$digest"; do
+              verdict=${name#"pr-verify-$pr-$head-"}
+              verdict=${verdict%"-$digest"}
+              runs=$(read_api "the $name artifacts" "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$name&per_page=100" \
+                --jq ".artifacts[] | select(.name == \"$name\" and .expired == false) | .workflow_run.id") || exit 1
+              for run in $runs; do
+                [[ $run =~ ^[1-9][0-9]*$ ]] || continue
+                record=$(read_api "run $run" "repos/$GITHUB_REPOSITORY/actions/runs/$run") || exit 1
+                jq -c --arg name "$name" --arg verdict "$verdict" --argjson id "$run" '{name: $name, verdict: $verdict, runId: $id, run: .}' <<<"$record" >>"$RUNNER_TEMP/verdicts.jsonl" || exit 1
+              done
+              # A pass merge-holds.mjs verdictHold would count ends the lookup.
+              ! jq -se --arg repo "$GITHUB_REPOSITORY" 'any(.runId as $id | .run | .id == $id and .status == "completed" and .conclusion == "success"
+                and .path == ".github/workflows/pr-verify.yml" and .event == "workflow_run" and .head_branch == "main"
+                and .repository.full_name == $repo and .head_repository.full_name == $repo)' "$RUNNER_TEMP/verdicts.jsonl" >/dev/null || break
+            done
+            verdicts=("$RUNNER_TEMP/verdicts.jsonl")
+          fi
           out=$(node "$RUNNER_TEMP/merge-holds.mjs" "$pr" "$RUNNER_TEMP/pr-body.txt" "$RUNNER_TEMP/discussion.jsonl" \
-            "$RUNNER_TEMP/files.jsonl" "$RUNNER_TEMP/denied-paths.json" "$RUNNER_TEMP/trusted-actors.json" "$head") || {
+            "$RUNNER_TEMP/files.jsonl" "$RUNNER_TEMP/denied-paths.json" "$RUNNER_TEMP/trusted-actors.json" "$head" "${verdicts[@]}") || {
             printf '%s\n' "$out"
             exit 1
           }
           # Exit 0 without the module's no-hold line ran no check: fail closed.
           printf '%s\n' "$out"
           grep -qxF "#$pr: no body hold, no member veto and no hold path." <<<"$out" || { echo "::error::merge-holds.mjs exited 0 without its verdict."; exit 1; }
+          if [ "${#verdicts[@]}" -gt 0 ] && ! grep -qE "^#$pr: no verifier hold: " <<<"$out"; then
+            echo "::error::merge-holds.mjs exited 0 without its verifier verdict."
+            exit 1
+          fi
       # ORDERED SKIPS ARE CHECKED HERE. A test lane `test-<x>`, or `lint-shell`
       # on its `run_shell` row, skips as a job when `select-tests`'s `run_<x>`
       # row says the change gives it no work. Its

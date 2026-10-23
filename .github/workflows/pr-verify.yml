@@ -2,13 +2,16 @@ name: pr-verify
 
 # The verifier: a model that did not write the pull request judges each head
 # that passes pr-require-checks against its linked issue, and the run uploads
-# its verdict as the artifact pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>; its
-# readers also accept that name followed by -<ref-digest> (write-verdict.mjs headRefDigest).
+# its verdict as the artifact pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>, a
+# FAIL's followed by -i<issues> (write-verdict.mjs artifactName); its readers also
+# accept the -<ref-digest> before that (write-verdict.mjs headRefDigest).
 # Only steps of a run of this file on main can upload that run's artifacts, so
 # the pr-merge lane counts a verdict only through its run record
 # (plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py).
-# The verdict is not a check run and stays out of ci-status
-# (docs/conventions/pr-pipeline/README.md, "Verifier verdict").
+# The verdict is not a check run. ci-status reads a pass by exact name only in
+# the merge queue, for a lanes App pull request, since a red ci-status on a
+# pull request event would stop this workflow from running
+# (docs/conventions/pr-pipeline/README.md, "Native auto-merge").
 #
 # No pull request code runs here. The diff, the trusted PR text and the linked
 # issues are data files in pr-verify-data under the working directory, and the

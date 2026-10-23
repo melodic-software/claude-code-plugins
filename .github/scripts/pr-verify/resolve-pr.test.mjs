@@ -366,6 +366,8 @@ test("verdicts are looked up by exact name, never by listing every artifact", as
   assert.deepEqual(lookups.sort(), [
     `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-fail&per_page=100&page=1`,
     `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-fail-${REF_DIGEST}&per_page=100&page=1`,
+    `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-fail-${REF_DIGEST}-i7&per_page=100&page=1`,
+    `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-fail-i7&per_page=100&page=1`,
     `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-pass&per_page=100&page=1`,
     `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-pass-${REF_DIGEST}&per_page=100&page=1`,
     `/repos/${REPO}/actions/artifacts?name=pr-verify-41-${HEAD}-pass-notes&per_page=100&page=1`,
@@ -373,6 +375,54 @@ test("verdicts are looked up by exact name, never by listing every artifact", as
     `/repos/${REPO}/actions/artifacts?name=pr-verify-99-${HEAD}-fail&per_page=100&page=1`,
     `/repos/${REPO}/actions/artifacts?name=pr-verify-99-${HEAD}-fail-${OTHER_DIGEST}&per_page=100&page=1`,
   ]);
+});
+
+test("a FAIL named with this pull request's issues stops a new judgment", async () => {
+  // The fake pull request closes one issue, so write-verdict.mjs named its
+  // FAIL with that number after -i.
+  const pulls = [pull()];
+  for (const name of [`pr-verify-41-${HEAD}-fail-i7`, `pr-verify-41-${HEAD}-fail-${REF_DIGEST}-i7`]) {
+    assert.equal(await reason({ pulls, artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77) } }), "already-judged", name);
+  }
+  // A suffix naming other issues is another judgment.
+  for (const name of [`pr-verify-41-${HEAD}-fail-i8`, `pr-verify-41-${HEAD}-fail-i7.8`]) {
+    assert.equal(await reason({ pulls, artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77) } }), "ok", name);
+  }
+});
+
+// The reason, and how many times the linked-issues query ran.
+async function specReads(setup) {
+  const github = fake(setup);
+  let reads = 0;
+  const counting = async (method, apiPath, body) => {
+    if (apiPath === "/graphql" && body.query.includes("closingIssuesReferences")) reads += 1;
+    return github(method, apiPath, body);
+  };
+  const { reason } = await resolvePull({ github: counting, repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE });
+  return [reason, reads];
+}
+
+test("a head with a verdict named without issues skips before the linked issues are read", async () => {
+  for (const name of [`pr-verify-41-${HEAD}-pass`, `pr-verify-41-${HEAD}-fail`]) {
+    assert.deepEqual(await specReads({ artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77) } }), ["already-judged", 0], name);
+  }
+});
+
+test("a head whose only verdict is a FAIL named with issues skips after one linked-issues read", async () => {
+  const artifacts = [artifact(`pr-verify-41-${HEAD}-fail-i7`, 77)];
+  assert.deepEqual(await specReads({ artifacts, runs: { 77: verifyRun(77) } }), ["already-judged", 1]);
+});
+
+test("an unjudged head reads its linked issues once", async () => {
+  assert.deepEqual(await specReads({}), ["ok", 1]);
+});
+
+test("a pull request closing more issues than a FAIL's name carries is still judged", async () => {
+  // No FAIL is named with eleven issues or an 11-digit one, so none is looked up.
+  for (const numbers of [Array.from({ length: 11 }, (_, i) => i + 1), [10000000000]]) {
+    const issues = numbers.map((number) => ({ ...ISSUE, number }));
+    assert.equal(await reason({ issues }), "ok", JSON.stringify(numbers));
+  }
 });
 
 test("a verdict named with its head-ref digest stops a new judgment like one without", async () => {
