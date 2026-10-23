@@ -56,6 +56,10 @@ Placeholders, each filled from FLEET.md or a probe, never guessed:
 
 Per-route detail, the receiver and the reply patterns are in [reference/relay.md](reference/relay.md).
 
+Converging dotfiles on any fleet lane is not a route in this matrix: run `fleet-converge <lane>`,
+by its bare name. It refuses on drift and needs no approval. With no lane it converges the current
+lane.
+
 ## Resolve the target first
 
 1. Read `~/.config/fleet/FLEET.md`. Done when you can name the target host and lane and see its
@@ -185,7 +189,9 @@ on-demand tasks FLEET.md lists.
   prompt. If asked to stop the prompting, say what the rule would cost and decline.
 - Neither side runs `bypassPermissions`.
 - Never `wsl --shutdown` on a target, and never run `wsl -d` on a target's drift-convergence path.
-  Both take the distro out from under whatever else is using it.
+  Both take the distro out from under whatever else is using it. The one exception is
+  `fleet-converge`, which may start a distro that has already been launched, because it checks the
+  cloud-init launch marker first.
 - The prompt travels in the command line, visible to the target's process table and shell history.
   No secret belongs in one.
 
