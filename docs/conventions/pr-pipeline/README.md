@@ -1444,8 +1444,9 @@ A fourth job, **triage-sweep**, runs alone every hour and with the daily run, wi
 ([`triage-sweep.mjs`](../../../.github/scripts/maintenance-audit-lane-runs/triage-sweep.mjs)). It
 selects open issues, not pull requests, over an hour old, written by a human on the trusted-actors
 list or by the lanes App, that have no intake comment, no born-triaged marker and no triage, status,
-priority or work-class label. Issues from `github-actions[bot]`, the lane sweep's own included, are
-left out. For each it re-dispatches `intake-triage.yml`, at most 5 a pass, and records the runs in
+priority or work-class label. The `needs-triage` floor label is not a triage label: it lands on open
+whether or not intake runs, so an issue whose intake run failed is still selected. Issues from
+`github-actions[bot]`, the lane sweep's own included, are left out. For each it re-dispatches `intake-triage.yml`, at most 5 a pass, and records the runs in
 one comment on the issue; after 2 dispatches leave it untriaged it labels the original
 `needs-triage`, then files one `needs-triage` issue naming the runs. It holds the job's own `GITHUB_TOKEN`
 (`actions: write`, `contents: read`, `issues: write`), never a lanes App token, and stops at 120
