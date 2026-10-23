@@ -240,14 +240,17 @@ jobs:
         A step with no model reads only those four lines and the proposed class, and sets the
         issue's class label, fields and status from them.
 
-        COST. When the work an issue asks for would add or raise a charge (a new Azure resource or
-        SKU, a retention or quota change, a paid GitHub feature, larger or hosted runners, macOS or
-        private-repo minutes, new API spend, or a new paid service or plan), apply the `needs-human`
-        label and keep needs_human false, so your comment is kept, and add one line to it:
+        COST. When the work an issue asks for would add or raise a charge that no diff shows (a new
+        paid service or subscription, a plan upgrade, or an account, organization or repository
+        billing setting such as a paid GitHub feature, Actions retention or a spending limit),
+        apply the `needs-human` label and keep needs_human false, so your comment is kept, and add one line to it:
         `Cost: <what bills, where; the owner decision it lacks>`.
         Skip this only when a comment whose first line is exactly `**Decision recorded.**`, by an
         author whose login does not end in `[bot]`, already covers that charge; then name it on the
         Cost line.
+        A charge a diff shows (IaC resources or SKUs, runner labels or cron schedules in
+        workflows, model, effort or turn flags, new secrets) gets no `cost` flag, no `needs-human`
+        and no Cost line: the merge-time cost hold catches it after review.
 
         RE-ENTRY AFTER A RECORDED DECISION. Apply this section only when a comment's first line is
         exactly `**Decision recorded.**` and whose author login does not end in `[bot]`; the newest

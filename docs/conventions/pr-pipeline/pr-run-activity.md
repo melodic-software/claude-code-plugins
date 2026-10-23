@@ -58,7 +58,7 @@ permissions, and passes no App key.
 | `issue-dimensions` | `''` | Issue mode: the `models.issue-dimensions` dimensions the caller resolved for `timeout-minutes`; the run takes them instead of reading the issue's fields again |
 | `dispatcher-run-id` | `''` | The `pr-unblock-dispatch.yml` or `pr-feedback-dispatch.yml` run that sent a `github-actions[bot]` `workflow_dispatch` (run job step 3) |
 | `trusted-base` | `pr-base` | `pr-base` trusts the PR's base SHA, `default-tip` the default branch tip (run job step 4) |
-| `dimension-skip` | `''` | Write file, issue mode, `report-outcome`: the issue-dimension skip reason (`split-required`, `research-first`, `probe-first` or `not-assessed`) that kept the run from starting; any other value, or one outside issue mode, fails step 1 |
+| `dimension-skip` | `''` | Write file, issue mode, `report-outcome`: the issue-dimension skip reason (`split-required`, `research-first` or `probe-first`) that kept the run from starting; any other value, or one outside issue mode, fails step 1 |
 | `escalation-reason` | `''` | Write file only: the escalating run's `escalation-reason` output, for a `report-escalation` script; anything outside the enum fails step 1 |
 | `review-replies` | `false` | Write file only: for the reply script of a [`prepare: review-threads`](#prepare-review-threads) round, download the select job's `run.json` and the model run's replies |
 | `review-run-sha256` | `''` | Write file only: with `review-replies`, the select job's `run-sha256` output |
@@ -1619,8 +1619,8 @@ as `workflow-modified`. Before any model turn, the read file's `workflow-current
 the caller's and the write file's blobs at `github.workflow_sha` with the default branch checkout, the broker's
 rule, and on a difference fails red `workflow-stale` with no model turn and no outcome marker;
 work-unblock's hourly sweep re-fires such a failed run on main's files. An issue that
-`pick-slot`'s resolve skips on its dimensions (`split-required`, `research-first`, `probe-first`
-or `not-assessed`) takes no model turn and leaves no outcome, so the caller's `report-skip` job,
+`pick-slot`'s resolve skips on its dimensions (`split-required`, `research-first` or
+`probe-first`) takes no model turn and leaves no outcome, so the caller's `report-skip` job,
 which needs `admit` and `pick-slot` only, runs `report-outcome` in the write file with
 `dimension-skip`: it labels the issue `needs-human`, removes `agent-ready`, and comments the next
 step under an `outcome=<reason>` marker. What changes from the PR flow:
@@ -1637,8 +1637,7 @@ step under an `outcome=<reason>` marker. What changes from the PR flow:
   and the label alone admits the issue; the re-runner is then the App or a listed human. The
   App's other labels never start a run, and no step of the lane adds `agent-ready`. `check-trusted-base` trusts the
   default branch tip, and that commit is the head the job checks out.
-- `resolve-config` reads the issue's labels now, for the hold labels, and `labeled-after`, the
-  lane's go-live time, from the issue's update time. The read file passes
+- `resolve-config` reads the issue's labels now, for the hold labels. The read file passes
   `applied-by-supported: patch work-outcome`. The write file's token request sends
   `issue_number`.
 - Each issue is worked once. In a skill run, the `issue-prior` step (`report-outcome.mjs
@@ -1703,7 +1702,7 @@ step under an `outcome=<reason>` marker. What changes from the PR flow:
   naming the resumed branch. On `done` it opens a ready (not draft) PR from the branch whose
   body starts `Closes #<n>` (or `Refs: #<n>` when the outcome sets
   `"link": "refs"` because a recorded decision keeps the issue open), puts no label on it (the work class stays on the issue), and adds
-  `Hold: a human merges this` for structural or untrusted-provenance work, for a diff that
+  `Hold: a human merges this` for untrusted-provenance work, for a diff that
   touches a path the merge lane refuses (`merge.diff-check.denied-paths`, read from the run's
   resolved config; unreadable holds every PR), or, while some path is denied, for one too large
   for the compare listing to show whole. It adds the same line when the issue carries `merge: human` whose newest `labeled`

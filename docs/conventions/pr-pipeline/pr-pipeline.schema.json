@@ -367,11 +367,6 @@
             }
           }
         },
-        "labeled-after": {
-          "type": "string",
-          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
-          "description": "An issues lane's cutover, a UTC time such as 2026-10-20T00:00:00Z: matches only an issue labeled after it. Off an issues event it cannot be decided and fails the run."
-        },
         "events": {
           "type": "array",
           "minItems": 1,
@@ -677,7 +672,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["fields", "sizes", "complexity", "uncertainty"],
-      "description": "The budget of a skill activity with input issue, from the issue's Size, Complexity and Uncertainty org issue fields, read by field and option id. A field with no value, or whose latest setter is neither a listed human nor the lanes App, is not assessed and skips the activity with not-assessed; an option no entry maps fails the resolve. The turn cap is the size's base-turns times the complexity factor, rounded up, and replaces the profile's max-turns (README.md, Models).",
+      "description": "The budget of a skill activity with input issue, from the issue's Size, Complexity and Uncertainty org issue fields, read by field and option id. A field with no value, or whose latest setter is neither a listed human nor the lanes App, reads as size small, complexity medium or uncertainty known, which the tables must define; an option no entry maps fails the resolve. The turn cap is the size's base-turns times the complexity factor, rounded up, and replaces the profile's max-turns (README.md, Models).",
       "properties": {
         "fields": {
           "type": "object",
