@@ -6,6 +6,8 @@ keeps one event per friction moment:
 
 - `denied`: a tool call refused by the classifier, a hook, a permission rule, or the person
   (`cause`); a stream-json `result` record's `permission_denials` count once per tool call.
+  A hook-block denial also carries `next_tool` (the next tool call in the same transcript file, `None`
+  when none follows) and `next_ok` (whether that call succeeded, `None` while unknown).
 - `prompt-approved`: a call the person approved at a permission prompt.
 - `agent-ask`: the agent asked the person something (an `AskUserQuestion` call, or a turn whose last
   text asks), with the person's `reply` classed `approve`, `correction`, `rejected` or `other`.
@@ -67,7 +69,7 @@ SHELL_TOOLS = frozenset({"Bash", "PowerShell"})
 SUBCOMMAND = re.compile(r"[a-z][a-z0-9-]{0,30}")
 GIT_ARG_FLAGS = frozenset({"-C", "-c"})
 # Event fields holding transcript or metadata text, scrubbed before storage; the rest are enums this module sets.
-SCRUBBED_FIELDS = ("reason", "hook", "shape", "tool", "agent", "source", "reason_type")
+SCRUBBED_FIELDS = ("reason", "hook", "shape", "tool", "agent", "source", "reason_type", "next_tool")
 
 
 def _epoch(value: object) -> float | None:
@@ -78,6 +80,13 @@ def _epoch(value: object) -> float | None:
     except ValueError:
         return None
     return (parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)).timestamp()
+
+
+def _errored(record: dict) -> bool:
+    message = record.get("message")
+    content = message.get("content") if isinstance(message, dict) else None
+    return any(isinstance(b, dict) and b.get("type") == "tool_result" and b.get("is_error") is True
+               for b in (content if isinstance(content, list) else ()))
 
 
 def command_shape(command: str) -> tuple[str, list[str]]:
@@ -160,6 +169,10 @@ class FrictionScan:
         self.dropped = 0
         self.calls: dict[str, tuple[str, dict, float | None, str]] = {}
         self.denied_ids: set[str] = set()
+        # Hook-block denials of the current file still waiting for the next tool call, and the calls
+        # already taken as a next call whose result has not arrived: tool_use id -> denials it answers.
+        self.awaiting_next: list[dict] = []
+        self.next_calls: dict[str, list[dict]] = {}
         self.side = "main"
         self.agent: str | None = None
         self.headless = False
@@ -170,6 +183,7 @@ class FrictionScan:
 
     def start_file(self, side: str, agent: str | None) -> None:
         self.side, self.agent = side, agent
+        self.awaiting_next = []
 
     def _event(self, kind: str, ts: float | None, **fields) -> dict:
         event = {
@@ -223,6 +237,11 @@ class FrictionScan:
                 if not isinstance(tool_input, dict):
                     tool_input = {}
                 self.calls.setdefault(block["id"], (name, tool_input, ts, self.side))
+                if self.awaiting_next:
+                    for denial in self.awaiting_next:
+                        denial["next_tool"] = name
+                    self.next_calls[block["id"]] = self.awaiting_next
+                    self.awaiting_next = []
                 command = tool_input.get("command") if name in SHELL_TOOLS else None
                 if isinstance(command, str):
                     self.perf["ci_wait_calls"] += bool(CI_WAIT_RE.search(command))
@@ -275,6 +294,8 @@ class FrictionScan:
         if CONFLICT_RE.search(text[:20000]):
             self.perf["merge_conflicts"] += 1
         permission = transcript_reader.permission_event(record)
+        for denial in self.next_calls.pop(use_id, ()):
+            denial["next_ok"] = not (_errored(record) or (permission and permission["outcome"] == "denied"))
         if name == "AskUserQuestion":
             reply = "rejected" if permission and permission["outcome"] == "denied" else (
                 "approve" if "(Recommended)" in text else "other"
@@ -286,11 +307,15 @@ class FrictionScan:
         shape, flags, target = tool_shape(name, tool_input, self.cwd)
         if permission["outcome"] == "denied":
             self.denied_ids.add(use_id)
-            self._event(
+            event = self._event(
                 "denied", ts, tool=name, shape=shape, flags=flags, target=target,
                 cause=permission["cause"], reason=permission["reason"], hook=permission["hook"],
                 source=permission["source"], reason_type=permission["reason_type"],
             )
+            if permission["cause"] == "hook":
+                # next_tool stays None when no call follows; next_ok stays None until that call's result.
+                event["next_tool"] = event["next_ok"] = None
+                self.awaiting_next.append(event)
         elif (permission["source"] or "").startswith("user") and permission["reason_type"] != "rule":
             self._event("prompt-approved", ts, tool=name, shape=shape, flags=flags, target=target, source=permission["source"])
 
@@ -304,6 +329,8 @@ class FrictionScan:
                     stored[key] = scrub.key(stored[key])
             target = event.get("target")
             stored["excerpt"] = scrub.excerpt(target, excerpt_chars) if excerpt_chars and target else None
+            if "next_tool" in event:
+                stored["key"] = scrub.key(event_key(event))  # the `counts` key, so mine can join the two
             events.append(stored)
         return {
             "events": events,

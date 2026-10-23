@@ -455,8 +455,20 @@ test("the record step warns on refused re-runs and errors when the record was no
 
 // Runs the gate step over three candidates with a fake clock: `date +%s`
 // answers each value of `clock` in turn (the first is the loop's start), and
-// `skipped` as the skip step's file when given.
-const runBudgetedGate = (budget, clock, skipped) => {
+// `skipped` as the skip step's file when given. `gate` replaces the fake
+// gate's body, and `candidateMinutes` is merge.gate-candidate-minutes.
+const REFUSING_GATE = `echo '{"ready": false, "blockers": ["x"], "unattended": {"reason": "verify:missing"}}'\nexit 10\n`;
+const runBudgetedGate = (
+  budget,
+  clock,
+  skipped,
+  {
+    gate = REFUSING_GATE,
+    candidateMinutes = "",
+    deferredMinutes = "",
+    candidates = [7, 3, 5].map((number) => ({ number, head: `h${number}`, updatedAt: "u" })),
+  } = {},
+) => {
   const dir = mkdtempSync(join(tmpdir(), "pr-merge-budget-"));
   try {
     const bin = join(dir, "bin");
@@ -469,16 +481,12 @@ const runBudgetedGate = (budget, clock, skipped) => {
     );
     writeFileSync(
       join(dir, ".base", "gate"),
-      `#!/usr/bin/env bash\necho "\${@: -1}" >>"${dir}/gated"\n` +
-        `echo '{"ready": false, "blockers": ["x"], "unattended": {"reason": "verify:missing"}}'\nexit 10\n`,
+      `#!/usr/bin/env bash\necho "\${@: -1}" >>"${dir}/gated"\necho "$*" >>"${dir}/argv"\n` + gate,
     );
     for (const file of [join(bin, "gh"), join(bin, "date"), join(dir, ".base", "gate")]) chmodSync(file, 0o755);
     writeFileSync(join(dir, "resolved-config.json"), '{"selected": {"args": ""}}');
     writeFileSync(join(dir, "held.json"), "[]");
-    writeFileSync(
-      join(dir, "candidates.json"),
-      JSON.stringify([7, 3, 5].map((number) => ({ number, head: `h${number}`, updatedAt: "u" }))),
-    );
+    writeFileSync(join(dir, "candidates.json"), JSON.stringify(candidates));
     if (skipped !== undefined) writeFileSync(join(dir, "skipped.json"), skipped);
     const result = spawnSync("bash", ["-c", runScript("Run the merge gate on each candidate")], {
       cwd: dir,
@@ -496,6 +504,8 @@ const runBudgetedGate = (budget, clock, skipped) => {
         REPO: "o/r",
         OWNER: "o",
         BUDGET_MINUTES: budget,
+        CANDIDATE_MINUTES: candidateMinutes,
+        DEFERRED_MINUTES: deferredMinutes,
       },
     });
     const read = (name) => (existsSync(join(dir, name)) ? readFileSync(join(dir, name), "utf8") : "");
@@ -504,6 +514,7 @@ const runBudgetedGate = (budget, clock, skipped) => {
       stdout: result.stdout,
       stderr: result.stderr,
       gated: read("gated").split("\n").filter(Boolean),
+      argv: read("argv").split("\n").filter(Boolean),
       cursor: read("gate-cursor/cursor.json"),
       stepSummary: read("step-summary"),
       summary: JSON.parse(read("pr-merge-summary.json") || "null"),
@@ -535,6 +546,96 @@ test("with no budget, or an unreadable one, the gate checks every candidate", ()
     assert.deepEqual(JSON.parse(run.cursor), { last: 5 });
     assert.doesNotMatch(run.stepSummary, /budget-stop/);
     assert.equal(/::warning::merge\.gate-budget-minutes/.test(run.stdout), budget === "ten");
+  }
+});
+
+test("a candidate stopped at its read limit is reported unknown, never ready, and the next candidate is gated", () => {
+  // The first candidate's gate stops at its limit as babysit_merge.py does.
+  const gate =
+    `if [[ $* == *'#7' ]]; then echo '{"pr": "o/r#7", "error": "unknown:candidate-deadline; stopped"}'; exit 11; fi\n` + REFUSING_GATE;
+  const run = runBudgetedGate("10", [0, 0, 1, 2], undefined, { gate, candidateMinutes: "4" });
+  assert.equal(run.status, 0, run.stderr);
+  assert.deepEqual(run.gated, ["o/r#7", "o/r#3", "o/r#5"]);
+  assert.ok(run.argv.every((line) => line.includes("--candidate-deadline-seconds 240 ")), run.argv.join("\n"));
+  assert.deepEqual(
+    run.summary.map((row) => [row.pr, row.exit, row.ready, row.enqueued, row.reason]),
+    [
+      [7, 11, false, false, "unknown:candidate-deadline; stopped"],
+      [3, 10, false, false, "verify:missing"],
+      [5, 10, false, false, "verify:missing"],
+    ],
+  );
+  assert.deepEqual(JSON.parse(run.cursor), { last: 5, deferred: 7 });
+});
+
+// The candidates the next run's rotation.mjs orders from a cursor.
+const rotateFrom = async (cursor) => {
+  const { main: rotation } = await import("./rotation.mjs");
+  const dir = mkdtempSync(join(tmpdir(), "pr-merge-rotation-"));
+  try {
+    const path = join(dir, "candidates.json");
+    writeFileSync(path, JSON.stringify([3, 5, 7].map((number) => ({ number, head: `h${number}`, updatedAt: "u" }))));
+    const actions = async (_method, url) =>
+      url.includes("/artifacts")
+        ? { artifacts: [{ expired: false }] }
+        : { workflow_runs: [{ id: 1, event: "schedule", head_branch: "main", path: ".github/workflows/pr-merge.yml" }] };
+    const log = console.log;
+    console.log = () => {};
+    try {
+      await rotation({ env: { GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "2", CANDIDATES_PATH: path }, actions, download: () => cursor });
+    } finally {
+      console.log = log;
+    }
+    return JSON.parse(readFileSync(path, "utf8"));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+// #7's gate always runs past the 4-minute limit, and past the 20-minute
+// ceiling too when `pastCeiling`.
+const slowGate = (pastCeiling) =>
+  `if [[ $* == *'--candidate-deadline-seconds 240 '*'#7' ${pastCeiling ? "|| $* == *'--candidate-deadline-seconds 1200 '*'#7' " : ""}]]; then ` +
+  `echo '{"error": "unknown:candidate-deadline; stopped"}'; exit 11; fi\n` +
+  REFUSING_GATE;
+const limits = { candidateMinutes: "4", deferredMinutes: "20" };
+
+test("a candidate that always passes its read limit is gated first the next run under the deferred ceiling", async () => {
+  const gate = slowGate(false);
+  const first = runBudgetedGate("", [0, 0, 1, 2], undefined, { gate, ...limits });
+  assert.equal(first.status, 0, first.stderr);
+  assert.deepEqual(JSON.parse(first.cursor), { last: 5, deferred: 7 });
+  assert.deepEqual(first.summary.map((row) => [row.pr, row.exit]), [[7, 11], [3, 10], [5, 10]]);
+  const second = runBudgetedGate("", [0, 0, 1, 2], undefined, { gate, ...limits, candidates: await rotateFrom(first.cursor) });
+  assert.equal(second.status, 0, second.stderr);
+  assert.deepEqual(second.gated, ["o/r#7", "o/r#3", "o/r#5"]);
+  assert.match(second.argv[0], /--candidate-deadline-seconds 1200 /);
+  assert.ok(second.argv.slice(1).every((line) => line.includes("--candidate-deadline-seconds 240 ")));
+  assert.deepEqual(second.summary.map((row) => [row.pr, row.exit, row.reason]), [[7, 10, "verify:missing"], [3, 10, "verify:missing"], [5, 10, "verify:missing"]]);
+  assert.deepEqual(JSON.parse(second.cursor), { last: 5 });
+  assert.doesNotMatch(second.stdout, /merge\.gate-deferred-minutes/);
+});
+
+test("a deferred candidate stopped at its ceiling is warned about and not deferred again", async () => {
+  const gate = slowGate(true);
+  const first = runBudgetedGate("", [0, 0, 1, 2], undefined, { gate, ...limits });
+  const second = runBudgetedGate("", [0, 0, 1, 2], undefined, { gate, ...limits, candidates: await rotateFrom(first.cursor) });
+  assert.equal(second.status, 0, second.stderr);
+  assert.deepEqual(second.summary.map((row) => [row.pr, row.exit]), [[7, 11], [3, 10], [5, 10]]);
+  assert.match(second.stdout, /^::warning::PR #7's gate ran past merge\.gate-deferred-minutes \(20\) after a deferral; it goes back to the capped rotation$/m);
+  assert.deepEqual(JSON.parse(second.cursor), { last: 5 });
+  // The run after that rotates on from #5 with #7 capped like the rest.
+  const third = await rotateFrom(second.cursor);
+  assert.deepEqual(third.map((c) => [c.number, c.deferred === true]), [[7, false], [3, false], [5, false]]);
+});
+
+test("with no read limit, or an unreadable one, the gate passes none", () => {
+  for (const candidateMinutes of ["", "four", "0"]) {
+    const run = runBudgetedGate("", [0, 0, 1, 2], undefined, { candidateMinutes });
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(run.argv.length, 3);
+    assert.ok(run.argv.every((line) => !line.includes("--candidate-deadline-seconds")));
+    assert.equal(/::warning::merge\.gate-candidate-minutes/.test(run.stdout), candidateMinutes !== "");
   }
 });
 
@@ -594,6 +695,10 @@ test("the skip step runs just before the gate and its record between the carry a
 test("the budget comes from the pipeline config, rotation runs before the gate, and the upload step runs under always()", () => {
   assert.match(step("Read report-only"), /echo "gate-budget-minutes=\$\(yq '\.merge\."gate-budget-minutes" \/\/ ""' "\$config"\)"/);
   assert.match(step("Run the merge gate on each candidate"), /BUDGET_MINUTES: \$\{\{ steps\.mode\.outputs\.gate-budget-minutes \}\}/);
+  assert.match(step("Read report-only"), /echo "gate-candidate-minutes=\$\(yq '\.merge\."gate-candidate-minutes" \/\/ ""' "\$config"\)"/);
+  assert.match(step("Run the merge gate on each candidate"), /CANDIDATE_MINUTES: \$\{\{ steps\.mode\.outputs\.gate-candidate-minutes \}\}/);
+  assert.match(step("Read report-only"), /echo "gate-deferred-minutes=\$\(yq '\.merge\."gate-deferred-minutes" \/\/ ""' "\$config"\)"/);
+  assert.match(step("Run the merge gate on each candidate"), /DEFERRED_MINUTES: \$\{\{ steps\.mode\.outputs\.gate-deferred-minutes \}\}/);
   const names = steps.map((s) => s.name);
   const rotation = names.indexOf("Start after the candidate the last run reached");
   const gate = names.indexOf("Run the merge gate on each candidate");

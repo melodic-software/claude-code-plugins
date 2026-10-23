@@ -8,6 +8,12 @@
 //   App bot as its actor, and the App's first escalation comment after it
 //   came within PAIRED_MS (report-escalation.sh writes the label, then the
 //   comment).
+// - No review lane holds it: no comment carrying a REVIEW_HOLD marker line, by
+//   claude[bot] or by github-actions[bot] ending in the lane's `claude-lane:`
+//   footer, was written or edited since the label was last removed (ever,
+//   when it never was). A lane adding a label the PR already carries writes
+//   no `labeled` event, so its hold can sit under the App's label, and a
+//   person removing the label is what lifts it.
 // - Every escalation comment since that label event is the App's: its author
 //   is the bot login and a Bot account, its first line is the pr-unblock
 //   escalation marker, its second the resume-key line, and its `- Reason:`
@@ -75,6 +81,11 @@ const PR_MERGE_MARKERS = Object.freeze([
   "<!-- babysit-merge-shared-copy-escalation -->",
 ]);
 const AT_HEAD = / at head `([^`]*)`/g;
+// A review lane's hold comment opens a line with this marker. The lanes post
+// as claude[bot], or as github-actions[bot] with the lane's footer as the last
+// non-blank line (address-feedback.mjs's lane comment rule).
+const REVIEW_HOLD = "<!-- claude-lane-hold lane=";
+const LANE_FOOTER = /^`?claude-lane: (?:claude-review|claude-security-review)`?$/;
 const HEAD_MOVED = "head-moved";
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SHA = /^[0-9a-f]{40}$/;
@@ -93,6 +104,16 @@ const reportError = (number, error) =>
 const lines = (body) => String(body ?? "").split("\n").map((line) => line.replace(/\r$/, ""));
 const same = (a, b) => String(a ?? "").toLowerCase() === String(b).toLowerCase();
 const isApp = (user, bot) => user?.login === bot && user?.type === "Bot";
+
+// The REVIEW_HOLD marker line of a review lane's hold comment, or undefined.
+function laneHold(item) {
+  const body = lines(item.body).map((line) => line.trim());
+  const marker = body.find((line) => line.startsWith(REVIEW_HOLD));
+  const lane =
+    isApp(item.user, "claude[bot]") ||
+    (isApp(item.user, "github-actions[bot]") && LANE_FOOTER.test(body.findLast((line) => line !== "") ?? ""));
+  return item.event === "commented" && lane ? marker : undefined;
+}
 
 // Why each reason no longer holds at `pull`'s head, or null while it holds.
 const CHECKS = Object.freeze({
@@ -183,6 +204,21 @@ async function verdict({ github, repo, number, label, bot, mainSha }) {
     return { reason: `${label} was last added by ${labeled?.actor?.login ?? "no one on the timeline"}, not the lanes App` };
   }
   const since = Date.parse(labeled.created_at);
+  // A comment's writes are its creation and its last edit; a tie, or a time
+  // that does not parse, keeps the label.
+  const lifted = Math.max(
+    -Infinity,
+    ...timeline
+      .filter((item) => item.event === "unlabeled" && same(item.label?.name, label))
+      .map((item) => Date.parse(item.created_at))
+      .filter((time) => time <= since),
+  );
+  const held = timeline.find(
+    (item) => laneHold(item) !== undefined && !(Math.max(Date.parse(item.created_at), Date.parse(item.updated_at ?? item.created_at)) < lifted),
+  );
+  if (held !== undefined) {
+    return { reason: `a review lane holds it: ${laneHold(held).slice(0, 120)}` };
+  }
   // Every escalation since the label went on: a later one posts no new label
   // event, so each reason it recorded must have cleared.
   const appComments = timeline.filter((item) => item.event === "commented" && isApp(item.user, bot));
