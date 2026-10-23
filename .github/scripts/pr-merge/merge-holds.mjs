@@ -26,10 +26,18 @@
 //   path for a pull request pr-merge's gate sends to a person. FAILs and the
 //   repeated-FAIL cap are enable-auto-merge.mjs's, through pr-merge's own
 //   reader, which disarms such a pull request.
+// - A changed issue link, when a link file is given with the verdicts: the
+//   pass binds only while the live link is the one its verdict judged
+//   (linkHold), as pr-merge's reader binds it (babysit_verify_evidence.py
+//   `_pass_refusal`), so a body edited after arming to close or name another
+//   issue does not merge on a pass for the old one. The same approval lifts it.
 //
 // Command line: merge-holds.mjs <number> <body-file> <discussion-file>
 // <files-file> <denied-paths-file> <trusted-actors-file> <head-sha>
-// [<verdicts-file>]. The verdicts file holds one {name, verdict, runId, run}
+// [<verdicts-file> <link-file>]. The link file holds {record, closing}: the
+// verdict.json of the pass verdictHold counts (null when none was read) and
+// the pull request's closingIssuesReferences (totalCount, nodes with number
+// and repository.nameWithOwner). The verdicts file holds one {name, verdict, runId, run}
 // per line, run as GET actions/runs/{runId} gives it, for each unexpired artifact
 // named a pass at the head; GITHUB_REPOSITORY names the repository. The
 // discussion file holds one REST issue comment, review or review comment per
@@ -48,6 +56,82 @@ import { pathToFileURL } from "node:url";
 // text it tries.
 export const BODY_HOLD = /\bdo(?:n['’]?t| not)\s+merge\b|(?:^|\r)[^\S\r\n]*hold:/im;
 export const HUMAN_VETO = /\bdo(?:n['’]?t| not|-not)[\s-]*merge\b/i;
+
+// babysit_merge_policy.refs_issue, which test_verify_rules_sync.py keeps equal:
+// the one issue the visible `Refs: #<n>` lines of a pull request body name,
+// else null. A line counts only from its first column, outside an HTML comment
+// and a fenced code block; a `Refs:` line in any other form, or two numbers,
+// name none.
+const HTML_COMMENT = /<!--[\s\S]*?(?:-->|$)/g;
+const FENCE = /^ {0,3}(`{3,}|~{3,})/;
+const REFS_LINE = /^[Rr][Ee][Ff][Ss]:/;
+const REFS_PLAIN = /^Refs:[ \t]*#([1-9][0-9]{0,8})[ \t]*$/;
+export function refsIssue(body) {
+  const numbers = new Set();
+  let fence = "";
+  for (const line of String(body ?? "").replace(HTML_COMMENT, "").split(/\r\n|\r|\n/)) {
+    const marker = FENCE.exec(line);
+    if (fence) {
+      if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && line.slice(marker[0].length).replace(/[ \t]/g, "") === "") {
+        fence = "";
+      }
+      continue;
+    }
+    if (marker) {
+      fence = marker[1];
+      continue;
+    }
+    if (!REFS_LINE.test(line)) {
+      continue;
+    }
+    const plain = REFS_PLAIN.exec(line);
+    if (!plain) {
+      return null;
+    }
+    numbers.add(Number(plain[1]));
+  }
+  return numbers.size === 1 ? [...numbers][0] : null;
+}
+
+// Why the pass `record` (its verdict.json) does not bind the pull request's
+// live link, or null when it does. The live link is the gate's
+// (babysit_merge_policy._linked_issue): its one closing issue in `repo`, or,
+// with no closing issue at all, the one issue its plain `Refs:` lines name
+// (refsIssue). The pass binds when it judged that one issue, linked the same
+// way (its `spec_kind`, `closes` when absent, as the reader reads an older
+// record).
+export function linkHold(record, body, closing, repo) {
+  if (record === null || typeof record !== "object" || !Array.isArray(record.linked_issues)) {
+    return "its verifier pass's record could not be read";
+  }
+  const kind = record.spec_kind ?? "closes";
+  if (!["closes", "refs"].includes(kind)) {
+    return `its verifier pass judged a spec of kind '${String(kind)}', not a linked issue`;
+  }
+  if (!Array.isArray(closing?.nodes) || !Number.isSafeInteger(closing.totalCount) || closing.totalCount !== closing.nodes.length) {
+    return "its closing issues could not be read";
+  }
+  let live = null;
+  let linked = "refs";
+  if (closing.totalCount > 0) {
+    const [issue] = closing.nodes;
+    if (closing.totalCount !== 1 || String(issue?.repository?.nameWithOwner).toLowerCase() !== String(repo).toLowerCase()) {
+      return "it does not close exactly one issue in this repository, which pr-merge's lane takes";
+    }
+    live = issue.number;
+    linked = "closes";
+  } else {
+    live = refsIssue(body);
+  }
+  if (!Number.isSafeInteger(live)) {
+    return "it names no issue pr-merge's lane takes";
+  }
+  const judged = record.linked_issues.map((issue) => issue?.number);
+  if (judged.length !== 1 || judged[0] !== live || kind !== linked) {
+    return `its link changed since pr-verify passed it: it ${linked === "closes" ? "closes" : "refs"} #${live}, and the pass judged ${judged.map((n) => `#${n}`).join(", ") || "no issue"} (${kind})`;
+  }
+  return null;
+}
 // babysit_merge_policy.BLOCKER_ASSOCIATIONS.
 const MEMBERS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 // The denied paths resolve-config adds to every config's (resolveMerge);
@@ -148,7 +232,6 @@ export function costHold(files, decision) {
 // babysit_merge_policy COST_DECISION_LINK, DECISION_LINE and HTML_COMMENT.
 const DECISION_LINK = /https:\/\/github\.com\/([A-Za-z0-9-]+)\/([A-Za-z0-9._-]+)\/(?:issues|pull)\/([0-9]+)#issuecomment-([0-9]+)/g;
 const DECISION_LINE = /^\*\*Decision recorded\.\*\*[ \t]+Cost:/;
-const HTML_COMMENT = /<!--[\s\S]*?(?:-->|$)/g;
 export const PULL_OPENED_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) { createdAt closingIssuesReferences(first: 2) { totalCount nodes { number repository { nameWithOwner } } } }
@@ -324,8 +407,18 @@ const escape = (text) => String(text).replaceAll("%", "%25").replaceAll("\r", "%
 export const humansOf = (actors) =>
   new Set(actors.filter((actor) => actor?.kind === "human" && Number.isInteger(actor?.id)).map(({ id }) => id));
 
+// The link file's verdict, a file that does not read included.
+function linkOf(file, body, repo) {
+  try {
+    const { record, closing } = JSON.parse(readFileSync(file, "utf8"));
+    return linkHold(record, body, closing, repo);
+  } catch {
+    return "its issue link could not be checked against its verifier pass";
+  }
+}
+
 export async function main(argv = process.argv.slice(2), { env = process.env, github = fetchGitHub(env) } = {}) {
-  const [number, bodyFile, discussionFile, filesFile, deniedFile, actorsFile, head, verdictsFile] = argv;
+  const [number, bodyFile, discussionFile, filesFile, deniedFile, actorsFile, head, verdictsFile, linkFile] = argv;
   try {
     if (
       !/^[1-9][0-9]*$/.test(String(number)) ||
@@ -337,7 +430,7 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
       !/^[0-9a-f]{40}$/.test(String(head))
     ) {
       throw new Error(
-        "usage: merge-holds.mjs <number> <body-file> <discussion-file> <files-file> <denied-paths-file> <trusted-actors-file> <head-sha> [<verdicts-file>]",
+        "usage: merge-holds.mjs <number> <body-file> <discussion-file> <files-file> <denied-paths-file> <trusted-actors-file> <head-sha> [<verdicts-file> <link-file>]",
       );
     }
     const lines = (file) => readFileSync(file, "utf8").split("\n").filter((line) => line.trim());
@@ -364,8 +457,12 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     }
     if (verdictsFile) {
       const unverified = verdictHold(lines(verdictsFile).map((line) => JSON.parse(line)), env.GITHUB_REPOSITORY);
-      if (!unverified) {
+      // An approval lifts the verifier hold whole, the link with it.
+      const relinked = unverified || lifters.length ? null : linkFile ? linkOf(linkFile, body, repo) : "its issue link could not be checked against its verifier pass";
+      if (!unverified && !relinked) {
         console.log(`#${number}: no verifier hold: pr-verify passed this head.`);
+      } else if (!unverified && lifters.length === 0) {
+        reasons.push(`${relinked}; pr-verify judges its new link, after which enable-auto-merge arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue`);
       } else if (lifters.length) {
         console.log(`#${number}: no verifier hold: ${lifters.join(", ")} approved this head, which lifts '${unverified}'.`);
       } else {
