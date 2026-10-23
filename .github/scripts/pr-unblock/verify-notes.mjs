@@ -20,7 +20,8 @@
 //
 // Environment: GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_OUTPUT, ARTIFACT_NAME
 // (pr-verify-<pr>-<sha>-fail, then the head-ref digest write-verdict.mjs
-// adds, absent on an older verdict) and
+// adds, absent on an older verdict, then optionally `-i` and the verdict's
+// issue numbers) and
 // VERDICT_FILE (its verdict.json). Writes pr-number and head-sha outputs once
 // the notes are on the pull request, posted now or by an earlier run.
 
@@ -30,7 +31,20 @@ import { pathToFileURL } from "node:url";
 import { headRefDigest } from "../pr-verify/write-verdict.mjs";
 import { createGitHubApi, MARKER_AUTHOR_ID, need, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 
-export const FAIL_NAME = /^pr-verify-([1-9][0-9]{0,9})-([0-9a-f]{40})-fail(?:-([0-9a-f]{16}))?$/;
+// The name may end with `-i` and the issue numbers the verdict records,
+// ascending, each once, joined by dots (babysit_verify_evidence.NAME_RE);
+// `isFailName` checks the order.
+export const FAIL_NAME = /^pr-verify-([1-9][0-9]{0,9})-([0-9a-f]{40})-fail(?:-([0-9a-f]{16}))?(?:-i([1-9][0-9]{0,9}(?:\.[1-9][0-9]{0,9}){0,9}))?$/;
+const ascending = (named) => {
+  const numbers = named?.split(".").map(Number) ?? [];
+  return numbers.every((n, i) => i === 0 || numbers[i - 1] < n);
+};
+// The longest name FAIL_NAME allows (babysit_verify_evidence.NAME_MAX).
+export const NAME_MAX = 194;
+export const isFailName = (name) => {
+  const match = String(name).length <= NAME_MAX ? FAIL_NAME.exec(String(name)) : null;
+  return match !== null && ascending(match[4]);
+};
 // GitHub refuses a comment body over 65536 characters; leave room for the
 // framing (judgment).
 const BODY_MAX = 60000;
@@ -80,9 +94,18 @@ export function noteComments({ head, summary, notes, files }) {
   });
 }
 
+// Whether the dot-joined numbers a name carries are the issues the verdict
+// records, as sets.
+const sameIssues = (named, recorded) => {
+  if (!Array.isArray(recorded)) return false;
+  const a = new Set(named.split(".").map(Number));
+  const b = new Set(recorded.map((issue) => issue?.number));
+  return a.size === b.size && [...a].every((n) => b.has(n));
+};
+
 export function readVerdict(name, text) {
   const match = FAIL_NAME.exec(name ?? "");
-  if (!match) {
+  if (!match || !isFailName(name)) {
     throw new Error("the artifact name is not a pr-verify fail verdict");
   }
   const verdict = JSON.parse(text);
@@ -91,6 +114,7 @@ export function readVerdict(name, text) {
     verdict.pr !== Number(match[1]) ||
     verdict.head_sha !== match[2] ||
     (match[3] !== undefined && headRefDigest(verdict.head_ref) !== match[3]) ||
+    (match[4] !== undefined && !sameIssues(match[4], verdict.linked_issues)) ||
     typeof verdict.summary !== "string" ||
     !Array.isArray(verdict.notes) ||
     !verdict.notes.every((note) => typeof note === "string")
