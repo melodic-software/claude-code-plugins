@@ -1,5 +1,13 @@
 # Changelog for the PR pipeline convention
 
+## [4.7.4] - 2026-10-23
+
+### Changed
+
+- The pr-merge HIGH path floor also holds `.github/actions/resolve-config/**`, so a change there waits for a human merge: the token broker runs that directory's code from main in its signer process.
+
+- Every reader of a pr-verify verdict name (the pr-merge gate, the resolver, the FAIL-notes poster `verify-notes.mjs` and pr-feedback-dispatch) also accepts the name followed by `-<ref-digest>`, the first 16 hex digits of the SHA-256 of the head branch the verdict records (`headRefDigest` in `write-verdict.mjs`). The gate ties an untied FAIL from such a name without downloading it, so a digest-named FAIL whose verdict.json cannot be read no longer refuses `verify:unreadable`. `verify-notes.mjs` checks the digest against the verdict. pr-verify still uploads the old name until a follow-up switches the writer.
+
 ## [4.7.3] - 2026-10-23
 
 ### Changed
