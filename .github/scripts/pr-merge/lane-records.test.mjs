@@ -51,9 +51,10 @@ let n = 0;
 // head commits the compare API reports as not on main. Requests count REST
 // requests: each API call, and two per `gh run download` (it lists the run's
 // artifacts, then fetches the archive).
-async function readRun({ pages = [[]], files = {}, offMain = [], fail } = {}) {
+async function readRun({ pages = [[]], files = {}, offMain = [], fail, planted } = {}) {
   n += 1;
   const path = join(dir, `in-${n}.json`);
+  if (planted !== undefined) writeFileSync(path, planted);
   const calls = [];
   const downloads = [];
   const actions = async (method, url) => {
@@ -140,6 +141,14 @@ test("an unreadable, foreign or misshapen file writes nothing and warns", async 
   assert.ok(failed.lines.some((line) => line.startsWith("::warning title=lane records::")));
 });
 
+test("a file planted before the read never survives it", async () => {
+  const planted = fileOf({ "pr-merge-dispatched-1": entry(1) });
+  for (const options of [{ pages: [[wf(5, "schedule")]] }, { fail: new Error("HTTP 502") }, { pages: [[wf(1, "schedule")]], files: { 1: "not json" } }]) {
+    const result = await readRun({ ...options, planted });
+    assert.equal(result.written, undefined);
+  }
+});
+
 test("no trusted run with records writes nothing, quietly", async () => {
   const result = await readRun({ pages: [[wf(5, "schedule"), wf(4, "workflow_dispatch", "feature")]], files: { 4: fileOf({}) } });
   assert.equal(result.written, undefined);
@@ -147,7 +156,10 @@ test("no trusted run with records writes nothing, quietly", async () => {
   assert.ok(!result.lines.some((line) => line.startsWith("::warning")));
 });
 
-const listed = (...ids) => ({ fetchedAt: "t", artifacts: ids.map((id) => ({ id, expired: false })) });
+// The listing as GitHub serves it: each record's artifact under its own name,
+// uploaded by the record's sender run (500).
+const item = (id, changes = {}) => ({ id, name: `pr-merge-dispatched-${id}`, expired: false, workflow_run: { id: 500 }, ...changes });
+const listed = (...ids) => ({ fetchedAt: "t", artifacts: ids.map((id) => item(id)) });
 
 test("the next file keeps unexpired records the listing lists unexpired", () => {
   const records = {
@@ -156,8 +168,14 @@ test("the next file keeps unexpired records the listing lists unexpired", () => 
     "pr-merge-dispatched-13": entry(13),
     "pr-merge-dispatched-14": entry(14, { expires_at: "2026-10-23T12:00:00Z" }),
   };
-  const listing = { artifacts: [...listed(11, 14).artifacts, { id: 12, expired: true }] };
+  const listing = { artifacts: [...listed(11, 14).artifacts, item(12, { expired: true })] };
   // 12 has expired in the listing; 13 is no longer listed; 14 expires now.
+  assert.deepEqual(Object.keys(nextRecords({ records, listing, now: NOW })), ["pr-merge-dispatched-11"]);
+});
+
+test("a listed artifact counts only under the record's name and sender run", () => {
+  const records = { "pr-merge-dispatched-11": entry(11), "pr-merge-dispatched-12": entry(12), "pr-merge-dispatched-13": entry(13) };
+  const listing = { artifacts: [item(11), item(12, { name: "pr-merge-dispatched-99" }), item(13, { workflow_run: { id: 501 } })] };
   assert.deepEqual(Object.keys(nextRecords({ records, listing, now: NOW })), ["pr-merge-dispatched-11"]);
 });
 

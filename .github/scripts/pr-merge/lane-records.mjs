@@ -40,7 +40,7 @@
 //   LANE_RECORDS_PATH         the file the checks read and rewrite
 //   BABYSIT_VERIFY_LISTING    write: the run's saved artifact listing, if any
 //   LANE_RECORDS_OUT          write: the file to upload
-import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -100,21 +100,30 @@ export async function readRecords({ repo, runId, actions, download }) {
 }
 
 // The next run's records: those unexpired at `now` whose artifact `listing`
-// lists unexpired.
+// lists unexpired, under the record's name, uploaded by its sender run.
 export function nextRecords({ records, listing, now }) {
-  const listed = new Set(
+  const listed = new Map(
     (Array.isArray(listing?.artifacts) ? listing.artifacts : [])
       .filter((a) => a?.expired === false && Number.isSafeInteger(a.id))
-      .map((a) => a.id),
+      .map((a) => [a.id, a]),
   );
   return Object.fromEntries(
-    Object.entries(records).filter(([, entry]) => Date.parse(entry.expires_at) > now && listed.has(entry.artifact)),
+    Object.entries(records).filter(([name, entry]) => {
+      const artifact = listed.get(entry.artifact);
+      return (
+        Date.parse(entry.expires_at) > now &&
+        artifact?.name === name &&
+        artifact.workflow_run?.id === entry.sender.id
+      );
+    }),
   );
 }
 
 export async function main({ mode = process.argv[2], env = process.env, actions, download, now = Date.now() } = {}) {
   const repo = env.GITHUB_REPOSITORY ?? "";
   try {
+    // A file left in its place before this step is never read as one.
+    if (mode === "read" && env.LANE_RECORDS_PATH) rmSync(env.LANE_RECORDS_PATH, { force: true });
     if (!REPO.test(repo)) throw new Error("GITHUB_REPOSITORY is not owner/repo");
     if (mode === "read") {
       actions ??= createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });

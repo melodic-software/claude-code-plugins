@@ -847,9 +847,13 @@ def _sender_fields(record: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def load_lane_records(path: str, repo: str) -> dict[str, dict[str, Any]]:
-    """The records in the file at `path`, by artifact name. Raises
-    `ValueError` for any file of another shape, so none of it is used."""
+def load_lane_records(
+    path: str, repo: str
+) -> tuple[dict[str, dict[str, Any]], datetime | None]:
+    """The records in the file at `path`, by artifact name, and the lowest
+    floor a check of this run saved them under (None in a file read from an
+    earlier run). Raises `ValueError` for any file of another shape, so none
+    of it is used."""
     data = json_object(json.loads(Path(path).read_text(encoding="utf-8")))
     records = data.get("records")
     if (
@@ -858,6 +862,10 @@ def load_lane_records(path: str, repo: str) -> dict[str, dict[str, Any]]:
         or not is_json_object(records)
     ):
         raise ValueError("an unexpected shape")
+    try:
+        floor = None if data.get("floor") is None else _time(data["floor"])
+    except PostMergeReadError as exc:
+        raise ValueError(f"floor: {exc}") from exc
     for name, entry in records.items():
         entry = json_object(entry)
         sender = json_object(entry.get("sender"))
@@ -866,7 +874,7 @@ def load_lane_records(path: str, repo: str) -> dict[str, dict[str, Any]]:
             _time(entry.get("created_at"))
             _time(entry.get("expires_at"))
         except PostMergeReadError as exc:
-            raise ValueError(f"{name}: {exc}") from exc
+            raise ValueError(f"{name!r}: {exc}") from exc
         if not (
             _LANE_RECORD_NAME.fullmatch(name)
             and isinstance(artifact, int)
@@ -876,8 +884,24 @@ def load_lane_records(path: str, repo: str) -> dict[str, dict[str, Any]]:
             and sender.get("status") == "completed"
             and sender == _sender_fields(sender)
         ):
-            raise ValueError(f"{name}: an entry of another shape")
-    return records
+            raise ValueError(f"{name!r}: an entry of another shape")
+    return records, floor
+
+
+def _read_lane_file(
+    path: str, repo: str
+) -> tuple[dict[str, dict[str, Any]], datetime | None]:
+    """`load_lane_records`, with no records and a warning for a file it
+    cannot use: any failure, a parse too deep to finish included, is no
+    file."""
+    if not Path(path).exists():
+        return {}, None
+    try:
+        return load_lane_records(path, repo)
+    except Exception as exc:  # noqa: BLE001  (any unusable file is no file)
+        text = re.sub(r"[\r\n%]", " ", f"{type(exc).__name__}: {exc}")[:300]
+        print(f"lane records not used: {text}", file=sys.stderr)
+        return {}, None
 
 
 @dataclass
@@ -928,7 +952,10 @@ class _Context:
         default_factory=lambda: os.environ.get(LANE_RECORDS_ENV) or None
     )
     lane_carried: dict[str, dict[str, Any]] | None = None
+    lane_floor: datetime | None = None
     lane_proved: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # Carried records whose sender failed `_lane_sender`: never written back.
+    lane_rejected: set[str] = field(default_factory=set)
 
     def dispatch_runs_through(
         self, commit: str, merged_at: datetime, deadline: datetime
@@ -1355,14 +1382,10 @@ class _Context:
         file, and none, with a warning, for a file of another shape."""
         if self.lane_carried is None:
             self.lane_carried = {}
-            path = self.lane_records_path
-            if path and Path(path).exists():
-                try:
-                    self.lane_carried = load_lane_records(
-                        path, f"{self.owner}/{self.name}"
-                    )
-                except (OSError, ValueError) as exc:
-                    print(f"lane records not used: {exc}", file=sys.stderr)
+            if self.lane_records_path:
+                self.lane_carried, self.lane_floor = _read_lane_file(
+                    self.lane_records_path, f"{self.owner}/{self.name}"
+                )
         return self.lane_carried
 
     def _carried_record(self, artifact: str, events: frozenset[str]) -> bool:
@@ -1378,6 +1401,7 @@ class _Context:
         ):
             return True
         del carried[artifact]
+        self.lane_rejected.add(artifact)
         return False
 
     def _prove(
@@ -1407,21 +1431,33 @@ class _Context:
                 }
 
     def save_lane_records(self, floor: datetime) -> None:
-        """Write the lane records file back: the records it held and those
-        this check proved, each created at or after `floor` and unexpired.
-        Best effort: a failure is logged, and the file is left as it was."""
+        """Write the lane records file back: the records it holds now
+        (another check of the run may have written since this one read it),
+        those this check read and those it proved, less any whose sender
+        failed, each unexpired and created at or after the lowest floor any
+        check of the run saved under. Best effort: a failure is logged, and
+        the file is left as it was."""
         path = self.lane_records_path
         if not path:
             return
+        carried = self._carried_records()
+        on_disk, disk_floor = _read_lane_file(path, f"{self.owner}/{self.name}")
+        low = min(f for f in (floor, self.lane_floor, disk_floor) if f is not None)
+        held = {
+            name: entry
+            for name, entry in {**on_disk, **carried}.items()
+            if name not in self.lane_rejected
+        }
         records = {
             name: entry
-            for name, entry in {**self._carried_records(), **self.lane_proved}.items()
-            if _time(entry["created_at"]) >= floor
+            for name, entry in {**held, **self.lane_proved}.items()
+            if _time(entry["created_at"]) >= low
             and _time(entry["expires_at"]) > self.now
         }
         payload = {
             "version": LANE_RECORDS_VERSION,
             "repo": f"{self.owner}/{self.name}",
+            "floor": low.isoformat(),
             "records": records,
         }
         target = Path(path)

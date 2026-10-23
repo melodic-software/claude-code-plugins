@@ -1434,6 +1434,19 @@ cannot be read refuses the run's later candidates through `BABYSIT_RUN_CACHE` wi
 download; the next run reads it again. `GITHUB_TOKEN`'s pool is shared with the full-run dispatch and the post-merge checks. Every other call, every write
 included, keeps the lane token. That job checks out only main and runs no pull request code.
 
+The post-merge check's lane records (`pr-merge-dispatched-<id>`, `pr-merge-rerun-<id>-attempt-2`)
+carry from run to run as the `pr-merge-lane-records` artifact
+(`.github/scripts/pr-merge/lane-records.mjs`), read the way the head-ref map is: only from the
+newest scheduled or hand-started `pr-merge.yml` run on main whose head commit is on main, never
+through `actions/cache`. A record it holds is present with no read once its sender run passes the
+check's sender rule again; a carried record decides as a successful read would, and also where
+today's read would fail. Every check of a run adds the records it proves and keeps those at or after
+the lowest floor any check of the run used. A scheduled or hand-started merge job uploads the
+result only when the run's artifact listing can be read, keeping each record whose artifact it
+lists unexpired under the record's name and sender run. Deleting a record's artifact therefore does
+not revoke a carried record at once: it stays present until a later upload's listing drops it, and
+with no readable listing a run uploads nothing, so the next run reads an older file.
+
 pr-merge.yml also names a file in `BABYSIT_RUN_CACHE`, where the run's gate processes share reads
 that are the same for every candidate. The acting login and a credential pass are reused only under
 the same credentials (`gh`'s token variables and `hosts.yml`); a credential refusal is read again. A

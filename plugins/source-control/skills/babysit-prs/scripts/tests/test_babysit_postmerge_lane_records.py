@@ -33,6 +33,7 @@ import babysit_postmerge as pm
 from test_babysit_postmerge import (
     IDENTITY,
     LATER_SHA,
+    OTHER_SHA,
     REPO,
     SINCE,
     FakeGh,
@@ -109,13 +110,15 @@ class LaneRecordCase(unittest.TestCase):
             ]
         self.gh.run_records[SENDER] = sender_record(SENDER)
 
-    def check(self, now: datetime = NOW) -> pm.PostMergeVerdict:
+    def check(
+        self, now: datetime = NOW, since: datetime = SINCE
+    ) -> pm.PostMergeVerdict:
         gh.reset_gh_call_counts()
         return pm.check(
             REPO,
             agent_identity=IDENTITY,
             is_human=human,
-            merged_since=SINCE,
+            merged_since=since,
             now=now,
             pinned_sha=lambda merge: None,
         )
@@ -157,30 +160,37 @@ class TheCarrySparesTheRecordReads(LaneRecordCase):
         self.assertNotIn(ARTIFACTS, self.counts())
 
     def test_a_carried_rerun_record_answers_with_no_read(self) -> None:
-        self.lane_runs(1)
-        self.gh.runs[("pr-require-checks.yml", "workflow_dispatch")] = [
-            dispatch_run(11, run_attempt=2, actor=BOT, triggering_actor=BOT)
-        ]
-        self.gh.attempts[(11, 1)] = dispatch_run(
-            11, "failure", actor=BOT, triggering_actor=BOT
-        )
         name = "pr-merge-rerun-11-attempt-2"
-        self.gh.artifacts[name] = [
-            {
-                "id": 7001,
-                "name": name,
-                "expired": False,
-                "expires_at": EXPIRES,
-                "workflow_run": {"id": RERUNNER},
-            }
-        ]
-        self.gh.run_records[RERUNNER] = sender_record(RERUNNER)
-        fresh = self.check()
+        fresh = lane_rerun(self)
         self.assertEqual(fresh.flakes, (f"https://github.com/{REPO}/actions/runs/11",))
         self.assertEqual(self.carried(), {"pr-merge-dispatched-11", name})
         self.gh.artifacts.clear()
         self.assertEqual(self.check().report(), fresh.report())
         self.assertNotIn(ARTIFACTS, self.counts())
+
+
+def lane_rerun(case: LaneRecordCase) -> pm.PostMergeVerdict:
+    """Run 11, lane-dispatched, red on attempt 1 and green on the lane's
+    recorded attempt 2; the first check, which proves both records."""
+    case.lane_runs(1)
+    case.gh.runs[("pr-require-checks.yml", "workflow_dispatch")] = [
+        dispatch_run(11, run_attempt=2, actor=BOT, triggering_actor=BOT)
+    ]
+    case.gh.attempts[(11, 1)] = dispatch_run(
+        11, "failure", actor=BOT, triggering_actor=BOT
+    )
+    name = "pr-merge-rerun-11-attempt-2"
+    case.gh.artifacts[name] = [
+        {
+            "id": 7001,
+            "name": name,
+            "expired": False,
+            "expires_at": EXPIRES,
+            "workflow_run": {"id": RERUNNER},
+        }
+    ]
+    case.gh.run_records[RERUNNER] = sender_record(RERUNNER)
+    return case.check()
 
 
 class OnlyFinalAnswersCarry(LaneRecordCase):
@@ -270,6 +280,49 @@ class AnUnusableCarryReadsAsToday(LaneRecordCase):
         self.assertEqual(self.carried(), {"pr-merge-dispatched-12"})
         self.assertTrue(verdict.merges[0].verified)
 
+    def test_a_carried_sender_off_the_branch_is_read_again(self) -> None:
+        for label, change in {
+            "head commit off main": {"head_sha": OTHER_SHA},
+            "a fork's head repository": {
+                "head_repository": {"full_name": "outsider/example-repo"}
+            },
+        }.items():
+            with self.subTest(label):
+                self.gh = FakeGh()
+                self.carry(
+                    lambda d, change=change: d["records"]["pr-merge-dispatched-11"][
+                        "sender"
+                    ].update(change)
+                )
+                self.gh.artifacts["pr-merge-dispatched-11"] = []
+                self.assertTrue(self.check().merges[0].verified)
+                # Record 11 read again, empty twice; record 12 carried.
+                self.assertEqual(self.counts()[ARTIFACTS], 2)
+                self.assertEqual(self.carried(), {"pr-merge-dispatched-12"})
+
+    def test_a_carried_rerun_record_from_a_push_run_is_read_again(self) -> None:
+        # A push run writes dispatch records only, never a re-run record.
+        name = "pr-merge-rerun-11-attempt-2"
+        lane_rerun(self)
+        data = self.written()
+        data["records"][name]["sender"]["event"] = "push"
+        self.path.write_text(json.dumps(data), encoding="utf-8")
+        self.gh.artifacts[name] = []
+        verdict = self.check()
+        self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
+        self.assertEqual(self.counts()[ARTIFACTS], 1)
+        self.assertEqual(self.carried(), {"pr-merge-dispatched-11"})
+
+    def test_a_sender_with_another_field_drops_the_file(self) -> None:
+        self.carry(
+            lambda d: d["records"]["pr-merge-dispatched-11"]["sender"].update(
+                conclusion="success"
+            )
+        )
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertTrue(self.check().merges[0].verified)
+        self.assertEqual(self.counts()[ARTIFACTS], 2)
+
     def test_an_expired_carried_record_is_read_again(self) -> None:
         self.carry(
             lambda d: d["records"]["pr-merge-dispatched-11"].update(
@@ -296,6 +349,70 @@ class TheCarryIsBoundToTheWindow(LaneRecordCase):
         self.path.write_text(json.dumps(data), encoding="utf-8")
         self.check()
         self.assertEqual(self.carried(), {"pr-merge-dispatched-11"})
+
+    def test_a_later_check_under_a_higher_floor_keeps_the_earlier_records(
+        self,
+    ) -> None:
+        # The run's first check proves record 11 (created 10:05) under the
+        # merge gate's floor; a later check in the same run under a floor past
+        # it must not drop it.
+        self.lane_runs(1)
+        self.check()
+        self.check(since=datetime(2026, 10, 12, 10, 30, tzinfo=UTC))
+        self.assertEqual(self.carried(), {"pr-merge-dispatched-11"})
+        self.gh.artifacts.clear()
+        self.check()
+        self.assertNotIn(ARTIFACTS, self.counts())
+
+    def test_records_another_process_wrote_since_the_load_are_kept(self) -> None:
+        # A gate process loads the file, the next one proves record 12 and
+        # writes it, then the first saves: record 12 stays.
+        self.lane_runs(2)
+        self.check()
+        both = self.written()
+        only_11 = dict(
+            both,
+            records={
+                "pr-merge-dispatched-11": both["records"]["pr-merge-dispatched-11"]
+            },
+        )
+        self.path.write_text(json.dumps(only_11), encoding="utf-8")
+        ctx = pm._Context(
+            "example-org", "example-repo", IDENTITY, branch="main", now=NOW
+        )
+        self.assertEqual(set(ctx._carried_records()), {"pr-merge-dispatched-11"})
+        self.path.write_text(json.dumps(both), encoding="utf-8")
+        ctx.save_lane_records(SINCE)
+        self.assertEqual(
+            self.carried(), {"pr-merge-dispatched-11", "pr-merge-dispatched-12"}
+        )
+
+
+class AFileThatCannotParse(LaneRecordCase):
+    def test_a_nesting_too_deep_to_parse_reads_as_today(self) -> None:
+        self.lane_runs(2)
+        self.path.write_text("[" * 200_000, encoding="utf-8")
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            verdict = self.check()
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertTrue(verdict.merges[0].verified)
+        self.assertEqual(self.counts()[ARTIFACTS], 2)
+        self.assertIn("lane records not used", err.getvalue())
+
+    def test_a_record_name_cannot_start_a_workflow_command(self) -> None:
+        self.lane_runs(1)
+        self.check()
+        data = self.written()
+        data["records"]["x\n::error::forged"] = data["records"][
+            "pr-merge-dispatched-11"
+        ]
+        self.path.write_text(json.dumps(data), encoding="utf-8")
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.check()
+        self.assertIn("lane records not used", err.getvalue())
+        self.assertNotIn("\n::error::", err.getvalue())
 
 
 if __name__ == "__main__":
