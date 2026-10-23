@@ -43,6 +43,16 @@
 //   head, so a new head is armed only after the reader judges it, and in the
 //   merge queue it checks the pass again at the head it merges
 //   (merge-holds.mjs verdictHold).
+// - pr-merge's gate would let its lane merge one more now: babysit_verify_evidence.py
+//   `lane-room` (babysit_merge_policy.lane_room) reads, once per reader run,
+//   the run-level refusals the gate applies to every lane candidate. While
+//   the gate holds the lane off (a demotion record, merge.rung, the loop
+//   setting or the rung cap off, a post-merge failure, another authority)
+//   nothing is armed and every armed lanes App pull request is disarmed.
+//   Below merge.max-in-flight, counting the merge queue's lane entries, the
+//   lane's unverified merges and the armed pull requests not yet queued, it
+//   arms; at the cap it arms nothing more. A room that cannot be read arms
+//   nothing and disarms nothing.
 // Arming passes the head just read as expectedHeadOid, so a push in between
 // fails the arm rather than arming a head nobody read. An armed pull request
 // that fails any rule is disarmed. While merge.report-only is true it reports
@@ -60,6 +70,9 @@
 //   TRUSTED_ACTORS       the base trusted-actors.json, for the owner of a cost
 //                        decision (default .base/.github/standards/trusted-actors/trusted-actors.json)
 //   EVENT_NAME           the run's event; only READER_EVENTS read verdicts and arm
+//   POSTMERGE_RESULT     this run's babysit_postmerge.py report, for lane-room
+//   RUNG_CAP             vars.CLAUDE_LANES_MERGE_RUNG_CAP (empty is no cap;
+//                        unset holds the lane off, as the gate reads it)
 //   BABYSIT_VERIFY_*, BABYSIT_RUN_CACHE  the reader's Actions token (the
 //                        job's GITHUB_TOKEN), saved listing, head-ref map and
 //                        run cache, as the gate's
@@ -89,6 +102,8 @@ const MAX_PAGES = 10;
 const MAX_FILE_PAGES = 3;
 const VERIFY_SCRIPT = ".base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py";
 
+// Into main, by name: the gate reads the default branch live
+// (babysit_merge_policy._base_refusal), while this assumes it is main.
 export const PULLS_QUERY = `query($owner: String!, $name: String!, $after: String) {
   repository(owner: $owner, name: $name) {
     pullRequests(states: OPEN, baseRefName: "main", first: 100, after: $after) {
@@ -227,6 +242,46 @@ export function pythonVerify(env) {
   return verify;
 }
 
+// The gate's run-level answer for its lane (babysit_verify_evidence.py
+// `lane-room`), read with the reader's Actions token when it has one, as the
+// merge job reads the post-merge check, so the reads stay off the lane App's
+// quota.
+export function pythonRoom(env) {
+  return async () => {
+    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "lane-room", "--repo", env.GITHUB_REPOSITORY, "--postmerge-result", env.POSTMERGE_RESULT ?? ""];
+    if (env.RUNG_CAP !== undefined) {
+      args.push("--rung-cap", env.RUNG_CAP);
+    }
+    const token = env.BABYSIT_VERIFY_GH_TOKEN;
+    const roomEnv = token ? { ...env, GH_TOKEN: token, API_BUDGET_TOKEN: "github-token" } : env;
+    const done = spawnSync("python3", args, { encoding: "utf8", env: roomEnv, timeout: VERIFY_TIMEOUT_MS });
+    if (done.status !== 0) {
+      throw new Error(`babysit_verify_evidence.py lane-room exited ${done.status ?? done.signal}: ${String(done.stderr ?? "").trim().split("\n").at(-1)}`);
+    }
+    return JSON.parse(String(done.stdout).trim().split("\n").at(-1));
+  };
+}
+
+// `lane-room`'s answer as the run applies it, or an unreadable one when it is
+// not of that shape: { refusal, unreadable, count, cap, queued }.
+export function readRoom(answer) {
+  const text = (value) => value === null || typeof value === "string";
+  const whole = (value, least) => Number.isSafeInteger(value) && value >= least;
+  if (
+    answer === null ||
+    typeof answer !== "object" ||
+    !text(answer.refusal) ||
+    !text(answer.unreadable) ||
+    !whole(answer.count, 0) ||
+    !whole(answer.cap, 1) ||
+    !Array.isArray(answer.queued) ||
+    !answer.queued.every((number) => whole(number, 1))
+  ) {
+    return { refusal: null, unreadable: "its answer is not lane-room's", count: 0, cap: 1, queued: [] };
+  }
+  return answer;
+}
+
 // The runs that read the verifier verdict and so may arm: the schedule, and a
 // hand-started run, which a person starts to retry a pull request that looks
 // stuck.
@@ -299,7 +354,7 @@ async function listPulls(github, owner, name) {
   throw new Error(`more than ${MAX_PAGES * 100} open pull requests into main`);
 }
 
-export async function main({ env = process.env, github, verify } = {}) {
+export async function main({ env = process.env, github, verify, room } = {}) {
   try {
     const repo = REPO.exec(env.GITHUB_REPOSITORY ?? "");
     if (!repo) {
@@ -321,10 +376,47 @@ export async function main({ env = process.env, github, verify } = {}) {
     const reads = READER_EVENTS.includes(env.EVENT_NAME);
     const pulls = await listPulls(github, repo[1], repo[2]);
     const deadline = Date.now() + VERIFY_BUDGET_MS;
+    const lanes = (pull) => pull.author?.__typename === "Bot" && pull.author.login === slug;
+    // Only a reader run arms, so only it reads the room.
+    let lane = null;
+    if (reads) {
+      try {
+        lane = readRoom(await (room ?? pythonRoom(env))());
+      } catch (error) {
+        lane = readRoom(null);
+        lane.unreadable = escapeCommand(error?.message ?? error);
+      }
+      console.log(`enable-auto-merge: lane room: ${escapeCommand(JSON.stringify(lane))}`);
+    }
+    // Merges in flight: the gate's count, plus each armed lanes App pull
+    // request the queue has not taken yet, which GitHub enqueues on its own.
+    let inFlight = lane === null ? 0 : lane.count + pulls.filter((pull) => lanes(pull) && pull.autoMergeRequest != null && !lane.queued.includes(pull.number)).length;
+    // Why the room keeps `pull` from arming, with `disarm` when it also turns
+    // an armed one off; null when it has room.
+    const roomHold = (pull) => {
+      if (lane === null || !lanes(pull)) {
+        return null;
+      }
+      if (lane.refusal !== null) {
+        return { disarm: true, reason: `pr-merge's gate holds its lane off (${lane.refusal})` };
+      }
+      if (pull.autoMergeRequest != null) {
+        return null;
+      }
+      if (lane.unreadable !== null) {
+        return { disarm: false, reason: `the lane's room could not be read (${lane.unreadable})` };
+      }
+      return inFlight >= lane.cap ? { disarm: false, reason: `merge.max-in-flight is ${lane.cap} and ${inFlight} merges are in flight` } : null;
+    };
     let failed = 0;
     for (const pull of pulls) {
       let { action, reason } = decide(pull, { bot: slug, humanGated, holdPaths });
       let detail = null;
+      // Checked before the reads, so a held lane spends none.
+      const held = ["read", "verify", "arm"].includes(action) ? roomHold(pull) : null;
+      if (held !== null) {
+        ({ action, reason } = { action: held.disarm && pull.autoMergeRequest != null ? "disarm" : "none", reason: held.reason });
+      }
       if (action === "read" && !reads && pull.autoMergeRequest == null) {
         ({ action, reason } = { action: "none", reason: "only a scheduled or hand-started run arms it, on the gate's verifier verdict" });
       }
@@ -357,6 +449,14 @@ export async function main({ env = process.env, github, verify } = {}) {
           console.log(`enable-auto-merge: #${pull.number} verifier verdict did not read: ${escapeCommand(error?.message ?? error)}`);
         }
         ({ action, reason } = decide(pull, { bot: slug, humanGated, holdPaths }, { ...detail, verify: evidence }));
+      }
+      // A pull request armed earlier in this run counts toward the cap.
+      const full = action === "arm" ? roomHold(pull) : null;
+      if (full !== null) {
+        ({ action, reason } = { action: "none", reason: full.reason });
+      }
+      if (action === "arm") {
+        inFlight += 1;
       }
       if (action === "none") {
         if (reason !== "not the lanes App's") {

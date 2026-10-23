@@ -1985,6 +1985,8 @@ class InFlight(unittest.TestCase):
         admitted = self.capped(5, 2, 2)
         self.assertEqual((admitted.clear, admitted.reason), (True, None))
         self.assertEqual(admitted.unverified, 2)
+        # Two queued entries and two unverified merges: four in flight.
+        self.assertEqual(admitted.count, 4)
         self.assertEqual(self.capped(5, 3, 2).reason, "unverified-auto-merge:#21")
         self.assertEqual(self.capped(5, 5, 0).reason, "identity-entry-queued:#14")
 

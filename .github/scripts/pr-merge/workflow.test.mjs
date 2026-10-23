@@ -187,6 +187,25 @@ test("enable-auto-merge logs both tokens' readings at job end, before the token 
   assert.ok(names.indexOf("Log the API budget at job end") < names.indexOf("Revoke the lane token"));
 });
 
+// The lane's room (lane-room) needs the run's post-merge check and the rung
+// cap as the merge job passes it: an unset cap holds the lane off, so a step
+// that drops it would disarm every lane pull request.
+test("enable-auto-merge reads the lane's room from this run's post-merge check and the rung cap", () => {
+  const arm = job("enable-auto-merge");
+  const check = /- name: Check earlier lane merges\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)?.[1];
+  assert.ok(check, "a post-merge check step");
+  assert.match(check, /^ {8}if: steps\.lane-token\.outputs\.token != '' && \(github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch'\)\n/);
+  assert.match(check, /\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n/);
+  assert.match(check, /babysit_postmerge\.py \\\n {12}--repo "\$REPO" --agent-identity "\$identity" --lane-merges-only \\\n {12}<\/dev\/null >"\$RUNNER_TEMP\/post-merge\.json"/);
+  const step = /- name: Arm and disarm auto-merge\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)[1];
+  assert.match(step, /\n {10}POSTMERGE_RESULT: \$\{\{ runner\.temp \}\}\/post-merge\.json\n/);
+  assert.match(step, /\n {10}RUNG_CAP: \$\{\{ vars\.CLAUDE_LANES_MERGE_RUNG_CAP \}\}\n/);
+  assert.match(arm, /\n {6}pull-requests: read #/);
+  assert.match(arm, /\n {6}issues: read #/);
+  const names = [...arm.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
+  assert.ok(names.indexOf("Check earlier lane merges") < names.indexOf("Arm and disarm auto-merge"));
+});
+
 test("enable-auto-merge asks the broker for its own activity's merge token", () => {
   const arm = job("enable-auto-merge");
   const steps = [...arm.matchAll(/\n {10}lane: (.*)\n {10}activity: (.*)\n/g)].map((m) => `${m[1]}/${m[2]}`);
@@ -202,7 +221,7 @@ test("enable-auto-merge asks the broker for its own activity's merge token", () 
   const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(arm)[1];
   assert.deepEqual(
     [...block.matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => `${m[1]}: ${m[2]}`),
-    ["contents: read", "actions: read", "id-token: write"],
+    ["contents: read", "actions: read", "pull-requests: read", "issues: read", "id-token: write"],
   );
   // The verifier evidence is read as the gate reads it: the job's
   // GITHUB_TOKEN for the Actions reads, with the run's head-ref map and

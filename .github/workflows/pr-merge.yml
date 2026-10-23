@@ -1344,6 +1344,8 @@ jobs:
     permissions:
       contents: read # check out main
       actions: read # the verifier verdicts, their runs and the head-ref map
+      pull-requests: read # the post-merge check's lane merges and the merge queue, for the lane's room
+      issues: read # the post-merge check's demotion records, read with this job's token
       id-token: write # prove to the token broker which workflow this is
     steps:
       - name: Check out the default branch tip
@@ -1447,6 +1449,40 @@ jobs:
           CARRY_TO: ${{ runner.temp }}/babysit-run-cache.json
         run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs
 
+      # The lane records the last run kept, as the merge job reads them, so the
+      # check below answers those with no read. Any error leaves no file, and
+      # the check reads each record. Rules: .github/scripts/pr-merge/lane-records.mjs.
+      - name: Read the lane records the last run kept
+        if: steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
+        env:
+          ACTIONS_TOKEN: ${{ github.token }}
+          LANE_RECORDS_PATH: ${{ runner.temp }}/lane-records.json
+        run: node .base/.github/scripts/pr-merge/lane-records.mjs read
+
+      # The merge job's post-merge check, read-only, with this job's token:
+      # its demotion, floor and verdict are the gate's run-level answer that
+      # enable-auto-merge.mjs reads the lane's room from (lane-room), so a
+      # demotion or a failed lane merge stops native arming as it stops the
+      # gate. Only the runs that arm read it.
+      - name: Check earlier lane merges
+        if: steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
+          BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
+          code=0
+          python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
+            --repo "$REPO" --agent-identity "$identity" --lane-merges-only \
+            </dev/null >"$RUNNER_TEMP/post-merge.json" || code=$?
+          echo "::group::post-merge check: exit $code"
+          cat "$RUNNER_TEMP/post-merge.json"
+          echo "::endgroup::"
+
       # While merge.report-only is anything but false it reports each
       # decision and writes nothing.
       - name: Arm and disarm auto-merge
@@ -1461,6 +1497,10 @@ jobs:
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
           BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
           BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
+          # The lane's room (lane-room): the post-merge check above and the
+          # rung cap as the merge job passes it, empty meaning no cap.
+          POSTMERGE_RESULT: ${{ runner.temp }}/post-merge.json
+          RUNG_CAP: ${{ vars.CLAUDE_LANES_MERGE_RUNG_CAP }}
           # Name the two tokens' rate-limit readings for the reader's gh calls
           # (api-budget.bash): the lane token by default, the job token for
           # the Actions reads that carry it.

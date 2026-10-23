@@ -2870,12 +2870,14 @@ def derive_auto_merge(
 class InFlight:
     """`queued` holds every merge-queue entry's pull request number, or None
     when the queue was not read whole; `unverified` counts the unverified
-    auto-merges read, all of them when clear."""
+    auto-merges read, all of them when clear; `count` the merges in flight
+    when clear (`max_in_flight` or more when not)."""
 
     clear: bool
     reason: str | None
     queued: frozenset[int] | None = field(default=None, compare=False)
     unverified: int = field(default=0, compare=False)
+    count: int = field(default=0, compare=False)
 
 
 def in_flight(
@@ -2952,7 +2954,7 @@ def in_flight(
                     return InFlight(False, reason, queued, unverified)
     except PolicyReadError as exc:
         return InFlight(False, f"unreadable: {exc}", queued, unverified)
-    return InFlight(True, None, queued, unverified)
+    return InFlight(True, None, queued, unverified, count)
 
 
 # --- Holds on a queued entry -------------------------------------------------------------------
@@ -4437,3 +4439,99 @@ def assess(
     return UnattendedPolicy(
         reason, identity, details, enabled=True, promoted=promoted, inputs=inputs
     )
+
+
+# --- Room for a native lane merge -------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class LaneRoom:
+    """`lane_room`'s answer. `refusal`: the gate holds the lane off, so
+    nothing is armed and armed lane pull requests are disarmed. `unreadable`:
+    a read failed, so nothing is armed and nothing is disarmed. Otherwise
+    `count` merges are in flight of `cap`, and `queued` holds the merge
+    queue's pull request numbers."""
+
+    refusal: str | None = None
+    unreadable: str | None = None
+    count: int = 0
+    cap: int = 1
+    queued: frozenset[int] = frozenset()
+
+    def report(self) -> dict[str, Any]:
+        return {
+            "refusal": self.refusal,
+            "unreadable": self.unreadable,
+            "count": self.count,
+            "cap": self.cap,
+            "queued": sorted(self.queued),
+        }
+
+
+def lane_room(
+    repo: str, shared: SharedPostMerge | None, *, lane_rung_cap: str | None
+) -> LaneRoom:
+    """Whether the pr-merge lane may merge one more of its own pull requests
+    now, for native auto-merge, which skips `assess`: the run-level refusals
+    `assess` applies to every lane candidate, read once at the default branch
+    head, in its order. `shared` is this run's `babysit_postmerge.py` answer
+    (`babysit_postmerge.read_shared`), as the gate's `--postmerge-result`.
+
+    - A config naming another authority stops (`enabled_authority`).
+    - A post-merge refusal stops (`post-merge:<refusal>`).
+    - The effective rung off stops (`rung-off:<input>`): `merge.rung`,
+      `babysit_loop_merge`, the rung cap (`lane_rung_cap`, as `rung_cap`
+      reads it) and an active demotion, an unreadable record included. A lane
+      pull request's class is `LANE_CLASS`, which no rung above off is below,
+      so no class-above-rung refusal applies.
+    - The merges in flight (`in_flight`, `merge.max-in-flight` at the head)
+      are counted, not refused: the caller arms below the cap.
+
+    Any read failure, a missing `shared` and an in-flight count that could
+    not be read included, is `unreadable`."""
+    if shared is None:
+        return LaneRoom(unreadable="post-merge answer missing or unreadable")
+    try:
+        default = _default_branch(repo, shared=True)
+        config = _default_branch_config(repo, default)
+    except PolicyReadError as exc:
+        return LaneRoom(unreadable=f"config: {exc}")
+    if enabled_authority(config) != PR_MERGE:
+        return LaneRoom(refusal=AUTHORITY_UNCONFIGURED)
+    identity = config.agent_identity
+    if not identity or _login_key(shared.identity) != _login_key(identity):
+        return LaneRoom(unreadable="post-merge answer is for another identity")
+    if shared.gate.refusal:
+        return LaneRoom(refusal=f"post-merge:{shared.gate.refusal}")
+    cap = rung_cap(repo, authority=PR_MERGE, lane_value=lane_rung_cap)
+    rung = effective_rung(
+        config_rung=config.rung,
+        loop_merge=config.loop_merge,
+        cap=cap.value,
+        demoted=shared.demotion.active,
+    )
+    if rung.rung == "off":
+        return LaneRoom(refusal=f"rung-off:{rung.limited_by}")
+    flight_cap, _ = _run_max_in_flight(repo, default, config.base_sha, config)
+    flight = in_flight(
+        repo,
+        agent_identity=identity,
+        self_logins=shared.self_logins,
+        verified=shared.gate.verified,
+        branch=default,
+        merged_since=shared.floor,
+        lane_merges_only=True,
+        max_in_flight=flight_cap,
+    )
+    counted = str(flight.reason).startswith(FLIGHT_COUNTED)
+    if flight.queued is None or not (flight.clear or counted):
+        return LaneRoom(unreadable=f"in-flight:{flight.reason}", cap=flight_cap)
+    return LaneRoom(
+        count=flight.count if flight.clear else flight_cap,
+        cap=flight_cap,
+        queued=flight.queued,
+    )
+
+
+# The `in_flight` reasons that are a count reaching the cap, not a read failure.
+FLIGHT_COUNTED = ("identity-entry-queued:", "unverified-auto-merge:")

@@ -1441,7 +1441,13 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     With `--lane-link`, the line also carries `ineligible`: null when the
     pull request's issue link is one the pr-merge lane takes
     (`Reader.link_refusal`), else why not, with refusal `verify:ineligible`
-    and no verdict or config read."""
+    and no verdict or config read.
+
+    `lane-room --postmerge-result <file> [--rung-cap <value>]`: whether the
+    pr-merge lane may merge one more of its own pull requests now
+    (`merge_policy.lane_room`, `LaneRoom.report`), from this run's
+    `babysit_postmerge.py` report and the `CLAUDE_LANES_MERGE_RUNG_CAP` value
+    the workflow read (empty is no cap; missing holds the rung off)."""
     parser = argparse.ArgumentParser(
         prog="babysit_verify_evidence.py", allow_abbrev=False
     )
@@ -1454,7 +1460,16 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     cmd.add_argument("--lane-link", action="store_true")
     cmd.add_argument("number", type=int)
     cmd.add_argument("head")
+    room = sub.add_parser("lane-room", allow_abbrev=False)
+    room.add_argument("--repo", required=True)
+    room.add_argument("--postmerge-result", required=True)
+    room.add_argument("--rung-cap", default=None)
     args = parser.parse_args(argv)
+    if args.command == "lane-room":
+        shared = postmerge.read_shared(args.postmerge_result)
+        answer = merge_policy.lane_room(args.repo, shared, lane_rung_cap=args.rung_cap)
+        print(json.dumps(answer.report()))
+        return 0
     if (
         args.max_fails < 1
         or not merge_policy.SHA_RE.fullmatch(args.head)

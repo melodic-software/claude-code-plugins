@@ -25,6 +25,8 @@ import {
   decide,
   READER_EVENTS,
   main,
+  pythonRoom,
+  readRoom,
   verifyHold,
 } from "./enable-auto-merge.mjs";
 import { COMMENT_EDITED_QUERY, PULL_OPENED_QUERY, VERIFY_PATH, verdictHold } from "./merge-holds.mjs";
@@ -84,6 +86,9 @@ const COST_COMMENT = {
   node_id: "IC_7",
   created_at: "2026-10-22T12:00:00Z",
 };
+// lane-room's answer for a lane with room: nothing in flight of five.
+const ROOM = { refusal: null, unreadable: null, count: 0, cap: 5, queued: [] };
+const room = (answer = ROOM) => async () => answer;
 const labels = (...names) => ({ totalCount: names.length, nodes: names.map((name) => ({ name })) });
 
 function world(pulls, { failArm = false } = {}) {
@@ -140,13 +145,13 @@ function world(pulls, { failArm = false } = {}) {
   return { github, writes, verify, verified, calls };
 }
 
-async function run(pulls, env = {}, options = {}) {
+async function run(pulls, env = {}, options = {}, lane = ROOM) {
   const { github, writes, verify, verified } = world(pulls, options);
   const lines = [];
   const log = console.log;
   console.log = (line) => lines.push(line);
   try {
-    const code = await main({ env: { ...ENV, ...env }, github, verify });
+    const code = await main({ env: { ...ENV, ...env }, github, verify, room: room(lane) });
     return { code, writes: writes(), lines, verified };
   } finally {
     console.log = log;
@@ -622,7 +627,7 @@ test("a reader that fails, prints no JSON or reports another head arms nothing a
     const log = console.log;
     console.log = () => {};
     try {
-      await main({ env, github });
+      await main({ env, github, room: room() });
     } finally {
       console.log = log;
     }
@@ -688,7 +693,7 @@ with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "
   const log = console.log;
   console.log = (line) => lines.push(line);
   try {
-    assert.equal(await main({ env, github }), 0);
+    assert.equal(await main({ env, github, room: room() }), 0);
   } finally {
     console.log = log;
   }
@@ -708,4 +713,112 @@ test("an event run leaves an armed Refs pull request armed", async () => {
   const { writes, verified } = await run([pull(1, { autoMergeRequest: armed, body: "Refs: #12\n\n## Summary" })], { EVENT_NAME: "pull_request_target" });
   assert.deepEqual(writes, []);
   assert.deepEqual(verified, []);
+});
+
+// The gate's run-level refusals, which native auto-merge would skip
+// (babysit_merge_policy.lane_room): a demotion record or a rung held off
+// stops the lane, and merge.max-in-flight caps what is in flight.
+test("while the gate holds its lane off, nothing is armed and armed lane pull requests are disarmed", async () => {
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  for (const refusal of ["rung-off:demotion", "rung-off:rungCap", "post-merge:failure:red-main#40"]) {
+    const { writes, verified, lines } = await run(
+      [pull(1), pull(2, { autoMergeRequest: armed }), pull(3, { author: { __typename: "User", login: "kyle-sexton" }, autoMergeRequest: armed })],
+      {},
+      {},
+      { ...ROOM, refusal },
+    );
+    assert.deepEqual(writes, [{ mutation: "disarm", id: "PR_2" }], refusal);
+    // A held lane reads no verdict.
+    assert.deepEqual(verified, [], refusal);
+    assert.ok(lines.some((line) => line.includes(`#1 left: pr-merge's gate holds its lane off (${refusal})`)), refusal);
+  }
+});
+
+test("at merge.max-in-flight nothing more is armed, counting armed pull requests the queue has not taken", async () => {
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  // Four in flight by the gate's count, one armed and not queued: the cap of five is reached.
+  let result = await run([pull(1), pull(2, { autoMergeRequest: armed })], {}, {}, { ...ROOM, count: 4, cap: 5 });
+  assert.deepEqual(result.writes, []);
+  assert.deepEqual(result.verified, [2]);
+  assert.ok(result.lines.some((line) => /#1 left: merge\.max-in-flight is 5 and 5 merges are in flight/.test(line)));
+  // An armed pull request already in the queue is in the gate's count, not counted twice.
+  result = await run([pull(1), pull(2, { autoMergeRequest: armed })], {}, {}, { ...ROOM, count: 4, cap: 5, queued: [2] });
+  assert.deepEqual(result.writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+  // Each arm in the run counts: three in flight of five arms two of three.
+  result = await run([pull(1), pull(2), pull(3)], {}, {}, { ...ROOM, count: 3, cap: 5 });
+  assert.deepEqual(
+    result.writes.map(({ id }) => id),
+    ["PR_1", "PR_2"],
+  );
+});
+
+test("a room that cannot be read arms nothing and disarms nothing", async () => {
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  const pulls = [pull(1), pull(2, { autoMergeRequest: armed })];
+  for (const lane of [{ ...ROOM, unreadable: "in-flight:merge-queue-unreadable" }, { refusal: null }, null]) {
+    const { writes } = await run(pulls, {}, {}, lane);
+    assert.deepEqual(writes, [], JSON.stringify(lane));
+  }
+  const { github, writes } = world(pulls);
+  const log = console.log;
+  console.log = () => {};
+  try {
+    await main({
+      env: ENV,
+      github,
+      verify: async ({ headRefOid: head }) => ({ refusal: null, head, ineligible: null }),
+      room: async () => {
+        throw new Error("lane-room exited 1");
+      },
+    });
+  } finally {
+    console.log = log;
+  }
+  assert.deepEqual(writes(), []);
+});
+
+test("an event run reads no room", async () => {
+  let asked = 0;
+  const { github } = world([pull(1)]);
+  const log = console.log;
+  console.log = () => {};
+  try {
+    await main({
+      env: { ...ENV, EVENT_NAME: "pull_request_target" },
+      github,
+      room: async () => {
+        asked += 1;
+        return ROOM;
+      },
+    });
+  } finally {
+    console.log = log;
+  }
+  assert.equal(asked, 0);
+});
+
+test("readRoom takes only lane-room's shape", () => {
+  assert.deepEqual(readRoom(ROOM), ROOM);
+  for (const bad of [null, "x", { ...ROOM, cap: 0 }, { ...ROOM, count: -1 }, { ...ROOM, queued: ["3"] }, { ...ROOM, refusal: 1 }, { ...ROOM, unreadable: undefined }]) {
+    assert.ok(readRoom(bad).unreadable, JSON.stringify(bad));
+  }
+});
+
+test("pythonRoom passes the post-merge report, the rung cap as read, and the reader's token", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-room-"));
+  const script = join(dir, "room.py");
+  writeFileSync(
+    script,
+    `import json, os, sys
+print(json.dumps({"argv": sys.argv[1:], "token": os.environ.get("GH_TOKEN"), "budget": os.environ.get("API_BUDGET_TOKEN")}))
+`,
+  );
+  const env = { PATH: process.env.PATH, GITHUB_REPOSITORY: REPO, VERIFY_EVIDENCE_SCRIPT: script, POSTMERGE_RESULT: "/tmp/post-merge.json", GH_TOKEN: "lane", BABYSIT_VERIFY_GH_TOKEN: "job" };
+  // An empty cap is no cap, so it is passed; an unset one is not, which the gate reads as off.
+  assert.deepEqual(await pythonRoom({ ...env, RUNG_CAP: "" })(), {
+    argv: ["lane-room", "--repo", REPO, "--postmerge-result", "/tmp/post-merge.json", "--rung-cap", ""],
+    token: "job",
+    budget: "github-token",
+  });
+  assert.deepEqual((await pythonRoom(env)()).argv, ["lane-room", "--repo", REPO, "--postmerge-result", "/tmp/post-merge.json"]);
 });
