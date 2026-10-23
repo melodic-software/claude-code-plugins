@@ -1176,7 +1176,8 @@ class CollectLaneRunsTests(unittest.TestCase):
             base: {"id": 7, "run_attempt": fresh_attempts},
         }
         for n in range(1, fresh_attempts + 1):
-            answers[f"{base}/attempts/{n}"] = {"id": 7, "run_attempt": n}
+            if n < fresh_attempts:  # the run read stands in for the latest
+                answers[f"{base}/attempts/{n}"] = {"id": 7, "run_attempt": n}
             answers[f"{base}/attempts/{n}/jobs?per_page=100"] = [
                 {
                     "jobs": [
@@ -1295,17 +1296,18 @@ class CollectLaneRunsTests(unittest.TestCase):
 
         with mock.patch.object(gh, "gh_json", side_effect=fake):
             gh.collect_lane_runs(self.REPO, 5, "feat/x", self.LANES, env_overrides=env)
-        # The listing, the run, and two attempts' record, jobs and annotations.
+        # The listing, the run, attempt 1's record, and both attempts' jobs and
+        # annotations; the run read is attempt 2's record.
         self.assertEqual(sorted(e for e, _ in reads), sorted(answers))
         return reads
 
     def test_every_read_runs_under_the_token_it_is_given(self) -> None:
         reads = self.reads_under({"GH_TOKEN": "read"})
-        self.assertEqual([env for _, env in reads], [{"GH_TOKEN": "read"}] * 8)
+        self.assertEqual([env for _, env in reads], [{"GH_TOKEN": "read"}] * 7)
 
     def test_with_no_token_every_read_keeps_the_process_token(self) -> None:
         reads = self.reads_under(None)
-        self.assertEqual([env for _, env in reads], [None] * 8)
+        self.assertEqual([env for _, env in reads], [None] * 7)
 
 
 if __name__ == "__main__":
