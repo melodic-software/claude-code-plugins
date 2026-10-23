@@ -3193,8 +3193,10 @@ jobs:
     # the review-lane step's four, under two minutes, plus the cost-hold step's
     # reads: three for most pull requests, which stop at the label events; for a
     # lane-labeled one whose body cites a decision, about ten, and two more per
-    # review run since the window opened.
-    timeout-minutes: 9
+    # review run since the window opened. One more minute covers the API
+    # budget steps: a sparse checkout and two GET /rate_limit reads, seconds
+    # each, capped at a minute apiece.
+    timeout-minutes: 10
     permissions:
       # `yield-to-full-run` lists this workflow's runs on the head SHA, and
       # `rerun-contract-only-siblings` re-runs the red contract-only ones once

@@ -2296,14 +2296,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
-
       - name: Check out the run job's base SHA when the default branch holds it
         env:
           BASE_SHA: ${{ needs.run.outputs.base-sha }}
@@ -2315,6 +2307,15 @@ jobs:
           else
             echo "No base SHA on the default branch; staying on the default branch tip"
           fi
+
+      # After the base SHA checkout, so the end step runs the same copy.
+      - name: Log the API budget at the start
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          phase: start
+          tokens: github-token ${{ github.token }}
 
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0

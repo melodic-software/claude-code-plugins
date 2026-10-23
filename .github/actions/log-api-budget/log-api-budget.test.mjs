@@ -10,7 +10,7 @@ const SCRIPT = new URL("./log-api-budget.sh", import.meta.url).pathname;
 // A `gh` that answers `api -i rate_limit` with the response `gh api -i` prints
 // (status line, headers, blank line, body), its used count read per call from
 // a file so a test can move it between phases.
-function run({ phase, tokens, used, reset = 1792378942, dir }) {
+function run({ phase, tokens, used, reset = 1792378942, dir, runner = true }) {
   writeFileSync(join(dir, "used"), String(used));
   writeFileSync(
     join(dir, "gh"),
@@ -33,10 +33,12 @@ printf 'HTTP/2.0 200 OK\\r\\nX-Ratelimit-Limit: 5000\\r\\nX-Ratelimit-Remaining:
       STATE_DIR: join(dir, "state"),
       GITHUB_STEP_SUMMARY: summary,
       GITHUB_OUTPUT: output,
-      GITHUB_WORKFLOW_REF: "melodic-software/claude-code-plugins/.github/workflows/pr-require-checks.yml@refs/pull/9/merge",
-      GITHUB_JOB: "ci-status",
-      GITHUB_RUN_ID: "39931677333",
-      GITHUB_RUN_ATTEMPT: "2",
+      ...(runner && {
+        GITHUB_WORKFLOW_REF: "melodic-software/claude-code-plugins/.github/workflows/pr-require-checks.yml@refs/pull/9/merge",
+        GITHUB_JOB: "ci-status",
+        GITHUB_RUN_ID: "39931677333",
+        GITHUB_RUN_ATTEMPT: "2",
+      }),
     },
     encoding: "utf8",
   });
@@ -156,6 +158,19 @@ test("an end with no start reading still prints the hub's line, cost na", () => 
       `::notice title=api-budget::token=lanes-app ${WHERE} limit=5000 remaining=4993 used=7 reset=1792378942 resource=core cost=na\n`,
     );
     assert.equal(end.output, "costs=lanes-app-cost=unknown\n");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a run with no runner variables names them na", () => {
+  const dir = mkdtempSync(join(tmpdir(), "log-api-budget-"));
+  try {
+    const end = run({ phase: "end", tokens: "github-token t0ken", used: 7, dir, runner: false });
+    assert.equal(
+      end.stdout,
+      "::notice title=api-budget::token=github-token workflow=na job=na run=na attempt=na limit=5000 remaining=4993 used=7 reset=1792378942 resource=core cost=na\n",
+    );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
