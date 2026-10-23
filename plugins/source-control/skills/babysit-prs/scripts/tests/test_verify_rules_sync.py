@@ -5,6 +5,8 @@
 
 - The dependency managers: the same logins, and the same users matched (a Bot
   account with one of them, never a User named like one).
+- The head-ref digest a verdict's artifact name carries: the same length and
+  the same digits for the same branch.
 - The FAIL-counting rule: for each run record, a FAIL counts from any run of
   verifier origin and a PASS only from a completed success. The resolver also
   needs a completed run for a FAIL, so a run still going never stops a new
@@ -110,6 +112,32 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
                 completed = run["status"] == "completed"
                 self.assertEqual(js, gate_counts(run, verdict) and completed)
         self.assertIn(True, counted["counted"])
+
+    def test_the_head_ref_digest_is_the_same(self) -> None:
+        writer = RESOLVER.parent / "write-verdict.mjs"
+        refs = [
+            "feat/x",
+            "perf/pr-merge-verdict-downloads",
+            "a",
+            "release/1.2.3",
+            "x" * 255,
+        ]
+        script = (
+            f"import {{ HEAD_REF_DIGEST_HEX, headRefDigest }} from {json.dumps(writer.as_uri())};"
+            " const refs = JSON.parse(process.argv[1]);"
+            " console.log(JSON.stringify({ hex: HEAD_REF_DIGEST_HEX, digests: refs.map(headRefDigest) }));"
+        )
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", script, json.dumps(refs)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        answer = json.loads(proc.stdout)
+        self.assertEqual(answer["hex"], ve.HEAD_REF_DIGEST_HEX)
+        self.assertEqual(answer["digests"], [ve.head_ref_digest(r) for r in refs])
+        # The first 16 hex digits of `printf %s feat/x | sha256sum`.
+        self.assertEqual(answer["digests"][0], "79b4cc554b80dca6")
 
 
 if __name__ == "__main__":
