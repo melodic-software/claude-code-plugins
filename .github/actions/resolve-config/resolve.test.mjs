@@ -9,12 +9,12 @@ import { WIP_DEFAULTS, resolveWip } from "../../scripts/work-resolve-issue/limit
 import {
   checkAppliedBySupported,
   checkConfigPath,
-  checkPatchRules,
   neededFacts,
   Rejection,
   resolve,
   resolveGrant,
 } from "./resolve.mjs";
+import { checkPatchRules } from "./patch-rules.mjs";
 
 const read = (relative) =>
   readFileSync(new URL(relative, import.meta.url), "utf8");

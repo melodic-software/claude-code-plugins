@@ -12,11 +12,11 @@ import {
   createGitHub,
   paginate,
 } from "../check-trusted-trigger/check-trusted-trigger.mjs";
+import { checkPatchRules } from "./patch-rules.mjs";
 import { pipelineEvent } from "./predicate.mjs";
 import {
   checkAppliedBySupported,
   checkConfigPath,
-  checkPatchRules,
   laneHasActivity,
   loadConfig,
   modelArgs,
