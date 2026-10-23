@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [4.11.0] - 2026-10-23
+
+### Changed
+
+- `address-feedback` may fix a finding in any file the pull request already changes that the gated head holds, not only in the thread's own scope. The select job writes the PR's files, rename sources included, as `pr_paths` in the thread file and `run.json`, less `.github/workflows/`, `.gitmodules`, `CODEOWNERS`, `settings*.json`, package manifests, `requirements*.txt`, anything under `.github/`, `CLAUDE.md`, `AGENTS.md`, `.mcp.json`, `.lsp.json`, a `.claude` or `.claude-plugin` directory and a plugin's `hooks/`, `monitors/` and `bin/`. `apply-patch.mjs`'s `kept-threads` rule and the reply job admit them, and only as changes to an existing file: a file the fix creates keeps the old scope. A `VALID` fix commit lands when it changes the thread's path or a `pr_paths` file at a line the reply's evidence cites inside one of its hunks. Every apply-patch refusal still applies.
+
+## [4.10.2] - 2026-10-23
+
+### Fixed
+
+- A `resolve-conflicts` round whose scan refused the model's output (a leak-scan block or an oversize patch) now escalates `unresolved-conflict` instead of ending with a failed leg and no escalation. The new `conflict-scan-refusal` job in [`pr-unblock.yml`](https://github.com/melodic-software/claude-code-plugins/blob/main/.github/workflows/pr-unblock.yml) runs when the answering leg handed on no patch state, downloads the read runner's scan-refusal markers by name, never a job output, and reads them with `scanRefusal` through [`conflict-scan-refusal.mjs`](https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/pr-unblock/conflict-scan-refusal.mjs); `report-escalation` and `report-conflict-status` take its reason. No marker escalates nothing ([#9391](https://github.com/melodic-software/claude-code-plugins/issues/9391)).
+
 ## [4.10.1] - 2026-10-23
 
 ### Changed

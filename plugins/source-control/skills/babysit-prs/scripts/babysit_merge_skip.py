@@ -307,7 +307,7 @@ def verdicts(listing: Iterable[Any], number: int, head: str) -> list[list[Any]]:
     [id, name], by id."""
     found = []
     for item in map(json_object, listing):
-        match = verify_evidence.NAME_RE.fullmatch(str(item.get("name") or ""))
+        match = verify_evidence.verdict_name(str(item.get("name") or ""))
         if not match or item.get("expired") is not False:
             continue
         if int(match[1]) == number or match[2] == head:
@@ -484,7 +484,7 @@ def keys_for(
             "head": head,
             "skippable": not state["inQueue"],
             "passAtHead": any(
-                (m := verify_evidence.NAME_RE.fullmatch(str(name))) is not None
+                (m := verify_evidence.verdict_name(str(name))) is not None
                 and m[2] == head
                 and m[3] in verify_evidence.PASSES
                 for _, name in found
