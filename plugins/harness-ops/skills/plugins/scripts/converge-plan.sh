@@ -20,7 +20,11 @@
 #   groups   [{projectPath, rows: [...]}] sorted by path; projectPath null holds
 #            the user-scope rows (no path, no `cd`)
 #   rows     [{id, scope, version, highest, class, strategy, command, default,
-#              warning, why}]
+#              warning, alternative, why}]
+#   alternative  {strategy, command, warning} or null: the non-default strategy an
+#            actionable row also offers. A committed-enable `update` row offers
+#            uninstall with the committed-entry warning; an `uninstall` row offers
+#            update unless the catalog reads below the highest version.
 #
 # Only a record BEHIND the highest version its id holds gets a row (divergences
 # with versionsMatch false; a record whose version does not parse as
@@ -275,15 +279,24 @@ PLAN_PROGRAM="$ROWS_PROGRAM"'
        else "actionable" end) as $class
     | (if $r.scope == "user" or ($r.projectPath | type) != "string" then "" else "(cd " + ($r.projectPath | shq) + " && " end) as $pre
     | (if $r.scope == "user" or ($r.projectPath | type) != "string" then "" else ")" end) as $post
-    | (if $strategy == "uninstall" then $pre + "claude plugin uninstall " + $r.id + " -s " + $r.scope + " --keep-data" + $post
-       elif $strategy == "update" then $pre + "claude plugin update " + $r.id + " -s " + $r.scope + $post
-       else null end) as $cmd
+    | def cmd($s):
+        if $s == "uninstall" then $pre + "claude plugin uninstall " + $r.id + " -s " + $r.scope + " --keep-data" + $post
+        elif $s == "update" then $pre + "claude plugin update " + $r.id + " -s " + $r.scope + $post
+        else null end;
+      cmd($strategy) as $cmd
+    | (if $class != "actionable" then null
+       elif $strategy == "update" and $committed_enable
+       then {strategy: "uninstall", command: cmd("uninstall"), warning: "removes a committed enabledPlugins entry"}
+       elif $strategy == "uninstall" and ($r.catalogLower | not)
+       then {strategy: "update", command: cmd("update"), warning: null}
+       else null end) as $alt
     | {id: $r.id, scope: $r.scope, version: $r.version, highest: $r.highest,
        class: $class, strategy: $strategy,
        command: (if $class == "actionable" or ($class == "worktree" and $strategy == "uninstall") then $cmd else null end),
        default: ($class == "actionable" or ($class == "worktree" and ($committed_enable | not) and $strategy == "uninstall")),
        warning: (if $strategy == "uninstall" and $committed_enable and $r.scope == "project"
                  then "removes a committed enabledPlugins entry" else null end),
+       alternative: $alt,
        why: (if $class == "blocked-home" then "projectPath is a user home directory; its .claude/settings.json is user settings"
              elif $class == "blocked-absent" then "projectPath is not present on this machine; the cd cannot run"
              elif $class == "worktree" and $strategy == "none" then "linked worktree: update is not offered, and no uninstall would bring it current"

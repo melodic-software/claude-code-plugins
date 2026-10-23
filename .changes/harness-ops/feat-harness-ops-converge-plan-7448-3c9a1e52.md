@@ -4,7 +4,7 @@ bump: minor
 
 ### Added
 
-- `plugins converge` has a planning script, `converge-plan.sh`. It reads the `fleet-state.sh` report and prints one row per lagging `(projectPath, id)` pin, grouped by path, with the strategy, the exact command, and a class: `actionable`, `worktree`, `blocked-absent`, `blocked-home` or `blocked-catalog`. A blocked row carries no command, and a linked-worktree row is offered uninstall only.
+- `plugins converge` has a planning script, `converge-plan.sh`. It reads the `fleet-state.sh` report and prints one row per lagging `(projectPath, id)` pin, grouped by path, with the strategy, the exact command, the other strategy the row offers (its command and warning) when it has one, and a class: `actionable`, `worktree`, `blocked-absent`, `blocked-home` or `blocked-catalog`. A blocked row carries no command, and a linked-worktree row is offered uninstall only.
 
 ### Changed
 

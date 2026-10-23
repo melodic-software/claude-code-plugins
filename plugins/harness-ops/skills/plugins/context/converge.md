@@ -104,7 +104,8 @@ that file (the update exemption in the same file). For each `project`-scope row,
 
 When the file is tracked and holds the entry, the default is `update -s project`, even though
 `user` scope holds the highest version. Offer uninstall only as the non-default option, marked
-with a warning that it removes a committed `enabledPlugins` entry. When the id is absent from the
+with a warning that it removes a committed `enabledPlugins` entry; `converge-plan.sh` emits it as
+the row's `alternative`, command and warning included. When the id is absent from the
 tracked settings, or the file is untracked or missing (a pin that exists only in
 `installed_plugins.json`), uninstall stays the default. A check that cannot be read (unparsable
 file, git error other than "not tracked") decides nothing: treat it as a committed enable and
@@ -238,10 +239,12 @@ hundreds of pins, so first show the `counts` and the number of paths, then confi
 For each group with at least one row whose `command` is not `null`, present one enumerated batch
 headed by its `projectPath`: one line per row with the id, `version` → `highest`, `strategy`, the
 exact `command`, and the `why`. A row with a `warning` shows it, and a row whose `default` is `false`
-is never marked as the proposed choice. Then ask with `AskUserQuestion`, one question per runnable
-row in that path's batch, each with its own distinct text (answers are keyed by it): **approve**
-(apply the proposed strategy), **choose the other strategy** (only where the row offers one, with
-its warning), or **skip**. The tool takes at most 4 questions per call, so a path with more than 4
+is never marked as the proposed choice. A row whose `alternative` is not `null` also shows that
+object's `strategy`, `command` and `warning` exactly as printed; never build or re-derive an
+alternative command. Then ask with `AskUserQuestion`, one question per runnable row in that path's
+batch, each with its own distinct text (answers are keyed by it): **approve** (apply the proposed
+strategy), **choose the other strategy** (only where `alternative` is not `null`: run its
+`command`, shown with its `warning`), or **skip**. The tool takes at most 4 questions per call, so a path with more than 4
 runnable rows takes successive calls, all inside that path's batch.
 
 A group with no runnable row (every row is `blocked-*`, or a `worktree` row with `command: null`) is

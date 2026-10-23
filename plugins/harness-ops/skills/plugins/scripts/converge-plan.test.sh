@@ -61,6 +61,7 @@ P_COMMIT="$TEST_TMPDIR/committed"
 P_WT="$TEST_TMPDIR/worktree"
 P_NOGIT="$TEST_TMPDIR/nogit"
 P_GONE="$TEST_TMPDIR/gone"
+P_HOME="$TEST_TMPDIR/home-dir"
 tracked_repo "$P_OK" '{"other@mk":true}'
 tracked_repo "$P_COMMIT" '{"beta@mk":false}'
 tracked_repo "$P_WT" '{"other@mk":true}'
@@ -80,7 +81,7 @@ mkdir -p "$P_NOGIT"
 #   eta      every scope at one version             -> no row
 REPORT="$TEST_TMPDIR/report.json"
 jq -n --arg ok "$P_OK" --arg commit "$P_COMMIT" --arg wt "$P_WT" --arg nogit "$P_NOGIT" \
-  --arg gone "$P_GONE" '
+  --arg gone "$P_GONE" --arg homedir "$P_HOME" '
   def rec($s; $v; $p; $present; $home; $wt):
     {scope: $s, version: $v, projectPath: $p, projectPathPresent: $present,
      projectPathIsHome: $home, linkedWorktree: $wt, label: null};
@@ -93,7 +94,7 @@ jq -n --arg ok "$P_OK" --arg commit "$P_COMMIT" --arg wt "$P_WT" --arg nogit "$P
      {id: "alpha@mk", versionsMatch: false, scopes: [user("1.2.0"), rec("project"; "1.0.0"; $ok; true; false; false)]},
      {id: "beta@mk", versionsMatch: false, scopes: [user("1.2.0"), rec("project"; "1.0.0"; $commit; true; false; false)]},
      {id: "gamma@mk", versionsMatch: false, scopes: [user("1.2.0"), rec("project"; "1.0.0"; $gone; false; false; null)]},
-     {id: "delta@mk", versionsMatch: false, scopes: [user("1.2.0"), rec("project"; "1.0.0"; "/home/someone"; true; true; false)]},
+     {id: "delta@mk", versionsMatch: false, scopes: [user("1.2.0"), rec("project"; "1.0.0"; $homedir; true; true; false)]},
      {id: "epsilon@mk", versionsMatch: false, scopes: [user("1.2.0"), rec("project"; "1.0.0"; $wt; true; false; true)]},
      {id: "zeta@mk", versionsMatch: false, scopes: [user("1.0.0"), rec("project"; "1.1.0"; $ok; true; false; false)]},
      {id: "theta@mk", versionsMatch: false, scopes: [rec("project"; "1.1.0"; $ok; true; false; false), rec("project"; "1.0.0"; $wt; true; false; true)]},
@@ -131,6 +132,14 @@ assert_eq "blocked-catalog: no command" "null" "$(field zeta@mk .command)"
 assert_eq "worktree behind a project pin: strategy none" "none" "$(field theta@mk .strategy)"
 assert_eq "worktree behind a project pin: no command" "null" "$(field theta@mk .command)"
 assert_eq "unreadable settings check counts as committed -> update" "update" "$(field iota@mk .strategy)"
+assert_eq "committed-enable update row offers uninstall as the alternative" \
+  "uninstall|(cd '$P_COMMIT' && claude plugin uninstall beta@mk -s project --keep-data)|removes a committed enabledPlugins entry" \
+  "$(field beta@mk '.alternative | "\(.strategy)|\(.command)|\(.warning)"')"
+assert_eq "uninstall row offers update as the alternative, with no warning" \
+  "update|(cd '$P_OK' && claude plugin update alpha@mk -s project)|null" \
+  "$(field alpha@mk '.alternative | "\(.strategy)|\(.command)|\(.warning)"')"
+assert_eq "worktree and blocked rows offer no alternative" "null null null" \
+  "$(field epsilon@mk .alternative) $(field theta@mk .alternative) $(field zeta@mk .alternative)"
 assert_eq "local scope uninstalls with -s local" \
   "(cd '$P_OK' && claude plugin uninstall kappa@mk -s local --keep-data)" "$(field kappa@mk .command)"
 assert_eq "matching versions produce no row" "0" "$(jq '[.groups[].rows[] | select(.id == "eta@mk")] | length' "$PLAN")"
