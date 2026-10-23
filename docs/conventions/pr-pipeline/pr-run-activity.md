@@ -1593,7 +1593,7 @@ for `intake-triage.yml` only while the issue it names is open. The broker (azure
 JSON integer, is the `dispatcher-run-id` input, sent only when set. The broker reads it only when
 the OIDC actor is `github-actions[bot]`: such a run mints only when the `pr-unblock-dispatch.yml`
 run it names passes the checks the trusted-trigger gate applies. That run must be on `main`,
-started by a push or a listed human, with a re-run attempt started by a listed human. Its head
+started by a push, a schedule or a listed human, with a re-run attempt started by a listed human. Its head
 must be an ancestor of the tip and no tag may be named `main`. This run must be a `pr-unblock.yml`
 `workflow_dispatch` created between the dispatcher run's `run_started_at` and the earlier of its
 `updated_at` and `run_started_at` plus 10 minutes. The dispatcher run must also hold an unexpired

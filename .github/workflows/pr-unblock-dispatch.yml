@@ -21,18 +21,19 @@ name: pr-unblock-dispatch
 #
 # It also runs half-hourly, five minutes after each
 # maintenance-reconcile-lost-runs tick, so a PR whose reconciler re-run failed
-# gets fix-ci within one interval, not at the next push to main. A tick runs the
-# same listings as a push run; with nothing to dispatch it reads nothing per PR
-# past them. The gate and the broker accept a dispatcher run started by a
-# push, a schedule or a listed human.
+# gets fix-ci at the first tick after that failure, not at the next push to
+# main. A tick runs the same listings as a push run; heads the dispatch record
+# holds are not read again. pr-unblock.yml's trigger gate and the broker accept
+# a dispatcher run started by a push, a schedule or a listed human.
 #
 # No model and no App token: the job's GITHUB_TOKEN can only read and start
 # workflow runs. A run started by hand, or a re-run of a push run, must come
 # from a listed trusted human. A re-run of a scheduled run fails at the trigger
-# check, which handles no schedule event; the next tick replaces it. The dispatched lane runs its own trigger gate,
-# kill switch and config. Only the fix-ci and fix-docs listings filter by
-# author and hold label: fix-ci to spend no model run on a PR the lane would
-# skip, fix-docs to leave alone PRs whose files are generated or synced.
+# check, which handles no schedule event; the next tick replaces it. The
+# dispatched lane runs its own trigger gate, kill switch and config. Only the
+# fix-ci and fix-docs listings filter by author and hold label: fix-ci to spend
+# no model run on a PR the lane would skip, fix-docs to leave alone PRs whose
+# files are generated or synced.
 #
 # The job token's rate-limit readings, from the script's own responses, are
 # logged at the end of the job (.github/actions/log-api-budget), and the
@@ -124,6 +125,10 @@ jobs:
         env:
           REASON: ${{ steps.gate.outputs.reason }}
         run: |
+          if [ "$GITHUB_EVENT_NAME" = schedule ]; then
+            echo "::error::${REASON:-no-pr}: a re-run of a scheduled run is not supported; run the workflow by hand or wait for the next tick"
+            exit 1
+          fi
           echo "::error::${REASON:-untrusted-actor}: this run was not started by a listed trusted human"
           exit 1
 

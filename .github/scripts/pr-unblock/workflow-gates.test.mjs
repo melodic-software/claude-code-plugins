@@ -30,20 +30,26 @@ function jobBlock(file, job) {
   return lines.slice(start + 1, end === -1 ? undefined : end);
 }
 
+// The if: at lines[at], indented by `indent` spaces, single-line or folded.
+function ifAt(lines, at, indent) {
+  const gate = lines[at].slice(indent + "if: ".length);
+  if (gate !== ">-") {
+    return gate;
+  }
+  const folded = [];
+  for (const line of lines.slice(at + 1)) {
+    if (!line.startsWith(" ".repeat(indent + 2))) break;
+    folded.push(line.trim());
+  }
+  return folded.join(" ");
+}
+
 // A job's if:, single-line or folded, and its needs, as written.
 function jobGate(file, job) {
   const block = jobBlock(file, job);
   const at = block.findIndex((line) => /^ {4}if: /.test(line));
   assert.notEqual(at, -1, `${file}: job ${job} has an if:`);
-  let gate = block[at].slice("    if: ".length);
-  if (gate === ">-") {
-    const folded = [];
-    for (const line of block.slice(at + 1)) {
-      if (!/^ {6}/.test(line)) break;
-      folded.push(line.trim());
-    }
-    gate = folded.join(" ");
-  }
+  const gate = ifAt(block, at, 4);
   const needsLine = block.find((line) => /^ {4}needs: /.test(line)) ?? "    needs: []";
   const needs = needsLine.slice("    needs: ".length).replace(/^\[|\]$/g, "").split(",").map((name) => name.trim()).filter(Boolean);
   return { gate, needs };
@@ -462,25 +468,19 @@ function stepIf(file, name) {
   const lines = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8").split("\n");
   const start = lines.indexOf(`      - name: ${name}`);
   assert.notEqual(start, -1, `${file}: step ${name}`);
-  const at = lines.findIndex((line, i) => i > start && /^ {8}if: /.test(line));
-  const gate = lines[at].slice("        if: ".length);
-  if (gate !== ">-") {
-    return gate;
-  }
-  const folded = [];
-  for (const line of lines.slice(at + 1)) {
-    if (!/^ {10}/.test(line)) break;
-    folded.push(line.trim());
-  }
-  return folded.join(" ");
+  const end = lines.findIndex((line, i) => i > start && /^ {6}- /.test(line));
+  const step = lines.slice(start + 1, end === -1 ? undefined : end);
+  const at = step.findIndex((line) => /^ {8}if: /.test(line));
+  assert.notEqual(at, -1, `${file}: step ${name} has an if:`);
+  return ifAt(step, at, 8);
 }
 
 // The minutes of a workflow's one `cron:` line.
 function cronMinutes(file) {
   const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
-  const cron = /\n {4}- cron: "([0-9,]+) \* \* \* \*"\n/.exec(text);
-  assert.ok(cron, `${file}: one hourly cron line`);
-  return cron[1].split(",").map(Number);
+  const crons = [...text.matchAll(/^ {4}- cron: "([0-9,]+) \* \* \* \*"$/gm)];
+  assert.equal(crons.length, 1, `${file}: one hourly cron line`);
+  return crons[0][1].split(",").map(Number);
 }
 
 const DISPATCHER = "pr-unblock-dispatch.yml";
