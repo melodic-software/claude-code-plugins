@@ -1405,7 +1405,8 @@ them on every `pull_request` run, contract-only runs included:
   that failed does not. A review skips a fork and a bot outside the caller's
   `allowed-bot-sender-ids`, so their PRs stay red until a person on the trusted-actor list pushes a
   commit to the head. Dependabot, the release App and the standards-sync App are exempt by numeric
-  author id; a draft is exempt.
+  author id, except that their PR fails when a changed file (or a renamed file's old path) matches
+  a hold path, since no lane reviews it to hold it; a person merges it. A draft is exempt.
 
 A review usually finishes after ci-status has read it, so `pr-feedback-dispatch.yml`'s
 `rerun-ci-status` job re-runs the ci-status job of the newest `pr-require-checks` run on the head

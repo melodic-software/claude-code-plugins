@@ -3367,7 +3367,9 @@ jobs:
       # `Report the kill switch` step. A kill-switch job that failed stopped
       # the review too, and fails. Dependabot, the release App and the
       # standards-sync App, by numeric author id, are exempt: no review lane
-      # reviews them. A draft is exempt
+      # reviews them. An exempt author's PR still fails when a changed file
+      # (or a renamed file's old path) matches the callers' hold-paths, since
+      # no lane is there to hold it as trust-gate; a person merges it. A draft is exempt
       # (see `Note a draft`). pr-feedback-dispatch.yml re-runs this job when a
       # review run completes. An unreadable run or job list fails closed.
       # Pinned by scripts/ci-review-lanes.test.sh, which runs this body.
@@ -3377,6 +3379,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           AUTHOR_ID: ${{ github.event.pull_request.user.id }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           # dependabot[bot], melodic-plugin-release[bot] and
           # melodic-standards-sync[bot], as
@@ -3387,10 +3390,6 @@ jobs:
           if [[ ! $HEAD_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the head '$HEAD_SHA' is not a commit SHA."
             exit 1
-          fi
-          if [[ $AUTHOR_ID =~ ^[0-9]+$ && " $exempt_author_ids " == *" $AUTHOR_ID "* ]]; then
-            echo "The author ($AUTHOR_ID) is one no review lane reviews; the review lanes are not required."
-            exit 0
           fi
           read_api() {
             local attempt body
@@ -3403,6 +3402,39 @@ jobs:
               sleep $((attempt * 5))
             done
           }
+          if [[ $AUTHOR_ID =~ ^[0-9]+$ && " $exempt_author_ids " == *" $AUTHOR_ID "* ]]; then
+            # The callers' hold-paths, as bash patterns (`*` crosses `/`).
+            hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules')
+            if [[ ! $PR_NUMBER =~ ^[1-9][0-9]*$ ]]; then
+              echo "::error::the pull request number '$PR_NUMBER' is not a number."
+              exit 1
+            fi
+            pr=$(read_api "#$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER") || exit 1
+            for attempt in 1 2 3; do
+              if files=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --paginate --jq '.[] | [.filename, (.previous_filename // "")] | @tsv'); then
+                break
+              fi
+              [ "$attempt" -lt 3 ] || { echo "::error::could not read the files of #$PR_NUMBER; re-run this run."; exit 1; }
+              sleep $((attempt * 5))
+            done
+            if [ "$(grep -c . <<<"$files")" -lt "$(jq '.changed_files // 0' <<<"$pr")" ]; then
+              echo "::error::GitHub listed fewer files than #$PR_NUMBER changes, so its hold-paths cannot be checked; a person merges it."
+              exit 1
+            fi
+            held=
+            while IFS= read -r path; do
+              for pattern in "${hold_patterns[@]}"; do
+                # shellcheck disable=SC2053 # the pattern is matched as a glob on purpose
+                [[ $path != $pattern ]] || held="$held $path"
+              done
+            done < <(tr '\t' '\n' <<<"$files" | grep .)
+            if [ -n "$held" ]; then
+              echo "::error::#$PR_NUMBER is by an author no review lane reviews and changes trust-gate paths:${held//%/%25}. A person merges it."
+              exit 1
+            fi
+            echo "The author ($AUTHOR_ID) is one no review lane reviews, and no trust-gate path changed; the review lanes are not required."
+            exit 0
+          fi
           failed=0
           while read -r file check; do
             runs=$(read_api "the $file runs on $HEAD_SHA" \

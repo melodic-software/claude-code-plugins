@@ -84,6 +84,17 @@ for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-
   fi
 done
 
+# The exempt-author patterns are the callers' hold-paths in bash form: `**/X`
+# is X or */X, a trailing `**` is `*`.
+want_patterns="$(awk '/^      hold-paths: \|$/ { on = 1; next } on && /^        / { sub(/^ +/, ""); print; next } on { exit }' "$ROOT/.github/workflows/pr-review-hosted.yml" |
+  sed -E 's#^\*\*/(.*)$#\1\n*/\1#; s#/\*\*$#/*#' | sort)"
+got_patterns="$(sed -nE 's/^ *hold_patterns=\((.*)\)$/\1/p' "$TMP_ROOT/body.sh" | tr ' ' '\n' | tr -d "'" | sort)"
+if [[ -n "$got_patterns" && "$got_patterns" == "$want_patterns" ]]; then
+  ok "the exempt-author hold patterns are the callers' hold-paths"
+else
+  fail "exempt-author hold patterns '$got_patterns' are not the callers' hold-paths '$want_patterns'"
+fi
+
 # The stub logs its arguments. A runs read fails its first STUB_RUNS_FAILS
 # calls, then prints RUNS_CODE or RUNS_SEC by caller file. A jobs read fails
 # when STUB_JOBS_FAIL is set, else prints the JOBS_<run id> variable.
@@ -107,6 +118,12 @@ case "$*" in
   var="JOBS_$id"
   printf '%s\n' "${!var:-}"
   ;;
+*/pulls/*/files*)
+  [[ -z "${STUB_FILES_FAIL:-}" ]] || exit 1
+  while [[ $# -gt 0 && "$1" != --jq ]]; do shift; done
+  jq -r "$2" <<<"${STUB_FILES:-[]}"
+  ;;
+*/pulls/*) jq -cn --argjson n "${STUB_CHANGED:-0}" '{changed_files: $n}' ;;
 *) exit 1 ;;
 esac
 EOF
@@ -198,11 +215,33 @@ RUNS_CODE="$(runs)"
 expect "both missing lanes are named" 1 "'$CODE_CHECK' is missing"
 RUNS_CODE="$(runs "$(run 10 $CODE)")" RUNS_SEC="$(runs "$(run 20 $SEC)")"
 
+export STUB_FILES STUB_CHANGED PR_NUMBER=77
+files() { jq -cn '[$ARGS.positional[] | split("<") | {filename: .[0]} + (if length > 1 then {previous_filename: .[1]} else {} end)]' --args "$@"; }
+STUB_FILES="$(files plugins/x/README.md .github/workflows/ci.yml)" STUB_CHANGED=2
 for id in 49699333 337859524 300666570; do
   RUNS_CODE="$(runs)"
-  AUTHOR_ID=$id expect "author $id is exempt without a read" 0 "is one no review lane reviews"
-  if [[ -s "$TMP_ROOT/log" ]]; then fail "an exempt author's run read the API"; else ok "an exempt author's run reads nothing"; fi
+  AUTHOR_ID=$id expect "author $id is exempt when no trust-gate path changed" 0 "is one no review lane reviews, and no trust-gate path changed"
+  if grep -q '/actions/' "$TMP_ROOT/log"; then fail "an exempt author's run read the review runs"; else ok "an exempt author's run reads no review run"; fi
 done
+if grep -qxF 'api repos/o/r/pulls/77/files?per_page=100 --paginate --jq .[] | [.filename, (.previous_filename // "")] | @tsv' "$TMP_ROOT/log"; then
+  ok "an exempt author's PR files are read whole"
+else
+  fail "unexpected file read: '$(sort -u "$TMP_ROOT/log")'"
+fi
+# Every hold path the callers list holds an exempt author's PR, nested and renamed ones too.
+for changed in .github/standards/trusted-actors/trusted-actors.json .github/actions/check-trusted-trigger/lib/x.mjs CODEOWNERS .github/CODEOWNERS \
+  .gitmodules vendor/sub/.gitmodules 'docs/new.md<.github/CODEOWNERS'; do
+  STUB_FILES="$(files README.md "$changed")"
+  AUTHOR_ID=300666570 expect "an exempt author changing $changed fails" 1 "::error::#77 is by an author no review lane reviews and changes trust-gate paths:"
+done
+for changed in .github/standards/other.json CODEOWNERS.md docs/gitmodules.md .github/actions/check-trusted-trigger-x/a.mjs; do
+  STUB_FILES="$(files "$changed")" STUB_CHANGED=1
+  AUTHOR_ID=300666570 expect "an exempt author changing $changed passes" 0 "no trust-gate path changed"
+done
+STUB_FILES="$(files README.md)" STUB_CHANGED=3
+AUTHOR_ID=49699333 expect "a short file listing fails closed" 1 "::error::GitHub listed fewer files than #77 changes"
+STUB_CHANGED=1 STUB_FILES_FAIL=1 AUTHOR_ID=49699333 expect "an unreadable file listing fails closed" 1 "::error::could not read the files of #77"
+STUB_FILES='[]' STUB_CHANGED=0
 AUTHOR_ID=49699333999 expect "an id that only contains an exempt id is not exempt" 1 "is missing"
 RUNS_CODE="$(runs "$(run 10 $CODE)")"
 
