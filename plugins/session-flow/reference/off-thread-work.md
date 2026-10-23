@@ -25,9 +25,13 @@ current harness exposes:
   shell itself looks alive. List the tree and each process's input-wait verdict
   with `keep-going`'s `check-child-input-wait.py`; a process the platform gives
   no signal for is `unknown`, never "not waiting".
-
 - agent-team teammates;
 - in-flight MCP tool calls.
+
+Treat that list as **examples of the kinds** to look for, not a fixed
+catalogue. The tool surface evolves; the specific tools that hold off-thread
+work change over time. Inventory what exists now, not only the mechanisms named
+here.
 
 A resumed session cannot see two of these directly, so each has its own rule.
 Neither is skipped silently: the report gives its state or says it is not
@@ -60,11 +64,6 @@ failed or safe to re-fire; a re-fire is gated like any side effect.
 - **Recheck trigger**: that section describes a record of in-flight calls a
   later session can read, or a way for a backgrounded call to outlive its
   session.
-
-Treat that list as **examples of the kinds** to look for, not a fixed
-catalogue. The tool surface evolves; the specific tools that hold off-thread
-work change over time. Inventory what exists now, not only the mechanisms named
-here.
 
 Inventory descends through **every level the harness exposes**: for each
 subagent, look for the agents it spawned; for each workflow, look for the agents
