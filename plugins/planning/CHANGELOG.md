@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.95.1] - 2026-10-23
+
+### Fixed
+
+- **The brief reads "1 commitment confirmed" for a single confirmed commitment.** The TLDR line said "1 commitments confirmed"; zero or two or more are unchanged.
+
 ## [0.95.0] - 2026-10-23
 
 ### Changed
