@@ -6,7 +6,7 @@ name: work-unblock
 # This workflow labels `agent-ready` each blocked issue that is open, has every
 # blocker closed as completed by a listed human or a merge (a pull request
 # blocker: merged), carries no hold label (needs-owner-decision,
-# status: needs-decision, needs-human), and whose agent-ready label was never
+# status: needs-decision, status: needs-info, needs-human), and whose agent-ready label was never
 # removed. That label starts work-resolve-issue.yml. The rules are in
 # .github/scripts/work-unblock/label-unblocked.mjs; the lane and its
 # effect (mutate-tracker) are in docs/conventions/pr-pipeline.yaml.

@@ -275,7 +275,7 @@ activities:
       # trigger gate checks that a listed human or the lanes App added it.
       # No `work-class:` label admits or refuses it. A person decides an
       # issue carrying one of these labels, so it starts nothing.
-      labels-absent: [needs-human, needs-owner-decision, "status: needs-decision"]
+      labels-absent: [needs-human, needs-owner-decision, "status: needs-decision", "status: needs-info"]
       # Read now, so removing agent-ready while a run waits stops it.
       labels: [agent-ready]
       # Only issues labeled agent-ready after this time start a run; an issue
@@ -303,6 +303,7 @@ activities:
         - needs-human
         - needs-owner-decision
         - "status: needs-decision"
+        - "status: needs-info"
       labels:
         - agent-ready
   report-outcome:

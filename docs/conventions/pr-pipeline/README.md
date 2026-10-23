@@ -1631,7 +1631,7 @@ cap check (`.github/actions/check-wip-cap`) runs before work-resolve-issue takes
 work-unblock runs it before a re-fire and before adding `agent-ready`. It reads, one request at a
 time and none once `x-ratelimit-remaining` reaches 0, the lanes App's open pull requests, those
 merged in the window, those opened in it, and the open `agent-ready` issues that carry no hold
-label (`needs-human`, `needs-owner-decision`, `status: needs-decision`).
+label (`needs-human`, `needs-owner-decision`, `status: needs-decision`, `status: needs-info`).
 
 | Key | Default | What it sets |
 |---|---|---|
