@@ -47,6 +47,8 @@ code, nothing else. The library already covers:
 | `.env` writes | Values quoted, file mode `0600`, rewritten atomically (through a symlinked `.env` too), with a warning when the file is not gitignored |
 | CI writes | `gh secret` / `gh variable` with the value on stdin, after the person confirms the target repository |
 | Progress and wrap-up | A stage counter, and a closing summary that lists names, never values |
+| Confirmation | `gate "Question?" "what is unchanged if you stop"` asks, and ends the wizard with that message on anything but a yes |
+| Cleanup | `on_exit FUNC` runs `FUNC` with the exit status when the wizard ends, by `fatal`, Ctrl-C, TERM or HUP too; handlers run in reverse order of registration, then the library removes its temp file |
 
 Running a wizard needs bash; on Windows, use Git Bash or WSL. An authenticated `gh` matters only to
 stages that write CI secrets or variables. Without it, those stages print a warning and appear in
@@ -56,11 +58,16 @@ the closing summary as manual work, and the rest of the run carries on.
 
 The plan is one table, a row per stage in run order. For the running example:
 
-| Stage | Value | Secret | Saved to | How the person gets it |
-|---|---|---|---|---|
-| Sending domain | `MAIL_FROM_DOMAIN` | no | `.env` | Mail console: Domains, Add domain, enter the domain |
-| DNS records | none | n/a | nowhere | Registrar: DNS settings, add each record the console listed |
-| API token | `MAIL_API_TOKEN` | yes | `.env` and CI secret | Mail console: API, Create token, send scope, copy it |
+| Stage | Kind | Value | Secret | Saved to | How the person gets it |
+|---|---|---|---|---|---|
+| Sending domain | browser | `MAIL_FROM_DOMAIN` | no | `.env` | Mail console: Domains, Add domain, enter the domain |
+| DNS records | browser | none | n/a | nowhere | Registrar: DNS settings, add each record the console listed |
+| API token | browser | `MAIL_API_TOKEN` | yes | `.env` and CI secret | Mail console: API, Create token, send scope, copy it |
+
+The Kind column is `browser` (the person works in a web page), `cli` (the person runs a command, or
+the wizard does after a `gate`) or `local` (the person edits or checks a file on this machine). A
+wizard with no `browser` row opens no page and may store nothing; its banner and closing must not
+say otherwise.
 
 Fill the table from the repository; the user answers only what the files cannot. Which file answers
 which column:
@@ -103,12 +110,24 @@ table then decides the code, cell by cell:
 | Table content | Code it produces |
 |---|---|
 | Each row, in table order | One `stage` call; `TOTAL_STAGES` equals the row count |
-| How the person gets it | `say`, `step`, `note` and `warn` lines, plus `open_url` (https only) for the page, placed before any prompt for a value from that page |
+| How the person gets it, Kind `browser` | `say`, `step`, `note` and `warn` lines, plus `open_url` (https only) for the page, placed before any prompt for a value from that page |
+| How the person gets it, Kind `cli` | `step` lines naming the exact command, or the command itself run by the stage behind a `gate`, then a `say` or `note` line with the result; no `open_url` |
+| How the person gets it, Kind `local` | `step` lines naming the file and the change, then a `pause`; a check the stage runs reports through `say` or `warn`; no `open_url` |
 | Secret: no / yes | `ask` / `ask_secret` |
 | Saved to `.env` | `write_env` |
 | Saved to CI | `set_secret` for a secret, `set_var` for a public value; never for a value CI does not read |
-| A step that cannot be undone | `confirm` (a yes-or-no question) ahead of it |
+| A step that cannot be undone | `gate "Question?" "what is unchanged if you stop"` ahead of it |
+| A yes-or-no with its own branch for "no" | `if confirm "Question?"; then ... else ... fi` |
 | Value: none | No prompt; `step` lines and a `pause`, which waits for the person |
+| State to restore if the run ends early | A function that restores it, registered with `on_exit` inside `run_wizard` |
+| Kinds in the table | `banner "Title" "intro line" ...` with lines that match the kinds, and `finish "Title"` naming what the wizard did |
+
+A bare `confirm` as a statement ends the wizard silently on "no", because it returns nonzero under
+`set -e`. Put it in an `if`, or behind `||`, or use `gate`. Pass `banner` the browser line only when
+a stage calls `open_url`, and the saved-answers line only when a stage calls `ask*` with
+`write_env`; with no intro lines `banner` prints a neutral default. A wizard that behaves per
+operating system branches on `uname -s` inside the stage (`Darwin`, `Linux`, and `MINGW*|MSYS*` for
+Git Bash); the library has no helper for it.
 
 `stage` clears the terminal and prints the counter, so a row that holds two tasks loses the first
 task's instructions off the top of the screen. Split such a row in two. In the running example,
@@ -128,7 +147,11 @@ MAIL_API_TOKEN`, `write_env`, and `set_secret`, in that order.
      in the CI workflows;
    - the library above the `STAGES` marker is unchanged;
    - every stage sits inside `run_wizard`, which ends with `finish` then `exit`, and the script's
-     last line is `run_wizard "$@"`.
+     last line is `run_wizard "$@"`;
+   - `TOTAL_STAGES` equals the count printed by `grep -c '^[[:space:]]*stage "' <script>`;
+   - no `confirm` stands as a bare statement (each sits in an `if`, behind `||`, or is a `gate`);
+   - the `banner` intro and the `finish` title describe what this wizard actually does: no browser
+     or saved-answers claim unless a stage opens a page or captures a value.
 3. **Stop the line. Human approval gate.** Show the user the whole `STAGES` block, everything below
    the marker, and wait for their explicit approval. Until it arrives, do NOT run `chmod +x` and do
    NOT give the user a command to run. The order is fixed, not advisory: the person is about to type
@@ -148,7 +171,10 @@ MAIL_API_TOKEN`, `write_env`, and `set_secret`, in that order.
 
 - **Corrections cost a restart and little else.** Stages only move forward. Each prompt whose key
   is already in `.env` shows `[Enter keeps current]`, so after Ctrl-C and a fresh start every
-  correct stage takes one keypress, and the mistyped key is the only one to enter anew.
+  correct stage takes one keypress, and the mistyped key is the only one to enter anew. That holds
+  only for values captured with `ask*` and `write_env`; a wizard whose stages act on systems
+  instead (a cutover) has no such resume, so its closing text or a `note` says how to resume or
+  roll back.
 - **A terminal is required.** Without `/dev/tty` the script exits at once, so it cannot run under a
   pipe, in CI, or from pasted input. This is intended.
 - **Line editing differs by prompt.** `ask` uses readline, so arrow keys move the cursor;

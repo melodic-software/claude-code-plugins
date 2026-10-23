@@ -45,7 +45,7 @@ fatal() {
 # stdin. Fail closed when no TTY exists: a wizard driven by piped input would
 # let a multi-line paste blow through its confirmation gates.
 if ! { exec 3</dev/tty; } 2>/dev/null; then
-  fatal "no interactive terminal (/dev/tty unavailable) — run this wizard from a real terminal, not a pipe or CI"
+  fatal "no interactive terminal (/dev/tty unavailable); run this wizard from a real terminal, not a pipe or CI"
 fi
 
 # The stages section overrides this with its stage count.
@@ -68,7 +68,32 @@ _WIZARD_TMP=""
 # for the EXIT trap under set -e, which would turn a successful run into exit 1.
 # shellcheck disable=SC2329  # invoked by the EXIT trap below
 _cleanup() { if [[ -n "$_WIZARD_TMP" && -f "$_WIZARD_TMP" ]]; then rm -f -- "$_WIZARD_TMP"; fi; }
-trap _cleanup EXIT
+
+# on_exit FUNC: register FUNC to run when the wizard ends, however it ends (the
+# end of run_wizard, fatal, Ctrl-C, a TERM or HUP). Handlers run in reverse
+# order of registration, each given the exit status as $1, then _cleanup runs.
+# A handler's own failure is ignored, and the wizard's exit status is kept.
+_WIZARD_EXIT_HANDLERS=()
+# shellcheck disable=SC2310,SC2329  # fatal exits the script directly; library API, run_wizard calls it
+on_exit() {
+  if ! declare -F -- "$1" >/dev/null; then fatal "on_exit: '$1' is not a function"; fi
+  _WIZARD_EXIT_HANDLERS+=("$1")
+}
+
+# shellcheck disable=SC2329  # invoked by the EXIT trap below
+_run_exit() {
+  local status=$? i
+  for ((i = ${#_WIZARD_EXIT_HANDLERS[@]} - 1; i >= 0; i--)); do
+    "${_WIZARD_EXIT_HANDLERS[i]}" "$status" || true
+  done
+  _cleanup
+}
+trap _run_exit EXIT
+# 128 plus the signal number, so each signal keeps its conventional status and
+# the EXIT trap above runs the handlers.
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
 
 # _valid_key KEY — keys and secret/variable names must be valid identifiers.
 # Anything else (spaces, '=', metacharacters) is an authoring bug: fail fast
@@ -86,13 +111,23 @@ _clear() {
   if command -v tput >/dev/null 2>&1; then tput clear 2>/dev/null || true; else printf '\033[2J\033[3J\033[H'; fi
 }
 
-# banner "Title": the first screen, with the title and the stage count.
+# banner "Title" ["intro line" ...]: the first screen, with the title, the stage
+# count and the intro lines. With no intro lines it prints a default that fits
+# any wizard; pass lines that mention a browser or saved answers only when the
+# stages open pages or capture values.
 banner() {
+  local title="$1" noun=stages line
+  shift
+  ((TOTAL_STAGES != 1)) || noun=stage
   _clear
-  printf '\n%s%s  %s%s\n' "$BOLD" "$BLUE" "$1" "$RESET"
-  printf '%s  %s stages%s\n\n' "$DIM" "$TOTAL_STAGES" "$RESET"
-  printf '%s  Keep a browser beside this terminal; pages for each stage open there.\n' "$DIM"
-  printf '  Ctrl-C quits. Answers saved in %s are pre-filled on a later run.%s\n' "$ENV_FILE" "$RESET"
+  printf '\n%s%s  %s%s\n' "$BOLD" "$BLUE" "$title" "$RESET"
+  printf '%s  %s %s%s\n\n' "$DIM" "$TOTAL_STAGES" "$noun" "$RESET"
+  if (($#)); then
+    for line in "$@"; do printf '%s  %s%s\n' "$DIM" "$line" "$RESET"; done
+  else
+    printf '%s  This wizard walks you through %s %s and asks before each change. Ctrl-C stops it.%s\n' \
+      "$DIM" "$TOTAL_STAGES" "$noun" "$RESET"
+  fi
   pause "Ready to start?"
 }
 
@@ -155,7 +190,7 @@ _drain_tty() {
 pause() {
   _drain_tty
   printf '  %s%s%s ' "$DIM" "${1:-Done? Press Enter.}" "$RESET"
-  read -r -u 3 _ || fatal "terminal closed at a pause gate — aborting"
+  read -r -u 3 _ || fatal "terminal closed at a pause gate, aborting"
 }
 
 # confirm "question": a yes/no gate whose default is no. Fail-closed: only an
@@ -166,8 +201,17 @@ confirm() {
   local reply=""
   _drain_tty
   printf '  %s? %s [y/N]%s ' "$YELLOW" "$1" "$RESET"
-  read -r -u 3 reply || fatal "terminal closed at a confirmation gate — aborting"
+  read -r -u 3 reply || fatal "terminal closed at a confirmation gate, aborting"
   [[ "$reply" =~ ^[Yy] ]]
+}
+
+# gate "Question?" "what is unchanged if you stop": confirm, and on anything but
+# yes end the wizard with that message. A bare `confirm` statement also ends the
+# wizard on "no", but silently, under set -e; use gate for a step that must not
+# go on without a yes, and `if confirm` when "no" has its own branch.
+# shellcheck disable=SC2310  # confirm's no-branch is the handled stop; fatal exits directly
+gate() {
+  confirm "$1" || fatal "stopped: $2"
 }
 
 # _existing KEY: the value ENV_FILE already holds for KEY (none: status 1), one matched
@@ -189,7 +233,7 @@ _existing() {
       val="${val//"$esc"/\'}"
       ;;
     \"*\") val="${val:1:${#val}-2}" ;;
-    *) ;; # unquoted (hand-written line) — offer verbatim
+    *) ;; # unquoted (hand-written line), offer verbatim
     esac
   fi
   printf '%s' "$val"
@@ -239,7 +283,7 @@ _ENV_TARGET_CONFIRMED=""
 _check_env_target() {
   local target rel
   if ! target=$(_resolve_link "$ENV_FILE"); then
-    [[ ! -L "$ENV_FILE" ]] || fatal "couldn't resolve where the symlink $ENV_FILE points — nothing written"
+    [[ ! -L "$ENV_FILE" ]] || fatal "couldn't resolve where the symlink $ENV_FILE points; nothing written"
     return 0 # its directory does not exist, so nothing can be written there
   fi
   [[ "$target" != "$_ENV_TARGET_CONFIRMED" ]] || return 0
@@ -252,7 +296,7 @@ _check_env_target() {
   else
     return 0
   fi
-  confirm "Write values to $target?" || fatal "declined writing through $ENV_FILE to $target — nothing written"
+  confirm "Write values to $target?" || fatal "declined writing through $ENV_FILE to $target; nothing written"
   _ENV_TARGET_CONFIRMED="$target"
 }
 
@@ -313,7 +357,7 @@ ask() {
   _check_env_target
   __wiz_current=$(_existing "$__wiz_key" || true)
   _ask_prompt "$__wiz_prompt" "$__wiz_current"
-  read -r -e -u 3 __wiz_input || fatal "terminal closed while reading $__wiz_key — aborting"
+  read -r -e -u 3 __wiz_input || fatal "terminal closed while reading $__wiz_key, aborting"
   [[ -z "$__wiz_input" && -n "$__wiz_current" ]] && __wiz_input="$__wiz_current"
   printf -v "$__wiz_key" '%s' "$__wiz_input"
 }
@@ -328,7 +372,7 @@ ask_secret() {
   _check_env_target
   __wiz_current=$(_existing "$__wiz_key" || true)
   _ask_prompt "$__wiz_prompt" "$__wiz_current"
-  read -rs -u 3 __wiz_input || fatal "terminal closed while reading secret $__wiz_key — aborting"
+  read -rs -u 3 __wiz_input || fatal "terminal closed while reading secret $__wiz_key, aborting"
   printf '\n'
   [[ -z "$__wiz_input" && -n "$__wiz_current" ]] && __wiz_input="$__wiz_current"
   printf -v "$__wiz_key" '%s' "$__wiz_input"
@@ -343,7 +387,7 @@ _check_env_ignored() {
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
   if ! git check-ignore -q -- "$ENV_FILE" 2>/dev/null; then
     _ENV_IGNORE_WARNED=1
-    warn "$ENV_FILE is NOT gitignored — a secret written here can be committed"
+    warn "$ENV_FILE is NOT gitignored: a secret written here can be committed"
     SKIPPED+=("gitignore $ENV_FILE (add it to .gitignore before any commit)")
   fi
 }
@@ -405,14 +449,14 @@ _resolve_repo() {
   local repo
   if ! repo=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>&1); then
     GH_REPO_DECLINED=1
-    warn "couldn't resolve the GitHub repo — CI writes will be skipped"
+    warn "couldn't resolve the GitHub repo; CI writes will be skipped"
     SKIPPED+=("resolve GitHub repo (gh repo view failed: ${repo})")
     return 1
   fi
   say "GitHub CI values will be written to: ${BOLD}${repo}${RESET}"
   if ! confirm "Write CI secrets/variables to ${repo}?"; then
     GH_REPO_DECLINED=1
-    warn "CI writes to ${repo} declined — set them manually"
+    warn "CI writes to ${repo} declined; set them manually"
     SKIPPED+=("GitHub CI writes (declined for ${repo})")
     return 1
   fi
@@ -427,8 +471,8 @@ _gh_set() {
   local kind="$1" name="$2" value="$3" err
   _valid_key "$name"
   if [[ -z "$value" ]]; then
-    warn "refusing to set GitHub $kind $name — empty value"
-    SKIPPED+=("GitHub $kind $name (empty value — nothing was sent to gh)")
+    warn "refusing to set GitHub $kind $name: empty value"
+    SKIPPED+=("GitHub $kind $name (empty value; nothing was sent to gh)")
     return 0
   fi
   if ! _gh_ready; then
@@ -444,7 +488,7 @@ _gh_set() {
     if [[ "$kind" == secret ]]; then WRITTEN_SECRET+=("$name"); else WRITTEN_VAR+=("$name"); fi
     printf '  %s✓ set%s GitHub %s %s in %s\n' "$GREEN" "$RESET" "$kind" "$name" "$GH_REPO"
   else
-    warn "couldn't set GitHub $kind $name — see the closing summary"
+    warn "couldn't set GitHub $kind $name; see the closing summary"
     SKIPPED+=("GitHub $kind $name (gh error: ${err})")
   fi
 }
@@ -460,11 +504,22 @@ set_secret() { _gh_set secret "$1" "$2"; }
 # shellcheck disable=SC2329  # library API; the example stage does not call it
 set_var() { _gh_set variable "$1" "$2"; }
 
-# finish: last screen. Lists what was saved and what is left to the person, by
-# name; no value is ever printed.
+# finish ["Title"]: last screen. The title defaults to "Done" and gains ", with
+# items left to do by hand" when SKIPPED is not empty. Lists what was saved and
+# what is left to the person, by name; no value is ever printed. Warns when the
+# stage count the author set does not match the stages that ran.
 finish() {
+  local title="${1:-Done}" mark="✓" color="$GREEN"
+  if ((${#SKIPPED[@]})); then
+    title="$title, with items left to do by hand"
+    mark="⚠"
+    color="$YELLOW"
+  fi
   _clear
-  printf '\n%s%s  ✓ Setup complete%s\n' "$BOLD" "$GREEN" "$RESET"
+  printf '\n%s%s  %s %s%s\n' "$BOLD" "$color" "$mark" "$title" "$RESET"
+  if ((_STAGE_INDEX != TOTAL_STAGES)); then
+    warn "stage count mismatch: TOTAL_STAGES is $TOTAL_STAGES but $_STAGE_INDEX stage() calls ran; fix TOTAL_STAGES"
+  fi
   ((${#WRITTEN_ENV[@]})) && note "$ENV_FILE keys saved (${#WRITTEN_ENV[@]}): ${WRITTEN_ENV[*]}"
   ((${#WRITTEN_SECRET[@]})) && note "${GH_REPO} CI secrets stored (${#WRITTEN_SECRET[@]}): ${WRITTEN_SECRET[*]}"
   ((${#WRITTEN_VAR[@]})) && note "${GH_REPO} CI variables stored (${#WRITTEN_VAR[@]}): ${WRITTEN_VAR[*]}"
@@ -479,7 +534,9 @@ finish() {
 # ──────────────────────────────────────────────────────────────────────────
 # STAGES: the part you write. Delete the example stage below, add one stage()
 # call per row of the confirmed stage plan, in plan order, and make
-# TOTAL_STAGES equal the number of stage() calls.
+# TOTAL_STAGES equal the number of stage() calls. Pass banner intro lines and
+# the finish title that fit what this wizard does; without intro lines the
+# banner prints a neutral default, with no browser or saved-answers claim.
 # Keep every stage inside run_wizard, ahead of its closing `finish` and `exit`,
 # and keep the last line as is: bash then parses the whole file before the
 # first prompt, so editing the script while it runs cannot re-run a step.
@@ -488,7 +545,9 @@ finish() {
 run_wizard() {
   TOTAL_STAGES=1
 
-  banner "Mail provider setup"
+  banner "Mail provider setup" \
+    "Keep a browser beside this terminal; pages for each stage open there." \
+    "Ctrl-C quits. Answers saved in $ENV_FILE are pre-filled on a later run."
 
   # ── EXAMPLE STAGE (fictional provider at mail.example.com): delete it ───
   # shellcheck disable=SC2154  # ask/ask_secret assign the named variable via printf -v
@@ -499,6 +558,7 @@ run_wizard() {
   ask MAIL_FROM_DOMAIN "Sending domain:"
   step "Choose Create token, tick only the Send scope, and copy the new token."
   ask_secret MAIL_API_TOKEN "API token:"
+  gate "Save these two values to $ENV_FILE?" "nothing was written to $ENV_FILE"
   # shellcheck disable=SC2154  # assigned by ask via printf -v
   write_env MAIL_FROM_DOMAIN "$MAIL_FROM_DOMAIN"
   # shellcheck disable=SC2154  # assigned by ask_secret via printf -v
@@ -506,7 +566,7 @@ run_wizard() {
   set_secret MAIL_API_TOKEN "$MAIL_API_TOKEN" # the deploy workflow reads secrets.MAIL_API_TOKEN
   # ── END EXAMPLE STAGE ───────────────────────────────────────────────────
 
-  finish
+  finish "Mail provider setup complete"
   exit
 }
 
