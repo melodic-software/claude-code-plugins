@@ -1525,8 +1525,8 @@ lane is still going a re-run could only be red, and that lane's completion re-ru
 gets one re-run, not one per lane. A ci-status not started yet, or one that started after both
 lanes finished, is left to read the reviews itself; an earlier one in progress is polled every 60
 seconds for at most 10 minutes first. A read refused by the token's primary rate limit waits for
-the reset inside the same 10 minutes; a reset past them ends the job green, and the next lane
-completion re-runs ci-status. The merge-group run re-checks the labels.
+the reset inside the same 10 minutes; a reset past them fails the job, naming the reset, since
+nothing else re-runs a ci-status left stale. The merge-group run re-checks the labels.
 `fix-ci` keys on `ci-lanes`, so a hold or a pending review never summons it.
 
 ## Trust-root paths

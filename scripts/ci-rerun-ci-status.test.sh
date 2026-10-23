@@ -9,8 +9,8 @@
 # pr-require-checks pull_request run on the reviewed head, after that run
 # finishes, polling at most POLL_LIMIT_SECONDS. The other lane still going, a
 # closed PR, a moved head, no run yet, a ci-status not started or one started
-# after both lanes finished is left alone. A primary rate limit waits for its
-# reset within the cap, or ends green past it. Unreadable reads fail. Each
+# after both lanes finished is left alone. A rate limit waits for its reset
+# within the cap, or fails past it. Unreadable reads fail. Each
 # path's API call count is pinned.
 # test-scope: .github/workflows/pr-feedback-dispatch.yml
 set -uo pipefail
@@ -283,7 +283,7 @@ echo 1 >"$STUB_LIMIT_FILE"
 STUB_RETRY_AFTER=30 expect "a retry-after refusal waits that many seconds" 0 "waiting 30s for the reset."
 check_reran 1 "the read after retry-after goes on to the re-run"
 echo 1 >"$STUB_LIMIT_FILE"
-STUB_RESET=1700 expect "a reset past the cap ends green with a warning" 0 "::warning::the token's rate limit is spent until"
+STUB_RESET=1700 expect "a reset past the cap fails, naming the reset" 1 "::error::the token's rate limit blocks reading the pr-require-checks runs on $HEAD until"
 check_reran 0 "nothing is re-run when the reset is past the cap"
 if grep -q '^sleep' "$TMP_ROOT/log"; then fail "it waited for a reset past the cap"; else ok "a reset past the cap is not waited for"; fi
 echo 1 >"$STUB_LIMIT_FILE"

@@ -345,9 +345,11 @@ jobs:
           # x-ratelimit-remaining 0, until one second past x-ratelimit-reset,
           # both read from the refused response's headers, when the wait fits
           # in what is left of POLL_LIMIT_SECONDS, shared with the poll below.
-          # A wait past it ends the job green, since the next lane completion
-          # re-runs ci-status. Any other failure is read three times, then
-          # fails.
+          # A wait past it fails the job, naming the reset: no other run
+          # re-runs a ci-status this job leaves stale (a later lane's
+          # completion exists only while the other lane is running, and
+          # maintenance-reconcile-lost-runs leaves a run where only ci-status
+          # failed alone). Any other failure is read three times, then fails.
           waited=0
           read_api() {
             local attempt out hdr status left reset after wait
@@ -371,8 +373,8 @@ jobs:
               fi
               if [ -n "$wait" ]; then
                 if [ $((waited + wait)) -gt "$POLL_LIMIT_SECONDS" ]; then
-                  echo "::warning::the token's rate limit is spent until $(date -u -d "@$reset" +%H:%M:%SZ), past this job's ${POLL_LIMIT_SECONDS}s cap; the next review lane completion re-runs ci-status."
-                  exit 0
+                  echo "::error::the token's rate limit blocks reading $2 until $(date -u -d "@$reset" +%H:%M:%SZ), past this job's ${POLL_LIMIT_SECONDS}s cap; ci-status on $HEAD_SHA is not re-run. Re-run this run after the reset."
+                  exit 1
                 fi
                 echo "Rate limited reading $2; waiting ${wait}s for the reset."
                 sleep "$wait"
