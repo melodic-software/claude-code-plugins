@@ -595,9 +595,8 @@ actor or author not on the trusted-actor list), `workflow-modified` (the token b
 write lane's mint for a workflow file the PR itself changes), `rung-up` (a fix-ci run's patch is
 held back for one retry one model rung up, [Lanes](#lanes)), `no-model-turn` (an address-feedback
 round whose model never ran, so the scan uploaded no replies), or, for an issue run under
-`models.issue-dimensions`, `not-assessed` (a dimension field empty or set by an untrusted
-account), `research-first` or `probe-first` (its Uncertainty), or `split-required` (its Size is
-`split`). Issue mode posts no check, so work-resolve-issue.yml reports those four dimension skips
+`models.issue-dimensions`, `research-first` or `probe-first` (its Uncertainty), or
+`split-required` (its Size is `split`). Issue mode posts no check, so work-resolve-issue.yml reports those three dimension skips
 on the issue instead: `needs-human`, no `agent-ready`, and a comment naming the next step
 ([Issue mode](pr-run-activity.md#issue-mode)). Silence is not a skip, with three exceptions that
 post no check: a fork PR, whose read-only token cannot write checks; a `pull_request` event sent
@@ -1523,14 +1522,15 @@ This repository's profiles, and the route each run takes, are set in
 Complexity and Uncertainty org issue fields. `fields` maps each field id and its single-select
 option ids to the keys of `sizes`, `complexity` and `uncertainty`; ids, not names, so a renamed
 option keeps its meaning. A field with no value, or whose latest setter (from the GraphQL field
-events) is neither a listed human on the trusted-actor list nor the lanes App, is not assessed;
-an option no entry maps fails the resolve with `unmapped-dimension`. Before any model turn the
-activity skips with `not-assessed` when a field is not assessed, then with its Uncertainty's
+events) is neither a listed human on the trusted-actor list nor the lanes App, reads as Size
+`small`, Complexity `medium` or Uncertainty `known`, so the run goes ahead; the config must define
+those keys, and `small` must run. An option no entry maps fails the resolve with
+`unmapped-dimension`. Before any model turn the activity skips with its Uncertainty's
 mode when that is not `run` (`research-first` or `probe-first`), then with `split-required` when
 its Size is `split`. Otherwise its `max-turns` is the size's `base-turns` times the complexity
 factor, rounded up, replacing the profile's, and the size's `timeout-minutes` is the run job's
 timeout; a skip takes the shortest size timeout. resolve-config outputs `issue-dimensions`
-(`<size>/<complexity>/<uncertainty>`, or `not-assessed`) and `timeout-minutes`;
+(`<size>/<complexity>/<uncertainty>`) and `timeout-minutes`;
 work-resolve-issue.yml resolves them before its run job starts, since a job's timeout is fixed
 then, and passes the dimensions on (`issue-dimensions`), so a field set while the run waits for
 its slot cannot give it more turns than its timeout allows; without `issue-dimensions` the
@@ -1538,7 +1538,7 @@ timeout is 25 minutes. This repository's budgets are owner-approved starting val
 [`pr-pipeline.yaml`](../pr-pipeline.yaml) (`models.issue-dimensions`) from per-run measures. Large
 is `split`, and Uncertainty Known and Knowable map to `run` and Unknown to `probe-first`. `complexity-profiles` (optional) maps a complexity to the profile the run starts on,
 in place of its route's; the dimensions' turn cap still replaces that profile's `max-turns`. A
-complexity with no entry, or an issue not assessed, keeps the route's profile. The config
+complexity with no entry keeps the route's profile. The config
 reader rejects a key that is not a complexity and a value that is not a profile.
 
 Lanes choose the model by difficulty along one ladder: Sonnet for mechanical work (the review,
