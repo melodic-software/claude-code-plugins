@@ -566,7 +566,7 @@ test("a pr-verify run dispatches past a check run and a handled record from befo
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const before = { name: "pr-unblock / address-feedback", status: "completed", conclusion: "neutral", started_at: "2026-10-17T11:00:00Z", output: { title: "Skipped: no-model-turn" } };
   const record = join(dir, "record.json");
-  writeFileSync(record, JSON.stringify({ version: 2, handled: { "pr-unblock / address-feedback": [HEAD] }, dispatched: {} }));
+  writeFileSync(record, JSON.stringify({ version: 3, handled: { "pr-unblock / address-feedback": [HEAD] }, dispatched: {} }));
   const api = verifyApi({ checkRuns: [before] });
   const { output } = await verifyMain(dir, api, HEAD, record);
   assert.equal(api.calls.dispatch.length, 1);

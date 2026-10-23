@@ -11,8 +11,9 @@ const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
 // Raised whenever a dispatcher changes which check runs handle a head for
 // good, so a record written under the old rule is read as empty: version 2
-// leaves unrecorded a head a later no-model-turn reply or verdict can release.
-export const RECORD_VERSION = 2;
+// leaves unrecorded a head a later no-model-turn reply or verdict can release,
+// and version 3 a review-dependency head a limit stop holds until its reset.
+export const RECORD_VERSION = 3;
 
 export function emptyRecord() {
   return { handled: new Map(), dispatched: new Map() };

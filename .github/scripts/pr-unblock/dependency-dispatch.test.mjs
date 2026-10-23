@@ -331,6 +331,17 @@ test("a version 1 record that holds a no-model-turn head is ignored, and the hea
   assert.deepEqual((await run(fakeApi({ nodes: [node], checks }), { record })).dispatched, [{ number: 66, workflowRunId: "7066" }]);
 });
 
+// A version 2 record could hold a limit-stopped head as reviewed (#9382),
+// which no reset would release; that record's version is read as empty.
+test("a version 2 record that holds a limit-stopped head is ignored, and the head dispatches after the reset", async () => {
+  const node = pr(67);
+  const record = parseRecord(JSON.stringify({ version: 2, handled: { [CHECK]: [node.headRefOid] }, dispatched: {} }));
+  assert.equal(record.handled.get(CHECK), undefined, "read as empty");
+  const checks = headOf(node, [limitStop("2026-10-17T10:00:00Z"), noModelTurn()]);
+  const { dispatched } = await run(fakeApi({ nodes: [node], checks }), { record, now: Date.parse("2026-10-17T12:00:00Z") });
+  assert.deepEqual(dispatched, [{ number: 67, workflowRunId: "7067" }]);
+});
+
 // Reads spent only where they change the decision. Each count beside the
 // assertion is what the dispatcher read before it skipped them.
 const RED_CI = [{ id: 1, app: { slug: "github-actions" }, status: "completed", conclusion: "failure" }];
