@@ -544,7 +544,7 @@ The rest of `.github/`, `.claude/`, `.mcp.json`, plugin hooks, `.claude-plugin/`
 `scripts/`, `CLAUDE.md`, `AGENTS.md` and an executable bit reach review, and merge on it: the
 [HIGH path floor](#merge-authority) holds for a human merge only agent permission config,
 `.gitmodules`, `CODEOWNERS`, package manifests and lockfiles, the workflows that publish a release
-or hold `id-token: write`, and the trusted-trigger check. The `ci-context`, `default`, `issue` and `merge-base` rows cap a patch at 300 paths, and the
+or hold `id-token: write`, the trusted-trigger check, and `resolve-config`, whose code the token broker runs from main. The `ci-context`, `default`, `issue` and `merge-base` rows cap a patch at 300 paths, and the
 `merge-base` row a merge commit at 300 new blobs.
 `checkPatchRules` in
 [`patch-rules.mjs`](../../../.github/actions/resolve-config/patch-rules.mjs) rejects a row without that
@@ -740,8 +740,9 @@ and its queued entries leave; two different identities, or an unreadable head co
 - **HIGH path floor.** A fixed set of paths in the wrapper's code, joined with
   `merge.diff-check.denied-paths` and matched case-insensitively: agent permission config
   (`**/settings*.json`), `.gitmodules`, `CODEOWNERS`, package manifests and lockfiles, the
-  workflows that publish a release or hold `id-token: write`, and the trusted-trigger check they
-  run. A diff that touches any of them scores HIGH and is never merged unattended. A
+  workflows that publish a release or hold `id-token: write`, the trusted-trigger check they
+  run, and `.github/actions/resolve-config/**`, whose code the token broker runs from main in its
+  signer process. A diff that touches any of them scores HIGH and is never merged unattended. A
   `plugins/<plugin>/.claude-plugin/plugin.json` or the top-level
   `.claude-plugin/marketplace.json` change scores HIGH as `manifest-review-required` when it
   installs or runs something new: a differing `hooks`, `mcpServers`, `lspServers`, `monitors` or
@@ -1228,9 +1229,11 @@ same-repository, non-draft pull request into main. It never runs the pull reques
 data, and judges whether the diff delivers the issue's intent correctly and safely. The model runs
 on ci-workflows' `run-claude-cli` as the `automations` role ([Funding](#funding)), with the Read
 tool alone, allowed only on the data files in the working directory's `pr-verify-data`. The run
-uploads one artifact, `pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>`, holding the verdict JSON
-(`pr`, `head_sha`, `base_sha`, `head_ref`, `linked_issues` with each issue's author login, id and
-account type, `verdict`, `summary`, `notes`, `run_id`). The head SHA is the one `pr-require-checks`
+uploads one artifact, `pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>`, holding the verdict JSON. Every
+reader also accepts that name followed by `-<ref-digest>`, the first 16 hex digits of the SHA-256
+of the `head_ref` the JSON records (`HEAD_REF_DIGEST_HEX` in `write-verdict.mjs`), which the
+writer moves to once the readers have run on main. The JSON holds `pr`, `head_sha`, `base_sha`, `head_ref`, `linked_issues` with each issue's author login, id and
+account type, `verdict`, `summary`, `notes` and `run_id`. The head SHA is the one `pr-require-checks`
 ran on, never the pull request's live head. A model error, an output that fails the schema, a
 summary or note matching a shared credential pattern (`findSecret` in `lib/publish-gate.mjs`), or a run with any permission denial
 uploads nothing, and the run fails. A head that already has a counted verdict from a completed run (a `fail` under any
@@ -1284,7 +1287,11 @@ head:
   every pull request for that issue refuse `verify:unreadable`: a hold, not a way past the cap;
 - a counted `fail` at the head, under any pull request number, refuses (`verify:fail`);
 - a counted `fail` at another head of the pull request (its number, one of its commits, or a
-  verdict recording its head branch) refuses (`verify:earlier-fail`). Counted `pass` or
+  verdict recording its head branch, read from the name's digest, or from the verdict JSON for a
+  name without one) refuses (`verify:earlier-fail`). The name is trusted only from a run of
+  verifier origin, as the JSON is, and equal branches always give equal digests, so a collision
+  can only tie a `fail`, never untie one. A digest-named `fail` is decided by its name even when
+  its JSON cannot be read, where a name without the digest refuses `verify:unreadable` then. Counted `pass` or
   `pass-notes` verdicts at the head whose runs were all created after every such `fail`'s run
   clear it, each `created_at` read fresh from GitHub (a missing one keeps the refusal; a
   re-attempt keeps its run's `created_at` and moves `run_started_at` later, so a re-run of an
@@ -1360,7 +1367,8 @@ saved, and is kept for that candidate's gate run: the pull request and every que
 listing being paged again, so a listing outage holds the whole queue rather than merging blind.
 The lane token holds no Actions permission, so pr-merge.yml grants its job `actions: read` and passes the job's `GITHUB_TOKEN` as
 `BABYSIT_VERIFY_GH_TOKEN`; the reader uses it as `GH_TOKEN` for the artifact listing, the run
-records, the download and the compare of a run's head to main (a `contents: read` call). The gate's
+records, the download of a verdict.json (by the listed artifact's id, one request where `gh run
+download` lists the run's artifacts first) and the compare of a run's head to main (a `contents: read` call). The gate's
 review-evidence reads use it too: the timeline, the comments, and the lane runs with their attempts,
 jobs and annotations. Two things send them back to the lane token, as before; both tokens read
 the same data, so neither changes a gate decision. First, `GITHUB_TOKEN` must have at least
@@ -1371,7 +1379,10 @@ already refused with "API rate limit exceeded for installation". Second, when an
 is refused with a 429, or a 403 whose message names a rate limit, the gate reads all of that
 candidate's evidence again with the lane token (they are all GETs). It records the refusal in
 `BABYSIT_RUN_CACHE`, so later candidates in the run skip `GITHUB_TOKEN`. Any other refusal is not
-retried. `GITHUB_TOKEN`'s pool is shared with the full-run dispatch and the post-merge checks. Every other call, every write
+retried. The verdict downloads, the listing, the run records and the compares
+stay on `GITHUB_TOKEN`: the lane token holds no Actions permission. An untied FAIL whose record
+cannot be read refuses the run's later candidates through `BABYSIT_RUN_CACHE` without another
+download; the next run reads it again. `GITHUB_TOKEN`'s pool is shared with the full-run dispatch and the post-merge checks. Every other call, every write
 included, keeps the lane token. That job checks out only main and runs no pull request code.
 
 pr-merge.yml also names a file in `BABYSIT_RUN_CACHE`, where the run's gate processes share reads
@@ -1385,8 +1396,8 @@ shared permission or trusted list) was taken at most two minutes ago; a gate alw
 candidate, and a failed dequeue keeps nothing. A FAIL's run record is reused for two minutes: a FAIL
 counts whether its run is still running or finished, and a re-run keeps every field that decides
 whether the run is pr-verify's, so a stale record never turns a FAIL away. A PASS's run record is
-read by each gate process, because a re-run can undo a completed success. An untied FAIL's
-recorded head ref is shared for the run under the artifact's id, since the contents an id names
+read by each gate process, because a re-run can undo a completed success. An untied FAIL whose
+name carries no head-ref digest has its recorded head ref shared for the run under the artifact's id, since the contents an id names
 never change (an overwrite uploads a new id). On the `--unattended` path only, the default branch
 and the base's rules are reused for two minutes, and a failed read is never shared; before an
 enqueue, a default branch or rules a gate took from the file are read again for the branch read,
