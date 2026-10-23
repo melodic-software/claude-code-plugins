@@ -3432,15 +3432,16 @@ class LaneEvidenceReadToken(unittest.TestCase):
         for kind in kinds:
             with self.subTest(kind):
                 self.assertTrue(any(kind in args[1] for args in carried), kind)
-        # Two lanes: listing, run, attempt, jobs and one annotations read each.
-        self.assertEqual(len(carried), 2 + 2 * 5)
+        # Two lanes: listing, run, jobs and one annotations read each; the run
+        # read is the latest attempt's record.
+        self.assertEqual(len(carried), 2 + 2 * 4)
         # The commits read is shared with other readers and keeps its token.
         others = [args[1] for args, env in calls if env is None]
         self.assertEqual(others, [f"repos/owner/repo/pulls/{PR}/commits?per_page=100"])
 
     def test_with_no_read_token_every_read_keeps_the_process_token(self) -> None:
         calls = self.calls({})
-        self.assertEqual(len(calls), 1 + 2 + 2 * 5)
+        self.assertEqual(len(calls), 1 + 2 + 2 * 4)
         self.assertEqual([env for _, env in calls], [None] * len(calls))
 
 
