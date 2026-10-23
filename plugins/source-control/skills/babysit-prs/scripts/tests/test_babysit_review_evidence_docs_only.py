@@ -321,7 +321,7 @@ class UnreadableTests(DocsOnlyBase):
                     self.bind(sec_marker=comment)[SEC], "marker-not-docs-only"
                 )
 
-    def test_missing_or_unparseable_marker_times_hold(self) -> None:
+    def test_missing_or_unparsable_marker_times_hold(self) -> None:
         for comment in (
             doc_marker(created=None),
             doc_marker(updated=None),
