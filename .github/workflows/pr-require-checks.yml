@@ -3259,10 +3259,12 @@ jobs:
       # config names the human-gated label and the trusted-actor list names who
       # may lift a hold; both are read at the base so the pull request cannot
       # rewrite its own hold. A sparse checkout of the two files at the base SHA
-      # is a git fetch, not a REST request: actions/checkout calls the API only
-      # to resolve a default branch or a non-SHA object format, and a 40-hex
-      # `ref` needs neither. It checks out no pull request code: the ref is the
-      # base commit, nothing here is executed, and no credential is persisted.
+      # is a git fetch, not a REST request: as of actions/checkout v7.0.1 its
+      # API calls (default branch, object format, the stale-merge tracepoint, the
+      # no-git archive download) all return early for a 40-hex `ref` on a runner
+      # with git; recheck on a checkout bump. It checks out no pull request
+      # code: the ref is the base commit, nothing here is executed, and no
+      # credential is persisted.
       # The steps below read BASE_CONFIG: empty when this step did not succeed,
       # which each of them treats as an unreadable config; a file missing from
       # a checkout that succeeded is a file the base commit does not have.
