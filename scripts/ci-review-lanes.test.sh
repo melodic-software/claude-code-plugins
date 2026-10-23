@@ -6,9 +6,9 @@
 # On a ready pull request, ci-status passes only when the newest pull_request
 # run of each review caller on the head has a successful status job whose
 # `Apply the hold` step ran. Pending, failed, skipped or missing reviews fail
-# with the cause named; a lane the kill switch stopped passes; Dependabot and
-# the release App are exempt by numeric author id. It fails closed when it
-# cannot read.
+# with the cause named; a lane the kill switch stopped passes; Dependabot, the
+# release App and the standards-sync App are exempt by numeric author id. It
+# fails closed when it cannot read.
 # test-scope: .github/workflows/pr-require-checks.yml
 set -uo pipefail
 
@@ -53,14 +53,15 @@ else
   fail "step is not inside ci-status before the aggregate (lines: $order)"
 fi
 
-# The exempt ids are the trusted-actor list's Dependabot and release App.
+# The exempt ids are the trusted-actor list's Dependabot, release App and
+# standards-sync App.
 ACTORS="$ROOT/.github/standards/trusted-actors/trusted-actors.json"
-want_ids="$(jq -r '[.actors[] | select(.login == "dependabot[bot]" or .login == "melodic-plugin-release[bot]") | .id] | sort | join(" ")' "$ACTORS")"
+want_ids="$(jq -r '[.actors[] | select(.login == "dependabot[bot]" or .login == "melodic-plugin-release[bot]" or .login == "melodic-standards-sync[bot]") | .id] | sort | join(" ")' "$ACTORS")"
 got_ids="$(sed -nE "s/^exempt_author_ids='([0-9 ]+)'$/\1/p" "$TMP_ROOT/body.sh" | tr ' ' '\n' | sort -n | paste -sd' ')"
 if [[ -n "$got_ids" && "$got_ids" == "$want_ids" ]]; then
-  ok "the exempt author ids are Dependabot's and the release App's ($got_ids)"
+  ok "the exempt author ids are Dependabot's, the release App's and the standards-sync App's ($got_ids)"
 else
-  fail "exempt author ids '$got_ids' are not the trusted-actor list's Dependabot and release App '$want_ids'"
+  fail "exempt author ids '$got_ids' are not the trusted-actor list's Dependabot, release App and standards-sync App '$want_ids'"
 fi
 
 # Each review caller publishes comments with a hold label, the only runs whose
@@ -197,7 +198,7 @@ RUNS_CODE="$(runs)"
 expect "both missing lanes are named" 1 "'$CODE_CHECK' is missing"
 RUNS_CODE="$(runs "$(run 10 $CODE)")" RUNS_SEC="$(runs "$(run 20 $SEC)")"
 
-for id in 49699333 337859524; do
+for id in 49699333 337859524 300666570; do
   RUNS_CODE="$(runs)"
   AUTHOR_ID=$id expect "author $id is exempt without a read" 0 "is one no review lane reviews"
   if [[ -s "$TMP_ROOT/log" ]]; then fail "an exempt author's run read the API"; else ok "an exempt author's run reads nothing"; fi

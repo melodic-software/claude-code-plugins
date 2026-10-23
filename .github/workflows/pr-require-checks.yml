@@ -3365,8 +3365,9 @@ jobs:
       # caller's allowed-bot-sender-ids), with the cause named. A lane the
       # kill switch stopped passes: its kill-switch job succeeded and ran its
       # `Report the kill switch` step. A kill-switch job that failed stopped
-      # the review too, and fails. Dependabot and the release App, by numeric
-      # author id, are exempt: no review lane reviews them. A draft is exempt
+      # the review too, and fails. Dependabot, the release App and the
+      # standards-sync App, by numeric author id, are exempt: no review lane
+      # reviews them. A draft is exempt
       # (see `Note a draft`). pr-feedback-dispatch.yml re-runs this job when a
       # review run completes. An unreadable run or job list fails closed.
       # Pinned by scripts/ci-review-lanes.test.sh, which runs this body.
@@ -3377,9 +3378,10 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           AUTHOR_ID: ${{ github.event.pull_request.user.id }}
         run: |
-          # dependabot[bot] and melodic-plugin-release[bot], as
+          # dependabot[bot], melodic-plugin-release[bot] and
+          # melodic-standards-sync[bot], as
           # .github/standards/trusted-actors/trusted-actors.json lists them.
-          exempt_author_ids='49699333 337859524'
+          exempt_author_ids='49699333 337859524 300666570'
           lanes='pr-review-hosted.yml pr-review / claude-review-status
           pr-review-security-hosted.yml pr-review-security / security-review'
           if [[ ! $HEAD_SHA =~ ^[0-9a-f]{40}$ ]]; then
