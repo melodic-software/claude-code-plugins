@@ -3142,13 +3142,17 @@ jobs:
     steps:
       # A RATE-LIMITED READ WAITS FOR THE RESET. The fail-closed steps below
       # read through gh_read, which runs `gh api` and, when that fails on a
-      # rate limit, waits once and reads again. The wait runs until five
-      # seconds past the reset when GET /rate_limit (which no limit counts)
-      # shows the resource (core, or graphql for a graphql call) at 0; 60 s for
-      # a secondary limit or when the reset cannot be read; one second when the
-      # window has already reset. It is a rate limit when gh's error names one,
-      # or is an HTTP 403 or 429 while that resource is at 0. A wait that would
-      # end past the deadline this step sets, RATE_LIMIT_WAIT_SECONDS after it
+      # rate limit, waits once and reads again. Without -i, gh drops the failed
+      # response's headers, and GET /rate_limit does not report the
+      # GITHUB_TOKEN's installation limit (it read core 'remaining > 0' while
+      # every read failed on it), so the wait comes from the x-ratelimit-* and
+      # retry-after headers of one probe request to the same resource (core,
+      # or graphql for a graphql call): retry-after seconds when sent, else
+      # five seconds past x-ratelimit-reset while remaining is 0, one second
+      # when the probe shows the limit has cleared, else 60 s. It is a rate
+      # limit when gh's error names one, or is an HTTP 403 or 429 while the
+      # probe reads remaining 0 or retry-after. A wait that would end past the
+      # deadline this step sets, RATE_LIMIT_WAIT_SECONDS after it
       # runs, fails the read with an error naming the reset, and later reads
       # of that resource before the reset fail without a call. Any other
       # failure, or a second rate limit after the wait, returns gh's status at
@@ -3161,7 +3165,7 @@ jobs:
       - name: Write the rate-limit-aware read helper
         run: |
           gh_read() {
-            local resource=core until=0 deadline arg err out now limit remaining reset wait at waited=
+            local resource=core until=0 deadline arg err out now limit remaining reset after wait at waited=
             for arg; do [ "$arg" != graphql ] || resource=graphql; done
             local blocked="$RUNNER_TEMP/gh-read.until-$resource"
             deadline=$(cat "$RUNNER_TEMP/gh-read.deadline")
@@ -3179,9 +3183,17 @@ jobs:
               wait=
               if [ -z "$waited" ] && grep -qiE 'rate limit|HTTP (403|429)' "$err"; then
                 now=$(date +%s)
-                limit=$(gh api rate_limit --jq ".resources.$resource | \"\(.remaining) \(.reset)\"" 2>/dev/null) || limit=
-                read -r remaining reset <<<"$limit"
-                if [ "$remaining" = 0 ] && [[ $reset =~ ^[0-9]{1,10}$ ]]; then
+                if [ "$resource" = graphql ]; then
+                  limit=$(gh api -i graphql -f query='{rateLimit{remaining}}' 2>/dev/null) || true
+                else
+                  limit=$(gh api -i "repos/$GITHUB_REPOSITORY" 2>/dev/null) || true
+                fi
+                limit=$(tr -d '\r' <<<"$limit" | sed '/^$/q' | awk -F': *' '{ h[tolower($1)] = $2 }
+                  END { print h["x-ratelimit-remaining"] " " h["x-ratelimit-reset"] " " h["retry-after"] }')
+                read -r remaining reset after <<<"$limit"
+                if [[ $after =~ ^[0-9]{1,5}$ ]]; then
+                  wait=$((10#$after)) reset=$((now + 10#$after))
+                elif [ "$remaining" = 0 ] && [[ $reset =~ ^[0-9]{1,10}$ ]]; then
                   wait=$((reset - now + 5))
                   [ "$wait" -ge 5 ] || wait=5
                 elif grep -qi 'secondary rate limit' "$err" || { grep -qi 'rate limit' "$err" && [[ ! $remaining =~ ^[0-9]+$ ]]; }; then

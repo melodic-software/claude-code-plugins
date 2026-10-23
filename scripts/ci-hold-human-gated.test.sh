@@ -100,9 +100,11 @@ case "$*" in
   while [[ $# -gt 0 && "$1" != --jq ]]; do shift; done
   jq -r "$2" <<<"${STUB_COMMENTS:-[]}"
   ;;
-'api rate_limit '*)
+'api -i '*)
   [[ -n "${STUB_RATE_LIMIT:-}" ]] || exit 1
-  printf '%s\n' "$STUB_RATE_LIMIT"
+  read -r remaining reset <<<"$STUB_RATE_LIMIT"
+  printf 'HTTP/2.0 403 Forbidden\r\nX-Ratelimit-Remaining: %s\r\nX-Ratelimit-Reset: %s\r\n\r\n{}\n' "$remaining" "$reset"
+  [[ "$remaining" != 0 ]] || exit 1
   ;;
 *) exit 1 ;;
 esac
