@@ -73,7 +73,7 @@ permissions, and passes no App key.
 | `dependency-verdict` | `false` | Write file only: for the verdict script of a [`prepare: dependency-review`](#prepare-dependency-review) round, download the select job's `context.json` and the scanned verdict |
 | `dependency-context-attempt`, `dependency-run-sha256`, `dependency-head-sha` | `''` | Write file only: with `dependency-verdict`, the select job's `context-attempt`, `run-sha256` and `head-sha` outputs |
 | `dependency-run-attempt`, `dependency-verdict-sha256`, `dependency-patch-state`, `dependency-scan-refused` | `''` | Write file only: with `dependency-verdict`, the same read call's `dependency-attempt`, `dependency-sha256`, `scan-patch-state` and `scan-refused` outputs |
-| `fallback` | `''` | Read file only, PR mode: `''` for the caller's first call, on `claude-api-key`; `credit-stop` or `no-key` for its fallback call, on `claude-code-oauth-token` ([Two calls on one credential each](#two-calls-on-one-credential-each)); any other value fails red in step 1 |
+| `fallback` | `''` | Read file only, PR mode: `''` for the caller's first call, on `claude-api-key`; `credit-stop`, `no-key` or `handoff` for its fallback call, on `claude-code-oauth-token` ([Two calls on one credential each](#two-calls-on-one-credential-each)); any other value fails red in step 1 |
 | `model-rung` | `''` | Read file only: the model rung the activity's profile runs at, resolve-config's `model-rung` (`1` takes its `escalate-to`) |
 | `patch-model-rung` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), the rung the patch's producer ran at; at `0` (or empty) an empty fix-ci patch may skip `rung-up` |
 | `ci-context-attempt`, `ci-context-sha256` | `''` | Read file only: for [`prepare: ci-context`](#prepare-ci-context), the attempt naming the `ci-context-<attempt>` artifact and its file's SHA-256 |
@@ -642,15 +642,18 @@ Read file, PR mode: a skill runs on ci-workflows'
 job. The caller calls the read file twice, each call with one secret, named for its `role`:
 `pr-unblock.yml`'s `fix-ci` passes only `claude-api-key` (`AUTOMATIONS_CLAUDE_API_KEY`), and
 `fix-ci-subscription` passes only `claude-code-oauth-token`
-(`AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN`); its `fix-docs` and `fix-docs-subscription`, and its
-`address-feedback` and `address-feedback-subscription`, do the same. The second runs only when the first's `lane-class` output
-is `credit-stop` or its `credential-present` is `false`, each compared to that fixed string, and
-passes `fallback: credit-stop` or `no-key`. Both queue in `pr-pipeline-write-<pr>`. fix-ci's
-fallback calls start on no first-call output: `fix-ci-handoff` (and `fix-ci-rung-up-handoff` for
-the rung-up call), a job with only `actions: read` that checks out nothing, reads this run's jobs
-through the Actions API, and the fallback runs unless the first call's `<call> / report` job has
-a `Post the check run` step that succeeded. A failed read runs the fallback too. Only `fallback`,
-the lane record's label, still reads `lane-class`; a forged one mislabels the record.
+(`AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN`); its `fix-docs`, `address-feedback` and
+`review-dependency` calls and their `-subscription` calls do the same. Both queue in
+`pr-pipeline-write-<pr>`. Each fallback call but fix-docs's starts on no first-call output: a
+handoff job (`fix-ci-handoff`, `fix-ci-rung-up-handoff`, `address-feedback-handoff`,
+`review-dependency-handoff`) with only `actions: read` that checks out nothing reads this run's
+jobs through the Actions API once, and the fallback runs unless the first call's
+`<call> / report` job has a `Post the check run` step that succeeded. A failed read runs the
+fallback too. These fallback calls pass `fallback: handoff`, so the lane record says the key
+posted no check, not why: only the run job, which head code can forge, knows whether it was a
+credit stop or an empty key. `fix-docs-subscription` still runs when `fix-docs`'s `lane-class`
+output is `credit-stop` or its `credential-present` is `false`, each compared to that fixed
+string, and passes `fallback: credit-stop` or `no-key`.
 
 1. Before any head code, the run job fails red unless the `role` is lower-case kebab, the model
    route resolves an alias (`default` resolves to none) and the skill is advisory. While sudo

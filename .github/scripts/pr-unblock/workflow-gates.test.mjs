@@ -146,14 +146,22 @@ test("pr-feedback-dispatch.yml posts verifier notes only for a pr-verify run of 
 });
 
 const UNBLOCK = "pr-unblock.yml";
-const JOBS = ["address-feedback-select", "address-feedback-not-run", "address-feedback", "address-feedback-subscription", "apply-feedback-patch", "publish-feedback"];
+const JOBS = [
+  "address-feedback-select",
+  "address-feedback-not-run",
+  "address-feedback",
+  "address-feedback-handoff",
+  "address-feedback-subscription",
+  "apply-feedback-patch",
+  "publish-feedback",
+];
 
 // Run 39783964241's shape: an API-key run skips the subscription call, and a
 // job that needs a skipped job and lacks !cancelled() (or always()) is skipped
 // too, so the push and the reply would never run.
 test("pr-unblock.yml: every address-feedback job after a model call starts its if: with !cancelled()", () => {
   const after = JOBS.filter((job) => jobGate(UNBLOCK, job).needs.some((need) => need === "address-feedback" || need === "address-feedback-subscription"));
-  assert.deepEqual(after, ["address-feedback-subscription", "apply-feedback-patch", "publish-feedback"]);
+  assert.deepEqual(after, ["address-feedback-handoff", "address-feedback-subscription", "apply-feedback-patch", "publish-feedback"]);
   for (const job of [...after, "address-feedback", "address-feedback-not-run"]) {
     assert.match(jobGate(UNBLOCK, job).gate, /^\$\{\{ !cancelled\(\) && /, job);
   }
@@ -193,6 +201,7 @@ const DEPENDENCY_JOBS = [
   "review-dependency-select",
   "review-dependency-not-run",
   "review-dependency",
+  "review-dependency-handoff",
   "review-dependency-subscription",
   "apply-dependency-patch",
   "apply-dependency-verdict",
@@ -202,7 +211,7 @@ const DEPENDENCY_JOBS = [
 // lacks !cancelled() is skipped too, so the push and the verdict would never run.
 test("pr-unblock.yml: every review-dependency job after a model call starts its if: with !cancelled()", () => {
   const after = DEPENDENCY_JOBS.filter((job) => jobGate(UNBLOCK, job).needs.some((need) => need === "review-dependency" || need === "review-dependency-subscription"));
-  assert.deepEqual(after, ["review-dependency-subscription", "apply-dependency-patch", "apply-dependency-verdict"]);
+  assert.deepEqual(after, ["review-dependency-handoff", "review-dependency-subscription", "apply-dependency-patch", "apply-dependency-verdict"]);
   for (const job of [...after, "review-dependency", "review-dependency-not-run"]) {
     assert.match(jobGate(UNBLOCK, job).gate, /^\$\{\{ !cancelled\(\) && /, job);
   }
@@ -326,4 +335,42 @@ test("pr-unblock.yml: apply-patch runs on a written or empty patch, or a refused
   assert.equal(runs("success", [], ["written"]), false, "the key call's patch is not taken once the subscription call ran");
   assert.equal(runs("success", [], ["", "true"]), false, "nor its refusal");
   assert.equal(runs("skipped", [], ["", ""]), false, "a call that left no patch and refused none");
+});
+
+// #9365: a hostile model job can forge lane-class, credential-present,
+// handed-off or any output of its own. address-feedback's and
+// review-dependency's fallback calls start on their handoff jobs' reads, so
+// no forged output starts or suppresses them.
+test("pr-unblock.yml: address-feedback's and review-dependency's fallback calls start on base jobs alone, whatever a model call reports", () => {
+  for (const [first, handoff, sub, select] of [
+    ["address-feedback", "address-feedback-handoff", "address-feedback-subscription", "address-feedback-select"],
+    ["review-dependency", "review-dependency-handoff", "review-dependency-subscription", "review-dependency-select"],
+  ]) {
+    const forged = new RegExp(`needs\\.${first}(?:-subscription)?\\.outputs\\.`);
+    assert.doesNotMatch(jobGate(UNBLOCK, sub).gate, forged, sub);
+    // Every forged pair a run job can report: a credit stop, an empty key, a
+    // clean run. The start follows the handoff job's read alone.
+    const forgeries = [
+      { "lane-class": "credit-stop", "credential-present": "true", "handed-off": "true" },
+      { "lane-class": "", "credential-present": "false", "handed-off": "true" },
+      { "lane-class": "", "credential-present": "true", "handed-off": "false" },
+    ];
+    for (const outputs of forgeries) {
+      const context = (posted, proceed = "true") => ({
+        ...Object.fromEntries(Object.entries(outputs).map(([name, value]) => [`needs.${first}.outputs.${name}`, value])),
+        [`needs.${select}.outputs.proceed`]: proceed,
+        [`needs.${handoff}.outputs.posted`]: posted,
+      });
+      const label = JSON.stringify(outputs);
+      assert.equal(evaluate(jobGate(UNBLOCK, sub).gate, context("true")), false, `${sub} after a posted check, ${label}`);
+      assert.equal(evaluate(jobGate(UNBLOCK, sub).gate, context("false")), true, `${sub} after no posted check, ${label}`);
+      assert.equal(evaluate(jobGate(UNBLOCK, sub).gate, context("false", "false")), false, `${sub} with no proceed, ${label}`);
+    }
+    assert.deepEqual(jobGate(UNBLOCK, sub).needs, [select, first, handoff]);
+    assert.doesNotMatch(jobGate(UNBLOCK, handoff).gate, forged, handoff);
+    // The handoff job runs whenever the select job proceeded.
+    for (const [proceed, runs] of [["true", true], ["false", false], ["", false]]) {
+      assert.equal(evaluate(jobGate(UNBLOCK, handoff).gate, { [`needs.${select}.outputs.proceed`]: proceed }), runs, `${handoff} ${JSON.stringify(proceed)}`);
+    }
+  }
 });
