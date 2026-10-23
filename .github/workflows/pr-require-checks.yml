@@ -1016,8 +1016,10 @@ jobs:
           # the parser has to survive. The paths are invented (`alice`, `x`),
           # not any operator's. source-control's same-drive unit tests need
           # literal `C:/` / `D:/` drive fixtures to exercise the gate (#2764).
+          # .githooks/guardrails/ holds the installer's copies of that pattern lib.
           exclude: >-
             :(exclude)plugins/guardrails/lib/path-detection/**
+            :(exclude).githooks/guardrails/*-path-patterns.sh
             :(exclude)plugins/autonomy/skills/setup/evals/fixtures/security-binding/**
             :(exclude)plugins/autonomy/skills/setup/scripts/check-security-binding.fixtures.test.manifest.json
             :(exclude)plugins/harness-config/skills/audit-permission-state/reference/criteria.md
@@ -1504,6 +1506,8 @@ jobs:
         with:
           files: ${{ steps.changed_shell.outputs.files }}
           rcfile: .shellcheckrc
+          # Plugin-owned guardrails copies; linted at their plugins/guardrails sources.
+          exclude: .githooks/guardrails/
 
       - name: Aggregate hygiene results
         if: always()
