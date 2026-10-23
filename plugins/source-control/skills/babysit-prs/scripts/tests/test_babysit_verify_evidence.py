@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import io
 import json
 import os
 import pathlib
@@ -30,6 +31,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import zipfile
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -180,10 +182,20 @@ def change(
     )
 
 
+def zipped(record: Any) -> bytes:
+    """An artifact archive holding `record` as verdict.json, as
+    `GET .../actions/artifacts/{id}/zip` serves it."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("verdict.json", json.dumps(record))
+    return buffer.getvalue()
+
+
 class FakeGitHub:
     """Answers the reader's reads: the artifact listing, runs, a compare of a
     run head against main, the pull request's commits, the trusted-actor list,
-    and `gh run download` of a verdict.json."""
+    and a verdict.json, as an archive by artifact id or through
+    `gh run download`."""
 
     def __init__(
         self,
@@ -276,8 +288,23 @@ class FakeGitHub:
         kind = next((k for k in self.fail if k in path), None)
         if kind:
             return subprocess.CompletedProcess(
-                args, 1, "", f"gh: boom (HTTP {self.fail_status})"
+                args,
+                1,
+                b"" if kwargs.get("binary") else "",
+                f"gh: boom (HTTP {self.fail_status})",
             )
+        zips = f"repos/{REPO}/actions/artifacts/"
+        if path.startswith(zips) and path.endswith("/zip"):
+            assert kwargs.get("binary") is True, args
+            artifact_id = int(path[len(zips) : -len("/zip")])
+            name = next(
+                (a["name"] for a in self.artifacts if a.get("id") == artifact_id), None
+            )
+            if name not in self.records:
+                return subprocess.CompletedProcess(
+                    args, 1, b"", "gh: Not Found (HTTP 404)"
+                )
+            return subprocess.CompletedProcess(args, 0, zipped(self.records[name]), "")
         if path == f"repos/{REPO}/actions/artifacts?per_page=100":
             pages = [
                 self.artifacts[i : i + 2] for i in range(0, len(self.artifacts), 2)
@@ -1531,7 +1558,7 @@ class ActionsReadsUseTheActionsToken(unittest.TestCase):
     serves, kept off the lane App's quota); every other read keeps the
     process token."""
 
-    ACTIONS = ("actions/artifacts", "actions/runs/", "run download", "/compare/")
+    ACTIONS = ("actions/artifacts?", "actions/runs/", "/zip", "/compare/")
 
     def reads(self, reader: ve.Reader) -> dict[str, Any]:
         fake = passing()
@@ -1566,8 +1593,7 @@ class TheListingIsReadOncePerReader(unittest.TestCase):
             reader = ve.Reader(REPO, "main", now=NOW)
             self.assertIsNone(reader.evidence(PR, HEAD, pull()).refusal)
             self.assertIsNone(reader.evidence(PR, HEAD, pull()).refusal)
-        listings = [c for c in fake.calls if any("actions/artifacts" in a for a in c)]
-        self.assertEqual(len(listings), 1)
+        self.assertEqual(listings(fake), 1)
 
     def test_a_failed_listing_refuses_every_entry_and_is_not_read_per_entry(
         self,
@@ -1587,7 +1613,7 @@ class TheListingIsReadOncePerReader(unittest.TestCase):
 
 
 def listings(fake: FakeGitHub) -> int:
-    return sum(any("actions/artifacts" in a for a in c) for c in fake.calls)
+    return sum(any("actions/artifacts?" in a for a in c) for c in fake.calls)
 
 
 class TheListingIsReadOncePerRun(unittest.TestCase):
@@ -1808,7 +1834,16 @@ class OneRunSharesItsFailRunReads(unittest.TestCase):
 
     @staticmethod
     def downloads(fake: FakeGitHub, run_id: int) -> int:
-        return sum(c[:3] == ["run", "download", str(run_id)] for c in fake.calls)
+        """Downloads of the run's artifact, by its id (any id it was listed
+        under) or by run and name."""
+        ids = {run_id * 10} | {
+            a["id"] for a in fake.artifacts if a["workflow_run"]["id"] == run_id
+        }
+        zips = {f"repos/{REPO}/actions/artifacts/{i}/zip" for i in ids}
+        return sum(
+            c[:3] == ["run", "download", str(run_id)] or bool(zips & set(c))
+            for c in fake.calls
+        )
 
     def test_a_fail_run_and_its_record_are_read_once_per_run(self) -> None:
         fake = self.other_fail()
@@ -1990,7 +2025,7 @@ class APoisonedCarriedCacheNeverRemovesARefusal(unittest.TestCase):
         )
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
         self.assertFalse(any(c[-1].endswith("/actions/runs/2") for c in fake.calls))
-        self.assertFalse(any(c[:3] == ["run", "download", "2"] for c in fake.calls))
+        self.assertEqual(OneRunSharesItsFailRunReads.downloads(fake, 2), 0)
 
 
 # --- A transient listing failure is read again --------------------------------
@@ -2049,7 +2084,7 @@ class FlakyListing(FakeGitHub):
         return super().__call__(args, **kwargs)
 
     def listings(self) -> int:
-        return sum(any("actions/artifacts" in a for a in c) for c in self.calls)
+        return sum(any("actions/artifacts?" in a for a in c) for c in self.calls)
 
 
 class ATransientListingFailureIsReadAgain(unittest.TestCase):
@@ -2860,11 +2895,11 @@ class TheSweepKeepsTheListingBound(unattended.Unattended):
 # The first 16 hex digits of `printf %s <ref> | sha256sum`.
 DIGEST_X = "79b4cc554b80dca6"  # feat/x, PR 41's head branch
 DIGEST_OTHER = "3b0035df584451e9"  # feat/other
-TIE = "9" * 40  # a head of PR 97
+TIE = "9" * 40  # a head of PR 97, whose verdict records PR 41's head ref
 
 
 def downloads(fake: FakeGitHub) -> int:
-    return sum(c[:2] == ["run", "download"] for c in fake.calls)
+    return download_requests(fake)
 
 
 class AnUntiedFailIsTiedByItsNamedHeadRef(unittest.TestCase):
@@ -2962,6 +2997,311 @@ class AnUntiedFailIsTiedByItsNamedHeadRef(unittest.TestCase):
                     [artifact(named(TIE, "fail", 97) + suffix, 4)], {4: run(4)}
                 )
                 self.assertEqual(read(fake).refusal, "verify:missing")
+
+
+# --- Verdict downloads ---------------------------------------------------------
+
+
+def download_requests(fake: FakeGitHub) -> int:
+    """REST requests spent on verdict downloads: one per archive fetched by
+    id, two per `gh run download`, which lists the run's artifacts and then
+    fetches the archive (gh's pkg/cmd/run/download)."""
+    return sum(
+        2 if c[:2] == ["run", "download"] else 1
+        for c in fake.calls
+        if c[:2] == ["run", "download"] or c[1].endswith("/zip")
+    )
+
+
+class EachVerdictIsOneRequest(unittest.TestCase):
+    """A verdict.json is fetched by the listed artifact's id, one request
+    (`GET .../actions/artifacts/{id}/zip` answers a 302 to the archive),
+    where `gh run download` spends two. The module docstring's rules decide
+    a pull request with an earlier FAIL, an untied FAIL of another pull
+    request, a FAIL tied by its recorded head ref, and a pass at the head
+    the same way whichever download reads them."""
+
+    @staticmethod
+    def heads(tie_created: str = OLDER_START, ids: bool = True) -> FakeGitHub:
+        """A pass at the head (run 1), a FAIL at an earlier head (run 2), PR
+        98's FAIL recording another ref (run 3) and PR 97's recording
+        `feat/x` (run 4, created at `tie_created`)."""
+        fake = passing(
+            artifact(named(EARLIER, "fail"), 2),
+            artifact(named(UNRELATED, "fail", 98), 3),
+            artifact(named(TIE, "fail", 97), 4),
+            runs={
+                2: judged(2, OLDER_START),
+                3: judged(3, OLDER_START),
+                4: judged(4, tie_created),
+            },
+        )
+        fake.records[named(UNRELATED, "fail", 98)] = record(
+            98, UNRELATED, verdict="fail", head_ref="feat/other"
+        )
+        fake.records[named(TIE, "fail", 97)] = record(
+            97, TIE, verdict="fail", head_ref="feat/x"
+        )
+        fake.diffs[TIE] = change("tie")
+        if not ids:
+            for item in fake.artifacts:
+                del item["id"]
+        return fake
+
+    def test_a_later_pass_of_another_change_clears_both_fails(self) -> None:
+        for ids, requests in ((True, 3), (False, 6)):
+            with self.subTest(ids=ids):
+                fake = self.heads(ids=ids)
+                evidence = read(fake)
+                self.assertIsNone(evidence.refusal)
+                self.assertEqual(
+                    evidence.report()["earlierFails"], sorted([EARLIER, TIE])
+                )
+                # The pass and the two untied FAILs' records.
+                self.assertEqual(download_requests(fake), requests)
+
+    def test_a_tied_fail_after_the_pass_holds(self) -> None:
+        for ids, requests in ((True, 2), (False, 4)):
+            with self.subTest(ids=ids):
+                fake = self.heads("2026-10-15T00:00:01Z", ids=ids)
+                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+                # Only the untied FAILs' records: the pass decides nothing.
+                self.assertEqual(download_requests(fake), requests)
+
+    def test_a_third_failed_head_goes_to_a_human(self) -> None:
+        for ids in (True, False):
+            with self.subTest(ids=ids):
+                fake = self.heads(ids=ids)
+                item = artifact(named(IN_PR, "fail", 96), 5)
+                if not ids:
+                    del item["id"]
+                fake.artifacts.append(item)
+                fake.runs[5] = run(5)
+                evidence = read(fake)
+                self.assertEqual(evidence.refusal, "verify:repeated-fail")
+                self.assertTrue(evidence.needs_human)
+
+    def test_an_unreadable_untied_record_refuses(self) -> None:
+        for ids in (True, False):
+            with self.subTest(ids=ids):
+                fake = self.heads(ids=ids)
+                del fake.records[named(UNRELATED, "fail", 98)]
+                self.assertEqual(read(fake).refusal, "verify:unreadable")
+
+    def test_only_a_verdict_json_from_a_good_exit_is_read(self) -> None:
+        fake = passing()
+        allowing = record()
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            archive.writestr("other.json", json.dumps(allowing))
+        archives = {
+            "another member": (0, buffer.getvalue()),
+            "not a zip": (0, b"not a zip"),
+            "a failed exit": (1, zipped(allowing)),
+        }
+        for label, (code, body) in archives.items():
+
+            def answer(args: list[str], **kwargs: Any) -> Any:
+                if args[1].endswith("/zip"):
+                    return subprocess.CompletedProcess(args, code, body, "")
+                return fake(args, **kwargs)
+
+            with (
+                self.subTest(label),
+                mock.patch.object(postmerge, "gh_capture", side_effect=answer),
+            ):
+                evidence = ve.Reader(REPO, "main", now=NOW).evidence(PR, HEAD, pull())
+                self.assertEqual(evidence.refusal, "verify:unreadable")
+        # The same verdict as verdict.json allows.
+        self.assertIsNone(read(fake).refusal)
+
+
+class TheByIdFetchDecidesAsGhRunDownloadDid(unittest.TestCase):
+    """A pin, not a correctness test: each expected report was recorded from
+    the reader at 6c4b552396, which fetched every verdict with `gh run
+    download`, run on these same fixtures. The by-id fetch must give the same
+    report in each of the six cases and spend half the download requests.
+    Break `_record` on purpose and these fail."""
+
+    @staticmethod
+    def report(
+        refusal: Any, at_head: list[str], earlier: list[str], **extra: Any
+    ) -> dict[str, Any]:
+        return {
+            "refusal": refusal,
+            "needsHuman": refusal == "verify:repeated-fail",
+            "head": HEAD,
+            "atHead": at_head,
+            "earlierFails": sorted(earlier),
+            "ignored": 0,
+            "detail": None,
+            "headFail": None,
+            **extra,
+        }
+
+    def cases(self) -> dict[str, tuple[FakeGitHub, dict[str, Any], int, int]]:
+        """Each case: fixture, the recorded report, and the download requests
+        before (`gh run download`, two each) and after (one each)."""
+        heads = EachVerdictIsOneRequest.heads
+        third = heads()
+        third.artifacts.append(artifact(named(IN_PR, "fail", 96), 5))
+        third.runs[5] = run(5)
+        unreadable = heads()
+        del unreadable.records[named(UNRELATED, "fail", 98)]
+        no_pass = heads()
+        del no_pass.artifacts[0]
+        at_head = heads()
+        at_head.artifacts.append(artifact(named(HEAD, "fail"), 6))
+        at_head.runs[6] = run(6)
+        both = [EARLIER, TIE]
+        capped = "fails at 3 heads, the cap is 3"
+        return {
+            "later pass": (heads(), self.report(None, ["pass"], both), 6, 3),
+            "tie after pass": (
+                heads("2026-10-15T00:00:01Z"),
+                self.report("verify:earlier-fail", ["pass"], both),
+                4,
+                2,
+            ),
+            "third failed head": (
+                third,
+                self.report(
+                    "verify:repeated-fail", ["pass"], [*both, IN_PR], detail=capped
+                ),
+                4,
+                2,
+            ),
+            "unreadable untied record": (
+                unreadable,
+                self.report(
+                    "verify:unreadable",
+                    ["pass"],
+                    both,
+                    detail=f"record of {named(UNRELATED, 'fail', 98)}",
+                ),
+                4,
+                2,
+            ),
+            "no pass": (no_pass, self.report("verify:earlier-fail", [], both), 4, 2),
+            "fail at head": (
+                at_head,
+                self.report(
+                    "verify:repeated-fail",
+                    ["fail", "pass"],
+                    both,
+                    detail=capped,
+                    headFail={"run": 6, "artifact": named(HEAD, "fail")},
+                ),
+                4,
+                2,
+            ),
+        }
+
+    def test_each_case_reports_as_before_on_half_the_requests(self) -> None:
+        for label, (fake, recorded, before, after) in self.cases().items():
+            with self.subTest(label):
+                self.assertEqual(read(fake).report(), recorded)
+                self.assertEqual(download_requests(fake), after)
+                self.assertEqual(after * 2, before)
+
+
+class AFailSummaryIsFetchedByItsListedId(unittest.TestCase):
+    def test_the_judging_reader_quotes_the_head_fail_in_one_request(self) -> None:
+        name = named(HEAD, "fail")
+        fake = FakeGitHub(
+            [artifact(name, 5)],
+            {5: run(5)},
+            {name: record(verdict="fail", summary="Why.")},
+        )
+        with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
+            reader = ve.Reader(REPO, "main", now=NOW)
+            self.assertEqual(reader.evidence(PR, HEAD, pull()).refusal, "verify:fail")
+            fake.calls.clear()
+            self.assertEqual(reader.fail_summary(5, name, PR, HEAD), "Why.")
+        self.assertEqual(download_requests(fake), 1)
+
+
+class ACorruptArchiveIsAnUnreadableRecord(unittest.TestCase):
+    """A deflate stream that does not inflate raises zlib.error, not
+    BadZipFile; it must refuse like any unreadable record, and be shared."""
+
+    @staticmethod
+    def corrupt(record_: dict[str, Any]) -> bytes:
+        good = zipped(record_)
+        header = 30 + len("verdict.json")
+        return good[:header] + b"\xff" * 8 + good[header + 8 :]
+
+    def test_it_refuses_and_is_not_downloaded_again_in_the_run(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        name = named(UNRELATED, "fail", 98)
+        fake = passing(artifact(name, 3), runs={3: run(3)})
+        fake.records[name] = record(
+            98, UNRELATED, verdict="fail", head_ref="feat/other"
+        )
+        bad = self.corrupt(fake.records[name])
+
+        def answer(args: list[str], **kwargs: Any) -> Any:
+            if args[1] == f"repos/{REPO}/actions/artifacts/30/zip":
+                fake.calls.append(args)
+                return subprocess.CompletedProcess(args, 0, bad, "")
+            return fake(args, **kwargs)
+
+        cache = {"BABYSIT_RUN_CACHE": str(pathlib.Path(tmp.name, "run.json"))}
+        with mock.patch.dict("os.environ", cache):
+            for _ in range(2):
+                with mock.patch.object(postmerge, "gh_capture", side_effect=answer):
+                    evidence = ve.Reader(REPO, "main", now=NOW).evidence(
+                        PR, HEAD, pull()
+                    )
+                self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertEqual(OneRunSharesItsFailRunReads.downloads(fake, 3), 1)
+
+
+class AnUnreadableRecordIsSharedForTheRun(unittest.TestCase):
+    """An untied FAIL record a gate process could not read refuses the run's
+    later candidates without another download: pr-merge run 39930321434's
+    second candidate fetched 122 records the first had failed on. A failure
+    only refuses, so sharing it can only hold; the next run reads again."""
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.cache = str(pathlib.Path(tmp.name, "run.json"))
+        patcher = mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": self.cache})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    @staticmethod
+    def foreign() -> FakeGitHub:
+        """A pass at the head and PR 98's FAIL (run 3) whose record is gone."""
+        fake = passing(artifact(named(UNRELATED, "fail", 98), 3), runs={3: run(3)})
+        return fake
+
+    def test_a_later_candidate_refuses_without_downloading_again(self) -> None:
+        fake = self.foreign()
+        self.assertEqual(read(fake).refusal, "verify:unreadable")
+        # The record is readable now, but this run already failed on it.
+        fake.records[named(UNRELATED, "fail", 98)] = record(
+            98, UNRELATED, verdict="fail", head_ref="feat/other"
+        )
+        evidence = read(fake)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertEqual(evidence.detail, f"record of {named(UNRELATED, 'fail', 98)}")
+        self.assertEqual(OneRunSharesItsFailRunReads.downloads(fake, 3), 1)
+        # The next run reads it again, and the pass allows.
+        with mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": self.cache + "2"}):
+            self.assertIsNone(read(fake).refusal)
+        self.assertEqual(OneRunSharesItsFailRunReads.downloads(fake, 3), 2)
+
+    def test_an_artifact_without_an_id_is_read_again(self) -> None:
+        fake = self.foreign()
+        del fake.artifacts[1]["id"]
+        self.assertEqual(read(fake).refusal, "verify:unreadable")
+        fake.records[named(UNRELATED, "fail", 98)] = record(
+            98, UNRELATED, verdict="fail", head_ref="feat/other"
+        )
+        self.assertIsNone(read(fake).refusal)
 
 
 if __name__ == "__main__":

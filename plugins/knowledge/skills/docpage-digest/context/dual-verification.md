@@ -122,6 +122,18 @@ search for the same class worded differently (other terms or another pattern), s
 blind spot cannot pass as a zero. The applied record carries both commands and their raw counts,
 in the replayable form below.
 
+**A correction points at claim labels; it does not re-paraphrase a conditional rule.** When a
+finding says Summary or Implications prose dropped part of a conditional rule (an exception, a
+scope, a per-event case), the correction removes that paraphrase and replaces it with a neutral
+sentence pointing at the claim labels that carry the rule. It never adds scope words to the
+paraphrase: each reworded paraphrase drops a different exception, and the next re-verify finds it.
+
+**At most 3 correction rounds per digest unit.** After round 3 and its re-verify, the unit's open
+findings move to `interview-handoff.md` with their round history (which round raised each one and
+which round corrected it, if any), and no fourth round runs for that unit. The exception is an
+open `high` finding: it is never deferred, so it goes to the operator as a stop, per the deferral
+rule above.
+
 **A mechanical gate reports only what it parsed, and only the fields it checks.** Any script used as
 a verification gate errors loudly on input it cannot recognize, and a clean result is read as
 covering just the rows and fields it actually exercised. **A gate is a claim that needs its own

@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.11.3] - 2026-10-23
+
+### Changed
+
+- `repository_is_archived` keeps each repository's archived flag for the life of the process, keyed by the casefolded repository, so a PR queue snapshot of N pull requests in one repository makes one archived read instead of N, and `request_review.py`'s re-read after the request reuses the first answer. A failed read is not kept.
+
+- `collect_lane_runs` uses each kept run's fresh `GET actions/runs/{id}` response as its latest attempt instead of also reading `actions/runs/{id}/attempts/{run_attempt}`, one fewer call per kept review-lane run on every merge gate. Earlier attempts are still read. The fresh run read stays: it gives the attempt count and is how a deleted run is noticed. A recorded live pair shows the two responses differ only in `jobs_url` and `logs_url`, which nothing reads.
+
 ## [2.11.2] - 2026-10-23
 
 ### Changed
