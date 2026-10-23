@@ -1,6 +1,6 @@
 {
   "repository": "melodic-software/azure-iac",
-  "commit": "eb71068fd2462a03257e963fd1b4fe4bd841c832",
+  "commit": "5ed895c6ef991e04d63b3f224e55d85724955f19",
   "loader": {
     "path": "src/lanes-token-broker/src/resolve-config-loader.mjs",
     "entry": "resolve.mjs",
