@@ -43,10 +43,11 @@ function baseWith(text) {
 
 // The lanes App bot's user id (.github/standards/trusted-actors/trusted-actors.json).
 const LANES_APP = 337595936;
-// Lanes App PRs whose head's ci-status failed, as fix-ci-dispatch.mjs lists them.
+// Lanes App PRs whose head's lanes failed, as fix-ci-dispatch.mjs lists them.
 const ciFixPull = (number) => {
   const head = String(number).padStart(40, "c");
   const ciStatus = { __typename: "CheckRun", name: "ci-status", status: "COMPLETED", conclusion: "FAILURE", checkSuite: { app: { databaseId: 15368 } } };
+  const ciLanes = { __typename: "StatusContext", context: "ci-lanes", state: "FAILURE", creator: { login: "github-actions[bot]" } };
   return {
     number,
     isDraft: false,
@@ -55,7 +56,7 @@ const ciFixPull = (number) => {
     headRefOid: head,
     author: { databaseId: LANES_APP },
     labels: { nodes: [] },
-    commits: { nodes: [{ commit: { oid: head, statusCheckRollup: { contexts: { nodes: [ciStatus] } } } }] },
+    commits: { nodes: [{ commit: { oid: head, statusCheckRollup: { contexts: { nodes: [ciStatus, ciLanes] } } } }] },
   };
 };
 

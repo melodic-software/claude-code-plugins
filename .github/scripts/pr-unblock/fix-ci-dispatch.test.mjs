@@ -37,8 +37,11 @@ const check = (name, conclusion, extra = {}) => ({
   ...extra,
 });
 
-// A lanes App PR whose head's ci-status failed and has no fix-ci run yet.
-function pr(number, { checks = [check("ci-status", "FAILURE")], ...overrides } = {}) {
+// The head's ci-lanes commit status, as ci-status's aggregate step writes it.
+const lanes = (state, creator = "github-actions[bot]") => ({ __typename: "StatusContext", context: "ci-lanes", state, creator: { login: creator } });
+
+// A lanes App PR whose head's lanes failed and has no fix-ci run yet.
+function pr(number, { checks = [lanes("FAILURE")], ...overrides } = {}) {
   const head = String(number).padStart(40, "a");
   return {
     number,
@@ -136,19 +139,19 @@ test("other authors, drafts, forks, other bases and held PRs are left alone", as
   assert.deepEqual(result.dispatched, []);
 });
 
-test("a head whose ci-status passed, is pending, is missing or came from another app is left alone", async () => {
+test("a head whose ci-lanes passed, is pending, is missing or came from another writer is left alone", async () => {
   const { result } = await run({
     pages: [
       [
-        pr(1, { checks: [check("ci-status", "SUCCESS")] }),
-        pr(2, { checks: [check("ci-status", null)] }),
+        pr(1, { checks: [lanes("SUCCESS")] }),
+        pr(2, { checks: [lanes("PENDING")] }),
         pr(3, { checks: [] }),
-        pr(4, { checks: [check("ci-status", "FAILURE", { checkSuite: { app: { databaseId: 999 } } })] }),
+        pr(4, { checks: [lanes("FAILURE", "someone")] }),
         pr(5, { commits: { nodes: [] } }),
         // More checks than the page holds could hide an earlier fix-ci run.
         pr(6, {
           commits: {
-            nodes: [{ commit: { oid: "6".padStart(40, "a"), statusCheckRollup: { contexts: { nodes: [check("ci-status", "FAILURE")], pageInfo: { hasNextPage: true } } } } }],
+            nodes: [{ commit: { oid: "6".padStart(40, "a"), statusCheckRollup: { contexts: { nodes: [lanes("FAILURE")], pageInfo: { hasNextPage: true } } } } }],
           },
         }),
       ],
@@ -159,7 +162,7 @@ test("a head whose ci-status passed, is pending, is missing or came from another
 
 test("a head that already has a fix-ci run is skipped, unless every run failed within the restart count", async () => {
   const fix = (conclusion, extra) => check("pr-unblock / fix-ci", conclusion, extra);
-  const failed = check("ci-status", "FAILURE");
+  const failed = lanes("FAILURE");
   const { result } = await run({
     pages: [
       [
@@ -183,7 +186,7 @@ test("a head that already has a fix-ci run is skipped, unless every run failed w
 
 test("a restart count of 0 never dispatches a head again", async () => {
   const { result } = await run(
-    { pages: [[pr(4, { checks: [check("ci-status", "FAILURE"), check("pr-unblock / fix-ci", "FAILURE")] })]] },
+    { pages: [[pr(4, { checks: [lanes("FAILURE"), check("pr-unblock / fix-ci", "FAILURE")] })]] },
     { restarts: 0 },
   );
   assert.deepEqual(result.dispatched, []);
@@ -367,7 +370,7 @@ test("the adapter sends one query naming the PR, its last commit's check rollup 
   assert.equal(requests[0].url, "https://api.example/graphql");
   assert.equal(requests[0].body.query, LIST_QUERY);
   assert.deepEqual(requests[0].body.variables, { owner: "octo", name: "repo", base: "main", after: null });
-  for (const field of ["rateLimit", "cost", "statusCheckRollup", "commits(last: 1)", "databaseId", "... on User { databaseId }", "updatedAt", "committedDate", "body"]) {
+  for (const field of ["rateLimit", "cost", "statusCheckRollup", "commits(last: 1)", "databaseId", "... on User { databaseId }", "updatedAt", "committedDate", "body", "... on StatusContext { context state creator { login } }"]) {
     assert.ok(LIST_QUERY.includes(field), field);
   }
 });
@@ -455,7 +458,7 @@ test("a real failure at attempt 1 is the reconciler's to re-run once; at attempt
 // failing check, such as a macOS test_tunnel flake.
 test("a failed advisory pr-test-windows run with ci-status green is fix-ci's once its one re-run failed", async () => {
   const head = (number) => String(number).padStart(40, "a");
-  const advisory = [check("ci-status", "SUCCESS"), check("test-macos-planning-shared", "FAILURE")];
+  const advisory = [lanes("SUCCESS"), check("test-macos-planning-shared", "FAILURE")];
   const requiredRuns = new Map([
     [`${head(5)} ${ADVISORY}`, { run: tested(1), jobs: MIXED_JOBS }],
     [`${head(6)} ${ADVISORY}`, { run: tested(2), jobs: MIXED_JOBS }],
@@ -468,13 +471,37 @@ test("a failed advisory pr-test-windows run with ci-status green is fix-ci's onc
   );
   assert.deepEqual(api.calls.paths, [ADVISORY, ADVISORY, ADVISORY]);
   assert.ok(lines.includes("skip fix-ci #5: first failure, re-run job re-runs it once"));
-  assert.ok(lines.includes("skip fix-ci #7: ci-status passed and no pr-test-windows run failed"));
+  assert.ok(lines.includes("skip fix-ci #7: ci-lanes passed and no pr-test-windows run failed"));
 });
 
 test("a green ci-status with only a failed fix-ci run, or no failure, is left alone", async () => {
   const { api, result } = await run({
-    pages: [[pr(5, { checks: [check("ci-status", "SUCCESS"), check("pr-unblock / fix-ci", "FAILURE")] }), pr(6, { checks: [check("ci-status", "SUCCESS"), check("lint", "SUCCESS")] })]],
+    pages: [[pr(5, { checks: [lanes("SUCCESS"), check("pr-unblock / fix-ci", "FAILURE")] }), pr(6, { checks: [lanes("SUCCESS"), check("lint", "SUCCESS")] })]],
   });
   assert.deepEqual(result.dispatched, []);
   assert.deepEqual(api.calls.paths, []);
+});
+
+// ci-status also fails while a review lane is pending, missing or holding the
+// PR, with no label on it; none of that is a CI fix. Only ci-lanes counts.
+test("a red ci-status over green or absent ci-lanes summons no fix-ci", async () => {
+  const red = check("ci-status", "FAILURE");
+  const { api, lines, result } = await run({
+    pages: [[pr(1, { checks: [red, lanes("SUCCESS")] }), pr(2, { checks: [red] }), pr(3, { checks: [red, lanes("PENDING")] })]],
+  });
+  assert.deepEqual(result.dispatched, []);
+  assert.deepEqual(api.calls.paths, []);
+  assert.equal(skipReason(pr(1, { checks: [red, lanes("SUCCESS")] }), { base: "main", appSenderId: APP, actionsAppId: ACTIONS, checkName: "pr-unblock / fix-ci", holdLabels: [], restarts: 1, now: NOW }), "ci-lanes has not failed");
+  assert.ok(!lines.some((line) => line.includes("fix-ci #")), lines.join("\n"));
+});
+
+test("a ci-lanes failure or error from github-actions[bot] is dispatched, whatever ci-status says", async () => {
+  const { api, result } = await run({
+    pages: [[pr(1, { checks: [check("ci-status", "SUCCESS"), lanes("FAILURE")] }), pr(2, { checks: [lanes("ERROR")] }), pr(3, { checks: [lanes("FAILURE", "octocat")] })]],
+  }, { maxDispatch: 5 });
+  assert.deepEqual(
+    result.dispatched.map((d) => d.number),
+    [1, 2],
+  );
+  assert.deepEqual(api.calls.paths, [REQUIRED, REQUIRED]);
 });

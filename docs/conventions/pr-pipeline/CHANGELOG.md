@@ -1,5 +1,29 @@
 # Changelog for the PR pipeline convention
 
+## [4.6.4] - 2026-10-23
+
+### Fixed
+
+- Intake admission refuses `agent-ready` for an issue whose done-when asks for what an unattended lane run cannot do: a run on a named host or OS (such as a Windows 11 host), a paid eval, a run repeated N times, a measurement over time, or a page on a host outside resolve-issue's web-access domains. The issue gets `status: needs-decision` and the admission comment names each such item and recommends splitting it into a needs-human child issue. The intake rubric raises the `intent` flag for the same items.
+
+## [4.6.3] - 2026-10-23
+
+### Fixed
+
+- A read runner scan that refused or failed on a model call's output (an oversize patch, a leak-scan block, a refused decode) now hands the round to a person instead of ending it as `no-model-turn`. When the scan job fails or is cancelled, the new `scan-refusal` job in `pr-run-activity-read.yml` uploads a `scan-refused-<lane>-<activity>-<attempt>` marker artifact. The write runner's reply and verdict jobs download it by name, so no decision depends on a failed job's outputs reaching a `workflow_call` caller. `address-feedback` escalates `feedback-invalid`, and `review-dependency` escalates `dependency-fix-not-landed` for an oversize patch or `dependency-invalid` otherwise. The read runner's `scan-refused` output and the write runner's `dependency-scan-refused` input are removed ([#9340](https://github.com/melodic-software/claude-code-plugins/issues/9340)).
+- `address-feedback`'s reply job escalates `feedback-invalid` when the scan named replies it uploaded (a replies attempt or SHA-256) but none arrived, for example after a failed download, instead of skipping `no-model-turn` ([#9225](https://github.com/melodic-software/claude-code-plugins/issues/9225)).
+- `pr-feedback-dispatch.yml` dispatches `address-feedback` again at a head whose newest `pr-unblock / publish-feedback` check skipped `no-model-turn`, on that head's next review or `pr-verify` completion. The `pr-unblock / address-feedback` check runs that started before that reply no longer hold the head. Each such round still posts its round marker, so the round cap bounds the retries ([#9218](https://github.com/melodic-software/claude-code-plugins/issues/9218)).
+
+## [4.6.2] - 2026-10-23
+
+### Fixed
+
+- fix-ci's fallback calls no longer start on the read runner's run-job outputs, which head code can forge. `fix-ci-handoff` and `fix-ci-rung-up-handoff`, base jobs with only `actions: read`, read this run's jobs through the Actions API, and the fallback call runs when the first call's report job posted no check ([#8890](https://github.com/melodic-software/claude-code-plugins/issues/8890)).
+- A fix-ci round in which no call posted a check now posts `pr-unblock / fix-ci` failure on `fix-ci-context`'s head from the new `fix-ci-unreported` job when a call's broker-check job allowed the lane; as in the report job, a kill switch or a broker refusal posts nothing. fix-ci-dispatch counts that check toward `fix-ci-restarts`, so the loop stays capped whatever the run reports ([#8890](https://github.com/melodic-software/claude-code-plugins/issues/8890)).
+- The read runner's report job no longer counts the PR head it reads at report time as a gated head. With no caller or event head, any run head is forged, and failure is posted on the head it read ([#8945](https://github.com/melodic-software/claude-code-plugins/issues/8945)).
+- The read runner's run job fails before the head checkout when its trigger gate read a head other than the caller's non-empty `head-sha`. This is fix-ci's part of [#8954](https://github.com/melodic-software/claude-code-plugins/issues/8954).
+- A fix-ci patch collection the collector refused (`collect-patch.sh` exit 3) now reaches a person. The collect step sets `state` `refused`, the scan job hands it on as the new `scan-collect-refused` output, and `apply-patch` runs on it and escalates `ci-fix-invalid` through `report-escalation`. `apply-patch` and `apply-patch-rung-up` now take every patch input from one leg's scan job, never from a run job ([#8912](https://github.com/melodic-software/claude-code-plugins/issues/8912)).
+
 ## [4.6.1] - 2026-10-23
 
 ### Added

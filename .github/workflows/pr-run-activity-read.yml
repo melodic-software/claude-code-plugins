@@ -76,9 +76,11 @@ on:
       fallback:
         description: >-
           PR mode: empty for the first call, which runs on claude-api-key and
-          hands off on a credit stop or an empty key; `credit-stop` or
-          `no-key` for the second, which runs on claude-code-oauth-token and
-          names why in its lane record.
+          hands off on a credit stop or an empty key; `credit-stop`, `no-key`
+          or `handoff` for the second, which runs on claude-code-oauth-token
+          and names why in its lane record. `handoff` says only that the
+          first call posted no check, for a caller that reads that from this
+          run's jobs rather than from the first call's outputs.
         required: false
         type: string
         default: ""
@@ -262,13 +264,6 @@ on:
           escalate, else empty. Only the scan job sets it; the verdict job
           validates the whole file.
         value: ${{ jobs.scan.outputs.dependency-verdict }}
-      scan-refused:
-        description: >-
-          PR mode: `patch` when the scan job refused the run's payloads because
-          the patch was over its cap, `output` when it refused them for any
-          other reason, empty when it published them or did not run. Only the
-          scan job sets it.
-        value: ${{ jobs.scan.outputs.refused }}
       scan-collect-refused:
         description: >-
           PR mode: `true` when the run's patch collector refused the change
@@ -505,9 +500,9 @@ jobs:
             fi
           fi
           case "$FALLBACK" in
-            "" | credit-stop | no-key) ;;
+            "" | credit-stop | no-key | handoff) ;;
             *)
-              echo "::error::the fallback input must be empty, credit-stop or no-key"
+              echo "::error::the fallback input must be empty, credit-stop, no-key or handoff"
               exit 1
               ;;
           esac
@@ -1596,6 +1591,8 @@ jobs:
             && format('{0}/{1} (key {2} hit a credit stop)', inputs.lane, inputs.activity, steps.launch.outputs.key-name)
             || inputs.fallback == 'no-key'
             && format('{0}/{1} (key {2} is empty)', inputs.lane, inputs.activity, steps.launch.outputs.key-name)
+            || inputs.fallback == 'handoff'
+            && format('{0}/{1} (key {2} posted no check)', inputs.lane, inputs.activity, steps.launch.outputs.key-name)
             || format('{0}/{1}', inputs.lane, inputs.activity) }}
           lane-id: ${{ inputs.lane }}
           step-started-at: ${{ steps.key-present.outputs.started-at || steps.token-present.outputs.started-at }}
@@ -2595,6 +2592,45 @@ jobs:
         with:
           name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}${{ inputs.model-rung == '1' && '-rung-up' || '' }}
           path: ${{ runner.temp }}/verdict/verdict.json
+          retention-days: 1
+          if-no-files-found: error
+          overwrite: false
+
+  # PR mode: the scan job's refusal, as an artifact a job that succeeds
+  # uploads. A failed scan fails the caller's job for this whole workflow, and
+  # no documentation says a failed job's outputs reach a workflow_call
+  # caller, so the reply and verdict jobs download this marker by name
+  # instead (address-feedback.mjs scanRefusal). The scan's own result decides
+  # it (a failed or cancelled scan published nothing); the scan's outputs
+  # only name an oversize patch. It reads nothing from the run job, so head
+  # code can only fail the scan or add a marker, either of which hands the
+  # round to a person. always(), since cancelled() is true once the scan was
+  # cancelled, and !cancelled() would skip that arm.
+  scan-refusal:
+    needs: scan
+    if: >-
+      always() && inputs.issue-number == ''
+      && (needs.scan.result == 'failure' || needs.scan.result == 'cancelled')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Write the scan refusal marker
+        env:
+          REFUSED: ${{ needs.scan.outputs.refused == 'patch' && 'patch' || 'output' }}
+          MARKER: ${{ runner.temp }}/scan-refused/scan-refused-${{ github.run_attempt }}${{ inputs.model-rung == '1' && '-rung-up' || '' }}.txt
+        run: |
+          mkdir -p "$(dirname "$MARKER")"
+          echo "$REFUSED" >"$MARKER"
+
+      # overwrite: false, so a second upload of a name this run already holds
+      # fails; the marker already there still escalates.
+      - name: Upload the scan refusal marker
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: scan-refused-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}${{ inputs.model-rung == '1' && '-rung-up' || '' }}
+          path: ${{ runner.temp }}/scan-refused/
           retention-days: 1
           if-no-files-found: error
           overwrite: false
