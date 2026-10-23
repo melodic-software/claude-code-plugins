@@ -29,6 +29,15 @@
 //           hold and required labels), commits the tree through the Git Data
 //           API, checks the tree hash, and moves the PR branch with
 //           force: false or creates the new branch, which fails if it exists.
+//           Under a merge row (parents [head, base]) the checkout holds the
+//           merge of the pinned base the write runner just ran (prepare.sh):
+//           the patch applies to the conflict tree T0, never the head; only
+//           its own changes face the refusals, max-files, merge-result and
+//           the credential and size checks, while the merge's base-side
+//           changes pass through. Every originally conflicted path must be
+//           left marker-free, a workflow change must be exactly the base's,
+//           and the commit has the head and the base as parents. A clean
+//           merge needs no patch.
 //
 // Environment, both: BASE_DIR, PATCH_PREPARE (empty for none), PATCH_TARGET
 // (pr, the default, or issue). Select: GITHUB_OUTPUT, PATCH_STATE,
@@ -43,11 +52,17 @@
 // predicate reads), DEPENDENCY_VERDICT (the scanned verdict the
 // dependency-verdict requirement reads) and GITHUB_OUTPUT (gets commit=<sha>
 // and branch=<ref>). A row that allows dependency-manifests reads the
-// [ecosystem, directory] pairs from BASE_DIR's .github/dependabot.yml.
+// [ecosystem, directory] pairs from BASE_DIR's .github/dependabot.yml. A merge
+// row: select reads MERGE_STATE (clean or conflicted); the script step also
+// MERGE_BASE_SHA (the pinned base, the second parent), CONFLICT_TREE (T0,
+// which the runner checked against the select job's), BASE_REF, and
+// TREE_ENTRIES_SCRIPT with TREE_ENTRIES_SHA256 (the base copy of
+// tree-entries.sh); it reads the conflicted paths from the checkout's index.
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { appendFileSync, existsSync, lstatSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -308,8 +323,19 @@ export function checkRow(row) {
   if (row["max-files"] !== null && !(Number.isInteger(row["max-files"]) && row["max-files"] > 0)) {
     fail("has a max-files that is not a positive integer or null");
   }
-  if (JSON.stringify(row.commit?.parents) !== '["head"]') {
-    fail("commits with parents this apply-patch does not support yet");
+  const parents = JSON.stringify(row.commit?.parents);
+  if (parents === '["head","base"]') {
+    // A merge commit only for a PR, and only of the conflicted paths' resolutions.
+    if (JSON.stringify(row.allow) !== '["merge-result"]' || row.target !== "pr") {
+      fail("commits a merge but does not allow merge-result alone on a pull request");
+    }
+    if (!(Number.isInteger(row["max-blobs"]) && row["max-blobs"] > 0)) {
+      fail("commits a merge with no max-blobs");
+    }
+  } else if (parents !== '["head"]') {
+    fail("commits with parents this apply-patch does not support");
+  } else if (row.allow?.includes("merge-result") || row["max-blobs"] !== undefined) {
+    fail("allows merge-result or sets max-blobs but does not commit a merge");
   }
   if (!row.escalations?.some((reason) => reason.endsWith("-invalid"))) {
     fail("has no -invalid escalation reason");
@@ -319,6 +345,9 @@ export function checkRow(row) {
   }
   return row;
 }
+
+// A merge row commits with the head and the base as parents.
+export const isMerge = (row) => row.commit?.parents?.length === 2;
 
 // The row's reason for a kind of outcome, else its -invalid reason.
 export const reasonFor = (row, kind) =>
@@ -365,9 +394,25 @@ export function patchProblem(file, expected) {
 // `rung` is the producer's model rung (0 or 1): at 0, an empty patch whose
 // report escalated only checks a stronger model may answer skips rung-up, and
 // the caller runs the producer once more at rung 1, instead of escalating.
-export function select({ row, patchState, patchSha256, patchHeadSha, headSha, patchDir, reportDir, rung = 0 }) {
+export function select({ row, patchState, patchSha256, patchHeadSha, headSha, patchDir, reportDir, rung = 0, mergeState = "" }) {
   checkRow(row);
   const decide = (proceed, skipReason, escalationReason) => ({ proceed, skipReason, escalationReason });
+  // A merge row: a clean merge commits with no patch; a conflicted one needs
+  // the model's patch, and an empty one leaves the conflicts as git left them.
+  if (isMerge(row)) {
+    if (mergeState !== "clean" && mergeState !== "conflicted") {
+      return decide(false, "awaiting-human", reasonFor(row, "invalid"));
+    }
+    if (!SHA.test(String(patchHeadSha)) || !SHA.test(String(headSha)) || patchHeadSha !== headSha) {
+      return decide(false, "superseded-sha", "");
+    }
+    if (mergeState === "clean") {
+      return patchState === "" ? decide(true, "", "") : decide(false, "awaiting-human", reasonFor(row, "invalid"));
+    }
+    if (patchState === "empty") {
+      return decide(false, "awaiting-human", pushReason(row, "empty"));
+    }
+  }
   const report = row["reads-report"] === null ? null : REPORTS[row["reads-report"]];
   const escalated = report !== null && report.escalated(reportDir);
   if (patchState !== "written" && patchState !== "empty") {
@@ -395,8 +440,10 @@ export function select({ row, patchState, patchSha256, patchHeadSha, headSha, pa
 }
 
 // git with an allowlisted environment, so nothing the job's env or the
-// checkout's config names runs.
-function gitRunner(cwd, gitBin) {
+// checkout's config names runs. `extra` adds variables: a merge row reads
+// attributes from the base tree and works in a scratch index, never the
+// merge's own.
+function gitRunner(cwd, gitBin, extra = {}) {
   const env = {
     PATH: "/usr/bin:/bin",
     HOME: process.env.HOME ?? "/tmp",
@@ -404,6 +451,7 @@ function gitRunner(cwd, gitBin) {
     GIT_CONFIG_NOSYSTEM: "1",
     GIT_NO_REPLACE_OBJECTS: "1",
     GIT_TERMINAL_PROMPT: "0",
+    ...extra,
   };
   const flags = ["-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=", "-c", "diff.external="];
   return (args, options = {}) => execFileSync(gitBin, [...flags, ...args], { cwd, env, maxBuffer: 1 << 28, stdio: ["ignore", "pipe", "pipe"], ...options });
@@ -456,6 +504,225 @@ const hasCommit = (git, sha) => {
   }
 };
 
+// Marker lines in order, any length from seven (conflict-marker-size): a run of
+// <, then a run of =, then a run of >, the outer two followed by a space or the
+// line end. prepare.sh holds the same rule as an awk program.
+export function hasConflictMarkers(text) {
+  let state = 0;
+  for (const line of String(text).replaceAll("\r", "").split("\n")) {
+    if (state === 0 && /^<{7,}( |$)/.test(line)) {
+      state = 1;
+    } else if (state === 1 && /^={7,}$/.test(line)) {
+      state = 2;
+    } else if (state === 2 && /^>{7,}( |$)/.test(line)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+const WORKFLOWS = ".github/workflows/";
+// git ls-tree -r -z records under .github/workflows/ as "<mode> <oid> <path>".
+const workflowEntries = (git, tree) =>
+  git(["ls-tree", "-r", "-z", tree, "--", WORKFLOWS])
+    .toString("utf8")
+    .split("\0")
+    .filter(Boolean)
+    .map((record) => {
+      const tab = record.indexOf("\t");
+      const [mode, , oid] = record.slice(0, tab).split(" ");
+      return `${mode} ${oid} ${record.slice(tab + 1)}`;
+    });
+
+// post.sh's workflows_are_base_own: a merge tree whose workflows differ from
+// the head's is admitted only when the PR's own diff against every merge base
+// touches no workflow, the workflows are exactly the base's, and no head
+// workflow is dropped.
+function workflowsAreBaseOwn(git, headSha, baseSha, tree) {
+  const head = workflowEntries(git, headSha);
+  const merged = workflowEntries(git, tree);
+  if (JSON.stringify(head) === JSON.stringify(merged)) {
+    return true;
+  }
+  let bases = [];
+  try {
+    bases = git(["merge-base", "--all", headSha, baseSha]).toString("utf8").split("\n").filter(Boolean);
+  } catch {
+    return false;
+  }
+  if (bases.length === 0) {
+    return false;
+  }
+  for (const mergeBase of bases) {
+    try {
+      git(["diff", "--quiet", "--no-ext-diff", mergeBase, headSha, "--", WORKFLOWS]);
+    } catch {
+      return false;
+    }
+  }
+  const base = workflowEntries(git, baseSha);
+  const basePaths = new Set(base.map((record) => record.split(" ").slice(2).join(" ")));
+  return JSON.stringify(base) === JSON.stringify(merged) && head.every((record) => basePaths.has(record.split(" ").slice(2).join(" ")));
+}
+
+// A merge row's push. `merge` is { baseSha, conflictTree, state, unmerged
+// (a Set of the paths the merge left conflicted), treeEntries: { script,
+// sha256 } }.
+async function pushMerge({ api, cwd, gitBin, row, context, number, target, headSha, patchHeadSha, headRef, message, patchFile, patchSha256, holdLabels, repository, escalate, log }) {
+  const merge = context.merge;
+  if (
+    !merge ||
+    !SHA.test(String(merge.baseSha)) ||
+    !SHA.test(String(merge.conflictTree)) ||
+    !["clean", "conflicted"].includes(merge.state) ||
+    !(merge.unmerged instanceof Set) ||
+    !merge.treeEntries?.script ||
+    !/^[0-9a-f]{64}$/.test(String(merge.treeEntries?.sha256))
+  ) {
+    throw new Error("a merge row needs the pinned base, the conflict tree, the merge state, the conflicted paths and tree-entries.sh");
+  }
+  const reason = (name, why) => {
+    if (!row.escalations.includes(name)) {
+      throw new Error(`the ${row.name} row cannot escalate ${name}`);
+    }
+    log(why);
+    return { outcome: "escalate", escalationReason: name };
+  };
+  if (patchHeadSha !== headSha) {
+    log("the head moved since the select job; the merge is superseded");
+    return { outcome: "superseded" };
+  }
+  if ((merge.state === "clean") !== (merge.unmerged.size === 0)) {
+    throw new Error(`a ${merge.state} merge with ${merge.unmerged.size} conflicted path(s)`);
+  }
+  const scratchDir = mkdtempSync(join(tmpdir(), "apply-patch-merge-"));
+  try {
+    const git = gitRunner(cwd, gitBin, { GIT_ATTR_SOURCE: merge.baseSha, GIT_INDEX_FILE: join(scratchDir, "index"), GIT_LITERAL_PATHSPECS: "1" });
+    const version = /git version (\d+)\.(\d+)/.exec(git(["version"]).toString("utf8"));
+    if (!version || Number(version[1]) < 2 || (Number(version[1]) === 2 && Number(version[2]) < 41)) {
+      throw new Error("a merge row needs git 2.41 or later, which reads attributes from a tree");
+    }
+    if (!hasCommit(git, headSha) || !hasCommit(git, merge.baseSha) || git(["cat-file", "-t", merge.conflictTree]).toString("utf8").trim() !== "tree") {
+      throw new Error("the head, the base or the conflict tree is not in the checkout");
+    }
+    // P: the patch on T0, or T0 itself for a clean merge.
+    let tree = merge.conflictTree;
+    let entries = [];
+    if (merge.state === "conflicted") {
+      const problem = patchProblem(patchFile, patchSha256);
+      if (problem) {
+        return escalate("invalid", problem);
+      }
+      tree = applyOnto(git, merge.conflictTree, patchFile, false);
+      if (!tree) {
+        return escalate("not-applied", "the patch does not apply to the conflict tree");
+      }
+      entries = changes(git(["diff-tree", "-r", "-z", "--no-renames", merge.conflictTree, tree]));
+      if (entries.length === 0) {
+        return escalate("empty", "the patch changes nothing in the conflict tree");
+      }
+    } else if (patchFile) {
+      return escalate("invalid", "a clean merge takes no patch");
+    }
+    // Only the patch's own changes face the rules; one refused entry refuses it whole.
+    const renames = changes(git(["diff-tree", "-r", "-z", "-M", "--diff-filter=R", merge.conflictTree, tree]));
+    const refuse = [...row.refuse, ...ALWAYS];
+    for (const [entry, names] of [...renames.map((item) => [item, ["rename-into-refused"]]), ...entries.map((item) => [item, refuse])]) {
+      const [refusal] = refusalsOf(entry, names);
+      if (refusal) {
+        return escalate(REFUSALS[refusal].kind, `refused (${refusal}): ${entry.path}`);
+      }
+    }
+    if (row["max-files"] !== null && entries.length > row["max-files"]) {
+      return escalate("invalid", `the patch changes ${entries.length} paths; the row allows ${row["max-files"]}`);
+    }
+    const allow = row.allow.map((name) => PREDICATES[name](context));
+    const outside = entries.find((entry) => !allow.every((admits) => admits(entry.path, entry)));
+    if (outside) {
+      return reason("unexpected-path-staged", `not a conflicted path: ${outside.path}`);
+    }
+    const written = entries.filter((entry) => !ZERO.test(entry.newSha));
+    const sizes = written.map((entry) => Number(git(["cat-file", "-s", entry.newSha]).toString("utf8").trim()));
+    const big = sizes.findIndex((size) => !(size <= MAX_BLOB_BYTES));
+    if (big !== -1) {
+      return escalate("invalid", `the patched ${written[big].path} is over ${MAX_BLOB_BYTES} bytes`);
+    }
+    if (sizes.reduce((sum, size) => sum + size, 0) > MAX_TOTAL_BLOB_BYTES) {
+      return escalate("invalid", `the patched blobs total over ${MAX_TOTAL_BLOB_BYTES} bytes`);
+    }
+    const leaked = written.find((entry) => credentialIn(git(["cat-file", "blob", entry.newSha]).toString("latin1")));
+    if (leaked) {
+      return escalate("invalid", `the patched ${leaked.path} carries a credential shape`);
+    }
+    // Every conflicted path still in the tree is resolved.
+    const listed = merge.unmerged.size === 0 ? [] : git(["ls-tree", "-z", "--full-tree", "-r", tree, "--", ...merge.unmerged]).toString("utf8").split("\0").filter(Boolean);
+    for (const record of listed) {
+      const tab = record.indexOf("\t");
+      const [mode, , oid] = record.slice(0, tab).split(" ");
+      if (mode !== GITLINK && hasConflictMarkers(git(["cat-file", "blob", oid]).toString("latin1"))) {
+        return reason("unresolved-conflict", `a conflicted path still holds conflict markers: ${record.slice(tab + 1)}`);
+      }
+    }
+    if (!workflowsAreBaseOwn(git, headSha, merge.baseSha, tree)) {
+      return reason("workflow-staged", "the merge changes .github/workflows/ by more than the base's own workflows");
+    }
+    // The tree as entries against the head, from the base's tree-entries.sh:
+    // only a blob neither parent holds is uploaded, at most max-blobs.
+    const script = readFileSync(merge.treeEntries.script);
+    if (sha256Of(script) !== merge.treeEntries.sha256) {
+      throw new Error("tree-entries.sh does not match the SHA-256 recorded when it was copied from the base");
+    }
+    const listing = execFileSync("/usr/bin/bash", [merge.treeEntries.script, headSha, merge.baseSha, tree], {
+      cwd,
+      env: { PATH: "/usr/bin:/bin", HOME: process.env.HOME ?? "/tmp", GIT_NO_REPLACE_OBJECTS: "1" },
+      encoding: "utf8",
+      maxBuffer: 1 << 28,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const treeEntries = [];
+    const uploads = [];
+    for (const line of listing.split("\n").filter(Boolean)) {
+      const tab = line.indexOf("\t");
+      const [mode, sha, flag] = line.slice(0, tab).split(" ");
+      const path = line.slice(tab + 1);
+      const type = mode === GITLINK ? "commit" : "blob";
+      treeEntries.push({ path, mode, type, sha: sha === "null" ? null : sha });
+      if (flag === "create-blob") {
+        uploads.push({ path, sha });
+      }
+    }
+    if (uploads.length > row["max-blobs"]) {
+      return escalate("invalid", `the merge needs ${uploads.length} new blobs; the row allows ${row["max-blobs"]}`);
+    }
+    if (await target.held(api, number, { holds: new Set(holdLabels), required: [], repository })) {
+      log(`the ${row.target} is held; the merge is dropped`);
+      return { outcome: "held" };
+    }
+    await target.ready(api, headRef, headSha);
+    for (const { path, sha } of uploads) {
+      const stored = await api.createBlob(git(["cat-file", "blob", sha]).toString("base64"));
+      if (stored !== sha) {
+        throw new Error(`GitHub stored the blob for ${JSON.stringify(path)} as ${stored}, not ${sha}`);
+      }
+    }
+    const headTree = git(["rev-parse", `${headSha}^{tree}`]).toString("utf8").trim();
+    const built = treeEntries.length > 0 ? await api.createTree(headTree, treeEntries) : headTree;
+    if (built !== tree) {
+      throw new Error(`GitHub built tree ${built}, not the merge tree ${tree}; nothing is committed`);
+    }
+    const commit = await api.createCommit(message, tree, [headSha, merge.baseSha]);
+    await target.write(api, headRef, commit);
+    const after = await api.readBranch(headRef);
+    if (after !== commit) {
+      throw new Error(`${headRef} reads ${after} after the write of ${commit}`);
+    }
+    log(`pushed merge ${commit} (${entries.length} patched path(s), ${uploads.length} new blob(s)) onto ${headRef}`);
+    return { outcome: "pushed", commit, branch: headRef };
+  } finally {
+    rmSync(scratchDir, { recursive: true, force: true });
+  }
+}
+
 export async function push({
   api,
   cwd,
@@ -481,7 +748,8 @@ export async function push({
   // Everything the row names resolves before any git or API work.
   checkRow(row);
   const target = TARGETS[row.target];
-  const allow = row.allow.map((name) => PREDICATES[name](context));
+  // A merge row builds its predicates once the conflict tree is checked.
+  const allow = isMerge(row) ? [] : row.allow.map((name) => PREDICATES[name](context));
   if (!NAME.test(String(lane)) || !NAME.test(String(activity))) {
     throw new Error("LANE and PATCH_ACTIVITY must be lane and activity names");
   }
@@ -501,6 +769,9 @@ export async function push({
   const unmet = row.requires.find((requirement) => !REQUIREMENTS[requirement](context));
   if (unmet) {
     return escalate("invalid", `the producer's output does not say ${unmet}`);
+  }
+  if (isMerge(row)) {
+    return pushMerge({ api, cwd, gitBin, row, context, number, target, headSha, patchHeadSha, headRef, message, patchFile, patchSha256, holdLabels, repository, escalate, log });
   }
   const problem = patchProblem(patchFile, patchSha256);
   if (problem) {
@@ -569,7 +840,7 @@ export async function push({
   if (row["max-files"] !== null && entries.length > row["max-files"]) {
     return escalate("invalid", `the patch changes ${entries.length} paths; the row allows ${row["max-files"]}`);
   }
-  const outside = entries.find((entry) => !allow.every((admits) => admits(entry.path)));
+  const outside = entries.find((entry) => !allow.every((admits) => admits(entry.path, entry)));
   if (outside) {
     return escalate("protected-path", `not allowed by ${row.allow.join(", ")}: ${outside.path}`);
   }
@@ -684,23 +955,30 @@ function need(env, keys) {
 }
 
 // The kept threads of a threads.json: each a path and, when a fix request
-// named files, its named_paths.
+// named files, its named_paths; and the files the PR already changes, its
+// pr_paths.
 export function keptThreadsFrom(file) {
   if (!file) {
     return undefined;
   }
-  const threads = JSON.parse(readFileSync(file, "utf8"))?.threads;
+  const { threads, pr_paths: prPaths = [] } = JSON.parse(readFileSync(file, "utf8")) ?? {};
   const plain = (value) => typeof value === "string" && value !== "";
   if (
     !Array.isArray(threads) ||
+    !Array.isArray(prPaths) ||
+    !prPaths.every(plain) ||
     !threads.every(
       (thread) =>
         plain(thread?.path) && (thread.named_paths === undefined || (Array.isArray(thread.named_paths) && thread.named_paths.every(plain))),
     )
   ) {
-    throw new Error("KEPT_THREADS_FILE is not a thread file of paths and named_paths");
+    throw new Error("KEPT_THREADS_FILE is not a thread file of paths, named_paths and pr_paths");
   }
-  return { paths: new Set(threads.map((thread) => thread.path)), threads: threads.map(({ path, named_paths }) => ({ path, named_paths })) };
+  return {
+    paths: new Set(threads.map((thread) => thread.path)),
+    threads: threads.map(({ path, named_paths }) => ({ path, named_paths })),
+    prPaths: new Set(prPaths),
+  };
 }
 
 // The base dependabot.yml's [ecosystem, directory] pairs, or null when the
@@ -711,6 +989,26 @@ export function dependabotPairs(baseDir) {
   } catch {
     return null;
   }
+}
+
+// A merge row's inputs: the step's own, and the paths the checkout's merge left
+// conflicted, read from its index (`git ls-files -u`), which no model touched.
+export function mergeFrom(env, { cwd = process.cwd(), gitBin = "/usr/bin/git" } = {}) {
+  need(env, ["MERGE_BASE_SHA", "CONFLICT_TREE", "MERGE_STATE", "TREE_ENTRIES_SCRIPT", "TREE_ENTRIES_SHA256"]);
+  const raw = gitRunner(cwd, gitBin)(["ls-files", "-u", "-z"]).toString("utf8");
+  const unmerged = new Set(
+    raw
+      .split("\0")
+      .filter(Boolean)
+      .map((record) => record.slice(record.indexOf("\t") + 1)),
+  );
+  return {
+    baseSha: env.MERGE_BASE_SHA,
+    conflictTree: env.CONFLICT_TREE,
+    state: env.MERGE_STATE,
+    unmerged,
+    treeEntries: { script: env.TREE_ENTRIES_SCRIPT, sha256: env.TREE_ENTRIES_SHA256 },
+  };
 }
 
 function labelList(env, key) {
@@ -744,6 +1042,7 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
       patchDir: env.PATCH_DIR ?? "",
       reportDir: env.REPORT_DIR ?? "",
       rung: modelRung(env.MODEL_RUNG),
+      mergeState: env.MERGE_STATE ?? "",
     });
     appendFileSync(env.GITHUB_OUTPUT, `proceed=${result.proceed}\nskip-reason=${result.skipReason}\nescalation-reason=${result.escalationReason}\n`);
     log(`select (${row.name}): proceed=${result.proceed} skip=${result.skipReason || "none"} escalation=${result.escalationReason || "none"}`);
@@ -773,6 +1072,7 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
   if (!/^[1-9][0-9]{0,14}$/.test(env[numberKey])) {
     throw new Error(`${numberKey} is not a positive integer`);
   }
+  const merge = isMerge(row) ? mergeFrom(env, { cwd, gitBin }) : undefined;
   const result = await push({
     api: api ?? createGitHubApi({ token: env.GH_TOKEN, repository: env.GITHUB_REPOSITORY, apiUrl: env.GITHUB_API_URL ?? "https://api.github.com" }),
     cwd,
@@ -783,6 +1083,7 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
       dependencyVerdict: env.DEPENDENCY_VERDICT ?? "",
       // Read from the trusted base copy, and only for a row that needs it.
       dependabotConfig: row.allow.includes("dependency-manifests") ? dependabotPairs(env.BASE_DIR) : undefined,
+      merge,
     },
     [target.number]: Number(env[numberKey]),
     headSha: env.HEAD_SHA,
@@ -791,7 +1092,8 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
     baseRef: env.BASE_REF ?? "",
     lane: env.LANE,
     activity: env.PATCH_ACTIVITY,
-    patchFile: env.PATCH_FILE,
+    // A clean merge has no patch.
+    patchFile: merge?.state === "clean" ? "" : env.PATCH_FILE,
     patchSha256: env.PATCH_SHA256 ?? "",
     holdLabels: ["do-not-merge", ...labelList(env, "HOLD_LABELS")],
     requiredLabels: env.REQUIRED_LABELS ? labelList(env, "REQUIRED_LABELS") : [],

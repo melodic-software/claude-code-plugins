@@ -1,8 +1,9 @@
 // Which paths an address-feedback fix may change, shared by
 // address-feedback.mjs, publish-feedback.mjs and apply-patch.mjs's
 // kept-threads rule, and mirrored by the review-thread tool
-// (feedback-thread.sh). It imports nothing, so the write runner's copy of it
-// beside apply-patch.mjs's needs no other file.
+// (feedback-thread.sh), which reads the pr_paths prPathsOf wrote. It imports
+// nothing, so the write runner's copy of it beside apply-patch.mjs's needs no
+// other file.
 
 // Under .github/workflows/, which the lane token has no permission to push.
 export function isProtectedPath(path) {
@@ -29,6 +30,32 @@ const BAD_SEGMENT = /(^|\/)\.{0,2}(\/|$)/;
 // space, control or non-ASCII character.
 const PLAIN_PATH = /^[A-Za-z0-9_@+.-]+(\/[A-Za-z0-9_@+.-]+)*$/;
 
+// Control-plane and agent-instruction surfaces: anything under .github/
+// (which holds the pr-merge HIGH floor's trusted-actor list, trusted-trigger
+// check and resolve-config, and this pipeline's own scripts and actions),
+// CLAUDE.md, AGENTS.md, .mcp.json, .lsp.json, a .claude or .claude-plugin
+// directory, and a plugin's hooks/, monitors/ and bin/.
+const CONTROL_PATH =
+  /^\.github\/|(^|\/)(CLAUDE\.md|AGENTS\.md|\.mcp\.json|\.lsp\.json)$|(^|\/)\.claude(-plugin)?\/|^plugins\/[^/]+\/(hooks|monitors|bin)\//i;
+
+// A path a pull request changes that a fix may also change: plain, in normal
+// form, and neither under .github/workflows/, an instruction path nor a
+// control-plane or agent-instruction surface. A thread on such a path still
+// reaches it through the thread's own scope.
+const prPathAllowed = (path) =>
+  typeof path === "string" &&
+  PLAIN_PATH.test(path) &&
+  !BAD_SEGMENT.test(path) &&
+  !isProtectedPath(path) &&
+  !isInstructionPath(path) &&
+  !CONTROL_PATH.test(path);
+
+// The paths a pull request's file listing (each { filename,
+// previous_filename }) changes, rename sources included, that prPathAllowed
+// allows; sorted, each once. The select job writes them as pr_paths.
+export const prPathsOf = (files) =>
+  [...new Set(files.flatMap((file) => [file?.filename, file?.previous_filename]).filter(prPathAllowed))].sort();
+
 // A path a trusted write-access fix request on a kept thread named may join
 // that thread's scope: a plain path in normal form, in the same plugins/<p>/
 // directory as the thread's own path, and neither under .github/workflows/ nor
@@ -48,15 +75,20 @@ export function namedInScope(path, threadPath) {
 // A kept thread's own path, a file in the plugins/<p>/ directory a kept
 // thread's path sits in that is no instruction path and no script or code
 // file, a test file in the same directory as a kept thread's path,
-// or a path in a kept thread's named_paths (in `threads`, each { path,
-// named_paths }) that namedInScope allows for that thread; never anything
-// under .github/workflows/, and never a path that is not plain and in normal
-// form.
-export function inThreadScope(path, threadPaths, threads = []) {
+// a path in a kept thread's named_paths (in `threads`, each { path,
+// named_paths }) that namedInScope allows for that thread, or a path the pull
+// request already changes (`prPaths`, prPathsOf's) that the fix does not add
+// (`added`: the fix creates the path, as a new file or a rename's target);
+// never anything under .github/workflows/, and never a path that is not plain
+// and in normal form.
+export function inThreadScope(path, threadPaths, threads = [], { prPaths = new Set(), added = false } = {}) {
   if (isProtectedPath(path) || BAD_SEGMENT.test(path) || !PLAIN_PATH.test(path)) {
     return false;
   }
   if (threadPaths.has(path)) {
+    return true;
+  }
+  if (!added && prPaths.has(path) && prPathAllowed(path)) {
     return true;
   }
   if (threads.some((t) => Array.isArray(t?.named_paths) && t.named_paths.includes(path) && namedInScope(path, t.path))) {

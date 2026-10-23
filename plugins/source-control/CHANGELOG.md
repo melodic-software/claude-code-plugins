@@ -3,6 +3,25 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.12.0] - 2026-10-23
+
+### Changed
+
+- `resolve-conflicts ci` runs no command and stages nothing: it reads the merge context the runner writes to `.lane/merge/` (each conflicted path's base, ours and theirs versions and both sides' history) in place of git, resolves each conflicted file in place, edits no other file, and leaves a path it cannot resolve with its conflict markers, which hands the run to a person ([`SKILL.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/resolve-conflicts/SKILL.md#ci-mode)). The CI-mode evals follow: `resolve-conflicts-ci-mode-stages-resolved-paths` becomes `resolve-conflicts-ci-mode-resolves-in-place`.
+
+## [2.11.8] - 2026-10-23
+
+### Changed
+
+- The pr-merge gate's verdict reader takes an untied FAIL's recorded head branch from the head-ref map pr-merge.yml names in `BABYSIT_VERIFY_HEAD_REFS` before downloading the artifact: artifact id to the `head_ref` an earlier run read from that artifact's verdict.json. An id the map holds ties or unties the FAIL as the download would, with no request; any other id is downloaded as before. A missing, unreadable or malformed map (another version or repository, a key that is no artifact id, a value that is no string) is no map, and every untied FAIL is downloaded. The decision differs from a download only where the download fails: the map answers with what an earlier successful download read, where the failed download refused `verify:unreadable`.
+
+## [2.11.7] - 2026-10-23
+
+### Changed
+
+- The HIGH path floor holds only the takeover set: `.github/standards/trusted-actors/**`, `.github/actions/check-trusted-trigger/**`, `**/CODEOWNERS`, `**/.gitmodules` and `.github/actions/resolve-config/**`. Agent permission config (`**/settings*.json`), package manifests and lockfiles, and every workflow, `release-*.yml` included, leave it and merge on the review lanes. With the floor on, any change under the trusted-actor directory scores HIGH, a pure list removal included. The cost hold and the outside-author hold are unchanged.
+- `own_paths` leaves out only `NEVER_FLOOR_EXEMPT` (the floor), so a trusted author's own `settings*.json`, package manifest and `requirements*.txt` lines are its own. `INSTRUCTION_PATH_RE` and its twin test are gone; `thread-scope.mjs` `INSTRUCTION_PATH`, which bounds pr-unblock's fix scope, is unchanged.
+
 ## [2.11.6] - 2026-10-23
 
 ### Fixed

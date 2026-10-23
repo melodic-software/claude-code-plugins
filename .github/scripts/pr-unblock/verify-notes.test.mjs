@@ -91,6 +91,31 @@ test("the verdict must be the fail its artifact name names", () => {
   assert.equal(readVerdict(`${NAME}-8c8a071ad0e51f5e`, verdictText({ head_ref: "fix/\u00e9" })).pr, 42);
 });
 
+test("a name that carries issue numbers must carry the ones the verdict records", () => {
+  const issues = (...numbers) => numbers.map((number) => ({ number }));
+  const digest = "79b4cc554b80dca6"; // feat/x, as above
+  assert.equal(readVerdict(`${NAME}-i7`, verdictText({ linked_issues: issues(7) })).pr, 42);
+  assert.equal(readVerdict(`${NAME}-i7.12`, verdictText({ linked_issues: issues(12, 7) })).pr, 42);
+  assert.equal(readVerdict(`${NAME}-${digest}-i7`, verdictText({ head_ref: "feat/x", linked_issues: issues(7) })).pr, 42);
+  for (const [name, recorded] of [
+    [`${NAME}-i7`, issues(8)],
+    [`${NAME}-i7`, issues(7, 8)],
+    [`${NAME}-i7.8`, issues(7)],
+    // One verdict has one name: issues ascending, each once.
+    [`${NAME}-i12.7`, issues(7, 12)],
+    [`${NAME}-i7.7`, issues(7)],
+    [`${NAME}-i7`, issues()],
+    [`${NAME}-i7`, undefined],
+    [`${NAME}-i07`, issues(7)],
+    [`${NAME}-i`, issues()],
+    [`${NAME}-i7.`, issues(7)],
+    [`${NAME}-i${Array(11).fill(7).join(".")}`, issues(7)],
+    [`${NAME}-i7-${digest}`, issues(7)],
+  ]) {
+    assert.throws(() => readVerdict(name, verdictText({ head_ref: "feat/x", linked_issues: recorded })), name);
+  }
+});
+
 test("the notes are posted as file comments on the judged head, once", async () => {
   const api = fakeApi();
   const verdict = readVerdict(NAME, verdictText());

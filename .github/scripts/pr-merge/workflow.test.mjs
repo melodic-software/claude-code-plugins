@@ -147,6 +147,40 @@ test("pr-require-checks.yml never cancels a dispatched or scheduled run", () => 
   assert.match(group, /github\.event\.pull_request\.number \|\| github\.run_id/);
 });
 
+// The native-merge plan's arm-merge item: the lanes App token arms a lane
+// pull request as soon as the issue lane finishes, in pr-merge.yml, the one
+// caller the token broker mints `merge` for; the merge job's gate never runs
+// on that event.
+test("the issue lane finishing wakes only the enable-auto-merge job", () => {
+  assert.match(merge, /\n {2}workflow_run: # zizmor: ignore\[dangerous-triggers\]\n {4}workflows: \[work-resolve-issue\]\n {4}types: \[completed\]\n/);
+  assert.match(job("merge"), /\n {6}&& github\.event_name != 'workflow_run'\n/);
+  const arm = job("enable-auto-merge");
+  const armIf = /\n {4}if: >-\n([\s\S]*?)\n {4}[a-z-]+:/.exec(arm)[1];
+  assert.match(armIf, /github\.event_name != 'workflow_run' \|\| github\.event\.workflow_run\.conclusion != 'skipped'/);
+  // A push to main is a merge landing, never a new lane pull request.
+  assert.match(armIf, /github\.event_name != 'push'/);
+  assert.match(arm, /\n {4}concurrency:\n {6}group: pr-merge-enable-auto-merge\n {6}queue: max\n/);
+});
+
+test("enable-auto-merge asks the broker for its own activity's merge token", () => {
+  const arm = job("enable-auto-merge");
+  const steps = [...arm.matchAll(/\n {10}lane: (.*)\n {10}activity: (.*)\n/g)].map((m) => `${m[1]}/${m[2]}`);
+  assert.deepEqual(steps, ["pr-merge/enable-auto-merge", "pr-merge/enable-auto-merge"]);
+  assert.match(arm, /node \.base\/\.github\/scripts\/pr-merge\/enable-auto-merge\.mjs/);
+  // A missing merge.report-only reaches the script as `null`, which it reads
+  // as report-only; the job must not turn it into `false`.
+  assert.match(arm, /REPORT_ONLY=\$\(yq '\.merge\."report-only"' "\$config"\)\n/);
+  assert.doesNotMatch(arm, /REPORT_ONLY=false/);
+  // The hold paths come from the config the job resolved.
+  assert.match(arm, /output-path: \$\{\{ runner\.temp \}\}\/resolved-config\.json\n/);
+  assert.match(arm, /\n {10}RESOLVED_CONFIG: \$\{\{ runner\.temp \}\}\/resolved-config\.json\n/);
+  const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(arm)[1];
+  assert.deepEqual(
+    [...block.matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => `${m[1]}: ${m[2]}`),
+    ["contents: read", "id-token: write"],
+  );
+});
+
 // The dispatch POST's retry, run under bash against a stub gh that answers
 // each POST in turn from `answers` ({status, headers, body}, or {stderr} for
 // no response at all, with gh's error text), a stub sleep that logs its seconds and a stub date. The

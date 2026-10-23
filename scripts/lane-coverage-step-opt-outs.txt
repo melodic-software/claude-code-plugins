@@ -22,3 +22,4 @@
 
 select-tests/detect  the resolver's own step: a failed detector must leave its outputs unset so every consumer resolves toward RUNNING its lane, and feeding that outcome to an aggregator would red the run for the one case it exists to survive
 select-tests/match  the resolver's own filter-group step, on the same fall-through contract as select-tests/detect; the pair is gated instead by the non-continue-on-error detector self-test above them and by scripts/check-docs-only-gate.sh
+ci-status/base_config  the hold steps' sparse checkout of the base config: a failure must fall through to those steps, which read steps.base_config.outcome through BASE_CONFIG and fail closed (human-gated, hold-lift, merge-group) or keep the hold (cost-hold) on it, so feeding it to the aggregator would add no gate the steps do not already enforce

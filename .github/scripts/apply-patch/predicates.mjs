@@ -9,12 +9,17 @@ import { inThreadScope } from "../pr-unblock/thread-scope.mjs";
 export const PREDICATES = {
   any: () => () => true,
   // A kept thread's path, or a file thread-scope.mjs places in its scope,
-  // its named_paths included: `keptThreads` is { paths, threads }.
+  // its named_paths and the PR's own files the patch does not add included:
+  // `keptThreads` is { paths, threads, prPaths }.
   "kept-threads": ({ keptThreads }) => {
     if (!(keptThreads?.paths instanceof Set) || keptThreads.paths.size === 0 || !Array.isArray(keptThreads.threads)) {
       throw new Error("allow kept-threads needs the run's kept thread paths");
     }
-    return (path) => inThreadScope(path, keptThreads.paths, keptThreads.threads);
+    return (path, entry) =>
+      inThreadScope(path, keptThreads.paths, keptThreads.threads, {
+        prPaths: keptThreads.prPaths ?? new Set(),
+        added: entry === undefined || entry.status?.[0] === "A",
+      });
   },
   // An npm or pip manifest or lock file outside .github/, in a directory of
   // its ecosystem among the base dependabot.yml's [ecosystem, directory]
@@ -25,7 +30,13 @@ export const PREDICATES = {
     }
     return (path) => inFixScope(path, dependabotConfig);
   },
-  "merge-result": () => {
-    throw new Error("allow merge-result is not supported by this apply-patch yet");
+  // A path the base merge left conflicted, which the patch resolves; the
+  // merge's own changes from the base side never face the predicates.
+  // `merge.unmerged` is a Set, read from the checkout's merge.
+  "merge-result": ({ merge }) => {
+    if (!(merge?.unmerged instanceof Set)) {
+      throw new Error("allow merge-result needs the merge's conflicted paths");
+    }
+    return (path) => merge.unmerged.has(path);
   },
 };

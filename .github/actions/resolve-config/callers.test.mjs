@@ -373,19 +373,30 @@ test("intake-triage.yml: the model may not apply good first issue or help wanted
   }
 });
 
-test("pr-unblock.yml: report-conflict-status runs only for an unresolved-conflict escalation with a gated head", () => {
+test("pr-unblock.yml: report-conflict-status runs only for an unresolved-conflict escalation, from the select, push or scan-refusal job, with a gated head", () => {
   const head = "c".repeat(40);
   const { jobs } = workflow("pr-unblock.yml");
   const job = jobs["report-conflict-status"];
-  const context = (reason, headSha) => ({
-    "needs.resolve-conflicts.outputs.escalation-reason": reason,
-    "needs.resolve-conflicts.outputs.head-sha": headSha,
+  const context = (select, apply, headSha, refused = "") => ({
+    "needs.resolve-conflicts-select.outputs.escalation-reason": select,
+    "needs.apply-conflict-patch.outputs.escalation-reason": apply,
+    "needs.conflict-scan-refusal.outputs.escalation-reason": refused,
+    "needs.resolve-conflicts-select.outputs.head-sha": headSha,
   });
-  assert.equal(evaluate(job.if, context("unresolved-conflict", head)), true);
-  for (const reason of ["repeat-cap", "protected-path-conflict", "workflow-staged", ""]) {
-    assert.equal(evaluate(job.if, context(reason, head)), false, reason);
+  assert.deepEqual(job.needs, ["resolve-conflicts-select", "apply-conflict-patch", "conflict-scan-refusal"]);
+  assert.equal(evaluate(job.if, context("unresolved-conflict", "", head)), true, "before any model turn");
+  assert.equal(evaluate(job.if, context("", "unresolved-conflict", head)), true, "a conflict the patch left");
+  assert.equal(evaluate(job.if, context("", "", head, "unresolved-conflict")), true, "a scan that refused the model's output");
+  for (const reason of ["repeat-cap", "protected-path-conflict", "workflow-staged", "conflict-patch-invalid", ""]) {
+    assert.equal(evaluate(job.if, context(reason, "", head)), false, reason);
+    assert.equal(evaluate(job.if, context("", reason, head)), false, reason);
   }
-  assert.equal(evaluate(job.if, context("unresolved-conflict", "")), false, "no gated head to post on");
+  assert.equal(evaluate(job.if, context("", "", "", "unresolved-conflict")), false, "no gated head to post on");
+  assert.equal(evaluate(job.if, context("unresolved-conflict", "", "")), false, "no gated head to post on");
+  // The head is the select job's, never a model call's.
+  const post = job.steps.find((step) => step.name === "Post the conflict status");
+  assert.equal(post.env.HEAD_SHA, "${{ needs.resolve-conflicts-select.outputs.head-sha }}");
+  assert.equal(post.env.ESCALATION_REASON, "unresolved-conflict");
   assert.deepEqual(job.permissions, { contents: "read", statuses: "write" });
   assert.equal(job.uses, undefined, "a script job, never the write runner");
 });
@@ -454,7 +465,7 @@ test("pr-unblock.yml: address-feedback and publish-feedback are reported neutral
 // fix-ci's one retry one model rung up runs inside the same pr-unblock run,
 // so whatever it ends in reaches report-escalation: only a clean apply of
 // the retry's patch leaves the PR unlabeled.
-const ESCALATING = ["resolve-conflicts", "address-feedback-select", "publish-feedback", "review-dependency-select", "apply-dependency-verdict", "fix-ci-context", "apply-patch"];
+const ESCALATING = ["resolve-conflicts-select", "apply-conflict-patch", "conflict-scan-refusal", "address-feedback-select", "publish-feedback", "review-dependency-select", "apply-dependency-verdict", "fix-ci-context", "apply-patch"];
 const rungUpContext = ({ rungUp = "true", result = "success", escalation = "", skip = "" } = {}) => ({
   ...Object.fromEntries(ESCALATING.map((job) => [`needs.${job}.outputs.escalation-reason`, ""])),
   "needs.apply-patch.outputs.rung-up": rungUp,
@@ -1031,6 +1042,8 @@ test("every read-runner caller job passes exactly one Claude secret, named for i
     "pr-unblock.yml fix-ci-rung-up",
     "pr-unblock.yml fix-ci-rung-up-subscription",
     "pr-unblock.yml fix-ci-subscription",
+    "pr-unblock.yml resolve-conflicts",
+    "pr-unblock.yml resolve-conflicts-subscription",
     "pr-unblock.yml review-dependency",
     "pr-unblock.yml review-dependency-subscription",
     "work-resolve-issue.yml resolve-issue",
@@ -1626,6 +1639,16 @@ const PATCH_LANES = [
     { "needs.review-dependency-select.outputs.proceed": "true" },
     "apply-dependency-patch",
   ],
+  // apply-conflict-patch reaches report-escalation: an empty or refused
+  // patch leaves the conflicts to a person.
+  [
+    "pr-unblock.yml",
+    "resolve-conflicts",
+    "resolve-conflicts-subscription",
+    ["resolve-conflicts-select"],
+    { "needs.resolve-conflicts-select.outputs.proceed": "true" },
+    "apply-conflict-patch",
+  ],
 ];
 // The activity each push job runs in the write runner.
 const APPLY_ACTIVITY = {
@@ -1633,6 +1656,7 @@ const APPLY_ACTIVITY = {
   "fix-docs": "apply-patch",
   "address-feedback": "apply-feedback-patch",
   "review-dependency": "apply-dependency-patch",
+  "resolve-conflicts": "apply-conflict-patch",
 };
 const CARRIER_SECRETS = { "scan-carrier-private-key": "${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}" };
 // The head apply-patch holds the patch to, per producer. fix-ci's push job
@@ -1644,6 +1668,11 @@ const PATCH_HEAD = {
   "fix-docs": { needs: ["fix-docs-head"], value: "${{ needs.fix-docs-head.outputs.head-sha }}" },
   "address-feedback": { needs: ["address-feedback-select"], value: "${{ needs.address-feedback-select.outputs.head-sha }}" },
   "review-dependency": { needs: ["review-dependency-select"], value: "${{ needs.review-dependency-select.outputs.head-sha }}" },
+  "resolve-conflicts": { needs: ["resolve-conflicts-select"], value: "${{ needs.resolve-conflicts-select.outputs.head-sha }}" },
+};
+// What else a push job's gate reads, set so a conflicted round's patch decides it.
+const APPLY_GATE = {
+  "resolve-conflicts": { "needs.resolve-conflicts-select.outputs.merge-state": "conflicted", "needs.resolve-conflicts-select.outputs.proceed": "true" },
 };
 // Whether an empty patch still runs the push job, and its escalation reaches
 // report-escalation, which hands the PR to a person: fix-ci's does; no change
@@ -1651,14 +1680,21 @@ const PATCH_HEAD = {
 // labels nothing (report-escalation takes no patch-* reason).
 // address-feedback's empty patch is a round whose every reply needs no fix,
 // and review-dependency's one whose verdict needs none.
-const EMPTY_RUNS_APPLY = { "fix-ci": true, "fix-docs": false, "address-feedback": false, "review-dependency": false };
+// resolve-conflicts's empty patch leaves the conflicts unresolved.
+const EMPTY_RUNS_APPLY = { "fix-ci": true, "fix-docs": false, "address-feedback": false, "review-dependency": false, "resolve-conflicts": true };
 const PATCH_OUTPUTS = { "patch-state": "patch-state", "patch-sha256": "patch-sha256", "patch-attempt": "patch-attempt", "reply-attempt": "reply-attempt" };
 // The read runner output each push job reads per input: the scan job's alone,
 // never the run job's, which head code can forge.
-const SCAN_ONLY = new Set(["fix-ci", "fix-docs", "address-feedback", "review-dependency"]);
+const SCAN_ONLY = new Set(["fix-ci", "fix-docs", "address-feedback", "review-dependency", "resolve-conflicts"]);
 // The base-code job whose jobs-API read starts a lane's fallback call, in
 // place of the first call's own handoff outputs.
-const HANDOFF = { "fix-ci": "fix-ci-handoff", "fix-docs": "fix-docs-handoff", "address-feedback": "address-feedback-handoff", "review-dependency": "review-dependency-handoff" };
+const HANDOFF = {
+  "fix-ci": "fix-ci-handoff",
+  "fix-docs": "fix-docs-handoff",
+  "address-feedback": "address-feedback-handoff",
+  "review-dependency": "review-dependency-handoff",
+  "resolve-conflicts": "resolve-conflicts-handoff",
+};
 const PATCH_OUTPUTS_OF = (firstId) =>
   SCAN_ONLY.has(firstId) ? Object.fromEntries(Object.entries(PATCH_OUTPUTS).map(([input, output]) => [input, `scan-${output}`])) : PATCH_OUTPUTS;
 const WRITE_RUNNER = "./.github/workflows/pr-run-activity-write.yml";
@@ -1765,6 +1801,7 @@ for (const [file, firstId, subId, extraNeeds, extraProceed, applyId] of PATCH_LA
     const state = PATCH_OUTPUTS_OF(firstId)["patch-state"];
     const runs = (firstState, subState) =>
       evaluate(apply.if, {
+        ...APPLY_GATE[firstId],
         [`needs.${subId}.result`]: subState === "" ? "skipped" : "success",
         [`needs.${subId}.outputs.${state}`]: subState,
         [`needs.${firstId}.outputs.${state}`]: firstState,
@@ -2044,7 +2081,7 @@ test("pr-run-activity-read.yml: a PR run that stops before head code still uploa
   for (const name of ["Upload the skill's final reply", "Upload the patch", "Show the skill's run in the step summary"]) {
     assert.equal(atStep(step(name).if, stopped), false, `${name} has nothing to upload`);
   }
-  assert.equal(step("Check out the gated head").if, "steps.decode.outputs.patch == 'true'");
+  assert.equal(step("Check out the gated head").if, "steps.decode.outputs.patch == 'true' && inputs.merge-conflict-tree == ''");
   // Nothing sealed: no base checkout, no key read and no open.
   const base = steps.find((s) => s.id === "base");
   assert.equal(atStep(base.if, { ...stopped, "needs.run.outputs.carry-sealed-length": "" }), false);
@@ -2109,7 +2146,7 @@ function gateApi(gate, { tip = async () => ({ data: { commit: { sha: GATE_TIP } 
 // source, given the run's temp directory once the patch is collected, returns
 // the directory the scan reads the reply, run fields and patch from (the scan
 // job's opened payloads); by default the run's own.
-async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs"), { afterCollect = () => {}, headRepo = (work) => work, source = (temp) => ({ reply: join(temp, "skill-reply"), patch: join(temp, "patch", "patch.diff") }) } = {}) {
+async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs"), { afterCollect = () => {}, headRepo = (work) => work, source = (temp) => ({ reply: join(temp, "skill-reply"), patch: join(temp, "patch", "patch.diff") }), env: extraEnv = {} } = {}) {
   const root = mkdtempSync(join(tmpdir(), "leak-scan-test-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const work = join(root, "work");
@@ -2146,6 +2183,7 @@ async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs"), 
     PATCH_FILE: patchFile,
     GITHUB_WORKSPACE: headRepo(work, root),
     HOME: process.env.HOME,
+    ...extraEnv,
   };
   const script = scanSteps().find((s) => s.id === "leak-scan").with.script;
   const { createRequire } = await import("node:module");
@@ -3066,7 +3104,7 @@ test("pr-run-activity-read.yml: the scan-carrier key is passed by name by each r
       }
     }
   }
-  assert.equal(callers, 11, "address-feedback, review-dependency, fix-ci, fix-docs and their subscription calls, fix-ci's rung-up pair, and resolve-issue");
+  assert.equal(callers, 13, "resolve-conflicts, address-feedback, review-dependency, fix-ci, fix-docs and their subscription calls, fix-ci's rung-up pair, and resolve-issue");
   // In the read runner, one step of one job.
   for (const [id, job] of Object.entries(read.jobs)) {
     const steps = (job.steps ?? []).filter((step) => /scan-carrier-private-key|SCAN_CARRIER_PRIVATE_KEY/i.test(JSON.stringify(step)));
@@ -3967,9 +4005,9 @@ test("pr-run-activity-read.yml: a pr-feedback-dispatch.yml dispatch passes the t
   assert.equal(read["expected-upstream-head"], undefined, "the model calls run on the reviewed head");
 });
 
-test("pr-run-activity-read.yml: review-threads, ci-context and dependency-review are its prepare modes, PR mode only, each handing on a patch", () => {
+test("pr-run-activity-read.yml: review-threads, ci-context, dependency-review and merge-base are its prepare modes, PR mode only, each handing on a patch", () => {
   const steps = workflow("pr-run-activity-read.yml").jobs.run.steps;
-  const guard = steps.find((s) => s.name === "Assert the prepare mode is ci-context, review-threads or dependency-review in patch mode");
+  const guard = steps.find((s) => s.name === "Assert the prepare mode is ci-context, review-threads, dependency-review or merge-base in patch mode");
   const refuses = (prepare, patch, issue = "") =>
     evaluate(guard.if, {
       "steps.config.outcome": "success",
@@ -3981,7 +4019,10 @@ test("pr-run-activity-read.yml: review-threads, ci-context and dependency-review
   assert.equal(refuses("ci-context", "apply-patch"), false);
   assert.equal(refuses("", ""), false);
   assert.equal(refuses("review-threads", ""), true);
-  assert.equal(refuses("merge-base", "apply-patch"), true);
+  assert.equal(refuses("merge-base", "apply-conflict-patch"), false);
+  assert.equal(refuses("merge-base", ""), true);
+  assert.equal(refuses("merge-base", "apply-conflict-patch", "7"), true, "issue mode");
+  assert.equal(refuses("apply-patch", "apply-patch"), true);
   assert.equal(refuses("dependency-review", "apply-dependency-patch"), false);
   assert.equal(refuses("dependency-review", ""), true);
   assert.equal(refuses("dependency-review", "apply-dependency-patch", "7"), true, "issue mode");
@@ -4293,6 +4334,334 @@ test("pr-run-activity-write.yml: a patch-* escalation reason passes the input ch
   }
   assert.equal(status("", false), 0, "the PR-mode control passes with no reason");
   assert.equal(status("patch-unknown", true), 1);
+});
+
+// --- resolve-conflicts on run-claude-cli: a select job, two model calls, a push job ---
+
+// The outputs of a model call each resolve-conflicts job may read: the
+// subscription call its fallback compares; the push job the patch and its
+// report from the scan job. No job takes a gate, head, base or conflict tree
+// from a model call.
+const CONFLICT_CALL_READS = {
+  "apply-conflict-patch": ["scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt"],
+  "conflict-scan-refusal": ["scan-patch-state"],
+};
+
+test("pr-unblock.yml: no job takes a gate, head, base or conflict tree from a resolve-conflicts model call", () => {
+  const { jobs } = workflow("pr-unblock.yml");
+  for (const [id, job] of Object.entries(jobs)) {
+    const read = [...JSON.stringify(job).matchAll(/needs\.resolve-conflicts(?:-subscription)?\.outputs\.([\w-]+)/g)].map((m) => m[1]);
+    assert.deepEqual([...new Set(read)].sort(), CONFLICT_CALL_READS[id] ?? [], id);
+  }
+  const SELECT = (output) => `\${{ needs.resolve-conflicts-select.outputs.${output} }}`;
+  for (const id of ["resolve-conflicts", "resolve-conflicts-subscription"]) {
+    assert.equal(jobs[id].with["head-sha"], SELECT("head-sha"), id);
+    assert.equal(jobs[id].with["merge-base-sha"], SELECT("base-sha"), id);
+    assert.equal(jobs[id].with["merge-conflict-tree"], SELECT("conflict-tree"), id);
+  }
+  const apply = jobs["apply-conflict-patch"].with;
+  assert.equal(apply["patch-head-sha"], SELECT("head-sha"));
+  assert.equal(apply["patch-merge-base-sha"], SELECT("base-sha"));
+  assert.equal(apply["patch-merge-state"], SELECT("merge-state"));
+  assert.equal(apply["patch-conflict-tree"], SELECT("conflict-tree"));
+  assert.equal(apply["patch-prepare"], "merge-base");
+  // report-escalation reads the select and push jobs' escalations, never a model call's.
+  const escalation = jobs["report-escalation"];
+  assert.ok(escalation.needs.includes("resolve-conflicts-select") && escalation.needs.includes("apply-conflict-patch"));
+  assert.ok(!escalation.needs.includes("resolve-conflicts"));
+  assert.match(escalation.with["escalation-reason"], /needs\.resolve-conflicts-select\.outputs\.escalation-reason\s+\|\| needs\.apply-conflict-patch\.outputs\.escalation-reason/);
+});
+
+// A clean merge commits with no model call; a conflicted one only beside a
+// patch the answering leg's scan job handed on; anything else pushes nothing.
+test("pr-unblock.yml: apply-conflict-patch runs on a clean merge, or on a conflicted one beside the answering leg's scanned patch", () => {
+  const { jobs } = workflow("pr-unblock.yml");
+  const apply = jobs["apply-conflict-patch"];
+  const runs = (mergeState, proceed, subResult, sub, first) =>
+    evaluate(apply.if, {
+      "needs.resolve-conflicts-select.outputs.merge-state": mergeState,
+      "needs.resolve-conflicts-select.outputs.proceed": proceed,
+      "needs.resolve-conflicts-subscription.result": subResult,
+      "needs.resolve-conflicts-subscription.outputs.scan-patch-state": sub,
+      "needs.resolve-conflicts.outputs.scan-patch-state": first,
+    });
+  assert.equal(runs("clean", "false", "skipped", "", ""), true, "a clean merge, no model call");
+  assert.equal(runs("conflicted", "true", "skipped", "", "written"), true);
+  assert.equal(runs("conflicted", "true", "skipped", "", "empty"), true, "an empty patch escalates unresolved-conflict");
+  assert.equal(runs("conflicted", "true", "success", "written", ""), true);
+  assert.equal(runs("conflicted", "true", "success", "", "written"), false, "the key call's patch is not taken once the subscription call ran");
+  assert.equal(runs("conflicted", "true", "skipped", "", ""), false, "a leg that handed on nothing");
+  for (const state of ["escalate", ""]) {
+    assert.equal(runs(state, "false", "skipped", "", "written"), false, `${state || "no"} merge state`);
+  }
+  // A forged run job output cannot make a clean merge take a patch: the
+  // select job's merge-state is clean only when no model call ran.
+  assert.equal(evaluate(jobs["resolve-conflicts"].if, { "needs.resolve-conflicts-select.outputs.proceed": "false" }), false);
+});
+
+// A refused scan hands no patch state on, so apply-conflict-patch skips; the
+// scan-refusal marker alone, read by a script job, escalates the round.
+test("pr-unblock.yml: conflict-scan-refusal escalates a refused resolve-conflicts scan from its marker, with every leg output empty", () => {
+  const { jobs } = workflow("pr-unblock.yml");
+  const job = jobs["conflict-scan-refusal"];
+  assert.ok(job, "pr-unblock.yml has a conflict-scan-refusal job");
+  assert.equal(job.uses, undefined, "a script job, never a runner call");
+  assert.deepEqual(job.permissions, { contents: "read" });
+  assert.deepEqual(job.needs, ["resolve-conflicts-select", "resolve-conflicts", "resolve-conflicts-subscription"]);
+  const runs = (proceed, subResult, sub, first) =>
+    evaluate(job.if, {
+      "needs.resolve-conflicts-select.outputs.proceed": proceed,
+      "needs.resolve-conflicts-subscription.result": subResult,
+      "needs.resolve-conflicts-subscription.outputs.scan-patch-state": sub,
+      "needs.resolve-conflicts.outputs.scan-patch-state": first,
+    });
+  assert.equal(runs("true", "skipped", "", ""), true, "the first leg handed on nothing");
+  assert.equal(runs("true", "failure", "", ""), true, "the fallback leg handed on nothing");
+  assert.equal(runs("true", "success", "", "written"), true, "the key call's patch is not the answering leg's");
+  // Exactly where apply-conflict-patch does not run on a conflicted round.
+  for (const state of ["written", "empty"]) {
+    assert.equal(runs("true", "skipped", "", state), false, state);
+    assert.equal(runs("true", "success", state, ""), false, state);
+  }
+  // On every conflicted round exactly one of the two jobs runs.
+  const states = ["", "written", "empty", "other"];
+  for (const subResult of ["skipped", "success", "failure"]) {
+    for (const sub of states) {
+      for (const first of states) {
+        const values = {
+          "needs.resolve-conflicts-select.outputs.merge-state": "conflicted",
+          "needs.resolve-conflicts-select.outputs.proceed": "true",
+          "needs.resolve-conflicts-subscription.result": subResult,
+          "needs.resolve-conflicts-subscription.outputs.scan-patch-state": sub,
+          "needs.resolve-conflicts.outputs.scan-patch-state": first,
+        };
+        const apply = evaluate(jobs["apply-conflict-patch"].if, values) === true;
+        const refusal = evaluate(job.if, values) === true;
+        assert.notEqual(apply, refusal, JSON.stringify([subResult, sub, first]));
+      }
+    }
+  }
+  assert.equal(runs("false", "skipped", "", ""), false, "a clean merge or a select-job skip");
+  assert.equal(runs("", "skipped", "", ""), false);
+  // The marker comes by name from the scan-refusal job's upload, never a job output.
+  const download = job.steps.find((step) => step.uses?.startsWith("actions/download-artifact@"));
+  const writeDownload = workflow("pr-run-activity-write.yml").jobs.run.steps.find((step) => step.id === "scan-refused");
+  assert.equal(download.uses, writeDownload.uses, "the write runner's pinned download action");
+  assert.equal(download["continue-on-error"], true);
+  assert.equal(download.with["merge-multiple"], true);
+  const upload = workflow("pr-run-activity-read.yml").jobs["scan-refusal"].steps.find((step) => step.uses?.startsWith("actions/upload-artifact@"));
+  const sub = (text, values) => text.replace(/\$\{\{([^}]*)\}\}/g, (_, expr) => String(evaluate(`\${{${expr}}}`, values)));
+  const values = { "inputs.lane": "pr-unblock", "inputs.activity": "resolve-conflicts", "github.run_attempt": "2", "runner.temp": "/t" };
+  for (const rung of ["", "1"]) {
+    const name = sub(upload.with.name, { ...values, "inputs.model-rung": rung });
+    assert.ok(download.with.pattern.endsWith("-*") && name.startsWith(download.with.pattern.slice(0, -1)), `${download.with.pattern} matches ${name}`);
+  }
+  const script = job.steps.find((step) => step.id === "refusal");
+  assert.equal(script.run, "node .base/.github/scripts/pr-unblock/conflict-scan-refusal.mjs");
+  assert.equal(sub(script.env.SCAN_REFUSED_DIR, values), sub(download.with.path, values));
+  assert.equal(script.env.SCAN_REFUSED_READ, `\${{ steps.${download.id}.outcome }}`);
+  assert.equal(job.outputs["escalation-reason"], "${{ steps.refusal.outputs.escalation-reason }}");
+  assert.doesNotMatch(JSON.stringify(job.steps), /needs\./, "no step reads a leg output");
+  // Its escalation reaches report-escalation and the conflict status.
+  const escalation = jobs["report-escalation"];
+  assert.ok(escalation.needs.includes("conflict-scan-refusal"));
+  assert.match(escalation.with["escalation-reason"], /needs\.apply-conflict-patch\.outputs\.escalation-reason\s+\|\| needs\.conflict-scan-refusal\.outputs\.escalation-reason/);
+  const quiet = rungUpContext({ rungUp: "false" });
+  const refused = { ...quiet, "needs.conflict-scan-refusal.outputs.escalation-reason": "unresolved-conflict" };
+  assert.equal(evaluate(escalation.if, refused), true);
+  assert.equal(evaluate(escalation.with["escalation-reason"], refused).trim(), "unresolved-conflict");
+  assert.equal(evaluate(escalation.if, quiet), false);
+});
+
+test("pr-unblock.yml: resolve-conflicts is reported neutral when the select job does not proceed: its skip, a clean merge, or a person's", async () => {
+  const head = "d".repeat(40);
+  const { jobs } = workflow("pr-unblock.yml");
+  const notRun = jobs["resolve-conflicts-not-run"];
+  const context = (proceed, headSha, { skip = "", state = "", activity = "resolve-conflicts" } = {}) => ({
+    "inputs.activity": activity,
+    "needs.resolve-conflicts-select.outputs.proceed": proceed,
+    "needs.resolve-conflicts-select.outputs.head-sha": headSha,
+    "needs.resolve-conflicts-select.outputs.skip-reason": skip,
+    "needs.resolve-conflicts-select.outputs.merge-state": state,
+  });
+  assert.deepEqual([notRun.needs].flat(), ["resolve-conflicts-select"]);
+  assert.deepEqual(notRun.permissions, { checks: "write", contents: "read" });
+  assert.equal(evaluate(notRun.if, context("true", head)), false);
+  assert.equal(evaluate(notRun.if, context("false", head, { state: "clean" })), true);
+  assert.equal(evaluate(notRun.if, context("false", "")), false, "a stop before the head read names no head to post on");
+  assert.equal(evaluate(notRun.if, context("false", head, { activity: "fix-ci" })), false);
+  for (const [given, summary] of [
+    [{ skip: "not-applicable" }, "Skip reason: not-applicable"],
+    [{ skip: "awaiting-human" }, "Skip reason: awaiting-human"],
+    [{ state: "clean" }, "Skip reason: clean-merge"],
+    [{ state: "escalate" }, "Skip reason: awaiting-human"],
+  ]) {
+    const calls = await postNotRunChecks(notRun, context("false", head, given));
+    assert.deepEqual(
+      calls.map((call) => [call.name, call.head_sha, call.conclusion, call.output.summary]),
+      [["pr-unblock / resolve-conflicts", head, "neutral", summary]],
+      JSON.stringify(given),
+    );
+  }
+});
+
+test("pr-unblock.yml: resolve-conflicts-select merges with the base's scripts, pinned to the tip it read, in a head checkout that keeps no credential", () => {
+  const select = workflow("pr-unblock.yml").jobs["resolve-conflicts-select"];
+  assert.deepEqual(select.permissions, { contents: "read", "pull-requests": "read" });
+  assert.equal(select.uses, undefined, "a base job, never a runner");
+  assert.deepEqual(stepSecrets(select), []);
+  const step = (id) => select.steps.find((s) => s.id === id);
+  assert.equal(step("slot").with["applied-by-supported"], "patch");
+  assert.equal(step("slot").with.activity, "resolve-conflicts");
+  const head = select.steps.find((s) => s.name === "Check out the PR head");
+  assert.deepEqual(
+    [head.with.ref, head.with.path, head.with["fetch-depth"], head.with["persist-credentials"]],
+    ["${{ steps.head.outputs.sha }}", "head", 0, false],
+  );
+  assert.equal(step("prepare")["working-directory"], "head");
+  assert.equal(step("prepare").env.BASE_SHA, "${{ steps.base-sha.outputs.sha }}");
+  assert.match(step("prepare").run, /\.base\/\.github\/scripts\/merge-base\/run-prepare\.sh/);
+  assert.match(step("merge-bin").run, /\.base\/\.github\/scripts\/merge-base\/prepare\.sh/);
+  assert.match(step("base-sha").run, /git -C \.base rev-parse HEAD/);
+  // proceed: true only for a conflicted merge, false for a skip, a clean merge
+  // or an escalation, empty for a stop before the merge.
+  const proceed = (applies, state) =>
+    evaluate(select.outputs.proceed, { "steps.slot.outputs.applies": applies, "steps.prepare.outputs.merge-state": state });
+  assert.equal(proceed("true", "conflicted"), "true");
+  assert.equal(proceed("true", "clean"), "false");
+  assert.equal(proceed("true", "escalate"), "false");
+  assert.equal(proceed("false", ""), "false");
+  assert.equal(proceed("", ""), "");
+  assert.equal(proceed("true", ""), "", "a merge step that failed");
+});
+
+// merge-base: the patch is measured from a conflict tree GitHub does not
+// hold, so the scan reads it as text and never applies it to the head; a
+// binary hunk, whose bytes the text does not show, blocks.
+const CONFLICT_PATCH = [
+  "diff --git a/a.txt b/a.txt",
+  "index 1111111111111111111111111111111111111111..2222222222222222222222222222222222222222 100644",
+  "--- a/a.txt",
+  "+++ b/a.txt",
+  "@@ -1,5 +1 @@",
+  "-<<<<<<< HEAD",
+  "-pr",
+  "-=======",
+  "-main",
+  "->>>>>>> main",
+  "+pr and main",
+  "",
+].join("\n");
+test("leak scan: a merge-base patch is scanned as text, never applied to the head, and a binary hunk blocks", async (t) => {
+  const plantPatch = (text) => ({ afterCollect: ({ temp }) => writeFileSync(join(temp, "patch", "patch.diff"), text) });
+  const text = await scanWith(t, () => {}, undefined, { ...plantPatch(CONFLICT_PATCH), env: { TEXT_PATCH: "true" } });
+  assert.deepEqual([text.clean, text.failed], ["true", null]);
+  // The same patch as any other activity's must apply to the head.
+  const applied = await scanWith(t, () => {}, undefined, { ...plantPatch(CONFLICT_PATCH), env: { TEXT_PATCH: "false" } });
+  assert.equal(applied.clean, "false");
+  assert.match(applied.failed, /the patch does not apply to the head/);
+  const binary = `${CONFLICT_PATCH}diff --git a/b.bin b/b.bin\nnew file mode 100644\nindex 0000000000000000000000000000000000000000..3333333333333333333333333333333333333333\nGIT binary patch\nliteral 4\nLcmZ?wbYcJl00RI3\n\nliteral 0\nHcmV?d00001\n\n`;
+  const blocked = await scanWith(t, () => {}, undefined, { ...plantPatch(binary), env: { TEXT_PATCH: "true" } });
+  assert.equal(blocked.clean, "false");
+  assert.match(blocked.failed, /a merge-base patch holds a binary hunk/);
+  assert.doesNotMatch(blocked.failed, /rotate/);
+  const leaked = await scanWith(t, () => {}, undefined, { ...plantPatch(CONFLICT_PATCH.replace("+pr and main", `+${KEY}`)), env: { TEXT_PATCH: "true" } });
+  assert.equal(leaked.clean, "false");
+  assert.match(leaked.failed, /rotate this credential/);
+  // TEXT_PATCH is the caller's input, never a run job output.
+  const step = scanSteps().find((s) => s.id === "leak-scan");
+  assert.equal(step.env.TEXT_PATCH, "${{ inputs.merge-conflict-tree != '' }}");
+});
+
+// The read runner merges the select job's pinned base again before the model
+// and refuses any other conflict tree; the merge inputs go with merge-base
+// alone, and the patch is measured from the conflict tree.
+test("pr-run-activity-read.yml: merge-base merges the select job's base again, must reach its conflict tree, and measures the patch from it", () => {
+  const steps = workflow("pr-run-activity-read.yml").jobs.run.steps;
+  const at = (name) => steps.findIndex((s) => s.name === name);
+  const step = (name) => steps[at(name)];
+  const inputs = step("Check the merge inputs");
+  const checks = (prepare, base, tree) =>
+    evaluate(inputs.if, { "steps.config.outcome": "success", "steps.config.outputs.prepare": prepare, "inputs.merge-base-sha": base, "inputs.merge-conflict-tree": tree });
+  assert.equal(checks("merge-base", "", ""), true);
+  assert.equal(checks("ci-context", "a".repeat(40), ""), true, "a merge input on another mode is refused");
+  assert.equal(checks("ci-context", "", "b".repeat(40)), true);
+  assert.equal(checks("ci-context", "", ""), false);
+  assert.ok(at("Check the merge inputs") < at("Check out the PR head"), "before any head code");
+  assert.ok(at("Copy the merge scripts from the base") < at("Check out the PR head"));
+  const merge = steps.find((s) => s.id === "merge");
+  assert.ok(at("Assert the head is the gated SHA") < steps.indexOf(merge) && steps.indexOf(merge) < at("Stage the skill's files in the checkout"));
+  assert.equal(merge.env.BASE_SHA, "${{ inputs.merge-base-sha }}");
+  assert.equal(merge.env.EXPECT_STATE, "conflicted");
+  assert.equal(merge.env.EXPECT_TREE, "${{ inputs.merge-conflict-tree }}");
+  assert.match(merge.run, /bash "\$BIN\/run-prepare\.sh"/);
+  assert.match(merge.run, /bash "\$BIN\/context\.sh" "\$HEAD_SHA" "\$BASE_SHA" "\$STAGE\/merge"/);
+  assert.equal(merge.env.GIT_NO_REPLACE_OBJECTS, "1");
+  assert.match(step("Stage the skill's files in the checkout").run, /chmod -R a-w \.lane\/merge/);
+  const checkout = step("Check out the PR head");
+  assert.equal(evaluate(checkout.with["fetch-depth"], { "steps.config.outputs.prepare": "merge-base" }), 0);
+  assert.equal(evaluate(checkout.with["fetch-depth"], { "steps.config.outputs.prepare": "ci-context" }), 1);
+  assert.equal(checkout.with["persist-credentials"], false);
+  const collect = steps.find((s) => s.id === "patch");
+  assert.equal(collect.env.FROM_TREE, "${{ steps.config.outputs.prepare == 'merge-base' && steps.merge.outputs.conflict-tree || '' }}");
+  assert.match(collect.run, /collect-patch\.sh" "\$HEAD_SHA" "\$PATCH_DIR\/patch\.diff" \$\{FROM_TREE:\+"\$FROM_TREE"\}/);
+});
+
+// The write runner's apply-patch under the merge-base row merges the pinned
+// base again, refuses any other state or tree, and hands apply-patch.mjs the
+// merge, the base copy of tree-entries.sh and only the merge row's reasons.
+test("pr-run-activity-write.yml: apply-patch under the merge-base row merges the pinned base again and must reach the select job's tree", () => {
+  const steps = workflow("pr-run-activity-write.yml").jobs.run.steps;
+  const at = (name) => steps.findIndex((s) => s.name === name);
+  const prepare = steps.find((s) => s.id === "prepare");
+  const applyMode = { "steps.lane-token.outputs.token": "t", "steps.config.outputs.prepare": "apply-patch", "inputs.patch-prepare": "merge-base" };
+  assert.equal(evaluate(prepare.if, applyMode), true);
+  assert.equal(evaluate(prepare.if, { ...applyMode, "inputs.patch-prepare": "ci-context" }), false);
+  const values = { ...applyMode, "inputs.patch-merge-base-sha": "p".repeat(40), "inputs.patch-merge-state": "conflicted", "inputs.patch-conflict-tree": "t".repeat(40), "steps.trusted-base.outputs.commit": "d".repeat(40) };
+  assert.equal(evaluate(prepare.env.BASE_SHA, values), "p".repeat(40), "the pinned base, never the tip now");
+  assert.equal(evaluate(prepare.env.EXPECT_STATE, values), "conflicted");
+  assert.equal(evaluate(prepare.env.EXPECT_TREE, values), "t".repeat(40));
+  assert.ok(at("Check the merge patch's pinned base") < at("Request the lane token"));
+  const checkout = steps[at("Check out the PR head")];
+  assert.equal(evaluate(checkout.with["fetch-depth"], { "steps.config.outputs.prepare": "apply-patch", "inputs.issue-number": "", "inputs.patch-prepare": "merge-base" }), 0);
+  assert.equal(evaluate(checkout.with["fetch-depth"], { "steps.config.outputs.prepare": "apply-patch", "inputs.issue-number": "", "inputs.patch-prepare": "ci-context" }), 1);
+  const script = steps.find((s) => s.id === "act-script");
+  assert.equal(script.env.MERGE_STATE, "${{ inputs.patch-prepare == 'merge-base' && steps.prepare.outputs.merge-state || '' }}");
+  assert.equal(script.env.CONFLICT_TREE, "${{ inputs.patch-prepare == 'merge-base' && steps.prepare.outputs.conflict-tree || '' }}");
+  assert.equal(script.env.TREE_ENTRIES_SHA256, "${{ inputs.patch-prepare == 'merge-base' && steps.merge-bin.outputs.tree-entries-sha256 || '' }}");
+  assert.equal(steps.find((s) => s.id === "patch-select").env.MERGE_STATE, "${{ inputs.patch-merge-state }}");
+});
+
+// report-escalation passes the select and push jobs' merge reasons to the
+// write runner as its escalation-reason input, which the first step holds to
+// the runner's reasons: each must pass it, and a reason outside the set fails.
+test("pr-run-activity-write.yml: the first step admits every resolve-conflicts escalation reason as the escalation-reason input", () => {
+  const step = workflow("pr-run-activity-write.yml").jobs.run.steps[0];
+  const run = (reason, extra = {}) =>
+    spawnSync("bash", ["-c", step.run], {
+      encoding: "utf8",
+      env: { PATH: process.env.PATH, APP_SENDER_ID: "1", DEFAULT_BRANCH: "main", ESCALATION_REASON: reason, ...extra },
+    }).status;
+  for (const reason of [
+    "repeat-cap",
+    "protected-path-conflict",
+    "unresolved-conflict",
+    "workflow-staged",
+    "unexpected-path-staged",
+    "conflict-patch-invalid",
+    "conflict-patch-not-applied",
+    "conflict-patch-protected-path",
+  ]) {
+    assert.equal(run(reason), 0, reason);
+  }
+  assert.equal(run("conflict-patch-bogus"), 1);
+  // The merge inputs go with patch-prepare merge-base alone, in PR mode.
+  const merge = { PATCH_PREPARE: "merge-base", PATCH_MERGE_BASE_SHA: "a".repeat(40), PATCH_MERGE_STATE: "conflicted", PATCH_CONFLICT_TREE: "b".repeat(40) };
+  assert.equal(run("", merge), 0);
+  assert.equal(run("", { ...merge, PATCH_MERGE_STATE: "escalate" }), 1);
+  assert.equal(run("", { ...merge, PATCH_CONFLICT_TREE: "" }), 1);
+  assert.equal(run("", { ...merge, PATCH_PREPARE: "ci-context" }), 1, "merge inputs beside another row");
+  assert.equal(run("", { PATCH_PREPARE: "merge-base" }), 1, "the merge row with no inputs");
 });
 
 // --- pr-unblock fix-ci: trusted handoff, unreported rounds, refused collections ---
@@ -4716,6 +5085,7 @@ test("no subscription leg's if: reads a read runner run-job output", () => {
     "pr-unblock.yml address-feedback-subscription",
     "pr-unblock.yml fix-ci-rung-up-subscription",
     "pr-unblock.yml fix-ci-subscription",
+    "pr-unblock.yml resolve-conflicts-subscription",
     "pr-unblock.yml review-dependency-subscription",
   ]);
 });
@@ -4725,12 +5095,13 @@ test("no subscription leg's if: reads a read runner run-job output", () => {
 // read runner's report job is one job for every activity: run 39894065797's
 // listing names "address-feedback / report" with its "Post the check run"
 // step and "address-feedback / broker-check" with its broker step.
-test("pr-unblock.yml: address-feedback's and review-dependency's fallback calls start on a handoff job's jobs-API read, never on a model call's output", (t) => {
+test("pr-unblock.yml: address-feedback's, review-dependency's and resolve-conflicts's fallback calls start on a handoff job's jobs-API read, never on a model call's output", (t) => {
   const { jobs } = workflow("pr-unblock.yml");
   const helper = jobs["fix-ci-handoff"].steps[0];
   for (const [firstId, subId, handoffId, selectId] of [
     ["address-feedback", "address-feedback-subscription", "address-feedback-handoff", "address-feedback-select"],
     ["review-dependency", "review-dependency-subscription", "review-dependency-handoff", "review-dependency-select"],
+    ["resolve-conflicts", "resolve-conflicts-subscription", "resolve-conflicts-handoff", "resolve-conflicts-select"],
   ]) {
     const sub = jobs[subId];
     const handoff = jobs[handoffId];
