@@ -1,14 +1,16 @@
 // The hourly triage sweep's rules, from the owner-approved design: an open
 // issue qualifies when it has no intake-triage comment and no triage or
-// status label, is not a pull request, was not born triaged, and is over an
-// hour old; its author must be one the intake lane admits on open. Each pass
-// dispatches at most 5, and after 2 dispatches that left the issue untriaged
-// the sweep files one needs-triage issue and stops dispatching that issue.
+// status label (the needs-triage floor label is not one), is not a pull
+// request, was not born triaged, and is over an hour old; its author must be
+// one the intake lane admits on open. Each pass dispatches at most 5, and
+// after 2 dispatches that left the issue untriaged the sweep files one
+// needs-triage issue and stops dispatching that issue.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
   decide,
+  FILING,
   hasIntakeComment,
   MAX_DISPATCHES,
   readState,
@@ -35,6 +37,8 @@ const issue = (number, over = {}) => ({
 const APP = 337595936;
 const authors = new Set([String(HUMAN), String(APP)]);
 
+// The needs-triage floor label lands on open whether or not intake runs, so
+// it does not mark an issue triaged: the missing intake comment decides.
 test("a candidate has no triage or status label, is no PR, not born triaged, over an hour old, by an admitted author", () => {
   const issues = [
     issue(1),
@@ -55,7 +59,7 @@ test("a candidate has no triage or status label, is no PR, not born triaged, ove
   ];
   assert.deepEqual(
     selectCandidates({ issues, now: NOW, authorIds: authors }).map((i) => i.number),
-    [14, 1, 13],
+    [14, 1, 2, 13],
   );
 });
 
@@ -88,6 +92,7 @@ test("the sweep state round-trips and is read only from the bot's comment", () =
     filed: 77,
   });
   assert.deepEqual(readState([]), { commentId: null, runs: [], filed: null });
+  assert.equal(readState([{ id: 4, user: BOT, body: renderState({ runs: [11, 22], filed: FILING }) }]).filed, FILING);
 });
 
 test("decide: dispatch first, wait on an unfinished run, dispatch again after one, file after two, stop once filed", () => {
@@ -103,6 +108,7 @@ test("decide: dispatch first, wait on an unfinished run, dispatch again after on
   assert.equal(decide({ state: { runs: [1, 2], filed: null }, latest: { status: "in_progress" } }), "wait");
   assert.equal(decide({ state: { runs: [1, 2], filed: null }, latest: done }), "file");
   assert.equal(decide({ state: { runs: [1, 2], filed: 9 }, latest: done }), "stop");
+  assert.equal(decide({ state: { runs: [1, 2], filed: FILING }, latest: done }), "stop");
 });
 
 test("the filed issue names the issue and every failed run, and carries needs-triage", () => {
@@ -122,13 +128,17 @@ test("the filed issue names the issue and every failed run, and carries needs-tr
 });
 
 // A fake GitHub holding issues, comments and runs, recording every write.
-function fakeGitHub({ issues, comments = {}, runs = {}, failPatch = false }) {
+function fakeGitHub({ issues, comments = {}, runs = {}, failPatch = () => false, filedIssues = [] }) {
   const writes = [];
   let nextRun = 900;
   let nextIssue = 5000;
   let nextComment = 100;
   const call = async (method, path, body) => {
     let m;
+    if (method === "GET" && (m = /^\/search\/issues\?q=([^&]+)&per_page=100&page=(\d+)$/.exec(path))) {
+      assert.equal(decodeURIComponent(m[1]), 'repo:o/r is:issue author:app/github-actions in:title "Intake triage left"');
+      return { incomplete_results: false, items: filedIssues.slice((Number(m[2]) - 1) * 100, Number(m[2]) * 100) };
+    }
     if (method === "GET" && (m = /^\/repos\/o\/r\/issues\?state=open&per_page=100&page=(\d+)$/.exec(path))) {
       return issues.slice((Number(m[1]) - 1) * 100, Number(m[1]) * 100);
     }
@@ -152,7 +162,7 @@ function fakeGitHub({ issues, comments = {}, runs = {}, failPatch = false }) {
       target.labels = [...(target.labels ?? []), ...body.labels.map((name) => ({ name }))];
       return [];
     }
-    if (method === "PATCH" && failPatch) throw new Error(`PATCH ${path}: HTTP 502`);
+    if (method === "PATCH" && failPatch(body)) throw new Error(`PATCH ${path}: HTTP 502`);
     if (method === "POST" || method === "PATCH") return { id: (nextComment += 1) };
     throw new Error(`unexpected ${method} ${path}`);
   };
@@ -222,15 +232,17 @@ test("after 2 untriaged dispatches the sweep files once, then never dispatches o
     first.writes.map((w) => [w.method, w.path]),
     [
       ["POST", "/repos/o/r/issues/1/labels"],
+      ["PATCH", "/repos/o/r/issues/comments/5"],
       ["POST", "/repos/o/r/issues"],
       ["PATCH", "/repos/o/r/issues/comments/5"],
     ],
   );
-  // The label takes the original out of later passes' candidates.
   assert.deepEqual(first.writes[0].body, { labels: ["needs-triage"] });
-  assert.deepEqual(first.writes[1].body.labels, ["needs-triage"]);
+  // The filing is recorded before the issue is filed, so a later pass stops.
+  assert.equal(readState([{ id: 5, user: BOT, body: first.writes[1].body.body }]).filed, FILING);
+  assert.deepEqual(first.writes[2].body.labels, ["needs-triage"]);
   assert.deepEqual(result.filed, [5001]);
-  const marked = first.writes[2].body.body;
+  const marked = first.writes[3].body.body;
   assert.equal(readState([{ id: 5, user: BOT, body: marked }]).filed, 5001);
 
   const second = fakeGitHub({
@@ -268,14 +280,15 @@ test("an issue with more comments than the sweep reads goes to a maintainer, und
 
 test("a pass stops dispatching when the budget left cannot record the run", async () => {
   const gh = fakeGitHub({ issues: [issue(1), issue(2, { created_at: "2026-10-18T09:30:00Z" })] });
-  let left = 6;
+  let left = 7;
   const call = async (...args) => {
-    if (left === 0) throw new Error("call budget of 6 reached");
+    if (left === 0) throw new Error("call budget of 7 reached");
     left -= 1;
     return gh.call(...args);
   };
-  // issues page 1, comments of #1, dispatch, state write: 4 calls; #2's
-  // comments leave 1, too few for a dispatch and its state write.
+  // issues page 1, the hand-off search, comments of #1, dispatch, state
+  // write: 5 calls; #2's comments leave 1, too few for a dispatch and its
+  // state write.
   const result = await runSweep({
     call,
     remaining: () => left,
@@ -289,20 +302,84 @@ test("a pass stops dispatching when the budget left cannot record the run", asyn
   assert.match(result.truncated, /budget/);
 });
 
+// The needs-triage label no longer takes the original out of later passes, so
+// the in-progress record is what stops a second filing.
 test("a filing whose state write fails is not filed again on the next pass", async () => {
+  const comments = { 1: [{ id: 5, user: BOT, body: renderState({ runs: [11, 22], filed: null, runUrl: "u" }) }] };
   const gh = fakeGitHub({
     issues: [issue(1)],
-    comments: { 1: [{ id: 5, user: BOT, body: renderState({ runs: [11, 22], filed: null, runUrl: "u" }) }] },
+    comments,
     runs: {
       11: { status: "completed", conclusion: "failure" },
       22: { status: "completed", conclusion: "failure" },
     },
-    failPatch: true,
+    failPatch: (body) => /filed=[0-9]/.test(body.body),
   });
   const first = await sweep(gh);
   assert.equal(first.failed.length, 1);
+  // The pass persisted the in-progress record before it failed.
+  const recorded = gh.writes.find((w) => w.method === "PATCH").body.body;
+  comments[1] = [{ id: 5, user: BOT, body: recorded }];
   await sweep(gh);
   assert.equal(gh.writes.filter((w) => w.method === "POST" && w.path === "/repos/o/r/issues").length, 1);
+});
+
+test("issues the sweep already filed do not use up the per-pass check limit", async () => {
+  const filed = Array.from({ length: 20 }, (_, i) =>
+    issue(i + 1, { labels: [{ name: "needs-triage" }], created_at: "2026-10-01T00:00:00Z" }),
+  );
+  const gh = fakeGitHub({
+    issues: [...filed, issue(21, { labels: [{ name: "needs-triage" }] })],
+    comments: Object.fromEntries(
+      filed.map((i) => [i.number, [{ id: i.number, user: BOT, body: renderState({ runs: [1, 2], filed: 7000 + i.number }) }]]),
+    ),
+  });
+  const result = await sweep(gh);
+  assert.deepEqual(result.dispatched, [21]);
+});
+
+// Codex P2 on #9303: with needs-triage no longer excluding them, the issues
+// the sweep already handed off would spend the call budget on their comments
+// every pass. One search for the sweep's own hand-off issues skips them unread.
+test("issues the sweep filed a hand-off for are skipped without reading their comments", async () => {
+  const handed = Array.from({ length: 118 }, (_, i) =>
+    issue(i + 1, { labels: [{ name: "needs-triage" }], created_at: "2026-10-01T00:00:00Z" }),
+  );
+  const filedIssues = [
+    ...handed.map((i) => ({
+      number: 6000 + i.number,
+      title: renderFiledIssue({ number: i.number, runs: [{}, {}], repoUrl: "u" }).title,
+      user: BOT,
+    })),
+    // The same title from anyone else excludes nothing.
+    { number: 7000, title: renderFiledIssue({ number: 119, runs: [{}, {}], repoUrl: "u" }).title, user: { login: "someone" } },
+  ];
+  const gh = fakeGitHub({
+    issues: [...handed, issue(119, { labels: [{ name: "needs-triage" }] })],
+    comments: Object.fromEntries(
+      handed.map((i) => [i.number, [{ id: i.number, user: BOT, body: renderState({ runs: [1, 2], filed: 6000 + i.number }) }]]),
+    ),
+    filedIssues,
+  });
+  const reads = [];
+  let left = 120;
+  const call = async (method, path, body) => {
+    if (left === 0) throw new Error("call budget of 120 reached");
+    left -= 1;
+    if (method === "GET") reads.push(path);
+    return gh.call(method, path, body);
+  };
+  const result = await runSweep({ call, remaining: () => left, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors });
+  assert.deepEqual(result.dispatched, [119]);
+  assert.equal(reads.filter((p) => p.includes("/comments")).length, 1);
+});
+
+test("an issue past the comment pages that already carries needs-triage is not handed off again", async () => {
+  const flood = Array.from({ length: 300 }, (_, i) => ({ id: i, user: { login: "someone", id: 9 }, body: "spam" }));
+  const gh = fakeGitHub({ issues: [issue(1, { labels: [{ name: "needs-triage" }] })], comments: { 1: flood } });
+  const result = await sweep(gh);
+  assert.deepEqual(gh.writes, []);
+  assert.deepEqual(result.handedOff, []);
 });
 
 test("issues intake already commented on do not use up the per-pass check limit", async () => {
