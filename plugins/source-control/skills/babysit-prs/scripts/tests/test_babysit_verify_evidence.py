@@ -1470,7 +1470,8 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
         return fake
 
     def test_the_one_refs_issue_binds_like_a_closing_one(self) -> None:
-        # Owner decision 2026-10-23: `Refs: #7` reads issue 7 as its issue.
+        # Owner decision 2026-10-23: a plain `Refs:` line reads the one
+        # issue it names as the pull request's issue.
         self.assertIsNone(read(self.refs("Refs: #7\n\nPart one.")).refusal)
         fake = self.refs("Refs: #7")
         fake.closing_edited = {7: "2026-10-15T00:00:01Z"}
