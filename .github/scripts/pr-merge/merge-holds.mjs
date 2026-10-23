@@ -148,6 +148,10 @@ export function holds(body, items, files, holdPaths, lifters = []) {
   return reasons;
 }
 
+// A log line can carry a changed file's name: escape what would start a
+// workflow command on a new line.
+const escape = (text) => String(text).replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
+
 export function main(argv = process.argv.slice(2)) {
   const [number, bodyFile, discussionFile, filesFile, deniedFile, actorsFile, head] = argv;
   try {
@@ -179,10 +183,10 @@ export function main(argv = process.argv.slice(2)) {
     const reasons = holds(readFileSync(bodyFile, "utf8"), items, files, holdPaths, lifters);
     const held = pathHold(files, holdPaths);
     if (held && lifters.length && Array.isArray(holdPaths)) {
-      console.log(`#${number}: ${lifters.join(", ")} approved this head, which lifts its hold path (${held}).`);
+      console.log(`#${number}: ${lifters.join(", ")} approved this head, which lifts its hold path (${escape(held)}).`);
     }
     for (const reason of reasons) {
-      console.log(`::error::#${number}: ${reason.replaceAll("%", "%25")}.`);
+      console.log(`::error::#${number}: ${escape(reason)}.`);
     }
     if (!reasons.length) {
       console.log(`#${number}: no body hold, no member veto and no hold path.`);
