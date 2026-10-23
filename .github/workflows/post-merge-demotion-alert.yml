@@ -142,14 +142,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
-
       # A workflow_run event's fields pass through as they are. A dispatch's
       # run id is read back from the API, as attempt 1 of the run: accepted
       # only from github-actions[bot] (actor id 41898282) or a listed human,
@@ -853,15 +845,6 @@ jobs:
             exit 1
           fi
 
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: github-token ${{ github.token }}
-
   # The red-main report. It runs after the alert job, so a re-run the alert
   # started is already under way, and only for a full run on main that
   # concluded failure: a cancelled, timed-out or not-started run, and the
@@ -908,14 +891,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
-
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -954,12 +929,3 @@ jobs:
           RUN_WORKFLOW_ID: ${{ needs.alert.outputs.workflow-id }}
           RUN_CREATED: ${{ needs.alert.outputs.created }}
         run: node .base/.github/scripts/post-merge-demotion-alert/report.mjs
-
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: github-token ${{ github.token }}

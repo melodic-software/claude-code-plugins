@@ -65,14 +65,6 @@ jobs:
           path: .base
           persist-credentials: false
 
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
-
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -102,12 +94,3 @@ jobs:
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
           KILL_SWITCH: proceed
         run: node .base/.github/scripts/intake-reenter/reenter.mjs
-
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: github-token ${{ github.token }}

@@ -60,9 +60,7 @@ if [[ -n "$alert_job" ]] && grep -q '^permissions: {}$' "$WORKFLOW" &&
 else
   fail "the alert job's permissions are not exactly issues: write, actions: write, checks: read, contents: read, pull-requests: read"
 fi
-# The API budget log reads GET /rate_limit with the job token; it is no other action.
-uses="$(grep -E '^[[:space:]]*-?[[:space:]]*uses:' <<<"$alert_job" | sed -E 's/^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*//; s/@.*//' |
-  grep -vxF './.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]')"
+uses="$(grep -E '^[[:space:]]*-?[[:space:]]*uses:' <<<"$alert_job" | sed -E 's/^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*//; s/@.*//')"
 checkout="$(awk '/- name: Check out the default branch tip/ { on = 1 } on && /^      - name: Read/ { exit } on' <<<"$alert_job")"
 if [[ "$uses" == actions/checkout && "$checkout" == *"ref: refs/heads/main"* && "$checkout" == *"persist-credentials: false"* ]]; then
   ok "the alert job's one action checks out main's tip without credentials"

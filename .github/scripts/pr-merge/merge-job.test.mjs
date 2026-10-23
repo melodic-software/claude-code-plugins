@@ -47,7 +47,6 @@ test("the re-dispatch for earlier lane merges waits on neither the listing nor t
     list.map((s) => s.name),
     [
       "Check out the default branch tip",
-      "Log the API budget at the start",
       "Set up Node",
       "Check the kill switch",
       "Read report-only",
@@ -56,7 +55,6 @@ test("the re-dispatch for earlier lane merges waits on neither the listing nor t
       "Record the dispatched run",
       "Re-run a red lane-dispatched full run",
       "Record the re-run",
-      "Log the API budget at the end",
     ],
   );
   assert.doesNotMatch(early, /steps\.candidates|steps\.gate|needs\.merge/);
@@ -783,20 +781,13 @@ test("each candidate's check run is written by its own job, the only one holding
   const writerSteps = stepsOf(writer);
   assert.deepEqual(
     writerSteps.map((s) => s.name),
-    [
-      "Check out the default branch tip",
-      "Log the API budget at the start",
-      "Set up Node",
-      "Read the gate's rows",
-      "Show each candidate's refusal as a check run",
-      "Log the API budget at the end",
-    ],
+    ["Check out the default branch tip", "Set up Node", "Read the gate's rows", "Show each candidate's refusal as a check run"],
   );
   assert.match(writerSteps[0].block, /\n {10}ref: refs\/heads\/main\n {10}path: \.base\n {10}persist-credentials: false\n/);
-  for (const { name, block } of writerSteps.slice(3)) {
+  for (const { name, block } of writerSteps.slice(2)) {
     assert.match(block, /\n {8}continue-on-error: true\n/, name);
   }
-  const show = writerSteps[4].block;
+  const show = writerSteps[3].block;
   assert.match(show, /\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n/);
   assert.match(show, /\n {10}SUMMARY_PATH: \$\{\{ runner\.temp \}\}\/rows\/pr-merge-summary\.json\n/);
   assert.match(show, /\n {8}run: node \.base\/\.github\/scripts\/pr-merge\/gate-check\.mjs\n/);

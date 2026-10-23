@@ -74,14 +74,6 @@ jobs:
           path: .base
           persist-credentials: false
 
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
-
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -99,15 +91,6 @@ jobs:
           require-pr: "false"
           require-kind: human
           app-label: agent-ready
-
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: github-token ${{ github.token }}
 
   # Picks the concurrency slot resolve-issue waits on (a run-time cap, not a
   # lane slot in pr-pipeline.yaml): the issue number modulo SLOTS. Workflow
@@ -152,14 +135,6 @@ jobs:
           path: .base
           persist-credentials: false
 
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
-
       - name: Check the WIP cap
         id: wip
         continue-on-error: true
@@ -188,15 +163,6 @@ jobs:
         run: |
           [[ $ISSUE_NUMBER =~ ^[1-9][0-9]*$ && $SLOTS =~ ^[1-9][0-9]*$ ]] || exit 1
           echo "slot=$((ISSUE_NUMBER % SLOTS))" >> "$GITHUB_OUTPUT"
-
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: github-token ${{ github.token }}
 
   # The lanes App's agent-ready label (work-unblock's) starts a run like a
   # listed human's; the App's other labels never start one. No step of this
@@ -325,14 +291,6 @@ jobs:
           path: .base
           persist-credentials: false
 
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
-
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -358,15 +316,6 @@ jobs:
           RESOLVE_RESULT: ${{ needs.resolve-issue.result }}
           REPORT_RESULT: ${{ needs.report-outcome.result }}
         run: node .base/.github/scripts/work-resolve-issue/post-statuses.mjs
-
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: github-token ${{ github.token }}
 
   # The model's outcome file is its own word, so the runner runs the
   # resolve-issue activity's `checks` itself, on a fresh runner no model ran

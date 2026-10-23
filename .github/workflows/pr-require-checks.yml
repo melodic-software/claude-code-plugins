@@ -3133,6 +3133,124 @@ jobs:
       # comments and removes the human-gated label.
       pull-requests: write
       statuses: write
+    env:
+      # api-budget.bash, verbatim (log-api-budget.test.mjs checks): the gh
+      # wrapper and the job-end api-budget notice, since this job has no
+      # checkout of that file.
+      API_BUDGET_SH: |
+        # shellcheck shell=bash
+        # Rate-limit readings from a job's own API responses. GET /rate_limit reports
+        # a different bucket from the one a job's calls spend, so each reading comes
+        # from the x-ratelimit-* headers of a response the job already got. A reading
+        # is one line in $RUNNER_TEMP/api-budget/<token>:
+        #   <status> <limit> <remaining> <used> <reset epoch> <resource>
+        # (`na` for a missing value). api-budget.mjs and babysit_gh.py append the same
+        # lines. Never fails the caller.
+        #
+        #   api_budget_read <token>     gh api -i output on stdin: each header block
+        #                               becomes a reading, every other line passes to
+        #                               stdout unchanged
+        #   api_budget_wrap_gh <token>  defines gh() so `gh api` runs with -i through
+        #                               api_budget_read, keeping stdout, stderr and the
+        #                               exit status as they were (not --paginate without
+        #                               --jq or --template, whose pages -i leaves unmerged)
+        #   api_budget_emit <token>...  the hub collector's notice for each refused
+        #                               (403/429) reading and for the last one; cost is
+        #                               the rise in used since the first earlier reading
+        #                               with the same reset and resource, else na
+        #
+        # pr-require-checks.yml's ci-status job carries this file verbatim in its
+        # API_BUDGET_SH env (it has no checkout of this directory);
+        # log-api-budget.test.mjs keeps the two the same.
+
+        api_budget_read() {
+          local state=${RUNNER_TEMP:-}/api-budget/${1:-}
+          if [[ -z ${RUNNER_TEMP:-} || ! ${1:-} =~ ^[a-z][a-z0-9-]{0,39}$ ]] || ! mkdir -p "${state%/*}" 2>/dev/null; then
+            state=/dev/null
+          fi
+          awk -v state="$state" '
+            function val(k, re) { return (k in h && h[k] ~ re) ? h[k] : "na" }
+            function flush() {
+              printf "%s %s %s %s %s %s\n", status, val("limit", "^[0-9]+$"), val("remaining", "^[0-9]+$"),
+                val("used", "^[0-9]+$"), val("reset", "^[0-9]+$"), val("resource", "^[a-z_]+$") >>state
+              close(state)
+              inhdr = 0
+            }
+            # gh ends each page with a newline before the headers of the next one,
+            # which plain gh api does not print: a body line ends with a newline only
+            # once the next body line comes, and a header block drops it.
+            !inhdr && /^HTTP\/[0-9.]+ [0-9][0-9][0-9]/ { inhdr = 1; status = $2; split("", h); held = 0; next }
+            inhdr {
+              line = $0
+              sub(/\r$/, "", line)
+              if (line == "") { flush(); next }
+              if (tolower(line) ~ /^x-ratelimit-(limit|remaining|used|reset|resource):/) {
+                k = tolower(line); sub(/^x-ratelimit-/, "", k); sub(/:.*/, "", k)
+                v = line; sub(/^[^:]*:[ \t]*/, "", v)
+                h[k] = v
+              }
+              next
+            }
+            { if (held) printf "\n"; printf "%s", $0; held = 1 }
+            END { if (inhdr) flush(); if (held) printf "\n" }
+          '
+        }
+
+        api_budget_wrap_gh() {
+          API_BUDGET_GH_TOKEN=$1
+          gh() {
+            local arg out rc=0 paginate=0 filter=0
+            if [[ ${1:-} != api ]]; then
+              command gh "$@"
+              return
+            fi
+            for arg; do
+              case $arg in
+                -i | --include | --silent | --slurp) command gh "$@"; return ;;
+                --paginate) paginate=1 ;;
+                -q | --jq | -q=* | --jq=* | -t | --template | -t=* | --template=*) filter=1 ;;
+              esac
+            done
+            # Unfiltered pages print as one merged array without -i, one array per
+            # page with it: left as they are.
+            if ((paginate && !filter)); then
+              command gh "$@"
+              return
+            fi
+            out=$(mktemp 2>/dev/null) || { command gh "$@"; return; }
+            command gh api -i "${@:2}" >"$out" || rc=$?
+            api_budget_read "$API_BUDGET_GH_TOKEN" <"$out"
+            rm -f "$out"
+            return "$rc"
+          }
+        }
+
+        api_budget_emit() {
+          local token file where workflow=${GITHUB_WORKFLOW_REF:-}
+          workflow=${workflow%%@*}
+          workflow=${workflow#*/*/}
+          where="workflow=${workflow:-na} job=${GITHUB_JOB:-na} run=${GITHUB_RUN_ID:-na} attempt=${GITHUB_RUN_ATTEMPT:-na}"
+          for token; do
+            file=${RUNNER_TEMP:-}/api-budget/$token
+            [[ -n ${RUNNER_TEMP:-} && -s $file ]] || continue
+            awk -v token="$token" -v where="$where" '
+              NF == 6 { n++; s[n] = $1; l[n] = $2; r[n] = $3; u[n] = $4; t[n] = $5; res[n] = $6 }
+              function line(i,   j, cost) {
+                cost = "na"
+                if (u[i] != "na" && t[i] != "na") {
+                  for (j = 1; j < i; j++) if (t[j] == t[i] && res[j] == res[i] && u[j] != "na") break
+                  if (j < i && u[i] + 0 >= u[j] + 0) cost = u[i] - u[j]
+                }
+                printf "::notice title=api-budget::token=%s %s limit=%s remaining=%s used=%s reset=%s resource=%s cost=%s\n",
+                  token, where, l[i], r[i], u[i], t[i], res[i], cost
+              }
+              END {
+                for (i = 1; i < n; i++) if (s[i] == 403 || s[i] == 429) line(i)
+                if (n) line(n)
+              }' "$file"
+          done
+          return 0
+        }
     steps:
       - name: Check the pull-request contract
         uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
@@ -3162,6 +3280,7 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
+          [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_wrap_gh github-token; }
           BROKER_PATHS='.github/actions/resolve-config/package.json
           .github/actions/resolve-config/package-lock.json'
           for attempt in 1 2 3; do
@@ -3327,6 +3446,7 @@ jobs:
           LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
+          [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_wrap_gh github-token; }
           keep() {
             echo "The cost hold stays for a person: $1."
             exit 0
@@ -3495,6 +3615,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
+          [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_wrap_gh github-token; }
           if [[ ! $BASE_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
             exit 1
@@ -3566,6 +3687,7 @@ jobs:
           HUMAN_GATED: ${{ steps.human_gated.outputs.label }}
           BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
+          [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_wrap_gh github-token; }
           if [[ ! $BASE_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
             exit 1
@@ -3656,6 +3778,7 @@ jobs:
           AUTHOR_ID: ${{ github.event.pull_request.user.id }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
+          [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_wrap_gh github-token; }
           # dependabot[bot], melodic-plugin-release[bot] and
           # melodic-standards-sync[bot], as
           # .github/standards/trusted-actors/trusted-actors.json lists them.
@@ -3785,6 +3908,7 @@ jobs:
           BASE_SHA: ${{ github.event.merge_group.base_sha }}
           BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
+          [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_wrap_gh github-token; }
           pr=$(sed -nE 's#^(refs/heads/)?gh-readonly-queue/.+/pr-([0-9]+)-[0-9a-f]{40}$#\2#p' <<<"$GITHUB_REF")
           if [ -z "$pr" ]; then
             echo "::error::cannot read a pull request number from the merge-group ref '$GITHUB_REF'."
@@ -3877,6 +4001,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
         run: |
+          [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_wrap_gh github-token; }
           lanes_app_id=337595936
           pr=$PR_NUMBER
           if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
@@ -3975,6 +4100,7 @@ jobs:
         env:
           LANES: ${{ toJSON(needs) }}
         run: |
+          [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_emit github-token; }
           results=$(jq -r '
             .["select-tests"] as $s
             | to_entries

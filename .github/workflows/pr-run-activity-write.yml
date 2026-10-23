@@ -945,21 +945,6 @@ jobs:
           pull-requests: ${{ steps.config.outputs.pull-requests }}
           issues: ${{ steps.config.outputs.issues }}
 
-      # The lane token's and the job token's budget at mint, before the head
-      # checkout replaces .base: no step after the activity runs from the base
-      # with the token, so this reading has no job-end pair. The lanes App's
-      # bucket is shared by every job using it. Never fails the job.
-      - name: Log the API budget at mint
-        if: steps.lane-token.outputs.token != ''
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: |
-            lanes-app ${{ steps.lane-token.outputs.token }}
-            github-token ${{ github.token }}
-
       - name: Select the trusted PR text
         if: >-
           steps.lane-token.outputs.token != '' && steps.config.outputs.reads-untrusted == 'true'
@@ -2119,15 +2104,6 @@ jobs:
             echo "No base SHA on the default branch; staying on the default branch tip"
           fi
 
-      # After the base SHA checkout, so the end step runs the same copy.
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
-
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -2223,12 +2199,3 @@ jobs:
           base-path: .base
           head-sha-fallback: ${{ github.event.pull_request.head.sha || github.sha }}
           github-token: ${{ github.token }}
-
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: github-token ${{ github.token }}

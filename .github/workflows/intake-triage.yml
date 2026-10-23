@@ -87,14 +87,6 @@ jobs:
             /docs/conventions/pr-pipeline/
           sparse-checkout-cone-mode: false
 
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
-
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -140,15 +132,6 @@ jobs:
             ids="$ids,$LANES_APP_ID"
           fi
           echo "ids=$ids" >> "$GITHUB_OUTPUT"
-
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: github-token ${{ github.token }}
 
   # The pinned reusable reads no kill switch, so this caller does. Intake has
   # no lane switch of its own; the org and repository switches fail closed
@@ -403,21 +386,6 @@ jobs:
           pull-requests: ${{ steps.config.outputs.pull-requests }}
           issues: ${{ steps.config.outputs.issues }}
 
-      # Measures the run's spend on the lane token and on the job's own token:
-      # this reading and the one at job end bracket the run. The lanes App's
-      # bucket is shared by every job using it, so the lane figure includes
-      # their calls. Never fails the job.
-      - name: Log the API budget at mint
-        if: steps.lane-token.outputs.token != ''
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: |
-            lanes-app ${{ steps.lane-token.outputs.token }}
-            github-token ${{ github.token }}
-
       - name: Write the verdict
         if: steps.lane-token.outputs.token != ''
         env:
@@ -430,17 +398,6 @@ jobs:
           BASE_PATH: .base
           RESOLVED_CONFIG: ${{ runner.temp }}/resolved-config.json
         run: node ".base/$SCRIPT"
-
-      - name: Log the API budget at job end
-        if: always() && steps.lane-token.outputs.token != ''
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: |
-            lanes-app ${{ steps.lane-token.outputs.token }}
-            github-token ${{ github.token }}
 
       # The token is cancelled as soon as the job is done; it would otherwise
       # expire within the hour. This never fails the job.
@@ -491,14 +448,6 @@ jobs:
           ref: refs/heads/main
           path: .base
           persist-credentials: false
-
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
 
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -554,15 +503,6 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: github-token ${{ github.token }}
-
   # The model. Its job's only token is GITHUB_TOKEN with contents: read; it
   # reads the context file and the default branch checkout (its working
   # directory) and fetches only the hosts below, and loads no project
@@ -585,14 +525,6 @@ jobs:
           ref: refs/heads/main
           path: .base
           persist-credentials: false
-
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
 
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -755,15 +687,6 @@ jobs:
           path: ${{ runner.temp }}/refinement/refinement.json
           retention-days: 1
           if-no-files-found: error
-
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: github-token ${{ github.token }}
 
   # Posts the refinement as the lanes App, with the grant apply-verdict gets
   # (issues: write). No model: refine.mjs --apply validates the output

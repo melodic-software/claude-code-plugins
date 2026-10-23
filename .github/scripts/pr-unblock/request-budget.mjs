@@ -1,7 +1,8 @@
 // A fetch wrapper the dispatchers' GitHub adapters share. It counts the calls
 // a run makes, keeps the x-ratelimit-* headers of the last response per
 // resource (the headers are the authoritative reading, per
-// https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api),
+// https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api)
+// and appends each one for the job-end api-budget notice (api-budget.mjs),
 // logs the message and retry-after of a 403 or 429 so a secondary limit can be
 // told from a primary one, and repeats a GET of a URL it already read as a
 // conditional request: a 304 "does not count against your primary rate limit"
@@ -23,6 +24,7 @@
 // createGitHub's retryServerErrors, so only its last answer reaches the above.
 
 import { retryServerErrors } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { recordReading } from "../../actions/log-api-budget/api-budget.mjs";
 
 const RATE_LIMIT_MESSAGE = /rate limit/i;
 
@@ -87,6 +89,7 @@ export function budgetedFetch({
     const response = await fetch(url, { ...init, headers });
     const header = (name) => response.headers?.get?.(name) ?? null;
     const resource = header("x-ratelimit-resource");
+    recordReading({ status: response.status, headers: response.headers });
     if (resource) {
       last.set(resource, ["limit", "remaining", "used", "reset"].map((key) => header(`x-ratelimit-${key}`)));
     }

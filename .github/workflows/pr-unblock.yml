@@ -512,14 +512,6 @@ jobs:
           path: .base
           persist-credentials: false
 
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
-
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -604,15 +596,6 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: github-token ${{ github.token }}
-
   # A select that kept nothing, or handed the PR to a person, runs no model
   # or reply job, so neither check would land on the head and
   # feedback-dispatch.mjs would dispatch it again. This job posts both
@@ -636,14 +619,6 @@ jobs:
           ref: ${{ github.event.repository.default_branch }}
           path: .base
           persist-credentials: false
-
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
 
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -676,15 +651,6 @@ jobs:
           base-path: .base
           head-sha-fallback: ${{ needs.address-feedback-select.outputs.head-sha }}
           github-token: ${{ github.token }}
-
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: github-token ${{ github.token }}
 
   # The model job: a read activity with no write token and no OIDC token in
   # the job that runs head code. The skill fixes the kept threads and records
@@ -924,14 +890,6 @@ jobs:
           path: .base
           persist-credentials: false
 
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
-
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -1019,15 +977,6 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: github-token ${{ github.token }}
-
   # A select that skipped, or handed the PR to a person, runs no model job,
   # so no review-dependency check would land on the head and
   # dependency-dispatch.mjs would dispatch it again on every run. This job
@@ -1052,14 +1001,6 @@ jobs:
           path: .base
           persist-credentials: false
 
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
-
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -1078,15 +1019,6 @@ jobs:
           base-path: .base
           head-sha-fallback: ${{ needs.review-dependency-select.outputs.head-sha }}
           github-token: ${{ github.token }}
-
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: github-token ${{ github.token }}
 
   # The model job: a read activity with no write token and no OIDC token in
   # the job that runs head code. The skill reviews the update and returns its
@@ -1310,14 +1242,6 @@ jobs:
           path: .base
           persist-credentials: false
 
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
-
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -1360,15 +1284,6 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: github-token ${{ github.token }}
-
   # A fix-ci-context skip (a closed PR or no failing check) runs no fix-ci job,
   # so no fix-ci check would land on the head and fix-ci-dispatch.mjs would
   # dispatch it again on every run. This job posts fix-ci neutral on that head,
@@ -1393,14 +1308,6 @@ jobs:
           path: .base
           persist-credentials: false
 
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
-
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -1419,15 +1326,6 @@ jobs:
           base-path: .base
           head-sha-fallback: ${{ needs.fix-ci-context.outputs.head-sha }}
           github-token: ${{ github.token }}
-
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: github-token ${{ github.token }}
 
   # The model job: a read activity with no write token and no OIDC token in
   # the job that runs head code. The skill reruns the failing checks, fixes
@@ -1741,14 +1639,6 @@ jobs:
           path: .base
           persist-credentials: false
 
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
-
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -1786,15 +1676,6 @@ jobs:
           head-sha-fallback: ${{ needs.fix-ci-context.outputs.head-sha }}
           github-token: ${{ github.token }}
 
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: github-token ${{ github.token }}
-
   # GitHub starts no pull_request workflow on a conflicted PR, so a head the
   # lane could not resolve gets no CI and no sign why. This script job, with
   # no model, posts a failing pr-unblock/conflict commit status on that head,
@@ -1822,14 +1703,6 @@ jobs:
           path: .base
           persist-credentials: false
 
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
-
       - name: Post the conflict status
         env:
           GH_TOKEN: ${{ github.token }}
@@ -1838,15 +1711,6 @@ jobs:
           ESCALATION_REASON: unresolved-conflict
           TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: bash .base/.github/scripts/pr-unblock/report-escalation.sh status
-
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: github-token ${{ github.token }}
 
   report-escalation:
     needs:

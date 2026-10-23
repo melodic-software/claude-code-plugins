@@ -201,16 +201,110 @@ def _run_gh(
     (`gh_call_summary`)."""
     kind = gh_call_kind(args, env_overrides)
     _gh_call_counts[kind] = _gh_call_counts.get(kind, 0) + 1
-    return run_command(
-        ["gh", *args],
+    token = None if binary else _api_budget_token(args, env_overrides)
+    proc = run_command(
+        ["gh", "api", "-i", *args[1:]] if token else ["gh", *args],
         allowed_executables=("gh",),
         timeout_seconds=(
             timeout_seconds if timeout_seconds is not None else _default_timeout_seconds
         ),
-        check=check,
+        check=check and not token,
         env_overrides=env_overrides,
         binary=binary,
     )
+    if token:
+        proc.stdout = _api_budget_read(proc.stdout, token)
+        if check and proc.returncode != 0:
+            detail = proc.stderr.strip() or proc.stdout.strip()
+            raise RuntimeError(f"{' '.join(['gh', *args])} failed: {detail}")
+    return proc
+
+
+# Rate-limit readings for the job-end api-budget notice
+# (.github/actions/log-api-budget/api-budget.bash holds the line shape and the
+# notice). Only in a job that names the token: API_BUDGET_TOKEN for a call on
+# the process's own GH_TOKEN, API_BUDGET_OVERRIDE_TOKEN for one that carries
+# its own. Such an `api` call runs with -i; each header block becomes one
+# reading line in $RUNNER_TEMP/api-budget/<token> and is dropped from stdout,
+# so the caller sees the output it would have without -i. An unfiltered
+# --paginate call, whose pages -i would leave unmerged, runs as it is.
+_API_BUDGET_SKIP_FLAGS = frozenset({"-i", "--include", "--silent", "--slurp"})
+_API_BUDGET_FILTER_FLAGS = frozenset({"-q", "--jq", "-t", "--template"})
+_API_BUDGET_NAME = re.compile(r"[a-z][a-z0-9-]{0,39}")
+_API_BUDGET_STATUS = re.compile(r"HTTP/[0-9.]+ ([0-9]{3})(?:\s|$)")
+_API_BUDGET_VALUES = {
+    "limit": re.compile(r"[0-9]+"),
+    "remaining": re.compile(r"[0-9]+"),
+    "used": re.compile(r"[0-9]+"),
+    "reset": re.compile(r"[0-9]+"),
+    "resource": re.compile(r"[a-z_]+"),
+}
+
+
+def _api_budget_token(
+    args: list[str], env_overrides: Mapping[str, str] | None
+) -> str | None:
+    if not args or args[0] != "api" or _API_BUDGET_SKIP_FLAGS.intersection(args):
+        return None
+    # Unfiltered pages print as one merged array without -i, one per page with it.
+    flags = {arg.split("=", 1)[0] for arg in args}
+    if "--paginate" in flags and not flags & _API_BUDGET_FILTER_FLAGS:
+        return None
+    own = bool(env_overrides and "GH_TOKEN" in env_overrides)
+    name = os.environ.get(
+        "API_BUDGET_OVERRIDE_TOKEN" if own else "API_BUDGET_TOKEN", ""
+    )
+    if not os.environ.get("RUNNER_TEMP") or not _API_BUDGET_NAME.fullmatch(name):
+        return None
+    return name
+
+
+def _api_budget_read(stdout: str, token: str) -> str:
+    """`gh api -i` output without its header blocks; each block is appended as
+    a reading. Never raises: a reading that cannot be written is dropped."""
+    body: list[str] = []
+    readings: list[str] = []
+    headers: dict[str, str] | None = None
+    status = ""
+    for line in stdout.splitlines(keepends=True):
+        bare = line.rstrip("\r\n")
+        if headers is None:
+            match = _API_BUDGET_STATUS.match(bare)
+            if match:
+                status, headers = match.group(1), {}
+                # gh ends a page with a newline before the next page's headers.
+                if body and body[-1].endswith("\n"):
+                    body[-1] = body[-1][:-1]
+            else:
+                body.append(line)
+            continue
+        if bare == "":
+            readings.append(_api_budget_line(status, headers))
+            headers = None
+            continue
+        name, _, value = bare.partition(":")
+        key = name.strip().lower()
+        if key.startswith("x-ratelimit-"):
+            headers[key.removeprefix("x-ratelimit-")] = value.strip()
+    if headers is not None:
+        readings.append(_api_budget_line(status, headers))
+    if readings:
+        try:
+            path = os.path.join(os.environ["RUNNER_TEMP"], "api-budget")
+            os.makedirs(path, exist_ok=True)
+            with open(os.path.join(path, token), "a", encoding="utf-8") as handle:
+                handle.writelines(readings)
+        except OSError:
+            pass
+    return "".join(body)
+
+
+def _api_budget_line(status: str, headers: Mapping[str, str]) -> str:
+    values = [
+        headers[key] if pattern.fullmatch(headers.get(key, "")) else "na"
+        for key, pattern in _API_BUDGET_VALUES.items()
+    ]
+    return f"{status} {' '.join(values)}\n"
 
 
 def run_gh(args: list[str], *, timeout_seconds: float | None = None) -> str:

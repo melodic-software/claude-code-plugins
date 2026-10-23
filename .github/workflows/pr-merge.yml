@@ -141,14 +141,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
-
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -370,15 +362,6 @@ jobs:
           retention-days: 90
           if-no-files-found: error
 
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: github-token ${{ github.token }}
-
   merge:
     # A run started on any other branch would use that branch's copy of this
     # file, so it does nothing. pull_request_target runs carry the PR's base
@@ -585,22 +568,6 @@ jobs:
           issues: ${{ steps.config.outputs.issues }}
           actions: ${{ steps.config.outputs.actions }}
           superseded-ok: true
-
-      # Measures the run's spend on the lane token and on the job's own token
-      # (the verdict reads, the listing): this reading and the one at job end
-      # bracket the run, and run even when it times out. The lanes App's
-      # bucket is shared by every job using it, so the lane figure includes
-      # their calls. Never fails the job.
-      - name: Log the API budget at mint
-        if: steps.lane-token.outputs.token != ''
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: |
-            lanes-app ${{ steps.lane-token.outputs.token }}
-            github-token ${{ github.token }}
 
       # Candidates: open, non-draft PRs into main that the lanes App
       # (merge.agent-identity on main) or the owner account opened, plus
@@ -1219,10 +1186,7 @@ jobs:
         timeout-minutes: 1
         uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
-          phase: end
-          tokens: |
-            lanes-app ${{ steps.lane-token.outputs.token }}
-            github-token ${{ github.token }}
+          tokens: lanes-app github-token
 
       # One line per sweep, in the log and the summary: the two tokens' spend
       # since mint (`unknown` when the hourly window rolled), the candidates
@@ -1614,14 +1578,6 @@ jobs:
           path: .base
           persist-credentials: false
 
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
-
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -1645,12 +1601,3 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           SUMMARY_PATH: ${{ runner.temp }}/rows/pr-merge-summary.json
         run: node .base/.github/scripts/pr-merge/gate-check.mjs
-
-      - name: Log the API budget at the end
-        if: always()
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: github-token ${{ github.token }}
