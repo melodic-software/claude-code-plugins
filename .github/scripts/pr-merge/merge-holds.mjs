@@ -13,14 +13,18 @@
 //   lifts it; an item with no text lifts nothing.
 // - A hold path: a changed file, or a renamed file's old path, matching the
 //   merge lane's denied paths, which resolve-config resolves as the config's
-//   merge.diff-check.denied-paths plus HOLD_PATH_FLOOR.
+//   merge.diff-check.denied-paths plus HOLD_PATH_FLOOR. A person on the
+//   trusted-actor list lifts it by approving the head: their newest review of
+//   the head that approves, requests changes or was dismissed must approve.
 //
 // Command line: merge-holds.mjs <number> <body-file> <discussion-file>
-// <files-file> <denied-paths-file>. The discussion file holds one REST issue
-// comment, review or review comment per line; the files file one JSON array
-// per changed file, its path then any renamed-from path; the denied-paths file
-// the config's merge.diff-check.denied-paths as JSON. Each hold prints as an
-// ::error:: and exits 1; no hold exits 0.
+// <files-file> <denied-paths-file> <trusted-actors-file> <head-sha>. The
+// discussion file holds one REST issue comment, review or review comment per
+// line; the files file one JSON array per changed file, its path then any
+// renamed-from path; the denied-paths file the config's
+// merge.diff-check.denied-paths as JSON; the trusted-actors file
+// trusted-actors.json. Each hold prints as an ::error:: and exits 1; no hold
+// exits 0.
 import { readFileSync } from "node:fs";
 import { posix } from "node:path";
 import process from "node:process";
@@ -61,6 +65,9 @@ export function vetoers(items) {
 // One REST issue comment, review or review comment as a vetoers item.
 export const fromRest = (row) => ({
   login: String(row?.user?.login ?? ""),
+  userId: row?.user?.id,
+  state: row?.state,
+  commitId: row?.commit_id,
   isUser: row?.user?.type === "User",
   association: row?.author_association,
   at: String(row?.submitted_at ?? row?.created_at ?? ""),
@@ -90,13 +97,40 @@ export function holdPathsOf(denied) {
     : null;
 }
 
+// The trusted people (numeric `humans` ids) whose newest deciding review of
+// `head` among `items` approves it, sorted by login.
+export function pathLifters(items, humans, head) {
+  const newest = new Map();
+  for (const item of items) {
+    if (!item.isUser || !humans.has(item.userId) || item.commitId !== head) {
+      continue;
+    }
+    if (!["APPROVED", "CHANGES_REQUESTED", "DISMISSED"].includes(item.state)) {
+      continue;
+    }
+    if (!newest.has(item.userId) || item.at >= newest.get(item.userId).at) {
+      newest.set(item.userId, item);
+    }
+  }
+  return [...newest.values()]
+    .filter(({ state }) => state === "APPROVED")
+    .map(({ login }) => login)
+    .sort();
+}
+
 // Why the pull request's `body`, discussion `items` and changed `files` hold
-// it; empty when nothing does.
-export function holds(body, items, files, holdPaths) {
+// it; empty when nothing does. `lifters` approved the head, which lifts a hold
+// path but not an unreadable file list or hold-path list.
+export function holds(body, items, files, holdPaths, lifters = []) {
   const reasons = [];
   const pathReason = pathHold(files, holdPaths);
-  if (pathReason) {
-    reasons.push(`${pathReason}; a person merges it`);
+  const readable = Array.isArray(files) && Array.isArray(holdPaths);
+  if (pathReason && !(readable && lifters.length)) {
+    reasons.push(
+      readable
+        ? `${pathReason}; an approving review of this head by a person on the trusted-actor list lifts it, then re-run ci-status`
+        : pathReason,
+    );
   }
   if (BODY_HOLD.test(String(body ?? ""))) {
     reasons.push("its body holds it (a line opening with 'Hold:', or 'do not merge'); removing that text lifts it");
@@ -109,16 +143,38 @@ export function holds(body, items, files, holdPaths) {
 }
 
 export function main(argv = process.argv.slice(2)) {
-  const [number, bodyFile, discussionFile, filesFile, deniedFile] = argv;
+  const [number, bodyFile, discussionFile, filesFile, deniedFile, actorsFile, head] = argv;
   try {
-    if (!/^[1-9][0-9]*$/.test(String(number)) || !bodyFile || !discussionFile || !filesFile || !deniedFile) {
-      throw new Error("usage: merge-holds.mjs <number> <body-file> <discussion-file> <files-file> <denied-paths-file>");
+    if (
+      !/^[1-9][0-9]*$/.test(String(number)) ||
+      !bodyFile ||
+      !discussionFile ||
+      !filesFile ||
+      !deniedFile ||
+      !actorsFile ||
+      !/^[0-9a-f]{40}$/.test(String(head))
+    ) {
+      throw new Error(
+        "usage: merge-holds.mjs <number> <body-file> <discussion-file> <files-file> <denied-paths-file> <trusted-actors-file> <head-sha>",
+      );
     }
     const lines = (file) => readFileSync(file, "utf8").split("\n").filter((line) => line.trim());
     const items = lines(discussionFile).map((line) => fromRest(JSON.parse(line)));
     const files = lines(filesFile).flatMap((line) => JSON.parse(line).map(String));
     const holdPaths = holdPathsOf(JSON.parse(readFileSync(deniedFile, "utf8")));
-    const reasons = holds(readFileSync(bodyFile, "utf8"), items, files, holdPaths);
+    const actors = JSON.parse(readFileSync(actorsFile, "utf8"))?.actors;
+    if (!Array.isArray(actors)) {
+      throw new Error("the trusted-actor list has no actors");
+    }
+    const humans = new Set(
+      actors.filter((actor) => actor?.kind === "human" && Number.isInteger(actor?.id)).map(({ id }) => id),
+    );
+    const lifters = pathLifters(items, humans, head);
+    const reasons = holds(readFileSync(bodyFile, "utf8"), items, files, holdPaths, lifters);
+    const held = pathHold(files, holdPaths);
+    if (held && lifters.length && Array.isArray(holdPaths)) {
+      console.log(`#${number}: ${lifters.join(", ")} approved this head, which lifts its hold path (${held}).`);
+    }
     for (const reason of reasons) {
       console.log(`::error::#${number}: ${reason.replaceAll("%", "%25")}.`);
     }

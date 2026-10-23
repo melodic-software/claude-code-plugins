@@ -339,12 +339,14 @@ test("a pull request whose head now changes a hold path is not armed, or is disa
 // denied paths, by the same pathHold that decides arming above.
 test("merge-holds.mjs holds a changed or renamed-from hold path from the command line", () => {
   const dir = mkdtempSync(join(tmpdir(), "merge-holds-"));
-  const cli = (files, denied) => {
+  const head = "0123456789abcdef0123456789abcdef01234567";
+  const cli = (files, denied, reviews = []) => {
     writeFileSync(join(dir, "body"), "Closes #1");
-    writeFileSync(join(dir, "discussion"), "");
+    writeFileSync(join(dir, "discussion"), reviews.map((row) => JSON.stringify(row)).join("\n"));
+    writeFileSync(join(dir, "actors"), JSON.stringify({ actors: [{ kind: "human", login: "ana", id: 5 }] }));
     writeFileSync(join(dir, "files"), files.map((row) => JSON.stringify(row)).join("\n"));
     writeFileSync(join(dir, "denied"), JSON.stringify(denied));
-    const args = ["7", "body", "discussion", "files", "denied"].map((name, index) => (index ? join(dir, name) : name));
+    const args = [...["7", "body", "discussion", "files", "denied", "actors"].map((name, index) => (index ? join(dir, name) : name)), head];
     return spawnSync(process.execPath, [fileURLToPath(new URL("./merge-holds.mjs", import.meta.url)), ...args], { encoding: "utf8" });
   };
   assert.equal(cli([["docs/a.md"]], ["docs/held.md"]).status, 0);
@@ -353,6 +355,11 @@ test("merge-holds.mjs holds a changed or renamed-from hold path from the command
   assert.match(renamed.stdout, /it changes \.github\/a\.md, a hold path/);
   assert.match(cli([["docs/held.md"]], ["docs/held.md"]).stdout, /it changes docs\/held\.md, a hold path/);
   assert.match(cli([["docs/a.md"]], "docs/held.md").stdout, /the hold paths could not be read/);
+  const approve = (id, commit) => ({ user: { login: `u${id}`, id, type: "User" }, state: "APPROVED", commit_id: commit, submitted_at: "2026-10-23T11:00:00Z" });
+  assert.equal(cli([["docs/held.md"]], ["docs/held.md"], [approve(5, head)]).status, 0);
+  assert.equal(cli([["docs/held.md"]], ["docs/held.md"], [approve(6, head)]).status, 1);
+  assert.equal(cli([["docs/held.md"]], ["docs/held.md"], [approve(5, "f".repeat(40))]).status, 1);
+  assert.equal(cli([["docs/a.md"]], "docs/held.md", [approve(5, head)]).status, 1);
 });
 
 test("hold paths that cannot be read arm nothing", async () => {

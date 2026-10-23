@@ -3613,7 +3613,9 @@ jobs:
       # and a changed file or renamed-from path matching the merge lane's
       # denied paths (pr-pipeline.yaml merge.diff-check.denied-paths, as main
       # has it, plus the floor resolve-config adds), so a push after arming is
-      # held on its own pull request event, by the rules in
+      # held on its own pull request event; a person on the trusted-actor list
+      # (as main has it) lifts a hold path by approving the head, then re-runs
+      # ci-status. All by the rules in
       # .github/scripts/pr-merge/merge-holds.mjs,
       # which this step runs as main has it so a pull request cannot rewrite
       # its own hold: in the queue at the group's base commit, and on a pull
@@ -3702,13 +3704,24 @@ jobs:
             echo "::error::GitHub listed fewer files than #$pr changes, so its hold paths cannot be checked; a person merges it."
             exit 1
           fi
+          head=$(jq -r '.head.sha' <<<"$pull")
+          if [[ ! $head =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the head of #$pr could not be read."
+            exit 1
+          fi
+          actors=.github/standards/trusted-actors/trusted-actors.json
+          read_api "$actors at $BASE_SHA" -H 'Accept: application/vnd.github.raw+json' \
+            "repos/$GITHUB_REPOSITORY/contents/$actors?ref=$BASE_SHA" >"$RUNNER_TEMP/trusted-actors.json" || exit 1
           : >"$RUNNER_TEMP/discussion.jsonl"
           for kind in "issues/$pr/comments" "pulls/$pr/reviews" "pulls/$pr/comments"; do
             rows=$(read_api "the $kind of #$pr" "repos/$GITHUB_REPOSITORY/$kind?per_page=100" --paginate --jq '.[] | @json') || exit 1
             [ -z "$rows" ] || printf '%s\n' "$rows" >>"$RUNNER_TEMP/discussion.jsonl"
           done
           out=$(node "$RUNNER_TEMP/merge-holds.mjs" "$pr" "$RUNNER_TEMP/pr-body.txt" "$RUNNER_TEMP/discussion.jsonl" \
-            "$RUNNER_TEMP/files.jsonl" "$RUNNER_TEMP/denied-paths.json") || { printf '%s\n' "$out"; exit 1; }
+            "$RUNNER_TEMP/files.jsonl" "$RUNNER_TEMP/denied-paths.json" "$RUNNER_TEMP/trusted-actors.json" "$head") || {
+            printf '%s\n' "$out"
+            exit 1
+          }
           # Exit 0 without the module's no-hold line ran no check: fail closed.
           printf '%s\n' "$out"
           grep -qxF "#$pr: no body hold, no member veto and no hold path." <<<"$out" || { echo "::error::merge-holds.mjs exited 0 without its verdict."; exit 1; }

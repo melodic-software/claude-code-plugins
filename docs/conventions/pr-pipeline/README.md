@@ -1039,7 +1039,10 @@ hold paths, so one added after arming stops the merge without waiting for this j
 by, over the live body, discussion and changed files (renamed-from paths included) against main's
 `merge.diff-check.denied-paths` plus the paths resolve-config always adds, on each pull request
 event and in the merge queue, where a red group removes the pull request. A push that adds a hold
-path fails `ci-status` on its own head. The module is read at the pull request's base commit, so a lanes App pull
+path fails `ci-status` on its own head. A person on the trusted-actor list (as main has it) lifts a
+hold path by approving that head: their newest review of it that approves, requests changes or was
+dismissed must approve. Then re-run `ci-status`, since a review does not. The approval lifts no
+body hold or veto, and arming still skips the pull request, so that person merges it. The module is read at the pull request's base commit, so a lanes App pull
 request whose base predates the module fails `ci-status` closed until it is updated with main.
 Its own changes are held: `merge-holds.mjs` and this workflow sit under `.github/**`, a path
 resolve-config always denies, so a lanes App pull request cannot weaken the rule and merge itself. A body edit re-runs

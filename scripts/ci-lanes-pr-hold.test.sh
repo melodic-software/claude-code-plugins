@@ -81,7 +81,9 @@ fi
 # arrays) as one line, as `--jq '.[] | @json'` does. A contents read of
 # pr-pipeline.yaml prints STUB_CONFIG, or answers 404 when STUB_NO_CONFIG is
 # set. A files read prints each row of STUB_FILES (a JSON array of
-# [path, renamed-from?] arrays) as one line.
+# [path, renamed-from?] arrays) as one line. A contents read of
+# trusted-actors.json prints the working tree's list, or answers 404 when
+# STUB_NO_ACTORS is set.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -100,6 +102,10 @@ case "$*" in
   printf '%s\n' "$STUB_CONFIG"
   ;;
 */pulls/*/files\?*) rows "$STUB_FILES" ;;
+*/contents/.github/standards/trusted-actors/trusted-actors.json*)
+  [[ -z "${STUB_NO_ACTORS:-}" ]] || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
+  cat "$STUB_ACTORS"
+  ;;
 */issues/*/comments\?*) discussion; rows "${STUB_ISSUE:-}" ;;
 */pulls/*/reviews\?*) discussion; rows "${STUB_REVIEWS:-}" ;;
 */pulls/*/comments\?*) discussion; rows "${STUB_INLINE:-}" ;;
@@ -115,9 +121,12 @@ BASE=89abcdef0123456789abcdef0123456789abcdef
 QUEUE="refs/heads/gh-readonly-queue/main/pr-7-$SHA"
 LANES='{"id":337595936,"login":"melodic-automation-lanes[bot]","type":"Bot"}'
 pull() { jq -nc --argjson user "${2:-$LANES}" --arg body "$1" --arg ref "${STUB_BASE_REF:-main}" --arg sha "${STUB_BASE_SHA:-$BASE}" \
-  --argjson changed "${STUB_CHANGED:-1}" '{number: 7, user: $user, body: $body, base: {ref: $ref, sha: $sha}, changed_files: $changed}'; }
+  --argjson changed "${STUB_CHANGED:-1}" '{number: 7, user: $user, body: $body, head: {sha: "'"$SHA"'"}, base: {ref: $ref, sha: $sha}, changed_files: $changed}'; }
 comment() { jq -nc --arg login "$1" --arg type "${2:-User}" --arg assoc "$3" --arg at "$4" --arg body "$5" \
   '{user: {login: $login, type: $type}, author_association: $assoc, created_at: $at, body: $body}'; }
+# approval <login> <id> <state> <at> <commit>: a review of a commit.
+approval() { jq -nc --arg login "$1" --argjson id "$2" --arg state "$3" --arg at "$4" --arg commit "$5" \
+  '{user: {login: $login, id: $id, type: "User"}, author_association: "OWNER", state: $state, submitted_at: $at, commit_id: $commit, body: ""}'; }
 review() { jq -nc --arg login "$1" --arg assoc "$2" --arg at "$3" --arg body "$4" \
   '{user: {login: $login, type: "User"}, author_association: $assoc, submitted_at: $at, body: $body}'; }
 
@@ -144,6 +153,7 @@ expect() {
 }
 
 export STUB_PULL STUB_ISSUE='' STUB_REVIEWS='' STUB_INLINE='' STUB_FILES='[["docs/guide.md"]]'
+export STUB_ACTORS="$ROOT/.github/standards/trusted-actors/trusted-actors.json"
 export STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: [docs/held/**]'
 KYLE_VETO="$(comment kyle User MEMBER 2026-10-23T10:00:00Z 'Please do not merge this yet.')"
 
@@ -196,11 +206,30 @@ STUB_ISSUE='' STUB_REVIEWS='' STUB_INLINE=''
 
 STUB_PULL="$(pull 'Closes #1')"
 STUB_FILES='[["docs/held/a.md"]]'
-expect "a file under the config's denied paths fails" 1 3 "::error::#7: it changes docs/held/a.md, a hold path; a person merges it"
+expect "a file under the config's denied paths fails" 1 3 "::error::#7: it changes docs/held/a.md, a hold path; an approving review of this head by a person on the trusted-actor list lifts it"
 STUB_FILES='[["docs/guide.md"],["docs/moved.md",".github/workflows/x.yml"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
 expect "a rename away from a floor path fails on its old path" 1 3 "it changes .github/workflows/x.yml, a hold path"
 STUB_FILES='[["docs/conventions/pr-pipeline.yaml"]]' STUB_PULL="$(pull 'Closes #1')"
 expect "the pipeline config is held by the floor" 1 3 "it changes docs/conventions/pr-pipeline.yaml, a hold path"
+STUB_FILES='[[".github/workflows/x.yml"]]'
+KYLE_OK="$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")"
+STUB_REVIEWS="[$KYLE_OK]"
+expect "a trusted person's approval of the head lifts a hold path" 0 3 "kyle-sexton approved this head, which lifts its hold path"
+STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$BASE")]"
+expect "an approval of an earlier head does not lift it" 1 3 "it changes .github/workflows/x.yml, a hold path"
+STUB_REVIEWS="[$KYLE_OK,$(approval kyle-sexton 153232337 CHANGES_REQUESTED 2026-10-23T12:00:00Z "$SHA")]"
+expect "a later request for changes by the same person takes the lift back" 1 3 "a hold path"
+STUB_REVIEWS="[$KYLE_OK,$(approval kyle-sexton 153232337 COMMENTED 2026-10-23T12:00:00Z "$SHA")]"
+expect "a later comment-only review keeps the lift" 0 3 "lifts its hold path"
+STUB_REVIEWS="[$(approval someone 99 APPROVED 2026-10-23T11:00:00Z "$SHA")]"
+expect "an approval by a person off the trusted-actor list does not lift it" 1 3 "a hold path"
+STUB_REVIEWS="[$KYLE_OK]" STUB_PULL="$(pull $'Hold: x')"
+expect "an approval lifts no body hold" 1 3 "its body holds it"
+STUB_PULL="$(pull 'Closes #1')"
+export STUB_NO_ACTORS=1
+expect "an unreadable trusted-actor list fails closed" 1 0 "::error::could not read .github/standards/trusted-actors/trusted-actors.json at $BASE"
+unset STUB_NO_ACTORS
+STUB_REVIEWS=''
 STUB_FILES='[["docs/guide.md"]]' STUB_CONFIG='merge: {}'
 expect "a config with no denied paths still holds nothing outside the floor" 0 3 "no hold path"
 STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: docs/held/**'
