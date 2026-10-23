@@ -144,6 +144,9 @@ def _evaluate(
     unattended: Any = None,
     *,
     compare: dict[str, Any] = fixtures.UP_TO_DATE,
+    issue_comments: list[dict[str, Any]] | None = None,
+    review_comments: list[dict[str, Any]] | None = None,
+    reviews: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Run `evaluate` over one fixture with every gh seam stubbed."""
 
@@ -161,10 +164,18 @@ def _evaluate(
         mock.patch.object(merge, "gh_json", side_effect=gh_json),
         mock.patch.object(merge, "fetch_review_threads", return_value=[]),
         mock.patch.object(
-            merge, "fetch_pull_request_reviews", return_value=fixtures.CLEAN_APPROVAL
+            merge,
+            "fetch_pull_request_reviews",
+            return_value=fixtures.CLEAN_APPROVAL + (reviews or []),
         ),
-        mock.patch.object(merge, "fetch_issue_comments", return_value=[]),
-        mock.patch.object(merge, "fetch_pull_request_review_comments", return_value=[]),
+        mock.patch.object(
+            merge, "fetch_issue_comments", return_value=issue_comments or []
+        ),
+        mock.patch.object(
+            merge,
+            "fetch_pull_request_review_comments",
+            return_value=review_comments or [],
+        ),
     ):
         return merge.evaluate(
             "owner/repo",
@@ -351,6 +362,215 @@ class NeedsHumanHoldsOnlyAutonomous(unittest.TestCase):
         for run in (None, permits):
             with self.subTest(unattended=run is not None):
                 self.assertFalse(_evaluate(pr, HEAD, None, unattended=run)["ready"])
+
+
+def _comment(
+    login: str,
+    body: str,
+    *,
+    bot: bool = False,
+    at: str = "2026-10-12T10:00:00Z",
+    association: str = "MEMBER",
+) -> dict[str, Any]:
+    return {
+        "authorAssociation": association,
+        "author": {
+            "login": login,
+            "__typename": "Bot" if bot else "User",
+            "is_bot": bot,
+        },
+        "body": body,
+        "createdAt": at,
+    }
+
+
+class PrMergeHoldsOnAHumanVeto(unittest.TestCase):
+    """The pr-merge lane enqueues with no person present, so a person whose
+    newest comment with text says "do not merge" (`HUMAN_MERGE_VETO_RE` only)
+    holds it before the enqueue, until a later comment of theirs. A bare "wait
+    for CI" or a blocking word such as "regression" holds nothing."""
+
+    PR_MERGE = policy.UnattendedPolicy(
+        None,
+        IDENTITY,
+        enabled=True,
+        promoted=True,
+        inputs={"authority": policy.PR_MERGE},
+    )
+    LOCAL = policy.UnattendedPolicy(
+        None,
+        IDENTITY,
+        enabled=True,
+        promoted=True,
+        inputs={"authority": policy.LOCAL_BABYSIT},
+    )
+
+    def _vetoes(self, result: dict[str, Any]) -> list[str]:
+        return [b for b in result["blockers"] if "human blocking comment" in b or "human merge veto" in b]
+
+    def test_a_human_do_not_merge_comment_holds(self) -> None:
+        result = _evaluate(
+            fixtures._pr(),
+            HEAD,
+            None,
+            self.PR_MERGE,
+            issue_comments=[_comment("maintainer", "Please don't merge this yet.")],
+        )
+        self.assertFalse(result["ready"])
+        self.assertEqual(len(self._vetoes(result)), 1, result["blockers"])
+        self.assertIn("maintainer", self._vetoes(result)[0])
+
+    def test_a_human_inline_veto_holds(self) -> None:
+        inline = {
+            "user": {"login": "maintainer", "type": "User"},
+            "author_association": "MEMBER",
+            "body": "Do not merge: this is a regression.",
+        }
+        result = _evaluate(
+            fixtures._pr(), HEAD, None, self.PR_MERGE, review_comments=[inline]
+        )
+        self.assertFalse(result["ready"])
+        self.assertEqual(len(self._vetoes(result)), 1, result["blockers"])
+
+    def test_a_bare_wait_holds_nothing(self) -> None:
+        result = _evaluate(
+            fixtures._pr(),
+            HEAD,
+            None,
+            self.PR_MERGE,
+            issue_comments=[_comment("maintainer", "Wait for CI, then it can go.")],
+        )
+        self.assertEqual(result["blockers"], [])
+
+    def test_blocking_words_without_a_veto_hold_nothing(self) -> None:
+        # The tier's wider vocabulary is not the lane's: these are not vetoes.
+        for body in (
+            "Fixed the regression you flagged.",
+            "Pushed a fix, this is no longer blocking.",
+        ):
+            with self.subTest(body):
+                result = _evaluate(
+                    fixtures._pr(),
+                    HEAD,
+                    None,
+                    self.PR_MERGE,
+                    issue_comments=[_comment("maintainer", body)],
+                )
+                self.assertEqual(result["blockers"], [])
+
+    def test_a_later_comment_from_the_same_person_lifts_the_veto(self) -> None:
+        veto = _comment(
+            "maintainer", "Do not merge until the release is cut.", at="2026-10-12T10:00:00Z"
+        )
+        lifted = _comment(
+            "maintainer", "Release is out, go ahead.", at="2026-10-12T11:00:00Z"
+        )
+        result = _evaluate(
+            fixtures._pr(), HEAD, None, self.PR_MERGE, issue_comments=[veto, lifted]
+        )
+        self.assertEqual(result["blockers"], [])
+
+    def test_an_empty_review_after_the_veto_does_not_lift_it(self) -> None:
+        # GitHub records an inline-only review, or an Approve with no text, as a
+        # review summary with an empty body and a later submittedAt.
+        def empty_review(state: str) -> dict[str, Any]:
+            return {
+                "author": {"login": "maintainer"},
+                "authorAssociation": "MEMBER",
+                "body": "",
+                "state": state,
+                "submittedAt": "2026-10-12T10:01:00Z",
+                "commit": {"oid": HEAD},
+            }
+
+        inline = {
+            "user": {"login": "maintainer", "type": "User"},
+            "author_association": "COLLABORATOR",
+            "body": "Do not merge until X.",
+            "created_at": "2026-10-12T10:00:00Z",
+        }
+        cases = {
+            "inline veto, empty review summary": {
+                "review_comments": [inline],
+                "reviews": [empty_review("COMMENTED")],
+            },
+            "issue-comment veto, approve with no text": {
+                "issue_comments": [_comment("maintainer", "Do not merge yet.")],
+                "reviews": [empty_review("APPROVED")],
+            },
+        }
+        for name, kwargs in cases.items():
+            with self.subTest(name):
+                result = _evaluate(fixtures._pr(), HEAD, None, self.PR_MERGE, **kwargs)
+                self.assertEqual(len(self._vetoes(result)), 1, result["blockers"])
+
+    def test_only_owner_member_or_collaborator_can_veto(self) -> None:
+        for association, holds in (
+            ("NONE", False),
+            ("CONTRIBUTOR", False),
+            ("FIRST_TIME_CONTRIBUTOR", False),
+            ("", False),
+            ("MEMBER", True),
+            ("OWNER", True),
+            ("COLLABORATOR", True),
+        ):
+            with self.subTest(association):
+                veto = _comment("someone", "Do not merge.", association=association)
+                inline = {
+                    "user": {"login": "someone", "type": "User"},
+                    "author_association": association,
+                    "body": "Do not merge.",
+                    "created_at": "2026-10-12T10:00:00Z",
+                }
+                for kwargs in ({"issue_comments": [veto]}, {"review_comments": [inline]}):
+                    result = _evaluate(fixtures._pr(), HEAD, None, self.PR_MERGE, **kwargs)
+                    self.assertEqual(
+                        len(self._vetoes(result)), int(holds), result["blockers"]
+                    )
+
+    def test_another_persons_later_comment_does_not_lift_it(self) -> None:
+        veto = _comment("maintainer", "Do not merge yet.", at="2026-10-12T10:00:00Z")
+        other = _comment("someone", "Looks good to me.", at="2026-10-12T11:00:00Z")
+        result = _evaluate(
+            fixtures._pr(), HEAD, None, self.PR_MERGE, issue_comments=[veto, other]
+        )
+        self.assertEqual(len(self._vetoes(result)), 1, result["blockers"])
+        self.assertIn("maintainer", self._vetoes(result)[0])
+
+    def test_a_bot_or_the_lane_identity_holds_nothing(self) -> None:
+        for comment in (
+            _comment("reviewer[bot]", "Do not merge: blocking regression.", bot=True),
+            _comment(IDENTITY, "Do not merge until the queue drains."),
+        ):
+            with self.subTest(comment["author"]["login"]):
+                result = _evaluate(
+                    fixtures._pr(),
+                    HEAD,
+                    None,
+                    self.PR_MERGE,
+                    issue_comments=[comment],
+                )
+                self.assertEqual(result["blockers"], [])
+
+    def test_another_authority_does_not_scan(self) -> None:
+        result = _evaluate(
+            fixtures._pr(),
+            HEAD,
+            None,
+            self.LOCAL,
+            issue_comments=[_comment("maintainer", "Do not merge.")],
+        )
+        self.assertEqual(result["blockers"], [])
+
+    def test_the_tier_scan_is_not_repeated(self) -> None:
+        result = _evaluate(
+            fixtures._pr(),
+            HEAD,
+            fixtures.TIER,
+            self.PR_MERGE,
+            issue_comments=[_comment("maintainer", "Do not merge.")],
+        )
+        self.assertEqual(len(self._vetoes(result)), 1, result["blockers"])
 
 
 class EvaluateWithoutPolicyIsUnchanged(unittest.TestCase):
@@ -603,6 +823,9 @@ class Unattended(unittest.TestCase):
         # (a verifier refusal skips it).
         if endpoint == f"repos/owner/repo/issues/{PR}/comments?per_page=100":
             return self.comments
+        # The pr-merge human-veto scan reads the inline review comments too.
+        if endpoint == f"repos/owner/repo/pulls/{PR}/comments?per_page=100":
+            return []
         return self._real_paginated(endpoint, label, **kwargs)
 
     def _default_branch(self, repo: str, *, shared: bool = False) -> str:
@@ -766,6 +989,9 @@ class Unattended(unittest.TestCase):
             mock.patch.object(
                 merge, "fetch_paginated_api", side_effect=self._paginated
             ),
+            # The comment readers `babysit_merge` imports from `babysit_gh`
+            # page through that module's own reader.
+            mock.patch.object(gh, "fetch_paginated_api", side_effect=self._paginated),
             mock.patch.object(
                 policy,
                 "recheck_opt_in",
@@ -1061,6 +1287,24 @@ class LaneMode(Unattended):
             out["unattended"]["enqueue"]["killSwitch"],
             {"proceed": True, "reason": "proceed"},
         )
+
+    def test_a_human_do_not_merge_comment_holds_the_enqueue(self) -> None:
+        self.comments = [
+            {
+                "id": 93,
+                "user": {"login": "maintainer", "type": "User"},
+                "author_association": "OWNER",
+                "created_at": "2026-10-12T10:00:00Z",
+                "body": "Do not merge until the release is cut.",
+            }
+        ]
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertTrue(
+            any("human merge veto from maintainer" in b for b in out["blockers"]),
+            out["blockers"],
+        )
+        self.assertNotIn(f"enqueue:{HEAD}:merge_queue", self.log)
 
     def test_the_lane_enqueues_through_graphql_not_merge_async(self) -> None:
         self._async_merge = REAL_ASYNC_MERGE  # type: ignore[method-assign]
