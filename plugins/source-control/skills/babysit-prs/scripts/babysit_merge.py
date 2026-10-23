@@ -984,7 +984,7 @@ def _human_comments(
     review_comments: list[dict[str, Any]] | None,
     actor_config: FeedbackConfig,
 ) -> list[tuple[str, str, str]]:
-    """(login, time, body) of every human-authored issue comment, review
+    """(login, time, body, association) of every human-authored issue comment, review
     summary and inline review comment on the pull request."""
     corpus: list[dict[str, Any]] = list(fetch_issue_comments(repo, number))
     corpus.extend(reviews)
@@ -998,6 +998,7 @@ def _human_comments(
             "author": normalized_rest_author(row),
             "body": row.get("body"),
             "createdAt": row.get("created_at"),
+            "authorAssociation": row.get("author_association"),
         }
         for row in review_comments
     )
@@ -1008,7 +1009,14 @@ def _human_comments(
         login = item.get("author")
         login = login.get("login") if is_json_object(login) else login
         at = item.get("submittedAt") or item.get("createdAt") or ""
-        found.append((str(login or "unknown"), str(at), str(item.get("body") or "")))
+        found.append(
+            (
+                str(login or "unknown"),
+                str(at),
+                str(item.get("body") or ""),
+                str(item.get("authorAssociation") or "").upper(),
+            )
+        )
     return found
 
 
@@ -1029,7 +1037,7 @@ def human_blocking_logins(
     return sorted(
         {
             login
-            for login, _, body in _human_comments(
+            for login, _, body, _ in _human_comments(
                 repo, number, reviews, review_comments, actor_config
             )
             if has_blocking_text(body)
@@ -1053,12 +1061,16 @@ def human_veto_logins(
     so the same person lifts their hold with any later comment that does not
     say it, such as "go ahead", or by editing the veto away. An item with no
     text never lifts it: GitHub records an inline-only review, and an Approve
-    with no text, as a review summary with an empty body.
+    with no text, as a review summary with an empty body. Only an OWNER,
+    MEMBER or COLLABORATOR counts: on a public repository anyone else's
+    comment holds nothing.
     """
     newest: dict[str, tuple[str, str]] = {}
-    for login, at, body in _human_comments(
+    for login, at, body, association in _human_comments(
         repo, number, reviews, review_comments, actor_config
     ):
+        if association not in merge_policy.BLOCKER_ASSOCIATIONS:
+            continue
         if not body.strip():
             continue
         if login not in newest or at >= newest[login][0]:

@@ -890,13 +890,14 @@ except six:
   merge by a person or by another App, such as a release pull request, is not the lane's.
 
 Before it enqueues, the lane reads every person's comments on the pull request: issue comments,
-review summaries and inline review comments. When a person's newest one says "do not merge"
-(`HUMAN_MERGE_VETO_RE`), the pull request is held (`human merge veto from <logins>`). That person
-lifts the hold with any later comment that does not say it, such as "go ahead", or by editing the
-veto away. Another person's comment does not lift it, and neither does an item with no text, such
-as an Approve with no comment or the empty summary of an inline-only review. Comments from a bot or from
-`merge.agent-identity` hold nothing. A bare "wait" is not a veto, and neither are blocking words
-such as "regression" (the autopilot tier's wider scan).
+review summaries and inline review comments. When the newest one from an OWNER, MEMBER or
+COLLABORATOR says "do not merge" (`HUMAN_MERGE_VETO_RE`), the pull request is held (`human merge
+veto from <logins>`). That person lifts the hold with any later comment that does not say it, such
+as "go ahead", or by editing the veto away. Another person's comment does not lift it, and neither
+does an item with no text, such as an Approve with no comment or the empty summary of an inline-only
+review. Comments from a bot or from `merge.agent-identity` hold nothing and neither do comments from
+anyone else, so an outside commenter cannot hold a lane pull request. A bare "wait" is not a veto,
+and neither are blocking words such as "regression" (the autopilot tier's wider scan).
 
 An eligible pull request its score holds gets one `<!-- babysit-merge-risk -->` reasons comment
 naming the score, the reasons and the head. While `merge.report-only` is false, a run that finds the

@@ -365,9 +365,15 @@ class NeedsHumanHoldsOnlyAutonomous(unittest.TestCase):
 
 
 def _comment(
-    login: str, body: str, *, bot: bool = False, at: str = "2026-10-12T10:00:00Z"
+    login: str,
+    body: str,
+    *,
+    bot: bool = False,
+    at: str = "2026-10-12T10:00:00Z",
+    association: str = "MEMBER",
 ) -> dict[str, Any]:
     return {
+        "authorAssociation": association,
         "author": {
             "login": login,
             "__typename": "Bot" if bot else "User",
@@ -417,6 +423,7 @@ class PrMergeHoldsOnAHumanVeto(unittest.TestCase):
     def test_a_human_inline_veto_holds(self) -> None:
         inline = {
             "user": {"login": "maintainer", "type": "User"},
+            "author_association": "MEMBER",
             "body": "Do not merge: this is a regression.",
         }
         result = _evaluate(
@@ -469,6 +476,7 @@ class PrMergeHoldsOnAHumanVeto(unittest.TestCase):
         def empty_review(state: str) -> dict[str, Any]:
             return {
                 "author": {"login": "maintainer"},
+                "authorAssociation": "MEMBER",
                 "body": "",
                 "state": state,
                 "submittedAt": "2026-10-12T10:01:00Z",
@@ -477,6 +485,7 @@ class PrMergeHoldsOnAHumanVeto(unittest.TestCase):
 
         inline = {
             "user": {"login": "maintainer", "type": "User"},
+            "author_association": "COLLABORATOR",
             "body": "Do not merge until X.",
             "created_at": "2026-10-12T10:00:00Z",
         }
@@ -494,6 +503,30 @@ class PrMergeHoldsOnAHumanVeto(unittest.TestCase):
             with self.subTest(name):
                 result = _evaluate(fixtures._pr(), HEAD, None, self.PR_MERGE, **kwargs)
                 self.assertEqual(len(self._vetoes(result)), 1, result["blockers"])
+
+    def test_only_owner_member_or_collaborator_can_veto(self) -> None:
+        for association, holds in (
+            ("NONE", False),
+            ("CONTRIBUTOR", False),
+            ("FIRST_TIME_CONTRIBUTOR", False),
+            ("", False),
+            ("MEMBER", True),
+            ("OWNER", True),
+            ("COLLABORATOR", True),
+        ):
+            with self.subTest(association):
+                veto = _comment("someone", "Do not merge.", association=association)
+                inline = {
+                    "user": {"login": "someone", "type": "User"},
+                    "author_association": association,
+                    "body": "Do not merge.",
+                    "created_at": "2026-10-12T10:00:00Z",
+                }
+                for kwargs in ({"issue_comments": [veto]}, {"review_comments": [inline]}):
+                    result = _evaluate(fixtures._pr(), HEAD, None, self.PR_MERGE, **kwargs)
+                    self.assertEqual(
+                        len(self._vetoes(result)), int(holds), result["blockers"]
+                    )
 
     def test_another_persons_later_comment_does_not_lift_it(self) -> None:
         veto = _comment("maintainer", "Do not merge yet.", at="2026-10-12T10:00:00Z")
@@ -1260,6 +1293,7 @@ class LaneMode(Unattended):
             {
                 "id": 93,
                 "user": {"login": "maintainer", "type": "User"},
+                "author_association": "OWNER",
                 "created_at": "2026-10-12T10:00:00Z",
                 "body": "Do not merge until the release is cut.",
             }
