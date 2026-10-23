@@ -695,6 +695,10 @@ and its queued entries leave; two different identities, or an unreadable head co
   `experimental.monitors` value, or a marketplace plugin added, removed, renamed or re-sourced, or
   the marketplace renamed. A removed, renamed or copied manifest, and a side that cannot be read,
   does not parse or repeats a key, holds. That reason waits for a human like any other HIGH one.
+- **Security findings.** The security lane flags; only a CRITICAL finding holds the merge, as
+  `security-finding`. Its inline comments and summary carry the severity lines
+  `plugins/review/skills/security-review/SKILL.md` defines, and a finding whose severity the gate
+  cannot read counts as CRITICAL.
 - **Cost hold.** A change that could add or raise a charge needs the owner (owner rule,
   2026-10-22). It scores HIGH as `cost-review-required` in both lanes, whatever `high-path-floor`
   says and whatever an adopted author's own paths leave off the floor, and waits for a human like
@@ -848,7 +852,7 @@ except six:
   verdict, both AI review lanes, `ci-status` and the post-merge revert breaker gate the rest. It
   leaves the rest off (owner decision,
   2026-10-17). The local babysit lane ignores these switches and keeps the fixed floor, both
-  caps and the C2 contradictions. The review evidence and the security lane's findings
+  caps and the C2 contradictions. The review evidence and the security lane's CRITICAL findings
   still count.
 
   What is left with every switch off: a lane pull request may change the merge gate, the

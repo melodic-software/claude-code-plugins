@@ -1033,15 +1033,16 @@ any refusal is the blocker `unattended merge refused: <reason>`:
      live. **As of**: 2026-10-12. **Recheck trigger**: that section changes the cap or its paging.
    A LOW score merges, and so does a MED one whose every reason is a class or size reason
    (`babysit_risk.holds`, #9270): an unbound or missing review lane, an open claude-review
-   finding, an unread file listing and every HIGH reason hold. The HIGH path floor holds only the external-effect set
+   finding, an unread file listing and every HIGH reason hold. The security lane holds only on
+   a CRITICAL finding. The HIGH path floor holds only the external-effect set
    `babysit_risk.py`'s docstring names. A plugin or marketplace manifest change scores HIGH as
    `manifest-review-required` only when it installs or runs something new: an executable
    `plugin.json` key, or a marketplace plugin added, removed, renamed or re-sourced. A change that could add or
    raise a charge scores HIGH as `cost-review-required` in both lanes, floor or not, until the body
    links an owner `**Decision recorded.** Cost:` comment on the closing issue or the pull request
-   (`cost_decision`); which changes count is in that docstring. A C3 pull request with no LOW
-   blast-radius rating, which nothing supplies yet, scores MED (`blast-radius-missing`), a class
-   reason that does not hold it.
+   (`cost_decision`); which changes count is in that docstring. A C3 pull request also needs a
+   LOW blast-radius rating, which nothing supplies
+   yet, so it scores at least MED (`blast-radius-missing`) until a C3 rung adds that source.
 
 Check-only (no `--merge`) writes nothing and reports the whole decision under `unattended`. With
 `--merge`, under the identity only: a kill-switch, unreadable-default-branch, post-merge or rung

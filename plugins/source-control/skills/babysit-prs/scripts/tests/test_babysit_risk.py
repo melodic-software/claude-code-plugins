@@ -1382,3 +1382,29 @@ class HoldsTests(unittest.TestCase):
         ):
             with self.subTest(changes=changes):
                 self.assertTrue(self._holds(**changes))
+
+
+class SecurityBlockingTests(unittest.TestCase):
+    """The security lane holds only on its CRITICAL findings
+    (`blocking_findings`); claude-review holds on every open finding."""
+
+    def _security(self, open_findings, blocking):
+        lane = LaneEvidence(
+            "claude-security-review",
+            True,
+            None,
+            open_findings,
+            blocking_findings=blocking,
+        )
+        return score(_input(lanes=(_lane("claude-review"), lane)))
+
+    def test_a_non_critical_security_finding_adds_no_reason(self):
+        self.assertEqual(self._security(3, 0).reasons, ())
+
+    def test_a_critical_security_finding_is_high(self):
+        result = self._security(3, 1)
+        self.assertEqual(result.score, Risk.HIGH)
+        self.assertEqual(_codes(result), ("security-finding",))
+
+    def test_no_severity_count_holds_on_every_finding(self):
+        self.assertEqual(_codes(self._security(2, None)), ("security-finding",))

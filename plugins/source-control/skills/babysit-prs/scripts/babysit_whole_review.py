@@ -113,7 +113,7 @@ def wanted(
         return False
     if not all(r.code in FINDING_CODES for r in risk.reasons):
         return False
-    held = [lane for lane in lanes if (lane.open_findings or 0) > 0]
+    held = [lane for lane in lanes if (babysit_risk.blocking(lane) or 0) > 0]
     return bool(held) and all(lane.whole_review_clears for lane in held)
 
 
