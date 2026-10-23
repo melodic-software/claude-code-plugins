@@ -1,7 +1,7 @@
 # Refine canary
 
-This file exists only to exercise the `pr-refine` lane's `fix-docs` activity — it is never merged.
+This file exists only to exercise the `pr-refine` lane's `fix-docs` activity. It is never merged.
 
-The refine stage tidies a pull request before review — it runs once per pull request.
+The refine stage tidies a pull request before review. It runs once per pull request.
 
-Great question! The lane reads this file — and pushes a patch through `apply-docs-patch`.
+The lane reads this file and pushes a patch through `apply-docs-patch`.
