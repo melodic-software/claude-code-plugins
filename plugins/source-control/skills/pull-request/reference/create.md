@@ -462,7 +462,7 @@ The message names the exact missing heading(s) and the resolved config source (�
 - **Draft:** a PR a person asked to see early, or a multi-session container (a PR later sessions
   will keep adding to before it is complete); both carry a `Draft:` body line that holds them
   against unattended flips. A PR also stays a draft while it waits for `ready`: under the `draft`
-  open state, or after an unattended run.
+  open state, or when one of `ready`'s holds or gates stops the flip.
 - **Ready:** complete and through the local gates, which `/source-control:pull-request ready`
   runs before it flips the PR ([ready-for-review.md](ready-for-review.md)). Ready is what starts
   the test lanes, the AI reviews and code-owner review requests.
@@ -489,18 +489,19 @@ levels are in [../../../reference/config-resolution.md](../../../reference/confi
    (docs/conventions/source-control.yaml at <base-branch>)`.
 2. **Per-user level.** Otherwise take the substituted value from SKILL.md's "PR open state" line.
    `ready` reports the level as `userConfig`.
-3. **Default.** Otherwise, meaning a substituted `draft` or the unsubstituted token, the state is
-   `draft` and the level is `default`. A repository opts into `ready` at the repository level.
+3. **Default.** Otherwise, meaning a substituted `ready` or the unsubstituted token, the state is
+   `ready` and the level is `default`. A consumer opts into `draft` at the per-user or repository
+   level.
 
 A value other than `draft` or `ready` at the level that supplied it is not used: say which level
 held which value, take the state as `draft`, and report the level as `invalid value at <level>
 (fell back to draft)`.
 
-**An unattended run always opens a draft.** When no person is driving this run (a loop lane, a CI
-lane, a `dontAsk` session, a worker or orchestrator dispatched by another skill, and every
-`--pushed` run), a resolved `ready` is not used: the state is `draft` and the level reads
-`draft (unattended run; <level> set ready)`. Such a run acts on text it did not choose, so it
-leaves the flip to `/source-control:pull-request ready`, whose gates run first.
+**An unattended run follows the resolved state.** A loop lane, a CI lane, a `dontAsk` session, a
+worker or orchestrator dispatched by another skill, and every `--pushed` run resolve the state the
+same way an attended run does. A resolved `ready` runs Phase 2.5 as `ready --unattended`, whose
+holds still apply: a `Draft:` body line, a superseded item or a failed gate leaves the PR a draft
+and §2.6 reports why.
 
 **Every state opens as a draft; `ready` is reached by the flip.** The commands below always open
 a draft. When the state resolves to `ready`, run Phase 2.5 ([ready-for-review.md](ready-for-review.md))
@@ -537,7 +538,7 @@ call.
 - **Title shape:** whatever the resolved subject/title convention requires (Conventional Commits
   default shown; a custom resolved `pr_title_pattern` or the project's own convention overrides
   it).
-- **Open state:** always a draft at creation. A draft owes no review: review lanes that filter
+- **Open state:** always a draft at creation (`ready` flips it when the state resolves to `ready`). A draft owes no review: review lanes that filter
   drafts skip it, so opening ready for review would claim a review that has not happened yet.
   `/source-control:pull-request ready` performs the flip ([ready-for-review.md](ready-for-review.md)).
 
@@ -600,7 +601,7 @@ BRANCH=$(git -C "$WT" branch --show-current)
 - **§2.2 (rebase onto the default branch):** skipped. Bringing the branch current is the worker's pre-return responsibility, and residual staleness is caught by the Phase 3 mergeability read and CI. The out-of-tree orchestrator cannot rebase a branch it is not on with a clean tree, so it never owns this step.
 - **§2.4.1 (push):** skipped, replaced by the unpushed-commits assertion above.
 - **§2.4.0 (`Closes #N`), §2.4.1 (body assembly), §2.4.2 (pre-create gates):** run unchanged, except every `git`/diff read is anchored with `git -C "$WT"` and the branch is `$BRANCH`, never the session branch. In §2.4.0 this means passing `$BRANCH` as `parse-branch-issue.sh`'s explicit first positional and running it with `CLAUDE_PROJECT_DIR="$WT"` (`CLAUDE_PROJECT_DIR="$WT" parse-branch-issue.sh "$BRANCH" ['<branch-issue-pattern>']`), so it reads the worktree's own `source-control.md` layers rather than the orchestrator's. The script defaults to `git branch --show-current` **in its own process**, which an out-of-tree orchestrator cannot redirect with `git -C`, so leaving it implicit would parse `Closes #N` from the orchestrator's own branch and silently drop the linkage.
-- **§2.4.3 (create):** the PR create MUST name the head `$BRANCH` explicitly, since the invoker is not on the branch ([GitHub](../../../reference/providers/github/pull-request/create.md#open-the-pr-from-an-out-of-tree-orchestrator)). §2.4.3's open-state step reads `docs/conventions/source-control.yaml` at the PR's base branch, never from `$WT` or the worker's branch. A `--pushed` run is unattended, so its state is always `draft` and it never runs Phase 2.5.
+- **§2.4.3 (create):** the PR create MUST name the head `$BRANCH` explicitly, since the invoker is not on the branch ([GitHub](../../../reference/providers/github/pull-request/create.md#open-the-pr-from-an-out-of-tree-orchestrator)). §2.4.3's open-state step reads `docs/conventions/source-control.yaml` at the PR's base branch, never from `$WT` or the worker's branch. A `--pushed` run is unattended but follows the resolved state: a resolved `ready` runs Phase 2.5 as `ready --unattended` in `$WT`, whose holds still apply.
 
   In a sandboxed session that 403s, substitute §2.4.3's REST form, and anchor it, because the `{owner}`/`{repo}` placeholders expand from the current directory, which here is not the target repository. Run it from the worktree, in the subshell form this section already uses for `resolve-remote.sh`.
 

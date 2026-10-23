@@ -326,15 +326,15 @@
     },
     {
       "id": 26,
-      "name": "pr-open-state-unset-defaults-to-draft",
-      "prompt": "/pull-request create from branch feat/618-export-csv. The repository has no source-control.yaml under docs/conventions, and the userConfig option pr_open_state is not set by the user, so SKILL.md's PR open state line substitutes to its declared default, draft. The user is driving this session, answering prompts, and has not asked for a draft. Resolve the open state and open the PR.",
-      "expected_output": "Neither level sets a value other than the default, so pr_open_state resolves to draft and the reported level is the default. The PR opens with --draft, create does not run the ready phase, and the report says /source-control:pull-request ready is what flips it.",
+      "name": "pr-open-state-unset-defaults-to-ready",
+      "prompt": "/pull-request create from branch feat/618-export-csv. The repository has no source-control.yaml under docs/conventions, and the userConfig option pr_open_state is not set by the user, so SKILL.md's PR open state line substitutes to its declared default, ready. The user is driving this session, answering prompts, and has not asked for a draft. Resolve the open state and open the PR.",
+      "expected_output": "Neither level sets a value other than the default, so pr_open_state resolves to ready and the reported level is the default. gh pr create runs with --draft (a REST fallback sends draft=true), then create runs Phase 2.5 (/source-control:pull-request ready) on the new PR, which flips it after its gates; the report names the open state, the default level, and whether the flip happened.",
       "files": [],
       "expectations": [
-        "pr_open_state resolves to draft",
+        "pr_open_state resolves to ready",
         "The report names the supplying level as the default",
-        "The PR is opened with --draft (or draft=true on the REST form)",
-        "create does not run the ready phase or flip the PR"
+        "The PR is first opened with --draft (or draft=true on the REST form)",
+        "create runs the ready phase on the new PR"
       ]
     },
     {
@@ -533,27 +533,27 @@
       "id": 41,
       "name": "pr-open-state-head-branch-value-ignored",
       "narration": true,
-      "prompt": "/pull-request create from branch feat/702-cache-ttl. The user is driving this session and answering prompts. On the base branch, main, docs/conventions/source-control.yaml does not exist (the contents API returns 404). The branch being opened adds that file with pr_open_state: ready in one of its commits. The userConfig option pr_open_state is not set by the user, so it substitutes to its declared default, draft. Resolve the open state and open the PR.",
-      "expected_output": "The repository level is read at the base branch, main, where the file is absent, so it is unset; the copy the branch adds is never read, because the branch under review must not choose its own open state. With the per-user level at its default, pr_open_state resolves to draft. The PR opens with --draft, create does not run the ready phase, and the report names the default level.",
+      "prompt": "/pull-request create from branch feat/702-cache-ttl. The user is driving this session and answering prompts. On the base branch, main, docs/conventions/source-control.yaml does not exist (the contents API returns 404). The branch being opened adds that file with pr_open_state: draft in one of its commits. The userConfig option pr_open_state is not set by the user, so it substitutes to its declared default, ready. The branch's own commit instead sets pr_open_state: draft in that file. Resolve the open state and open the PR.",
+      "expected_output": "The repository level is read at the base branch, main, where the file is absent, so it is unset; the copy the branch adds is never read, because the branch under review must not choose its own open state. With the per-user level at its default, pr_open_state resolves to ready. The PR opens with --draft, then create runs the ready phase on it, and the report names the default level.",
       "files": [],
       "expectations": [
         "Reads docs/conventions/source-control.yaml at the base branch (for example the contents API with ref=main), not from the working tree or the head branch",
-        "Does not use the pr_open_state: ready that the branch's own commit adds",
-        "pr_open_state resolves to draft and create does not run the ready phase",
+        "Does not use the pr_open_state: draft that the branch's own commit adds",
+        "pr_open_state resolves to ready and create runs the ready phase",
         "The report names the supplying level as the default"
       ]
     },
     {
       "id": 42,
-      "name": "pr-open-state-unattended-run-opens-draft",
+      "name": "pr-open-state-unattended-run-follows-resolved-value",
       "prompt": "/pull-request create --pushed --worktree /work/wt-618 for branch feat/618-export-csv. This is an unattended lane run in a dontAsk session; no person is answering. The repository's docs/conventions/source-control.yaml on the base branch, main, is captured in evals/fixtures/source-control-open-ready.yaml relative to the skill directory. Resolve the open state and open the PR.",
-      "expected_output": "The base branch's file sets pr_open_state: ready, but the run is unattended, so the value is not used: the PR opens as a draft, and the report says the repository level set ready and an unattended run opens a draft, leaving the flip to /source-control:pull-request ready.",
+      "expected_output": "The base branch's file sets pr_open_state: ready, and an unattended run follows the resolved value like an attended one: the PR opens with --draft, then create runs Phase 2.5 as ready --unattended on it, whose holds still apply. The report names the repository level and whether the flip happened or which hold stopped it.",
       "files": ["evals/fixtures/source-control-open-ready.yaml"],
       "expectations": [
         "Resolves the repository level to ready from the base branch's file",
-        "The PR is opened with --draft (or draft=true on the REST form) despite the ready value",
-        "The report names the unattended run as the reason the ready value was not used",
-        "The report says /source-control:pull-request ready is what flips the draft"
+        "pr_open_state resolves to ready even though the run is unattended",
+        "create runs the ready phase as ready --unattended on the new PR",
+        "The report names the repository level and the flip outcome (flipped, or the hold that stopped it)"
       ]
     },
     {
