@@ -105,7 +105,7 @@ import { readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, isTrustedClose, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
@@ -264,26 +264,6 @@ async function closedSince(github, repo, since) {
     .map((item) => Number(item.number));
 }
 
-// Whether a close counts: (a) a listed human made it, matched by id; or (b) a
-// merge in this repository closed it: the `closer` GraphQL gives the issue's
-// last ClosedEvent is a merged pull request or a commit here, whoever merged
-// it. The REST close event carries no link to the pull request, so GraphQL
-// is the read. Any
-// other close, such as a workflow's GITHUB_TOKEN or an outside author closing
-// their own issue, counts for nothing.
-const CLOSER_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
-  repository(owner: $owner, name: $name) {
-    issue(number: $number) {
-      timelineItems(itemTypes: CLOSED_EVENT, last: 1) {
-        nodes { ... on ClosedEvent { closer {
-          __typename
-          ... on PullRequest { merged repository { nameWithOwner } }
-          ... on Commit { repository { nameWithOwner } }
-        } } }
-      }
-    }
-  }
-}`;
 // One answer per issue per run: a swept close is also its dependents'
 // blocker, and a blocker can block several dependents.
 function trustedClose({ github, repo, number, humans, closes }) {
@@ -293,23 +273,6 @@ function trustedClose({ github, repo, number, humans, closes }) {
   return closes.get(number);
 }
 
-async function isTrustedClose(github, repo, closedIssue, humans) {
-  const closer = closedIssue?.closed_by;
-  if (humans.has(closer?.id)) {
-    return true;
-  }
-  if (closedIssue?.state !== "closed" || !NUMBER.test(String(closedIssue.number))) {
-    return false;
-  }
-  const [owner, name] = repo.split("/");
-  const answer = await github("POST", "/graphql", {
-    query: CLOSER_QUERY,
-    variables: { owner, name, number: Number(closedIssue.number) },
-  });
-  const by = answer?.data?.repository?.issue?.timelineItems?.nodes?.at(-1)?.closer;
-  const here = String(by?.repository?.nameWithOwner ?? "").toLowerCase() === repo.toLowerCase();
-  return here && (by.__typename === "Commit" || (by.__typename === "PullRequest" && by.merged === true));
-}
 
 // The admission pace for one run: `take()` answers whether one more issue may
 // get agent-ready now, reading the issue lane's status the first time it is

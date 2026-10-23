@@ -35,6 +35,7 @@ const facts = (overrides = {}) => ({
   rules: RULES,
   parent: null,
   blockers: [],
+  trustedCloses: new Set(),
   timeline: [],
   events: [],
   humans,
@@ -176,20 +177,16 @@ describe("decide", () => {
     assert.equal(result.verdict, "admit");
   });
 
-  test("a closed, completed blocker does not hold it", () => {
-    const result = decide(
-      facts({
-        blockers: [
-          {
-            number: 5,
-            state: "closed",
-            state_reason: "completed",
-            repository_url: "https://api.github.com/repos/o/r",
-          },
-        ],
-      }),
-    );
+  const completed = { number: 5, state: "closed", state_reason: "completed", repository_url: "https://api.github.com/repos/o/r" };
+  test("a blocker closed as completed with a trusted close does not hold it", () => {
+    const result = decide(facts({ blockers: [completed], trustedCloses: new Set([5]) }));
     assert.equal(result.verdict, "admit");
+  });
+
+  test("a blocker closed as completed without a trusted close holds it", () => {
+    const result = decide(facts({ blockers: [completed] }));
+    assert.equal(result.verdict, "wait");
+    assert.match(result.reasons.join(), /#5 is not closed as completed by a listed human or a merge/);
   });
 
   test("skips an issue already agent-ready, or without status: ready", () => {
@@ -227,7 +224,7 @@ describe("decide", () => {
 
 // A fake GitHub for admit(): the issue, its parent, blockers, timeline,
 // events and comments, recording every call.
-function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], timeline = [], events = [], comments = [] } = {}) {
+function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, timeline = [], events = [], comments = [] } = {}) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
@@ -248,6 +245,10 @@ function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], timeline 
     }
     if (path.startsWith(`${base}/dependencies/blocked_by`)) {
       return blockers;
+    }
+    const blocker = path.match(/^\/repos\/o\/r\/issues\/(\d+)$/);
+    if (blocker && closed[blocker[1]]) {
+      return closed[blocker[1]];
     }
     if (path.startsWith(`${base}/timeline`)) {
       return timeline;
@@ -373,6 +374,16 @@ describe("admit", () => {
     const done = writes(fake.calls);
     assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [DEFERRED] })}`);
     assert.match(done[1], /^POST \/repos\/o\/r\/issues\/7\/comments .*open pull request #12/);
+  });
+
+  test("a blocker its own outside author closed as completed keeps it waiting; a listed human's close admits it", async () => {
+    const blocker = { number: 5, state: "closed", state_reason: "completed", repository_url: "https://api.github.com/repos/o/r" };
+    const closedBy = (id) => ({ 5: { ...blocker, closed_by: { id } } });
+    const outsider = await go(fakeGitHub({ blockers: [blocker], closed: closedBy(OUTSIDER) }));
+    assert.equal(outsider.outcome, "waiting");
+    assert.match(outsider.reasons.join(), /#5/);
+    const human = await go(fakeGitHub({ blockers: [blocker], closed: closedBy(HUMAN) }));
+    assert.equal(human.outcome, "admitted");
   });
 
   test("an issue already agent-ready is left alone", async () => {

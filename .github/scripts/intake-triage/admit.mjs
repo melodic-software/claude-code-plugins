@@ -14,8 +14,10 @@
 // - 3: the class, Size and Uncertainty apply-verdict wrote are in `classes`,
 //   `sizes` and `uncertainty`;
 // - 7: the body has a `task-list` line, the criteria the lane checks;
-// - 8: no `refuse-labels` label, every blocker closed as completed (or merged),
-//   and no open pull request in this repository names the issue;
+// - 8: no `refuse-labels` label, every blocker a merged pull request or an
+//   issue closed as completed by a listed human or a merge here (the close
+//   work-unblock counts), and no open pull request in this repository names
+//   the issue;
 // - 9: the author is a listed human or the lanes App;
 // - 10: check-wip-cap's status: over the queued cap, or with the lane paused
 //   over the WIP or held cap (from wip.pause-from), the issue gets
@@ -35,7 +37,7 @@
 // refuse: it never satisfies a criterion the fields, labels or API decide.
 import { readFileSync } from "node:fs";
 
-import { paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { isTrustedClose, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 
 export const AGENT_READY = "agent-ready";
 export const DEFERRED = "admission-deferred";
@@ -75,7 +77,7 @@ export const openPullsNaming = (timeline, repository) =>
 const names = (labels) => (labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
 
 // {verdict: admit | refuse | wait | skip, reasons}. Pure.
-export function decide({ issue, verdict, rules, parent, blockers, timeline, events, humans, appId, repository }) {
+export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, timeline, events, humans, appId, repository }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
@@ -129,9 +131,11 @@ export function decide({ issue, verdict, rules, parent, blockers, timeline, even
     const done =
       blocker.state === "closed" &&
       here(blocker.repository_url, repository) &&
-      (blocker.pull_request ? Boolean(blocker.pull_request.merged_at) : blocker.state_reason === "completed");
+      (blocker.pull_request
+        ? Boolean(blocker.pull_request.merged_at)
+        : blocker.state_reason === "completed" && trustedCloses.has(blocker.number));
     if (!done) {
-      wait.push(`blocker #${blocker.number} is not closed as completed`);
+      wait.push(`blocker #${blocker.number} is not closed as completed by a listed human or a merge`);
     }
   }
   const pulls = openPullsNaming(timeline, repository);
@@ -175,12 +179,24 @@ async function sayWhy(github, repository, base, text) {
 export async function admit({ github, repository, number, verdict, rules, humans, appId, status, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
+  const blockers = await paginate(github, `${base}/dependencies/blocked_by`);
+  // Anyone may close their own issue as completed, so a blocking issue counts
+  // only with a trusted close, read fresh from the issue.
+  const trustedCloses = new Set();
+  for (const blocker of blockers) {
+    if (!blocker.pull_request && blocker.state === "closed" && blocker.state_reason === "completed" && here(blocker.repository_url, repository)) {
+      if (await isTrustedClose(github, repository, await github("GET", `/repos/${repository}/issues/${blocker.number}`), humans)) {
+        trustedCloses.add(blocker.number);
+      }
+    }
+  }
   const decision = decide({
     issue,
     verdict,
     rules,
     parent: rules["types-under-parent"].includes(issue.type?.name) ? await parentOf(github, base) : null,
-    blockers: await paginate(github, `${base}/dependencies/blocked_by`),
+    blockers,
+    trustedCloses,
     timeline: await paginate(github, `${base}/timeline`),
     events: await paginate(github, `${base}/events`),
     humans,
