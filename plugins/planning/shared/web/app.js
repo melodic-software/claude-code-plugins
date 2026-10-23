@@ -3,7 +3,7 @@
 // docked side chat. It reads the state core.js builds (the prototype's names) and acts only through Core.
 (() => {
     const Core = window.Core, root = document.getElementById("app");
-    const E = Core.el;
+    const E = Core.el, { OTHER } = QuestionShape;
     const phone = matchMedia("(max-width: 720px)");
     const coarse = matchMedia("(pointer: coarse)");
     /** Wide enough that the open chat panel pushes the page over (app.css); narrower, it covers the page and is modal. */
@@ -42,7 +42,7 @@
       if (!v.who || v.who !== whoAmI()) return;
       Object.assign(ui.drafts, v.drafts || {}); ui.restoreCur = v.cur || "";
       if (v.kit && typeof v.kit === "object") Object.assign(ui.kd, v.kit);
-      for (const k of KITS) if (k.draftKey && !k.f.value) k.key = null; // shown again from the restored drafts
+      for (const k of Kit.fields) if (k.draftKey && !k.f.value) k.key = null; // shown again from the restored drafts
     }
     const smooth = () => (matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
     /** Ring an element briefly; the class comes off again so a reduced-motion ring (no animation) never lingers. */
@@ -497,10 +497,10 @@
     function pickedText(q, a) {
       if (!q || a.claude || a.option) return "";
       const own = `${isMe(a.cid) ? "your" : "their"} own option`;
-      if (a.picks?.length) return `Picked: ${a.picks.filter(o => o !== "other").map(o => pickLabel(q, o)).join(", ")}${a.other ? `${a.picks.length > 1 ? ", and " : ""}${own}` : ""}`;
+      if (a.picks?.length) return `Picked: ${a.picks.filter(o => o !== OTHER).map(o => pickLabel(q, o)).join(", ")}${a.other ? `${a.picks.length > 1 ? ", and " : ""}${own}` : ""}`;
       if (a.value != null) { const end = a.value === q.min ? q.labels?.min : a.value === q.max ? q.labels?.max : ""; return `Chose ${a.value} of ${q.max}${end ? ` (${end})` : ""}`; }
-      if (a.order?.length) return `Ranked: ${a.order.map(o => (o === "other" ? own : pickLabel(q, o))).join(" > ")}`;
-      if (a.pick === "other") return own[0].toUpperCase() + own.slice(1);
+      if (a.order?.length) return `Ranked: ${a.order.map(o => (o === OTHER ? own : pickLabel(q, o))).join(" > ")}`;
+      if (a.pick === OTHER) return own[0].toUpperCase() + own.slice(1);
       const opt = a.pick && optionsOf(q).find(o => o.id === a.pick);
       if (opt) return `Picked: ${opt.label}`;
       return q.format === "confirm" ? CONFIRM_OTHER : "";
@@ -657,71 +657,18 @@
     }
     const measureAll = () => root.querySelectorAll(".vf-cbox").forEach(measure);
 
-    // ---------- the composer kit: one rule set for every field people write in ----------
-    // send: Enter in a one-line field (chat), Ctrl or Cmd + Enter in a multi-line one, with its hint shown beside it.
-    // The counter (one class) shows from counterFrom, by default the last quarter of the field's maxLength. Escape runs
-    // escape, which cancels an inline edit (a sheet or panel closes on Escape as before). mentions opens the @ picker;
-    // "claude" offers Claude first, where the server files "@Claude" as a request. draftKey() names whose unsent text the
-    // field holds now (a question's): each key keeps its own, and every key's survives a reload (UNSENT).
-    const KIT = new WeakMap(), KITS = new Set(), MOD_KEY = /Mac|iPhone|iPad/.test(navigator.platform) ? "Cmd" : "Ctrl";
-    let kitBooted = false; // fields made after start-up (list rows) paint their counter on input only
-    // cut: false leaves the field without a maxLength (and so without a counter), for text whose send checks its length.
-    function composer(f, { send, counterFrom, escape, mentions, draftKey, verb = "send", cut = true } = {}) {
-      if (cut && !(f.maxLength > 0)) f.maxLength = 2000;
-      const oneLine = f.tagName === "INPUT" || f.rows === 1;
-      const k = { f, send, escape, mentions, draftKey, oneLine, from: cut ? counterFrom ?? Math.ceil(f.maxLength * 0.75) : Infinity, key: null };
-      k.count = E("span", "vf-count-txt"); k.count.setAttribute("aria-live", "polite");
-      k.hint = send && !oneLine ? E("span", "vf-hint vf-keyhint", `${MOD_KEY} + Enter to ${verb}`) : null;
-      if (mentions) for (const [a, v] of [["aria-autocomplete", "list"], ["aria-haspopup", "listbox"], ["aria-expanded", "false"]]) f.setAttribute(a, v);
-      KIT.set(f, k);
-      if (!kitBooted) KITS.add(k);
-      return k;
-    }
-    function kitPaint(k) {
-      const n = k.f.value.length, t = n >= k.from ? `${n} / ${k.f.maxLength}` : "";
-      if (k.count.textContent !== t) k.count.textContent = t;
-    }
-    /** Each keyed field keeps what was typed under its last key and shows what its key holds now. */
-    function kitSwap() {
-      for (const k of KITS) {
-        // a list row made before start-up leaves the set once its row is gone
-        if (!k.draftKey) { if (k.f.isConnected) { k.seen = true; kitPaint(k); } else if (k.seen) KITS.delete(k); continue; }
-        const key = k.draftKey();
-        if (key !== k.key) {
-          if (k.key !== null) { if (k.f.value) ui.kd[k.key] = k.f.value; else delete ui.kd[k.key]; }
-          k.key = key; k.f.value = ui.kd[key] ?? "";
-          if (k.f.tagName === "TEXTAREA") grow(k.f);
-        }
-        kitPaint(k);
-      }
-    }
-    /** Every keyed field's unsent text, the shown ones read from their fields. */
-    function kitStore() {
-      for (const k of KITS) if (k.key !== null) { if (k.f.value) ui.kd[k.key] = k.f.value; else delete ui.kd[k.key]; }
-      return ui.kd;
-    }
-    /** Clear a keyed field's text for a key it sent, shown or not. */
-    function kitSent(f, key) {
-      const k = KIT.get(f); delete ui.kd[key];
-      if (k && k.key === key) { f.value = ""; if (f.tagName === "TEXTAREA") grow(f); kitPaint(k); }
-    }
-    // Follow-up 28: a field scrolls itself into view only while the person types in it, never on a render.
-    const TYPED = { el: null, at: 0 };
-    const typing = f => !!f && TYPED.el === f && performance.now() - TYPED.at < 1000;
-    on(document, "input", e => {
-      TYPED.el = e.target; TYPED.at = performance.now();
-      const k = KIT.get(e.target); if (k) kitPaint(k);
-    }, true);
-    // Runs first; an open @ list keeps its own keys (Enter and Tab pick, Escape closes it), and Ctrl or Cmd + Enter
-    // closes it and sends.
-    on(document, "keydown", e => {
-      const k = KIT.get(e.target);
-      if (!k || e.isComposing || e.keyCode === 229) return;
-      const send = e.key === "Enter" && k.send && !e.shiftKey && !e.altKey;
-      if (ui.mention?.field === e.target) { if (send && (e.ctrlKey || e.metaKey)) { e.preventDefault(); closeMention(); k.send(); } return; }
-      if (send && (k.oneLine || e.ctrlKey || e.metaKey)) { e.preventDefault(); k.send(); }
-      else if (e.key === "Escape" && k.escape) { e.preventDefault(); e.stopPropagation(); k.escape(); }
-    }, true);
+    // ---------- the composer kit (question-shape.js): one rule set for every field people write in ----------
+    // "claude" mentions offer Claude first, where the server files "@Claude" as a request. Every key's unsent text
+    // survives a reload (UNSENT).
+    const Kit = QuestionShape.kit({
+      on,
+      pane: t => t.closest(".vf-center, .vf-chat, .vf-pop, .vf-rail") || root,
+      // Triage 23: a field growing while I type stays in view, with its form's send button when the form fits.
+      grew: t => { if (document.activeElement === t && Kit.typing(t) && !t.closest(".vf-composer-sheet")) reveal(t.closest("form") || t, t); },
+      drafts: { get: k => ui.kd[k], set: (k, v) => { if (v) ui.kd[k] = v; else delete ui.kd[k]; } },
+      mentionOn: f => ui.mention?.field === f,
+      closeMention: () => closeMention(),
+    });
 
     // ---------- read aloud and dictation: the browser's own Web Speech API, each off until the person turns it on ----------
     // Read aloud speaks what this person's page shows of the question: its text, then the option labels on screen, read
@@ -852,17 +799,6 @@
       if (!d || SPEECH.dq !== ui.cur) stopDictation();
     }
 
-    /** Textareas grow with their text up to ~40% of the pane they sit in, then scroll inside. */
-    function grow(t) {
-      const pane = t.closest(".vf-center, .vf-chat, .vf-pop, .vf-rail") || root;
-      const max = Math.max(80, pane.clientHeight * 0.4);
-      t.style.blockSize = "auto";
-      const h = t.scrollHeight + 2;
-      t.style.blockSize = Math.min(h, max) + "px";
-      t.style.overflowY = h > max ? "auto" : "hidden";
-      // Triage 23: a field growing while I type stays in view, with its form's send button when the form fits.
-      if (document.activeElement === t && typing(t) && !t.closest(".vf-composer-sheet")) reveal(t.closest("form") || t, t);
-    }
     /** The nearest scrolling ancestor of el, never #app or the page. */
     function scroller(el) {
       let sc = el.parentElement;
@@ -1093,7 +1029,7 @@
     const propRowB = E("div", "vf-crow");
     const propCancel = btn("vf-btn vf-btn-ghost", "Cancel");
     const propSend = E("button", "vf-btn vf-btn-primary", "Propose"); propSend.type = "submit";
-    const propK = composer(propTa, { send: () => proposePop.requestSubmit(), mentions: true, verb: "propose" });
+    const propK = Kit.composer(propTa, { send: () => proposePop.requestSubmit(), mentions: true, verb: "propose" });
     propRowB.append(propK.count, propK.hint, propCancel, propSend);
     proposePop.append(E("h2", "vf-pop-title", "Propose a question"), propLabel, propTa,
       E("p", "vf-pop-note", "It goes to Proposed. Claude places it in the next round or says why not."), propRowB);
@@ -1103,7 +1039,7 @@
     const reportPop = E("form", "vf-pop vf-reportpop"); reportPop.setAttribute("role", "dialog"); reportPop.setAttribute("aria-label", "Report a problem"); reportPop.hidden = true;
     const repTa = E("textarea", "vf-ta"); repTa.rows = 3; repTa.maxLength = 2000; repTa.id = "vf-rep-ta"; repTa.required = true;
     const repLabel = E("label", "vf-asklabel", "What went wrong?"); repLabel.htmlFor = repTa.id;
-    const repK = composer(repTa, { send: () => reportPop.requestSubmit() }), repCount = repK.count;
+    const repK = Kit.composer(repTa, { send: () => reportPop.requestSubmit() }), repCount = repK.count;
     const repSent = E("ul", "vf-rep-sent"); repSent.setAttribute("aria-label", "Sent with this report");
     const repErr = E("p", "vf-rep-err"); repErr.setAttribute("role", "alert");
     const repRow = E("div", "vf-crow"), repCancel = btn("vf-btn vf-btn-ghost", "Cancel");
@@ -1362,7 +1298,7 @@
     const askRow = E("div", "vf-crow");
     const askCancel = btn("vf-btn vf-btn-ghost", "Cancel");
     const askSend = E("button", "vf-btn vf-btn-primary", "Send request"); askSend.type = "submit";
-    const askK = composer(askTa, { send: () => askForm.requestSubmit(), escape: () => askCancel.click(), mentions: true, draftKey: () => "ask:" + ui.cur });
+    const askK = Kit.composer(askTa, { send: () => askForm.requestSubmit(), escape: () => askCancel.click(), mentions: true, draftKey: () => "ask:" + ui.cur });
     askRow.append(askK.count, askK.hint, askCancel, askSend);
     // the same switch as the Ask Claude panel's: a guest's request can run on their own Claude
     const askSelfSw = btn("vf-sw-row vf-askself"); askSelfSw.setAttribute("role", "switch");
@@ -1391,7 +1327,7 @@
     const editRow = E("div", "vf-crow");
     const editCancel = btn("vf-btn vf-btn-ghost", "Cancel");
     const editSave = E("button", "vf-btn vf-btn-primary", "Save locked answer"); editSave.type = "submit";
-    const editK = composer(editTa, { send: () => editForm.requestSubmit(), escape: () => editCancel.click(), mentions: true, verb: "save" });
+    const editK = Kit.composer(editTa, { send: () => editForm.requestSubmit(), escape: () => editCancel.click(), mentions: true, verb: "save" });
     editRow.append(editK.count, E("span", "vf-hint", "The question stays locked"), editK.hint, editCancel, editSave);
     editForm.append(editTa, editRow);
     const sugHead = E("div", "vf-subhead");
@@ -1404,8 +1340,8 @@
     const sugRow = E("div", "vf-crow");
     const sugCancel = btn("vf-btn vf-btn-ghost", "Cancel");
     const sugSend = E("button", "vf-btn vf-btn-primary", "Send suggestion"); sugSend.type = "submit";
-    const sugK = composer(sugTa, { send: () => sugForm.requestSubmit(), escape: () => sugCancel.click(), mentions: true, draftKey: () => "sug:" + ui.cur });
-    const sugNoteK = composer(sugNote, { escape: () => sugCancel.click(), mentions: true, draftKey: () => "sugn:" + ui.cur });
+    const sugK = Kit.composer(sugTa, { send: () => sugForm.requestSubmit(), escape: () => sugCancel.click(), mentions: true, draftKey: () => "sug:" + ui.cur });
+    const sugNoteK = Kit.composer(sugNote, { escape: () => sugCancel.click(), mentions: true, draftKey: () => "sugn:" + ui.cur });
     sugRow.append(sugK.count, sugNoteK.count, E("span", "vf-hint", "The host or a leader decides"), sugK.hint, sugCancel, sugSend);
     sugForm.append(sugTa, sugNote, sugRow);
     const sList = E("ul", "vf-slist"); sList.setAttribute("role", "list");
@@ -1463,7 +1399,7 @@
     const otherRow = E("div", "vf-crow");
     const otherCancel = btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel");
     const otherSave = btn("vf-btn vf-btn-primary vf-btn-sm vf-other-save", "Add my option");
-    const otherK = composer(otherTa, { send: () => (otherSave.hidden ? fmtSave : otherSave).click(), escape: () => otherCancel.click(), mentions: true, verb: "save", cut: false });
+    const otherK = Kit.composer(otherTa, { send: () => (otherSave.hidden ? fmtSave : otherSave).click(), escape: () => otherCancel.click(), mentions: true, verb: "save", cut: false });
     otherRow.append(otherK.count, otherK.hint, otherCancel, otherSave);
     otherBox.append(otherLbl, otherTa, otherRow);
     const fmtActs = E("div", "vf-fmtacts");
@@ -1528,7 +1464,7 @@
     const discHint = E("span", "vf-hint vf-disc-hint", "Type @Claude to send it to Claude."); discHint.id = "vf-disc-hint";
     discTa.setAttribute("aria-describedby", discHint.id);
     const discPost = E("button", "vf-btn vf-btn-primary vf-btn-sm vf-disc-post", "Post"); discPost.type = "submit";
-    const discK = composer(discTa, { send: () => discForm.requestSubmit(), mentions: "claude", draftKey: () => "disc:" + ui.cur, verb: "post" });
+    const discK = Kit.composer(discTa, { send: () => discForm.requestSubmit(), mentions: "claude", draftKey: () => "disc:" + ui.cur, verb: "post" });
     const discRow = E("div", "vf-crow"); discRow.append(discK.count, dictBtn(discTa, "Dictate a comment"), discHint, discK.hint, discPost);
     discForm.append(discTa, discRow);
     discBody.append(discList, discEmpty, discForm);
@@ -1548,7 +1484,7 @@
       discPost.disabled = true;
       const ex = attExtra(discSlot);
       Core.comment(qid, text, ex).then(j => {
-        kitSent(discTa, "disc:" + qid); discSlot.sent(ex); // a question switched to meanwhile keeps its own draft
+        Kit.sent(discTa, "disc:" + qid); discSlot.sent(ex); // a question switched to meanwhile keeps its own draft
         if (j.request) flash("Posted, and sent to Claude."); else if (j.requestRefused) flash(j.message); })
         .catch(fail).finally(() => { discPost.disabled = false; });
     };
@@ -1574,7 +1510,7 @@
     const cForm = E("form", "vf-composer");
     const ta = E("textarea", "vf-ta"); ta.rows = 3; ta.setAttribute("aria-label", "Your answer"); ta.maxLength = 2000; ta.id = "vf-answer";
     const cRow = E("div", "vf-crow");
-    const cK = composer(ta, { send: () => submit(), mentions: true }), cHint = cK.hint, cCount = cK.count;
+    const cK = Kit.composer(ta, { send: () => submit(), mentions: true }), cHint = cK.hint, cCount = cK.count;
     cRow.append(cCount);
     const clearBtn = btn("vf-btn vf-btn-ghost", "Clear");
     // On phones the send button is a round icon inside the field's end; the label stays as its accessible name.
@@ -1599,7 +1535,7 @@
       if (!cForm.classList.contains("vf-composer-sheet")) return;
       cForm.classList.remove("vf-composer-sheet"); delete root.dataset.sheet;
       ui.sheetFrom = null;
-      grow(ta);
+      Kit.grow(ta);
     }
     const citePop = E("div", "vf-pop vf-citepop"); citePop.setAttribute("role", "dialog"); citePop.setAttribute("aria-label", "Cite a result"); citePop.hidden = true;
     const citeList = E("ul", "vf-citelist"); citeList.setAttribute("role", "list");
@@ -1613,7 +1549,7 @@
     const passForm = E("form", "vf-passform"); passForm.hidden = true; passForm.id = "vf-passform"; passBtn.setAttribute("aria-controls", passForm.id);
     const passLbl = E("label", "vf-passlbl"), passIn = E("input", "vf-input vf-pass-input");
     passIn.id = "vf-pass-reason"; passIn.maxLength = 200; passLbl.htmlFor = passIn.id;
-    composer(passIn, { escape: () => passCancel.click(), draftKey: () => "pass:" + ui.cur });
+    Kit.composer(passIn, { escape: () => passCancel.click(), draftKey: () => "pass:" + ui.cur });
     const passSave = E("button", "vf-btn vf-btn-ghost vf-btn-sm", "Pass"); passSave.type = "submit";
     const passCancel = btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel");
     const passErr = E("p", "vf-passerr"); passErr.setAttribute("role", "alert");
@@ -1628,7 +1564,7 @@
       const qid = ui.cur, reason = passIn.value.trim();
       if (!reason && askedOfMe(qid)) { passErr.textContent = "This question is asked of you: say why you pass."; passIn.focus(); return; }
       passSave.disabled = true;
-      Core.pass(qid, reason).then(() => { ui.passOpen = ""; kitSent(passIn, "pass:" + qid); flash("You passed. Undo it while the round is open."); })
+      Core.pass(qid, reason).then(() => { ui.passOpen = ""; Kit.sent(passIn, "pass:" + qid); flash("You passed. Undo it while the round is open."); })
         .catch(x => { passErr.textContent = `Not passed: ${Core.errorText(x)}`; }).finally(() => { passSave.disabled = false; render(); });
     };
     passUndo.onclick = () => Core.pass(ui.cur, "", false).then(() => flash("Pass taken back.")).catch(fail);
@@ -1677,7 +1613,7 @@
     const hIntroLabel = E("label", "vf-pop-sub vf-hintro-l", "Why you're here"); hIntroLabel.htmlFor = "vf-hintro";
     const hIntroIn = E("textarea", "vf-ta vf-hintro"); hIntroIn.id = "vf-hintro"; hIntroIn.maxLength = 600; hIntroIn.rows = 3;
     hIntroIn.placeholder = "Who is asking, why, about how long it takes, and what happens to the answers";
-    const hIntroRow = E("div", "vf-crow"), hIntroCount = composer(hIntroIn, { counterFrom: 500 }).count;
+    const hIntroRow = E("div", "vf-crow"), hIntroCount = Kit.composer(hIntroIn, { counterFrom: 500 }).count;
     const hIntroSave = btn("vf-btn vf-btn-primary vf-btn-sm", "Save introduction");
     hIntroRow.append(hIntroCount, E("span", "vf-spacer"), hIntroSave);
     const hIntroShown = E("p", "vf-hgoal vf-hintro-shown");
@@ -1840,7 +1776,7 @@
     const mForm = E("form", "vf-mform");
     const mInput = E("textarea", "vf-ta vf-minput"); mInput.rows = 1; mInput.placeholder = "Message everyone"; mInput.setAttribute("aria-label", "Chat message"); mInput.maxLength = 2000;
     const mSend = E("button", "vf-btn vf-btn-primary", "Send"); mSend.type = "submit";
-    const mCount = composer(mInput, { send: () => sendChat(), mentions: "claude", draftKey: () => "chat" }).count; mCount.classList.add("vf-mcount");
+    const mCount = Kit.composer(mInput, { send: () => sendChat(), mentions: "claude", draftKey: () => "chat" }).count; mCount.classList.add("vf-mcount");
     mForm.append(mInput, mSend);
     // As in a Discussion: "@Claude" in a message also asks Claude, here about the whole session.
     const mHint = E("p", "vf-mhint", "Type @Claude to send it to Claude."); mHint.id = "vf-mhint";
@@ -2010,7 +1946,7 @@
     const epNote = E("p", "vf-pop-note", "Everyone sees \"Edited by the host\" on it. Earlier versions stay here, for you only.");
     const epTa = E("textarea", "vf-ta vf-edit-ta"); epTa.maxLength = 2000; epTa.rows = 4; epTa.setAttribute("aria-label", "Answer text");
     const epRow = E("div", "vf-crow"), epCancel = btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel"), epSave = btn("vf-btn vf-btn-primary vf-btn-sm", "Save edit");
-    const epK = composer(epTa, { send: () => epSave.click(), mentions: true, verb: "save" });
+    const epK = Kit.composer(epTa, { send: () => epSave.click(), mentions: true, verb: "save" });
     epRow.append(epK.count, epK.hint, epCancel, epSave);
     const epHistH = E("h3", "vf-pop-sub", "Earlier versions"), epHist = E("ol", "vf-history"); epHist.setAttribute("aria-label", "Earlier versions");
     editPop.append(epH, epNote, epTa, epRow, epHistH, epHist);
@@ -2410,7 +2346,7 @@
     const apRow = E("div", "vf-crow");
     const apAttach = ibtn("vf-btn vf-btn-ghost vf-btn-sm vf-attach", "clip", "Attach a file");
     const apSend = E("button", "vf-btn vf-btn-primary", "Send request"); apSend.type = "submit";
-    const apK = composer(apTa, { send: () => apForm.requestSubmit(), mentions: true });
+    const apK = Kit.composer(apTa, { send: () => apForm.requestSubmit(), mentions: true });
     apRow.append(apK.count, apAttach, apK.hint, apSend);
     const apWeb = webChip();
     apWeb.onclick = () => { ui.apWeb = !ui.apWeb; render(); };
@@ -2512,7 +2448,7 @@
       closeSheet();
       if (ui.cur) { ui.drafts[ui.cur] = ta.value; markSeen(ui.cur); }
       ui.cur = qid;
-      kitSwap();
+      Kit.swap();
       ui.seenAt = ui.seen[qid] ?? null;
       ta.value = ui.drafts[qid] ?? Core.myAnswer(qid);
       ui.dirty = qid in ui.drafts && ui.drafts[qid] !== Core.myAnswer(qid);
@@ -2521,7 +2457,7 @@
       scroll.scrollTop = 0;
       Core.setFocus(qid);
       render();
-      grow(ta);
+      Kit.grow(ta);
       if (ui.mode === "compare") revealCol(qid);
     }
     /** Previous goes back one in round order; Next goes to the next question still open for me, else the next one. */
@@ -2585,7 +2521,7 @@
         }
         if (fields && (q.format === "choice" || isFormat(q) || q.purpose === "poll")) await Core.pickWith(qid, fields, { comment: text, ...extra });
         else await Core.answerCiting(qid, text, ui.cites[qid] || [], extra);
-        delete ui.drafts[qid]; delete ui.attDraft[qid]; ui.dirty = false; ta.value = Core.myAnswer(qid); grow(ta);
+        delete ui.drafts[qid]; delete ui.attDraft[qid]; ui.dirty = false; ta.value = Core.myAnswer(qid); Kit.grow(ta);
         closeSheet();
         announce(fields && (q.format === "choice" || isFormat(q) || q.purpose === "poll") ? "Your comment is saved." : "Your answer is saved.");
         if (phone.matches) ta.blur(); // the one-line composer folds back once sent
@@ -2913,7 +2849,7 @@
       const text = mInput.value.trim(); if (!text || attWaits(chatSlot)) return;
       // The message shows at once and the box empties; a refusal puts the text back.
       const reply = ui.replyTo, ex = attExtra(chatSlot), sent = Core.chat(text, reply?.id, ex);
-      mInput.value = ""; mCount.textContent = ""; grow(mInput); mScroll.scrollTop = mScroll.scrollHeight;
+      mInput.value = ""; mCount.textContent = ""; Kit.grow(mInput); mScroll.scrollTop = mScroll.scrollHeight;
       ui.replyTo = null; paintReply();
       try {
         const j = await sent;
@@ -2922,7 +2858,7 @@
         else if (j?.requestRefused) flash(j.message);
       } catch (e) {
         if (!mInput.value) {
-          mInput.value = text; grow(mInput);
+          mInput.value = text; Kit.grow(mInput);
           if (reply && e?.status !== 404 && !ui.replyTo) { ui.replyTo = reply; paintReply(); }
         }
         fail(e);
@@ -2963,7 +2899,7 @@
       if (text != null) apTa.value = text;
       if (ui.chatOpen) setChat(false);
       openSurface(askPanel, askTop, apTa);
-      grow(apTa);
+      Kit.grow(apTa);
       if (text) apTa.setSelectionRange(apTa.value.length, apTa.value.length);
     }
     // The top Ask Claude asks about the whole session; a question's own Ask form asks about that question.
@@ -2976,7 +2912,7 @@
       apSend.disabled = true;
       const ex = own ? undefined : attExtra(apSlot);
       Core.request(qid, mode, text, ex, own ? "self" : "host", own ? undefined : aud).then(() => {
-        apTa.value = ""; grow(apTa); if (ex) apSlot.sent(ex); ui.apWeb = false;
+        apTa.value = ""; Kit.grow(apTa); if (ex) apSlot.sent(ex); ui.apWeb = false;
         flash(own ? "Added to your requests. Run it on your own Claude from there."
           : Core.me.isOwner ? (aud === "me" ? "Sent to Claude. Only you see the answer, in Ask Claude and your Inbox." : `Sent to Claude. The answer shows ${qid === Core.GENERAL ? genWhere() : "on the question"} and in your Inbox.`)
           : "Sent to the host. It runs once they press Run.");
@@ -3032,7 +2968,7 @@
       const lab = E("label", "vf-asklabel", "Your Claude's answer"); lab.htmlFor = ta.id;
       const post = E("button", "vf-btn vf-btn-primary vf-btn-sm", "Post answer"); post.type = "submit";
       const notNow = btn("vf-btn vf-btn-ghost vf-btn-sm", "Not now");
-      const sK = composer(ta, { send: () => form.requestSubmit(), escape: () => notNow.click(), verb: "post", cut: false });
+      const sK = Kit.composer(ta, { send: () => form.requestSubmit(), escape: () => notNow.click(), verb: "post", cut: false });
       const frow = E("div", "vf-acts"); frow.append(sK.count, sK.hint, post, notNow);
       form.append(lab, ta, E("p", "vf-meta", "Sources on the last lines, as \"Title - https://...\", show as links. Only you and the host see the answer until the host shares it."), frow);
       box.append(row, form);
@@ -3168,7 +3104,7 @@
     mmEdit.onclick = () => {
       const m = ui.msgMenu, c = ui.msgCmt; closePop(); if (!m || !c) return;
       ui.discEdit = m.id; c.li._k.edTa.value = m.text; render();
-      requestAnimationFrame(() => { grow(c.li._k.edTa); c.li._k.edTa.focus(); });
+      requestAnimationFrame(() => { Kit.grow(c.li._k.edTa); c.li._k.edTa.focus(); });
     };
     mmDelete.onclick = guarded({ title: "Delete your comment?", ok: "Delete", body: "It leaves the Discussion for everyone. A request it sent to Claude stays as it is." }, () => {
       const m = ui.msgMenu, c = ui.msgCmt; closePop(); if (!m || !c) return;
@@ -3726,7 +3662,7 @@
         .map(([pid, v]) => ({ pid, name: v.name, label: Core.mentionLabel(pid), here: hereNow.has(pid) }))
         .sort((a, b) => b.here - a.here || a.name.localeCompare(b.name));
       // a person whose name reads "Claude" is who "@Claude" names (the server tokenizes it first), so no Claude entry then
-      const claude = KIT.get(f)?.mentions === "claude" && "claude".startsWith(q) && !Core.mentionLabels().some(([l]) => l.toLowerCase() === "claude");
+      const claude = Kit.get(f)?.mentions === "claude" && "claude".startsWith(q) && !Core.mentionLabels().some(([l]) => l.toLowerCase() === "claude");
       const items = [...(claude ? [{ claude: true, name: "Claude", label: "Claude" }] : []), ...people].slice(0, 6);
       if (!items.length) return closeMention();
       const prev = ui.mention;
@@ -3769,7 +3705,7 @@
       f.focus({ preventScroll: true }); f.setSelectionRange(at, at);
       f.dispatchEvent(new Event("input", { bubbles: true }));
     }
-    on(root, "input", e => { if (KIT.get(e.target)?.mentions && !e.isComposing) mentionCheck(e.target); });
+    on(root, "input", e => { if (Kit.get(e.target)?.mentions && !e.isComposing) mentionCheck(e.target); });
     on(document, "selectionchange", () => { const M = ui.mention; if (M && document.activeElement === M.field) mentionCheck(M.field); });
     on(root, "focusout", e => { if (ui.mention?.field === e.target) closeMention(); });
     // Runs before the fields' own keys (Enter sends chat, Ctrl + Enter sends an answer) while the list is open.
@@ -4750,7 +4686,7 @@
       if (sent.attachments) delete ui.attDraft[qid];
       if ((ui.cur === qid ? ta.value : ui.drafts[qid] || "").trim() === sent.comment) {
         delete ui.drafts[qid];
-        if (ui.cur === qid) { ui.dirty = false; ta.value = Core.myAnswer(qid); grow(ta); }
+        if (ui.cur === qid) { ui.dirty = false; ta.value = Core.myAnswer(qid); Kit.grow(ta); }
       }
       render();
     }
@@ -4793,7 +4729,7 @@
     on(titleInput, "keydown", e => { if (e.key === "Enter") { e.preventDefault(); endTitleEdit(true); } if (e.key === "Escape") { e.stopPropagation(); endTitleEdit(false); titleEdit.focus(); } });
     on(titleInput, "blur", () => endTitleEdit(true));
     cForm.onsubmit = e => { e.preventDefault(); submit(); };
-    clearBtn.onclick = () => { ta.value = ""; ui.dirty = true; ui.drafts[ui.cur] = ""; Core.setTyping(); grow(ta); render(); ta.focus(); };
+    clearBtn.onclick = () => { ta.value = ""; ui.dirty = true; ui.drafts[ui.cur] = ""; Core.setTyping(); Kit.grow(ta); render(); ta.focus(); };
     on(ta, "input", () => {
       ui.dirty = true; ui.drafts[ui.cur] = ta.value; Core.setTyping(); renderComposer(); stopAdvance(); // writing a comment stays
       // in the phone sheet, writing at the end keeps the last line (the caret) in view
@@ -4837,7 +4773,7 @@
       if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); sheetCancel.click(); return; }
       if (e.key === "Tab") { e.stopPropagation(); trapTab(e, cForm); }
     });
-    on(root, "input", e => { if (e.target.matches?.("textarea.vf-ta")) grow(e.target); });
+    on(root, "input", e => { if (e.target.matches?.("textarea.vf-ta")) Kit.grow(e.target); });
     lockBtn.onclick = () => {
       if (lockBtn.getAttribute("aria-disabled") === "true") return flash(lockBtn.title);
       lockTopAnswer();
@@ -4849,7 +4785,7 @@
       const bits = [r.closed ? `${r.closed} open suggestion${r.closed > 1 ? "s" : ""} kept as closed` : "", r.flagged?.length ? `${r.flagged.join(", ")} flagged for review` : ""].filter(Boolean);
       flash(`Unlocked.${bits.length ? " " + bits.join("; ") + "." : ""}`);
     }).catch(fail));
-    editBtn.onclick = () => { ui.editFrom = null; editTa.value = Core.lockOf(ui.cur)?.text || ""; editForm.hidden = false; grow(editTa); editTa.focus(); };
+    editBtn.onclick = () => { ui.editFrom = null; editTa.value = Core.lockOf(ui.cur)?.text || ""; editForm.hidden = false; Kit.grow(editTa); editTa.focus(); };
     editCancel.onclick = () => { editForm.hidden = true; ui.editFrom = null; };
     editForm.onsubmit = e => {
       e.preventDefault();
@@ -4858,7 +4794,7 @@
       Core.lockEdit(ui.cur, text, ui.editFrom || undefined).then(() => { editForm.hidden = true; ui.editFrom = null; }).catch(fail).finally(() => { editSave.disabled = false; });
     };
     on(editTa, "input", () => Core.setTyping());
-    sugBtn.onclick = () => { ui.suggestOpen = true; sugForm.hidden = false; sugTa.value ||= Core.lockOf(ui.cur)?.text || ""; grow(sugTa); sugTa.focus(); };
+    sugBtn.onclick = () => { ui.suggestOpen = true; sugForm.hidden = false; sugTa.value ||= Core.lockOf(ui.cur)?.text || ""; Kit.grow(sugTa); sugTa.focus(); };
     sugCancel.onclick = () => { ui.suggestOpen = false; sugForm.hidden = true; };
     on(sugTa, "input", () => Core.setTyping());
     sugForm.onsubmit = e => {
@@ -4867,7 +4803,7 @@
       sugSend.disabled = true;
       const ex = attExtra(sugSlot);
       Core.suggest(qid, text, sugNote.value.trim(), ex).then(() => {
-        kitSent(sugTa, "sug:" + qid); kitSent(sugNote, "sugn:" + qid); sugSlot.sent(ex); sugForm.hidden = true; ui.suggestOpen = false; flash("Suggestion sent.");
+        Kit.sent(sugTa, "sug:" + qid); Kit.sent(sugNote, "sugn:" + qid); sugSlot.sent(ex); sugForm.hidden = true; ui.suggestOpen = false; flash("Suggestion sent.");
       }).catch(fail).finally(() => { sugSend.disabled = false; });
     };
     reviewClear.onclick = () => Core.clearReview(ui.cur).then(() => flash("Marked reviewed.")).catch(fail);
@@ -4882,7 +4818,7 @@
       const aud = ui.askAud || "everyone";
       const ex = own ? undefined : attExtra(askSlot);
       Core.request(qid, guestKind(ui.askKind, ui.askWeb), text, ex, own ? "self" : "host", own ? undefined : aud).then(() => {
-        kitSent(askTa, "ask:" + qid); if (ex) askSlot.sent(ex); ui.askOpen = false; ui.askWeb = false; ui.askAud = null; renderAsk();
+        Kit.sent(askTa, "ask:" + qid); if (ex) askSlot.sent(ex); ui.askOpen = false; ui.askWeb = false; ui.askAud = null; renderAsk();
         flash(own ? "Added to your requests. Run it on your own Claude from Ask Claude."
           : Core.me.isOwner ? `Sent to Claude. The answer shows on the question${aud === "me" ? ", for you alone," : ""} and in your Inbox.` : "Sent to the host. It runs once they press Run.");
       }).catch(fail).finally(() => { askSend.disabled = false; });
@@ -5015,7 +4951,7 @@
       e.preventDefault();
       const text = repTa.value.trim(); if (!text) return repTa.focus();
       repSend.disabled = true; repErr.textContent = "";
-      Core.report(text, REP.ctx, repShot.shots.map(x => x.url)).then(() => { repTa.value = ""; kitPaint(repK); dropShot(); repBack(); flash("Report sent. The host and Claude will look at it."); })
+      Core.report(text, REP.ctx, repShot.shots.map(x => x.url)).then(() => { repTa.value = ""; Kit.paint(repK); dropShot(); repBack(); flash("Report sent. The host and Claude will look at it."); })
         .catch(x => { repErr.textContent = `Not sent: ${x?.message || Core.errorText(x)}`; }).finally(() => { repSend.disabled = false; });
     };
     function makeMyRep() {
@@ -5027,7 +4963,7 @@
       ta.rows = 2; ta.maxLength = 2000; ta.setAttribute("aria-label", "Add a line to this report"); ta.placeholder = "Add a line";
       const send = E("button", "vf-btn vf-btn-primary vf-btn-sm", "Add"); send.type = "submit";
       const err = E("p", "vf-rep-err"); err.setAttribute("role", "alert");
-      const aK = composer(ta, { send: () => form.requestSubmit(), verb: "add" });
+      const aK = Kit.composer(ta, { send: () => form.requestSubmit(), verb: "add" });
       const shot = shotSlot(ta, e => { err.textContent = e || ""; });
       const row = E("div", "vf-crow"); row.append(aK.count, shot.btn, aK.hint, send);
       form.append(ta, shot.chips, row, shot.input, err);
@@ -5039,7 +4975,7 @@
         if (!t && !shot.image) return ta.focus();
         send.disabled = true; err.textContent = "";
         Core.addToReport(li._r.id, t, shot.image).then(() => {
-          ta.value = ""; kitPaint(aK); shot.clear();
+          ta.value = ""; Kit.paint(aK); shot.clear();
           flash("Added to your report. The host sees it.");
         }).catch(x => { err.textContent = `Not added: ${x?.message || Core.errorText(x)}`; }).finally(() => { send.disabled = false; });
       };
@@ -5091,14 +5027,14 @@
     });
     const vis = () => { if (document.visibilityState === "hidden") markSeen(ui.cur); };
     on(document, "visibilitychange", vis);
-    // An on-screen keyboard is up (core.js measures it): phones give its room to the field, not the tab bar.
+    // An on-screen keyboard is up (question-shape.js measures it): phones give its room to the field, not the tab bar.
     const kbSync = () => {
       const was = root.hasAttribute("data-kb"), now = "kb" in document.documentElement.dataset;
       root.toggleAttribute("data-kb", now);
       if (was !== now) { syncModal(); if (ui.mention) paintMention(); }
       // the keyboard coming, going or resizing, or a line typed, keeps the field in view; scrolling away to read does not
       const h = window.visualViewport?.height ?? innerHeight, resized = h !== kbSync.h; kbSync.h = h;
-      if (was === now && !resized && !typing(document.activeElement)) return;
+      if (was === now && !resized && !Kit.typing(document.activeElement)) return;
       revealAskField(now && !was);
       revealInboxField();
       if (now && !was && ui.pop && !ui.pop._kbRead && coarse.matches) { ui.pop._kbRead = true; kbReadout(ui.pop); }
@@ -5623,14 +5559,14 @@
       const cancel = btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel");
       const { decline, run, failB, rerun, move } = reqActs(() => li._r, () => saveOpenEdit(li));
       acts.append(move, edit, save, cancel, decline, run, failB, rerun);
-      const tK = composer(tarea, { send: () => save.click(), escape: () => cancel.click(), mentions: true, verb: "save" });
+      const tK = Kit.composer(tarea, { send: () => save.click(), escape: () => cancel.click(), mentions: true, verb: "save" });
       acts.prepend(tK.count, tK.hint);
       li.append(head, who, text, tarea, fresh, acts);
       li._att = attRowEl(); text.after(li._att);
       Object.assign(li, { _ta: tarea, _k: { kind, qref, who, status, text, tarea, tK, fresh, edit, save, cancel, decline, run, failB, rerun, move, acts } });
       qref.onclick = () => { if (!li._r.qid) return openGeneral("r:" + li._r.id); focusQuestion(li._r.qid); closePop(); };
       include.onclick = () => { ui.reqSeen.add(li._r.id); render(); };
-      edit.onclick = () => { ui.reqEditing.add(li._r.id); tarea.value = li._r.text; render(); grow(tarea); tarea.focus(); };
+      edit.onclick = () => { ui.reqEditing.add(li._r.id); tarea.value = li._r.text; render(); Kit.grow(tarea); tarea.focus(); };
       cancel.onclick = () => { ui.reqEditing.delete(li._r.id); render(); };
       save.onclick = () => { saveOpenEdit(li).then(() => flash("Request updated.")).catch(fail).finally(render); };
       return li;
@@ -5703,14 +5639,14 @@
         k.disBtn = btn("vf-btn vf-btn-ghost vf-btn-sm vf-disagree-btn", "Disagree");
         k.disBtn.setAttribute("aria-expanded", "false");
         foot.append(k.agree, E("span", "vf-spacer"), k.disBtn, k.goWith, k.lockThis, k.modHide, k.modEdit);
-        k.goWith.onclick = () => Core.goWith(k.qid, k.ref).then(() => { delete ui.drafts[k.qid]; ui.dirty = false; ta.value = ""; grow(ta); flash("Your answer was withdrawn and your vote moved."); }).catch(fail);
+        k.goWith.onclick = () => Core.goWith(k.qid, k.ref).then(() => { delete ui.drafts[k.qid]; ui.dirty = false; ta.value = ""; Kit.grow(ta); flash("Your answer was withdrawn and your vote moved."); }).catch(fail);
         k.lockThis.onclick = () => Core.lock(k.qid, k.ref).catch(fail);
         const disForm = E("form", "vf-disform"); disForm.hidden = true;
         const disIn = E("input", "vf-input vf-dis-in"); disIn.maxLength = 200;
         disIn.placeholder = "Why do you disagree? (up to 200 characters)"; disIn.setAttribute("aria-label", "Why you disagree");
         const disCancel = btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel");
         const disSend = E("button", "vf-btn vf-btn-primary vf-btn-sm vf-dis-send", "Send"); disSend.type = "submit";
-        const disK = composer(disIn, { escape: () => { closeDis(); k.disBtn.focus(); } }); disK.count.classList.add("vf-dis-count");
+        const disK = Kit.composer(disIn, { escape: () => { closeDis(); k.disBtn.focus(); } }); disK.count.classList.add("vf-dis-count");
         const disRow = E("div", "vf-crow"); disRow.append(disK.count, E("span", "vf-spacer"), disCancel, disSend);
         disForm.append(disIn, disRow);
         const disList = E("ul", "vf-dislist"); disList.setAttribute("aria-label", "Disagreements");
@@ -5922,7 +5858,7 @@
       const askNote = askForm.querySelector(".vf-asknote");
       if (askNote) askNote.textContent = ownIn ? "Only you see this request. Your own Claude runs it; the host reviews its answer before anyone else sees it."
         : askNoteText(ui.askAud || "everyone", "on this question", ui.askWeb);
-      if (ui.askOpen) grow(askTa);
+      if (ui.askOpen) Kit.grow(askTa);
     }
     function reviewText(q) {
       const r = q.needsReview;
@@ -6271,7 +6207,7 @@
       const edTa = E("textarea", "vf-ta"); edTa.rows = 2; edTa.maxLength = 2000; edTa.setAttribute("aria-label", "Edit your comment");
       const edSave = E("button", "vf-btn vf-btn-primary vf-btn-sm", "Save"); edSave.type = "submit";
       const edCancel = btn("vf-btn vf-btn-ghost vf-btn-sm", "Cancel");
-      const edK = composer(edTa, { send: () => ed.requestSubmit(), escape: () => edCancel.click(), mentions: true, verb: "save" });
+      const edK = Kit.composer(edTa, { send: () => ed.requestSubmit(), escape: () => edCancel.click(), mentions: true, verb: "save" });
       const edRow = E("div", "vf-crow"); edRow.append(edK.count, edK.hint, edCancel, edSave); ed.append(edTa, edRow);
       const became = E("div", "vf-cm-became"), becameTxt = E("span", "vf-cm-became-t"), view = btn("vf-lbtn vf-cm-view", "View");
       became.append(claudeAv(16), becameTxt, view);
@@ -6583,20 +6519,20 @@
       ui.otherOpen[qid] = true;
       // On a choice my own option takes no comment, so a comment typed before the pick becomes the option's first draft.
       ui.otherText[qid] = ownText(q) || (q.format === "choice" && earlyOf(q, myRec(qid))?.comment) || "";
-      if (q.format === "multi" && !draftOf(q).includes("other")) ui.fdraft[qid] = { options: [...draftOf(q).filter(o => o !== "none"), "other"] };
+      if (q.format === "multi" && !draftOf(q).includes(OTHER)) ui.fdraft[qid] = { options: [...draftOf(q).filter(o => o !== "none"), OTHER] };
       otherBox._q = null;
       render();
       if (phone.matches) setTab("answer");
       otherTa.focus({ preventScroll: true }); otherTa.scrollIntoView?.({ block: "nearest" });
     }
     function renderOther(q, rec, ro) {
-      const open = !!otherOf(q) && !ro && (!!ui.otherOpen[q.id] || (q.format === "multi" && draftOf(q, rec).includes("other")));
+      const open = !!otherOf(q) && !ro && (!!ui.otherOpen[q.id] || (q.format === "multi" && draftOf(q, rec).includes(OTHER)));
       otherBox.hidden = !open;
       if (!open) return;
-      if (otherBox._q !== q.id) { otherBox._q = q.id; otherTa.value = ownText(q, rec); grow(otherTa); }
+      if (otherBox._q !== q.id) { otherBox._q = q.id; otherTa.value = ownText(q, rec); Kit.grow(otherTa); }
       otherLbl.textContent = q.format === "multi" ? "Your own option, saved with your picks" : "Your own option";
       otherSave.hidden = q.format === "multi";
-      otherSave.textContent = q.format === "rank" ? (draftOf(q, rec).includes("other") ? "Update in my ranking" : "Add to my ranking") : rec?.other ? "Save my option" : "Add my option";
+      otherSave.textContent = q.format === "rank" ? (draftOf(q, rec).includes(OTHER) ? "Update in my ranking" : "Add to my ranking") : rec?.other ? "Save my option" : "Add my option";
     }
     otherSave.onclick = () => {
       const qid = ui.cur, q = qById(qid), text = otherTa.value.trim();
@@ -6611,7 +6547,7 @@
       if (q.format === "rank") {
         ui.otherText[qid] = text;
         const cur = draftOf(q);
-        ui.fdraft[qid] = { order: cur.includes("other") ? cur : [...cur, "other"] };
+        ui.fdraft[qid] = { order: cur.includes(OTHER) ? cur : [...cur, OTHER] };
         ui.otherOpen[qid] = false;
         render();
         announce("Your own option is in your ranking. Move it where it belongs, then save your ranking.");
@@ -6619,7 +6555,7 @@
       }
       // It shows in Answers at once; a refusal reopens the box with the text.
       delete ui.otherText[qid]; ui.otherOpen[qid] = false;
-      Core.pickWith(qid, { option: "other" }, { other: text, attachments: early?.attachments }).then(() => { if (early) sentEarly(qid, early); flash("Your own option is in Answers, where others can back it."); })
+      Core.pickWith(qid, { option: OTHER }, { other: text, attachments: early?.attachments }).then(() => { if (early) sentEarly(qid, early); flash("Your own option is in Answers, where others can back it."); })
         .catch(e => { if (ui.otherText[qid] == null) { ui.otherText[qid] = text; ui.otherOpen[qid] = true; } fail(e); render(); });
     };
     /** Follow-up 29: the asker of an ask on a choice, pick-many or ranking question may make Claude's answer their own
@@ -6636,8 +6572,8 @@
       setMode("focus");
       useBefore[q.id] = { fdraft: ui.fdraft[q.id], otherText: ui.otherText[q.id] };
       ui.otherText[q.id] = x.summary;
-      if (q.format === "multi") ui.fdraft[q.id] = { options: ["other"] };
-      if (q.format === "rank") ui.fdraft[q.id] = { order: ["other", ...draftOf(q).filter(o => o !== "other")] };
+      if (q.format === "multi") ui.fdraft[q.id] = { options: [OTHER] };
+      if (q.format === "rank") ui.fdraft[q.id] = { order: [OTHER, ...draftOf(q).filter(o => o !== OTHER)] };
       openOther(q.id);
       otherTa.setSelectionRange(otherTa.value.length, otherTa.value.length);
       announce(x.summary.length > MAX_OWN ? `Claude's answer is in your own option. Shorten it to ${MAX_OWN} characters (it has ${x.summary.length}), then save it.`
@@ -6653,7 +6589,7 @@
         ui.otherOpen[qid] = false; otherBox._q = null;
         return render();
       }
-      if (q.format === "multi") ui.fdraft[qid] = { options: draftOf(q).filter(o => o !== "other") };
+      if (q.format === "multi") ui.fdraft[qid] = { options: draftOf(q).filter(o => o !== OTHER) };
       delete ui.otherText[qid]; ui.otherOpen[qid] = false; otherBox._q = null;
       render();
     };
@@ -6708,7 +6644,7 @@
         const order = draftOf(q, rec), n = order.length;
         if (rankList._q !== q.id) { resetList(rankList); rankList._q = q.id; }
         sync(rankList, order, id => id, buildRankItem, (li, id) => {
-          const k = li._k, i = order.indexOf(id), own = id === "other";
+          const k = li._k, i = order.indexOf(id), own = id === OTHER;
           const label = own ? ownText(q, rec) || "Your own option" : optionsOf(q).find(o => o.id === id)?.label || id;
           li._id = id;
           k.pos.textContent = String(i + 1);
@@ -6735,9 +6671,9 @@
       fmtActs.hidden = !isFormat(q) || ro;
       if (fmtActs.hidden) return;
       fmtSave.hidden = q.format === "scale";
-      fmtOwn.hidden = q.format !== "rank" || !otherOf(q) || draftOf(q, rec).includes("other") || !!ui.otherOpen[q.id];
+      fmtOwn.hidden = q.format !== "rank" || !otherOf(q) || draftOf(q, rec).includes(OTHER) || !!ui.otherOpen[q.id];
       if (q.format === "multi") {
-        const cur = draftOf(q, rec), dirty = !sameList([...cur].sort(), [...(rec?.picks || [])].sort()) || (cur.includes("other") && ownChanged(q, rec));
+        const cur = draftOf(q, rec), dirty = !sameList([...cur].sort(), [...(rec?.picks || [])].sort()) || (cur.includes(OTHER) && ownChanged(q, rec));
         fmtSave.textContent = saved ? "Update my picks" : "Save my picks";
         fmtSave.setAttribute("aria-disabled", String(!cur.length || !dirty));
         fmtClear.textContent = "Clear my picks";
@@ -6770,7 +6706,7 @@
         if (q?.format === "multi" && !draftOf(q, rec).length) flash("Pick at least one option first.");
         return;
       }
-      const list = draftOf(q, rec), own = list.includes("other") ? ownText(q, rec).trim() : null;
+      const list = draftOf(q, rec), own = list.includes(OTHER) ? ownText(q, rec).trim() : null;
       if (own === "") { openOther(qid); return flash("Write your own option first."); }
       if (own != null && ownTooLong(own)) return;
       const fields = q.format === "multi" ? { options: list } : { order: list };
@@ -6843,7 +6779,7 @@
       edit.onclick = () => openOther(ui.cur);
       rm.onclick = () => {
         const q = qById(ui.cur); if (!q) return;
-        ui.fdraft[q.id] = { order: draftOf(q).filter(o => o !== "other") };
+        ui.fdraft[q.id] = { order: draftOf(q).filter(o => o !== OTHER) };
         render(); fmtSave.focus({ preventScroll: true });
       };
       grip.onpointerdown = e => {
@@ -7386,7 +7322,7 @@
     function render() {
       if (dead) return;
       restoreUnsent();
-      kitSwap();
+      Kit.swap();
       const S = Core.state, me = Core.me, s = S.settings, mod = Core.canModerate();
       // The rail keeps round order (S.questions); answered ones carry a mark instead of moving.
       const qs = S.questions, owner = Core.owner(), here = S.presence;
@@ -7936,7 +7872,7 @@
             edit.onclick = () => {
               const curText = Core.lockOf(ui.cur)?.text || "";
               ui.editFrom = x.id; editTa.value = `${curText}\n\n${li._text}`; editForm.hidden = false;
-              grow(editTa); editTa.focus(); editTa.setSelectionRange(editTa.value.length, editTa.value.length);
+              Kit.grow(editTa); editTa.focus(); editTa.setSelectionRange(editTa.value.length, editTa.value.length);
             };
             return li;
           }, (li, x) => {
@@ -8021,7 +7957,7 @@
       }
       tools.hidden = !q;
       paintSpeech(!!q);
-      if (!ui.dirty && document.activeElement !== ta && q && ta.value !== Core.myAnswer(q.id)) { ta.value = Core.myAnswer(q.id); grow(ta); }
+      if (!ui.dirty && document.activeElement !== ta && q && ta.value !== Core.myAnswer(q.id)) { ta.value = Core.myAnswer(q.id); Kit.grow(ta); }
       renderComposer();
 
       // compare view
@@ -8225,14 +8161,14 @@
       if (ui.cur) ui.drafts[ui.cur] = ta.value;
       const drafts = Object.fromEntries(Object.entries(ui.drafts).filter(([q, t]) => t && t !== Core.myAnswer(q)));
       // drafts not restored yet (who this page is was still unknown) go back as they came
-      try { sessionStorage.setItem(UNSENT, JSON.stringify(unsent || { who: whoAmI(), drafts, kit: kitStore(), cur: ui.cur })); } catch { /* storage off */ }
+      try { sessionStorage.setItem(UNSENT, JSON.stringify(unsent || { who: whoAmI(), drafts, kit: (Kit.store(), ui.kd), cur: ui.cur })); } catch { /* storage off */ }
     };
     on(window, "pagehide", saveUnsent);
     Core.onReload(() => { saveUnsent(); markSeen(ui.cur); sendPrefsNow(); });
     // A move to the session's new address (core.js moveTo) waits while any of that text is unsent: the banner offers it.
     Core.keepUnsent(() => !!unsent || (!!ui.cur && !!ta.value && ta.value !== Core.myAnswer(ui.cur))
-      || Object.entries(ui.drafts).some(([q, t]) => q !== ui.cur && t && t !== Core.myAnswer(q)) || Object.values(kitStore()).some(Boolean));
-    kitBooted = true;
-    kitSwap();
+      || Object.entries(ui.drafts).some(([q, t]) => q !== ui.cur && t && t !== Core.myAnswer(q)) || Object.values((Kit.store(), ui.kd)).some(Boolean));
+    Kit.boot();
+    Kit.swap();
     Core.subscribe(() => render());
 })();

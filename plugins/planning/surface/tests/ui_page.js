@@ -12,6 +12,7 @@ async page => { // the question page itself: choices, chips, banners, header and
   };
   const token = async () => page.$eval('meta[name="interview-token"]', m => m.content);
   const post = async body => page.request.post(base + "api/answer", {headers: {"Content-Type": "application/json", "X-Interview-Token": await token()}, data: body});
+  const QS_MOD = "Ctrl", QS_HINT = verb => QS_MOD + " + Enter to " + verb; // Chromium on Linux: question-shape.js's MOD_KEY
   const recRow = () => page.$eval("#choices .choice.rec .t", el => ({text: el.textContent, clipped: el.scrollHeight > el.clientHeight + 1})).catch(() => ({text: "", clipped: true}));
   try {
   if (PHASE === 1) {
@@ -236,6 +237,54 @@ async page => { // the question page itself: choices, chips, banners, header and
     ok("#8035: a Notes reply that asks is under Needs you, a plain one is in the log", /Note posted/.test(split.needs) && /Note posted/.test(split.log) && split.rows > 0, JSON.stringify(split));
     ok("#7751: the Needs you heading counts only the entries listed under it", split.count === split.rows, JSON.stringify(split));
     ok("#7751: the Activity badge equals the unseen entries listed under Needs you", badge === split.unseen, badge + " badge / " + split.unseen + " unseen of " + split.count + " listed");
+  }
+  if (PHASE === 11) { // the note boxes run the shared composer (question-shape.js), and a phone page is pinned to the visual viewport
+    const events = async () => (await (await page.request.get(base + "api/state")).json()).responses.events;
+    await page.setViewportSize({width: 1440, height: 900});
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
+    await page.selectOption("#filter", "all"); await pick("Q10");
+    const kit = await page.evaluate(() => ({src: !!document.querySelector('script[src="/question-shape.js"]'), max: document.getElementById("note").maxLength, hint: document.getElementById("saveHint").textContent, place: document.getElementById("note").placeholder}));
+    ok("the note box is the composer's: its limit, and the send key hint and placeholder in the composer's words", kit.src && kit.max === 20000 && kit.hint === QS_HINT("save") && kit.place.includes(QS_MOD + "+Enter saves"), JSON.stringify(kit));
+    await page.fill("#note", "x".repeat(14999)); await page.waitForTimeout(100);
+    const below = await page.$eval("#noteCount", el => ({text: el.textContent, shown: el.getClientRects().length > 0}));
+    await page.click("#note"); await page.keyboard.press("End"); await page.keyboard.type("y"); await page.waitForTimeout(100);
+    const near = await page.$eval("#noteCount", el => ({text: el.textContent, shown: el.getClientRects().length > 0}));
+    ok("the counter is hidden below three quarters of the limit and shows the count from there", below.text === "" && !below.shown && near.text === "15000 / 20000" && near.shown, JSON.stringify({below, near}));
+    await page.fill("#note", Array.from({length: 60}, (_, i) => "line " + i).join("\n")); await page.waitForTimeout(150);
+    const grown = await page.evaluate(() => { const t = document.getElementById("note"), p = document.querySelector("main.detail"); return {h: t.offsetHeight, pane: p.clientHeight, over: getComputedStyle(t).overflowY, line: parseFloat(getComputedStyle(t).lineHeight)}; });
+    ok("a long note grows up to 40% of the question pane, then scrolls inside", grown.h > 3 * grown.line && grown.h <= grown.pane * 0.4 + 2 && grown.over === "auto", JSON.stringify(grown));
+    await page.fill("#note", ""); await page.click("#qhead"); await page.keyboard.press("1");
+    await page.click("#note"); await page.keyboard.type("Fine by me."); const n0 = (await events()).length;
+    await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
+    const ev = await events(), last = ev[ev.length - 1] || {};
+    ok("Ctrl+Enter in the note saves the armed choice once, with the note", ev.length === n0 + 1 && last.id === "Q10" && last.text === "Fine by me.", JSON.stringify({n0, n: ev.length, last}));
+    await page.click("#qhead"); await page.keyboard.press("m"); await page.waitForSelector("#noteText");
+    const panelHint = await page.$eval("#noteText", t => t.nextElementSibling.querySelector(".kbd").textContent);
+    await page.click("#noteText"); await page.keyboard.type("A note from the composer check."); const m0 = (await events()).length;
+    await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
+    const mv = await events(), ml = mv[mv.length - 1] || {};
+    ok("Ctrl+Enter in the Notes panel sends one note, and the panel names the key the composer's way", mv.length === m0 + 1 && ml.kind === "note" && ml.text === "A note from the composer check." && panelHint === QS_HINT("send"), JSON.stringify({m0, n: mv.length, ml, panelHint}));
+    await page.keyboard.press("Escape"); await page.keyboard.press("Escape"); await page.waitForTimeout(150);
+    // a phone: the page is pinned to the visual viewport, and a keyboard taking its lower part leaves the note in view
+    await page.setViewportSize({width: 390, height: 844}); await page.waitForTimeout(300);
+    await pick("Q1"); await page.click("#note"); await page.waitForTimeout(100);
+    const pin = await page.evaluate(() => { const a = document.querySelector(".app"), cs = getComputedStyle(a); return {pos: cs.position, h: Math.round(a.getBoundingClientRect().height), vv: Math.round(visualViewport.height), page: document.scrollingElement.scrollHeight - innerHeight, scrolls: a.scrollHeight > a.clientHeight}; });
+    ok("at 390 px the page is pinned to the visual viewport and scrolls inside it, not the document", pin.pos === "fixed" && Math.abs(pin.h - pin.vv) <= 1 && pin.page <= 1 && pin.scrolls, JSON.stringify(pin));
+    const kb = await page.evaluate(async () => {
+      const frame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      Object.defineProperty(visualViewport, "height", {configurable: true, get: () => 400}); // a 444 px keyboard
+      window.QuestionShape.fitViewport(); await frame();
+      const a = document.querySelector(".app").getBoundingClientRect(), n = document.getElementById("note").getBoundingClientRect();
+      const out = {kb: getComputedStyle(document.documentElement).getPropertyValue("--kb").trim(), dataKb: "kb" in document.documentElement.dataset, app: Math.round(a.height), noteTop: Math.round(n.top), noteBottom: Math.round(n.bottom), focused: document.activeElement.id};
+      delete visualViewport.height; window.QuestionShape.fitViewport(); await frame();
+      return out;
+    });
+    ok("a keyboard on the phone shrinks the page to what it leaves and the focused note stays in that part", kb.kb === "444px" && kb.dataKb && kb.app === 400 && kb.noteTop >= 0 && kb.noteBottom <= 400 && kb.focused === "note", JSON.stringify(kb));
+    await page.keyboard.type("draft on Q1"); await pick("Q10"); await pick("Q1");
+    const kept = await page.inputValue("#note");
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400); await pick("Q1");
+    ok("each question keeps its own note draft across a switch and a reload", kept === "draft on Q1" && await page.inputValue("#note") === "draft on Q1", kept);
+    await page.fill("#note", ""); await page.setViewportSize({width: 1440, height: 900});
   }
   ok("zero console errors in phase " + PHASE, errors.length === 0, errors.join(" | "));
   } catch (e) { R.push("ERROR " + e.message.split("\n")[0]); }

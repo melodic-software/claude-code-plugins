@@ -471,6 +471,18 @@ class TestHeadersAndCaps(ServerCase):
         self.assertTrue(headers["Content-Type"].startswith("text/html"))
         self.assertIn(b"<html", body)
 
+    def test_the_question_shape_files_are_served_and_load_first(self):
+        """question-shape.js and .css, which the 1:1 page's server serves too, come from web/ as written; the page loads
+        them before the files that use them."""
+        for path, ctype in (("/question-shape.js", "text/javascript"), ("/question-shape.css", "text/css")):
+            with self.subTest(path=path):
+                code, h, body = self.get(path)
+                self.assertEqual((code, h["Content-Type"]), (200, ctype + "; charset=utf-8"))
+                self.assertEqual(body, (server.WEB / path[1:]).read_bytes())
+        page = self.get("/")[2].decode("utf-8")
+        self.assertLess(page.index('<script src="/question-shape.js">'), page.index('<script src="/core.js">'))
+        self.assertLess(page.index('href="/question-shape.css"'), page.index('href="/app.css"'))
+
     def test_only_allowlisted_files_are_served(self):
         for path in ("/server.py", "/state.json", "/../state.json", "/.shared-secrets.json", "/web/index.html"):
             with self.subTest(path=path):
