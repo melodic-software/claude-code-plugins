@@ -160,28 +160,6 @@ env:
   npm_config_audit: "false"
   npm_config_fund: "false"
 jobs:
-  tmp-time-cant-fail:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 12
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Runner shape
-        run: nproc; awk --version | head -1; bash --version | head -1
-      - name: Whole tree, serial
-        run: time bash plugins/testing/skills/audit/scripts/cant-fail-scan.sh --check | tail -3
-      - name: Whole tree, sharded
-        run: |
-          S="$PWD/plugins/testing/skills/audit/scripts/cant-fail-scan.sh"
-          { find plugins -mindepth 1 -maxdepth 1 -type d; find . -mindepth 1 -maxdepth 1 -type d ! -name .git ! -name plugins; } >shards.txt
-          time xargs -P "$(nproc)" -I{} sh -c 'CANT_FAIL_SCAN_ROOT="$PWD/{}" bash "$0" --check >"/tmp/shard-$(echo {} | tr / _).log" 2>&1; echo "{} rc=$?"' "$S" <shards.txt | sort | awk '{print}' >rc.txt
-          grep -c 'rc=0' rc.txt; grep -v 'rc=0' rc.txt | head -40
-          cat /tmp/shard-*.log | sed -n 's/^  test files: \([0-9]*\) examined.*/\1/p' | awk '{s+=$1} END {print "examined total", s}'
-      - name: Whole tree, serial again
-        run: time bash plugins/testing/skills/audit/scripts/cant-fail-scan.sh --check | tail -3
   # Single resolution of the diff scope. Every gated step reads a
   # `needs.select-tests.outputs.*` row instead of re-running the detector, so the
   # detector runs once per workflow rather than once per lane and there is one
