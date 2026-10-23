@@ -208,7 +208,8 @@ test("enable-auto-merge reads the lane's room from this run's post-merge-dispatc
   assert.ok(read, "a download of the report");
   assert.match(read, /uses: actions\/download-artifact@[0-9a-f]{40} /);
   assert.match(read, /\n {10}name: pr-merge-post-merge-report\n/);
-  assert.match(read, /needs\.post-merge-dispatch\.result == 'success'/);
+  // Not 'success': a step after the kept report can fail the job.
+  assert.match(read, /needs\.post-merge-dispatch\.result != 'skipped'/);
   assert.doesNotMatch(read, /run-id|github-token|repository:/);
   const step = /- name: Arm and disarm auto-merge\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)[1];
   assert.match(step, /\n {10}POSTMERGE_RESULT: \$\{\{ runner\.temp \}\}\/post-merge\/post-merge\.json\n/);

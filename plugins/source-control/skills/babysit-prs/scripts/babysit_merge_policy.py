@@ -3932,6 +3932,26 @@ def _demotion_changed(
     return False
 
 
+def _shared_age_refusal(shared: SharedPostMerge, age: timedelta) -> str | None:
+    """`stale` past `SHARED_MAX_AGE` (or from the future), `unverified-stale`
+    past `SHARED_UNVERIFIED_MAX_AGE` while it passes with a merge unverified,
+    else None."""
+    if not timedelta(0) <= age <= SHARED_MAX_AGE:
+        return "stale"
+    # A refusing answer refuses whatever was verified since, so only a
+    # passing one with a merge still unverified is read again.
+    if (
+        age > SHARED_UNVERIFIED_MAX_AGE
+        and shared.gate.refusal is None
+        and any(
+            json_object(m).get("verified") is not True
+            for m in json_array(shared.gate.report.get("autoMerges"))
+        )
+    ):
+        return "unverified-stale"
+    return None
+
+
 def shared_refusal(
     repo: str,
     shared: SharedPostMerge,
@@ -3988,21 +4008,7 @@ def shared_refusal(
             return "floor-differs"
     except PolicyReadError:
         return "config-unreadable"
-    checks = (
-        (not timedelta(0) <= age <= SHARED_MAX_AGE, "stale"),
-        # A refusing answer refuses whatever was verified since, so only a
-        # passing one with a merge still unverified is read again.
-        (
-            age > SHARED_UNVERIFIED_MAX_AGE
-            and shared.gate.refusal is None
-            and any(
-                json_object(m).get("verified") is not True
-                for m in json_array(shared.gate.report.get("autoMerges"))
-            ),
-            "unverified-stale",
-        ),
-    )
-    refusal = next((text for refused, text in checks if refused), None)
+    refusal = _shared_age_refusal(shared, age)
     if refusal:
         return refusal
     if not shared.demotion.active and _demotion_changed(owner, name, shared, identity):
@@ -4469,7 +4475,11 @@ class LaneRoom:
 
 
 def lane_room(
-    repo: str, shared: SharedPostMerge | None, *, lane_rung_cap: str | None
+    repo: str,
+    shared: SharedPostMerge | None,
+    *,
+    lane_rung_cap: str | None,
+    now: datetime | None = None,
 ) -> LaneRoom:
     """Whether the pr-merge lane may merge one more of its own pull requests
     now, for native auto-merge, which skips `assess`: the run-level refusals
@@ -4488,9 +4498,16 @@ def lane_room(
       are counted, not refused: the caller arms below the cap.
 
     Any read failure, a missing `shared` and an in-flight count that could
-    not be read included, is `unreadable`."""
+    not be read included, is `unreadable`. So is a `shared` the gate would
+    not reuse for its age (`_shared_age_refusal`) or for a demotion record
+    filed or changed since (`_demotion_changed`): a re-run job downloads the
+    run's first report, up to a day old, and reads its demotion and
+    refusal."""
     if shared is None:
         return LaneRoom(unreadable="post-merge answer missing or unreadable")
+    stale = _shared_age_refusal(shared, (now or datetime.now(UTC)) - shared.computed_at)
+    if stale:
+        return LaneRoom(unreadable=f"post-merge answer {stale}")
     try:
         default = _default_branch(repo, shared=True)
         config = _default_branch_config(repo, default)
@@ -4501,6 +4518,9 @@ def lane_room(
     identity = config.agent_identity
     if not identity or _login_key(shared.identity) != _login_key(identity):
         return LaneRoom(unreadable="post-merge answer is for another identity")
+    owner, name = _split_repo(repo)
+    if not shared.demotion.active and _demotion_changed(owner, name, shared, identity):
+        return LaneRoom(unreadable="post-merge answer demotion-changed")
     if shared.gate.refusal:
         return LaneRoom(refusal=f"post-merge:{shared.gate.refusal}")
     cap = rung_cap(repo, authority=PR_MERGE, lane_value=lane_rung_cap)

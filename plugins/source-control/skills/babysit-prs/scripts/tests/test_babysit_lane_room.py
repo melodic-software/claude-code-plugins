@@ -16,7 +16,7 @@ import json
 import pathlib
 import sys
 import unittest
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
@@ -28,6 +28,8 @@ REPO = "example-org/example-repo"
 IDENTITY = "agent-lanes[bot]"
 MAIN = "c" * 40
 FLOOR = datetime(2026, 10, 1, tzinfo=UTC)
+# Five minutes after the answer was computed: inside the gate's reuse age.
+NOW = FLOOR + timedelta(minutes=5)
 
 
 def config(**overrides: object) -> policy.PipelineConfig:
@@ -71,6 +73,8 @@ class LaneRoom(unittest.TestCase):
         cap: str | None = "",
         flight: policy.InFlight | None = None,
         config_error: Exception | None = None,
+        now: datetime = NOW,
+        demotion_changed: bool = False,
     ) -> policy.LaneRoom:
         seen: dict[str, object] = {}
 
@@ -90,9 +94,15 @@ class LaneRoom(unittest.TestCase):
                 policy, "_run_max_in_flight", return_value=(5, "default-branch")
             ),
             mock.patch.object(policy, "in_flight", side_effect=in_flight),
+            mock.patch.object(
+                policy, "_demotion_changed", return_value=demotion_changed
+            ),
         ):
             result = policy.lane_room(
-                REPO, answer if answer is not None else shared(), lane_rung_cap=cap
+                REPO,
+                answer if answer is not None else shared(),
+                lane_rung_cap=cap,
+                now=now,
             )
         self.seen = seen
         return result
@@ -144,6 +154,26 @@ class LaneRoom(unittest.TestCase):
         self.assertEqual(
             (room.refusal, room.unreadable, room.count, room.cap), (None, None, 5, 5)
         )
+
+    def test_an_answer_the_gate_would_not_reuse_is_unreadable(self) -> None:
+        # The gate reads afresh past SHARED_MAX_AGE or after a demotion record
+        # changed (shared_refusal); a re-run job reads the run's first report.
+        cases = {
+            "stale": dict(now=FLOOR + policy.SHARED_MAX_AGE + timedelta(seconds=1)),
+            "future": dict(now=FLOOR - timedelta(seconds=1)),
+            "demotion changed": dict(demotion_changed=True),
+        }
+        for name, kwargs in cases.items():
+            with self.subTest(name):
+                room = self.room(**kwargs)  # type: ignore[arg-type]
+                self.assertIsNone(room.refusal)
+                self.assertTrue(room.unreadable)
+        self.assertFalse(self.seen, "no in-flight read after an unusable answer")
+
+    def test_an_active_demotion_is_not_re_read(self) -> None:
+        # Already refusing: a changed record cannot make it allow.
+        room = self.room(shared(demoted=True), demotion_changed=True)
+        self.assertEqual(room.refusal, "rung-off:demotion")
 
     def test_a_failed_read_refuses_nothing_and_allows_nothing(self) -> None:
         cases = {

@@ -462,7 +462,9 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
       if (!unverified && !relinked) {
         console.log(`#${number}: no verifier hold: pr-verify passed this head.`);
       } else if (!unverified && lifters.length === 0) {
-        reasons.push(`${relinked}; pr-verify judges its new link, after which enable-auto-merge arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue`);
+        // pr-verify skips a head it already passed (resolve-pr.mjs `judged`),
+        // so only a new head or an approval recovers it.
+        reasons.push(`${relinked}; pr-verify does not judge this head again, so push a new head for it to judge, after which enable-auto-merge arms it again, or an approving review of this head by a person on the trusted-actor list lifts it, then re-queue`);
       } else if (lifters.length) {
         console.log(`#${number}: no verifier hold: ${lifters.join(", ")} approved this head, which lifts '${unverified}'.`);
       } else {
