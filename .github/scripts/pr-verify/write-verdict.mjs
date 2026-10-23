@@ -1,6 +1,9 @@
 // Checks the verifier's structured output, the last result message of
 // run-claude-cli's execution file, and writes the verdict file that
-// pr-verify.yml uploads as pr-verify-<pr>-<head-sha>-<verdict>. The output
+// pr-verify.yml uploads as pr-verify-<pr>-<head-sha>-<verdict>. Every reader
+// also accepts that name followed by `-<headRefDigest of the head branch>`,
+// which lets the pr-merge lane tie a FAIL to a branch without downloading it;
+// this writer moves to it once the readers have run on main. The output
 // must be exactly {verdict, summary, notes}: verdict pass, pass-notes or fail,
 // summary a string, notes an array of strings, none matching the shared
 // credential patterns (lib/publish-gate.mjs findSecret), since the verdict is
@@ -163,7 +166,17 @@ export function checkKeyLeg(env = process.env) {
   appendFileSync(env.GITHUB_OUTPUT, "clean=true\n");
 }
 
-export const artifactName =(verdict) => `pr-verify-${verdict.pr}-${verdict.head_sha}-${verdict.verdict}`;
+// The head-ref digest in an artifact name: the first HEAD_REF_DIGEST_HEX hex
+// digits of the SHA-256 of the head branch's UTF-8 bytes. Equal branches
+// always give equal digests, so a collision can only tie a FAIL to a branch
+// it did not judge, which holds a merge, never clears one.
+// babysit_verify_evidence.head_ref_digest is its twin, and
+// tests/test_verify_rules_sync.py compares them.
+export const HEAD_REF_DIGEST_HEX = 16;
+export const headRefDigest = (ref) =>
+  createHash("sha256").update(String(ref), "utf8").digest("hex").slice(0, HEAD_REF_DIGEST_HEX);
+
+export const artifactName = (verdict) => `pr-verify-${verdict.pr}-${verdict.head_sha}-${verdict.verdict}`;
 
 export function main(env = process.env) {
   for (const key of [
