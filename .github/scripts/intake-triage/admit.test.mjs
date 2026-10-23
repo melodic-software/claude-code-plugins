@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, admit, decide, loadRules } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, admit, decide, loadRules, unrunnableCriteria } from "./admit.mjs";
 
 const RULES = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)));
 const HUMAN = 153232337;
@@ -15,6 +15,15 @@ const NEEDS_DECISION = "status: needs-decision";
 const BODY = ["## Problem", "", "`plugins/session-flow/README.md:3` says eighteen.", "", "## Done when", "", "- [ ] Line 3 says nineteen."].join(
   "\n",
 );
+// #9287's done-when, as filed.
+const CANARY = [
+  "## Done when",
+  "",
+  "- [ ] Line 9 of `plugins/machine-health/README.md` says 27 checks.",
+  "- [ ] Run `/machine-health:audit` on a Windows 11 host and confirm the report lists 27 check results.",
+  "- [ ] One changelog fragment made with `scripts/new-changelog-fragment.sh machine-health patch`.",
+].join("\n");
+const HOSTS = ["code.claude.com", "docs.github.com"];
 const issueOf = (overrides = {}) => ({
   number: 7,
   state: "open",
@@ -40,6 +49,7 @@ const facts = (overrides = {}) => ({
   events: [],
   humans,
   appId: APP,
+  webHosts: HOSTS,
   repository: "o/r",
   ...overrides,
 });
@@ -105,6 +115,11 @@ describe("decide", () => {
       /duplicate/,
     ],
     ["criterion 9: an author who is not listed", { issue: issueOf({ user: { id: OUTSIDER } }) }, /author/],
+    [
+      "a lane-runnable done-when: a Windows-host criterion (#9287)",
+      { issue: issueOf({ body: CANARY }) },
+      /item 2 \(a run on a host the lane is not: "Run \/machine-health:audit on a Windows 11 host.*recommended split/,
+    ],
   ];
   for (const [name, input, reason] of refusals) {
     test(`refuses for a person on ${name}`, () => {
@@ -278,6 +293,7 @@ const go = (fake, { status = open } = {}) =>
     rules: RULES,
     humans,
     appId: APP,
+    webHosts: HOSTS,
     status: async () => status,
     log: () => {},
   });
@@ -334,6 +350,17 @@ describe("admit", () => {
     assert.match(done[2], /^POST \/repos\/o\/r\/issues\/7\/comments /);
     assert.ok(done[2].includes(ADMIT_MARKER.replaceAll('"', '\\"')));
     assert.match(done[2], /task list/);
+  });
+
+  test("a Windows-host done-when item stays out of the lane: needs-decision and a recommended split, never agent-ready", async () => {
+    const fake = fakeGitHub({ issue: issueOf({ body: CANARY }) });
+    const result = await go(fake);
+    assert.equal(result.outcome, "refused");
+    const done = writes(fake.calls);
+    assert.ok(!done.some((call) => call.includes("/labels ") && call.includes(AGENT_READY)));
+    assert.match(done[0], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/status%3A%20ready/);
+    assert.equal(done[1], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+    assert.match(done[2], /item 2 .*Windows 11 host.*recommended split: keep the other items here .* needs-human child issue/);
   });
 
   test("a refusal edits the App's earlier admission comment instead of adding one", async () => {
@@ -412,4 +439,68 @@ describe("admit", () => {
       assert.ok(writes(fake.calls).includes(`DELETE /repos/o/r/issues/7/labels/${DEFERRED} undefined`));
     }
   });
+});
+
+
+describe("unrunnableCriteria", () => {
+  const kinds = (line, hosts = HOSTS) => unrunnableCriteria(`- [ ] ${line}`, "- [ ] ", hosts).found.map(({ kind }) => kind);
+  const positives = [
+    ["a Windows host run", "Run `/machine-health:audit` on a Windows 11 host and confirm 27 results.", /host/],
+    ["a macOS machine", "Install the plugin on a macOS machine and see the banner.", /host/],
+    ["a WSL box", "The hook fires from a WSL2 box.", /host/],
+    ["a paid eval", "Run a paid eval of the skill and record the delta.", /paid eval/],
+    ["a plugin eval run", "Run `claude plugin eval` on the suite and the delta is positive.", /paid eval/],
+    ["N consecutive runs", "Run the lane 20 consecutive runs without a failure.", /repeated run/],
+    ["consecutive runs pass", "Twenty consecutive runs pass on main.", /repeated run/],
+    ["a measurement over time", "Monitor the queue for two weeks and confirm no backlog.", /over time/],
+    ["after days", "Confirm after 7 days that the cache stays under 1 GB.", /over time/],
+    ["a page outside the lane's hosts", "The page at https://example.com/docs shows the new flag.", /example\.com/],
+  ];
+  for (const [name, line, kind] of positives) {
+    test(`flags ${name}`, () => {
+      assert.match(kinds(line).join(), kind);
+    });
+  }
+  const negatives = [
+    ["a Windows-host criterion named in prose", "A test covers a Windows-host criterion staying out of the lane."],
+    ["a host named without a run", "The README says Windows host support is fully implemented."],
+    ["the lane's own OS", "Run the script on a Linux host and it exits 0."],
+    ["a list that names a paid eval", "Intake's rubric marks a host or OS run, a paid eval, or a loaded multi-run."],
+    ["a no-spend eval", "Run `claude plugin eval --validate` on the suite and it passes."],
+    ["a failure threshold", "The lane pauses after 3 consecutive failures."],
+    ["a retention period", "The sweep deletes files older than 30 days."],
+    ["a config duration", "Set `cleanupPeriodDays` to keep transcripts for 30 days."],
+    ["a GitHub link", "The PR at https://github.com/o/r/pull/1 links the issue."],
+    ["a lane docs host", "The section matches https://code.claude.com/docs/en/hooks."],
+    ["a localhost URL", "The server answers on http://localhost:8080/health."],
+  ];
+  for (const [name, line] of negatives) {
+    test(`passes ${name}`, () => {
+      assert.deepEqual(kinds(line), []);
+    });
+  }
+  test("any web host skips the URL check; no listed hosts allow only GitHub and local ones", () => {
+    assert.deepEqual(kinds("See https://example.com.", "any"), []);
+    assert.equal(kinds("See https://code.claude.com/docs.", []).length, 1);
+    assert.equal(unrunnableCriteria("- [ ] See https://code.claude.com/docs.", "- [ ] ", undefined).found.length, 1);
+  });
+  test("reads only task-list lines and numbers items from 1", () => {
+    const body = "Runs on a Windows 11 host today.\n- [ ] Fix line 3.\n- [ ] Run it on a Windows 11 host.";
+    assert.deepEqual(unrunnableCriteria(body, "- [ ] ", HOSTS), {
+      items: 2,
+      found: [{ n: 2, kind: "a run on a host the lane is not", text: "Run it on a Windows 11 host." }],
+    });
+  });
+  test("quotes issue text without backticks or live mentions, cut to 80 characters", () => {
+    const [{ text }] = unrunnableCriteria(`- [ ] Ask @owner to run \`x\` on a Windows 11 host ${"and more ".repeat(20)}`, "- [ ] ", HOSTS).found;
+    assert.ok(!text.includes("`"));
+    assert.ok(text.includes("@\u200bowner"));
+    assert.equal(text.length, 80);
+  });
+});
+
+test("decide: every done-when item unrunnable says a person takes the issue, with no split", () => {
+  const result = decide(facts({ issue: issueOf({ body: "- [ ] Run it on a Windows 11 host." }) }));
+  assert.equal(result.verdict, "refuse");
+  assert.match(result.reasons.join("; "), /no done-when item is left for the lane, so a person takes the issue/);
 });

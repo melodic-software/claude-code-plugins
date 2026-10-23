@@ -423,7 +423,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     console.log(`apply-verdict: the broker ${proceed ? "would" : "would not"} mint for this run's actors`);
   } else {
     try {
-      const { issueDimensionsFromBase, fieldSetters } = await import(
+      const { issueDimensionsFromBase, issueLaneWebHostsFromBase, fieldSetters } = await import(
         new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href
       );
       const rate = searchRateLimit();
@@ -445,6 +445,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
           rules: loadRules(`${env.BASE_PATH}/.github/actions/resolve-config/admission-rules.json`),
           humans,
           appId: logins.get(LANES_APP_LOGIN),
+          webHosts: issueLaneWebHostsFromBase(env),
           status: () =>
             checkWip(github, {
               repo: repository,
