@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 
-import { checkRow, credentialIn, loadRules, main, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select } from "./apply-patch.mjs";
+import { checkRow, credentialIn, keptThreadsFrom, loadRules, main, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select } from "./apply-patch.mjs";
 
 // The registry as committed: the rows these tests hold apply-patch to.
 const REPO_ROOT = join(import.meta.dirname, "../../..");
@@ -459,17 +459,104 @@ test("a pushed patch commits the row's message and trailer on the gated head and
   assert.deepEqual(api.calls.at(-2), { updateRef: { ref: "heads/feat/x", sha: "c".repeat(40), force: false } });
 });
 
+// The kept threads as keptThreadsFrom reads them from a threads.json.
+const keptOf = (threads) => ({ paths: new Set(threads.map((thread) => thread.path)), threads });
+
 test("kept-threads admits a kept thread's path and refuses one outside every thread's scope", async (t) => {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
   const kept = fakeApi(fix.repo, fix.head);
-  assert.equal((await pushWith(fix, kept, { row: row("review-threads"), context: { keptThreads: new Set(["README.md"]) } })).outcome, "pushed");
+  assert.equal((await pushWith(fix, kept, { row: row("review-threads"), context: { keptThreads: keptOf([{ path: "README.md" }]) } })).outcome, "pushed");
   const outside = fakeApi(fix.repo, fix.head);
-  assert.deepEqual(await pushWith(fix, outside, { row: row("review-threads"), context: { keptThreads: new Set(["notes.md"]) } }), {
+  assert.deepEqual(await pushWith(fix, outside, { row: row("review-threads"), context: { keptThreads: keptOf([{ path: "notes.md" }]) } }), {
     outcome: "escalate",
     escalationReason: "patch-protected-path",
   });
   assert.deepEqual(outside.calls, []);
   await assert.rejects(pushWith(fix, fakeApi(fix.repo, fix.head), { row: row("review-threads") }), /kept thread paths/);
+  await assert.rejects(pushWith(fix, fakeApi(fix.repo, fix.head), { row: row("review-threads"), context: { keptThreads: new Set(["README.md"]) } }), /kept thread paths/);
+});
+
+// The review-threads row's scope, as the write runner's promote step held a
+// lane branch to it: each case patches the files named, onto a head holding
+// them, under kept threads on plugins/p/evals/c/case.yaml and src/round.py.
+const SCOPE_THREADS = [{ path: "plugins/p/evals/c/case.yaml" }, { path: "src/round.py" }];
+const threadPatch = (t, paths) =>
+  repoWithPatch(t, (repo) => {
+    for (const path of paths) {
+      mkdirSync(join(repo, dirname(path)), { recursive: true });
+      writeFileSync(join(repo, path), `${path}\n`);
+    }
+  });
+const threadPush = (fix, threads = SCOPE_THREADS) => pushWith(fix, fakeApi(fix.repo, fix.head), { row: row("review-threads"), context: { keptThreads: keptOf(threads) } });
+
+test("review-threads: the thread's path, its plugin's files and a sibling test push", async (t) => {
+  const fix = threadPatch(t, [
+    "plugins/p/evals/c/case.yaml",
+    "plugins/p/evals/c/samples/deep/new.json",
+    "plugins/p/evals/other/samples/new.json",
+    "plugins/p/README.md",
+    "src/test_round.py",
+  ]);
+  assert.equal((await threadPush(fix)).outcome, "pushed");
+});
+
+for (const path of ["plugins/q/evals/c/samples/new.json", "src/lib/test_round.py", "plugins/p/lib/run.js"]) {
+  test(`review-threads: a change outside every kept thread's scope is refused whole: ${path}`, async (t) => {
+    const fix = threadPatch(t, ["plugins/p/evals/c/case.yaml", path]);
+    assert.deepEqual(await threadPush(fix), { outcome: "escalate", escalationReason: "patch-protected-path" });
+  });
+}
+
+// #8116: a write-access fix request named a same-plugin code file, which the
+// thread file carries as named_paths; without it the file is out of scope.
+test("review-threads: a file a kept thread's named_paths holds pushes; the same file unnamed, or a named instruction path, is refused", async (t) => {
+  const named = [{ path: "plugins/p/evals/c/case.yaml", named_paths: ["plugins/p/lib/run.js"] }];
+  assert.equal((await threadPush(threadPatch(t, ["plugins/p/lib/run.js"]), named)).outcome, "pushed");
+  assert.deepEqual(await threadPush(threadPatch(t, ["plugins/p/lib/run.js"]), [{ path: "plugins/p/evals/c/case.yaml" }]), {
+    outcome: "escalate",
+    escalationReason: "patch-protected-path",
+  });
+  const instruction = [{ path: "plugins/p/evals/c/case.yaml", named_paths: ["plugins/p/AGENTS.md"] }];
+  assert.deepEqual(await threadPush(threadPatch(t, ["plugins/p/AGENTS.md"]), instruction), {
+    outcome: "escalate",
+    escalationReason: "patch-protected-path",
+  });
+});
+
+test("review-threads: a symbolic link at an in-scope path is refused patch-invalid", async (t) => {
+  const fix = repoWithPatch(t, (repo) => {
+    mkdirSync(join(repo, "plugins/p"), { recursive: true });
+    symlinkSync("../../README.md", join(repo, "plugins/p/notes.md"));
+  });
+  assert.deepEqual(await threadPush(fix), { outcome: "escalate", escalationReason: "patch-invalid" });
+});
+
+test("keptThreadsFrom reads a threads.json's paths and named_paths, and refuses any other shape", (t) => {
+  const dir = scratch(t);
+  const file = join(dir, "threads.json");
+  writeFileSync(
+    file,
+    JSON.stringify({
+      version: 1,
+      head_sha: "a".repeat(40),
+      threads: [
+        { id: "PRRT_1", path: "plugins/p/a.md", comments: [{ id: 1, body: "x" }], named_paths: ["plugins/p/b.js"] },
+        { id: "PRRT_2", path: "src/c.py", comments: [] },
+      ],
+    }),
+  );
+  assert.deepEqual(keptThreadsFrom(file), {
+    paths: new Set(["plugins/p/a.md", "src/c.py"]),
+    threads: [
+      { path: "plugins/p/a.md", named_paths: ["plugins/p/b.js"] },
+      { path: "src/c.py", named_paths: undefined },
+    ],
+  });
+  assert.equal(keptThreadsFrom(""), undefined);
+  for (const text of [JSON.stringify(["plugins/p/a.md"]), JSON.stringify({ threads: [{ path: 7 }] }), JSON.stringify({ threads: [{ path: "a", named_paths: "b" }] })]) {
+    writeFileSync(file, text);
+    assert.throws(() => keptThreadsFrom(file), /KEPT_THREADS_FILE/, text);
+  }
 });
 
 test("merge-result throws before any write until merge commits are supported", async (t) => {
@@ -578,19 +665,29 @@ test("under the ci-context row a head that moved since the model job skips super
 });
 
 // The default row keeps the moved-head path on purpose: fix-docs runs once
-// per pull request, so a skipped fix-docs patch would never run again.
-test("only the ci-context row skips a moved head; the other PR rows keep the moved-head path", (t) => {
+// per pull request, so a skipped fix-docs patch would never run again. The
+// review-threads row skips, as the write runner's promote step refused a
+// branch that moved during the run: the replies judged the gated head.
+test("the ci-context and review-threads rows skip a moved head; the other PR rows keep the moved-head path", (t) => {
   const dir = scratch(t);
   writeFileSync(join(dir, "patch.diff"), "diff --git a/x b/x\n");
   const sum = sha256("diff --git a/x b/x\n");
   const moved = { patchState: "written", patchSha256: sum, patchHeadSha: "b".repeat(40), headSha: "a".repeat(40), patchDir: dir };
   assert.equal(RULES["ci-context"]["skip-moved-head"], true);
+  assert.equal(RULES["review-threads"]["skip-moved-head"], true);
   assert.equal(RULES.default["skip-moved-head"], false);
-  for (const name of ["review-threads", "dependency-review"]) {
-    assert.equal(RULES[name]["skip-moved-head"], undefined, name);
-  }
+  assert.equal(RULES["dependency-review"]["skip-moved-head"], undefined);
   assert.deepEqual(select({ row: row("default"), ...moved }), { proceed: true, skipReason: "", escalationReason: "" });
-  assert.deepEqual(select({ row: row("review-threads"), ...moved }), { proceed: true, skipReason: "", escalationReason: "" });
+  assert.deepEqual(select({ row: row("review-threads"), ...moved }), { proceed: false, skipReason: "superseded-sha", escalationReason: "" });
+  assert.deepEqual(select({ row: row("dependency-review"), ...moved }), { proceed: true, skipReason: "", escalationReason: "" });
+});
+
+test("under the review-threads row a head that moved since the model job skips superseded-sha before any API call", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
+  const api = fakeApi(fix.repo, fix.head);
+  const result = await pushWith(fix, api, { row: row("review-threads"), patchHeadSha: "b".repeat(40), context: { keptThreads: keptOf([{ path: "README.md" }]) } });
+  assert.deepEqual(result, { outcome: "superseded" });
+  assert.deepEqual(api.calls, []);
 });
 
 // --- fix-ci's refusals, one test each ---

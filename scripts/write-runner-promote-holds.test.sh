@@ -151,7 +151,8 @@ const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
 const { tmpdir } = await import("node:os");
 const { join } = await import("node:path");
 const holdStep = wf.jobs.run.steps.find((s) => s.id === "hold-label");
-// fixRequested: the review-threads select step's fix-requested output.
+// fixRequested: under the review-threads row, the caller's select job's
+// fix-requested output (patch-fix-requested).
 const holdLabelsFor = (fixRequested, labelsAbsent) => {
   const dir = mkdtempSync(join(tmpdir(), "hold-label-"));
   try {
@@ -165,8 +166,8 @@ const holdLabelsFor = (fixRequested, labelsAbsent) => {
     rmSync(dir, { recursive: true, force: true });
   }
 };
-say(String(holdStep?.env?.FIX_REQUESTED) === "${{ steps.feedback-select.outputs.fix-requested }}",
-  "the hold-label step reads the review-thread select step's fix-requested output");
+say(String(holdStep?.env?.FIX_REQUESTED) === "${{ inputs.patch-prepare == 'review-threads' && inputs.patch-fix-requested || '' }}",
+  "the hold-label step reads the select job's fix-requested only for a patch under the review-threads row");
 let holds = holdLabelsFor("true", ["do-not-merge"]);
 say(JSON.stringify(holds) === '["do-not-merge"]',
   `a write-access fix request on a needs-human PR lifts only the human-gated hold (${JSON.stringify(holds)})`);

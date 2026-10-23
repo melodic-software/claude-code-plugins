@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Tests for feedback-thread.sh, black-box with a stubbed `gh` on PATH. The
-# stub serves only the compare read and records every call: the tool posts
-# nothing, so any other call fails the case.
+# Tests for feedback-thread.sh, black-box, against a real git checkout. A `gh`
+# stub on PATH records every call and answers none: the tool reads nothing
+# from GitHub and posts nothing, so the call log stays empty.
 # shellcheck disable=SC2016  # backticks and $vars are literal fixture text
 
 set -uo pipefail
@@ -30,32 +30,38 @@ mkdir -p "$TEST_TMPDIR/bin"
 cat >"$TEST_TMPDIR/bin/gh" <<'STUB_EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$STUB/calls"
-[[ $1 == api ]] || { echo "gh-stub: unrouted $*" >&2; exit 1; }
-shift
-case "$*" in
-  "repos/o/r/compare/"*) cat "$STUB/compare.json" ;;
-  *) echo "gh-stub: unrouted $*" >&2; exit 1 ;;
-esac
+echo "gh-stub: unrouted $*" >&2
+exit 1
 STUB_EOF
 chmod +x "$TEST_TMPDIR/bin/gh"
 
-# setup: a fresh case with two kept threads, a checkout, and the lane branch a
-# clean VALID fix leaves.
+fixture_git() {
+  GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git -C "$STUB/ws" -c user.email=t@example.com -c user.name=t -c commit.gpgsign=false "$@"
+}
+
+# setup: a fresh case with two kept threads and a checkout at the gated head,
+# whose .git/info/exclude keeps .lane/ out as the read runner's does.
 setup() {
   STUB=$(mktemp -d "$TEST_TMPDIR/case.XXXXXX")
   export STUB
-  mkdir -p "$STUB/scratch" "$STUB/ws/src" "$STUB/ws/docs"
+  mkdir -p "$STUB/scratch" "$STUB/ws/src" "$STUB/ws/docs" "$STUB/ws/.github"
   : >"$STUB/calls"
   echo 'x' >"$STUB/ws/src/a.js"
   echo 'y' >"$STUB/ws/docs/b.md"
+  echo 'z' >"$STUB/ws/src/other.js"
+  echo 'w' >"$STUB/ws/.github/x.yml"
+  echo 'ignored.log' >"$STUB/ws/.gitignore"
+  fixture_git init -q -b main
+  fixture_git add -A
+  fixture_git commit -q -m head
+  echo /.lane/ >>"$STUB/ws/.git/info/exclude"
   cat >"$STUB/threads.json" <<EOF
-{"version":1,"repository":"o/r","pr":42,"head_sha":"$HEAD","lane_branch":"lane-commits/pr-unblock/address-feedback/7-1",
+{"version":1,"repository":"o/r","pr":42,"head_sha":"$HEAD",
  "threads":[
   {"id":"PRRT_a","path":"src/a.js","line":3,"review_commit":"$HEAD","root_comment_id":100,"comments":[{"id":100,"body":"null deref at line 3"}]},
   {"id":"PRRT_b","path":"docs/b.md","line":1,"review_commit":"$HEAD","root_comment_id":200,"comments":[{"id":200,"body":"typo"}]}
  ]}
 EOF
-  printf '{"commits":[{"sha":"%s"}],"files":[{"filename":"src/a.js"}]}' "$FIX" >"$STUB/compare.json"
 }
 
 disposition() {
@@ -64,7 +70,7 @@ disposition() {
 
 run() {
   PATH="$TEST_TMPDIR/bin:$PATH" FEEDBACK_THREADS="$STUB/threads.json" FEEDBACK_LOG="$STUB/replies.jsonl" \
-    FEEDBACK_SCRATCH="$STUB/scratch" FEEDBACK_WORKSPACE="$STUB/ws" GH_TOKEN="$TOKEN" \
+    FEEDBACK_SCRATCH="$STUB/scratch" FEEDBACK_WORKSPACE="$STUB/ws" \
     bash "$SCRIPT" "$@"
 }
 
@@ -148,20 +154,49 @@ for path in plugins/knowledge/hooks plugins/knowledge/.claude plugins/knowledge/
   assert_exit "check-paths refuses $path" 1 "$?"
 done
 
-# record VALID: checked against the lane branch and appended, nothing posted
+# record VALID: the uncommitted fix is checked in the working tree and the
+# reply appended, with an empty fix_sha and no GitHub call
 setup
-disposition "{\"disposition\":\"VALID\",\"evidence\":[\"src/a.js:3\"],\"fix_sha\":\"$FIX\",\"note\":\"Guarded the null case.\"}"
+echo 'guarded' >"$STUB/ws/src/a.js"
+mkdir -p "$STUB/ws/.lane/scratch"
+echo 'state' >"$STUB/ws/.lane/scratch/notes.txt"
+echo 'log' >"$STUB/ws/ignored.log"
+disposition '{"disposition":"VALID","evidence":["src/a.js:3"],"fix_sha":"","note":"Guarded the null case."}'
 out=$(run record PRRT_a "$STUB/scratch/d.json" 2>&1)
-assert_exit "a VALID record succeeds" 0 "$?"
+assert_exit "a VALID record of an in-scope uncommitted fix succeeds" 0 "$?"
 assert_eq "the replies file holds the disposition as written, keyed by thread" \
-  "{\"thread\":\"PRRT_a\",\"disposition\":\"VALID\",\"evidence\":[\"src/a.js:3\"],\"fix_sha\":\"$FIX\",\"note\":\"Guarded the null case.\"}" \
+  '{"thread":"PRRT_a","disposition":"VALID","evidence":["src/a.js:3"],"fix_sha":"","note":"Guarded the null case."}' \
   "$(cat "$STUB/replies.jsonl")"
-assert_eq "the only API call is the compare read" \
-  "api repos/o/r/compare/$HEAD...lane-commits/pr-unblock/address-feedback/7-1" "$(cat "$STUB/calls")"
+assert_eq "a VALID record makes no GitHub call" 0 "$(wc -l <"$STUB/calls")"
 assert_contains "the tool says the reply job posts it" "$out" "reply job posts it"
 run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "a second record on the same thread is refused" 1 "$?"
 assert_eq "the refused second record appends nothing" 1 "$(recorded)"
+# the CLI's empty scrub stubs at the top of the checkout are no fix: an
+# untracked empty one is passed over, one with content is refused
+setup
+echo 'guarded' >"$STUB/ws/src/a.js"
+: >"$STUB/ws/package.json"
+: >"$STUB/ws/.env"
+disposition '{"disposition":"VALID","evidence":["src/a.js:3"],"fix_sha":"","note":"fixed"}'
+run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "untracked empty scrub stubs do not refuse the VALID record" 0 "$?"
+setup
+echo 'guarded' >"$STUB/ws/src/a.js"
+echo 'TOKEN=x' >"$STUB/ws/.env"
+run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "a scrub-stub name with content refuses the VALID record" 1 "$?"
+setup
+echo 'guarded' >"$STUB/ws/src/a.js"
+mkdir -p "$STUB/ws/src/nested" && : >"$STUB/ws/src/nested/package.json"
+run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "an empty stub name below the top of the checkout refuses the VALID record" 1 "$?"
+
+setup
+disposition '{"disposition":"VALID","evidence":["src/a.js:3"],"note":"fix_sha left out"}'
+run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
+assert_exit "a VALID record with fix_sha left out succeeds" 0 "$?"
+assert_eq "a left-out fix_sha is recorded empty" '' "$(jq -r .fix_sha "$STUB/replies.jsonl")"
 
 # record INCORRECT and UNCERTAIN: no API call at all
 setup
@@ -193,30 +228,36 @@ disposition "{\"disposition\":\"INCORRECT\",\"evidence\":[\"src/a.js:3\"],\"note
 run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "a note of 2001 emoji is refused" 1 "$?"
 
-# a fix steered outside the thread paths, or into .github/, is not recorded
-for changed in '.github/workflows/release.yml' 'src/other.js' '.GitHub/CODEOWNERS'; do
+# a fix steered outside the thread paths, or into .github/, is not recorded:
+# a tracked change, a new untracked file, or a removal
+for edit in 'echo f >"$STUB/ws/src/other.js"' 'mkdir -p "$STUB/ws/.github/workflows" && echo f >"$STUB/ws/.github/workflows/release.yml"' \
+  'mkdir -p "$STUB/ws/.GitHub" && echo f >"$STUB/ws/.GitHub/CODEOWNERS"' \
+  'echo f >"$STUB/ws/src/new.js"' 'rm "$STUB/ws/src/other.js"'; do
   setup
-  printf '{"commits":[{"sha":"%s"}],"files":[{"filename":"src/a.js"},{"filename":"%s"}]}' "$FIX" "$changed" >"$STUB/compare.json"
-  disposition "{\"disposition\":\"VALID\",\"evidence\":[\"src/a.js:3\"],\"fix_sha\":\"$FIX\",\"note\":\"fixed\"}"
+  echo 'guarded' >"$STUB/ws/src/a.js"
+  eval "$edit"
+  disposition '{"disposition":"VALID","evidence":["src/a.js:3"],"fix_sha":"","note":"fixed"}'
   run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
-  assert_exit "a lane branch that changes $changed refuses the VALID record" 1 "$?"
-  assert_eq "nothing is recorded when the lane branch changes $changed" 0 "$(recorded)"
+  assert_exit "a working tree that also runs $edit refuses the VALID record" 1 "$?"
+  assert_eq "nothing is recorded after $edit" 0 "$(recorded)"
 done
 setup
-printf '{"commits":[{"sha":"%s"}],"files":[{"filename":"src/b.js","previous_filename":".github/x.yml"}]}' "$FIX" >"$STUB/compare.json"
-disposition "{\"disposition\":\"VALID\",\"evidence\":[\"src/a.js:3\"],\"fix_sha\":\"$FIX\",\"note\":\"fixed\"}"
+fixture_git mv .github/x.yml src/b.js
+disposition '{"disposition":"VALID","evidence":["src/a.js:3"],"fix_sha":"","note":"fixed"}'
 run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "a rename out of .github/ refuses the VALID record" 1 "$?"
+assert_eq "a refused VALID record makes no GitHub call" 0 "$(wc -l <"$STUB/calls")"
 
 setup
-printf '{"commits":[{"sha":"%s"}],"files":[{"filename":"src/a.js"}]}' "$HEAD" >"$STUB/compare.json"
-disposition "{\"disposition\":\"VALID\",\"evidence\":[\"src/a.js:3\"],\"fix_sha\":\"$FIX\",\"note\":\"fixed\"}"
+rm -rf "$STUB/ws/.git"
+disposition '{"disposition":"VALID","evidence":["src/a.js:3"],"fix_sha":"","note":"fixed"}'
 run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
-assert_exit "a fix SHA that is not on the lane branch is refused" 1 "$?"
+assert_exit "a checkout git cannot read refuses the VALID record" 1 "$?"
+assert_eq "an unreadable tree records nothing" 0 "$(recorded)"
 
 # the disposition file must match the template and live in the scratch dir
 for bad in \
-  "{\"disposition\":\"VALID\",\"evidence\":[\"src/a.js:3\"],\"note\":\"no sha\"}" \
+  "{\"disposition\":\"VALID\",\"evidence\":[\"src/a.js:3\"],\"fix_sha\":\"$FIX\",\"note\":\"a fix sha on VALID\"}" \
   '{"disposition":"INCORRECT","note":"no evidence"}' \
   '{"disposition":"INCORRECT","evidence":["../../etc/passwd:1"],"note":"traversal"}' \
   '{"disposition":"INCORRECT","evidence":["src/missing.js:1"],"note":"missing file"}' \

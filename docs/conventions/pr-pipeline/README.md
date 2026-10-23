@@ -161,9 +161,12 @@ runs the base's resolve-config for that PR and head with `address-feedback` sele
 slot's `applies-when` is decided, and dispatches only when the `pr-unblock` lane and its
 `address-feedback` and `publish-feedback` slots are enabled and `address-feedback` applies. It records `pr-feedback-dispatched-<upstream id>-<run
 id>`, which the gate and the broker read to tie the run to a review of the PR's current head.
-In `pr-unblock.yml`, `address-feedback` (the model job, `mutate-branch`) is followed by
-`publish-feedback` (a script job with no model, `publish-artifact`), which posts the replies the
-model job recorded ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)).
+In `pr-unblock.yml`, `address-feedback-select` (a base job with no model and a read-only token)
+keeps the threads, `address-feedback` (the model job, `read`, on the read runner with a
+subscription fallback) answers them and hands on a patch and its replies,
+`apply-feedback-patch` (a script job with no model, `mutate-branch`) pushes the patch, and
+`publish-feedback` (a script job with no model, `publish-artifact`) posts the replies, naming the
+pushed commit ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)).
 
 A fix request is a reply by a person on the trusted-actor list who holds write or admin
 permission on the repository, never edited, or last edited by a person on that list, with a line that starts with
@@ -332,13 +335,16 @@ Each leaf declares:
 - `skill` (`<plugin>:<skill>`) or `script` (a repository path), with optional `args` passed
   verbatim: after the skill name in that skill's own syntax, or to the script.
 - `prepare` (optional): what the runner does around the activity. `apply-patch` is the one mode
-  for a script (a `mutate-branch` one), `ci-context` the one mode for a `read` skill, and the
-  others need a skill with an effect other than `read` until their activity hands its change on
-  as a patch ([`pr-run-activity.md`](pr-run-activity.md#prepare-ci-context)). `merge-base` merges the base tip into the gated head without committing before the
-  skill runs, and commits the result with both as parents after it. `review-threads` keeps the
-  PR's unresolved reviewer-bot threads and decides skip, escalate or proceed before any model
-  turn, gives the skill the review-thread tool, and uploads the replies it records for a reply job
-  with no model to post ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)). A runner performs this
+  for a script (a `mutate-branch` one), `ci-context` and `review-threads` the modes the read
+  runner performs, each on a `read` skill that hands on a patch, and the others need a skill with
+  an effect other than `read` unless their activity hands its change on as a patch
+  ([`pr-run-activity.md`](pr-run-activity.md#prepare-ci-context)). `merge-base` merges the base tip into the gated head without committing before the
+  skill runs, and commits the result with both as parents after it. `review-threads` runs on the
+  read runner after the caller's base job kept the PR's unresolved reviewer-bot threads and
+  decided skip, escalate or proceed before any model turn: it checks that job's thread file, gives
+  the skill the review-thread tool, and hands on its fix as a patch and the replies it records
+  (`applied-by.feedback-replies`) for script jobs with no model to push and post
+  ([`pr-run-activity.md`](pr-run-activity.md#prepare-review-threads)). A runner performs this
   only where it declares support by passing `prepare-supported: true` to `resolve-config`; anywhere
   else an applying leaf that sets `prepare` fails red rather than running without it.
 - `applied-by` (optional, `skill` only, effect `read` and gating `advisory`): what the skill
@@ -469,20 +475,20 @@ trusted base: one row per prepare mode a patch-producing skill uses (`ci-context
 `review-threads`, `dependency-review`, `merge-base`), `default` for one with no prepare mode, and
 `issue` for a patch that goes to a new issue-lane branch made at the run's base or resume tip.
 [`apply-patch.mjs`](../../../.github/scripts/apply-patch/apply-patch.mjs) reads it for fix-ci's,
-fix-docs's and resolve-issue's patches ([`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)).
+fix-docs's, address-feedback's and resolve-issue's patches ([`prepare: apply-patch`](pr-run-activity.md#prepare-apply-patch)).
 [`patch-rules.schema.json`](../../../.github/actions/resolve-config/patch-rules.schema.json) closes
 each row to these keys:
 
 | Key | Holds |
 |---|---|
 | `refuse` | Named refusals; any match refuses the whole patch. |
-| `allow` | What every other changed path must also meet: `any`, `kept-threads` (the path of a thread the run kept) or `merge-result` (the blob the base merge leaves there, or a conflicted path left with no conflict markers). |
+| `allow` | What every other changed path must also meet: `any`, `kept-threads` (a path in the scope of a thread the select job kept, its `named_paths` included, read from that job's thread file) or `merge-result` (the blob the base merge leaves there, or a conflicted path left with no conflict markers). |
 | `max-files` | The most paths one patch may change, or `null`. |
 | `requires` | What the producer's output must say before anything applies: `dependency-verdict: fix`. |
 | `commit` | `parents` (`[head]`, or `[head, base]` for a merge), `message` and `trailer`, with `{ref}`, `{base}`, `{lane}`, `{activity}` and `{issue}` filled in. |
 | `reads-report` | The producer report the apply reads (`ci-escalations`: the checks the model escalated), or `null`. |
 | `empty-at-push` | Optional; the kind a patch that applies but changes nothing escalates at push time: `empty` (the default) or `invalid` (`ci-context`, as the producer said it wrote a change). |
-| `skip-moved-head` | Optional, default `false`; `true` (`ci-context`) skips `superseded-sha` on any PR head that moved since the producer ran, where other rows take the moved tip with `--3way` when the moved commits touch no patched path. `default` sets `false`: fix-docs runs once per pull request, so a skipped fix-docs patch would never run again. |
+| `skip-moved-head` | Optional, default `false`; `true` (`ci-context`, `review-threads`) skips `superseded-sha` on any PR head that moved since the producer ran, where other rows take the moved tip with `--3way` when the moved commits touch no patched path. `default` sets `false`: fix-docs runs once per pull request, so a skipped fix-docs patch would never run again. |
 | `script-exec-bit` | Optional, default `false`; `true` (`issue`) makes each new or changed file that ends in `.sh` or starts with `#!` executable after every refusal passes, since the model's tools set no file mode. A row that sets it must refuse `instruction-path`. |
 | `escalations` | The escalation reasons the apply may give for the row. |
 
@@ -571,7 +577,8 @@ bounded re-reads), `cost-gated`, `awaiting-human` (among others, a `labels-absen
 PR), `superseded-sha`, `disabled-by-config`, `untrusted-trigger` (a fork, no same-repository PR, or an
 actor or author not on the trusted-actor list), `workflow-modified` (the token broker refused a
 write lane's mint for a workflow file the PR itself changes), `rung-up` (a fix-ci run's patch is
-held back for one retry one model rung up, [Lanes](#lanes)), or, for an issue run under
+held back for one retry one model rung up, [Lanes](#lanes)), `no-model-turn` (an address-feedback
+round whose model never ran, so the scan uploaded no replies), or, for an issue run under
 `models.issue-dimensions`, `not-assessed` (a dimension field empty or set by an untrusted
 account), `research-first` or `probe-first` (its Uncertainty), or `split-required` (its Size is
 `split`). Issue mode posts no check, so work-resolve-issue.yml reports those four dimension skips

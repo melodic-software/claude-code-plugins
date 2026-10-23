@@ -17,6 +17,7 @@
     "requires": [],
     "commit": { "parents": ["head"], "message": "Address review feedback on {ref}", "trailer": "Lane-Activity: {lane}/{activity}" },
     "reads-report": null,
+    "skip-moved-head": true,
     "escalations": ["feedback-not-landed", "patch-invalid", "patch-not-applied", "patch-protected-path"]
   },
   "dependency-review": {
