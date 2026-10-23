@@ -15,6 +15,7 @@ request: one lane job window, the marker written inside it.
 from __future__ import annotations
 
 import pathlib
+import re
 import sys
 import unittest
 from typing import Any
@@ -42,7 +43,8 @@ from test_babysit_review_evidence import (
 from test_babysit_risk import _file, _input
 
 SEC = "claude-security-review"
-DOC = "docs/migration-playbook.md"
+DOC = "docs/catalog.md"
+ROOT = pathlib.Path(__file__).resolve().parents[6]
 BASE_LINE = f"<!-- claude-lane-reviewed-base ref=main merge-base={S1} -->"
 
 
@@ -97,12 +99,14 @@ class DocsOnlyBase(unittest.TestCase):
         sec_marker: dict[str, Any] | None = None,
         paths: Any = (DOC,),
         threads: list[dict[str, Any]] | None = None,
+        extra_comments: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         runs = [whole("claude-review", S)]
         runs += [skip_run(S, *HEAD_SKIP)] if security_runs is None else security_runs
         comments = [
             marker("claude-review", S),
             doc_marker() if sec_marker is None else sec_marker,
+            *(extra_comments or []),
         ]
         return by_lane(
             ev.bind(
@@ -138,7 +142,8 @@ class BindsTests(DocsOnlyBase):
             "README.md",
             "plugins/foo/README.md",
             "plugins/foo/CHANGELOG.md",
-            "docs/glossary.md",
+            "CHANGELOG.md",
+            "docs/plugin-artifact-protocol.md",
         ):
             with self.subTest(path=path):
                 self.assertTrue(self.bind(paths=(path,))[SEC].bound)
@@ -151,27 +156,79 @@ class BindsTests(DocsOnlyBase):
         comment = doc_marker(created="2026-02-01T00:00:20Z")
         self.assertTrue(self.bind(runs, comment)[SEC].bound)
 
-    def test_an_open_security_thread_still_counts(self) -> None:
-        threads = [thread(created="2026-02-01T00:10:15Z")]
-        result = self.bind(threads=threads)[SEC]
-        self.assertTrue(result.bound)
-        self.assertEqual(result.open_findings, 1)
-        self.assertEqual(result.blocking_findings, 1)
-        self.assertFalse(result.whole_review_clears)
 
-    def test_a_thread_the_agent_resolved_still_counts_and_asks_no_review(
-        self,
-    ) -> None:
+class LaneLeftoversHoldTests(DocsOnlyBase):
+    """A thread or summary comment of the security lane shows a review the
+    listed runs no longer do, whoever resolved it (the case E variant: a
+    deleted review with an empty summary, or a deleted and recreated
+    marker)."""
+
+    SEC_TAG = f"`claude-lane: {SEC}`"
+    REVIEW_TAG = "`claude-lane: claude-review`"
+
+    def test_any_security_or_untagged_thread_holds(self) -> None:
         agent = {"__typename": "Bot", "login": "agent"}
-        threads = [thread(resolved=True, resolved_by=agent)]
-        result = self.bind(threads=threads)[SEC]
-        self.assertEqual(result.open_findings, 1)
-        # A whole re-review of an all-docs pull request skips again.
-        self.assertFalse(result.whole_review_clears)
+        for item in (
+            thread(created="2026-02-01T00:10:15Z"),
+            thread(f"finding\n\n{self.SEC_TAG}"),
+            thread(resolved=True, resolved_by=agent),
+            thread(resolved=True, resolved_by=MAINTAINER),
+        ):
+            with self.subTest(thread=item):
+                self.assertUnbound(
+                    self.bind(threads=[item])[SEC], "docs-only-after-findings"
+                )
 
-    def test_a_thread_a_human_resolved_is_closed(self) -> None:
-        threads = [thread(resolved=True, resolved_by=MAINTAINER)]
-        self.assertEqual(self.bind(threads=threads)[SEC].open_findings, 0)
+    def test_a_clean_fresh_marker_beside_a_resolved_thread_holds(self) -> None:
+        # The deleted review's marker was deleted and a skip created a new one.
+        leftover = thread(
+            f"finding\n\n{self.SEC_TAG}",
+            resolved=True,
+            resolved_by=MAINTAINER,
+            created="2026-01-15T00:00:00Z",
+        )
+        self.assertUnbound(
+            self.bind(threads=[leftover])[SEC], "docs-only-after-findings"
+        )
+
+    def test_a_security_or_untagged_summary_comment_holds(self) -> None:
+        for body in ("Summary: no findings.", f"Summary.\n\n{self.SEC_TAG}"):
+            with self.subTest(body=body):
+                comment = {
+                    "id": 950,
+                    "user": {"login": "claude[bot]", "type": "Bot"},
+                    "created_at": "2026-01-15T00:00:00Z",
+                    "body": body,
+                }
+                self.assertUnbound(
+                    self.bind(extra_comments=[comment])[SEC],
+                    "docs-only-after-findings",
+                )
+
+    def test_the_code_review_lanes_thread_and_comment_do_not_hold(self) -> None:
+        tagged = thread(f"finding\n\n{self.REVIEW_TAG}")
+        comment = {
+            "id": 951,
+            "user": {"login": "claude[bot]", "type": "Bot"},
+            "created_at": "2026-02-01T00:10:30Z",
+            "body": f"Summary.\n\n{self.REVIEW_TAG}",
+        }
+        result = self.bind(threads=[tagged], extra_comments=[comment])[SEC]
+        self.assertTrue(result.bound)
+        self.assertEqual(result.open_findings, 0)
+
+    def test_unread_threads_hold(self) -> None:
+        result = by_lane(
+            ev.bind(
+                S,
+                [whole("claude-review", S), skip_run(S, *HEAD_SKIP)],
+                [marker("claude-review", S), doc_marker()],
+                None,
+                is_human=is_human,
+                changed_paths=[DOC],
+            )
+        )
+        self.assertUnbound(result[SEC], "threads-unread")
 
 
 class PathsHoldTests(DocsOnlyBase):
@@ -190,11 +247,30 @@ class PathsHoldTests(DocsOnlyBase):
     def test_each_path_outside_the_allowlist_holds(self) -> None:
         for path in (
             "AGENTS.md",
+            "plugins/foo/output-styles/README.md",
+            "plugins/foo/output-styles/CHANGELOG.md",
+            "plugins/foo/skills/bar/README.md",
+            "plugins/foo/docs/README.md",
+            "plugins/foo/scripts/README.md",
+            "src/README.md",
+            "Plugins/foo/README.md",
+            "plugins/README.md",
+            "plugins/./README.md",
+            "plugins/../README.md",
+            "./README.md",
+            "docs/cloud-fleet-setup.md",
+            "docs/cloud-sessions.md",
+            "docs/migration-playbook.md",
+            "docs/native-surfaces.md",
+            "docs/glossary.md",
+            "docs/conformance-dimensions.md",
+            "docs/formatter-path-probes.md",
+            "docs/skill-cheat-sheet.md",
+            "docs/official-docs.md",
             "plugins/foo/AGENTS.md",
             "plugins/foo/AGENTS.override.md",
             "CLAUDE.md",
             "plugins/foo/agents/README.md",
-            "plugins/foo/skills/bar/README.md",
             "plugins/foo/reference/README.md",
             "plugins/foo/Skills/README.md",
             "plugins/foo/hooks/README.md",
@@ -380,6 +456,50 @@ class DeletedReviewTests(DocsOnlyBase):
             summary="Found one injection risk in the example command.",
         )
         self.assertUnbound(self.bind(runs, comment)[SEC], "marker-not-docs-only")
+
+
+class InstructionCitationTests(unittest.TestCase):
+    """No allowlisted doc is one an instruction file cites, so a pull request
+    changing only it never changes what an agent reads as instructions."""
+
+    SCANNED_DIRS = ("prompts", ".claude", "docs/conventions")
+    SCANNED_NAMES = frozenset({"AGENTS.md", "CLAUDE.md", "REVIEW.md"})
+
+    def instruction_files(self) -> list[pathlib.Path]:
+        found = {
+            path
+            for top in self.SCANNED_DIRS
+            for path in (ROOT / top).rglob("*")
+            if path.is_file()
+        }
+        found |= {
+            path
+            for name in self.SCANNED_NAMES
+            for path in ROOT.rglob(name)
+            if path.is_file() and ".git" not in path.relative_to(ROOT).parts
+        }
+        return sorted(found)
+
+    def test_no_instruction_file_cites_an_allowlisted_doc(self) -> None:
+        self.assertTrue((ROOT / "AGENTS.md").is_file())
+        files = self.instruction_files()
+        self.assertGreater(len(files), 0)
+        names = sorted(path.rsplit("/", 1)[-1] for path in ev.DOCS_ONLY_FILES)
+        cite = re.compile(
+            r"(?<![\w.-])(" + "|".join(map(re.escape, names)) + r")(?![\w-])"
+        )
+        hits = []
+        for path in files:
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            for number, line in enumerate(text.split("\n"), 1):
+                hits += [
+                    f"{path.relative_to(ROOT)}:{number}: {name}"
+                    for name in cite.findall(line)
+                ]
+        self.assertEqual(hits, [])
 
 
 if __name__ == "__main__":

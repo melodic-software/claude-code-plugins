@@ -63,10 +63,11 @@ LANE_SOURCE_NAME = ".mcp.json"
 # The security lane's `skip=docs-only` stands as its review only when every
 # path the pull request changes is documentation on this list, a strict subset
 # of the lane's `docs-only-paths` default (ci-workflows pr-review-security.yml):
-# a README.md or CHANGELOG.md outside docs/, or one of the named top-level
-# docs. The rest of docs/ never counts (always-loaded instructions cite its
-# subtrees, docs/plugin-philosophy.md and docs/ci-runner-routing.md), nor does
-# a README or CHANGELOG in a directory an agent loads as instructions. Fixed
+# the repository root's or a plugin root's README.md or CHANGELOG.md, or one of
+# the named top-level docs. Any other README or CHANGELOG holds (an
+# `output-styles/` one loads as an output style), and so does a doc an
+# instruction file cites (prompts/, .claude/, docs/conventions/, AGENTS.md,
+# CLAUDE.md, REVIEW.md; a test enforces it), the rest of docs/ included. Fixed
 # in code, like `LANES`: a new doc holds until it is named here.
 DOCS_ONLY_LANE = "claude-security-review"
 DOCS_ONLY_FILES = frozenset(
@@ -74,27 +75,13 @@ DOCS_ONLY_FILES = frozenset(
         "docs/ai-briefing-design.md",
         "docs/catalog-taxonomy.md",
         "docs/catalog.md",
-        "docs/cloud-fleet-setup.md",
-        "docs/cloud-sessions.md",
-        "docs/conformance-dimensions.md",
         "docs/extensibility-contract-smoke-tests.md",
         "docs/finding-your-unknowns.md",
-        "docs/formatter-path-probes.md",
-        "docs/glossary.md",
         "docs/knowledge-integration-design.md",
-        "docs/migration-playbook.md",
-        "docs/native-surfaces.md",
-        "docs/official-docs.md",
         "docs/plugin-artifact-protocol.md",
-        "docs/skill-cheat-sheet.md",
     }
 )
 DOCS_ONLY_NAMES = frozenset({"README.md", "CHANGELOG.md"})
-# Directories whose files an agent loads as instructions, in any case.
-INSTRUCTION_DIRS = frozenset(
-    {".claude", "agents", "commands", "hooks", "instructions", "prompts"}
-    | {"reference", "rules", "skills"}
-)
 # The marker body a docs-only skip leaves when no review came before it: the
 # marker line, the base line, and this status line, with no summary carried
 # forward from an earlier review.
@@ -245,13 +232,9 @@ def is_docs(path: Any) -> bool:
     if path in DOCS_ONLY_FILES:
         return True
     *dirs, name = path.split("/")
-    return (
-        name in DOCS_ONLY_NAMES
-        and not (dirs and dirs[0].casefold() == "docs")
-        and not any(
-            part in {"", ".", ".."} or part.casefold() in INSTRUCTION_DIRS
-            for part in dirs
-        )
+    return name in DOCS_ONLY_NAMES and (
+        not dirs
+        or (len(dirs) == 2 and dirs[0] == "plugins" and dirs[1] not in {"", ".", ".."})
     )
 
 
@@ -271,7 +254,7 @@ def _bind_lane(
         reviewed, chain = _resolve(lane, head, lane_runs, docs_only)
         comment = _require_marker(lane, head, comments)
         if chain[0].skip is not None:
-            _require_never_reviewed(lane, head, lane_runs, comment)
+            _require_never_reviewed(lane, head, lane_runs, comment, comments, threads)
         marker = str(comment.get("body") or "")
         _require_marked_runs(lane, lane_runs, comments)
         count, clears, critical = _open_findings(
@@ -529,13 +512,33 @@ def _require_never_reviewed(
     head: str,
     lane_runs: list[Mapping[str, Any]],
     marker: Mapping[str, Any],
+    comments: Sequence[Mapping[str, Any]],
+    threads: Sequence[Mapping[str, Any]] | None,
 ) -> None:
     """A docs-only skip at `head` stands only when the lane never reviewed the
     pull request: every record any listed run left is a docs-only skip, and
     the one marker comment, which the lane creates once and edits in place,
     shows no review by a run no longer listed. It was created inside a listed
     docs-only skip's lane job and last edited inside one at `head`, and its
-    body carries no summary forward (a skip keeps the last review's)."""
+    body carries no summary forward (a skip keeps the last review's). No
+    thread or summary comment of the lane, resolved or not, untagged or
+    tagged for it, is left from a review either: a deleted review may have
+    left one beside an empty summary or a deleted and recreated marker."""
+    if threads is None:
+        raise Unbound("threads-unread")
+    if not isinstance(threads, list | tuple):
+        raise Unbound("evidence-error")
+    for thread in threads:
+        if not isinstance(thread, Mapping):
+            raise Unbound("evidence-error")
+        if _lane_thread(lane, thread):
+            raise Unbound("docs-only-after-findings")
+    for comment in comments:
+        user = comment.get("user")
+        if isinstance(user, Mapping) and user.get("login") in CLAUDE_APP_LOGINS:
+            tag = LANE_TAG_RE.search(str(comment.get("body") or ""))
+            if tag is None or tag[1] == lane:
+                raise Unbound("docs-only-after-findings")
     windows: list[tuple[datetime, datetime, str]] = []
     for item in lane_runs:
         for attempt in _attempts(item).values():
