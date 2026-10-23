@@ -996,7 +996,7 @@ jobs:
         with:
           name: pr-merge-gate-cursor
           path: ${{ runner.temp }}/gate-cursor/cursor.json
-          retention-days: 2
+          retention-days: 1
           if-no-files-found: ignore
 
       # The next run's head-ref map: the one read above and this run's
@@ -1026,7 +1026,7 @@ jobs:
         with:
           name: pr-merge-head-refs
           path: ${{ runner.temp }}/head-refs/head-refs.json
-          retention-days: 2
+          retention-days: 1
           if-no-files-found: ignore
 
       # The next run's verdict reads, under this run's own key; also after a
@@ -1135,7 +1135,7 @@ jobs:
         with:
           name: pr-merge-summary
           path: ${{ runner.temp }}/pr-merge-sweep.json
-          retention-days: 8
+          retention-days: 1
           if-no-files-found: ignore
 
       # The gate-check job below writes each candidate's check run from these
