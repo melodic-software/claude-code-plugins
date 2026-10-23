@@ -8,6 +8,11 @@ import { countFixRounds, logExcerpt, main, select } from "./fix-ci-context.mjs";
 
 // The lanes App bot's id (.github/standards/trusted-actors/trusted-actors.json).
 const APP = 337595936;
+// claude[bot] and github-actions[bot], the reviewer bot and the marker author.
+const REVIEWER = 209825114;
+const ACTIONS = 41898282;
+const HUMAN = 153232337;
+const TRUSTED_ACTORS = join(import.meta.dirname, "../../standards/trusted-actors/trusted-actors.json");
 const STRANGER = 4242;
 const HEAD = "a".repeat(40);
 const TRAILER = "Lane-Activity: pr-unblock/fix-ci";
@@ -51,10 +56,31 @@ function fakeApi(overrides = {}) {
     },
     getRun: async () => overrides.run ?? { path: ".github/workflows/pr-require-checks.yml" },
     getJobLog: async () => overrides.log ?? "2026-10-18T00:00:01.0000000Z lint-shell: SC2034\n",
+    listIssueComments: async () => overrides.issueComments ?? [],
+    listReviews: async () => overrides.reviews ?? [],
+    listReviewComments: async () => overrides.reviewComments ?? [],
+    listThreads: async () => overrides.threads ?? [],
   };
 }
 
-const selectWith = (api, maxRounds = 3) => select({ api, pr: 42, appId: APP, maxRounds });
+const selectWith = (api, maxRounds = 3) => select({ api, pr: 42, appId: APP, reviewerId: REVIEWER, maxRounds });
+
+// One unresolved thread on HEAD, opened by `author` in review 500, which the
+// reviewed-head marker confirms, with `replies` after it.
+const FINDING =
+  "Adding `get-field-options` to `ADAPTER_VERBS` makes the generator require it; the `BASE_SPEC` fixture in generate-adapter.test.sh lacks it, so the suite fails.";
+function reviewed({ author = REVIEWER, resolved = false, replies = [], body = FINDING } = {}) {
+  const rows = [
+    { id: 1, user: { id: author }, body, path: "plugins/p/generate-adapter.sh", line: 56, pull_request_review_id: 500, created_at: "2026-10-22T16:18:46Z" },
+    ...replies.map((reply, i) => ({ id: 2 + i, pull_request_review_id: 501, created_at: "2026-10-22T17:00:00Z", ...reply })),
+  ];
+  return {
+    issueComments: [{ user: { id: ACTIONS }, body: `<!-- claude-lane-reviewed-head lane=claude-review sha=${HEAD} -->` }],
+    reviews: [{ id: 500, user: { id: author }, commit_id: HEAD }],
+    reviewComments: rows,
+    threads: [{ id: "T1", isResolved: resolved, comments: { totalCount: rows.length, nodes: rows.map((row) => ({ databaseId: row.id })) } }],
+  };
+}
 
 test("a failing workflow job becomes one context entry with its workflow, annotations and log", async () => {
   const result = await selectWith(fakeApi());
@@ -62,6 +88,7 @@ test("a failing workflow job becomes one context entry with its workflow, annota
   assert.deepEqual(result.file, {
     pr: 42,
     head_sha: HEAD,
+    review_findings: [],
     checks: [
       {
         name: "lint-shell",
@@ -71,6 +98,40 @@ test("a failing workflow job becomes one context entry with its workflow, annota
       },
     ],
   });
+});
+
+test("an unresolved reviewer-bot finding goes into the context beside the failing checks", async () => {
+  const result = await selectWith(fakeApi(reviewed()));
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.file.review_findings, [{ path: "plugins/p/generate-adapter.sh", line: 56, body: FINDING }]);
+});
+
+test("a resolved thread, a person's thread and one a person replied to stay out of the context", async () => {
+  for (const shape of [{ resolved: true }, { author: HUMAN }, { replies: [{ user: { id: HUMAN }, body: "I disagree" }] }]) {
+    const result = await selectWith(fakeApi(reviewed(shape)));
+    assert.deepEqual(result.file.review_findings, [], JSON.stringify(shape));
+  }
+});
+
+test("a review-findings read that fails leaves no findings and still proceeds with the checks", async () => {
+  const api = fakeApi(reviewed());
+  api.listThreads = async () => {
+    throw new Error("POST graphql returned 502");
+  };
+  const lines = [];
+  const result = await select({ api, pr: 42, appId: APP, reviewerId: REVIEWER, maxRounds: 3, log: (line) => lines.push(line) });
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.file.review_findings, []);
+  assert.deepEqual(result.file.checks.map((check) => check.name), ["lint-shell"]);
+  assert.deepEqual(lines, ["::warning::the review findings could not be read (POST graphql returned 502); the context holds none"]);
+});
+
+test("a finding's body and the number of findings are capped", async () => {
+  const one = reviewed({ body: "b".repeat(5000) });
+  const threads = Array.from({ length: 15 }, (_, i) => ({ ...one.threads[0], id: `T${i}` }));
+  const result = await selectWith(fakeApi({ ...one, threads }));
+  assert.equal(result.file.review_findings.length, 10);
+  assert.equal(result.file.review_findings[0].body.length, 2000);
 });
 
 test("ci-status, passing checks and a check whose later run passed are left out", async () => {
@@ -179,7 +240,7 @@ test("a closed pull request is skipped", async () => {
   assert.equal(result.decision, "skip");
 });
 
-test("a log excerpt keeps the last lines, drops timestamps and colour codes, and is capped", () => {
+test("a log excerpt keeps the last lines, drops timestamps and color codes, and is capped", () => {
   assert.equal(logExcerpt("2026-10-18T00:00:01.1234567Z \u001b[31mred\u001b[0m\nplain\n"), "red\nplain");
   const long = Array.from({ length: 500 }, (_, i) => `line ${i} ${"x".repeat(40)}`).join("\n");
   const excerpt = logExcerpt(long);
@@ -214,6 +275,7 @@ test("main writes the context file and the step outputs", async () => {
       APP_SENDER_ID: String(APP),
       CONTEXT_FILE: join(dir, "context.json"),
       FIX_CI_ROUNDS: "3",
+      TRUSTED_ACTORS,
     };
     await main(env, { api: fakeApi(), log: () => {} });
     const outputs = readFileSync(env.GITHUB_OUTPUT, "utf8");
@@ -238,6 +300,7 @@ test("main escalates the round cap with no context file", async () => {
       APP_SENDER_ID: String(APP),
       CONTEXT_FILE: join(dir, "context.json"),
       FIX_CI_ROUNDS: "1",
+      TRUSTED_ACTORS,
     };
     await main(env, { api: fakeApi({ commits: [fixCommit()] }), log: () => {} });
     const outputs = readFileSync(env.GITHUB_OUTPUT, "utf8");
@@ -250,6 +313,6 @@ test("main escalates the round cap with no context file", async () => {
 });
 
 test("main refuses a malformed round cap", async () => {
-  const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: "/dev/null", PR_NUMBER: "42", APP_SENDER_ID: String(APP), CONTEXT_FILE: "/dev/null" };
+  const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: "/dev/null", PR_NUMBER: "42", APP_SENDER_ID: String(APP), CONTEXT_FILE: "/dev/null", TRUSTED_ACTORS };
   await assert.rejects(main({ ...env, FIX_CI_ROUNDS: "0" }, { api: fakeApi() }), /FIX_CI_ROUNDS/);
 });

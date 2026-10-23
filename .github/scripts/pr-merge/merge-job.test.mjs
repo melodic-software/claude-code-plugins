@@ -966,3 +966,10 @@ test("the re-run record is named by run and attempt, uploaded only after a recor
   assert.match(upload, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 /);
   assert.match(upload, /\n {10}name: pr-merge-rerun-\$\{\{ steps\.post-merge\.outputs\.lane-rerun \}\}-attempt-2\n/);
 });
+
+test("the lane token request passes the resolved grant's actions, so an actions read grant is compared too", () => {
+  const block = step("Request the lane token");
+  for (const scope of ["contents", "pull-requests", "issues", "actions"]) {
+    assert.match(block, new RegExp(`\\n {10}${scope}: \\$\\{\\{ steps\\.config\\.outputs\\.${scope} \\}\\}\\n`));
+  }
+});

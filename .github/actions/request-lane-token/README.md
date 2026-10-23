@@ -22,7 +22,7 @@ run, and mints nothing ([Check mode](#check-mode)).
 | `pr-number` | `token` mode: the gated PR; sent as `pr_number` when set, which the broker needs off `pull_request` |
 | `issue-number` | `token` mode: the issue an `issues` lane works; sent as `issue_number` when set, which the broker needs on an `issues` event. Never with `pr-number` or `dispatcher-run-id` |
 | `dispatcher-run-id` | `token` mode: the `pr-unblock-dispatch.yml` run that dispatched this one; sent as `dispatcher_run_id` when set. The broker needs it to trust a run sent by `github-actions[bot]` |
-| `effect`, `contents`, `pull-requests`, `issues` | `token` mode: this job's own `resolve-config` outputs, compared with the broker's answer |
+| `effect`, `contents`, `pull-requests`, `issues`, `actions` | `token` mode: this job's own `resolve-config` outputs, compared with the broker's answer. `actions` is `read` or empty; empty expects no `actions` permission |
 | `superseded-ok` | `true` ends green, with a `lane-token-superseded` warning and no token, on a 403 whose reason is `workflow-modified` (a newer copy of the caller workflow on the default branch, whose run does the work). Default `false` |
 | `pr-workflow-change-ok` | `token` mode with `pr-number`: `true` ends green, with no token and `skip-reason` `workflow-modified`, on a 403 `workflow-modified` naming a workflow file the PR itself changes ([below](#a-workflow-file-the-pr-changes)). Default `false` |
 | `head-sha`, `default-branch`, `github-token` | Required with `pr-workflow-change-ok`: the gated head, the default branch, and a token that reads the repository's contents, for the compare |

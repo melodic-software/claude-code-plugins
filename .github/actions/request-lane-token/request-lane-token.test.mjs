@@ -117,6 +117,7 @@ function request({ compare, ...inputs }, ...answers) {
     CONTENTS: "write",
     PULL_REQUESTS: "read",
     ISSUES: "read",
+    ACTIONS: "",
     SUPERSEDED_OK: "false",
     PR_WORKFLOW_CHANGE_OK: "false",
     HEAD_SHA: "",
@@ -129,7 +130,12 @@ function request({ compare, ...inputs }, ...answers) {
     expires_at: "2026-10-11T13:00:00Z",
     mint_id: "5550001-1",
     effect: env.EFFECT,
-    permissions: { contents: env.CONTENTS, pull_requests: env.PULL_REQUESTS, issues: env.ISSUES },
+    permissions: {
+      contents: env.CONTENTS,
+      pull_requests: env.PULL_REQUESTS,
+      issues: env.ISSUES,
+      ...(env.ACTIONS ? { actions: env.ACTIONS } : {}),
+    },
     lane: env.LANE,
     activity: env.ACTIVITY,
     repository_ids: [Number(REPO_ID)],
@@ -617,5 +623,47 @@ test("check mode refuses an issue number before the broker request", () => {
   const run = request({ MODE: "check", EFFECT: "", CONTENTS: "", PULL_REQUESTS: "", ISSUES: "", PR_NUMBER: "", ISSUE_NUMBER: "77" });
   assert.equal(run.status, 1);
   assert.match(run.stdout, /::error::check mode takes no effect, grant, PR or issue number, or dispatcher run id/);
+  assert.equal(run.body, null);
+});
+
+// pr-merge's merge-pr grant adds actions read (lane-rules.json activity-grants).
+const PR_MERGE = { LANE: "pr-merge", ACTIVITY: "merge-pr", EFFECT: "merge", CONTENTS: "write", PULL_REQUESTS: "write", ISSUES: "write", PR_NUMBER: "" };
+const grantedWith = (permissions) => ({
+  token: "ghs_lane",
+  expires_at: "2026-10-11T13:00:00Z",
+  mint_id: "5550001-1",
+  effect: "merge",
+  permissions: { contents: "write", pull_requests: "write", issues: "write", ...permissions },
+  lane: "pr-merge",
+  activity: "merge-pr",
+  repository_ids: [Number(REPO_ID)],
+});
+
+test("a resolved actions read grant the broker matches mints the token", () => {
+  const run = request({ ...PR_MERGE, ACTIONS: "read" });
+  assert.equal(run.status, 0, run.stdout);
+  assert.match(run.output, /^token=ghs_lane$/m);
+});
+
+test("a broker grant whose actions differs from the resolved grant fails red as effect-mismatch", () => {
+  for (const [resolved, granted] of [["read", {}], ["", { actions: "read" }], ["read", { actions: "write" }]]) {
+    const run = request({ ...PR_MERGE, ACTIONS: resolved }, { body: grantedWith(granted) });
+    assert.equal(run.status, 1, `${resolved} vs ${JSON.stringify(granted)}`);
+    assert.match(run.stdout, /::error::effect-mismatch: /);
+    assert.doesNotMatch(run.output, /^token=/m);
+  }
+});
+
+test("an actions grant other than read or empty fails before the broker request", () => {
+  const run = request({ ...PR_MERGE, ACTIONS: "write" });
+  assert.equal(run.status, 1);
+  assert.match(run.stdout, /::error::the resolved grant's actions must be read or empty/);
+  assert.equal(run.body, null);
+});
+
+test("check mode refuses an actions grant before the broker request", () => {
+  const run = request({ MODE: "check", EFFECT: "", CONTENTS: "", PULL_REQUESTS: "", ISSUES: "", PR_NUMBER: "", ACTIONS: "read" });
+  assert.equal(run.status, 1);
+  assert.match(run.stdout, /::error::check mode takes no effect, grant/);
   assert.equal(run.body, null);
 });
