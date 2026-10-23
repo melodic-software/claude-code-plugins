@@ -531,22 +531,16 @@ test("live config: the shipped patch rules pass against the live activities", ()
   assert.equal(checkPatchRules(rules, json("./patch-rules.schema.json"), parse(FILES.config).activities), rules);
 });
 
-// Owner decision Q8: actions read for pr-merge's verdict and run reads, on its
-// merge-pr grant alone.
-test("live config: only pr-merge's merge-pr grant carries actions, and only read", () => {
-  assert.deepEqual(
-    resolveGrant(FILES, { lane: "pr-merge", activity: "merge-pr", configPath: CONFIG_PATH }),
-    {
-      effect: "merge",
-      grant: { contents: "write", "pull-requests": "write", issues: "write", actions: "read" },
-    },
-  );
+test("live config: no live slot resolves an actions permission", () => {
   const doc = parse(FILES.config);
   for (const lane of Object.keys(doc.lanes)) {
     const { lane: resolved } = resolve(FILES, { lane, configPath: CONFIG_PATH, basePath: ".base", facts: FACTS });
     for (const slot of resolved.slots) {
-      const expected = lane === "pr-merge" && slot.name === "merge-pr" ? "read" : undefined;
-      assert.equal(slot.grant.actions, expected, `${lane}/${slot.name}`);
+      assert.equal(slot.grant.actions, undefined, `${lane}/${slot.name}`);
     }
   }
+  assert.equal(
+    resolveGrant(FILES, { lane: "pr-merge", activity: "merge-pr", configPath: CONFIG_PATH }).grant.actions,
+    undefined,
+  );
 });
