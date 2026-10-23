@@ -2717,6 +2717,18 @@ test("report job: a run head equal to a PR head that moved mid-run, never gated,
   assert.equal(signed.with["since-sha"], "${{ steps.head.outputs.sha }}");
 });
 
+test("report job: the signed-commit check runs only when the lane can commit and a head SHA was gated", () => {
+  const signed = reportSteps().find((s) => s.id === "signed");
+  const ctx = { "needs.run.outputs.can-commit": "true", "steps.pr-head.outputs.number": "7", "steps.head.outputs.sha": TRUSTED, "steps.head.outputs.forged": "false" };
+  const runs = (over) => Boolean(evaluate(signed.if.replaceAll("always()", "true"), { ...ctx, ...over }));
+  assert.equal(runs({}), true);
+  // A read activity cannot commit, and a run that gated no head leaves can-commit empty.
+  for (const canCommit of ["false", ""]) assert.equal(runs({ "needs.run.outputs.can-commit": canCommit }), false, `can-commit '${canCommit}'`);
+  assert.equal(runs({ "steps.head.outputs.sha": "" }), false);
+  assert.equal(runs({ "steps.pr-head.outputs.number": "" }), false);
+  assert.equal(runs({ "steps.head.outputs.forged": "true" }), false);
+});
+
 test("report job: an empty run head after the kill switch or a broker refusal posts nothing, so the owner's switch is never a merge blocker", (t) => {
   const steps = reportSteps();
   // The broker-check job's allow alone, which already holds its kill switch
