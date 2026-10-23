@@ -399,6 +399,34 @@ test("a head whose last round had no model turn dispatches again, and is not rec
   }
 });
 
+// A no-model-turn reply never releases a limit stop: it still holds the head
+// until its reset and counts toward limits.limit-stops-per-head.
+test("a no-model-turn reply after a limit stop leaves the stop's reset hold and cap in place", async () => {
+  const stop = (resets, started) => ({
+    ...failedRun(`lane=pr-unblock activity=address-feedback class=rate-limit resets=${resets}`, started),
+    started_at: started,
+  });
+  const at = async (runs, now) => {
+    const api = fakeApi({ checkRuns: runs });
+    const result = await dispatchFeedback({
+      api,
+      repository: REPOSITORY,
+      runId: RUN_ID,
+      upstream: api.upstream,
+      appSenderId: APP_ID,
+      resolveSlot: async () => resolvedLane(),
+      log: () => {},
+      now: Date.parse(now),
+    });
+    return result?.number;
+  };
+  const reply = noModelTurn("2026-10-17T10:05:00Z");
+  assert.equal(await at([stop("2026-10-17T13:00:00Z", "2026-10-17T10:00:00Z"), reply], "2026-10-17T12:00:00Z"), undefined, "before its reset");
+  assert.equal(await at([stop("2026-10-17T11:00:00Z", "2026-10-17T10:00:00Z"), reply], "2026-10-17T12:00:00Z"), 42, "after its reset");
+  const three = ["07", "08", "09"].map((h) => stop(`2026-10-17T${h}:30:00Z`, `2026-10-17T${h}:00:00Z`));
+  assert.equal(await at([...three, reply], "2026-10-17T12:00:00Z"), undefined, "three stops reach the per-head cap");
+});
+
 test("a round that answered, or a newer address-feedback check, still handles the head", async () => {
   for (const [label, runs] of [
     ["the last round escalated", [roundRun("address-feedback", "success", "Passed", "2026-10-17T10:00:00Z"), roundRun("publish-feedback", "neutral", "Skipped: awaiting-human", "2026-10-17T10:05:00Z")]],

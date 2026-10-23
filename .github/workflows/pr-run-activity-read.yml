@@ -2564,11 +2564,12 @@ jobs:
   # it (a failed or cancelled scan published nothing); the scan's outputs
   # only name an oversize patch. It reads nothing from the run job, so head
   # code can only fail the scan or add a marker, either of which hands the
-  # round to a person.
+  # round to a person. always(), since cancelled() is true once the scan was
+  # cancelled, and !cancelled() would skip that arm.
   scan-refusal:
     needs: scan
     if: >-
-      !cancelled() && inputs.issue-number == ''
+      always() && inputs.issue-number == ''
       && (needs.scan.result == 'failure' || needs.scan.result == 'cancelled')
     runs-on: ubuntu-24.04
     timeout-minutes: 5

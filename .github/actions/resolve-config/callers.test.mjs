@@ -1898,9 +1898,12 @@ test("scan refusal: a failed or cancelled scan's marker reaches the reply and ve
     "inputs.lane": "pr-unblock",
     "github.run_attempt": "2",
   });
-  const runs = (values) => evaluate(relay.if, values) === true;
+  // cancelled() as the runner reads it: true once the scan was cancelled,
+  // which evaluate's !cancelled() shortcut would hide.
+  const runs = (values, cancelled = false) =>
+    evaluate(relay.if.replaceAll("cancelled()", String(cancelled)).replaceAll("always()", "true"), values) === true;
   assert.equal(runs(ctx("failure")), true);
-  assert.equal(runs(ctx("cancelled")), true);
+  assert.equal(runs(ctx("cancelled"), true), true, "a cancelled scan");
   assert.equal(runs(ctx("success")), false);
   assert.equal(runs(ctx("skipped")), false);
   assert.equal(runs(ctx("failure", "", "7")), false, "issue mode has no reply or verdict job");

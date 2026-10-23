@@ -60,7 +60,7 @@ import { pathToFileURL } from "node:url";
 import { commitPulls } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { fixRequesters, humanGatedLabelFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
 import { emptyRecord, isHandled, markHandled, readRecord, writeRecord } from "./dispatch-record.mjs";
-import { anyHandles, permanentlyHandles } from "./limit-stop.mjs";
+import { anyHandles, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -267,13 +267,15 @@ export async function dispatchFeedback({
   // job's outputs and the select job's head) handled nothing: the
   // address-feedback check runs that started before that reply job stop
   // counting, so the next trigger dispatches the head again. Each such
-  // round posted its round marker, so the select job's round cap ends it.
+  // round posted its round marker, so the select job's round cap ends it. A
+  // limit stop is never released: limit-stop.mjs still holds the head until
+  // its reset and counts it toward limits.limit-stops-per-head.
   if (anyHandles(existing, { now, limits: resolved.limits })) {
     const replies = (await api.listCheckRuns({ sha: head, checkName: settings.replyCheckName, appId: settings.appId })).filter(sinceNotes);
     const newest = replies.reduce((a, b) => (Date.parse(b.started_at ?? "") > Date.parse(a?.started_at ?? "") ? b : a), replies[0]);
     if (newest?.status === "completed" && newest.conclusion === "neutral" && newest.output?.title === "Skipped: no-model-turn") {
       const cut = Date.parse(newest.started_at ?? "");
-      existing = existing.filter((run) => !(Date.parse(run.started_at ?? "") < cut));
+      existing = existing.filter((run) => limitResetsAt(run, resolved.limits) !== null || !(Date.parse(run.started_at ?? "") < cut));
     }
   }
   if (permanentlyHandles(existing)) {
