@@ -72,7 +72,7 @@ on:
       dimension-skip:
         description: >-
           Issue mode, report-outcome: the issue-dimension skip reason
-          (split-required, research-first or probe-first) that
+          (split-required, research-first, probe-first or not-assessed) that
           kept the run from starting; report-outcome hands the issue to a
           person with the next step. Empty otherwise.
         required: false
@@ -497,7 +497,7 @@ jobs:
           fi
           # A dimension skip is one of the four issue-dimension reasons, only in issue mode.
           if [ -n "$DIMENSION_SKIP" ] && { [ -z "$ISSUE_NUMBER" ] ||
-            ! [[ $DIMENSION_SKIP =~ ^(split-required|research-first|probe-first)$ ]]; }; then
+            ! [[ $DIMENSION_SKIP =~ ^(split-required|research-first|probe-first|not-assessed)$ ]]; }; then
             echo "::error::dimension-skip must be an issue-dimension skip reason, in issue mode"
             exit 1
           fi

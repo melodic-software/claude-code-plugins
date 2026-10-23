@@ -78,9 +78,9 @@
 //   REUSE_BRANCH        the lane branch --find-prior chose, or empty
 //   ESCALATION_REASON   apply-issue-patch's escalation reason (a PATCH_REASONS
 //                       key), or empty
-//   DIMENSION_SKIP      split-required, research-first or probe-first when
-//                       the issue dimensions skipped the run
-//                       (work-resolve-issue.yml report-skip), else empty
+//   DIMENSION_SKIP      split-required, research-first, probe-first or
+//                       not-assessed when the issue dimensions skipped the
+//                       run (work-resolve-issue.yml report-skip), else empty
 //   REUSE_SUMMARY_DIR   on a reuse, holds the summary pass's reuse-summary.json
 //                       (runner-written issue, branch and tip; model output)
 //   TRACKER_CONFIG      base .work-item-tracker.json, for the human-gated label
@@ -372,6 +372,8 @@ export const DIMENSION_STEPS = {
   "split-required": "Its Size is too large for one run: split it into smaller issues with `/work-items:decompose`.",
   "research-first": "Its Uncertainty says research comes first: plan or research the approach, then set Uncertainty to Known.",
   "probe-first": "Its Uncertainty says only an experiment answers it: run a probe or spike first, then set Uncertainty to Known.",
+  "not-assessed":
+    "Its Size, Complexity and Uncertainty fields are not all set by a listed human or the lanes App: triage it, or set them yourself.",
 };
 
 // A run its issue dimensions skipped before any model turn: the issue goes to

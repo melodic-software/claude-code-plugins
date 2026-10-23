@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { checkDimensions, dimensionBudget, issueDimensions, parsePin } from "./dimensions.mjs";
+import { dimensionBudget, issueDimensions, parsePin } from "./dimensions.mjs";
 import { Rejection } from "./resolve.mjs";
 
 const HUMAN = 153232337;
@@ -52,9 +52,8 @@ test("each option id maps to its internal key", () => {
   });
 });
 
-test("a field with no value reads as small, medium or known", () => {
-  assert.deepEqual(read({ size: 27053567, complexity: null }), { size: "medium", complexity: "medium", uncertainty: "known" });
-  assert.deepEqual(read({ size: null, complexity: 85127653, uncertainty: null }), { size: "small", complexity: "high", uncertainty: "known" });
+test("a field with no value is not assessed", () => {
+  assert.deepEqual(read({ complexity: null }), { size: "small", complexity: null, uncertainty: "known" });
 });
 
 test("a value the lanes App set counts", () => {
@@ -66,8 +65,8 @@ for (const [who, id] of [
   ["a listed bot other than the lanes App", OTHER_BOT],
   ["an unknown setter", null],
 ]) {
-  test(`a value whose latest setter is ${who} is ignored and reads as unset`, () => {
-    assert.equal(read({ size: 27053567, setters: { 15462270: id } }).size, "small");
+  test(`a value whose latest setter is ${who} is not assessed`, () => {
+    assert.equal(read({ setters: { 15462270: id } }).size, null);
   });
 }
 
@@ -78,8 +77,8 @@ test("an option id the config does not map stops with unmapped-dimension", () =>
   );
 });
 
-test("an unmapped option an untrusted account set reads as unset, not a failure", () => {
-  assert.equal(read({ size: 99999999, setters: { 15462270: STRANGER } }).size, "small");
+test("an unmapped option an untrusted account set is not assessed, not a failure", () => {
+  assert.equal(read({ size: 99999999, setters: { 15462270: STRANGER } }).size, null);
 });
 
 test("a field the config does not name is ignored", () => {
@@ -138,20 +137,5 @@ test("a pin round-trips to the dimensions it names", () => {
 for (const pin of ["huge/low/known", "small/low", "small/low/known/x", "small/extreme/known"]) {
   test(`pin \`${pin}\` is rejected`, () => {
     assert.throws(() => parsePin(pin, CONFIG), (error) => error instanceof Rejection && error.code === "undefined-dimension");
-  });
-}
-
-test("the config passes the check with the keys an unset field reads as", () => {
-  assert.doesNotThrow(() => checkDimensions(CONFIG));
-});
-
-for (const [why, config] of [
-  ["no small size", { ...CONFIG, sizes: { medium: CONFIG.sizes.medium } }],
-  ["no medium complexity", { ...CONFIG, complexity: { low: 1, high: 2 } }],
-  ["no known uncertainty", { ...CONFIG, fields: { ...CONFIG.fields, uncertainty: { "field-id": 48625721, options: { 85127655: "knowable" } } }, uncertainty: { knowable: "run" } }],
-  ["a small size that splits", { ...CONFIG, sizes: { ...CONFIG.sizes, small: "split" } }],
-]) {
-  test(`a config with ${why} fails the check, since an unset field must run`, () => {
-    assert.throws(() => checkDimensions(config), (error) => error instanceof Rejection && error.code === "undefined-dimension");
   });
 }

@@ -697,6 +697,7 @@ for (const [reason, step] of [
   ["split-required", "/work-items:decompose"],
   ["research-first", "research"],
   ["probe-first", "probe"],
+  ["not-assessed", "Size, Complexity and Uncertainty"],
 ]) {
   test(`main on a ${reason} dimension skip hands the issue back naming the next step`, async () => {
     await withDir({}, async (dir) => {
@@ -1634,7 +1635,7 @@ test("a pushback marker, or a newer pushback for another run, resumes nothing", 
 // earlier run's resume as it was.
 test("a newer dimension-skip marker keeps an earlier run's resume", () => {
   const branches = [branchFact(lane(400), { sha: SHA_400 })];
-  for (const reason of ["split-required", "research-first", "probe-first"]) {
+  for (const reason of ["split-required", "research-first", "probe-first", "not-assessed"]) {
     const markers = [marked("turn-cap", "400"), marked(reason, "401", "2026-10-16T12:00:00Z")];
     assert.deepEqual(prior({ branches, markers }), { action: "resume", branch: lane(400), tip: SHA_400, cause: "turn-cap" }, reason);
   }

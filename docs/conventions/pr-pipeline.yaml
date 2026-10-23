@@ -492,8 +492,9 @@ models:
     summarize-reuse: summary
   # A run on an issue (resolve-issue) takes its budget from the issue's Size,
   # Complexity and Uncertainty org issue fields, read by id. An empty field,
-  # or one whose latest setter is not a listed human or the lanes App, reads
-  # as small, medium or known; an unmapped option fails the run. Turn cap = base-turns x complexity factor, rounded
+  # or one whose latest setter is not a listed human or the lanes App, is not
+  # assessed and the lane refuses the issue (not-assessed); an unmapped
+  # option fails the run. Turn cap = base-turns x complexity factor, rounded
   # up; it replaces the profile's max-turns.
   issue-dimensions:
     fields:

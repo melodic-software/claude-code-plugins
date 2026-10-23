@@ -112,9 +112,9 @@ Complexity's `complexity-profiles` entry, when there is one, replaces the route'
 issue's field values are read over REST (`issue-field-values`, which needs `issues: read`) and
 their setters from the GraphQL field events, unless input `issue-dimensions` names what an
 earlier resolve read. A value counts only when its latest setter is a listed human on the base
-trusted-actor list or the lanes App, and a field with no counted value reads as small, medium or
-known; an option no entry maps fails the step (`unmapped-dimension`); an applying slot becomes
-`research-first`, `probe-first` or `split-required` in that order
+trusted-actor list or the lanes App; an option no entry maps fails the step
+(`unmapped-dimension`); an applying slot becomes `not-assessed`, `research-first`,
+`probe-first` or `split-required` in that order
 ([README, Models](../../../docs/conventions/pr-pipeline/README.md#models)). A slot's `applies-when` replaces its activity's. `merge.diff-check.denied-paths` always
 gains the config path, `.github/**` and the trusted-actor list.
 
