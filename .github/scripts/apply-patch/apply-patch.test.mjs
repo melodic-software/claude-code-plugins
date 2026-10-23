@@ -200,6 +200,28 @@ test("a new executable bit the patch sets pushes with the mode it set", async (t
   assert.equal(git(fix.repo, ["ls-tree", createCommit.tree, "--", "README.md"]).split(" ")[0], "100755");
 });
 
+// A fix that makes two 100644 scripts executable and edits a test fixture,
+// with no path under .github/.
+test("under the ci-context row a fix that sets script exec bits and edits a fixture pushes, escalating nothing", async (t) => {
+  const fix = repoWithPatch(
+    t,
+    (repo) => {
+      chmodSync(join(repo, "scripts/x.sh"), 0o755);
+      chmodSync(join(repo, "scripts/y.sh"), 0o755);
+      writeFileSync(join(repo, "notes.md"), "notes\nget-field-options\n");
+    },
+    { head: (repo) => writeFileSync(join(repo, "scripts/y.sh"), "#!/bin/sh\n") },
+  );
+  const api = fakeApi(fix.repo, fix.head);
+  const lines = [];
+  assert.deepEqual(await pushWith(fix, api, { row: row("ci-context"), log: (line) => lines.push(line) }), { outcome: "pushed", commit: "c".repeat(40), branch: "feat/x" });
+  assert.deepEqual(lines, ["pushed " + "c".repeat(40) + " (3 path(s)) onto feat/x"]);
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  for (const path of ["scripts/x.sh", "scripts/y.sh"]) {
+    assert.equal(git(fix.repo, ["ls-tree", createCommit.tree, "--", path]).split(" ")[0], "100755", path);
+  }
+});
+
 test("refuses a rename from an allowed path into .github/workflows/", async (t) => {
   const fix = repoWithPatch(
     t,
