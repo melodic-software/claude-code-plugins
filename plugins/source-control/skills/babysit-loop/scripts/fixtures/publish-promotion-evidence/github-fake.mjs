@@ -46,6 +46,9 @@ export function pr(
       labels: page1(names),
       closingIssuesReferences: page1(linked),
       timelineItems: page1(timeline),
+      autoMerge: { nodes: [] },
+      author: actorOf(LANE),
+      isCrossRepository: false,
       ...patch,
     },
     list: {

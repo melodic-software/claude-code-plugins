@@ -139,6 +139,31 @@ test("a lane-enqueued merge passes only when its unedited lane pin names headRef
   assert.deepEqual(gateOf(run({ pulls: bot, workflowRuns: verifiedEach(bot), comments: { 1503: [] } })), PASSED);
 });
 
+test("a lane identity's native auto-merge owes no pin, as in native_auto_merge", () => {
+  const armed = (kind, at, login = LANE) => ({ nodes: [{ __typename: kind, createdAt: at, actor: actorOf(login) }] });
+  const enqueue = [queued("2026-08-31T23:50:00Z", LANE)];
+  const pulls = (autoMerge, extra = {}) => [pr(1505, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], timeline: enqueue, patch: { autoMerge, ...extra } })];
+  const judge = (autoMerge, extra) => {
+    const result = run({ pulls: pulls(autoMerge, extra), workflowRuns: verifiedEach(pulls(autoMerge, extra)), comments: { 1505: [] } });
+    return [gateOf(result), result.events];
+  };
+  const noPin = [FAILED, gateEvents("2026-09-01T06:00:00Z", "C2-auto-merge")];
+  assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z")), [PASSED, []]);
+  assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:50:00Z")), [PASSED, []]);
+  // The gate's disarm, an arm after the enqueue, a person's arm, or no events: the pin stays owed.
+  assert.deepEqual(judge(armed("AutoMergeDisabledEvent", "2026-08-31T23:40:00Z")), noPin);
+  assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:55:00Z")), noPin);
+  assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z", "kyle-sexton")), noPin);
+  assert.deepEqual(judge(undefined), noPin);
+  // A lane arm on a pull request the lane did not open from this repository is off the gate.
+  assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z"), { author: actorOf("kyle-sexton") }), noPin);
+  assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z"), { isCrossRepository: true }), noPin);
+  // A red full run after a native merge is still its gate failure.
+  const native = pulls(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z"));
+  const red = run({ pulls: native, workflowRuns: { [FULL]: [wfRun(9, "schedule", shaOf(1505), "2026-09-01T02:00:00Z", { conclusion: "failure" })] }, comments: { 1505: [] } });
+  assert.deepEqual(red.gateFailures.map((g) => [g.number, g.check]), [[1505, `${FULL} schedule`]]);
+});
+
 test("a pin past the 30th comment page is no pin, as in read_pin", () => {
   const pulls = () => [pr(1504, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })];
   const filler = (count) => Array.from({ length: count }, () => REC.commentsPage.data.repository.pullRequest.comments.nodes[0]);

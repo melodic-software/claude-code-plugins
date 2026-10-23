@@ -755,6 +755,18 @@ class NativeAutoMerge(CheckCase):
         self.assertTrue(verdict.merges[0].verified)
         self.assertTrue(verdict.ok)
 
+    def test_an_arm_at_the_enqueue_time_is_native(self) -> None:
+        self.native(auto_merge_event(APP_ACTOR, at="2026-10-12T09:50:00Z"))
+        self.all_green()
+        self.assertTrue(self.check_unpinned().merges[0].verified)
+
+    def test_another_enqueue_without_auto_merge_events_stays_readable(self) -> None:
+        self.gh.merged = [merged_pr(autoMerge=None)]
+        self.all_green()
+        verdict = self.check_unpinned()
+        self.assertTrue(verdict.readable)
+        self.assertTrue(verdict.merges[0].verified)
+
     def test_a_native_merge_with_no_dispatch_run_asks_for_one(self) -> None:
         self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
         verdict = self.check_unpinned(datetime(2026, 10, 12, 11, 0, tzinfo=UTC))
@@ -819,6 +831,24 @@ class NativeAutoMerge(CheckCase):
         for name, events in cases.items():
             with self.subTest(name):
                 self.native(events)
+                verdict = self.check(pinned=None, now=self.LATE)
+                self.assertEqual([f.signal for f in verdict.failures], ["read-back"])
+
+    def test_an_identity_arm_on_a_pull_request_it_did_not_open_needs_its_pin(
+        self,
+    ) -> None:
+        # enable-auto-merge.mjs arms only the identity's own same-repository
+        # pull requests; any other arm under its token is off the gate.
+        self.all_green()
+        for name, fields in {
+            "opened by a person": {"author": HUMAN},
+            "from a fork": {"isCrossRepository": True},
+            "unknown origin": {"isCrossRepository": None},
+        }.items():
+            with self.subTest(name):
+                self.gh.merged = [
+                    identity_merge(autoMerge=auto_merge_event(APP_ACTOR), **fields)
+                ]
                 verdict = self.check(pinned=None, now=self.LATE)
                 self.assertEqual([f.signal for f in verdict.failures], ["read-back"])
 

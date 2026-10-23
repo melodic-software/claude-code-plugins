@@ -481,7 +481,7 @@ MERGED_QUERY = (
     "repository(owner:$o,name:$r){pullRequests(baseRefName:$b,states:MERGED,"
     f"first:{MERGED_PAGE_SIZE},after:$c,orderBy:{{field:UPDATED_AT,direction:DESC}}){{"
     "pageInfo{hasNextPage endCursor} nodes{number url mergedAt updatedAt headRefOid "
-    "mergedBy{__typename login} "
+    "mergedBy{__typename login} author{__typename login} isCrossRepository "
     "mergeCommit{oid} timelineItems(itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT],last:1){nodes{"
     "... on AddedToMergeQueueEvent{createdAt actor{__typename login} enqueuer{__typename login}}}} "
     "autoMerge:timelineItems(itemTypes:[AUTO_MERGE_ENABLED_EVENT,AUTO_MERGE_DISABLED_EVENT],last:1){nodes{"
@@ -498,12 +498,21 @@ DEQUEUE_MUTATION = "mutation PostMergeDequeue($id:ID!){dequeuePullRequest(input:
 
 def native_auto_merge(pr: dict[str, Any], merge: AutoMerge, identity: str) -> bool:
     """Whether the identity's merge landed through GitHub's native auto-merge
-    (`enable-auto-merge.mjs` arms it), which posts no pin: the newest
-    auto-merge enable or disable event is the identity's enable, made no later
-    than the merge-queue enqueue. The gate disarms an armed auto-merge before
+    (`enable-auto-merge.mjs` arms it), which posts no pin: the identity opened
+    the pull request from a branch of this repository, as that script requires,
+    and the newest auto-merge enable or disable event is the identity's enable,
+    made no later than the merge-queue enqueue. An arm under the identity token
+    on anyone else's pull request keeps the pin read-back. The gate disarms an armed auto-merge before
     it pins and enqueues, and an arm after its enqueue is not what queued the
-    head, so either keeps the pin read-back."""
+    head, so either keeps the pin read-back. An arm that lands between the
+    gate's disarm check and its enqueue reads as native, so that merge skips
+    its read-back; the arm's `expectedHeadOid` still bound the head."""
     if not merge.by_identity:
+        return False
+    if (
+        _actor_key(pr.get("author")) != identity
+        or pr.get("isCrossRepository") is not False
+    ):
         return False
     connection = pr.get("autoMerge")
     if not is_json_object(connection) or not is_json_array(connection.get("nodes")):
@@ -1488,7 +1497,7 @@ def _judge(
     pinned: str | None,
     now: datetime,
     tally: _Tally,
-    native: bool,
+    pin_required: bool,
 ) -> MergeState:
     pending: list[str] = []
     failures: list[Failure] = []
@@ -1521,10 +1530,7 @@ def _judge(
         r for r in canaries if ctx.outcome(r, attributable=False)[0] == GREEN
     ]
 
-    # A native auto-merge has no pin; it verifies on the dispatch and canary
-    # runs alone, like any other enqueue.
-    pinned_merge = merge.by_identity and not native
-    if pinned_merge and pinned is None:
+    if pin_required and pinned is None:
         # A missing or edited pin is pending until the dispatch deadline, then
         # a failure, so a demotion record is filed and a human close restarts
         # the floor instead of the lane holding forever.
@@ -1539,7 +1545,7 @@ def _judge(
             )
         else:
             pending.append("read-back-unrecorded")
-    elif pinned_merge and pinned != merge.head_ref_oid:
+    elif pin_required and pinned != merge.head_ref_oid:
         failures.append(
             Failure(
                 SIGNAL_READ_BACK,
@@ -1749,7 +1755,9 @@ def check(
         owner, name = _split_repo(repo)
         branch = branch or _default_branch(owner, name)
         merges: list[AutoMerge] = []
-        native: set[int] = set()
+        # The identity's merges with a pin to read back: not its native
+        # auto-merges, which verify on the dispatch and canary runs alone.
+        pinned_merges: set[int] = set()
         warnings: list[str] = []
         identity = _login_key(agent_identity)
         for pr in _merged_since(owner, name, branch, merged_since):
@@ -1760,8 +1768,8 @@ def check(
                 warnings.append(derived)
             elif derived is not None:
                 merges.append(derived)
-                if native_auto_merge(pr, derived, identity):
-                    native.add(derived.number)
+                if derived.by_identity and not native_auto_merge(pr, derived, identity):
+                    pinned_merges.add(derived.number)
         merges.sort(key=lambda m: (str(m.merged_at), m.number))
         ctx = _Context(
             owner,
@@ -1812,9 +1820,9 @@ def check(
                 full_runs=full_runs,
                 canary_runs=canary_runs,
                 pinned=pinned_sha(merge)
-                if pinned_sha and merge.by_identity and merge.number not in native
+                if pinned_sha and merge.number in pinned_merges
                 else None,
-                native=merge.number in native,
+                pin_required=merge.number in pinned_merges,
                 now=now,
                 tally=tally,
             )

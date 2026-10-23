@@ -14,5 +14,7 @@
       }
     ]
   },
-  "autoMerge": {"nodes": []}
+  "autoMerge": {"nodes": []},
+  "author": {"__typename": "Bot", "login": "agent-lanes"},
+  "isCrossRepository": false
 }
