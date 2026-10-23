@@ -69,6 +69,17 @@ bare_text="$(join_lines bare)"
 assert_eq "explicit files match the bare list" "$(join_lines explicit)" "$bare_text"
 assert_eq "a directory matches the bare list" "$(join_lines directory)" "$bare_text"
 assert_eq "a paths file matches the bare list" "$(join_lines from_file)" "$bare_text"
+# `read` returns nonzero on an unterminated last line; the entry must still count.
+pf_nonl="$TEST_TMPDIR/paths-no-newline"
+printf '%s\n%s' "$REPO/a.md" "$REPO/nested/notes-é.md" >"$pf_nonl"
+declare -a no_newline=() one_entry=()
+resolve_targets no_newline "$REPO" "$pf_nonl" 0 0 0
+assert_eq "a paths file without a trailing newline keeps its last entry" "$(join_lines no_newline)" "$bare_text"
+pf_one="$TEST_TMPDIR/paths-one"
+printf '%s' "$REPO/a.md" >"$pf_one"
+resolve_targets one_entry "$REPO" "$pf_one" 0 0 0
+assert_eq "a one-entry paths file without a trailing newline lists that entry" "$(join_lines one_entry)" "$REPO/a.md"
+
 assert_eq "the non-ASCII tracked name is in the bare list" "$(printf '%s\n' "${bare[@]}" | grep -c 'notes-é.md' || true)" "1"
 assert_eq "untracked markdown is not in the bare list" "$(printf '%s\n' "${bare[@]}" | grep -c 'loose.md' || true)" "0"
 
