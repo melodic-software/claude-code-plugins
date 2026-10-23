@@ -80,7 +80,8 @@ post nothing else):
 
 1. PR is closed or not open
 2. PR is a draft
-3. Change is trivial/automated with no meaningful review surface
+3. Change is trivial/automated with no meaningful review surface; a change in a
+   hold class ("Reporting") never is
 4. This head already has a successful review from this lane that still applies
 
 ## Criteria
@@ -214,3 +215,25 @@ Follow the reporting mechanics the workflow wrapper appended to the prompt
 (inline MCP tool, `gh`, or the output schema it supplies). Keep the summary comment for overview and
 cross-file / whole-PR findings; use commit-blob permalinks with the supplied
 HEAD SHA for locations no changed line can carry.
+
+**Hold for a person.** When the wrapper's output schema has a `hold` field, fill it as that
+schema defines it, only for these classes, each named by its criterion, with a reason naming the
+files and what they change:
+
+- `cost`: the change adds or raises model or API spend: a new model call or agent run, a raised
+  model, effort, turn or timeout limit on one, a new schedule or trigger that starts one, a runner
+  that is not free, or a resource added or resized in infrastructure as code (Pulumi, Terraform,
+  Bicep). It is the class `/source-control:babysit-prs` rates `cost-review-required`.
+- `trust-gate`: the change touches `.github/standards/trusted-actors/**`,
+  `.github/actions/check-trusted-trigger/**`, a `CODEOWNERS` file or a `.gitmodules` file.
+- `critical-security`: a security finding of CRITICAL severity, only where no security lane runs
+  ("Gotchas").
+
+A hold is not a finding. `cost` and `trust-gate` belong to the change, so return them with zero
+findings too, and no hold adds to the findings count. Every other flag, a `manifest <field>: flag`
+line and every blocking or advisory finding included, is a normal finding and never sets `hold`.
+With no `hold` field in the schema, return none. Pointer: the field's shape is the output schema
+in the compose step of
+[ci-workflows `pr-review-cli.yml`](https://github.com/melodic-software/ci-workflows/blob/v0.64.0/.github/workflows/pr-review-cli.yml#L861-L884).
+As of: 2026-10-23. Recheck trigger: a ci-workflows release changes the `hold` schema or its
+criteria.

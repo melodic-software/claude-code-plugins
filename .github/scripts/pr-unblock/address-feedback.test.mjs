@@ -420,6 +420,40 @@ test("a github-actions[bot] thread without the note marker, or in another accoun
   assert.equal((await run(forged)).decision, "skip");
 });
 
+// The pr-review-cli reusable posts each finding as github-actions[bot], the
+// body ending `\n\nclaude-lane: <lane>` (ci-workflows
+// .github/actions/publish-review/publish.cjs commentBody at v0.63.0).
+const LANE_FINDING = "severity: IMPORTANT\nThe input reaches the shell unquoted.\n\nclaude-lane: claude-security-review";
+const laneFinding = (body, reviewer = ACTIONS_BOT) =>
+  fakeApi({
+    issueComments: [{ id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-security-review", HEAD) }],
+    reviewComments: [comment(100, ACTIONS_BOT, { body })],
+    reviews: [{ id: 10, user: { id: reviewer }, commit_id: HEAD }],
+  });
+
+test("a github-actions[bot] finding ending in the lane footer is kept as the reviewer's", async () => {
+  const result = await run(laneFinding(LANE_FINDING));
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.threads[0].comments, [{ id: 100, author: "reviewer", body: LANE_FINDING }]);
+  // Trailing blank lines do not hide the footer.
+  assert.equal((await run(laneFinding(`${LANE_FINDING}\n\n`))).decision, "proceed");
+});
+
+test("a github-actions[bot] comment whose last line is not a review lane's footer is no finding", async () => {
+  for (const body of [
+    "The input reaches the shell unquoted.",
+    "claude-lane: claude-security-review\nThe footer is not the last line.",
+    "The input reaches the shell.\n\nclaude-lane: pr-verify",
+  ]) {
+    assert.equal((await run(laneFinding(body))).decision, "skip", body);
+  }
+  // The footer on another account's comment, or in a review another account
+  // submitted, opens nothing.
+  const human = fakeApi({ reviewComments: [comment(100, HUMAN, { body: LANE_FINDING })] });
+  assert.equal((await run(human)).decision, "skip");
+  assert.equal((await run(laneFinding(LANE_FINDING, REVIEWER))).decision, "skip");
+});
+
 test("a later github-actions[bot] comment on a verifier note is no finding", async () => {
   const result = await run(verifierNote({ replies: [comment(101, ACTIONS_BOT, { body: VERIFY_NOTE })] }));
   assert.equal(result.decision, "skip");

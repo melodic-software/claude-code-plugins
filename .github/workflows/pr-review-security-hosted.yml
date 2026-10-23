@@ -7,32 +7,31 @@ name: pr-review-security-hosted
 # this copy can add the resolve-model and kill-switch jobs below. It differs
 # from the component in those jobs and these comments.
 #
-# Thin caller for the org's reusable security-review lane (advisory verdict,
-# fail-closed execution check). The reusable workflow owns the action pin,
-# model, and the secret-handling model; per its header, this caller owns the
-# triggers, concurrency, and the GITHUB_TOKEN permission grant.
+# Thin caller for the org's pr-review-cli reusable, lane `security` (advisory
+# verdict, fail-closed execution check). The reusable owns the launcher, the
+# credential order (the reviews role's API key, then its subscription token
+# after a handoff) and the secret-handling model; per its header, this caller
+# owns the triggers, concurrency, and the GITHUB_TOKEN permission grant.
 #
 # There is no workflow-level path gating. The reusable skips, with a green
-# check, a review whose files in scope are all documentation (its
-# `docs-only-paths` default: `docs/**/*.md`, READMEs and changelogs). A
-# `.github/claude-security-paths` file is no longer read.
+# check, a review whose files in scope are all documentation (the
+# `docs-only-paths` passed below). A `.github/claude-security-paths` file is
+# no longer read.
 #
 # NEVER add workflow-level `paths:`/`paths-ignore:` to this caller: a check
 # whose workflow never triggers is missing, not green, so a required check
 # would stay Pending forever, and the babysit merge gate, which waits for
 # `pr-review-security / security-review`, never arms.
 #
-# The reusable skips fork PRs (they receive no secrets and a read-only token)
-# and every `[bot]` actor whose sender id is not in `allowed-bot-sender-ids`
-# (below); a required check does NOT prove a fork PR was reviewed (see the
-# reusable's header). On a public repository the lane reviews only pull
-# requests from branches of this repository: fork and Dependabot pull requests
-# get no secrets.
+# The reusable skips fork PRs (they receive no secrets and a read-only token),
+# Dependabot, and every `[bot]` actor whose sender id is not in
+# `allowed-bot-sender-ids` (below); a required check does NOT prove a fork PR
+# was reviewed (see the reusable's header). On a public repository the lane
+# reviews only pull requests from branches of this repository: fork and
+# Dependabot pull requests get no secrets.
 #
-# RUNNER PLACEMENT: hosted shape, the sibling of
-# components/claude-lanes/claude-security-review.yml, differing from it only
-# in these comments, `runner`, the resolve-model and kill-switch jobs and the workflow `name:`. It is an interim with
-# the same removal trigger as the code-review caller. See that file's header.
+# RUNNER PLACEMENT: every job of the reusable runs on ubuntu-24.04; it takes
+# no runner input.
 
 on:
   pull_request:
@@ -41,25 +40,22 @@ on:
     # pull_request workflow while a PR conflicts with its base), narrowed by
     # the reusable to the files changed since the last completed review. The check
     # stays advisory: github-iac ADR 0011 forbids any organization ruleset
-    # from making an agentic review a merge or deployment prerequisite. With
-    # the per-PR group below cancelling, a push supersedes the in-flight review.
+    # from making an agentic review a merge or deployment prerequisite.
     #
-    # NO `merge_group:`: the pinned action cannot serve that event; see
+    # NO `merge_group:`: the reusable runs only on `pull_request`; see
     # melodic-software/ci-workflows#272 before enabling a merge queue.
     types: [opened, synchronize, ready_for_review, reopened]
 
 permissions:
   contents: read
 
-# Per-PR supersede group: a newer event for the same PR, a push included,
-# cancels the older run, so reviews of superseded heads do not stack. The
-# merge guard judges only the newest run of each check, so a cancelled run on
-# a superseded head does not block merge. The group is the
-# `${{ github.workflow }}`-prefixed canonical form the standards
-# `concurrency-policy` component requires.
+# Per-PR group: a newer event for the same PR waits for the running review
+# instead of cancelling it, because the guardrails merge guard reads a
+# cancelled run as red. The group is the `${{ github.workflow }}`-prefixed
+# canonical form the standards `concurrency-policy` component requires.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   # The review's model, turns and effort: the review-security route of the
@@ -114,7 +110,7 @@ jobs:
           SETTINGS_JSON: ${{ steps.models.outputs.settings-json }}
         run: |
           if [ -n "$SETTINGS_JSON" ]; then
-            echo "::error::the review-security profile sets subagent-model, which pr-review-security.yml does not support"
+            echo "::error::the review-security profile sets subagent-model, which pr-review-cli.yml does not support"
             exit 1
           fi
 
@@ -169,15 +165,16 @@ jobs:
     # A draft is work in progress and does not spend a review; the
     # ready_for_review trigger above is what delivers one when it is ready.
     if: ${{ !cancelled() && github.event.pull_request.draft == false && needs.kill-switch.outputs.proceed == 'true' }}
+    # The model jobs narrow this to contents: read and pull-requests: read;
+    # only the reusable's status job (the security-review check) writes.
     permissions:
-      contents: read         # checkout + read the diff
-      pull-requests: write   # post the security review, tracking comment and
-                             # the lane's reviewed-head marker comment
-      id-token: write        # OIDC, mints the Claude GitHub App token (required
-                             # even with an OAuth/API-key credential)
-    uses: melodic-software/ci-workflows/.github/workflows/pr-review-security.yml@2fe38c031867900824c164e33a140a335ed9ecf0 # v0.62.0
+      contents: read
+      pull-requests: write   # the review, its inline comments and the lane's
+                             # reviewed-head marker comment
+    uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@83b739f625b501ad40c65dee7168d836883195e1 # v0.63.1
     with:
-      runner: ubuntu-24.04
+      lane: security
+      publish: comments
       # Empty unless resolve-model succeeded, so a failed job's partial output
       # never reaches the review.
       model-args: ${{ needs.resolve-model.result == 'success' && needs.resolve-model.outputs.claude-args || '' }}
@@ -186,8 +183,14 @@ jobs:
       # reviewed. Where the repository does not set this variable the value is
       # empty and the reusable reviews no bot.
       allowed-bot-sender-ids: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
-    # Pass only the one named secret (least privilege) rather than
-    # `secrets: inherit`, which would forward every parent secret to the
-    # called workflow.
+      # A review whose files in scope all match is skipped with a green check.
+      # Agent instruction files never count as documentation.
+      docs-only-paths: |
+        docs/**/*.md
+        **/README.md
+        **/CHANGELOG.md
+    # The reviews role's key runs first; its subscription token only after the
+    # key hands off. Named secrets only, never `secrets: inherit`.
     secrets:
-      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      CLAUDE_API_KEY: ${{ secrets.REVIEWS_CLAUDE_API_KEY }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.REVIEWS_CLAUDE_CODE_OAUTH_TOKEN }}

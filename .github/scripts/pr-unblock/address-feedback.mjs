@@ -51,6 +51,20 @@ const FILES_CAP = 3000;
 
 const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "");
 
+// A review lane's own comment as the pr-review-cli reusable posts it: by
+// github-actions[bot] (MARKER_AUTHOR_ID), its last non-blank line the lane's
+// `claude-lane: <lane>` footer. Any other github-actions[bot] comment is not a
+// finding.
+const LANE_FOOTER = /^`?claude-lane: (?:claude-review|claude-security-review)`?$/;
+export const isLaneComment = (comment) =>
+  comment.authorId === MARKER_AUTHOR_ID &&
+  LANE_FOOTER.test(
+    String(comment.body ?? "")
+      .split("\n")
+      .map((line) => line.trim())
+      .findLast((line) => line !== "") ?? "",
+  );
+
 // Round markers the lanes App posted; any other author's copy is ignored.
 export const isRoundMarker = (comment, appId) => comment.user?.id === appId && firstLine(comment.body) === ROUND_MARKER;
 
@@ -258,7 +272,8 @@ export function humanGatedLabelFrom(path) {
 
 // Who wrote each comment of a thread, or null when it is not one to work.
 // `comments` are oldest first, each { authorId, createdAt, body, lastEditedAt,
-// editorId }. The first is the reviewer bot's, or a verifier note
+// editorId }. The first is the reviewer bot's, a lane comment (isLaneComment,
+// which counts as the reviewer bot's throughout), or a verifier note
 // (github-actions[bot]'s, its first line VERIFY_NOTE_MARKER), and one of these
 // holds:
 // - every comment is the reviewer bot's, but a verifier note's own;
@@ -278,10 +293,11 @@ export function humanGatedLabelFrom(path) {
 // escalation when there is one.
 export function threadAuthors(comments, { reviewerId, appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set() }) {
   const verifier = comments.length > 0 && comments[0].authorId === MARKER_AUTHOR_ID && firstLine(comments[0].body) === VERIFY_NOTE_MARKER;
-  if (comments.length === 0 || (comments[0].authorId !== reviewerId && !verifier)) {
+  const reviewer = (comment) => comment.authorId === reviewerId || isLaneComment(comment);
+  if (comments.length === 0 || (!reviewer(comments[0]) && !verifier)) {
     return null;
   }
-  const finder = (comment, i) => (i === 0 && verifier ? { author: "verifier" } : comment.authorId === reviewerId ? { author: "reviewer" } : null);
+  const finder = (comment, i) => (i === 0 && verifier ? { author: "verifier" } : reviewer(comment) ? { author: "reviewer" } : null);
   if (comments.every((comment, i) => finder(comment, i) !== null)) {
     return requesters ? null : comments.map(finder);
   }
@@ -368,7 +384,8 @@ export function keepThreads({ threads, reviewComments, reviews, heads, reviewerI
     // escalation) asks for the thread, so its review may be on an earlier head.
     const directed = authors.some((a) => a.direction === true);
     const review = reviewsById.get(rows[0].pull_request_review_id);
-    const reviewAuthor = authors[0].author === "verifier" ? MARKER_AUTHOR_ID : reviewerId;
+    // A verifier note's or a lane comment's review is github-actions[bot]'s.
+    const reviewAuthor = authors[0].author === "verifier" || rows[0].user?.id === MARKER_AUTHOR_ID ? MARKER_AUTHOR_ID : reviewerId;
     if (review?.user?.id !== reviewAuthor || (!directed && !heads.has(review.commit_id))) {
       continue;
     }
