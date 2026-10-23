@@ -671,6 +671,20 @@ jobs:
           CANDIDATES_PATH: ${{ runner.temp }}/candidates.json
         run: node .base/.github/scripts/pr-merge/rotation.mjs
 
+      # The head ref each untied pr-verify FAIL's verdict.json records, by
+      # artifact id, as the last scheduled or hand-started run kept them (the
+      # pr-merge-head-refs artifact, found the way the cursor is): the gate
+      # ties or unties those FAILs without downloading them. Only that run's
+      # steps could upload it. Any error leaves no map, and the gate downloads
+      # each untied FAIL. Rules: .github/scripts/pr-merge/head-ref-map.mjs.
+      - name: Read the head refs the last run kept
+        if: steps.candidates.outcome == 'success'
+        continue-on-error: true
+        env:
+          ACTIONS_TOKEN: ${{ github.token }}
+          HEAD_REFS_PATH: ${{ runner.temp }}/head-refs-in.json
+        run: node .base/.github/scripts/pr-merge/head-ref-map.mjs read
+
       # The verdict reads that never change (FAIL run records, FAIL head refs,
       # run heads on main) carry over from the last run, so a sweep does not
       # read them all again on its first candidate. A cache key is never
@@ -863,6 +877,8 @@ jobs:
           # candidate the saved listing would allow lists again before it is
           # allowed.
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
+          # The head-ref map read above, if any.
+          BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
           # Reads that are the same for every candidate (acting login,
           # credential pass, permissions, trusted list, run heads on main,
           # FAIL run records, default branch, base rules, the queued entries
@@ -971,6 +987,36 @@ jobs:
         with:
           name: pr-merge-gate-cursor
           path: ${{ runner.temp }}/gate-cursor/cursor.json
+          retention-days: 2
+          if-no-files-found: ignore
+
+      # The next run's head-ref map: the one read above and this run's
+      # downloads, for ids the run's last listing still lists. Only a
+      # scheduled or hand-started run's map is read back, so only one uploads
+      # it; also after a timeout, since each download is in the run cache as
+      # it is read. Rules: .github/scripts/pr-merge/head-ref-map.mjs.
+      - name: Keep the head refs the gate read
+        id: head-refs
+        if: >-
+          always() && steps.gate.outcome != 'skipped'
+          && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
+        env:
+          HEAD_REFS_PATH: ${{ runner.temp }}/head-refs-in.json
+          BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
+          BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
+          HEAD_REFS_OUT: ${{ runner.temp }}/head-refs/head-refs.json
+        run: |
+          mkdir -p "${HEAD_REFS_OUT%/*}"
+          node .base/.github/scripts/pr-merge/head-ref-map.mjs write
+
+      - name: Upload them for the next run
+        if: always() && steps.head-refs.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-merge-head-refs
+          path: ${{ runner.temp }}/head-refs/head-refs.json
           retention-days: 2
           if-no-files-found: ignore
 
