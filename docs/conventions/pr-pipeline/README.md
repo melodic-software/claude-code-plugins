@@ -537,9 +537,9 @@ token has no `workflows` permission), `CODEOWNERS` at the root, in `.github/` or
 `.gitmodules`, `**/settings*.json`, a symbolic link, a gitlink, and a rename into any of those.
 The rest of `.github/`, `.claude/`, `.mcp.json`, plugin hooks, `.claude-plugin/`, `lib/`,
 `scripts/`, `CLAUDE.md`, `AGENTS.md` and an executable bit reach review, and merge on it: the
-[HIGH path floor](#merge-authority) holds for a human merge only agent permission config,
-`.gitmodules`, `CODEOWNERS`, package manifests and lockfiles, the workflows that publish a release
-or hold `id-token: write`, the trusted-trigger check, and `resolve-config`, whose code the token broker runs from main. The `ci-context`, `default` and `issue` rows cap a patch at 300 paths.
+[HIGH path floor](#merge-authority) holds for a human merge only the takeover set: the
+trusted-actor list, the trusted-trigger check, `CODEOWNERS`, `.gitmodules`, and `resolve-config`,
+whose code the token broker runs from main. The `ci-context`, `default` and `issue` rows cap a patch at 300 paths.
 `checkPatchRules` in
 [`patch-rules.mjs`](../../../.github/actions/resolve-config/patch-rules.mjs) rejects a row without that
 set, a `[head, base]` commit whose `allow` is not exactly `[merge-result]`, a refusal, allow or requirement name
@@ -731,11 +731,12 @@ and its queued entries leave; two different identities, or an unreadable head co
   and the diff risk score still decides. It counts only when a human added it last and the pull
   request body was not edited afterwards.
 - **HIGH path floor.** A fixed set of paths in the wrapper's code, joined with
-  `merge.diff-check.denied-paths` and matched case-insensitively: agent permission config
-  (`**/settings*.json`), `.gitmodules`, `CODEOWNERS`, package manifests and lockfiles, the
-  workflows that publish a release or hold `id-token: write`, the trusted-trigger check they
-  run, and `.github/actions/resolve-config/**`, whose code the token broker runs from main in its
-  signer process. A diff that touches any of them scores HIGH and is never merged unattended. A
+  `merge.diff-check.denied-paths` and matched case-insensitively. It holds only the takeover set
+  (owner direction 2026-10-23): `.github/standards/trusted-actors/**`,
+  `.github/actions/check-trusted-trigger/**`, `CODEOWNERS`, `.gitmodules`, and
+  `.github/actions/resolve-config/**`, whose code the token broker runs from main in its signer
+  process. Agent permission config, package manifests and workflows merge on the review lanes. A
+  diff that touches a floor path scores HIGH and is never merged unattended. A
   `plugins/<plugin>/.claude-plugin/plugin.json` or the top-level
   `.claude-plugin/marketplace.json` change scores HIGH as `manifest-review-required` when it
   installs or runs something new: a differing `hooks`, `mcpServers`, `lspServers`, `monitors` or
@@ -790,8 +791,8 @@ and its queued entries leave; two different identities, or an unreadable head co
   inside an HTML comment in the body counts for nothing. A push after the decision is an accepted
   residual: the decision is not bound to a head. The gate reads the linked comments only for a
   pull request the hold catches, and a failed read leaves the hold. A decision
-  clears only this reason: a change to a workflow on the HIGH path floor still sits there and
-  waits for a person to merge it. Cite the decision before the
+  clears only this reason: a change that is also on the HIGH path floor still waits for a person
+  to merge it. Cite the decision before the
   human-gated label lands; a body edit does not remove that label (only a new head or a person
   does). Not detected: budgets, billing settings and new paid services outside these files, and
   the shapes [#9241](https://github.com/melodic-software/claude-code-plugins/issues/9241) lists.
@@ -1890,9 +1891,7 @@ author's own touched (a lane's fix among them): that author's own lines need no 
 App's PR (claude[bot], cursor[bot], cursoragent, melodic-ai[bot]) gets that exemption only for its
 own lines under `plugins/*/scripts/` (owner decision Q14 (c)); its other paths score whole, like
 the lanes App's, while it stays adoptable for fix-and-merge. The HIGH path floor always scores,
-whoever wrote it, and so does every file pr-unblock's thread scope names (`INSTRUCTION_PATH` in
-`thread-scope.mjs`, whose Python twin a test holds equal): `.gitmodules`, `CODEOWNERS`,
-`settings*.json` and package manifests. Paths match
+whoever wrote it. Paths match
 case-insensitively. The lanes App and
 Dependabot are never adopted. A commit is the author's own
 only when GitHub verified its signature and its author account is the PR's author, and, for a
