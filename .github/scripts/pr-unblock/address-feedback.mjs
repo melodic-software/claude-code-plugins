@@ -30,13 +30,13 @@ import { appendFileSync, lstatSync, readdirSync, readFileSync, writeFileSync } f
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { commentItems, gateSource, listLabelEvents } from "./gate-source.mjs";
+import { commentItems, gateSource, listLabelEvents, ROUND_MARKER } from "./gate-source.mjs";
 import { isProtectedPath, namedInScope } from "./thread-scope.mjs";
 
 // The round cap is the config's `loop.review-rounds`, passed in as
 // REVIEW_ROUNDS; the resolver's default is the fallback.
 export const DEFAULT_MAX_ROUNDS = 2;
-export const ROUND_MARKER = "<!-- pr-unblock:address-feedback-round -->";
+export { ROUND_MARKER };
 // github-actions[bot], the author of the review lanes' reviewed-head markers.
 export const MARKER_AUTHOR_ID = 41898282;
 const REVIEWED_HEAD =

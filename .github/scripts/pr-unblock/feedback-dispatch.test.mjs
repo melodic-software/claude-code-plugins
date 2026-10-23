@@ -817,51 +817,51 @@ test("a needs-human PR a lane escalation gated dispatches for a reviewer-bot thr
   assert.equal(api.calls.dispatch.length, 1);
 });
 
-for (const [label, options] of [
-  ["a review-lane hold on the current head", {
+for (const [label, source, options] of [
+  ["a review-lane hold on the current head", "review-hold", {
     comments: [...reviewed, holdComment()],
     labelEvents: [labelEvent("labeled", ACTIONS_USER, "2026-10-18T09:00:00Z")],
   }],
-  ["a lane escalation beside a review-lane hold on the current head", {
+  ["a lane escalation beside a review-lane hold on the current head", "review-hold", {
     comments: [...reviewed, holdComment({ at: "2026-10-18T10:30:00Z" }), escalationComment()],
     labelEvents: [appLabeled],
   }],
-  ["a lane escalation beside an open review-lane hold on an older head", {
+  ["a lane escalation beside an open review-lane hold on an older head", "review-hold", {
     comments: [...reviewed, holdComment({ sha: OLD_HEAD }), escalationComment()],
     labelEvents: [appLabeled],
   }],
-  ["an escalation marker with no resume-key line", {
+  ["an escalation marker with no resume-key line", "unknown", {
     comments: [...reviewed, escalationComment({ body: "<!-- work-items:escalation lane=pr-unblock kind=escalated -->\nThe pr-unblock lane stopped." })],
     labelEvents: [appLabeled],
   }],
-  ["a lane escalation beside an escalation marker out of place", {
+  ["a lane escalation beside an escalation marker out of place", "unknown", {
     comments: [...reviewed, escalationComment(), escalationComment({ body: `Note.\n<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n${RESUME}`, at: "2026-10-18T10:05:00Z" })],
     labelEvents: [appLabeled],
   }],
-  ["a lane escalation beside a hold marker whose head does not parse", {
+  ["a lane escalation beside a hold marker whose head does not parse", "unknown", {
     comments: [...reviewed, holdComment({ sha: "bbbb" }), escalationComment()],
     labelEvents: [appLabeled],
   }],
-  ["an escalation marker someone other than the lanes App wrote", {
+  ["an escalation marker someone other than the lanes App wrote", "unknown", {
     comments: [...reviewed, escalationComment({ user: { login: "kyle-sexton", id: KYLE.databaseId, type: "User" } })],
     labelEvents: [appLabeled],
   }],
-  ["a lane escalation under a label a person added", {
+  ["a lane escalation under a label a person added", "unknown", {
     comments: [...reviewed, escalationComment()],
     labelEvents: [labelEvent("labeled", { login: "kyle-sexton", id: KYLE.databaseId, type: "User" }, "2026-10-18T10:00:00Z")],
   }],
-  ["a lane escalation older than the last label add", {
+  ["a lane escalation older than the last label add", "unknown", {
     comments: [...reviewed, escalationComment({ at: "2026-10-18T09:00:00Z" })],
     labelEvents: [appLabeled],
   }],
 ]) {
-  test(`a needs-human PR dispatches nothing for a reviewer-bot thread under ${label}`, async () => {
+  test(`a needs-human PR dispatches nothing for a reviewer-bot thread under ${label} (${source})`, async () => {
     const api = fakeApi({ pulls: humanGated(), ...options });
     const { result, lines } = await decide(api);
     assert.equal(result, null, lines.join("\n"));
     assert.deepEqual(api.calls.dispatch, []);
     // The skip names why the label does not admit the PR.
-    assert.match(lines.at(-1), /is labeled needs-human \((?:review-hold|unknown): /);
+    assert.ok(lines.at(-1).includes(`is labeled needs-human (${source}: `), lines.at(-1));
   });
 }
 

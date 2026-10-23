@@ -51,6 +51,16 @@ test("another lane's marker on a lanes App comment since the label is unknown", 
   assert.equal(source(timeline), "unknown");
 });
 
+test("address-feedback's own round records since the escalation leave it workable", () => {
+  const timeline = [
+    label("labeled", APP, "2026-10-18T10:00:00Z"),
+    escalation(),
+    commented(APP, "<!-- pr-unblock:address-feedback-round -->\n<!-- pr-unblock:address-feedback-model-run 5000-1 -->\nRound 1.", "2026-10-18T10:30:00Z"),
+    commented(APP, "<!-- pr-unblock:address-feedback-round -->\nRound 2.", "2026-10-18T11:30:00Z"),
+  ];
+  assert.equal(source(timeline), "lane-escalation");
+});
+
 test("an escalation more than a minute after the label is unknown", () => {
   assert.equal(source([label("labeled", APP, "2026-10-18T10:00:00Z"), escalation("2026-10-18T10:05:00Z")]), "unknown");
 });

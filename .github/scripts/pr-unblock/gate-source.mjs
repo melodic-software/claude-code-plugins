@@ -22,9 +22,13 @@ export const RESUME_KEY = /^<!-- pr-unblock resume-key=([0-9a-f]{40}|[0-9a-f]{64
 // Any escalation marker, of any lane: one that is not a whole ESCALATION
 // comment is unparsable here.
 const ANY_ESCALATION = "<!-- work-items:escalation";
+// address-feedback's round record (publish-feedback.mjs), posted by the lanes
+// App after each round it works on an escalated PR.
+export const ROUND_MARKER = "<!-- pr-unblock:address-feedback-round -->";
+const MODEL_RUN = /^<!-- pr-unblock:address-feedback-model-run \S+ -->$/;
 export const CLEARED = /^<!-- pr-pipeline needs-human-cleared reason=[a-z,-]+ head=[0-9a-f]{40} -->$/;
 // A review lane's hold comment opens a line with this marker.
-export const REVIEW_HOLD = "<!-- claude-lane-hold lane=";
+const REVIEW_HOLD = "<!-- claude-lane-hold lane=";
 const HOLD_LINE = /^<!-- claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) criteria=[a-z-]+(?:,[a-z-]+)* -->$/;
 const LANE_FOOTER = /^`?claude-lane: (?:claude-review|claude-security-review)`?$/;
 // report-escalation.sh writes the label, then the comment, retrying the
@@ -34,6 +38,9 @@ export const PAIRED_MS = 60_000;
 export const lines = (body) => String(body ?? "").split("\n").map((line) => line.replace(/\r$/, ""));
 export const same = (a, b) => String(a ?? "").toLowerCase() === String(b).toLowerCase();
 export const isApp = (user, bot) => user?.login === bot && user?.type === "Bot";
+// Written or edited at or after `since`; an unparsable time counts as since.
+const writtenSince = (item, since) =>
+  !(Date.parse(item.created_at) < since) || !(Date.parse(item.updated_at ?? item.created_at) < since);
 
 // The REVIEW_HOLD marker line of a review lane's hold comment, or undefined.
 export function laneHold(item) {
@@ -82,7 +89,7 @@ export function escalationsSince(appComments, since) {
 // `since` that `known` does not accept and is not clear-escalations' own.
 export function foreignMarker(appComments, since, known) {
   return appComments
-    .filter((item) => !(Date.parse(item.created_at) < since) || !(Date.parse(item.updated_at ?? item.created_at) < since))
+    .filter((item) => writtenSince(item, since))
     .flatMap((item) => lines(item.body).filter((line) => line.includes("<!--")))
     .find((line) => !known(line) && !CLEARED.test(line));
 }
@@ -91,7 +98,8 @@ export function foreignMarker(appComments, since, known) {
 // - "review-hold" when a review lane's hold names `head`, or one is open;
 // - "lane-escalation" when the lanes App (`isLanesApp`) added the label last,
 //   its pr-unblock escalation comment followed within PAIRED_MS, and every
-//   marker on its comments since is that escalation's;
+//   marker on its comments since is that escalation's or an address-feedback
+//   round's;
 // - "unknown" for anything else, an unparsable hold or escalation marker
 //   included. Only "lane-escalation" lets a caller work the PR.
 export function gateSource({ timeline, label, head, isLanesApp }) {
@@ -118,12 +126,12 @@ export function gateSource({ timeline, label, head, isLanesApp }) {
   if (escalations.length === 0 || !(escalations[0].at - since <= PAIRED_MS)) {
     return result("unknown", `no lane escalation by the lanes App right after it added ${label}`);
   }
-  // A whole escalation's two marker lines are known; any other marker,
-  // another lane's escalation or an escalation line out of place included,
-  // is not.
-  const known = (line) => line === ESCALATION || RESUME_KEY.test(line);
+  // A whole escalation's two marker lines and address-feedback's own round
+  // record are known; any other marker, another lane's escalation or an
+  // escalation line out of place included, is not.
+  const known = (line) => line === ESCALATION || RESUME_KEY.test(line) || line === ROUND_MARKER || MODEL_RUN.test(line);
   const malformed = appComments
-    .filter((item) => !(Date.parse(item.created_at) < since) || !(Date.parse(item.updated_at ?? item.created_at) < since))
+    .filter((item) => writtenSince(item, since))
     .map((item) => lines(item.body))
     .find((body) => body.some((line) => line.startsWith(ANY_ESCALATION)) && !(body[0] === ESCALATION && RESUME_KEY.test(body[1] ?? "")));
   const foreign = malformed?.find((line) => line.includes("<!--")) ?? foreignMarker(appComments, since, known);

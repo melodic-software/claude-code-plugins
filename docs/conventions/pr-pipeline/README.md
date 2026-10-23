@@ -160,7 +160,8 @@ on: the lanes App added it last, its `work-items:escalation lane=pr-unblock` com
 or fix-ci) followed within a minute, no other marker is on its comments since, and no review-lane
 `claude-lane-hold` names the current head or is open, per
 `.github/scripts/pr-unblock/gate-source.mjs`; anything ambiguous keeps the fix-request rule, and
-the label stays on for `clear-escalations.mjs` to remove), the head has no
+the label stays on, and `clear-escalations.mjs` removes it only while no address-feedback round
+record is on the lanes App's comments since it went on), the head has no
 `pr-unblock / address-feedback` check run (one that started before the head's newest
 `pr-unblock / publish-feedback` check run stops counting when that run skipped `no-model-turn`:
 the round handled nothing, and the round cap still bounds the retries; a limit stop keeps its
