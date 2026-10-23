@@ -1318,7 +1318,11 @@ jobs:
   # itself. The issue lane finishing arms the pull request it opened; a listed
   # human's edit, unlabel or ready disarms or arms at once; the schedule
   # catches what the events missed, such as a run the lanes App started, which
-  # the broker refuses. Its own job and token: the broker mints one token per
+  # the broker refuses. Only the scheduled run and a hand-started one arm, on
+  # the verdict pr-merge's gate would take at the head (babysit_verify_evidence.py,
+  # read with the job's GITHUB_TOKEN from the head-ref map and run cache the
+  # last gate run kept); event runs read no verdict and only disarm on a hold.
+  # Its own job and token: the broker mints one token per
   # job. Rules: .github/scripts/pr-merge/enable-auto-merge.mjs.
   enable-auto-merge:
     # An issue run that skipped every job (a label other than agent-ready)
@@ -1334,9 +1338,10 @@ jobs:
       group: pr-merge-enable-auto-merge
       queue: max
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: read # check out main
+      actions: read # the verifier verdicts, their runs and the head-ref map
       id-token: write # prove to the token broker which workflow this is
     steps:
       - name: Check out the default branch tip
@@ -1410,15 +1415,50 @@ jobs:
           issues: ${{ steps.config.outputs.issues }}
           superseded-ok: true
 
+      # The verdict reader of a scheduled or hand-started run ties untied
+      # FAILs as the gate job does: the head-ref map and the carried run
+      # cache. Any error leaves none, and the reader reads GitHub instead.
+      # Event runs read no verdict and need neither.
+      - name: Read the head refs the last gate run kept
+        if: steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
+        env:
+          ACTIONS_TOKEN: ${{ github.token }}
+          HEAD_REFS_PATH: ${{ runner.temp }}/head-refs-in.json
+        run: node .base/.github/scripts/pr-merge/head-ref-map.mjs read
+
+      - name: Restore the verdict reads the last gate run kept
+        if: steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/pr-merge-carried.json
+          key: pr-merge-run-cache-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: pr-merge-run-cache-
+
+      - name: Start the run cache from them
+        if: steps.lane-token.outputs.token != '' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
+        env:
+          CARRY_FROM: ${{ runner.temp }}/pr-merge-carried.json
+          CARRY_TO: ${{ runner.temp }}/babysit-run-cache.json
+        run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs
+
       # While merge.report-only is anything but false it reports each
       # decision and writes nothing.
       - name: Arm and disarm auto-merge
         if: steps.lane-token.outputs.token != ''
-        timeout-minutes: 3
+        timeout-minutes: 10
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           RESOLVED_CONFIG: ${{ runner.temp }}/resolved-config.json
+          EVENT_NAME: ${{ github.event_name }}
+          BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}
+          BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
+          BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
+          BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
         run: |
           set -euo pipefail
           config=.base/docs/conventions/pr-pipeline.yaml

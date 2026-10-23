@@ -8,8 +8,10 @@ name: pr-verify
 # Only steps of a run of this file on main can upload that run's artifacts, so
 # the pr-merge lane counts a verdict only through its run record
 # (plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py).
-# The verdict is not a check run and stays out of ci-status
-# (docs/conventions/pr-pipeline/README.md, "Verifier verdict").
+# The verdict is not a check run. ci-status reads a pass by exact name only in
+# the merge queue, for a lanes App pull request, since a red ci-status on a
+# pull request event would stop this workflow from running
+# (docs/conventions/pr-pipeline/README.md, "Native auto-merge").
 #
 # No pull request code runs here. The diff, the trusted PR text and the linked
 # issues are data files in pr-verify-data under the working directory, and the

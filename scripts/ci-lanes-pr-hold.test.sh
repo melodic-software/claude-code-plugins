@@ -93,7 +93,10 @@ fi
 # set. A files read prints each row of STUB_FILES (a JSON array of
 # [path, renamed-from?] arrays) as one line. A contents read of
 # trusted-actors.json prints the working tree's list, or answers 404 when
-# STUB_NO_ACTORS is set.
+# STUB_NO_ACTORS is set. An artifacts read by name prints the run ids
+# STUB_ARTIFACTS (a JSON object of name to run ids) gives that name, through
+# the step's own --jq; a run read prints that id's entry of STUB_RUNS, or
+# answers 404.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -103,6 +106,10 @@ discussion() {
   [[ "$(grep -cE '/(comments|reviews)\?' "$STUB_LOG")" -gt "${STUB_FAILS:-0}" ]] || { echo 'gh: Server Error (HTTP 502)' >&2; exit 1; }
 }
 case "$*" in
+"api graphql "*)
+  [[ -z "${STUB_DISARM_FAILS:-}" ]] || { echo 'gh: Resource not accessible by integration' >&2; exit 1; }
+  echo '{"data":{}}'
+  ;;
 */contents/.github/scripts/pr-merge/merge-holds.mjs*)
   [[ -z "${STUB_NO_MODULE:-}" ]] || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
   cat "$STUB_MODULE"
@@ -119,6 +126,20 @@ case "$*" in
 */issues/*/comments\?*) discussion; rows "${STUB_ISSUE:-}" ;;
 */pulls/*/reviews\?*) discussion; rows "${STUB_REVIEWS:-}" ;;
 */pulls/*/comments\?*) discussion; rows "${STUB_INLINE:-}" ;;
+*/actions/artifacts\?name=*)
+  all="$*" name=${all##*actions/artifacts?name=}
+  name=${name%%&*}
+  # The step's own --jq filter, the last argument, runs over a listing that
+  # also holds an expired artifact of that name and an unexpired one whose
+  # name only starts with it, both of run 11, which neither may count.
+  jq -c --arg name "$name" '{artifacts: ([.[$name][]? | {name: $name, expired: false, workflow_run: {id: .}}]
+    + [{name: $name, expired: true, workflow_run: {id: 11}}, {name: ($name + "-i1"), expired: false, workflow_run: {id: 11}}])}' \
+    <<<"${STUB_ARTIFACTS:-{\}}" | jq -r "${*: -1}"
+  ;;
+*/actions/runs/*)
+  all="$*" id=${all##*actions/runs/}
+  jq -ce --arg id "$id" '.[$id] // error' <<<"${STUB_RUNS:-{\}}" 2>/dev/null || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
+  ;;
 */pulls/*) printf '%s\n' "$STUB_PULL" ;;
 *) exit 1 ;;
 esac
@@ -131,7 +152,8 @@ BASE=89abcdef0123456789abcdef0123456789abcdef
 QUEUE="refs/heads/gh-readonly-queue/main/pr-7-$SHA"
 LANES='{"id":337595936,"login":"melodic-automation-lanes[bot]","type":"Bot"}'
 pull() { jq -nc --argjson user "${2:-$LANES}" --arg body "$1" --arg ref "${STUB_BASE_REF:-main}" --arg sha "${STUB_BASE_SHA:-$BASE}" \
-  --argjson changed "${STUB_CHANGED:-1}" '{number: 7, user: $user, body: $body, head: {sha: "'"$SHA"'"}, base: {ref: $ref, sha: $sha}, changed_files: $changed}'; }
+  --argjson changed "${STUB_CHANGED:-1}" '{number: 7, node_id: "PR_7", user: $user, body: $body, head: {sha: "'"$SHA"'", ref: "work-resolve-issue/issue-1"}, base: {ref: $ref, sha: $sha}, changed_files: $changed,
+    auto_merge: (if env.STUB_ARMED then {merge_method: "squash"} else null end)}'; }
 comment() { jq -nc --arg login "$1" --arg type "${2:-User}" --arg assoc "$3" --arg at "$4" --arg body "$5" \
   '{user: {login: $login, type: $type}, author_association: $assoc, created_at: $at, body: $body}'; }
 # approval <login> <id> <state> <at> <commit>: a review of a commit.
@@ -146,7 +168,7 @@ expect() {
   local label="$1" want_rc="$2" want_calls="$3" out rc calls
   : >"$TMP_ROOT/log"
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_MODULE="${STUB_MODULE:-$MODULE}" \
-    GITHUB_EVENT_NAME="${EVENT:-pull_request}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" \
+    GITHUB_EVENT_NAME="${EVENT:-pull_request}" EVENT_ACTION="${ACTION-synchronize}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" \
     GITHUB_REPOSITORY=o/r RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   calls=$(grep -cE '/(comments|reviews)\?' "$TMP_ROOT/log")
   if [[ "$rc" -ne "$want_rc" ]]; then
@@ -260,7 +282,133 @@ export STUB_NO_CONFIG=1
 expect "an unreadable config fails closed" 1 0 "::error::could not read docs/conventions/pr-pipeline.yaml at $BASE"
 unset STUB_NO_CONFIG
 
+# verifier runs: run <id> [path] [event] [branch] [status] [conclusion]
+run() { jq -nc --argjson id "$1" --arg path "${2:-.github/workflows/pr-verify.yml}" --arg event "${3:-workflow_run}" \
+  --arg branch "${4:-main}" --arg status "${5:-completed}" --arg conclusion "${6:-success}" \
+  '{id: $id, path: $path, event: $event, head_branch: $branch, status: $status, conclusion: $conclusion,
+    repository: {full_name: "o/r"}, head_repository: {full_name: "o/r"}}'; }
+DIGEST="$(printf '%s' work-resolve-issue/issue-1 | sha256sum | cut -c1-16)"
+OLD=fedcba9876543210fedcba9876543210fedcba98
+# lookups: the artifact-by-name reads the last run made.
+lookups() { grep -c 'actions/artifacts?name=' "$TMP_ROOT/log"; }
+STUB_RUNS="$(jq -sc 'map({(.id | tostring): .}) | add' <<<"$(run 11)
+$(run 12 .github/workflows/pr-verify.yml workflow_run main in_progress '')
+$(run 13 .github/workflows/other.yml)
+$(run 14 .github/workflows/pr-verify.yml pull_request)
+$(run 15 .github/workflows/pr-verify.yml workflow_run work-resolve-issue/issue-1)
+$(run 16 .github/workflows/pr-verify.yml workflow_run main completed failure)")"
+# Run 17's read answers with run 11's record: another run than its artifact names.
+STUB_RUNS="$(jq -c '. + {"17": .["11"]}' <<<"$STUB_RUNS")"
+export STUB_RUNS
+
+STUB_PULL="$(pull 'Closes #1')"
+expect "a pull request event reads no verdict" 0 3 "no hold path"
+if [[ "$(lookups)" -eq 0 ]] && ! grep -q 'actions/runs/' "$TMP_ROOT/log"; then
+  ok "a pull request event makes no verdict read, so pr-verify can follow a green ci-status"
+else
+  fail "a pull request event read a verdict: '$(sort -u "$TMP_ROOT/log")'"
+fi
+
+# disarms: the auto-merge mutations the last run sent.
+disarms() { grep -c '^api graphql .*disablePullRequestAutoMerge' "$TMP_ROOT/log"; }
+# no_disarm <label>: the last run sent no disarm.
+no_disarm() {
+  if [[ "$(disarms)" -eq 0 ]]; then ok "$1"; else fail "$1: it sent a disarm"; fi
+}
+STUB_PULL="$(STUB_ARMED=1 pull 'Closes #1')"
+expect "a push to an armed lanes App pull request turns its auto-merge off" 0 3 "#7: a push moved its head, so its native auto-merge is off"
+if [[ "$(disarms)" -eq 1 ]] && grep -q -- '-f id=PR_7' "$TMP_ROOT/log"; then
+  ok "the push disarms it by its node id with one mutation"
+else
+  fail "the push sent $(disarms) disarm(s): '$(sort -u "$TMP_ROOT/log")'"
+fi
+STUB_PULL="$(STUB_ARMED=1 pull 'Closes #1')"
+export STUB_DISARM_FAILS=1
+expect "a disarm that fails only warns, so a token that cannot disarm never holds a push red" 0 3 "::warning::could not turn off native auto-merge on #7 after a push to its head"
+unset STUB_DISARM_FAILS
+for action in edited labeled; do
+  STUB_PULL="$(STUB_ARMED=1 pull 'Closes #1')" ACTION=$action
+  expect "a $action event leaves an armed pull request armed" 0 3 "no hold path"
+  no_disarm "a $action event sends no disarm"
+done
+unset ACTION
+STUB_PULL="$(pull 'Closes #1')"
+expect "a push to an unarmed pull request sends no mutation" 0 3 "no hold path"
+no_disarm "an unarmed pull request is not disarmed"
+STUB_PULL="$(STUB_ARMED=1 pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
+expect "a push to a person's armed pull request is left to them" 0 0 "not the lanes App's"
+no_disarm "a person's pull request is not disarmed"
+STUB_PULL="$(pull 'Closes #1')"
+
 export EVENT=merge_group REF="$QUEUE" PR_NUMBER='' GROUP_BASE_SHA="$SHA" WANT_BASE="$SHA"
+export STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}"
+expect "in the merge queue, a pass at the head passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
+if [[ "$(lookups)" -eq 1 ]]; then
+  ok "a plain-named pass ends the lookup after one name"
+else
+  fail "a plain-named pass took $(lookups) lookups"
+fi
+STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass-notes-$DIGEST\":[11]}"
+expect "in the merge queue, a digest-named pass-notes at the head passes" 0 3 "no verifier hold: pr-verify passed this head"
+STUB_ARTIFACTS='{}'
+expect "in the merge queue, no verdict fails the group" 1 3 "::error::#7: pr-verify has not passed this head; wait for pr-verify to pass it"
+if [[ "$(lookups)" -eq 4 ]]; then
+  ok "no verdict looks up each pass name once"
+else
+  fail "no verdict took $(lookups) lookups"
+fi
+STUB_ARTIFACTS="{\"pr-verify-7-$OLD-pass\":[11],\"pr-verify-7-$SHA-fail\":[11]}"
+expect "in the merge queue, a pass at an older head and a FAIL at this one fail the group" 1 3 "pr-verify has not passed this head"
+STUB_ARTIFACTS="{\"pr-verify-8-$SHA-pass\":[11]}"
+expect "in the merge queue, another pull request's pass fails the group" 1 3 "pr-verify has not passed this head"
+for bad in 12:in-progress 13:another-workflow 14:a-pull-request-event 15:another-branch 16:a-failed-run 17:another-run-s-record 99:an-unreadable-run; do
+  STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[${bad%%:*}]}"
+  if [[ ${bad%%:*} == 99 ]]; then
+    expect "in the merge queue, a pass from ${bad#*:} fails closed" 1 3 "could not read run 99"
+  else
+    expect "in the merge queue, a pass from ${bad#*:} fails the group" 1 3 "pr-verify has not passed this head"
+  fi
+done
+STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[16],\"pr-verify-7-$SHA-pass-$DIGEST\":[11]}"
+expect "in the merge queue, a failed run's pass does not hide a later name's good one" 0 3 "pr-verify passed this head"
+# Run 17's read answers with run 11's record, which would count but for the
+# id: the lookup must not stop on it, so the later real pass is still read.
+STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[17],\"pr-verify-7-$SHA-pass-$DIGEST\":[11]}"
+expect "in the merge queue, another run's record does not end the lookup before a real pass" 0 3 "pr-verify passed this head"
+if [[ "$(lookups)" -eq 2 ]]; then
+  ok "a record whose run id differs from its artifact's does not end the lookup"
+else
+  fail "a mismatched run record ended the lookup after $(lookups) lookup(s)"
+fi
+STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[13],\"pr-verify-7-$SHA-pass-$DIGEST\":[11]}"
+expect "in the merge queue, another workflow's successful run does not end the lookup before a real pass" 0 3 "pr-verify passed this head"
+if [[ "$(lookups)" -eq 2 ]]; then
+  ok "the lookup ends at the first name holding a pr-verify pass"
+else
+  fail "the lookup took $(lookups) lookups"
+fi
+STUB_ARTIFACTS='{}' STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]"
+expect "in the merge queue, a trusted approval of the head lifts a missing pass" 0 3 "no verifier hold: kyle-sexton approved this head"
+STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$OLD")]"
+expect "in the merge queue, an approval of an earlier head lifts nothing" 1 3 "pr-verify has not passed this head"
+STUB_REVIEWS=''
+# Armed at a passing head, then pushed: the queue judges the new head, whose
+# names no verdict carries yet.
+STUB_ARTIFACTS="{\"pr-verify-7-$OLD-pass\":[11]}"
+expect "in the merge queue, a push after a pass fails the group on the new head" 1 3 "pr-verify has not passed this head"
+STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
+expect "in the merge queue, a person's pull request reads no verdict" 0 0 "not the lanes App's"
+if [[ "$(lookups)" -eq 0 ]]; then
+  ok "a person's pull request makes no verdict lookup"
+else
+  fail "a person's pull request made $(lookups) lookups"
+fi
+STUB_PULL="$(pull 'Closes #1')"
+printf 'console.log("#7: no body hold, no member veto and no hold path.");\n' >"$TMP_ROOT/old.mjs"
+STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}" STUB_MODULE="$TMP_ROOT/old.mjs"
+expect "in the merge queue, a base module that ignores the verdicts fails closed" 1 3 "::error::merge-holds.mjs exited 0 without its verifier verdict"
+unset STUB_MODULE
+STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}"
 STUB_PULL="$(pull $'Closes #1\nHold: owner call')"
 expect "in the merge queue, a body hold fails the group" 1 3 "::error::#7: its body holds it"
 STUB_PULL="$(pull 'Closes #1')" STUB_ISSUE="[$KYLE_VETO]"

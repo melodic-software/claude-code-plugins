@@ -48,6 +48,7 @@ SNAPSHOT_CLI = "skills/babysit-prs/scripts/pr_queue_snapshot.py"
 FINDINGS_CLI = "skills/babysit-prs/scripts/babysit_findings.py"
 PREFILTER_CLI = "skills/babysit-prs/scripts/babysit_merge_prefilter.py"
 SKIP_CLI = "skills/babysit-prs/scripts/babysit_merge_skip.py"
+VERIFY_EVIDENCE_CLI = "skills/babysit-prs/scripts/babysit_verify_evidence.py"
 WHOLE_REVIEW_CLI = "skills/babysit-prs/scripts/babysit_whole_review.py"
 THREADS_CLI = "skills/babysit-prs/scripts/pr_review_threads.py"
 READINESS_GATE = "scripts/babysit-readiness-gate.sh"
@@ -1573,6 +1574,21 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
             "kept candidates, the skipped rows, the keys and the refusal store, "
             "plus the artifact listing `BABYSIT_VERIFY_LISTING` names. "
             "No GitHub write on any path."
+        ),
+        backed_by=(),
+    ),
+    EntryPoint(
+        path=VERIFY_EVIDENCE_CLI,
+        wrapper=None,
+        mutation=READ_ONLY,
+        mutates_what="nothing on GitHub",
+        gate="n/a",
+        claim=(
+            "`evidence` reads the pull request, its commits, the artifact "
+            "listing, run records, compares and verdict files, and prints the "
+            "gate's verifier evidence as one JSON line; it writes only the "
+            "local listing, head-ref and run-cache files the BABYSIT_* "
+            "variables name. No GitHub write on any path."
         ),
         backed_by=(),
     ),
