@@ -38,8 +38,10 @@
 // as written and links back; lifts the App's
 // `status: needs-decision` and asks for triage again; and rewrites the
 // issue's body, replacing those items with one plain line linking the child,
-// so admission reads the rest. A retry reuses a child the App already filed
-// for the issue (SPLIT_MARKER on the issue's timeline), so it files one.
+// so admission reads the rest. It splits only when admission's comment
+// refused the issue for those items alone; an item's deeper-indented lines
+// move with it. A retry reuses a child the App already filed for the issue
+// with the same items (on the issue's timeline), so it files one.
 //
 // Model text is data: each field is rendered on one line, with `<`, `[`, `]`,
 // `(` and `)` escaped, and mentions, `#N` and `GH-N` references, `://` and
@@ -66,7 +68,7 @@ import { BORN_TRIAGED_MARKER } from "../../actions/check-born-triaged/check-born
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { loadRules, REFINE_MARKER, taskItems, unrunnableCriteria } from "./admit.mjs";
+import { ADMIT_MARKER, loadRules, REFINE_MARKER, refusalText, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
 import { LANES_APP_LOGIN, MARKER } from "./apply-verdict.mjs";
 
 export { REFINE_MARKER };
@@ -113,16 +115,19 @@ export function isThin({ body, laneBody }) {
 }
 
 // The split a held issue gets, or null: it is at `status: needs-decision`,
-// the verdict raised no flag, and some but not all done-when items are ones
-// a lane run cannot perform. {count, items: [{n, kind, text}]}, each text
-// whole. Who set the label is checked apart. Pure.
-export function splitOf({ body, laneBody, labels, rules, webHosts }) {
+// the verdict raised no flag, some but not all done-when items are ones a
+// lane run cannot perform, and `admission`, the lanes App's admission
+// comment, refused it for those items and nothing else. {count, items:
+// [{n, kind, text}]}, each text the item's first line, whole. Who set the
+// label and wrote the comment is checked apart. Pure.
+export function splitOf({ body, laneBody, labels, admission, rules, webHosts }) {
   if (!labels.includes(NEEDS_DECISION) || flagsOf(laneBody)?.join() !== "none") {
     return null;
   }
   const items = taskItems(body, rules["task-list"]);
-  const { found } = unrunnableCriteria(body, rules["task-list"], webHosts);
-  if (found.length === 0 || found.length === items.length) {
+  const unrunnable = unrunnableCriteria(body, rules["task-list"], webHosts);
+  const { found } = unrunnable;
+  if (found.length === 0 || found.length === items.length || admission !== `${ADMIT_MARKER}\n${refusalText(unrunnableReason(unrunnable))}`) {
     return null;
   }
   return { count: items.length, items: found.map(({ n, kind }) => ({ n, kind, text: items[n - 1].text })) };
@@ -194,7 +199,8 @@ export async function selectRefinement({ github, repository, number, humans, app
     return no("the lanes App already refined it");
   }
   const { thin, reasons } = isThin({ body: issue.body, laneBody: lane[0].body });
-  const split = thin ? null : splitOf({ body: issue.body, laneBody: lane[0].body, labels: labelNames(issue), ...splitConfig() });
+  const admission = comments.find((comment) => appId !== undefined && comment?.user?.id === appId && String(comment.body ?? "").startsWith(ADMIT_MARKER))?.body;
+  const split = thin ? null : splitOf({ body: issue.body, laneBody: lane[0].body, labels: labelNames(issue), admission, ...splitConfig() });
   if (!thin && split === null) {
     return no("not thin, and no done-when items to split off");
   }
@@ -330,31 +336,50 @@ async function removeLabel(github, base, name) {
 const movedLine = (moved, child) =>
   `Done-when ${moved.length === 1 ? "item" : "items"} ${[...moved].sort((a, b) => a - b).join(", ")} ${moved.length === 1 ? "needs" : "need"} a person, so ${moved.length === 1 ? "it moved" : "they moved"} to #${child}.`;
 
-// The child issue's body: the moved items as written, mentions broken so they
-// do not ping again, then the born-triaged marker, so intake skips it.
-export function childBody(number, texts, taskList) {
+// The child issue's body: the moved items as written (`texts`, each an
+// item's lines with its task-list prefix), mentions broken so they do not
+// ping again, then the born-triaged marker, so intake skips it.
+export function childBody(number, texts) {
   return [
     SPLIT_MARKER,
     `Split from #${number}: an unattended lane run cannot perform these done-when items, so a person does. #${number} keeps the rest.`,
     "",
     "## Done when",
     "",
-    ...texts.map((text) => `${taskList}${text.trimEnd().replaceAll("@", "@​")}`),
+    ...texts.map((text) => text.trimEnd().replaceAll("@", "@​")),
     "",
     BORN_TRIAGED_MARKER,
   ].join("\n");
 }
 
-// The issue's body with the moved task-list items taken out: the first one's
-// line becomes a plain list line linking the child, the others go. Pure.
+// The moved items, each its first line from the task-list prefix on and its
+// deeper-indented lines after it, as one text per item. Pure.
+export function movedTexts(body, taskList, moved) {
+  const lines = String(body).split("\n");
+  const items = taskItems(body, taskList);
+  return moved.map((n) => [lines[items[n - 1].line].trimStart(), ...items[n - 1].more.map((index) => lines[index])].join("\n"));
+}
+
+// The issue's body with the moved task-list items taken out, their
+// deeper-indented lines with them: the first one's line becomes a plain list
+// line linking the child, the others go. Pure.
 export function splitBody(body, taskList, moved, child) {
-  const numbers = new Map(taskItems(body, taskList).map(({ line }, index) => [line, index + 1]));
+  const numbers = new Map();
+  taskItems(body, taskList).forEach(({ line, more }, index) => {
+    for (const at of [line, ...more]) {
+      numbers.set(at, { n: index + 1, first: at === line });
+    }
+  });
   let linked = false;
   return String(body)
     .split("\n")
     .flatMap((text, index) => {
-      if (!moved.includes(numbers.get(index))) {
+      const at = numbers.get(index);
+      if (!moved.includes(at?.n)) {
         return [text];
+      }
+      if (!at.first) {
+        return [];
       }
       if (linked) {
         return [];
@@ -389,10 +414,9 @@ async function setType(github, repository, nodeId, log) {
   }
 }
 
-// The child the lanes App already filed for this issue, from the issue's
-// timeline, or undefined.
-async function childOf(github, repository, base, number, appId) {
-  const opening = `${SPLIT_MARKER}\nSplit from #${number}:`;
+// The child the lanes App already filed for this issue with `body`, the
+// items it would move now, from the issue's timeline, or undefined.
+async function childOf(github, repository, base, appId, body) {
   return (await paginate(github, `${base}/timeline`))
     .map((event) => (event?.event === "cross-referenced" ? event.source?.issue : null))
     .find(
@@ -401,7 +425,7 @@ async function childOf(github, repository, base, number, appId) {
         !source.pull_request &&
         source.user?.id === appId &&
         String(source.repository_url ?? "").toLowerCase().endsWith(`/repos/${repository}`.toLowerCase()) &&
-        String(source.body ?? "").startsWith(opening),
+        source.body === body,
     )?.number;
 }
 
@@ -437,13 +461,13 @@ export async function applyRefinement({ github, repository, number, appId, rules
     if (!labels.includes(NEEDS_DECISION) || (await decisionSetter(github, base)) !== appId) {
       return skip(`is no longer held by the lanes App's ${NEEDS_DECISION}`);
     }
-    const items = taskItems(issue.body, rules["task-list"]);
-    let child = await childOf(github, repository, base, number, appId);
+    const body = childBody(number, movedTexts(issue.body, rules["task-list"], output.split));
+    let child = await childOf(github, repository, base, appId, body);
     if (child === undefined) {
       const filed = (
         await github("POST", `/repos/${repository}/issues`, {
           title: `${String(issue.title)} (checks a person runs)`.slice(0, 256),
-          body: childBody(number, output.split.map((n) => items[n - 1].text), rules["task-list"]),
+          body,
           labels: [NEEDS_HUMAN],
         })
       );
@@ -453,6 +477,12 @@ export async function applyRefinement({ github, repository, number, appId, rules
       child = filed.number;
       log(`refine: #${number} filed #${child} for done-when items ${output.split.join(", ")}`);
       await setType(github, repository, filed.node_id, log);
+    }
+    // Read again before the labels and the body edit, so a person's edit
+    // since is kept: the issue stays held, and a later split reuses the child.
+    if (String((await github("GET", base))?.body ?? "") !== String(issue.body ?? "")) {
+      log(`refine: #${number} changed before its body edit; #${child} filed, body left as is`);
+      return { outcome: "skipped", redispatch: false, child };
     }
     await github("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
     await removeLabel(github, base, NEEDS_DECISION);

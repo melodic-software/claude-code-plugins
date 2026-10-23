@@ -141,15 +141,31 @@ const excerpt = (text) => {
   return plain.length > 80 ? `${plain.slice(0, 77)}...` : plain;
 };
 
-// [{line, text}] for each task-list item, in order: its index among the
-// body's `\n`-split lines and its text after the task-list prefix. Item n
-// (1-based) is entry n - 1. Pure.
-export const taskItems = (body, taskList) =>
-  String(body ?? "")
-    .split("\n")
-    .map((line, index) => ({ line: index, trimmed: line.trimStart() }))
-    .filter(({ trimmed }) => trimmed.startsWith(taskList))
-    .map(({ line, trimmed }) => ({ line, text: trimmed.slice(taskList.length) }));
+// [{line, text, more}] for each task-list item, in order: its index among
+// the body's `\n`-split lines, its text after the task-list prefix, and the
+// indexes of the lines after it indented deeper than its marker (a sub-list
+// or wrapped text, part of the item). Item n (1-based) is entry n - 1. Pure.
+export const taskItems = (body, taskList) => {
+  const lines = String(body ?? "").split("\n");
+  const indent = (line) => line.length - line.trimStart().length;
+  const items = [];
+  lines.forEach((line, index) => {
+    const trimmed = line.trimStart();
+    if (!trimmed.startsWith(taskList)) {
+      return;
+    }
+    const more = [];
+    for (let next = index + 1; next < lines.length && lines[next].trim() !== "" && indent(lines[next]) > indent(line); next += 1) {
+      more.push(next);
+    }
+    items.push({ line: index, text: trimmed.slice(taskList.length), more });
+  });
+  return items;
+};
+
+// The admission comment's text for a refusal, after ADMIT_MARKER.
+export const refusalText = (reasons) =>
+  `Not admitted to the issue lane: ${reasons}. A recorded decision does not change these rules (\`.github/actions/resolve-config/admission-rules.json\`); a person who wants it worked adds \`agent-ready\`.`;
 
 // [{n, kind, text}] for each task-list item (1-based n) the lane cannot
 // perform. `webHosts` is resolve-issue's web-access domains: "any" skips the
@@ -401,13 +417,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
     await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
     await github("POST", `${base}/labels`, { labels: [NEEDS_DECISION] });
     await undefer();
-    await sayWhy(
-      github,
-      repository,
-      base,
-      comments,
-      `Not admitted to the issue lane: ${reasons}. A recorded decision does not change these rules (\`.github/actions/resolve-config/admission-rules.json\`); a person who wants it worked adds \`agent-ready\`.`,
-    );
+    await sayWhy(github, repository, base, comments, refusalText(reasons));
     log(`admit: #${number} refused (${reasons})`);
     return { outcome: "refused", reasons: decision.reasons };
   }
