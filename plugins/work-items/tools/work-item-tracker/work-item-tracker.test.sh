@@ -170,6 +170,12 @@ RC_CAPTURE=$?
 assert_eq "undeclared set-fields verb → exit 6" "6" "$RC_CAPTURE"
 assert_contains "exit-6 stderr names the set-fields verb" "$ERR" "set-fields"
 
+# An adapter with no issue fields declares no get-field-options key: the verb reports unsupported.
+ERR="$(run_dispatcher get-field-options --field Size 2>&1 >/dev/null)"
+RC_CAPTURE=$?
+assert_eq "undeclared get-field-options verb → exit 6" "6" "$RC_CAPTURE"
+assert_contains "exit-6 stderr names the get-field-options verb" "$ERR" "get-field-options"
+
 # --- capabilities passthrough ---
 
 OUT="$(run_dispatcher capabilities)"
