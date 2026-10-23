@@ -20,9 +20,11 @@ from a completed, successful one. Any other artifact is ignored.
 - counted FAILs at `max_fails` or more distinct heads of this pull request
   (tied as in the item after next): `verify:repeated-fail`, whatever a pass
   says, a FAIL at the head included. Before a FAIL at the head or a pass
-  decides, FAILs of other pull requests in this repository, open or closed, that close one of its
-  closing issues count too, at their own heads (a FAIL among them whose run
-  cannot be read is `verify:unreadable`);
+  decides, FAILs of other pull requests in this repository, open or closed,
+  for its issues count too, at their own heads: every FAIL of one that closes
+  an issue, and each FAIL of one an issue's timeline shows referencing it (a
+  `Refs:` pull request) whose verdict.json records the issue (a FAIL among
+  them whose run or record cannot be read is `verify:unreadable`);
 - a counted FAIL at the head, under any pull request number: `verify:fail`;
 - a counted FAIL at another head of this pull request: its number, one of its
   commits (`pulls/<n>/commits`), or a verdict recording its head branch (read
@@ -165,8 +167,13 @@ ISSUE_FIELDS = (
     "comments(first:100){totalCount nodes{databaseId updatedAt lastEditedAt "
     "author{...actor} editor{...actor}}} "
     "closedByPullRequestsReferences(first:50,includeClosedPrs:true){totalCount "
-    "nodes{number repository{nameWithOwner}}}"
+    "nodes{number repository{nameWithOwner}}} "
+    "timelineItems(itemTypes:[CROSS_REFERENCED_EVENT],first:100){totalCount "
+    "nodes{...on CrossReferencedEvent{source{...on PullRequest{number "
+    "repository{nameWithOwner}}}}}}"
 )
+# The issue parts `_closing_issues` reads whole: a cut list refuses.
+ISSUE_LISTS = ("comments", "closedByPullRequestsReferences", "timelineItems")
 ACTOR_FRAGMENT = (
     "fragment actor on Actor{__typename login "
     "... on User{databaseId} ... on Bot{databaseId}}"
@@ -191,6 +198,9 @@ UNREAD, FOREIGN, ORIGIN, COUNTED = "unreadable", "foreign", "origin", "counted"
 # The run cache's section of run records, and the fields `_run_state` reads.
 RUN_SECTION = "run-record"
 RECORD_SECTION = "fail-head-ref"
+# The issue numbers a FAIL's verdict.json records, by artifact id, for the
+# cap's pull requests that name an issue without closing it (`_names_issue`).
+LINKED_SECTION = "fail-linked-issues"
 # What earlier pr-merge runs read, copied into this run's cache by
 # .github/scripts/pr-merge/carry-run-cache.mjs from a cache entry any job in
 # the default branch's cache scope could have written. Each is used only
@@ -864,7 +874,7 @@ class Reader:
             == self.repo
         }
         for issue in live.values():
-            for part in ("comments", "closedByPullRequestsReferences"):
+            for part in ISSUE_LISTS:
                 listed = json_object(issue.get(part))
                 if not is_json_array(listed.get("nodes")) or listed.get(
                     "totalCount"
@@ -887,6 +897,51 @@ class Reader:
             if json_object(node.get("repository")).get("nameWithOwner") == self.repo
             and type(node.get("number")) is int
         }
+
+    def _mentioners(self, live: dict[Any, Any]) -> set[int]:
+        """The pull requests in this repository that the timeline of any issue
+        `live` holds shows referencing it (a `Refs:` line among them)."""
+        return {
+            source.get("number")
+            for issue in live.values()
+            for node in map(
+                json_object, json_object(issue.get("timelineItems")).get("nodes")
+            )
+            if (source := json_object(node.get("source")))
+            and json_object(source.get("repository")).get("nameWithOwner") == self.repo
+            and type(source.get("number")) is int
+        }
+
+    def _names_issue(
+        self, run_id: int, name: str, artifact_id: Any, live: dict[Any, Any]
+    ) -> bool:
+        """Whether a FAIL's verdict.json records one of the issues `live`
+        holds among its linked issues. The numbers are shared by the run's
+        gate processes under the artifact's id, as `_head_ref` shares its
+        head ref, and a failed read is shared the same way, so it refuses."""
+        shared = _is_artifact_id(artifact_id)
+        key = f"{self.repo}|{artifact_id}"
+        numbers = run_cache.get(LINKED_SECTION, key, None) if shared else None
+        if not is_json_array(numbers):
+            failed = run_cache.get(UNREAD_RECORD_SECTION, key, None) if shared else None
+            if isinstance(failed, str):
+                raise _Unreadable(failed)
+            try:
+                recorded = self._record(run_id, name, artifact_id).get("linked_issues")
+                if not is_json_array(recorded):
+                    raise _Unreadable(f"artifact {name} records no linked issues")
+            except _Unreadable as exc:
+                if shared:
+                    run_cache.put(UNREAD_RECORD_SECTION, key, str(exc))
+                raise
+            numbers = sorted(
+                n
+                for n in (json_object(i).get("number") for i in recorded)
+                if type(n) is int
+            )
+            if shared:
+                run_cache.put(LINKED_SECTION, key, numbers)
+        return any(n in live for n in numbers)
 
     def _commits(self, number: int, head: str) -> set[str]:
         try:
@@ -932,10 +987,10 @@ class Reader:
         head_fails: list[tuple[int, str]] = []
         ignored = 0
         unreadable: str | None = None
-        # FAILs of verifier origin by pull request number, and the numbers
-        # with a FAIL whose run cannot be read, for the cap's other pull
-        # requests (`_closers`).
-        failed_by_pr: dict[int, set[str]] = {}
+        # FAILs of verifier origin by pull request number, as (run id,
+        # name, artifact id, head), and the numbers with a FAIL whose run
+        # cannot be read, for the cap's other pull requests (`_elsewhere`).
+        failed_by_pr: dict[int, list[tuple[int, str, Any, str]]] = {}
         unread_prs: set[int] = set()
         for item in map(json_object, self._listing()):
             name = str(item.get("name") or "")
@@ -970,7 +1025,9 @@ class Reader:
                 else:
                     ignored += 1
                 continue
-            failed_by_pr.setdefault(pr_n, set()).add(sha)
+            failed_by_pr.setdefault(pr_n, []).append(
+                (run_id, name, item.get("id"), sha)
+            )
             if not tied and match[4] is not None:
                 # The name, which the run authenticates, carries the head
                 # branch the verdict records: no download.
@@ -1045,16 +1102,31 @@ class Reader:
         )
 
     def _elsewhere(
-        self, number: int, failed_by_pr: dict[int, set[str]], unread_prs: set[int]
+        self,
+        number: int,
+        failed_by_pr: dict[int, list[tuple[int, str, Any, str]]],
+        unread_prs: set[int],
     ) -> tuple[dict[Any, Any], set[str]]:
         """The live closing issues, and the heads of counted FAILs of the
-        other pull requests that close one of them. A FAIL among those whose
-        run cannot be read raises `_Unreadable`."""
+        other pull requests for them: every FAIL of a pull request that closes
+        one, and each FAIL of a pull request that only references one (a
+        `Refs:` pull request) whose verdict.json records one among its linked
+        issues, read in sorted order. A FAIL among those whose run or record
+        cannot be read raises `_Unreadable`."""
         live = self._closing_issues(number)
-        others = self._closers(live) - {number}
-        if others & unread_prs:
+        closers = self._closers(live) - {number}
+        mentioners = self._mentioners(live) - closers - {number}
+        if (closers | mentioners) & unread_prs:
             raise _Unreadable("a FAIL run of a pull request for the same issue")
-        return live, set().union(*(failed_by_pr.get(n, set()) for n in others))
+        heads = {f[3] for n in closers for f in failed_by_pr.get(n, [])}
+        for n in sorted(mentioners):
+            fails = sorted(failed_by_pr.get(n, []), key=lambda f: (f[0], f[1], f[3]))
+            for run_id, name, artifact_id, sha in fails:
+                if sha not in heads and self._names_issue(
+                    run_id, name, artifact_id, live
+                ):
+                    heads.add(sha)
+        return live, heads
 
     def _fresh_created(self, run_id: int) -> datetime | None:
         """When the run was created, from a record this process read from
