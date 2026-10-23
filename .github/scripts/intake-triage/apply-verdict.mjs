@@ -470,8 +470,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
         noteUnrunnable({
           github,
           repository,
-          number: Number(env.ISSUE_NUMBER),
-          body: issue.body,
+          issue,
           rules: loadRules(`${env.BASE_PATH}/.github/actions/resolve-config/admission-rules.json`),
           webHosts: issueLaneWebHostsFromBase(env),
         });

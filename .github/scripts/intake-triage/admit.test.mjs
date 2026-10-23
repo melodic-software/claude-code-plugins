@@ -525,10 +525,11 @@ test("decide: every done-when item unrunnable says a person takes the issue, wit
 });
 
 describe("noteUnrunnable", () => {
-  const note = (fake, body) => noteUnrunnable({ github: fake.github, repository: "o/r", number: 7, body, rules: RULES, webHosts: HOSTS, log: () => {} });
+  const HELD = issueOf({ body: CANARY, labels: [{ name: NEEDS_DECISION }] });
+  const note = (fake, issue = HELD) => noteUnrunnable({ github: fake.github, repository: "o/r", issue, rules: RULES, webHosts: HOSTS, log: () => {} });
   test("a held issue with a Windows-host item gets the split comment and no label change (#9372)", async () => {
-    const fake = fakeGitHub({ issue: issueOf({ body: CANARY }) });
-    const result = await note(fake, CANARY);
+    const fake = fakeGitHub({ issue: HELD });
+    const result = await note(fake);
     assert.equal(result.outcome, "noted");
     const done = writes(fake.calls);
     assert.equal(done.length, 1);
@@ -538,7 +539,31 @@ describe("noteUnrunnable", () => {
   });
   test("a held issue whose done-when the lane can run gets nothing", async () => {
     const fake = fakeGitHub();
-    assert.deepEqual(await note(fake, BODY), { outcome: "none", reasons: [] });
+    assert.deepEqual(await note(fake, issueOf()), { outcome: "none", reasons: [] });
     assert.deepEqual(writes(fake.calls), []);
+  });
+  test("an issue a person already made agent-ready gets no note", async () => {
+    const issue = issueOf({ body: CANARY, labels: [{ name: NEEDS_DECISION }, { name: AGENT_READY }] });
+    const fake = fakeGitHub({ issue });
+    assert.deepEqual(await note(fake, issue), { outcome: "skipped", reasons: [`already ${AGENT_READY}`] });
+    assert.deepEqual(writes(fake.calls), []);
+  });
+  test("an issue whose agent-ready was removed before gets no note", async () => {
+    const fake = fakeGitHub({ issue: HELD, events: [{ event: "unlabeled", label: { name: AGENT_READY } }] });
+    assert.deepEqual(await note(fake), { outcome: "skipped", reasons: [`${AGENT_READY} was removed before`] });
+    assert.deepEqual(writes(fake.calls), []);
+  });
+  test("a repeated run leaves an unchanged note alone, and edits a changed one in place", async () => {
+    const first = fakeGitHub({ issue: HELD });
+    await note(first);
+    const posted = writes(first.calls)[0];
+    const body = JSON.parse(posted.slice(posted.indexOf("{"))).body;
+    const own = (text) => [{ id: 31, body: text, user: { login: "melodic-automation-lanes[bot]" } }];
+    const again = fakeGitHub({ issue: HELD, comments: own(body) });
+    assert.equal((await note(again)).outcome, "noted");
+    assert.deepEqual(writes(again.calls), []);
+    const changed = fakeGitHub({ issue: HELD, comments: own(`${ADMIT_MARKER}\nold`) });
+    await note(changed);
+    assert.match(writes(changed.calls)[0], /^PATCH \/repos\/o\/r\/issues\/comments\/31 /);
   });
 });
