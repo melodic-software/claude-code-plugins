@@ -17,7 +17,8 @@
 //           record the reply job checks the replies against (runRecord). On a PR carrying the
 //           human-gated label it keeps only threads a trusted person with
 //           write access asked it to fix (isFixRequest), and skips
-//           awaiting-human when there are none.
+//           awaiting-human when there are none, unless a lane escalation put
+//           the label on and no review lane holds the PR (gate-source.mjs).
 //
 // Every comment body is copied into the thread file and never logged or
 // interpolated into a command. Only a trusted person's reply to the lane's
@@ -29,12 +30,13 @@ import { appendFileSync, lstatSync, readdirSync, readFileSync, writeFileSync } f
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { commentItems, gateSource, listLabelEvents, ROUND_MARKER } from "./gate-source.mjs";
 import { isProtectedPath, namedInScope } from "./thread-scope.mjs";
 
 // The round cap is the config's `loop.review-rounds`, passed in as
 // REVIEW_ROUNDS; the resolver's default is the fallback.
 export const DEFAULT_MAX_ROUNDS = 2;
-export const ROUND_MARKER = "<!-- pr-unblock:address-feedback-round -->";
+export { ROUND_MARKER };
 // github-actions[bot], the author of the review lanes' reviewed-head markers.
 export const MARKER_AUTHOR_ID = 41898282;
 const REVIEWED_HEAD =
@@ -422,8 +424,18 @@ export async function select({
     api.listThreads(pr),
   ]);
   // The human-gated label holds the PR except for threads a trusted person
-  // with write access asked the lane to fix.
-  const gated = (pull.labels ?? []).some((label) => label.name === humanGatedLabel);
+  // with write access asked the lane to fix, unless a lane escalation put it
+  // on and no review lane holds the PR (gate-source.mjs). The label stays on.
+  const labeled = (pull.labels ?? []).some((label) => label.name === humanGatedLabel);
+  const escalated =
+    labeled &&
+    gateSource({
+      timeline: [...commentItems(issueComments), ...(await api.listLabelEvents(pr))],
+      label: humanGatedLabel,
+      head: headSha,
+      isLanesApp: (user) => user?.id === appId && user?.type === "Bot",
+    }).source === "lane-escalation";
+  const gated = labeled && !escalated;
   const fixers = await reviewFixers({ reviewComments, trustedHumans, permission: api.getPermission });
   const kept = keepThreads({
     threads,
@@ -481,7 +493,10 @@ export async function select({
   return {
     decision: "proceed",
     rounds,
-    fixRequested: gated,
+    // True drops the human-gated label from the write runner's holds: every
+    // kept thread carries a write-access fix request, or a lane escalation
+    // put the label on.
+    fixRequested: labeled,
     threads: worked,
     file: { version: 1, repository, pr, head_sha: headSha, threads: worked },
   };
@@ -592,6 +607,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
   const repo = `${apiUrl}/repos/${owner}/${name}`;
   return {
     getPull: async (pr) => (await request(`${repo}/pulls/${pr}`)).data,
+    listLabelEvents: (pr) => listLabelEvents({ graphql, repository, number: pr }),
     // Metadata read, which every token holds. A 404 (not a collaborator) is none.
     async getPermission(login) {
       const url = `${repo}/collaborators/${encodeURIComponent(login)}/permission`;
@@ -831,7 +847,8 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
     }
     output("proceed", String(result.decision === "proceed"));
     // The write runner drops the human-gated label from the hold list only
-    // when this is true: every kept thread carries a write-access fix request.
+    // when this is true: every kept thread carries a write-access fix request,
+    // or a lane escalation put the label on.
     output("fix-requested", String(result.fixRequested === true));
     output("skip-reason", result.decision === "skip" ? result.skipReason : result.decision === "escalate" ? "awaiting-human" : "");
     output("escalation-reason", result.escalationReason ?? "");
