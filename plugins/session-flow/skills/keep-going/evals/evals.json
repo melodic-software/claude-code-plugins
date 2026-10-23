@@ -238,6 +238,19 @@
         "Does not invent a window, usage percentage or reset time",
         "The other fields are filled from their own sources or read unknown with a reason"
       ]
+    },
+    {
+      "id": 19,
+      "name": "teammates-and-mcp-calls-accounted-for-after-stop",
+      "prompt": "keep going — we got cut off. Before the stop you had agent teammates working, and a long MCP tool call was still running. The prior session left a task-list directory on disk with three tasks: one completed, one in progress, one pending.",
+      "expected_output": "The inventory includes agent-team teammates and the in-flight MCP call. The teammates are not treated as running: the skill reads the prior session's task-list directory and reports each task's status as the teammates' last recorded state. The MCP call is reported as not observable, with a reason taken from the MCP docs; it is not called finished or failed, and not re-fired without asking.",
+      "files": [],
+      "expectations": [
+        "Includes agent-team teammates and the in-flight MCP call in the inventory rather than skipping them",
+        "Reads the task-list directory and reports each of the three tasks with its status (completed, in progress, pending) as the teammates' last recorded state, not as proof they are still running",
+        "Reports the MCP call as not observable and gives the reason, without calling it finished, failed or safe to repeat",
+        "Does not re-fire the MCP call without asking first"
+      ]
     }
   ]
 }

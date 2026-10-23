@@ -53,8 +53,11 @@ itself the thing this skill removes.
    this thread, per the off-thread kinds in
    [`${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md`](${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md)
    an open-ended set (background tasks, shells, monitors, scheduled
-   jobs, dynamic workflows, subagents, external CLI processes), not a
-   fixed catalogue. Single out every subagent or workflow agent whose last
+   jobs, dynamic workflows, subagents, external CLI processes, agent-team
+   teammates, in-flight MCP calls), not a fixed catalogue. Teammates and
+   MCP calls follow that doc's own rules: read a prior session's task
+   list when one exists, and report an MCP call as not observable with
+   its reason; neither is skipped silently. Single out every subagent or workflow agent whose last
    notification carries a rate-limit error type or a usage-limit message,
    and every agent the user's prompt or a branch or PR trail says ended on
    a usage limit (a gone session's notifications are not available): they
@@ -197,7 +200,9 @@ itself the thing this skill removes.
    partial-work evidence and its final action: resumed, restarted, or
    abandoned with its reason. A limit that still held is listed as
    handed back, with the reset it waits on, in the same report that
-   precedes the stop.
+   precedes the stop. The report names agent-team teammates and in-flight
+   MCP calls too: each with its recorded state or `none recorded`, or as
+   not observable with the reason.
 
 ## Picking up another agent's trail
 

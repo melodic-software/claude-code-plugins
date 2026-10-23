@@ -26,6 +26,41 @@ current harness exposes:
   with `keep-going`'s `check-child-input-wait.py`; a process the platform gives
   no signal for is `unknown`, never "not waiting".
 
+- agent-team teammates;
+- in-flight MCP tool calls.
+
+A resumed session cannot see two of these directly, so each has its own rule.
+Neither is skipped silently: the report gives its state or says it is not
+observable, with the reason.
+
+**Agent-team teammates.** Never inventory a teammate as running on the strength
+of a resume. Locate the prior session's team task list from the pointer below;
+when it exists, read it and report each task's status (pending, in progress or
+completed) as the teammates' last recorded state, never as proof anything is
+still running. When none exists, report teammates as `none recorded`.
+
+- **Pointer**: when locating the task list or deciding what a resume restores,
+  fetch [agent teams: Architecture](https://code.claude.com/docs/en/agent-teams#architecture)
+  and [agent teams: Limitations](https://code.claude.com/docs/en/agent-teams#limitations)
+  live; the first owns the directory's location and lifetime, the second what a
+  resume restores.
+- **As of**: 2026-10-23
+- **Recheck trigger**: either section changes where the task list lives, how
+  long it stays, or what a resume restores; or agent teams leave experimental
+  status.
+
+**In-flight MCP calls.** Report these as `not observable`, naming the reason
+from the pointer below as read live. Never report such a call as finished,
+failed or safe to re-fire; a re-fire is gated like any side effect.
+
+- **Pointer**: when deciding whether an MCP call can outlive its session, fetch
+  [MCP: Automatic backgrounding of long tool calls](https://code.claude.com/docs/en/mcp#automatic-backgrounding-of-long-tool-calls)
+  live.
+- **As of**: 2026-10-23
+- **Recheck trigger**: that section describes a record of in-flight calls a
+  later session can read, or a way for a backgrounded call to outlive its
+  session.
+
 Treat that list as **examples of the kinds** to look for, not a fixed
 catalogue. The tool surface evolves; the specific tools that hold off-thread
 work change over time. Inventory what exists now, not only the mechanisms named
