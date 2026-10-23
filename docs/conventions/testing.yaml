@@ -6,4 +6,5 @@ reuse_running_instance: auto
 # The planning session tests' refused and refused_ops helpers assert the refusal code.
 extend:
   py-pytest:
-    assertion.calls: ['self\.refused(_ops)?[[:space:]]*\(']
+    assertion:
+      calls: ['self\.refused(_ops)?[[:space:]]*\(']
