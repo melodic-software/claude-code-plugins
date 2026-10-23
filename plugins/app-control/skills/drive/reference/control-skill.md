@@ -44,22 +44,27 @@ process goes through drive's attended `--attach` path.
 
 Manuals, each record a pointer, as-of date and recheck trigger:
 
-- Node.js CLI options (CPU profile, heap profile, heap snapshot signal):
-  <https://nodejs.org/api/cli.html>. As of 2026-10-04. Recheck on a Node.js major release.
-- Chrome DevTools Performance panel: <https://developer.chrome.com/docs/devtools/performance/reference>.
-  Memory panel heap snapshots: <https://developer.chrome.com/docs/devtools/memory-problems/heap-snapshots>.
-  As of 2026-10-04. Recheck when either page changes how a recording is saved.
+- Node.js CLI options: CPU profile <https://nodejs.org/api/cli.html#--cpu-prof>, heap profile
+  <https://nodejs.org/api/cli.html#--heap-prof>, heap snapshot signal
+  <https://nodejs.org/api/cli.html#--heapsnapshot-signalsignal>. As of 2026-10-23. Recheck on a
+  Node.js major release.
+- Chrome DevTools Performance panel:
+  <https://developer.chrome.com/docs/devtools/performance/reference#record>. Memory panel heap
+  snapshots:
+  <https://developer.chrome.com/docs/devtools/memory-problems/heap-snapshots#take_a_snapshot>.
+  As of 2026-10-23. Recheck when either page changes how a recording is saved.
 - py-spy: <https://github.com/benfred/py-spy>. memray: <https://bloomberg.github.io/memray/>. As of
   2026-10-04. Recheck on a new major release of either.
-- JDK `jcmd`: <https://docs.oracle.com/en/java/javase/21/docs/specs/man/jcmd.html>. JDK `jfr`:
-  <https://docs.oracle.com/en/java/javase/21/docs/specs/man/jfr.html>. As of 2026-10-04. Recheck
-  when the project moves to a newer LTS JDK.
-- .NET diagnostics tools: <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-trace>,
-  <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-gcdump>,
-  <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-stack>. As of 2026-10-04.
-  Recheck on a .NET major release.
-- Go profiling endpoints: <https://pkg.go.dev/net/http/pprof>; the pprof tool:
-  <https://github.com/google/pprof>. As of 2026-10-04. Recheck on a Go minor release.
+- JDK `jcmd`: <https://docs.oracle.com/en/java/javase/21/docs/specs/man/jcmd.html#commands-for-jcmd>.
+  JDK `jfr`: <https://docs.oracle.com/en/java/javase/21/docs/specs/man/jfr.html#subcommands>. As of
+  2026-10-23. Recheck when the project moves to a newer LTS JDK.
+- .NET diagnostics tools:
+  <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-trace#dotnet-trace-collect>,
+  <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-gcdump#dotnet-gcdump-collect>,
+  <https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-stack#dotnet-stack-report>. As of
+  2026-10-23. Recheck on a .NET major release.
+- Go profiling endpoints: <https://pkg.go.dev/net/http/pprof#hdr-Usage_examples>; the pprof tool:
+  <https://github.com/google/pprof>. As of 2026-10-23. Recheck on a Go minor release.
 - Linux `perf record`: <https://man7.org/linux/man-pages/man1/perf-record.1.html>. As of
   2026-10-04. Recheck when the host kernel's perf version changes.
 - heaptrack: <https://github.com/KDE/heaptrack>. GDB: <https://sourceware.org/gdb/documentation/>.
