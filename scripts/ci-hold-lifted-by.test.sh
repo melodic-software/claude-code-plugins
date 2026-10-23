@@ -33,8 +33,8 @@ if [[ ! -s "$TMP_ROOT/body.sh" ]]; then
   test_harness::report
   exit 1
 fi
-if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' && steps.human_gated.outputs.held == 'false' }}"* ]]; then
-  ok "step runs only once the human-gated step read the label off"
+if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' && steps.human_gated.outputs.held == 'false' && steps.cost_hold.outputs.cleared != 'true' }}"* ]]; then
+  ok "step runs only once the human-gated step read the label off and no recorded cost decision cleared the hold"
 else
   fail "step lost its condition on the human-gated step's held output"
 fi
