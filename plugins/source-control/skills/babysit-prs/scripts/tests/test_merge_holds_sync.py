@@ -1,7 +1,9 @@
 # test-scope: .github/scripts/pr-merge/merge-holds.mjs
 """The native auto-merge holds (`.github/scripts/pr-merge/merge-holds.mjs`,
-run here under node) cover what the merge gate holds a lanes App pull request
-on, so a lane pull request native auto-merge merges cannot skip it:
+run here under node) cover the merge gate's cost paths and manifests, so a
+lane pull request native auto-merge merges cannot skip them. The gate's other
+cost reasons (Pulumi project files, workflow and pipeline lines) are not
+mirrored; workflows and the pipeline config are hold paths already.
 
 - The cost paths: the same globs as `babysit_risk.COST_PATHS`, and the same
   paths matched (`glob_match` folds case and covers what sits under a glob).
@@ -47,6 +49,13 @@ PATHS = [
     "main.tf",
     ".infra/net/main.TF",
     "a.tf/inside.txt",
+    ".tf",
+    "infra/.tf",
+    "x/.tfvars",
+    ".bicep",
+    "a/.bicepparam",
+    "infra/.x.tf",
+    "infra/.terraform/x.tf",
     "vars.tfvars",
     "deploy/main.bicep",
     "deploy/main.bicepparam",

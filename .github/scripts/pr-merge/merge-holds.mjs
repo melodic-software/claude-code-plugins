@@ -135,11 +135,13 @@ export function pathHold(files, holdPaths) {
 
 // Why the changed `files` hold it for the owner's cost decision, or null when
 // none is a cost path or `decision` (costDecision's link) clears it. As
-// glob_match does, a glob also covers everything under it.
+// glob_match does, a glob also covers everything under it, and `*` matches a
+// segment's leading "." (so `*.tf` holds `.tf`).
 export function costHold(files, decision) {
-  const held = (Array.isArray(files) ? files : []).find((path) =>
-    COST_PATHS.some((glob) => [glob, `${glob}/**`].some((each) => matchesHoldPath(String(path).toLowerCase(), each.toLowerCase()))),
-  );
+  const held = (Array.isArray(files) ? files : []).find((path) => {
+    const folded = String(path).toLowerCase().replaceAll(/(^|\/)\./g, "$1\u0001.");
+    return COST_PATHS.some((glob) => [glob, `${glob}/**`].some((each) => posix.matchesGlob(folded, each.toLowerCase())));
+  });
   return held === undefined || decision ? null : `it changes ${held}, a cost path`;
 }
 

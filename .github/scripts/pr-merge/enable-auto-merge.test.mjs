@@ -417,6 +417,10 @@ test("a cost path holds until the body links the owner's cost decision", async (
   );
   // Pull request 41 links no decision; 42 closes issue 1042, so a decision on 1040 does not cover it.
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_40", head: HEAD }]);
+  // A changed file's name cannot start a workflow command on its own line.
+  const { lines } = await run([pull(43, { files: [{ filename: "x\n::warning::forged/main.tf" }] })]);
+  assert.ok(lines.some((line) => line.includes("x ::warning::forged/main.tf, a cost path")));
+  assert.ok(!lines.some((line) => /(^|\n)::warning::/.test(line)));
   // Not on the trusted-actor list, the commenter decides nothing.
   assert.deepEqual((await run([pull(40, { files: cost, body: decided })], { TRUSTED_ACTORS: "/nonexistent/actors.json" })).writes, []);
 });

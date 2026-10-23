@@ -357,12 +357,12 @@ export async function main({ env = process.env, github, verify } = {}) {
       }
       if (action === "none") {
         if (reason !== "not the lanes App's") {
-          console.log(`enable-auto-merge: #${pull.number} left: ${reason}`);
+          console.log(`enable-auto-merge: #${pull.number} left: ${escapeCommand(reason)}`);
         }
         continue;
       }
       if (!write) {
-        console.log(`enable-auto-merge: #${pull.number} would ${action} (report-only): ${reason}`);
+        console.log(`enable-auto-merge: #${pull.number} would ${action} (report-only): ${escapeCommand(reason)}`);
         continue;
       }
       try {
@@ -371,7 +371,7 @@ export async function main({ env = process.env, github, verify } = {}) {
           console.log(`enable-auto-merge: #${pull.number} armed at ${pull.headRefOid}`);
         } else {
           await github("POST", "/graphql", { query: DISARM_MUTATION, variables: { id: pull.id } });
-          console.log(`enable-auto-merge: #${pull.number} disarmed: ${reason}`);
+          console.log(`enable-auto-merge: #${pull.number} disarmed: ${escapeCommand(reason)}`);
         }
       } catch (error) {
         failed += 1;
