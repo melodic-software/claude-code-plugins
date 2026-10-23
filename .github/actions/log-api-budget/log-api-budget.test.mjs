@@ -46,16 +46,19 @@ function bash(dir, script, { input = "", env = {}, path = process.env.PATH } = {
 
 const state = (dir, token) => readFileSync(join(dir, "api-budget", token), "utf8");
 
-test("api_budget_read turns each header block into a reading and passes the body through", () =>
+// One response per api_budget_read, as each gh api call makes.
+const readEach = (dir, token, ...blocks) => blocks.forEach((input) => bash(dir, `api_budget_read ${token} >/dev/null`, { input }));
+
+test("api_budget_read reads only the leading header block and passes the body through unchanged", () =>
   withDir((dir) => {
-    // gh -i prints a newline between a page and the next page's headers that
-    // plain gh api does not: jq lines keep their own, raw pages join.
-    const out = bash(dir, "api_budget_read github-token", {
-      input: `${head({ used: 120 })}a\nb\n\n${head({ used: 121 })}c\n`,
-    });
-    assert.equal(out.stdout, "a\nb\nc\n");
-    assert.equal(bash(dir, "api_budget_read x", { input: `${head({ used: 1 })}[1]\n${head({ used: 2 })}[2]` }).stdout, "[1][2]\n");
-    assert.equal(state(dir, "github-token"), "200 5000 4880 120 1792748042 core\n200 5000 4879 121 1792748042 core\n");
+    // A body line shaped like a status line is body, never a second block.
+    const body = "keep1\nHTTP/1.1 200 x\nflagged()\n\nafter\n";
+    const out = bash(dir, "api_budget_read github-token", { input: head({ used: 120 }) + body });
+    assert.equal(out.stdout, body);
+    assert.equal(state(dir, "github-token"), "200 5000 4880 120 1792748042 core\n");
+    // Output with no header block is passed on and read as nothing.
+    assert.equal(bash(dir, "api_budget_read lanes-app", { input: "[1]\n" }).stdout, "[1]\n");
+    assert.equal(existsSync(join(dir, "api-budget", "lanes-app")), false);
   }));
 
 test("the gh wrapper keeps stdout, stderr and the exit status, and reads the headers", () =>
@@ -75,7 +78,7 @@ test("the gh wrapper keeps stdout, stderr and the exit status, and reads the hea
     assert.equal(out.stderr, "gh: rate limit (HTTP 403)\n");
     assert.equal(state(dir, "github-token"), "403 5000 0 5000 1792748042 core\n");
     // A call that is not `gh api`, or already asks for headers, is passed on as it is.
-    for (const args of ["pr view 1", "api route --paginate", "api --silent route"]) {
+    for (const args of ["pr view 1", "api route --paginate --jq .", "api --silent route"]) {
       const plain = bash(dir, `api_budget_wrap_gh github-token\ngh ${args}`, { path: `${dir}:${process.env.PATH}` });
       assert.equal(plain.stderr, `args: ${args}\n`);
       assert.equal(plain.status, 9);
@@ -84,9 +87,7 @@ test("the gh wrapper keeps stdout, stderr and the exit status, and reads the hea
 
 test("api_budget_emit writes the hub line for the last reading, cost since the first with the same reset", () =>
   withDir((dir) => {
-    bash(dir, "api_budget_read github-token >/dev/null", {
-      input: head({ used: 13 }) + head({ used: 100, reset: 1792748100 }) + head({ used: 328, reset: 1792748100 }),
-    });
+    readEach(dir, "github-token", head({ used: 13 }), head({ used: 100, reset: 1792748100 }), head({ used: 328, reset: 1792748100 }));
     assert.equal(
       bash(dir, "api_budget_emit github-token").stdout,
       `${NOTICE}token=github-token ${WHERE} limit=5000 remaining=4672 used=328 reset=1792748100 resource=core cost=228\n`,
@@ -95,7 +96,7 @@ test("api_budget_emit writes the hub line for the last reading, cost since the f
 
 test("api_budget_emit writes cost=na when the last reading has no earlier one in its window", () =>
   withDir((dir) => {
-    bash(dir, "api_budget_read lanes-app >/dev/null", { input: head({ used: 900 }) + head({ used: 3, reset: 1792751642 }) });
+    readEach(dir, "lanes-app", head({ used: 900 }), head({ used: 3, reset: 1792751642 }));
     assert.equal(
       bash(dir, "api_budget_emit lanes-app").stdout,
       `${NOTICE}token=lanes-app ${WHERE} limit=5000 remaining=4997 used=3 reset=1792751642 resource=core cost=na\n`,
@@ -104,9 +105,7 @@ test("api_budget_emit writes cost=na when the last reading has no earlier one in
 
 test("api_budget_emit writes a line for each refused reading and then the last", () =>
   withDir((dir) => {
-    bash(dir, "api_budget_read github-token >/dev/null", {
-      input: head({ used: 1000 }) + head({ status: 403, used: 1066 }) + head({ status: 429, used: 1066 }) + head({ used: 1070 }),
-    });
+    readEach(dir, "github-token", head({ used: 1000 }), head({ status: 403, used: 1066 }), head({ status: 429, used: 1066 }), head({ used: 1070 }));
     const lines = bash(dir, "api_budget_emit github-token").stdout.split("\n").filter(Boolean);
     assert.deepEqual(
       lines.map((line) => line.slice(line.indexOf(" used="))),
@@ -120,7 +119,7 @@ test("api_budget_emit writes a line for each refused reading and then the last",
 
 test("api_budget_emit names unset runner fields na and skips a token with no reading", () =>
   withDir((dir) => {
-    bash(dir, "api_budget_read github-token >/dev/null", { input: head({ used: 7 }) });
+    readEach(dir, "github-token", head({ used: 7 }));
     const env = { GITHUB_WORKFLOW_REF: "", GITHUB_JOB: "", GITHUB_RUN_ID: "", GITHUB_RUN_ATTEMPT: "" };
     assert.equal(
       bash(dir, "api_budget_emit lanes-app github-token", { env }).stdout,
@@ -140,7 +139,7 @@ test("recordReading appends the same line shape, na for a missing or malformed v
 
 test("the action emits each named token, writes the summary and the costs output, and reads no /rate_limit", () =>
   withDir((dir) => {
-    bash(dir, "api_budget_read github-token >/dev/null", { input: head({ used: 13 }) + head({ used: 41 }) });
+    readEach(dir, "github-token", head({ used: 13 }), head({ used: 41 }));
     const run = /\n {6}run: \|\n([\s\S]*)$/.exec(ACTION)[1].replace(/^ {8}/gm, "");
     writeFileSync(join(dir, "summary"), "");
     writeFileSync(join(dir, "output"), "");

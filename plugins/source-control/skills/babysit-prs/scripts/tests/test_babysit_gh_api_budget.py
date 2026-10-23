@@ -65,28 +65,33 @@ class ApiBudgetTests(unittest.TestCase):
     def readings(self, token: str) -> str:
         return pathlib.Path(self.dir, "api-budget", token).read_text(encoding="utf-8")
 
-    def test_each_page_header_becomes_a_reading_and_leaves_stdout(self) -> None:
-        # gh prints a newline between a page and the next page's headers.
-        stdout = (
-            HEAD.format(status=200, remaining=4880, used=120)
-            + "a\nb\n\n"
-            + HEAD.format(status=200, remaining=4879, used=121)
-            + "c\n"
-        )
+    def test_the_leading_header_block_becomes_a_reading_and_the_body_is_kept_byte_for_byte(
+        self,
+    ) -> None:
+        # A body line shaped like a status line is body, never a second block.
+        body = "keep1\nHTTP/1.1 200 x\nflagged()\n\nafter"
         env = {"RUNNER_TEMP": self.dir, "API_BUDGET_TOKEN": "lanes-app"}
         proc = self.run_gh(
-            stdout,
-            ["api", "repos/o/r/labels", "--paginate", "--jq", ".[].name"],
+            HEAD.format(status=200, remaining=4880, used=120) + body,
+            ["api", "repos/o/r/contents/x", "-H", "Accept: application/vnd.github.raw"],
             env=env,
         )
         self.assertEqual(
             self.calls,
-            [["gh", "api", "-i", "repos/o/r/labels", "--paginate", "--jq", ".[].name"]],
+            [
+                [
+                    "gh",
+                    "api",
+                    "-i",
+                    "repos/o/r/contents/x",
+                    "-H",
+                    "Accept: application/vnd.github.raw",
+                ]
+            ],
         )
-        self.assertEqual(proc.stdout, "a\nb\nc\n")
+        self.assertEqual(proc.stdout, body)
         self.assertEqual(
-            self.readings("lanes-app"),
-            "200 5000 4880 120 1792748042 core\n200 5000 4879 121 1792748042 core\n",
+            self.readings("lanes-app"), "200 5000 4880 120 1792748042 core\n"
         )
 
     def test_a_refused_call_is_read_and_still_raises_as_without_headers(self) -> None:
@@ -142,7 +147,7 @@ class ApiBudgetTests(unittest.TestCase):
         )
         self.run_gh(
             "[]",
-            ["api", "x", "--paginate"],
+            ["api", "x", "--paginate", "--jq", "."],
             env={"RUNNER_TEMP": self.dir, "API_BUDGET_TOKEN": "lanes-app"},
         )
         self.assertEqual(
@@ -151,7 +156,7 @@ class ApiBudgetTests(unittest.TestCase):
                 ["gh", "api", "x"],
                 ["gh", "pr", "view", "1"],
                 ["gh", "api", "x", "--slurp", "--paginate"],
-                ["gh", "api", "x", "--paginate"],
+                ["gh", "api", "x", "--paginate", "--jq", "."],
             ],
         )
         self.assertFalse(pathlib.Path(self.dir, "api-budget").exists())

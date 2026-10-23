@@ -224,12 +224,14 @@ def _run_gh(
 # (.github/actions/log-api-budget/api-budget.bash holds the line shape and the
 # notice). Only in a job that names the token: API_BUDGET_TOKEN for a call on
 # the process's own GH_TOKEN, API_BUDGET_OVERRIDE_TOKEN for one that carries
-# its own. Such an `api` call runs with -i; each header block becomes one
+# its own. Such an `api` call runs with -i; its leading header block becomes one
 # reading line in $RUNNER_TEMP/api-budget/<token> and is dropped from stdout,
-# so the caller sees the output it would have without -i. An unfiltered
-# --paginate call, whose pages -i would leave unmerged, runs as it is.
-_API_BUDGET_SKIP_FLAGS = frozenset({"-i", "--include", "--silent", "--slurp"})
-_API_BUDGET_FILTER_FLAGS = frozenset({"-q", "--jq", "-t", "--template"})
+# so the caller sees the output it would have without -i.
+# --paginate prints a header block per page, which could not be told from
+# body text that looks like one, so such a call runs as it is.
+_API_BUDGET_SKIP_FLAGS = frozenset(
+    {"-i", "--include", "--silent", "--slurp", "--paginate"}
+)
 _API_BUDGET_NAME = re.compile(r"[a-z][a-z0-9-]{0,39}")
 _API_BUDGET_STATUS = re.compile(r"HTTP/[0-9.]+ ([0-9]{3})(?:\s|$)")
 _API_BUDGET_VALUES = {
@@ -246,10 +248,6 @@ def _api_budget_token(
 ) -> str | None:
     if not args or args[0] != "api" or _API_BUDGET_SKIP_FLAGS.intersection(args):
         return None
-    # Unfiltered pages print as one merged array without -i, one per page with it.
-    flags = {arg.split("=", 1)[0] for arg in args}
-    if "--paginate" in flags and not flags & _API_BUDGET_FILTER_FLAGS:
-        return None
     own = bool(env_overrides and "GH_TOKEN" in env_overrides)
     name = os.environ.get(
         "API_BUDGET_OVERRIDE_TOKEN" if own else "API_BUDGET_TOKEN", ""
@@ -260,43 +258,33 @@ def _api_budget_token(
 
 
 def _api_budget_read(stdout: str, token: str) -> str:
-    """`gh api -i` output without its header blocks; each block is appended as
-    a reading. Never raises: a reading that cannot be written is dropped."""
-    body: list[str] = []
-    readings: list[str] = []
-    headers: dict[str, str] | None = None
-    status = ""
-    for line in stdout.splitlines(keepends=True):
+    """`gh api -i` output without its leading header block, which is appended
+    as a reading. Only the block at the very start is headers: body text that
+    looks like a status line stays body. Never raises: a reading that cannot be
+    written is dropped."""
+    lines = stdout.splitlines(keepends=True)
+    match = _API_BUDGET_STATUS.match(lines[0].rstrip("\r\n")) if lines else None
+    if match is None:
+        return stdout
+    headers: dict[str, str] = {}
+    offset = len(lines[0])
+    for line in lines[1:]:
+        offset += len(line)
         bare = line.rstrip("\r\n")
-        if headers is None:
-            match = _API_BUDGET_STATUS.match(bare)
-            if match:
-                status, headers = match.group(1), {}
-                # gh ends a page with a newline before the next page's headers.
-                if body and body[-1].endswith("\n"):
-                    body[-1] = body[-1][:-1]
-            else:
-                body.append(line)
-            continue
         if bare == "":
-            readings.append(_api_budget_line(status, headers))
-            headers = None
-            continue
+            break
         name, _, value = bare.partition(":")
         key = name.strip().lower()
         if key.startswith("x-ratelimit-"):
             headers[key.removeprefix("x-ratelimit-")] = value.strip()
-    if headers is not None:
-        readings.append(_api_budget_line(status, headers))
-    if readings:
-        try:
-            path = os.path.join(os.environ["RUNNER_TEMP"], "api-budget")
-            os.makedirs(path, exist_ok=True)
-            with open(os.path.join(path, token), "a", encoding="utf-8") as handle:
-                handle.writelines(readings)
-        except OSError:
-            pass
-    return "".join(body)
+    try:
+        path = os.path.join(os.environ["RUNNER_TEMP"], "api-budget")
+        os.makedirs(path, exist_ok=True)
+        with open(os.path.join(path, token), "a", encoding="utf-8") as handle:
+            handle.write(_api_budget_line(match.group(1), headers))
+    except OSError:
+        pass
+    return stdout[offset:]
 
 
 def _api_budget_line(status: str, headers: Mapping[str, str]) -> str:

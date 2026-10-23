@@ -7,13 +7,13 @@
 # (`na` for a missing value). api-budget.mjs and babysit_gh.py append the same
 # lines. Never fails the caller.
 #
-#   api_budget_read <token>     gh api -i output on stdin: each header block
-#                               becomes a reading, every other line passes to
+#   api_budget_read <token>     gh api -i output on stdin: the header block at
+#                               the start becomes a reading, the body passes to
 #                               stdout unchanged
 #   api_budget_wrap_gh <token>  defines gh() so `gh api` runs with -i through
 #                               api_budget_read, keeping stdout, stderr and the
-#                               exit status as they were (not --paginate without
-#                               --jq or --template, whose pages -i leaves unmerged)
+#                               exit status as they were (not --paginate, whose
+#                               per-page header blocks are left out)
 #   api_budget_emit <token>...  the hub collector's notice for each refused
 #                               (403/429) reading and for the last one; cost is
 #                               the rise in used since the first earlier reading
@@ -36,10 +36,9 @@ api_budget_read() {
       close(state)
       inhdr = 0
     }
-    # gh ends each page with a newline before the headers of the next one,
-    # which plain gh api does not print: a body line ends with a newline only
-    # once the next body line comes, and a header block drops it.
-    !inhdr && /^HTTP\/[0-9.]+ [0-9][0-9][0-9]/ { inhdr = 1; status = $2; split("", h); held = 0; next }
+    # Only the block at the very start is headers: a body line that looks
+    # like a status line is body.
+    NR == 1 && /^HTTP\/[0-9.]+ [0-9][0-9][0-9]/ { inhdr = 1; status = $2; next }
     inhdr {
       line = $0
       sub(/\r$/, "", line)
@@ -51,8 +50,8 @@ api_budget_read() {
       }
       next
     }
-    { if (held) printf "\n"; printf "%s", $0; held = 1 }
-    END { if (inhdr) flush(); if (held) printf "\n" }
+    { print }
+    END { if (inhdr) flush() }
   '
 }
 
@@ -60,25 +59,19 @@ api_budget_wrap_gh() {
   API_BUDGET_GH_TOKEN=$1
   # shellcheck disable=SC2329 # called by the script that sources this file
   gh() {
-    local arg out rc=0 paginate=0 filter=0
+    local arg out rc=0
     if [[ ${1:-} != api ]]; then
       command gh "$@"
       return
     fi
     for arg; do
       case $arg in
-        -i | --include | --silent | --slurp) command gh "$@"; return ;;
-        --paginate) paginate=1 ;;
-        -q | --jq | -q=* | --jq=* | -t | --template | -t=* | --template=*) filter=1 ;;
+        # --paginate prints a header block per page, which could not be told
+        # from body text that looks like one: left as it is.
+        -i | --include | --silent | --slurp | --paginate) command gh "$@"; return ;;
         *) ;;
       esac
     done
-    # Unfiltered pages print as one merged array without -i, one array per
-    # page with it: left as they are.
-    if ((paginate && !filter)); then
-      command gh "$@"
-      return
-    fi
     out=$(mktemp 2>/dev/null) || { command gh "$@"; return; }
     command gh api -i "${@:2}" >"$out" || rc=$?
     api_budget_read "$API_BUDGET_GH_TOKEN" <"$out"
