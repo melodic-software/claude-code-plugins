@@ -180,10 +180,10 @@ for st in in_progress queued waiting; do
   check_calls 1 "the first lane to finish stops after one read"
 done
 STUB_LANE_RUNS="$(runs "$(run 3 in_progress "${HEAD//0/f}" "$SEC")" "$(run 4 in_progress "$HEAD" "$SEC" merge_group)" "$(run 5 in_progress "$HEAD" "$CODE")")"
+expect "other heads, events or files are not the other lane's newest run" 0 "Re-ran ci-status (job 77)"
 STUB_LANE_RUNS="$(runs "$(run 3 in_progress "$HEAD" "$SEC")" "$(run 4 completed "$HEAD" "$SEC")")"
 expect "an older other-lane run still going does not hold the newest, finished one" 0 "Re-ran ci-status (job 77)"
 check_reran 1 "only the other lane's newest run decides"
-expect "other heads, events or files are not the other lane's newest run" 0 "Re-ran ci-status (job 77)"
 check_reran 1 "a head with no other-lane run of its own is re-run"
 
 # One lane only on the head (an exempt author, a lane that never ran), or the
