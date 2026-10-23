@@ -60,7 +60,7 @@ const ciFixPull = (number) => {
   };
 };
 
-// Ready PRs a person opened that change Markdown and never had fix-docs, as
+// Ready PRs that change Markdown and never had fix-docs, as
 // fix-docs-dispatch.mjs lists them.
 const docsPull = (number) => {
   const head = String(number).padStart(40, "d");
@@ -70,7 +70,7 @@ const docsPull = (number) => {
     isCrossRepository: false,
     baseRefName: "main",
     headRefOid: head,
-    author: { __typename: "User", login: "someone" },
+    author: { __typename: "User", login: "someone", databaseId: 4242 },
     labels: { nodes: [] },
     files: { nodes: [{ path: "README.md" }], pageInfo: { hasNextPage: false } },
     commits: { nodes: [{ commit: { oid: head, statusCheckRollup: { contexts: { nodes: [] } } } }] },

@@ -689,6 +689,7 @@ scripts/affected-tests.test.sh 9
 scripts/ai-slop-report.test.sh 1
 scripts/check-adr-numbers.test.sh 1
 scripts/check-all-skills-verb-contract.test.sh 1
+scripts/check-cant-fail-scan.test.sh 1
 scripts/check-changed-skills.test.sh 3
 scripts/check-changelog-parity.test.sh 10
 scripts/check-code-metrics-config-reference.test.sh 2

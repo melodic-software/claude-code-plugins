@@ -41,8 +41,8 @@ from a completed, successful one. Any other artifact is ignored.
 - a FAIL-named artifact tied to this pull request by number or SHA whose run
   cannot be read: `verify:unreadable`. An untied FAIL whose run cannot be read
   is ignored; an untied FAIL whose run is readable and of verifier origin but
-  whose name carries no digest and whose recorded head branch (its
-  verdict.json) cannot be read is
+  whose name carries no digest, whose id the head-ref map (below) lacks, and
+  whose recorded head branch (its verdict.json) cannot be read is
   `verify:unreadable`, so one such artifact blocks every pull request until it
   is readable, expires or is deleted;
 - counted PASS or PASS-NOTES verdicts at the head of this pull request, each
@@ -81,6 +81,14 @@ timeout in all; any other failure, a timeout, a 429 or a rate-limit 403
 included, is not. A failed listing is never saved, and is kept as well, so one
 outage refuses every entry of the gate run without paging again: it holds the
 whole queue rather than merging blind.
+
+An untied FAIL's recorded head branch is read from the head-ref map pr-merge.yml
+names in `HEAD_REFS_ENV` before it is downloaded: artifact id to the head_ref
+an earlier run read from that artifact's verdict.json, kept as the artifact of
+a scheduled or hand-started run of main's pr-merge.yml, which only that run's
+steps can upload (.github/scripts/pr-merge/head-ref-map.mjs). An entry ties or
+unties the FAIL as the download would; a missing or malformed map is no map,
+and the FAIL is downloaded.
 """
 
 from __future__ import annotations
@@ -115,6 +123,11 @@ WORKFLOW_PATH = ".github/workflows/pr-verify.yml"
 TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
 TOKEN_ENV = "BABYSIT_VERIFY_GH_TOKEN"
 LISTING_ENV = "BABYSIT_VERIFY_LISTING"
+HEAD_REFS_ENV = "BABYSIT_VERIFY_HEAD_REFS"
+# The head-ref map's version and its keys' shape, an artifact id
+# (head-ref-map.mjs writes both).
+HEAD_REFS_VERSION = 1
+ARTIFACT_ID_RE = re.compile(r"[1-9][0-9]{0,15}")
 NAME_RE = re.compile(
     r"pr-verify-([1-9][0-9]*)-([0-9a-f]{40})-(pass|pass-notes|fail)(?:-([0-9a-f]{16}))?"
 )
@@ -387,6 +400,29 @@ def _is_artifact_id(value: Any) -> bool:
     return isinstance(value, int) and not isinstance(value, bool)
 
 
+def load_head_refs(path: str | None, repo: str) -> dict[int, str]:
+    """The head-ref map at `path` for `repo`, by artifact id. A missing or
+    unreadable file, another version or repository, or any entry of another
+    shape is no map at all, so every untied FAIL is downloaded."""
+    if not path:
+        return {}
+    try:
+        data = json_object(json.loads(Path(path).read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        return {}
+    refs = data.get("head_refs")
+    if (
+        data.get("version") != HEAD_REFS_VERSION
+        or data.get("repo") != repo
+        or not is_json_object(refs)
+        or not all(
+            ARTIFACT_ID_RE.fullmatch(k) and isinstance(v, str) for k, v in refs.items()
+        )
+    ):
+        return {}
+    return {int(k): v for k, v in refs.items()}
+
+
 def _read(args: list[str], label: str) -> Any:
     try:
         return postmerge._read(args, label)
@@ -409,6 +445,10 @@ class Reader:
     listing_path: str | None = field(
         default_factory=lambda: os.environ.get(LISTING_ENV) or None
     )
+    # The head-ref map (`HEAD_REFS_ENV`), when pr-merge.yml names one.
+    head_refs_path: str | None = field(
+        default_factory=lambda: os.environ.get(HEAD_REFS_ENV) or None
+    )
     # `merge.max-verify-fails`: FAILed heads at which a pass no longer clears.
     max_fails: int = merge_policy.MAX_VERIFY_FAILS
     _artifacts: list[dict[str, Any]] | None = None
@@ -424,6 +464,7 @@ class Reader:
     _shared_runs: set[int] = field(default_factory=set)
     _on_branch: dict[str, bool] = field(default_factory=dict)
     _records: dict[tuple[int, str], dict[str, Any]] = field(default_factory=dict)
+    _mapped: dict[int, str] | None = None  # the head-ref map, once loaded
     _humans: frozenset[int] | None = None
     _humans_at: datetime | None = None  # when `_humans` was read
 
@@ -667,12 +708,18 @@ class Reader:
         that never change (an overwrite uploads a new id), and a FAIL whose
         artifact has since gone still refuses. A failed read is shared too,
         so the run's later candidates refuse on it rather than download it
-        again. An artifact with no id is not shared."""
+        again. An artifact with no id is not shared. An id the head-ref map
+        holds is answered from it, tie or not, with no download."""
         shared = _is_artifact_id(artifact_id)
         key = f"{self.repo}|{artifact_id}"
         dated = run_cache.get_dated(RECORD_SECTION, key, None) if shared else None
         if dated is not None and is_json_object(dated[0]):
             return dated[0].get("head_ref")
+        if shared:
+            if self._mapped is None:
+                self._mapped = load_head_refs(self.head_refs_path, self.repo)
+            if artifact_id in self._mapped:
+                return self._mapped[artifact_id]
         # A carried head ref ties the FAIL to this PR; one naming another
         # ref could untie it, so the record is read instead.
         carried = run_cache.get(CARRIED_RECORD_SECTION, key, None) if shared else None

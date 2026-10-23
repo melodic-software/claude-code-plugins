@@ -1,9 +1,15 @@
 {
   "repository": "melodic-software/azure-iac",
-  "commit": "f8a671f096b01571ed505612d90209fe586c4fb9",
+  "commit": "5ed895c6ef991e04d63b3f224e55d85724955f19",
+  "loader": {
+    "path": "src/lanes-token-broker/src/resolve-config-loader.mjs",
+    "entry": "resolve.mjs",
+    "relative_import": "(?:from|import)\\s*\\(?\\s*[\"']\\./([A-Za-z0-9_.-]+\\.mjs)[\"']",
+    "packages": ["ajv", "yaml"],
+    "dependency_files": ["package.json", "package-lock.json"]
+  },
   "fetch": {
     "path": "scripts/deploy/fetch-resolve-config.sh",
-    "runtime": ["resolve.mjs", "dimensions.mjs", "predicate.mjs", "vocabulary.mjs", "package.json", "package-lock.json"],
     "test_files": [
       ".github/actions/resolve-config/lane-rules.json",
       ".github/actions/resolve-config/effect-grants.json",
