@@ -76,7 +76,7 @@ const said = (login, body, at, association = "OWNER", typename = "User") => ({
   createdAt: at,
   authorAssociation: association,
 });
-const PASSED = { refusal: null, head: HEAD, ineligible: null };
+const PASSED = { refusal: null, head: HEAD, ineligible: null, reviews: null };
 const COST_LINK = `https://github.com/${REPO}/issues/1040#issuecomment-7`;
 const COST_COMMENT = {
   issue_url: `https://api.github.com/repos/${REPO}/issues/1040`,
@@ -136,7 +136,7 @@ function world(pulls, { failArm = false } = {}) {
     if (found?.verdict instanceof Error) {
       throw found.verdict;
     }
-    return found?.verdict ?? { refusal: null, head, ineligible: null };
+    return found?.verdict ?? { refusal: null, head, ineligible: null, reviews: null };
   };
   const writes = () =>
     calls
@@ -524,6 +524,9 @@ test("verifyHold allows only the reader's null refusal at the head read", () => 
   assert.match(verifyHold({ refusal: "verify:ineligible", head: HEAD, ineligible: "refs-issues:2" }, HEAD), /does not take its issue link \(refs-issues:2\)/);
   assert.match(verifyHold({ refusal: null, head: HEAD }, HEAD), /issue link could not be read/);
   assert.match(verifyHold({ refusal: null, head: HEAD, ineligible: false }, HEAD), /issue link could not be read/);
+  // The review lanes' answer: a hold names it, and a line without one allows nothing.
+  assert.match(verifyHold({ refusal: null, head: HEAD, ineligible: null, reviews: "security-finding: 1 open" }, HEAD), /holds it on its review lanes \(security-finding: 1 open\)/);
+  assert.match(verifyHold({ refusal: null, head: HEAD, ineligible: null }, HEAD), /review lanes could not be read/);
 });
 
 // The merge queue's check (merge-holds.mjs verdictHold): a pass counts only
@@ -609,7 +612,7 @@ test("a reader that fails, prints no JSON or reports another head arms nothing a
     garbage: "print('not json')\n",
     other: `import json\nprint(json.dumps({"refusal": None, "head": "${"c".repeat(40)}"}))\n`,
     unlinked: `import json, sys\nprint(json.dumps({"refusal": None, "head": sys.argv[-1]}))\n`,
-    passes: `import json, sys\nassert sys.argv[2] == "--lane-link" and sys.argv[-4:-2] == ["--base-sha", "${"d".repeat(40)}"], sys.argv\nprint(json.dumps({"refusal": None, "head": sys.argv[-1], "ineligible": None}))\n`,
+    passes: `import json, sys\nassert sys.argv[2:4] == ["--lane-link", "--lane-reviews"] and sys.argv[-4:-2] == ["--base-sha", "${"d".repeat(40)}"], sys.argv\nprint(json.dumps({"refusal": None, "head": sys.argv[-1], "ineligible": None, "reviews": None}))\n`,
   };
   for (const [name, body] of Object.entries(scripts)) {
     writeFileSync(join(dir, `${name}.py`), body);
@@ -673,7 +676,8 @@ def passes(self, number, head, pr=None):
 argv = sys.argv[1:]
 cut = argv.index("--base-sha")
 del argv[cut : cut + 2]
-with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "gh_capture", gh), mock.patch.object(ve.Reader, "evidence", passes):
+pr = lambda repo, number: {"number": number, "head": {"sha": argv[-1]}}
+with mock.patch.object(policy, "gh_capture", gh), mock.patch.object(postmerge, "gh_capture", gh), mock.patch.object(ve.Reader, "evidence", passes), mock.patch.object(policy, "pull_request", pr), mock.patch.object(ve, "lane_review_refusal", lambda repo, number, pr: None):
     sys.exit(ve.main(argv))
 `,
   );
@@ -766,7 +770,7 @@ test("a room that cannot be read arms nothing and disarms nothing", async () => 
     await main({
       env: ENV,
       github,
-      verify: async ({ headRefOid: head }) => ({ refusal: null, head, ineligible: null }),
+      verify: async ({ headRefOid: head }) => ({ refusal: null, head, ineligible: null, reviews: null }),
       room: async () => {
         throw new Error("lane-room exited 1");
       },
@@ -821,4 +825,24 @@ print(json.dumps({"argv": sys.argv[1:], "token": os.environ.get("GH_TOKEN"), "bu
     budget: "github-token",
   });
   assert.deepEqual((await pythonRoom(env)()).argv, ["lane-room", "--repo", REPO, "--postmerge-result", "/tmp/post-merge.json"]);
+});
+
+// The gate holds on the security lane's open CRITICAL findings
+// (babysit_risk LANES, security-finding) and on a review not bound to the
+// head, whether or not the lane applied its hold label.
+test("a review-lane hold the gate reads arms nothing and disarms an armed pull request", async () => {
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  const held = { refusal: null, head: HEAD, ineligible: null, reviews: "security-finding: 1 open" };
+  const { writes, lines } = await run([
+    pull(1, { verdict: held }),
+    pull(2, { autoMergeRequest: armed, verdict: { ...held, reviews: "evidence-unbound:claude-security-review: marker-missing" } }),
+    pull(3, { verdict: { refusal: null, head: HEAD, ineligible: null } }),
+    pull(4),
+  ]);
+  assert.deepEqual(writes, [
+    { mutation: "disarm", id: "PR_2" },
+    { mutation: "arm", id: "PR_4", head: HEAD },
+  ]);
+  assert.ok(lines.some((line) => line.includes("#1 left: pr-merge's gate holds it on its review lanes (security-finding: 1 open)")));
+  assert.ok(lines.some((line) => line.includes("#3 left: its review lanes could not be read")));
 });

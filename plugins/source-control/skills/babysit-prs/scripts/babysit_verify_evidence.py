@@ -112,7 +112,8 @@ import zipfile
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, cast
 
 import babysit_merge_policy as merge_policy
 import babysit_postmerge as postmerge
@@ -1425,6 +1426,40 @@ class Reader:
         return self.evidence(number, head, pr).refusal
 
 
+def lane_review_refusal(repo: str, number: int, pr: dict[str, Any]) -> str | None:
+    """Why pr-merge's gate would hold the pull request on its review lanes'
+    evidence, or None: the holding lane reasons of `babysit_risk`
+    (`_lane_reasons`, `holding`), over the evidence the gate binds
+    (`babysit_merge._lane_evidence`). The security lane's open CRITICAL
+    findings hold, and so does a lane whose review is not bound to the head.
+    A read that fails holds."""
+    # Imported here: babysit_merge imports this module.
+    import babysit_merge  # noqa: PLC0415
+    import babysit_risk  # noqa: PLC0415
+
+    try:
+        identity = merge_policy._default_branch_config(repo).agent_identity
+        if not identity:
+            return "unreadable: no agent identity"
+        files, complete = merge_policy.changed_files(repo, pr)
+        lanes, _ = babysit_merge._lane_evidence(
+            repo,
+            number,
+            pr,
+            identity,
+            frozenset(),
+            merge_policy.permission_reader(repo),
+            [p for f in files for p in (f.path, f.previous_path) if p]
+            if complete
+            else None,
+        )
+        reasons = babysit_risk._lane_reasons(lanes)
+    except Exception as exc:  # noqa: BLE001 - any doubt holds, as the gate's
+        return f"unreadable: {type(exc).__name__}: {exc}"
+    held = babysit_risk.holding(cast(Any, SimpleNamespace(reasons=reasons)))
+    return "; ".join(f"{r.code}: {r.detail}" for r in held) or None
+
+
 def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     """`evidence <number> <head>`: one pull request's evidence at `head` as
     one JSON line (`Evidence.report`), as pr-merge's gate judges it.
@@ -1441,7 +1476,10 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     With `--lane-link`, the line also carries `ineligible`: null when the
     pull request's issue link is one the pr-merge lane takes
     (`Reader.link_refusal`), else why not, with refusal `verify:ineligible`
-    and no verdict or config read.
+    and no verdict or config read. With `--lane-reviews`, a line whose
+    refusal is null also carries `reviews`: null when pr-merge's gate would
+    not hold the pull request on its review lanes (`lane_review_refusal`),
+    else why.
 
     `lane-room --postmerge-result <file> [--rung-cap <value>]`: whether the
     pr-merge lane may merge one more of its own pull requests now
@@ -1458,6 +1496,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     cmd.add_argument("--max-fails", type=int, default=merge_policy.MAX_VERIFY_FAILS)
     cmd.add_argument("--base-sha", default=None)
     cmd.add_argument("--lane-link", action="store_true")
+    cmd.add_argument("--lane-reviews", action="store_true")
     cmd.add_argument("number", type=int)
     cmd.add_argument("head")
     room = sub.add_parser("lane-room", allow_abbrev=False)
@@ -1500,10 +1539,25 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
             print(json.dumps(refusal.report() | link))
             return 0
         reader.max_fails = config.max_verify_fails
-    evidence = reader.evidence(args.number, args.head)
+    pr = None
+    if args.lane_reviews:
+        try:
+            pr = merge_policy.pull_request(args.repo, args.number)
+        except merge_policy.PolicyReadError as exc:
+            refusal = Evidence(UNREADABLE, args.head, (), 0, str(exc))
+            print(json.dumps(refusal.report() | link))
+            return 0
+    evidence = reader.evidence(args.number, args.head, pr)
     if evidence.refusal is None and reader.saved:
         reader.refresh()
-        evidence = reader.evidence(args.number, args.head)
+        evidence = reader.evidence(args.number, args.head, pr)
+    if args.lane_reviews and evidence.refusal is None:
+        head = json_object(json_object(pr).get("head")).get("sha")
+        link["reviews"] = (
+            lane_review_refusal(args.repo, args.number, json_object(pr))
+            if head == args.head
+            else f"unreadable: the head is {head}, not {args.head}"
+        )
     print(json.dumps(evidence.report() | link))
     return 0
 

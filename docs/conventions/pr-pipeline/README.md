@@ -1067,14 +1067,26 @@ issue link and verifier verdict at that head pr-merge's gate would take:
 [eligibility](#the-pr-merge-lane) rule takes (one closing issue in this repository, or, with none,
 the one issue its plain `Refs: #<n>` lines name; a failed read refuses), a PASS or PASS-NOTES of [pr-verify](#verifier-verdict) stands at the head,
 no FAIL is at it, no earlier FAIL is uncleared, FAILs sit at fewer than `merge.max-verify-fails`
-heads, and the spec is unchanged and trusted. Only the scheduled run and a hand-started one read
+heads, and the spec is unchanged and trusted; and `evidence --lane-reviews` finds no hold the gate
+reads from the review lanes' evidence bound to the head (an open CRITICAL security finding, or a
+review not bound to the head), whether or not the lane applied its hold label. Each such run also
+runs the post-merge check, as the `merge` job does, and reads the lane's room from it
+(`babysit_verify_evidence.py lane-room`): while the gate holds its lane off (a demotion record,
+`merge.rung`, the loop setting or the rung cap off, a lane merge that failed its post-merge check)
+nothing is armed and every armed lanes App pull request is disarmed; at `merge.max-in-flight`,
+counting the queue's lane entries, the lane's unverified merges and armed pull requests the queue
+has not taken, nothing more is armed; a room that cannot be read arms nothing and disarms nothing.
+Only the scheduled run and a hand-started one read
 them and arm, last, for a pull request every other rule would arm or keep armed, with the gate's
 saved listing, head-ref map and run cache; an event run reads no link or verdict, never arms, and
 only disarms on a hold, so a pull request waits up to one scheduled interval to be armed. `ci-status`
 turns an armed lanes App pull request's auto-merge off on each push to its head, so a new head is
 armed only after the reader judges it. It turns auto-merge off on an armed one that now fails
 any of those, and does not turn it back on once a person has turned it off. GitHub then merges the pull request through the merge queue
-once `ci-status` passes. The issue lane finishing (`workflow_run`) wakes it, so a pull request is
+once `ci-status` passes, which in the queue also holds a pass that no longer binds the live link:
+the body must still close, or with no closing issue name by a plain `Refs:` line, the one issue
+the pass judged, linked the same way (`merge-holds.mjs` `linkHold`), so a body edited after arming
+does not merge on a pass for another issue. The issue lane finishing (`workflow_run`) wakes it, so a pull request is
 armed right after report-outcome opens it; a listed human's edit, unlabel or ready wakes it too, so
 adding a `Hold:` line disarms at once; and the 15-minute schedule arms or disarms what the events
 missed. The token broker mints `merge` only for `pr-merge.yml`, and outside the schedule only for a

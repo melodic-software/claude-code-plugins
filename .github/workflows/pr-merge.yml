@@ -1346,6 +1346,7 @@ jobs:
       actions: read # the verifier verdicts, their runs and the head-ref map
       pull-requests: read # the post-merge check's lane merges and the merge queue, for the lane's room
       issues: read # the post-merge check's demotion records, read with this job's token
+      checks: read # the review lanes' annotations, as the gate binds their evidence
       id-token: write # prove to the token broker which workflow this is
     steps:
       - name: Check out the default branch tip

@@ -53,6 +53,12 @@
 //   lane's unverified merges and the armed pull requests not yet queued, it
 //   arms; at the cap it arms nothing more. A room that cannot be read arms
 //   nothing and disarms nothing.
+// - pr-merge's gate would not hold it on its review lanes: `evidence
+//   --lane-reviews` binds both lanes' evidence to the head as the gate does
+//   (babysit_merge._lane_evidence) and applies the gate's lane rule
+//   (babysit_risk._lane_reasons, holding), so an open CRITICAL security
+//   finding, or a review not bound to the head, holds whether or not the
+//   lane applied its hold label. Read only after the verdict allows.
 // Arming passes the head just read as expectedHeadOid, so a push in between
 // fails the arm rather than arming a head nobody read. An armed pull request
 // that fails any rule is disarmed. While merge.report-only is true it reports
@@ -220,8 +226,14 @@ export function verifyHold(evidence, head) {
   if (evidence.refusal !== null) {
     return `pr-merge's gate refuses its verifier verdict (${escapeCommand(evidence.refusal)})`;
   }
-  // A line without the link's answer read no link: it allows nothing.
-  return evidence.ineligible === null ? null : "its issue link could not be read";
+  // A line without the link's or the reviews' answer read neither: it allows nothing.
+  if (evidence.ineligible !== null) {
+    return "its issue link could not be read";
+  }
+  if (typeof evidence.reviews === "string") {
+    return `pr-merge's gate holds it on its review lanes (${escapeCommand(evidence.reviews)})`;
+  }
+  return evidence.reviews === null ? null : "its review lanes could not be read";
 }
 
 // The gate's own reader, one process per pull request; the run shares its
@@ -232,7 +244,7 @@ export function pythonVerify(env) {
       throw new Error("its base commit is not a commit SHA");
     }
     // --base-sha: the gate's FAIL cap, the lower of the base's and main's.
-    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "evidence", "--lane-link", "--repo", env.GITHUB_REPOSITORY, "--base-sha", base];
+    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "evidence", "--lane-link", "--lane-reviews", "--repo", env.GITHUB_REPOSITORY, "--base-sha", base];
     const done = spawnSync("python3", [...args, String(number), head], { encoding: "utf8", env, timeout: VERIFY_TIMEOUT_MS });
     if (done.status !== 0) {
       throw new Error(`babysit_verify_evidence.py exited ${done.status ?? done.signal}: ${String(done.stderr ?? "").trim().split("\n").at(-1)}`);
