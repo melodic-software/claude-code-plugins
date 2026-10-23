@@ -502,11 +502,16 @@ def native_auto_merge(pr: dict[str, Any], merge: AutoMerge, identity: str) -> bo
     the pull request from a branch of this repository, as that script requires,
     and the newest auto-merge enable or disable event is the identity's enable,
     made no later than the merge-queue enqueue. An arm under the identity token
-    on anyone else's pull request keeps the pin read-back. The gate disarms an armed auto-merge before
-    it pins and enqueues, and an arm after its enqueue is not what queued the
-    head, so either keeps the pin read-back. An arm that lands between the
-    gate's disarm check and its enqueue reads as native, so that merge skips
-    its read-back; the arm's `expectedHeadOid` still bound the head."""
+    on anyone else's pull request keeps the pin read-back. The gate disarms an
+    armed auto-merge before it pins and enqueues, and an arm after its enqueue
+    is not what queued the head, so either keeps the pin read-back.
+
+    Residuals: nothing compares a native merge's head with any vetted head.
+    `expectedHeadOid` binds only the head at arm time, and a writer's push
+    after the arm (address-feedback, apply-patch) leaves auto-merge armed, so
+    the later head merges natively. An arm that lands between the gate's
+    disarm check and its enqueue also reads as native and skips that merge's
+    read-back."""
     if not merge.by_identity:
         return False
     if (
