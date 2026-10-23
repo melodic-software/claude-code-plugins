@@ -151,8 +151,9 @@ jobs:
   # record or check. fix-docs posts nothing on a decline (post-decline: false),
   # so the broker's allow keeps a kill switch or a refusal from starting a
   # second leg. Its start reads only fix-docs-handoff, and it holds the OAuth
-  # token alone. fallback, the lane record's label, picks between two literals
-  # on fix-docs's lane-class: a forged one only mislabels the record.
+  # token alone. fallback: handoff labels the lane record without reading a
+  # fix-docs output: only the run job knows whether it was a credit stop or an
+  # empty key, and head code can forge that.
   fix-docs-subscription:
     needs: [fix-docs-head, fix-docs, fix-docs-handoff]
     if: >-
@@ -173,7 +174,7 @@ jobs:
       role: automations
       lane: pr-refine
       activity: fix-docs
-      fallback: ${{ needs.fix-docs.outputs.lane-class == 'credit-stop' && 'credit-stop' || 'no-key' }}
+      fallback: handoff
       pr-number: ${{ inputs.pr-number }}
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip

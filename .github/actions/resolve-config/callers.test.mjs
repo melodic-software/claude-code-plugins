@@ -4488,10 +4488,6 @@ const RUN_JOB_OUTPUTS = () =>
   Object.entries(workflow("pr-run-activity-read.yml").on.workflow_call.outputs)
     .filter(([, output]) => /\bjobs\.run\.outputs\./.test(output.value))
     .map(([name]) => name);
-// Automation Lanes' PR-B (#9332) gives fix-docs its handoff job; until then
-// its subscription leg still starts on the run job's outputs.
-const SUBSCRIPTION_START_PENDING = new Set(["pr-unblock.yml fix-docs-subscription"]);
-
 // #9365: a forged run job could start or suppress a subscription leg.
 test("no subscription leg's if: reads a read runner run-job output", () => {
   const runOutputs = RUN_JOB_OUTPUTS();
@@ -4507,15 +4503,14 @@ test("no subscription leg's if: reads a read runner run-job output", () => {
       const read = [...String(jobs[id].if).matchAll(/needs\.([\w-]+)\.outputs\.([\w-]+)/g)]
         .filter(([, job, output]) => calls.has(job) && runOutputs.includes(output))
         .map(([ref]) => ref);
-      if (SUBSCRIPTION_START_PENDING.has(leg)) assert.notDeepEqual(read, [], `${leg} no longer reads a run-job output: drop it from SUBSCRIPTION_START_PENDING`);
-      else assert.deepEqual(read, [], leg);
+      assert.deepEqual(read, [], leg);
     }
   }
   assert.deepEqual(legs.sort(), [
+    "pr-refine.yml fix-docs-subscription",
     "pr-unblock.yml address-feedback-subscription",
     "pr-unblock.yml fix-ci-rung-up-subscription",
     "pr-unblock.yml fix-ci-subscription",
-    "pr-unblock.yml fix-docs-subscription",
     "pr-unblock.yml review-dependency-subscription",
   ]);
 });
