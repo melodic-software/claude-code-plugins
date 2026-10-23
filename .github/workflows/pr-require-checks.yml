@@ -3049,9 +3049,9 @@ jobs:
     runs-on: ubuntu-24.04
     # 9 s p95 and 42 s max in full mode, about 10 s contract-only. The cap is
     # the worst case of the pinned composites' waits: two 60 s rate-limit waits
-    # (`rate-limit-wait-seconds` on check-contract and aggregate-results), 15 s
+    # (`rate-limit-wait-seconds` on check-contract and aggregate-results), 45 s
     # of own-gate retries, 7 s of status-write retries and the 90 s
-    # `rerun-wait-seconds` wait, about four minutes.
+    # `rerun-wait-seconds` wait, about four and a half minutes.
     timeout-minutes: 5
     permissions:
       # `yield-to-full-run` lists this workflow's runs on the head SHA, and
@@ -3190,30 +3190,120 @@ jobs:
           msg="draft: lanes not run; the ready_for_review run lints and tests this SHA"
           echo "::notice::$msg"
           echo "$msg" >>"$GITHUB_STEP_SUMMARY"
-      # A QUEUED PULL REQUEST IS HELD BY ITS LABEL TOO. A merge-group payload
+      # A PULL REQUEST CARRYING THE HUMAN-GATED LABEL IS HELD. A review lane or
+      # an escalation puts the label on so a person decides; removing it is the
+      # approval, and the `unlabeled` event re-runs this job. The label's name
+      # is the base commit's .work-item-tracker.json role_labels.human-gated
+      # (default `needs-human`), resolved as pr-merge.yml resolves it, and read
+      # at the base so the pull request cannot rename its own hold. Labels are
+      # read live, not from the event payload, which a later label event
+      # outdates. The reason is the newest review-lane hold comment's text: a
+      # `<!-- claude-lane-hold lane=` comment by claude[bot], or by
+      # github-actions[bot] when its last non-blank line is the lane's
+      # `claude-lane: <lane>` footer. Without one the error names none. An unreadable tracker config or label list fails closed. Pinned
+      # by scripts/ci-hold-human-gated.test.sh, which runs this body.
+      - name: Fail a pull request carrying the human-gated label
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [[ ! $BASE_SHA =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
+            exit 1
+          fi
+          for attempt in 1 2 3; do
+            if tracker=$(gh api -H 'Accept: application/vnd.github.raw+json' "repos/$GITHUB_REPOSITORY/contents/.work-item-tracker.json?ref=$BASE_SHA" 2>"$RUNNER_TEMP/tracker.err"); then
+              break
+            elif grep -q 'HTTP 404' "$RUNNER_TEMP/tracker.err"; then
+              tracker=
+              break
+            fi
+            [ "$attempt" -lt 3 ] || { echo "::error::could not read .work-item-tracker.json at $BASE_SHA; re-run this run."; exit 1; }
+            sleep $((attempt * 5))
+          done
+          human_gated=needs-human
+          if [ -n "$tracker" ]; then
+            human_gated=$(jq -er '[objects | .config | objects | .role_labels | objects
+              | .["human-gated"] | strings | gsub("^\\s+|\\s+$"; "")][0] // ""
+              | if . == "" then "needs-human" else . end' <<<"$tracker") || {
+              echo "::error::cannot read the human-gated role label from .work-item-tracker.json at $BASE_SHA"
+              exit 1
+            }
+          fi
+          for attempt in 1 2 3; do
+            if labels=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels?per_page=100" --paginate --jq '.[].name'); then
+              break
+            fi
+            [ "$attempt" -lt 3 ] || { echo "::error::could not read the labels of #$PR_NUMBER; re-run this run."; exit 1; }
+            sleep $((attempt * 5))
+          done
+          if ! grep -qxF -- "$human_gated" <<<"$labels"; then
+            echo "#$PR_NUMBER carries no '$human_gated' label."
+            exit 0
+          fi
+          reason=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate \
+            --jq '.[] | select(.user.type == "Bot" and (.body | test("(^|\n)<!-- claude-lane-hold lane="))
+              and (.user.login == "claude[bot]" or (.user.login == "github-actions[bot]"
+                and ([.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "") | select(. != "")] | last // ""
+                  | test("^`?claude-lane: (claude-review|claude-security-review)`?$")))))
+              | .body | @json' | tail -n 1 |
+            jq -r '[splits("[\r\n]+") | gsub("^\\s+|\\s+$"; "")
+              | select(. != "" and (test("^<!--|^`?claude-lane: ") | not))] | join(" ") | .[0:300]') || reason=
+          why=
+          [ -z "$reason" ] || why=" (${reason//%/%25})"
+          echo "::error::#$PR_NUMBER carries '$human_gated'$why. Removing the label approves this pull request; ci-status re-runs on the unlabel."
+          exit 1
+      # A QUEUED PULL REQUEST IS HELD BY ITS LABELS TOO. A merge-group payload
       # carries no pull request, so `check-contract` above reports `skipped`,
-      # and a `do-not-merge` label applied after enqueue would merge (#5952).
-      # This step reads the live labels of the pull request the group was built
-      # for, named in the merge-group ref (`gh-readonly-queue/<base>/pr-<N>-<sha>`),
-      # and fails if it carries the label; the queue then removes that pull
-      # request. It reads only that one: under the ruleset's ALLGREEN grouping a
+      # and a `do-not-merge` or human-gated label applied after enqueue would
+      # merge. This step reads the live labels of the pull request the group was
+      # built for, named in the merge-group ref (`gh-readonly-queue/<base>/pr-<N>-<sha>`),
+      # and fails if it carries either; the queue then removes that pull
+      # request. The human-gated label is resolved at the group's base commit,
+      # as the step above resolves it. It reads only that one pull request: under the ruleset's ALLGREEN grouping a
       # pull request merges only when its own group passes, and a failed group
       # removes the pull request it was built for, never one ahead of it
       # (HEADGREEN would need every entry read), so failing on an earlier
       # entry's label would eject an unlabeled pull request while the labeled
       # one still merged. A label that lands after this step passed does not stop the merge;
-      # dequeue the pull request as well. An unparsable ref or an unreadable
-      # label list fails closed. Pinned by scripts/ci-hold-merge-group.test.sh,
-      # which runs this body.
-      - name: Fail a queued pull request labeled do-not-merge
+      # dequeue the pull request as well. An unparsable ref, an unreadable
+      # tracker config or an unreadable label list fails closed. Pinned by
+      # scripts/ci-hold-merge-group.test.sh, which runs this body.
+      - name: Fail a queued pull request carrying a hold label
         if: github.event_name == 'merge_group'
         env:
           GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ github.event.merge_group.base_sha }}
         run: |
           pr=$(sed -nE 's#^(refs/heads/)?gh-readonly-queue/.+/pr-([0-9]+)-[0-9a-f]{40}$#\2#p' <<<"$GITHUB_REF")
           if [ -z "$pr" ]; then
             echo "::error::cannot read a pull request number from the merge-group ref '$GITHUB_REF'."
             exit 1
+          fi
+          if [[ ! $BASE_SHA =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
+            exit 1
+          fi
+          for attempt in 1 2 3; do
+            if tracker=$(gh api -H 'Accept: application/vnd.github.raw+json' "repos/$GITHUB_REPOSITORY/contents/.work-item-tracker.json?ref=$BASE_SHA" 2>"$RUNNER_TEMP/tracker.err"); then
+              break
+            elif grep -q 'HTTP 404' "$RUNNER_TEMP/tracker.err"; then
+              tracker=
+              break
+            fi
+            [ "$attempt" -lt 3 ] || { echo "::error::could not read .work-item-tracker.json at $BASE_SHA; re-run this run."; exit 1; }
+            sleep $((attempt * 5))
+          done
+          human_gated=needs-human
+          if [ -n "$tracker" ]; then
+            human_gated=$(jq -er '[objects | .config | objects | .role_labels | objects
+              | .["human-gated"] | strings | gsub("^\\s+|\\s+$"; "")][0] // ""
+              | if . == "" then "needs-human" else . end' <<<"$tracker") || {
+              echo "::error::cannot read the human-gated role label from .work-item-tracker.json at $BASE_SHA"
+              exit 1
+            }
           fi
           for attempt in 1 2 3; do
             if labels=$(gh api "repos/$GITHUB_REPOSITORY/issues/$pr/labels?per_page=100" --paginate --jq '.[].name'); then
@@ -3222,11 +3312,17 @@ jobs:
             [ "$attempt" -lt 3 ] || { echo "::error::could not read the labels of #$pr; re-run this run."; exit 1; }
             sleep $((attempt * 5))
           done
+          held=0
           if grep -qxF do-not-merge <<<"$labels"; then
+            held=1
             echo "::error::#$pr carries the 'do-not-merge' label; the merge queue removes it. Remove the label and re-queue to merge."
-            exit 1
           fi
-          echo "#$pr carries no 'do-not-merge' label."
+          if grep -qxF -- "$human_gated" <<<"$labels"; then
+            held=1
+            echo "::error::#$pr carries '$human_gated'; the merge queue removes it. Removing the label approves this pull request; re-queue it to merge."
+          fi
+          [ "$held" -eq 0 ] || exit 1
+          echo "#$pr carries neither 'do-not-merge' nor '$human_gated'."
       # ORDERED SKIPS ARE CHECKED HERE. A test lane `test-<x>`, or `lint-shell`
       # on its `run_shell` row, skips as a job when `select-tests`'s `run_<x>`
       # row says the change gives it no work. Its
