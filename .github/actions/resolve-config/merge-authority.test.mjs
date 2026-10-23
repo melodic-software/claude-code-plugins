@@ -53,11 +53,13 @@ const rejectedFor = (config, pattern) =>
   );
 
 // The merge section valid.yaml resolves to: no merge section, so rung off,
-// manual landing, and only the forced denied paths.
+// manual landing, lane pull requests on native auto-merge, and only the
+// forced denied paths.
 const VALID_MERGE = {
   rung: "off",
   "diff-check": { "denied-paths": [CONFIG_PATH, ".github/**", TRUSTED_ACTORS] },
   "stack-landing": "manual",
+  "lane-prs": "native",
 };
 
 test("authority local-babysit without agent-identity fails the schema on the missing identity", () => {
@@ -249,6 +251,15 @@ test("any other merge.dependabot.mode or key fails the schema", () => {
     withMerge({ dependabot: { mode: "enforce", other: true } }),
     /must NOT have additional properties/,
   );
+});
+
+test("merge.lane-prs takes native or gate, and the schema's default is the resolver's", () => {
+  for (const mode of ["native", "gate"]) {
+    assert.equal(run(withMerge({ "lane-prs": mode })).merge["lane-prs"], mode);
+  }
+  rejectedFor(withMerge({ "lane-prs": "off" }), /must be equal to one of the allowed values/);
+  const schema = json("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json");
+  assert.equal(schema.$defs.merge.properties["lane-prs"].default, run(withMerge({})).merge["lane-prs"]);
 });
 
 test("merge.dependabot.majors takes hold or review", () => {

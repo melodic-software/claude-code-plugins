@@ -21,6 +21,11 @@ WORKFLOW="$ROOT/.github/workflows/pr-require-checks.yml"
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
+# shellcheck source=lib/ci-gh-read.sh
+. "$ROOT/scripts/lib/ci-gh-read.sh"
+export RUNNER_TEMP="$TMP_ROOT"
+ci_gh_read::install "$WORKFLOW" "$TMP_ROOT" || fail "the ci-status gh_read helper step is missing or fails"
+
 NAME='Fail a pull request carrying the human-gated label'
 step="$(awk -v name="      - name: $NAME" '$0 == name { on = 1; print; next }
   on && /^      - / { exit }
@@ -103,7 +108,7 @@ cat >"$TMP_ROOT/bin/gh" <<'EOF'
 printf '%s\n' "$*" >>"$STUB_LOG"
 case "$*" in
 */labels*)
-  [[ "$(grep -c '/labels' "$STUB_LOG")" -gt "${STUB_FAILS:-0}" ]] || exit 1
+  [[ "$(grep -c '/labels' "$STUB_LOG")" -gt "${STUB_FAILS:-0}" ]] || { printf '%s\n' "${STUB_FAIL_TEXT:-}" >&2; exit 1; }
   [[ -z "$STUB_LABELS" ]] || tr ',' '\n' <<<"$STUB_LABELS"
   ;;
 */comments*)
@@ -111,11 +116,25 @@ case "$*" in
   while [[ $# -gt 0 && "$1" != --jq ]]; do shift; done
   jq -r "$2" <<<"${STUB_COMMENTS:-[]}"
   ;;
+'api -i '*)
+  [[ -n "${STUB_RATE_LIMIT:-}" ]] || exit 1
+  read -r remaining reset <<<"$STUB_RATE_LIMIT"
+  printf 'HTTP/2.0 403 Forbidden\r\nX-Ratelimit-Remaining: %s\r\nX-Ratelimit-Reset: %s\r\n\r\n{}\n' "$remaining" "$reset"
+  [[ "$remaining" != 0 ]] || exit 1
+  ;;
 *) exit 1 ;;
 esac
 EOF
-printf '#!/usr/bin/env bash\n' >"$TMP_ROOT/bin/sleep"
-chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep"
+# sleep logs its seconds; date +%s answers STUB_NOW.
+cat >"$TMP_ROOT/bin/sleep" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$STUB_SLEEPS"
+EOF
+cat >"$TMP_ROOT/bin/date" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$STUB_NOW"
+EOF
+chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep" "$TMP_ROOT/bin/date"
 
 BASE=89abcdef0123456789abcdef0123456789abcdef
 CUSTOM='{"config":{"role_labels":{"human-gated":"owner-call"}}}'
@@ -133,13 +152,15 @@ OTHER_BOT="$(hold "$LANE" $'A comment with no hold marker.\nclaude-lane: claude-
 expect() {
   local label="$1" want_rc="$2" want_calls="$3" out rc calls
   : >"$TMP_ROOT/log"
+  : >"$TMP_ROOT/sleeps"
+  ci_gh_read::reset "$TMP_ROOT" 1792800600
   : >"$TMP_ROOT/output"
   rm -rf "$TMP_ROOT/base-config"
   mkdir -p "$TMP_ROOT/base-config"
   [[ -z "${STUB_TRACKER+set}" ]] || printf '%s\n' "$STUB_TRACKER" >"$TMP_ROOT/base-config/.work-item-tracker.json"
   local config="$TMP_ROOT/base-config"
   [[ -z "${STUB_CHECKOUT_FAILED:-}" ]] || config=
-  out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_LABELS="$4" STUB_FAILS="$5" PR_NUMBER=6419 \
+  out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_SLEEPS="$TMP_ROOT/sleeps" STUB_NOW=1792800000 STUB_LABELS="$4" STUB_FAILS="$5" PR_NUMBER=6419 \
     GITHUB_REPOSITORY=o/r RUNNER_TEMP="$TMP_ROOT" GITHUB_OUTPUT="$TMP_ROOT/output" BASE_SHA="${BASE_SHA-$BASE}" \
     BASE_CONFIG="$config" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   calls=$(grep -c '/labels' "$TMP_ROOT/log")
@@ -195,6 +216,35 @@ expect "an unreadable comment list still fails, without a reason" 1 1 "needs-hum
 unset STUB_COMMENTS STUB_COMMENTS_FAIL
 
 expect "a transient label read failure is retried" 1 2 "needs-human" 1
+
+# A rate-limited read waits until five seconds past the reset and reads again;
+# a reset past the deadline fails closed naming it; any other error keeps
+# the caller's retries and is never waited on.
+sleeps() { paste -sd' ' "$TMP_ROOT/sleeps"; }
+export STUB_FAIL_TEXT='gh: API rate limit exceeded for installation. (HTTP 403)' STUB_RATE_LIMIT='0 1792800120'
+expect "a rate-limited label read recovers after the reset" 0 2 "enhancement" 1 \
+  "is rate limited (core); waiting 125s for the reset, then reading again."
+if [[ "$(sleeps)" == 125 ]]; then
+  ok "the rate-limited read slept until five seconds past the reset"
+else
+  fail "the rate-limited read slept '$(sleeps)', not 125"
+fi
+export STUB_RATE_LIMIT='0 1792803000'
+expect "a reset past the deadline fails closed naming the reset" 1 1 "enhancement" 3 \
+  "::error::GitHub's core API rate limit blocks 'gh api repos/o/r/issues/6419/labels?per_page=100 --paginate --jq .[].name' until 2026-10-24T00:50:00Z, past the 2026-10-24T00:10:00Z ci-status can wait to inside its timeout; a re-run after 2026-10-24T00:50:00Z is needed."
+if [[ "$(sleeps)" == "5 10" ]]; then
+  ok "a reset past the deadline is not waited for, and the retries make no call"
+else
+  fail "a reset past the deadline slept '$(sleeps)', not the caller's '5 10'"
+fi
+export STUB_FAIL_TEXT='gh: Resource not accessible by integration (HTTP 403)' STUB_RATE_LIMIT='4999 1792800120'
+expect "a 403 that is not a rate limit fails closed without a wait" 1 3 "" 3 "::error::could not read the labels of #6419" "rate limited"
+if [[ "$(sleeps)" == "5 10" ]]; then
+  ok "a 403 that is not a rate limit keeps the caller's retries only"
+else
+  fail "a 403 that is not a rate limit slept '$(sleeps)'"
+fi
+unset STUB_FAIL_TEXT STUB_RATE_LIMIT
 expect "an unreadable label list fails closed" 1 3 "" 3 "::error::could not read the labels of #6419"
 if grep -q '^held=' "$TMP_ROOT/output"; then
   fail "an unreadable label list output held"
