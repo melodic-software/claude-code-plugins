@@ -311,17 +311,25 @@ async function isTrustedClose(github, repo, closedIssue, humans) {
 
 // The admission pace for one run: `take()` answers whether one more issue may
 // get agent-ready now, reading the issue lane's status the first time it is
-// asked and counting each admission against its room.
+// asked and counting each admission against its room. A lane paused over its
+// WIP or held cap admits nothing, as intake's admission does.
 function admissionGate(status) {
   let room;
   let reason;
+  let pause;
   return {
     // Why take() last answered false.
-    why: () => (reason === "search-incomplete" ? "GitHub search answered incomplete results" : "queued work is at the queued cap"),
+    why: () =>
+      pause
+        ? `the issue lane is paused (${pause})`
+        : reason === "search-incomplete"
+          ? "GitHub search answered incomplete results"
+          : "queued work is at the queued cap",
     take: async () => {
       if (room === undefined) {
         const s = await status();
-        room = s.admission_room ?? Number.POSITIVE_INFINITY;
+        pause = s.paused ? s.pause_reason : null;
+        room = pause ? 0 : (s.admission_room ?? Number.POSITIVE_INFINITY);
         reason = s.admission_reason;
         if (!s.admission_open) {
           console.log(`::notice title=admission paused::${escapeCommand(admissionLine(s))}`);

@@ -2106,8 +2106,9 @@ test("an issue already deferred is not labeled admission-deferred again", async 
 // A deferred issue, number 25, whose one blocker is closed; `deferredBy`
 // added its admission-deferred label (the lanes App by default).
 const deferredAdd = (actor, at = "2026-10-16T08:00:00Z") => ({ event: "labeled", label: { name: "admission-deferred" }, actor, created_at: at });
-const deferredWorld = ({ labels = ["admission-deferred"], sibling = "closed", queuedIssues = [], events = [deferredAdd(LANES_BOT)] } = {}) =>
+const deferredWorld = ({ labels = ["admission-deferred"], sibling = "closed", queuedIssues = [], events = [deferredAdd(LANES_BOT)], openLanePrs = 0 } = {}) =>
   world({
+    openLanePrs,
     deferred: [issue(25, { labels })],
     issues: { 25: issue(25, { labels }) },
     blockedBy: { 25: [issue(10, { state: "closed" }), issue(11, { state: sibling })] },
@@ -2147,6 +2148,15 @@ test("the sweep admits a deferred issue once under the queued cap, and keeps it 
   const at = deferredWorld({ queuedIssues: queuedN(24) });
   assert.equal(await sweep({ github: at.github }, PAUSING), 0);
   assert.deepEqual(writes(at.calls), []);
+});
+
+test("while the issue lane is paused over its WIP cap the sweep keeps a deferred issue deferred, with queued room", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const paused = deferredWorld({ openLanePrs: 3 });
+  assert.equal(await sweep({ github: paused.github }, PAUSING), 0);
+  assert.deepEqual(writes(paused.calls), []);
+  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+  assert.ok(lines.some((line) => line.includes("#25") && line.includes("the issue lane is paused")), lines.join("\n"));
 });
 
 test("the sweep keeps a held deferred issue deferred and drops the deferral of one no longer ready", async (t) => {
