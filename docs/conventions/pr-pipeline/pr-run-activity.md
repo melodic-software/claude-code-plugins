@@ -68,6 +68,8 @@ permissions, and passes no App key.
 | `review-replies-sha256`, `review-patch-state` | `''` | Write file only: with `review-replies`, the same read call's `feedback-sha256` and `scan-patch-state` outputs, which bind the replies' bytes and, with the scan refusal marker, decide whether missing replies are a `no-model-turn` skip |
 | `feedback-context-attempt`, `feedback-context-sha256` | `''` | Read file only: for [`prepare: review-threads`](#prepare-review-threads), the attempt naming the select job's `feedback-context-<attempt>` artifact and its thread file's SHA-256 |
 | `patch-threads-attempt`, `patch-threads-sha256`, `patch-fix-requested` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch) under the `review-threads` row, the select job's artifact attempt, its thread file's SHA-256 and its `fix-requested` output |
+| `merge-base-sha`, `merge-conflict-tree` | `''` | Read file only: for [`prepare: merge-base`](#prepare-merge-base), the base the caller's select job pinned and the conflict tree its merge reached; this run's merge must reach the same tree, and the scan job then reads the patch as text only |
+| `patch-merge-base-sha`, `patch-merge-state`, `patch-conflict-tree` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch) under the `merge-base` row, the select job's pinned base, merge state and conflict tree, which this run's merge must reach |
 | `dependency-context-attempt`, `dependency-context-sha256` | `''` | Read file only: for [`prepare: dependency-review`](#prepare-dependency-review), the attempt naming the select job's `dependency-context-<attempt>` artifact and its context file's SHA-256 |
 | `patch-verdict-attempt`, `patch-verdict-sha256` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch) under the `dependency-review` row, the read file's `dependency-attempt` and `dependency-sha256` outputs, which name the scanned verdict and bind its bytes |
 | `dependency-verdict` | `false` | Write file only: for the verdict script of a [`prepare: dependency-review`](#prepare-dependency-review) round, download the select job's `context.json` and the scanned verdict |
@@ -80,9 +82,9 @@ permissions, and passes no App key.
 | `patch-state`, `patch-sha256`, `patch-attempt`, `patch-head-sha`, `patch-activity`, `patch-prepare`, `reply-attempt` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), the read model job's outputs, its activity name and that activity's prepare mode, which picks the `patch-rules.json` row (empty: `default`) |
 
 In the write file's `workflow_call` outputs, `head-sha` is the PR head the gate passed, before
-any push of the run, and `escalation-reason` is empty, or why a
-[`prepare: merge-base`](#prepare-merge-base) activity or a reply, verdict or apply-patch script
-handed the PR to a person.
+any push of the run, and `escalation-reason` is empty, or why a reply, verdict or apply-patch
+script handed the PR to a person (under the `merge-base` row, the
+[`prepare: merge-base`](#prepare-merge-base) push job's reasons).
 
 The read file has five `workflow_call` outputs: `head-sha`, as in the write file,
 `patch-state`, `patch-sha256` and `patch-attempt`, described with
@@ -221,8 +223,9 @@ the broker request, and no other permission; it never holds `checks: write` or `
    With `trusted-base: default-tip` (`mode: default-tip`) it checks out the
    default branch tip instead, after the same checks: a PR in merge conflict keeps a stale base
    SHA, and the lane must run the tip's config and actions and merge the tip. The checked-out SHA
-   is the `base-sha` output either way, and the merge's second parent in
-   [`prepare: merge-base`](#prepare-merge-base).
+   is the `base-sha` output either way. A [`prepare: merge-base`](#prepare-merge-base) round
+   merges the tip its select job pinned instead, which both files check is on the default
+   branch.
 5. `resolve-config`, with the gated `head-sha` and `prepare-supported: true`; the read file also
    passes `applied-by-supported: patch` ([Patch output mode](#patch-output-mode)). The read file then
    fails red for any `prepare` but [`ci-context`](#prepare-ci-context), and for `ci-context`
@@ -254,10 +257,11 @@ the broker request, and no other permission; it never holds `checks: write` or `
    that closes an issue may fail the step red.
 8. `collect-base-activity` copies what the activity runs from the base out of `.base`: a script's whole
    directory to `$RUNNER_TEMP/base-script`, or for a skill the base `plugins/` and
-   `.claude-plugin/` to `$RUNNER_TEMP/base-marketplace`. For `prepare: merge-base` the write file
-   also copies the base's `.github/scripts/merge-base/` scripts and
+   `.claude-plugin/` to `$RUNNER_TEMP/base-marketplace`. For
+   [`prepare: merge-base`](#prepare-merge-base) the read file, and the write file under the
+   `merge-base` patch row, also copy the base's `.github/scripts/merge-base/` scripts and
    `plugins/source-control/scripts/resolve-version-bump-conflict.sh` to
-   `$RUNNER_TEMP/merge-base-bin`, recording each copy's SHA-256 as a step output, and reads
+   `$RUNNER_TEMP/merge-base-bin`, recording each copy's SHA-256 as a step output, and read
    `loop.no-progress` from the resolved config.
 9. `setup-runner-isolation`: for a skill, installs bubblewrap and socat with `apt-get` (three tries) and, where
    `/proc/sys/kernel/apparmor_restrict_unprivileged_userns` exists, sets it to `0`. It fails red
@@ -270,7 +274,7 @@ the broker request, and no other permission; it never holds `checks: write` or `
     `.github/standards/runner-policy` `package.json` and `package-lock.json`) to
     `$RUNNER_TEMP/setup-env`; a base without the script skips this and step 12's install with a
     notice. Then checks out the trigger gate's `head-sha` with `persist-credentials: false` (full
-    history for `prepare: merge-base`, else depth 1), then fails red unless `git rev-parse HEAD`
+    history for a merge, else depth 1), then fails red unless `git rev-parse HEAD`
     equals that SHA. This replaces `.base`.
 12. For a skill, sets up Python from the copied `.python-version` and runs the copied
     `setup-env.sh`, which installs the hash-pinned wheels in `.github/requirements-ci.txt` into a
@@ -300,23 +304,21 @@ A stacked PR, one whose base is not the default branch, gets a failure check fro
 it to the default branch to run its lanes.
 
 Its outputs are `base-sha`, `head-sha`, `pr-number`, `gate-reason`, `can-commit` and
-`act-outcome`, plus, in the write file, `head-ref`, `merge-state`, `escalation-reason` and
+`act-outcome`, plus, in the write file, `head-ref`, `escalation-reason` and
 `run-failure`, the reason the lane-token step failed with, from the base's `request-lane-token`. Every
-one is computed by a runner step, never read from model text. All but `act-outcome`,
-`merge-state` and `escalation-reason` are outputs of steps that ran before any head code:
+one is computed by a runner step, never read from model text. All but `act-outcome` and
+`escalation-reason` are outputs of steps that ran before any head code:
 `gate-reason` is the kill switch's reason if it stopped, else the trigger's if it stopped, else
 empty; `head-sha` and `head-ref` are the trigger gate's; `base-sha` is set only by step 4, so it
-is always on the default branch. `merge-state` and a pre-model `escalation-reason` come from the
-prepare step, before any model turn; a post-model `escalation-reason` comes from `post.sh` after
-it, and a forged one can only hand the PR to a person. `act-outcome` is the activity step's
+is always on the default branch. `escalation-reason` comes from the base's reply, verdict and
+apply-patch scripts, which run no model and no head code. `act-outcome` is the activity step's
 outcome, except that a skill step claude-code-action failed only because a `success` result went
 over `--max-turns` counts as succeeded. That holds only when the execution file's last result
 message has subtype `success`, `is_error` false and `num_turns` over the cap; any other failure,
 or a missing or unreadable execution file, still fails the job. A skill whose step succeeded is a
 failure when it took no model turn, when it is a gate skill and the verdict check (below) fails,
-when its commits could not be moved onto the PR branch, or when its merge commit failed or was not
-made; in `prepare: merge-base`, a clean merge that skipped the skill is a success once its commit
-is promoted. These checks are steps that run after the skill.
+or when its commits could not be moved onto the PR branch. These checks are steps that run after
+the skill.
 
 The write file also outputs the lane record of a skill run: `lane-class` and `lane-resets`, the
 failure class and usage-limit reset that ci-workflows' `report-lane-outcome` reads from the
@@ -383,9 +385,8 @@ skill leaves its edits uncommitted and the lane moves nothing. `commit_files` ta
 mode from disk, and `Write` creates a file without the executable bit, so that grant also allows
 `Bash(chmod +x *)` and the sentence says to run `chmod +x` first on every new or changed file that
 starts with `#!` or ends in `.sh`. A `read` skill that hands on a patch gets neither tool, and its
-sentence says to leave every change uncommitted for the runner to collect. A `prepare: merge-base` skill
-gets neither tool nor those sentences: it stages its resolution and the runner commits
-([below](#prepare-merge-base)). Under `--permission-mode dontAsk` a skill's own `allowed-tools`
+sentence says to leave every change uncommitted for the runner to collect; a
+`prepare: merge-base` skill is one ([below](#prepare-merge-base)). Under `--permission-mode dontAsk` a skill's own `allowed-tools`
 grants nothing: its `Bash` is only what this list allows, one rule per entry in the activity's
 `checks` and `self-checks`: `collect-base-activity` copies the base `scripts/` to `$RUNNER_TEMP/lane-checks`, outside
 the working directory, writes a wrapper there that runs the copy with the entry's fixed flags,
@@ -451,12 +452,8 @@ including read-only ones that run with no allow rule (`echo`, `printf`, `cat`, `
 `tr`, `base64`, `nl`, `tac`, `rev`, `uniq`, `fold`, `column`, `jq`, `xargs`, `more`, `less`, `wc`, each as
 `Bash(<command> *)`), and `Read(//proc/**)`; the skill reads files with `Read`, `Grep` and `Glob`.
 Every activity whose effect is not `read` also gets `Bash(git *)`: it reaches git only through
-the base wrappers. In `merge-base` mode, whose skill resolves the merge with git, the rules instead
-deny git's global options, the subcommands that read config or reach a remote, absolute and parent
-paths, quotes, and the flags (in any prefix form) or commands that read a file outside the index
-(including `blame` and `grep`) or run a diff or text-conversion program. Rules match command text,
-so that list is best-effort; it goes when `resolve-conflicts` moves to the read runner.
-`WebFetch` and
+the base wrappers. A `prepare: merge-base` skill runs only on the read file's launcher, with no
+Bash. `WebFetch` and
 `WebSearch` stay off (`--disallowedTools`) unless the activity sets `web-access`. With it on, the
 runner allows `WebSearch`, one `WebFetch(domain:<host>)` rule per listed domain
 (`WebFetch(domain:*)` for `any`), and `Skill` for `/discovery:read-docs`, `/discovery:research`,
@@ -722,84 +719,98 @@ The issue lane's skill stays on claude-code-action.
 
 ### prepare: merge-base
 
-A write skill leaf whose config sets `prepare: merge-base` (resolve-config's `prepare` output) is
-run around a merge of the trusted base (step 4's `base-sha`) into the gated head. The scripts are
-the base's copies from step 8, each checked against its recorded SHA-256 before it runs:
+A conflict round is five pr-unblock jobs, so no model holds a write token or runs git. The skill
+leaf sets `prepare: merge-base`, `effect: read` and `applied-by` `patch: apply-conflict-patch`
+(resolve-config's `prepare` and `applied-by-patch` outputs); `apply-conflict-patch` is a
+`prepare: apply-patch` script leaf. Every job that merges runs the base's copies of
+`.github/scripts/merge-base/prepare.sh` and the version-bump script through `run-prepare.sh`,
+each checked against its recorded SHA-256 before it runs, with workflow commands stopped
+(`::stop-commands::<random>`, since git's output can name head files), the lanes bot identity
+(`melodic-automation-lanes[bot]` and its noreply address, which a `--no-commit` merge needs and
+the repeat cap counts by), `loop.no-progress` as `LOOP_NO_PROGRESS` and
+`GIT_NO_REPLACE_OBJECTS=1`.
 
-1. After the head checkout and before any model turn, `prepare.sh` runs with the gated head, the
-   trusted base, the base's version-bump script and an output directory under `$RUNNER_TEMP`. The
-   step's `env:` holds the lanes bot identity (`melodic-automation-lanes[bot]` and its noreply
-   address), which a `--no-commit` merge needs and the repeat cap counts by, and `loop.no-progress`
-   as `LOOP_NO_PROGRESS`. It escalates `repeat-cap` before merging, runs
-   `git merge --no-commit --no-ff <trusted base>` and the version-bump script, snapshots the
-   index, and escalates `protected-path-conflict` (a conflicted path under `.github/workflows/`,
-   a `.gitmodules` or a `settings*.json`) or `unresolved-conflict` (a conflict with no markers to
-   resolve). Its `merge-state` output is `clean`, `conflicted` or `escalate`; an escalation skips
-   with `awaiting-human`.
-2. The skill runs only when `merge-state` is `conflicted`, without the commit tool. A clean merge
-   takes no model turn.
-3. `post.sh` runs after a clean merge, or after the skill and its model-turn check succeeded, with
-   prepare's hashes. It restores `.git/config` and `.git/info/attributes`, repairs the merged
-   entries of the paths claude-code-action resets (leaving a conflicted one as the model resolved
-   it), and escalates `unresolved-conflict` (an unmerged entry, or conflict
-   markers in a staged resolution) or `workflow-staged` (a `.github/workflows/` index entry changed
-   since the snapshot, or differs from the gated head, as a workflow change merged in from the base
-   does, unless the staged `.github/workflows/` entries are exactly the trusted base's (mode and
-   blob), no head workflow is dropped, and the PR's own diff against every merge base touches no
-   workflow) or `unexpected-path-staged` (an index entry added, changed or removed at a path the
-   merge did not leave conflicted that is a symlink or gitlink, holds a backslash, or is a
-   `.gitmodules`, a `settings*.json` or a `CODEOWNERS` GitHub reads); any other change the model
-   staged is committed and reaches review; otherwise it writes the index as a tree.
-4. With no escalation reason and a tree, a pinned `github-script` step commits through the Git
-   Data API: it fails unless the lane branch is still at the gated head, uploads only the blobs
-   `tree-entries.sh` flags (logging `created <k> blobs`), builds the tree on the gated head's tree
-   and fails unless it hashes to `post.sh`'s tree, re-reads the PR's labels with the job's
-   `GITHUB_TOKEN` and stops uncommitted (`awaiting-human`) when `do-not-merge`, the base's
-   human-gated role label or a `labels-absent` label is on the PR, then creates the commit
+1. `resolve-conflicts-select` runs only default-branch-tip code with a read-only token. It reads
+   the PR head, resolves the slot (`applied-by-supported: patch`), pins the default branch tip as
+   the round's base, checks the head out with full history and no persisted credentials, and runs
+   `prepare.sh`: it escalates `repeat-cap` before merging, runs
+   `git merge --no-commit --no-ff <pinned base>` and the version-bump script (under `LC_ALL=C`),
+   snapshots the index, and escalates `protected-path-conflict` (a conflicted path under
+   `.github/workflows/`, a `.gitmodules` or a `settings*.json`) or `unresolved-conflict` (a
+   conflict with no markers to resolve). Its `merge-state` output is `clean`, `conflicted` or
+   `escalate`; for `clean` and `conflicted` it also prints `conflict-tree`, T0: the merge's stage-0
+   entries plus each conflicted path's file as git left it, markers and all, hashed with
+   `--no-filters` under the head's mode, built in a scratch index. The job's outputs are
+   `proceed` (`true` only for `conflicted`), `merge-state`, `head-sha`, `base-sha`,
+   `conflict-tree`, `escalation-reason` and `skip-reason`.
+2. `resolve-conflicts-not-run` posts the `resolve-conflicts` check neutral on that head when the
+   select job does not proceed: the slot's skip reason, else `clean-merge`, else `awaiting-human`,
+   so the dispatcher does not send that head again.
+3. On `conflicted`, `resolve-conflicts` and its subscription fallback (started, as
+   address-feedback's is, by `resolve-conflicts-handoff`'s read of this run's jobs) call the read file with
+   `merge-base-sha` and `merge-conflict-tree` from the select job
+   ([Two calls on one credential each](#two-calls-on-one-credential-each)). Before the head
+   checkout it fails red unless both are full ids, they go with `prepare: merge-base` alone, and the
+   pinned base is on the default branch; it copies the base's merge scripts and `context.sh` with
+   their SHA-256s and checks the head out with full history. Before any model turn it merges the
+   pinned base again and fails red unless the merge reaches `conflicted` at the same conflict tree,
+   then `context.sh` writes `.lane/merge/`, read-only and denied to the file tools:
+   `conflicts.json` (the head, the base, the merge bases and each conflicted path with its
+   directory) and per path its `base`, `ours` and `theirs` stages and `head.log` and `base.log`,
+   `git log -p` of each side for that path, each cut at a cap with a note (a stage at 1 MiB, a log
+   at 64 KiB; past 16 MiB in all, a path's files are left out and its entry says `omitted`). The
+   skill gets Read, Grep, Glob, Skill, Edit, Write and Agent with no Bash (git and the shell read
+   commands are denied all the same), resolves the conflicted files in place and edits nothing
+   else. The collector measures the patch from the conflict tree, so it holds the model's edits
+   alone. The scan job scans such a patch as text and never applies it to the head (GitHub does
+   not hold T0); a binary hunk blocks it.
+4. `apply-conflict-patch` runs on a `clean` merge, or on a `conflicted` one whose answering leg's
+   scan handed on a written or empty patch. Before the mint the write file checks the pinned base
+   is on the default branch and `apply-patch.mjs select` decides under the `merge-base` row: a head
+   that moved since the select job skips `superseded-sha`; `clean` proceeds with no patch;
+   `conflicted` with an empty patch escalates `unresolved-conflict`. After the head checkout (full
+   history) it merges the pinned base again and fails red unless the merge reaches the select
+   job's state and conflict tree. `apply-patch.mjs` then applies the patch to T0 in a scratch index
+   (attributes read from the base tree), holds only the patch's own changes to the row's refusals,
+   `max-files`, `merge-result` (a path the merge left conflicted, read from the checkout's index,
+   else `unexpected-path-staged`), the credential scan and the blob caps, and escalates
+   `unresolved-conflict` when a conflicted path still in the tree holds conflict markers, or
+   `workflow-staged` when the tree's `.github/workflows/` differs from the head's unless it is
+   exactly the base's, no head workflow is dropped, and the PR's own diff against every merge base
+   touches no workflow. The base-side changes the merge brings pass through untouched. It lists
+   the tree against the head with the base's `tree-entries.sh` (checked against its SHA-256),
+   refuses before any write when more than `max-blobs` blobs neither parent holds would be
+   uploaded, re-reads the holds and the draft state, uploads only those blobs, builds the tree on
+   the head's tree and fails unless it hashes to the merge tree, creates
    `Merge <default branch> into <head ref>` with trailer
-   `Lane-Activity: pr-unblock/resolve-conflicts`, parents `[gated head, trusted base]` and no
-   author, committer or signature, so GitHub signs it as the App, and moves the lane branch to it.
-   The promote step then fast-forwards the PR branch only when the lane branch holds that step's
-   own commit and `git/ref heads/<head ref>` is still at the gated head, and confirms the move by
-   reading that ref again.
+   `Lane-Activity: pr-unblock/resolve-conflicts` and parents `[gated head, pinned base]`, so
+   GitHub signs it as the App, and moves the PR branch with `force: false`.
+5. `report-conflict-status` posts a failing `pr-unblock/conflict` status on the select job's head
+   when the select or push job escalates `unresolved-conflict`; `report-escalation` takes either
+   job's reason.
 
-The merge scripts, `tree-entries.sh` and the commit step's `git` run with workflow commands
-stopped (`::stop-commands::<random>`), since git's output can name head files, and with
-`GIT_NO_REPLACE_OBJECTS=1`; the commit step runs `/usr/bin/git` and `/usr/bin/bash` under an
-allowlisted environment. The kill switch (step 3) stops new runs only; a run already past it
-stops for a hold only at the commit step's label re-read and the promote step's label and draft
-re-read.
+The three merges of one round must agree on the conflict tree; one that does not fails red and
+nothing is resolved or pushed. The kill switch (step 3) stops new runs only; a run already past it
+stops for a hold only at the push job's label and draft re-read. Every path and its check:
 
-The run's `escalation-reason` output is prepare's or `post.sh`'s reason, one of
-`protected-path-conflict`, `workflow-staged`, `unexpected-path-staged`, `repeat-cap` or
-`unresolved-conflict`; a caller
-passes it to its `report-escalation` job as that job's `escalation-reason` input. Every path and
-its check:
-
-| Path | act-outcome | skip reason | escalation-reason | Check |
+| Path | Job | skip reason | escalation-reason | Check |
 |---|---|---|---|---|
-| Head moved before mint | skipped | `superseded-sha` | empty | neutral |
-| Broker refused a workflow file the PR changes | skipped | `workflow-modified` | empty | neutral |
-| Hold label present | skipped | `awaiting-human` | empty | neutral |
-| Pre-model escalation | skipped | `awaiting-human` | `protected-path-conflict` / `repeat-cap` / `unresolved-conflict` (no markers) | neutral |
-| Clean merge, no model turn, committed, promoted | success | none | empty | success |
-| Clean merge, `post.sh` exits non-zero | failure | none | empty | failure |
-| Hold label added during the run, found before the commit | success | `awaiting-human` | empty | neutral |
-| Hold label or draft set during the run, found before the promote | success | `awaiting-human` | empty | neutral |
-| Model left a conflict | success | `awaiting-human` | `unresolved-conflict` | neutral |
-| Model staged, or the merge brought in, a `.github/workflows/` change that is not the trusted base's own | success | `awaiting-human` | `workflow-staged` | neutral |
-| Model staged a symlink, gitlink, backslash, `.gitmodules`, settings or `CODEOWNERS` change at a path that did not conflict | success | `awaiting-human` | `unexpected-path-staged` | neutral |
-| Resolved, committed, promoted | success | none | empty | success |
-| Commit step fails or lane branch moved | failure | none | empty | failure |
-| PR branch moved during run (promote) | failure | none | empty | failure |
-| Conflicted but no model turn | failure | none | empty | failure |
-| A prepare step fails | skipped | none | empty | failure (run job failed) |
-| A post-skill step fails | success | none | empty | failure (run job failed) |
+| Slot does not apply, or a hold label | select | the slot's | empty | neutral `resolve-conflicts` |
+| Pre-model escalation | select | `awaiting-human` | `protected-path-conflict` / `repeat-cap` / `unresolved-conflict` (no markers) | neutral `resolve-conflicts` |
+| Clean merge, committed and pushed | push | `clean-merge` on `resolve-conflicts` | empty | success `apply-conflict-patch` |
+| A later merge reaches another tree | model call or push | none | empty | failure |
+| Head moved since the select job | push | `superseded-sha` | empty | neutral `apply-conflict-patch` |
+| Empty patch, or a conflicted path left with markers | push | `awaiting-human` | `unresolved-conflict` | neutral `apply-conflict-patch` |
+| A model edit outside the conflicted set | push | `awaiting-human` | `unexpected-path-staged` | neutral `apply-conflict-patch` |
+| A model edit a refusal names | push | `awaiting-human` | `conflict-patch-protected-path` / `conflict-patch-invalid` | neutral `apply-conflict-patch` |
+| A `.github/workflows/` change that is not the base's own | push | `awaiting-human` | `workflow-staged` | neutral `apply-conflict-patch` |
+| Hold label or draft set during the run | push | `awaiting-human` | empty | neutral `apply-conflict-patch` |
+| Resolved, committed and pushed | push | none | empty | success `apply-conflict-patch` |
 
-Residual: when every staged `.github/workflows/` entry is the trusted base's own and the PR
+Residual: when every `.github/workflows/` entry the merge brings is the base's own and the PR
 changes no workflow, the merge is committed and pushed. GitHub did not refuse that shape for the
 App's missing `workflows` permission: sandbox probe run 38148710292 pushed it by all three methods.
-A merged workflow blob that is on no branch was refused (`POST /git/trees` 403 in run
+`apply-conflict-patch` has not been probed on that shape. A merged workflow blob that is on no branch was refused (`POST /git/trees` 403 in run
 39066232629), and still escalates.
 
 ### prepare: review-threads

@@ -298,6 +298,56 @@ test("pr-unblock.yml: apply-dependency-patch runs only on a written patch beside
   assert.equal(runs("skipped", [], ["", "fix"]), false);
 });
 
+const CONFLICT_JOBS = [
+  "resolve-conflicts-select",
+  "resolve-conflicts-not-run",
+  "resolve-conflicts",
+  "resolve-conflicts-handoff",
+  "resolve-conflicts-subscription",
+  "apply-conflict-patch",
+  "report-conflict-status",
+];
+
+// As for review-dependency: a job that needs a skipped subscription call and
+// lacks !cancelled() is skipped too, so a clean merge would never be pushed.
+test("pr-unblock.yml: every resolve-conflicts job after the select job starts its if: with !cancelled()", () => {
+  for (const job of CONFLICT_JOBS.slice(1)) {
+    assert.match(jobGate(UNBLOCK, job).gate, /^\$\{\{ !cancelled\(\) && /, job);
+  }
+  assert.deepEqual(jobGate(UNBLOCK, "apply-conflict-patch").needs, ["resolve-conflicts-select", "resolve-conflicts", "resolve-conflicts-subscription"]);
+});
+
+// The push job decides on the select job's merge state, proceed and the
+// answering leg's scanned patch state; a forged run-job output reaches none.
+// The evaluator refuses any reference left unset, so the gate reads nothing else.
+test("pr-unblock.yml: apply-conflict-patch runs on a clean merge or a conflicted one with the answering leg's patch, whatever else a model call reports", () => {
+  const { gate } = jobGate(UNBLOCK, "apply-conflict-patch");
+  const runs = (state, proceed, subResult = "skipped", sub = "", first = "") =>
+    evaluate(gate, {
+      "needs.resolve-conflicts-select.outputs.merge-state": state,
+      "needs.resolve-conflicts-select.outputs.proceed": proceed,
+      "needs.resolve-conflicts-subscription.result": subResult,
+      "needs.resolve-conflicts-subscription.outputs.scan-patch-state": sub,
+      "needs.resolve-conflicts.outputs.scan-patch-state": first,
+    });
+  assert.equal(runs("clean", "false"), true);
+  assert.equal(runs("conflicted", "true", "skipped", "", "written"), true);
+  assert.equal(runs("conflicted", "true", "skipped", "", "empty"), true);
+  assert.equal(runs("conflicted", "true", "success", "written"), true);
+  assert.equal(runs("conflicted", "true", "success", "", "written"), false);
+  assert.equal(runs("escalate", "false", "skipped", "", "written"), false);
+  assert.equal(runs("", "", "skipped", "", "written"), false, "a kill-switch stop");
+  assert.equal(runs("conflicted", "true", "skipped", "", "garbage"), false);
+});
+
+test("pr-unblock.yml: the resolve-conflicts model calls run only when the select job found a conflicted merge", () => {
+  const { gate, needs } = jobGate(UNBLOCK, "resolve-conflicts");
+  assert.deepEqual(needs, ["resolve-conflicts-select"]);
+  for (const [proceed, runs] of [["true", true], ["false", false], ["", false]]) {
+    assert.equal(evaluate(gate, { "needs.resolve-conflicts-select.outputs.proceed": proceed }), runs, JSON.stringify(proceed));
+  }
+});
+
 const FIX_CI_JOBS = [
   "fix-ci-context",
   "fix-ci",

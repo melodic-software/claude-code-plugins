@@ -1,6 +1,11 @@
 {
   "resolve-conflicts": {
-    "never": "Force-pushes, pushes .github/workflows changes, or runs head code"
+    "forbidden-effects": ["publish-artifact", "mutate-tracker", "mutate-branch", "merge"],
+    "never": "Holds a write token, runs a command, or posts to the pull request: its resolutions leave only as a patch"
+  },
+  "apply-conflict-patch": {
+    "forbidden-effects": ["publish-artifact", "mutate-tracker", "merge"],
+    "never": "Runs a model or head code, force-pushes, or pushes a model edit outside the conflicted paths"
   },
   "report-outcome": {
     "forbidden-effects": ["mutate-branch", "merge"],

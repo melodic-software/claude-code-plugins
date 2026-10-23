@@ -45,7 +45,7 @@ merge_main() {
   tg merge --no-commit --no-ff main >/dev/null 2>&1 || true
 }
 # run_entries [<head> <base> <tree>]: sets OUT (sorted), ERR and RC. The tree
-# defaults to the index written as a tree, as post.sh prints it.
+# defaults to the index written as a tree.
 run_entries() {
   local head=${1:-$(tg rev-parse pr)} base=${2:-$(tg rev-parse main)} tree=${3:-}
   [[ -n $tree ]] || tree=$(tg write-tree 2>/dev/null) || tree=none
@@ -143,8 +143,8 @@ expected=$(
   line 160000 "$SUB" - sub
 )
 check 'untracked-dir: only staged entries; a mode change and a gitlink upload nothing' "$expected" "$OUT"
-# The entries describe the tree post.sh validated, not whatever the index
-# holds by the time the commit step runs.
+# The entries describe the tree given, not whatever the index holds when
+# they are listed.
 TREE=$(tg write-tree)
 tg add keep.txt .claude-pr
 run_entries "" "" "$TREE"

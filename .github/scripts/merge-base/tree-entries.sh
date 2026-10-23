@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 # tree-entries.sh <gated-head> <trusted-base-sha> <tree>
 #
-# The tree of the merge commit, as entries for the Git Data API. <tree> is the
-# tree post.sh wrote from the index it validated, so untracked files
-# (claude-code-action's .claude-pr/), unstaged edits and anything staged after
-# that check never enter it. These checks guard against model mistakes and
-# hostile head content, not against a hostile model on the same runner: the
-# lane token is model-reachable by design.
+# The tree of the merge commit, as entries for the Git Data API, run by
+# apply-patch.mjs from the write runner's base copy. <tree> is the merge tree
+# apply-patch.mjs built and checked (the conflict tree with the model's patch
+# applied), so nothing else in the checkout enters it. No model runs in that
+# job.
 #
 # Stdout: one line per path <tree> changes against <gated-head>:
 #   <mode> <blob-sha|null> <create-blob|-><TAB><path>
