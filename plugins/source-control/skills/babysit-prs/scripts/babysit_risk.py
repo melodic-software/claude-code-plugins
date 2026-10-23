@@ -4,8 +4,9 @@
 `score(RiskInput) -> RiskResult` is a pure function: no I/O, no GitHub calls.
 The caller reads the PR, its linked issue's class, the base-SHA config and the
 review-lane evidence, and hands them in; this module only judges them. A LOW
-score merges unattended, and so does a MED one whose every reason is a class
-or size reason (`holds`, #9270); every other reason holds. So every doubtful
+score merges unattended, and so does a MED one whose every reason is a class,
+size or reported review-finding reason (`holds`); every other reason holds.
+So every doubtful
 input rates a holding reason: missing or unrecognized data is a miss, never a
 pass, and it never raises: input it cannot read at all rates HIGH as
 `high-path:**`. Inputs are plain built-in
@@ -22,8 +23,7 @@ the org away from their credentials. Everything else, this module, the merge
 gate, the review lanes, hooks, scripts and agent instructions included, merges
 on the two review lanes, which are the gate (owner direction 2026-10-22: the
 review lanes are the only gate, and bots may edit hooks, plugins, skills,
-scripts and workflows). So a pull request can change the rule it is judged by,
-and the review lanes, not this floor, are what read that change. The configured `merge.diff-check.denied-paths` are joined to
+scripts and workflows), except the trust gates below. The configured `merge.diff-check.denied-paths` are joined to
 the floor, never in place of it. Every glob matches case-insensitively,
 because a lane host on a case-insensitive filesystem treats `Codeowners` as
 `CODEOWNERS`.
@@ -35,6 +35,18 @@ or `experimental.monitors`, in marketplace.json a plugin entry added, removed
 or renamed, a changed entry `source`, or a changed marketplace `name`. A
 manifest removed, renamed or copied, or whose side cannot be read or parsed,
 or repeats a key, holds; an added plugin.json is compared with `{}`.
+
+A change to a trust gate rates HIGH as `trust-gate:<glob>` in every lane,
+whatever the floor switch and `floor_exempt` say, and waits for the owner
+(owner decision Q24): the trusted-actor list, this scorer and the config it
+reads, the merge gate, and the security review (`TRUST_GATES`).
+
+A review finding holds only as a HIGH or CRITICAL security finding
+(`security-finding`): the security lane's `blocking_findings`. Every other open
+finding, a code-review finding or a lower security one, is reported as a MED
+`findings:<lane>` reason that does not hold (owner decisions Q25 and Q33). A
+cost increase holds through `cost-review-required` and a trust-gate change
+through `trust-gate:`, both below.
 
 A change that could add or raise a charge rates HIGH as `cost-review-required`
 in every lane, floor or not and whatever `floor_exempt` says (owner rule,
@@ -136,8 +148,9 @@ class LaneEvidence:
     # was reported at the head, no whole review of it is recorded, and no
     # lane thread is unresolved.
     whole_review_clears: bool = False
-    # The open findings that hold the merge; None when every one does. The
-    # security lane counts only CRITICAL ones (babysit_review_evidence.py).
+    # The security lane's open findings that hold the merge (CRITICAL, read
+    # by babysit_review_evidence.py); None when every one does. A
+    # claude-review finding never holds, whatever this says.
     blocking_findings: int | None = None
 
 
@@ -213,13 +226,37 @@ HIGH_FLOOR: tuple[str, ...] = (
 # plugin.json keys whose values Claude Code runs or reads as run config.
 _EXECUTABLE_KEYS = ("hooks", "mcpServers", "lspServers", "monitors")
 
-# Lane -> (code, severity) for an open blocking finding on that lane
-# (`LaneEvidence.blocking_findings`). Both lanes are required: a lane absent
-# from the input is unbound.
+# Lane -> (code, severity) for an open finding on that lane. Only the
+# security lane's blocking findings hold (`LaneEvidence.blocking_findings`);
+# claude-review's code is reported and never holds (`MERGEABLE_MED`). Both
+# lanes are required: a lane absent from the input is unbound.
 LANES: dict[str, tuple[str, Risk]] = {
     "claude-review": ("findings:claude-review", Risk.MED),
     "claude-security-review": ("security-finding", Risk.HIGH),
 }
+_HOLDING_LANE = "claude-security-review"
+# The security lane's open findings below the holding tier: reported only.
+REPORTED_SECURITY_CODE = "findings:claude-security-review"
+
+TRUST_GATE_PREFIX = "trust-gate:"
+_BABYSIT = "plugins/source-control/skills/babysit-prs/scripts/"
+# Paths whose change waits for the owner in every lane, whatever the floor
+# switch or `floor_exempt` says (owner decision Q24).
+TRUST_GATES: tuple[str, ...] = (
+    ".github/standards/trusted-actors/**",
+    # This scorer, the security severity it is fed, and the config the gate
+    # reads at the base (babysit_merge_policy.CONFIG_PATH, SOURCE_CONTROL_PATH).
+    f"{_BABYSIT}babysit_risk.py",
+    f"{_BABYSIT}babysit_review_evidence.py",
+    "docs/conventions/pr-pipeline.yaml",
+    ".claude/source-control.md",
+    # The merge gate.
+    f"{_BABYSIT}babysit_merge*.py",
+    ".github/workflows/pr-merge.yml",
+    ".github/scripts/pr-merge/**",
+    # The security review.
+    ".github/workflows/pr-review-security-hosted.yml",
+)
 
 # GitHub's documented pull request file statuses.
 STATUSES = frozenset(
@@ -572,6 +609,17 @@ def _high_path_reasons(
     ]
     if review:
         reasons.append(Reason(_MANIFEST_CODE, Risk.HIGH, "; ".join(review)))
+    return reasons
+
+
+def _trust_gate_reasons(files: list[_File]) -> list[Reason]:
+    paths = [path for f in files for path in f.paths if path]
+    reasons = []
+    for pattern in TRUST_GATES:
+        hits = [path for path in paths if glob_match(pattern, path)]
+        if hits:
+            detail = ", ".join(dict.fromkeys(hits)) + ": the owner merges it"
+            reasons.append(Reason(f"{TRUST_GATE_PREFIX}{pattern}", Risk.HIGH, detail))
     return reasons
 
 
@@ -992,8 +1040,20 @@ def _lane_reasons(raw_lanes: Any) -> list[Reason]:
             reasons.append(
                 Reason(f"evidence-unbound:{name}", Risk.MED, ": ".join(parts))
             )
-        elif count > 0:
+            continue
+        total = getattr(lane, "open_findings", None)
+        if name != _HOLDING_LANE:
+            seen = total if _is_count(total) else count
+            if seen > 0:
+                reasons.append(
+                    Reason(finding_code, Risk.MED, f"{seen} open, reported only")
+                )
+            continue
+        if count > 0:
             reasons.append(Reason(finding_code, finding_severity, f"{count} open"))
+        if _is_count(total) and total > count:
+            detail = f"{total - count} open below CRITICAL, reported only"
+            reasons.append(Reason(REPORTED_SECURITY_CODE, Risk.MED, detail))
     return reasons
 
 
@@ -1008,25 +1068,33 @@ def _score(inp: RiskInput) -> RiskResult:
         *_lane_reasons(inp.lanes),
         *_high_path_reasons(inp, files or [], list(raw_files or ())),
         *_cost_reasons(inp, files or [], list(raw_files or ())),
+        *_trust_gate_reasons(files or []),
     ]
     reasons.sort(key=lambda reason: (-reason.severity, reason.code))
     worst = max((reason.severity for reason in reasons), default=Risk.LOW)
     return RiskResult(Risk(worst), tuple(reasons))
 
 
-# MED reasons an unattended merge passes (#9270): the work class's own
-# contradictions and rating, and the diff's size. `class-missing` and
-# `class-above-rung` hold: the rung is the owner's cap.
+# MED reasons an unattended merge passes: the work class's own contradictions
+# and rating, the diff's size, and the review findings that are reported only.
+# `class-missing` and `class-above-rung` hold: the rung is the owner's cap.
 MERGEABLE_MED = frozenset(
-    {"class-contradicted", "blast-radius-missing", "lines-over", "files-over"}
+    {
+        "class-contradicted",
+        "blast-radius-missing",
+        "lines-over",
+        "files-over",
+        LANES["claude-review"][0],
+        REPORTED_SECURITY_CODE,
+    }
 )
 _MERGEABLE_MED_PREFIX = "no-patch:"
 
 
 def holding(result: RiskResult) -> list[Reason]:
     """The reasons that refuse an unattended merge: every HIGH one, and each
-    MED one outside `MERGEABLE_MED`, such as unbound review evidence, an open
-    finding or an unread file listing."""
+    MED one outside `MERGEABLE_MED`, such as unbound review evidence or an
+    unread file listing."""
     return [
         r
         for r in result.reasons

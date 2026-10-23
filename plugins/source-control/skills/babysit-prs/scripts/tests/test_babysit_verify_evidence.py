@@ -2669,14 +2669,33 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.assertEqual(out["unattended"]["reason"], "verifier-verdict-not-required")
         self.read.assert_not_called()
 
-    def test_a_lane_pr_touching_the_merge_gate_merges_on_a_pass(self) -> None:
+    def test_a_lane_pr_touching_the_merge_gate_waits_for_the_owner(self) -> None:
+        # Owner decision Q24: the merge gate is a trust gate, whatever the
+        # floor switch says.
+        self.config = dataclasses.replace(
+            self.config, denied_paths=(), max_changed_lines=None
+        )
+        self.unlabeled_lane_pr(real_denied_paths=True)
+        gate = "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py"
+        self.files = ((changed(gate),), True)
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
+        codes = [r["code"] for r in out["unattended"]["risk"]["reasons"]]
+        self.assertIn(
+            "trust-gate:plugins/source-control/skills/babysit-prs/scripts/"
+            "babysit_merge*.py",
+            codes,
+        )
+
+    def test_a_lane_pr_touching_a_gate_script_merges_on_a_pass(self) -> None:
         # Owner decision Q624: no denied path, no HIGH floor, no size caps and
         # no C2 contradictions in the lane by default; the verdict still gates.
         self.config = dataclasses.replace(
             self.config, denied_paths=(), max_changed_lines=None
         )
         self.unlabeled_lane_pr(real_denied_paths=True)
-        gate = "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py"
+        gate = "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py"
         paths = (gate, ".github/workflows/x.yml", *(f"lib/f{i}.sh" for i in range(8)))
         # The workflow's patch adds no cost line, so the cost hold passes it.
         self.files = (

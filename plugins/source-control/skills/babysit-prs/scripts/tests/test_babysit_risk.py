@@ -323,8 +323,8 @@ class HighReasonTests(unittest.TestCase):
     def test_case_folded_paths_are_high(self):
         cases = [
             (
-                ".GitHub/Workflows/PR-Merge.yml",
-                "high-path:.github/workflows/pr-merge.yml",
+                ".GitHub/Workflows/PR-Unblock.yml",
+                "high-path:.github/workflows/pr-unblock.yml",
             ),
             ("plugins/foo/Codeowners", "high-path:**/CODEOWNERS"),
             (".GITMODULES", "high-path:**/.gitmodules"),
@@ -1171,7 +1171,7 @@ class LanePathFloorTests(unittest.TestCase):
             "docs/conventions/x.md",
             "REVIEW.md",
             "plugins/review/skills/x/SKILL.md",
-            "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+            "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py",
             "plugins/source-control/skills/babysit-loop/SKILL.md",
             "plugins/source-control/lib/x.awk",
             "plugins/work-items/x.md",
@@ -1183,7 +1183,7 @@ class LanePathFloorTests(unittest.TestCase):
             ".node-version",
             ".python-version",
             ".gitattributes",
-            ".github/scripts/pr-merge/x.mjs",
+            ".github/scripts/pr-unblock/x.mjs",
             "plugins/foo/evals/case/case.yaml",
             "plugins/foo/evals/case/scaffold.sh",
         ):
@@ -1196,10 +1196,13 @@ class LanePathFloorTests(unittest.TestCase):
         result = score(_lane_input((_edit(SKILL, FRONT, after),)))
         self.assertEqual(result.score, Risk.LOW, result.reasons)
 
-    def test_a_pipeline_caps_edit_still_holds_as_cost(self):
+    def test_a_pipeline_caps_edit_holds_as_cost_and_trust_gate(self):
         patch = "@@ -1,1 +1,1 @@\n-  max-in-flight: 5\n+  max-in-flight: 50"
         files = (_file("docs/conventions/pr-pipeline.yaml", patch=patch),)
-        self.assertEqual(_codes(score(_lane_input(files))), ("cost-review-required",))
+        self.assertEqual(
+            _codes(score(_lane_input(files))),
+            ("cost-review-required", "trust-gate:docs/conventions/pr-pipeline.yaml"),
+        )
 
 
 MANIFEST = "plugins/foo/.claude-plugin/plugin.json"
@@ -1345,13 +1348,17 @@ class HoldsTests(unittest.TestCase):
                 self.assertEqual(result.score, Risk.MED)
                 self.assertFalse(holds(result), result.reasons)
 
-    def test_an_open_review_finding_holds(self):
+    def test_an_open_code_review_finding_is_reported_and_does_not_hold(self):
+        # Q25: a review flag other than cost, trust gate or high/critical
+        # security is reported and merges.
         lanes = (
             _lane("claude-review", open_findings=1),
             _lane("claude-security-review"),
         )
         files = (_file("plugins/foo/logo.png", has_patch=False),)
-        self.assertTrue(self._holds(lanes=lanes, files=files))
+        result = score(_input(lanes=lanes, files=files))
+        self.assertIn("findings:claude-review", _codes(result))
+        self.assertFalse(holds(result), result.reasons)
 
     def test_an_unbound_or_missing_lane_holds(self):
         for lanes in (
@@ -1386,7 +1393,7 @@ class HoldsTests(unittest.TestCase):
 
 class SecurityBlockingTests(unittest.TestCase):
     """The security lane holds only on its CRITICAL findings
-    (`blocking_findings`); claude-review holds on every open finding."""
+    (`blocking_findings`); the rest are reported and do not hold."""
 
     def _security(self, open_findings, blocking):
         lane = LaneEvidence(
@@ -1398,13 +1405,149 @@ class SecurityBlockingTests(unittest.TestCase):
         )
         return score(_input(lanes=(_lane("claude-review"), lane)))
 
-    def test_a_non_critical_security_finding_adds_no_reason(self):
-        self.assertEqual(self._security(3, 0).reasons, ())
+    def test_a_non_critical_security_finding_is_reported_and_does_not_hold(self):
+        result = self._security(3, 0)
+        self.assertEqual(result.score, Risk.MED)
+        self.assertEqual(_codes(result), ("findings:claude-security-review",))
+        self.assertIn("3 open", result.reasons[0].detail)
+        self.assertFalse(holds(result))
 
     def test_a_critical_security_finding_is_high(self):
         result = self._security(3, 1)
         self.assertEqual(result.score, Risk.HIGH)
-        self.assertEqual(_codes(result), ("security-finding",))
+        self.assertEqual(
+            _codes(result), ("security-finding", "findings:claude-security-review")
+        )
+        self.assertIn("2 open", result.reasons[1].detail)
+        self.assertTrue(holds(result))
 
     def test_no_severity_count_holds_on_every_finding(self):
         self.assertEqual(_codes(self._security(2, None)), ("security-finding",))
+
+
+B = "plugins/source-control/skills/babysit-prs/scripts/"
+
+
+class TrustGateTests(unittest.TestCase):
+    """Q24: a trust-gate path scores HIGH and holds whatever the floor switch
+    and the trusted author's own paths say. Paths and globs come from the
+    owner decision's list, not from the scorer."""
+
+    CASES = (
+        (
+            ".github/standards/trusted-actors/trusted-actors.json",
+            "trust-gate:.github/standards/trusted-actors/**",
+        ),
+        (f"{B}babysit_risk.py", f"trust-gate:{B}babysit_risk.py"),
+        (f"{B}babysit_review_evidence.py", f"trust-gate:{B}babysit_review_evidence.py"),
+        ("docs/conventions/pr-pipeline.yaml", "trust-gate:docs/conventions/pr-pipeline.yaml"),
+        (".claude/source-control.md", "trust-gate:.claude/source-control.md"),
+        (f"{B}babysit_merge.py", f"trust-gate:{B}babysit_merge*.py"),
+        (f"{B}babysit_merge_policy.py", f"trust-gate:{B}babysit_merge*.py"),
+        (f"{B}babysit_merge_skip.py", f"trust-gate:{B}babysit_merge*.py"),
+        (".github/workflows/pr-merge.yml", "trust-gate:.github/workflows/pr-merge.yml"),
+        (".github/scripts/pr-merge/gate.mjs", "trust-gate:.github/scripts/pr-merge/**"),
+        (
+            ".github/workflows/pr-review-security-hosted.yml",
+            "trust-gate:.github/workflows/pr-review-security-hosted.yml",
+        ),
+    )  # fmt: skip
+
+    def _score(self, path, **changes):
+        return score(_input(files=(_file(path),), **changes))
+
+    def test_each_trust_gate_path_holds_with_the_floor_off_and_exempt(self):
+        for path, code in self.CASES:
+            for changes in (
+                dict(),
+                dict(high_floor=False),
+                dict(high_floor=False, floor_exempt=frozenset({path})),
+            ):
+                with self.subTest(path=path, changes=changes):
+                    result = self._score(path, **changes)
+                    self.assertEqual(result.score, Risk.HIGH)
+                    self.assertIn(code, _codes(result))
+                    self.assertTrue(holds(result))
+                    if changes:
+                        # With the floor off, the trust gate is the only reason.
+                        self.assertEqual(_codes(result), (code,))
+
+    def test_a_case_folded_trust_gate_path_holds(self):
+        result = self._score(".GitHub/Scripts/PR-Merge/Gate.mjs", high_floor=False)
+        self.assertEqual(_codes(result), ("trust-gate:.github/scripts/pr-merge/**",))
+
+    def test_the_old_side_of_a_rename_holds(self):
+        moved = _file(
+            "plugins/foo/x.py", status="renamed", previous_path=f"{B}babysit_risk.py"
+        )
+        result = score(
+            _input(files=(moved,), high_floor=False, c2_contradictions=False)
+        )
+        self.assertEqual(_codes(result), (f"trust-gate:{B}babysit_risk.py",))
+
+    def test_neighbours_of_a_trust_gate_do_not_hold(self):
+        for path in (
+            f"{B}babysit_postmerge.py",
+            f"{B}tests/test_babysit_merge.py",
+            f"{B}babysit_whole_review.py",
+            ".github/scripts/pr-unblock/gate.mjs",
+            ".github/workflows/pr-review-hosted.yml",
+            ".github/standards/runner-policy/policy.json",
+            "docs/conventions/pr-pipeline/README.md",
+            "plugins/foo/.claude/source-control.md",
+        ):
+            with self.subTest(path):
+                result = self._score(path, high_floor=False)
+                self.assertEqual(result.score, Risk.LOW, result.reasons)
+
+
+class ReviewFlagClassTests(unittest.TestCase):
+    """Q25: a review flag holds only as a cost increase, a trust-gate change
+    or a high or critical security finding; any other is reported."""
+
+    def _lanes(self, review=0, security=0, critical=None):
+        return (
+            _lane("claude-review", open_findings=review),
+            LaneEvidence(
+                "claude-security-review", True, None, security,
+                blocking_findings=critical,
+            ),
+        )  # fmt: skip
+
+    def test_cost_flag_holds(self):
+        patch = "@@ -1,1 +1,2 @@\n on: push\n+  cron: '0 * * * *'"
+        result = score(_input(files=(_file(".github/workflows/x.yml", patch=patch),)))
+        self.assertEqual(_codes(result), ("cost-review-required",))
+        self.assertTrue(holds(result))
+
+    def test_trust_gate_flag_holds(self):
+        result = score(_input(files=(_file(".github/workflows/pr-merge.yml"),)))
+        self.assertIn("trust-gate:.github/workflows/pr-merge.yml", _codes(result))
+        self.assertTrue(holds(result))
+
+    def test_critical_security_flag_holds(self):
+        result = score(_input(lanes=self._lanes(security=1, critical=1)))
+        self.assertEqual(_codes(result), ("security-finding",))
+        self.assertTrue(holds(result))
+
+    def test_other_flags_are_reported_and_do_not_hold(self):
+        result = score(_input(lanes=self._lanes(review=2, security=3, critical=0)))
+        self.assertEqual(result.score, Risk.MED)
+        self.assertEqual(
+            {r.code: r.detail for r in result.reasons},
+            {
+                "findings:claude-review": "2 open, reported only",
+                "findings:claude-security-review": "3 open below CRITICAL, reported only",
+            },
+        )
+        self.assertFalse(holds(result))
+
+    def test_a_reported_flag_beside_a_hold_is_still_listed(self):
+        result = score(
+            _input(
+                files=(_file(".github/workflows/pr-merge.yml"),),
+                lanes=self._lanes(review=1),
+            )
+        )
+        self.assertIn("findings:claude-review", _codes(result))
+        self.assertTrue(holds(result))

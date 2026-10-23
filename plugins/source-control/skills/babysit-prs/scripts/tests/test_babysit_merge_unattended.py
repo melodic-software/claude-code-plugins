@@ -1833,12 +1833,26 @@ class EachRefusalMakesNoMergeCall(Unattended):
         self.assertIsNone(out["unattended"]["reason"])
         self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
 
-    def test_a_med_with_an_open_review_finding_holds(self) -> None:
+    def test_a_med_with_an_open_code_review_finding_merges(self) -> None:
+        # Q25: a code-review finding is reported and does not hold.
         self.files = ((self.BINARY,), True)
         self.lanes = (LaneEvidence("claude-review", True, None, 1), BOUND[1])
         code, out = self.run_main()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertIsNone(out["unattended"]["reason"])
+        codes = [r["code"] for r in out["unattended"]["risk"]["reasons"]]
+        self.assertIn("findings:claude-review", codes)
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+
+    def test_a_critical_security_finding_holds(self) -> None:
+        self.files = ((self.BINARY,), True)
+        self.lanes = (
+            BOUND[0],
+            LaneEvidence("claude-security-review", True, None, 2, False, 1),
+        )
+        code, out = self.run_main()
         self.assert_no_merge(code)
-        self.assertEqual(out["unattended"]["reason"], "risk:MED")
+        self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
 
     def test_a_med_with_an_unbound_lane_holds(self) -> None:
         self.files = ((self.BINARY,), True)
@@ -1857,7 +1871,10 @@ class EachRefusalMakesNoMergeCall(Unattended):
         self.assert_no_merge(code)
         self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
         codes = [r["code"] for r in out["unattended"]["risk"]["reasons"]]
-        self.assertEqual(codes, ["cost-review-required"])
+        self.assertEqual(
+            codes,
+            ["cost-review-required", "trust-gate:docs/conventions/pr-pipeline.yaml"],
+        )
 
 
 class BaseConfigParseError(Unattended):
@@ -2686,6 +2703,19 @@ class ReasonsComment(Unattended):
         self.assertIn("high-path:**/.gitmodules", body)
         self.assertIn("a human merges it in person, never an agent or a lane", body)
 
+    def test_a_trust_gate_hold_says_a_human_merges_it(self) -> None:
+        # Owner decision Q24: a trust gate waits for the owner.
+        gate = merge.babysit_risk.Reason(
+            "trust-gate:.github/workflows/pr-merge.yml",
+            merge.babysit_risk.Risk.HIGH,
+            "x",
+        )
+        risk = merge.babysit_risk.RiskResult(merge.babysit_risk.Risk.HIGH, (gate,))
+        self.assertIn(
+            "a human merges it in person, never an agent or a lane",
+            merge.risk_comment_body(risk, HEAD),
+        )
+
     def test_a_med_hold_does_not_claim_the_floor(self) -> None:
         self.assertNotIn("never an agent", self.body())
 
@@ -3020,8 +3050,8 @@ class ReasonsComment(Unattended):
 
 # Held only by a finding a clean whole review of the head would close.
 CARRIED = (
-    LaneEvidence("claude-review", True, None, 1, True),
-    LaneEvidence("claude-security-review", True, None, 0),
+    LaneEvidence("claude-review", True, None, 0),
+    LaneEvidence("claude-security-review", True, None, 1, True),
 )
 
 
@@ -3190,14 +3220,17 @@ class WholeReviewRequest(Unattended):
 
     def test_another_refusal_is_not_toggled(self) -> None:
         self.lanes = (
-            CARRIED[0],
-            LaneEvidence("claude-security-review", False, "no-marker", None),
+            LaneEvidence("claude-review", False, "no-marker", None),
+            CARRIED[1],
         )
         self.run_main()
         self.assertNotIn("toggle", self.log)
 
     def test_a_finding_at_the_head_is_not_toggled(self) -> None:
-        self.lanes = (LaneEvidence("claude-review", True, None, 1, False), CARRIED[1])
+        self.lanes = (
+            CARRIED[0],
+            LaneEvidence("claude-security-review", True, None, 1, False),
+        )
         self.run_main()
         self.assertNotIn("toggle", self.log)
 
