@@ -1006,13 +1006,17 @@ class Reader:
                 continue
             if not match:
                 if (off := FAIL_PREFIX_RE.match(name)) is not None:
+                    # Compared as text: the digits are unbounded, and a string
+                    # past Python's int-conversion limit would raise.
+                    digits = off[1].lstrip("0")
                     hold, unread = self._off_grammar(
-                        item, name, int(off[1]) == number or off[2] in commits
+                        item, name, digits == str(number) or off[2] in commits
                     )
                     unreadable = unreadable or hold
-                    if unread:
-                        # Held only if its pull request is one the cap counts.
-                        unread_prs.add(int(off[1]))
+                    if unread and len(digits) <= 10:
+                        # Held only if its pull request is one the cap counts,
+                        # which a number over 10 digits never is.
+                        unread_prs.add(int(digits or "0"))
                 continue
             pr_n, sha, verdict = int(match[1]), match[2], match[3]
             run_id = json_object(item.get("workflow_run")).get("id")

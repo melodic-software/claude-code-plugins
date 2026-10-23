@@ -254,6 +254,49 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
             [n for n, issues in self.NAMES.items() if issues is not None],
         )
 
+    def test_the_gate_reads_the_issues_the_writer_names(self) -> None:
+        # Each FAIL write-verdict.mjs names parses to the issues it records;
+        # a pass's name carries none.
+        writer = RESOLVER.parent / "write-verdict.mjs"
+        sha = "a" * 40
+        cases = [
+            ("fail", [7], {7}),
+            ("fail", [12, 7, 12], {7, 12}),
+            ("fail", list(range(1, 11)), set(range(1, 11))),
+            ("fail", [9999999999], {9999999999}),
+            ("fail", [], set()),
+            ("pass", [7], set()),
+            ("pass-notes", [7, 8], set()),
+        ]
+        verdicts = [
+            {
+                "pr": 41,
+                "head_sha": sha,
+                "verdict": v,
+                "linked_issues": [{"number": n} for n in numbers],
+            }
+            for v, numbers, _ in cases
+        ]
+        script = (
+            f"import {{ artifactName }} from {json.dumps(writer.as_uri())};"
+            " console.log(JSON.stringify(JSON.parse(process.argv[1]).map(artifactName)));"
+        )
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", script, json.dumps(verdicts)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        for (verdict, _, issues), name in zip(
+            cases, json.loads(proc.stdout), strict=True
+        ):
+            with self.subTest(name):
+                match = ve.NAME_RE.fullmatch(name)
+                self.assertIsNotNone(match)
+                assert match is not None
+                self.assertEqual(match[3], verdict)
+                self.assertEqual(ve.named_issues(match), issues)
+
 
 if __name__ == "__main__":
     unittest.main()
