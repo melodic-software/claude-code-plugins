@@ -60,7 +60,7 @@ that section changes what `run` does or how it picks a project skill).
   dashboard). A signal the app does not expose is listed as a capability gap.
 - **Read-only by default.** A step that would write outside the app's own data, or needs a grant the
   run lacks, is not performed. The report names the narrowest grant that would allow it. A capture
-  that needs elevation follows the next rule instead.
+  that needs elevation follows "Elevated captures go through a shown script" instead.
 - **Name the tool, never substitute.** Capture uses the tool the control skill names for the kind,
   one tool per run. Drive implements no capture and picks no tool of its own. When no tool is named,
   report the kind as a capability gap and use no stand-in. An interactive run may offer to research
