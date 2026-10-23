@@ -2742,8 +2742,9 @@ jobs:
         id: signed
         if: >-
           always()
-          && needs.run.outputs.can-commit != 'false'
+          && needs.run.outputs.can-commit == 'true'
           && steps.pr-head.outputs.number != ''
+          && steps.head.outputs.sha != ''
           && steps.head.outputs.forged == 'false'
         uses: ./.base/.github/actions/check-signed-commits # zizmor: ignore[self-repository]
         with:
