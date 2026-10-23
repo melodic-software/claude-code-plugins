@@ -36,7 +36,7 @@ in its manual before writing the command.
 | A core pinned near 100% (spin) | `cpu` | built-in CPU profile flag | Performance panel recording | py-spy record | JFR recording | dotnet-trace | pprof CPU profile | perf record / `sample` |
 | Memory that keeps growing (leak) | `heap`, two snapshots minutes apart | built-in heap snapshot signal or inspector | Memory panel heap snapshot | memray | `jcmd` heap dump | dotnet-gcdump | pprof heap profile | heaptrack / `leaks` |
 | UI that stutters or drops frames (jank) | `trace` with CPU samples | n/a | Performance panel recording (saves a Chrome trace) | n/a | JFR recording | dotnet-trace | execution trace | perf record with call graphs |
-| A process that stops responding (hang) | none yet: a stack sample of every thread is not a capture kind (#9490) | inspector pause or diagnostic report | Performance panel recording | py-spy dump | `jcmd` thread dump | dotnet-stack | goroutine dump | `gdb` thread backtrace / `spindump` |
+| A process that stops responding (hang) | none yet: a stack sample of every thread is not a capture kind | inspector pause or diagnostic report | Performance panel recording | py-spy dump | `jcmd` thread dump | dotnet-stack | goroutine dump | `gdb` thread backtrace / `spindump` |
 
 Prefer a command that launches the app as a child of the profiler where the tool supports it: it
 records only what the run started.
