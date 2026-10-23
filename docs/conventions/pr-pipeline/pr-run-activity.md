@@ -945,7 +945,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
      current head: the branch must be ahead and change fewer than 300 files, each in a kept
      thread's scope and none under `.github/workflows/`, and with a `VALID` reply hold exactly one commit the
      lanes App authored with the push job's trailer, committed by `web-flow` with a `valid`
-     signature, which must change each `VALID` thread's path, a file in `run.json`'s `pr_paths`,
+     signature, which must change each `VALID` thread's path, a file in `run.json`'s `pr_paths` that
+     the reply's evidence cites,
      or for a thread on a skill's `SKILL.md` any file in that skill's directory. Otherwise it
      posts no reply and escalates `feedback-not-landed`: a push that was superseded, refused,
      escalated or held made no such commit;

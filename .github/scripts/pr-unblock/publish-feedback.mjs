@@ -206,11 +206,11 @@ export function renderReply({ disposition, evidence, fixSha, note }) {
 const SKILL_FILE = /^((?:.*\/)?skills\/[^/]+\/)SKILL\.md$/;
 
 // Whether a fix commit's changed files touch a thread's path: the path itself,
-// a file the pull request already changes (`prPaths`), so a finding on one
-// file fixed in another of the PR's files lands, or for a skill's SKILL.md any
-// file under that skill's directory.
-function touchesThread(changed, threadPath, prPaths) {
-  if (changed.some((file) => prPaths.has(file))) {
+// a file the pull request already changes that the reply's evidence cites
+// (`cited`), so a finding on one file fixed in another of the PR's files
+// lands, or for a skill's SKILL.md any file under that skill's directory.
+function touchesThread(changed, threadPath, cited) {
+  if (changed.some((file) => cited.has(file))) {
     return true;
   }
   const skillDir = SKILL_FILE.exec(threadPath)?.[1];
@@ -241,8 +241,8 @@ export function fixCommitOf(commits, appId) {
 // job recorded), adding none of those files, and nothing under
 // .github/workflows/. With a VALID reply the range must hold
 // exactly one fix commit (fixCommitOf), and it must change every VALID thread's path, a
-// file the PR already changes, or for a thread on a skill's SKILL.md any file
-// in that skill's directory (touchesThread). Returns the fix commit, "" when no reply is VALID, or null.
+// file the PR already changes that the reply's evidence cites, or for a thread
+// on a skill's SKILL.md any file in that skill's directory (touchesThread). Returns the fix commit, "" when no reply is VALID, or null.
 async function fixesLanded({ api, run, headSha, replies, appId }) {
   const valid = replies.filter((reply) => reply.disposition === "VALID");
   if (valid.length === 0 && run.head_sha === headSha) {
@@ -273,7 +273,8 @@ async function fixesLanded({ api, run, headSha, replies, appId }) {
   }
   if (fixSha) {
     const changed = ((await api.getCommit(fixSha)).files ?? []).map((file) => file.filename);
-    if (!valid.every((reply) => touchesThread(changed, threadPath.get(reply.thread), prPaths))) {
+    const cited = (reply) => new Set(reply.evidence.map((ev) => ev.slice(0, ev.lastIndexOf(":"))).filter((path) => prPaths.has(path)));
+    if (!valid.every((reply) => touchesThread(changed, threadPath.get(reply.thread), cited(reply)))) {
       return null;
     }
   }

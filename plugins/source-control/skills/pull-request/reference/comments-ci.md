@@ -47,13 +47,14 @@ The preamble names the tool's path. It is the only shell command this mode runs:
    reading code and docs only: run no command, test, build or script from the checkout. CI runs
    them after the push.
 2. Classify. On a thread with a direction, apply the direction: record `VALID` once its fix is
-   in the working tree, or `UNCERTAIN` with the reason when it needs a file outside every kept thread's scope
+   in the working tree, or `UNCERTAIN` with the reason when it needs a file `check-paths` refuses
    or cannot be done in one scoped change. When the current code no longer shows the finding
    (fixed, moved or deleted since that review), make no edit: record `UNCERTAIN` with evidence of
    what the code shows now. Never record `INCORRECT` against a direction. Otherwise, a
    finding that touches security, shared infrastructure or another repository, and
-   that the code you read cannot settle, is UNCERTAIN. So is a fix that needs a file outside
-   every kept thread's scope, or is too large for one scoped change.
+   that the code you read cannot settle, is UNCERTAIN. So is a fix that needs a file
+   `check-paths` refuses, or is too large for one scoped change. A file outside the thread's own
+   path may still be in scope: run `check-paths` on it before deciding.
 3. VALID: run `check-paths` on every file the fix changes before you edit it, and edit only when
    it prints `allowed`. Leave the fix uncommitted in the working tree before you record it: there
    is no commit tool, and the one commit the push job makes may fix several threads.
@@ -68,7 +69,9 @@ The preamble names the tool's path. It is the only shell command this mode runs:
    }
    ```
 
-   `VALID` and `INCORRECT` need at least one `path:line` in the checkout, at most 10. `fix_sha`
+   `VALID` and `INCORRECT` need at least one `path:line` in the checkout, at most 10. A `VALID`
+   fix that does not change the thread's own path must cite a line it changed in another of the
+   pull request's files, or its reply does not land. `fix_sha`
    stays empty, or is left out: the reply job finds the commit the push job made. `VALID-defer`
    is VALID (defer). The note is 1-2000 characters of plain prose: no control characters, no HTML
    comment (`<!--`, `-->`), no token, no @-mention. It is posted in a code fence.

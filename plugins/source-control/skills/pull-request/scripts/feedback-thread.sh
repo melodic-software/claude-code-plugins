@@ -52,8 +52,8 @@ scratch_dir=${FEEDBACK_SCRATCH:-} workspace=${FEEDBACK_WORKSPACE:-}
 # (the files a write-access fix request named) in that same plugins/<p>/
 # directory that is no instruction path; or, when the gated head holds it, a
 # file in the thread file's pr_paths (the files the pull request already
-# changes) that is no instruction path and not under the trusted-actor list,
-# the trusted-trigger check or resolve-config. The same rule as
+# changes, which the select job already held to thread-scope.mjs's
+# prPathsOf). The same rule as
 # .github/scripts/pr-unblock/thread-scope.mjs, which the promote step and
 # the reply job apply.
 allowed() {
@@ -69,9 +69,7 @@ allowed() {
          then null else $p | plugin end) as $plugin
       | ($p | sub("^.*/"; "") | test("^(test_[^/]*\\.py|[^/]*_test\\.py|[^/]*\\.(test|spec)\\.[^/]+)$")) as $test
       | (if $instruction then null else $p | plugin end) as $named
-      | ($tracked and ($instruction | not)
-          and ($p | test("^\\.github/(standards/trusted-actors|actions/check-trusted-trigger|actions/resolve-config)/"; "i") | not)
-          and any(.pr_paths[]?; . == $p)) as $pr
+      | ($tracked and any(.pr_paths[]?; . == $p)) as $pr
       | $plain and ($pr or any(.threads[]; .path as $t
           | $t == $p
           or ($plugin != null and ($t | startswith($plugin)))
