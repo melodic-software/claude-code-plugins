@@ -18,13 +18,14 @@
 // hold label (needs-human, status: needs-info, status: needs-decision) is on
 // the issue, and nothing it found conflicts; otherwise `status: needs-decision`
 // (unless a needs-info or needs-decision status is already there) and never
-// `status: ready`; `area: security` or a `needs-triage` the triage left also
-// keep it from ready. Only the lanes App's own earlier class and field values
+// `status: ready`; a `needs-triage` the triage left also keeps it from ready. Only the lanes App's own earlier class and field values
 // give way to the new verdict; a class or value anyone else set, or one whose
 // setter cannot be read, is kept and sends the issue to needs-decision, and a
 // hold class (structural, untrusted-provenance) is never taken off. The class
 // must be one of the repository's work-class labels. When it applied a class it rewrites the comment's
-// "a maintainer confirms" lines. It never adds `agent-ready`.
+// "a maintainer confirms" lines. On `status: ready` it hands the verdict to
+// admit.mjs, which adds `agent-ready` when the admission rules and the caps
+// allow.
 //
 // Issue text can only refuse: a line the model quotes is prefixed `> ` and
 // matches nothing, a duplicated, missing or unknown value writes no fields, and
@@ -46,6 +47,8 @@
 //   TRUSTED_ACTORS_PATH   the default branch's trusted-actor list
 //   BASE_PATH             the default branch checkout, for models.issue-dimensions
 //   KILL_SWITCH           `proceed`, or the run stops before any API call
+//   RESOLVED_CONFIG       resolve-config's output: the limits and wip leaves
+//                         admission's cap check reads
 //   EVENT_NAME, ACTOR_ID, TRIGGERING_ACTOR, RUN_ATTEMPT   for --check
 import { appendFileSync } from "node:fs";
 import process from "node:process";
@@ -53,6 +56,9 @@ import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
+import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
+import { admit, loadRules } from "./admit.mjs";
 
 export const MARKER = "<!-- claude-lane intake-triage -->";
 const LANE_BOT = "github-actions[bot]";
@@ -62,7 +68,6 @@ export const READY = "status: ready";
 export const NEEDS_DECISION = "status: needs-decision";
 const NEEDS_INFO = "status: needs-info";
 const NEEDS_HUMAN = "needs-human";
-const SECURITY = "area: security";
 // The reusable removes this floor label only from a triage it routed.
 const NEEDS_TRIAGE = "needs-triage";
 const ESCALATED = "Automated triage handed this issue to a maintainer.";
@@ -223,10 +228,8 @@ export function planWrites(verdict, { labels, fields, dimensionsConfig, appId, h
   if (holds.length > 0) {
     reasons.push(`held by ${holds.join(", ")}`);
   }
-  for (const label of [SECURITY, NEEDS_TRIAGE]) {
-    if (labels.includes(label)) {
-      reasons.push(`the issue carries ${label}`);
-    }
+  if (labels.includes(NEEDS_TRIAGE)) {
+    reasons.push(`the issue carries ${NEEDS_TRIAGE}`);
   }
 
   const ready = reasons.length === 0 && classApplied && verdict.dimensions !== null && verdict.flags !== null;
@@ -284,7 +287,7 @@ async function readFields(github, repository, number, fieldSetters) {
   return fields;
 }
 
-export async function run({ env, github, dimensionsConfig, fieldSetters, log = console.log }) {
+export async function run({ env, github, dimensionsConfig, fieldSetters, admitIssue, log = console.log }) {
   if (env.KILL_SWITCH !== "proceed") {
     log("apply-verdict: the kill switch did not answer proceed; nothing read or written");
     return { outcome: "stopped" };
@@ -373,6 +376,9 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, log = c
     }
   }
   await addLabels(github, base, plan.add);
+  // Before the reword: whether the App may edit github-actions[bot]'s
+  // comment is unproven, and a refused edit must not stop admission.
+  const admission = plan.ready && admitIssue ? await admitIssue(verdict) : null;
   if (plan.classApplied) {
     const reworded = rewordComment(comment.body);
     if (reworded !== null) {
@@ -387,9 +393,10 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, log = c
     `- Fields written: ${plan.fieldWrites.map(({ key, name }) => `${DIMENSIONS[key]} ${name}`).join(", ") || "none"}`,
     `- Labels added: ${plan.add.join(", ") || "none"}; removed: ${plan.remove.join(", ") || "none"}`,
     `- Status: ${plan.ready ? READY : NEEDS_DECISION}${plan.reasons.length ? ` (${plan.reasons.join("; ")})` : ""}`,
+    ...(admission ? [`- Admission: ${admission.outcome}${admission.reasons.length ? ` (${admission.reasons.join("; ")})` : ""}`] : []),
   ].join("\n");
   log(summary);
-  return { outcome: plan.ready ? "ready" : "needs-decision", plan, summary };
+  return { outcome: plan.ready ? "ready" : "needs-decision", plan, admission, summary };
 }
 
 async function addLabels(github, base, names) {
@@ -410,14 +417,41 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
       const { issueDimensionsFromBase, fieldSetters } = await import(
         new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href
       );
+      const rate = searchRateLimit();
+      const github = createGitHub({
+        token: env.GH_TOKEN,
+        apiUrl: env.GITHUB_API_URL,
+        onResponse: rate.onResponse,
+      });
+      const repository = env.GITHUB_REPOSITORY;
+      const { humans, logins } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
+      // Read only when admitting, so a malformed rules file stops
+      // admission and not the verdict.
+      const admitIssue = (verdict) =>
+        admit({
+          github,
+          repository,
+          number: Number(env.ISSUE_NUMBER),
+          verdict,
+          rules: loadRules(`${env.BASE_PATH}/.github/actions/resolve-config/admission-rules.json`),
+          humans,
+          appId: logins.get(LANES_APP_LOGIN),
+          status: () =>
+            checkWip(github, {
+              repo: repository,
+              bot: LANES_APP_LOGIN,
+              now: Date.now(),
+              limits: readLimits(env.RESOLVED_CONFIG),
+              wip: readWip(env.RESOLVED_CONFIG),
+              remaining: rate.remaining,
+            }),
+        });
       const result = await run({
         env,
-        github: createGitHub({
-          token: env.GH_TOKEN,
-          apiUrl: env.GITHUB_API_URL,
-        }),
+        github,
         dimensionsConfig: issueDimensionsFromBase(env),
         fieldSetters,
+        admitIssue,
       });
       if (result.summary && env.GITHUB_STEP_SUMMARY) {
         appendFileSync(env.GITHUB_STEP_SUMMARY, `${result.summary}\n`);

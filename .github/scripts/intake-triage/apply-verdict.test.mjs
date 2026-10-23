@@ -174,16 +174,19 @@ describe("planWrites", () => {
     );
   });
 
-  test("a flag sends it to needs-decision but still writes the class and fields", () => {
-    const result = plan(
-      laneBody({
-        lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: security"],
-      }),
-    );
-    assert.equal(result.ready, false);
-    assert.deepEqual(result.add, ["work-class: scoped", NEEDS_DECISION]);
-    assert.equal(result.fieldWrites.length, 3);
-  });
+  // Admission criteria 1 (intent), 5 (very-high security) and 6 (cost) rest on these.
+  for (const flag of ["intent", "security", "cost"]) {
+    test(`a ${flag} flag sends it to needs-decision but still writes the class and fields`, () => {
+      const result = plan(
+        laneBody({
+          lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", `Flags: ${flag}`],
+        }),
+      );
+      assert.equal(result.ready, false);
+      assert.deepEqual(result.add, ["work-class: scoped", NEEDS_DECISION]);
+      assert.equal(result.fieldWrites.length, 3);
+    });
+  }
 
   test("an escalated run adds only needs-decision and takes status: ready off", () => {
     const result = plan(ESCALATED_BODY, { labels: [READY, "needs-human"] });
@@ -296,13 +299,17 @@ describe("planWrites", () => {
     assert.deepEqual(result.add, [NEEDS_DECISION]);
   });
 
-  for (const label of ["area: security", "needs-triage"]) {
-    test(`${label} keeps a clean verdict from ready and adds needs-decision`, () => {
-      const result = plan(laneBody(), { labels: [label] });
-      assert.equal(result.ready, false);
-      assert.deepEqual(result.add, ["work-class: scoped", NEEDS_DECISION]);
-    });
-  }
+  test("needs-triage keeps a clean verdict from ready and adds needs-decision", () => {
+    const result = plan(laneBody(), { labels: ["needs-triage"] });
+    assert.equal(result.ready, false);
+    assert.deepEqual(result.add, ["work-class: scoped", NEEDS_DECISION]);
+  });
+
+  test("area: security alone does not hold a clean verdict; only the security flag does", () => {
+    const result = plan(laneBody(), { labels: ["area: security"] });
+    assert.equal(result.ready, true);
+    assert.deepEqual(result.add, ["work-class: scoped", READY]);
+  });
 
   test("the same work class already on the issue counts as applied", () => {
     const result = plan(laneBody(), { labels: ["work-class: scoped"] });
@@ -682,5 +689,65 @@ describe("run", () => {
       post.body.issue_field_values.map(({ field_id }) => field_id),
       [48625720, 48625721],
     );
+  });
+
+  test("hands a ready verdict to admission, and nothing else", async () => {
+    const seen = [];
+    const admitIssue = async (verdict) => {
+      seen.push(verdict);
+      return { outcome: "admitted", reasons: [] };
+    };
+    const ready = await run({
+      env: ENV,
+      github: fakeGitHub({ comments: [laneComment()] }).github,
+      dimensionsConfig: DIMS,
+      fieldSetters: noSetters,
+      admitIssue,
+      log: () => {},
+    });
+    assert.equal(ready.outcome, "ready");
+    assert.equal(ready.admission.outcome, "admitted");
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0].workClass, "work-class: scoped");
+    assert.deepEqual(seen[0].dimensions, {
+      size: "small",
+      complexity: "low",
+      uncertainty: "known",
+    });
+    const held = await run({
+      env: ENV,
+      github: fakeGitHub({ comments: [laneComment(ESCALATED_BODY)] }).github,
+      dimensionsConfig: DIMS,
+      fieldSetters: noSetters,
+      admitIssue,
+      log: () => {},
+    });
+    assert.equal(held.outcome, "needs-decision");
+    assert.equal(seen.length, 1);
+  });
+
+  test("admits before rewording, so a refused comment edit does not stop admission", async () => {
+    const seen = [];
+    const fake = fakeGitHub({ comments: [laneComment()] });
+    const github = async (method, path, body) => {
+      if (method === "PATCH") {
+        throw new GitHubError(403, "PATCH");
+      }
+      return fake.github(method, path, body);
+    };
+    await assert.rejects(
+      run({
+        env: ENV,
+        github,
+        dimensionsConfig: DIMS,
+        fieldSetters: noSetters,
+        admitIssue: async (verdict) => {
+          seen.push(verdict);
+          return { outcome: "admitted", reasons: [] };
+        },
+        log: () => {},
+      }),
+    );
+    assert.equal(seen.length, 1);
   });
 });
