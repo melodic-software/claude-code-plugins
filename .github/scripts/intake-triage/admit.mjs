@@ -285,6 +285,20 @@ async function sayWhy(github, repository, base, text) {
   }
 }
 
+// For an issue apply-verdict held without admission (a flag, an escalation or
+// a hold), the same split note a refusal posts, when a done-when item is one
+// the lane cannot perform, so the split survives a verdict that never reaches
+// decide(). Returns {outcome: noted | none, reasons}.
+export async function noteUnrunnable({ github, repository, number, body, rules, webHosts, log = console.log }) {
+  const reason = unrunnableReason(unrunnableCriteria(body, rules["task-list"], webHosts));
+  if (!reason) {
+    return { outcome: "none", reasons: [] };
+  }
+  await sayWhy(github, repository, `/repos/${repository}/issues/${number}`, `Not admitted to the issue lane: ${reason}.`);
+  log(`admit: #${number} held; split noted (${reason})`);
+  return { outcome: "noted", reasons: [reason] };
+}
+
 // Reads the issue fresh, decides, and writes. `status` answers check-wip-cap's
 // status for the issue lane. Returns {outcome, reasons}.
 export async function admit({ github, repository, number, verdict, rules, humans, appId, status, webHosts, log = console.log }) {

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, admit, decide, loadRules, unrunnableCriteria } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, admit, decide, loadRules, noteUnrunnable, unrunnableCriteria } from "./admit.mjs";
 
 const RULES = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)));
 const HUMAN = 153232337;
@@ -522,4 +522,23 @@ test("decide: every done-when item unrunnable says a person takes the issue, wit
   const result = decide(facts({ issue: issueOf({ body: "- [ ] Run it on a Windows 11 host." }) }));
   assert.equal(result.verdict, "refuse");
   assert.match(result.reasons.join("; "), /no done-when item is left for the lane, so a person takes the issue/);
+});
+
+describe("noteUnrunnable", () => {
+  const note = (fake, body) => noteUnrunnable({ github: fake.github, repository: "o/r", number: 7, body, rules: RULES, webHosts: HOSTS, log: () => {} });
+  test("a held issue with a Windows-host item gets the split comment and no label change (#9372)", async () => {
+    const fake = fakeGitHub({ issue: issueOf({ body: CANARY }) });
+    const result = await note(fake, CANARY);
+    assert.equal(result.outcome, "noted");
+    const done = writes(fake.calls);
+    assert.equal(done.length, 1);
+    assert.match(done[0], /^POST \/repos\/o\/r\/issues\/7\/comments /);
+    assert.ok(done[0].includes(ADMIT_MARKER.replaceAll('"', '\\"')));
+    assert.match(done[0], /item 2 .*Windows 11 host.*recommended split: keep the other items here as the admissible issue/);
+  });
+  test("a held issue whose done-when the lane can run gets nothing", async () => {
+    const fake = fakeGitHub();
+    assert.deepEqual(await note(fake, BODY), { outcome: "none", reasons: [] });
+    assert.deepEqual(writes(fake.calls), []);
+  });
 });
