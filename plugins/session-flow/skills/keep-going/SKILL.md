@@ -208,7 +208,9 @@ itself the thing this skill removes.
    MCP calls too: each with its recorded state or `none recorded`, or as
    not observable with the reason, plus any surviving background output
    file as a quoted excerpt of partial output whose completion is
-   unknown, or as named but outside the allowed location and not read.
+   unknown, or as named and not read, saying whether the path came from
+   a result outside `claude mcp serve` or fell outside the allowed
+   location.
 
 ## Picking up another agent's trail
 
