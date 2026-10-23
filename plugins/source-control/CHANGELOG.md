@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.7.0] - 2026-10-23
+
+### Added
+
+- The merge gate takes `--candidate-deadline-seconds` with `--authority pr-merge`: its two read phases (the merge policy, then the verdict) start no command past the deadline and the gate exits 11 with an `unknown:candidate-deadline` error, before any further write. Writes are never bounded, so a merge-queue write is never cut short. Without the flag nothing changes.
+
 ## [2.6.1] - 2026-10-23
 
 ### Changed

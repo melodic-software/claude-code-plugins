@@ -115,7 +115,13 @@ def wanted(
         return False
     if not all(r.code in FINDING_CODES for r in held_by):
         return False
-    held = [lane for lane in lanes if (babysit_risk.blocking(lane) or 0) > 0]
+    codes = {r.code for r in held_by}
+    held = [
+        lane
+        for lane in lanes
+        if babysit_risk.LANES.get(lane.lane, ("",))[0] in codes
+        and (babysit_risk.blocking(lane) or 0) > 0
+    ]
     return bool(held) and all(lane.whole_review_clears for lane in held)
 
 
