@@ -1,0 +1,10 @@
+{
+  "description": "What intake admission (.github/scripts/intake-triage/admit.mjs) requires before it adds agent-ready to an issue apply-verdict set to status: ready (#9212's ten criteria, owner decision Q51). Agents may change it; no floor or sync binds it (owner decision 2026-10-22).",
+  "types": ["Bug", "Task"],
+  "types-under-parent": ["Feature"],
+  "classes": ["work-class: read-only", "work-class: mechanical", "work-class: scoped"],
+  "sizes": ["small", "medium"],
+  "uncertainty": ["known"],
+  "refuse-labels": ["duplicate", "needs-owner-decision", "do-not-merge", "wontfix"],
+  "task-list": "- [ ] "
+}
