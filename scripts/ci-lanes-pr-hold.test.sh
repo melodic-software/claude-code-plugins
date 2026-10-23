@@ -101,6 +101,10 @@ discussion() {
   [[ "$(grep -cE '/(comments|reviews)\?' "$STUB_LOG")" -gt "${STUB_FAILS:-0}" ]] || { echo 'gh: Server Error (HTTP 502)' >&2; exit 1; }
 }
 case "$*" in
+"api graphql "*)
+  [[ -z "${STUB_DISARM_FAILS:-}" ]] || { echo 'gh: Resource not accessible by integration' >&2; exit 1; }
+  echo '{"data":{}}'
+  ;;
 */contents/.github/scripts/pr-merge/merge-holds.mjs*)
   [[ -z "${STUB_NO_MODULE:-}" ]] || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
   cat "$STUB_MODULE"
@@ -143,7 +147,8 @@ BASE=89abcdef0123456789abcdef0123456789abcdef
 QUEUE="refs/heads/gh-readonly-queue/main/pr-7-$SHA"
 LANES='{"id":337595936,"login":"melodic-automation-lanes[bot]","type":"Bot"}'
 pull() { jq -nc --argjson user "${2:-$LANES}" --arg body "$1" --arg ref "${STUB_BASE_REF:-main}" --arg sha "${STUB_BASE_SHA:-$BASE}" \
-  --argjson changed "${STUB_CHANGED:-1}" '{number: 7, user: $user, body: $body, head: {sha: "'"$SHA"'", ref: "work-resolve-issue/issue-1"}, base: {ref: $ref, sha: $sha}, changed_files: $changed}'; }
+  --argjson changed "${STUB_CHANGED:-1}" '{number: 7, node_id: "PR_7", user: $user, body: $body, head: {sha: "'"$SHA"'", ref: "work-resolve-issue/issue-1"}, base: {ref: $ref, sha: $sha}, changed_files: $changed,
+    auto_merge: (if env.STUB_ARMED then {merge_method: "squash"} else null end)}'; }
 comment() { jq -nc --arg login "$1" --arg type "${2:-User}" --arg assoc "$3" --arg at "$4" --arg body "$5" \
   '{user: {login: $login, type: $type}, author_association: $assoc, created_at: $at, body: $body}'; }
 # approval <login> <id> <state> <at> <commit>: a review of a commit.
@@ -158,7 +163,7 @@ expect() {
   local label="$1" want_rc="$2" want_calls="$3" out rc calls
   : >"$TMP_ROOT/log"
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_MODULE="${STUB_MODULE:-$MODULE}" \
-    GITHUB_EVENT_NAME="${EVENT:-pull_request}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" \
+    GITHUB_EVENT_NAME="${EVENT:-pull_request}" EVENT_ACTION="${ACTION-synchronize}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" \
     GITHUB_REPOSITORY=o/r RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   calls=$(grep -cE '/(comments|reviews)\?' "$TMP_ROOT/log")
   if [[ "$rc" -ne "$want_rc" ]]; then
@@ -296,6 +301,37 @@ if [[ "$(lookups)" -eq 0 ]] && ! grep -q 'actions/runs/' "$TMP_ROOT/log"; then
 else
   fail "a pull request event read a verdict: '$(sort -u "$TMP_ROOT/log")'"
 fi
+
+# disarms: the auto-merge mutations the last run sent.
+disarms() { grep -c '^api graphql .*disablePullRequestAutoMerge' "$TMP_ROOT/log"; }
+# no_disarm <label>: the last run sent no disarm.
+no_disarm() {
+  if [[ "$(disarms)" -eq 0 ]]; then ok "$1"; else fail "$1: it sent a disarm"; fi
+}
+STUB_PULL="$(STUB_ARMED=1 pull 'Closes #1')"
+expect "a push to an armed lanes App pull request turns its auto-merge off" 0 3 "#7: a push moved its head, so its native auto-merge is off"
+if [[ "$(disarms)" -eq 1 ]] && grep -q -- '-f id=PR_7' "$TMP_ROOT/log"; then
+  ok "the push disarms it by its node id with one mutation"
+else
+  fail "the push sent $(disarms) disarm(s): '$(sort -u "$TMP_ROOT/log")'"
+fi
+STUB_PULL="$(STUB_ARMED=1 pull 'Closes #1')"
+export STUB_DISARM_FAILS=1
+expect "a disarm that fails only warns, so ci-status stays green for pr-verify" 0 3 "::warning::could not turn off native auto-merge on #7"
+unset STUB_DISARM_FAILS
+for action in edited labeled; do
+  STUB_PULL="$(STUB_ARMED=1 pull 'Closes #1')" ACTION=$action
+  expect "a $action event leaves an armed pull request armed" 0 3 "no hold path"
+  no_disarm "a $action event sends no disarm"
+done
+unset ACTION
+STUB_PULL="$(pull 'Closes #1')"
+expect "a push to an unarmed pull request sends no mutation" 0 3 "no hold path"
+no_disarm "an unarmed pull request is not disarmed"
+STUB_PULL="$(STUB_ARMED=1 pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
+expect "a push to a person's armed pull request is left to them" 0 0 "not the lanes App's"
+no_disarm "a person's pull request is not disarmed"
+STUB_PULL="$(pull 'Closes #1')"
 
 export EVENT=merge_group REF="$QUEUE" PR_NUMBER='' GROUP_BASE_SHA="$SHA" WANT_BASE="$SHA"
 export STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}"

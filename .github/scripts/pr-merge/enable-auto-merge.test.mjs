@@ -22,12 +22,10 @@ import {
   HUMAN_VETO,
   PULLS_QUERY,
   decide,
-  headPassVerify,
+  READER_EVENTS,
   main,
-  verifyFor,
   verifyHold,
 } from "./enable-auto-merge.mjs";
-import { headRefDigest } from "../pr-verify/write-verdict.mjs";
 import { VERIFY_PATH, verdictHold } from "./merge-holds.mjs";
 import { VERIFY_PATH as RESOLVER_VERIFY_PATH } from "../pr-verify/resolve-pr.mjs";
 import { decide as decideOutcome } from "../work-resolve-issue/report-outcome.mjs";
@@ -36,6 +34,7 @@ const REPO = "melodic-software/claude-code-plugins";
 const LANES = { __typename: "Bot", login: "melodic-automation-lanes" };
 const HEAD = "b".repeat(40);
 const ENV = {
+  EVENT_NAME: "schedule",
   GITHUB_REPOSITORY: REPO,
   KILL_SWITCH: "proceed",
   REPORT_ONLY: "false",
@@ -492,113 +491,37 @@ test("verdictHold names the verifier workflow the resolver and the gate name", (
   assert.equal(VERIFY_PATH, RESOLVER_VERIFY_PATH);
 });
 
-// Event runs look the head's own pass up by exact name, as ci-status does in
-// the merge queue; only the scheduled run spends the full reader.
-test("the scheduled run reads with the gate's reader, every event run by exact name", () => {
-  const env = { GITHUB_REPOSITORY: REPO };
-  assert.equal(verifyFor({ ...env, EVENT_NAME: "schedule" }, null).mode, "reader");
-  assert.equal(verifyFor({ ...env, EVENT_NAME: "workflow_dispatch" }, null).mode, "reader");
-  for (const event of ["workflow_run", "pull_request_target", undefined]) {
-    assert.equal(verifyFor({ ...env, EVENT_NAME: event }, null).mode, "head-pass", String(event));
+// Only the gate's full reader arms, so native merge refuses what the gate
+// refuses; an event run disarms on a hold and reads no verdict.
+test("only the scheduled run and a hand-started one read the verdict and arm", () => {
+  assert.deepEqual([...READER_EVENTS], ["schedule", "workflow_dispatch"]);
+});
+
+test("an event run arms nothing and reads neither discussion nor verdict for an unarmed pull request", async () => {
+  for (const event of ["workflow_run", "pull_request_target"]) {
+    const { code, writes, verified, lines } = await run([pull(1)], { EVENT_NAME: event });
+    assert.equal(code, 0);
+    assert.deepEqual(writes, []);
+    assert.deepEqual(verified, []);
+    assert.ok(lines.some((line) => /#1 left: only a scheduled or hand-started run arms it/.test(line)), event);
   }
 });
 
-function actionsWorld(artifacts, runs) {
-  const reads = [];
-  const actions = async (method, path) => {
-    reads.push(path);
-    assert.equal(method, "GET");
-    const byName = /\/actions\/artifacts\?name=([^&]+)&per_page=100$/.exec(path);
-    if (byName) {
-      const name = decodeURIComponent(byName[1]);
-      return {
-        artifacts: [
-          ...(artifacts[name] ?? []).map((id) => ({ name, expired: false, workflow_run: { id } })),
-          { name, expired: true, workflow_run: { id: 1 } },
-          { name: `${name}-i1`, expired: false, workflow_run: { id: 1 } },
-        ],
-      };
-    }
-    const run = /\/actions\/runs\/([0-9]+)$/.exec(path);
-    if (run && runs[run[1]]) {
-      return runs[run[1]];
-    }
-    throw new Error(`GET ${path} failed with status 404`);
-  };
-  return { actions, reads };
-}
-
-test("headPassVerify passes on a successful pr-verify run's pass at the head, by exact name", async () => {
-  const good = {
-    path: VERIFY_PATH,
-    event: "workflow_run",
-    head_branch: "main",
-    status: "completed",
-    conclusion: "success",
-    repository: { full_name: REPO },
-    head_repository: { full_name: REPO },
-  };
-  const runs = { 1: good, 11: good, 12: { ...good, conclusion: "failure" }, 13: { ...good, path: ".github/workflows/x.yml" } };
-  const digest = headRefDigest("work-resolve-issue/issue-1");
-  const target = pull(7, { headRefName: "work-resolve-issue/issue-1" });
-  const check = async (artifacts) => {
-    const { actions, reads } = actionsWorld(artifacts, runs);
-    return { ...(await headPassVerify(actions, REPO)(target)), lookups: reads.filter((path) => path.includes("artifacts?name=")).length };
-  };
-  assert.deepEqual(await check({ [`pr-verify-7-${HEAD}-pass`]: [11] }), { refusal: null, head: HEAD, lookups: 1 });
-  assert.deepEqual(await check({ [`pr-verify-7-${HEAD}-pass-notes-${digest}`]: [11] }), { refusal: null, head: HEAD, lookups: 4 });
-  assert.deepEqual(await check({}), { refusal: "verify:missing", head: HEAD, lookups: 4 });
-  assert.deepEqual(await check({ [`pr-verify-7-${"c".repeat(40)}-pass`]: [11] }), { refusal: "verify:missing", head: HEAD, lookups: 4 });
-  assert.deepEqual(await check({ [`pr-verify-8-${HEAD}-pass`]: [11] }), { refusal: "verify:missing", head: HEAD, lookups: 4 });
-  assert.deepEqual(await check({ [`pr-verify-7-${HEAD}-pass`]: [12] }), { refusal: "verify:missing", head: HEAD, lookups: 4 });
-  assert.equal((await check({ [`pr-verify-7-${HEAD}-pass`]: [13] })).refusal, "verify:missing");
-  // Another workflow's successful run under one name does not end the lookup
-  // before a later name's real pass.
-  assert.deepEqual(await check({ [`pr-verify-7-${HEAD}-pass`]: [13], [`pr-verify-7-${HEAD}-pass-${digest}`]: [11] }), {
-    refusal: null,
-    head: HEAD,
-    lookups: 2,
-  });
-  await assert.rejects(check({ [`pr-verify-7-${HEAD}-pass`]: [99] }), /404/);
-});
-
-test("an event run arms on the head's pass and leaves a head with none", async () => {
-  const { github, writes } = world([pull(1), pull(2)]);
-  const { actions } = actionsWorld({ [`pr-verify-1-${HEAD}-pass`]: [11] }, {
-    11: {
-      path: VERIFY_PATH,
-      event: "workflow_run",
-      head_branch: "main",
-      status: "completed",
-      conclusion: "success",
-      repository: { full_name: REPO },
-      head_repository: { full_name: REPO },
-    },
-  });
-  const log = console.log;
-  console.log = () => {};
-  try {
-    assert.equal(await main({ env: { ...ENV, EVENT_NAME: "workflow_run" }, github, actions }), 0);
-  } finally {
-    console.log = log;
-  }
-  assert.deepEqual(writes(), [{ mutation: "arm", id: "PR_1", head: HEAD }]);
-});
-
-test("an event run leaves an armed pull request armed without reading its verdict", async () => {
-  const { github, writes } = world([pull(1, { autoMergeRequest: { enabledAt: "2026-10-23T10:00:00Z" } })]);
-  const { actions, reads } = actionsWorld({}, {});
-  const lines = [];
-  const log = console.log;
-  console.log = (line) => lines.push(line);
-  try {
-    assert.equal(await main({ env: { ...ENV, EVENT_NAME: "pull_request_target" }, github, actions }), 0);
-  } finally {
-    console.log = log;
-  }
-  assert.deepEqual(writes(), []);
-  assert.deepEqual(reads, []);
-  assert.ok(lines.some((line) => /#1 left: already armed; the next reader run checks its verdict/.test(line)));
+test("an event run still disarms an armed pull request that now holds", async () => {
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  const { writes, verified } = await run(
+    [
+      pull(1, { autoMergeRequest: armed, labels: labels("do-not-merge") }),
+      pull(2, { autoMergeRequest: armed, discussion: { comments: [said("kyle-sexton", "do not merge", "2026-10-23T10:00:00Z")] } }),
+      pull(3, { autoMergeRequest: armed }),
+    ],
+    { EVENT_NAME: "pull_request_target" },
+  );
+  assert.deepEqual(writes, [
+    { mutation: "disarm", id: "PR_1" },
+    { mutation: "disarm", id: "PR_2" },
+  ]);
+  assert.deepEqual(verified, []);
 });
 
 test("a reader that fails, prints no JSON or reports another head arms nothing and disarms", async () => {
@@ -624,7 +547,7 @@ test("a reader that fails, prints no JSON or reports another head arms nothing a
     const log = console.log;
     console.log = () => {};
     try {
-      await main({ env, github, actions: async () => assert.fail("the reader path reads no Actions API itself") });
+      await main({ env, github });
     } finally {
       console.log = log;
     }

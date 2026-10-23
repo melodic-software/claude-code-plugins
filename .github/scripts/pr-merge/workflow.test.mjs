@@ -191,8 +191,11 @@ test("enable-auto-merge asks the broker for its own activity's merge token", () 
     assert.ok(arm.includes(`\n          ${line}\n`), line);
   }
   assert.match(arm, /node \.base\/\.github\/scripts\/pr-merge\/head-ref-map\.mjs read\n/);
-  // Only the scheduled run spends the full reader, so only it reads the map.
-  assert.match(arm, /- name: Read the head refs the last gate run kept\n {8}if: steps\.lane-token\.outputs\.token != '' && github\.event_name == 'schedule'\n/);
+  // Only the runs that read the verdict (READER_EVENTS) read the map.
+  assert.match(
+    arm,
+    /- name: Read the head refs the last gate run kept\n {8}if: steps\.lane-token\.outputs\.token != '' && \(github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch'\)\n/,
+  );
   assert.match(arm, /MAX_VERIFY_FAILS=\$\(yq '\.merge\."max-verify-fails" \/\/ ""' "\$config"\)\n/);
 });
 

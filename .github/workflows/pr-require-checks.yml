@@ -3879,8 +3879,10 @@ jobs:
       # it. Only in the queue: pr-verify runs only after a successful
       # pull_request run of this workflow, so a red ci-status there would
       # never get a verdict, and a pull request event reads nothing for it.
-      # Whatever a push after arming does to the request, the queue checks
-      # the head it merges.
+      # A push to an armed lanes App pull request turns its auto-merge off
+      # (one mutation, no read), so enable-auto-merge's reader judges each
+      # new head before it is armed again; the queue still checks the head
+      # it merges.
       # FAILs and the repeated-FAIL cap are enable-auto-merge.mjs's.
       # Pinned by scripts/ci-lanes-pr-hold.test.sh, which runs this body.
       - name: Fail a lanes App pull request its body or a member holds
@@ -3888,6 +3890,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_ACTION: ${{ github.event.action }}
           GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
         run: |
           lanes_app_id=337595936
@@ -3930,6 +3933,20 @@ jobs:
               exit 0
             fi
             BASE_SHA=$(jq -r '.base.sha' <<<"$pull")
+            # A push gives an armed pull request a head enable-auto-merge's
+            # reader has not judged: turn its auto-merge off until a reader
+            # run arms the new head. A failure only warns, so it cannot hold
+            # ci-status red and keep pr-verify from judging the head; the
+            # merge queue still needs a pass at the head it merges.
+            if [ "${EVENT_ACTION:-}" = synchronize ] && jq -e '.auto_merge != null' <<<"$pull" >/dev/null; then
+              # shellcheck disable=SC2016 # $id is a GraphQL variable
+              if gh api graphql -f query='mutation($id: ID!) { disablePullRequestAutoMerge(input: {pullRequestId: $id}) { clientMutationId } }' \
+                -f id="$(jq -r '.node_id' <<<"$pull")" >/dev/null; then
+                echo "#$pr: a push moved its head, so its native auto-merge is off until enable-auto-merge's next scheduled run judges the new head."
+              else
+                echo "::warning::could not turn off native auto-merge on #$pr after a push to its head; the merge queue still needs a pr-verify pass at the head it merges."
+              fi
+            fi
           fi
           if [[ ! $BASE_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
