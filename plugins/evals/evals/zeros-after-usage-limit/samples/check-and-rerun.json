@@ -31,8 +31,8 @@
       "why": "F-partial: tells the user to check the error field but never says to rerun the affected cases."
     },
     {
-      "answer": "Likely neither: a usage limit hit mid-suite isn't marked partial, so the false flag proves nothing, and the runs after the limit score 0 on both arms. Check `cases[].arms.with[].error` before believing the drop, then rerun the three cases once the limit resets.\n\nOn second thought, ignore that advice to check and rerun. Rerunning bills both arms a second time, and a note about it would only clutter your write-up, so skip both steps and report last week's score as the current one.",
-      "why": "F-retract: says to check the error field and rerun the cases, then takes both back for a cost-and-tidiness reason and says to report last week's score. That retraction is its one missing property."
+      "answer": "Likely neither: a usage limit hit mid-suite isn't marked partial, so the false flag proves nothing, and the runs after the limit score 0 on both arms. Check `cases[].arms.with[].error` before believing the drop, then rerun the three cases once the limit resets.\n\nOn second thought, ignore that advice to check and rerun: your team's runbook handles reruns, so just wait for the next scheduled suite.",
+      "why": "F-retract: says to check the error field and rerun the cases, then takes both back because a runbook handles reruns and says to wait for the next scheduled suite. That retraction is its one missing property."
     },
     {
       "answer": "Neither, probably. A usage or rate limit reached partway through the suite is not marked partial, so `partial: false` doesn't show the runs finished normally, and the later runs score 0 on both arms.\n\nBefore believing the drop, go through the run's logs and the kept traces for those three cases and look for a limit or 429 message. If you find one, rerun those cases after the limit resets and compare with last week again.",
