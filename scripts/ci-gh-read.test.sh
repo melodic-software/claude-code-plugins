@@ -1,0 +1,248 @@
+#!/usr/bin/env bash
+# Runs the `Write the rate-limit-aware read helper` step body of
+# .github/workflows/pr-require-checks.yml's ci-status, then calls the gh_read
+# function it writes, under bash -e, against stub `gh`, `sleep` and `date`.
+#
+# gh_read runs `gh api`. On a rate limit it waits once and reads again, taking
+# the wait from the headers of one `gh api -i` probe to the same resource:
+# retry-after seconds, else five seconds past x-ratelimit-reset while
+# remaining is 0, one second when the probe shows the limit cleared, else
+# 60 s. A wait that would end past the deadline the step sets (the job's
+# timeout less a margin, from when the step runs) fails the read at once
+# naming the reset and blocks that resource until it. Any other failure
+# returns at once.
+# test-scope: .github/workflows/pr-require-checks.yml
+# shellcheck disable=SC2016 # the step snippets are literal
+set -uo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+WORKFLOW="$ROOT/.github/workflows/pr-require-checks.yml"
+
+# shellcheck source=lib/test-harness.sh
+. "$ROOT/scripts/lib/test-harness.sh"
+# shellcheck source=lib/ci-gh-read.sh
+. "$ROOT/scripts/lib/ci-gh-read.sh"
+
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+
+if ! ci_gh_read::install "$WORKFLOW" "$TMP_ROOT"; then
+  fail "no working 'Write the rate-limit-aware read helper' step, or no GH_READ_* env, in $WORKFLOW"
+  test_harness::report
+  exit 1
+fi
+
+job="$(awk '/^  ci-status:$/ { on = 1 } on && /^  [a-z-]+:$/ && !/ci-status/ { exit } on { print }' "$WORKFLOW")"
+timeout="$(sed -nE 's/^    timeout-minutes: ([0-9]+)$/\1/p' <<<"$job")"
+job_seconds="$(sed -nE 's/^      GH_READ_JOB_SECONDS: ([0-9]+)$/\1/p' <<<"$job")"
+margin="$(sed -nE 's/^      GH_READ_MARGIN_SECONDS: ([0-9]+)$/\1/p' <<<"$job")"
+if [[ -n "$timeout" && "$job_seconds" == $((timeout * 60)) ]]; then
+  ok "GH_READ_JOB_SECONDS ($job_seconds) is ci-status's timeout-minutes ($timeout) in seconds"
+else
+  fail "GH_READ_JOB_SECONDS '$job_seconds' is not ci-status's timeout-minutes '$timeout' in seconds"
+fi
+if [[ -n "$margin" && "$margin" -ge 240 && "$margin" -lt "${job_seconds:-0}" ]]; then
+  ok "the ${margin}s margin leaves room for aggregate-results' 202 s of waits and the setup"
+else
+  fail "the margin '$margin' does not leave room for the steps after a wait"
+fi
+want=$(($(date +%s) + job_seconds - margin))
+got="$(cat "$TMP_ROOT/gh-read.deadline")"
+if [[ "$got" -ge $((want - 5)) && "$got" -le "$want" ]]; then
+  ok "the step sets the deadline at its start plus the timeout less the margin"
+else
+  fail "the step set the deadline '$got', want about '$want'"
+fi
+if [[ "$job" != *"rate-limit-wait-seconds:"* ]]; then
+  ok "the pinned composites keep their own rate-limit-wait-seconds default"
+else
+  fail "ci-status passes rate-limit-wait-seconds to a composite, which the unchanged timeout does not hold"
+fi
+first="$(grep -m1 '^      - name: ' <<<"$job")"
+if [[ "$first" == "      - name: Write the rate-limit-aware read helper" ]]; then
+  ok "the helper is ci-status's first step, so no failure before it skips it"
+else
+  fail "ci-status's first step is '$first', not the helper"
+fi
+# Every step that reads through gh_read sources it first.
+while IFS= read -r name; do
+  body="$(awk -v name="      - name: $name" '$0 == name { on = 1; next } on && /^      - / { exit } on { print }' <<<"$job")"
+  if [[ "$body" == *$'        run: |\n          . "$RUNNER_TEMP/gh-read.sh"\n'* ]]; then
+    ok "'$name' sources gh_read before its reads"
+  else
+    fail "'$name' calls gh_read without sourcing it first"
+  fi
+done < <(awk '/^      - name: / { name = substr($0, 15) } /gh_read [-"]/ && name != "Write the rate-limit-aware read helper" { print name }' <<<"$job" | sort -u)
+# Every other `gh api` in the job is a write, or marked gh-read-exempt on the
+# line above, so a new fail-closed read cannot skip the wait unnoticed.
+stray="$(awk '/^      - name: / { helper = ($0 == "      - name: Write the rate-limit-aware read helper") }
+  !helper && /gh api / && $0 !~ /^ *#/ && $0 !~ /gh api -X (POST|DELETE|PATCH|PUT) / && prev !~ /# gh-read-exempt: / { print }
+  { prev = $0 }' <<<"$job")"
+if [[ -z "$stray" ]]; then
+  ok "every other gh api in ci-status is a write or marked gh-read-exempt"
+else
+  fail "ci-status reads through plain gh api without a gh-read-exempt mark: $stray"
+fi
+
+# The stub logs its arguments. A `gh api -i` probe (graphql, or any other path
+# for core) prints a response whose x-ratelimit-remaining, x-ratelimit-reset
+# and optional retry-after come from STUB_LIMIT_<resource> ("<remaining>
+# <reset> [<retry-after>]"), and fails with no output when that is unset. Any
+# other call takes the next line of STUB_SCRIPT: `ok <stdout>`, or
+# `fail <stderr>`.
+mkdir -p "$TMP_ROOT/bin"
+cat >"$TMP_ROOT/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$STUB_LOG"
+if [[ "$2" == -i ]]; then
+  [[ "$3" == graphql ]] && v=${STUB_LIMIT_graphql:-} || v=${STUB_LIMIT_core:-}
+  [[ -n "$v" ]] || exit 1
+  read -r remaining reset after <<<"$v"
+  printf 'HTTP/2.0 403 Forbidden\r\nX-Ratelimit-Remaining: %s\r\nX-Ratelimit-Reset: %s\r\n' "$remaining" "$reset"
+  [[ -z "$after" ]] || printf 'Retry-After: %s\r\n' "$after"
+  printf '\r\n{"message":"x"}\n'
+  [[ "$remaining" != 0 && -z "$after" ]] || exit 1
+  exit 0
+fi
+n=$(grep -vc '^api -i ' "$STUB_LOG")
+line=$(sed -n "${n}p" <<<"$STUB_SCRIPT")
+case $line in
+ok\ *) printf '%s\n' "${line#ok }" ;;
+fail\ *) printf '%s\n' "${line#fail }" >&2; exit 1 ;;
+*) echo "unscripted call $n" >&2; exit 1 ;;
+esac
+EOF
+cat >"$TMP_ROOT/bin/sleep" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$STUB_SLEEPS"
+EOF
+cat >"$TMP_ROOT/bin/date" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$STUB_NOW"
+EOF
+chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep" "$TMP_ROOT/bin/date"
+
+LIMITED='fail gh: API rate limit exceeded for installation. (HTTP 403)'
+NOW=1792800000
+
+# run <commands>: sources gh-read.sh, then runs <commands>, in one bash -e
+# step. The blocks and deadline stay from earlier runs until fresh.
+run() {
+  : >"$TMP_ROOT/log"
+  : >"$TMP_ROOT/sleeps"
+  out="$(PATH="$TMP_ROOT/bin:$PATH" RUNNER_TEMP="$TMP_ROOT" GITHUB_REPOSITORY=o/r STUB_LOG="$TMP_ROOT/log" STUB_SLEEPS="$TMP_ROOT/sleeps" \
+    STUB_NOW="${STUB_NOW:-$NOW}" bash -ec ". \"\$RUNNER_TEMP/gh-read.sh\"; $1" 2>&1)" && rc=0 || rc=$?
+  calls=$(grep -vc '^api -i ' "$TMP_ROOT/log")
+  sleeps=$(paste -sd' ' "$TMP_ROOT/sleeps")
+}
+fresh() { ci_gh_read::reset "$TMP_ROOT" $((NOW + 600)); }
+# check <label> <want-rc> <want-calls> <want-sleeps> [want-out] [refuse-out]
+check() {
+  if [[ "$rc" -ne "$2" ]]; then
+    fail "$1: expected rc=$2 got rc=$rc out='$out'"
+  elif [[ "$calls" -ne "$3" ]]; then
+    fail "$1: expected $3 read(s) got $calls: '$(cat "$TMP_ROOT/log")'"
+  elif [[ "$sleeps" != "$4" ]]; then
+    fail "$1: expected sleeps '$4' got '$sleeps'"
+  elif [[ -n "${5:-}" && "$out" != *"$5"* ]]; then
+    fail "$1: output lacks '$5': '$out'"
+  elif [[ -n "${6:-}" && "$out" == *"$6"* ]]; then
+    fail "$1: output has '$6': '$out'"
+  else
+    ok "$1"
+  fi
+}
+
+fresh
+STUB_SCRIPT='ok hello' run 'x=$(gh_read repos/o/r/pulls/1); echo "got $x"'
+check "a read that succeeds prints its output once" 0 1 "" "got hello"
+if [[ "$(cat "$TMP_ROOT/log")" == "api repos/o/r/pulls/1" ]]; then
+  ok "gh_read passes its arguments to gh api unchanged and sends no probe"
+else
+  fail "gh_read called '$(cat "$TMP_ROOT/log")'"
+fi
+
+fresh
+STUB_LIMIT_core="0 $((NOW + 30))" STUB_SCRIPT="$LIMITED
+ok after" run 'x=$(gh_read repos/o/r/pulls/1); echo "got $x"'
+check "a primary rate limit waits until five seconds past the reset and reads again" 0 2 "35" "got after" "got API"
+if [[ "$out" == *"::notice::'gh api repos/o/r/pulls/1' is rate limited (core); waiting 35s for the reset, then reading again."* ]]; then
+  ok "the wait is announced on the step's stderr even inside a capture"
+else
+  fail "the wait notice is missing: '$out'"
+fi
+
+if grep -qxF 'api -i repos/o/r' "$TMP_ROOT/log"; then
+  ok "a core read probes the repository with -i for the limit's headers"
+else
+  fail "a core read probed '$(grep '^api -i' "$TMP_ROOT/log")'"
+fi
+
+fresh
+STUB_LIMIT_core="0 $((NOW + 30)) 7" STUB_SCRIPT="$LIMITED
+ok after" run 'gh_read repos/o/r/pulls/1 >/dev/null'
+check "a retry-after header sets the wait" 0 2 "7"
+
+fresh
+STUB_LIMIT_graphql="0 $((NOW + 50))" STUB_LIMIT_core="4999 $((NOW + 9))" STUB_SCRIPT='fail gh: GraphQL: API rate limit already exceeded for installation ID 1.
+ok {}' run 'gh_read graphql -f query=x >/dev/null'
+check "a graphql read waits for the graphql reset, not the core one" 0 2 "55"
+
+fresh
+STUB_LIMIT_core="4999 $((NOW + 9))" STUB_SCRIPT='fail gh: You have exceeded a secondary rate limit. (HTTP 403)
+ok fine' run 'gh_read repos/o/r/pulls/1 >/dev/null'
+check "a secondary rate limit waits 60 s" 0 2 "60"
+
+fresh
+STUB_SCRIPT="$LIMITED
+ok fine" run 'gh_read repos/o/r/pulls/1 >/dev/null'
+check "a rate limit whose reset is unreadable waits 60 s" 0 2 "60"
+
+fresh
+STUB_LIMIT_core="4999 $((NOW + 3000))" STUB_SCRIPT="$LIMITED
+ok fine" run 'gh_read repos/o/r/pulls/1 >/dev/null'
+check "a primary limit whose window has already reset reads again after a second" 0 2 "1"
+
+fresh
+STUB_LIMIT_core="0 $((NOW + 30))" STUB_SCRIPT='fail gh: Forbidden (HTTP 403)
+ok fine' run 'gh_read repos/o/r/pulls/1 >/dev/null'
+check "a 403 while the core limit is at 0 is a rate limit" 0 2 "35"
+
+fresh
+STUB_LIMIT_core="0 $((NOW + 30))" STUB_SCRIPT="$LIMITED
+$LIMITED
+ok never" run 'gh_read repos/o/r/pulls/1 || echo "rc=$?"'
+check "a second rate limit after the wait fails the read without another wait" 0 2 "35" "rc=1"
+
+fresh
+STUB_LIMIT_core="0 $((NOW + 3000))" STUB_SCRIPT="$LIMITED" run 'gh_read repos/o/r/pulls/1 || echo "rc=$?"'
+check "a reset past the deadline fails the read at once" 0 1 "" \
+  "::error::GitHub's core API rate limit blocks 'gh api repos/o/r/pulls/1' until 2026-10-24T00:50:00Z, past the 2026-10-24T00:10:00Z ci-status can wait to inside its timeout; a re-run after 2026-10-24T00:50:00Z is needed."
+STUB_SCRIPT='ok never' run 'gh_read repos/o/r/pulls/2 || echo "rc=$?"'
+check "a later read of that resource, in a later step, before its reset fails without a call" 0 0 "" "rc=1" "::error::"
+STUB_SCRIPT='ok graphql' run 'gh_read graphql -f query=x'
+check "a block on core does not stop a graphql read" 0 1 "" "graphql"
+STUB_NOW=$((NOW + 3000)) STUB_SCRIPT='ok again' run 'gh_read repos/o/r/pulls/2'
+check "a read after that reset is sent" 0 1 "" "again"
+
+fresh
+STUB_LIMIT_core="0 $((NOW + 400))" STUB_SCRIPT="$LIMITED
+ok one" run 'gh_read repos/o/r/pulls/1 >/dev/null'
+check "a 405 s wait inside the deadline is taken" 0 2 "405"
+STUB_NOW=$((NOW + 560)) STUB_LIMIT_core="4999 $((NOW + 3600))" STUB_SCRIPT='fail gh: You have exceeded a secondary rate limit. (HTTP 403)' \
+  run 'gh_read repos/o/r/pulls/2 || echo "rc=$?"'
+check "a later step's wait that would end past the deadline is not taken" 0 1 "" "past the 2026-10-24T00:10:00Z ci-status can wait to"
+
+fresh
+STUB_SCRIPT='fail gh: Not Found (HTTP 404)' run 'gh_read repos/o/r/contents/x 2>"$RUNNER_TEMP/err" || echo "rc=$?"; grep -c "HTTP 404" "$RUNNER_TEMP/err"'
+check "any other error returns at once, its text on the caller's stderr" 0 1 "" $'rc=1\n1'
+if grep -q '^api -i ' "$TMP_ROOT/log"; then
+  fail "a 404 sent a rate-limit probe"
+else
+  ok "a 404 sends no rate-limit probe"
+fi
+fresh
+STUB_LIMIT_core="4999 $((NOW + 30))" STUB_SCRIPT='fail gh: Resource not accessible by integration (HTTP 403)' run 'gh_read repos/o/r/pulls/1 || echo "rc=$?"'
+check "a 403 that is not a rate limit returns at once" 0 1 "" "rc=1" "::error::"
+
+test_harness::report
