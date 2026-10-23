@@ -65,7 +65,7 @@
 #   morning-brief.sh --rec-maxlen N           truncate RECOMMENDED previews (default 240; 0 = full)
 #   morning-brief.sh --pr-limit N             cap on per-PR reads: REST merge state, and base freshness of clean PRs (default 50)
 #   morning-brief.sh --lane-workflows A,B     pin the lane workflow files the lanes section reads
-#   morning-brief.sh --lane-read-limit N      cap on lane runs whose job annotations are read (default 200)
+#   morning-brief.sh --lane-read-limit N      cap on lane runs whose job annotations are read, the newest 3 of each lane first (default 200)
 #   morning-brief.sh --max-turns-hits N       max-turns hits per activity and profile above which
 #                                             the lanes model-usage table prints RECOMMENDED (default: unset)
 #   morning-brief.sh --org ORG                GitHub org whose billing the cost section reads
@@ -1936,6 +1936,13 @@ LANE_DEFS='
     elif test("class=max-turns(?![a-z-])|error_max_turns|exceeding the configured maximum of [0-9]+|maximum number of turns"; "i") then "max-turns"
     else "other" end;
   def hot($cap): $cap != null and . != null and . * 100 >= 80 * $cap;
+  # The v1 lane-outcome records in a run text, at most 8: after each marker,
+  # the shortest prefix ending at a "}" that parses, since free text may follow
+  # the JSON. A record whose credential or fallback is not an object is dropped.
+  def records:
+    [ split("lane-outcome ")[1:9][] | .[:1100] | split("}") as $p
+      | first(range(1; $p | length) as $k | $p[:$k] | join("}") + "}" | fromjson? | objects) ]
+    | map(select(.v == 1 and (.credential | type) == "object" and ((.fallback // {}) | type) == "object"));
   def lane_runs($wf):
     ($ann[0]) as $texts
     | ($wf | sub("\\.ya?ml$"; "")) as $lane
@@ -2017,6 +2024,27 @@ MODELS_JQ="$LANE_DEFS"'
        | "    RECOMMENDED: \(.name) profile=\(.profile) hit max-turns \(.hits) times, over the threshold of \($threshold); raise its max-turns or route it to a stronger profile in the models: table")
      end)
 '
+# The key lines: per credential role named by the runs' lane-outcome records,
+# the runs whose key was refused (a fallback for auth, or a key leg that
+# failed with class auth) and the runs that fell back on a credit stop. The
+# fallback reason, not the class, marks a credit stop: pr-verify records one
+# as class rate-limit. The secret to replace is the role's
+# <ROLE>_CLAUDE_API_KEY, the name the record contract builds the role from.
+# shellcheck disable=SC2016  # jq variables, as above
+KEYS_JQ="$LANE_DEFS"'
+  [ $lanes[] as $wf | lane_runs($wf)[] | ($ann[0][.id | tostring] // "" | records)
+    | map(select(.credential.role | strings | test("\\A[A-Z0-9_]+\\z")))
+    | group_by(.credential.role)[]
+    | {role: .[0].credential.role,
+       auth: any(.[]; .fallback.reason == "auth" or (.credential.kind == "api-key" and .class == "auth")),
+       credit: any(.[]; .fallback.reason == "credit-stop")} ]
+  | group_by(.role)[]
+  | length as $m
+  | (map(select(.auth)) | length) as $a
+  | (map(select(.credit)) | length) as $c
+  | (if $a > 0 then "  KEY: \(.[0].role) auth (fallback on \($a) of \($m) runs read) — replace \(.[0].role)_CLAUDE_API_KEY" else empty end),
+    (if $c > 0 then "  KEY: \(.[0].role) credit-stop (\($c) of \($m)) — rotate a spare key into \(.[0].role)" else empty end)
+'
 
 LANES_PARTIAL=0
 CALLER_JOB_RE='^([a-z0-9][a-z0-9-]*) / '
@@ -2039,8 +2067,9 @@ fetch_lane_runs() {
 }
 
 # fetch_lane_annotations RUNSFILE OUTFILE: the joined job annotations of up to
-# LANE_READ_LIMIT finished runs, by run id: failed runs first, then the rest,
-# each newest first. A run whose read failed is left out, which the rendering
+# LANE_READ_LIMIT finished runs, by run id: the newest 3 of each lane whatever
+# their conclusion, so a key handed off on a successful run still shows, then
+# failed runs, then the rest, each newest first. A run whose read failed is left out, which the rendering
 # shows as unread. A job a reusable workflow ran is named "<caller job> / <job>";
 # the pipeline lanes name each caller job after its activity, so such a job
 # with annotations adds an `activity=<caller job>` line. That name comes from
@@ -2049,8 +2078,9 @@ fetch_lane_runs() {
 fetch_lane_annotations() {
   local runs="$1" out="$2" id jid jname ids n
   : >"$WORK/lane.ann"
-  ids="$(jq -r '[ .[][] | select(.status == "completed" and .conclusion != "skipped") ]
-    | sort_by(.created_at) | reverse | sort_by(.conclusion != "failure") | .[].id' "$runs")"
+  ids="$(jq -r 'map_values(map(select(.status == "completed" and .conclusion != "skipped")) | sort_by(.created_at) | reverse)
+    | ([ .[][:3][].id ]) as $newest
+    | $newest + ([ [.[][]] | sort_by(.created_at) | reverse | sort_by(.conclusion != "failure") | .[].id ] - $newest) | .[]' "$runs")"
   n="$(grep -c . <<<"$ids")"
   ((n > LANE_READ_LIMIT)) && LANES_PARTIAL=$((n - LANE_READ_LIMIT))
   for id in $(head -n "$LANE_READ_LIMIT" <<<"$ids"); do
@@ -2063,7 +2093,11 @@ fetch_lane_annotations() {
         ok=0
         break
       }
-      jq -r '.[]?.message // empty' "$WORK/lane.one" >>"$WORK/lane.msgs" 2>/dev/null
+      # A message's lane-outcome record comes before its free text, so a later
+      # marker in the same message is text, never a record.
+      jq -r '.[]?.message // empty | split("lane-outcome ")
+        | if length > 2 then .[0] + "lane-outcome " + (.[1:] | join("lane-outcome-")) else join("lane-outcome ") end' \
+        "$WORK/lane.one" >>"$WORK/lane.msgs" 2>/dev/null
       [[ "$jname" =~ $CALLER_JOB_RE ]] && jq -e 'length > 0' "$WORK/lane.one" >/dev/null 2>&1 &&
         echo "activity=${BASH_REMATCH[1]}" >>"$WORK/lane.msgs"
     done < <(jq -r -s '.[].jobs[]? | [.id, (.name // "")] | @tsv' "$WORK/lane.jobs" 2>/dev/null)
@@ -2130,7 +2164,14 @@ print_lanes() {
     return
   }
   echo "$rows"
-  ((LANES_PARTIAL)) && echo "  PARTIAL: annotations read for $LANE_READ_LIMIT runs, failed runs first; $LANES_PARTIAL more were not read (raise --lane-read-limit)"
+  ((LANES_PARTIAL)) && echo "  PARTIAL: annotations read for $LANE_READ_LIMIT runs, the newest 3 of each lane and then failed runs first; $LANES_PARTIAL more were not read (raise --lane-read-limit)"
+  rows="$(jq -n -r --argjson since "$since" --slurpfile runs "$runs" --slurpfile ann "$ann" \
+    --argjson lanes "$(printf '%s\n' "${LANE_WORKFLOWS[@]}" | jq -R . | jq -s .)" "$KEYS_JQ" 2>&1)" || {
+    UNREADABLE=$((UNREADABLE + 1))
+    UNREADABLE_NAMES+=(lanes)
+    rows="  UNREADABLE: could not parse the lane-outcome records: ${rows%%$'\n'*}"
+  }
+  [[ -n "$rows" ]] && echo "$rows"
   rows="$(jq -n -r --argjson since "$since" --slurpfile runs "$runs" --slurpfile ann "$ann" \
     --argjson threshold "${MAX_TURNS_HITS:-null}" \
     --argjson lanes "$(printf '%s\n' "${LANE_WORKFLOWS[@]}" | jq -R . | jq -s .)" "$MODELS_JQ" 2>&1)" || {
