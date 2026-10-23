@@ -4385,7 +4385,10 @@ test("no subscription leg's if: reads a read runner run-job output", () => {
 });
 
 // #9365: address-feedback's and review-dependency's fallback calls start as
-// fix-ci's do, on a base job's jobs-API read of the first call's report.
+// fix-ci's do, on a base job's jobs-API read of the first call's report. The
+// read runner's report job is one job for every activity: run 39894065797's
+// listing names "address-feedback / report" with its "Post the check run"
+// step and "address-feedback / broker-check" with its broker step.
 test("pr-unblock.yml: address-feedback's and review-dependency's fallback calls start on a handoff job's jobs-API read, never on a model call's output", (t) => {
   const { jobs } = workflow("pr-unblock.yml");
   const helper = jobs["fix-ci-handoff"].steps[0];
