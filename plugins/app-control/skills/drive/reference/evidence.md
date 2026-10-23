@@ -12,6 +12,13 @@ One directory per run: `--out <dir>` when given, else a new temporary directory 
 report prints. It holds `report.md`, `report.json` and the artifacts. Each artifact name carries the
 feature and entry point it came from, for example `checkout-cart-02-screenshot.png`.
 
+Raw captures (traces, profiles, heap snapshots, recordings) are written straight into this
+directory and kept as evidence. Drive's `cleanup` never deletes them: it checks that each one exists
+and is not empty, and deletes only the scripts and temporary directories the run made for itself.
+The run directory and everything in it stay until the caller or the person deletes them. A heap
+snapshot or trace can hold whatever the process held in memory, secrets included, so the report
+names each raw capture's path.
+
 ## report.md
 
 For a person. It lists, in order: the mode and the control skill (or the line

@@ -41,9 +41,10 @@ in its manual before writing the command.
 Prefer a command that launches the app as a child of the profiler where the tool supports it: it
 records only what the run started.
 
-A `## Capture` command never carries an elevation prefix (`sudo`, `doas`, `runas`). When a capture
-needs root or administrator rights, elevate only the recorder against the app's pid, never the app,
-and leave the elevation to drive's shown-script step.
+A `## Capture` command never carries an elevation prefix (such as `sudo`, `doas` or `runas`). When
+a capture needs root or administrator rights, elevate only the recorder against the app's pid, never
+the app, and leave the elevation to drive's shown-script step. Drive also takes that step when an
+unprefixed command fails for lack of permission.
 
 Manuals, each record a pointer, as-of date and recheck trigger:
 

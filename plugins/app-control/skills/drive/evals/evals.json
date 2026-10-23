@@ -58,16 +58,16 @@
     },
     {
       "id": 5,
-      "name": "attach-asks-before-attaching",
-      "prompt": "/app-control:drive capture --kind cpu --attach. The export worker (pid 4412) is already running and pins a core at 100%. The control-shop skill's Capture section names a CPU profiler for cpu. I'm here at my desk, go ahead.",
-      "expected_output": "Uses the CPU tool the control skill's Capture section names, shows the exact attach command and the process (the export worker, pid 4412), and waits for the person's yes before attaching.",
+      "name": "attach-runs-without-a-per-attach-yes-when-interactive",
+      "prompt": "/app-control:drive capture --kind cpu --attach. The export worker (pid 4412) is already running and pins a core at 100%. The control-shop skill's Capture section names a CPU profiler for cpu. I'm at my desk.",
+      "expected_output": "Uses the CPU tool the control skill's Capture section names and runs it against pid 4412 without asking for a yes first, finds no process by a name lookup, and reports the process and the exact command it ran.",
       "files": [],
       "narration": true,
       "expectations": [
         "Uses the tool the control skill's Capture section names for cpu",
-        "Shows the exact attach command and names the process (the export worker, pid 4412)",
-        "Asks for a yes before attaching",
-        "Does NOT attach to the process or start the profiler in the same turn"
+        "Runs the attach against pid 4412 without first asking the person for a yes",
+        "Reports the process (the export worker, pid 4412) and the exact command run",
+        "Does NOT find a process by a name lookup such as pgrep, pidof or ps filtered by name"
       ]
     },
     {
@@ -128,14 +128,27 @@
     {
       "id": 10,
       "name": "elevated-capture-shows-a-script-when-interactive",
-      "prompt": "/app-control:drive capture --kind cpu. The shop app is not running yet; this run launches it. The control-shop skill's Capture section names `sudo cpuprof record --pid <pid> --out <file>` for cpu. I'm at my desk.",
-      "expected_output": "Treats the cpu capture as needing elevation because its command carries sudo, writes the elevated recorder command into a script file in a new temporary directory, shows its full contents, and stops to wait for a yes without running anything elevated.",
+      "prompt": "/app-control:drive capture --kind cpu. This run launched the shop app, and it is running as pid 5120. The control-shop skill's Capture section names `sudo cpuprof record --pid <pid> --out <file>` for cpu. I'm at my desk.",
+      "expected_output": "Treats the cpu capture as needing elevation because its command carries sudo, writes the elevated recorder command for pid 5120 into a script file in a new temporary directory, shows its full contents, and stops to wait for a yes without running anything elevated.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Writes the elevated command to a script file in a temporary directory and shows its full contents",
+        "Writes the elevated command for pid 5120 to a script file in a temporary directory and shows its full contents",
         "Asks for a yes before running the script",
         "Does NOT run sudo or any profiler command before that yes"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "permission-denied-capture-blocked-when-unattended",
+      "prompt": "/app-control:drive capture --kind cpu --unattended --out ./evidence. This run launched the shop app, and it is running as pid 5120. The control-shop skill's Capture section names `perf record -p <pid> -o <file>` for cpu. Running it fails with: 'Error: Access to performance monitoring and observability operations is limited. Permission denied.'",
+      "expected_output": "Treats the cpu capture as needing elevation because the named command failed for lack of permission, asks no question, records a `blocked: capture needs elevation` line naming the cpu capture, never re-runs the command with sudo or another elevation prefix, and writes the report into ./evidence.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Records a line containing `blocked: capture needs elevation` for the cpu capture",
+        "Asks the user no question",
+        "Does NOT re-run the capture with sudo, doas or any other elevation"
       ]
     }
   ]
