@@ -118,6 +118,40 @@ def test_mine_scopes_to_the_window_and_hints_classes(store):
     assert len(data["events"]) == 12
 
 
+def test_mine_tallies_the_next_tool_after_a_hook_block(store):
+    data = data_of(friction("mine", "--data-dir", str(store), *WINDOW))
+    rows = {(r["side"], r["key"]): r for r in data["rows"]}
+    tally = rows[("main", HOOK_KEY)]["next_tool"]
+    assert sum(t["count"] for t in tally.values()) == 1
+    assert all(t["ok"] + t["failed"] + t["unknown"] == t["count"] for t in tally.values())
+    assert "next_tool" not in rows[("main", "denied/rule/rule")]
+    markdown = friction("mine", "--data-dir", str(store), *WINDOW, "--format", "md").stdout
+    assert "Next tool after a hook-block denial" in markdown
+
+
+def test_aggregate_groups_next_tools_per_key_and_side():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("friction_under_test", SCRIPTS / "friction.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    def event(side: str, next_tool: str | None, next_ok: bool | None) -> dict:
+        return {"kind": "denied", "side": side, "cause": "hook", "key": "denied/hook/g/BLOCKED", "next_tool": next_tool, "next_ok": next_ok}
+
+    record = {"session_id": "s", "friction": {
+        "counts": {"main": {"denied/hook/g/BLOCKED": 3}, "sub": {"denied/hook/g/BLOCKED": 1}},
+        "events": [event("main", "Write", True), event("main", "Bash", False), event("main", None, None), event("sub", "Edit", True)],
+    }}
+    rows = {(r["side"], r["key"]): r for r in module.aggregate([record])["rows"]}
+    assert rows[("main", "denied/hook/g/BLOCKED")]["next_tool"] == {
+        "Write": {"count": 1, "ok": 1, "failed": 0, "unknown": 0},
+        "Bash": {"count": 1, "ok": 0, "failed": 1, "unknown": 0},
+        "none": {"count": 1, "ok": 0, "failed": 0, "unknown": 1},
+    }
+    assert list(rows[("sub", "denied/hook/g/BLOCKED")]["next_tool"]) == ["Edit"]
+
+
 def test_mine_project_and_session_filters(store):
     by_project = data_of(friction("mine", "--data-dir", str(store), "--since", "2026-07-01", "--project", "beta"))
     assert by_project["sessions"] == 1
