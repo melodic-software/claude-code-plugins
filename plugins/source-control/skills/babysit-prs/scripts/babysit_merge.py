@@ -110,7 +110,8 @@ Contract enforced here (encoded as code, not convention):
   promotion evidence is read, the kill switch is the workflow's own check
   passed as `--lane-kill-switch proceed` (missing or any other value stops),
   the rung cap is the workflow's `--lane-rung-cap` (empty is no cap),
-  only merges the identity enqueued are judged after the fact, and while
+  only merges the identity enqueued are judged after the fact, a person's
+  "do not merge" or blocking comment holds it (the autopilot tier's scan), and while
   `merge.report-only` is true `--merge` runs as a check that writes nothing.
   A Dependabot pull request there is its own class (`babysit_dependabot`):
   tier `auto` (every update non-major), or tier `review` with the review
@@ -972,6 +973,48 @@ def evaluate_decision_default_veto(
     return blockers, held
 
 
+def human_blocking_logins(
+    repo: str,
+    number: int,
+    reviews: list[dict[str, Any]],
+    review_comments: list[dict[str, Any]] | None,
+    actor_config: FeedbackConfig,
+) -> list[str]:
+    """The logins of the people whose comment asks to hold the merge, sorted.
+
+    A human "do not merge"/blocking comment that is not a formal
+    CHANGES_REQUESTED and not an unresolved inline thread (both gated by the
+    base gate) still halts an autonomous merge. The shared blocking-text and
+    severity predicates and `HUMAN_MERGE_VETO_RE` run over every human-authored
+    issue comment, review summary and inline review comment.
+    """
+    corpus: list[dict[str, Any]] = list(fetch_issue_comments(repo, number))
+    corpus.extend(reviews)
+    # Inline review-thread comments are neither issue comments nor review
+    # summaries; a human veto left inline whose thread is later resolved would
+    # otherwise escape both the base unresolved-thread gate and this scan.
+    if review_comments is None:
+        review_comments = fetch_pull_request_review_comments(repo, number)
+    corpus.extend(
+        {"author": normalized_rest_author(row), "body": row.get("body")}
+        for row in review_comments
+    )
+    logins: set[str] = set()
+    for item in corpus:
+        if actor_kind(item, actor_config) != "human":
+            continue
+        body = str(item.get("body") or "")
+        if (
+            has_blocking_text(body)
+            or has_blocking_severity(body)
+            or HUMAN_MERGE_VETO_RE.search(body)
+        ):
+            login = item.get("author")
+            login = login.get("login") if is_json_object(login) else login
+            logins.add(str(login or "unknown"))
+    return sorted(logins)
+
+
 def evaluate_autopilot_tier(
     repo: str,
     number: int,
@@ -1051,43 +1094,18 @@ def evaluate_autopilot_tier(
             "(need author != approver via bot identity, approval unchanged since head)"
         )
 
-    # A human "do not merge"/blocking comment that is not a formal
-    # CHANGES_REQUESTED and not an unresolved inline thread (both already gated
-    # above) still halts the tier. Reuse the shared blocking-text/severity
-    # predicates over every human-authored issue comment and review summary.
-    human_blocking: list[str] = []
-    corpus: list[dict[str, Any]] = list(fetch_issue_comments(repo, number))
-    corpus.extend(reviews)
-    # Inline review-thread comments are neither issue comments nor review
-    # summaries; a human veto left inline whose thread is later resolved would
-    # otherwise escape both the base unresolved-thread gate and this scan.
-    if review_comments is None:
-        review_comments = fetch_pull_request_review_comments(repo, number)
-    corpus.extend(
-        {"author": normalized_rest_author(row), "body": row.get("body")}
-        for row in review_comments
-    )
     # A configured approver/lane account GitHub misreports as a `User` classifies
     # as a bot here, so its clean review body ("no blocking issues") does not
     # self-block the very approval `find_distinct_bot_approval` accepted -- the
     # "a bot's blocking-looking prose is not a human stop" rule extends to
     # configured bots that lack a `[bot]` suffix.
-    for item in corpus:
-        if actor_kind(item, tier.automation_actor_config) != "human":
-            continue
-        body = str(item.get("body") or "")
-        if (
-            has_blocking_text(body)
-            or has_blocking_severity(body)
-            or HUMAN_MERGE_VETO_RE.search(body)
-        ):
-            login = item.get("author")
-            login = login.get("login") if is_json_object(login) else login
-            human_blocking.append(str(login or "unknown"))
+    human_blocking = human_blocking_logins(
+        repo, number, reviews, review_comments, tier.automation_actor_config
+    )
     if human_blocking:
         blockers.append(
             "human blocking comment(s) from "
-            + ", ".join(sorted(set(human_blocking)))
+            + ", ".join(human_blocking)
             + " -- resolve before an autopilot merge"
         )
 
@@ -1120,7 +1138,7 @@ def evaluate_autopilot_tier(
             if approval
             else None
         ),
-        "humanBlockingComments": sorted(set(human_blocking)),
+        "humanBlockingComments": human_blocking,
         "decisionDefaultHeldIssues": decision_default_held,
     }
     return blockers, tier_result
@@ -1710,6 +1728,33 @@ def evaluate(
             review_comments,
         )
         blockers.extend(tier_blockers)
+
+    # The pr-merge lane enqueues with no person present, so a person's comment
+    # asking to hold the merge holds it before the enqueue, as it holds the
+    # tier (which already ran the scan when configured).
+    if (
+        tier is None
+        and unattended is not None
+        and (unattended.inputs or {}).get("authority") == merge_policy.PR_MERGE
+    ):
+        if reviews is None:
+            reviews = fetch_pull_request_reviews(repo, number)
+        identity = unattended.agent_identity
+        vetoes = human_blocking_logins(
+            repo,
+            number,
+            reviews,
+            review_comments,
+            FeedbackConfig(
+                extra_bot_logins=frozenset({identity}) if identity else frozenset()
+            ),
+        )
+        if vetoes:
+            blockers.append(
+                "human blocking comment(s) from "
+                + ", ".join(vetoes)
+                + " -- a person asked to hold this merge"
+            )
 
     # The self-login exemption from the unprotected-base hold above exists for a
     # repository whose DEFAULT branch carries no rules -- a solo owner merging

@@ -889,6 +889,12 @@ except six:
 - **Post-merge check and merges in flight.** Only merges the agent identity enqueued count. A
   merge by a person or by another App, such as a release pull request, is not the lane's.
 
+The lane also runs the autopilot tier's human-veto scan before it enqueues: a person's issue
+comment, review summary or inline review comment that says "do not merge" (`HUMAN_MERGE_VETO_RE`)
+or carries blocking language or a blocking severity holds the pull request (`human blocking
+comment(s) from <logins>`). A bot's comment, or one by `merge.agent-identity`, holds nothing, and a
+bare "wait" is not a veto.
+
 An eligible pull request its score holds gets one `<!-- babysit-merge-risk -->` reasons comment
 naming the score, the reasons and the head. While `merge.report-only` is false, a run that finds the
 lane identity's reasons comment from an earlier run unchanged (same score, reasons and head) for at
