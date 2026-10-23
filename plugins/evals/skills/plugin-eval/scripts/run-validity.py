@@ -48,6 +48,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import sys
 
 MIN_PYTHON = (3, 8)
@@ -106,6 +107,7 @@ DENIAL_TEXT = "denied by your permission settings"  # in an is_error tool_result
 # The input a denial line prints: Read's file, or Grep's and Glob's search root,
 # else the call's first input value.
 TARGET_KEYS = ("file_path", "path")
+BASH_TOOL, BASH_COMMAND = "Bash", "command"
 
 # The suite's skill-fired convention and the no-trigger control markers.
 SKILL_TOOL = "Skill"
@@ -373,9 +375,28 @@ def check_rows(cases, runs_wanted, arms):
     )
 
 
+def rooted(path):
+    """True when path starts at a root. Not isabs: on Windows /tmp/x has no
+    drive, so Python 3.13+ isabs calls it relative, yet it names one place on the
+    current drive."""
+    return os.path.splitdrive(path or "")[1][:1] in (os.sep, os.altsep)
+
+
+def bash_paths(command):
+    """A Bash command's rooted arguments (a flag never starts at a root), or
+    (None,), which inside() counts as inside, when it has none or does not
+    parse."""
+    try:
+        tokens = shlex.split(command) if isinstance(command, str) else []
+    except ValueError:
+        tokens = []
+    return tuple(t for t in tokens if rooted(t)) or (None,)
+
+
 def denials(run):
     """Every denied tool call in one trace, keyed by tool_use_id, as (detail line,
-    target path or None)."""
+    the paths it targets: a Bash call's rooted arguments, else the target path or
+    None)."""
     calls, found = {}, {}
     for line in run.trace:
         for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
@@ -401,10 +422,15 @@ def denials(run):
         name, tool_input = call or calls.get(use_id, (None, {}))
         path = next((tool_input[k] for k in TARGET_KEYS if k in tool_input), None)
         target = path if path is not None else next(iter(tool_input.values()), "")
+        paths = (
+            bash_paths(tool_input.get(BASH_COMMAND))
+            if name == BASH_TOOL
+            else (path if isinstance(path, str) else None,)
+        )
         out.append(
             (
                 "%s: %s %s (%s)" % (run.where, name or "tool", target, run.trace_path),
-                path if isinstance(path, str) else None,
+                paths,
             )
         )
     return out
@@ -413,12 +439,9 @@ def denials(run):
 def inside(path, roots):
     """True unless path is rooted and neither under nor above any plugin root.
     An ancestor of a root covers the plugin's files, so it counts as inside; so
-    do no path, a relative path and no known root. Rooted, not isabs: on Windows
-    /tmp/x has no drive, so Python 3.13+ isabs calls it relative, yet it names
-    one place on the current drive. A root on another drive cannot hold path.
-    Symlinks resolve on both sides."""
-    rooted = os.path.splitdrive(path or "")[1][:1] in (os.sep, os.altsep)
-    if not rooted or not roots:
+    do no path, a relative path and no known root. A root on another drive
+    cannot hold path. Symlinks resolve on both sides."""
+    if not rooted(path) or not roots:
         return True
     path = os.path.realpath(path)
     drive = os.path.normcase(os.path.splitdrive(path)[0])
@@ -433,7 +456,9 @@ def same_as_clean(run, found, runs, roots):
     """True when a denied run scores the same as every denial-free run of its case
     in the same arm, the case has at least one, every sibling in that arm has a
     readable trace, and no with-arm denial is aimed inside the plugin."""
-    if run.arm == "with" and any(inside(path, roots) for _, path in found[run]):
+    if run.arm == "with" and any(
+        inside(path, roots) for _, paths in found[run] for path in paths
+    ):
         return False
     siblings = [
         r for r in runs if r.case is run.case and r.arm == run.arm and r is not run

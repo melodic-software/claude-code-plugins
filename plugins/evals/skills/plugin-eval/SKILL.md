@@ -282,7 +282,9 @@ Read in this order. Stopping early at any step is the finding.
 
    A with-arm denial aimed at or under the plugin's own directory, at a directory above it (which
    covers its files), or with no absolute path or no known plugin directory, is a FAIL: the agent
-   reached for a plugin file it could not read, so the fact belongs in the hub. Any other denial,
+   reached for a plugin file it could not read, so the fact belongs in the hub. A Bash denial's
+   paths are the absolute arguments of its command; one with none, or whose command does not
+   parse, has no absolute path. Any other denial,
    in either arm, is a warning only when that run scored the same as every denial-free run of its
    case in the same arm, so it left the score unchanged; with a different score, or no
    denial-free run to compare, it is a FAIL.

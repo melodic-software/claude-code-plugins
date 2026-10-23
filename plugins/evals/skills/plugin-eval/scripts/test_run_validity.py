@@ -310,22 +310,26 @@ class RunValidityTest(unittest.TestCase):
         missing=None,
         path: Optional[str] = "/tmp/claude-eval-x",
         root=None,
+        command=None,
     ):
         """The clean result at two runs per arm, measurable-criterion's second
         `arm` run denied a Grep aimed at `path` (None: no path) and scoring
         `score`; with first_denied, its first run of that arm is denied too; with
         also_with, the second with-arm run of the case at that index is denied as
         well; with missing, a (case index, arm, run index) whose tracePath does
-        not resolve; with root, the suite.root the plugin's directory is."""
-        tool_input = {"pattern": "judge"}
-        if path is not None:
+        not resolve; with root, the suite.root the plugin's directory is; with
+        command, the denied call is a Bash call running it instead."""
+        tool, tool_input = "Grep", {"pattern": "judge"}
+        if command is not None:
+            tool, tool_input = "Bash", {"command": command}
+        elif path is not None:
             tool_input["path"] = path
         trace = self.dir / "denied-root.jsonl"
         trace.write_text(
             '{"type":"system","subtype":"init","model":"claude-opus-5-5"}\n'
             '{"type":"result","is_error":false,"permission_denials":['
-            '{"tool_name":"Grep","tool_use_id":"g1","tool_input":%s}]}\n'
-            % json.dumps(tool_input),
+            '{"tool_name":"%s","tool_use_id":"g1","tool_input":%s}]}\n'
+            % (tool, json.dumps(tool_input)),
             encoding="utf-8",
         )
         data = load(self.write(self.clean()))
@@ -396,6 +400,41 @@ class RunValidityTest(unittest.TestCase):
         proc = self.denied_second_run("with", 1, root=self.PLUGIN, path=None)
         self.assertVerdict(proc, "INVALID", 1)
         self.assertIn("check permission denials: FAIL (1 denial in 1 run)", proc.stdout)
+
+    def test_a_with_arm_bash_denial_outside_the_plugin_scoring_the_same_is_a_warning(
+        self,
+    ):
+        proc = self.denied_second_run(
+            "with",
+            1,
+            root=self.PLUGIN,
+            command="cat /proc/sys/kernel/yama/ptrace_scope",
+        )
+        self.assertVerdict(proc, "VALID", 0)
+        self.assertIn("check permission denials: WARN (1 denial in 1 run", proc.stdout)
+
+    def test_a_with_arm_bash_denial_inside_the_plugin_is_a_fail(self):
+        for command in (
+            "cat %s/x" % self.PLUGIN,
+            "ls -la /proc %s/skills" % self.PLUGIN,
+            "ls /tmp/eval-r2",
+        ):
+            proc = self.denied_second_run("with", 1, root=self.PLUGIN, command=command)
+            self.assertVerdict(proc, "INVALID", 1)
+            self.assertIn(
+                "check permission denials: FAIL (1 denial in 1 run)", proc.stdout
+            )
+
+    def test_a_with_arm_bash_denial_with_no_rooted_path_is_a_fail(self):
+        for command in ("ls -la", "cat notes.txt", ""):
+            proc = self.denied_second_run("with", 1, root=self.PLUGIN, command=command)
+            self.assertVerdict(proc, "INVALID", 1)
+
+    def test_a_with_arm_bash_denial_that_does_not_parse_is_a_fail(self):
+        proc = self.denied_second_run(
+            "with", 1, root=self.PLUGIN, command="cat /proc/version 'unclosed"
+        )
+        self.assertVerdict(proc, "INVALID", 1)
 
     def test_a_without_arm_denial_scoring_like_its_clean_runs_is_a_warning(self):
         proc = self.denied_second_run("without", 1)
