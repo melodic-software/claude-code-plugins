@@ -6,14 +6,15 @@
 // agent-ready. Every fact is read from the API now, never from the event
 // payload. No model.
 //
-// Each new agent-ready is paced: at or over the issue lane's queued cap
-// (check-wip-cap.mjs, on or after wip.pause-from, or whenever a search answers
-// incomplete_results: true) a ready issue gets `admission-deferred` instead,
-// and with room for k admissions only the first k ready issues are labeled.
-// Every sweep revisits the open deferred issues oldest first, before the closed
-// ones: one still ready is labeled agent-ready within the room and loses
-// admission-deferred, a held one stays deferred, and any other loses
-// admission-deferred. Restarts, re-fires and relabels below
+// Each new agent-ready is paced: at or over the issue lane's queued cap, or
+// with the lane paused over its WIP or held cap (check-wip-cap.mjs, on or
+// after wip.pause-from, or whenever a search answers incomplete_results:
+// true) a ready issue gets `admission-deferred` instead, and with room for k
+// admissions only the first k ready issues are labeled. Every sweep revisits
+// the open deferred issues oldest first, before the closed ones: one still
+// ready is labeled agent-ready within the room and loses admission-deferred,
+// a held one, or one an open pull request in this repository names (intake
+// defers those), stays deferred, and any other loses admission-deferred. Restarts, re-fires and relabels below
 // re-run admitted issues and are never paced.
 //
 // On `schedule` it sweeps instead: every issue closed in the last
@@ -109,6 +110,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
+import { openPullsNaming } from "../intake-triage/admit.mjs";
 
 const LABEL = "agent-ready";
 const HUMAN_LABEL = "needs-human";
@@ -389,7 +391,12 @@ async function admitDeferred({ github, repo, humans, bot, gate }) {
         continue;
       }
       const { reason, held, deferred } = await refusal({ github, repo, number, humans, closes, bot });
-      if (reason === null) {
+      // Intake defers an issue an open pull request names; it waits here
+      // until no such pull request is open.
+      const pulls = reason === null ? openPullsNaming(await paginate(github, `/repos/${repo}/issues/${number}/timeline`), repo) : [];
+      if (pulls.length > 0) {
+        console.log(`label-unblocked: #${number} stays deferred: open pull request #${pulls[0]} names it`);
+      } else if (reason === null) {
         await admit({ github, repo, number, gate, deferred });
       } else if (held) {
         console.log(`label-unblocked: #${number} stays deferred: ${reason}`);

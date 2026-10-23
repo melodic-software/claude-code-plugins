@@ -359,6 +359,22 @@ describe("admit", () => {
     assert.match(done[0], /^POST \/repos\/o\/r\/issues\/7\/comments /);
   });
 
+  test("an open pull request that names it adds admission-deferred, so the sweep revisits it", async () => {
+    const fake = fakeGitHub({
+      timeline: [
+        {
+          event: "cross-referenced",
+          source: { issue: { number: 12, state: "open", pull_request: {}, repository_url: "https://api.github.com/repos/o/r" } },
+        },
+      ],
+    });
+    const result = await go(fake);
+    assert.equal(result.outcome, "waiting");
+    const done = writes(fake.calls);
+    assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [DEFERRED] })}`);
+    assert.match(done[1], /^POST \/repos\/o\/r\/issues\/7\/comments .*open pull request #12/);
+  });
+
   test("an issue already agent-ready is left alone", async () => {
     const fake = fakeGitHub({
       issue: issueOf({ labels: [{ name: READY }, { name: AGENT_READY }] }),

@@ -2106,9 +2106,10 @@ test("an issue already deferred is not labeled admission-deferred again", async 
 // A deferred issue, number 25, whose one blocker is closed; `deferredBy`
 // added its admission-deferred label (the lanes App by default).
 const deferredAdd = (actor, at = "2026-10-16T08:00:00Z") => ({ event: "labeled", label: { name: "admission-deferred" }, actor, created_at: at });
-const deferredWorld = ({ labels = ["admission-deferred"], sibling = "closed", queuedIssues = [], events = [deferredAdd(LANES_BOT)], openLanePrs = 0 } = {}) =>
+const deferredWorld = ({ labels = ["admission-deferred"], sibling = "closed", queuedIssues = [], events = [deferredAdd(LANES_BOT)], openLanePrs = 0, timeline = [] } = {}) =>
   world({
     openLanePrs,
+    timeline: { 25: timeline },
     deferred: [issue(25, { labels })],
     issues: { 25: issue(25, { labels }) },
     blockedBy: { 25: [issue(10, { state: "closed" }), issue(11, { state: sibling })] },
@@ -2148,6 +2149,25 @@ test("the sweep admits a deferred issue once under the queued cap, and keeps it 
   const at = deferredWorld({ queuedIssues: queuedN(24) });
   assert.equal(await sweep({ github: at.github }, PAUSING), 0);
   assert.deepEqual(writes(at.calls), []);
+});
+
+// A pull request in this repository that references issue 25, as the REST
+// timeline reports it.
+const namingPull = (state) => ({
+  event: "cross-referenced",
+  source: { issue: { number: 40, state, pull_request: {}, repository_url: `${API}/repos/${REPO}` } },
+});
+
+test("the sweep keeps a deferred issue deferred while an open pull request names it, and admits it once that closes", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const open = deferredWorld({ timeline: [namingPull("open")] });
+  assert.equal(await sweep({ github: open.github }, PAUSING), 0);
+  assert.deepEqual(writes(open.calls), []);
+  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+  assert.ok(lines.includes("label-unblocked: #25 stays deferred: open pull request #40 names it"), lines.join("\n"));
+  const closed = deferredWorld({ timeline: [namingPull("closed")] });
+  assert.equal(await sweep({ github: closed.github }, PAUSING), 0);
+  assert.deepEqual(writes(closed.calls), [labeled(25), undeferred(25)]);
 });
 
 test("while the issue lane is paused over its WIP cap the sweep keeps a deferred issue deferred, with queued room", async (t) => {

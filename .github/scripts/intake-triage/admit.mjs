@@ -23,12 +23,15 @@
 //   is room.
 //
 // A refusal a person must settle swaps `status: ready` for
-// `status: needs-decision`; a blocker or an open pull request keeps the issue
-// as it is (work-unblock admits it when its blocker closes). Either way one
-// App comment carrying ADMIT_MARKER says why. An issue already agent-ready, or
-// whose agent-ready was ever removed, is left alone. A refused or waiting issue
-// loses `admission-deferred`, so work-unblock's sweep, which does not read these
-// rules, cannot admit it later. Issue text can only
+// `status: needs-decision`; a blocker or an open pull request keeps
+// `status: ready`. Either way one App comment carrying ADMIT_MARKER says why.
+// An open pull request also adds `admission-deferred`: work-unblock's sweep
+// skips the issue while such a pull request is open and admits it once none
+// is. An issue that waits only on a blocker loses `admission-deferred`, and
+// work-unblock admits it when its blocker closes. A refused issue loses it
+// too, so the sweep, which does not read these rules, cannot admit it. An
+// issue already agent-ready, or whose agent-ready was ever removed, is left
+// alone. Issue text can only
 // refuse: it never satisfies a criterion the fields, labels or API decide.
 import { readFileSync } from "node:fs";
 
@@ -56,6 +59,18 @@ export function loadRules(path) {
   }
   return rules;
 }
+
+const here = (url, repository) =>
+  String(url ?? "")
+    .toLowerCase()
+    .endsWith(`/repos/${repository}`.toLowerCase());
+
+// The open pull requests in `repository` an issue's timeline says reference it.
+export const openPullsNaming = (timeline, repository) =>
+  timeline
+    .map((event) => (event?.event === "cross-referenced" ? event.source?.issue : null))
+    .filter((source) => source?.pull_request && source.state === "open" && here(source.repository_url, repository))
+    .map((source) => source.number);
 
 const names = (labels) => (labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
 
@@ -110,32 +125,21 @@ export function decide({ issue, verdict, rules, parent, blockers, timeline, even
   }
 
   const wait = [];
-  const here = (url) =>
-    String(url ?? "")
-      .toLowerCase()
-      .endsWith(`/repos/${repository}`.toLowerCase());
   for (const blocker of blockers) {
     const done =
       blocker.state === "closed" &&
-      here(blocker.repository_url) &&
+      here(blocker.repository_url, repository) &&
       (blocker.pull_request ? Boolean(blocker.pull_request.merged_at) : blocker.state_reason === "completed");
     if (!done) {
       wait.push(`blocker #${blocker.number} is not closed as completed`);
     }
   }
-  for (const event of timeline) {
-    const source = event?.source?.issue;
-    if (
-      event?.event === "cross-referenced" &&
-      source?.pull_request &&
-      source.state === "open" &&
-      here(source.repository_url)
-    ) {
-      wait.push(`open pull request #${source.number} names it`);
-    }
+  const pulls = openPullsNaming(timeline, repository);
+  for (const pull of pulls) {
+    wait.push(`open pull request #${pull} names it`);
   }
   if (wait.length > 0) {
-    return { verdict: "wait", reasons: wait };
+    return { verdict: "wait", reasons: wait, pulls };
   }
   return { verdict: "admit", reasons: [] };
 }
@@ -207,7 +211,11 @@ export async function admit({ github, repository, number, verdict, rules, humans
     return { outcome: "refused", reasons: decision.reasons };
   }
   if (decision.verdict === "wait") {
-    await undefer();
+    if (decision.pulls.length === 0) {
+      await undefer();
+    } else if (!names(issue.labels).includes(DEFERRED)) {
+      await github("POST", `${base}/labels`, { labels: [DEFERRED] });
+    }
     await sayWhy(github, repository, base, `Not admitted to the issue lane yet: ${reasons}.`);
     log(`admit: #${number} waits (${reasons})`);
     return { outcome: "waiting", reasons: decision.reasons };
