@@ -222,3 +222,21 @@ The merge gate reads severity from two plain-text lines, never HTML comments:
   it reports that have no inline comment (0 when none).
 
 A comment or summary without its one readable line counts every finding it holds as CRITICAL.
+
+**Hold for a person.** When the wrapper's output schema has a `hold` field, fill it as that
+schema defines it, only for these classes, each named by its criterion, with a reason naming the
+findings or files:
+
+- `critical-security`: one or more CRITICAL findings. Each keeps its `severity: CRITICAL` line and
+  its place in `critical-findings: <n>`; the hold adds to neither count.
+- `trust-gate`: the change touches `.github/standards/trusted-actors/**`,
+  `.github/actions/check-trusted-trigger/**`, a `CODEOWNERS` file or a `.gitmodules` file, with or
+  without a finding.
+
+An IMPORTANT or SUGGESTION finding, a `manifest <field>: flag` line short of CRITICAL, and every
+other finding is a normal finding and never sets `hold`. With no `hold` field in the schema,
+seat-run mode included, return none. Pointer: the field's shape is the output schema in the
+compose step of
+[ci-workflows `pr-review-cli.yml`](https://github.com/melodic-software/ci-workflows/blob/v0.64.0/.github/workflows/pr-review-cli.yml#L861-L884).
+As of: 2026-10-23. Recheck trigger: a ci-workflows release changes the `hold` schema or its
+criteria.
