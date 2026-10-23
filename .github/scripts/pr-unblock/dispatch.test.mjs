@@ -489,7 +489,7 @@ test("a 15-digit workflow_run_id is accepted", async () => {
 });
 
 // main against a fake API, with GITHUB_OUTPUT a real file it appends to.
-async function runMain(apiOptions, limits = LIMIT_DEFAULTS) {
+async function runMain(apiOptions, limits = LIMIT_DEFAULTS, now = undefined) {
   const dir = mkdtempSync(join(tmpdir(), "pr-unblock-dispatch-"));
   const output = join(dir, "output");
   writeFileSync(output, "");
@@ -502,7 +502,7 @@ async function runMain(apiOptions, limits = LIMIT_DEFAULTS) {
         GITHUB_OUTPUT: output,
         APP_SENDER_ID: String(LANES_APP),
       },
-      { api: fakeApi(apiOptions), sleep: async () => {}, log: () => {}, loadLimits: async () => limits, loadAdoption: async () => ({}) },
+      { api: fakeApi(apiOptions), sleep: async () => {}, log: () => {}, loadLimits: async () => limits, loadAdoption: async () => ({}), now },
     );
     return { code, output: readFileSync(output, "utf8") };
   } finally {
@@ -549,6 +549,35 @@ test("main records a review-dependency dispatch beside the conflict dispatches",
   const { code, output } = await runMain({ pages: [[pr(130), dependabot]] });
   assert.equal(code, 0);
   assert.equal(output, "run-ids=9130 9131\n");
+});
+
+// review-dependency holds a limit-stopped head by the base's resolved limits and
+// main's clock, as resolve-conflicts does.
+test("main holds a limit-stopped review-dependency head until its reset, by the resolved limits", async () => {
+  const dependabot = pr(135, {
+    mergeable: "MERGEABLE",
+    author: { login: "dependabot", databaseId: 49699333 },
+    headRefName: "dependabot/npm_and_yarn/x-2.0.0",
+    title: "build(deps): bump x from 1.0.0 to 2.0.0",
+    body: "",
+    labels: { nodes: [] },
+    changedFiles: 0,
+  });
+  const stop = {
+    name: "pr-unblock / review-dependency",
+    status: "completed",
+    conclusion: "failure",
+    started_at: "2026-10-17T10:00:00Z",
+    completed_at: "2026-10-17T10:00:00Z",
+    output: { title: "Failed", summary: "lane=pr-unblock activity=review-dependency class=rate-limit resets=2026-10-17T11:00:00Z" },
+  };
+  const options = { pages: [[dependabot]], checked: new Map([[dependabot.headRefOid, [stop]]]) };
+  const before = await runMain(options, LIMIT_DEFAULTS, Date.parse("2026-10-17T10:30:00Z"));
+  assert.deepEqual(before, { code: 0, output: "" }, "held before the reset");
+  const after = await runMain(options, LIMIT_DEFAULTS, Date.parse("2026-10-17T12:00:00Z"));
+  assert.deepEqual(after, { code: 0, output: "run-ids=9135\n" }, "dispatched after the reset");
+  const capped = await runMain(options, { ...LIMIT_DEFAULTS, "limit-stops-per-head": 1 }, Date.parse("2026-10-17T12:00:00Z"));
+  assert.deepEqual(capped, { code: 0, output: "" }, "one stop reaches a cap of 1");
 });
 
 // A lanes App PR whose head's lanes failed, as fix-ci-dispatch.mjs lists it.
@@ -864,13 +893,13 @@ test("main carries the record in DISPATCH_RECORD and writes it only when it chan
     DISPATCH_RECORD: path,
   };
   // A recorded head no open PR carries any more is dropped.
-  writeFileSync(path, JSON.stringify({ version: 2, handled: { [CHECK_NAME]: ["f".repeat(40)] }, dispatched: {} }));
+  writeFileSync(path, JSON.stringify({ version: 3, handled: { [CHECK_NAME]: ["f".repeat(40)] }, dispatched: {} }));
   const options = () => ({ api: fakeApi({ pages: [[pr(1)]], checked: new Set([pr(1).headRefOid]) }), sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}) });
   try {
     writeFileSync(output, "");
     assert.equal(await main(env, options()), 0);
     assert.equal(readFileSync(output, "utf8"), "record-changed=true\n");
-    assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), { version: 2, handled: { [CHECK_NAME]: [pr(1).headRefOid] }, dispatched: {} });
+    assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), { version: 3, handled: { [CHECK_NAME]: [pr(1).headRefOid] }, dispatched: {} });
     writeFileSync(output, "");
     assert.equal(await main(env, options()), 0);
     assert.equal(readFileSync(output, "utf8"), "");

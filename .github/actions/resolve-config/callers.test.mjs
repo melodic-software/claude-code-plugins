@@ -1055,7 +1055,7 @@ function strayClaudeReaders({ doc, job }, launcher) {
 }
 // Triggers that run a job holding this repository's secrets for an event someone
 // outside it can start, so such a job must show a gate.
-const GATED_TRIGGERS = ["pull_request_target", "issues", "workflow_run"];
+const GATED_TRIGGERS = ["pull_request_target", "issues", "issue_comment", "workflow_run"];
 // The event names under a workflow's on:, in its string, list or map form.
 const workflowTriggers = ({ on }) =>
   (typeof on === "string" ? [on] : Array.isArray(on) ? on : Object.keys(on ?? {})).map((name) => name.toLowerCase()).sort();
@@ -1213,7 +1213,7 @@ test("each catalog lane names its workflow's triggers, and the gate its job show
   }
 });
 
-test("a pull_request_target, issues or workflow_run job that holds a Claude credential shows an author or same-repo gate", () => {
+test("a pull_request_target, issues, issue_comment or workflow_run job that holds a Claude credential shows an author or same-repo gate", () => {
   const jobs = gatedTriggerJobs();
   for (const [key, gates] of jobs) assert.notDeepEqual(gates, [], `${key} holds a Claude credential with no author or same-repo gate`);
   const gatedLanes = catalogLanes().filter(({ lane }) => hasGatedTrigger(lane.triggers));
@@ -1228,6 +1228,7 @@ test("the trigger-gate check names an ungated job and accepts only the lanes' ga
   const PINNED = "melodic-software/ci-workflows/.github/workflows/intake-triage.yml@2fe38c031867900824c164e33a140a335ed9ecf0";
   const cases = {
     "ungated issues job": [{ issues: { types: ["labeled"] } }, { run: { steps: [launcher] } }, { "f.yml run": [] }],
+    "ungated issue_comment job": [{ issue_comment: { types: ["created"] } }, { run: { steps: [launcher] } }, { "f.yml run": [] }],
     "ungated pull_request_target job": [{ pull_request_target: {} }, { run: { steps: [launcher] } }, { "f.yml run": [] }],
     "ungated workflow_run job": [{ workflow_run: {} }, { run: { steps: [launcher] } }, { "f.yml run": [] }],
     "on: as a string": ["issues", { run: { steps: [launcher] } }, { "f.yml run": [] }],

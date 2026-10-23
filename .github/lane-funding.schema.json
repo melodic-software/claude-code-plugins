@@ -59,7 +59,7 @@
       "additionalProperties": false,
       "required": ["id", "workflow", "launcher", "triggers", "currentSecrets"],
       "if": {
-        "properties": { "triggers": { "type": "array", "contains": { "enum": ["pull_request_target", "issues", "workflow_run"] } } }
+        "properties": { "triggers": { "type": "array", "contains": { "enum": ["pull_request_target", "issues", "issue_comment", "workflow_run"] } } }
       },
       "then": { "properties": { "gate": true }, "required": ["gate"] },
       "properties": {
@@ -86,7 +86,7 @@
         },
         "gate": {
           "enum": ["author", "same-repo"],
-          "description": "How the job stops a run nobody trusted: author, a check-trusted-trigger result it needs or the intake reusable's allowed-author-ids; same-repo, its if: requiring the workflow_run head repository to be this one. Required when a trigger is pull_request_target, issues or workflow_run."
+          "description": "How the job stops a run nobody trusted: author, a check-trusted-trigger result it needs or the intake reusable's allowed-author-ids; same-repo, its if: requiring the workflow_run head repository to be this one. Required when a trigger is pull_request_target, issues, issue_comment or workflow_run."
         },
         "currentSecrets": {
           "type": "array",
