@@ -230,6 +230,15 @@ class FakeGitHub:
         # (number, repository), and a totalCount that cuts them.
         self.closers: dict[int, list[tuple[int, str]]] = {}
         self.closers_total: dict[int, int] = {}
+        # The pull requests each issue's cross-reference timeline shows:
+        # (number, repository), or None for an issue as the source; and a
+        # totalCount that cuts them. The gate reads no timeline.
+        self.mentions: dict[int, list[tuple[int, str] | None]] = {}
+        self.mentions_total: dict[int, int] = {}
+        # The pull request's body now, and what each number a `Refs:` line
+        # may name is: an issue's repository, or "PullRequest".
+        self.body: str | None = None
+        self.refs: dict[int, str] = {}
 
     def __call__(
         self, args: list[str], **kwargs: Any
@@ -246,37 +255,91 @@ class FakeGitHub:
         if args[:2] == ["api", "graphql"]:
             if "graphql" in self.fail:
                 return subprocess.CompletedProcess(args, 1, "", "gh: boom (HTTP 502)")
-            nodes = [
-                {
-                    "number": n,
-                    "lastEditedAt": self.closing_edited.get(n),
-                    "repository": {"nameWithOwner": repo},
-                    "comments": {
-                        "totalCount": self.comments_total.get(
-                            n, len(self.closing_comments.get(n, []))
-                        ),
-                        "nodes": self.closing_comments.get(n, []),
-                    },
-                    "closedByPullRequestsReferences": {
-                        "totalCount": self.closers_total.get(
-                            n, len(self.closers.get(n, [(PR, REPO)]))
-                        ),
-                        "nodes": [
-                            {"number": pr, "repository": {"nameWithOwner": repo}}
-                            for pr, repo in self.closers.get(n, [(PR, REPO)])
+            if any("issueOrPullRequest" in a for a in args):
+                n = int(next(a for a in args if a.startswith("n="))[2:])
+                if n not in self.refs:
+                    # GitHub's answer for a number that names nothing, as a
+                    # live read of a missing number returned it: gh exits 1.
+                    missing = {
+                        "data": {"repository": {"issueOrPullRequest": None}},
+                        "errors": [
+                            {
+                                "type": "NOT_FOUND",
+                                "path": ["repository", "issueOrPullRequest"],
+                            }
                         ],
-                    },
-                }
-                for n, repo in self.closing
-            ]
-            refs = {"totalCount": self.closing_total or len(nodes), "nodes": nodes}
-            return ok(
-                {
-                    "data": {
-                        "repository": {"pullRequest": {"closingIssuesReferences": refs}}
                     }
-                }
-            )
+                    return subprocess.CompletedProcess(
+                        args, 1, json.dumps(missing), "gh: Could not resolve"
+                    )
+                kind = self.refs[n]
+                if kind == "error":
+                    return subprocess.CompletedProcess(
+                        args, 1, "", "gh: boom (HTTP 502)"
+                    )
+                if kind == "errors":
+                    # gh exits 0 on an answer that carries data and errors.
+                    return ok(
+                        {
+                            "data": {"repository": {"issueOrPullRequest": None}},
+                            "errors": [{"type": "INTERNAL"}],
+                        }
+                    )
+                if kind == "no-repository":
+                    return ok({"data": {}})
+                if kind == "null":
+                    return ok({"data": {"repository": {"issueOrPullRequest": None}}})
+                node = (
+                    {"__typename": "PullRequest"}
+                    if kind == "PullRequest"
+                    else {"__typename": "Issue"} | self.issue(n, kind)
+                )
+                return ok({"data": {"repository": {"issueOrPullRequest": node}}})
+            nodes = [self.issue(n, repo) for n, repo in self.closing]
+            refs = {"totalCount": self.closing_total or len(nodes), "nodes": nodes}
+            pull = {"body": self.body, "closingIssuesReferences": refs}
+            return ok({"data": {"repository": {"pullRequest": pull}}})
+        return self.rest(args, ok, missing, kwargs)
+
+    def issue(self, n: int, repo: str) -> dict[str, Any]:
+        return {
+            "number": n,
+            "lastEditedAt": self.closing_edited.get(n),
+            "repository": {"nameWithOwner": repo},
+            "comments": {
+                "totalCount": self.comments_total.get(
+                    n, len(self.closing_comments.get(n, []))
+                ),
+                "nodes": self.closing_comments.get(n, []),
+            },
+            "closedByPullRequestsReferences": {
+                "totalCount": self.closers_total.get(
+                    n, len(self.closers.get(n, [(PR, REPO)]))
+                ),
+                "nodes": [
+                    {"number": pr, "repository": {"nameWithOwner": repo}}
+                    for pr, repo in self.closers.get(n, [(PR, REPO)])
+                ],
+            },
+            "timelineItems": {
+                "totalCount": self.mentions_total.get(n, len(self.mentions.get(n, []))),
+                "nodes": [
+                    {
+                        "source": {}
+                        if source is None
+                        else {
+                            "number": source[0],
+                            "repository": {"nameWithOwner": source[1]},
+                        }
+                    }
+                    for source in self.mentions.get(n, [])
+                ],
+            },
+        }
+
+    def rest(
+        self, args: list[str], ok: Any, missing: Any, kwargs: dict[str, Any]
+    ) -> subprocess.CompletedProcess[str]:
         if args[:2] == ["run", "download"]:
             name, target = args[args.index("-n") + 1], args[args.index("-D") + 1]
             if name not in self.records:
@@ -985,6 +1048,83 @@ class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:unreadable")
 
 
+class FailsOnARefsPullRequestForTheSameIssueCount(unittest.TestCase):
+    """A pull request that names the issue without closing it (a `Refs:` pull
+    request) never appears among the issue's closing pull requests, so its
+    FAILs count toward the issue's cap through their names alone: the writer
+    names a FAIL with the `Refs:` issue as with a closing one (`-i7`).
+    Closing a FAILed pull request and opening another `Refs:` one for the
+    same issue does not reset the count, and no record is downloaded."""
+
+    @staticmethod
+    def sibling_fails(*shas: str, suffix: str = "-i7") -> FakeGitHub:
+        """PR 41 links issue 7 by a `Refs:` line and has a counted pass at
+        the head judged as a slice; PR 40 (branch feat/other, closed) linked
+        it the same way and FAILed at `shas`, each named with `suffix`."""
+        runs = {i: judged(i, OLDER_START) for i in range(2, 2 + len(shas))}
+        fake = passing(
+            *(
+                artifact(f"{named(sha, 'fail', SIBLING)}-{DIGEST_OTHER}{suffix}", i)
+                for i, sha in zip(runs, shas)
+            ),
+            runs=runs,
+        )
+        fake.records[named(HEAD, "pass")] = record(spec_kind="refs")
+        fake.closing = []
+        fake.body = "Refs: #7\n\nPart two."
+        fake.refs = {7: REPO}
+        fake.closers[7] = []
+        return fake
+
+    def test_three_fails_on_another_refs_pull_request_refuse(self) -> None:
+        fake = self.sibling_fails(*SIBLING_HEADS)
+        evidence = read(fake)
+        self.assertEqual(evidence.refusal, "verify:repeated-fail")
+        self.assertTrue(evidence.needs_human)
+        self.assertEqual(downloads(fake), 0)
+
+    def test_two_there_and_a_fail_at_the_head_go_to_a_human(self) -> None:
+        fake = self.sibling_fails(*SIBLING_HEADS[:2])
+        fake.artifacts.append(artifact(named(HEAD, "fail"), 9))
+        fake.runs[9] = judged(9, OLDER_START)
+        evidence = read(fake)
+        self.assertEqual(evidence.refusal, "verify:repeated-fail")
+        self.assertEqual(
+            evidence.report()["headFail"], {"run": 9, "artifact": named(HEAD, "fail")}
+        )
+
+    def test_two_there_leave_the_pass_to_decide(self) -> None:
+        self.assertIsNone(read(self.sibling_fails(*SIBLING_HEADS[:2])).refusal)
+
+    def test_only_names_that_carry_the_issue_count(self) -> None:
+        # A plain FAIL (an unnamable issue set, or a name from before the
+        # writer named issues) counts only for its own pull request.
+        for suffix, refusal in (
+            ("-i7.8", "verify:repeated-fail"),
+            ("-i8", None),
+            ("", None),
+        ):
+            with self.subTest(suffix):
+                fake = self.sibling_fails(*SIBLING_HEADS, suffix=suffix)
+                self.assertEqual(read(fake).refusal, refusal)
+
+    def test_a_long_cross_reference_timeline_holds_nothing(self) -> None:
+        # Anyone can cross-reference an issue, so a hundred and one mentions, from
+        # issues here or in another repository, a page of 100 cut from the
+        # count, hold no pull request for it, closing or `Refs:`, and its
+        # FAILs still count by name.
+        mentions = [None] * 99 + [(SIBLING, "example-org/other")]
+        closing = passing()
+        closing.mentions[7], closing.mentions_total[7] = mentions, 101
+        self.assertIsNone(read(closing).refusal)
+        fake = self.sibling_fails(*SIBLING_HEADS[:2])
+        fake.mentions[7], fake.mentions_total[7] = mentions, 101
+        self.assertIsNone(read(fake).refusal)
+        fake = self.sibling_fails(*SIBLING_HEADS)
+        fake.mentions[7], fake.mentions_total[7] = mentions, 101
+        self.assertEqual(read(fake).refusal, "verify:repeated-fail")
+
+
 class AFailNamingTheIssueCounts(unittest.TestCase):
     """A FAIL whose artifact name carries `-i` and the issue numbers its
     verdict records counts toward the cap for each of those issues, whatever
@@ -1602,6 +1742,77 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
                 evidence = read(fake)
                 self.assertEqual(evidence.refusal, "verify:spec-changed")
                 self.assertTrue(evidence.needs_human)
+
+    def refs(self, body: str | None, kind: str = REPO) -> FakeGitHub:
+        """A pass recording issue 7, for a PR that closes none now."""
+        fake = passing()
+        fake.closing = []
+        fake.body = body
+        fake.refs = {7: kind, 8: REPO}
+        fake.records[named(HEAD, "pass")] = record(spec_kind="refs")
+        return fake
+
+    def test_the_one_refs_issue_binds_like_a_closing_one(self) -> None:
+        # Owner decision 2026-10-23: a plain `Refs:` line reads the one
+        # issue it names as the pull request's issue.
+        self.assertIsNone(read(self.refs("Refs: #7\n\nPart one.")).refusal)
+        fake = self.refs("Refs: #7")
+        fake.closing_edited = {7: "2026-10-15T00:00:01Z"}
+        self.assertEqual(read(fake).refusal, "verify:spec-changed")
+
+    def test_a_refs_line_that_names_another_or_none_refuses(self) -> None:
+        for body, kind in (
+            ("Refs: #8", REPO),
+            ("<!-- Refs: #7 -->", REPO),
+            ("```\nRefs: #7\n```", REPO),
+            ("Refs: #7\nRefs: #8", REPO),
+            ("Refs: other/repo#7", REPO),
+            ("Refs: #7", "someone/else"),
+            ("Refs: #7", "PullRequest"),
+            (None, REPO),
+        ):
+            with self.subTest(body=body, kind=kind):
+                self.assertEqual(
+                    read(self.refs(body, kind)).refusal, "verify:spec-changed"
+                )
+
+    def test_a_refs_number_that_names_nothing_names_no_issue(self) -> None:
+        # GitHub answers a number with no issue or pull request NOT_FOUND
+        # and gh exits 1: no issue, so the pass recording the issue refuses
+        # as for any other link that names none, and no read error.
+        self.assertEqual(read(self.refs("Refs: #99999")).refusal, "verify:spec-changed")
+        # Any other failed read stays unreadable: gh failing, an answer with
+        # other errors gh exits 0 on, one with no repository, and a null
+        # issue without NOT_FOUND.
+        for kind in ("error", "errors", "no-repository", "null"):
+            with self.subTest(kind):
+                self.assertEqual(
+                    read(self.refs("Refs: #7", kind)).refusal, "verify:unreadable"
+                )
+
+    def test_a_pass_binds_to_how_the_issue_was_linked(self) -> None:
+        # A Refs pass was judged as a partial slice: it never covers the same
+        # issue closed, and a closing pass never covers it as a Refs link.
+        fake = passing()
+        fake.records[named(HEAD, "pass")] = record(spec_kind="refs")
+        self.assertEqual(read(fake).refusal, "verify:spec-changed")
+        fake = self.refs("Refs: #7")
+        fake.records[named(HEAD, "pass")] = record(spec_kind="closes")
+        self.assertEqual(read(fake).refusal, "verify:spec-changed")
+        fake = self.refs("Refs: #7")
+        fake.records[named(HEAD, "pass")] = record()
+        self.assertEqual(read(fake).refusal, "verify:spec-changed")
+        fake = passing()
+        fake.records[named(HEAD, "pass")] = record(spec_kind="closes")
+        self.assertIsNone(read(fake).refusal)
+
+    def test_a_closing_issue_wins_over_refs(self) -> None:
+        fake = passing()
+        fake.body = "Refs: #8"
+        self.assertIsNone(read(fake).refusal)
+        self.assertFalse(
+            any("issueOrPullRequest" in " ".join(c) for c in fake.calls), fake.calls
+        )
 
     def test_an_issue_edited_after_the_judgment_started_refuses(self) -> None:
         fake = passing()

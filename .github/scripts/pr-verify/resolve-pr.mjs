@@ -24,8 +24,9 @@
 //   nothing does not stop a new judgment.
 // The babysit-prs test test_verify_rules_sync.py runs this file to keep
 // DEPENDENCY_MANAGERS, isDependencyManager and countedBy in step with the gate.
-// It also writes the PR's closing issues with their authors and last body
-// editors to SPEC_FILE, and the spec text trusted humans wrote to
+// It also writes the PR's closing issues, or, when it closes none, the one
+// issue its body's `Refs:` lines name (refsIssue), with their authors and last
+// body editors to SPEC_FILE, and the spec text trusted humans wrote to
 // SPEC_TEXT_FILE (linkedIssues).
 // The head SHA is the run's, never the PR's live head.
 
@@ -55,22 +56,84 @@ const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
 const MAX_PAGES = 100;
 
+const ISSUE_FIELDS = `number repository { nameWithOwner } body lastEditedAt
+          author { ...actor } editor { ...actor }
+          comments(first: 100) { totalCount nodes { databaseId updatedAt body lastEditedAt author { ...actor } editor { ...actor } } }`;
+const ACTOR = "fragment actor on Actor { __typename login ... on User { databaseId } ... on Bot { databaseId } }";
 const SPEC_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      lastEditedAt editor { ...actor }
+      body lastEditedAt editor { ...actor }
       closingIssuesReferences(first: 10) {
         totalCount
         nodes {
-          number repository { nameWithOwner } body lastEditedAt
-          author { ...actor } editor { ...actor }
-          comments(first: 100) { totalCount nodes { databaseId updatedAt body lastEditedAt author { ...actor } editor { ...actor } } }
+          ${ISSUE_FIELDS}
         }
       }
     }
   }
 }
-fragment actor on Actor { __typename login ... on User { databaseId } ... on Bot { databaseId } }`;
+${ACTOR}`;
+const REFS_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    issueOrPullRequest(number: $number) { __typename ... on Issue { ${ISSUE_FIELDS} } }
+  }
+}
+${ACTOR}`;
+
+// babysit_merge_policy.refs_issue, which test_verify_rules_sync.py keeps equal:
+// the one issue the visible `Refs: #<n>` lines of a pull request body name,
+// else null. A line counts only from its first column, outside an HTML comment
+// and a fenced code block; a `Refs:` line in any other form, or two numbers,
+// name none.
+const HTML_COMMENT = /<!--[\s\S]*?(?:-->|$)/g;
+const FENCE = /^ {0,3}(`{3,}|~{3,})/;
+const REFS_LINE = /^[Rr][Ee][Ff][Ss]:/;
+const REFS_PLAIN = /^Refs:[ \t]*#([1-9][0-9]{0,8})[ \t]*$/;
+export function refsIssue(body) {
+  const numbers = new Set();
+  let fence = "";
+  for (const line of String(body ?? "").replace(HTML_COMMENT, "").split(/\r\n|\r|\n/)) {
+    const marker = FENCE.exec(line);
+    if (fence) {
+      if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && line.slice(marker[0].length).replace(/[ \t]/g, "") === "") {
+        fence = "";
+      }
+      continue;
+    }
+    if (marker) {
+      fence = marker[1];
+      continue;
+    }
+    if (!REFS_LINE.test(line)) {
+      continue;
+    }
+    const plain = REFS_PLAIN.exec(line);
+    if (!plain) {
+      return null;
+    }
+    numbers.add(Number(plain[1]));
+  }
+  return numbers.size === 1 ? [...numbers][0] : null;
+}
+
+// babysit_merge_policy.names_nothing: whether a GraphQL answer says only that
+// `repository.<field>` names nothing, null there with every error a NOT_FOUND
+// at that path, as GitHub answers a `Refs: #<n>` whose number is no issue or
+// pull request.
+export function namesNothing(answer, field) {
+  const repository = answer?.data?.repository;
+  const errors = answer?.errors;
+  return (
+    repository !== null &&
+    typeof repository === "object" &&
+    Object.hasOwn(repository, field) &&
+    repository[field] === null &&
+    Array.isArray(errors) &&
+    errors.length > 0 &&
+    errors.every((e) => e?.type === "NOT_FOUND" && Array.isArray(e.path) && e.path.length === 2 && e.path[0] === "repository" && e.path[1] === field)
+  );
+}
 
 const actorFields = (actor, role) => ({
   [`${role}_login`]: typeof actor?.login === "string" ? actor.login : null,
@@ -204,12 +267,13 @@ async function judged({ github, repository, number, head, base, refs, issues }) 
   return false;
 }
 
-// The closing issues in this repository with their authors and last body
-// editors (`linkedIssues`), and the spec text: each body and comment written,
+// The closing issues in this repository, or, when the pull request closes
+// none, the one issue its `Refs:` lines name (refsIssue), with their authors
+// and last body editors (`linkedIssues`), and the spec text: each body and comment written,
 // and last edited if ever, by a User on the trusted list's humans, the PR
 // author included (`specText`). Bots and Apps, the lanes App among them, are
 // left out even where select-trusted-text keeps them.
-async function linkedIssues(github, repository, number, humans) {
+async function linkedIssues(github, readRefs, repository, number, humans) {
   const [owner, name] = repository.split("/");
   const data = await github("POST", "/graphql", { query: SPEC_QUERY, variables: { owner, name, number } });
   const refs = data?.data?.repository?.pullRequest?.closingIssuesReferences;
@@ -218,7 +282,19 @@ async function linkedIssues(github, repository, number, humans) {
   }
   const trusted = (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
   const written = (item) => trusted(item?.author) && (item.lastEditedAt == null || trusted(item.editor));
-  const issues = refs.nodes.filter(
+  let nodes = refs.nodes;
+  const named = refs.totalCount === 0 ? refsIssue(data.data.repository.pullRequest.body) : null;
+  if (named !== null) {
+    // `readRefs` keeps GraphQL errors, so a NOT_FOUND reaches namesNothing.
+    const answer = await readRefs("POST", "/graphql", { query: REFS_QUERY, variables: { owner, name, number: named } });
+    // Only an exact NOT_FOUND names nothing; a null without it is no answer.
+    const node = answer?.data?.repository?.issueOrPullRequest;
+    if (answer?.errors ? !namesNothing(answer, "issueOrPullRequest") : node === null || typeof node !== "object") {
+      throw new Error(`#${number}: the Refs issue could not be read`);
+    }
+    nodes = node?.__typename === "Issue" ? [node] : [];
+  }
+  const issues = nodes.filter(
     (issue) => issue?.repository?.nameWithOwner === repository && Number.isSafeInteger(issue.number),
   );
   for (const issue of issues) {
@@ -242,15 +318,19 @@ async function linkedIssues(github, repository, number, humans) {
         .filter(written)
         .map((comment) => ({ id: comment.databaseId, updated_at: comment.updatedAt })),
     })),
+    // How the spec was linked: `closes` for closing issues, `refs` for the one
+    // issue a `Refs:` line names, which the verifier judges as a partial slice.
+    specKind: issues.length === 0 ? "none" : named !== null ? "refs" : "closes",
     specText: issues.map((issue) => ({
       number: issue.number,
+      spec_kind: named !== null ? "refs" : "closes",
       body: written(issue) && typeof issue.body === "string" ? issue.body : null,
       comments: issue.comments.nodes.filter(written).map((comment) => String(comment.body ?? "")),
     })),
   };
 }
 
-export async function resolvePull({ github, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, ownerIds: owners = [], specFromBodyApps = [] }) {
+export async function resolvePull({ github, readRefs = github, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, ownerIds: owners = [], specFromBodyApps = [] }) {
   const skip = (reason) => ({ proceed: false, reason });
   if (!RUN_ID.test(String(upstreamRunId))) {
     throw new Error("the upstream run id is not a run id");
@@ -308,7 +388,7 @@ export async function resolvePull({ github, repository, upstreamRunId, humans, b
     return skip("already-judged");
   }
   // This PR's FAIL is named with the issues it records, read only now.
-  const specRead = await linkedIssues(github, repository, pull.number, humans);
+  const specRead = await linkedIssues(github, readRefs, repository, pull.number, humans);
   const issues = specRead.linkedIssues.map((issue) => issue.number);
   if (await judged({ github, repository, number: pull.number, head, base, refs, issues })) {
     return skip("already-judged");
@@ -327,7 +407,8 @@ export async function resolvePull({ github, repository, upstreamRunId, humans, b
     (bodyEditor === null || bodyEditor === pull.user?.id || humans.has(bodyEditor));
   if (spec.linkedIssues.length === 0 && bodyIsIntent) {
     const body = `${String(pull.title ?? "")}\n\n${String(pull.body ?? "")}`;
-    spec.specText = [{ number: pull.number, source: "pull-request", body, comments: [] }];
+    spec.specKind = "pull-request";
+    spec.specText = [{ number: pull.number, source: "pull-request", spec_kind: "pull-request", body, comments: [] }];
   }
   return {
     proceed: true,
@@ -340,7 +421,7 @@ export async function resolvePull({ github, repository, upstreamRunId, humans, b
   };
 }
 
-export async function main(env = process.env, { github } = {}) {
+export async function main(env = process.env, { github, fetchImpl } = {}) {
   for (const key of [
     "GITHUB_TOKEN",
     "GITHUB_REPOSITORY",
@@ -355,8 +436,11 @@ export async function main(env = process.env, { github } = {}) {
     }
   }
   const trusted = loadTrustedList(env.TRUSTED_ACTORS_PATH);
+  const api = (keepGraphQLErrors) => createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL, fetchImpl, keepGraphQLErrors });
   const result = await resolvePull({
-    github: github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL }),
+    github: github ?? api(false),
+    // The Refs read needs GraphQL errors back to tell a typo from a failure.
+    readRefs: github ?? api(true),
     repository: env.GITHUB_REPOSITORY,
     upstreamRunId: env.UPSTREAM_RUN_ID,
     humans: trusted.humans,

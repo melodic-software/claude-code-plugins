@@ -11,7 +11,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { refsHoldComment } from "../work-resolve-issue/report-outcome.mjs";
+import { refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import {
   checkCloser,
   escalationComment,
@@ -1750,7 +1750,7 @@ test("an open lane PR hands nothing off, whatever its body", async () => {
 
 // report-outcome's hold on a Refs PR: the App added needs-human just after
 // opening the PR, with the refs-hold comment naming it.
-const holdNote = (pr = 7805, user = LANES_BOT) => ({ id: 64, body: refsHoldComment(pr, "needs-human"), user, created_at: "2026-10-16T10:20:06Z" });
+const holdNote = (pr = 7805, user = LANES_BOT) => ({ id: 64, body: `${refsHoldMarker(pr)}\nThe hold report-outcome put on the issue of a Refs PR.`, user, created_at: "2026-10-16T10:20:06Z" });
 const humanLabeled = (at = "2026-10-16T10:20:05Z", actor = LANES_BOT, event = "labeled") => ({
   event,
   label: { name: "needs-human" },

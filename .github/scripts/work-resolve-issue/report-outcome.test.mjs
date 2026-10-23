@@ -24,7 +24,6 @@ import {
   readChecks,
   readOutcome,
   readTurnCap,
-  refsHoldComment,
   reusePlan,
   trustedLabeler,
 } from "./report-outcome.mjs";
@@ -103,16 +102,15 @@ test("done opens a PR whose body starts with Closes #N", () => {
   assert.ok(plan.body.startsWith("Closes #77\n"), plan.body);
 });
 
-// A recorded keep-Refs decision (#7741): the PR links without closing. The
-// merge gate finds no closing issue to read, so it never merges it; Refs alone
-// adds no hold line.
+// A recorded keep-Refs decision: the PR links without closing. The merge gate
+// reads a plain `Refs: #N` first line as the PR's issue, so Refs alone adds no
+// hold line.
 test('done with "link": "refs" opens a PR that starts Refs: #N and carries no hold line', () => {
   withDir({ "work-outcome.json": JSON.stringify({ ...done, link: "refs" }) }, (dir) => {
     const plan = decideDone({ outcome: readOutcome(join(dir, "work-outcome.json")) });
-    assert.ok(plan.body.startsWith("Refs: #77\n"), plan.body);
+    assert.ok(plan.body.startsWith("Refs: #77\n\n## Summary"), plan.body);
     assert.ok(!plan.body.includes("Closes #77"), plan.body);
     assert.ok(!plan.body.includes("Hold: a human merges this"), plan.body);
-    assert.equal(plan.refsHold, "needs-human");
   });
 });
 
@@ -856,10 +854,9 @@ test("main on done writes the runner's check results into the PR body", async ()
   );
 });
 
-// pr-merge merges only a PR with exactly one closing issue, so a Refs PR waits
-// for a person: the issue gets the human-gated label, then the marker comment
-// work-unblock reads to lift only this hold once the PR merges.
-test("main on done with Refs opens the PR, then adds needs-human to the issue and the refs-hold comment", async () => {
+// The merge lane merges a plain Refs PR as a closing one, so opening it puts no
+// hold on the issue: work-unblock hands the issue to triage once it merges.
+test("main on done with Refs opens the PR and writes nothing to the issue", async () => {
   await withDir(
     { "work-outcome.json": JSON.stringify({ ...done, link: "refs" }), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() },
     async (dir) => {
@@ -870,16 +867,11 @@ test("main on done with Refs opens the PR, then adds needs-human to the issue an
         ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
         ["GET", /\/pulls$/, 200, []],
         ["POST", /\/pulls$/, 201, { number: 90 }],
-        ["POST", /\/issues\/77\/labels$/, 200, []],
-        ["POST", /\/issues\/77\/comments$/, 201, {}],
       ]);
       assert.equal(await main({ env: env(dir), fetch }), 0);
       const writes = calls.filter((c) => c.method !== "GET").map((c) => `${c.method} ${c.path}`);
-      assert.deepEqual(writes, ["POST /repos/o/r/pulls", "POST /repos/o/r/issues/77/labels", "POST /repos/o/r/issues/77/comments"]);
-      assert.deepEqual(calls.find((c) => c.path.endsWith("/issues/77/labels")).body, { labels: ["needs-human"] });
-      const comment = calls.find((c) => c.path.endsWith("/issues/77/comments")).body.body;
-      assert.ok(comment.startsWith("<!-- work-resolve-issue refs-hold #90 -->\n"), comment);
-      assert.equal(comment, refsHoldComment(90, "needs-human"));
+      assert.deepEqual(writes, ["POST /repos/o/r/pulls"]);
+      assert.ok(calls.find((c) => c.path.endsWith("/pulls") && c.method === "POST").body.body.startsWith("Refs: #77\n"));
     },
   );
 });
