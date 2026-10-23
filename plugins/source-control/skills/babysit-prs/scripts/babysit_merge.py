@@ -138,6 +138,7 @@ from __future__ import annotations
 
 import argparse
 import functools
+import hashlib
 import json
 import os
 import re
@@ -193,6 +194,7 @@ from babysit_gh import (
     gh_capture,
     gh_http_status,
     gh_json,
+    gh_rate_limited,
     normalized_rest_author,
     parse_repo_number,
     pull_request_commits_once,
@@ -2948,14 +2950,39 @@ class HeadPusherUnproven(Exception):
     """A head commit's pusher cannot be shown not to be a human."""
 
 
+# The run cache section where a gate process records that the read token hit
+# a rate limit, keyed by a digest of that token, so later candidates in the
+# run read their evidence with the lane token without trying it first.
+READ_TOKEN_LIMITED = "read-token-limited"
+
+
+class ReadTokenLimited(RuntimeError):
+    """A review-evidence read under the read token was refused for a rate
+    limit; the same GETs can be made with the lane token."""
+
+
+def _token_key(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
 def _evidence_read_env(floor: float) -> dict[str, str] | None:
     """`env_overrides` for the review-evidence reads: the verdict reader's
-    token while its core bucket has at least `floor` of its limit left, else
-    None, the process (lane) token. Both tokens read the same data, so the
-    choice changes no gate decision. A limit that cannot be read is treated
-    as short; GET /rate_limit spends no budget."""
+    token while its core bucket has at least `floor` of its limit left and no
+    earlier candidate in this run saw it rate limited, else None, the process
+    (lane) token. Both tokens read the same data, so the choice changes no
+    gate decision. A limit that cannot be read is treated as short; GET
+    /rate_limit spends no budget. The share is only an early switch: GitHub
+    can refuse the token while /rate_limit still shows room, which
+    `_lane_evidence` handles by reading again with the lane token."""
     token = os.environ.get(verify_evidence.TOKEN_ENV)
     if not token:
+        return None
+    if run_cache.get(READ_TOKEN_LIMITED, _token_key(token), None) is not None:
+        print(
+            f"read-token-floor: {verify_evidence.TOKEN_ENV} was rate limited earlier"
+            " in this run; the review-evidence reads use the lane token",
+            file=sys.stderr,
+        )
         return None
     env = {"GH_TOKEN": token}
     try:
@@ -2982,6 +3009,38 @@ def _lane_evidence(
     changed_paths: Sequence[str] | None,
     read_floor: float = merge_policy.READ_TOKEN_FLOOR,
 ) -> tuple[tuple[LaneEvidence, ...], list[dict[str, Any]]]:
+    """`_read_lane_evidence` under `_evidence_read_env`'s token. When a read
+    under the read token is refused for a rate limit, the run cache records
+    it for later candidates and every read is made again with the lane
+    token: all of them are GETs, so nothing is sent twice that changes
+    GitHub."""
+    args = (repo, number, pr, identity, self_logins, permission, changed_paths)
+    read_env = _evidence_read_env(read_floor)
+    if read_env is None:
+        return _read_lane_evidence(*args, None)
+    try:
+        return _read_lane_evidence(*args, read_env)
+    except ReadTokenLimited as exc:
+        run_cache.put(READ_TOKEN_LIMITED, _token_key(read_env["GH_TOKEN"]), True)
+        print(
+            f"read-token-floor: {verify_evidence.TOKEN_ENV} was rate limited"
+            f" ({str(exc)[-200:]}); reading the review evidence again with the"
+            " lane token",
+            file=sys.stderr,
+        )
+        return _read_lane_evidence(*args, None)
+
+
+def _read_lane_evidence(
+    repo: str,
+    number: int,
+    pr: dict[str, Any],
+    identity: str,
+    self_logins: frozenset[str],
+    permission: Callable[[str], str | None],
+    changed_paths: Sequence[str] | None,
+    read_env: dict[str, str] | None,
+) -> tuple[tuple[LaneEvidence, ...], list[dict[str, Any]]]:
     """Each lane's evidence for the pull request's head, and its comments.
     `changed_paths` is `bind()`'s: None when the changed files are unproven.
 
@@ -2991,16 +3050,26 @@ def _lane_evidence(
     finding away. A commit with no linked author or committer, or a head with
     more commits than the list returns, raises `HeadPusherUnproven`. A retargeted base unbinds every lane.
 
-    The timeline, the comments and the lane runs are read under the verdict
-    reader's token while it has `read_floor` of its core limit left
-    (`_evidence_read_env`), keeping them off the lane App's quota; every read
-    here is a GET."""
+    The timeline, the comments and the lane runs are read with `read_env`
+    (None: the process token), keeping them off the lane App's quota when it
+    names the verdict reader's token; every read here is a GET. A rate limit
+    on one of those reads raises `ReadTokenLimited`."""
     head = json_object(pr.get("head"))
-    read_env = _evidence_read_env(read_floor)
-    timeline = fetch_paginated_api(
-        f"repos/{repo}/issues/{number}/timeline?per_page=100",
-        f"#{number} timeline",
-        env_overrides=read_env,
+
+    def under_read_env(read: Callable[[], Any]) -> Any:
+        try:
+            return read()
+        except RuntimeError as exc:
+            if read_env is not None and gh_rate_limited(str(exc)):
+                raise ReadTokenLimited(str(exc)) from exc
+            raise
+
+    timeline = under_read_env(
+        lambda: fetch_paginated_api(
+            f"repos/{repo}/issues/{number}/timeline?per_page=100",
+            f"#{number} timeline",
+            env_overrides=read_env,
+        )
     )
     commits = pull_request_commits_once(
         repo,
@@ -3039,10 +3108,12 @@ def _lane_evidence(
     }
     excluded.add(str(json_object(pr.get("user")).get("login") or "").casefold())
     excluded.discard("")
-    comments = fetch_paginated_api(
-        f"repos/{repo}/issues/{number}/comments?per_page=100",
-        f"#{number} comments",
-        env_overrides=read_env,
+    comments = under_read_env(
+        lambda: fetch_paginated_api(
+            f"repos/{repo}/issues/{number}/comments?per_page=100",
+            f"#{number} comments",
+            env_overrides=read_env,
+        )
     )
     try:
         threads: list[Any] | None = fetch_review_threads(
@@ -3050,13 +3121,15 @@ def _lane_evidence(
         )
     except GraphQLUnavailableError:
         threads = None
-    runs = collect_lane_runs(
-        repo,
-        number,
-        str(head.get("ref")),
-        review_evidence.LANES.values(),
-        str(pr.get("created_at") or ""),
-        read_env,
+    runs = under_read_env(
+        lambda: collect_lane_runs(
+            repo,
+            number,
+            str(head.get("ref")),
+            review_evidence.LANES.values(),
+            str(pr.get("created_at") or ""),
+            read_env,
+        )
     )
 
     def human(actor: Any) -> bool:

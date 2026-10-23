@@ -3880,16 +3880,200 @@ class LaneEvidenceReadToken(unittest.TestCase):
             tokens = self.evidence_tokens(read_floor=0.3)
         self.assertEqual(tokens, [None] * len(tokens))
 
-    def test_the_floor_changes_which_token_reads_not_the_evidence(self) -> None:
-        environ = {"BABYSIT_VERIFY_GH_TOKEN": "read-tok"}
-        self.core = (1000, 1000)
-        _, above = self.read(environ, read_floor=0.3)
-        self.core = (0, 1000)
-        with contextlib.redirect_stderr(io.StringIO()):
-            _, below = self.read(environ, read_floor=0.3)
-        self.assertEqual(above, below)
-        lanes, _ = above
-        self.assertEqual(len(lanes), 2)
+
+
+class LaneEvidenceReadTokenOutage(unittest.TestCase):
+    """GitHub can refuse the read token for a rate limit while GET
+    /rate_limit still shows room: at 05:3xZ on 2026-10-23 it read 3934 of
+    5000 left as `github.token` answered 403 "API rate limit exceeded for
+    installation". The evidence is then read again with the lane token and
+    still binds, and later candidates in the run skip the read token. The
+    fixture is a complete, passing review on the head for both lanes, so a
+    bound result proves the reads that fed `bind()` succeeded."""
+
+    LIMITED = (
+        "gh: API rate limit exceeded for installation ID 4242. If you reach out"
+        " to GitHub Support for help, please include the request ID"
+        " 0000:0000:0000:0000. (HTTP 403)"
+    )
+    REFUSED = "gh: Resource not accessible by integration (HTTP 403)"
+
+    def setUp(self) -> None:
+        self.refusal: str | None = self.LIMITED
+        self.ids = {
+            lane: (100 + i, 200 + i)
+            for i, lane in enumerate(merge.review_evidence.LANES)
+        }
+        cache = tempfile.TemporaryDirectory()
+        self.addCleanup(cache.cleanup)
+        self.cache = str(pathlib.Path(cache.name, "run-cache.json"))
+
+    def answer(self, endpoint: str) -> Any:
+        bot = {"login": IDENTITY}
+        if endpoint == "rate_limit":
+            bucket = {"remaining": 3934, "limit": 5000}
+            return {"resources": {"core": bucket, "graphql": bucket}}
+        if endpoint.endswith(f"/pulls/{PR}/commits?per_page=100"):
+            return [[{"sha": HEAD, "author": bot, "committer": bot}]]
+        if endpoint.endswith("/timeline?per_page=100"):
+            return [[]]
+        if endpoint.endswith("/comments?per_page=100"):
+            return [
+                [
+                    {
+                        "id": 300 + i,
+                        "user": {"login": "github-actions[bot]", "type": "Bot"},
+                        "created_at": "2026-10-22T02:00:00Z",
+                        "body": f"<!-- claude-lane-reviewed-head lane={lane}"
+                        f" sha={HEAD} -->\n{lane} has reviewed this pull request"
+                        f" through {HEAD}.",
+                    }
+                    for i, lane in enumerate(merge.review_evidence.LANES)
+                ]
+            ]
+        for lane, (path, suffix) in merge.review_evidence.LANES.items():
+            run, job = self.ids[lane]
+            done = {"status": "completed", "conclusion": "success", "head_sha": HEAD}
+            if f"/actions/workflows/{path.rsplit('/', 1)[-1]}/" in endpoint:
+                item = {
+                    "id": run,
+                    "path": path,
+                    "event": "pull_request",
+                    "run_attempt": 1,
+                    "created_at": "2026-10-22T01:00:00Z",
+                    "pull_requests": [{"number": PR}],
+                    **done,
+                }
+                return [{"workflow_runs": [item]}]
+            base = f"repos/owner/repo/actions/runs/{run}"
+            if endpoint == base:
+                return {"id": run, "run_attempt": 1}
+            if endpoint == f"{base}/attempts/1":
+                return {"id": run, "run_attempt": 1, **done}
+            if endpoint == f"{base}/attempts/1/jobs?per_page=100":
+                return [
+                    {
+                        "jobs": [
+                            {
+                                "id": job,
+                                "run_id": run,
+                                "run_attempt": 1,
+                                "name": f"pr-review / {suffix}",
+                                "started_at": "2026-10-22T01:00:00Z",
+                                "completed_at": "2026-10-22T01:30:00Z",
+                                **done,
+                            }
+                        ]
+                    }
+                ]
+            if endpoint == f"repos/owner/repo/check-runs/{job}/annotations?per_page=100":
+                message = (
+                    f"claude-lane-review-complete lane={lane} sha={HEAD}"
+                    " findings=0 inline=0 scope=whole"
+                )
+                return [
+                    [
+                        {
+                            "path": ".github",
+                            "annotation_level": "notice",
+                            "title": "claude-lane-review-complete",
+                            "message": message,
+                        }
+                    ]
+                ]
+        raise AssertionError(f"unexpected gh call: {endpoint}")
+
+    def read(self) -> tuple[list[tuple[str, str]], Any]:
+        """(endpoint, token) of every call, and `_lane_evidence`'s result or
+        the exception it raised."""
+        calls: list[tuple[str, str]] = []
+
+        def fake_gh(
+            args: list[str], *, check: bool = True, env_overrides: Any = None, **_: Any
+        ) -> subprocess.CompletedProcess[str]:
+            token = (env_overrides or {}).get("GH_TOKEN", "lane-tok")
+            calls.append((args[1], token))
+            if token == "read-tok" and args[1] != "rate_limit" and self.refusal:
+                if check:
+                    raise RuntimeError(f"gh {' '.join(args)} failed: {self.refusal}")
+                return subprocess.CompletedProcess(args, 1, "", self.refusal)
+            return subprocess.CompletedProcess(
+                args, 0, json.dumps(self.answer(args[1])), ""
+            )
+
+        pr = {
+            "number": PR,
+            "head": {"ref": "feat", "sha": HEAD},
+            "user": {"login": IDENTITY},
+            "commits": 1,
+            "created_at": "2026-10-22T00:00:00Z",
+        }
+        environ = {
+            "GH_TOKEN": "lane-tok",
+            "BABYSIT_VERIFY_GH_TOKEN": "read-tok",
+            "BABYSIT_RUN_CACHE": self.cache,
+        }
+        result: Any
+        with (
+            mock.patch.dict("os.environ", environ, clear=True),
+            mock.patch.object(gh, "_run_gh", side_effect=fake_gh),
+            mock.patch.object(merge, "fetch_review_threads", return_value=[]),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            try:
+                result = merge._lane_evidence(
+                    "owner/repo",
+                    PR,
+                    pr,
+                    IDENTITY,
+                    frozenset(),
+                    lambda login: "write",
+                    (),
+                    read_floor=0.3,
+                )
+            except RuntimeError as exc:
+                result = exc
+        return calls, result
+
+    def test_a_rate_limited_read_token_reads_again_on_the_lane_token(self) -> None:
+        calls, result = self.read()
+        lanes, comments = result
+        self.assertEqual([lane.bound for lane in lanes], [True, True])
+        self.assertEqual([lane.open_findings for lane in lanes], [0, 0])
+        self.assertEqual(len(comments), 2)
+        # 3934 of 5000 is above the 0.3 floor, so the read token was tried
+        # first, refused once, and every evidence read then ran on the lane
+        # token.
+        tried = [e for e, token in calls if token == "read-tok" and e != "rate_limit"]
+        self.assertEqual(tried, [f"repos/owner/repo/issues/{PR}/timeline?per_page=100"])
+        after = calls[calls.index((tried[0], "read-tok")) + 1 :]
+        self.assertTrue(after)
+        self.assertEqual({token for _, token in after}, {"lane-tok"})
+
+    def test_a_later_candidate_skips_the_limited_read_token(self) -> None:
+        self.read()
+        self.refusal = None
+        calls, result = self.read()
+        lanes, _ = result
+        self.assertEqual([lane.bound for lane in lanes], [True, True])
+        # Not even the limit read: the run cache says the token is spent.
+        self.assertEqual([e for e, token in calls if token == "read-tok"], [])
+
+    def test_a_refusal_that_is_no_rate_limit_is_not_read_again(self) -> None:
+        self.refusal = self.REFUSED
+        calls, result = self.read()
+        self.assertIsInstance(result, RuntimeError)
+        self.assertIn("Resource not accessible", str(result))
+        evidence = [
+            e
+            for e, token in calls
+            if token == "lane-tok" and not e.endswith("/commits?per_page=100")
+        ]
+        self.assertEqual(evidence, [])
+        # Nor is the token marked spent for the rest of the run.
+        self.refusal = None
+        calls, _ = self.read()
+        self.assertIn(("rate_limit", "read-tok"), calls)
 
 
 class CandidateReadsOnce(unittest.TestCase):
