@@ -6,8 +6,9 @@
 // the trusted-actor list. A human's comment whose first line is
 // `**Decision recorded.**`, not posted through an App, and unedited or last
 // edited by a human, is marked `decision: true` with `decided_at`, its latest
-// create or edit time. The lanes App's own comments never go in: its
-// pushback quotes the issue body. On any failure no file is left, so the
+// create or edit time. The lanes App's own comments never go in, since its
+// pushback quotes the issue body, except its intake refinement (REFINE_MARKER,
+// refine.mjs), tagged `refinement`: admission may have counted its criteria. On any failure no file is left, so the
 // skill never reads a partial issue.
 //
 // The label admitted the issue as it stood at the label event readAdmittedAt
@@ -41,6 +42,7 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
+import { REFINE_MARKER } from "../intake-triage/admit.mjs";
 import { RESUMABLE } from "./report-outcome.mjs";
 
 // Comments other than decisions, newest kept, so a pile of them cannot crowd
@@ -183,7 +185,8 @@ export async function main({ env = process.env, github, log = console.log } = {}
 
     const comments = [];
     for (const { comment, lastEditedAt, lastEditorId } of kept) {
-      if (comment.user.id === lanesAppId) {
+      const refinement = comment.user.id === lanesAppId && String(comment.body ?? "").startsWith(REFINE_MARKER);
+      if (comment.user.id === lanesAppId && !refinement) {
         dropped["lanes-app"] += 1;
         continue;
       }
@@ -195,10 +198,10 @@ export async function main({ env = process.env, github, log = console.log } = {}
         continue;
       }
       const human = humans.has(comment.user.id);
-      const decision = isDecisionComment({ comment, lastEditedAt, lastEditorId }, humans);
+      const decision = !refinement && isDecisionComment({ comment, lastEditedAt, lastEditorId }, humans);
       comments.push({
         author_login: comment.user.login,
-        author_kind: human ? "human" : "bot",
+        author_kind: refinement ? "refinement" : human ? "human" : "bot",
         created_at: comment.created_at,
         url: comment.html_url,
         body: comment.body ?? "",
