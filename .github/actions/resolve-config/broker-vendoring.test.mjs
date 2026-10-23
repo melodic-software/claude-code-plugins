@@ -1,9 +1,9 @@
 // The lanes token broker (azure-iac src/lanes-token-broker) loads resolve.mjs
-// from main's tip: its resolve-config-loader.mjs walks the sibling modules
-// resolve.mjs imports with the `relative_import` pattern, imports them beside a
-// node_modules holding only its own `packages`, and calls only loadConfig and
-// resolveGrant on the trust-root files binding.mjs reads from the same tip
-// (TRUST_FILES); its tests read the `test_files` list instead. A module the
+// from this repository's main tip, whichever repository calls: its
+// resolve-config-loader.mjs walks the sibling modules resolve.mjs imports with
+// the `relative_import` pattern, imports them beside a node_modules holding only
+// its own `packages`, and calls only loadConfig and resolveGrant on the
+// trust-root files binding.mjs reads from the caller's main tip (TRUST_FILES); its tests read the `test_files` list instead. A module the
 // pattern misses, a file read beside a module, a package the broker does not
 // provide, or a file loadConfig needs that TRUST_FILES lacks fails every
 // broker request. fixtures/broker-vendored-lists.json copies those lists from

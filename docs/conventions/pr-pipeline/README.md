@@ -1939,9 +1939,9 @@ check and its owner; a line in the pull request body does not count. Evidence: m
 intake author gate as "unverified, fails closed", merged, and skipped every intake run here
 (melodic-software/ci-workflows#772).
 
-The lanes token broker in azure-iac parses this config with the resolve-config modules it loads
-from the same `main` commit it reads the config at, so a change to `resolve.mjs` or a module it
-imports needs no azure-iac change. These still pair with an azure-iac deploy:
+The lanes token broker in azure-iac parses each caller's config with the resolve-config modules it
+loads from claude-code-plugins' `main`, whichever repository calls, so a change to `resolve.mjs` or
+a module it imports needs no azure-iac change. These still pair with an azure-iac deploy:
 
 - resolve-config's `package.json` or `package-lock.json`: the broker imports `ajv` and `yaml` from
   its own deployment and denies every token as `config-invalid` while `main`'s two files differ
