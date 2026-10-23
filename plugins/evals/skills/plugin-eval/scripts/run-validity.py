@@ -47,6 +47,7 @@ Exit codes:
 import argparse
 import json
 import os
+import posixpath
 import re
 import shlex
 import sys
@@ -109,11 +110,10 @@ DENIAL_TEXT = "denied by your permission settings"  # in an is_error tool_result
 TARGET_KEYS = ("file_path", "path")
 BASH_TOOL, BASH_COMMAND = "Bash", "command"
 SHELL_SPLIT = re.compile(r"[<>|;&()'\"=]")  # where one shell word holds several
-# A word the shell would expand, a parent directory, a path packed after another
-# character (/a,/b), or a path that resolves against the validator's own process.
-UNRESOLVED = re.compile(
-    r"[$`*?\[{]|^~|^\.\.$|[^\w./-]/|^/proc/(self|thread-self)(/|$)|^/dev/fd(/|$)"
-)
+# A word the shell would expand, or a path packed after another character (/a,/b).
+UNRESOLVED = re.compile(r"[$`*?\[{]|^~|[^\w./-]/")
+# A path that resolves against the validator's own process, matched normalized.
+OWN_PROCESS = re.compile(r"^/+(proc/(self|thread-self)|dev/fd)(/|$)")
 
 # The suite's skill-fired convention and the no-trigger control markers.
 SKILL_TOOL = "Skill"
@@ -391,20 +391,23 @@ def rooted(path):
 def bash_paths(command):
     """The paths a Bash command names: each rooted word, split at quotes,
     redirects, pipes, parentheses and `=` so --flag=/x, >/x and '/x' count. A
-    word UNRESOLVED matches, a relative path with a slash, a backslash, a cd,
-    pushd or popd, no rooted word, or a command that does not parse adds None,
-    which inside() counts as inside."""
+    word UNRESOLVED matches, a relative path with a slash or any later word that
+    is neither rooted nor a flag (cwd-relative, so possibly the plugin), a path
+    OWN_PROCESS matches, no rooted word, or a command that does not parse adds
+    None, which inside() counts as inside."""
     try:
         words = shlex.split(command) if isinstance(command, str) else None
     except ValueError:
         words = None
-    if not words or "\\" in command:
+    if not words:
         return (None,)
     values = [v for w in words for v in SHELL_SPLIT.split(w) if v]
     paths = tuple(v for v in values if rooted(v))
-    unresolved = any(
-        UNRESOLVED.search(v) or (not rooted(v) and "/" in v) for v in values
-    ) or any(v in ("cd", "pushd", "popd") for v in values)
+    unresolved = (
+        any(UNRESOLVED.search(v) or (not rooted(v) and "/" in v) for v in values)
+        or any(not rooted(v) and not v.startswith("-") for v in values[1:])
+        or any(OWN_PROCESS.search(posixpath.normpath(v)) for v in paths)
+    )
     return paths + (None,) if unresolved or not paths else paths
 
 

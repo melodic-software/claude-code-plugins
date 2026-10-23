@@ -413,6 +413,17 @@ class RunValidityTest(unittest.TestCase):
         self.assertVerdict(proc, "VALID", 0)
         self.assertIn("check permission denials: WARN (1 denial in 1 run", proc.stdout)
 
+    def test_a_with_arm_bash_denial_with_flags_redirects_or_quotes_outside_is_a_warning(
+        self,
+    ):
+        for command in (
+            "ls -la /proc",
+            "cat /proc/version >/tmp/out",
+            "cat '/proc/a b'",
+        ):
+            proc = self.denied_second_run("with", 1, root=self.PLUGIN, command=command)
+            self.assertVerdict(proc, "VALID", 0)
+
     def test_a_with_arm_bash_denial_inside_the_plugin_is_a_fail(self):
         for command in (
             "cat %s/x" % self.PLUGIN,
@@ -449,10 +460,29 @@ class RunValidityTest(unittest.TestCase):
             "cat /proc/version@/tmp/eval-r2/plugins/evals",
             "cat /proc/self/cwd/SKILL.md",
             "cat /dev/fd/3",
+            "ls /proc .",
+            "cat /./proc/thread-self/cwd/x",
+            "cat /proc/v /dev/./fd/3",
+            "./run.sh /proc/v",
             "type C:\\eval\\x /proc/v",
         ):
             proc = self.denied_second_run("with", 1, root=self.PLUGIN, command=command)
             self.assertVerdict(proc, "INVALID", 1)
+
+    def test_a_with_arm_bash_denial_naming_a_bare_relative_file_is_a_fail(self):
+        proc = self.denied_second_run(
+            "with", 1, root=self.PLUGIN, command="cat SKILL.md /proc/version"
+        )
+        self.assertVerdict(proc, "INVALID", 1)
+
+    def test_a_with_arm_bash_denial_on_an_unnormalized_proc_self_path_is_a_fail(self):
+        proc = self.denied_second_run(
+            "with",
+            1,
+            root=self.PLUGIN,
+            command="cat /proc//self/cwd/SKILL.md /proc/version",
+        )
+        self.assertVerdict(proc, "INVALID", 1)
 
     def test_a_with_arm_denial_on_a_path_with_a_nul_byte_is_a_fail_with_a_verdict(
         self,
