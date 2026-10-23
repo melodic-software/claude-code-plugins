@@ -50,8 +50,8 @@ scanner; remaining real cite relocated.
 | `plugins/knowledge/skills/video-digest/templates/sources.md` | clean |
 | `plugins/knowledge/vendor/repo-analysis/README.md` | clean |
 | `plugins/knowledge/vendor/video-digestion/TUNING.md` | clean |
-| `plugins/machine-health/skills/audit/references/windows/check-catalog.md` | clean |
-| `plugins/machine-health/skills/audit/references/windows/elevation-matrix.md` | clean |
+| `plugins/machine-health/skills/audit/reference/windows/check-catalog.md` | clean |
+| `plugins/machine-health/skills/audit/reference/windows/elevation-matrix.md` | clean |
 | `plugins/mcp-tools/skills/audit/reference/server-discovery.md` | clean |
 | `plugins/planning/skills/draft-goal-condition/SKILL.md` | clean |
 | `plugins/planning/skills/interview/context/session-config.md` | clean |
