@@ -1318,24 +1318,35 @@ def collect_lane_runs(
     number: int,
     head_ref: str,
     lanes: Iterable[tuple[str, str]],
+    created_at: str = "",
 ) -> list[dict[str, Any]]:
     """The `runs` input of `babysit_review_evidence.bind()` for one pull request.
 
     `lanes` gives each lane's (caller workflow path, lane job name suffix).
     Each workflow's `pull_request` runs are listed by `head_ref` with no
     `head_sha` filter and kept when their `pull_requests` name `number`, so
-    earlier heads' reviews are included. Each kept run's attempt count comes
+    earlier heads' reviews are included. `created_at`, the pull request's
+    creation time, bounds the listing to runs created since: GitHub labels a
+    reused branch's older runs with whichever pull request is open on it now,
+    so without the bound a long-lived branch reads every earlier pull
+    request's runs. A value that is not a UTC timestamp leaves it unbounded. Each kept run's attempt count comes
     from a fresh `GET actions/runs/{id}` taken after the listing; each attempt
     carries its jobs, and each lane job its check run's annotations. Any read
     failure, a deleted or expired run included, raises `RuntimeError`, which
     the caller turns into unbound evidence.
     """
     runs: list[dict[str, Any]] = []
+    since = (
+        f"&created={quote('>=' + created_at, safe='')}"
+        if re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", created_at)
+        else ""
+    )
     for path, job_suffix in lanes:
         workflow = quote(path.rsplit("/", 1)[-1], safe="")
         listing = fetch_paginated_api(
             f"repos/{repo}/actions/workflows/{workflow}/runs"
-            f"?branch={quote(head_ref, safe='')}&event=pull_request&per_page=100",
+            f"?branch={quote(head_ref, safe='')}&event=pull_request{since}"
+            "&per_page=100",
             f"{workflow} runs",
             items_key="workflow_runs",
         )

@@ -2904,7 +2904,11 @@ def _lane_evidence(
     except GraphQLUnavailableError:
         threads = None
     runs = collect_lane_runs(
-        repo, number, str(head.get("ref")), review_evidence.LANES.values()
+        repo,
+        number,
+        str(head.get("ref")),
+        review_evidence.LANES.values(),
+        str(pr.get("created_at") or ""),
     )
 
     def human(actor: Any) -> bool:

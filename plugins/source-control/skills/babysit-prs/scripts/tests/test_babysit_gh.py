@@ -1202,6 +1202,37 @@ class CollectLaneRunsTests(unittest.TestCase):
         )
         self.assertNotIn("annotations", jobs[1])
 
+    def test_the_listing_is_bounded_to_runs_since_the_pull_request_opened(self) -> None:
+        answers = self.answers(fresh_attempts=1)
+        unbounded = f"repos/{self.REPO}/actions/workflows/pr-review-hosted.yml/runs?branch=feat%2Fx&event=pull_request&per_page=100"
+        bounded = unbounded.replace(
+            "&per_page", "&created=%3E%3D2026-10-22T01%3A02%3A03Z&per_page"
+        )
+        answers[bounded] = answers.pop(unbounded)
+
+        def fake(args: list[str]) -> Any:
+            if args[1] not in answers:
+                raise RuntimeError(f"gh: Not Found (HTTP 404) {args[1]}")
+            return answers[args[1]]
+
+        with mock.patch.object(gh, "gh_json", side_effect=fake):
+            runs = gh.collect_lane_runs(
+                self.REPO, 5, "feat/x", self.LANES, "2026-10-22T01:02:03Z"
+            )
+        self.assertEqual([r["id"] for r in runs], [7])
+
+    def test_a_creation_time_that_is_not_a_utc_timestamp_leaves_the_listing_unbounded(self) -> None:
+        answers = self.answers(fresh_attempts=1)
+
+        def fake(args: list[str]) -> Any:
+            if args[1] not in answers:
+                raise RuntimeError(f"gh: Not Found (HTTP 404) {args[1]}")
+            return answers[args[1]]
+
+        with mock.patch.object(gh, "gh_json", side_effect=fake):
+            runs = gh.collect_lane_runs(self.REPO, 5, "feat/x", self.LANES, "x&y")
+        self.assertEqual([r["id"] for r in runs], [7])
+
     def test_a_deleted_or_expired_attempt_raises(self) -> None:
         answers = self.answers()
         del answers[f"repos/{self.REPO}/actions/runs/7/attempts/1"]
