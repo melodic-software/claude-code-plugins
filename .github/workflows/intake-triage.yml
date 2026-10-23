@@ -734,7 +734,8 @@ jobs:
   # Posts the refinement as the lanes App, with the grant apply-verdict gets
   # (issues: write). No model: refine.mjs --apply validates the output
   # against closed shapes and renders each field on one line. It never adds
-  # agent-ready or needs-human.
+  # agent-ready, and adds needs-human only to the child issue a split files;
+  # a split also rewrites the refined issue's done-when.
   apply-refinement:
     needs: [born-triaged, refine-select, refine-issue]
     if: ${{ !cancelled() && needs.refine-issue.result == 'success' }}

@@ -58,11 +58,14 @@ function fakeGitHub({ issue, comments = [], events = [], timeline = [], search =
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
     const base = "/repos/o/r/issues/7";
+    if (method === "POST" && path === "/graphql" && body.query.includes("issueTypes")) {
+      return { data: { repository: { issueTypes: { nodes: [{ id: "IT_bug", name: "Bug", isEnabled: true }, { id: "IT_task", name: "Task", isEnabled: true }] } } } };
+    }
     if (method === "POST" && path === "/graphql") {
       return { data: { nodes: (body.variables.ids ?? []).map((id) => ({ id, lastEditedAt: null })) } };
     }
     if (method === "POST" && path === "/repos/o/r/issues") {
-      return { number: 70 };
+      return { number: 70, node_id: "I_70" };
     }
     if (method !== "GET") {
       return null;
@@ -99,7 +102,7 @@ const issueOf = (overrides = {}) => ({
 });
 
 describe("selectRefinement", () => {
-  const select = (fake) => selectRefinement({ github: fake.github, repository: "o/r", number: 7, humans, appId: APP, startedAt: Date.parse(STARTED), rules, webHosts });
+  const select = (fake) => selectRefinement({ github: fake.github, repository: "o/r", number: 7, humans, appId: APP, startedAt: Date.parse(STARTED), splitConfig: () => ({ rules, webHosts }) });
 
   test("selects a thin issue and writes the context the model reads", async () => {
     const fake = fakeGitHub({
@@ -365,7 +368,7 @@ describe("split", () => {
     sources: ["plugins/planning/surface/exporters.py:944: builds the line"],
     split: [2],
   };
-  const select = (fake) => selectRefinement({ github: fake.github, repository: "o/r", number: 7, humans, appId: APP, startedAt: Date.parse(STARTED), rules, webHosts });
+  const select = (fake) => selectRefinement({ github: fake.github, repository: "o/r", number: 7, humans, appId: APP, startedAt: Date.parse(STARTED), splitConfig: () => ({ rules, webHosts }) });
 
   test("splitOf names the held items and leaves an issue with no unrunnable item, or only unrunnable ones, alone", () => {
     const laneBody = laneComment("none").body;
@@ -469,7 +472,8 @@ describe("split", () => {
     const filed = done.filter(({ method, path }) => method === "POST" && path === "/repos/o/r/issues");
     assert.equal(filed.length, 1, "one child");
     assert.deepEqual(filed[0].body.labels, ["needs-human"]);
-    assert.equal(filed[0].body.type, "Task");
+    const typed = fake.calls.find(({ path, body }) => path === "/graphql" && body.query.includes("updateIssue"));
+    assert.deepEqual(typed.body.variables, { id: "I_70", type: "IT_task" }, "typed Task, as intake's reusable sets a type");
     assert.ok(filed[0].body.body.includes("- [ ] Open the exported brief on a Windows 11 host"));
     assert.ok(!filed[0].body.body.includes("check-affected"), "only the unrunnable item");
     assert.deepEqual(

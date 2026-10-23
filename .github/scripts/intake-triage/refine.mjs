@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// refine.mjs: refines a thin issue after intake triage (#9215), and splits a
-// held one. No model runs here; intake-triage.yml's refine-issue job runs one
+// refine.mjs: refines a thin issue after intake triage, and splits a held
+// one. No model runs here; intake-triage.yml's refine-issue job runs one
 // between the two modes.
 //
 // `--select` (the job's read-only GITHUB_TOKEN) decides whether the issue is
@@ -21,7 +21,7 @@
 //
 // `--apply` (the lanes App token, issues write) validates the model's
 // structured output and posts it as a separate comment opening with
-// REFINE_MARKER, never a body edit. Exact: the comment lists the drafted
+// REFINE_MARKER; only a split (below) edits the body. Exact: the comment lists the drafted
 // criteria as a task list, which admit.mjs counts for criterion 7; when the
 // lanes App set the issue's `status: needs-decision`, it takes that off and
 // adds `needs-triage`, and the job's `redispatch` output starts one more
@@ -33,8 +33,9 @@
 //
 // A split the model judges sound names exactly the held item numbers; the
 // model writes no text the lanes read. The script files one child issue,
-// authored by the lanes App, labeled `needs-human` and born triaged, that
-// holds those items verbatim and links back; lifts the App's
+// authored by the lanes App, labeled `needs-human` and typed CHILD_TYPE with
+// the born-triaged marker last (so intake skips it), that holds those items
+// as written and links back; lifts the App's
 // `status: needs-decision` and asks for triage again; and rewrites the
 // issue's body, replacing those items with one plain line linking the child,
 // so admission reads the rest. A retry reuses a child the App already filed
@@ -169,7 +170,9 @@ async function candidates(github, repository, issue, trusted) {
 }
 
 // {refine, reason, context}. Reads only.
-export async function selectRefinement({ github, repository, number, humans, appId, startedAt, rules, webHosts }) {
+// `splitConfig` returns {rules, webHosts}, read only for an issue that is
+// not thin.
+export async function selectRefinement({ github, repository, number, humans, appId, startedAt, splitConfig }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
   const no = (reason) => ({ refine: false, reason });
@@ -191,7 +194,7 @@ export async function selectRefinement({ github, repository, number, humans, app
     return no("the lanes App already refined it");
   }
   const { thin, reasons } = isThin({ body: issue.body, laneBody: lane[0].body });
-  const split = thin ? null : splitOf({ body: issue.body, laneBody: lane[0].body, labels: labelNames(issue), rules, webHosts });
+  const split = thin ? null : splitOf({ body: issue.body, laneBody: lane[0].body, labels: labelNames(issue), ...splitConfig() });
   if (!thin && split === null) {
     return no("not thin, and no done-when items to split off");
   }
@@ -362,6 +365,30 @@ export function splitBody(body, taskList, moved, child) {
     .join("\n");
 }
 
+// Gives the child CHILD_TYPE as intake's reusable does, through GraphQL. The
+// type only lets intake skip the child, so a failure is logged, not thrown.
+async function setType(github, repository, nodeId, log) {
+  try {
+    const [owner, name] = repository.split("/");
+    const types = (
+      await github("POST", "/graphql", {
+        query: "query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { issueTypes(first: 25) { nodes { id name isEnabled } } } }",
+        variables: { owner, name },
+      })
+    )?.data?.repository?.issueTypes?.nodes;
+    const type = (types ?? []).find((node) => node?.name === CHILD_TYPE && node.isEnabled)?.id;
+    if (typeof nodeId !== "string" || typeof type !== "string") {
+      throw new Error(`no ${CHILD_TYPE} type or no issue id`);
+    }
+    await github("POST", "/graphql", {
+      query: "mutation($id: ID!, $type: ID!) { updateIssue(input: { id: $id, issueTypeId: $type }) { issue { issueType { name } } } }",
+      variables: { id: nodeId, type },
+    });
+  } catch (error) {
+    log(`::warning title=refine::the child got no ${CHILD_TYPE} type, so intake triages it (${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")})`);
+  }
+}
+
 // The child the lanes App already filed for this issue, from the issue's
 // timeline, or undefined.
 async function childOf(github, repository, base, number, appId) {
@@ -413,18 +440,19 @@ export async function applyRefinement({ github, repository, number, appId, rules
     const items = taskItems(issue.body, rules["task-list"]);
     let child = await childOf(github, repository, base, number, appId);
     if (child === undefined) {
-      child = (
+      const filed = (
         await github("POST", `/repos/${repository}/issues`, {
           title: `${String(issue.title)} (checks a person runs)`.slice(0, 256),
           body: childBody(number, output.split.map((n) => items[n - 1].text), rules["task-list"]),
           labels: [NEEDS_HUMAN],
-          type: CHILD_TYPE,
         })
-      )?.number;
-      if (!Number.isInteger(child)) {
+      );
+      if (!Number.isInteger(filed?.number)) {
         throw new Error("the child issue came back with no number");
       }
+      child = filed.number;
       log(`refine: #${number} filed #${child} for done-when items ${output.split.join(", ")}`);
+      await setType(github, repository, filed.node_id, log);
     }
     await github("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
     await removeLabel(github, base, NEEDS_DECISION);
@@ -495,7 +523,8 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
         }
         const { issueLaneWebHostsFromBase } = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
         const github = createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL });
-        const result = await selectRefinement({ github, repository, number, humans, appId, startedAt, rules: rules(), webHosts: issueLaneWebHostsFromBase(env) });
+        const splitConfig = () => ({ rules: rules(), webHosts: issueLaneWebHostsFromBase(env) });
+        const result = await selectRefinement({ github, repository, number, humans, appId, startedAt, splitConfig });
         if (result.refine) {
           writeFileSync(env.CONTEXT_PATH, `${JSON.stringify(result.context, null, 2)}\n`);
         }
@@ -509,7 +538,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
         const known = new Set((context.candidates ?? []).map((item) => item.number));
         const output = validateOutput(JSON.parse(readFileSync(env.REFINEMENT_PATH, "utf8")).output, known, context.split ?? null);
         const github = createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL });
-        const result = await applyRefinement({ github, repository, number, appId, rules: rules(), output, context });
+        const result = await applyRefinement({ github, repository, number, appId, rules: output.split.length > 0 ? rules() : null, output, context });
         writeOutputs({ redispatch: String(result.redispatch) });
       } else {
         throw new Error("pass --select or --apply");
