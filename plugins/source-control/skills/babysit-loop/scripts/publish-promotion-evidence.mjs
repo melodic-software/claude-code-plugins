@@ -595,16 +595,17 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
     const actors = queued.length > 0 ? [queued.at(-1).actor, queued.at(-1).enqueuer] : [g.mergedBy];
     const byIdentity = actors.some((actor) => actor && lane.has(actorKey(actor)));
     // babysit_postmerge.py native_auto_merge: a lane identity's own native auto-merge posts no
-    // pin. A lane identity opened it from this repository, and its newest auto-merge enable or
-    // disable is a lane identity's enable, made no later than the enqueue. Missing data reads as
-    // not native, so the pin stays owed.
-    const armed = Array.isArray(g.autoMerge?.nodes) ? g.autoMerge.nodes.at(-1) : undefined;
+    // pin. One lane identity opened it from this repository, enqueued it, and made its newest
+    // auto-merge enable or disable, an enable no later than the enqueue. When that identity
+    // opened it from this repository, unreadable auto-merge events refuse the publish, as the
+    // check reads them unreadable.
+    const who = actorKey(g.author);
+    const owned = byIdentity && lane.has(who) && actors.some((actor) => actor && actorKey(actor) === who) && g.isCrossRepository === false;
+    if (owned && !Array.isArray(g.autoMerge?.nodes)) throw new PublishError(`refusing to publish: #${g.number} has no auto-merge events`);
+    const armed = owned ? g.autoMerge.nodes.at(-1) : undefined;
     const native =
-      byIdentity &&
-      lane.has(actorKey(g.author)) &&
-      g.isCrossRepository === false &&
       armed?.__typename === "AutoMergeEnabledEvent" &&
-      lane.has(actorKey(armed.actor)) &&
+      actorKey(armed.actor) === who &&
       (queued.length === 0 || ms(armed.createdAt, "an auto-merge event") <= ms(queued.at(-1).createdAt, "a merge-queue event"));
     return { autonomous: actors.some((actor) => !human(actor)) || lane.has(actorKey(g.mergedBy)), byIdentity, native };
   };

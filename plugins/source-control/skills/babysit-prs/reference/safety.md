@@ -851,9 +851,11 @@ review; the PR still merges only once the check reports SUCCESS.
   change to the plan's session-limit window.
 
 Auto-merge stays off because `ci-status` is the only required check and does not wait on the
-review workflows, so an armed auto-merge could merge before AI review posts. Nothing enables it:
-not the merge lane, not a Worker Contract subagent (`orchestration.md`), not a work-items worker
-lane, not a standalone invocation, not `/source-control:pull-request`.
+review workflows, so an armed auto-merge could merge before AI review posts. None of these enables
+it: the merge lane, a Worker Contract subagent (`orchestration.md`), a work-items worker lane, a
+standalone invocation, `/source-control:pull-request`. The one thing that does is pr-merge.yml's
+`enable-auto-merge.mjs`, which arms the lanes App's own pull requests natively and re-arms one
+whose auto-merge an App turned off; a person's disarm keeps it off.
 
 A push by a writer leaves an auto-merge armed (by a person, or before this rule), and the new head
 would merge on `ci-status` alone.
@@ -861,11 +863,13 @@ Verified 2026-09-26 against GitHub's [Automatically merging a pull request](http
 which disables auto-merge only when "someone without write permissions pushes new changes to the
 head branch or switches the base branch". Recheck when that page names another event that disables
 auto-merge, or a GitHub changelog entry changes auto-merge behavior on push.
-So every push path disarms it: `refresh_pr_branch.py` before updating the branch, `lane_push`
-before and after each lane push in [loop.md](loop.md), and in
+So every babysit push path disarms it: `refresh_pr_branch.py` before updating the branch,
+`lane_push` before and after each lane push in [loop.md](loop.md), and in
 [orchestration.md](orchestration.md) the fix worker (Worker Contract and Worker Prompt Template)
 and the orchestrator's conflict-resolution push (Orchestrator Contract) before and after pushing.
-Nothing re-arms it.
+The pr-unblock lane's branch writers (`address-feedback.mjs` and `apply-patch.mjs`, which move the
+head ref with the App token) do not disarm, and `enable-auto-merge.mjs` re-arms after a babysit
+disarm, so a lanes App pull request's new head can merge natively (see the post-merge residuals).
 
 ### Security/P1 escalation has no exception; the pre-escalation resolver is bound by it too
 
@@ -1101,8 +1105,16 @@ Named residuals:
   its own and files a new record.
 - After a dispatch deadline with no unedited pin comment, an identity merge fails the read-back and
   a demotion record is filed. A native auto-merge the identity armed on its own same-repository
-  pull request no later than its enqueue, and did not disarm since, posts no pin and needs no read-back: it verifies on the dispatch and
-  canary runs alone.
+  pull request no later than its enqueue, and did not disarm since, posts no pin and needs no
+  read-back: it verifies on the dispatch and canary runs alone.
+- A native merge's head is compared with no vetted head: a writer's push after the arm (the
+  pr-unblock writers above) leaves auto-merge armed, and that head merges natively with no
+  read-back. `ci-status` still runs the hold rules on the merge-group head. The pending
+  synchronize disarm in [#9450](https://github.com/melodic-software/claude-code-plugins/pull/9450)
+  closes this once it lands.
+- Event times have one-second resolution, so an identity arm in the same second as a gate enqueue
+  counts as at or before it, and that gate merge reads as native and skips its read-back. So does
+  an arm between the gate's disarm check and its enqueue.
 - The pull request's author can apply the opt-in and `work-class:` labels: label provenance asks
   only that a human with write permission applied them in person, within write-access trust.
   Label provenance also cannot tell the operator from an agent driving the operator's own `gh`

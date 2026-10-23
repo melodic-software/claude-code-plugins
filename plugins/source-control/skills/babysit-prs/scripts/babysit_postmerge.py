@@ -511,7 +511,8 @@ def native_auto_merge(pr: dict[str, Any], merge: AutoMerge, identity: str) -> bo
     after the arm (address-feedback, apply-patch) leaves auto-merge armed, so
     the later head merges natively. An arm that lands between the gate's
     disarm check and its enqueue also reads as native and skips that merge's
-    read-back."""
+    read-back, and so does an arm in the same second as the enqueue: event
+    times have one-second resolution, so the comparison is at or before."""
     if not merge.by_identity:
         return False
     if (
@@ -961,7 +962,7 @@ class _Context:
             self.dispatch_at_cache[commit] = {
                 r.id: r
                 for r in _run_rows(rows, "workflow_dispatch", self.owner, self.name)
-                if r.head_branch == self.branch
+                if r.head_branch == self.branch and self.on_branch(r)
             }
         return self.dispatch_at_cache[commit]
 
@@ -1120,17 +1121,22 @@ class _Context:
             )
         return self.affected_cache[run.id]
 
+    def on_branch(self, run: Run) -> bool:
+        """Whether `run`'s head commit is on the branch as `refs/heads/`
+        names it. A run's `head_branch` is only a name: a run on a tag named
+        like the branch carries it too, and its commit (and plan script) can
+        be anyone's with write access."""
+        return bool(_FULL_SHA.fullmatch(run.head_sha or "")) and self.contains(
+            run.head_sha, self._branch_tip()
+        )
+
     def _newest_on_branch(self, runs: list[Run]) -> Run | None:
-        """The newest of `runs` whose head commit is on the branch as
-        `refs/heads/` names it. A run's `head_branch` is only a name: a run on
-        a tag named like the branch carries it too, and its commit (and plan
-        script) can be anyone's with write access."""
+        """The newest of `runs` on the branch (`on_branch`)."""
         return next(
             (
                 r
                 for r in sorted(runs, key=lambda r: r.created_at, reverse=True)
-                if _FULL_SHA.fullmatch(r.head_sha or "")
-                and self.contains(r.head_sha, self._branch_tip())
+                if self.on_branch(r)
             ),
             None,
         )
@@ -1727,7 +1733,8 @@ def _lane_reruns(ctx: _Context, now: datetime, tally: _Tally) -> list[str]:
         )
         for run in sorted(runs, key=lambda r: r.created_at, reverse=True):
             if (
-                run.id not in tally.reruns
+                ctx.on_branch(run)
+                and run.id not in tally.reruns
                 and run.attempt == 1
                 and ctx.outcome(run, attributable=True)[0] == RERUN
                 and ctx.lane_dispatched(run)
@@ -1828,9 +1835,18 @@ def check(
                 floor,
             )
         ]
-        full_runs.sort(key=lambda item: item[1].created_at)
+        # A listing filtered by branch name also returns runs on a tag named
+        # like the branch, whose red would be charged to the merge.
+        full_runs = sorted(
+            (item for item in full_runs if ctx.on_branch(item[1])),
+            key=lambda item: item[1].created_at,
+        )
         canary_runs = sorted(
-            _runs(owner, name, CANARY_WORKFLOW, "push", branch, floor),
+            (
+                r
+                for r in _runs(owner, name, CANARY_WORKFLOW, "push", branch, floor)
+                if ctx.on_branch(r)
+            ),
             key=lambda r: r.created_at,
         )
         states = tuple(

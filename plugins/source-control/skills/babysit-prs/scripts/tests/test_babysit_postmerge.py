@@ -875,6 +875,48 @@ class NativeAutoMerge(CheckCase):
                 self.assertIn("no auto-merge events", verdict.reason)
 
 
+class RunsOffTheBranch(CheckCase):
+    """A run on a tag named like the branch reports the branch as its
+    `head_branch`. Its commit may descend from the merge, yet it is not on
+    `refs/heads/main`, so it is neither the merge's evidence nor its failure."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.gh.descendants.add(FORK_SHA)
+
+    def test_a_red_schedule_run_off_the_branch_is_not_charged(self) -> None:
+        self.all_green()
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "schedule",
+            schedule_run(31, head_sha=FORK_SHA, created_at="2026-10-12T10:02:00Z"),
+        )
+        verdict = self.check()
+        self.assertEqual(verdict.failures, ())
+        self.assertEqual(verdict.reruns, ())
+        self.assertTrue(verdict.merges[0].verified)
+
+    def test_a_red_canary_off_the_branch_is_not_charged(self) -> None:
+        self.all_green()
+        self.gh.add_runs(
+            "post-merge-detect-silent-revert.yml",
+            "push",
+            canary_run(22, conclusion="failure", head_sha=FORK_SHA),
+        )
+        self.assertEqual(self.check().failures, ())
+
+    def test_a_green_dispatch_off_the_branch_does_not_verify(self) -> None:
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(11, head_sha=FORK_SHA),
+        )
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+        verdict = self.check()
+        self.assertFalse(verdict.merges[0].verified)
+        self.assertTrue(verdict.needs_dispatch)
+
+
 class DroppedDispatchListing(CheckCase):
     """A listing that answers without runs it holds (a degraded API) must
     not read as "no dispatch run": past the deadline, a read by the merge

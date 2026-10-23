@@ -143,8 +143,8 @@ test("a lane identity's native auto-merge owes no pin, as in native_auto_merge",
   const armed = (kind, at, login = LANE) => ({ nodes: [{ __typename: kind, createdAt: at, actor: actorOf(login) }] });
   const enqueue = [queued("2026-08-31T23:50:00Z", LANE)];
   const pulls = (autoMerge, extra = {}) => [pr(1505, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], timeline: enqueue, patch: { autoMerge, ...extra } })];
-  const judge = (autoMerge, extra) => {
-    const result = run({ pulls: pulls(autoMerge, extra), workflowRuns: verifiedEach(pulls(autoMerge, extra)), comments: { 1505: [] } });
+  const judge = (autoMerge, extra, lanes = [LANE]) => {
+    const result = run({ pulls: pulls(autoMerge, extra), workflowRuns: verifiedEach(pulls(autoMerge, extra)), comments: { 1505: [] } }, { laneLogins: lanes });
     return [gateOf(result), result.events];
   };
   const noPin = [FAILED, gateEvents("2026-09-01T06:00:00Z", "C2-auto-merge")];
@@ -154,7 +154,11 @@ test("a lane identity's native auto-merge owes no pin, as in native_auto_merge",
   assert.deepEqual(judge(armed("AutoMergeDisabledEvent", "2026-08-31T23:40:00Z")), noPin);
   assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:55:00Z")), noPin);
   assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z", "kyle-sexton")), noPin);
-  assert.deepEqual(judge(undefined), noPin);
+  // Unreadable auto-merge events refuse the publish, as the check reads them unreadable.
+  assert.throws(() => judge(undefined), (error) => error instanceof PublishError && /no auto-merge events/.test(error.message));
+  // One lane identity opened it and another armed it: not one identity's native merge.
+  const other = "other-lane[bot]";
+  assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z", other), {}, [LANE, other]), noPin);
   // A lane arm on a pull request the lane did not open from this repository is off the gate.
   assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z"), { author: actorOf("kyle-sexton") }), noPin);
   assert.deepEqual(judge(armed("AutoMergeEnabledEvent", "2026-08-31T23:40:00Z"), { isCrossRepository: true }), noPin);
