@@ -200,8 +200,8 @@ test("a new executable bit the patch sets pushes with the mode it set", async (t
   assert.equal(git(fix.repo, ["ls-tree", createCommit.tree, "--", "README.md"]).split(" ")[0], "100755");
 });
 
-// #9111's fix: two scripts committed 100644 made executable, and a test
-// fixture edited, with no path under .github/.
+// A fix that makes two 100644 scripts executable and edits a test fixture,
+// with no path under .github/.
 test("under the ci-context row a fix that sets script exec bits and edits a fixture pushes, escalating nothing", async (t) => {
   const fix = repoWithPatch(
     t,
