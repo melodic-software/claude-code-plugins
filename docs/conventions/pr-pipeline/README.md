@@ -1049,7 +1049,8 @@ hold paths, so one added after arming stops the merge without waiting for this j
 `Fail a lanes App pull request its body or a member holds` runs
 `.github/scripts/pr-merge/merge-holds.mjs` as main has it, the module `enable-auto-merge.mjs` arms
 by, over the live body, discussion and changed files (renamed-from paths included) against main's
-`merge.diff-check.denied-paths` plus the paths resolve-config always adds, on each pull request
+`merge.diff-check.denied-paths` plus the paths resolve-config always adds and the rest of the merge
+gate's HIGH floor (`CODEOWNERS`, `.gitmodules`, every plugin manifest), on each pull request
 event and in the merge queue, where a red group removes the pull request. A push that adds a hold
 path fails `ci-status` on its own head. A person on the trusted-actor list (as main has it) lifts a
 hold path by approving that head: their newest review of it that approves, requests changes or was

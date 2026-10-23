@@ -5,7 +5,7 @@ import { test } from "node:test";
 import { parse, stringify } from "yaml";
 
 import { Rejection, resolve } from "./resolve.mjs";
-import { HOLD_PATH_FLOOR } from "../../scripts/pr-merge/merge-holds.mjs";
+import { FORCED_DENIED_PATHS } from "../../scripts/pr-merge/merge-holds.mjs";
 
 const read = (relative) =>
   readFileSync(new URL(relative, import.meta.url), "utf8");
@@ -215,10 +215,10 @@ test("resolveMerge output for valid.yaml is unchanged", () => {
 });
 
 // ci-status adds this floor to the base config's denied paths itself.
-test("merge-holds.mjs's HOLD_PATH_FLOOR is the denied paths resolveMerge forces", () => {
+test("merge-holds.mjs's FORCED_DENIED_PATHS are the denied paths resolveMerge forces", () => {
   assert.deepEqual(
     [...run(read("./fixtures/valid.yaml")).merge["diff-check"]["denied-paths"]].sort(),
-    [...HOLD_PATH_FLOOR].sort(),
+    [...FORCED_DENIED_PATHS].sort(),
   );
 });
 

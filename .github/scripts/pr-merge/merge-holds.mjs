@@ -38,10 +38,19 @@ export const HUMAN_VETO = /\bdo(?:n['’]?t| not|-not)[\s-]*merge\b/i;
 const MEMBERS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 // The denied paths resolve-config adds to every config's (resolveMerge);
 // merge-authority.test.mjs checks the two agree.
-export const HOLD_PATH_FLOOR = Object.freeze([
+export const FORCED_DENIED_PATHS = Object.freeze([
   "docs/conventions/pr-pipeline.yaml",
   ".github/**",
   ".github/standards/trusted-actors/trusted-actors.json",
+]);
+// Every hold path check adds these: the forced paths, the rest of the merge
+// gate's HIGH floor (babysit_risk.HIGH_FLOOR), and every plugin manifest, a
+// path-wide stand-in for the gate's executable-key manifest check.
+export const HOLD_PATH_FLOOR = Object.freeze([
+  ...FORCED_DENIED_PATHS,
+  "**/CODEOWNERS",
+  "**/.gitmodules",
+  "**/.claude-plugin/plugin.json",
 ]);
 
 // The members whose newest item with text vetoes the merge, sorted. Each item
@@ -92,15 +101,15 @@ export function pathHold(files, holdPaths) {
   if (typeof posix.matchesGlob !== "function") {
     return "this Node has no path.matchesGlob, so its hold paths cannot be checked";
   }
-  const held = files.find((path) => holdPaths.some((glob) => matchesHoldPath(path, glob)));
+  const globs = [...holdPaths, ...HOLD_PATH_FLOOR];
+  const held = files.find((path) => globs.some((glob) => matchesHoldPath(path, glob)));
   return held === undefined ? null : `it changes ${held}, a hold path`;
 }
 
-// The config's denied paths plus the floor, or null unless a list of strings.
+// The config's denied paths, or null unless a list of strings; pathHold adds
+// the floor.
 export function holdPathsOf(denied) {
-  return Array.isArray(denied) && denied.every((glob) => typeof glob === "string")
-    ? [...new Set([...denied, ...HOLD_PATH_FLOOR])]
-    : null;
+  return Array.isArray(denied) && denied.every((glob) => typeof glob === "string") ? denied : null;
 }
 
 // The trusted people (numeric `humans` ids) whose newest deciding review of

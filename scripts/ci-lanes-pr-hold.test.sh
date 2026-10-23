@@ -57,6 +57,11 @@ if [[ "$step" == *"GROUP_BASE_SHA: \${{ github.event.merge_group.base_sha }}"* &
 else
   fail "step reads a pull request's base from the payload"
 fi
+if grep -qxF "      - name: Set up Node" "$WORKFLOW" && [[ "$(grep -nxF -e "      - name: Set up Node" -e "      - name: $NAME" "$WORKFLOW" | cut -d: -f2- | paste -sd'|')" == *"Set up Node|      - name: $NAME" ]]; then
+  ok "a prior step pins Node right before the step"
+else
+  fail "no 'Set up Node' step right before the step"
+fi
 order="$(grep -nE "^  ci-status:$|^      - name: ($NAME|Aggregate lane results)$" "$WORKFLOW" | cut -d: -f1 | paste -sd' ')"
 read -r job_line hold_line agg_line <<<"$order"
 if [[ -n "${agg_line:-}" && "$job_line" -lt "$hold_line" && "$hold_line" -lt "$agg_line" ]]; then
@@ -213,6 +218,10 @@ STUB_FILES='[[".github/x\n::stop-commands::t"]]' STUB_PULL="$(pull 'Closes #1')"
 expect "a newline in a held file name cannot start a workflow command" 1 3 "it changes .github/x%0A::stop-commands::t, a hold path"
 STUB_FILES='[["docs/guide.md"],[".github/workflows/.x.yml"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
 expect "a dot-prefixed file under a floor tree fails" 1 3 "it changes .github/workflows/.x.yml, a hold path"
+for held in CODEOWNERS docs/CODEOWNERS .gitmodules plugins/p/.claude-plugin/plugin.json; do
+  STUB_FILES="[[\"$held\"]]" STUB_PULL="$(pull 'Closes #1')"
+  expect "the merge gate's HIGH floor holds $held" 1 3 "it changes $held, a hold path"
+done
 STUB_FILES='[["docs/conventions/pr-pipeline.yaml"]]' STUB_PULL="$(pull 'Closes #1')"
 expect "the pipeline config is held by the floor" 1 3 "it changes docs/conventions/pr-pipeline.yaml, a hold path"
 STUB_FILES='[[".github/workflows/x.yml"]]'
