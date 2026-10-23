@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.1] - 2026-10-23
+
+### Changed
+
+- The `C4` (structural) class reference says a merge authority that reads the class merges it as `C3`.
+
 ## [0.31.0] - 2026-10-22
 
 ### Changed
