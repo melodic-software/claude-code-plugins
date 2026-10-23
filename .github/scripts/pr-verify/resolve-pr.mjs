@@ -39,7 +39,10 @@ import {
   graphQLReader,
   loadTrustedList,
 } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { headRefDigest, issuesSuffix } from "./write-verdict.mjs";
+import { headRefDigest, issuesSuffix, NAME } from "./write-verdict.mjs";
+
+// The name grammar lives with its writer; the resolver checks names against it.
+export { isVerdictName, NAME, NAME_MAX } from "./write-verdict.mjs";
 
 export const UPSTREAM_PATH = ".github/workflows/pr-require-checks.yml";
 export const VERIFY_PATH = ".github/workflows/pr-verify.yml";
@@ -50,17 +53,6 @@ const VERIFY_AUTHORS = Object.freeze(["lane", "lane-or-owner", "any"]);
 
 const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
-// A verdict's name (babysit_verify_evidence.NAME_RE): the head-ref digest is
-// optional, and so, on a FAIL only, is `-i` with the verdict's issue numbers,
-// ascending, each once, joined by dots (`isVerdictName` checks the order).
-export const NAME = /^pr-verify-([1-9][0-9]{0,9})-([0-9a-f]{40})-(pass(?:-notes)?(?=(?:-[0-9a-f]{16})?$)|fail)(?:-[0-9a-f]{16})?(?:-i([1-9][0-9]{0,9}(?:\.[1-9][0-9]{0,9}){0,9}))?$/;
-// The longest name NAME allows (babysit_verify_evidence.NAME_MAX).
-export const NAME_MAX = 194;
-export function isVerdictName(name) {
-  const match = String(name).length <= NAME_MAX ? NAME.exec(String(name)) : null;
-  const numbers = match?.[4]?.split(".").map(Number) ?? [];
-  return match !== null && numbers.every((n, i) => i === 0 || numbers[i - 1] < n);
-}
 const MAX_PAGES = 100;
 
 const SPEC_QUERY = `query($owner: String!, $name: String!, $number: Int!) {

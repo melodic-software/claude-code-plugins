@@ -190,9 +190,27 @@ export function issuesSuffix(numbers) {
   }
   return issues.length === 0 ? "" : `-i${issues.join(".")}`;
 }
+// A verdict's name (babysit_verify_evidence.NAME_RE): the head-ref digest is
+// optional, and so, on a FAIL only, is `-i` with the verdict's issue numbers,
+// ascending, each once, joined by dots (`isVerdictName` checks the order).
+export const NAME = /^pr-verify-([1-9][0-9]{0,9})-([0-9a-f]{40})-(pass(?:-notes)?(?=(?:-[0-9a-f]{16})?$)|fail)(?:-[0-9a-f]{16})?(?:-i([1-9][0-9]{0,9}(?:\.[1-9][0-9]{0,9}){0,9}))?$/;
+// The longest name NAME allows (babysit_verify_evidence.NAME_MAX).
+export const NAME_MAX = 194;
+export function isVerdictName(name) {
+  const match = String(name).length <= NAME_MAX ? NAME.exec(String(name)) : null;
+  const numbers = match?.[4]?.split(".").map(Number) ?? [];
+  return match !== null && numbers.every((n, i) => i === 0 || numbers[i - 1] < n);
+}
+
+// The verdict's artifact name, checked against the readers' pattern before
+// anything uploads: a name no reader takes throws, so the job fails loudly.
 export function artifactName(verdict) {
-  const name = `pr-verify-${verdict.pr}-${verdict.head_sha}-${verdict.verdict}`;
-  return verdict.verdict === "fail" ? name + issuesSuffix((verdict.linked_issues ?? []).map((issue) => issue.number)) : name;
+  const plain = `pr-verify-${verdict.pr}-${verdict.head_sha}-${verdict.verdict}`;
+  const name = verdict.verdict === "fail" ? plain + issuesSuffix((verdict.linked_issues ?? []).map((issue) => issue.number)) : plain;
+  if (!isVerdictName(name)) {
+    throw new Error(`the artifact name ${name} is one no reader takes`);
+  }
+  return name;
 }
 
 export function main(env = process.env) {

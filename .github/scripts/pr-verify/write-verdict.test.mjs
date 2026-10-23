@@ -65,6 +65,16 @@ test("a FAIL's name carries the issues it records, ascending and once each", () 
   assert.throws(() => name("fail", [...ten, issue(11)]), /more than a name carries/);
 });
 
+test("a name the readers would not take is refused before any upload", () => {
+  // An 11-digit pull request number, or an issue number past 10 digits:
+  // the readers' pattern (resolve-pr NAME) refuses both, so the writer does.
+  const fail = (overrides) => ({ pr: 41, head_sha: HEAD, verdict: "fail", linked_issues: [], ...overrides });
+  assert.equal(artifactName(fail({ pr: 9999999999 })), `pr-verify-9999999999-${HEAD}-fail`);
+  for (const verdict of [fail({ pr: 10000000000 }), fail({ linked_issues: [{ number: 10000000000 }] }), fail({ head_sha: "A".repeat(40) })]) {
+    assert.throws(() => artifactName(verdict), /no reader takes/, JSON.stringify(verdict));
+  }
+});
+
 test("the head-ref digest is the first 16 hex digits of the branch's SHA-256", () => {
   // `printf %s <ref> | sha256sum`, cut to 16 digits.
   assert.equal(HEAD_REF_DIGEST_HEX, 16);
