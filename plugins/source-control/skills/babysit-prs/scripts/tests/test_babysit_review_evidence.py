@@ -1787,21 +1787,27 @@ class SeverityTests(Base):
     ) -> None:
         runs = [whole("claude-review", S), whole(self.SEC, S, n=2, k=0)]
 
-        def summary(body: str) -> dict[str, Any]:
+        def summary(body: str, user: dict[str, str] | None = None) -> dict[str, Any]:
             return {
                 "id": next(_ids),
-                "user": {"login": "github-actions[bot]", "type": "Bot"},
+                "user": user or {"login": "github-actions[bot]", "type": "Bot"},
                 "created_at": "2026-01-01T00:30:00Z",
                 "body": body,
             }
 
-        for body, blocking in (
-            (f"summary\n\ncritical-findings: 0\n\nclaude-lane: {self.SEC}", 0),
-            ("summary\n\ncritical-findings: 0", 2),
-            (f"claude-lane: {self.SEC}\n\ncritical-findings: 0", 2),
+        footed = f"summary\n\ncritical-findings: 0\n\nclaude-lane: {self.SEC}"
+        # REST names the bot `github-actions[bot]` with type Bot; a bare login
+        # or a User account under either login is not the lane's.
+        for body, user, blocking in (
+            (footed, None, 0),
+            ("summary\n\ncritical-findings: 0", None, 2),
+            (f"claude-lane: {self.SEC}\n\ncritical-findings: 0", None, 2),
+            (footed, {"login": "github-actions", "type": "User"}, 2),
+            (footed, {"login": "github-actions", "type": "Bot"}, 2),
+            (footed, {"login": "github-actions[bot]", "type": "User"}, 2),
         ):
-            with self.subTest(body=body):
-                comments = [*both_markers(), summary(body)]
+            with self.subTest(body=body, user=user):
+                comments = [*both_markers(), summary(body, user)]
                 result = self.bind(runs, comments=comments)[self.SEC]
                 self.assertEqual(result.blocking_findings, blocking)
 

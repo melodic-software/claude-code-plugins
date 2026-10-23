@@ -103,6 +103,7 @@ def _lane_comment(lane: str, login: object, body: str) -> bool:
         return tag is None or tag[1] == lane
     return login in ACTIONS_LOGINS and _footer_lane(body) == lane
 
+
 # The lane whose findings hold the merge only at its top tier, CRITICAL
 # (plugins/review/skills/security-review/SKILL.md, "Reporting"): each inline
 # comment carries one `severity:` line, and the summary one
@@ -477,6 +478,11 @@ def _summary_comments(
         body = str(comment.get("body") or "")
         created = _time(comment.get("created_at"))
         if MARKER_RE.match(body.split("\n", 1)[0]):
+            continue
+        # A REST comment always carries the bot's suffixed login and type.
+        if user.get("login") in ACTIONS_LOGINS and (
+            user.get("login") != MARKER_AUTHOR or user.get("type") != "Bot"
+        ):
             continue
         if _lane_comment(lane, user.get("login"), body) and created is not None:
             found.append((created, body))
