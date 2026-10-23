@@ -3054,7 +3054,9 @@ jobs:
     # `rerun-wait-seconds` wait, about four and a half minutes, plus up to
     # 15 s of retry sleeps for each of the hold-lift step's three reads and
     # the review-lane step's four, under two minutes, plus the cost-hold step's
-    # reads: about ten, and two more per review run since the window opened.
+    # reads: three for most pull requests, which stop at the label events; for a
+    # lane-labeled one whose body cites a decision, about ten, and two more per
+    # review run since the window opened.
     timeout-minutes: 9
     permissions:
       # `yield-to-full-run` lists this workflow's runs on the head SHA, and
@@ -3268,8 +3270,48 @@ jobs:
           since=$(jq -n --arg label "$label" --argjson humans "$humans" '[inputs[] | select(.label.name == $label
             and .event == "unlabeled" and (.actor.id as $id | $humans | index($id))) | .created_at | fromdateiso8601] | max // -1' \
             <<<"$events") || keep "the events do not parse"
+          # Cheap reads first: most pull requests stop here.
+          added=$(jq -nr --arg label "$label" --argjson since "$since" '[inputs[] | select(.label.name == $label
+            and .event == "labeled" and (.created_at | fromdateiso8601) > $since)]
+            | if length == 0 then "no label was added since a trusted person last removed it"
+              elif any(.[]; .actor.login != "github-actions[bot]" and .actor.login != "claude[bot]") then "someone other than a review lane added the label"
+              else "lane" end' <<<"$events") || keep "the events do not parse"
+          [ "$added" = lane ] || keep "$added"
           pr=$(read_api "repos/$repo/pulls/$PR_NUMBER") || keep "the pull request is unreadable"
           ref=$(jq -r '.head.ref | @uri' <<<"$pr") || keep "the pull request has no head branch"
+          links=$(jq -r '.body // "" | gsub("<!--[\\s\\S]*?(?:-->|\\z)"; "")
+            | match("https://github\\.com/([A-Za-z0-9-]+)/([A-Za-z0-9._-]+)/(?:issues|pull)/([0-9]+)#issuecomment-([0-9]+)"; "g")
+            | [.string, (.captures[] | .string)] | @tsv' <<<"$pr") || links=
+          [ -n "$links" ] || keep "the body links no comment"
+          # shellcheck disable=SC2016 # GraphQL variables, not shell
+          closing=$(read_api graphql -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){closingIssuesReferences(first:20){nodes{number repository{nameWithOwner}}}}}}' \
+            -F owner="${repo%%/*}" -F name="${repo#*/}" -F number="$PR_NUMBER") || keep "the closing issues are unreadable"
+          # The issues the pull request closes or names on a `Refs:` line.
+          issues=" $(jq -r --arg repo "$repo" '[.data.repository.pullRequest.closingIssuesReferences.nodes[]
+            | select((.repository.nameWithOwner | ascii_downcase) == ($repo | ascii_downcase)) | .number | tostring] | join(" ")' <<<"$closing" 2>/dev/null) "
+          issues+=" $(jq -r '.body // "" | gsub("<!--[\\s\\S]*?(?:-->|\\z)"; "") | [splits("\r?\n")
+            | select(test("^Refs:\\s")) | scan("(?<![\\w/])#([0-9]+)\\b") | .[0]] | join(" ")' <<<"$pr" 2>/dev/null) "
+          opened=$(jq -r '.created_at | fromdateiso8601' <<<"$pr") || keep "the pull request has no creation time"
+          decision='' decision_id=''
+          while IFS=$'\t' read -r link owner name number id; do
+            [ -n "$link" ] || continue
+            [ "$(tr '[:upper:]' '[:lower:]' <<<"$owner/$name")" = "$(tr '[:upper:]' '[:lower:]' <<<"$repo")" ] || continue
+            [ "$number" = "$PR_NUMBER" ] || [[ $issues == *" $number "* ]] || continue
+            comment=$(read_api "repos/$repo/issues/comments/$id") || continue
+            jq -e --arg number "$number" --arg pr "$PR_NUMBER" --argjson humans "$humans" --argjson opened "$opened" '
+              (.issue_url // "" | endswith("/issues/\($number)"))
+              and .user.type == "User" and .performed_via_github_app == null
+              and (.user.id as $id | $humans | index($id) != null)
+              and (.body // "" | sub("\\A\\s+"; "") | test("\\A\\*\\*Decision recorded\\.\\*\\*[ \\t]+Cost:"))
+              and ($number == $pr or (.created_at | fromdateiso8601) > $opened)' <<<"$comment" >/dev/null 2>&1 || continue
+            node=$(jq -r .node_id <<<"$comment")
+            # shellcheck disable=SC2016 # GraphQL variables, not shell
+            edited=$(read_api graphql -f query='query($id:ID!){node(id:$id){... on IssueComment{lastEditedAt}}}' -F id="$node") || continue
+            jq -e '.data.node | objects | has("lastEditedAt") and .lastEditedAt == null' <<<"$edited" >/dev/null 2>&1 || continue
+            decision=$link decision_id=$id
+            break
+          done <<<"$links"
+          [ -n "$decision" ] || keep "the body cites no recorded owner cost decision covering it"
           # Every hold a review lane recorded in the window, as {at, criteria}.
           holds='[]'
           while read -r file check; do
@@ -3297,9 +3339,7 @@ jobs:
             def t: fromdateiso8601;
             ([$events[][] | select(.label.name == $label and .event == "labeled" and (.created_at | t) > $since)]) as $added
             | ($deleted[0].data.repository.pullRequest.timelineItems) as $gone
-            | if ($added | length) == 0 then "no label was added since a trusted person last removed it"
-              elif any($added[]; .actor.login != "github-actions[bot]" and .actor.login != "claude[bot]") then "someone other than a review lane added the label"
-              elif ($holds | length) == 0 then "no review lane recorded a hold since a trusted person last removed the label"
+            | if ($holds | length) == 0 then "no review lane recorded a hold since a trusted person last removed the label"
               elif any($holds[]; .criteria != "cost") then "a review-lane hold since then is not cost-only"
               elif any($added[]; (.created_at | t) as $at | any($holds[]; .at >= $at and .at - $at <= 600) | not) then "a label was added with no held review after it"
               elif any($comments[][]; .user.id == $app and ([.created_at, .updated_at] | map(t) | max) > $since) then "the lanes App commented since then"
@@ -3307,38 +3347,6 @@ jobs:
                 or any($gone.nodes[]; (.createdAt | t) > $since) then "a comment was deleted since then"
               else "cost" end' 2>/dev/null) || keep "the events, holds or comments do not parse"
           [ "$verdict" = cost ] || keep "$verdict"
-          # shellcheck disable=SC2016 # GraphQL variables, not shell
-          closing=$(read_api graphql -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){closingIssuesReferences(first:20){nodes{number repository{nameWithOwner}}}}}}' \
-            -F owner="${repo%%/*}" -F name="${repo#*/}" -F number="$PR_NUMBER") || keep "the closing issues are unreadable"
-          # The issues the pull request closes or names on a `Refs:` line.
-          issues=" $(jq -r --arg repo "$repo" '[.data.repository.pullRequest.closingIssuesReferences.nodes[]
-            | select((.repository.nameWithOwner | ascii_downcase) == ($repo | ascii_downcase)) | .number | tostring] | join(" ")' <<<"$closing" 2>/dev/null) "
-          issues+=" $(jq -r '.body // "" | gsub("<!--[\\s\\S]*?(?:-->|\\z)"; "") | [splits("\r?\n")
-            | select(test("^Refs:\\s")) | scan("(?<![\\w/])#([0-9]+)\\b") | .[0]] | join(" ")' <<<"$pr" 2>/dev/null) "
-          opened=$(jq -r '.created_at | fromdateiso8601' <<<"$pr") || keep "the pull request has no creation time"
-          links=$(jq -r '.body // "" | gsub("<!--[\\s\\S]*?(?:-->|\\z)"; "")
-            | match("https://github\\.com/([A-Za-z0-9-]+)/([A-Za-z0-9._-]+)/(?:issues|pull)/([0-9]+)#issuecomment-([0-9]+)"; "g")
-            | [.string, (.captures[] | .string)] | @tsv' <<<"$pr") || links=
-          decision='' decision_id=''
-          while IFS=$'\t' read -r link owner name number id; do
-            [ -n "$link" ] || continue
-            [ "$(tr '[:upper:]' '[:lower:]' <<<"$owner/$name")" = "$(tr '[:upper:]' '[:lower:]' <<<"$repo")" ] || continue
-            [ "$number" = "$PR_NUMBER" ] || [[ $issues == *" $number "* ]] || continue
-            comment=$(read_api "repos/$repo/issues/comments/$id") || continue
-            jq -e --arg number "$number" --arg pr "$PR_NUMBER" --argjson humans "$humans" --argjson opened "$opened" '
-              (.issue_url // "" | endswith("/issues/\($number)"))
-              and .user.type == "User" and .performed_via_github_app == null
-              and (.user.id as $id | $humans | index($id) != null)
-              and (.body // "" | sub("\\A\\s+"; "") | test("\\A\\*\\*Decision recorded\\.\\*\\*[ \\t]+Cost:"))
-              and ($number == $pr or (.created_at | fromdateiso8601) > $opened)' <<<"$comment" >/dev/null 2>&1 || continue
-            node=$(jq -r .node_id <<<"$comment")
-            # shellcheck disable=SC2016 # GraphQL variables, not shell
-            edited=$(read_api graphql -f query='query($id:ID!){node(id:$id){... on IssueComment{lastEditedAt}}}' -F id="$node") || continue
-            jq -e '.data.node | objects | has("lastEditedAt") and .lastEditedAt == null' <<<"$edited" >/dev/null 2>&1 || continue
-            decision=$link decision_id=$id
-            break
-          done <<<"$links"
-          [ -n "$decision" ] || keep "the body cites no recorded owner cost decision covering it"
           {
             echo "cleared=true"
             echo "decision=$decision"

@@ -211,6 +211,11 @@ expect "with the label already off the hold reads cleared and nothing is written
 reset
 STUB_PR='{"number":6419,"created_at":"2026-10-23T05:00:00Z","head":{"ref":"fix/cost"},"body":"Closes #9306"}'
 expect "no decision cited in the body clears nothing" no no no
+if grep -qE 'actions/workflows|check-runs|graphql' "$TMP_ROOT/log"; then
+  fail "with no link in the body the step read runs or GraphQL"
+else
+  ok "with no link in the body the step stops before the run and GraphQL reads"
+fi
 STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\"},\"body\":\"<!-- $LINK -->\"}"
 expect "a decision cited only inside an HTML comment clears nothing" no no no
 STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\"},\"body\":\"<!-- unclosed $LINK\"}"
@@ -303,6 +308,11 @@ STUB_EVENTS="[$(event labeled "$LANE" 2026-10-23T13:00:00Z)]"
 expect "a lane label with no held review within ten minutes clears nothing" no no no "no held review after it"
 STUB_EVENTS='[]'
 expect "a hold with no label event clears nothing" no no no "no label was added"
+if grep -qE 'actions/workflows|check-runs|graphql|/pulls/' "$TMP_ROOT/log"; then
+  fail "with no lane label event the step read more than the events: '$(grep -E 'actions/|check-runs|graphql|/pulls/' "$TMP_ROOT/log")'"
+else
+  ok "with no lane label event the step stops before the pull request, run and GraphQL reads"
+fi
 reset
 lanes '[]' '[]'
 expect "a label with no recorded hold clears nothing" no no no "no review lane recorded a hold"
