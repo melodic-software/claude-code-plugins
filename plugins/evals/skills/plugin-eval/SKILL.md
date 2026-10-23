@@ -280,12 +280,12 @@ Read in this order. Stopping early at any step is the finding.
    the number; "post nothing" is not the instruction. Exit 2 means the file could not be read or
    an argument was wrong: say which. The steps below still apply to a VALID run.
 
-   A with-arm denial aimed at or under the plugin's own directory, at a directory above it (which
-   covers its files), or with no absolute path or no known plugin directory, is a FAIL: the agent
-   reached for a plugin file it could not read, so the fact belongs in the hub. Any other denial,
-   in either arm, is a warning only when that run scored the same as every denial-free run of its
-   case in the same arm, so it left the score unchanged; with a different score, or no
-   denial-free run to compare, it is a FAIL.
+   A with-arm denial aimed at or under the plugin's directory, at a directory above it (which covers
+   its files), or with no absolute path or no known plugin directory, is a FAIL: the agent reached
+   for a plugin file it could not read, so the fact belongs in the hub. A Bash denial's paths are
+   its command's absolute arguments, plus no path when it has an expansion or a relative
+   word other than a flag, or does not parse. Any other denial, in either arm, is a warning only when its case has
+   denial-free runs in that arm and its run scored the same as each; otherwise it is a FAIL.
 2. `partial`. `true` (with `partialReason` of `cost_ceiling`, `interrupted`, or `auth_failed`) means
    the suite did not finish: report that and keep the document out of any trend.
 3. Per run, `skippedPaidGraders: true` or a non-null `error`. A skipped judge grader is still
