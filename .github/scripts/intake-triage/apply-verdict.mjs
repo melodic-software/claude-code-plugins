@@ -377,8 +377,17 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   }
   await addLabels(github, base, plan.add);
   // Before the reword: whether the App may edit github-actions[bot]'s
-  // comment is unproven, and a refused edit must not stop admission.
-  const admission = plan.ready && admitIssue ? await admitIssue(verdict) : null;
+  // comment is unproven, and a refused edit must not stop admission. An
+  // admission error stops neither the reword nor the summary; the caller
+  // fails the job on it.
+  let admission = null;
+  if (plan.ready && admitIssue) {
+    try {
+      admission = await admitIssue(verdict);
+    } catch (error) {
+      admission = { outcome: "error", reasons: [String(error?.message ?? error)] };
+    }
+  }
   if (plan.classApplied) {
     const reworded = rewordComment(comment.body);
     if (reworded !== null) {
@@ -455,6 +464,10 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
       });
       if (result.summary && env.GITHUB_STEP_SUMMARY) {
         appendFileSync(env.GITHUB_STEP_SUMMARY, `${result.summary}\n`);
+      }
+      if (result.admission?.outcome === "error") {
+        console.log(`::error title=apply-verdict::admission failed: ${result.admission.reasons[0].replaceAll(/[\r\n%]/g, " ")}`);
+        process.exitCode = 1;
       }
     } catch (error) {
       console.log(`::error title=apply-verdict::${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);

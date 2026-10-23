@@ -750,4 +750,22 @@ describe("run", () => {
     );
     assert.equal(seen.length, 1);
   });
+
+  test("an admission error still rewords the comment and reports the verdict", async () => {
+    const fake = fakeGitHub({ comments: [laneComment()] });
+    const result = await run({
+      env: ENV,
+      github: fake.github,
+      dimensionsConfig: DIMS,
+      fieldSetters: noSetters,
+      admitIssue: async () => {
+        throw new Error("admission-rules.json: `types` must be a list of strings");
+      },
+      log: () => {},
+    });
+    assert.equal(result.outcome, "ready");
+    assert.deepEqual(result.admission, { outcome: "error", reasons: ["admission-rules.json: `types` must be a list of strings"] });
+    assert.ok(writes(fake.calls).some(({ method }) => method === "PATCH"));
+    assert.match(result.summary, /- Admission: error \(admission-rules\.json/);
+  });
 });
