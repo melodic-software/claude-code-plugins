@@ -31,13 +31,15 @@
 //     the head's own PASS or PASS-NOTES up by exact artifact name
 //     (headPassVerify, the same lookup and rule as ci-status's merge-queue
 //     check, merge-holds.mjs verdictHold): 2 to 4 lookups and a run read;
-//   - the scheduled run asks pr-merge's own reader (pythonVerify,
+//   - the scheduled run and a hand-started one ask pr-merge's own reader (pythonVerify,
 //     babysit_verify_evidence.py `evidence`), which also refuses a FAIL at
 //     the head, an earlier FAIL not cleared and FAILs at merge.max-verify-fails
 //     or more heads, sharing one artifact listing and run cache in the run.
-//   A pull request that goes over the cap between scheduled runs can stay
-//   armed until the next one; the merge queue's ci-status checks the pass
-//   again at the head it merges, whatever a push after arming does.
+//   An event run arms on the pass alone: it does not see a FAIL at the head
+//   beside a re-run's pass, an earlier FAIL, the cap, or a spec changed since
+//   the judgment, and it leaves an armed pull request armed. The next reader
+//   run disarms such a one. The merge queue's ci-status checks the pass again
+//   at the head it merges, whatever a push after arming does.
 // Arming passes the head just read as expectedHeadOid, so a push in between
 // fails the arm rather than arming a head nobody read. An armed pull request
 // that fails any rule is disarmed. While merge.report-only is true it reports
@@ -194,8 +196,8 @@ export function verifyHold(evidence, head) {
 
 // The head's own PASS or PASS-NOTES, looked up by exact artifact name with and
 // without the head-branch digest, as ci-status does in the merge queue, under
-// the Actions token: one lookup per name until a completed, successful run,
-// one run read per unexpired artifact found. The answer is a report shaped
+// the Actions token: one lookup per name until one holds a pass verdictHold
+// counts, one run read per unexpired artifact found. The answer is a report shaped
 // like the reader's.
 export function headPassVerify(actions, repo) {
   const verify = async ({ number, headRefOid: head, headRefName: ref }) => {
@@ -213,8 +215,8 @@ export function headPassVerify(actions, repo) {
             records.push({ name, verdict, run: await actions("GET", `/repos/${repo}/actions/runs/${id}`) });
           }
         }
-        if (records.some(({ run }) => run?.status === "completed" && run.conclusion === "success")) {
-          return { refusal: verdictHold(records, repo) === null ? null : "verify:missing", head };
+        if (verdictHold(records, repo) === null) {
+          return { refusal: null, head };
         }
       }
     }
@@ -240,11 +242,17 @@ export function pythonVerify(env) {
   return Object.assign(verify, { mode: "reader" });
 }
 
-// The scheduled run reads with the full reader; every event run with the
-// head-pass lookup.
+// The scheduled run and a hand-started one, which a person starts to retry a
+// pull request that looks stuck, read with the full reader; every other event
+// run with the head-pass lookup.
+export const READER_EVENTS = Object.freeze(["schedule", "workflow_dispatch"]);
 export function verifyFor(env, actions) {
-  return env.EVENT_NAME === "schedule" ? pythonVerify(env) : headPassVerify(actions, env.GITHUB_REPOSITORY);
+  return READER_EVENTS.includes(env.EVENT_NAME) ? pythonVerify(env) : headPassVerify(actions, env.GITHUB_REPOSITORY);
 }
+// Reader time per run: past it, the rest of the pull requests are left for
+// the next run rather than cut off by the step's timeout (judgment, inside
+// the step's 10 minutes).
+const VERIFY_BUDGET_MS = 7 * 60_000;
 
 // What to do with one listed pull request: { action: arm | disarm | none, reason }.
 // `detail` is its discussion; undefined means not read yet, and an arm or a
@@ -328,6 +336,7 @@ export async function main({ env = process.env, github, actions, verify } = {}) 
     actions ??= createGitHub({ token: env.BABYSIT_VERIFY_GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     verify ??= verifyFor(env, actions);
     const pulls = await listPulls(github, repo[1], repo[2]);
+    const deadline = Date.now() + VERIFY_BUDGET_MS;
     let failed = 0;
     for (const pull of pulls) {
       let { action, reason } = decide(pull, { bot: slug, humanGated, holdPaths });
@@ -344,7 +353,11 @@ export async function main({ env = process.env, github, actions, verify } = {}) 
         }
         ({ action, reason } = decide(pull, { bot: slug, humanGated, holdPaths }, detail));
       }
-      if (action === "verify") {
+      if (action === "verify" && pull.autoMergeRequest != null && verify.mode === "head-pass") {
+        ({ action, reason } = { action: "none", reason: "already armed; the next reader run checks its verdict" });
+      } else if (action === "verify" && Date.now() > deadline) {
+        ({ action, reason } = { action: "none", reason: "no time left in this run to read its verifier verdict" });
+      } else if (action === "verify") {
         let evidence = null;
         try {
           evidence = await verify(pull);

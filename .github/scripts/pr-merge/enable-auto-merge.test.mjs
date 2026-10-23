@@ -497,7 +497,8 @@ test("verdictHold names the verifier workflow the resolver and the gate name", (
 test("the scheduled run reads with the gate's reader, every event run by exact name", () => {
   const env = { GITHUB_REPOSITORY: REPO };
   assert.equal(verifyFor({ ...env, EVENT_NAME: "schedule" }, null).mode, "reader");
-  for (const event of ["workflow_run", "pull_request_target", "workflow_dispatch", undefined]) {
+  assert.equal(verifyFor({ ...env, EVENT_NAME: "workflow_dispatch" }, null).mode, "reader");
+  for (const event of ["workflow_run", "pull_request_target", undefined]) {
     assert.equal(verifyFor({ ...env, EVENT_NAME: event }, null).mode, "head-pass", String(event));
   }
 });
@@ -551,6 +552,13 @@ test("headPassVerify passes on a successful pr-verify run's pass at the head, by
   assert.deepEqual(await check({ [`pr-verify-8-${HEAD}-pass`]: [11] }), { refusal: "verify:missing", head: HEAD, lookups: 4 });
   assert.deepEqual(await check({ [`pr-verify-7-${HEAD}-pass`]: [12] }), { refusal: "verify:missing", head: HEAD, lookups: 4 });
   assert.equal((await check({ [`pr-verify-7-${HEAD}-pass`]: [13] })).refusal, "verify:missing");
+  // Another workflow's successful run under one name does not end the lookup
+  // before a later name's real pass.
+  assert.deepEqual(await check({ [`pr-verify-7-${HEAD}-pass`]: [13], [`pr-verify-7-${HEAD}-pass-${digest}`]: [11] }), {
+    refusal: null,
+    head: HEAD,
+    lookups: 2,
+  });
   await assert.rejects(check({ [`pr-verify-7-${HEAD}-pass`]: [99] }), /404/);
 });
 
@@ -575,4 +583,51 @@ test("an event run arms on the head's pass and leaves a head with none", async (
     console.log = log;
   }
   assert.deepEqual(writes(), [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+});
+
+test("an event run leaves an armed pull request armed without reading its verdict", async () => {
+  const { github, writes } = world([pull(1, { autoMergeRequest: { enabledAt: "2026-10-23T10:00:00Z" } })]);
+  const { actions, reads } = actionsWorld({}, {});
+  const lines = [];
+  const log = console.log;
+  console.log = (line) => lines.push(line);
+  try {
+    assert.equal(await main({ env: { ...ENV, EVENT_NAME: "pull_request_target" }, github, actions }), 0);
+  } finally {
+    console.log = log;
+  }
+  assert.deepEqual(writes(), []);
+  assert.deepEqual(reads, []);
+  assert.ok(lines.some((line) => /#1 left: already armed; the next reader run checks its verdict/.test(line)));
+});
+
+test("a reader that fails, prints no JSON or reports another head arms nothing and disarms", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-"));
+  const scripts = {
+    exits: "import sys\nsys.stderr.write('boom\\n')\nsys.exit(1)\n",
+    garbage: "print('not json')\n",
+    other: `import json\nprint(json.dumps({"refusal": None, "head": "${"c".repeat(40)}"}))\n`,
+    passes: `import json, sys\nprint(json.dumps({"refusal": None, "head": sys.argv[-1]}))\n`,
+  };
+  for (const [name, body] of Object.entries(scripts)) {
+    writeFileSync(join(dir, `${name}.py`), body);
+  }
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  for (const [name, want] of [
+    ["exits", [{ mutation: "disarm", id: "PR_2" }]],
+    ["garbage", [{ mutation: "disarm", id: "PR_2" }]],
+    ["other", [{ mutation: "disarm", id: "PR_2" }]],
+    ["passes", [{ mutation: "arm", id: "PR_1", head: HEAD }]],
+  ]) {
+    const { github, writes } = world([pull(1), pull(2, { autoMergeRequest: armed })]);
+    const env = { ...ENV, EVENT_NAME: "schedule", PATH: process.env.PATH, VERIFY_EVIDENCE_SCRIPT: join(dir, `${name}.py`) };
+    const log = console.log;
+    console.log = () => {};
+    try {
+      await main({ env, github, actions: async () => assert.fail("the reader path reads no Actions API itself") });
+    } finally {
+      console.log = log;
+    }
+    assert.deepEqual(writes(), want, name);
+  }
 });

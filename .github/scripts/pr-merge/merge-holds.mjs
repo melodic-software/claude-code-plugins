@@ -173,8 +173,10 @@ const PASSES = Object.freeze(["pass", "pass-notes"]);
 
 // Why the head has no verifier pass, or null when a record shows one: a pass
 // or pass-notes artifact whose run is pr-verify.yml's, event workflow_run, on
-// `branch` of `repo` with its head in `repo`, completed with success
-// (babysit_verify_evidence `_origin` and a counted run). The records are
+// `branch` of `repo` with its head in `repo`, completed with success: the
+// fields of babysit_verify_evidence `_origin` and a counted run, without its
+// compare read that main holds the run's commit, since main's ruleset
+// forbids the force push that could drop it. The records are
 // read for the head alone, by exact name, so a record of another head never
 // reaches here.
 export function verdictHold(records, repo, branch = "main") {

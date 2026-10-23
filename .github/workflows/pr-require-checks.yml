@@ -3874,7 +3874,7 @@ jobs:
       # AT ITS HEAD: a PASS or PASS-NOTES artifact of a completed, successful
       # pr-verify.yml run on main (merge-holds.mjs verdictHold), looked up by
       # exact name, with and without the head-branch digest, stopping at the
-      # first such run: 2 reads for a plain-named pass, at most 4 lookups plus
+      # first name that holds such a run: 2 reads for a plain-named pass, at most 4 lookups plus
       # one run read per artifact found. The same approval of the head lifts
       # it. Only in the queue: pr-verify runs only after a successful
       # pull_request run of this workflow, so a red ci-status there would
@@ -3986,9 +3986,10 @@ jobs:
                 record=$(read_api "run $run" "repos/$GITHUB_REPOSITORY/actions/runs/$run") || exit 1
                 jq -c --arg name "$name" --arg verdict "$verdict" '{name: $name, verdict: $verdict, run: .}' <<<"$record" >>"$RUNNER_TEMP/verdicts.jsonl" || exit 1
               done
-              # A completed, successful run ends the lookup; merge-holds.mjs
-              # checks it is pr-verify's.
-              ! jq -se 'any(.run.status == "completed" and .run.conclusion == "success")' "$RUNNER_TEMP/verdicts.jsonl" >/dev/null || break
+              # A pass merge-holds.mjs verdictHold would count ends the lookup.
+              ! jq -se --arg repo "$GITHUB_REPOSITORY" 'any(.run | .status == "completed" and .conclusion == "success"
+                and .path == ".github/workflows/pr-verify.yml" and .event == "workflow_run" and .head_branch == "main"
+                and .repository.full_name == $repo and .head_repository.full_name == $repo)' "$RUNNER_TEMP/verdicts.jsonl" >/dev/null || break
             done
             verdicts=("$RUNNER_TEMP/verdicts.jsonl")
           fi
