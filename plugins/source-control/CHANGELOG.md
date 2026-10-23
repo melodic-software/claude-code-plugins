@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.14.1] - 2026-10-23
+
+### Fixed
+
+- A test keeps the native auto-merge cost paths and manifest holds in step with `babysit_risk`.
+
+- The PR-body linkage gate no longer times out on a very long line or a long run of trailing newlines. The code-span mask splits each line at its backticks in one pass instead of reading it one character at a time, which took 4.8 s on a 30,000-word line; `negation_trigger_to` reads only the last five words before a closing keyword without copying the line once per word (a line of about 27,000 words before `closes #N` passed the 15 s hook timeout, and a timed-out hook does not block), and `linkage::chomp_to` removes the trailing newline run in one step. Verdicts are unchanged.
+
 ## [2.14.0] - 2026-10-23
 
 ### Added
