@@ -110,6 +110,13 @@ test("live config: report-escalation applies and is granted publish-artifact onl
 });
 
 // Expected values from #7032's acceptance criteria and effect-grants.json.
+test("live config: pr-refine is the refine stage: fix-docs, then its push job", () => {
+  const { lane } = resolve(FILES, { lane: "pr-refine", activity: "fix-docs", configPath: CONFIG_PATH, basePath: ".base", facts: FACTS });
+  assert.equal(lane.stage, "refine");
+  assert.deepEqual(lane.slots.map((slot) => slot.activity ?? slot.name), ["fix-docs", "apply-patch"]);
+  assert.deepEqual(selected("pr-unblock", "apply-patch").needs, ["fix-ci"]);
+});
+
 test("live config: pr-unblock runs its slots in order", () => {
   const { lane } = resolve(FILES, {
     lane: "pr-unblock",
@@ -129,7 +136,6 @@ test("live config: pr-unblock runs its slots in order", () => {
       "apply-dependency-patch",
       "apply-dependency-verdict",
       "fix-ci",
-      "fix-docs",
       "apply-patch",
       "report-escalation",
     ],
@@ -190,7 +196,7 @@ test("live config: every other PR activity still waits on needs-human", () => {
   for (const [lane, activity, facts] of [
     ["pr-unblock", "resolve-conflicts", {}],
     ["pr-unblock", "review-dependency", { mergeable: "clean" }],
-    ["pr-unblock", "fix-docs", {}],
+    ["pr-refine", "fix-docs", {}],
   ]) {
     assert.equal(skipReason(lane, activity, { ...facts, labels: ["needs-human"] }), "awaiting-human", activity);
   }
@@ -210,8 +216,7 @@ test("live config: publish-feedback runs the reply script after address-feedback
   );
 });
 
-// fix-docs hands no PR to a person, so report-escalation does not follow it.
-test("live config: report-escalation follows every other pr-unblock activity but fix-docs", () => {
+test("live config: report-escalation follows every pr-unblock activity", () => {
   assert.deepEqual(selected("pr-unblock", "report-escalation").needs, [
     "resolve-conflicts",
     "address-feedback",
@@ -359,7 +364,7 @@ test("live config: resolve-issue reads official docs hosts only; review-dependen
     enabled: true,
     domains: ["github.com", "raw.githubusercontent.com", "www.npmjs.com", "registry.npmjs.org", "pypi.org"],
   });
-  assert.notEqual(selected("pr-unblock", "fix-docs")["web-access"]?.enabled, true);
+  assert.notEqual(selected("pr-refine", "fix-docs")["web-access"]?.enabled, true);
   const others = Object.entries(doc.activities).filter(
     ([name, a]) => !["resolve-issue", "review-dependency"].includes(name) && a["web-access"]?.enabled,
   );
@@ -445,31 +450,31 @@ test("live config: label-unblocked may only write issues", () => {
 });
 
 test("live config: fix-docs applies to a Markdown change and waits on needs-human", () => {
-  assert.equal(selected("pr-unblock", "fix-docs").applies, true);
+  assert.equal(selected("pr-refine", "fix-docs").applies, true);
   assert.equal(
-    skipReason("pr-unblock", "fix-docs", { labels: ["needs-human"] }),
+    skipReason("pr-refine", "fix-docs", { labels: ["needs-human"] }),
     "awaiting-human",
   );
 });
 
 test("live config: fix-docs does not apply to a draft PR", () => {
-  assert.equal(skipReason("pr-unblock", "fix-docs", { draft: true }), "not-applicable");
+  assert.equal(skipReason("pr-refine", "fix-docs", { draft: true }), "not-applicable");
 });
 
 // The model run holds no write token; only the script that pushes its patch
-// may write the branch, from its own job in pr-unblock.
-test("live config: fix-docs holds no write token and its push job in pr-unblock may only write its branch", () => {
-  const grant = (activity) => resolveGrant(FILES, { lane: "pr-unblock", activity, configPath: CONFIG_PATH });
+// may write the branch, from its own job in pr-refine.
+test("live config: fix-docs holds no write token and its push job in pr-refine may only write its branch", () => {
+  const grant = (activity) => resolveGrant(FILES, { lane: "pr-refine", activity, configPath: CONFIG_PATH });
   assert.deepEqual(grant("fix-docs"), { effect: "read", grant: { contents: "read", "pull-requests": "read", issues: "read" } });
   assert.deepEqual(grant("apply-patch"), {
     effect: "mutate-branch",
     grant: { contents: "write", "pull-requests": "read", issues: "read" },
   });
-  const fix = selected("pr-unblock", "fix-docs");
+  const fix = selected("pr-refine", "fix-docs");
   assert.equal(fix.prepare, undefined, "no prepare mode: apply-patch takes the default row");
   assert.deepEqual(fix["applied-by"], { patch: "apply-patch" });
-  const apply = selected("pr-unblock", "apply-patch");
-  assert.deepEqual(apply.needs, ["fix-ci", "fix-docs"]);
+  const apply = selected("pr-refine", "apply-patch");
+  assert.deepEqual(apply.needs, ["fix-docs"]);
   assert.equal(apply.script, ".github/scripts/apply-patch/apply-patch.mjs");
   assert.equal(apply.prepare, "apply-patch");
 });
@@ -478,7 +483,7 @@ test("live config: fix-docs holds no write token and its push job in pr-unblock 
 // auto, so no activity asks for it; fix-docs takes the dontAsk default and
 // runs only what the stage's allow rules name.
 test("live config: no activity sets permission-mode", () => {
-  assert.equal(selected("pr-unblock", "fix-docs")["permission-mode"], undefined);
+  assert.equal(selected("pr-refine", "fix-docs")["permission-mode"], undefined);
   const { activities } = parse(FILES.config);
   assert.deepEqual(Object.keys(activities).filter((name) => Object.hasOwn(activities[name], "permission-mode")), []);
 });
@@ -486,7 +491,7 @@ test("live config: no activity sets permission-mode", () => {
 // fix-docs hands on a patch, so its targets leave out instruction surfaces
 // and CODEOWNERS paths, as a write activity's do.
 test("live config: fix-docs is not asked to fix an instruction surface", () => {
-  const slot = selected("pr-unblock", "fix-docs", { changedTargets: ["docs/guide.md", "CLAUDE.md", "plugins/p/skills/s/SKILL.md"] });
+  const slot = selected("pr-refine", "fix-docs", { changedTargets: ["docs/guide.md", "CLAUDE.md", "plugins/p/skills/s/SKILL.md"] });
   assert.deepEqual(slot["changed-paths"], ["docs/guide.md"]);
 });
 
@@ -496,7 +501,7 @@ test("live config: fix-docs with a write effect is refused", () => {
   const writes = FILES.config.replace("effect: read\n    applied-by:\n      patch: apply-patch\n", "effect: mutate-branch\n");
   assert.notEqual(writes, FILES.config);
   assert.throws(
-    () => resolve({ ...FILES, config: writes }, { lane: "pr-unblock", activity: "fix-docs", configPath: CONFIG_PATH, basePath: ".base", facts: FACTS }),
+    () => resolve({ ...FILES, config: writes }, { lane: "pr-refine", activity: "fix-docs", configPath: CONFIG_PATH, basePath: ".base", facts: FACTS }),
     (error) => error.code === "forbidden-by-activity",
   );
 });
