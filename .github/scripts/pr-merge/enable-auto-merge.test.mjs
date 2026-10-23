@@ -1,5 +1,5 @@
-// Expected values come from #9276's plan item 8 and the owner answers on it:
-// a lanes App pull request is armed for native auto-merge (squash, at the head
+// Expected values come from the native-merge plan's arm-merge item and the
+// owner answers on it: a lanes App pull request is armed for native auto-merge (squash, at the head
 // read) with no session, and is never armed, or is disarmed, while it carries
 // a `Hold:` line, do-not-merge or the human-gated label. A Refs pull request
 // is merged by a person (report-outcome.mjs), so it is never armed. The body
