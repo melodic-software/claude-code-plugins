@@ -24,7 +24,7 @@ current harness exposes:
   elevated ones included, can sit on a `[y/N]` question or on stdin while the
   shell itself looks alive. List the tree and each process's input-wait verdict
   with `keep-going`'s `check-child-input-wait.py`; a process the platform gives
-  no signal for is `unknown`, never "not waiting".
+  no signal for is `unknown`, never "not waiting";
 - agent-team teammates;
 - in-flight MCP tool calls.
 
@@ -53,9 +53,11 @@ still running. When none exists, report teammates as `none recorded`.
   long it stays, or what a resume restores; or agent teams leave experimental
   status.
 
-**In-flight MCP calls.** Report these as `not observable`, naming the reason
-from the pointer below as read live. Never report such a call as finished,
-failed or safe to re-fire; a re-fire is gated like any side effect.
+**In-flight MCP calls.** Report these as `not observable`, with the reason: the
+call does not survive the session that made it, and the server may already
+have done part of the work. Confirm that reason from the pointer below as read
+live. Never report such a call as finished, failed or safe to re-fire; a
+re-fire is gated like any side effect.
 
 - **Pointer**: when deciding whether an MCP call can outlive its session, fetch
   [MCP: Automatic backgrounding of long tool calls](https://code.claude.com/docs/en/mcp#automatic-backgrounding-of-long-tool-calls)
@@ -64,6 +66,22 @@ failed or safe to re-fire; a re-fire is gated like any side effect.
 - **Recheck trigger**: that section describes a record of in-flight calls a
   later session can read, or a way for a backgrounded call to outlive its
   session.
+
+**Background output files named in an MCP result.** When the prior transcript
+holds an MCP tool result naming a `backgroundOutputPath` and that file still
+exists, read it and report its contents as partial output whose completion is
+unknown: never as a finished result, and never as proof the command is still
+running. This rule fires only on such a path in the transcript; an MCP call
+still in flight stays under the rule above.
+
+- **Pointer**: when deciding which results carry the field and whether the file
+  marks its own end, fetch
+  [MCP: Read a background command's output as an MCP client](https://code.claude.com/docs/en/mcp#read-a-background-command%E2%80%99s-output-as-an-mcp-client)
+  live.
+- **As of**: 2026-10-23
+- **Recheck trigger**: that section ties the field to results other than Bash
+  or PowerShell through `claude mcp serve`, or adds an end marker or a
+  completion notice to the file.
 
 Inventory descends through **every level the harness exposes**: for each
 subagent, look for the agents it spawned; for each workflow, look for the agents

@@ -56,15 +56,17 @@ itself the thing this skill removes.
    jobs, dynamic workflows, subagents, external CLI processes, agent-team
    teammates, in-flight MCP calls), not a fixed catalogue. Teammates and
    MCP calls follow that doc's own rules: read a prior session's task
-   list when one exists, and report an MCP call as not observable with
-   its reason; neither is skipped silently. Single out every subagent or workflow agent whose last
-   notification carries a rate-limit error type or a usage-limit message,
-   and every agent the user's prompt or a branch or PR trail says ended on
-   a usage limit (a gone session's notifications are not available): they
-   take the rate-limited path in step 4. For each background shell, also list its child
-   process tree and flag any process waiting on an interactive prompt or
-   stdin, so a run hung on a `[y/N]` question is found instead of read
-   as slow:
+   list when one exists, report an MCP call as not observable with its
+   reason, and read any background output file an MCP result in the
+   prior transcript names, as partial output whose completion is
+   unknown; none is skipped silently. Single out every subagent or
+   workflow agent whose last notification carries a rate-limit error
+   type or a usage-limit message, and every agent the user's prompt or a
+   branch or PR trail says ended on a usage limit (a gone session's
+   notifications are not available): they take the rate-limited path in
+   step 4. For each background shell, also list its child process tree
+   and flag any process waiting on an interactive prompt or stdin, so a
+   run hung on a `[y/N]` question is found instead of read as slow:
 
    ```shell
    python3 "${CLAUDE_PLUGIN_ROOT}/skills/keep-going/scripts/check-child-input-wait.py" "<shell pid>"
@@ -202,7 +204,8 @@ itself the thing this skill removes.
    handed back, with the reset it waits on, in the same report that
    precedes the stop. The report names agent-team teammates and in-flight
    MCP calls too: each with its recorded state or `none recorded`, or as
-   not observable with the reason.
+   not observable with the reason, plus any surviving background output
+   file as partial output whose completion is unknown.
 
 ## Picking up another agent's trail
 
