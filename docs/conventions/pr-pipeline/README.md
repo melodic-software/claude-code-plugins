@@ -1058,6 +1058,14 @@ missed. The token broker mints `merge` only for `pr-merge.yml`, and outside the 
 listed human's run, so an issue run the lanes App started is armed by the next scheduled run. While
 `merge.report-only` is true it reports each decision and writes nothing.
 
+`merge.lane-prs` (default `native`) decides whether the merge gate still handles the lanes App's
+pull requests. Under `native` the `merge` job's candidate listing does not ask for them, so the gate
+never scores, escalates, toggles or enqueues one; native auto-merge and `ci-status` are their whole
+merge path. Owner pull requests the lane adopts and Dependabot's are listed and gated as before,
+and the post-merge check, the full-run dispatch, re-firing refused runs and clearing escalations
+run unchanged. `gate` lists the lanes App's pull requests for the gate as well, which is how the
+lane ran before this setting; the `enable-auto-merge` job arms them in both modes.
+
 `ci-status` enforces the same holds on every lanes App pull request, the two text holds and the
 hold paths, so one added after arming stops the merge without waiting for this job: its step
 `Fail a lanes App pull request its body or a member holds` runs

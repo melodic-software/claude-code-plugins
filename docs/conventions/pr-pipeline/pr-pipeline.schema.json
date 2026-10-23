@@ -863,6 +863,11 @@
           "default": false,
           "description": "true: the merge authority reports each decision and writes nothing (no enqueue, dequeue or comment). The pr-merge lane starts true; the owner sets false to let it merge (README.md, Merge authority)."
         },
+        "lane-prs": {
+          "enum": ["native", "gate"],
+          "default": "native",
+          "description": "How the agent identity's own pull requests merge. native: GitHub's auto-merge, armed by the enable-auto-merge activity and gated by ci-status; the pr-merge gate does not list, score or enqueue them. gate: the pr-merge gate lists, scores and enqueues them as well (README.md, Native auto-merge)."
+        },
         "require-verifier-verdict": {
           "type": "boolean",
           "default": false,

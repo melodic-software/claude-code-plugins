@@ -782,8 +782,18 @@ merge:
   agent-identity: melodic-automation-lanes[bot]
   # true: report each decision and write nothing.
   report-only: false
-  # A PR merges only with a passing pr-verify.yml verdict at its head. Must be
-  # true at a rung above off: the gate refuses otherwise.
+  # native: the lanes App's pull requests merge through GitHub's auto-merge
+  # (the enable-auto-merge activity arms them, ci-status gates them), and the
+  # gate below neither lists, scores nor enqueues them. gate: the gate also
+  # lists, scores and enqueues them. Owner PRs and Dependabot's are gated in
+  # both. Absent is native. This repository stays on gate until ci-status or
+  # enable-auto-merge requires the pr-verify verdict and the post-merge check
+  # judges a native merge with no pin comment: until then the gate is the only
+  # place either holds for a lanes App PR.
+  lane-prs: gate
+  # A PR the gate lists merges only with a passing pr-verify.yml verdict at its
+  # head (lane PRs under lane-prs native are not listed). Must be true at a
+  # rung above off: the gate refuses otherwise.
   require-verifier-verdict: true
   # Lane merges in flight at once (queued plus merged and not yet verified).
   # The merge queue tests each PR against the latest base plus the PRs ahead
