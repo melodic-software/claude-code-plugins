@@ -65,12 +65,22 @@ UNICODE_SPACES=(
   $'\xe2\x81\x9f' $'\xe3\x80\x80' $'\xef\xbb\xbf'
 )
 
-# Trailing newlines removed, exactly as command substitution removed them.
+# Trailing newlines removed, exactly as command substitution removed them, in one
+# step: stripping them one at a time copied the string per newline, so ~65,000
+# trailing newlines ran past the hooks.json timeout. The pattern starts at a
+# non-newline, so one try scans one newline run; an all-newline text has no
+# such start and is the second pattern's.
 linkage::chomp_to() {
   local __plv_dest="$1" __plv_s="$2"
-  while [[ "$__plv_s" == *$'\n' ]]; do __plv_s="${__plv_s%$'\n'}"; done
+  if [[ "$__plv_s" =~ $_PLV_CHOMP_TAIL_ERE ]]; then
+    __plv_s="${__plv_s:0:${#__plv_s}-${#BASH_REMATCH[0]}+1}"
+  elif [[ "$__plv_s" =~ $_PLV_ALL_NEWLINES_ERE ]]; then
+    __plv_s=""
+  fi
   printf -v "$__plv_dest" '%s' "$__plv_s"
 }
+_PLV_CHOMP_TAIL_ERE=$'[^\n]\n+$'
+_PLV_ALL_NEWLINES_ERE=$'^\n+$'
 
 # `readarray` splits in C without a fork; `${rest#*$'\n'}` copies every
 # surviving byte each line, so 16k two-character lines exceeded the 15s
@@ -187,24 +197,35 @@ NO_ISSUE_ERE='[^a-z0-9_]no (linked|related) issue[^a-z0-9_]'
 TRACKER_LINK_ERE='^ {0,3}([A-Za-z]+([[:blank:]]+[Tt][Oo])?)([[:blank:]]*:[[:blank:]]*|[[:blank:]]+)([A-Z][A-Z0-9_]*-[0-9]+|(local-markdown|github|gitea|jira|linear):[^[:space:]#/][^[:space:]#]*#[0-9]+)[[:blank:]]*$'
 TRACKER_KEYWORD_ERE='^(close[sd]?|fix(es|ed)?|resolve[sd]?|refs|relates[[:blank:]]+to)$'
 _PLV_WORD_ERE="[A-Za-z][A-Za-z']*"
+_PLV_DELIM_TAIL_ERE='[.!?;,][^.!?;,]*$'
 
 # CI's `negation_trigger`: the first disclaimer word among the last five words
 # between the previous `.!?;,` and the keyword, into <dest>; empty when there is
 # none. A typographic apostrophe (U+2019) counts as a straight one, and "not
 # only" is affirmative.
+#
+# Linear in the length of <text>: the tail is cut at the last delimiter by a
+# regex that starts only at a delimiter (the longest-prefix glob this replaced
+# re-scanned), every other character becomes a blank so one unquoted split
+# yields the candidate words, and the last five are collected from the end. The
+# per-word suffix copy it replaced took 8.5 s on 20,000 words.
 negation_trigger_to() {
-  local __plv_dest="$1" tail="${2##*[.!?;,]}" lower n first i
-  local -a words=()
+  local __plv_dest="$1" tail="$2" lower n i tok IFS=' '
+  local -a toks=() words=()
   printf -v "$__plv_dest" '%s' ""
+  [[ "$tail" =~ $_PLV_DELIM_TAIL_ERE ]] && tail="${tail:${#tail}-${#BASH_REMATCH[0]}+1}"
   tail="${tail//$'\xe2\x80\x99'/\'}"
-  while [[ "$tail" =~ $_PLV_WORD_ERE ]]; do
-    words+=("${BASH_REMATCH[0]}")
-    tail="${tail#*"${BASH_REMATCH[0]}"}"
+  tail="${tail//[!A-Za-z\']/ }"
+  # shellcheck disable=SC2206  # split on blanks is the point; the text holds no glob characters
+  toks=($tail)
+  for ((i = ${#toks[@]} - 1; i >= 0 && ${#words[@]} < 5; i--)); do
+    tok="${toks[i]}"
+    # A word starts at a letter: leading apostrophes are not part of it, and a
+    # run of apostrophes alone is none.
+    [[ "$tok" =~ $_PLV_WORD_ERE ]] && words=("${BASH_REMATCH[0]}" ${words[@]+"${words[@]}"})
   done
   n=${#words[@]}
-  first=0
-  ((n > 5)) && first=$((n - 5))
-  for ((i = first; i < n; i++)); do
+  for ((i = 0; i < n; i++)); do
     lower="${words[i],,}"
     [[ "$lower" == not ]] && ((i + 1 < n)) && [[ "${words[i + 1],,}" == only ]] && continue
     case "$lower" in
@@ -315,8 +336,13 @@ section_content_to() {
 # heading-level section bounds — stays intact.
 mask_markdown_code_to() {
   local __plv_dest="$1" body="$2" line rest rendered fence_char="" fence_len=0 in_fence=0
-  local marker_run marker_rest i ticks len k m j sidx nspans nruns cs ce out="" li=0
-  local -a runs_pos runs_len spans_start spans_end used
+  local marker_run marker_rest f nf ticks j r nruns ticks_text out="" li=0 IFS
+  local -a fields runs_before runs_len closer last
+  # The backtick split below must not glob the line's own `*`, `?` or `[`.
+  # Saved and restored by hand: `local -` needs Bash 4.4.
+  local had_noglob=0
+  [[ $- == *f* ]] && had_noglob=1
+  set -f
   # Up to three leading spaces, then the fence run, then the info string.
   local fence_re='^ {0,3}(`{3,}|~{3,})(.*)$'
   linkage::split_lines "$body"
@@ -352,70 +378,60 @@ mask_markdown_code_to() {
       out+=$'\n'
       continue
     fi
-    # Collect backtick runs in one left-to-right pass, then pair each opener
-    # with the next unused same-length run. A per-opener rescan of the
-    # remainder is O(L^1.5) on a line of distinct run lengths and can exceed
-    # the 15s PreToolUse timeout, which fails this gate open.
-    runs_pos=()
+    if [[ "$rest" != *'`'* ]]; then
+      out+="$rest"$'\n'
+      continue
+    fi
+    # Split the line at its backticks, so field f sits between backtick f-1
+    # and backtick f and a run of t backticks leaves t-1 empty fields; word
+    # splitting drops the field after a final backtick, so it is put back.
+    # Every step below is linear in the line: the `${rest:i:1}` walk this
+    # replaced measured the whole line per character, 4.8 s on 30,000 words.
+    IFS='`'
+    # shellcheck disable=SC2206  # the split is the point; set -f above stops globbing
+    fields=($rest)
+    [[ "$rest" == *'`' ]] && fields+=("")
+    nf=${#fields[@]}
+    runs_before=()
     runs_len=()
-    i=0
-    len=${#rest}
-    while ((i < len)); do
-      if [[ "${rest:i:1}" == '`' ]]; then
-        ticks=1
-        while ((i + ticks < len)) && [[ "${rest:i+ticks:1}" == '`' ]]; do ((ticks++)); done
-        runs_pos+=("$i")
-        runs_len+=("$ticks")
-        i=$((i + ticks))
-      else
-        ((i++))
-      fi
+    for ((f = 1; f < nf; f++)); do
+      runs_before+=("$((f - 1))")
+      ticks=1
+      while ((f < nf - 1)) && [[ -z "${fields[f]}" ]]; do
+        ticks=$((ticks + 1))
+        f=$((f + 1))
+      done
+      runs_len+=("$ticks")
     done
     # CommonMark: leftmost opener consumes through the next same-length
     # run; everything between is content (nested pairs, the escaped-tick
-    # idiom, leftover pending of another length). Walk openers in order
-    # and mark absorbed runs used so they cannot steal a later pair.
-    nruns=${#runs_pos[@]}
-    used=()
-    for ((k = 0; k < nruns; k++)); do used[k]=0; done
-    spans_start=()
-    spans_end=()
-    for ((k = 0; k < nruns; k++)); do
-      ((used[k])) && continue
-      ticks=${runs_len[k]}
-      j=-1
-      for ((m = k + 1; m < nruns; m++)); do
-        if ((used[m] == 0 && runs_len[m] == ticks)); then
-          j=$m
-          break
-        fi
-      done
-      ((j < 0)) && continue
-      used[k]=1
-      used[j]=1
-      for ((m = k + 1; m < j; m++)); do
-        used[m]=1
-      done
-      cs=${runs_pos[k]}
-      ce=$((runs_pos[j] + runs_len[j]))
-      spans_start+=("$cs")
-      spans_end+=("$ce")
+    # idiom, leftover pending of another length). Openers are taken in
+    # order and a pair absorbs every run between, so the closer of run r is
+    # the next run of the same length, found for all runs in one backward
+    # pass (a per-opener forward rescan is O(L^1.5) on distinct lengths).
+    nruns=${#runs_len[@]}
+    closer=()
+    last=()
+    for ((r = nruns - 1; r >= 0; r--)); do
+      ticks=${runs_len[r]}
+      closer[r]=${last[ticks]:--1}
+      last[ticks]=$r
     done
-    rendered=""
-    i=0
-    sidx=0
-    nspans=${#spans_start[@]}
-    while ((i < len)); do
-      if ((sidx < nspans && i == spans_start[sidx])); then
-        i=${spans_end[sidx]}
-        ((sidx++))
-        continue
+    # A paired span renders as nothing; an unpaired run stays as backticks.
+    rendered="${fields[0]}"
+    for ((r = 0; r < nruns; r++)); do
+      j=${closer[r]}
+      if ((j >= 0)); then
+        r=$j
+      else
+        printf -v ticks_text '%*s' "${runs_len[r]}" ''
+        rendered+="${ticks_text// /\`}"
       fi
-      rendered+="${rest:i:1}"
-      ((i++))
+      rendered+="${fields[runs_before[r] + runs_len[r]]}"
     done
     out+="$rendered"$'\n'
   done
+  ((had_noglob)) || set +f
   linkage::chomp_to "$__plv_dest" "$out"
 }
 

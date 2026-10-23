@@ -5,6 +5,12 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] - 2026-10-23
+
+### Added
+
+- The `report` return contract has a core `next:` field after `counts:`: suggested follow-ups, each a `/plugin:skill` with arguments and a one-line reason, `[]` when there are none. The contract also says to pair every code in text a person reads with its plain name.
+
 ## [0.16.1] - 2026-10-22
 
 ### Fixed

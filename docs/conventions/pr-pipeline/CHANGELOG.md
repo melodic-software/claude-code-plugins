@@ -1,5 +1,18 @@
 # Changelog for the PR pipeline convention
 
+## [4.13.1] - 2026-10-23
+
+### Fixed
+
+- `ci-status` and `enable-auto-merge` hold a lanes App pull request that changes the marketplace manifest (until a trusted approval of the head) or a merge-gate cost path (until the owner's linked cost decision).
+
+## [4.13.0] - 2026-10-23
+
+### Added
+
+- pr-verify's resolver gives the verifier the one issue a plain `Refs: #<n>` line names as the spec of a pull request that closes no issue, by the same rule the pr-merge gate reads (`refsIssue`, kept equal to `babysit_merge_policy.refs_issue` by `test_verify_rules_sync.py`), and marks each spec entry's `spec_kind` (`closes`, `refs` or `pull-request`), which the verdict records as `spec_kind`. The verifier judges a `Refs:` issue as a partial slice (owner decision 2026-10-23): only the part the pull request body says it delivers, in the issue's scope, correct and coherent, with the body naming what remains; a body naming no delivered part or no remaining work, or claiming the whole issue, fails. Closing issues are still judged whole, and the spec trust rules are unchanged.
+- A `Refs: #<n>` whose number names no issue or pull request (GitHub's NOT_FOUND) gives the resolver no linked issue instead of failing the run; the resolver reads the `Refs:` issue with a GitHub helper that keeps GraphQL errors, so the default helper's throw on any `errors` never reaches it, and an answer with no repository, or a null issue without that NOT_FOUND, fails the read. work-resolve-issue's report-outcome no longer puts the human-gated label and a refs-hold comment on the issue of a `Refs:` pull request it opens, since the merge lane now merges a plain `Refs:` pull request; work-unblock still lifts a hold set before.
+
 ## [4.12.3] - 2026-10-23
 
 ### Changed

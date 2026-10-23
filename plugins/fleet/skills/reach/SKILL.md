@@ -56,6 +56,15 @@ Placeholders, each filled from FLEET.md or a probe, never guessed:
 
 Per-route detail, the receiver and the reply patterns are in [reference/relay.md](reference/relay.md).
 
+Converging dotfiles on any fleet lane is not a route in this matrix: run `fleet-converge <lane>`,
+by its bare name. It does not prompt because dotfiles renders an exact allow rule for that command
+on every lane; no `Bash(ssh …)` rule is added, and the posture below stands for every other verb.
+
+- **Pointer**: for what `fleet-converge` checks and how it reaches each lane, read dotfiles
+  [docs/design-decisions.md, "Converging a lane: `fleet-converge`"](https://github.com/melodic-software/dotfiles/blob/main/docs/design-decisions.md#converging-a-lane-fleet-converge).
+  **As of**: 2026-10-23 (dotfiles `1108233`). **Recheck trigger**: that section changes or the
+  command is renamed.
+
 ## Resolve the target first
 
 1. Read `~/.config/fleet/FLEET.md`. Done when you can name the target host and lane and see its
@@ -185,7 +194,9 @@ on-demand tasks FLEET.md lists.
   prompt. If asked to stop the prompting, say what the rule would cost and decline.
 - Neither side runs `bypassPermissions`.
 - Never `wsl --shutdown` on a target, and never run `wsl -d` on a target's drift-convergence path.
-  Both take the distro out from under whatever else is using it.
+  Both take the distro out from under whatever else is using it. The one exception is a start
+  `fleet-converge` makes itself, under the guard the pointer above names; never run `wsl -d` on its
+  behalf.
 - The prompt travels in the command line, visible to the target's process table and shell history.
   No secret belongs in one.
 

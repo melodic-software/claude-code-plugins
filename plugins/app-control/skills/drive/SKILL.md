@@ -67,6 +67,11 @@ that section changes what `run` does or how it picks a project skill).
 - **Unattended limits.** Never attach to a process this run did not start. Never drive a tool that
   controls the person's own signed-in browser. Capture only on a process this run launched. A step
   that needs a person becomes `blocked: <reason>`; continue with the steps that do not.
+- **Elevated captures go through a shown script.** A capture on a process this run launched that
+  needs root or administrator rights, or whose named command carries an elevation prefix (`sudo`,
+  `doas`, `runas`), needs elevation: in an interactive run it takes the same shown-script step and
+  yes as an elevated attach (Attach section); with no one present it is
+  `blocked: capture needs elevation`.
 - **Cleanup touches only what this run started.** Detach from an attached process; never stop it.
   Never close all sessions or kill all processes.
 - **Never judge.** Write what was done and observed in plain words. Leave out any word that rates
