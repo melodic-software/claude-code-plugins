@@ -19,6 +19,11 @@ WORKFLOW="$ROOT/.github/workflows/pr-require-checks.yml"
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
+# shellcheck source=lib/ci-gh-read.sh
+. "$ROOT/scripts/lib/ci-gh-read.sh"
+export RUNNER_TEMP="$TMP_ROOT"
+ci_gh_read::install "$WORKFLOW" "$TMP_ROOT" || fail "the ci-status gh_read helper step is missing or fails"
+
 NAME='Fail a queued pull request carrying a hold label'
 step="$(awk -v name="      - name: $NAME" '$0 == name { on = 1; print; next }
   on && /^      - / { exit }
