@@ -21,6 +21,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 import { parse } from "yaml";
 
 import { DEFAULTS as CI_FIX_DEFAULTS, skipReason } from "../../scripts/pr-unblock/fix-ci-dispatch.mjs";
+import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
 import { main as checkTrustedTrigger } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { generate as generateCarrierKey } from "../open-lane-output/keygen.mjs";
 import { decide } from "../report-check-run/decide.mjs";
@@ -386,7 +387,7 @@ test("pr-unblock.yml: address-feedback and publish-feedback are reported neutral
 // fix-ci's one retry one model rung up runs inside the same pr-unblock run,
 // so whatever it ends in reaches report-escalation: only a clean apply of
 // the retry's patch leaves the PR unlabeled.
-const ESCALATING = ["resolve-conflicts", "address-feedback-select", "publish-feedback", "review-dependency", "apply-dependency-verdict", "fix-ci-context", "apply-patch"];
+const ESCALATING = ["resolve-conflicts", "address-feedback-select", "publish-feedback", "review-dependency-select", "apply-dependency-verdict", "fix-ci-context", "apply-patch"];
 const rungUpContext = ({ rungUp = "true", result = "success", escalation = "", skip = "" } = {}) => ({
   ...Object.fromEntries(ESCALATING.map((job) => [`needs.${job}.outputs.escalation-reason`, ""])),
   "needs.apply-patch.outputs.rung-up": rungUp,
@@ -961,6 +962,8 @@ test("every read-runner caller job passes exactly one Claude secret, named for i
     "pr-unblock.yml fix-ci-rung-up",
     "pr-unblock.yml fix-ci-rung-up-subscription",
     "pr-unblock.yml fix-ci-subscription",
+    "pr-unblock.yml review-dependency",
+    "pr-unblock.yml review-dependency-subscription",
     "work-resolve-issue.yml resolve-issue",
   ]);
 });
@@ -1291,9 +1294,25 @@ const PATCH_LANES = [
     { "needs.address-feedback-select.outputs.proceed": "true" },
     "apply-feedback-patch",
   ],
+  // apply-dependency-patch stays out of report-escalation too: a refused
+  // patch leaves no fix commit, and the verdict job escalates
+  // dependency-fix-not-landed (apply-dependency-verdict.test.mjs).
+  [
+    "pr-unblock.yml",
+    "review-dependency",
+    "review-dependency-subscription",
+    ["review-dependency-select"],
+    { "needs.review-dependency-select.outputs.proceed": "true" },
+    "apply-dependency-patch",
+  ],
 ];
 // The activity each push job runs in the write runner.
-const APPLY_ACTIVITY = { "fix-ci": "apply-patch", "fix-docs": "apply-patch", "address-feedback": "apply-feedback-patch" };
+const APPLY_ACTIVITY = {
+  "fix-ci": "apply-patch",
+  "fix-docs": "apply-patch",
+  "address-feedback": "apply-feedback-patch",
+  "review-dependency": "apply-dependency-patch",
+};
 const CARRIER_SECRETS = { "scan-carrier-private-key": "${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}" };
 // The head apply-patch holds the patch to, per producer. fix-ci's push job
 // takes the head fix-ci-context gated, from a job that ran no head code.
@@ -1304,18 +1323,22 @@ const PATCH_HEAD = {
   "fix-ci": { needs: ["fix-ci-context"], value: "${{ needs.fix-ci-context.outputs.head-sha }}" },
   "fix-docs": { needs: [], value: null },
   "address-feedback": { needs: ["address-feedback-select"], value: "${{ needs.address-feedback-select.outputs.head-sha }}" },
+  "review-dependency": { needs: ["review-dependency-select"], value: "${{ needs.review-dependency-select.outputs.head-sha }}" },
 };
 // Whether an empty patch still runs the push job, and its escalation reaches
 // report-escalation, which hands the PR to a person: fix-ci's does; no change
 // is fix-docs's common case, and its refused patch posts its check neutral and
 // labels nothing (report-escalation takes no patch-* reason).
-// address-feedback's empty patch is a round whose every reply needs no fix.
-const EMPTY_RUNS_APPLY = { "fix-ci": true, "fix-docs": false, "address-feedback": false };
+// address-feedback's empty patch is a round whose every reply needs no fix,
+// and review-dependency's one whose verdict needs none.
+const EMPTY_RUNS_APPLY = { "fix-ci": true, "fix-docs": false, "address-feedback": false, "review-dependency": false };
 const PATCH_OUTPUTS = { "patch-state": "patch-state", "patch-sha256": "patch-sha256", "patch-attempt": "patch-attempt", "reply-attempt": "reply-attempt" };
-// The read runner output each push job reads per input: address-feedback's,
-// a lane the brief holds to no run job output, the scan job's alone.
+// The read runner output each push job reads per input: address-feedback's
+// and review-dependency's, lanes the briefs hold to no run job output, the
+// scan job's alone.
+const SCAN_ONLY = new Set(["address-feedback", "review-dependency"]);
 const PATCH_OUTPUTS_OF = (firstId) =>
-  firstId === "address-feedback" ? Object.fromEntries(Object.entries(PATCH_OUTPUTS).map(([input, output]) => [input, `scan-${output}`])) : PATCH_OUTPUTS;
+  SCAN_ONLY.has(firstId) ? Object.fromEntries(Object.entries(PATCH_OUTPUTS).map(([input, output]) => [input, `scan-${output}`])) : PATCH_OUTPUTS;
 const WRITE_RUNNER = "./.github/workflows/pr-run-activity-write.yml";
 
 for (const [file, firstId, subId, extraNeeds, extraProceed, applyId] of PATCH_LANES) {
@@ -1417,6 +1440,8 @@ for (const [file, firstId, subId, extraNeeds, extraProceed, applyId] of PATCH_LA
         [`needs.${firstId}.outputs.${state}`]: firstState,
         [`needs.${subId}.outputs.feedback-attempt`]: "1",
         [`needs.${firstId}.outputs.feedback-attempt`]: "1",
+        [`needs.${subId}.outputs.dependency-verdict`]: "fix",
+        [`needs.${firstId}.outputs.dependency-verdict`]: "fix",
       });
     assert.equal(runs("written", ""), true);
     assert.equal(runs("", "written"), true);
@@ -1577,11 +1602,12 @@ test("pr-run-activity-read.yml: in PR mode the model job uploads nothing and wri
       assert.equal(atStep(step.if, prRun(step.if, overrides)), false, `${step.name} ${JSON.stringify(overrides)}`);
     }
   }
-  // The leak scan and the verdict are the scan job's alone.
+  // The leak scan and the verdict are the scan job's alone; a
+  // dependency-review skill's dependency-verdict.json is a payload it carries.
   for (const step of steps) {
     assert.notEqual(step.id, "leak-scan");
     assert.doesNotMatch(String(step.with?.name ?? ""), /^verdict-/, step.name);
-    assert.doesNotMatch(String(step.run ?? ""), /verdict\.json/, step.name);
+    assert.doesNotMatch(String(step.run ?? ""), /(?<![\w-])verdict\.json/, step.name);
   }
 });
 
@@ -1635,12 +1661,13 @@ test("pr-run-activity-read.yml: the leak scan runs after the decode and gates ev
   assert.deepEqual(["base", "key", "open", "decode"].map(at), [1, 2, 3, 4]);
   assert.ok(at("decode") < scan);
   const outputs = steps.filter((step) => (isUpload(step) && !String(step.with.name).startsWith("verdict-")) || writesSummary(step));
-  assert.equal(outputs.length, 4);
+  assert.equal(outputs.length, 5);
   const context = (clean) => ({
     "steps.leak-scan.outputs.clean": clean,
     "steps.decode.outputs.reply": "true",
     "steps.decode.outputs.patch": "true",
     "steps.decode.outputs.replies": "true",
+    "steps.decode.outputs.dependency-verdict": "true",
   });
   for (const step of outputs) {
     assert.ok(steps.indexOf(step) > scan, `${step.name} comes after the scan`);
@@ -1799,6 +1826,64 @@ async function scanWith(t, plant, gate = read("../../../lib/publish-gate.mjs"), 
   );
   return { clean: outputs.clean, failed, work, temp, warnings, outputs };
 }
+
+// dependency-review: the verdict file is scanned like the reply, hashed from
+// the scanned bytes, and only its verdict field, held to review-dependency.mjs
+// VERDICTS, leaves as an output.
+test("leak scan: a dependency verdict is scanned and hashed, and only a known verdict field leaves", async (t) => {
+  const plantVerdict = (text) => ({ temp }) => writeFileSync(join(temp, "skill-reply", "dependency-verdict.json"), text);
+  const fix = '{"verdict":"fix","reasons":["a"],"evidence":[]}\n';
+  const scanned = await scanWith(t, plantVerdict(fix));
+  assert.equal(scanned.clean, "true");
+  assert.equal(scanned.outputs["dependency-verdict"], "fix");
+  assert.equal(scanned.outputs["verdict-sha256"], createHash("sha256").update(fix).digest("hex"));
+  assert.equal(readFileSync(join(scanned.outputs.dir, "dependency-verdict.json"), "utf8"), fix);
+  for (const verdict of VERDICTS) {
+    assert.equal((await scanWith(t, plantVerdict(JSON.stringify({ verdict })))).outputs["dependency-verdict"], verdict);
+  }
+  for (const text of ['{"verdict":"approve"}', '{"verdict":["fix"]}', "fix", '"fix"', "null"]) {
+    const other = await scanWith(t, plantVerdict(text));
+    assert.equal(other.outputs["dependency-verdict"], "", text);
+    assert.match(other.outputs["verdict-sha256"], /^[0-9a-f]{64}$/, `${text}: still uploaded for the verdict job to refuse`);
+  }
+  assert.equal((await scanWith(t, () => {})).outputs["dependency-verdict"], undefined, "no file, no output");
+  const leaked = await scanWith(t, plantVerdict(`{"verdict":"fix","reasons":["${KEY}"],"evidence":[]}`));
+  assert.equal(leaked.clean, "false");
+  assert.doesNotMatch(String(leaked.failed), new RegExp(KEY));
+  // The scan's list is review-dependency.mjs's.
+  const script = scanSteps().find((s) => s.id === "leak-scan").with.script;
+  assert.match(script, new RegExp(`\\[${VERDICTS.map((v) => `'${v}'`).join(", ")}\\]\\.includes\\(value\\)`));
+});
+
+// Plan Q5: a lockfile fix over the patch cap is refused with the rest of the
+// run's payloads; the scan names the patch so the verdict job escalates
+// dependency-fix-not-landed instead of reading a round with no model turn.
+test("scan job: a refusal names an oversize patch, and every other refusal `output`", async (t) => {
+  const over = await scanIn(t, runOutputsAfterCarry(t, { "patch/patch.diff": Buffer.alloc(262145, 0x61) }));
+  assert.match(over.failed, /^too-large: the patch /);
+  assert.equal(over.outputs.refused, "patch");
+  const reply = await scanIn(t, runOutputsAfterCarry(t, { "skill-reply/reply.txt": Buffer.alloc(16385, 0x61), "patch/patch.diff": "diff\n" }));
+  assert.match(reply.failed, /^too-large: the reply /);
+  assert.equal(reply.outputs.refused, undefined, "the reply is refused first");
+  const ok = await scanIn(t, runOutputsAfterCarry(t, { "patch/patch.diff": Buffer.alloc(262144, 0x61) }));
+  assert.equal(ok.outputs.refused, undefined);
+  // The job output: the decode step's patch, else any failed step of this job is `output`.
+  const refused = workflow("pr-run-activity-read.yml").jobs.scan.outputs.refused;
+  const at = (decodeRefused, outcomes = {}) =>
+    evaluate(refused, {
+      "steps.decode.outputs.refused": decodeRefused,
+      "steps.open.outcome": "success",
+      "steps.decode.outcome": "success",
+      "steps.leak-scan.outcome": "success",
+      ...outcomes,
+    });
+  assert.equal(at("patch", { "steps.decode.outcome": "failure" }), "patch");
+  assert.equal(at("", { "steps.decode.outcome": "failure" }), "output");
+  assert.equal(at("", { "steps.open.outcome": "failure", "steps.decode.outcome": "skipped" }), "output");
+  assert.equal(at("", { "steps.leak-scan.outcome": "failure" }), "output");
+  assert.equal(at(""), "");
+  assert.equal(at("", { "steps.open.outcome": "skipped", "steps.decode.outcome": "success", "steps.leak-scan.outcome": "skipped" }), "", "a run with nothing to open");
+});
 
 test("leak scan: a clean run is clean", async (t) => {
   const { clean, failed } = await scanWith(t, () => {});
@@ -2590,7 +2675,7 @@ test("pr-run-activity-read.yml: the scan-carrier key is passed by name by each r
       }
     }
   }
-  assert.equal(callers, 9, "address-feedback, fix-ci, fix-docs and their subscription calls, fix-ci's rung-up pair, and resolve-issue");
+  assert.equal(callers, 11, "address-feedback, review-dependency, fix-ci, fix-docs and their subscription calls, fix-ci's rung-up pair, and resolve-issue");
   // In the read runner, one step of one job.
   for (const [id, job] of Object.entries(read.jobs)) {
     const steps = (job.steps ?? []).filter((step) => /scan-carrier-private-key|SCAN_CARRIER_PRIVATE_KEY/i.test(JSON.stringify(step)));
@@ -3190,6 +3275,164 @@ test("pr-unblock.yml: the apply and reply jobs take every model-call input from 
   assert.equal(script.env.REVIEW_PATCH_STATE, "${{ inputs.review-replies && inputs.review-patch-state || '' }}");
 });
 
+// --- review-dependency on run-claude-cli: a select job, two model calls, a push job, a verdict job ---
+
+// The outputs of a model call each review-dependency job may read: the
+// subscription call its fallback compares; the push job the patch, its report
+// and the verdict the scan job uploaded; the verdict job the verdict, the
+// patch state and the scan's refusal. No job takes a gate or a head from a
+// model call.
+const DEPENDENCY_CALL_READS = {
+  "review-dependency-subscription": ["credential-present", "lane-class"],
+  "apply-dependency-patch": ["dependency-attempt", "dependency-sha256", "dependency-verdict", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt"],
+  "apply-dependency-verdict": ["dependency-attempt", "dependency-sha256", "scan-patch-state", "scan-refused"],
+};
+
+test("pr-unblock.yml: no job takes a gate, head or verdict input from a review-dependency model call but the outputs it needs", () => {
+  const { jobs } = workflow("pr-unblock.yml");
+  for (const [id, job] of Object.entries(jobs)) {
+    const read = [...JSON.stringify(job).matchAll(/needs\.review-dependency(?:-subscription)?\.outputs\.([\w-]+)/g)].map((m) => m[1]);
+    assert.deepEqual([...new Set(read)].sort(), DEPENDENCY_CALL_READS[id] ?? [], id);
+  }
+  const SELECT = (output) => `\${{ needs.review-dependency-select.outputs.${output} }}`;
+  for (const id of ["review-dependency", "review-dependency-subscription"]) {
+    assert.equal(jobs[id].with["head-sha"], SELECT("head-sha"), id);
+    assert.equal(jobs[id].with["dependency-context-attempt"], SELECT("context-attempt"), id);
+    assert.equal(jobs[id].with["dependency-context-sha256"], SELECT("context-sha256"), id);
+  }
+  const apply = jobs["apply-dependency-patch"].with;
+  assert.equal(apply["patch-head-sha"], SELECT("head-sha"));
+  assert.equal(apply["patch-prepare"], "dependency-review");
+  const verdict = jobs["apply-dependency-verdict"];
+  assert.equal(verdict.with["dependency-verdict"], true);
+  assert.equal(verdict.with["dependency-context-attempt"], SELECT("context-attempt"));
+  assert.equal(verdict.with["dependency-run-sha256"], SELECT("run-sha256"));
+  assert.equal(verdict.with["dependency-head-sha"], SELECT("head-sha"));
+  assert.equal(verdict.with["expected-upstream-head"], undefined, "the dispatcher run vouches for the PR; the head the push moved is checked by the script");
+  // The verdict job counts every round the select job proceeded on, whatever a model call reports.
+  assert.deepEqual(verdict.needs, ["review-dependency-select", "review-dependency", "review-dependency-subscription", "apply-dependency-patch"]);
+  for (const [proceed, runs] of [["true", true], ["false", false], ["", false]]) {
+    assert.equal(evaluate(verdict.if, { "needs.review-dependency-select.outputs.proceed": proceed }), runs, JSON.stringify(proceed));
+  }
+  // The read runner's dependency and refusal outputs come from its scan job alone.
+  const read = workflow("pr-run-activity-read.yml");
+  for (const [output, value] of [
+    ["dependency-attempt", "dependency-attempt"],
+    ["dependency-sha256", "dependency-sha256"],
+    ["dependency-verdict", "dependency-verdict"],
+    ["scan-refused", "refused"],
+  ]) {
+    assert.equal(read.on.workflow_call.outputs[output].value, `\${{ jobs.scan.outputs.${value} }}`, output);
+    assert.equal(read.jobs.run.outputs[output], undefined, output);
+  }
+  assert.equal(read.jobs.scan.outputs["dependency-sha256"], "${{ steps.dependency-upload.outcome == 'success' && steps.leak-scan.outputs.verdict-sha256 || '' }}");
+  assert.equal(read.jobs.scan.outputs["dependency-verdict"], "${{ steps.dependency-upload.outcome == 'success' && steps.leak-scan.outputs.dependency-verdict || '' }}");
+  // report-escalation reads the select job's escalation, never a model call's.
+  const escalation = jobs["report-escalation"];
+  assert.ok(escalation.needs.includes("review-dependency-select") && escalation.needs.includes("apply-dependency-verdict"));
+  assert.match(escalation.with["escalation-reason"], /needs\.review-dependency-select\.outputs\.escalation-reason/);
+});
+
+// One leg answers the round: the fallback call when it ran, else the first;
+// the push needs a written patch beside a fix verdict from that same leg, and
+// an empty field never falls through to the other.
+test("pr-unblock.yml: apply-dependency-patch and the verdict job take every model-call input from one leg", () => {
+  const { jobs } = workflow("pr-unblock.yml");
+  const apply = jobs["apply-dependency-patch"];
+  const verdict = jobs["apply-dependency-verdict"].with;
+  const OUT = ["scan-patch-state", "scan-patch-sha256", "scan-patch-attempt", "scan-reply-attempt", "dependency-attempt", "dependency-sha256", "dependency-verdict", "scan-refused"];
+  const legs = (subResult, sub, first) => {
+    const values = { "needs.review-dependency-subscription.result": subResult };
+    for (const output of OUT) {
+      values[`needs.review-dependency-subscription.outputs.${output}`] = sub[output] ?? "";
+      values[`needs.review-dependency.outputs.${output}`] = first[output] ?? "";
+    }
+    return values;
+  };
+  const full = (leg) => ({ ...Object.fromEntries(OUT.map((o) => [o, `${leg}:${o}`])), "scan-patch-state": "written", "dependency-verdict": "fix" });
+  const inputs = {
+    "patch-state": [apply.with, "scan-patch-state"],
+    "patch-sha256": [apply.with, "scan-patch-sha256"],
+    "patch-attempt": [apply.with, "scan-patch-attempt"],
+    "reply-attempt": [apply.with, "scan-reply-attempt"],
+    "patch-verdict-attempt": [apply.with, "dependency-attempt"],
+    "patch-verdict-sha256": [apply.with, "dependency-sha256"],
+    "dependency-run-attempt": [verdict, "dependency-attempt"],
+    "dependency-verdict-sha256": [verdict, "dependency-sha256"],
+    "dependency-patch-state": [verdict, "scan-patch-state"],
+    "dependency-scan-refused": [verdict, "scan-refused"],
+  };
+  for (const [subResult, from] of [["skipped", "first"], ["success", "sub"], ["failure", "sub"]]) {
+    const context = legs(subResult, from === "sub" ? full("sub") : {}, from === "first" ? full("first") : {});
+    for (const [input, [block, output]] of Object.entries(inputs)) {
+      const want = output === "scan-patch-state" ? "written" : `${from}:${output}`;
+      assert.equal(evaluate(block[input], context), want, `${input} when the fallback call is ${subResult}`);
+    }
+    assert.equal(evaluate(apply.if, context), true, `a written patch beside a fix verdict when the fallback call is ${subResult}`);
+  }
+  // The fallback call ran and left its verdict empty: the first call's fix never pairs with it.
+  const mixed = legs("success", { "scan-patch-state": "written" }, full("first"));
+  assert.equal(evaluate(apply.if, mixed), false);
+  for (const [input, [block]] of Object.entries(inputs)) {
+    if (input !== "patch-state" && input !== "dependency-patch-state") assert.equal(evaluate(block[input], mixed), "", `${input} never falls through to the first call`);
+  }
+  // Any verdict but fix, or no patch, pushes nothing.
+  for (const [state, value] of [["written", "merge"], ["written", "close"], ["written", "escalate"], ["written", ""], ["empty", "fix"], ["", "fix"]]) {
+    const leg = { ...full("first"), "scan-patch-state": state, "dependency-verdict": value };
+    assert.equal(evaluate(apply.if, legs("skipped", {}, leg)), false, `${state} patch beside a ${JSON.stringify(value)} verdict`);
+  }
+});
+
+// A select that skips or escalates runs no model job: a neutral check on the
+// head it read keeps dependency-dispatch.mjs from sending the head again, and
+// countCheckRounds counts no round for it.
+test("pr-unblock.yml: review-dependency is reported neutral when the select job does not proceed", async () => {
+  const head = "d".repeat(40);
+  const { jobs } = workflow("pr-unblock.yml");
+  const notRun = jobs["review-dependency-not-run"];
+  const context = (proceed, headSha, skip = "", activity = "review-dependency") => ({
+    "inputs.activity": activity,
+    "needs.review-dependency-select.outputs.proceed": proceed,
+    "needs.review-dependency-select.outputs.head-sha": headSha,
+    "needs.review-dependency-select.outputs.skip-reason": skip,
+  });
+  assert.deepEqual([notRun.needs].flat(), ["review-dependency-select"]);
+  assert.deepEqual(notRun.permissions, { checks: "write", contents: "read" });
+  for (const id of ["review-dependency", "apply-dependency-verdict"]) {
+    assert.equal(evaluate(jobs[id].if, context("true", head)), true, id);
+    assert.equal(evaluate(jobs[id].if, context("false", head)), false, id);
+    assert.equal(evaluate(jobs[id].if, context("", "")), false, `${id} after a kill-switch stop`);
+  }
+  assert.equal(evaluate(notRun.if, context("true", head)), false);
+  assert.equal(evaluate(notRun.if, context("false", head, "not-applicable")), true);
+  assert.equal(evaluate(notRun.if, context("false", "")), false, "a stop before the head read names no head to post on");
+  assert.equal(evaluate(notRun.if, context("false", head, "", "fix-ci")), false);
+  for (const [skip, summary] of [
+    ["not-applicable", "Skip reason: not-applicable"],
+    ["superseded-sha", "Skip reason: superseded-sha"],
+    ["", "Skip reason: awaiting-human"],
+  ]) {
+    const calls = await postNotRunChecks(notRun, context("false", head, skip));
+    assert.deepEqual(
+      calls.map((call) => [call.name, call.head_sha, call.conclusion, call.output.summary]),
+      [["pr-unblock / review-dependency", head, "neutral", summary]],
+      JSON.stringify(skip),
+    );
+  }
+});
+
+test("pr-unblock.yml: review-dependency-select reads the slot with the read runner's applied-by keys and uploads both files under its attempt", () => {
+  const select = workflow("pr-unblock.yml").jobs["review-dependency-select"];
+  assert.deepEqual(select.permissions, { contents: "read", "pull-requests": "read", checks: "read", issues: "read" });
+  assert.equal(select.uses, undefined, "a base job, never a runner that checks out the head");
+  const step = (id) => select.steps.find((s) => s.id === id);
+  assert.equal(step("slot").with["applied-by-supported"], "patch dependency-verdict");
+  assert.equal(step("slot").with.activity, "review-dependency");
+  assert.match(step("select").run, /CONTEXT_RUN_FILE="\$DEPENDENCY_DIR\/context\.json"/);
+  assert.equal(step("upload").with.name, "dependency-context-${{ github.run_attempt }}");
+  assert.deepEqual(stepSecrets(select), []);
+});
+
 // The pr-feedback-dispatch.yml trust reaches the read gate only for a
 // review-threads call, which alone passes the select job's feedback context,
 // and a feedback context with any other prepare mode fails red.
@@ -3319,9 +3562,9 @@ test("pr-run-activity-read.yml: a pr-feedback-dispatch.yml dispatch passes the t
   assert.equal(read["expected-upstream-head"], undefined, "the model calls run on the reviewed head");
 });
 
-test("pr-run-activity-read.yml: review-threads and ci-context are its prepare modes, PR mode only, each handing on a patch", () => {
+test("pr-run-activity-read.yml: review-threads, ci-context and dependency-review are its prepare modes, PR mode only, each handing on a patch", () => {
   const steps = workflow("pr-run-activity-read.yml").jobs.run.steps;
-  const guard = steps.find((s) => s.name === "Assert the prepare mode is ci-context or review-threads in patch mode");
+  const guard = steps.find((s) => s.name === "Assert the prepare mode is ci-context, review-threads or dependency-review in patch mode");
   const refuses = (prepare, patch, issue = "") =>
     evaluate(guard.if, {
       "steps.config.outcome": "success",
@@ -3334,11 +3577,13 @@ test("pr-run-activity-read.yml: review-threads and ci-context are its prepare mo
   assert.equal(refuses("", ""), false);
   assert.equal(refuses("review-threads", ""), true);
   assert.equal(refuses("merge-base", "apply-patch"), true);
-  assert.equal(refuses("dependency-review", "apply-patch"), true);
+  assert.equal(refuses("dependency-review", "apply-dependency-patch"), false);
+  assert.equal(refuses("dependency-review", ""), true);
+  assert.equal(refuses("dependency-review", "apply-dependency-patch", "7"), true, "issue mode");
   assert.equal(refuses("review-threads", "apply-feedback-patch", "7"), true, "issue mode");
   assert.equal(spawnSync("bash", ["-c", guard.run]).status, 1);
   const config = steps.find((s) => s.id === "config");
-  assert.equal(evaluate(config.with["applied-by-supported"], { "inputs.issue-number": "" }), "patch feedback-replies");
+  assert.equal(evaluate(config.with["applied-by-supported"], { "inputs.issue-number": "" }), "patch feedback-replies dependency-verdict");
   assert.equal(evaluate(config.with["applied-by-supported"], { "inputs.issue-number": "7" }), "patch work-outcome");
 });
 
@@ -3520,6 +3765,69 @@ test("pr-run-activity-write.yml: apply-patch under the review-threads row reads 
   assert.deepEqual(runCheck(digest), { status: 0, output: `file=${file}\n` });
   assert.deepEqual(runCheck("0".repeat(64)), { status: 1, output: "" });
   assert.deepEqual(runCheck(""), { status: 1, output: "" });
+});
+
+// S&C 7.2 finding 2, carried into review-dependency: no patch applies
+// without a scanned verdict. The push reads the scan job's verdict, checked
+// against its SHA-256 before the mint, and only its closed-set verdict field
+// reaches the row's dependency-verdict requirement.
+test("pr-run-activity-write.yml: apply-patch under the dependency-review row reads the scanned verdict, checked against its SHA-256 before the mint", (t) => {
+  const steps = workflow("pr-run-activity-write.yml").jobs.run.steps;
+  const at = (name) => steps.findIndex((s) => s.name === name);
+  const download = steps[at("Download the dependency verdict for the patch")];
+  const check = steps[at("Check the dependency verdict for the patch")];
+  assert.equal(download.with.name, "dependency-verdict-${{ inputs.lane }}-${{ inputs.patch-activity }}-${{ inputs.patch-verdict-attempt }}");
+  assert.ok(at("Check the dependency verdict for the patch") < at("Request the lane token"));
+  const context = (prepare) => ({ "steps.config.outputs.applies": "true", "steps.config.outputs.prepare": "apply-patch", "inputs.patch-prepare": prepare });
+  for (const step of [download, check]) {
+    assert.equal(evaluate(step.if, context("dependency-review")), true);
+    assert.equal(evaluate(step.if, context("review-threads")), false);
+    assert.equal(evaluate(step.if, context("")), false);
+  }
+  assert.equal(steps.find((s) => s.id === "act-script").env.DEPENDENCY_VERDICT, "${{ steps.patch-verdict.outputs.verdict }}");
+  const dir = mkdtempSync(join(tmpdir(), "patch-verdict-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const file = join(dir, "dependency-verdict.json");
+  const runCheck = (text, sha = createHash("sha256").update(text).digest("hex")) => {
+    writeFileSync(file, text);
+    const out = join(dir, "out");
+    writeFileSync(out, "");
+    const result = spawnSync("bash", ["-e", "-c", check.run], { encoding: "utf8", env: { PATH: process.env.PATH, GITHUB_OUTPUT: out, VERDICT_FILE: file, VERDICT_SHA256: sha } });
+    return { status: result.status, output: readFileSync(out, "utf8") };
+  };
+  assert.deepEqual(runCheck('{"verdict":"fix","reasons":["r"],"evidence":[]}'), { status: 0, output: "verdict=fix\n" });
+  assert.deepEqual(runCheck('{"verdict":"merge"}'), { status: 0, output: "verdict=merge\n" });
+  assert.deepEqual(runCheck('{"verdict":"fix\\nverdict=fix"}'), { status: 0, output: "verdict=\n" }, "a value outside the set");
+  assert.deepEqual(runCheck("not json"), { status: 0, output: "verdict=\n" });
+  assert.deepEqual(runCheck('{"verdict":"fix"}', "0".repeat(64)), { status: 1, output: "" });
+  assert.deepEqual(runCheck('{"verdict":"fix"}', ""), { status: 1, output: "" });
+  rmSync(file);
+  const missing = spawnSync("bash", ["-e", "-c", check.run], { encoding: "utf8", env: { PATH: process.env.PATH, GITHUB_OUTPUT: join(dir, "out"), VERDICT_FILE: file, VERDICT_SHA256: "0".repeat(64) } });
+  assert.equal(missing.status, 1, "no verdict, no patch");
+  // The base dependabot.yml, whose pairs the dependency-manifests rule reads, is copied beside the rules.
+  assert.match(steps.find((s) => s.id === "apply-base").run, /cp \.base\/\.github\/dependabot\.yml "\$DEST\/\.github\/dependabot\.yml"/);
+});
+
+test("pr-run-activity-write.yml: the verdict job reads context.json from the select job's artifact and the verdict from the scan job's", () => {
+  const steps = workflow("pr-run-activity-write.yml").jobs.run.steps;
+  const context = steps.find((s) => s.name === "Download the dependency context");
+  const verdict = steps.find((s) => s.name === "Download the dependency verdict");
+  assert.equal(context.with.name, "dependency-context-${{ inputs.dependency-context-attempt }}");
+  assert.equal(verdict.with.name, "dependency-verdict-${{ inputs.lane }}-review-dependency-${{ inputs.dependency-run-attempt }}");
+  assert.equal(context.with.path, verdict.with.path);
+  const env = steps.find((s) => s.id === "act-script").env;
+  assert.equal(env.DEPENDENCY_VERDICT_DIR, "${{ inputs.dependency-verdict && format('{0}/dependency-verdict', runner.temp) || '' }}");
+  assert.equal(env.DEPENDENCY_RUN_SHA256, "${{ inputs.dependency-run-sha256 }}");
+  assert.equal(env.DEPENDENCY_VERDICT_SHA256, "${{ inputs.dependency-verdict-sha256 }}");
+  assert.equal(env.DEPENDENCY_PATCH_STATE, "${{ inputs.dependency-verdict && inputs.dependency-patch-state || '' }}");
+  assert.equal(env.DEPENDENCY_SCAN_REFUSED, "${{ inputs.dependency-verdict && inputs.dependency-scan-refused || '' }}");
+  // A dependency-review skill on this runner fails red before the mint.
+  const at = (name) => steps.findIndex((s) => s.name === name);
+  const refuse = steps[at("Assert dependency-review runs in the read runner")];
+  assert.ok(at("Assert dependency-review runs in the read runner") < at("Request the lane token"));
+  assert.equal(evaluate(refuse.if, { "steps.config.outcome": "success", "steps.config.outputs.prepare": "dependency-review" }), true);
+  assert.equal(evaluate(refuse.if, { "steps.config.outcome": "success", "steps.config.outputs.prepare": "apply-patch" }), false);
+  assert.equal(spawnSync("bash", ["-c", refuse.run]).status, 1);
 });
 
 // A needs-human PR's fix request reaches the push: the select job's

@@ -946,6 +946,29 @@ def flatten_paginated_items(
     raise RuntimeError(f"Unexpected paginated response items for {label}")
 
 
+# A filtered workflow-run listing returns at most this many runs per search:
+# https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-workflow
+# (as of 2026-10-23; recheck when that page's result limit changes).
+RUN_SEARCH_CAP = 1000
+
+
+def run_search_capped(payload: Any, items: list[dict[str, Any]]) -> int | None:
+    """The listing's `total_count` when a paginated run listing reached
+    RUN_SEARCH_CAP, by that count or by the items its pages carried; None
+    below it. A listing at the cap may be missing runs, so it is never a
+    complete read."""
+    pages = payload if is_json_array(payload) else [payload]
+    total = max(
+        (
+            p["total_count"]
+            for p in pages
+            if is_json_object(p) and isinstance(p.get("total_count"), int)
+        ),
+        default=0,
+    )
+    return total if max(total, len(items)) >= RUN_SEARCH_CAP else None
+
+
 def fetch_paginated_api(
     endpoint: str,
     label: str,
@@ -1340,13 +1363,18 @@ def collect_lane_runs(
     from a fresh `GET actions/runs/{id}` taken after the listing; each attempt
     carries its jobs, and each lane job its check run's annotations. Any read
     failure, a deleted or expired run included, raises `RuntimeError`, which
-    the caller turns into unbound evidence. `env_overrides` applies to every
-    read, all of them GETs.
+    the caller turns into unbound evidence; so does a listing that reached
+    RUN_SEARCH_CAP, which may be missing runs. `env_overrides` applies to
+    every read, all of them GETs.
     """
     env = env_overrides
 
     def read(path: str) -> Any:
         return gh_json(["api", path], env) if env else gh_json(["api", path])
+
+    def read_all(path: str) -> Any:
+        args = ["api", path, "--paginate", "--slurp"]
+        return gh_json(args, env) if env else gh_json(args)
 
     def pages(endpoint: str, label: str, items_key: str | None = None) -> list[Any]:
         return fetch_paginated_api(
@@ -1361,13 +1389,20 @@ def collect_lane_runs(
     )
     for path, job_suffix in lanes:
         workflow = quote(path.rsplit("/", 1)[-1], safe="")
-        listing = pages(
+        payload = read_all(
             f"repos/{repo}/actions/workflows/{workflow}/runs"
             f"?branch={quote(head_ref, safe='')}&event=pull_request{since}"
-            "&per_page=100",
-            f"{workflow} runs",
-            "workflow_runs",
+            "&per_page=100"
         )
+        listing = flatten_paginated_items(
+            payload, f"{workflow} runs", items_key="workflow_runs"
+        )
+        total = run_search_capped(payload, listing)
+        if total is not None:
+            raise RuntimeError(
+                f"{workflow} runs: total_count {total}, {len(listing)} returned, "
+                f"at the {RUN_SEARCH_CAP}-run search cap"
+            )
         for item in listing:
             if not any(
                 json_object(pr).get("number") == number

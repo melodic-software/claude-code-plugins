@@ -133,6 +133,7 @@ test("live config: pr-unblock runs its slots in order", () => {
       "apply-feedback-patch",
       "publish-feedback",
       "review-dependency",
+      "apply-dependency-patch",
       "apply-dependency-verdict",
       "fix-ci",
       "apply-patch",
@@ -244,9 +245,10 @@ test("live config: fix-ci holds no write token and its push job may only write i
   assert.equal(selected("pr-unblock", "fix-ci", { labels: ["needs-human"] }).applies, false);
 });
 
-test("live config: review-dependency may only write its branch; its verdict job may only write PRs and issues", () => {
+test("live config: review-dependency holds no write token; its push job may only write its branch, its verdict job only PRs and issues", () => {
   const grant = (activity) => resolveGrant(FILES, { lane: "pr-unblock", activity, configPath: CONFIG_PATH });
-  assert.deepEqual(grant("review-dependency"), {
+  assert.deepEqual(grant("review-dependency"), { effect: "read", grant: { contents: "read", "pull-requests": "read", issues: "read" } });
+  assert.deepEqual(grant("apply-dependency-patch"), {
     effect: "mutate-branch",
     grant: { contents: "write", "pull-requests": "read", issues: "read" },
   });
@@ -257,7 +259,16 @@ test("live config: review-dependency may only write its branch; its verdict job 
   const review = selected("pr-unblock", "review-dependency");
   assert.equal(review.prepare, "dependency-review");
   assert.equal(review.args, "dependency --ci");
-  assert.equal(selected("pr-unblock", "apply-dependency-verdict").script, ".github/scripts/pr-unblock/apply-dependency-verdict.mjs");
+  assert.deepEqual(review["applied-by"], { patch: "apply-dependency-patch", "dependency-verdict": "apply-dependency-verdict" });
+  const push = selected("pr-unblock", "apply-dependency-patch");
+  assert.equal(push.script, ".github/scripts/apply-patch/apply-patch.mjs");
+  assert.equal(push.prepare, "apply-patch");
+  assert.deepEqual(push.needs, ["review-dependency"]);
+  assert.equal(selected("pr-unblock", "apply-dependency-patch", { labels: ["needs-human"] }).applies, false);
+  const verdict = selected("pr-unblock", "apply-dependency-verdict");
+  assert.equal(verdict.script, ".github/scripts/pr-unblock/apply-dependency-verdict.mjs");
+  // After the push, so the verdict judges what landed.
+  assert.deepEqual(verdict.needs, ["review-dependency", "apply-dependency-patch"]);
 });
 
 // An agent-ready label event on an issue.
@@ -281,7 +292,7 @@ test("live config: resolve-issue starts on the agent-ready label alone, whatever
 
 // The holds stay: a person decides these, so the issue waits for them.
 test("live config: resolve-issue starts nothing for an issue carrying a hold label", () => {
-  for (const hold of ["needs-human", "needs-owner-decision", "status: needs-decision"]) {
+  for (const hold of ["needs-human", "needs-owner-decision", "status: needs-decision", "status: needs-info"]) {
     assert.equal(skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labels: ["agent-ready", hold] }), "awaiting-human", hold);
   }
 });
@@ -497,8 +508,8 @@ test("live config: fix-docs with a write effect is refused", () => {
 
 // Each activity's applied-by lands with the phase that moves it to the read
 // runner, after the broker serves a reader that knows the field; fix-docs,
-// address-feedback, fix-ci and resolve-issue so far.
-test("live config: only fix-docs, address-feedback, fix-ci and resolve-issue set applied-by, each to its own appliers", () => {
+// address-feedback, review-dependency, fix-ci and resolve-issue so far.
+test("live config: only fix-docs, address-feedback, review-dependency, fix-ci and resolve-issue set applied-by, each to its own appliers", () => {
   const { activities } = parse(FILES.config);
   assert.deepEqual(
     Object.entries(activities)
@@ -507,6 +518,7 @@ test("live config: only fix-docs, address-feedback, fix-ci and resolve-issue set
     [
       ["fix-docs", { patch: "apply-patch" }],
       ["address-feedback", { patch: "apply-feedback-patch", "feedback-replies": "publish-feedback" }],
+      ["review-dependency", { patch: "apply-dependency-patch", "dependency-verdict": "apply-dependency-verdict" }],
       ["fix-ci", { patch: "apply-patch" }],
       ["resolve-issue", { patch: "apply-issue-patch", "work-outcome": "report-outcome" }],
     ],
