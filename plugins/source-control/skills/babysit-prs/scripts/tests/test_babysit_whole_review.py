@@ -48,8 +48,14 @@ class Wanted(unittest.TestCase):
         self.assertFalse(wr.wanted("checks-failing", result(MED), (CLEARS, CLEAN)))
 
     def test_another_risk_reason(self) -> None:
-        other = risk.Reason("files-over", risk.Risk.MED, "9 > 8")
+        other = risk.Reason("files-incomplete", risk.Risk.MED, "unread")
         self.assertFalse(wr.wanted(None, result(MED, other), (CLEARS, CLEAN)))
+
+    def test_a_reason_that_does_not_hold_leaves_the_findings_alone(self) -> None:
+        # #9270: blast-radius-missing no longer holds, so the finding is the
+        # only hold and a whole review can clear it.
+        other = risk.Reason("blast-radius-missing", risk.Risk.MED, "C3 unrated")
+        self.assertTrue(wr.wanted(None, result(MED, other), (CLEARS, CLEAN)))
 
     def test_a_lane_whose_findings_a_whole_review_cannot_close(self) -> None:
         stuck = risk.LaneEvidence("claude-security-review", True, None, 1, False)

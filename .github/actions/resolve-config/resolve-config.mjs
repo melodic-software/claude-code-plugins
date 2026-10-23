@@ -12,11 +12,11 @@ import {
   createGitHub,
   paginate,
 } from "../check-trusted-trigger/check-trusted-trigger.mjs";
+import { checkPatchRules } from "./patch-rules.mjs";
 import { pipelineEvent } from "./predicate.mjs";
 import {
   checkAppliedBySupported,
   checkConfigPath,
-  checkPatchRules,
   laneHasActivity,
   loadConfig,
   modelArgs,
@@ -152,13 +152,9 @@ async function gatherFacts(
     facts.draft = event.pull_request?.draft ?? (await fetchPull()).draft;
   }
   // An issues event has no PR: labels come from the issue (the payload's, or
-  // read now for labels-absent and admission), and its update time is when it
-  // was labeled.
+  // read now for labels-absent and admission).
   const issue = eventName === "issues" ? event.issue : undefined;
   if (issue !== undefined) {
-    if (needed.includes("labeledAt") && typeof issue.updated_at === "string") {
-      facts.labeledAt = issue.updated_at;
-    }
     if (needed.includes("fieldValues")) {
       // The issue's org field values: REST answers the integer field and
       // option ids the config maps (GraphQL answers only node ids).

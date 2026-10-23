@@ -3,6 +3,41 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.6.0] - 2026-10-23
+
+### Changed
+
+- The unattended merge gate merges a MED score whose every reason is a class or size reason (`class-contradicted`, `blast-radius-missing`, `lines-over`, `files-over`, `no-patch:*`), as it does LOW (#9270). Unbound or missing review evidence, an open claude-review finding, an unread file listing, the rung and every HIGH reason still hold, and such a MED gets no reasons comment or risk escalation.
+- The security lane holds the merge only on a CRITICAL finding. The gate reads each inline comment's `severity:` line and the summary's `critical-findings:` line; a finding whose severity it cannot read counts as CRITICAL.
+- The HIGH path floor holds only what has an effect outside the repository or its review: `**/settings*.json`, `.gitmodules`, `CODEOWNERS`, package manifests and lockfiles, the workflows that publish a release or hold `id-token: write`, and `check-trusted-trigger`. Agent instructions, hooks, `bin`, `lib`, scripts, monitors, `.mcp.json` and `.lsp.json`, the review and merge-gate plugins, `docs/conventions` and the rest leave it, as do the capability, test-only, eval-data, eval-scaffold, script-mode and base-side declaration checks. `merge.diff-check.floor-paths` and `floor-script-scopes` are gone.
+- `manifest-review-required` holds only a `plugin.json` change to `hooks`, `mcpServers`, `lspServers`, `monitors` or `experimental.monitors`, and a marketplace plugin added, removed, renamed or re-sourced, or the marketplace renamed.
+- A `work-class: structural` label scores as `C3` (scoped), in the local merge gate and the promotion evidence.
+- `NEVER_FLOOR_EXEMPT` is the HIGH path floor, and `INSTRUCTION_PATH_RE` (twin of `thread-scope.mjs` `INSTRUCTION_PATH`) names only submodule, code-owner, agent permission and package manifest files; the review-thread tool `feedback-thread.sh` reads the same set.
+
+### Fixed
+
+- The unattended merge gate lists each review lane's runs only from the pull request's creation time on. A reused branch (such as the release branch) no longer reads every earlier pull request's runs, which cost about 4,000 lanes App calls per gate and exhausted its rate limit.
+
+## [2.5.0] - 2026-10-23
+
+### Changed
+
+- `pull-request comments --ci` and `ci --ci` keep away from `.github/workflows/` only, not all of `.github/`. The review-thread tool, `feedback-thread.sh`, refuses a path under `.github/workflows/` in any letter case and allows a kept thread's path elsewhere under `.github/`.
+
+- The pr-merge lane no longer escalates `verify:fail` or `verify:earlier-fail` to a person: both only refuse while an `address-feedback` round answers the fail's notes. `verify:repeated-fail` still escalates, and now wins over a `fail` at the head once fails reach `merge.max-verify-fails`, counting the other pull requests for the same issue, so the round past the cap is not spent. Its escalation quotes the head fail's summary.
+- `pull-request comments --ci` lists a `verifier` author: the pr-verify verifier's fail notes for the head, a finding like a `reviewer` body.
+
+### Removed
+
+- The carried-quote rule that kept an earlier `verify:fail` reason in a `verify:earlier-fail` escalation, and that turned an earlier-fail or repeated-fail whose last quote named this head back into `verify:fail`.
+
+## [2.4.0] - 2026-10-23
+
+### Changed
+
+- `pull-request comments --ci` commits nothing: it leaves each fix uncommitted in the working tree, and a later job with no model pushes it as one commit. A disposition's `fix_sha` stays empty, and the reply job names the pushed commit. The review-thread tool's path comes from the run's preamble ([`comments-ci.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/pull-request/reference/comments-ci.md)).
+- The review-thread tool, `feedback-thread.sh`, makes no GitHub call. It records `VALID` only with an empty `fix_sha`, and only while every path the working tree changes against the gated head is in a kept thread's scope and outside `.github/`. That covers both sides of a rename and every untracked file git does not ignore.
+
 ## [2.3.0] - 2026-10-22
 
 ### Added

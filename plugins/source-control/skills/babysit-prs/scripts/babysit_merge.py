@@ -90,7 +90,8 @@ Contract enforced here (encoded as code, not convention):
   needs a human gets the tracker's human-gated role label and one upserted
   `<!-- babysit-merge-verify-escalation -->` comment, a Dependabot update held
   under `merge.dependabot.majors: hold` gets the same label and one upserted
-  `<!-- babysit-merge-dependabot-major -->` comment, and a ready LOW pull request is
+  `<!-- babysit-merge-dependabot-major -->` comment, and a ready pull request whose
+  score does not hold it (`babysit_risk.holds`) is
   enqueued at its pinned head after a second kill-switch read, an armed
   auto-merge disarm (`disablePullRequestAutoMerge`) and a pin comment, unless
   the base changed a `merge.check-inputs` path since its merge base, when its
@@ -2782,7 +2783,8 @@ RISK_ESCALATION_LINE = (
     "the pr-merge lane added the human-gated label."
 )
 VERIFY_ESCALATION_MARKER = "<!-- babysit-merge-verify-escalation -->"
-# The most of a verdict's summary a verify:fail escalation quotes (judgment).
+# The most of a verdict's summary a verify:repeated-fail escalation quotes
+# (judgment).
 VERIFY_SUMMARY_MAX = 1500
 QUEUE_EJECTION_MARKER = "<!-- babysit-merge-queue-ejections -->"
 MAJOR_ESCALATION_MARKER = "<!-- babysit-merge-dependabot-major -->"
@@ -2902,7 +2904,11 @@ def _lane_evidence(
     except GraphQLUnavailableError:
         threads = None
     runs = collect_lane_runs(
-        repo, number, str(head.get("ref")), review_evidence.LANES.values()
+        repo,
+        number,
+        str(head.get("ref")),
+        review_evidence.LANES.values(),
+        str(pr.get("created_at") or ""),
     )
 
     def human(actor: Any) -> bool:
@@ -2979,7 +2985,8 @@ def score_unattended(
 ) -> merge_policy.UnattendedPolicy:
     """Bind the review evidence and score the diff (Design T2, T6) for an
     eligible pull request on a live path; an ineligible one is not scored
-    (T3). Anything but LOW refuses the merge as `risk:<score>`."""
+    (T3). A score that holds (`babysit_risk.holds`) refuses the merge as
+    `risk:<score>`."""
     inputs = dict(policy.inputs or {})
     eligible = inputs.get("eligibility")
     if not policy.enabled or eligible is None or not eligible.eligible:
@@ -3044,7 +3051,7 @@ def score_unattended(
             LaneEvidence(lane, False, "evidence-missing", None)
             for lane in review_evidence.LANES
         )
-    # An adopted pull request's trusted author: the path floor holds only
+    # An adopted pull request's trusted author: the denied paths and manifest review hold only
     # paths someone else's commits touched, a lane's fix among them. A
     # model-driven App's own lines count only under `MODEL_APP_OWN` (Q14 (c)).
     own = (
@@ -3057,12 +3064,9 @@ def score_unattended(
         if eligible.adoption
         else frozenset()
     )
-    if config.high_path_floor or any(
-        babysit_risk.is_workflow_path(f.path) for f in files
-    ):
-        # The capability check compares base and head text (the floor only);
-        # the cost hold reads a workflow's head text for its model legs.
-        files = merge_policy.with_capability_contents(repo, pr, files)
+    # The manifest review compares base and head text; the cost hold reads a
+    # workflow's head text for its model legs.
+    files = merge_policy.with_contents(repo, pr, files)
     # The pr-merge lane's switches (owner decision Q624); the local lane
     # keeps HIGH_FLOOR, both caps and the C2 contradictions.
     lane_switches = (
@@ -3075,33 +3079,6 @@ def score_unattended(
         if inputs.get("authority") == merge_policy.PR_MERGE
         else {}
     )
-    # Read at the base SHA, so a pull request cannot drop its own declaration:
-    # every plugin's from a clone holding the base, else only the plugins its
-    # changed files sit in.
-    changed = [path for f in files for path in (f.path, f.previous_path)]
-    declarations = (
-        merge_policy.declarations_at(repo, pr, changed)
-        if lane_switches.get("high_floor", True)
-        else ()
-    )
-    # Agents at the base, read only for a skill change that could skip its
-    # capability hold; None (unknown) holds it.
-    agents = (
-        merge_policy.agents_at(repo, pr)
-        if config.high_path_floor
-        and any(
-            f.status == "modified" and babysit_risk.is_skill_path(f.path) for f in files
-        )
-        else None
-    )
-    # Case files at the base, read only when an eval case directory changed;
-    # None (unknown) holds every such change.
-    eval_cases = (
-        merge_policy.eval_cases_at(repo, pr, changed)
-        if lane_switches.get("high_floor", True)
-        and any(p and babysit_risk.eval_case_dirs(p) for p in changed)
-        else None
-    )
     private = json_object(json_object(pr.get("base")).get("repo")).get("private")
     risk_input = babysit_risk.RiskInput(
         work_class=eligible.work_class,
@@ -3110,13 +3087,6 @@ def score_unattended(
         files_complete=complete,
         max_changed_lines=config.max_changed_lines,
         high_paths=config.denied_paths,
-        floor_paths=config.floor_paths,
-        floor_script_scopes=config.floor_script_scopes,
-        # The floor additions follow the switch in every lane.
-        floor_extensions=config.high_path_floor,
-        declarations=declarations,
-        agents=agents,
-        eval_cases=eval_cases,
         lanes=lanes,
         blast_radius=None,
         floor_exempt=own,
@@ -3161,7 +3131,7 @@ def score_unattended(
     details["wholeReviewWanted"] = whole_review.wanted(policy.reason, risk, lanes)
     inputs.update(risk=risk, comments=comments)
     reason = policy.reason or (
-        None if risk.score is babysit_risk.Risk.LOW else f"risk:{risk.score.name}"
+        f"risk:{risk.score.name}" if babysit_risk.holds(risk) else None
     )
     if reader is not None and reason is None and reader.saved:
         # The run's saved listing lacks anything uploaded since; allow only
@@ -3238,9 +3208,9 @@ def _first_line(text: Any) -> str:
 
 
 def _floor_held(risk: babysit_risk.RiskResult) -> bool:
-    """Whether the HIGH floor holds the pull request: a `high-` reason (a
-    floor or configured path, a capability change, a script file). An unsafe
-    path scores HIGH with the floor off, so it is not a floor hold."""
+    """Whether the HIGH floor holds the pull request: a `high-path:` reason
+    for a floor or configured path. An unsafe path scores HIGH with the floor
+    off, so it is not a floor hold."""
     return any(
         r.severity is babysit_risk.Risk.HIGH
         and r.code.startswith("high-")
@@ -3258,15 +3228,14 @@ def risk_comment_body(risk: babysit_risk.RiskResult, head: str) -> str:
     """The reasons comment: a function of the score, the reasons and the head
     only, so an unchanged assessment renders the same body."""
     wait = (
-        "A floor path or capability change holds it: a human merges it in "
-        "person, never an agent or a lane."
+        "A floor path holds it: a human merges it in person, never an agent or a lane."
         if _floor_held(risk)
         else "This pull request waits for one."
     )
     lines = [
         RISK_MARKER,
-        f"Unattended merge: risk **{risk.score.name}** at head `{head}`. Only LOW "
-        f"merges without a human. {wait}",
+        f"Unattended merge: risk **{risk.score.name}** at head `{head}`. Only LOW, "
+        f"or MED on class and size reasons alone, merges without a human. {wait}",
         "",
         "```text",
     ]
@@ -3278,13 +3247,13 @@ def risk_comment_body(risk: babysit_risk.RiskResult, head: str) -> str:
 
 
 def risk_cleared_body(head: str) -> str:
-    """The reasons comment once the head scores LOW: a refusal there later
+    """The reasons comment once the head's score no longer holds it: a refusal there later
     renders a different body, so its time starts then, not at the old one."""
     return "\n".join(
         [
             RISK_MARKER,
-            f"Unattended merge: risk **LOW** at head `{head}`. The earlier "
-            "refusal no longer holds.",
+            f"Unattended merge: no risk reason holds the merge at head `{head}`. "
+            "The earlier refusal no longer holds.",
         ]
     )
 
@@ -3469,20 +3438,13 @@ def escalate_verify(
     inputs: Mapping[str, Any],
     summary: str | None = None,
 ) -> dict[str, Any]:
-    """`escalate` for a needs-human verifier refusal. A `verify:fail`,
-    `verify:earlier-fail` or `verify:repeated-fail` with no `summary`
-    (unreadable, or a fail at an earlier head) quotes the last fail summary
-    its comment carried, so an unreadable artifact rewrites nothing and the
-    reason outlives the head. Either of the last two whose carried quote is a
-    fail at this head is that fail read as unreadable this run: it stays
-    `verify:fail`."""
+    """`escalate` for a needs-human verifier refusal. A
+    `verify:repeated-fail` with no `summary` (unreadable, or no fail at the
+    head) quotes the last fail summary its comment carried, so an unreadable
+    artifact rewrites nothing and the reason outlives the head."""
     head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
     carried = None
-    if summary is None and refusal in (
-        verify_evidence.FAIL,
-        verify_evidence.EARLIER_FAIL,
-        verify_evidence.REPEATED_FAIL,
-    ):
+    if summary is None and refusal == verify_evidence.REPEATED_FAIL:
         comments = inputs.get("comments")
         if comments is None:
             comments = fetch_paginated_api(
@@ -3491,8 +3453,6 @@ def escalate_verify(
             )
             inputs = {**inputs, "comments": comments}
         carried = _carried_quote(comments, identity)
-        if carried and carried[0] == head:
-            refusal = verify_evidence.FAIL
     body = verify_escalation_body(refusal, head, summary, carried)
     return escalate(repo, number, identity, body, VERIFY_ESCALATION_MARKER, inputs)
 
@@ -3500,14 +3460,14 @@ def escalate_verify(
 def _fail_summary(
     verify: Mapping[str, Any], inputs: Mapping[str, Any], number: int
 ) -> str | None:
-    """The summary of the head FAIL a `verify:fail` refusal names, read
-    through the gate's verdict reader; None for any other refusal or when the
-    record cannot be read."""
+    """The summary of the head FAIL a `verify:repeated-fail` refusal names,
+    read through the gate's verdict reader; None for any other refusal, with
+    no FAIL at the head, or when the record cannot be read."""
     fail = json_object(verify.get("headFail"))
     reader = inputs.get("verify_reader")
     run_id, name = fail.get("run"), fail.get("artifact")
     if (
-        verify.get("refusal") != verify_evidence.FAIL
+        verify.get("refusal") != verify_evidence.REPEATED_FAIL
         or not isinstance(reader, verify_evidence.Reader)
         or not isinstance(run_id, int)
         or not isinstance(name, str)
@@ -3645,12 +3605,12 @@ def unattended_writes(
     A stop refusal (kill switch, post-merge, rung off) dequeues every entry
     the identity enqueued; otherwise each queued identity entry carrying a
     hold (D3) leaves the queue, as does this pull request's own entry when
-    this run refused it for itself (`own_refusal`) or scored it above LOW
+    this run refused it for itself (`own_refusal`) or its score holds it
     (`risk:<score>`). Then the reasons comment for an eligible
-    MED or HIGH pull request on a path not stopped, escalated (`escalate`)
+    pull request its score holds, on a path not stopped, escalated (`escalate`)
     when the comment read before this run already says the same and has for
     `merge.risk-escalation-minutes` (`_stood_unchanged`), the comment first
-    rewritten to end with `RISK_ESCALATION_LINE` (once); at LOW, a refusal
+    rewritten to end with `RISK_ESCALATION_LINE` (once); once the score no longer holds it, a refusal
     comment naming the head becomes `risk_cleared_body`; and the escalation
     (`escalate_verify`) for a verifier refusal that needs a human, or for a
     Dependabot update held under `merge.dependabot.majors: hold`, keyed on the
@@ -3708,11 +3668,11 @@ def unattended_writes(
             }
             # This run's own read of a queued entry also counts: the pull
             # request it just found ineligible, above the rung, unpromoted
-            # for its class, on another base or scored above LOW leaves the
+            # for its class, on another base or held by its score leaves the
             # queue.
             own = inputs.get("own_refusal") or (
                 f"risk:{risk.score.name}"
-                if risk is not None and risk.score is not babysit_risk.Risk.LOW
+                if risk is not None and babysit_risk.holds(risk)
                 else None
             )
             if number in queued and own:
@@ -3737,7 +3697,7 @@ def unattended_writes(
         report["errors"].append(f"dequeue: {exc}")
     # A stopped path (demoted, capped off, switched off) merges nothing, so a
     # reasons comment would only say so on every pull request.
-    if not stopped and risk is not None and risk.score is not babysit_risk.Risk.LOW:
+    if not stopped and risk is not None and babysit_risk.holds(risk):
         head = str(json_object(inputs["pr"].get("head")).get("sha"))
         body = risk_comment_body(risk, head)
         try:
@@ -3783,7 +3743,7 @@ def unattended_writes(
             report["errors"].append(f"reasons comment: {exc}")
         if report.get("wholeReview") is None:
             report.pop("wholeReview", None)
-    # A LOW score ends the refusal at this head: the identity's refusal
+    # A score that no longer holds ends the refusal at this head: the identity's refusal
     # comment naming it says so once, from comments already read. An
     # escalated one stays beside the label it explains.
     elif not stopped and risk is not None and inputs.get("comments") is not None:
@@ -3953,7 +3913,7 @@ def unattended_enqueue(
     policy: merge_policy.UnattendedPolicy,
     pending_path: Path | None,
 ) -> int:
-    """Enqueue a ready, LOW, permitted pull request at its pinned head (C4,
+    """Enqueue a ready, permitted pull request its score does not hold at its pinned head (C4,
     D4, D22), returning the exit code.
 
     Only a merge-queue base; an armed auto-merge is disarmed and refused; the
@@ -4438,8 +4398,8 @@ def _main() -> int:
         action="store_true",
         help=(
             "gate under the unattended merge policy (babysit_merge_policy): "
-            "check-only reports the decision; with --merge a LOW, eligible, "
-            "promoted pull request is enqueued at the pinned head under the "
+            "check-only reports the decision; with --merge an eligible, promoted "
+            "pull request its risk score does not hold is enqueued at the pinned head under the "
             "configured merge.agent-identity. Refuses --allow-dependency, "
             "--auto, --allow-unpinned-head, --stacked-prs and --allow-unprotected"
         ),
@@ -4978,7 +4938,7 @@ def _main() -> int:
         result["action"] = "auto-merge"
     if args.unattended and unattended is not None:
         # Ready means every required check is green and the policy refused
-        # nothing: the PR scored LOW and is eligible, promoted and alone.
+        # nothing: its score does not hold it, and it is eligible, promoted and alone.
         return unattended_enqueue(repo, number, result, unattended, pending_path)
 
     try:

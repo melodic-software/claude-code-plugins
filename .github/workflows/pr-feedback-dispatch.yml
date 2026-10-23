@@ -15,6 +15,15 @@ name: pr-feedback-dispatch
 # the API; no event field reaches a shell but the run id, checked below. The
 # dispatched lane runs its own trigger gate, kill switch, config and round cap.
 #
+# A completed pr-verify run starts it too. When that run uploaded a fail
+# verdict for a PR still at the head it judged, the post-verify-notes job
+# posts the verdict's summary and notes on the PR as review comments, as
+# github-actions[bot] (.github/scripts/pr-unblock/verify-notes.mjs), which
+# address-feedback works like the reviewer bot's threads. The dispatch job
+# then decides as for a review run, with the newest completed review run at
+# that head as its upstream, so the gate and the broker check the same kind of
+# run either way.
+#
 # Every completed review run at a head starts this file, so a run leaves a
 # record for the next one at that head in the Actions cache
 # (dispatch-record.mjs): a head already handled for good is skipped before
@@ -25,27 +34,103 @@ name: pr-feedback-dispatch
 on:
   # workflow_run runs this file from the default branch, never a PR's copy.
   workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows: [pr-review-hosted, pr-review-security-hosted]
+    workflows: [pr-review-hosted, pr-review-security-hosted, pr-verify]
     types: [completed]
 
 permissions: {}
 
 # Both review lanes finish on the same head; one listing at a time per head.
+# A pr-verify run's head is main's, so each such run has a group of its own.
 concurrency:
-  group: pr-feedback-dispatch-${{ github.event.workflow_run.head_sha }}
+  group: >-
+    pr-feedback-dispatch-${{ github.event.workflow_run.path == '.github/workflows/pr-verify.yml'
+    && format('verify-{0}', github.event.workflow_run.id) || github.event.workflow_run.head_sha }}
   cancel-in-progress: false
 
 jobs:
+  # A pr-verify run of main, which only steps of that run could upload to.
+  post-verify-notes:
+    if: >-
+      github.ref == 'refs/heads/main'
+      && github.event.workflow_run.path == '.github/workflows/pr-verify.yml'
+      && github.event.workflow_run.event == 'workflow_run'
+      && github.event.workflow_run.head_branch == 'main'
+      && github.event.workflow_run.repository.full_name == github.repository
+      && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # check out main
+      actions: read # the pr-verify run's fail verdict
+      pull-requests: write # read the PR and post the verdict's notes on it
+    outputs:
+      pr-number: ${{ steps.post.outputs.pr-number }}
+      head-sha: ${{ steps.post.outputs.head-sha }}
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Download the fail verdict
+        id: verdict
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ ]]; then
+            echo "::error::the upstream run id is not a run id"
+            exit 1
+          fi
+          names=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts?per_page=100" \
+            --jq '.artifacts[] | select(.expired == false) | .name | select(test("^pr-verify-[1-9][0-9]{0,9}-[0-9a-f]{40}-fail$"))')
+          if [ -z "$names" ]; then
+            echo "::notice::run $RUN_ID uploaded no fail verdict; nothing to post"
+            exit 0
+          fi
+          name=$(head -n 1 <<<"$names")
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name "$name" --dir "$RUNNER_TEMP/verdict"
+          echo "name=$name" >>"$GITHUB_OUTPUT"
+
+      - name: Post the notes
+        id: post
+        if: steps.verdict.outputs.name != ''
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ARTIFACT_NAME: ${{ steps.verdict.outputs.name }}
+          VERDICT_FILE: ${{ runner.temp }}/verdict/verdict.json
+        run: node .base/.github/scripts/pr-unblock/verify-notes.mjs
+
   dispatch:
     # A review run GitHub skipped (a draft PR) has reviewed nothing, and a
     # cancelled one (most often superseded by a newer push) finished no review.
-    # A job skipped here starts no runner.
+    # A pr-verify run dispatches only once its notes are on the PR. A job
+    # skipped here starts no runner.
     if: >-
-      github.ref == 'refs/heads/main'
-      && github.event.workflow_run.event == 'pull_request'
+      ${{ !cancelled()
+      && github.ref == 'refs/heads/main'
+      && (needs.post-verify-notes.outputs.head-sha != ''
+      || github.event.workflow_run.event == 'pull_request'
       && github.event.workflow_run.head_repository.full_name == github.repository
       && github.event.workflow_run.conclusion != 'skipped'
-      && github.event.workflow_run.conclusion != 'cancelled'
+      && github.event.workflow_run.conclusion != 'cancelled') }}
+    needs: post-verify-notes
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -106,8 +191,8 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/pr-feedback-dispatch-record.json
-          key: pr-feedback-dispatch-record-${{ github.event.workflow_run.head_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: pr-feedback-dispatch-record-${{ github.event.workflow_run.head_sha }}-
+          key: pr-feedback-dispatch-record-${{ needs.post-verify-notes.outputs.head-sha || github.event.workflow_run.head_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: pr-feedback-dispatch-record-${{ needs.post-verify-notes.outputs.head-sha || github.event.workflow_run.head_sha }}-
 
       - name: Dispatch address-feedback
         id: dispatch
@@ -117,6 +202,7 @@ jobs:
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
           DISPATCH_RECORD: ${{ runner.temp }}/pr-feedback-dispatch-record.json
+          VERIFY_HEAD_SHA: ${{ needs.post-verify-notes.outputs.head-sha }}
         run: node .base/.github/scripts/pr-unblock/feedback-dispatch.mjs
 
       - name: Save the dispatch record for this head
@@ -125,7 +211,7 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/pr-feedback-dispatch-record.json
-          key: pr-feedback-dispatch-record-${{ github.event.workflow_run.head_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: pr-feedback-dispatch-record-${{ needs.post-verify-notes.outputs.head-sha || github.event.workflow_run.head_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       # The record of the run this run dispatched and the review run that
       # started it: an artifact only steps of this run can upload, read by the
@@ -135,7 +221,7 @@ jobs:
         if: always() && steps.dispatch.outputs.run-id != ''
         env:
           RUN_ID: ${{ steps.dispatch.outputs.run-id }}
-          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+          UPSTREAM_RUN_ID: ${{ steps.dispatch.outputs.upstream-run-id }}
         run: |
           if [[ ! "$RUN_ID" =~ ^[1-9][0-9]{0,14}$ || ! "$UPSTREAM_RUN_ID" =~ ^[1-9][0-9]{0,14}$ ]]; then
             echo "::error::run-id or the upstream run id is not a run id"

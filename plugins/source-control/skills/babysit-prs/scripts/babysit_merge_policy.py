@@ -32,7 +32,7 @@ import re
 import sys
 import tempfile
 import urllib.request
-from collections.abc import Callable, Collection, Iterable, Iterator, Mapping
+from collections.abc import Callable, Collection, Iterator, Mapping
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -57,15 +57,9 @@ from babysit_gh import (
     record_pull_request_total,
 )
 from babysit_risk import (
-    AGENT_FILES,
-    DECLARATION_FILES,
+    HIGH_FLOOR,
     ChangedFile,
-    declaration_pointers,
-    case_dir,
-    eval_case_dirs,
     glob_match,
-    is_capability_path,
-    is_case_file,
     is_workflow_path,
     is_manifest_path,
 )
@@ -101,7 +95,9 @@ WORK_CLASS_LABELS = {
     "work-class: read-only": "C1",
     "work-class: mechanical": "C2",
     "work-class: scoped": "C3",
-    "work-class: structural": "C4",
+    # Structural risk shows in the diff the review lanes read: it merges as
+    # scoped work.
+    "work-class: structural": "C3",
     "work-class: untrusted-provenance": "C5",
 }
 WORK_CLASS_PREFIX = "work-class:"
@@ -537,17 +533,8 @@ class PipelineConfig:
     # decision Q624): absent, the HIGH path floor and the C2 contradictions
     # are off and there is no file cap (`max_changed_lines` None: no line
     # cap); a value other than true or false turns a switch on. The local
-    # babysit lane ignores them, except that `high_path_floor` gates the floor
-    # additions there too (`babysit_risk.RiskInput.floor_extensions`).
+    # babysit lane ignores them.
     high_path_floor: bool = False
-    # `merge.diff-check.floor-paths`: globs joined to the floor (owner
-    # decision Q641); they hold a pull request for a human, unlike
-    # denied-paths, which makes it ineligible.
-    floor_paths: tuple[str, ...] = ()
-    # `merge.diff-check.floor-script-scopes`: globs inside which a `.ps1` or
-    # `.cjs` file, or a file with git mode 100755, holds the same way (owner
-    # decision Q646).
-    floor_script_scopes: tuple[str, ...] = ()
     c2_contradictions: bool = False
     max_changed_files: int | None = None
     # `merge.max-in-flight`: lane merges in flight at once (`in_flight`).
@@ -725,8 +712,6 @@ def read_config_at(
             ("merge.diff-check.high-path-floor", False),
             ("merge.diff-check.c2-contradictions", False),
             ("merge.diff-check.denied-paths", True),
-            ("merge.diff-check.floor-paths", True),
-            ("merge.diff-check.floor-script-scopes", True),
             ("merge.report-only", False),
             ("merge.require-verifier-verdict", False),
             ("merge.dependabot.mode", False),
@@ -877,8 +862,6 @@ def read_config_at(
         dependabot_mode=dependabot_mode,
         dependabot_majors=dependabot_majors,
         high_path_floor=high_path_floor,
-        floor_paths=tuple(values["merge.diff-check.floor-paths"]),
-        floor_script_scopes=tuple(values["merge.diff-check.floor-script-scopes"]),
         c2_contradictions=c2_contradictions,
         max_changed_files=int(files) if files else None,
         max_in_flight=int(in_flight_cap) if in_flight_cap else 1,
@@ -953,8 +936,6 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
         if "hold" in (base.dependabot_majors, main.dependabot_majors)
         else base.dependabot_majors,
         high_path_floor=base.high_path_floor or main.high_path_floor,
-        floor_paths=_union(base.floor_paths, main.floor_paths),
-        floor_script_scopes=_union(base.floor_script_scopes, main.floor_script_scopes),
         c2_contradictions=base.c2_contradictions or main.c2_contradictions,
         max_changed_files=_cap(base.max_changed_files, main.max_changed_files),
         max_queue_ejections=min(base.max_queue_ejections, main.max_queue_ejections),
@@ -1014,8 +995,6 @@ def _cached_config(value: Any) -> PipelineConfig | None:
                 for t in (
                     c.denied_paths,
                     c.notes,
-                    c.floor_paths,
-                    c.floor_script_scopes,
                     c.check_inputs,
                     c.head_check_inputs,
                 )
@@ -1559,8 +1538,8 @@ class Eligibility:
     adoption: str | None = None
     # An adopted pull request whose author is a person or an App in
     # `adoption.spec-from-body-apps`: its title and body may be its intent,
-    # and its own lines skip the path floor (`own_paths`). Any other App's
-    # own lines skip it only under `MODEL_APP_OWN`.
+    # and its own lines skip the denied paths and manifest review (`own_paths`).
+    # Any other App's own lines skip them only under `MODEL_APP_OWN`.
     body_is_intent: bool = False
 
 
@@ -3460,37 +3439,21 @@ def foreign_paths(
     return frozenset(paths.intersection(changed))
 
 
-# Paths never a trusted author's own, whoever wrote them (S&C review of
-# #9107): who is trusted, what CI runs with tokens (pr-verify runs
-# .github/scripts, actions and standards code from main), and who must review.
-NEVER_FLOOR_EXEMPT = (
-    ".github/standards/**",
-    ".github/workflows/**",
-    ".github/scripts/**",
-    ".github/actions/**",
-    # Owner decision 2026-10-20 (Gated PR Merge clause 5): the merge gate,
-    # the review lanes and agent permission config, even in his own PRs; the
-    # rest of that config is `INSTRUCTION_PATH_RE`.
-    "plugins/source-control/skills/babysit-prs/**",
-    "plugins/review/**",
-    "docs/conventions/**",
-    "REVIEW.md",
-    "**/settings*.json",
-)
-# The instruction and runnable-plugin paths (CLAUDE.md, AGENTS.md, .mcp.json,
-# .lsp.json, .gitmodules, CODEOWNERS, .claude/ and .claude-plugin/
-# directories, plugins/*/hooks, monitors and bin): the twin of
+# Paths never a trusted author's own, whoever wrote them: the HIGH path floor
+# itself, so an adopted pull request's own lines hold there too.
+NEVER_FLOOR_EXEMPT = HIGH_FLOOR
+# Submodule, code-owner, agent permission and package manifest files, matched
+# as the whole last segment: the twin of
 # .github/scripts/pr-unblock/thread-scope.mjs INSTRUCTION_PATH, which a test
 # holds equal. Never floor-exempt either.
 INSTRUCTION_PATH_RE = re.compile(
-    r"(^|\/)((claude|agents)\.md|\.mcp\.json|\.lsp\.json|\.gitmodules|codeowners)$|(^|\/)\.claude(-plugin)?(\/|$)|(^|\/)plugins\/[^/]+\/(hooks|monitors|bin)(\/|$)",
+    r"(^|\/)(\.gitmodules|codeowners|settings[^/]*\.json|package(-lock)?\.json|requirements[^/]*\.txt)$",
     re.I,
 )
 
 
-# A model-driven App's own lines skip the floor only here (owner decision
-# Q14 (c), #9107), still less the paths above. Not top-level scripts/:
-# credentialed jobs on main run it (release-publish-plugins.yml).
+# A model-driven App's own lines skip the denied paths and the manifest review
+# only here (owner decision Q14 (c), #9107), still less the paths above.
 MODEL_APP_OWN = ("plugins/*/scripts/**",)
 
 
@@ -3502,7 +3465,7 @@ def own_paths(
 ) -> frozenset[str]:
     """The `changed` paths only the author's own commits touched
     (`foreign_paths`), less `NEVER_FLOOR_EXEMPT` and `INSTRUCTION_PATH_RE`,
-    and inside `only` when given: what the path floor leaves out of an
+    and inside `only` when given: what the denied paths and manifest review leave out of an
     adopted pull request. Empty when the commits cannot be read."""
     others = foreign_paths(repo, pr, changed)
     if others is None:
@@ -3517,7 +3480,7 @@ def own_paths(
     )
 
 
-# Capability file text by (owner, name, path, sha): a SHA pins the text, so a
+# Manifest and workflow text by (owner, name, path, sha): a SHA pins the text, so a
 # run reads each side of each file once.
 _TEXT_AT: dict[tuple[str, str, str, str], str | None] = {}
 
@@ -3530,22 +3493,19 @@ def _text_at(owner: str, name: str, path: str, sha: str) -> str | None:
     return _TEXT_AT[key]
 
 
-def with_capability_contents(
+def with_contents(
     repo: str, pr: Mapping[str, Any], files: tuple[ChangedFile, ...]
 ) -> tuple[ChangedFile, ...]:
-    """Each changed capability file, manifest, eval case.yaml or workflow (not removed) with its base
-    text at the base SHA, from its previous path on a rename or copy, and its head text
-    at the head SHA, or the reason either could not be read."""
+    """Each changed manifest or workflow (not removed) with its base text at
+    the base SHA, from its previous path on a rename or copy, and its head
+    text at the head SHA, or the reason either could not be read."""
     owner, name = _split_repo(repo)
     base = json_object(pr.get("base")).get("sha")
     head = json_object(pr.get("head")).get("sha")
     read = []
     for changed in files:
         if changed.status == "removed" or not (
-            is_capability_path(changed.path)
-            or is_manifest_path(changed.path)
-            or is_case_file(changed.path)
-            or is_workflow_path(changed.path)
+            is_manifest_path(changed.path) or is_workflow_path(changed.path)
         ):
             read.append(changed)
             continue
@@ -3570,140 +3530,9 @@ def with_capability_contents(
             reason = f"{type(exc).__name__}: {exc}"
             # repr escapes a newline in the author-controlled path, so the line
             # cannot start a workflow command.
-            print(
-                f"capability contents of {changed.path!r}: {reason!r}", file=sys.stderr
-            )
+            print(f"contents of {changed.path!r}: {reason!r}", file=sys.stderr)
             read.append(replace(changed, contents_error=reason))
     return tuple(read)
-
-
-_TREE_MODE = "040000"
-
-
-def _base_text(
-    owner: str,
-    name: str,
-    root: Path | None,
-    modes: Mapping[str, str],
-    path: str,
-    base: str,
-) -> str | None:
-    """A file's text at the base SHA, from the clone at `root` when there is
-    one, else the contents API; None when absent, a tree, or unreadable."""
-    if modes.get(path) in (None, _TREE_MODE):
-        return None
-    try:
-        if root is not None:
-            return _git_file_at(root, path, base)
-        return _text_at(owner, name, path, base)
-    except (PolicyReadError, ValueError) as exc:
-        print(f"base file {path!r}: {type(exc).__name__}", file=sys.stderr)
-        return None
-
-
-def agents_at(
-    repo: str, pr: Mapping[str, Any]
-) -> tuple[tuple[str, str | None], ...] | None:
-    """`babysit_risk.RiskInput.agents`: every `AGENT_FILES` file at the base
-    SHA as (path, text), None for a file that could not be read; None when the
-    base tree cannot be listed."""
-    owner, name = _split_repo(repo)
-    base = str(json_object(pr.get("base")).get("sha"))
-    try:
-        if not SHA_RE.fullmatch(base):
-            raise PolicyReadError("the pull request record names no base SHA")
-        root = next(_clones_holding(base), None)
-        modes = _tree_modes(owner, name, base)
-    except (PolicyReadError, ValueError) as exc:
-        print(f"agents at the base: {type(exc).__name__}: {exc}", file=sys.stderr)
-        return None
-    if modes is None:
-        return None
-    return tuple(
-        (path, _base_text(owner, name, root, modes, path, base))
-        for path in sorted(modes)
-        if modes[path] != _TREE_MODE and glob_match(AGENT_FILES, path)
-    )
-
-
-def eval_cases_at(
-    repo: str, pr: Mapping[str, Any], changed: Iterable[str | None]
-) -> tuple[tuple[str, str | None], ...] | None:
-    """`babysit_risk.RiskInput.eval_cases`: each case file (`is_case_file`) at the base SHA in
-    a directory `eval_case_dirs` names for a changed path, as (path, text),
-    None for a file that could not be read; None when the base tree cannot be
-    listed."""
-    owner, name = _split_repo(repo)
-    base = str(json_object(pr.get("base")).get("sha"))
-    wanted = {d for path in changed if path for d in eval_case_dirs(path)}
-    try:
-        if not SHA_RE.fullmatch(base):
-            raise PolicyReadError("the pull request record names no base SHA")
-        root = next(_clones_holding(base), None)
-        modes = _tree_modes(owner, name, base)
-    except (PolicyReadError, ValueError) as exc:
-        print(f"eval cases at the base: {type(exc).__name__}: {exc}", file=sys.stderr)
-        return None
-    if modes is None:
-        return None
-    return tuple(
-        (path, _base_text(owner, name, root, modes, path, base))
-        for path in sorted(modes)
-        if modes[path] != _TREE_MODE and is_case_file(path) and case_dir(path) in wanted
-    )
-
-
-def declarations_at(
-    repo: str, pr: Mapping[str, Any], changed: Iterable[str | None]
-) -> tuple[tuple[str, str | None], ...] | None:
-    """`babysit_risk.RiskInput.declarations`: `DECLARATION_FILES` files and
-    the config files their plugin.json points at, at the base SHA as (path,
-    text), with None for a file that could not be read. From a clone holding
-    the base, every plugin's, which costs no API call; else, through the
-    contents API, only those of a plugin directory a changed path sits in: a
-    declared path outside its own plugin is unsafe, so only another plugin's
-    escaping declaration could floor a changed file, and a change outside
-    every plugin reads none. None when the base tree cannot be listed; the
-    scorer holds the floor either way."""
-    plugins = {
-        "/".join(parts[:2]).casefold()
-        for path in changed
-        if isinstance(path, str)
-        and len(parts := path.split("/")) >= 3
-        and parts[0].casefold() == "plugins"
-    }
-    owner, name = _split_repo(repo)
-    base = str(json_object(pr.get("base")).get("sha"))
-    try:
-        if not SHA_RE.fullmatch(base):
-            raise PolicyReadError("the pull request record names no base SHA")
-        root = next(_clones_holding(base), None)
-        if root is None and not plugins:
-            return ()
-        modes = _tree_modes(owner, name, base)
-    except (PolicyReadError, ValueError) as exc:
-        print(f"declarations at the base: {type(exc).__name__}: {exc}", file=sys.stderr)
-        return None
-    if modes is None:
-        return None
-
-    def read(path: str) -> str | None:
-        return _base_text(owner, name, root, modes, path, base)
-
-    found = [
-        (path, read(path))
-        for path in sorted(modes)
-        if (root is not None or "/".join(path.split("/")[:2]).casefold() in plugins)
-        and any(glob_match(g, path) for g in DECLARATION_FILES)
-    ]
-    named = {path for path, _ in found}
-    pointers = (
-        q for path, text in list(found) for q in declaration_pointers(path, text)
-    )
-    for pointer in dict.fromkeys(pointers):
-        if pointer not in named:
-            found.append((pointer, read(pointer)))
-    return tuple(found)
 
 
 # --- Promotion evidence -----------------------------------------------------------------------

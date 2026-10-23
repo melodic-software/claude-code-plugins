@@ -244,63 +244,87 @@ run_post
 check 'unresolved-marker: markers copied over another path are unresolved' unresolved-conflict "$(reason)"
 
 echo '# unexpected-path-staged'
-# Only a path the snapshot held unmerged may change; every stage-0 snapshot
-# entry must stay as it was, and no other entry may appear.
+# Outside the conflict set, any change the model stages reaches review but a
+# symlink, gitlink, backslash path, submodule config, settings file or
+# CODEOWNERS file.
+passes() {
+  run_post
+  check "unexpected-path-staged: $1 passes" 0/ "$RC/$(reason)"
+  [[ -n $(tree) ]] || not_ok "unexpected-path-staged: $1 prints a tree"
+}
 conflict a.txt 'one\n' 'pr\n' 'main\n'
 prepare
 put a.txt 'resolved\n'
 put b.txt 'new\n'
 tg add a.txt b.txt
-run_post
-check 'unexpected-path-staged: a new path outside the conflict set escalates' 0/unexpected-path-staged "$RC/$(reason)"
-check 'unexpected-path-staged: and prints no tree' '' "$(tree)"
+passes 'a new path outside the conflict set'
+check 'unexpected-path-staged: the tree holds the new path' "$(printf 'new\n' | blob)" "$(tg rev-parse "$(tree):b.txt")"
 conflict a.txt 'one\n' 'pr\n' 'main\n'
 prepare
 put a.txt 'resolved\n'
 put keep.txt 'edited\n'
 tg add a.txt keep.txt
-run_post
-check 'unexpected-path-staged: an edit to a merged path escalates' 0/unexpected-path-staged "$RC/$(reason)"
-conflict a.txt 'one\n' 'pr\n' 'main\n'
-prepare
-put a.txt 'resolved\n'
-put stray.log 'build output\n'
-tg add -A
-run_post
-check 'unexpected-path-staged: git add -A over an untracked file escalates' 0/unexpected-path-staged "$RC/$(reason)"
-conflict a.txt 'one\n' 'pr\n' 'main\n'
-prepare
-put a.txt 'resolved\n'
-put stray.log 'build output\n'
-tg add a.txt
-run_post
-check 'unexpected-path-staged: an untracked file left unstaged passes' 0/ "$RC/$(reason)"
+passes 'an edit to a merged path'
 conflict a.txt 'one\n' 'pr\n' 'main\n'
 prepare
 put a.txt 'resolved\n'
 tg add a.txt
 tg rm -q keep.txt
-run_post
-check 'unexpected-path-staged: removing a merged path escalates' 0/unexpected-path-staged "$RC/$(reason)"
-conflict a.txt 'one\n' 'pr\n' 'main\n'
-prepare
-put a.txt 'resolved\n'
-rm "$R/keep.txt"
-tg add -A
-run_post
-check 'unexpected-path-staged: git add -A over a deleted file escalates' 0/unexpected-path-staged "$RC/$(reason)"
+passes 'removing a merged path'
 conflict a.txt 'one\n' 'pr\n' 'main\n'
 prepare
 put a.txt 'resolved\n'
 tg add a.txt
 tg mv a.txt c.txt
-run_post
-check 'unexpected-path-staged: moving the resolution to a new path escalates' 0/unexpected-path-staged "$RC/$(reason)"
+passes 'moving the resolution to a new path'
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+prepare
+put a.txt 'resolved\n'
+put stray.log 'build output\n'
+tg add a.txt
+passes 'an untracked file left unstaged'
+check 'unexpected-path-staged: an unstaged file stays out of the tree' '' "$(tg ls-tree --name-only "$(tree)" -- stray.log)"
 conflict a.txt 'one\n' 'pr\n' 'main\n'
 prepare
 tg rm -q a.txt
+passes 'resolving a conflict by deleting its path'
+for added in settings.json plugins/p/.claude/settings.local.json plugins/p/.gitmodules CODEOWNERS .github/CODEOWNERS docs/codeowners 'odd\\name.txt'; do
+  conflict a.txt 'one\n' 'pr\n' 'main\n'
+  prepare
+  put a.txt 'resolved\n'
+  put "$added" 'x\n'
+  tg add -f a.txt "$added"
+  run_post
+  check "unexpected-path-staged: a new $added escalates" 0/unexpected-path-staged "$RC/$(reason)"
+  check "unexpected-path-staged: $added prints no tree" '' "$(tree)"
+done
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+prepare
+put a.txt 'resolved\n'
+ln -s keep.txt "$R/link"
+tg add a.txt link
 run_post
-check 'unexpected-path-staged: resolving a conflict by deleting its path passes' 0/ "$RC/$(reason)"
+check 'unexpected-path-staged: a new symlink escalates' 0/unexpected-path-staged "$RC/$(reason)"
+conflict a.txt 'one\n' 'pr\n' 'main\n'
+prepare
+put a.txt 'resolved\n'
+tg add a.txt
+tg update-index --add --cacheinfo "160000,$(tg rev-parse main),vendor/sub"
+run_post
+check 'unexpected-path-staged: a new gitlink escalates' 0/unexpected-path-staged "$RC/$(reason)"
+new_repo
+put a.txt 'one\n'
+put vendor/.gitmodules '[submodule]\n'
+commit 'add a.txt and vendor/.gitmodules'
+tg checkout -q -b pr
+side pr a.txt 'pr\n'
+side main a.txt 'main\n'
+prepare
+put a.txt 'resolved\n'
+tg add a.txt
+tg rm -q vendor/.gitmodules
+run_post
+check 'unexpected-path-staged: removing a merged vendor/.gitmodules escalates' 0/unexpected-path-staged "$RC/$(reason)"
 
 echo '# workflow-staged'
 WF=.github/workflows/ci.yml
@@ -482,6 +506,18 @@ check 'sensitive-reset: a model-added sensitive path is dropped' '' "$(entry .mc
 check 'sensitive-reset: a path with quotes, tabs and a newline is re-applied' "100644 $(printf 'odd\n' | blob) 0" "$(entry "$ODD")"
 check 'sensitive-reset: no other .claude entry appears' 2 "$(tg ls-files -z -- .claude | tr -cd '\0' | wc -c | tr -d ' ')"
 check 'sensitive-reset: other staged paths are kept' "100644 $(printf 'resolved\n' | blob) 0" "$(entry a.txt)"
+
+echo '# sensitive-conflict'
+# A conflicted sensitive path is the model's to resolve: the repair keeps the
+# resolution it staged.
+conflict CLAUDE.md 'base rules\n' 'pr rules\n' 'main rules\n'
+prepare
+check 'sensitive-conflict: prepared conflicted, not escalated' conflicted "$STATE"
+put CLAUDE.md 'merged rules\n'
+tg add CLAUDE.md
+run_post
+check 'sensitive-conflict: passes' 0/ "$RC/$(reason)"
+check 'sensitive-conflict: the tree holds the resolution' "$(printf 'merged rules\n' | blob)" "$(tg rev-parse "$(tree):CLAUDE.md")"
 
 echo '# git-config-rewrite'
 conflict a.txt 'one\n' 'pr\n' 'main\n'

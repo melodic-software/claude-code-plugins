@@ -1,6 +1,6 @@
 ---
 description: "Launch and operate the project's app, observe it and record evidence, without judging it. Actions: drive a feature, ready (what is reachable), capture one artifact, cleanup. Use when another skill, a scheduled run or a CI job needs the real app run and shown (/verification:confirm, /debugging:debug), or when asked to run the app, drive a feature, take a trace or screenshot, or check the app is ready to drive."
-argument-hint: "[ready|capture --kind <kind>|cleanup] [<app>] [<feature>] [--out <dir>] [--unattended]"
+argument-hint: "[ready|capture --kind <kind>|cleanup] [<app>] [<feature>] [--out <dir>] [--attach|--unattended]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Run the app, drive it, record evidence, never judge
 ---
 
-**Arguments.** `[ready|capture --kind <kind>|cleanup] [<app>] [<feature>] [--out <dir>] [--unattended]`.
+**Arguments.** `[ready|capture --kind <kind>|cleanup] [<app>] [<feature>] [--out <dir>] [--attach|--unattended]`.
 `<kind>` is `trace`, `cpu`, `heap`, `screenshot`, `aria`, `video` or `logs`. e.g. /app-control:drive ready, or /app-control:drive checkout --unattended --out ./evidence
 
 ## Purpose
@@ -34,6 +34,7 @@ keep going.
 | `ready` | Run the control skill's Ready command (read-only) and report what is reachable |
 | `capture --kind <kind>` | Record one artifact with the tool the control skill's `## Capture` section names for that kind |
 | `cleanup` | Stop only what this run started, then confirm every evidence path in the report still exists and is not empty |
+| `--attach` | Attended only: drive or capture against a process already running that the person names, which this run did not start (see [Attach](#attach)) |
 | `--unattended` | With any action: ask nothing, attach to nothing, mark each step that needs a person `blocked` |
 
 ## Find the control skill
@@ -66,9 +67,28 @@ that section changes what `run` does or how it picks a project skill).
 - **Unattended limits.** Never attach to a process this run did not start. Never drive a tool that
   controls the person's own signed-in browser. Capture only on a process this run launched. A step
   that needs a person becomes `blocked: <reason>`; continue with the steps that do not.
-- **Cleanup touches only what this run started.** Never close all sessions or kill all processes.
+- **Cleanup touches only what this run started.** Detach from an attached process; never stop it.
+  Never close all sessions or kill all processes.
 - **Never judge.** Write what was done and observed in plain words. Leave out any word that rates
   the outcome.
+
+## Attach
+
+Attaching reaches into a process the person owns, so it runs only with that person present to say
+yes.
+
+- **Who is present.** The person who asked is in this conversation and can reply. `--unattended`,
+  a scheduled run, a loop, a CI job, a dispatched brief, a headless run, or a request saying nobody
+  is watching has no one to answer.
+- **No one present: refuse.** Name the process, the kind and the command you would run, run
+  nothing, and record `blocked: --attach needs a person present`.
+- **Ask before each attach.** Attach only to the process the person named, with the tool the
+  control skill's `## Capture` section names for the kind. Show the exact command and the process,
+  then wait for a yes; one yes covers one attach. When this run could launch the app itself
+  instead, offer that too: it needs no attach.
+- **Elevation goes through a shown script.** When attaching needs root or administrator rights,
+  write the command to a script file in a new temporary directory, show its full contents, and run
+  it only after a yes. Read the result from the file the script writes. Cleanup deletes the script.
 
 ## Evidence
 
@@ -84,8 +104,9 @@ feature and entry point it came from. The layout and the `report.json` fields ar
 
 ## Gotchas
 
-- **An app already running is not yours.** An attended run drives it only when it is fit; an
-  unattended run never attaches to it and records `blocked: app already running, not started by this run`.
+- **An app already running is not yours.** An attended run drives it only when it is fit, and
+  attaches to it only through [Attach](#attach); an unattended run never attaches to it and records
+  `blocked: app already running, not started by this run`.
   Cleanup stops only what this run started.
 - **Evidence that exists is not evidence that holds.** Check each artifact is not empty before
   reporting its path.

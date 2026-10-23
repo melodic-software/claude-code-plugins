@@ -25,7 +25,7 @@
 //                              main into the head stages no workflow change
 //     unresolved-conflict,     GitHub reports the PR mergeable: no conflict
 //     protected-path-conflict  is left to resolve
-//     feedback-protected-path  the PR changes nothing under .github/
+//     feedback-protected-path  the PR changes nothing under .github/workflows/
 //   A listing that may be cut short, or a mergeable state not yet computed,
 //   counts as the reason still holding.
 // Any other reason is decided by a person and is never cleared here.
@@ -112,7 +112,7 @@ const CHECKS = Object.freeze({
     const files = await paginate(github, `/repos/${repo}/pulls/${pull.number}/files`);
     return files.length >= FILES_CAP || files.some((file) => isProtectedPath(file.filename) || isProtectedPath(file.previous_filename ?? ""))
       ? null
-      : "the pull request changes nothing under .github/";
+      : "the pull request changes nothing under .github/workflows/";
   },
 });
 
