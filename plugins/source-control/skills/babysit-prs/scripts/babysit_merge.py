@@ -110,8 +110,8 @@ Contract enforced here (encoded as code, not convention):
   promotion evidence is read, the kill switch is the workflow's own check
   passed as `--lane-kill-switch proceed` (missing or any other value stops),
   the rung cap is the workflow's `--lane-rung-cap` (empty is no cap),
-  only merges the identity enqueued are judged after the fact, a person's
-  "do not merge" or blocking comment holds it (the autopilot tier's scan), and while
+  only merges the identity enqueued are judged after the fact, a person whose
+  newest comment says "do not merge" holds it until a later comment of theirs, and while
   `merge.report-only` is true `--merge` runs as a check that writes nothing.
   A Dependabot pull request there is its own class (`babysit_dependabot`):
   tier `auto` (every update non-major), or tier `review` with the review
@@ -973,21 +973,15 @@ def evaluate_decision_default_veto(
     return blockers, held
 
 
-def human_blocking_logins(
+def _human_comments(
     repo: str,
     number: int,
     reviews: list[dict[str, Any]],
     review_comments: list[dict[str, Any]] | None,
     actor_config: FeedbackConfig,
-) -> list[str]:
-    """The logins of the people whose comment asks to hold the merge, sorted.
-
-    A human "do not merge"/blocking comment that is not a formal
-    CHANGES_REQUESTED and not an unresolved inline thread (both gated by the
-    base gate) still halts an autonomous merge. The shared blocking-text and
-    severity predicates and `HUMAN_MERGE_VETO_RE` run over every human-authored
-    issue comment, review summary and inline review comment.
-    """
+) -> list[tuple[str, str, str]]:
+    """(login, time, body) of every human-authored issue comment, review
+    summary and inline review comment on the pull request."""
     corpus: list[dict[str, Any]] = list(fetch_issue_comments(repo, number))
     corpus.extend(reviews)
     # Inline review-thread comments are neither issue comments nor review
@@ -996,23 +990,74 @@ def human_blocking_logins(
     if review_comments is None:
         review_comments = fetch_pull_request_review_comments(repo, number)
     corpus.extend(
-        {"author": normalized_rest_author(row), "body": row.get("body")}
+        {
+            "author": normalized_rest_author(row),
+            "body": row.get("body"),
+            "createdAt": row.get("created_at"),
+        }
         for row in review_comments
     )
-    logins: set[str] = set()
+    found = []
     for item in corpus:
         if actor_kind(item, actor_config) != "human":
             continue
-        body = str(item.get("body") or "")
-        if (
-            has_blocking_text(body)
+        login = item.get("author")
+        login = login.get("login") if is_json_object(login) else login
+        at = item.get("submittedAt") or item.get("createdAt") or ""
+        found.append((str(login or "unknown"), str(at), str(item.get("body") or "")))
+    return found
+
+
+def human_blocking_logins(
+    repo: str,
+    number: int,
+    reviews: list[dict[str, Any]],
+    review_comments: list[dict[str, Any]] | None,
+    actor_config: FeedbackConfig,
+) -> list[str]:
+    """The logins of the people with any blocking comment, sorted (the tier).
+
+    A human "do not merge"/blocking comment that is not a formal
+    CHANGES_REQUESTED and not an unresolved inline thread (both gated by the
+    base gate) still halts the tier: the shared blocking-text and severity
+    predicates and `HUMAN_MERGE_VETO_RE` run over every human comment.
+    """
+    return sorted(
+        {
+            login
+            for login, _, body in _human_comments(
+                repo, number, reviews, review_comments, actor_config
+            )
+            if has_blocking_text(body)
             or has_blocking_severity(body)
             or HUMAN_MERGE_VETO_RE.search(body)
-        ):
-            login = item.get("author")
-            login = login.get("login") if is_json_object(login) else login
-            logins.add(str(login or "unknown"))
-    return sorted(logins)
+        }
+    )
+
+
+def human_veto_logins(
+    repo: str,
+    number: int,
+    reviews: list[dict[str, Any]],
+    review_comments: list[dict[str, Any]] | None,
+    actor_config: FeedbackConfig,
+) -> list[str]:
+    """The people whose newest comment on the pull request says "do not
+    merge" (`HUMAN_MERGE_VETO_RE` only), sorted (the pr-merge lane).
+
+    Each person's newest comment, review or inline comment decides, so the
+    same person lifts their hold with any later comment that does not say it,
+    such as "go ahead", or by editing the veto away.
+    """
+    newest: dict[str, tuple[str, str]] = {}
+    for login, at, body in _human_comments(
+        repo, number, reviews, review_comments, actor_config
+    ):
+        if login not in newest or at >= newest[login][0]:
+            newest[login] = (at, body)
+    return sorted(
+        login for login, (_, body) in newest.items() if HUMAN_MERGE_VETO_RE.search(body)
+    )
 
 
 def evaluate_autopilot_tier(
@@ -1729,9 +1774,9 @@ def evaluate(
         )
         blockers.extend(tier_blockers)
 
-    # The pr-merge lane enqueues with no person present, so a person's comment
-    # asking to hold the merge holds it before the enqueue, as it holds the
-    # tier (which already ran the scan when configured).
+    # The pr-merge lane enqueues with no person present, so a person whose
+    # newest comment says "do not merge" holds it before the enqueue. The tier,
+    # when configured, already ran its wider scan.
     if (
         tier is None
         and unattended is not None
@@ -1740,7 +1785,7 @@ def evaluate(
         if reviews is None:
             reviews = fetch_pull_request_reviews(repo, number)
         identity = unattended.agent_identity
-        vetoes = human_blocking_logins(
+        vetoes = human_veto_logins(
             repo,
             number,
             reviews,
@@ -1751,9 +1796,10 @@ def evaluate(
         )
         if vetoes:
             blockers.append(
-                "human blocking comment(s) from "
+                "human merge veto from "
                 + ", ".join(vetoes)
-                + " -- a person asked to hold this merge"
+                + " -- their newest comment says do not merge; a later comment "
+                "from them lifts it"
             )
 
     # The self-login exemption from the unprotected-base hold above exists for a

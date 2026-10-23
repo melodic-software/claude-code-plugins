@@ -360,7 +360,9 @@ class NeedsHumanHoldsOnlyAutonomous(unittest.TestCase):
                 self.assertFalse(_evaluate(pr, HEAD, None, unattended=run)["ready"])
 
 
-def _comment(login: str, body: str, *, bot: bool = False) -> dict[str, Any]:
+def _comment(
+    login: str, body: str, *, bot: bool = False, at: str = "2026-10-12T10:00:00Z"
+) -> dict[str, Any]:
     return {
         "author": {
             "login": login,
@@ -368,6 +370,7 @@ def _comment(login: str, body: str, *, bot: bool = False) -> dict[str, Any]:
             "is_bot": bot,
         },
         "body": body,
+        "createdAt": at,
     }
 
 
@@ -393,7 +396,7 @@ class PrMergeHoldsOnAHumanVeto(unittest.TestCase):
     )
 
     def _vetoes(self, result: dict[str, Any]) -> list[str]:
-        return [b for b in result["blockers"] if "human blocking comment" in b]
+        return [b for b in result["blockers"] if "human blocking comment" in b or "human merge veto" in b]
 
     def test_a_human_do_not_merge_comment_holds(self) -> None:
         result = _evaluate(
@@ -427,6 +430,43 @@ class PrMergeHoldsOnAHumanVeto(unittest.TestCase):
             issue_comments=[_comment("maintainer", "Wait for CI, then it can go.")],
         )
         self.assertEqual(result["blockers"], [])
+
+    def test_blocking_words_without_a_veto_hold_nothing(self) -> None:
+        # The tier's wider vocabulary is not the lane's: these are not vetoes.
+        for body in (
+            "Fixed the regression you flagged.",
+            "Pushed a fix, this is no longer blocking.",
+        ):
+            with self.subTest(body):
+                result = _evaluate(
+                    fixtures._pr(),
+                    HEAD,
+                    None,
+                    self.PR_MERGE,
+                    issue_comments=[_comment("maintainer", body)],
+                )
+                self.assertEqual(result["blockers"], [])
+
+    def test_a_later_comment_from_the_same_person_lifts_the_veto(self) -> None:
+        veto = _comment(
+            "maintainer", "Do not merge until the release is cut.", at="2026-10-12T10:00:00Z"
+        )
+        lifted = _comment(
+            "maintainer", "Release is out, go ahead.", at="2026-10-12T11:00:00Z"
+        )
+        result = _evaluate(
+            fixtures._pr(), HEAD, None, self.PR_MERGE, issue_comments=[veto, lifted]
+        )
+        self.assertEqual(result["blockers"], [])
+
+    def test_another_persons_later_comment_does_not_lift_it(self) -> None:
+        veto = _comment("maintainer", "Do not merge yet.", at="2026-10-12T10:00:00Z")
+        other = _comment("someone", "Looks good to me.", at="2026-10-12T11:00:00Z")
+        result = _evaluate(
+            fixtures._pr(), HEAD, None, self.PR_MERGE, issue_comments=[veto, other]
+        )
+        self.assertEqual(len(self._vetoes(result)), 1, result["blockers"])
+        self.assertIn("maintainer", self._vetoes(result)[0])
 
     def test_a_bot_or_the_lane_identity_holds_nothing(self) -> None:
         for comment in (
@@ -1191,7 +1231,7 @@ class LaneMode(Unattended):
         code, out = self.lane()
         self.assert_no_merge(code)
         self.assertTrue(
-            any("human blocking comment(s) from maintainer" in b for b in out["blockers"]),
+            any("human merge veto from maintainer" in b for b in out["blockers"]),
             out["blockers"],
         )
         self.assertNotIn(f"enqueue:{HEAD}:merge_queue", self.log)
