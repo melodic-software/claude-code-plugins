@@ -2091,8 +2091,8 @@ class EachRefusalMakesNoMergeCall(Unattended):
         )
 
     def test_a_rate_limited_evidence_read_holds_the_candidate(self) -> None:
-        # The read token's refusal is not answered by the lane token: no lane
-        # binds, so the candidate holds until a later run reads again.
+        # A rate-limited evidence read binds no lane, so the candidate holds
+        # until a later run reads again.
         self.lane_error = RuntimeError(
             "gh api repos/owner/repo/issues/1/timeline failed: gh: API rate limit"
             " exceeded for installation ID 4242. (HTTP 403)"
