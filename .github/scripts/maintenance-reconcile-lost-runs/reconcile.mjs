@@ -257,7 +257,7 @@ async function plan({ repo, call, say, since, now, readStatus }) {
           continue;
         }
         if (!infraOnly(jobs)) {
-          if (firstFailure(r, now)) {
+          if (firstFailure(r, jobs, now)) {
             set.push({ kind: "flake", pr: pull.number, id: r.id, path: r.path, conclusion: "failure", attempt: 1, head: pull.head.sha });
           }
           continue;

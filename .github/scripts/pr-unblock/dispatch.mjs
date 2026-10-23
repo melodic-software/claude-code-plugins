@@ -15,7 +15,8 @@
 // it dispatched become the step output run-ids, which the workflow records.
 // The same run then starts review-dependency for review-tier Dependabot PRs
 // (dependency-dispatch.mjs), fix-ci for lanes App PRs and, with an
-// `adoption` section, PRs of the base's trusted actors, whose ci-status failed
+// `adoption` section, PRs of the base's trusted actors, whose ci-status or
+// pr-test-windows run failed past the lost-run reconciler's re-run
 // (fix-ci-dispatch.mjs) and fix-docs once per ready PR that changes
 // Markdown (fix-docs-dispatch.mjs), and their run ids join the same record.
 // resolve-conflicts and review-dependency read the one open-PR listing. A head whose check runs handle it for

@@ -42,15 +42,19 @@ export const reconcilerRetries = (run, now) =>
   run.run_attempt <= INFRA_BACKOFF_MINUTES.length &&
   Date.parse(run.created_at) >= now - LOOKBACK_HOURS * 3_600_000;
 
-// True for a failed run at attempt 1 inside the lookback: when its failures are
-// not infra only, the reconciler re-runs its failed jobs once, whatever the
-// status pages show, so a flaky test the diff did not cause spends no model
-// run. The attempt number is the cap: one re-run per run and head.
-export const firstFailure = (run, now) =>
+// True for a failed run at attempt 1 inside the lookback with a failed lane
+// job: when its failures are not infra only, the reconciler re-runs its failed
+// jobs once, whatever the status pages show, so a flaky test the diff did not
+// cause spends no model run. The attempt number is the cap: one re-run per run
+// and head. A run where only ci-status failed (a title or hold label) would
+// fail the same way, so it gets none.
+export const firstFailure = (run, jobs, now) =>
   run?.status === "completed" &&
   run.conclusion === "failure" &&
   run.run_attempt === 1 &&
-  Date.parse(run.created_at) >= now - LOOKBACK_HOURS * 3_600_000;
+  Date.parse(run.created_at) >= now - LOOKBACK_HOURS * 3_600_000 &&
+  Array.isArray(jobs) &&
+  jobs.some((job) => FAILED.has(job?.conclusion) && !AGGREGATE_JOBS.has(job.name));
 
 // Why the reconciler still owns a tested run ({ run, jobs } from testedRun),
 // or "" when it re-runs it no more and fix-ci may take it.
@@ -58,7 +62,7 @@ export function reconcilerOwns({ run, jobs }, now) {
   if (infraOnly(jobs)) {
     return reconcilerRetries(run, now) ? "infra failure, re-run job owns it" : "";
   }
-  return firstFailure(run, now) ? "first failure, re-run job re-runs it once" : "";
+  return firstFailure(run, jobs, now) ? "first failure, re-run job re-runs it once" : "";
 }
 
 // Why the failed job is infra ("time limit", "install", "lost runner"), or "" when it is real.

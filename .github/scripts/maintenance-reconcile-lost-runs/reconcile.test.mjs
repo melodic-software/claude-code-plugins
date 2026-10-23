@@ -585,6 +585,15 @@ test("a run with a real failure at attempt 2, or older than the lookback, is not
   assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
 });
 
+test("a run where only ci-status failed is not re-run", async () => {
+  const jobs = [
+    { name: "lint-repo", conclusion: "success", steps: [] },
+    { name: "ci-status", conclusion: "failure", steps: [{ name: "Check the pull request contract", conclusion: "failure" }] },
+  ];
+  const { calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs })] });
+  assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
+});
+
 test("a run with a real failure re-run since the listing is left alone", async () => {
   const { failedJobReruns } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: MIXED_JOBS })], github: rerunSinceListing(101) });
   assert.deepEqual(failedJobReruns, []);

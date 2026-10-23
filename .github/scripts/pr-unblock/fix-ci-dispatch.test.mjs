@@ -440,11 +440,13 @@ test("a real failure at attempt 1 is the reconciler's to re-run once; at attempt
     [head(5), { run: tested(1), jobs: MIXED_JOBS }],
     [head(6), { run: tested(2), jobs: MIXED_JOBS }],
     [head(7), { run: tested(1, 25), jobs: MIXED_JOBS }],
+    // Only ci-status failed: the reconciler re-runs none of it.
+    [head(8), { run: tested(1), jobs: [{ name: "lint-repo", conclusion: "success" }, { name: "ci-status", conclusion: "failure" }] }],
   ]);
-  const { lines, result } = await run({ pages: [[pr(5), pr(6), pr(7)]], requiredRuns }, { maxDispatch: 3 });
+  const { lines, result } = await run({ pages: [[pr(5), pr(6), pr(7), pr(8)]], requiredRuns }, { maxDispatch: 4 });
   assert.deepEqual(
     result.dispatched.map((d) => d.number),
-    [6, 7],
+    [6, 7, 8],
   );
   assert.ok(lines.includes("skip fix-ci #5: first failure, re-run job re-runs it once"));
 });

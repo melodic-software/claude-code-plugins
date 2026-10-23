@@ -1,7 +1,7 @@
 // Starts the pr-unblock lane's fix-ci activity for each open pull request the
 // lanes App opened, or a trusted actor opened (an App's at once, a person's
 // once idle; the base config's `adoption` section), whose head's ci-status
-// failed, from the same
+// failed (or whose pr-test-windows run failed), from the same
 // dispatcher run
 // as dispatch.mjs (pr-unblock-dispatch.yml), so the trigger gate and the
 // broker check it as they check a resolve-conflicts dispatch.
