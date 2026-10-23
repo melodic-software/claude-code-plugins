@@ -15,22 +15,25 @@
 // and only when that run's head commit is on main (`onMain`). Only a run's
 // own steps can upload its artifacts, so the file was written by main's
 // pr-merge.yml; it never goes through actions/cache. The check still runs
-// each record's uploading run through its own sender rule before using it.
+// its sender rule over the sender fields the file stores for each record
+// before using it; only the head commit's ancestry is read live.
 //
 // `write`, after the gate: the file the checks of this job rewrote (the
 // records they read in and the final ones they proved, created at or after
 // their floor), each kept while unexpired and, when the run saved an artifact
 // listing, while it lists its artifact id unexpired, written to
-// LANE_RECORDS_OUT for actions/upload-artifact. A run with no candidates
-// saves no listing; the listing only prunes, and is no trust check.
+// LANE_RECORDS_OUT for actions/upload-artifact. With no listing file (no
+// candidates, or a listing the run could not read), unexpired records are
+// carried as they are and pruned on the next run that saves a listing: the
+// listing only prunes, and is no trust check.
 //
 // The file is `{"version": 1, "repo": "<owner/repo>", "records": {"<record
 // name>": {"created_at", "artifact", "expires_at", "sender"}}}`. A file of
 // any other shape is no file. Any failure writes nothing and warns: the
 // check then reads every record, which costs requests, never a decision.
 //
-// With a listing that cannot be read nothing is written, and the next run
-// reads an older file.
+// A listing file that exists but cannot be parsed writes nothing, and the
+// next run reads an older file.
 //
 // Environment:
 //   ACTIONS_TOKEN             read: the job's GITHUB_TOKEN (actions: read)
