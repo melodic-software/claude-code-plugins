@@ -264,6 +264,13 @@ test("live config: an issue with no Complexity keeps the default profile (and is
   assert.equal(slot.models.profile, "standard");
 });
 
+// Knowable runs: the run can research first.
+test("live config: a Knowable issue runs", () => {
+  const slot = liveIssueSlot({ size: "small", complexity: "low", uncertainty: "knowable" });
+  assert.equal(slot.applies, true);
+  assert.equal(slot["issue-dimensions"], "small/low/knowable");
+});
+
 // fix-ci's retry one rung up: rung 1 takes code-fix's
 // escalate-to profile, Opus at effort xhigh; rung 0 keeps code-fix.
 const fixCiSlot = (rung) =>

@@ -566,10 +566,37 @@ test("an infra-only failed run has its failed jobs re-run", async () => {
   assert.deepEqual(reruns, []);
 });
 
-test("a failed run with any real failure is not re-run", async () => {
-  const { code, calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: MIXED_JOBS })] });
+// A failed CI run with a real failure (a flaky test the diff did not cause, as
+// pr-test-windows run 39867317913's macOS test_tunnel) has its failed jobs
+// re-run once, at attempt 1, whatever the status pages show; a second failure
+// is fix-ci's.
+test("a run with a real failure at attempt 1 has its failed jobs re-run once", async () => {
+  const runs = [failed(101, sha(1), { jobs: MIXED_JOBS, updated: "2026-10-19T19:59:00Z" }), failed(102, sha(2), { path: WINDOWS, jobs: MIXED_JOBS })];
+  const { code, reruns, failedJobReruns } = await reconcile({ pulls: [pr(1), pr(2)], runs, upstream: { [NPM_STATUS_URL]: NPM_DOWN, [GITHUB_STATUS_URL]: GITHUB_OK } });
+  assert.equal(code, 0);
+  assert.deepEqual(failedJobReruns, [101, 102]);
+  assert.deepEqual(reruns, []);
+});
+
+test("a run with a real failure at attempt 2, or older than the lookback, is not re-run", async () => {
+  const runs = [failed(101, sha(1), { jobs: MIXED_JOBS, attempt: 2 }), failed(102, sha(2), { jobs: MIXED_JOBS, created: "2026-10-18T19:00:00Z" })];
+  const { code, calls } = await reconcile({ pulls: [pr(1), pr(2)], runs });
   assert.equal(code, 0);
   assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
+});
+
+test("a run where only ci-status failed is not re-run", async () => {
+  const jobs = [
+    { name: "lint-repo", conclusion: "success", steps: [] },
+    { name: "ci-status", conclusion: "failure", steps: [{ name: "Check the pull request contract", conclusion: "failure" }] },
+  ];
+  const { calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs })] });
+  assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
+});
+
+test("a run with a real failure re-run since the listing is left alone", async () => {
+  const { failedJobReruns } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs: MIXED_JOBS })], github: rerunSinceListing(101) });
+  assert.deepEqual(failedJobReruns, []);
 });
 
 test("an infra-only run already at attempt 3 is not re-run again", async () => {

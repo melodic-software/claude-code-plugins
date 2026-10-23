@@ -15,7 +15,8 @@ name: pr-unblock
 # pr-unblock-dispatch.yml also sends one per review-tier Dependabot PR (a major
 # bump, an action publisher outside the allowlist, a group holding a major, or
 # a red ci-status) whose head has no review yet. fix-ci: pr-unblock-dispatch.yml
-# also sends one per lanes App PR whose ci-status failed. fix-docs:
+# also sends one per lanes App PR whose ci-status or pr-test-windows run failed
+# past the lost-run reconciler's re-run. fix-docs:
 # pr-unblock-dispatch.yml also sends one per ready PR a person opened that
 # changes a Markdown file and never had a fix-docs run. All set
 # dispatcher-run-id; a trusted human may dispatch with pr-number and activity
