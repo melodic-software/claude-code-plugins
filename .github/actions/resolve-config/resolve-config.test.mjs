@@ -15,7 +15,7 @@ import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { main, resolveFromBase } from "./resolve-config.mjs";
+import { issueLaneWebHostsFromBase, main, resolveFromBase } from "./resolve-config.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLI = join(HERE, "resolve-config.mjs");
@@ -1052,4 +1052,10 @@ test("MODEL_RUNG empty, 0 or 1 resolves; any other value is refused as invalid-r
     env.MODEL_RUNG = rung;
     await assert.rejects(resolveFromBase({ env, github: noApi }), (error) => error.code === "invalid-rung", rung);
   }
+});
+
+test("issueLaneWebHostsFromBase: resolve-issue's web-access domains from the base config, none when it reads no web", () => {
+  const live = issueLaneWebHostsFromBase({ BASE_PATH: join(HERE, "../../..") });
+  assert.ok(Array.isArray(live) && live.includes("code.claude.com"), JSON.stringify(live));
+  assert.deepEqual(issueLaneWebHostsFromBase(workspace().env), []);
 });

@@ -131,7 +131,7 @@ const REFIRED = /^<!-- work-unblock refired ([0-9a-f]{40}-[0-9a-f]{40}) -->/;
 const handedMarker = (pr) => `<!-- work-unblock handed triage #${pr} -->`;
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
 // A person decides these; the lane never starts on them.
-const HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "needs-human"]);
+const HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human"]);
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 // post-merge-demotion-alert.yml's fix issue and the comment it posts when it
@@ -593,12 +593,11 @@ async function runsInFlight(actions, repo) {
 // it is not relabeled now, or null with what to do. Null for any other issue,
 // and for one agent-ready was added to since the reopen, which the restart
 // and re-fire rules then take.
-async function recurrenceRefusal({ github, repo, issue, bot, humans, inFlight }) {
+async function recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, read }) {
   if (issue.user?.login !== ALERT_BOT || !FIX_ISSUE.test(String(issue.body ?? ""))) {
     return null;
   }
-  const base = `/repos/${repo}/issues/${issue.number}`;
-  const comments = await paginate(github, `${base}/comments`);
+  const comments = await read("comments");
   const recurrence = comments
     .filter((comment) => comment.user?.login === ALERT_BOT && String(comment.body ?? "").startsWith(RECURRENCE_PREFIX))
     .at(-1);
@@ -609,7 +608,7 @@ async function recurrenceRefusal({ github, repo, issue, bot, humans, inFlight })
   if (!RUN_ID.test(String(recurrence.id)) || !Number.isFinite(at)) {
     throw new Error("its recurrence comment has no readable id or time");
   }
-  const events = await paginate(github, `${base}/events`);
+  const events = await read("events");
   if (events.some((event) => isLabel(event, "labeled") && Date.parse(event.created_at) >= at)) {
     return null;
   }
@@ -740,9 +739,9 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
 
 // Why an agent-ready issue is not restarted now (after a limit stop) or
 // re-fired (after a failed run), or null with the time it has waited since.
-// Every fact is read fresh from the API.
-async function restartRefusal({ github, actions, repo, issue, bot, humans, now, workflowKey, limits, wipCapped }) {
-  const base = `/repos/${repo}/issues/${issue.number}`;
+// Every fact is read from the API this sweep; `read` lists the issue's
+// comments or events once, shared with the recurrence check.
+async function restartRefusal({ github, actions, repo, issue, bot, humans, now, workflowKey, limits, wipCapped, read }) {
   const labels = (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label.name));
   const holds = labels.map((label) => String(label).toLowerCase()).filter((label) => HOLDS.has(label));
   // needs-human alone may be report-outcome's hold on a Refs PR, which the
@@ -751,11 +750,11 @@ async function restartRefusal({ github, actions, repo, issue, bot, humans, now, 
   if (held && (holds.length > 1 || holds[0] !== HUMAN_LABEL)) {
     return { reason: `held by ${holds.find((label) => label !== HUMAN_LABEL)}` };
   }
-  const comments = await paginate(github, `${base}/comments`);
+  const comments = await read("comments");
   const markers = appMarkers(comments, bot);
   // A re-fire record ends no run, so only outcome markers count here.
   const marker = markers.filter((item) => item.outcome !== "refired").at(-1);
-  const events = await paginate(github, `${base}/events`);
+  const events = await read("events");
   // The listing can be older than a removal: agent-ready taken off since, by
   // anyone but the App restarting the lane, ends all unblock actions here.
   const labelEvents = events.filter((event) => isLabel(event, "labeled") || isLabel(event, "unlabeled"));
@@ -868,9 +867,11 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
     return 1;
   }
   for (const issue of open) {
+    const listed = {};
+    const read = (kind) => (listed[kind] ??= paginate(github, `/repos/${repo}/issues/${issue.number}/${kind}`));
     try {
       const verdict =
-        (await recurrenceRefusal({ github, repo, issue, bot, humans, inFlight })) ??
+        (await recurrenceRefusal({ github, repo, issue, bot, humans, inFlight, read })) ??
         (await restartRefusal({
           github,
           actions,
@@ -882,6 +883,7 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
           workflowKey,
           limits,
           wipCapped,
+          read,
         }));
       const { reason, escalate, explained } = verdict;
       if (escalate) {

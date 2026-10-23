@@ -268,8 +268,8 @@ test("the last blocker closing adds agent-ready", async () => {
   assert.deepEqual(writes(calls), [labeled(20)]);
 });
 
-test("an issue held by needs-owner-decision, status: needs-decision or needs-human stays unlabeled", async () => {
-  for (const hold of ["needs-owner-decision", "status: needs-decision", "needs-human"]) {
+test("an issue held by needs-owner-decision, status: needs-decision, status: needs-info or needs-human stays unlabeled", async () => {
+  for (const hold of ["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human"]) {
     const { github, calls } = oneDependent({ labels: [hold] });
     assert.equal(await main({ env: envFor(), github }), 0);
     assert.deepEqual(writes(calls), [], hold);
@@ -830,7 +830,7 @@ test("agent-ready the App added after the stop, by a run that left no marker, me
 });
 
 test("a held limit-stopped issue is not restarted; one with no other comment is", async () => {
-  for (const hold of ["needs-human", "needs-owner-decision", "status: needs-decision"]) {
+  for (const hold of ["needs-human", "needs-owner-decision", "status: needs-decision", "status: needs-info"]) {
     const held = stopped({ labels: [hold] });
     assert.equal(await sweep({ github: held.github }), 0);
     assert.deepEqual(writes(held.calls), [], hold);
@@ -1811,7 +1811,7 @@ test("a hold label on the issue prevents both hand-offs to triage", async () => 
     const control = lanePr({ pulls: [pull()] });
     assert.equal(await sweep({ github: control.github }), 0, name);
     assert.deepEqual(writes(control.calls), expected, name);
-    for (const hold of ["needs-human", "needs-owner-decision", "status: needs-decision"]) {
+    for (const hold of ["needs-human", "needs-owner-decision", "status: needs-decision", "status: needs-info"]) {
       const held = lanePr({ pulls: [pull()], labels: [hold] });
       assert.equal(await sweep({ github: held.github }), 0, `${name}: ${hold}`);
       assert.deepEqual(writes(held.calls), [], `${name}: ${hold}`);
@@ -2033,6 +2033,32 @@ test("a reopened fix issue whose agent-ready the App added is relabeled like a l
   const { github, actions, calls } = reopened({ events: [added("2026-10-10T09:00:00Z")] });
   assert.equal(await sweep({ github, actions }), 0);
   assert.deepEqual(writes(calls), relabeled(30));
+});
+
+// The recurrence check and the restart check read the same issue's comments
+// and events; a sweep reads each once and both checks decide on that read.
+test("a sweep reads a fix issue's comments and events once when the recurrence check passes it on", async (t) => {
+  const reads = (calls, kind) => calls.filter((call) => call.startsWith(`GET /repos/${REPO}/issues/30/${kind}`)).length;
+  for (const [name, setup, line] of [
+    // The lane PR that first closed it merged with Closes, which the re-fire rule ends on.
+    ["no recurrence comment", { comments: [note()] }, "#30 not restarted: its lane PR #7805 merged"],
+    [
+      "a person's agent-ready since the reopen",
+      { events: [added("2026-10-10T09:00:00Z", OWNER), added("2026-10-16T11:10:00Z", OWNER)] },
+      "#30 not restarted: no lane run since agent-ready was added",
+    ],
+    ["an issue no alert filed", { issues: [fixIssue(30, { user: OWNER })] }, "#30 not restarted: its lane PR #7805 merged"],
+  ]) {
+    const log = t.mock.method(console, "log", () => {});
+    const { github, actions, calls } = reopened(setup);
+    assert.equal(await sweep({ github, actions }), 0, name);
+    assert.deepEqual(writes(calls), [], name);
+    assert.equal(reads(calls, "comments"), 1, name);
+    assert.equal(reads(calls, "events"), 1, name);
+    const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+    assert.ok(lines.includes(`label-unblocked: ${line}`), `${name}\n${lines.join("\n")}`);
+    log.mock.restore();
+  }
 });
 
 // Admission pacing (owner decision 2026-10-21, #8794): at or over the queued

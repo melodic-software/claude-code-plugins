@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.0.2] - 2026-10-23
+
+### Changed
+
+- The Stop hook that audits for unsurfaced hook failures now runs with `async: true`, so the turn no longer waits on a bash start and a `tail` for an advisory check that always exits 0. It keeps its shell form, so a launcher defect still cannot take down both the detector and the launch path it watches. An async hook's output is delivered on the next conversation turn, so the last Stop's warning in a print-mode or lane session may not be shown; the telemetry envelope still records it ([#8772](https://github.com/melodic-software/claude-code-plugins/issues/8772)).
+
 ## [4.0.1] - 2026-10-22
 
 ### Removed

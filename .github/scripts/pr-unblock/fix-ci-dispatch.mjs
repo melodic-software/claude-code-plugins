@@ -1,7 +1,9 @@
 // Starts the pr-unblock lane's fix-ci activity for each open pull request the
 // lanes App opened, or a trusted actor opened (an App's at once, a person's
-// once idle; the base config's `adoption` section), whose head's ci-status
-// failed (or whose pr-test-windows run failed), from the same
+// once idle; the base config's `adoption` section), whose head's lanes failed
+// (the `ci-lanes` commit status ci-status records, not ci-status itself, which
+// a review-lane hold or a pending review also fails) or whose pr-test-windows
+// run failed, from the same
 // dispatcher run
 // as dispatch.mjs (pr-unblock-dispatch.yml), so the trigger gate and the
 // broker check it as they check a resolve-conflicts dispatch.
@@ -13,7 +15,7 @@
 // when it has no pr-unblock / fix-ci check run from the GitHub Actions app,
 // or when every such run failed and there are at most `fix-ci-restarts` of
 // them; at most `fix-ci-per-run` per dispatcher run, lowest PR number first.
-// A head whose ci-status passed but whose pr-test-windows run failed is a
+// A head whose lanes passed but whose pr-test-windows run failed is a
 // candidate too. A head is skipped while the lost-run reconciler still re-runs
 // its failed run (infra-failure.mjs reconcilerOwns: an infra-only failure for
 // its backoff re-runs, any other for one re-run at attempt 1, inside the
@@ -29,7 +31,7 @@ export const DEFAULTS = Object.freeze({
   workflow: "pr-unblock.yml",
   activity: "fix-ci",
   checkName: "pr-unblock / fix-ci",
-  // The run whose failure counts: pr-require-checks when ci-status failed,
+  // The run whose failure counts: pr-require-checks when its lanes failed,
   // else the advisory pr-test-windows, which ci-status does not aggregate but
   // the merge gate holds on.
   requiredWorkflow: ".github/workflows/pr-require-checks.yml",
@@ -76,6 +78,7 @@ export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!
                   nodes {
                     __typename
                     ... on CheckRun { name status conclusion title checkSuite { app { databaseId } } }
+                    ... on StatusContext { context state creator { login } }
                   }
                   pageInfo { hasNextPage }
                 }
@@ -92,7 +95,7 @@ export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!
 // The check runs the GitHub Actions app posted on the PR's head.
 function headChecks(node, actionsAppId) {
   const commit = node.commits?.nodes?.[0]?.commit;
-  // A cut-off list could hide ci-status or an earlier fix-ci run.
+  // A cut-off list could hide ci-lanes or an earlier fix-ci run.
   if (!commit || commit.oid !== node.headRefOid || commit.statusCheckRollup?.contexts?.pageInfo?.hasNextPage) {
     return null;
   }
@@ -113,13 +116,22 @@ function ownerIdle(node, idleHours, now) {
   return commit?.oid === node.headRefOid && Date.parse(node.updatedAt) <= since && Date.parse(commit.committedDate) <= since;
 }
 
-const ciStatusFailed = (checks) => checks.some((run) => run.name === "ci-status" && run.status === "COMPLETED" && run.conclusion === "FAILURE");
+// The head's `ci-lanes` commit status when github-actions[bot] wrote it, as
+// ci-status's aggregate step does: the lanes' verdict alone. ci-status itself
+// also fails on a hold label, a pending or missing review and the PR
+// contract, none of which a CI fix mends.
+function lanesState(node) {
+  const contexts = node.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts?.nodes ?? [];
+  const status = contexts.find((context) => context?.__typename === "StatusContext" && context.context === "ci-lanes");
+  return status?.creator?.login === "github-actions[bot]" ? status.state : null;
+}
 
-// ci-status passed and another check failed: an advisory lane's, if any.
-const advisoryFailed = (checks, checkName) =>
-  !ciStatusFailed(checks) &&
-  checks.some((run) => run.name === "ci-status" && run.status === "COMPLETED" && run.conclusion === "SUCCESS") &&
-  checks.some((run) => run.name !== checkName && run.status === "COMPLETED" && run.conclusion === "FAILURE");
+const lanesFailed = (node) => ["FAILURE", "ERROR"].includes(lanesState(node));
+
+// The lanes passed and another check failed: an advisory lane's, if any.
+const advisoryFailed = (node, checks, checkName) =>
+  lanesState(node) === "SUCCESS" &&
+  checks.some((run) => run.name !== checkName && run.name !== "ci-status" && run.status === "COMPLETED" && run.conclusion === "FAILURE");
 
 // Why a listed PR is not dispatched, or "" when it is a candidate.
 export function skipReason(node, { base, appSenderId, actionsAppId, checkName, holdLabels, restarts, adoption = DEFAULTS.adoption, now = Date.now() }) {
@@ -149,9 +161,9 @@ export function skipReason(node, { base, appSenderId, actionsAppId, checkName, h
   if (!checks) {
     return "head commit or its checks not listed whole";
   }
-  const advisory = advisoryFailed(checks, checkName);
-  if (!ciStatusFailed(checks) && !advisory) {
-    return "ci-status has not failed";
+  const advisory = advisoryFailed(node, checks, checkName);
+  if (!lanesFailed(node) && !advisory) {
+    return "ci-lanes has not failed";
   }
   // node.requiredRun, the head's tested pr-require-checks run (pr-test-windows
   // when only an advisory check failed) and its latest jobs, is attached by
@@ -159,7 +171,7 @@ export function skipReason(node, { base, appSenderId, actionsAppId, checkName, h
   const required = node.requiredRun;
   if (required !== undefined) {
     if (advisory && required.run?.conclusion !== "failure") {
-      return "ci-status passed and no pr-test-windows run failed";
+      return "ci-lanes passed and no pr-test-windows run failed";
     }
     const owned = reconcilerOwns(required, now);
     if (owned !== "") {
@@ -246,7 +258,7 @@ export async function dispatchCiFixes({
     }
     // A failure an outside outage explains, or a first failure, is the
     // lost-run reconciler's to re-run before a model run fixes it.
-    const path = ciStatusFailed(headChecks(node, actionsAppId)) ? DEFAULTS.requiredWorkflow : DEFAULTS.advisoryWorkflow;
+    const path = lanesFailed(node) ? DEFAULTS.requiredWorkflow : DEFAULTS.advisoryWorkflow;
     let requiredRun;
     try {
       requiredRun = await api.readRequiredRun(node.headRefOid, path);
