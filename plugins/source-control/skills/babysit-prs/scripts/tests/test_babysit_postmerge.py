@@ -1001,37 +1001,63 @@ class ImmediateEnqueueNativeArm(CheckCase):
         self.all_green()
         self.assertEqual(self.read_back_failures(), ["read-back"])
 
-    def test_the_pin_stays_required_unless_every_condition_holds(self) -> None:
-        cases: dict[str, tuple[str | None, dict[str, Any]]] = {
-            "lane-prs gate": ("gate", {}),
-            "lane-prs neither native nor gate": ("sometimes", {}),
-            "a human actor": ("native", {"enqueues": [enqueue(HUMAN, APP_ACTOR)]}),
-            "a human enqueuer": ("native", {"enqueues": [enqueue(APP_ACTOR, HUMAN)]}),
-            # #9540: a person enqueued and dequeued it before the identity did.
-            "a human enqueue before the identity's": (
-                "native",
-                {
-                    "enqueues": [
-                        enqueue(HUMAN, HUMAN, "2026-10-12T09:00:00Z"),
-                        enqueue(APP_ACTOR, APP_ACTOR),
-                    ]
-                },
-            ),
-            "enqueues older than the read": ("native", {"earlier": True}),
-            "no merge parent": ("native", {"mergeCommit": {"oid": MERGE_SHA}}),
-            "enabled, then disabled": (
-                "native",
-                {"autoMerge": auto_merge_event(APP_ACTOR, "AutoMergeDisabledEvent")},
-            ),
-            "opened by a person": ("native", {"author": HUMAN}),
-        }
+    def assert_pin_required(
+        self, value: str | None, *enqueues: dict[str, Any], **fields: Any
+    ) -> None:
+        """Each case changes one condition of the #9554 shape, so removing
+        only that condition's guard makes the merge native and the test red."""
         self.all_green()
-        for name, (value, fields) in cases.items():
-            with self.subTest(name):
-                self.lane_prs(value)
-                enqueues = fields.pop("enqueues", [])
-                self.gh.merged = [immediate_enqueue(*enqueues, **fields)]
-                self.assertEqual(self.read_back_failures(), ["read-back"])
+        self.lane_prs(value)
+        self.gh.merged = [immediate_enqueue(*enqueues, **fields)]
+        self.assertEqual(self.read_back_failures(), ["read-back"])
+
+    def test_a_pull_request_a_person_opened_needs_its_pin(self) -> None:
+        self.assert_pin_required("native", author=HUMAN)
+
+    def test_a_cross_repository_pull_request_needs_its_pin(self) -> None:
+        self.assert_pin_required("native", isCrossRepository=True)
+
+    def test_an_auto_merge_event_keeps_the_enable_rule(self) -> None:
+        # Enabled, then disabled: the newest event is a disable.
+        self.assert_pin_required(
+            "native", autoMerge=auto_merge_event(APP_ACTOR, "AutoMergeDisabledEvent")
+        )
+
+    def test_a_human_enqueue_actor_needs_its_pin(self) -> None:
+        self.assert_pin_required("native", enqueue(HUMAN, APP_ACTOR))
+
+    def test_a_human_enqueuer_needs_its_pin(self) -> None:
+        self.assert_pin_required("native", enqueue(APP_ACTOR, HUMAN))
+
+    def test_a_human_enqueue_before_the_identitys_needs_its_pin(self) -> None:
+        # #9540: a person enqueued and dequeued it before the identity did.
+        self.assert_pin_required(
+            "native",
+            enqueue(HUMAN, HUMAN, "2026-10-12T09:00:00Z"),
+            enqueue(APP_ACTOR, APP_ACTOR),
+        )
+
+    def test_enqueues_older_than_the_read_need_the_pin(self) -> None:
+        self.assert_pin_required("native", earlier=True)
+
+    def test_no_merge_parent_needs_the_pin(self) -> None:
+        self.assert_pin_required("native", mergeCommit={"oid": MERGE_SHA})
+
+    def test_lane_prs_gate_at_the_parent_needs_the_pin(self) -> None:
+        self.assert_pin_required("gate")
+
+    def test_lane_prs_neither_native_nor_gate_needs_the_pin(self) -> None:
+        self.assert_pin_required("sometimes")
+
+    def test_a_gate_enqueue_under_gate_reads_its_pin_back(self) -> None:
+        # The gate's own enqueue looks the same: under gate its pin is read
+        # back, and a merged head other than the pinned one fails.
+        self.lane_prs("gate")
+        self.all_green()
+        verdict = self.check(pinned=OTHER_SHA, now=self.LATE)
+        self.assertEqual([f.signal for f in verdict.failures], ["read-back"])
+        self.assertIn(f"is not the pinned {OTHER_SHA}", verdict.failures[0].detail)
+        self.assertTrue(self.check(pinned=HEAD_SHA, now=self.LATE).merges[0].verified)
 
     def test_an_unreadable_config_keeps_the_pin_and_the_verdict_readable(self) -> None:
         self.gh.fail_reads.add(f"/contents/{PIPELINE}")
@@ -1039,6 +1065,17 @@ class ImmediateEnqueueNativeArm(CheckCase):
         verdict = self.check(pinned=None)
         self.assertTrue(verdict.readable)
         self.assertEqual(verdict.merges[0].pending, ("read-back-unrecorded",))
+        self.assertEqual(self.read_back_failures(), ["read-back"])
+
+    def test_an_arm_pinned_before_its_immediate_enqueue_verifies(self) -> None:
+        # enable-auto-merge.mjs pins the head before it arms, so where the
+        # pin is read (here under gate) the merged head matches it.
+        self.lane_prs("gate")
+        self.all_green()
+        verdict = self.check(pinned=HEAD_SHA)
+        self.assertEqual(verdict.merges[0].pending, ())
+        self.assertTrue(verdict.merges[0].verified)
+        self.assertTrue(verdict.ok)
 
     def test_one_config_read_per_parent_and_none_for_an_armed_merge(self) -> None:
         self.gh.merged = [
