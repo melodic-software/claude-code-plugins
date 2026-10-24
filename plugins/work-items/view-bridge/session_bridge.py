@@ -91,6 +91,19 @@ def token_header(name):
     return f"X-{name[:1].upper()}{name[1:]}-Token"
 
 
+def dumps_line(value):
+    """json.dumps for a line a reader splits on line separators: U+2028 and U+2029 stay escaped.
+
+    ensure_ascii=False keeps other non-ASCII text readable; those two are valid raw in JSON
+    (RFC 8259 section 7) but end a line in some readers.
+    """
+    return (
+        json.dumps(value, ensure_ascii=False)
+        .replace(" ", "\\u2028")
+        .replace(" ", "\\u2029")
+    )
+
+
 def replace_into(tmp, path):
     """os.replace with retry: Windows refuses while a reader holds the target open."""
     for _ in range(20):
@@ -173,6 +186,9 @@ class LoopbackWatcher(Transport):
         self.url = f"http://127.0.0.1:{port}/"
         self.dir = Path(data_dir).resolve()
         self.token = secrets.token_urlsafe(32)
+        # Gates /api/wait and the lease release. None means the page token also gates them; an
+        # app whose page is untrusted script sets its own, which is never served to the page.
+        self._watch_token = None
         # Differs on every start; the page tells a restart by it.
         self.instance = secrets.token_hex(6)
         self.cond = threading.Condition()
@@ -184,6 +200,14 @@ class LoopbackWatcher(Transport):
         self.origins = {f"http://{h}" for h in self.hosts}
         # The one watcher allowed: {watcher, since, last, inflight, pid}. In memory, so a restart frees it.
         self.lease = None
+
+    @property
+    def watch_token(self):
+        return self._watch_token or self.token
+
+    @watch_token.setter
+    def watch_token(self, value):
+        self._watch_token = value
 
     @staticmethod
     def lease_live(lease, now, timeout):
@@ -399,7 +423,7 @@ class LoopbackHandler(BaseHTTPRequestHandler):
         raw = (
             body
             if isinstance(body, bytes)
-            else json.dumps(body, ensure_ascii=False).encode("utf-8")
+            else dumps_line(body).encode("utf-8")
         )
         if code >= 400:
             # An unread request body must not become the next request.
@@ -445,6 +469,11 @@ class LoopbackHandler(BaseHTTPRequestHandler):
         given = self.headers.get(token_header(self.hub.name)) or ""
         return secrets.compare_digest(given, self.hub.token)
 
+    def watch_token_ok(self):
+        """The watcher's token, which gates /api/wait and the lease release."""
+        given = self.headers.get(token_header(self.hub.name)) or ""
+        return secrets.compare_digest(given, self.hub.watch_token)
+
     def do_GET(self):
         if not self.origin_ok():
             return self.send(403, {"error": "bad host or origin"})
@@ -473,7 +502,7 @@ class LoopbackHandler(BaseHTTPRequestHandler):
         self.send(404, {"error": "not found"})
 
     def long_poll(self, query):
-        if not self.token_ok():
+        if not self.watch_token_ok():
             return self.send(403, {"error": "token required"})
         try:
             after = (query.get("after") or ["0"])[0]
@@ -563,7 +592,8 @@ class LoopbackHandler(BaseHTTPRequestHandler):
         if not self.origin_ok():
             return self.send(403, {"error": "bad host or origin"})
         url = urlparse(self.path)
-        if not self.token_ok():
+        gate = self.watch_token_ok if url.path == "/api/lease" else self.token_ok
+        if not gate():
             return self.send(403, {"error": "token required"})
         if (
             not self.headers.get("Content-Type", "")
@@ -645,6 +675,7 @@ def start(handler, make_hub, port, nonce=""):
         "port": port,
         "url": hub.url,
         "token": hub.token,
+        "watchToken": hub.watch_token,
         "dataDir": str(hub.dir),
         "nonce": nonce,
         "startedAt": now_iso(),
@@ -653,7 +684,7 @@ def start(handler, make_hub, port, nonce=""):
     write_private(hub.dir / json_name, json.dumps(session, indent=2) + "\n")
     write_private(
         hub.dir / env_name,
-        f"PID={pid}\nPORT={port}\nTOKEN={hub.token}\nNONCE={nonce}\n",
+        f"PID={pid}\nPORT={port}\nTOKEN={hub.token}\nWATCH_TOKEN={hub.watch_token}\nNONCE={nonce}\n",
     )
     return httpd, hub
 
@@ -832,7 +863,7 @@ def release_lease(s, name):
             body=json.dumps({"action": "release"}),
             headers={
                 "Content-Type": "application/json",
-                token_header(name): s["token"],
+                token_header(name): s.get("watchToken") or s["token"],
             },
         )
         resp = conn.getresponse()
@@ -1242,11 +1273,11 @@ class ChannelRelay(Transport):
         self.last_deliver = 0.0
 
     def session(self):
-        """(port, token) from the data dir's session env file, or None."""
+        """(port, watcher token) from the data dir's session env file, or None."""
         try:
             text = (self.dir / session_files(self.name)[1]).read_text(encoding="utf-8")
             env = dict(line.split("=", 1) for line in text.splitlines() if "=" in line)
-            return int(env["PORT"]), env["TOKEN"]
+            return int(env["PORT"]), env.get("WATCH_TOKEN") or env["TOKEN"]
         except (OSError, KeyError, ValueError):
             return None
 
@@ -1294,7 +1325,7 @@ class ChannelRelay(Transport):
         s = self.session()
         if s is not None:
             try:
-                release_lease({"port": s[0], "token": s[1]}, self.name)
+                release_lease({"port": s[0], "watchToken": s[1]}, self.name)
             except (OSError, http.client.HTTPException):
                 pass
 
@@ -1475,7 +1506,7 @@ class ChannelServer:
 
     def send(self, msg):
         with self.lock:
-            self.out.write(json.dumps(msg, ensure_ascii=False) + "\n")
+            self.out.write(dumps_line(msg) + "\n")
             self.out.flush()
 
     def ring(self, relay, text, **meta):
@@ -1525,7 +1556,7 @@ class ChannelServer:
         return f"watching {d}: a channel event announces new page events; read them with the events tool"
 
     def tool_events(self, args):
-        return json.dumps(self.relay_for(args).take(), ensure_ascii=False)
+        return dumps_line(self.relay_for(args).take())
 
     def tool_unwatch(self, args):
         relay = self.relay_for(args)

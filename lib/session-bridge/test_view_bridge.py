@@ -97,6 +97,51 @@ class TestPageAndToken(ViewCase):
         code, body = self.request("GET", "/api/token", headers=SAME_ORIGIN, token=False)
         self.assertEqual((code, body["token"]), (200, self.hub.token))
 
+    def test_the_watcher_token_is_separate_and_never_served_to_the_page(self):
+        self.assertNotEqual(self.hub.watch_token, self.hub.token)
+        _, body = self.request("GET", "/api/token", headers=SAME_ORIGIN, token=False)
+        self.assertEqual(body, {"token": self.hub.token})
+        s = json.loads((self.dir / ".view-session.json").read_text(encoding="utf-8"))
+        self.assertEqual(s["watchToken"], self.hub.watch_token)
+        env = (self.dir / ".view-session.env").read_text(encoding="utf-8")
+        self.assertIn(f"WATCH_TOKEN={self.hub.watch_token}\n", env)
+        self.assertIn(f"TOKEN={self.hub.token}\n", env)
+
+    def test_the_page_token_is_refused_on_wait_and_lease_release(self):
+        page = {"X-View-Token": self.hub.token}
+        code, _ = self.request("GET", "/api/wait?timeout=1", headers=page, token=False)
+        self.assertEqual(code, 403)
+        self.hub.lease = {
+            "watcher": "w",
+            "since": time.time(),
+            "last": time.time(),
+            "inflight": 0,
+            "pid": None,
+        }
+        code, _ = self.request(
+            "POST", "/api/lease", {"action": "release"}, headers=page, token=False
+        )
+        self.assertEqual(code, 403)
+        self.assertIsNotNone(self.hub.lease)
+
+    def test_the_watcher_token_is_accepted_on_wait_and_lease_release(self):
+        watch = {"X-View-Token": self.hub.watch_token}
+        code, body = self.request(
+            "GET", "/api/wait?timeout=1", headers=watch, token=False
+        )
+        self.assertEqual((code, body["timedOut"]), (200, True))
+        code, _ = self.request(
+            "POST", "/api/lease", {"action": "release"}, headers=watch, token=False
+        )
+        self.assertEqual(code, 200)
+
+    def test_the_watcher_token_does_not_open_actions(self):
+        watch = {"X-View-Token": self.hub.watch_token}
+        code, _ = self.request(
+            "POST", "/api/action", {"action": "send"}, headers=watch, token=False
+        )
+        self.assertEqual(code, 403)
+
     def test_an_action_without_the_token_is_refused(self):
         code, _ = self.request("POST", "/api/action", {"action": "send"}, token=False)
         self.assertEqual(code, 403)

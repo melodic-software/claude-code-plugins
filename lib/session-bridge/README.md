@@ -46,7 +46,10 @@ subclass sets `max_body` and `page_csp` and adds routes in `route_get(url, query
   sent, must match.
 - A per-run token from `secrets.token_urlsafe(32)` rides only in the `X-<Name>-Token` header; every
   POST and `/api/wait` needs it. Every POST must be `application/json`, 1 to `max_body` bytes, a
-  JSON object. `watch.sh` hands the header to curl on stdin (`-H @-`), so the token is in no
+  JSON object. An app may set a separate `watch_token` on its hub: it then alone gates `/api/wait` and
+  the lease release, is written to the env file as `WATCH_TOKEN` and to the session json as
+  `watchToken`, and is never served to the page (without one, the page token gates them too).
+  `watch.sh` hands the header to curl on stdin (`-H @-`), so the token is in no
   process's argv, which other local users can read on Linux without `hidepid` and on macOS.
 - On Windows the listener refuses address reuse and binds with `SO_EXCLUSIVEADDRUSE`, so no other
   local process can bind the same port and receive requests that carry the token.
@@ -73,8 +76,16 @@ name for `ensure-running`, `stop` and `lease [--release]`. On events it prints o
 `dataDir` and `next` (the re-arm command, `bash '<here>/wake.sh' '<data_dir>'`), stores the seq in
 `.watch-seq` and the replayed seq in `.watch-replay`, and exits 0. It exits 2 when curl, the conf
 or the env file is missing, the token is rejected, or the server stays unreachable, and 3 when
-another watcher holds the lease, its lease was released, or the server was stopped. The watcher id
-is `WATCH_ID`, else `CLAUDE_CODE_SESSION_ID`, else `<hostname>-<parent pid>`.
+another watcher holds the lease, its lease was released, or the server was stopped. It exits 4 after
+`WAIT_EMPTY` consecutive waits with no event (default 40, about an hour at the default 90 s wait),
+printing the re-arm command: a watcher orphaned by a crashed session ends, and the server expires.
+A live session re-arms it. There is no parent-pid check, since the parent pid is 1 for a Claude Code
+Bash shell on Windows. The watcher id is `WATCH_ID`, else `CLAUDE_CODE_SESSION_ID`, else
+`<hostname>-<parent pid>`. It sends `WATCH_TOKEN` from the env file, else `TOKEN`.
+
+Output lines (the `/api/wait` body and the channel server's messages) are `json.dumps` with
+`ensure_ascii=False`, then U+2028 and U+2029 are escaped (`dumps_line`), so no reader splits a line
+on them.
 
 ## The client half
 
@@ -102,9 +113,14 @@ carries: an action a page asks for passes the same confirm or permission gate it
    prints `{url, origin, page, watch}`.
 2. The adopter builds its page with `--connect <origin>` into `page`. The builder adds
    `connect-src <origin>` to the page's policy and nothing else (rendered-views rule 3).
-3. The reader opens `url`. The runtime fetches the token from `GET /api/token`, which answers only
-   a request with `Sec-Fetch-Site: same-origin` and a matching `Host` and `Origin`. The token never
-   enters the page's markup, so a saved or published copy holds none.
+3. The reader opens `url`. The runtime fetches the page token from `GET /api/token`, which answers
+   only a request with `Sec-Fetch-Site: same-origin` and a matching `Host` and `Origin`. The token
+   never enters the page's markup, so a saved or published copy holds none. Those checks stop a
+   browser page from another origin; they do not stop a non-browser local client such as curl, which
+   can send the same headers, so any local process can fetch the page token. The bridge assumes a
+   single-user workstation: another OS user on the same machine can reach the loopback port. The
+   page token opens `POST /api/action` only. `/api/wait` and the lease release need the watcher
+   token, which lives in the 0600 session env file and is never served by `/api/token`.
 4. `POST /api/action` takes `{action, picked, choices, notes}`: `action` and every choice are builder
    keys (`^[a-z0-9-]{1,32}$`), `picked` holds builder row ids, and `notes` holds the reader's text,
    at most 20 entries of 4000 characters. Any other field or shape is a 400.
@@ -122,7 +138,8 @@ clears the watcher lease.
 The server also ends on its own once no watcher wait has been in flight for `IDLE_SECONDS` (600, the
 lease timeout; `--idle-seconds` overrides it), and clears its session files. The watcher is a
 background task of the session that armed it, so a session that ends stops polling and its token
-stops working about 600 seconds after its last wait. A session that leaves the watcher down that long
+stops working about 600 seconds after its last wait. (A watcher orphaned by a crash is not that
+case: it exits itself after `WAIT_EMPTY` empty waits, see The watcher.) A session that leaves the watcher down that long
 loses the server too: `watch` then exits 2 asking for `ensure-running`, which starts a server with a
 new token on the same port, and the reader reloads the page.
 
@@ -132,7 +149,7 @@ new token on the same port, and the reader reloads the page.
 |---|---|
 | The page sends only reader input and builder ids | `view-runtime.js` sends picked row ids, option keys and textarea text; `view_bridge.py` refuses anything else |
 | Page fields reach the session as data, never as the user's message | `DATA_NOTE` on every wait answer, delivered as background-task output (Delivery as data) |
-| An unguessable per-session token authenticates every message | `secrets.token_urlsafe(32)` per server run, required on every POST and wait, handed only to same-origin page script, gone when the server stops; the server stops by itself about 600 s after the session's watcher last waited, so the token expires with the session |
+| An unguessable per-session token authenticates every message | `secrets.token_urlsafe(32)` per server run, required on every POST (the page token) and wait (the separate watcher token, never served to the page), handed only to same-origin page script (a browser-only check: a local process can fetch it), gone when the server stops; the server stops by itself about 600 s after the session's watcher last waited, so the token expires with the session |
 | No message triggers a gated action without its gate | The bridge and the view app store and deliver; nothing in either acts on an event |
 
 ## The channels adapter

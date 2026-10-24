@@ -124,6 +124,8 @@ class ViewHub(bridge.LoopbackWatcher):
         self.replies = self.dir / "replies.json"
         self.page = self.dir / "page.html"
         self.idle = idle
+        # The page gets only self.token (at /api/token); the watcher token stays in the 0600 env file.
+        self.watch_token = secrets.token_urlsafe(32)
         self.started = time.time()
 
     def expired(self):
@@ -207,7 +209,10 @@ class ViewHandler(bridge.LoopbackHandler):
         if url.path == "/api/token":
             # Only the page's own script gets the token: a browser sets Sec-Fetch-Site and no page
             # can forge it, and do_GET already refused a foreign Host or Origin. The token never
-            # enters the page's markup, so a saved or published copy holds none.
+            # enters the page's markup, so a saved or published copy holds none. This stops a
+            # browser page from another origin, not a local process: curl can send the header. The
+            # token opens POST /api/action only; /api/wait and the lease release need the watcher
+            # token, which this route never serves.
             if self.headers.get("Sec-Fetch-Site") != "same-origin":
                 return self.send(403, {"error": "same-origin page script only"})
             return self.send(200, {"token": self.hub.token})
