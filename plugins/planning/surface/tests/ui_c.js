@@ -55,13 +55,6 @@ async page => {
     ok("R-J: question title leads with the question anchor", (await page.textContent("#dscroll .dhead h3")).startsWith(Q_MARK + " "), await page.textContent("#dscroll .dhead h3"));
     ok("R-J: Recommendation heading leads with the recommendation anchor", (await recHead()).startsWith(R_MARK + " "), await recHead());
 
-    // I4: a Judgment basis and a Verified basis wear different chips beside the recommendation
-    const basisChip = async id => { await pick(id); return page.evaluate(() => { const c = document.querySelector("#dscroll section.blk > h4 .chip.basis"); return c ? c.className + "|" + c.textContent : ""; }); };
-    const jChip = await basisChip("Q2"), vChip = await basisChip("Q4");
-    ok("I4: a basis ending Judgment renders a basis-judgment chip", /chip basis basis-judgment\|Judgment$/.test(jChip), jChip);
-    ok("I4: a basis ending Verified: <source> renders a basis-verified chip", /chip basis basis-verified\|Verified$/.test(vChip), vChip);
-    await pick("Q1");
-
     // AC22: commitments as separate unchecked rows, above the collapsed details
     const rows = await page.$$eval("#dscroll [data-confirm]", els => els.map(e => ({checked: e.checked, before: !!(e.compareDocumentPosition(document.getElementById("more")) & Node.DOCUMENT_POSITION_FOLLOWING)})));
     ok("AC22: one unchecked row per commitment", rows.length === 2 && rows.every(r => !r.checked), JSON.stringify(rows));

@@ -272,9 +272,10 @@ class TestRefusals(DirCase):
         self.assertIn("Q4", {x["id"] for x in self.doc()["questions"]})
 
     def test_short_recommendation_does_not_warn(self):
-        rc, _, err = self.rp(
-            "add", "--file", self.file("q.json", question("Q4", stage="interview"))
+        q = question(
+            "Q4", stage="interview", basis="The code already does this. Judgment"
         )
+        rc, _, err = self.rp("add", "--file", self.file("q.json", q))
         self.assertEqual(rc, 0)
         self.assertNotIn("warning", err)
 
@@ -322,7 +323,8 @@ class TestRefusals(DirCase):
         self.assertIn("Q4 alternative (a) repeats or contains the recommendation", out)
 
     def test_distinct_alternatives_are_added(self):
-        rc, out, err = self.rp("add", "--file", self.file("q.json", question("Q4")))
+        q = question("Q4", basis="The code already does this. Judgment")
+        rc, out, err = self.rp("add", "--file", self.file("q.json", q))
         self.assertEqual(rc, 0, out + err)
         self.assertNotIn("recommendation", err)
 
