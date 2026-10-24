@@ -37,14 +37,14 @@ from a completed, successful one. Any other artifact is ignored.
   FAILed head (`change_digest`: a head that only merges the branch or adds
   an empty commit carries the FAIL forward, and a diff that holds no change
   or answers 404 keeps the refusal), and those passes decide, as below. A
-  FAILed head of the same change is cleared too when every counted pass at
-  the head records `spec_kind` `closes` and every counted FAIL at that head
-  records `spec_kind` `refs` for this pull request (`_wider_pass`): a
-  `closes` pass is judged against the whole spec, which the `refs` slice
-  that failed is part of. The reverse, a key that is missing or holds
-  anything else, and a FAIL record that cannot be read, records no linked
-  issue, or records another pull request, head or verdict keep
-  `verify:earlier-fail`. Any
+  FAILed head of the same change is cleared too when every counted FAIL at
+  that head records `spec_kind` `refs` for this pull request and every
+  counted pass at the head records `spec_kind` `closes` with exactly the
+  linked issues each FAIL records (`_wider_pass`): a `closes` pass is judged
+  against the whole spec, which the `refs` slice that failed is part of. The
+  reverse, a key that is missing or holds anything else, linked issues that
+  differ or cannot be read, and a FAIL record that cannot be read or records
+  another pull request, head or verdict keep `verify:earlier-fail`. Any
   other failed read of a run time or a diff refuses as the next item does;
 - a FAIL-named artifact tied to this pull request by number or SHA whose run
   cannot be read: `verify:unreadable`. An untied FAIL whose run cannot be read
@@ -446,6 +446,19 @@ def change_digest(diff: str) -> str | None:
 def head_ref_digest(ref: str) -> str:
     """The digest of `ref` that a verdict's artifact name carries."""
     return hashlib.sha256(ref.encode("utf-8")).hexdigest()[:HEAD_REF_DIGEST_HEX]
+
+
+def _issue_numbers(record: dict[str, Any]) -> frozenset[int]:
+    """The issue numbers a verdict's `linked_issues` records; raises
+    `_Unreadable` for a list that is missing or empty, or for an entry with
+    no integer number."""
+    issues = record.get("linked_issues")
+    if not is_json_array(issues) or not issues:
+        raise _Unreadable("verdict records no linked issues")
+    numbers = [json_object(i).get("number") for i in issues]
+    if not all(isinstance(n, int) and not isinstance(n, bool) for n in numbers):
+        raise _Unreadable("verdict records a linked issue with no number")
+    return frozenset(numbers)
 
 
 def _is_id(value: Any, run_id: int) -> bool:
@@ -1389,21 +1402,18 @@ class Reader:
         fail_artifacts: dict[str, list[tuple[int, str, Any]]],
         passes: list[tuple[int, str, Any]],
     ) -> bool:
-        """Every counted pass at the head records `spec_kind` `closes` and
-        every counted FAIL at `sha` records `spec_kind` `refs` for pull
-        request `number` at `sha` with at least one linked issue: the passes
-        judged the whole spec where the FAILs judged a slice of it. Only
-        those exact values count, never the default `_pass_refusal` gives an
-        older record; a record that cannot be read is False."""
+        """Every counted FAIL at `sha` records `spec_kind` `refs` for pull
+        request `number` at `sha`, and every counted pass at the head records
+        `spec_kind` `closes` with exactly the linked issues each FAIL records
+        (`_issue_numbers`): the passes judged the whole of the spec the FAILs
+        judged a slice of, not another issue's. Only those exact values
+        count, never the default `_pass_refusal` gives an older record; a
+        record or linkage that cannot be read is False."""
         fails = fail_artifacts.get(sha, [])
         if not passes or not fails:
             return False
         try:
-            if any(
-                self._record(run_id, name, artifact).get("spec_kind") != "closes"
-                for run_id, name, artifact in passes
-            ):
-                return False
+            sliced: set[frozenset[int]] = set()
             for run_id, name, artifact in fails:
                 record = self._record(run_id, name, artifact)
                 if (
@@ -1411,9 +1421,14 @@ class Reader:
                     or record.get("head_sha") != sha
                     or record.get("verdict") != "fail"
                     or record.get("spec_kind") != "refs"
-                    or not is_json_array(record.get("linked_issues"))
-                    or not record["linked_issues"]
                 ):
+                    return False
+                sliced.add(_issue_numbers(record))
+            for run_id, name, artifact in passes:
+                record = self._record(run_id, name, artifact)
+                if record.get("spec_kind") != "closes" or {
+                    _issue_numbers(record)
+                } != sliced:
                     return False
         except _Unreadable:
             return False

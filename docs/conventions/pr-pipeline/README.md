@@ -1535,10 +1535,11 @@ head:
   holds no change or a compare GitHub answers with 404 (a head garbage-collected or force-pushed
   away). Removing whitespace also keeps the refusal for a change that only re-indents, which can
   matter in Python: it holds more than it must, never less. A `fail`ed head of the same change
-  clears only when every counted pass at the head records `spec_kind` `closes` and every counted
-  `fail` there records `spec_kind` `refs` for this pull request with a linked issue: a closing pass
-  is judged against the whole spec, which holds the `Refs:` slice that failed. The reverse, a
-  missing or other kind, or a `fail` record that cannot be read keeps the refusal. A pass judged
+  clears only when every counted `fail` there records `spec_kind` `refs` for this pull request and
+  every counted pass at the head records `spec_kind` `closes` with exactly the `linked_issues` each
+  `fail` records: a closing pass is judged against the whole spec, which holds the `Refs:` slice
+  that failed. The reverse, a missing or other kind, linked issues that differ or cannot be read,
+  or a `fail` record that cannot be read keeps the refusal. A pass judged
   before a later `fail` never clears it. Any other failed read of a run time or a diff refuses as the next item does;
 - a `fail` artifact tied to it (its number or one of its commits) whose run cannot be read, an
   untied `fail` whose run is readable and of verifier origin but whose verdict record cannot be

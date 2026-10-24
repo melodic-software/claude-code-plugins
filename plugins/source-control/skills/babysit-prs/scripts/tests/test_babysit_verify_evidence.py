@@ -946,7 +946,7 @@ class AWholeSpecPassClearsASliceFailOnTheSameChange(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
     def test_a_fail_record_with_no_linked_issue_keeps_the_fail(self) -> None:
-        for linked in ([], None, "7"):
+        for linked in ([], None, "7", [{"number": "7"}], [7]):
             with self.subTest(linked=linked):
                 fake = self.same_change("refs", "closes")
                 fake.records[named(EARLIER, "fail")]["linked_issues"] = linked
@@ -954,6 +954,38 @@ class AWholeSpecPassClearsASliceFailOnTheSameChange(unittest.TestCase):
         fake = self.same_change("refs", "closes")
         del fake.records[named(EARLIER, "fail")]["linked_issues"]
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
+
+    def closing_another(self, *numbers: int) -> FakeGitHub:
+        """A refs FAIL recording issue 7, and a closes pass at the head that
+        records, and now closes, `numbers` instead."""
+        fake = self.same_change("refs", "closes")
+        fake.closing = [(n, REPO) for n in numbers]
+        fake.records[named(HEAD, "pass")] = record(
+            spec_kind="closes",
+            linked_issues=[{**TRUSTED_ISSUE, "number": n} for n in numbers],
+        )
+        return fake
+
+    def test_a_closes_pass_of_the_refs_issue_clears(self) -> None:
+        self.assertIsNone(read(self.closing_another(7)).refusal)
+
+    def test_a_closes_pass_of_another_issue_keeps_the_fail(self) -> None:
+        # Failed under `Refs: #7`, relinked to `Closes #8` on the same diff.
+        self.assertEqual(
+            read(self.closing_another(8)).refusal, "verify:earlier-fail"
+        )
+
+    def test_a_closes_pass_of_more_issues_keeps_the_fail(self) -> None:
+        self.assertEqual(
+            read(self.closing_another(7, 8)).refusal, "verify:earlier-fail"
+        )
+
+    def test_a_pass_whose_linkage_cannot_be_read_keeps_the_fail(self) -> None:
+        for linked in ([], None, "7", [{"number": "7"}], [{"number": True}], [7]):
+            with self.subTest(linked=linked):
+                fake = self.same_change("refs", "closes")
+                fake.records[named(HEAD, "pass")]["linked_issues"] = linked
+                self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
     def test_a_fail_record_of_another_judgment_keeps_the_fail(self) -> None:
         for field_name, value in (
