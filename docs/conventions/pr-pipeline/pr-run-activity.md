@@ -93,7 +93,7 @@ The read file has five `workflow_call` outputs: `head-sha`, as in the write file
 `skill-reply-<lane>-<activity>-<attempt>` artifact when the skill ran; the last four are the
 [scan job](#the-scan-job)'s in both modes. In issue mode it also outputs `scan-base-sha`,
 `scan-resume-tip`, `scan-issue-run-started`, `scan-reuse-branch` and `scan-resume-branch`, the run
-job's pre-model fields as the scan job checked them ([Issue mode](#issue-mode)). In PR mode it also outputs
+job's pre-model fields as the [issue-fields job](#the-issue-fields-job) checked them ([Issue mode](#issue-mode)). In PR mode it also outputs
 `lane-class`, `credential-present` and `handed-off`, from the launcher and the credential steps,
 never from model text ([Two calls on one credential each](#two-calls-on-one-credential-each)),
 and, set by the scan job alone, `feedback-attempt` and `feedback-sha256`, the attempt naming a
@@ -174,6 +174,11 @@ so in the read file, right after its own kill-switch step proceeds, the run job 
 `kill-switch` unless `allowed` is `true` and `attempt` equals its own run attempt. That also fails
 a run whose broker-check job skipped the broker on a kill-switch stop its run job no longer sees.
 Re-running all jobs asks the broker again.
+
+The read file's `broker-allowed` job `needs` broker-check alone, runs only when `allowed` is
+`true`, holds no permission (`permissions: {}`) and runs one `echo` step. Its conclusion (`success`, else `skipped`) is
+the caller's job-level record of the allow: the Actions API returns a job's conclusion as the job
+ends, where a step's can stay empty for minutes, and no run job output reaches it.
 
 Residual: `scripts/check-read-caller-keys.sh` checks the job's permissions, its shape and its
 `actions/checkout` steps, not what its `run:` steps do. A `run:` step that fetched
@@ -658,12 +663,17 @@ job. The caller calls the read file twice, each call with one secret, named for 
 `pr-pipeline-write-<pr>`. `work-resolve-issue.yml`'s `resolve-issue` and
 `resolve-issue-subscription` do the same on the `issue-lane` role's secrets, in one
 `work-resolve-issue-slot-<n>` group ([Issue mode](#issue-mode)). Each fallback call starts on no first-call output: a handoff job
-(`fix-ci-handoff`, `fix-ci-rung-up-handoff`, `address-feedback-handoff`,
-`review-dependency-handoff`, and `pr-refine.yml`'s `fix-docs-handoff`) with only `actions: read`
-that checks out nothing reads this run's jobs through the Actions API once, and the fallback runs
-unless the first call's `<call> / report` job has a `Post the check run` step that succeeded. A
-failed read runs the fallback too, except for `fix-docs`. `fix-docs-subscription` also needs the
-first call's `<call> / broker-check` job to show the broker's allow: `fix-docs` posts nothing on a
+(`resolve-conflicts-handoff`, `fix-ci-handoff`, `fix-ci-rung-up-handoff`,
+`address-feedback-handoff`, `review-dependency-handoff`, and `pr-refine.yml`'s
+`fix-docs-handoff`) with `actions: read` and `contents: read` sparse-checks out the default branch
+tip's [`handoff-evidence.sh`](../../../.github/scripts/lib/handoff-evidence.sh) and runs it, and the
+fallback runs unless the first call's `<call> / report` job has a `Post the check run` step that
+succeeded. A skipped or absent report job, which every handoff leaves, decides that at once from
+the job's own conclusion; a report that ran answers through its step, which the script reads again
+with backoff for about five minutes while the jobs listing returns it empty, then fails the job with
+one error line. A failed read runs the fallback too, except for `fix-docs`.
+`fix-docs-subscription` also needs the first call's `<call> / broker-allowed` job to show the
+broker's allow (the broker step, when that job is absent): `fix-docs` posts nothing on a
 decline, so a kill switch or a refusal starts no second leg, and a failed read starts none either,
 since with no check posted `fix-docs-dispatch.mjs` dispatches the PR again. These fallback calls
 pass `fallback: handoff`, so the lane record says the key posted no check, not why: only the run
@@ -881,15 +891,18 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    those replies is such a fix request by a write-access human, and
    reports `fix-requested=true`, which lifts only the human-gated hold of the push job. No kept
    thread skips `not-applicable`, or `awaiting-human` on such a PR. A PR diff touching
-   `.github/workflows/**` escalates `feedback-protected-path`, and `loop.review-rounds` earlier rounds
-   escalate `feedback-round-cap`: the larger of the round markers the lanes App posted and the PR
-   commits carrying a `github-actions` `pr-unblock / address-feedback` check run that ended
-   `success` or `failure` (a round whose reply job was refused still counts). At the cap, a kept
-   thread with a write-access human's fix request created after the newest counted round (its
-   latest marker, or the completion of a model check run that ended `success`, `failure`,
-   `cancelled` or `timed_out`) still runs one more round, on those threads only; a
-   round with no readable time grants none. Both escalations skip `awaiting-human`, and no model
-   job runs. Otherwise it writes `threads.json` and `run.json` (the gated head and the kept
+   `.github/workflows/**` escalates `feedback-protected-path`. Rounds count as the larger of the
+   round markers the lanes App posted and the PR commits carrying a `github-actions`
+   `pr-unblock / address-feedback` check run that ended `success` or `failure` (a round whose
+   reply job was refused still counts). At `loop.review-rounds` earlier rounds, a kept thread with
+   a write-access human's fix request created after the newest counted round (its latest marker,
+   or the completion of a model check run that ended `success`, `failure`, `cancelled` or
+   `timed_out`) still runs one more round, on those threads only; a round with no readable time
+   grants none. With no such thread, a PR a person gated with the human-gated label, or a kept thread whose first comment is not a `github-actions[bot]`
+   finding ending in the `claude-lane: claude-review` footer (a security lane finding, a verifier
+   note, or a `claude[bot]` finding, whose footer would be model text) escalates `feedback-round-cap`; otherwise one more round runs on every kept
+   thread (the fresh fixer), and once it has run the select job skips `cost-gated`. Both
+   escalations skip `awaiting-human`; no escalation or skip runs a model job. Otherwise it writes `threads.json` and `run.json` (the gated head and the kept
    threads' ids, paths, comment ids and named paths, and `pr_paths`, from the thread file) and uploads both as
    `feedback-context-<run attempt>`. Its outputs are `proceed`, the head it read, the
    escalation, `fix-requested`, both files' SHA-256 and that attempt; every later job takes its
@@ -1160,10 +1173,12 @@ warns of a [classifier gap](README.md#classifier-gaps).
      at the current head and through its own gate. With `config_unreadable` it posts no merge
      marker and escalates `dependency-config-unreadable`; with `files_truncated` it posts no
      merge marker and escalates `dependency-files-truncated`; when the pull request's files
-     (re-read here) change a workflow or action file (`.github/workflows/**` or an
-     `action.yml`), either side of a rename, it posts no merge marker and escalates
-     `dependency-workflow-held`, so a person merges it; a listing at its 3,000-file limit
-     escalates `dependency-files-truncated`; unless the pull request's commits are listed whole
+     (re-read here; a listing at its 3,000-file limit escalates `dependency-files-truncated`)
+     change a workflow or action file (`.github/workflows/**` or an `action.yml`, either side of
+     a rename) by anything but a full-SHA pin swap, it posts no merge marker and escalates
+     `dependency-workflow-unpinned`. A pin swap is a modification whose every change block
+     replaces `uses:` lines one for one, each keeping its indent and action path with both refs
+     full 40-hex SHAs, so only the SHA and the trailing comment differ; unless the pull request's commits are listed whole
      (fewer than 250, the pull request's count, the last one the head) and each is Dependabot's
      own (author id 49699333, committer `web-flow`, a valid signature, Dependabot's name and
      email), the version-bump commit (only plugins' `plugin.json` `version` and `CHANGELOG.md`
@@ -1241,8 +1256,9 @@ and the rest), the fallback call's when it ran and the first's otherwise, never 
 mode as `patch-prepare` (`ci-context`). The job runs on a `written` or `empty` patch, or on that
 call's `scan-collect-refused`, which reaches `select` with no `patch-state` and so escalates
 `ci-fix-invalid`.
-`fix-ci-unreported`, after every fix-ci call, reads this run's jobs as `fix-ci-handoff` does and,
-when a call's broker-check job allowed the lane and no call's report posted, posts fix-ci
+`fix-ci-unreported`, after every fix-ci call, reads this run's jobs with `handoff-evidence.sh` as
+`fix-ci-handoff` does and, when a call's broker-allowed job shows the allow and no call's report
+posted, posts fix-ci
 failure on `fix-ci-context`'s head, so fix-ci-dispatch counts the round toward
 `fix-ci-restarts` whatever the calls reported. As in the report job, a kill switch or a broker
 refusal posts nothing.
@@ -1390,8 +1406,9 @@ Then, in order:
    before head code skips the scan and still posts its skip; a scan hit leaves no verdict.
 
 Its `patch-state`, `patch-sha256`, `patch-attempt` and `reply-attempt` outputs are the read
-file's in both modes. The run job's steps upload nothing and show no model text in a step summary,
-in either mode, so in this file the scan job is the only uploader. That holds for the YAML, not
+file's in both modes. The run job's steps upload nothing, in either mode, so in this file the scan
+job is the only uploader. They show no model text in a step summary, except an issue-mode gate
+skill's verdict ([Leak-scan limits](#leak-scan-limits)). That holds for the YAML, not
 for a hostile run job: code on its runner holds the job's own artifact credentials and can upload
 under any name the run has not taken. No consumer binds an artifact to the job that uploaded it.
 
@@ -1409,8 +1426,9 @@ report gate. It checks the run job's pre-model issue fields from `env`, each in 
    resume; a resume branch comes with its tip and `true`; a started run has a base.
 2. A branch claim is re-derived: `report-outcome.mjs --find-prior`, from the default branch tip
    with this job's read-only token, must choose the same reuse branch, resume branch and tip, so the
-   branch also meets that check's rules (its commits the lanes App's, not behind the default
-   branch, not handed back).
+   branch also meets that check's rules (its commits the lanes App's, not handed back). The run job
+   chose before the model ran, so the re-derivation sets `FIND_PRIOR_KEEP_BEHIND`: a resume branch
+   the default branch has moved past since then still resumes.
 3. Only then does it set `checked` and the read file's `scan-base-sha`, `scan-resume-tip`,
    `scan-reuse-branch` and `scan-resume-branch` outputs, and the start commit (the resume tip, else
    the base) the scan job applies the patch to. A refusal leaves them empty: the scan job then

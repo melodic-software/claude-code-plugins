@@ -389,7 +389,7 @@ on:
           feedback-disputed; for the dependency-verdict script
           dependency-invalid, dependency-fix-not-landed, dependency-config-unreadable,
           dependency-files-truncated, dependency-control-uncited,
-          dependency-workflow-held, dependency-fix-refused,
+          dependency-workflow-unpinned, dependency-fix-refused,
           dependency-security-close or dependency-escalate; for apply-patch, before the mint,
           ci-fix-empty, ci-fix-invalid or ci-fix-escalated, and from its
           script ci-fix-invalid, ci-fix-protected-path or ci-fix-not-applied;
@@ -565,7 +565,7 @@ jobs:
             feedback-partial | feedback-incomplete | feedback-disputed) ;;
             dependency-round-cap | dependency-invalid | dependency-fix-not-landed) ;;
             dependency-security-close | dependency-escalate | dependency-config-unreadable) ;;
-            dependency-files-truncated | dependency-control-uncited | dependency-workflow-held) ;;
+            dependency-files-truncated | dependency-control-uncited | dependency-workflow-unpinned) ;;
             dependency-fix-refused) ;;
             ci-fix-round-cap | ci-fix-empty | ci-fix-invalid | ci-fix-escalated) ;;
             ci-fix-protected-path | ci-fix-not-applied) ;;
@@ -981,7 +981,7 @@ jobs:
       # .base.
       - name: Set up Python for the test-file runner
         if: contains(steps.stage.outputs.claude-args, '/lane-verify/bin/run-test-file ')
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .base/.python-version
       - name: Install the pinned pytest for the test-file runner
@@ -1331,7 +1331,7 @@ jobs:
       - name: Set up Python for the skill
         if: >-
           steps.setup-env.outputs.ready == 'true'
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: ${{ runner.temp }}/setup-env/.python-version
 
@@ -1360,7 +1360,7 @@ jobs:
         if: >-
           steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'skill'
         continue-on-error: true
-        uses: anthropics/claude-code-action@ae68417a745a5df4b2124873632bd73a2255e6f6 # v1.0.259
+        uses: anthropics/claude-code-action@16f9f71ab9c490faf367f94dd294897edc25be33 # v1.0.261
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
           # MCP subprocesses and gives Bash its own PID namespace, so /proc
@@ -1914,7 +1914,7 @@ jobs:
                 case "$FEEDBACK_REPLIES_DIR:$DEPENDENCY_VERDICT_DIR:$escalation" in
                   :?*:dependency-invalid | :?*:dependency-fix-not-landed) ;;
                   :?*:dependency-security-close | :?*:dependency-escalate | :?*:dependency-config-unreadable) ;;
-                  :?*:dependency-files-truncated | :?*:dependency-control-uncited | :?*:dependency-workflow-held) ;;
+                  :?*:dependency-files-truncated | :?*:dependency-control-uncited | :?*:dependency-workflow-unpinned) ;;
                   :?*:dependency-fix-refused) ;;
                   *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
                 esac

@@ -13,9 +13,8 @@ pre-push:
     # controls this job: read a branch's diff to lefthook.yml, lefthook-local.yml, .lefthook/ and
     # .lefthook-local/ before committing or pushing on it, since the guardrails hooks below fire at
     # commit too.
-    # Lefthook gives stdin to at most one job per hook, so this job judges HEAD rather than the
-    # pushed refs. Exit 1 is a failing check and blocks the push; anything else passes, and CI
-    # checks the pushed commit either way.
+    # This job reads no stdin, so it judges HEAD rather than the pushed refs. Exit 1 is a failing
+    # check and blocks the push; anything else passes, and CI checks the pushed commit either way.
     - name: check-affected
       run: |
         if ! mb="$(git merge-base HEAD refs/remotes/origin/main 2>/dev/null)"; then

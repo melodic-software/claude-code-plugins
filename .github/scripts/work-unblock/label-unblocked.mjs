@@ -19,9 +19,9 @@
 //
 // A listed human adding admission-deferred to an issue with `status: ready`
 // is the mark of a decided issue (owner decision Q75): the sweep reads its
-// work-class label and its Size, Complexity and Uncertainty fields (a label
-// or value counts only when a listed human or the App added or set it, as
-// `status: ready` must be; no default stands in) and runs intake's admission
+// Size, Complexity and Uncertainty fields (a value counts only when a listed
+// human or the App set it, as `status: ready` must be added; no default
+// stands in) and runs intake's admission
 // rules on it (admit.mjs decide). It is admitted within the room only on an
 // admit verdict. A refusal gets admit.mjs's comment, `status: needs-decision`
 // for `status: ready`, and loses admission-deferred; a wait on an open pull
@@ -42,9 +42,11 @@
 // pull request merge), which starts no close run, is still picked up. A
 // swept close counts only when a listed human or a merge made it. Overlapping
 // windows are harmless: an issue already labeled is left alone, and one whose
-// label was ever removed (by a person, or by a lane's pushback) is never
-// labeled again. A removal by the lanes App that follows the App's own
-// limited marker is a restart, not a stop, and does not count.
+// label was removed (by a person, or by a lane's pushback) is not labeled
+// again until the lanes App or a listed human adds `status: ready` after the
+// newest removal (admit.mjs removalStands). A removal by the lanes App that
+// follows the App's own limited marker is a restart, not a stop, and does
+// not count.
 //
 // The sweep also restarts issues the usage limit stopped: an open agent-ready
 // issue whose newest lanes-App outcome marker is `limited`, past its reset,
@@ -134,7 +136,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { admissionFacts, decide, loadRules, NEEDS_DECISION, openPullsFor, READY, refusalText, sayWhy } from "../intake-triage/admit.mjs";
+import { admissionFacts, decide, loadRules, NEEDS_DECISION, openPullsFor, READY, refusalText, removalStands, sayWhy } from "../intake-triage/admit.mjs";
 
 const LABEL = "agent-ready";
 const HUMAN_LABEL = "needs-human";
@@ -158,7 +160,7 @@ const REFIRED = /^<!-- work-unblock refired ([0-9a-f]{40}-[0-9a-f]{40}) -->/;
 const handedMarker = (pr) => `<!-- work-unblock handed triage #${pr} -->`;
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
 // A person decides these; the lane never starts on them.
-const HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human"]);
+const HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human", "work-class: untrusted-provenance"]);
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 // post-merge-demotion-alert.yml's fix issue and the comment it posts when it
@@ -281,12 +283,14 @@ async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base
   if (pending > 0) {
     return `${pending} blocker(s) not closed as completed by a listed human or a merge`;
   }
-  // Removing the label by hand stops the lane; a person adds it to restart.
+  // Removing the label by hand stops the lane until a person adds it back,
+  // or the App or a listed human marks the issue `status: ready` again.
   const comments = await paginate(github, `${base}/comments`);
   const markers = appMarkers(comments, bot);
   const events = await paginate(github, `${base}/events`);
-  if (events.some((event, index) => isLabel(event, "unlabeled") && !isRestart(events, index, markers, bot))) {
-    return `${LABEL} was removed before`;
+  const stopped = (event, index) => isLabel(event, "unlabeled") && !isRestart(events, index, markers, bot);
+  if (removalStands(events, stopped, (event) => trustedLabeler(event, { bot, humans }))) {
+    return `${LABEL} was removed and ${READY} not added since`;
   }
   return null;
 }
@@ -417,16 +421,13 @@ async function admitDeferred({ github, repo, humans, bot, gate, appId, admission
 
 const labelNames = (issue) => (issue?.labels ?? []).map((label) => String(typeof label === "string" ? label : label?.name));
 
-// The verdict intake's admission reads, from the issue itself: its one
-// work-class label, which counts only when a listed human or the App added
-// it, and each of Size, Complexity and Uncertainty as the config's key for
-// the option a listed human or the App set, else `unset`. The work lanes'
-// reader (resolve-config dimensions.mjs) reads an unset field as a default;
-// admission never does. A read of an unexpected shape throws.
-async function issueVerdict({ github, repo, number, issue, trusted, humans, appId, dimensionsConfig, fieldSetters }) {
-  const classes = labelNames(issue)
-    .filter((name) => name.startsWith("work-class:"))
-    .map((name) => (trusted(name) ? name : `${name} (added by neither a listed human nor the lanes App)`));
+// The verdict intake's admission reads, from the issue itself: each of Size,
+// Complexity and Uncertainty as the config's key for the option a listed
+// human or the App set, else `unset`. The work class gates nothing (owner
+// Q85, #9668); decide reads the untrusted-provenance hold from the labels.
+// The work lanes' reader (resolve-config dimensions.mjs) reads an unset field
+// as a default; admission never does. A read of an unexpected shape throws.
+async function issueVerdict({ github, repo, number, humans, appId, dimensionsConfig, fieldSetters }) {
   const rows = await github("GET", `/repos/${repo}/issues/${number}/issue-field-values`, undefined, FIELD_API);
   if (!Array.isArray(rows)) {
     throw new Error("the issue's field values have an unexpected shape");
@@ -441,21 +442,20 @@ async function issueVerdict({ github, repo, number, issue, trusted, humans, appI
     const counts = row !== undefined && (humans.has(setter) || (appId !== undefined && setter === appId));
     dimensions[name] = counts && Object.hasOwn(options, option) ? options[option] : "unset";
   }
-  const workClass = classes.length === 1 ? classes[0] : classes.length === 0 ? "no work-class label" : classes.join(" and ");
-  return { workClass, dimensions };
+  return { workClass: null, dimensions };
 }
 
 export const skipText = (reason) => `Left out of admission: ${reason}, so work-unblock removed \`${DEFERRED_LABEL}\`.`;
 
 // Runs intake's admission rules on an issue a listed human marked, and admits
-// it within the gate's room only on an admit verdict. `status: ready` and the
-// work-class label count only when the newest add of each, in `events`, is a
-// listed human's or the App's, as the mark's own add must be.
+// it within the gate's room only on an admit verdict. `status: ready` counts
+// only when its newest add, in `events`, is a listed human's or the App's, as
+// the mark's own add must be.
 async function admitMarked({ github, repo, number, issue, events, humans, bot, appId, closes, gate, admission }) {
   const base = `/repos/${repo}/issues/${number}`;
   const trusted = (name) => trustedLabeler(newestAdd(events, name), { bot, humans });
   const { rules, dimensionsConfig, webHosts, fieldSetters } = await admission();
-  const verdict = await issueVerdict({ github, repo, number, issue, trusted, humans, appId, dimensionsConfig, fieldSetters });
+  const verdict = await issueVerdict({ github, repo, number, humans, appId, dimensionsConfig, fieldSetters });
   const facts = await admissionFacts({
     github,
     repository: repo,

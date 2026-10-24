@@ -672,7 +672,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   const waitText = q => (stateOf(q) === "need" ? "Needs your answer: " : "Pending research: ") + (q.waitsOn || "");
   function parents(q){ return [...new Set([...(q.dependsOn || []), ...(q.followUpOf ? [q.followUpOf] : [])])].filter(id => Q[id] && id !== q.id); }
-  const isHandled = seq => seq <= (S.doc.handledSeq || 0) || (S.doc.handled || []).includes(seq);
+  const isHandled = seq => seq <= (S.doc.handledSeq || 0) || (S.doc.handled || []).includes(seq) || !!(events().find(e => e.seq === seq) || {}).autoHandled; // the server handles a plain accept or confirm at save time
   const queued = () => S.online && !stalled() && pending().some(delivered) ? " Queued, Claude is busy." : ""; // a wake is in flight: an event was delivered and not yet handled
   const delivered = e => !!e.deliveredAt || (S.watchSeq > 0 && e.seq <= S.watchSeq) || isHandled(e.seq);
   const events = () => S.resp.events || [];
@@ -937,8 +937,12 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (!S.online && !S.finished && !S.connFailed) return ["connecting", "Connecting"]; // neutral until a connection attempt has failed
     if (!S.online) return S.finished ? ["rest", "Interview finished: server stopped"] : ["offline", "Connection lost: check the terminal"];
     if (S.finished) return ["rest", "Finished"];
+    const l = S.listener || {}, d = pending().find(delivered);
+    if (!(l.waiters > 0) && (l.lease || l.state === "reading") && !stalled()) { // Claude holds the lease, or the bridge reports the session reading (its window after a delivery), no watcher waits, and no delivery has gone unhandled for 10 minutes
+      return ["working", d ? "Claude is working on " + subject(d) : "Claude is working"];
+    }
     if (unheard()) return pending().length ? ["idle", neverPolled() ? FIRST_WAKE : "Not listening: type next"] : ["rest", "Idle"]; // only a waiting event needs Claude
-    return ["listening", "Live"];
+    return l.waiters > 0 ? ["listening", "Live"] : ["rest", "Idle"]; // Live needs a waiter; the lease alone no longer shows it
   }
   function working(){ // what Claude is doing with the user's events, else ""
     if (!S.online) return "";
@@ -977,7 +981,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const [cls, word] = conn(), pill = $("pill");
     pill.className = "pill " + cls; pill.setAttribute("aria-live", cls === "listening" || cls === "rest" ? "off" : "polite");
     setHtml(pill, esc(word).replace(/next$/, "<code>next</code>"));
-    pill.title = S.restarted ? "The server restarted with a new key: reload this page to keep answering" : S.finished ? "The interview is finished: you can close this tab" : cls === "offline" ? "The page cannot reach the server: check the terminal" : cls === "idle" ? (neverPolled() ? "No watcher has reached the server yet: the first wake may be waiting on a permission prompt in the terminal" : "Claude is not listening: type next in the terminal") : cls === "rest" ? "Nothing is waiting on Claude" : "";
+    pill.title = S.restarted ? "The server restarted with a new key: reload this page to keep answering" : S.finished ? "The interview is finished: you can close this tab" : cls === "offline" ? "The page cannot reach the server: check the terminal" : cls === "idle" ? (neverPolled() ? "No watcher has reached the server yet: the first wake may be waiting on a permission prompt in the terminal" : "Claude is not listening: type next in the terminal") : cls === "rest" ? "Nothing is waiting on Claude" : cls === "working" ? "Claude is working and no watcher is waiting: Live returns when one is" : "";
     const [ct, age, , old] = claudeLine(); // text and age update apart, so a new age is never announced
     $("claudeLine").hidden = !ct; $("claudeLine").classList.toggle("old", old);
     const wt = workLine(), wl = $("workLine"); // its own polite live region: a status never replaces it

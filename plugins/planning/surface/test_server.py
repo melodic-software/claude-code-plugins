@@ -1813,7 +1813,7 @@ class TestConfirm(WaitCase):
         line = r["history"]["A"][-1]
         self.assertEqual((line["kind"], line["alt"]), ("confirm", "1"))
         code, body, _ = self.wait("after=handled&replayed=0&timeout=5")
-        self.assertIn(data["seq"], seqs(body["events"]))
+        self.assertNotIn(data["seq"], seqs(body["events"]))
         rc, out = self.rp("validate")
         self.assertEqual(rc, 0, out)
 
@@ -1866,6 +1866,82 @@ class TestConfirm(WaitCase):
             {"id": "A", "kind": "confirm", "alt": "0", "contentRev": rev + 1}
         )
         self.assertEqual(code, 200, data)
+
+
+class TestAutoHandle(WaitCase):
+    """A plain accept or confirm is handled at save time; the accept that settles the round is not."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(
+            cls.dir, question("A"), question("B"), question("C"), question("D")
+        )
+
+    def accept(self, qid, **extra):
+        code, data = self.post({"id": qid, "kind": "accept", **extra})
+        self.assertEqual(code, 200, data)
+        return data["seq"]
+
+    def woken(self, timeout=2):
+        code, body, _ = self.wait(f"after=handled&replayed=0&timeout={timeout}")
+        self.assertEqual(code, 200, body)
+        return seqs(body["events"])
+
+    def test_1_a_plain_accept_is_recorded_and_absent_from_unhandled(self):
+        seq = self.accept("A")
+        r = self.state()["responses"]
+        self.assertEqual(r["responses"]["A"]["decision"], "accept")
+        event = next(e for e in r["events"] if e["seq"] == seq)
+        self.assertIs(event.get("autoHandled"), True)
+        self.assertEqual(self.woken(), [])
+
+    def test_2_an_accept_with_text_is_unhandled(self):
+        seq = self.accept("B", text="Keep the second commitment.")
+        self.assertEqual(self.woken(), [seq])
+        rc, out = self.rp("handle", "--seq", str(seq))
+        self.assertEqual(rc, 0, out)
+
+    def test_3_a_plain_confirm_is_absent_from_unhandled(self):
+        code, data = self.post({"id": "A", "kind": "confirm", "alt": "1"})
+        self.assertEqual(code, 200, data)
+        self.assertEqual(self.woken(), [])
+
+    def test_4_the_accept_that_settles_the_round_produces_a_wake(self):
+        self.accept("C")
+        last = self.accept("D")
+        self.assertEqual(self.woken(), [last])
+        type(self).last = last
+
+    def test_5_undo_of_an_auto_handled_accept_succeeds(self):
+        seq = next(
+            e["seq"]
+            for e in self.state()["responses"]["events"]
+            if e["id"] == "C" and e["kind"] == "accept"
+        )
+        code, data = self.post({"id": "C", "kind": "undo", "undoSeq": seq})
+        self.assertEqual(code, 200, data)
+        self.assertNotIn("C", self.state()["responses"]["responses"])
+
+    def test_6_undo_of_an_agent_handled_accept_is_409(self):
+        rc, out = self.rp("handle", "--seq", str(self.last))
+        self.assertEqual(rc, 0, out)
+        code, data = self.post({"id": "D", "kind": "undo", "undoSeq": self.last})
+        self.assertEqual(code, 409, data)
+        self.assertIn("handled", data.get("error", ""))
+
+    def test_7_undo_of_an_auto_handled_accept_is_409_once_the_agent_handles_a_later_event(
+        self,
+    ):
+        code, data = self.post({"id": "A", "kind": "reopen"})
+        self.assertEqual(code, 200, data)
+        seq = self.accept("C")
+        code, data = self.post({"kind": "note", "text": "A later event."})
+        self.assertEqual(code, 200, data)
+        rc, out = self.rp("handle", "--seq", str(data["seq"]))
+        self.assertEqual(rc, 0, out)
+        code, data = self.post({"id": "C", "kind": "undo", "undoSeq": seq})
+        self.assertEqual(code, 409, data)
+        self.assertIn("handled", data.get("error", ""))
 
 
 def seed_restatement(d, rev):

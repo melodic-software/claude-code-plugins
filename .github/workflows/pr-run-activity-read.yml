@@ -415,6 +415,21 @@ jobs:
           lane: ${{ inputs.lane }}
           activity: ${{ inputs.activity }}
 
+  # Job-level evidence of the broker's allow for a caller's handoff read
+  # (.github/scripts/lib/handoff-evidence.sh): this job succeeds only on
+  # broker-check's allowed output and is skipped otherwise, and the Actions
+  # API returns a job's conclusion as it ends, where a step's can stay empty
+  # for minutes. It needs broker-check alone, so no run job output reaches it.
+  broker-allowed:
+    needs: broker-check
+    if: needs.broker-check.outputs.allowed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Record the broker's allow
+        run: echo "The broker allowed this lane."
+
   run:
     needs: broker-check
     # The lanes App's own pull_request events never start a lane.
@@ -463,8 +478,8 @@ jobs:
       skip-reason: ${{ steps.config.outputs.skip-reason || steps.act-script.outputs.skip-reason }}
       dirty-tree: ${{ steps.tree.outputs.dirty-tree }}
       patch-collected: ${{ steps.patch.outputs.state }}
-      # Issue mode, all from steps that run before any model turn; the scan
-      # job checks each before a caller sees it.
+      # Issue mode, all from steps that run before any model turn; the
+      # issue-fields job checks each before a caller sees it.
       issue-run-started: ${{ inputs.issue-number != '' && steps.go.outputs.run == 'true' }}
       reuse-branch: ${{ steps.issue-prior.outputs.reuse-branch }}
       resume-branch: ${{ steps.issue-prior.outputs.resume-branch }}
@@ -1248,7 +1263,7 @@ jobs:
 
       - name: Set up Python for the skill
         if: steps.setup-env.outputs.ready == 'true'
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: ${{ runner.temp }}/setup-env/.python-version
 
@@ -1942,12 +1957,15 @@ jobs:
           package-manager-cache: false
 
       # The run job's own earlier-work check, again, into a file of its own.
+      # The run job chose before the model ran, and the default branch may
+      # have moved since, so a resume branch now behind it still resumes.
       - name: Re-derive the earlier run's work on the issue
         id: prior
         if: steps.node.outcome == 'success'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
+          FIND_PRIOR_KEEP_BEHIND: 'true'
           ISSUE_NUMBER: ${{ inputs.issue-number }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
           PRIOR_OUT: ${{ runner.temp }}/issue-prior
@@ -2280,7 +2298,7 @@ jobs:
         if: steps.decode.outputs.patch == 'true' && inputs.merge-conflict-tree == ''
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.issue-number != '' && needs.issue-fields.outputs.start-sha || needs.run.outputs.head-sha }}
+          ref: ${{ inputs.issue-number == '' && needs.run.outputs.head-sha || needs.issue-fields.outputs.start-sha }}
           persist-credentials: false
 
       # PR mode: the skill ran Bash with the API key in reach, and artifacts
@@ -2312,7 +2330,7 @@ jobs:
         timeout-minutes: 10
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          HEAD_SHA: ${{ inputs.issue-number != '' && needs.issue-fields.outputs.start-sha || needs.run.outputs.head-sha }}
+          HEAD_SHA: ${{ inputs.issue-number == '' && needs.run.outputs.head-sha || needs.issue-fields.outputs.start-sha }}
           REPLY_DIR: ${{ steps.decode.outputs.dir }}
           PATCH_FILE: ${{ steps.decode.outputs.dir }}/patch.diff
           # The caller's input, never a run job output: a merge-base patch is
@@ -2527,7 +2545,7 @@ jobs:
               judge('the replies', replies);
               judge('the verdict', verdict);
               judge('the outcome', outcome);
-              judge('the outcome', lane);
+              judge('lane.json', lane);
               judge('the patch', patch, undefined, true);
               // A merge-base patch applies to a conflict tree only the apply job
               // rebuilds, so it is held to text hunks, whose every added byte

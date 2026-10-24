@@ -23,7 +23,7 @@
 #                       | dependency-config-unreadable
 #                       | dependency-files-truncated
 #                       | dependency-control-uncited
-#                       | dependency-workflow-held
+#                       | dependency-workflow-unpinned
 #                       | dependency-fix-refused | ci-fix-round-cap
 #                       | ci-fix-empty | ci-fix-invalid
 #                       | ci-fix-protected-path | ci-fix-not-applied
@@ -67,7 +67,7 @@ case ${ESCALATION_REASON:-} in
   repeat-cap) why='the lane has resolved conflicts on this branch as many times in a row as its cap allows' ;;
   unresolved-conflict) why='the lane could not resolve every conflict' ;;
   feedback-protected-path) why='the pull request changes .github/workflows/, which the lane token cannot push, so the lane does not address its review threads' ;;
-  feedback-round-cap) why='the lane has addressed review threads on this pull request as many rounds as its cap allows' ;;
+  feedback-round-cap) why='the lane has addressed review threads on this pull request as many rounds as its cap allows, and an open thread is a security or intent finding or a person holds the pull request, so a person decides' ;;
   feedback-uncertain) why='a review finding is uncertain or deferred, so a person decides it' ;;
   feedback-not-landed) why='a fix the lane recorded did not reach the branch, so none of its review replies was posted' ;;
   feedback-invalid) why='the review replies the lane recorded did not pass validation, so none was posted' ;;
@@ -81,9 +81,9 @@ case ${ESCALATION_REASON:-} in
   dependency-escalate) why='the dependency review found a risk the lane does not decide alone' ;;
   dependency-config-unreadable) why='the lane could not read the base .github/dependabot.yml, so it does not mark this dependency update for merge' ;;
   dependency-files-truncated) why='the dependency review chose merge, but the files listing it read was cut short, so the lane does not mark this dependency update for merge' ;;
-  dependency-workflow-held) why='the dependency review chose merge, but the update changes a workflow or action file, which a person merges' ;;
   dependency-fix-refused) why='a commit on the dependency update other than Dependabot'"'"'s changes more than a version of an npm or pip manifest or lock file, as a regular file outside .github/, so the lane does not act on the review' ;;
   dependency-control-uncited) why='the dependency review chose merge for a review-only dependency without quoting its control, so the lane does not mark it for merge' ;;
+  dependency-workflow-unpinned) why='the dependency review chose merge, but the update changes a workflow or action file by more than swapping one full-SHA action pin for another, so the lane does not mark it for merge' ;;
   ci-fix-round-cap) why='the lane has pushed as many CI fixes to this pull request as its cap allows, and CI still fails' ;;
   ci-fix-empty) why='the lane changed nothing that fixes the failing checks' ;;
   ci-fix-invalid) why='the CI fix the lane wrote did not pass validation, so it was not pushed' ;;

@@ -562,8 +562,9 @@ jobs:
     needs: [resolve-issue, resolve-issue-subscription, apply-issue-patch, run-checks]
     # issue-run-started is set only by the read runner's own steps, before
     # any model turn, once the run chose to run the skill, and reaches this
-    # file through the read runner's scan job, which checks it (as it does
-    # every resolve-issue output read here); a run that failed after that
+    # file through the read runner's issue-fields job, which checks it and
+    # every other issue output read here (the patch outputs come from its
+    # scan job); a run that failed after that
     # still reports, with apply-issue-patch's branch when it made one.
     # reuse-branch, also runner-computed, names a lane branch an earlier run
     # left with commits and no report: the work was skipped, a read-only

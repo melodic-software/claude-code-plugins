@@ -892,6 +892,39 @@ class TestCommitmentsCarriedByAnswerKind(SessionCase):
         self.assertNotIn("Part of Q2", risks)
 
 
+class TestAutoHandledAccepts(SessionCase):
+    """A plain accept the server handled at save time exports the same as one the agent handled."""
+
+    def outputs(self, auto):
+        qs = [question("Q1", commits=["One writer only"]), question("Q2")]
+        plain = [event(1, "Q1", "accept"), event(3, "Q2", "accept")]
+        events = [
+            *[{**e, "autoHandled": True} if auto else e for e in plain],
+            event(2, "Q1", "confirm", alt="0"),
+        ]
+        self.session(qs, sorted(events, key=lambda e: e["seq"]))
+        if not auto:
+            doc = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
+            doc["handledSeq"] = 3
+            (self.dir / "questions.json").write_text(json.dumps(doc), encoding="utf-8")
+        ledger = self.export("ledger")
+        synced = self.tmp / f"synced-{auto}.md"
+        synced.write_text(ledger.read_text(encoding="utf-8"), encoding="utf-8")
+        rc, out = self.rp("sync-ledger", "--ledger", str(synced))
+        self.assertEqual(rc, 0, out)
+        return (
+            ledger.read_text(encoding="utf-8"),
+            self.export("brief").read_text(encoding="utf-8"),
+            synced.read_text(encoding="utf-8"),
+        )
+
+    def test_ledger_brief_and_sync_ledger_match_either_way(self):
+        by_agent = self.outputs(auto=False)
+        by_server = self.outputs(auto=True)
+        self.assertEqual(by_server, by_agent)
+        self.assertIn("answer:: accepted: ", by_server[0])
+
+
 class TestExportReport(SessionCase):
     def test_report_is_self_contained_html(self):
         svg = "<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>"

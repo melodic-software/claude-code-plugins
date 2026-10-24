@@ -11,15 +11,16 @@
 //
 // - 2: the Issue Type is in `types`, or in `types-under-parent` under an open
 //   parent issue a listed human filed that awaits no decision;
-// - 3: the class, Size and Uncertainty apply-verdict wrote are in `classes`,
-//   `sizes` and `uncertainty`;
-// - 7 (with owner decision Q9, #8999): a `task-list` line, the criteria the
-//   lane checks, in text pr-verify will read: the body or a comment written,
-//   and last edited if ever, by a listed human (resolve-pr.mjs linkedIssues).
-//   Criteria only the lanes App wrote (refine.mjs's refinement comment, an
-//   App-filed issue) do not count, since pr-verify never sees them, and an
-//   issue with more comments than the 100 pr-verify reads is refused, since
-//   pr-verify stops on it;
+// - 3: the Size and Uncertainty apply-verdict wrote are in `sizes` and
+//   `uncertainty`, and the issue is not `work-class: untrusted-provenance`
+//   work; no other work class gates admission (owner Q85, #9668);
+// - 7: a `task-list` line, the criteria the lane checks, in text pr-verify
+//   will read (resolve-pr.mjs linkedIssues): the body or a comment written,
+//   and last edited if ever, by a listed human, and, on an issue whose body a
+//   listed human wrote, refine.mjs's newest refinement comment while unedited
+//   (refinementSpec). Nothing else the lanes App wrote counts, an App-filed
+//   issue included, and an issue with more comments than the 100 pr-verify
+//   reads is refused, since pr-verify stops on it;
 // - 8: no `refuse-labels` label, every blocker a merged pull request or an
 //   issue closed as completed by a listed human or a merge here (the close
 //   work-unblock counts), and no open pull request in this repository is for
@@ -46,8 +47,9 @@
 // work-unblock admits it when its blocker closes. A refused issue loses it
 // too. The sweep runs these rules itself only on an issue a listed human
 // marked (added admission-deferred to an issue with `status: ready`). An
-// issue already agent-ready, or whose agent-ready was ever removed, is left
-// alone. Issue text can only
+// issue already agent-ready is left alone, and so is one whose agent-ready
+// was removed until the lanes App or a listed human adds `status: ready`
+// after the newest removal. Issue text can only
 // refuse: it never satisfies a criterion the fields, labels or API decide.
 import { readFileSync } from "node:fs";
 
@@ -62,8 +64,10 @@ export const REFINE_MARKER = "<!-- intake-triage refinement -->";
 export const READY = "status: ready";
 export const NEEDS_DECISION = "status: needs-decision";
 const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
+// The one work class that holds an issue for a person (owner Q85, #9668).
+export const UNTRUSTED = "work-class: untrusted-provenance";
 const PARENT_HOLDS = new Set(["needs-human", "needs-owner-decision", NEEDS_DECISION]);
-const LISTS = ["types", "types-under-parent", "classes", "sizes", "uncertainty", "refuse-labels"];
+const LISTS = ["types", "types-under-parent", "sizes", "uncertainty", "refuse-labels"];
 
 // The rules file, each list checked to hold strings.
 export function loadRules(path) {
@@ -244,14 +248,37 @@ export function unrunnableReason({ items, found }) {
 
 const names = (labels) => (labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
 
-// Why admission leaves an issue alone whatever its verdict, or null: a person
-// already added agent-ready, or it was removed once. Pure.
-export function admissionSettled(labels, events) {
+// Whether events[a] happened before events[b]: by created_at when both have
+// one and they differ, else by their order as listed.
+const before = (events, a, b) => {
+  const [at, bt] = [Date.parse(events[a]?.created_at), Date.parse(events[b]?.created_at)];
+  return Number.isFinite(at) && Number.isFinite(bt) && at !== bt ? at < bt : a < b;
+};
+
+// Whether an agent-ready removal still stands: the newest event `isRemoval`
+// accepts has no `status: ready` add after it that `isMark` accepts (by
+// default, any). A lane's escalation or a person's removal keeps the issue out
+// until triage or a person marks it ready again. Pure.
+export function removalStands(events, isRemoval, isMark = () => true) {
+  const removals = events.flatMap((event, index) => (isRemoval(event, index) ? [index] : []));
+  if (removals.length === 0) {
+    return false;
+  }
+  const newest = removals.reduce((a, b) => (before(events, a, b) ? b : a));
+  return !events.some(
+    (event, index) => event?.event === "labeled" && String(event.label?.name).toLowerCase() === READY && isMark(event) && before(events, newest, index),
+  );
+}
+
+// Why admission leaves an issue alone whatever its verdict, or null: it is
+// already agent-ready, or its agent-ready was removed and no `status: ready`
+// `isMark` accepts was added since (removalStands). Pure.
+export function admissionSettled(labels, events, isMark) {
   if (labels.includes(AGENT_READY)) {
     return `already ${AGENT_READY}`;
   }
-  if (events.some((event) => event?.event === "unlabeled" && event.label?.name === AGENT_READY)) {
-    return `${AGENT_READY} was removed before`;
+  if (removalStands(events, (event) => event?.event === "unlabeled" && event.label?.name === AGENT_READY, isMark)) {
+    return `${AGENT_READY} was removed and ${READY} not added since`;
   }
   return null;
 }
@@ -262,7 +289,9 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
   }
-  const settled = admissionSettled(labels, events);
+  // Only the App's or a listed human's status: ready lifts a removal: the
+  // App's agent-ready starts a credentialed run.
+  const settled = admissionSettled(labels, events, (event) => humans.has(event.actor?.id) || (appId !== undefined && event.actor?.id === appId));
   if (settled) {
     return { verdict: "skip", reasons: [settled] };
   }
@@ -282,8 +311,12 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   } else if (!rules.types.includes(type)) {
     refuse.push(`type ${type} is not one of ${[...rules.types, ...rules["types-under-parent"]].join(", ")}`);
   }
-  if (!rules.classes.includes(verdict.workClass)) {
-    refuse.push(`${verdict.workClass} is not one of ${rules.classes.join(", ")}`);
+  // The hold also stands when its newest event is a removal by neither a
+  // listed human nor the lanes App.
+  const untrustedEvent = (events ?? []).filter((event) => ["labeled", "unlabeled"].includes(event?.event) && event.label?.name === UNTRUSTED).at(-1);
+  const removedByOther = untrustedEvent?.event === "unlabeled" && !humans.has(untrustedEvent.actor?.id) && !(appId !== undefined && untrustedEvent.actor?.id === appId);
+  if (verdict.workClass === UNTRUSTED || names(issue.labels).includes(UNTRUSTED) || removedByOther) {
+    refuse.push(`${UNTRUSTED} work needs a person`);
   }
   if (!rules.sizes.includes(verdict.dimensions?.size)) {
     refuse.push(`Size ${verdict.dimensions?.size} is not one of ${rules.sizes.join(", ")}`);
@@ -291,14 +324,15 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (!rules.uncertainty.includes(verdict.dimensions?.uncertainty)) {
     refuse.push(`Uncertainty ${verdict.dimensions?.uncertainty} is not one of ${rules.uncertainty.join(", ")}`);
   }
-  // pr-verify judges a lane PR only against text a listed human wrote, so
-  // the criteria count only there, and it stops on an issue with more
-  // comments than it reads (resolve-pr.mjs linkedIssues).
+  // pr-verify judges a lane PR only against text a listed human wrote and
+  // the refinement on their issue, so the criteria count only there, and it
+  // stops on an issue with more comments than it reads (resolve-pr.mjs
+  // linkedIssues).
   if ((spec?.commentCount ?? 0) > (spec?.comments?.length ?? 0)) {
     refuse.push(`it has ${spec.commentCount} comments, more than the ${SPEC_COMMENTS} pr-verify reads, so pr-verify cannot verify a pull request for it`);
   }
-  const lines = trustedSpecTexts(spec, humans).flatMap((text) => text.split("\n"));
-  if (!hasTrustedCriteria(spec, humans, rules["task-list"])) {
+  const lines = trustedSpecTexts(spec, humans, appId).flatMap((text) => text.split("\n"));
+  if (!hasTrustedCriteria(spec, humans, rules["task-list"], appId)) {
     refuse.push(noTrustedSpec(rules["task-list"]));
   }
   // A copied refinement breaks `://` and `www.` with a zero-width space so no
@@ -394,21 +428,43 @@ export async function specOf(github, repository, number) {
 }
 
 export const noTrustedSpec = (taskList) =>
-  `no trusted-human acceptance criteria: a listed human must put the confirmed \`${taskList.trim()}\` criteria in the body or post them as their own comment (owner Q9, #8999)`;
+  `no trusted-human acceptance criteria: a listed human must put the confirmed \`${taskList.trim()}\` criteria in the body or post them as their own comment, or, on an issue a listed human filed, intake's newest refinement comment must hold them unedited`;
+
+// The one comment of the lanes App's (a Bot whose id is `appId`) that counts
+// as spec, or undefined: the newest that opens with REFINE_MARKER, and only
+// while never edited; an older one never stands in for it. `comments` are in
+// GraphQL order, oldest first. The caller checks the body a listed human
+// wrote; resolve-pr.mjs linkedIssues shares this rule and also requires the
+// comment to predate the pull request. Pure.
+export function refinementSpec(comments, appId) {
+  const newest = (comments ?? []).findLast(
+    (comment) =>
+      appId !== undefined &&
+      comment?.author?.__typename === "Bot" &&
+      comment.author.databaseId === appId &&
+      String(comment.body ?? "").startsWith(REFINE_MARKER),
+  );
+  return newest?.lastEditedAt == null ? newest : undefined;
+}
 
 // The texts pr-verify will read as spec: the body and each comment written,
-// and last edited if ever, by a User among `humans`
-// (.github/scripts/pr-verify/resolve-pr.mjs linkedIssues). Bots and Apps, the
-// lanes App among them, never count. Pure.
-export function trustedSpecTexts(spec, humans) {
+// and last edited if ever, by a User among `humans`, and, when the body is
+// such text, the lanes App's refinement (refinementSpec)
+// (.github/scripts/pr-verify/resolve-pr.mjs linkedIssues). No other Bot or
+// App text counts. Pure.
+export function trustedSpecTexts(spec, humans, appId) {
   const trusted = (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
   const written = (item) => trusted(item?.author) && (item.lastEditedAt == null || trusted(item.editor));
-  return spec ? [spec, ...(spec.comments ?? [])].filter(written).map((item) => String(item.body ?? "")) : [];
+  if (!spec) {
+    return [];
+  }
+  const refinement = written(spec) ? refinementSpec(spec.comments, appId) : undefined;
+  return [spec, ...(spec.comments ?? [])].filter((item) => written(item) || item === refinement).map((item) => String(item.body ?? ""));
 }
 
 // Whether that text holds a `taskList` line: criterion 7. Pure.
-export const hasTrustedCriteria = (spec, humans, taskList) =>
-  trustedSpecTexts(spec, humans).some((text) => text.split("\n").some((line) => line.trimStart().startsWith(taskList)));
+export const hasTrustedCriteria = (spec, humans, taskList, appId) =>
+  trustedSpecTexts(spec, humans, appId).some((text) => text.split("\n").some((line) => line.trimStart().startsWith(taskList)));
 
 // For an issue apply-verdict held without admission (a flag, an escalation or
 // a hold), the same split note a refusal posts, when a done-when item is one

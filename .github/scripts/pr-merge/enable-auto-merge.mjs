@@ -118,7 +118,7 @@ import { appendFileSync, readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, errorLabel } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, errorLabel, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { humanGatedLabelFrom } from "../pr-unblock/address-feedback.mjs";
 import { readHoldPaths } from "../work-resolve-issue/report-outcome.mjs";
 import { BODY_HOLD, costDecision, costHold, humansOf, pathHold, vetoers } from "./merge-holds.mjs";
@@ -208,8 +208,9 @@ export function describe(error) {
 // lost answer would post it twice. A resent arm is pinned to the same expectedHeadOid, so it can arm
 // only the head the run read. When the lost answer was a success, the resend
 // may arm or disarm a pull request already in that state; should GitHub
-// answer that with an error, the run reports it and exits 1 with the state
-// right, and the next run reads it as it is.
+// answer that with an error, the run reports it (a warning for an arm, an
+// error and exit 1 for a disarm) with the state right, and the next run reads
+// it as it is.
 export function withRetry(github, { sleep, random = Math.random }) {
   return async (method, path, body, headers = {}, options) => {
     for (let attempt = 0; ; attempt += 1) {
@@ -218,6 +219,10 @@ export function withRetry(github, { sleep, random = Math.random }) {
       } catch (error) {
         const cap = RETRY_CAPS_MS[attempt];
         if (path !== "/graphql" || cap === undefined || !transient(error)) {
+          // How many sends it took: after a resend, an earlier one may have landed.
+          if (error !== null && typeof error === "object") {
+            error.attempts = attempt + 1;
+          }
           throw error;
         }
         const wait = Math.round(random() * cap);
@@ -228,6 +233,30 @@ export function withRetry(github, { sleep, random = Math.random }) {
       }
     }
   };
+}
+
+// GraphQL error types that a token, permission or rate limit answers for every
+// pull request alike, never a refusal of one.
+const RUN_WIDE_TYPES = new Set(["RATE_LIMITED", "FORBIDDEN", "INSUFFICIENT_SCOPES"]);
+// GitHub refusing to arm this one pull request: a GraphQL error, or a 4xx
+// other than 401, 403 and 429. `runWide` is an answer that is rate-limited or
+// carries a RUN_WIDE_TYPES error, which is never a refusal.
+export const refused = (error, runWide = false) =>
+  error instanceof GitHubError && !runWide && (error.status === 200 || (error.status >= 400 && error.status < 500 && ![401, 403, 429].includes(error.status)));
+// An error answer's messages, whether its GraphQL error types are run-wide,
+// and whether any error names a type at all.
+async function answerBody(text) {
+  try {
+    const json = JSON.parse(await text);
+    const errors = Array.isArray(json?.errors) ? json.errors : [json];
+    return {
+      said: errors.map((error) => error?.message).filter(Boolean).join("; "),
+      runWide: errors.some((error) => RUN_WIDE_TYPES.has(error?.type)),
+      typed: errors.some((error) => typeof error?.type === "string"),
+    };
+  } catch {
+    return { said: "", runWide: false, typed: false };
+  }
 }
 
 // Why `pull` must not be armed, or null when it may be.
@@ -605,7 +634,12 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     const write = env.REPORT_ONLY === "false";
     const humanGated = humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json");
     const holdPaths = readHoldPaths(env.RESOLVED_CONFIG ?? "");
-    github = withRetry(github ?? createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }), { sleep, random });
+    // The newest answer's rate limit and body, for an arm GitHub refuses.
+    let answer = null;
+    const onResponse = (response) => {
+      answer = { limited: response.headers.get("x-ratelimit-remaining") === "0" || response.headers.has("retry-after"), text: response.clone().text().catch(() => "") };
+    };
+    github = withRetry(github ?? createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse }), { sleep, random });
     verify ??= pythonVerify(env);
     const reads = READER_EVENTS.includes(env.EVENT_NAME);
     const pulls = await listPulls(github, repo[1], repo[2]);
@@ -649,6 +683,10 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     // would have run).
     const roomHeld = new Map();
     let failed = 0;
+    let arms = 0;
+    let networkArms = 0;
+    let unexplainedArms = 0;
+    const skippedArms = [];
     const minutes = riskEscalationMinutes(env.RESOLVED_CONFIG ?? "");
     // A reader run's per pull request refusal (a hold path or cost hold, or
     // the gate's verdict or risk score) goes on the pull request itself:
@@ -712,7 +750,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
           detail = (await github("POST", "/graphql", { query: DETAIL_QUERY, variables }))?.data?.repository?.pullRequest ?? null;
           if (detail !== null) {
             const files = await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number);
-            const decision = costHold(files, null) ? await costDecision(github, repo[0], pull.number, pull.body, trustedHumans(env)) : null;
+            const decision = costHold(files, null) ? await costDecision(github, repo[0], pull.number, pull.body, trustedHumans(env), pull.headRefOid) : null;
             detail = { ...detail, files, costDecision: decision };
           }
         } catch (error) {
@@ -772,6 +810,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
       }
       try {
         if (action === "arm") {
+          arms += 1;
           await github("POST", "/graphql", { query: ARM_MUTATION, variables: { id: pull.id, head: pull.headRefOid } });
           console.log(`enable-auto-merge: #${pull.number} armed at ${pull.headRefOid}`);
         } else {
@@ -782,6 +821,30 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
           console.log(`enable-auto-merge: #${pull.number} disarmed: ${escapeCommand(reason)}`);
         }
       } catch (error) {
+        const body = action === "arm" && answer !== null ? await answerBody(answer.text) : { said: "", runWide: false, typed: false };
+        if (action === "arm" && refused(error, answer?.limited || body.runWide)) {
+          // GitHub said no on the first send, so nothing is in flight. After a
+          // resend an earlier send may have landed, so its slot stays counted.
+          if ((error.attempts ?? 1) === 1) {
+            inFlight -= 1;
+          }
+          // A 404, or GraphQL errors that name no type, may be the run's own
+          // (a wrong API URL) rather than this pull request's.
+          if (error.status === 404 || (error.status === 200 && !body.typed)) {
+            unexplainedArms += 1;
+          }
+          skippedArms.push(`#${pull.number}`);
+          console.log(`::warning title=enable-auto-merge::#${pull.number} arm refused, skipped this run: ${describe(body.said ? new Error(`${error.message}: ${body.said}`) : error)}`);
+          continue;
+        }
+        // Its slot stays counted: a lost answer may hide an arm that landed,
+        // and the next run counts it from autoMergeRequest.
+        if (action === "arm" && transient(error)) {
+          skippedArms.push(`#${pull.number}`);
+          networkArms += 1;
+          console.log(`::warning title=enable-auto-merge::#${pull.number} arm failed on the network after its resends, skipped this run: ${describe(error)}`);
+          continue;
+        }
         failed += 1;
         console.log(`::error title=enable-auto-merge::#${pull.number} ${action}: ${describe(error)}`);
         // Still armed: a note saying it is unarmed would be false.
@@ -802,6 +865,17 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     ].filter(([, numbers]) => numbers);
     if (warned.length > 0) {
       lines.push(["warning", escapeCommand(`${laneHeld}; ${warned.map(([what, numbers]) => `${what}: ${numbers}`).join("; ")}`)]);
+    }
+    // No arm landed. Every arm failing on the network, or two or more arms all
+    // failing without a reason of their own (network, 404, untyped GraphQL
+    // errors), is the run's; refusals that name their reason are each pull
+    // request's.
+    const outage = arms > 0 && skippedArms.length === arms && (networkArms === arms || (arms > 1 && networkArms + unexplainedArms === arms));
+    if (outage) {
+      failed += 1;
+    }
+    if (arms > 0 && skippedArms.length === arms) {
+      lines.push([outage ? "error" : "warning", `every arm this run failed: ${skippedArms.join(", ")}`]);
     }
     if (held("armed")) {
       lines.push(["error", escapeCommand(`${laneHeld}; still armed, its disarm failed, so the hold is not enforced: ${held("armed")}`)]);

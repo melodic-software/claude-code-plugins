@@ -574,7 +574,7 @@ jobs:
       # zizmor is a wheel in the pinned, hash-locked requirements file, so this
       # install is what puts the Actions security lint on PATH.
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
       - name: Restore the pip cache
@@ -1284,7 +1284,7 @@ jobs:
       # gate, which fails closed if the module is missing rather than clearing
       # files it never parsed, so this install is load-bearing, not convenience.
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
       - name: Restore the pip cache
@@ -1573,7 +1573,7 @@ jobs:
       # if the module is missing rather than clearing files they never parsed,
       # so this install is load-bearing, not convenience.
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
       - name: Restore the pip cache
@@ -2160,7 +2160,7 @@ jobs:
       # The pinned interpreter and requirements: the fleet grammar gate probes a
       # collector that runs python3.
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
       - name: Restore the pip cache
@@ -2569,7 +2569,7 @@ jobs:
           path: ~/.npm
           key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'package-lock.json', '.github/standards/runner-policy/package-lock.json', 'plugins/harness-ops/skills/inventory/scripts/js/package-lock.json', 'plugins/testing/skills/check-visual-parity/scripts/package-lock.json') }}
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
       - name: Restore the pip cache
@@ -2780,7 +2780,7 @@ jobs:
           path: ~/.npm
           key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'package-lock.json', 'plugins/harness-ops/skills/inventory/scripts/js/package-lock.json') }}
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .python-version
       - name: Restore the pip cache
@@ -3123,13 +3123,13 @@ jobs:
     # of own-gate retries, 7 s of status-write retries and the 90 s
     # `rerun-wait-seconds` wait, about four and a half minutes, plus up to
     # 15 s of retry sleeps for each of the hold-lift step's two reads, the
-    # review-lane step's four and the lanes-hold step's eight (in the merge
+    # review-lane step's six and the lanes-hold step's eight (in the merge
     # queue up to four verdict lookups and their run reads more), about four
     # minutes, plus the cost-hold step's reads: one for most pull requests,
     # which stop at the label events; for a lane-labeled one whose body cites a
-    # decision, about eight, and two more per review run since the window
-    # opened, plus the base-config checkout's fetch (seconds; its retries
-    # replace the contents reads' 15 s each).
+    # decision, about eight (nine on a Refs issue), and two more per review
+    # run since the window opened, plus the base-config checkout's fetch
+    # (seconds; its retries replace the contents reads' 15 s each).
     timeout-minutes: 11
     env:
       # gh_read's wait budget: a rate-limit wait must end by
@@ -3491,16 +3491,34 @@ jobs:
           msg="draft: lanes not run; the ready_for_review run lints and tests this SHA"
           echo "::notice::$msg"
           echo "$msg" >>"$GITHUB_STEP_SUMMARY"
+      # The cost-hold and lanes-hold steps below run node; pin it to main's
+      # .node-version, as every other Node job is, rather than the runner
+      # image's default.
+      - name: Check out main's Node pin
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+          sparse-checkout: .node-version
+          sparse-checkout-cone-mode: false
+      - name: Set up Node
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
       # THE HOLD STEPS READ THEIR CONFIG FROM THE BASE COMMIT, ONCE. The tracker
       # config names the human-gated label and the trusted-actor list names who
       # may lift a hold; both are read at the base so the pull request cannot
-      # rewrite its own hold. A sparse checkout of the two files at the base SHA
+      # rewrite its own hold, as is merge-holds.mjs, whose refsIssue the cost
+      # step runs. A sparse checkout of the three files at the base SHA
       # is a git fetch, not a REST request: as of actions/checkout v7.0.1 its
       # API calls (default branch, object format, the stale-merge tracepoint, the
       # no-git archive download) all return early for a 40-hex `ref` on a runner
       # with git; recheck on a checkout bump. It checks out no pull request
-      # code: the ref is the base commit, nothing here is executed, and no
-      # credential is persisted.
+      # code: the ref is the base commit, the only code run from it is that
+      # base module, and no credential is persisted.
       # The steps below read BASE_CONFIG: empty when this step did not succeed,
       # which each of them treats as an unreadable config; a file missing from
       # a checkout that succeeded is a file the base commit does not have.
@@ -3516,6 +3534,7 @@ jobs:
           sparse-checkout: |
             /.work-item-tracker.json
             /.github/standards/trusted-actors/trusted-actors.json
+            /.github/scripts/pr-merge/merge-holds.mjs
           sparse-checkout-cone-mode: false
       # A COST HOLD THE OWNER ALREADY DECIDED COMES OFF. A review lane re-holds
       # every new head, so its `cost` hold went back on after the owner had
@@ -3539,11 +3558,24 @@ jobs:
       # - The pull request body, outside HTML comments, links a decision comment
       #   as babysit_merge_policy.py's cost_decision reads one: by a User on the
       #   trusted-actor list, not through an App, never edited, first line
-      #   `**Decision recorded.** Cost:`, on the pull request itself or (written
-      #   after the pull request) on the one issue in this repository that
-      #   GitHub records it as closing. A body `Refs:` line or a second closing
-      #   issue counts for nothing, so an owner decision on an unrelated issue
-      #   cannot clear this hold.
+      #   `**Decision recorded.** Cost:`. One on the pull request itself counts
+      #   as it is; one on its linked issue counts only when written after the
+      #   pull request and naming it as `#<number>` (merge-holds.mjs
+      #   namesPull). Of those, the newest on the pull request, else the
+      #   newest on the issue, is the decision. It covers the head it decided
+      #   (the newest github-actions[bot] cost hold marker before it, while
+      #   never edited and no comment was deleted since it was posted; with
+      #   none, an edited one or a deletion since, no head) and a later head only when the pull request's net
+      #   change against its base branch is the same at both, so every change
+      #   since is a base merge (the base's merge-holds.mjs costMarker and
+      #   sameNetChange; owner decisions Q17 c and Q18 d on #9436, as
+      #   ci-workflows v0.65.4's hold step reads them). The linked issue is the one issue in this repository that
+      #   GitHub records it as closing, else, when it closes none, the one issue
+      #   its plain `Refs:` lines name (the base's merge-holds.mjs refsIssue),
+      #   read to be an issue and not a pull request. A second closing issue
+      #   counts for nothing, and an owner decision on the issue for another
+      #   change cannot clear this hold.
+      # The pull request's live head must still be the event's head.
       # It then outputs cleared=true and the decision link, and, with the label
       # on, posts one comment citing the decision and removes the label. A
       # GITHUB_TOKEN removal starts no run, so the steps below read the label
@@ -3608,6 +3640,8 @@ jobs:
               else "lane" end' <<<"$events") || keep "the events do not parse"
           [ "$added" = lane ] || keep "$added"
           pr=$(read_api "repos/$repo/pulls/$PR_NUMBER") || keep "the pull request is unreadable"
+          # A late or re-run event for an older head must not lift the label off a newer one.
+          [ "$(jq -r '.head.sha // ""' <<<"$pr")" = "$HEAD_SHA" ] || keep "the head moved since this event"
           ref=$(jq -r '.head.ref | @uri' <<<"$pr") || keep "the pull request has no head branch"
           links=$(jq -r '.body // "" | gsub("<!--[\\s\\S]*?(?:-->|\\z)"; "")
             | match("https://github\\.com/([A-Za-z0-9-]+)/([A-Za-z0-9._-]+)/(?:issues|pull)/([0-9]+)#issuecomment-([0-9]+)"; "g")
@@ -3616,32 +3650,108 @@ jobs:
           # shellcheck disable=SC2016 # GraphQL variables, not shell
           closing=$(read_api graphql -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){closingIssuesReferences(first:2){totalCount nodes{number repository{nameWithOwner}}}}}}' \
             -F owner="${repo%%/*}" -F name="${repo#*/}" -F number="$PR_NUMBER") || keep "the closing issues are unreadable"
-          # The one issue in this repository the pull request closes, as babysit's
-          # cost_decision reads it: none when it closes more than one.
+          # The linked issue, as babysit's _linked_issue reads it: the one issue
+          # in this repository the pull request closes, none when it closes more
+          # than one, and its one plain `Refs:` issue when it closes none.
           issues=" $(jq -r --arg repo "$repo" '.data.repository.pullRequest.closingIssuesReferences
             | select(.totalCount == 1) | .nodes[]
             | select((.repository.nameWithOwner | ascii_downcase) == ($repo | ascii_downcase)) | .number | tostring' <<<"$closing" 2>/dev/null) "
+          refs=
+          if [ "$(jq -r '.data.repository.pullRequest.closingIssuesReferences.totalCount' <<<"$closing" 2>/dev/null)" = 0 ]; then
+            jq -r '.body // ""' <<<"$pr" >"$RUNNER_TEMP/cost-hold-body.txt" || keep "the pull request body is unreadable"
+            # shellcheck disable=SC2016 # JavaScript, not shell
+            refs=$(node --input-type=module -e 'import { readFileSync } from "node:fs";
+              import { pathToFileURL } from "node:url";
+              const { refsIssue } = await import(pathToFileURL(process.argv[2]).href);
+              console.log(refsIssue(readFileSync(process.argv[1], "utf8")) ?? "");' \
+              "$RUNNER_TEMP/cost-hold-body.txt" "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs") || keep "the Refs line could not be read"
+            issues=" $refs "
+          fi
           opened=$(jq -r '.created_at | fromdateiso8601' <<<"$pr") || keep "the pull request has no creation time"
-          decision='' decision_id=''
+          comments=$(read_api "repos/$repo/issues/$PR_NUMBER/comments?per_page=100" --paginate) || keep "the comments are unreadable"
+          jq -sc 'add // []' <<<"$comments" >"$RUNNER_TEMP/cost-hold-comments.json" || keep "the comments do not parse"
+          # shellcheck disable=SC2016 # GraphQL variables, not shell
+          deleted=$(read_api graphql -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){timelineItems(itemTypes:[COMMENT_DELETED_EVENT],last:100){filteredCount nodes{... on CommentDeletedEvent{createdAt}}}}}}' \
+            -F owner="${repo%%/*}" -F name="${repo#*/}" -F number="$PR_NUMBER") || keep "the deleted comments are unreadable"
+          jq '.data' <<<"$deleted" >"$RUNNER_TEMP/cost-hold-deleted.json" || keep "the deleted comments do not parse"
+          # holds_js <function> <json-file>...: one function of the base's
+          # merge-holds.mjs over the files. The module goes last: as the first
+          # argument it would run as the command line.
+          holds_js() {
+            # shellcheck disable=SC2016 # JavaScript, not shell
+            node --input-type=module -e 'import { readFileSync } from "node:fs";
+              import { pathToFileURL } from "node:url";
+              const [name, ...files] = process.argv.slice(1, -1);
+              const run = (await import(pathToFileURL(process.argv.at(-1)).href))[name];
+              const out = run(...files.map((file) => JSON.parse(readFileSync(file, "utf8"))));
+              console.log(out !== null && typeof out === "object" ? JSON.stringify(out) : String(out ?? ""));' \
+              "$@" "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs"
+          }
+          # carries <comment>: whether the decision comment covers HEAD_SHA:
+          # its decided head, from the newest cost hold marker before it and
+          # only while that marker was never edited and no comment was deleted
+          # since it was posted (the base's deletedSince, so deleting a newer
+          # marker cannot promote an older head), is HEAD_SHA, or the net
+          # change against the base branch is the same at both. No marker, an
+          # edited or unreadable newest marker, a deletion since it, an
+          # unusable base branch name or any read that fails carries nothing.
+          carries() {
+            local at="$RUNNER_TEMP/cost-hold-at.json" marker decided marker_edited base_ref
+            jq '.created_at' <<<"$1" >"$at" || return 1
+            marker=$(holds_js costMarker "$RUNNER_TEMP/cost-hold-comments.json" "$at") || return 1
+            [ -n "$marker" ] || return 1
+            decided=$(jq -r '.sha' <<<"$marker") || return 1
+            [[ $decided =~ ^[0-9a-f]{40}$ ]] || return 1
+            # shellcheck disable=SC2016 # GraphQL variables, not shell
+            marker_edited=$(read_api graphql -f query='query($id:ID!){node(id:$id){... on IssueComment{lastEditedAt}}}' -F id="$(jq -r '.node' <<<"$marker")") || return 1
+            jq -e '.data.node | objects | has("lastEditedAt") and .lastEditedAt == null' <<<"$marker_edited" >/dev/null 2>&1 || return 1
+            jq '.at' <<<"$marker" >"$RUNNER_TEMP/cost-hold-marker-at.json" || return 1
+            [ "$(holds_js deletedSince "$RUNNER_TEMP/cost-hold-deleted.json" "$RUNNER_TEMP/cost-hold-marker-at.json")" = false ] || return 1
+            [ "$decided" != "$HEAD_SHA" ] || return 0
+            base_ref=$(jq -r '.base.ref // ""' <<<"$pr") || return 1
+            jq -en --arg b "$base_ref" '$b | test("^(?!-)(?!.*\\.\\.)[A-Za-z0-9._/-]{1,255}$")' >/dev/null || return 1
+            read_api "repos/$repo/compare/$base_ref...$decided" >"$RUNNER_TEMP/cost-hold-then.json" || return 1
+            read_api "repos/$repo/compare/$base_ref...$HEAD_SHA" >"$RUNNER_TEMP/cost-hold-now.json" || return 1
+            [ "$(holds_js sameNetChange "$RUNNER_TEMP/cost-hold-then.json" "$RUNNER_TEMP/cost-hold-now.json")" = true ]
+          }
+          # Every decision that counts, as {own, at, link, id, comment}.
+          decisions='[]' refs_read=
           while IFS=$'\t' read -r link owner name number id; do
             [ -n "$link" ] || continue
             [ "$(tr '[:upper:]' '[:lower:]' <<<"$owner/$name")" = "$(tr '[:upper:]' '[:lower:]' <<<"$repo")" ] || continue
             [ "$number" = "$PR_NUMBER" ] || [[ $issues == *" $number "* ]] || continue
+            # A Refs number may name a pull request; only an issue is consulted.
+            if [ "$number" != "$PR_NUMBER" ] && [ -n "$refs" ] && [ -z "$refs_read" ]; then
+              target=$(read_api "repos/$repo/issues/$refs") || keep "the Refs issue is unreadable"
+              refs_read=1
+              jq -e --argjson n "$refs" '.number == $n and .pull_request == null' <<<"$target" >/dev/null 2>&1 || issues=' '
+              [[ $issues == *" $number "* ]] || continue
+            fi
             comment=$(read_api "repos/$repo/issues/comments/$id") || continue
             jq -e --arg number "$number" --arg pr "$PR_NUMBER" --argjson humans "$humans" --argjson opened "$opened" '
               (.issue_url // "" | endswith("/issues/\($number)"))
               and .user.type == "User" and .performed_via_github_app == null
               and (.user.id as $id | $humans | index($id) != null)
               and (.body // "" | sub("\\A\\s+"; "") | test("\\A\\*\\*Decision recorded\\.\\*\\*[ \\t]+Cost:"))
-              and ($number == $pr or (.created_at | fromdateiso8601) > $opened)' <<<"$comment" >/dev/null 2>&1 || continue
+              and ($number == $pr or ((.created_at | fromdateiso8601) > $opened
+                and (.body // "" | test("(?:^|[^A-Za-z0-9_#&/.-])#\($pr)(?:[^0-9]|$)"))))' <<<"$comment" >/dev/null 2>&1 || continue
             node=$(jq -r .node_id <<<"$comment")
             # shellcheck disable=SC2016 # GraphQL variables, not shell
             edited=$(read_api graphql -f query='query($id:ID!){node(id:$id){... on IssueComment{lastEditedAt}}}' -F id="$node") || continue
             jq -e '.data.node | objects | has("lastEditedAt") and .lastEditedAt == null' <<<"$edited" >/dev/null 2>&1 || continue
-            decision=$link decision_id=$id
-            break
+            decisions=$(jq -c --argjson c "$comment" --arg link "$link" --arg id "$id" --arg own "$([ "$number" = "$PR_NUMBER" ] && echo 1)" \
+              '. + [{own: ($own == "1"), at: ($c.created_at | fromdateiso8601? // -1), link: $link, id: $id, comment: $c}]' <<<"$decisions") || continue
           done <<<"$links"
-          [ -n "$decision" ] || keep "the body cites no recorded owner cost decision covering it"
+          # The decision is the newest on the pull request, else the newest on
+          # its linked issue (the first linked of two at one time), as the
+          # review lanes' hold step picks it; only it may carry.
+          chosen=$(jq -c '([.[] | select(.own)] | if length > 0 then . else null end) // [.[] | select(.own | not)]
+            | to_entries | sort_by([-.value.at, .key]) | .[0].value // empty' <<<"$decisions") || keep "the decisions do not parse"
+          decision='' decision_id=''
+          if [ -n "$chosen" ] && carries "$(jq -c .comment <<<"$chosen")"; then
+            decision=$(jq -r .link <<<"$chosen") decision_id=$(jq -r .id <<<"$chosen")
+          fi
+          [ -n "$decision" ] || keep "the body cites no recorded owner cost decision covering this head"
           # Every hold a review lane recorded in the window, as {at, criteria}.
           holds='[]' vetted=''
           while read -r file check; do
@@ -3670,10 +3780,6 @@ jobs:
             done < <(jq -nr --argjson since "$since" '[inputs.workflow_runs[] | select((.updated_at | fromdateiso8601) > $since) | "\(.id) \(.head_sha)"] | unique[]' <<<"$runs")
           done <<<'pr-review-hosted.yml pr-review / claude-review-status
           pr-review-security-hosted.yml pr-review-security / security-review'
-          comments=$(read_api "repos/$repo/issues/$PR_NUMBER/comments?per_page=100" --paginate) || keep "the comments are unreadable"
-          # shellcheck disable=SC2016 # GraphQL variables, not shell
-          deleted=$(read_api graphql -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){timelineItems(itemTypes:[COMMENT_DELETED_EVENT],last:100){filteredCount nodes{... on CommentDeletedEvent{createdAt}}}}}}' \
-            -F owner="${repo%%/*}" -F name="${repo#*/}" -F number="$PR_NUMBER") || keep "the deleted comments are unreadable"
           verdict=$(jq -nr --arg label "$label" --argjson since "$since" --argjson holds "$holds" --argjson app "$LANES_APP_ID" \
             --slurpfile events <(printf '%s\n' "$events") --slurpfile comments <(printf '%s\n' "$comments") \
             --slurpfile deleted <(printf '%s\n' "$deleted") '
@@ -3886,6 +3992,18 @@ jobs:
       # no lane is there to hold it as trust-gate; a person merges it. A draft is exempt
       # (see `Note a draft`). pr-feedback-dispatch.yml re-runs this job when a
       # review run completes. An unreadable run or job list fails closed.
+      # The jobs API can list a finished job's steps empty or cut short, so a
+      # step it lists with no conclusion, or not at all, proves nothing either
+      # way. Then the job's own check-run annotations decide. The review
+      # counts only with its publish step's `claude-lane-review-complete`
+      # notice naming this lane and this head, which proves a comments-mode
+      # publish for that lane and head. The notice itself does not prove the
+      # hold step ran: that step runs alongside the publish in comments mode
+      # because both callers set hold-label.
+      # A kill-switch stop counts only with the notice its report step
+      # writes. A pull_request run takes its workflow from the pull request,
+      # so a head that rewrites a review caller can forge these notices as it
+      # can forge the step list. An unreadable annotation list fails closed.
       # Pinned by scripts/ci-review-lanes.test.sh, which runs this body.
       - name: Require both review lanes on this head
         if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft == false }}
@@ -3900,8 +4018,8 @@ jobs:
           # melodic-standards-sync[bot], as
           # .github/standards/trusted-actors/trusted-actors.json lists them.
           exempt_author_ids='49699333 337859524 300666570'
-          lanes='pr-review-hosted.yml pr-review / claude-review-status
-          pr-review-security-hosted.yml pr-review-security / security-review'
+          lanes='pr-review-hosted.yml claude-review pr-review / claude-review-status
+          pr-review-security-hosted.yml claude-security-review pr-review-security / security-review'
           if [[ ! $HEAD_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the head '$HEAD_SHA' is not a commit SHA."
             exit 1
@@ -3957,7 +4075,7 @@ jobs:
             exit 0
           fi
           failed=0
-          while read -r file check; do
+          while read -r file lane check; do
             runs=$(read_api "the $file runs on $HEAD_SHA" \
               "repos/$GITHUB_REPOSITORY/actions/workflows/$file/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=100") || exit 1
             run=$(jq -c --arg path ".github/workflows/$file" --arg sha "$HEAD_SHA" \
@@ -3975,13 +4093,34 @@ jobs:
               | (.jobs | map(select(.name == "kill-switch")) | max_by(.id)) as $k
               | if $s != null and $s.status != "completed" then "pending"
                 elif $s.conclusion == "success" then
-                  if any($s.steps[]?; .name == "Apply the hold" and .conclusion == "success") then "pass" else "uncounted" end
+                  if any($s.steps[]?; .name == "Apply the hold" and .conclusion != null) | not then "unlisted \($s.id)"
+                  elif any($s.steps[]?; .name == "Apply the hold" and .conclusion == "success") then "pass" else "uncounted" end
                 elif $s != null and $s.conclusion != "skipped" then "red \($s.conclusion)"
                 elif $k.conclusion == "success" and any($k.steps[]?; .name == "Report the kill switch" and .conclusion == "success") then "stopped"
                 elif $run_status != "completed" then "pending"
+                elif $k.conclusion == "success" and (any($k.steps[]?; .name == "Report the kill switch" and .conclusion != null) | not) then "killunlisted \($k.id)"
                 else "missing \($k.conclusion // "absent")" end' <<<"$jobs")
+            if [[ $verdict =~ ^killunlisted\ ([1-9][0-9]*)$ ]]; then
+              job=${BASH_REMATCH[1]}
+              notes=$(read_api "the annotations of job $job" "repos/$GITHUB_REPOSITORY/check-runs/$job/annotations?per_page=100") || exit 1
+              verdict=$(jq -r 'if any(.[]?; .annotation_level == "notice" and ((.message // "") | test("^a kill switch stops this (security )?review \\(")))
+                then "stopped" else "missing success" end' <<<"$notes")
+            fi
+            if [[ $verdict =~ ^unlisted\ ([1-9][0-9]*)$ ]]; then
+              job=${BASH_REMATCH[1]}
+              notes=$(read_api "the annotations of job $job" "repos/$GITHUB_REPOSITORY/check-runs/$job/annotations?per_page=100") || exit 1
+              verdict=$(jq -r --arg want "claude-lane-review-complete lane=$lane sha=$HEAD_SHA" '
+                if any(.[]?; .annotation_level == "notice" and .title == "claude-lane-review-complete"
+                  and ((.message // "") as $m | $m == $want or ($m | startswith($want + " "))))
+                then "pass-notice" else "unproven" end' <<<"$notes")
+            fi
             case $verdict in
             pass) echo "'$check' passed on $HEAD_SHA ($url)." ;;
+            pass-notice) echo "'$check' passed on $HEAD_SHA ($url): GitHub listed no 'Apply the hold' step with a conclusion, and the job's review-complete notice names $lane and this head." ;;
+            unproven)
+              echo "::error::'$check' passed in $url, but GitHub listed no 'Apply the hold' step with a conclusion and the job records no review-complete notice for $lane on $HEAD_SHA, so it is not a review that counts. Re-run this run."
+              failed=1
+              ;;
             stopped) echo "::notice::a kill switch stopped '$check' on $HEAD_SHA ($url); the lane is not required." ;;
             pending)
               echo "::error::'$check' has not finished on $HEAD_SHA ($url). ci-status re-runs when the review finishes."
@@ -4067,22 +4206,6 @@ jobs:
           fi
           [ "$held" -eq 0 ] || exit 1
           echo "#$pr carries neither 'do-not-merge' nor '$human_gated'."
-      # The lanes-hold step below runs node; pin it to main's .node-version,
-      # as every other Node job is, rather than the runner image's default.
-      - name: Check out main's Node pin
-        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-          path: .base
-          persist-credentials: false
-          sparse-checkout: .node-version
-          sparse-checkout-cone-mode: false
-      - name: Set up Node
-        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .base/.node-version
       # A LANES APP PULL REQUEST IS HELD BY ITS TEXT TOO. pr-merge.yml's
       # enable-auto-merge job arms native auto-merge on lanes App pull
       # requests, which then merge without pr-merge's gate, so this step fails

@@ -14,15 +14,18 @@
 //
 // It then adds the class label, sets the three issue fields (their ids from
 // models.issue-dimensions, checked against the ids GitHub answers) and adds
-// `status: ready` when the class, all three fields and no flag parsed, no
-// hold label (needs-human, status: needs-info, status: needs-decision) is on
-// the issue, and nothing it found conflicts; otherwise `status: needs-decision`
-// (unless a needs-info or needs-decision status is already there) and never
-// `status: ready`; a `needs-triage` the triage left also keeps it from ready. Only the lanes App's own earlier class and field values
-// give way to the new verdict; a class or value anyone else set, or one whose
-// setter cannot be read, is kept and sends the issue to needs-decision, and a
-// hold class (structural, untrusted-provenance) is never taken off. The class
-// must be one of the repository's work-class labels. When it applied a class it rewrites the comment's
+// `status: ready` when all three fields and no flag parsed, no hold label
+// (needs-human, status: needs-info, status: needs-decision) is on the issue,
+// and nothing it found conflicts; otherwise `status: needs-decision` (unless a
+// needs-info or needs-decision status is already there) and never
+// `status: ready`; a `needs-triage` the triage left also keeps it from ready.
+// The work class gates nothing (owner Q85, #9668) except
+// `work-class: untrusted-provenance`, which holds the issue and is never taken
+// off. Only the lanes App's own earlier class and field values give way to the
+// new verdict; a field value anyone else set, or one whose setter cannot be
+// read, is kept and sends the issue to needs-decision, and a class anyone else
+// set is kept. A class that is not one of the repository's work-class labels
+// is not applied. When it applied a class it rewrites the comment's
 // "a maintainer confirms" lines. On `status: ready` it hands the verdict to
 // admit.mjs, which adds `agent-ready` when the admission rules and the caps
 // allow. Otherwise, when a done-when item is one the lane cannot perform,
@@ -59,7 +62,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { admit, loadRules, noteUnrunnable } from "./admit.mjs";
+import { admit, loadRules, noteUnrunnable, UNTRUSTED } from "./admit.mjs";
 
 export const MARKER = "<!-- claude-lane intake-triage -->";
 const LANE_BOT = "github-actions[bot]";
@@ -78,8 +81,6 @@ export const DIMENSIONS = Object.freeze({
   uncertainty: "Uncertainty",
 });
 const FLAGS = new Set(["intent", "security", "cost"]);
-// Classes that hold an issue for a person; the writer never takes one off.
-const HOLD_CLASSES = new Set(["work-class: structural", "work-class: untrusted-provenance"]);
 const CLASS_LINE = /^Proposed work class: (work-class: [a-z0-9-]+|none)$/;
 // The reusable's wording the verdict makes untrue once the class is applied.
 export const OLD_BASIS = "Basis: automated intake triage; a maintainer confirms or changes it.";
@@ -117,14 +118,10 @@ export function parseVerdict(body, dimensionsConfig, classes) {
   const problems = [];
   const escalated = String(body ?? "").includes(ESCALATED);
   const classMatch = CLASS_LINE.exec(lines[1] ?? "");
-  if (!classMatch) {
-    problems.push("the second line is not a `Proposed work class:` line");
-  }
-  let workClass = classMatch && classMatch[1] !== "none" && !escalated ? classMatch[1] : null;
-  if (workClass !== null && !classes.has(workClass)) {
-    problems.push(`\`${workClass.slice(0, 60)}\` is not a work-class label here`);
-    workClass = null;
-  }
+  const proposed = classMatch && classMatch[1] !== "none" && !escalated ? classMatch[1] : null;
+  const workClass = proposed !== null && classes.has(proposed) ? proposed : null;
+  // The hold reads the proposal itself, so a missing label cannot drop it.
+  const untrusted = proposed === UNTRUSTED;
 
   const lineValue = (prefix) => {
     const found = lines.filter((line) => line.startsWith(`${prefix}: `)).map((line) => line.slice(prefix.length + 2).trim());
@@ -161,7 +158,7 @@ export function parseVerdict(body, dimensionsConfig, classes) {
       problems.push(`\`Flags: ${flagText.slice(0, 40)}\` is not none or a list of ${[...FLAGS].join(", ")}`);
     }
   }
-  return { escalated, workClass, dimensions, flags, problems };
+  return { escalated, workClass, untrusted, dimensions, flags, problems };
 }
 
 // The writes the verdict calls for, given the issue's labels and its current
@@ -177,8 +174,8 @@ export function planWrites(verdict, { labels, fields, dimensionsConfig, appId, h
   if (verdict.escalated) {
     reasons.push("the triage run escalated");
   }
-  if (verdict.workClass === null && !verdict.escalated) {
-    reasons.push("no work class was proposed");
+  if (verdict.untrusted || labels.includes(UNTRUSTED)) {
+    reasons.push(`${UNTRUSTED} work needs a person`);
   }
 
   let classApplied = false;
@@ -189,14 +186,16 @@ export function planWrites(verdict, { labels, fields, dimensionsConfig, appId, h
       classApplied = true;
     } else if (held.length === 1 && held[0] === verdict.workClass) {
       classApplied = true;
-    } else if (held.length === 1 && !HOLD_CLASSES.has(held[0]) && isApp(classSetters[held[0]], appId)) {
+    } else if (held.length === 1 && held[0] !== UNTRUSTED && isApp(classSetters[held[0]], appId)) {
       // Only the lanes App's own earlier class gives way; anyone else's,
       // or one no event names, is kept.
       remove.push(held[0]);
       add.push(verdict.workClass);
       classApplied = true;
-    } else {
-      reasons.push(`the issue already carries ${held.join(", ")}`);
+    } else if (verdict.workClass === UNTRUSTED) {
+      // A hold label is added beside any class already held.
+      add.push(UNTRUSTED);
+      classApplied = true;
     }
   }
 
@@ -233,7 +232,7 @@ export function planWrites(verdict, { labels, fields, dimensionsConfig, appId, h
     reasons.push(`the issue carries ${NEEDS_TRIAGE}`);
   }
 
-  const ready = reasons.length === 0 && classApplied && verdict.dimensions !== null && verdict.flags !== null;
+  const ready = reasons.length === 0 && verdict.dimensions !== null && verdict.flags !== null;
   if (ready) {
     if (!labels.includes(READY)) {
       add.push(READY);
