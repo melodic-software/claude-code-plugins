@@ -11,7 +11,7 @@ import { after, test } from "node:test";
 
 import { main as headRefs } from "./head-ref-map.mjs";
 import { main as laneRecords } from "./lane-records.mjs";
-import { main, rotate } from "./rotation.mjs";
+import { main, rotate, sharedReads } from "./rotation.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const dir = mkdtempSync(join(tmpdir(), "rotation-"));
@@ -223,4 +223,16 @@ test("a run whose artifacts fill more than one page is asked by name", async () 
   assert.ok(result.calls.some((path) => path.endsWith("/runs/7/artifacts?name=pr-merge-head-refs")));
   assert.deepEqual(result.order, [20, 30, 10]);
   assert.equal(result.map, MAP);
+});
+
+test("a write through the shared reads is sent every time, never answered from the file", async () => {
+  const sent = [];
+  const actions = sharedReads(async (method, url) => {
+    sent.push(`${method} ${url}`);
+    return { ok: sent.length };
+  }, join(dir, "writes.json"));
+  const url = `/repos/${REPO}/issues/1/labels`;
+  assert.deepEqual(await actions("POST", url), { ok: 1 });
+  assert.deepEqual(await actions("POST", url), { ok: 2 });
+  assert.deepEqual(sent, [`POST ${url}`, `POST ${url}`]);
 });
