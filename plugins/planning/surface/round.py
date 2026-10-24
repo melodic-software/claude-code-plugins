@@ -314,7 +314,9 @@ def guard_revision(d, doc, qid, seq, force):
         newer = [
             e["seq"]
             for e in events
-            if not is_handled(doc, e["seq"]) and not e.get("withdrawn")
+            if not is_handled(doc, e["seq"])
+            and not e.get("withdrawn")
+            and not e.get("autoHandled")
         ]
         why = "an unhandled user event"
     else:
@@ -1635,7 +1637,9 @@ def unhandled_events(doc, r):
     return [
         e
         for e in r.get("events", [])
-        if not e.get("withdrawn") and not is_handled(doc, e.get("seq", 0))
+        if not e.get("withdrawn")
+        and not e.get("autoHandled")
+        and not is_handled(doc, e.get("seq", 0))
     ]
 
 
