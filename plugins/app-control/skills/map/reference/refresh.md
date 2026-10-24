@@ -142,10 +142,11 @@ Then the outcome:
 - Something to ship: **changed**. An attended pass shows the proposed edits and asks before writing,
   committing or opening anything; declined, they go in the report unwritten. An unattended pass
   goes on. Then:
-  1. **Branch.** The branch is `control-skill-upkeep/<skill slug>`, the control skill's directory
-     name (`.claude/skills/control-shop` gives `control-skill-upkeep/control-shop`), the only branch
-     a pass writes for that skill. When a `feature-map-upkeep/<slug>` branch exists for the same
-     map, report it with its open pull request if any; never commit to it, merge it or adopt it.
+  1. **Branch.** The branch is `control-skill-upkeep/control-<slug>`, the control skill's full
+     directory name (`.claude/skills/control-shop` gives `control-skill-upkeep/control-shop`, never
+     `control-skill-upkeep/shop`), the only branch a pass writes for that skill. When a
+     `feature-map-upkeep/<slug>` branch exists for the same map, report it with its open pull
+     request if any; never commit to it, merge it or adopt it.
      Create the upkeep branch from the default branch when it does not exist; when it does, merge
      the default branch into it, never a rebase. Before switching, run
      `git ls-files -- "<dir>"` and `git status --porcelain --untracked-files=all`:
