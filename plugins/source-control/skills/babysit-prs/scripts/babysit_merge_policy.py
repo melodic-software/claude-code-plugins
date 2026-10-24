@@ -1323,9 +1323,9 @@ class Demotion:
     active: bool
     reason: str | None
     records: tuple[int, ...]
-    # The newest record's creation, which restarts the promotion evidence
-    # window, and the newest human close among cleared records, which restarts
-    # the post-merge floor. Read only while no record holds.
+    # The newest record's creation (read by babysit_postmerge), and the newest
+    # human close among cleared records, which restarts the post-merge floor.
+    # Read only while no record holds.
     newest_created: datetime | None = None
     cleared_at: datetime | None = None
 
@@ -1376,6 +1376,17 @@ def _record_hold(issue: dict[str, Any], human: Callable[[Any], bool]) -> str | N
         return "closed-by-reference"
     if not human(close.get("actor")):
         return "closed-by-non-human"
+    return _edits_refusal(issue, human)
+
+
+def _edits_refusal(issue: dict[str, Any], human: Callable[[Any], bool]) -> str | None:
+    """Why an issue's edit history (`userContentEdits`, as `DEMOTION_RECORD`
+    reads it) is not all a human's, or None: it was read short, an edit was
+    deleted, or a non-human made an edit other than the author's original."""
+    edits = json_object(issue.get("userContentEdits"))
+    nodes = [json_object(node) for node in json_array(edits.get("nodes"))]
+    if edits.get("totalCount") != len(nodes):
+        return "edit-history-incomplete"
     if any(edit.get("deletedAt") or edit.get("diff") is None for edit in nodes):
         return "edit-history-deleted"
     # GitHub lists the original body as the author's edit at creation time,
@@ -1739,11 +1750,13 @@ def admission_label(owner: str, name: str, ref: str) -> str:
         config = json.loads(text)
     except ValueError as exc:
         raise PolicyReadError(f"{TRACKER_CONFIG} at {ref} is not JSON: {exc}") from exc
-    roles = json_object(json_object(json_object(config).get("config")).get("role_labels"))
-    label = roles.get(ADMISSION_ROLE)
-    return label.strip() if isinstance(label, str) and label.strip() else (
-        DEFAULT_ADMISSION_LABEL
+    roles = json_object(
+        json_object(json_object(config).get("config")).get("role_labels")
     )
+    label = roles.get(ADMISSION_ROLE)
+    if isinstance(label, str) and label.strip():
+        return label.strip()
+    return DEFAULT_ADMISSION_LABEL
 
 
 def _vouch_refusal(
@@ -1756,10 +1769,22 @@ def _vouch_refusal(
     label: Callable[[], str],
 ) -> str | None:
     """Why no human vouched for the linked issue, or None: a human with write
-    access wrote it, or a human applied the admission label in person with no
-    body edit after it (`_label_provenance`)."""
+    access wrote it and no non-human edited its body since (`_edits_refusal`
+    over the `DEMOTION_RECORD` read), or a human applied the admission label
+    in person with no body edit or title change after it
+    (`_label_provenance`, `renamed` timeline events)."""
     if human(issue.get("author")):
-        return None
+        if not issue.get("lastEditedAt"):
+            return None
+        number = issue["number"]
+        data = _graphql(DEMOTION_RECORD, f"issue #{number}", o=owner, r=name, n=number)
+        record = json_object(json_object(data.get("repository")).get("issue"))
+        if not record:
+            raise PolicyReadError(f"issue #{number}: the edit history is unreadable")
+        edited = _edits_refusal(record, human)
+        if edited == "edited-by-non-human":
+            return "issue-not-vouched:body-edited-by-non-human"
+        return f"issue-not-vouched:{edited}" if edited else None
     wanted = label().casefold()
     applied = next((n for n in labels if n.casefold() == wanted), None)
     if applied is None:
@@ -1773,7 +1798,21 @@ def _vouch_refusal(
         human,
         timelines,
     )
-    return f"issue-not-vouched:{untrusted}" if untrusted else None
+    if untrusted:
+        return f"issue-not-vouched:{untrusted}"
+    events = _timeline(owner, name, issue["number"], timelines)
+    labeled = max(
+        _time(e.get("created_at"))
+        for e in events
+        if e.get("event") == "labeled"
+        and json_object(e.get("label")).get("name") == applied
+    )
+    if any(
+        e.get("event") == "renamed" and _time(e.get("created_at")) > labeled
+        for e in events
+    ):
+        return "issue-not-vouched:title-edited-after-label"
+    return None
 
 
 def recheck_opt_in(

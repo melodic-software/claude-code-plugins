@@ -1129,6 +1129,132 @@ class IssueVouch(unittest.TestCase):
         gh.rest[f"repos/{REPO}/contents?ref=main"] = []
         self.assertEqual(policy.admission_label("owner", "repo", "main"), "agent-ready")
 
+    def test_an_admission_label_applied_through_an_app_is_refused(self) -> None:
+        gh = self.outside_issue(["agent-ready"], {"login": OPERATOR, "type": "User"})
+        gh.rest[self.TIMELINE][0]["performed_via_github_app"] = {"slug": "agent"}
+        self.assertEqual(eligibility().reason, "issue-not-vouched:labeler-via-app")
+
+    def test_an_admission_label_from_a_read_only_person_is_refused(self) -> None:
+        self.outside_issue(["agent-ready"], {"login": "reader", "type": "User"})
+        self.assertEqual(eligibility().reason, "issue-not-vouched:labeler-not-human")
+
+    def test_a_failed_timeline_read_refuses(self) -> None:
+        gh = self.outside_issue(["agent-ready"], {"login": OPERATOR, "type": "User"})
+        gh.rest[self.TIMELINE] = 502
+        result = eligibility()
+        self.assertFalse(result.eligible)
+        self.assertTrue(result.reason.startswith("unreadable:"), result.reason)
+
+    def test_a_title_rename_after_the_label_is_refused(self) -> None:
+        gh = self.outside_issue(["agent-ready"], {"login": OPERATOR, "type": "User"})
+        gh.rest[self.TIMELINE].append(
+            {
+                "event": "renamed",
+                "actor": {"login": OUTSIDER, "type": "User"},
+                "rename": {"from": "Fix a typo", "to": "Rewrite the merge gate"},
+                "created_at": "2026-10-11T10:00:00Z",
+            }
+        )
+        self.assertEqual(
+            eligibility().reason, "issue-not-vouched:title-edited-after-label"
+        )
+        # A rename before the label is what the labeler read: it vouches.
+        gh.rest[self.TIMELINE][-1]["created_at"] = "2026-10-11T08:00:00Z"
+        self.assertTrue(eligibility().eligible)
+
+    def tracker(self, gh: GhFake, text: str) -> None:
+        gh.rest[f"repos/{REPO}/contents/.work-item-tracker.json?ref=main"] = {
+            "type": "file",
+            "encoding": "base64",
+            "content": base64.b64encode(text.encode()).decode(),
+        }
+
+    def test_the_production_default_reads_the_tracker_at_the_base(self) -> None:
+        # No `admission=` override: the label comes from the base branch's
+        # tracker config, here mapped away from the default name.
+        gh = eligibility_fake(
+            self,
+            pr={"baseRefName": "main"},
+            issue={
+                "author": user(OUTSIDER),
+                "labels": {"totalCount": 1, "nodes": [{"name": "ready-for-agent"}]},
+            },
+        )
+        gh.rest[self.TIMELINE] = [
+            {
+                "event": "labeled",
+                "label": {"name": "ready-for-agent"},
+                "actor": {"login": OPERATOR, "type": "User"},
+                "created_at": "2026-10-11T09:00:00Z",
+            }
+        ]
+        mapped = {"config": {"role_labels": {"autonomous-eligible": "ready-for-agent"}}}
+        self.tracker(gh, json.dumps(mapped))
+        production = policy.eligibility(
+            REPO, 7, agent_identity=IDENTITY, permission=HUMANS
+        )
+        self.assertTrue(production.eligible, production.reason)
+
+    def test_a_non_json_tracker_config_refuses_unreadable(self) -> None:
+        gh = self.outside_issue(["agent-ready"], {"login": OPERATOR, "type": "User"})
+        gh.graphql["PolicyEligibility"]["repository"]["pullRequest"]["baseRefName"] = (
+            "main"
+        )
+        self.tracker(gh, "{ not json")
+        result = policy.eligibility(REPO, 7, agent_identity=IDENTITY, permission=HUMANS)
+        self.assertFalse(result.eligible)
+        self.assertTrue(result.reason.startswith("unreadable:"), result.reason)
+
+    def edited_issue(self, editor: dict[str, str]) -> GhFake:
+        created = "2026-10-10T09:00:00Z"
+        gh = eligibility_fake(self, issue={"lastEditedAt": "2026-10-11T10:00:00Z"})
+        gh.graphql["PolicyDemotionRecord"] = {
+            "repository": {
+                "issue": {
+                    "number": ISSUE,
+                    "createdAt": created,
+                    "author": user(OPERATOR),
+                    "userContentEdits": {
+                        "totalCount": 2,
+                        "nodes": [
+                            {
+                                "editedAt": "2026-10-11T10:00:00Z",
+                                "deletedAt": None,
+                                "editor": editor,
+                                "diff": "rewritten",
+                            },
+                            {
+                                "editedAt": created,
+                                "deletedAt": None,
+                                "editor": user(OPERATOR),
+                                "diff": "original",
+                            },
+                        ],
+                    },
+                }
+            }
+        }
+        return gh
+
+    def test_a_human_issue_rewritten_by_the_lane_app_is_refused(self) -> None:
+        self.edited_issue(bot("agent-lanes"))
+        self.assertEqual(
+            eligibility().reason, "issue-not-vouched:body-edited-by-non-human"
+        )
+
+    def test_a_human_issue_edited_only_by_its_author_passes(self) -> None:
+        self.edited_issue(user(OPERATOR))
+        result = eligibility()
+        self.assertTrue(result.eligible, result.reason)
+
+    def test_an_incomplete_edit_history_refuses(self) -> None:
+        gh = self.edited_issue(user(OPERATOR))
+        record = gh.graphql["PolicyDemotionRecord"]["repository"]["issue"]
+        record["userContentEdits"]["totalCount"] = 101
+        self.assertEqual(
+            eligibility().reason, "issue-not-vouched:edit-history-incomplete"
+        )
+
 
 class Eligibility(unittest.TestCase):
     def test_a_lane_authored_pr_with_one_issue_and_an_earlier_claim(
@@ -1302,7 +1428,8 @@ class Eligibility(unittest.TestCase):
         ]
         self.assertIsNone(eligibility().reason)
 
-        eligibility_fake(self, issue={"lastEditedAt": "2026-10-11T10:00:00Z"})
+        # A body edit after the class label, by the human author.
+        IssueVouch.edited_issue(self, user(OPERATOR))
         self.assertIsNone(eligibility().reason)
 
     def test_the_lane_claim_must_predate_the_pr(self) -> None:
