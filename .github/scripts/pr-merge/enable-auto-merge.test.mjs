@@ -206,12 +206,12 @@ const lanesSaid = (body, updatedAt = "2026-10-23T10:00:00Z") => ({
   updatedAt,
   authorAssociation: "NONE",
 });
-const HOLD_PATH_REASON = "it changes .github/workflows/x.yml, a hold path";
+const HOLD_PATH_REASON = "it changes docs/held.md, a hold path";
 const MISSING = { refusal: "verify:missing", needsHuman: false, head: HEAD, ineligible: null, reviews: null };
 const MISSING_REASON = "pr-merge's gate refuses its verifier verdict (verify:missing)";
 
 test("a refusal a person must clear is commented on and labeled human-gated", async () => {
-  const held = pull(1, { files: [{ filename: ".github/workflows/x.yml" }] });
+  const held = pull(1, { files: [{ filename: "docs/held.md" }] });
   const { code, writes, notes } = await run([held]);
   assert.equal(code, 0);
   assert.deepEqual(writes, []);
@@ -239,7 +239,7 @@ test("a refusal a lane clears is commented on, with no label", async () => {
 
 test("an unchanged refusal writes nothing, and a label a person removed stays off", async () => {
   const lane = pull(1, { verdict: MISSING, discussion: { comments: [lanesSaid(laneNote(MISSING_REASON))] } });
-  const person = pull(2, { files: [{ filename: ".github/workflows/x.yml" }], discussion: { comments: [lanesSaid(personNote(HOLD_PATH_REASON))] } });
+  const person = pull(2, { files: [{ filename: "docs/held.md" }], discussion: { comments: [lanesSaid(personNote(HOLD_PATH_REASON))] } });
   const { code, notes } = await run([lane, person]);
   assert.equal(code, 0);
   assert.deepEqual(notes, []);
@@ -266,7 +266,7 @@ test("a risk hold is a lane's until its comment has stood an hour unchanged, the
 
 test("an armed pull request, an event run and report-only write no refusal note", async () => {
   assert.deepEqual((await run([pull(1)])).notes, []);
-  const armedHeld = pull(2, { autoMergeRequest: {}, files: [{ filename: ".github/workflows/x.yml" }] });
+  const armedHeld = pull(2, { autoMergeRequest: {}, files: [{ filename: "docs/held.md" }] });
   const event = await run([armedHeld], { EVENT_NAME: "pull_request" });
   assert.deepEqual(event.writes, [{ mutation: "disarm", id: "PR_2" }]);
   assert.deepEqual(event.notes, []);
@@ -586,29 +586,39 @@ test("the comment veto agrees with the gate's HUMAN_MERGE_VETO_RE", () => {
 // a later push can add a held path to a pull request that is already armed.
 test("a pull request whose head now changes a hold path is not armed, or is disarmed", async () => {
   const { writes } = await run([
-    pull(1, { files: [{ filename: ".github/workflows/x.yml" }] }),
-    pull(2, { autoMergeRequest: {}, files: [{ filename: "plugins/a/README.md" }, { filename: "docs/a.md", previous_filename: ".github/a.md" }] }),
+    pull(1, { files: [{ filename: "docs/conventions/pr-pipeline.yaml" }] }),
+    pull(2, {
+      autoMergeRequest: {},
+      files: [{ filename: "plugins/a/README.md" }, { filename: "docs/a.md", previous_filename: ".github/standards/trusted-actors/trusted-actors.json" }],
+    }),
     pull(3, { files: Array.from({ length: 301 }, (_, index) => ({ filename: `docs/${index}.md` })) }),
     pull(4, { files: [{ filename: "docs/held.md" }] }),
     pull(5),
+    // The rest of .github merges on the review lanes.
+    pull(6, { files: [{ filename: ".github/workflows/x.yml" }, { filename: ".github/scripts/pr-merge/merge-holds.mjs" }] }),
   ]);
   assert.deepEqual(writes, [
     { mutation: "disarm", id: "PR_2" },
     { mutation: "arm", id: "PR_5", head: HEAD },
+    { mutation: "arm", id: "PR_6", head: HEAD },
   ]);
 });
 
-// The gate scores the marketplace manifest HIGH (babysit_risk.is_manifest_path),
-// so it is a hold path like every plugin manifest.
-test("a pull request whose head changes the marketplace manifest is not armed, or is disarmed", () => {
+// A manifest is no hold path: the gate's reader scores it (`evidence
+// --lane-reviews`, babysit_risk manifest-review-required), so a manifest
+// change the gate reviews is not armed, or is disarmed, and one it does not,
+// such as a plugin.json userConfig default (#9483), arms.
+test("a manifest change arms only when the gate's risk score allows it", () => {
   const options = { bot: LANES.login, humanGated: "needs-human", holdPaths: [] };
-  const files = ["docs/a.md", ".claude-plugin/marketplace.json"];
-  assert.deepEqual(decide(pull(1), options, { ...detail(), files, verify: PASSED }), {
+  const files = ["docs/a.md", ".claude-plugin/marketplace.json", "plugins/a/.claude-plugin/plugin.json"];
+  const review = { ...PASSED, reviews: "manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks" };
+  assert.deepEqual(decide(pull(1), options, { ...detail(), files, verify: review }), {
     action: "none",
-    reason: "it changes .claude-plugin/marketplace.json, a hold path",
-    clears: "person",
+    reason: "pr-merge's gate holds it on its risk score (manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks)",
+    clears: "risk",
   });
-  assert.equal(decide(pull(1, { autoMergeRequest: {} }), options, { ...detail(), files, verify: PASSED }).action, "disarm");
+  assert.equal(decide(pull(1, { autoMergeRequest: {} }), options, { ...detail(), files, verify: review }).action, "disarm");
+  assert.deepEqual(decide(pull(1), options, { ...detail(), files, verify: PASSED }), { action: "arm", reason: "no hold" });
 });
 
 // The gate holds a cost path (babysit_risk.COST_PATHS) until the body links
@@ -658,12 +668,15 @@ test("merge-holds.mjs holds a changed or renamed-from hold path from the command
     return spawnSync(process.execPath, [fileURLToPath(new URL("./merge-holds.mjs", import.meta.url)), ...args], { encoding: "utf8" });
   };
   assert.equal(cli([["docs/a.md"]], ["docs/held.md"]).status, 0);
-  assert.match(cli([[".github/workflows/.x.yml"]], []).stdout, /it changes \.github\/workflows\/\.x\.yml, a hold path/);
+  assert.match(cli([[".github/actions/resolve-config/.x.mjs"]], []).stdout, /it changes \.github\/actions\/resolve-config\/\.x\.mjs, a hold path/);
+  assert.equal(cli([[".github/workflows/x.yml"]], []).status, 0);
+  // A manifest's sides are read at BASE_SHA and the head, none given here.
+  assert.match(cli([{ filename: "plugins/a/.claude-plugin/plugin.json", status: "modified" }], []).stdout, /plugin\.json \(contents unreadable\), a manifest change/);
   assert.match(cli([["plugins/a/.hidden"]], ["plugins/**"]).stdout, /it changes plugins\/a\/\.hidden, a hold path/);
   assert.equal(cli([["plugins/a/x.md"]], ["plugins/*.md"]).status, 0);
-  const renamed = cli([["docs/a.md", ".github/a.md"]], []);
+  const renamed = cli([["docs/a.md", ".github/actions/check-trusted-trigger/a.md"]], []);
   assert.equal(renamed.status, 1);
-  assert.match(renamed.stdout, /it changes \.github\/a\.md, a hold path/);
+  assert.match(renamed.stdout, /it changes \.github\/actions\/check-trusted-trigger\/a\.md, a hold path/);
   assert.match(cli([["docs/held.md"]], ["docs/held.md"]).stdout, /it changes docs\/held\.md, a hold path/);
   assert.match(cli([["docs/a.md"]], "docs/held.md").stdout, /the hold paths could not be read/);
   const approve = (id, commit) => ({ user: { login: `u${id}`, id, type: "User" }, state: "APPROVED", commit_id: commit, submitted_at: "2026-10-23T11:00:00Z" });

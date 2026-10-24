@@ -179,6 +179,8 @@ cmd_record() {
     mapfile -d '' -t untracked < <(git_tree ls-files --others --exclude-standard -z)
     wait "$!" || die 1 "cannot read the working tree's untracked files"
     for path in "${untracked[@]}"; do
+      # The lane's sandbox masks a dotfile with /dev/null, a device git will not add.
+      [[ -L $workspace/$path || ! -c $workspace/$path ]] || continue
       is_stub "$path" || paths+=("$path")
     done
     ((${#paths[@]} < 300)) || die 1 "the working tree changes too many files to check"

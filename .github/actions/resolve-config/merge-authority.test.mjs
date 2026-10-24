@@ -57,7 +57,7 @@ const rejectedFor = (config, pattern) =>
 // forced denied paths.
 const VALID_MERGE = {
   rung: "off",
-  "diff-check": { "denied-paths": [CONFIG_PATH, ".github/**", TRUSTED_ACTORS] },
+  "diff-check": { "denied-paths": [CONFIG_PATH, TRUSTED_ACTORS] },
   "stack-landing": "manual",
   "lane-prs": "native",
 };

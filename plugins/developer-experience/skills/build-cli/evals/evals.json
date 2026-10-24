@@ -23,6 +23,17 @@
         "The response fixes the page count calculation",
         "The response does not plan or build a command-line tool and does not edit the tooling conventions"
       ]
+    },
+    {
+      "id": 3,
+      "name": "flags-child-process-with-inherited-handles",
+      "prompt": "Review our `app start` command before I merge it. It spawns the app server with the default stdio so its logs show up in the terminal, prints `started`, and returns. Our deploy script runs `app start` with its output piped to a log collector, and the step never finishes.",
+      "expected_output": "The review flags that the child inherits the caller's stdin, stdout and stderr, so the piped caller keeps waiting while the app holds the pipe, and says to start the app with the three redirected to null or a file and detached from the caller.",
+      "files": [],
+      "expectations": [
+        "The review names the inherited stdin, stdout and stderr handles as the cause of the hanging piped caller",
+        "The review recommends redirecting the child's handles to null or a file and detaching it, and cites the contract rule rather than a personal preference"
+      ]
     }
   ]
 }
