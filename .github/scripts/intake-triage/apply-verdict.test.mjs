@@ -1018,6 +1018,29 @@ describe("run", () => {
     assert.ok(patch.body.body.includes(READY), patch.body.body);
   });
 
+  test("a ready verdict that admission refuses or errors on does not mark the earlier comment ready", async () => {
+    for (const outcome of ["refused", "error"]) {
+      const fake = fakeGitHub({
+        comments: [laneComment(), { id: 51, body: `${VERDICT_MARKER}\nold`, user: { id: LANES_APP, type: "Bot" } }],
+      });
+      const result = await run({
+        env: ENV,
+        github: fake.github,
+        dimensionsConfig: DIMS,
+        fieldSetters: noSetters,
+        admitIssue: async () => {
+          if (outcome === "error") throw new Error("boom");
+          return { outcome, reasons: ["no acceptance criteria"] };
+        },
+        log: () => {},
+      });
+      const patch = writes(fake.calls).find(({ path }) => path === "/repos/o/r/issues/comments/51");
+      assert.ok(patch, `${outcome}: the earlier comment is edited`);
+      assert.ok(!patch.body.body.includes(READY), `${outcome}: ${patch.body.body}`);
+      assert.ok(!result.summary.includes(`- Status: ${READY}`), `${outcome}: ${result.summary}`);
+    }
+  });
+
   test("writes a blocked-by edge for each open issue the verdict names, before admission", async () => {
     const order = [];
     const fake = fakeGitHub({

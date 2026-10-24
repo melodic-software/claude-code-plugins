@@ -432,7 +432,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
       admission = { outcome: "error", reasons: [String(error?.message ?? error)] };
     }
   }
-  await sayReasons(github, repository, base, comments, appId, plan);
+  await sayReasons(github, repository, base, comments, appId, plan, admission);
   if (plan.classApplied) {
     const reworded = rewordComment(comment.body);
     if (reworded !== null) {
@@ -446,7 +446,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     `- Work class: ${verdict.workClass ?? "none"}${plan.classApplied ? "" : " (not applied)"}`,
     `- Fields written: ${plan.fieldWrites.map(({ key, name }) => `${DIMENSIONS[key]} ${name}`).join(", ") || "none"}`,
     `- Labels added: ${plan.add.join(", ") || "none"}; removed: ${plan.remove.join(", ") || "none"}`,
-    `- Status: ${plan.ready ? READY : NEEDS_DECISION}${plan.reasons.length ? ` (${plan.reasons.join("; ")})` : ""}`,
+    `- Status: ${plan.ready ? (settled(admission) ?? READY) : NEEDS_DECISION}${plan.reasons.length ? ` (${plan.reasons.join("; ")})` : ""}`,
     ...(edges || verdict.blockedByProblem ? [`- Blocked by: ${edgeSummary(edges, verdict.blockedByProblem)}`] : []),
     ...(admission ? [`- Admission: ${admission.outcome}${admission.reasons.length ? ` (${admission.reasons.join("; ")})` : ""}`] : []),
   ].join("\n");
@@ -473,16 +473,28 @@ const edgeSummary = (edges, problem) =>
     ...(problem ? [problem] : []),
   ].join("; ");
 
+// Where a ready verdict leaves the issue after admission, when admission
+// moved it off `status: ready` or did not finish; null when it stays ready.
+const settled = (admission) =>
+  admission?.outcome === "refused" ? NEEDS_DECISION : admission?.outcome === "error" ? "not settled: admission did not finish" : null;
+
 // One lanes App comment, edited in place, says why the verdict holds the
-// issue; a later ready verdict marks it settled. None is posted for a ready
-// verdict that never held.
-async function sayReasons(github, repository, base, comments, appId, plan) {
+// issue; a later ready verdict marks it settled, naming the status admission
+// left. None is posted for a ready verdict that never held.
+async function sayReasons(github, repository, base, comments, appId, plan, admission) {
   const own = comments.find((c) => isApp(c.user?.id, appId) && String(c.body ?? "").startsWith(`${VERDICT_MARKER}\n`));
   if (plan.ready && !own) {
     return;
   }
+  const after = settled(admission);
   const body = plan.ready
-    ? `${VERDICT_MARKER}\nThe latest triage verdict holds nothing: the issue is at \`${READY}\`.`
+    ? `${VERDICT_MARKER}\nThe latest triage verdict holds nothing: ${
+        after === NEEDS_DECISION
+          ? `admission moved the issue to \`${NEEDS_DECISION}\`; its comment says why.`
+          : after
+            ? "admission did not finish, so the issue's status is not settled."
+            : `the issue is at \`${READY}\`.`
+      }`
     : [
         VERDICT_MARKER,
         `The triage verdict left this issue at \`${NEEDS_DECISION}\`:`,
