@@ -20,6 +20,7 @@ import {
   readEntries,
   readFingerprint,
   renderDigest,
+  renderDigestComment,
   renderEntry,
   validateFinding,
 } from "./findings.mjs";
@@ -198,6 +199,44 @@ test("a finding covered by the digest itself stays in the digest", () => {
   const plan = planDigest({ items: [item("00000000000000a1", { covered_by: 50 })], existing: [open], openNumbers: new Set([50]) });
   assert.deepEqual(plan.skip, []);
   assert.equal(plan.action, null);
+});
+
+test("a tracking issue that closes rewrites the entry in full, and one that opens points the entry at it", () => {
+  const fp = "00000000000000a1";
+  const tracker = issue(9620, { fp });
+  const first = planDigest({ items: [item(fp)], existing: [tracker], openNumbers: new Set([9620]) });
+  assert.equal(first.action, "file");
+  const open = digest(first.entries);
+  assert.match(open.body, /Tracked in #9620\./);
+  assert.equal(planDigest({ items: [item(fp)], existing: [tracker, open], openNumbers: new Set([9620]) }).action, null);
+
+  const closedTracker = { ...tracker, state: "closed", state_reason: "completed" };
+  const after = planDigest({ items: [item(fp)], existing: [closedTracker, open], openNumbers: new Set() });
+  assert.equal(after.action, "update");
+  assert.deepEqual(
+    after.retracked.map((e) => [e.fingerprint, e.tracked]),
+    [[fp, null]],
+  );
+  const body = renderDigest(after.entries, RUN);
+  assert.doesNotMatch(body, /Tracked in #9620/);
+  assert.match(body, /\*\*Problem\*\*/);
+  assert.match(renderDigestComment(after, RUN), /Tracking changed:\n\n- .*: now tracked here/);
+
+  const back = planDigest({ items: [item(fp)], existing: [tracker, { ...open, body }], openNumbers: new Set([9620]) });
+  assert.equal(back.action, "update");
+  assert.match(renderDigestComment(back, RUN), /now tracked in #9620/);
+});
+
+test("the tracking issue survives an entry cut to its short form", () => {
+  const big = "y".repeat(MAX_FIELD * 3);
+  const entries = Array.from({ length: 24 }, (_, i) => {
+    const fp = i.toString(16).padStart(16, "0");
+    return { fingerprint: fp, tracked: 700 + i, title: "t", text: renderEntry({ fingerprint: fp, finding: finding({ problem: big }), tracked: 700 + i }) };
+  });
+  assert.deepEqual(
+    readEntries(renderDigest(entries, RUN)).map((e) => e.tracked),
+    entries.map((e) => e.tracked),
+  );
 });
 
 test("an incomplete sweep keeps every earlier entry it did not see", () => {

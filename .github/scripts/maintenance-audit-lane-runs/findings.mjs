@@ -96,7 +96,7 @@ const claimsOf = (finding) => finding.evidence.map((c) => `${c.path}:${c.line}: 
 // the fingerprint of the entry set. Each entry opens with its own marker.
 export const DIGEST_MARKER = "<!-- lane-sweep-digest -->";
 export const DIGEST_TITLE = "Lane sweep: open findings";
-const ENTRY = /^<!-- lane-sweep-entry fp=([0-9a-f]{16}) -->$/;
+const ENTRY = /^<!-- lane-sweep-entry fp=([0-9a-f]{16})(?: tracked=([1-9][0-9]*))? -->$/;
 const END = "<!-- lane-sweep-end -->";
 export const MAX_FIELD = 2000;
 export const BODY_LIMIT = 60000;
@@ -112,7 +112,7 @@ const clip = (text) => {
 // One entry's section, model text inside fences. A finding an earlier sweep
 // filed an open issue for points at that issue instead of repeating it.
 export function renderEntry({ fingerprint: fp, finding, tracked = null }) {
-  const head = [`<!-- lane-sweep-entry fp=${fp} -->`, `### ${inertTitle(finding.title)}`, ""];
+  const head = [`<!-- lane-sweep-entry fp=${fp}${tracked ? ` tracked=${tracked}` : ""} -->`, `### ${inertTitle(finding.title)}`, ""];
   if (tracked) return [...head, `Slice ${finding.slice}, fingerprint \`${fp}\`. Tracked in #${tracked}.`].join("\n");
   return [
     ...head,
@@ -143,16 +143,20 @@ const shortEntry = (entry) =>
     "\n",
   );
 
+// The entry set and which issue tracks each entry. An entry's details are not
+// in it, so a reworded problem or a shifted quote writes nothing; a tracking
+// issue opening or closing rewrites the body.
+const entryKey = (e) => `${e.fingerprint}:${e.tracked ?? ""}`;
 export const digestFingerprint = (entries) =>
   createHash("sha256")
-    .update(JSON.stringify(entries.map((e) => e.fingerprint).sort()))
+    .update(JSON.stringify(entries.map(entryKey).sort()))
     .digest("hex")
     .slice(0, 16);
 
 export function renderDigest(entries, runUrl) {
   const head = [
     DIGEST_MARKER,
-    `The lane sweep's open findings, as of [this run](${runUrl}). Each daily sweep replaces this body: a finding it no longer sees drops off, and a change adds a comment. A model wrote the fenced text from CI data, which can carry text written to steer it; every cited line was checked against main in the run that found it. A rewrite takes \`agent-ready\` off. Closing this issue as not planned or duplicate mutes the digest; closing it otherwise lets the next change reopen it.`,
+    `The lane sweep's open findings, as of [this run](${runUrl}). A sweep whose findings differ from this list, or whose findings' tracking issues opened or closed, replaces this body and adds a comment: a finding it no longer sees drops off. An entry keeps the details of the sweep that last rewrote the body. A model wrote the fenced text from CI data, which can carry text written to steer it; every cited line was checked against main in the run that found it. A rewrite takes \`agent-ready\` off. Closing this issue as not planned or duplicate mutes the digest; closing it otherwise lets the next change reopen it.`,
     "",
     entries.length === 0 ? "No open finding." : `${entries.length} open finding${entries.length === 1 ? "" : "s"}.`,
   ].join("\n");
@@ -185,22 +189,27 @@ export function readEntries(body) {
       current = null;
       break;
     }
-    current = { fingerprint: m[1], lines: [line] };
+    current = { fingerprint: m[1], tracked: m[2] ? Number(m[2]) : null, lines: [line] };
   }
   if (current) entries.push(current);
-  return entries.map(({ fingerprint: fp, lines }) => ({
+  return entries.map(({ fingerprint: fp, tracked, lines }) => ({
     fingerprint: fp,
+    tracked,
     title: (lines[1] ?? "").replace(/^### /, ""),
     text: lines.join("\n").trimEnd(),
   }));
 }
 
-export function renderDigestComment({ added, dropped }, runUrl) {
+export function renderDigestComment({ added, dropped, retracked = [] }, runUrl) {
   const list = (entries) => entries.map((e) => `- ${e.title} (\`${e.fingerprint}\`)`);
+  const where = (e) => (e.tracked ? `tracked in #${e.tracked}` : "tracked here");
   return [
     `Changed in [this run](${runUrl}).`,
     ...(added.length > 0 ? ["", "New:", "", ...list(added)] : []),
     ...(dropped.length > 0 ? ["", "No longer seen:", "", ...list(dropped)] : []),
+    ...(retracked.length > 0
+      ? ["", "Tracking changed:", "", ...retracked.map((e) => `- ${e.title} (\`${e.fingerprint}\`): now ${where(e)}`)]
+      : []),
   ].join("\n");
 }
 
@@ -252,7 +261,7 @@ export function planDigest({ items, existing, openNumbers, complete = true }) {
       continue;
     }
     const tracked = match?.state === "open" ? match.number : null;
-    entries.push({ fingerprint: fp, title: inertTitle(finding.title), text: renderEntry({ fingerprint: fp, finding, tracked }) });
+    entries.push({ fingerprint: fp, tracked, title: inertTitle(finding.title), text: renderEntry({ fingerprint: fp, finding, tracked }) });
   }
   const before = digest ? readEntries(digest.body) : [];
   if (!complete) {
@@ -261,13 +270,14 @@ export function planDigest({ items, existing, openNumbers, complete = true }) {
       seen.add(entry.fingerprint);
     }
   }
-  const was = new Set(before.map((e) => e.fingerprint));
+  const was = new Map(before.map((e) => [e.fingerprint, e]));
   const plan = {
     action: null,
     number: digest?.number ?? null,
     entries,
     added: entries.filter((e) => !was.has(e.fingerprint)),
     dropped: before.filter((e) => !seen.has(e.fingerprint)),
+    retracked: entries.filter((e) => was.has(e.fingerprint) && was.get(e.fingerprint).tracked !== e.tracked),
     skip,
   };
   const unchanged = digest !== null && lastLineFp(digest.body) === digestFingerprint(entries);

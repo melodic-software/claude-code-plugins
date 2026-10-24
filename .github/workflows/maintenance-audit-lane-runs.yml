@@ -307,6 +307,7 @@ jobs:
           BASE_DIR: .base
           FINDINGS_DIR: ${{ runner.temp }}/lane-sweep-findings
           UNITS_DIR: ${{ runner.temp }}/lane-sweep/units
+          COLLECT_STATUS_PATH: ${{ runner.temp }}/lane-sweep/collect-status.json
           OPEN_ITEMS_PATH: ${{ runner.temp }}/lane-sweep/open-items.json
           CALL_BUDGET: "50"
         run: |

@@ -19,7 +19,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
 import { collect, listFiled } from "./collect.mjs";
-import { planIssues, readMarker, renderBody, renderComment, renderSupersede, titleOf } from "./issues.mjs";
+import { planIssues, readMarker, renderBody, renderComment, renderSupersede, titleOf, unreadSignals } from "./issues.mjs";
 import { detect } from "./signals.mjs";
 
 // No needs-triage: a rolling issue is a status record the lane rewrites, not
@@ -149,7 +149,7 @@ async function main(env = process.env) {
   });
   const findings = detect(data);
   const existing = (await listFiled({ get, repo })).filter((i) => readMarker(i.body));
-  const plan = planIssues({ findings, existing, complete: data.gaps.length === 0 });
+  const plan = planIssues({ findings, existing, unread: unreadSignals(data.gaps) });
   const runUrl = `${env.GITHUB_SERVER_URL ?? "https://github.com"}/${repo}/actions/runs/${env.GITHUB_RUN_ID ?? 0}`;
 
   let done = { filed: [], updated: [], reopened: [], closed: [], failed: [] };

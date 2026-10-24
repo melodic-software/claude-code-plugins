@@ -100,9 +100,35 @@ export function renderSupersede(signal, number) {
     : "The monitoring lane now keeps one rolling issue per signal and files it when this signal next fires. Closing this issue.";
 }
 
-// existing: issues this lane filed, any state. complete: every source was
-// read, so a family with no finding is clear rather than unread.
-export function planIssues({ findings, existing, complete = true }) {
+// The signals each collect source feeds, by the name collect gives its gap.
+const SOURCES = {
+  "pr-merge api budget": ["2 ceiling", "3 throttling"],
+  "Actions jobs in use": ["2 ceiling"],
+  "failed runs": ["3 throttling"],
+  "main full run": ["1 main red"],
+  "merge-queue ejections": ["4 merge-queue ejections"],
+  "pr-merge sweep": ["5 held PRs", "8 throughput"],
+  "lane merges": ["8 throughput"],
+  "lane stops": ["9 lane stop"],
+  audits: ["6 report-only audit"],
+  "githubstatus.com": [],
+};
+
+// The signals a run's gaps leave partly unread. A gap from a source not
+// named above leaves every signal unread.
+export function unreadSignals(gaps = []) {
+  const unread = new Set();
+  for (const gap of gaps) {
+    const source = Object.keys(SOURCES).find((name) => String(gap).startsWith(`${name}:`));
+    for (const signal of source ? SOURCES[source] : SIGNALS) unread.add(signal);
+  }
+  return unread;
+}
+
+// existing: issues this lane filed, any state. unread: signals a source failed
+// for. An open issue of such a signal is left as it is, since its findings may
+// be only part of the signal's state.
+export function planIssues({ findings, existing, unread = new Set() }) {
   const bySignal = new Map(SIGNALS.map((s) => [s, []]));
   const logged = [];
   const unknown = [];
@@ -134,7 +160,7 @@ export function planIssues({ findings, existing, complete = true }) {
       if (family.findings.length > 0) plan.file.push({ family });
     } else if (match.issue.state === "open") {
       if (match.marker.fingerprint === fp) skip("unchanged");
-      else if (family.findings.length === 0 && !complete) skip("not read");
+      else if (unread.has(signal)) skip("not read");
       else plan.update.push({ number: match.issue.number, family });
     } else if (MUTED.has(match.issue.state_reason)) {
       if (family.findings.length > 0) skip("muted");

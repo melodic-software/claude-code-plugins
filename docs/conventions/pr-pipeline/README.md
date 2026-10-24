@@ -1806,12 +1806,15 @@ issue. It never labels an issue `agent-ready`, so nothing it writes starts work.
   one whose `covered_by` names an open item; one matching such an issue still open is listed as
   tracked there. The rest become the entries of one digest issue, `Lane sweep: open findings`,
   found by its first line `<!-- lane-sweep-digest -->`; each entry opens with
-  `<!-- lane-sweep-entry fp=<fingerprint> -->`, and the last line,
-  `<!-- lane-sweep:fp=<fingerprint> -->`, holds the fingerprint of the entry set. Each sweep
-  replaces the body with the entries it found, so a fixed finding drops off; a changed set adds a
-  comment naming the new and dropped entries, an empty set closes the digest, and a later finding
-  reopens it. When a unit's findings were not read (a failed judge leg, unparsable output), earlier
-  entries carry over instead of dropping off. A digest closed as not planned or duplicate is muted.
+  `<!-- lane-sweep-entry fp=<fingerprint>[ tracked=<issue>] -->`, and the last line,
+  `<!-- lane-sweep:fp=<fingerprint> -->`, holds the fingerprint of the entry set and each entry's
+  tracking issue. A sweep whose set differs replaces the body with the entries it found, so a fixed
+  finding drops off, and adds a comment naming the new and dropped entries and any whose tracking
+  issue opened or closed; an empty set closes the digest, and a later finding reopens it. An
+  entry's details are not in the fingerprint, so they stay as the last rewrite left them. When the
+  collector read part of a workflow's window or stopped before writing every unit
+  (`collect-status.json`), or a unit's findings were not read (a failed judge leg, unparsable
+  output), earlier entries carry over instead of dropping off. A digest closed as not planned or duplicate is muted.
   Each field is cut at 2,000 characters, and past 60,000 characters an entry keeps only its title
   and fingerprint. The digest is labeled `source: lane-sweep` where that label exists, never
   `needs-triage`; writes run 1 s apart and stop at 50 calls.
@@ -1868,7 +1871,9 @@ issue for a signal decides: open with the same state, nothing is written; open w
 comment names the change and the body is rewritten, and a clear state also closes it; closed as not
 planned or duplicate, the signal is muted; closed otherwise, the same issue is reopened with a new
 state, or for `main-red` on a failed run that started after the close, and never filed a second time.
-A run that could not read a source never clears an open issue. Each rewrite takes `agent-ready` off
+A run that could not read one of a signal's sources leaves that signal's open issue as it is, so a
+partly read signal neither clears nor loses findings; a source the lane does not map leaves every
+signal's issue as it is. Each rewrite takes `agent-ready` off
 the issue, since a person vetted the earlier text. Issues of every age are read, page by page until
 a short page; a run that spends its call budget there stops before writing. A still-open issue of
 the earlier one-issue-per-key form (a marker key without `family:`) is closed as not planned with a

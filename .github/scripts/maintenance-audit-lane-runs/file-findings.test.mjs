@@ -108,6 +108,31 @@ test("prepareItems is complete only when every unit has a parsed findings file",
   assert.equal(prepareItems({ findingsDir: dir, baseDir: base, unitsDir: units }).complete, false);
 });
 
+test("prepareItems is not complete when the collector read part of a window or stopped early", (t) => {
+  const base = mkdtempSync(join(tmpdir(), "lane-sweep-file-"));
+  const dir = mkdtempSync(join(tmpdir(), "lane-sweep-findings-"));
+  const out = mkdtempSync(join(tmpdir(), "lane-sweep-units-"));
+  t.after(() => {
+    for (const d of [base, dir, out]) rmSync(d, { recursive: true, force: true });
+  });
+  const units = join(out, "units");
+  const status = join(out, "collect-status.json");
+  mkdirSync(units);
+  mkdirSync(join(dir, "findings-a1"));
+  writeFileSync(join(dir, "findings-a1", "findings.json"), JSON.stringify({ unit: "a1", findings: [] }));
+  writeFileSync(join(units, "a1.json"), JSON.stringify({ window_complete: true }));
+  writeFileSync(status, JSON.stringify({ complete: true }));
+  const run = () => prepareItems({ findingsDir: dir, baseDir: base, unitsDir: units, statusPath: status }).complete;
+  assert.equal(run(), true);
+  writeFileSync(join(units, "a1.json"), JSON.stringify({ window_complete: false }));
+  assert.equal(run(), false);
+  writeFileSync(join(units, "a1.json"), JSON.stringify({ window_complete: true }));
+  writeFileSync(status, JSON.stringify({ complete: false, truncated: "stopped at unit d2: call budget" }));
+  assert.equal(run(), false);
+  rmSync(status);
+  assert.equal(run(), false);
+});
+
 const FP = "0123456789abcdef";
 const store = (issues = []) => {
   const calls = [];

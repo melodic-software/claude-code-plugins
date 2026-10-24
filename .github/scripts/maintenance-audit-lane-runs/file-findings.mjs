@@ -27,9 +27,10 @@ export const FILER_LOGIN = "github-actions[bot]";
 // not an intake item.
 const LABELS = ["source: lane-sweep"];
 
-// complete: every unit the collect job wrote has a findings file the judge
-// parsed, so a finding missing from this sweep is gone rather than unread.
-export function prepareItems({ findingsDir, baseDir, unitsDir = null }) {
+// complete: the collector read every unit's whole window and every unit has a
+// findings file the judge parsed, so a finding missing from this sweep is gone
+// rather than unread.
+export function prepareItems({ findingsDir, baseDir, unitsDir = null, statusPath = null }) {
   const items = [];
   const dropped = [];
   const read = new Set();
@@ -76,6 +77,24 @@ export function prepareItems({ findingsDir, baseDir, unitsDir = null }) {
           .map((f) => f.slice(0, -".json".length))
       : [];
     if (units.length === 0 || units.some((u) => !read.has(u))) complete = false;
+    // A unit the collector read only part of its workflow's window for.
+    for (const unit of units) {
+      try {
+        if (JSON.parse(readFileSync(join(unitsDir, `${unit}.json`), "utf8")).window_complete === false) complete = false;
+      } catch {
+        complete = false;
+      }
+    }
+  }
+  // The collector's own record: a run that stopped before writing every unit
+  // or read part of a workflow's window says so; a missing record is not
+  // complete.
+  if (statusPath) {
+    try {
+      if (JSON.parse(readFileSync(statusPath, "utf8")).complete !== true) complete = false;
+    } catch {
+      complete = false;
+    }
   }
   return { items, dropped, complete };
 }
@@ -152,6 +171,7 @@ async function main() {
     findingsDir: env.FINDINGS_DIR,
     baseDir: env.BASE_DIR,
     unitsDir: env.UNITS_DIR,
+    statusPath: env.COLLECT_STATUS_PATH,
   });
   const existing = [];
   for (let page = 1; page <= 10; page += 1) {

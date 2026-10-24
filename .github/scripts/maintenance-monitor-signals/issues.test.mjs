@@ -5,9 +5,10 @@
 // platform incidents are logged, never filed; issues of the earlier
 // one-issue-per-key scheme still open are closed.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { LOG_ONLY, SIGNALS, familyOf, planIssues, readMarker, renderBody, renderComment, renderSupersede } from "./issues.mjs";
+import { LOG_ONLY, SIGNALS, familyOf, planIssues, readMarker, renderBody, renderComment, renderSupersede, unreadSignals } from "./issues.mjs";
 import { detect } from "./signals.mjs";
 
 const now = new Date("2026-10-19T16:41:00Z");
@@ -75,13 +76,32 @@ test("the same state skips; a new state updates the open issue", () => {
   );
 });
 
-test("a family with no finding clears its open issue, unless a source went unread", () => {
+test("a family with no finding clears its open issue, unless one of its sources went unread", () => {
   const existing = [issueFrom([findingFor([1])], 41)];
   const clear = planIssues({ findings: [], existing });
   assert.deepEqual(clear.update, [{ number: 41, family: family([]) }]);
-  const unread = planIssues({ findings: [], existing, complete: false });
+  const unread = planIssues({ findings: [], existing, unread: unreadSignals(["failed runs: HTTP 502"]) });
   assert.deepEqual(unread.update, []);
   assert.deepEqual(unread.skip, [{ family: "throttling", number: 41, reason: "not read" }]);
+  const other = planIssues({ findings: [], existing, unread: unreadSignals(["audits: HTTP 502"]) });
+  assert.deepEqual(other.update, [{ number: 41, family: family([]) }]);
+});
+
+test("a partly read family keeps its open issue as it is, even with findings", () => {
+  const existing = [issueFrom([findingFor([1]), { ...findingFor([2]), key: "throttle:rate-limited" }], 41)];
+  const partial = planIssues({ findings: [findingFor([1, 3])], existing, unread: unreadSignals(["pr-merge api budget: call budget of 250 spent"]) });
+  assert.deepEqual(partial.update, []);
+  assert.deepEqual(partial.skip, [{ family: "throttling", number: 41, reason: "not read" }]);
+});
+
+test("each collect source maps to the signals it feeds, and an unknown gap leaves every signal unread", () => {
+  const text = readFileSync(new URL("./collect.mjs", import.meta.url), "utf8");
+  const sources = [...text.matchAll(/await source\("([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(sources.length >= 10);
+  for (const name of sources) assert.notDeepEqual([...unreadSignals([`${name}: x`])], SIGNALS, name);
+  assert.deepEqual([...unreadSignals(["audits: x"])], ["6 report-only audit"]);
+  assert.deepEqual(new Set(unreadSignals(["new source: x"])), new Set(SIGNALS));
+  assert.equal(unreadSignals([]).size, 0);
 });
 
 test("a closed rolling issue is reopened, never filed again, when its signal fires", () => {

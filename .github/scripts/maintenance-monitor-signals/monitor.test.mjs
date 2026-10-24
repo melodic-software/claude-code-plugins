@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { planIssues, readMarker } from "./issues.mjs";
+import { SIGNALS, planIssues, readMarker } from "./issues.mjs";
 import { writePlan } from "./monitor.mjs";
 import { detect } from "./signals.mjs";
 
@@ -179,7 +179,7 @@ test("an unread source leaves an open issue as it is", async () => {
   const s = store();
   await runOnce(s, CASES[2][1]);
   const callsBefore = s.calls.length;
-  assert.deepEqual(await runOnce(s, {}, { complete: false }), nothing);
+  assert.deepEqual(await runOnce(s, {}, { unread: new Set(SIGNALS) }), nothing);
   assert.equal(s.calls.length, callsBefore);
   assert.equal(s.issues[0].state, "open");
 });
