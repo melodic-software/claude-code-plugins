@@ -17,7 +17,10 @@
 #                       | feedback-round-cap | feedback-uncertain
 #                       | feedback-not-landed | feedback-invalid
 #                       | feedback-partial | feedback-incomplete
-#                       | feedback-disputed | dependency-round-cap
+#                       | feedback-disputed | feedback-unadjudicated
+#                       | feedback-question-intent | feedback-question-design
+#                       | feedback-question-security
+#                       | dependency-round-cap
 #                       | dependency-invalid | dependency-fix-not-landed
 #                       | dependency-security-close | dependency-escalate
 #                       | dependency-config-unreadable
@@ -73,7 +76,11 @@ case ${ESCALATION_REASON:-} in
   feedback-invalid) why='the review replies the lane recorded did not pass validation, so none was posted' ;;
   feedback-partial) why='posting the review replies stopped partway, or a fixed thread could not be resolved, so a person finishes them' ;;
   feedback-incomplete) why='the lane did not record a disposition for every review thread it kept, so none was posted' ;;
-  feedback-disputed) why='the lane replied with evidence that a review finding is incorrect; a person decides and resolves that thread' ;;
+  feedback-disputed) why='a disputed review finding is one only a person decides (a security-review finding, a thread a person directed, or one an adjudicator found stands and the next round left open again)' ;;
+  feedback-unadjudicated) why='the lane replied with evidence that a review finding is incorrect, and no adjudicator verdict on that thread was recorded, so a person decides it' ;;
+  feedback-question-intent) why='an adjudicator found that a disputed review finding turns on what the change is meant to do, which a person decides' ;;
+  feedback-question-design) why='an adjudicator found that a disputed review finding turns on a design choice, which a person decides' ;;
+  feedback-question-security) why='an adjudicator found that a disputed review finding turns on a security judgment, which a person decides' ;;
   dependency-round-cap) why='the lane has reviewed this dependency update as many rounds as its cap allows' ;;
   dependency-invalid) why='the dependency review verdict did not pass validation, so the lane acted on none of it' ;;
   dependency-fix-not-landed) why='the dependency review chose a fix, but no fix commit reached the branch (the lane lands a fix only when it changes nothing but the versions in npm or pip manifest and lock files outside .github/)' ;;
