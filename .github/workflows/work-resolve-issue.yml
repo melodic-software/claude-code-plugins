@@ -332,7 +332,8 @@ jobs:
   run-checks:
     needs: [resolve-issue, apply-issue-patch]
     if: >-
-      ${{ !cancelled() && (needs.resolve-issue.outputs.scan-issue-run-started == 'true'
+      ${{ !cancelled() && ((needs.resolve-issue.outputs.scan-issue-run-started == 'true'
+      && needs.resolve-issue.outputs.scan-outcome-uploaded == 'true')
       || needs.resolve-issue.outputs.scan-reuse-branch != '') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -364,8 +365,8 @@ jobs:
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
 
-      # For lane.json, which names the branch. A skill run always uploads the
-      # outcome; a reuse may have none.
+      # For lane.json, which names the branch. A skill run reaches this job
+      # only when the scan uploaded the outcome; a reuse may have none.
       - name: Download the issue outcome
         continue-on-error: ${{ needs.resolve-issue.outputs.scan-reuse-branch != '' }}
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2

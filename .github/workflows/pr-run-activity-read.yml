@@ -250,6 +250,11 @@ on:
       scan-reply-attempt:
         description: reply-attempt as the scan job set it.
         value: ${{ jobs.scan.outputs.reply-attempt }}
+      scan-outcome-uploaded:
+        description: >-
+          Issue mode: `true` when the scan job uploaded work-outcome-<issue>;
+          empty when the scan failed or the run job ended without an outcome.
+        value: ${{ jobs.scan.outputs.outcome-uploaded }}
       feedback-attempt:
         description: >-
           The run attempt in the artifact name
@@ -2184,6 +2189,7 @@ jobs:
       patch-sha256: ${{ steps.patch-upload.outcome == 'success' && steps.leak-scan.outputs.patch-sha256 || '' }}
       patch-attempt: ${{ steps.patch-upload.outcome == 'success' && format('{0}{1}', github.run_attempt, inputs.model-rung == '1' && '-rung-up' || '') || '' }}
       reply-attempt: ${{ steps.reply-upload.outcome == 'success' && format('{0}{1}', github.run_attempt, inputs.model-rung == '1' && '-rung-up' || '') || '' }}
+      outcome-uploaded: ${{ steps.outcome-upload.outcome == 'success' && 'true' || '' }}
       feedback-attempt: ${{ steps.feedback-upload.outcome == 'success' && github.run_attempt || '' }}
       feedback-sha256: ${{ steps.feedback-upload.outcome == 'success' && steps.leak-scan.outputs.replies-sha256 || '' }}
       dependency-attempt: ${{ steps.dependency-upload.outcome == 'success' && github.run_attempt || '' }}
