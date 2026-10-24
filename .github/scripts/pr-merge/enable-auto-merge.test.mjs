@@ -542,12 +542,81 @@ test("every request asks GitHub to close its connection after answering", async 
   assert.ok(calls.every(({ headers }) => headers?.Connection === "close"));
 });
 
-test("an arm GitHub answers 4xx, or with GraphQL errors, is not sent again", async () => {
-  for (const error of [new GitHubError(422, "POST /graphql"), new GitHubError(200, "POST /graphql (GraphQL errors)")]) {
-    const { code, writes, slept } = await run([pull(1)], {}, { armErrors: { PR_1: [error] } });
-    assert.equal(code, 1);
+test("an arm GitHub refuses with GraphQL errors or a 4xx is skipped with a warning, not sent again, and the run stays green", async () => {
+  for (const error of [new GitHubError(200, "POST /graphql (GraphQL errors)"), new GitHubError(422, "POST /graphql"), new GitHubError(404, "POST /graphql")]) {
+    const { code, writes, slept, lines } = await run([pull(1)], {}, { armErrors: { PR_1: [error] } });
+    assert.equal(code, 0);
     assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
     assert.deepEqual(slept, []);
+    assert.ok(lines.includes(`::warning title=enable-auto-merge::#1 arm refused, skipped this run: ${error.message}`));
+    assert.ok(!lines.some((line) => line.startsWith("::error")));
+  }
+});
+
+test("a refused arm on one of two pull requests still arms the other, inside a cap of one", async () => {
+  const refusal = new GitHubError(200, "POST /graphql (GraphQL errors)");
+  const { code, writes, lines } = await run([pull(1), pull(2)], {}, { armErrors: { PR_1: [refusal] } }, { ...ROOM, cap: 1 });
+  assert.equal(code, 0);
+  assert.deepEqual(writes, [
+    { mutation: "arm", id: "PR_1", head: HEAD },
+    { mutation: "arm", id: "PR_2", head: HEAD },
+  ]);
+  assert.ok(lines.some((line) => line.startsWith("::warning title=enable-auto-merge::#1 arm refused")));
+  assert.ok(lines.includes(`enable-auto-merge: #2 armed at ${HEAD}`));
+});
+
+test("every arm refused still exits 0 and says so", async () => {
+  const refusal = () => new GitHubError(422, "POST /graphql");
+  const { code, lines } = await run([pull(1), pull(2)], {}, { armErrors: { PR_1: [refusal()], PR_2: [refusal()] } });
+  assert.equal(code, 0);
+  assert.ok(lines.includes("::warning title=enable-auto-merge::every arm this run was refused: #1, #2"));
+});
+
+test("an arm answered 401, 403, 429 or 5xx is not a refusal of that pull request: not sent again, and the run fails", async () => {
+  for (const status of [401, 403, 429, 502]) {
+    const { code, writes, slept, lines } = await run([pull(1)], {}, { armErrors: { PR_1: [new GitHubError(status, "POST /graphql")] } });
+    assert.equal(code, 1);
+    assert.equal(writes.length, 1);
+    assert.deepEqual(slept, []);
+    assert.ok(lines.some((line) => line.startsWith("::error title=enable-auto-merge::#1 arm:")));
+  }
+});
+
+// main's own client over a stubbed fetch, so the arm's answer carries real
+// headers and body: `arm` is the Response every arm gets.
+async function served(pulls, arm) {
+  const { github, verify } = world(pulls);
+  const saved = globalThis.fetch;
+  const lines = [];
+  const log = console.log;
+  globalThis.fetch = async (url, init) => {
+    const body = init.body === undefined ? undefined : JSON.parse(init.body);
+    if (body?.query === ARM_MUTATION) {
+      return arm();
+    }
+    const answer = await github(init.method, new URL(url).pathname + new URL(url).search, body, init.headers);
+    return new Response(answer == null ? "" : JSON.stringify(answer), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  console.log = (line) => lines.push(line);
+  try {
+    return { code: await main({ env: { ...ENV, GH_TOKEN: "t" }, verify, room: room(), sleep: async () => {} }), lines };
+  } finally {
+    globalThis.fetch = saved;
+    console.log = log;
+  }
+}
+
+test("a refused arm's warning carries GitHub's own message", async () => {
+  const { code, lines } = await served([pull(1)], () => Response.json({ errors: [{ message: "Pull request is in clean status" }] }));
+  assert.equal(code, 0);
+  assert.ok(lines.includes("::warning title=enable-auto-merge::#1 arm refused, skipped this run: POST /graphql (GraphQL errors) failed with status 200: Pull request is in clean status"));
+});
+
+test("a rate-limited GraphQL answer to an arm is not a refusal, and the run fails", async () => {
+  for (const headers of [{ "x-ratelimit-remaining": "0" }, { "retry-after": "60" }]) {
+    const { code, lines } = await served([pull(1)], () => Response.json({ errors: [{ type: "RATE_LIMITED", message: "API rate limit exceeded" }] }, { headers }));
+    assert.equal(code, 1);
+    assert.ok(!lines.some((line) => line.includes("arm refused")));
   }
 });
 

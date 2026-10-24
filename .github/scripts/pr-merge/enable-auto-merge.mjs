@@ -118,7 +118,7 @@ import { appendFileSync, readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { createGitHub, errorLabel } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, errorLabel, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { humanGatedLabelFrom } from "../pr-unblock/address-feedback.mjs";
 import { readHoldPaths } from "../work-resolve-issue/report-outcome.mjs";
 import { BODY_HOLD, costDecision, costHold, humansOf, pathHold, vetoers } from "./merge-holds.mjs";
@@ -228,6 +228,21 @@ export function withRetry(github, { sleep, random = Math.random }) {
       }
     }
   };
+}
+
+// GitHub refusing to arm this one pull request: a GraphQL error, or a 4xx
+// other than 401, 403 and 429, which a token, permission or rate limit answers
+// for every pull request alike. A rate-limited answer is never a refusal.
+export const refused = (error, limited = false) =>
+  error instanceof GitHubError && !limited && (error.status === 200 || (error.status >= 400 && error.status < 500 && ![401, 403, 429].includes(error.status)));
+// The messages in an error answer's body, or "" when it has none.
+async function answerMessages(text) {
+  try {
+    const json = JSON.parse(await text);
+    return (Array.isArray(json?.errors) ? json.errors.map((error) => error?.message) : [json?.message]).filter(Boolean).join("; ");
+  } catch {
+    return "";
+  }
 }
 
 // Why `pull` must not be armed, or null when it may be.
@@ -605,7 +620,12 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     const write = env.REPORT_ONLY === "false";
     const humanGated = humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json");
     const holdPaths = readHoldPaths(env.RESOLVED_CONFIG ?? "");
-    github = withRetry(github ?? createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }), { sleep, random });
+    // The newest answer's rate limit and body, for an arm GitHub refuses.
+    let answer = null;
+    const onResponse = (response) => {
+      answer = { limited: response.headers.get("x-ratelimit-remaining") === "0" || response.headers.has("retry-after"), text: response.clone().text().catch(() => "") };
+    };
+    github = withRetry(github ?? createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse }), { sleep, random });
     verify ??= pythonVerify(env);
     const reads = READER_EVENTS.includes(env.EVENT_NAME);
     const pulls = await listPulls(github, repo[1], repo[2]);
@@ -649,6 +669,8 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     // would have run).
     const roomHeld = new Map();
     let failed = 0;
+    let arms = 0;
+    const refusedArms = [];
     const minutes = riskEscalationMinutes(env.RESOLVED_CONFIG ?? "");
     // A reader run's per pull request refusal (a hold path or cost hold, or
     // the gate's verdict or risk score) goes on the pull request itself:
@@ -772,6 +794,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
       }
       try {
         if (action === "arm") {
+          arms += 1;
           await github("POST", "/graphql", { query: ARM_MUTATION, variables: { id: pull.id, head: pull.headRefOid } });
           console.log(`enable-auto-merge: #${pull.number} armed at ${pull.headRefOid}`);
         } else {
@@ -782,6 +805,14 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
           console.log(`enable-auto-merge: #${pull.number} disarmed: ${escapeCommand(reason)}`);
         }
       } catch (error) {
+        if (action === "arm" && refused(error, answer?.limited)) {
+          // GitHub said no, so nothing is in flight; the next run tries again.
+          inFlight -= 1;
+          refusedArms.push(`#${pull.number}`);
+          const said = answer === null ? "" : await answerMessages(answer.text);
+          console.log(`::warning title=enable-auto-merge::#${pull.number} arm refused, skipped this run: ${describe(said ? new Error(`${error.message}: ${said}`) : error)}`);
+          continue;
+        }
         failed += 1;
         console.log(`::error title=enable-auto-merge::#${pull.number} ${action}: ${describe(error)}`);
         // Still armed: a note saying it is unarmed would be false.
@@ -802,6 +833,9 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     ].filter(([, numbers]) => numbers);
     if (warned.length > 0) {
       lines.push(["warning", escapeCommand(`${laneHeld}; ${warned.map(([what, numbers]) => `${what}: ${numbers}`).join("; ")}`)]);
+    }
+    if (arms > 0 && refusedArms.length === arms) {
+      lines.push(["warning", `every arm this run was refused: ${refusedArms.join(", ")}`]);
     }
     if (held("armed")) {
       lines.push(["error", escapeCommand(`${laneHeld}; still armed, its disarm failed, so the hold is not enforced: ${held("armed")}`)]);
