@@ -1,10 +1,11 @@
-# Measure handoff resume accuracy before redesigning the handoff
+# Ship handoff shape 3 on measured size and leave accuracy to the resume eval
 
 - Status: accepted
 - Date: 2026-10-24
 - Related: [#9238](https://github.com/melodic-software/claude-code-plugins/issues/9238) (the
-  hot-file and archive redesign, still open). The harness and its cases are described in
-  `plugins/session-flow/evals/resume-eval.md`.
+  hot-file and archive redesign). The harness and its cases are described in
+  `plugins/session-flow/evals/resume-eval.md`; the shape-3 contract is in
+  `plugins/session-flow/reference/structure.md`.
 
 ## Context
 
@@ -30,15 +31,24 @@ plugin eval cannot read a Codex session or a native `/compact`.
 2. **Seven synthetic cases** cover the four audited drift patterns (skipped rule, superseded
    rule, stale GitHub fact, restated preference) and three design properties (archive-only answer,
    first split hop from a large predecessor, a five-hop chain). No case holds a real transcript.
-3. **Defer the redesign.** The shape-3 hot file and per-hop archive, its consumer changes, the
-   instruction trims and the interview emoji fix are not built here. They wait until the after arm
-   can be measured. The owner made this call on 2026-10-24, when the eval's usage competed with the
-   automation lanes for the shared plan.
+3. **Ship shape 3 on its measured size.** `save_point.py new` writes a hot file in one fixed
+   section order plus one immutable archive file per hop, holding every predecessor section
+   verbatim. `validate` enforces the order, a byte cap and the lossless carry-over. Over the 17
+   audited chains with three or more hops, the next hop's file falls from a median of 89,313 bytes
+   to 9,377. The cap is provisional (10,000 tokens' worth), because the eval that would set it did
+   not run.
+4. **Leave continuation accuracy to the committed eval.** On 2026-10-24 the owner stopped the
+   deciding runs to keep plan usage for higher-priority sessions. Shape 3 therefore ships without
+   an accuracy comparison against today's handoff. Shape-1 and shape-2 files still read and
+   validate, so a revert restores the old writer without touching existing chains. The instruction
+   trims and the interview emoji fix stay deferred.
 
 ## Alternatives considered
 
-- **Ship the redesign on the audit's evidence alone.** Rejected: the audit shows the failure, not
-  that a hot file fixes it without losing accuracy, and the owner required a measured improvement.
+- **Hold shape 3 until the accuracy runs finish.** Rejected by the owner: the size gain is
+  measured and the change is reversible, while the runs compete with the automation lanes for
+  usage. The cost is an open question: the audit shows the failure, not that a hot file fixes it
+  without losing accuracy.
 - **Measure with bare plugin eval only.** Rejected for the decision: no reader sees the owner's
   instructions, and Codex and `/compact` cannot run in it. Bare plugin eval stays the regression
   instrument.
@@ -50,11 +60,12 @@ plugin eval cannot read a Codex session or a native `/compact`.
 
 ## Consequences
 
-- The deciding comparison is still to run. When it does, it uses the stopping rule fixed before any
-  data: 10 runs per case on both sides of every comparison, called once at 10. A drift case
-  reproduces at 7 of 10 failing before runs. The ship rule is non-inferiority at a 0.05 margin
-  against before and against each without-skills arm, with no case drop, plus a token median below
-  before's by more than before's run-to-run range.
+- The accuracy comparison is still to run. The owner-approved first step is 12 writer runs: three
+  drift cases, two runs each, before against after at the 10,000-token cap, with both readers.
+  `noise-report.py` needs at least three cases to give a verdict. Claude Code must read
+  non-inferior at a 0.05 margin with no case drop, and Codex is reported as the improvement
+  signal. The full plan's rule (10 runs per case, against each without-skills arm too) applies if
+  the comparison is extended.
 - Measured so far, from the before copy: the 25 existing session-flow plugin-eval cases pass 58 of
   75 runs with the plugin and 29 of 75 without (mean scores 0.89 and 0.67). The six session-flow
   skill-eval suites, converted into plugin-eval cases, pass at mean scores from 0.48
