@@ -6,7 +6,8 @@
 # remote names this file. With lefthook on PATH, a consumer whose lefthook.yml carries the
 # snippet `install.mjs plan --scope remote` returns, fetched from a local stand-in for this
 # repository, verifies ok and blocks an off-convention subject, a staged secret and (with jq)
-# a pushed citation of a deleted path, reading the consumer's own files.
+# a pushed citation of a deleted path, reading the consumer's own files; the consumer fetches
+# the release branch, so a commit on main reaches it only once that branch moves.
 # test-scope: plugins/guardrails/git-hooks/lefthook-remote.yml plugins/guardrails/git-hooks/entries.json plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/git-hooks/commit-msg-convention.sh plugins/guardrails/git-hooks/pre-commit-content.sh plugins/guardrails/git-hooks/reference-verify.sh .lefthook/commit-msg/guardrails-commit-msg-convention.sh .lefthook/pre-commit/guardrails-pre-commit-content.sh .lefthook/pre-push/guardrails-reference-verify.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT CLAUDE_PLUGIN_ROOT CLAUDE_PLUGIN_DATA LEFTHOOK
@@ -70,6 +71,9 @@ cp -R "$TOP/.lefthook" "$SRC/.lefthook"
 git init -q -b main "$SRC"
 git -C "$SRC" add -A
 git -C "$SRC" -c user.name=t -c user.email=t@example.invalid commit -q -m src --no-verify
+REF="$(jq -r '.remote.ref' "$HERE/entries.json" 2>/dev/null)"
+[[ -n "$REF" && "$REF" != null ]] || REF="$(sed -n 's/.*"ref": "\(.*\)".*/\1/p' "$HERE/entries.json")"
+git -C "$SRC" branch "$REF"
 git config --global "url.file://$SRC.insteadOf" "$URL"
 
 REPO="$WORK/consumer"
@@ -122,6 +126,19 @@ if command -v jq >/dev/null 2>&1; then
 else
   echo "SKIP: jq not on PATH -- the pre-push case skipped"
 fi
+
+# The consumer fetches the release branch, never main: an unreleased commit on main stays out
+# until the branch fast-forwards to it.
+CACHED="$REPO/.git/info/lefthook-remotes/claude-code-plugins-${REF//-/--}/plugins/guardrails/git-hooks/lefthook-remote.yml"
+echo "# unreleased" >>"$SRC/plugins/guardrails/git-hooks/lefthook-remote.yml"
+git -C "$SRC" -c user.name=t -c user.email=t@example.invalid commit -q -am unreleased --no-verify
+(cd "$REPO" && lefthook install >/dev/null 2>&1)
+expect "an unreleased commit on main does not reach the consumer" no \
+  "$(grep -q '# unreleased' "$CACHED" && echo yes || echo no)"
+git -C "$SRC" branch -f "$REF" main
+(cd "$REPO" && lefthook install >/dev/null 2>&1)
+expect "after the release branch moves, lefthook install fetches it" yes \
+  "$(grep -q '# unreleased' "$CACHED" && echo yes || echo no)"
 
 echo "lefthook-remote: $PASS passed, $FAIL failed"
 ((FAIL == 0))

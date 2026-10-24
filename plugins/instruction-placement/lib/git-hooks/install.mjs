@@ -543,8 +543,10 @@ function migrateDecision(info, plugin, scope, manager) {
 
 // The plugin's lefthook remote: the `remotes:` entry, whether the lefthook
 // config carries it, and whether lefthook fetched it, into
-// <git-path info>/lefthook-remotes/<repository name>-<ref>/ (lefthook 2.2.2).
-const repoName = (url) => url.replace(/\.git$/, "").split(/[/:]/).pop();
+// <git-path info>/lefthook-remotes/<repository name>-<ref>/, where lefthook
+// 2.2.2 writes each "-" of the ref as "--" and each "/" as "-"
+// (RemoteDirectoryName in its internal/git/remote.go); an earlier lefthook used the ref as is.
+const repoName = (url) => path.posix.basename(url.slice(0, url.length - path.posix.extname(url).length));
 const repoSlug = (url) => url.replace(/\.git$/, "").split(/[/:]/).slice(-2).join("/");
 
 function remoteSnippet(remote) {
@@ -559,8 +561,9 @@ function remoteConfigured(info, plugin) {
 
 function remoteFetched(info, plugin) {
   const { git_url: url, ref, config } = plugin.remote;
-  const dir = path.join(path.dirname(info.excludeFile), "lefthook-remotes", `${repoName(url)}-${ref}`);
-  return readText(path.join(dir, config)) !== null;
+  const names = [ref.replaceAll("-", "--").replaceAll("/", "-"), ref];
+  const root = path.join(path.dirname(info.excludeFile), "lefthook-remotes");
+  return names.some((name) => readText(path.join(root, `${repoName(url)}-${name}`, config)) !== null);
 }
 
 const lefthookHook = (info, event) => Boolean(readText(path.join(info.hooksDir, event))?.includes("lefthook"));
