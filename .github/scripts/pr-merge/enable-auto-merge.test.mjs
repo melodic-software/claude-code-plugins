@@ -20,6 +20,8 @@ import {
   BODY_HOLD,
   DETAIL_QUERY,
   DISARM_MUTATION,
+  DISCUSSION_PAGE_QUERIES,
+  rotated,
   HUMAN_VETO,
   PULLS_QUERY,
   UNLABELED_QUERY,
@@ -124,6 +126,16 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
     if (method === "GET" && /^\/repos\/melodic-software\/claude-code-plugins\/issues\/[0-9]+\/comments\?per_page=100&page=1$/.test(path)) {
       return [{ user: { login: "github-actions[bot]", type: "Bot" }, created_at: "2026-10-22T11:00:00Z", body: `<!-- claude-lane-hold lane=claude-review sha=${HEAD} criteria=cost -->` }];
     }
+    // A pull request's whole label list, when its listing cut it.
+    const labelPage = /^\/repos\/melodic-software\/claude-code-plugins\/issues\/([0-9]+)\/labels\?per_page=100&page=([0-9]+)$/.exec(path);
+    if (method === "GET" && labelPage) {
+      // With no `allLabels`, the read fails, so the list stays cut.
+      const all = pulls.find((candidate) => candidate.number === Number(labelPage[1]))?.allLabels;
+      if (all === undefined) {
+        throw new Error("GET labels failed with status 502");
+      }
+      return all.slice((Number(labelPage[2]) - 1) * 100, Number(labelPage[2]) * 100).map((name) => ({ name }));
+    }
     // The read-back pin, posted before an arm.
     if (method === "POST" && String(body?.body ?? "").startsWith("<!-- babysit-merge-pin ")) {
       pins.push({ path, body: body.body });
@@ -162,7 +174,14 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
     }
     if (body.query === DETAIL_QUERY) {
       const found = pulls.find((candidate) => candidate.number === body.variables.number);
-      return { data: { repository: { pullRequest: detail(found?.discussion) } } };
+      return { data: { repository: { pullRequest: found?.cutDiscussion ?? detail(found?.discussion) } } };
+    }
+    // The rest of a cut comment list, two to a page.
+    if (body.query === DISCUSSION_PAGE_QUERIES.comments) {
+      const all = pulls.find((candidate) => candidate.number === body.variables.number)?.discussion?.comments ?? [];
+      const start = body.variables.after === null ? 0 : Number(body.variables.after);
+      const nodes = all.slice(start, start + 2);
+      return { data: { repository: { pullRequest: { comments: { totalCount: all.length, pageInfo: { hasNextPage: start + 2 < all.length, endCursor: String(start + 2) }, nodes } } } } };
     }
     if (body.query === ARM_MUTATION && armThrows[body.variables.id]?.length > 0) {
       throw armThrows[body.variables.id].shift();
@@ -188,7 +207,7 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
   };
   const writes = () =>
     calls
-      .filter(({ method, path, body }) => method === "POST" && path === "/graphql" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY, COMMENT_DELETED_QUERY, UNLABELED_QUERY].includes(body.query))
+      .filter(({ method, path, body }) => method === "POST" && path === "/graphql" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY, COMMENT_DELETED_QUERY, UNLABELED_QUERY, DISCUSSION_PAGE_QUERIES.comments].includes(body.query))
       .map(({ body }) => ({ mutation: body.query === ARM_MUTATION ? "arm" : body.query === DISARM_MUTATION ? "disarm" : "?", ...body.variables }));
   return { github, writes, verify, verified, calls, notes, pins };
 }
@@ -238,27 +257,38 @@ const lanesSaid = (body, updatedAt = "2026-10-23T10:00:00Z") => ({
   authorAssociation: "NONE",
 });
 const HOLD_PATH_REASON = "it changes docs/held.md, a hold path";
+// A real charge, a cause a person must clear (owner direction 2026-10-24).
+const COST_REASON = "it changes infra/main.tf, a cost path";
+const COST_FILES = [{ filename: "infra/main.tf" }];
 const MISSING = { refusal: "verify:missing", needsHuman: false, head: HEAD, ineligible: null, reviews: null };
 const MISSING_REASON = "pr-merge's gate refuses its verifier verdict (verify:missing)";
 
-test("a refusal a person must clear is commented on and labeled human-gated", async () => {
-  const held = pull(1, { files: [{ filename: "docs/held.md" }] });
-  const { code, writes, notes } = await run([held]);
+test("a refusal a person must clear is commented on and labeled human-gated; a hold path only commented on", async () => {
+  const { code, writes, notes } = await run([pull(1, { files: COST_FILES }), pull(2, { files: [{ filename: "docs/held.md" }] })]);
   assert.equal(code, 0);
   assert.deepEqual(writes, []);
   assert.deepEqual(notes, [
-    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(HOLD_PATH_REASON) } },
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(COST_REASON) } },
     { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
+    { method: "POST", path: `${ISSUES}/2/comments`, body: { body: laneNote(HOLD_PATH_REASON) } },
   ]);
 });
 
-test("a verifier refusal the gate marks needsHuman is a person's; one it does not is a lane's", async () => {
-  const human = { refusal: "verify:spec-changed", needsHuman: true, head: HEAD, ineligible: null, reviews: null };
-  const { notes } = await run([pull(1, { verdict: human }), pull(2, { verdict: MISSING })]);
+test("only an untrusted spec is a person's verifier refusal; the rest, the round cap included, are a lane's", async () => {
+  const refused = (refusal, needsHuman) => ({ refusal, needsHuman, head: HEAD, ineligible: null, reviews: null });
+  const { notes } = await run([
+    pull(1, { verdict: refused("verify:untrusted-spec", true) }),
+    pull(2, { verdict: refused("verify:spec-changed", true) }),
+    pull(3, { verdict: refused("verify:repeated-fail", true) }),
+    pull(4, { verdict: { ...MISSING, refusal: "verify:ineligible", ineligible: "it closes 2 issues" } }),
+  ]);
+  const refusing = (code) => `pr-merge's gate refuses its verifier verdict (${code})`;
   assert.deepEqual(notes, [
-    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote("pr-merge's gate refuses its verifier verdict (verify:spec-changed)") } },
+    { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(refusing("verify:untrusted-spec")) } },
     { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
-    { method: "POST", path: `${ISSUES}/2/comments`, body: { body: laneNote(MISSING_REASON) } },
+    { method: "POST", path: `${ISSUES}/2/comments`, body: { body: laneNote(refusing("verify:spec-changed")) } },
+    { method: "POST", path: `${ISSUES}/3/comments`, body: { body: laneNote(refusing("verify:repeated-fail")) } },
+    { method: "POST", path: `${ISSUES}/4/comments`, body: { body: laneNote("pr-merge's lane does not take its issue link (it closes 2 issues)") } },
   ]);
 });
 
@@ -273,8 +303,8 @@ const unlabeled = (at, typename = "User", name = "needs-human") => ({ createdAt:
 test("an unchanged refusal writes nothing, and a label a person removed stays off", async () => {
   const lane = pull(1, { verdict: MISSING, discussion: { comments: [lanesSaid(laneNote(MISSING_REASON))] } });
   const person = pull(2, {
-    files: [{ filename: "docs/held.md" }],
-    discussion: { comments: [lanesSaid(personNote(HOLD_PATH_REASON))] },
+    files: COST_FILES,
+    discussion: { comments: [lanesSaid(personNote(COST_REASON))] },
     unlabeled: [unlabeled("2026-10-23T10:30:00Z", "User", "Needs-Human")],
   });
   const { code, notes } = await run([lane, person]);
@@ -286,7 +316,7 @@ test("a person's refusal comment standing without its label gets the label back"
   // An earlier run's label write failed: no removal at all, a bot's, a
   // person's before the comment last changed, or another label's.
   for (const removals of [[], [unlabeled("2026-10-23T10:30:00Z", "Bot")], [unlabeled("2026-10-23T09:59:00Z")], [unlabeled("2026-10-23T10:30:00Z", "User", "do-not-merge")]]) {
-    const person = pull(2, { files: [{ filename: "docs/held.md" }], discussion: { comments: [lanesSaid(personNote(HOLD_PATH_REASON))] }, unlabeled: removals });
+    const person = pull(2, { files: COST_FILES, discussion: { comments: [lanesSaid(personNote(COST_REASON))] }, unlabeled: removals });
     const { code, notes } = await run([person]);
     assert.equal(code, 0);
     assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/2/labels`, body: { labels: ["needs-human"] } }]);
@@ -305,17 +335,27 @@ test("a changed refusal edits the one comment instead of posting another", async
   assert.deepEqual(notes, [{ method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: laneNote(MISSING_REASON) } }]);
 });
 
-test("a risk hold is a lane's until its comment has stood an hour unchanged, then a person's", async () => {
-  const risk = { refusal: null, needsHuman: false, head: HEAD, ineligible: null, reviews: "evidence-unbound:claude-review" };
-  const reason = "pr-merge's gate holds it on its risk score (evidence-unbound:claude-review)";
-  const at = (updatedAt) => pull(1, { verdict: risk, discussion: { comments: [lanesSaid(laneNote(reason), updatedAt)] } });
-  const now = () => Date.parse("2026-10-23T11:00:00Z");
-  assert.deepEqual((await run([pull(1, { verdict: risk })], {}, { now })).notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(reason) } }]);
-  assert.deepEqual((await run([at("2026-10-23T10:01:00Z")], {}, { now })).notes, []);
-  assert.deepEqual((await run([at("2026-10-23T10:00:00Z")], {}, { now })).notes, [
-    { method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: personNote(reason) } },
-    { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
-  ]);
+test("a risk hold is a person's only for a security finding, a trusted-actor widening or a cost hold", async () => {
+  const risk = (reviews) => ({ refusal: null, needsHuman: false, head: HEAD, ineligible: null, reviews });
+  const holding = (reviews) => `pr-merge's gate holds it on its risk score (${reviews})`;
+  const lane = ["evidence-unbound:claude-review: no-marker", "manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks", "high-path:**: '../x'"];
+  const person = ["security-finding: 1 CRITICAL", "files-incomplete: x; trust-gate:trusted-actors: entries added", "cost-review-required: infra/main.tf"];
+  for (const reviews of lane) {
+    // A lane's stays a lane's however long its comment has stood.
+    const stood = pull(1, { verdict: risk(reviews), discussion: { comments: [lanesSaid(laneNote(holding(reviews)), "2026-01-01T00:00:00Z")] } });
+    assert.deepEqual((await run([stood])).notes, [], reviews);
+    assert.deepEqual((await run([pull(1, { verdict: risk(reviews) })])).notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(holding(reviews)) } }], reviews);
+  }
+  for (const reviews of person) {
+    assert.deepEqual(
+      (await run([pull(1, { verdict: risk(reviews) })])).notes,
+      [
+        { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(holding(reviews)) } },
+        { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
+      ],
+      reviews,
+    );
+  }
 });
 
 test("an armed pull request, an event run and report-only write no refusal note", async () => {
@@ -731,7 +771,7 @@ test("a manifest change arms only when the gate's risk score allows it", () => {
   assert.deepEqual(decide(pull(1), options, { ...detail(), files, verify: review }), {
     action: "none",
     reason: "pr-merge's gate holds it on its risk score (manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks)",
-    clears: "risk",
+    clears: "lane",
   });
   assert.equal(decide(pull(1, { autoMergeRequest: {} }), options, { ...detail(), files, verify: review }).action, "disarm");
   assert.deepEqual(decide(pull(1), options, { ...detail(), files, verify: PASSED }), { action: "arm", reason: "no hold" });
@@ -804,9 +844,65 @@ test("merge-holds.mjs holds a changed or renamed-from hold path from the command
   assert.equal(cli([["docs/a.md"]], "docs/held.md", [approve(5, head)]).status, 1);
 });
 
-test("hold paths that cannot be read arm nothing", async () => {
-  const { writes } = await run([pull(1)], { RESOLVED_CONFIG: "/nonexistent/resolved-config.json" });
-  assert.deepEqual(writes, []);
+test("hold paths that cannot be read arm nothing and label nothing", async () => {
+  const { writes, notes, lines } = await run([pull(1), pull(2, { autoMergeRequest: {} })], { RESOLVED_CONFIG: "/nonexistent/resolved-config.json" });
+  assert.deepEqual(writes, [{ mutation: "disarm", id: "PR_2" }]);
+  assert.deepEqual(notes, []);
+  assert.ok(lines.some((line) => line.startsWith("::warning title=enable-auto-merge::the resolved config's hold paths did not read")));
+});
+
+// E26: more than 100 labels is read whole, not refused.
+test("a label list the listing cut is read whole", async () => {
+  const many = Array.from({ length: 150 }, (_, index) => `area-${index}`);
+  const cut = (all) => ({ totalCount: all.length, nodes: all.slice(0, 100).map((name) => ({ name })) });
+  const { writes } = await run([
+    pull(1, { labels: cut(many), allLabels: many }),
+    pull(2, { labels: cut([...many, "do-not-merge"]), allLabels: [...many, "do-not-merge"] }),
+  ]);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+});
+
+// E23: more than 100 comments is read whole, so a veto past the first page
+// still holds and none there arms.
+test("a comment list the detail cut is read whole", async () => {
+  const chatter = Array.from({ length: 3 }, (_, index) => said("kyle-sexton", `note ${index}`, `2026-10-23T0${index}:00:00Z`));
+  const veto = said("kyle-sexton", "do not merge", "2026-10-23T09:00:00Z");
+  const cut = (comments) => ({ ...detail({ comments }), comments: { totalCount: comments.length, nodes: comments.slice(-1) } });
+  const { writes, lines } = await run([
+    pull(1, { discussion: { comments: chatter }, cutDiscussion: cut(chatter) }),
+    pull(2, { discussion: { comments: [veto, ...chatter] }, cutDiscussion: cut([veto, ...chatter]) }),
+  ]);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+  assert.ok(lines.includes("enable-auto-merge: #2 left: kyle-sexton asked not to merge it"), lines.join("\n"));
+});
+
+// E22: the lanes App's own body text holds nothing; a person's edit does.
+test("a body hold counts only when a person wrote some of the body", async () => {
+  const body = "Closes #5\n\nHold: wait for the release.";
+  const edits = (...typenames) => ({ totalCount: typenames.length, nodes: typenames.map((__typename) => ({ editor: { __typename } })) });
+  const { writes } = await run([
+    pull(1, { body, userContentEdits: edits() }),
+    pull(2, { body, userContentEdits: edits("Bot") }),
+    pull(3, { body, userContentEdits: edits("Bot", "User") }),
+    pull(4, { body, userContentEdits: { totalCount: 101, nodes: [] } }),
+    pull(5, { body }),
+  ]);
+  assert.deepEqual(writes, [
+    { mutation: "arm", id: "PR_1", head: HEAD },
+    { mutation: "arm", id: "PR_2", head: HEAD },
+  ]);
+});
+
+// E27: the start moves with the run number, so the pull requests past the
+// verify budget differ from run to run.
+test("the run starts at an offset that moves with the run number", async () => {
+  assert.deepEqual(rotated([1, 2, 3], 0), [1, 2, 3]);
+  assert.deepEqual(rotated([1, 2, 3], 4), [2, 3, 1]);
+  assert.deepEqual(rotated([1, 2, 3], 5), [3, 1, 2]);
+  assert.deepEqual(rotated([1, 2, 3], Number.NaN), [1, 2, 3]);
+  assert.deepEqual(rotated([], 7), []);
+  const { verified } = await run([pull(1), pull(2), pull(3)], { GITHUB_RUN_NUMBER: "4" });
+  assert.deepEqual(verified, [2, 3, 1]);
 });
 
 // pr-merge's gate merges only on a pr-verify pass at the head, FAILs at fewer
