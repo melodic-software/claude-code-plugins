@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "```json\n[{\"id\": \"open-billing\", \"action\": \"goto /billing/orders/1001\", \"outcome\": \"done\"}, {\"id\": \"issue-refund\", \"outcome\": \"blocked\"}]\n```",
+      "why": "the read step is recorded done"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```json\n[{\"id\": \"open-billing\", \"outcome\": \"blocked\"}, {\"id\": \"issue-refund\", \"outcome\": \"blocked\"}]\n```",
+      "why": "blocks the read step too, so the run did nothing"
+    }
+  ]
+}

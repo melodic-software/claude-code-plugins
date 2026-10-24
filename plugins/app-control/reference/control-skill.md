@@ -254,7 +254,7 @@ It gets its own control skill, in the repository that builds it, owning its step
 environments; this control skill never copies them. The hub lists each one above the sections:
 
 ```text
-- <app> | control-<app> | repository: <repository, or this one> | checkout: checkouts.<app>
+- <app> | control-<app> | repository: <repository, or this one>
 ```
 
 - **Include by reference.** A steps-file include names `<app>:<path>`, a steps file inside that
