@@ -95,6 +95,8 @@ const api = (dispatched, ciFixPulls = [], docsPulls = []) => ({
   listCheckRuns: async () => [STOPPED],
   listWorkflowRuns: async () => [],
   readRequiredRun: async () => ({ run: null, jobs: [] }),
+  // No label event names the lanes App, so a human-gated label holds.
+  listTimeline: async () => [],
   dispatchWorkflow: async ({ inputs }) => {
     dispatched.push(inputs["pr-number"]);
     return { workflowRunId: 9040 };

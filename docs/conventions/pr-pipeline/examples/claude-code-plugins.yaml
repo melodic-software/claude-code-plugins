@@ -80,7 +80,7 @@ activities:
     inputs: [pr, base-sha, head-sha]
     applies-when:
       mergeable: [conflicting]    # a PR that is only behind stays with the merge queue
-      labels-absent: [do-not-merge, needs-human]
+      labels-absent: [do-not-merge] # the select job holds needs-human unless another lane escalated
       draft: [false]
   apply-conflict-patch:           # commits the merge, with the patch, as one merge commit
     script: .github/scripts/apply-patch/apply-patch.mjs
@@ -90,7 +90,7 @@ activities:
     reads-untrusted: true         # reads the patch the model wrote
     inputs: [pr, head-sha, base-sha]
     applies-when:
-      labels-absent: [do-not-merge, needs-human]
+      labels-absent: [do-not-merge]
       draft: [false]
   report-escalation:              # labels needs-human with a resume key
     script: .github/scripts/pr-unblock/report-escalation.sh

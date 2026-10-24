@@ -41,7 +41,9 @@
 # The role label is config.role_labels["human-gated"]. A missing file or entry
 # means needs-human; a present entry that is not a non-empty string fails.
 # Idempotent: with the label on the PR and a LANES_BOT_LOGIN marker for this
-# resume key, it writes nothing. Without the label (a person removed it to resume), it
+# resume key and reason, it writes nothing; another reason on the same head
+# gets its own comment, so gate-source.mjs reads every reason the label holds
+# for. Without the label (a person removed it to resume), it
 # escalates again. The label is written before the comment, so a retry after a
 # failure between the two finds the label and posts at most one comment. The
 # comment write is tried three times, so a transient failure does not leave the
@@ -143,10 +145,11 @@ key_line="<!-- pr-unblock resume-key=$HEAD_SHA -->"
 labeled=$(gh api "$issue" | jq --arg l "$label" '[.labels[].name] | index($l) != null')
 if [[ $labeled == true ]]; then
   marked=$(gh api --paginate "$issue/comments" | jq -s --arg bot "$bot" --arg m "$marker" --arg k "$key_line" \
-    '[add[] | select(.user.login == $bot) | (.body // "") | split("\n")
-      | select((.[0] | rtrimstr("\r")) == $m and (.[1] // "" | rtrimstr("\r")) == $k)] | length > 0')
+    --arg r "- Reason: \`$ESCALATION_REASON\`" \
+    '[add[] | select(.user.login == $bot) | (.body // "") | split("\n") | map(rtrimstr("\r"))
+      | select(.[0] == $m and (.[1] // "") == $k and any(.[]; . == $r))] | length > 0')
   if [[ $marked == true ]]; then
-    echo "already escalated for resume key $HEAD_SHA"
+    echo "already escalated $ESCALATION_REASON for resume key $HEAD_SHA"
     exit 0
   fi
 fi

@@ -1,0 +1,80 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m unittest discover -s tests -t .",
+            "description": "Run the tests"
+          }
+        }
+      ],
+      "why": "the documented command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m unittest discover -s tests -t . 2>&1 | tail -3",
+            "description": "Re-run"
+          }
+        }
+      ],
+      "why": "piped through tail"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python -m unittest tests.test_cart -v"
+          }
+        }
+      ],
+      "why": "one module, python on PATH"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > cart.py <<'EOF'\nCOUPONS = {\"SAVE5\": 500}\nEOF\npython3 -m unittest discover -s tests -t . 2>&1 | tail -3",
+            "description": "Write cart.py and run the tests"
+          }
+        }
+      ],
+      "why": "the run follows a heredoc with escaped quotes in the same call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Bash call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat tests/test_cart.py",
+            "description": "Run -m unittest later"
+          }
+        }
+      ],
+      "why": "the words appear only in the description"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c 'import unittest'"
+          }
+        }
+      ],
+      "why": "imports unittest but runs no tests"
+    }
+  ]
+}

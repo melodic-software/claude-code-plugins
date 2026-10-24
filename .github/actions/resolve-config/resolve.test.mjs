@@ -1588,7 +1588,7 @@ test("the README example validates and resolves for each of its lanes", () => {
   );
   assert.deepEqual(resolveConflicts["applies-when"], {
     mergeable: ["conflicting"],
-    "labels-absent": ["do-not-merge", "needs-human"],
+    "labels-absent": ["do-not-merge"],
     draft: [false],
   });
   assert.deepEqual(results["pr-unblock / report-escalation"].needs, [

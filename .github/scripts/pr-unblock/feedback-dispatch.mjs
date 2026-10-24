@@ -326,7 +326,7 @@ export async function dispatchFeedback({
   // check, a releasing skip may still release the head: it is not
   // recorded as handled yet (#9362). An unreadable start records nothing.
   const newestCheck = Math.max(...existing.map(startOf));
-  if (permanentlyHandles(existing) && replies.some((run) => startOf(run) > newestCheck)) {
+  if (permanentlyHandles(existing, { limits: resolved.limits }) && replies.some((run) => startOf(run) > newestCheck)) {
     markHandled(record, settings.checkName, head);
   }
   if (anyHandles(existing, { now, limits: resolved.limits })) {

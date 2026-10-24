@@ -1,5 +1,28 @@
 # Changelog for the PR pipeline convention
 
+## [4.17.1] - 2026-10-24
+
+### Changed
+
+- A lane escalation's `needs-human` no longer stops the other fixers that could clear its cause. `resolve-conflicts`, `apply-conflict-patch`, `fix-ci`, `apply-patch` and `fix-docs` drop `needs-human` from their `labels-absent` (they keep `do-not-merge`); their dispatchers and base-code jobs (`resolve-conflicts-select` and `fix-docs-head` through the new `lane-hold.mjs`, and `fix-ci-context`) hold the human-gated label unless `gate-source.mjs` reads it as a lane escalation whose reasons, from report-escalation's `- Reason:` line, are another activity's. A person's label, a person's comment or review since the label went on (read from the REST issue timeline the way `clear-escalations.mjs` reads one, now one shared `spoken`), an escalation reason report-escalation.sh does not list, a review-lane hold or anything ambiguous still holds as `awaiting-human`. The dispatchers read a held PR's timeline once per run between them, and fix-docs reads it only for a PR not yet refined. When they work past the label, the write runner's `patch-fix-requested` lifts only the human-gated hold for that push, under any patch row. The label stays on, so `pr-merge` still refuses the PR. The verdict is read before the model turn, so a hold that lands during a run stops the next dispatch, not that run's push; `do-not-merge` still stops it.
+- `report-escalation.sh` is idempotent per resume key and reason: a second activity escalating on the same head while the label is on posts its own comment, so that activity's own escalation holds it.
+
+### Fixed
+
+- A failed `pr-unblock / resolve-conflicts` run no longer marks its head handled for good: the dispatcher retries it until `limits.limit-stops-per-head` failures (limit stops included) stand on the head.
+- A resolve-conflicts run skipped while the pull request was held (`Skipped: awaiting-human`) no longer marks its head handled: the dispatcher skips a held pull request itself, without recording it, and the next sweep after the hold comes off dispatches it. Held skips count toward `limits.limit-stops-per-head` with failures, for resolve-conflicts and fix-ci alike, so a hold the run reads and the dispatcher does not stops there. The dispatch record's version is now 4, so heads recorded under the old rule are read again.
+- fix-ci no longer leaves a head for good after a run that found no failing check (`not-applicable`) or `fix-ci-restarts` failed runs: once the base tip moves past those runs the dispatcher dispatches the head again, until `limits.limit-stops-per-head` such runs stand on it. A new head starts with none.
+
+- `enable-auto-merge` posts the gate's `<!-- babysit-merge-pin sha=<head> -->` comment before it arms a lanes App pull request, unless the App's newest pin already names that head unedited. When the pin fails to post, the pull request stays unarmed and the run fails. Arming a pull request that is already mergeable enqueues it at once with no auto-merge event, so the post-merge check now reads that head back against the pin.
+
+## [4.17.0] - 2026-10-24
+
+### Changed
+
+- A trusted spec edit after a pass no longer strands the head at `verify:spec-changed`. `resolve-pr.mjs` judges a head again, with reason `spec-changed`, when every counted pass there started before the spec's last change (an issue body edit, a spec comment added or edited, or a body edit of a pull request that is its own spec), and the lost-run reconciler re-runs, once and with a record, the passed `pr-require-checks` run of such a head so pr-verify starts. The gate decides on the passes of the pr-verify run that started last, so the new verdict replaces the stale one. Each passed checks run is re-run once; a changed closing set and a removed spec comment still wait for a person.
+- The verifier prompt no longer fails a pull request for touching workflows, CI, hooks, scripts, agent instructions, package manifests, lockfiles, path or file-type refusals, a `merge: human` setting, deploys, cloud, releases or other repositories; those are judged as ordinary code. It fails a change to the takeover set (the trusted-actor list, the `check-trusted-trigger`, `check-kill-switch`, `request-lane-token` and `resolve-config` actions, `CODEOWNERS`, submodules) whatever the spec says, unrequested work that loosens a hold the owner keeps (outside-organization work, cost and billing, rate, capacity, work-in-progress and round caps), and unrequested work on secret values or organization or repository settings.
+- Spec trust is unchanged: text the lanes App wrote, an issue it filed or intake triage's refinement comment included, is still not spec. Trusting it is held for an owner decision.
+
 ## [4.16.0] - 2026-10-24
 
 ### Added

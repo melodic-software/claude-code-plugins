@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
+import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, parseRecord, serializeRecord } from "./dispatch-record.mjs";
 import { createGitHubApi, dispatchFeedback, main } from "./feedback-dispatch.mjs";
 
@@ -1038,6 +1039,39 @@ test("a limit-stopped run is not recorded", async () => {
   const stopped = failedRun("lane=pr-unblock activity=address-feedback class=rate-limit resets=2026-10-17T12:00:00Z");
   await decideWith(fakeApi({ checkRuns: [stopped] }), record);
   assert.equal(record.handled.size, 0);
+});
+
+// Three limit stops under a resolved limit-stops-per-head of 5: the newest one
+// holds the head until its reset, and the head is not recorded, so after the
+// reset it dispatches again.
+test("three limit stops under a cap of 5 leave the head unrecorded and dispatched after the last reset", async () => {
+  const stop = (resets, started) => ({
+    ...failedRun(`lane=pr-unblock activity=address-feedback class=rate-limit resets=${resets}`, started),
+    started_at: started,
+  });
+  const runs = [
+    stop("2026-10-17T07:30:00Z", "2026-10-17T07:00:00Z"),
+    stop("2026-10-17T08:30:00Z", "2026-10-17T08:00:00Z"),
+    stop("2026-10-17T13:00:00Z", "2026-10-17T09:00:00Z"),
+    noModelTurn("2026-10-17T09:05:00Z"),
+  ];
+  const resolved = { ...resolvedLane(), limits: { ...LIMIT_DEFAULTS, "limit-stops-per-head": 5 } };
+  const at = (record, now) =>
+    dispatchFeedback({
+      api: fakeApi({ checkRuns: runs }),
+      repository: REPOSITORY,
+      runId: RUN_ID,
+      upstream: upstreamRun(),
+      appSenderId: APP_ID,
+      resolveSlot: async () => resolved,
+      log: () => {},
+      record,
+      now: Date.parse(now),
+    });
+  const record = emptyRecord();
+  assert.equal(await at(record, "2026-10-17T12:00:00Z"), null, "held before the newest stop's reset");
+  assert.equal(record.handled.size, 0, "a limit stop is not recorded");
+  assert.equal((await at(parseRecord(serializeRecord(record)), "2026-10-17T14:00:00Z"))?.number, 42, "3 stops of a cap of 5");
 });
 
 test("a later run at a head whose dispatched run is still going skips after one read of that run", async () => {

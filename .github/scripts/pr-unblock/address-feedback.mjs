@@ -638,6 +638,8 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
     listIssues: (query) => paginate(`issues?${query}`),
     listPullFiles: (pr) => paginate(`pulls/${pr}/files`),
     listIssueComments: (pr) => paginate(`issues/${pr}/comments`),
+    // The REST issue timeline, as gate-source.mjs prHold reads it.
+    listTimeline: (pr) => paginate(`issues/${pr}/timeline`),
     listReviews: (pr) => paginate(`pulls/${pr}/reviews`),
     listReviewComments: (pr) => paginate(`pulls/${pr}/comments`),
     listPullCommits: (pr) => paginate(`pulls/${pr}/commits`),

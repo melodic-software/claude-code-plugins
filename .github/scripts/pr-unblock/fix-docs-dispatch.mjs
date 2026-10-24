@@ -1,6 +1,7 @@
 // Starts the pr-refine lane's fix-docs activity once per pull request: for
 // each open, ready, same-repository PR into the base that changes a Markdown
-// file, carries no hold label, and has never had a fix-docs check run under
+// file, carries no hold label (the human-gated one only when a lane escalation
+// put it on: gate-source.mjs prHold), and has never had a fix-docs check run under
 // either lane fix-docs has run in, whoever opened it except the accounts in
 // excludedAuthorIds. It runs from the same dispatcher run as dispatch.mjs
 // (pr-unblock-dispatch.yml), so the trigger gate and the broker check it as
@@ -17,6 +18,7 @@
 // numbers, SHAs, run ids and counts only.
 
 import { isHandled, markHandled, emptyRecord } from "./dispatch-record.mjs";
+import { prHold } from "./gate-source.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -95,7 +97,8 @@ export const HISTORY_QUERY = `query($owner: String!, $name: String!, $number: In
 }`;
 
 // Why a listed PR is not a candidate, or "" when it is one.
-export function skipReason(node, { base, actionsAppId, checkName, earlierCheckName, excludedAuthorIds, holdLabels }) {
+// The human-gated gateLabel is left to dispatchDocsFixes's prHold read.
+export function skipReason(node, { base, actionsAppId, checkName, earlierCheckName, excludedAuthorIds, holdLabels, gateLabel = null }) {
   if (node.isDraft !== false || node.isCrossRepository !== false || node.baseRefName !== base) {
     return "not a ready same-repository PR into the base";
   }
@@ -106,7 +109,7 @@ export function skipReason(node, { base, actionsAppId, checkName, earlierCheckNa
   if (excludedAuthorIds.includes(author)) {
     return "opened by an excluded account";
   }
-  if ((node.labels?.nodes ?? []).some((label) => holdLabels.includes(label?.name))) {
+  if ((node.labels?.nodes ?? []).some((label) => holdLabels.includes(label?.name) && label?.name !== gateLabel)) {
     return "held";
   }
   const paths = (node.files?.nodes ?? []).map((file) => String(file?.path ?? ""));
@@ -156,6 +159,8 @@ export async function dispatchDocsFixes({
   excludedAuthorIds = DEFAULTS.excludedAuthorIds,
   actionsAppId = DEFAULTS.actionsAppId,
   holdLabels = DEFAULTS.holdLabels,
+  gateLabel = null,
+  appSenderId,
 }) {
   const candidates = [];
   let after;
@@ -163,7 +168,7 @@ export async function dispatchDocsFixes({
     const { rateLimit, pullRequests } = await api.listDocsFixCandidates({ base, after });
     log(`fix-docs listing page ${page}: rateLimit.cost=${rateLimit?.cost} remaining=${rateLimit?.remaining}`);
     for (const node of pullRequests.nodes) {
-      const reason = skipReason(node, { base, actionsAppId, checkName, earlierCheckName, excludedAuthorIds, holdLabels });
+      const reason = skipReason(node, { base, actionsAppId, checkName, earlierCheckName, excludedAuthorIds, holdLabels, gateLabel });
       if (reason.startsWith("head already has") || (reason === "" && isHandled(record, earlierCheckName, node.headRefOid))) {
         markHandled(record, checkName, node.headRefOid);
       } else if (reason === "" && !isHandled(record, checkName, node.headRefOid)) {
@@ -211,9 +216,24 @@ export async function dispatchDocsFixes({
         log(`skip fix-docs #${node.number}: an earlier commit already has a ${checkName} check run`);
         continue;
       }
+      // Then the human-gated label holds unless a lane escalation put it on;
+      // a held PR is not done, so it is not recorded.
+      const { held, why } = await prHold({
+        labels: (node.labels?.nodes ?? []).map((label) => label?.name),
+        holdLabels,
+        gateLabel,
+        head: node.headRefOid,
+        activity,
+        appId: appSenderId,
+        readTimeline: () => api.listTimeline(node.number),
+      });
+      if (held) {
+        log(`skip fix-docs #${node.number}: ${why}`);
+        continue;
+      }
     } catch (error) {
       failed += 1;
-      log(`::error::#${node.number}: could not read fix-docs history: ${error.message}`);
+      log(`::error::#${node.number}: could not read fix-docs history or holds: ${error.message}`);
       continue;
     }
     // Every dispatch call counts against the cap: one that failed or returned
