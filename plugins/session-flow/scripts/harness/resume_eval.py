@@ -645,7 +645,7 @@ EXCLUDE_MARKERS = (
         r"Sandbox is required but failed to initialize|Failed to create bridge sockets"
     ),
     re.compile(
-        r"(?i)usage limit|rate limit(ed)? (reached|exceeded)|hit your limit|429 Too Many Requests"
+        r"(?i)usage limit|rate limit(ed)? (reached|exceeded)|hit your (\w+ )?limit|429 Too Many Requests"
     ),
 )
 
@@ -1431,8 +1431,6 @@ def load_cases(evals_dir: Path, names: list[str]) -> list[dict]:
 
 
 def cmd_run(args) -> int:
-    from concurrent.futures import ThreadPoolExecutor
-
     if (who := isolated_session(os.getpid())) is not None:
         print(
             f"refused: started under a worktree-isolated session ({who}); start a plain `claude` session",
@@ -1472,38 +1470,77 @@ def cmd_run(args) -> int:
     )
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
-    results = []
-    with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        for graded_runs in pool.map(
-            lambda job: run_once(*job, base, cfg, out_dir), jobs
-        ):
-            for graded in graded_runs:
-                results.append(graded)
-                print(
-                    json.dumps(
-                        {
-                            k: graded.get(k)
-                            for k in (
-                                "case",
-                                "arm",
-                                "reader",
-                                "index",
-                                "error",
-                                "m1",
-                                "seconds",
-                            )
-                        }
-                    ),
-                    flush=True,
-                )
-    (out_dir / "graded.jsonl").open("a", encoding="utf-8").write(
-        "".join(json.dumps(r, default=str) + "\n" for r in results)
+    return run_jobs(
+        jobs, lambda *job: run_once(*job[:4], base, cfg, job[4]), out_dir, args.jobs
     )
+
+
+def run_jobs(jobs: list, runner, out_dir: Path, workers: int) -> int:
+    """Run each job not already graded without error, appending its rows to graded.jsonl as it
+    finishes; after the first usage-limit exclusion submit nothing more and return 4."""
+    from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+
+    def done_before(job) -> bool:
+        path = out_dir / job[0]["name"] / job[1] / str(job[3]) / "graded.json"
+        try:
+            rows = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return False
+        return bool(rows) and not any(row.get("error") for row in rows)
+
+    pending = [job for job in jobs if not done_before(job)]
+    if skipped := len(jobs) - len(pending):
+        print(
+            f"skipping {skipped} writer runs already graded without error", flush=True
+        )
+    limit_hit = False
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        running = set()
+        while pending or running:
+            while pending and not limit_hit and len(running) < workers:
+                running.add(pool.submit(runner, *pending.pop(0), out_dir))
+            if not running:
+                break
+            finished, running = wait(running, return_when=FIRST_COMPLETED)
+            for future in finished:
+                rows = future.result()
+                with (out_dir / "graded.jsonl").open("a", encoding="utf-8") as handle:
+                    handle.write(
+                        "".join(json.dumps(r, default=str) + "\n" for r in rows)
+                    )
+                for graded in rows:
+                    print(
+                        json.dumps(
+                            {
+                                k: graded.get(k)
+                                for k in (
+                                    "case",
+                                    "arm",
+                                    "reader",
+                                    "index",
+                                    "error",
+                                    "m1",
+                                    "seconds",
+                                )
+                            }
+                        ),
+                        flush=True,
+                    )
+                    limit_hit |= bool(
+                        EXCLUDE_MARKERS[1].search(str(graded.get("error") or ""))
+                    )
+    if limit_hit:
+        print(
+            f"usage limit hit: stopped with {len(pending)} writer runs not started; re-run the same command after the reset",
+            flush=True,
+        )
+        return 4
     return 0
 
 
 def cmd_report(args) -> int:
-    """One plugin-eval result file per (arm, reader) from graded.jsonl, errors excluded."""
+    """One plugin-eval result file per (arm, reader) from graded.jsonl: the last row of each
+    run counts unless it errored; every error row is reported as an exclusion."""
     runs = [
         json.loads(line)
         for line in Path(args.graded).read_text(encoding="utf-8").splitlines()
@@ -1511,13 +1548,17 @@ def cmd_report(args) -> int:
     ]
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    groups: dict[tuple, list] = {}
+    groups: dict[tuple, dict] = {}
     for run in runs:
-        groups.setdefault((run["arm"], run["reader"]), []).append(run)
-    for (arm, reader), members in sorted(groups.items()):
-        kept = [run for run in members if not run.get("error")]
+        group = groups.setdefault(
+            (run["arm"], run["reader"]), {"last": {}, "excluded": 0}
+        )
+        group["last"][(run["case"], run["index"])] = run
+        group["excluded"] += bool(run.get("error"))
+    for (arm, reader), group in sorted(groups.items()):
+        kept = [run for run in group["last"].values() if not run.get("error")]
         write_report(kept, out / f"{arm}.{reader}.json", f"{arm}-{reader}")
-        print(f"{arm}.{reader}: {len(kept)} kept, {len(members) - len(kept)} excluded")
+        print(f"{arm}.{reader}: {len(kept)} kept, {group['excluded']} excluded")
     return 0
 
 

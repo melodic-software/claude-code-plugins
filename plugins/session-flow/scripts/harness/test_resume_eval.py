@@ -581,6 +581,87 @@ def test_project_key_matches_the_cli_directory_naming():
     )
 
 
+def _job_runner(errors, ran):
+    """A run_once stand-in: records each job and writes its graded.json as run_once does."""
+
+    def run(case, arm, readers, index, out_dir):
+        ran.append(index)
+        results = [
+            {
+                "case": case["name"],
+                "arm": arm,
+                "reader": r,
+                "index": index,
+                "error": errors.get(index),
+            }
+            for r in readers
+        ]
+        keep = out_dir / case["name"] / arm / str(index)
+        keep.mkdir(parents=True, exist_ok=True)
+        (keep / "graded.json").write_text(json.dumps(results), encoding="utf-8")
+        return results
+
+    return run
+
+
+def test_run_jobs_stops_at_the_first_limit_and_appends_each_run(tmp_path):
+    case = {"name": "re-a"}
+    jobs = [(case, "before", ["codex"], i) for i in range(5)]
+    ran = []
+    errors = {1: "reader: You've hit your session limit · resets 4pm"}
+    code = resume_eval.run_jobs(jobs, _job_runner(errors, ran), tmp_path, 1)
+    assert code == 4 and ran == [0, 1]
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "graded.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    assert [r["index"] for r in rows] == [0, 1]
+
+
+def test_run_jobs_skips_runs_already_graded_without_error(tmp_path):
+    case = {"name": "re-a"}
+    jobs = [(case, "before", ["codex"], i) for i in range(3)]
+    resume_eval.run_jobs(
+        jobs, _job_runner({1: "reader: CLI exited 1: boom"}, []), tmp_path, 1
+    )
+    ran = []
+    code = resume_eval.run_jobs(jobs, _job_runner({}, ran), tmp_path, 1)
+    assert code == 0 and ran == [1]
+
+
+def test_report_keeps_the_last_row_per_run_and_counts_every_exclusion(tmp_path, capsys):
+    import argparse
+
+    def row(index, error):
+        return {
+            "case": "re-a",
+            "arm": "before",
+            "reader": "codex",
+            "index": index,
+            "error": error,
+            "probes": {"p": True},
+        }
+
+    graded = tmp_path / "graded.jsonl"
+    graded.write_text(
+        "".join(
+            json.dumps(r) + "\n"
+            # index 0 re-ran because its other reader errored; index 1 re-ran after an error
+            for r in (
+                row(0, None),
+                row(0, None),
+                row(1, "reader: CLI exited 1"),
+                row(1, None),
+            )
+        ),
+        encoding="utf-8",
+    )
+    resume_eval.cmd_report(
+        argparse.Namespace(graded=str(graded), out=str(tmp_path / "rep"))
+    )
+    assert "before.codex: 2 kept, 1 excluded" in capsys.readouterr().out
+
+
 def test_one_before_run_flows_from_seed_to_graded_probes(tmp_path):
     """Real git and real seeding; every `claude` call is faked."""
     import subprocess
