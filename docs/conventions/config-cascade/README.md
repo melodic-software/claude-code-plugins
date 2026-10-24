@@ -578,6 +578,7 @@ conformance.
 | `docs-naming` | later layer; team on named policy-floor keys | per-key |
 | `rendered-views` | later layer | per-key |
 | `testing` (`run-e2e`) | later layer | per-key |
+| `testing` (`write`) | later layer | per-key |
 | `testing` (`audit`, `test-weaken`) | later layer; the first present of `testing.yaml`, the docs block and `.claude/testing.yaml` in the team layer | per-key (scalars override, lists concatenate) |
 | `testing` (`check-visual-parity`) | lowest value (policy floor) | per-key |
 | `plugin-quality` | team via pointer line | convention doc |
