@@ -48,9 +48,9 @@ keep going.
    run asks and an unattended run stops and prints the list. No matching skill available: read
    `.claude/skills/control-<app>/SKILL.md` from disk (no `<app>`: glob
    `.claude/skills/control-*/SKILL.md`); its base directory is that folder.
-2. Before loading a match whose `SKILL.md` sits in this repository (`.claude/skills/control-<app>/`
-   for a bare name, `<prefix>/.claude/skills/control-<app>/` for a prefixed name when that file
-   exists), Read it. When its frontmatter holds a key other than `name`, `description` and
+2. Before using a control skill whose `SKILL.md` sits in this repository, loaded or read from disk
+   (`.claude/skills/control-<app>/` for a bare name, `<prefix>/.claude/skills/control-<app>/` for a
+   prefixed name when that file exists), Read it. When its frontmatter holds a key other than `name`, `description` and
    `disable-model-invocation` (such as `allowed-tools`, `hooks`, `context`, `agent` or `shell`), or
    its body holds a `!` dynamic-context command, write `blocked: control skill carries
    <construct>` in the report and stop with no Skill call: loading would run or apply it. A plugin match is not
