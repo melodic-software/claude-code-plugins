@@ -4925,6 +4925,8 @@ class TheStricterConfigEdges(unittest.TestCase):
             {**good, "adoption_idle_hours": 721},
         ):
             with self.subTest(broken=broken):
+                # No commit's config saved by an earlier case either.
+                pathlib.Path(env["BABYSIT_RUN_CACHE"]).unlink(missing_ok=True)
                 policy.run_cache.put(policy.DEFAULT_BRANCH_CONFIG_SECTION, REPO, broken)
                 gh = config_fake(self, PIPELINE.replace("local-babysit", "pr-merge"))
                 gh.rest[f"repos/{REPO}"] = {"default_branch": "trunk"}
@@ -4948,6 +4950,64 @@ class TheStricterConfigEdges(unittest.TestCase):
                     ],
                     gh.calls,
                 )
+
+
+class ConfigAtIsSharedByCommit(unittest.TestCase):
+    """`config_at`: one read of the config files per commit per run, shared
+    through the run cache by commit; a read with a note is read again."""
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        env = {"BABYSIT_RUN_CACHE": str(pathlib.Path(tmp.name, "run.json"))}
+        patcher = mock.patch.dict("os.environ", env)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def reads(self, gh: GhFake, sha: str) -> int:
+        endpoint = f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={sha}"
+        return gh.calls.count(["api", endpoint])
+
+    def test_a_commit_is_read_once_and_another_commit_again(self) -> None:
+        gh = config_fake(self, PIPELINE)
+        first = policy.config_at(REPO, SHA)
+        second = policy.config_at(REPO, SHA)
+        self.assertEqual((first.rung, second.rung), ("C2", "C2"))
+        self.assertEqual(second.loop_merge, "c2-mechanical")
+        self.assertEqual(self.reads(gh, SHA), 1)
+        other = "b" * 40
+        gh.rest[f"repos/{REPO}/contents?ref={other}"] = []
+        for path, text in (
+            (policy.CONFIG_PATH, PIPELINE.replace("rung: C2", "rung: C3")),
+            (policy.SOURCE_CONTROL_PATH, SOURCE_CONTROL),
+        ):
+            gh.rest[f"repos/{REPO}/contents/{path}?ref={other}"] = file_payload(text)
+        self.assertEqual(policy.config_at(REPO, other).rung, "C3")
+        self.assertEqual(self.reads(gh, other), 1)
+
+    def test_a_read_with_a_note_is_not_saved(self) -> None:
+        gh = config_fake(self, PIPELINE, source=502)
+        self.assertIsNone(policy.config_at(REPO, SHA).loop_merge)
+        policy.config_at(REPO, SHA)
+        self.assertEqual(self.reads(gh, SHA), 2)
+
+    def test_the_default_branch_config_is_read_again_only_when_its_head_moves(
+        self,
+    ) -> None:
+        gh = config_fake(self, PIPELINE.replace("local-babysit", "pr-merge"))
+        gh.rest[f"repos/{REPO}"] = {"default_branch": "trunk"}
+        gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": SHA}
+        start = datetime(2026, 10, 24, 12, 0, tzinfo=UTC)
+        base = policy.PipelineConfig(MAIN_SHA, "C2", "pr-merge", None, None, (), None)
+        # Past the repository-keyed window (two minutes), the head is read
+        # again and the same commit's config comes from the cache.
+        for minutes in (0, 3, 6):
+            with mock.patch.object(
+                policy.run_cache, "now", return_value=start + timedelta(minutes=minutes)
+            ):
+                policy.with_default_branch(REPO, base)
+        self.assertEqual(gh.calls.count(["api", f"repos/{REPO}/commits/trunk"]), 3)
+        self.assertEqual(self.reads(gh, SHA), 1)
 
 
 class SharedPostMergeAnswer(unittest.TestCase):
