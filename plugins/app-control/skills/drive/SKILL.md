@@ -44,7 +44,9 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
 1. **Repository control skills come from disk.** Before any Skill call, Glob the repository for
    `**/.claude/skills/**/SKILL.md` and `**/.claude/commands/**/*.md`, and keep each file whose
    folder name, file name without `.md`, or frontmatter `name` is `control-<app>` (no `<app>`: starts
-   with `control-`). That reaches nested skills folders, a plugin kept in a skills folder, command
+   with `control-`). Drop any match git ignores or that sits in a submodule or a dependency folder
+   such as `node_modules` or `vendor`: those are not this repository's skills. A new, uncommitted
+   control skill stays a candidate. That reaches nested skills folders, a plugin kept in a skills folder, command
    files and a skill marked `disable-model-invocation: true`. Read each kept file; never load it
    through the Skill tool. Its source is `project` and its base directory is its folder.
 2. **A contract break in a repository control skill is a finding, not a stop.** Its frontmatter
