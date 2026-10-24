@@ -23,7 +23,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { COMMENT_EDITED_QUERY, PULL_OPENED_QUERY, changeOf, costDecision, costHold, decidedHead, linkHold, main, sameNetChange } from "./merge-holds.mjs";
+import { COMMENT_EDITED_QUERY, PULL_OPENED_QUERY, changeOf, costDecision, costHold, costMarker, linkHold, main, sameNetChange } from "./merge-holds.mjs";
 
 const REPO = "owner/repo";
 const LINK = "https://github.com/owner/repo/issues/40#issuecomment-7";
@@ -34,8 +34,10 @@ const BASE = "89abcdef0123456789abcdef0123456789abcdef";
 const OLD = "fedcba9876543210fedcba9876543210fedcba98";
 const LANE = { login: "github-actions[bot]", id: 41898282, type: "Bot" };
 // A review lane's cost hold comment on the pull request at `sha`.
+// Its node id IC_M answers the marker's edit read.
 const marker = (sha, at = "2026-10-22T11:00:00Z", { criteria = "cost", user = LANE } = {}) => ({
   user,
+  node_id: "IC_M",
   created_at: at,
   body: `<!-- claude-lane-hold lane=claude-review sha=${sha} criteria=${criteria} -->\nHeld for a person.\n\nclaude-lane: claude-review`,
 });
@@ -68,6 +70,7 @@ function world({
   comments = [marker(HEAD)],
   compares = {},
   base = "main",
+  markerNode,
 } = {}) {
   const reads = [];
   const github = async (method, path, body) => {
@@ -76,7 +79,9 @@ function world({
       body?.query === PULL_OPENED_QUERY
         ? "pull"
         : body?.query === COMMENT_EDITED_QUERY
-          ? "edited"
+          ? body.variables.id === "IC_M"
+            ? "marker edited"
+            : "edited"
           : path === "/repos/owner/repo/issues/99/comments?per_page=100&page=1"
             ? "comments"
             : compare
@@ -106,6 +111,9 @@ function world({
         },
       };
     }
+    if (read === "marker edited") {
+      return { data: { node: markerNode === undefined ? { lastEditedAt: null } : markerNode } };
+    }
     if (read === "edited") {
       assert.deepEqual(body.variables, { id: "IC_7" });
       return { data: { node: node === undefined ? { lastEditedAt: null } : node } };
@@ -127,7 +135,7 @@ const decide = (body = `Closes #40\n\nCost decision: ${LINK}\n`, options = {}) =
 test("an owner decision on the closing issue, linked from the body, clears the cost hold", async () => {
   const { link, reads } = await decide();
   assert.equal(link, LINK);
-  assert.deepEqual(reads, ["pull", "GET /repos/owner/repo/issues/comments/7", "edited", "comments"]);
+  assert.deepEqual(reads, ["pull", "GET /repos/owner/repo/issues/comments/7", "edited", "comments", "marker edited"]);
 });
 
 test("one on the pull request itself clears with no check against the pull request's time and no #number", async () => {
@@ -377,7 +385,7 @@ test("a base merge after the decision carries it, and a pull request commit afte
   assert.equal((await later({ [OLD]: net(TF), [HEAD]: net(TF) })).link, LINK);
   const commit = await later({ [OLD]: net(TF), [HEAD]: net(TF, { filename: "scripts/run.sh", status: "modified", patch: "@@ -1 +1 @@\n-x\n+y" }) });
   assert.equal(commit.link, null);
-  assert.deepEqual(commit.reads.slice(-3), ["comments", `compare ${OLD}`, `compare ${HEAD}`]);
+  assert.deepEqual(commit.reads.slice(-4), ["comments", "marker edited", `compare ${OLD}`, `compare ${HEAD}`]);
 });
 
 test("a rebase onto a newer base with the same net change carries, whatever order the files list in", async () => {
@@ -416,6 +424,23 @@ test("a compare of 300 files or more, a file with no patch, a filename listed tw
     assert.ok(!odd.reads.some((read) => read.startsWith("compare")), base);
   }
   assert.equal((await later({ [OLD]: net(TF), [HEAD]: net(TF) }, { base: "release/2.x" })).link, LINK);
+});
+
+test("an edited or unreadable newest marker carries nothing, and no older marker stands in", async () => {
+  const same = { [OLD]: net(TF), [HEAD]: net(TF) };
+  for (const [name, options] of Object.entries({
+    edited: { markerNode: { lastEditedAt: "2026-10-22T11:05:00Z" } },
+    "a null node": { markerNode: null },
+    "no lastEditedAt key": { markerNode: {} },
+    unreadable: { fail: "marker edited" },
+  })) {
+    // At the head it held, and after a base merge.
+    assert.equal((await decide(undefined, options)).link, null, name);
+    assert.equal((await later(same, options)).link, null, name);
+  }
+  // An older unedited marker at this head does not stand in for an edited newest one.
+  const older = { comments: [marker(HEAD, "2026-10-22T10:00:00Z"), marker(OLD)], compares: same, markerNode: { lastEditedAt: "2026-10-22T11:05:00Z" } };
+  assert.equal((await decide(undefined, older)).link, null);
 });
 
 test("at the decided head the decision carries with no compare read", async () => {
@@ -473,10 +498,10 @@ test("the decided head is the latest bot cost hold marker made before the decisi
     assert.equal((await decide(undefined, { comments: [marker(OLD), extra], compares: same })).link, null, name);
   }
   assert.equal((await decide(undefined, { comments: [marker(OLD), marker(HEAD, "2026-10-22T11:30:00Z", { criteria: "cost,trust-gate" })], compares: same })).link, LINK);
-  assert.equal(decidedHead([marker(OLD), marker(HEAD, "2026-10-22T11:30:00Z")], "2026-10-22T11:30:00Z"), OLD);
+  assert.deepEqual(costMarker([marker(OLD), marker(HEAD, "2026-10-22T11:30:00Z")], "2026-10-22T11:30:00Z"), { sha: OLD, node: "IC_M" });
   // Of two at one time, the first listed wins, as in the hold step.
-  assert.equal(decidedHead([marker(OLD), marker(HEAD)], "2026-10-22T12:00:00Z"), OLD);
-  assert.equal(decidedHead([], "2026-10-22T12:00:00Z"), null);
+  assert.equal(costMarker([marker(OLD), marker(HEAD)], "2026-10-22T12:00:00Z").sha, OLD);
+  assert.equal(costMarker([], "2026-10-22T12:00:00Z"), null);
 });
 
 test("sameNetChange compares filename, status, previous_filename and patch", () => {

@@ -40,7 +40,7 @@ def _marker(
     user: dict[str, Any] = LANE,
 ) -> dict[str, Any]:
     body = f"<!-- claude-lane-hold lane=claude-review sha={sha} criteria={criteria} -->\nHeld."
-    return {"user": user, "created_at": at, "body": body}
+    return {"user": user, "node_id": "IC_M", "created_at": at, "body": body}
 
 
 def _net(*files: dict[str, Any]) -> dict[str, Any]:
@@ -74,6 +74,7 @@ class CostDecision(unittest.TestCase):
         compares: dict[str, Any] | None = None,
         unreadable: str = "",
         pull: dict[str, Any] | None = None,
+        marker_node: Any = ...,
     ) -> str | None:
         created = PR_CREATED if created is None else created
         self.reads: list[str] = []
@@ -96,11 +97,20 @@ class CostDecision(unittest.TestCase):
             return [_marker(HEAD)] if markers is None else markers
 
         answer = {"lastEditedAt": edited} if node is ... else node
-        graphql = mock.Mock(return_value={"node": answer})
+        held = {"lastEditedAt": None} if marker_node is ... else marker_node
+
+        def graphql(_query: str, what: str, **variables: Any) -> dict[str, Any]:
+            if variables.get("id") != "IC_M":
+                return {"node": answer}
+            self.reads.append("marker edited")
+            if unreadable == "marker edited":
+                raise policy.PolicyReadError(what)
+            return {"node": held}
+
         with (
             mock.patch.object(policy, "_get", side_effect=get),
             mock.patch.object(policy, "_paginated", side_effect=paginated),
-            mock.patch.object(policy, "_graphql", graphql),
+            mock.patch.object(policy, "_graphql", side_effect=graphql),
         ):
             return policy.cost_decision(
                 REPO,
@@ -118,6 +128,7 @@ class CostDecision(unittest.TestCase):
             [
                 "repos/owner/repo/issues/comments/7",
                 "repos/owner/repo/issues/99/comments?per_page=100",
+                "marker edited",
             ],
         )
 
@@ -328,6 +339,22 @@ class CostDecision(unittest.TestCase):
             with self.subTest(body):
                 self.assertIsNone(self.decide(body=body, comment=comment, markers=[]))
                 self.assertFalse(any("/compare/" in r for r in self.reads))
+
+    def test_an_edited_or_unreadable_newest_marker_does_not_carry(self) -> None:
+        same = {OLD: _net(TF), HEAD: _net(TF)}
+        for name, change in {
+            "edited": dict(marker_node={"lastEditedAt": "2026-10-22T11:05:00Z"}),
+            "a null node": dict(marker_node=None),
+            "no lastEditedAt key": dict(marker_node={}),
+            "unreadable": dict(unreadable="marker edited"),
+        }.items():
+            with self.subTest(name):
+                self.assertIsNone(self.decide(**change))
+                self.assertIsNone(self.later(same, **change))
+        # An older unedited marker at this head does not stand in.
+        older = [_marker(HEAD, "2026-10-22T10:00:00Z"), _marker(OLD)]
+        edited = {"lastEditedAt": "2026-10-22T11:05:00Z"}
+        self.assertIsNone(self.decide(markers=older, compares=same, marker_node=edited))
 
     def test_at_the_decided_head_it_carries_with_no_compare_read(self) -> None:
         pull = PULL | {"base": {"ref": "-unusable"}}

@@ -396,12 +396,13 @@ DECISIONS = {
 def _marker(sha: str, at: str = "2026-01-02T12:00:00Z", **fields: Any) -> dict[str, Any]:
     body = f"<!-- claude-lane-hold lane=claude-review sha={sha} criteria=cost -->\nHeld."
     user = {"login": "github-actions[bot]", "type": "Bot"}
-    return {"user": user, "created_at": at, "body": body} | fields
+    return {"user": user, "node_id": "M", "created_at": at, "body": body} | fields
 
 
 # The head reads: the pull request's comments (a cost hold marker at the head
 # before the decision by default) and a compare per head.
-DEFAULT_HEADS = {"markers": [_marker(HEAD)], "compares": {}}
+# The marker's edit read answers `marker_edited`, or fails when it is "fail".
+DEFAULT_HEADS = {"markers": [_marker(HEAD)], "compares": {}, "marker_edited": None}
 TF = {"filename": "a.tf", "status": "modified", "patch": "@@ -1 +1 @@\n-a\n+b"}
 MORE = {"filename": "b.sh", "status": "added", "patch": "+c"}
 # Each case: the heads world for a decision on the pull request (_link(7)).
@@ -444,6 +445,13 @@ CARRIES = {
         "markers": [_marker(HEAD, user={"login": "claude[bot]", "type": "Bot"})]
     },
     "no marker": {"markers": []},
+    "an edited marker": {"marker_edited": "2026-01-02T13:00:00Z"},
+    "an unreadable marker edit state": {"marker_edited": "fail"},
+    "an edited marker after a base merge": {
+        "markers": [_marker(OLD)],
+        "compares": {OLD: {"files": [TF]}, HEAD: {"files": [TF]}},
+        "marker_edited": "2026-01-02T13:00:00Z",
+    },
     "a filename listed twice": {
         "markers": [_marker(OLD)],
         "compares": {OLD: {"files": [TF, TF]}, HEAD: {"files": [TF, TF]}},
@@ -470,6 +478,10 @@ const github = async (method, path, data) => {
   if (data.variables.number !== undefined) {
     return { data: { repository: { pullRequest: { createdAt: "2026-01-02T00:00:00Z", baseRefName: "main",
       closingIssuesReferences: { totalCount: 1, nodes: [{ number: issue, repository: { nameWithOwner: "o/r" } }] } } } } };
+  }
+  if (data.variables.id === "M") {
+    if (heads.marker_edited === "fail") throw new Error("unreadable");
+    return { data: { node: { lastEditedAt: heads.marker_edited } } };
   }
   return { data: { node: { lastEditedAt: comment.edited } } };
 };
@@ -501,7 +513,11 @@ def py_decision(
 ) -> str | None:
     heads = DEFAULT_HEADS | heads
 
-    def graphql(_query: str, _what: str, **_vars: Any) -> dict[str, Any]:
+    def graphql(_query: str, what: str, **variables: Any) -> dict[str, Any]:
+        if variables.get("id") == "M":
+            if heads["marker_edited"] == "fail":
+                raise policy.PolicyReadError(what)
+            return {"node": {"lastEditedAt": heads["marker_edited"]}}
         return {"node": {"lastEditedAt": comment["edited"]}}
 
     def get(endpoint: str) -> tuple[int | None, Any]:

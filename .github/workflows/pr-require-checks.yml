@@ -3563,10 +3563,10 @@ jobs:
       #   pull request and naming it as `#<number>` (merge-holds.mjs
       #   namesPull). Of those, the newest on the pull request, else the
       #   newest on the issue, is the decision. It covers the head it decided
-      #   (the newest github-actions[bot] cost hold marker before it; with
-      #   none, no head) and a later head only when the pull request's net
+      #   (the newest github-actions[bot] cost hold marker before it, while
+      #   never edited; with none, or an edited one, no head) and a later head only when the pull request's net
       #   change against its base branch is the same at both, so every change
-      #   since is a base merge (the base's merge-holds.mjs decidedHead and
+      #   since is a base merge (the base's merge-holds.mjs costMarker and
       #   sameNetChange; owner decisions Q17 c and Q18 d on #9436, as
       #   ci-workflows v0.65.4's hold step reads them). The linked issue is the one issue in this repository that
       #   GitHub records it as closing, else, when it closes none, the one issue
@@ -3675,18 +3675,26 @@ jobs:
               import { pathToFileURL } from "node:url";
               const [name, ...files] = process.argv.slice(1, -1);
               const run = (await import(pathToFileURL(process.argv.at(-1)).href))[name];
-              console.log(run(...files.map((file) => JSON.parse(readFileSync(file, "utf8")))) ?? "");' \
+              const out = run(...files.map((file) => JSON.parse(readFileSync(file, "utf8"))));
+              console.log(out !== null && typeof out === "object" ? JSON.stringify(out) : String(out ?? ""));' \
               "$@" "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs"
           }
           # carries <comment>: whether the decision comment covers HEAD_SHA:
-          # its decided head is HEAD_SHA, or the net change against the base
-          # branch is the same at both. No marker, an unusable base branch
-          # name or any read that fails carries nothing.
+          # its decided head, from the newest cost hold marker before it and
+          # only while that marker was never edited, is HEAD_SHA, or the net
+          # change against the base branch is the same at both. No marker, an
+          # edited or unreadable newest marker, an unusable base branch name or
+          # any read that fails carries nothing.
           carries() {
-            local at="$RUNNER_TEMP/cost-hold-at.json" decided base_ref
+            local at="$RUNNER_TEMP/cost-hold-at.json" marker decided marker_edited base_ref
             jq '.created_at' <<<"$1" >"$at" || return 1
-            decided=$(holds_js decidedHead "$RUNNER_TEMP/cost-hold-comments.json" "$at") || return 1
+            marker=$(holds_js costMarker "$RUNNER_TEMP/cost-hold-comments.json" "$at") || return 1
+            [ -n "$marker" ] || return 1
+            decided=$(jq -r '.sha' <<<"$marker") || return 1
             [[ $decided =~ ^[0-9a-f]{40}$ ]] || return 1
+            # shellcheck disable=SC2016 # GraphQL variables, not shell
+            marker_edited=$(read_api graphql -f query='query($id:ID!){node(id:$id){... on IssueComment{lastEditedAt}}}' -F id="$(jq -r '.node' <<<"$marker")") || return 1
+            jq -e '.data.node | objects | has("lastEditedAt") and .lastEditedAt == null' <<<"$marker_edited" >/dev/null 2>&1 || return 1
             [ "$decided" != "$HEAD_SHA" ] || return 0
             base_ref=$(jq -r '.base.ref // ""' <<<"$pr") || return 1
             jq -en --arg b "$base_ref" '$b | test("^(?!-)(?!.*\\.\\.)[A-Za-z0-9._/-]{1,255}$")' >/dev/null || return 1

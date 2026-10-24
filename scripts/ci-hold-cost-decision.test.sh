@@ -114,6 +114,7 @@ case "$*" in
 */pulls/6419*) failing pull; printf '%s\n' "$STUB_PR" ;;
 *graphql*COMMENT_DELETED_EVENT*) failing deleted; printf '%s\n' "$STUB_DELETED" ;;
 *graphql*closingIssuesReferences*) failing closing; printf '%s\n' "$STUB_CLOSING" ;;
+*graphql*lastEditedAt*'id=IC_M'*) failing marker-edited; printf '%s\n' "$STUB_MARKER_EDITED" ;;
 *graphql*lastEditedAt*) failing edited; printf '%s\n' "$STUB_EDITED" ;;
 *) exit 1 ;;
 esac
@@ -142,9 +143,12 @@ decision() {
 }
 note() { jq -cn --arg m "$1" '{annotation_level: "notice", message: $m}'; }
 hold_note() { note "claude-lane-hold lane=${2:-claude-review} sha=$HEAD criteria=$1 label=needs-human"; }
-# marker <sha> [at] [criteria]: a review lane's hold comment on the pull request.
-marker() { comment "$LANE" "${2:-2026-10-23T13:10:00Z}" "<!-- claude-lane-hold lane=claude-review sha=$1 criteria=${3:-cost} -->
-Held for a person."; }
+# marker <sha> [at] [criteria]: a review lane's hold comment on the pull
+# request, node IC_M, whose edit read answers STUB_MARKER_EDITED.
+marker() {
+  jq -c '.node_id = "IC_M"' <<<"$(comment "$LANE" "${2:-2026-10-23T13:10:00Z}" "<!-- claude-lane-hold lane=claude-review sha=$1 criteria=${3:-cost} -->
+Held for a person.")"
+}
 MARKER="$(marker "$HEAD")"
 TF='{"filename":"infra/main.tf","status":"modified","patch":"@@ -1 +1 @@\n-a\n+b"}'
 MORE='{"filename":"scripts/run.sh","status":"modified","patch":"+y"}'
@@ -170,6 +174,7 @@ reset() {
   STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T13:14:57Z '**Decision recorded.** Cost: accepted for #6419.')" '{"111": $c}')"
   export STUB_DECISIONS
   export STUB_EDITED='{"data":{"node":{"lastEditedAt":null}}}'
+  export STUB_MARKER_EDITED='{"data":{"node":{"lastEditedAt":null}}}'
   export STUB_ISSUES='{"9306":{"number":9306}}'
   export STUB_DELETED='{"data":{"repository":{"pullRequest":{"timelineItems":{"filteredCount":0,"nodes":[]}}}}}'
   STUB_EVENTS="[$(event labeled "$LANE" 2026-10-23T13:20:20Z)]"
@@ -387,6 +392,21 @@ expect "an issue decision with no marker before it clears nothing" no no no "cov
 reset
 export STUB_FAIL=module
 expect "an unreadable base merge-holds.mjs carries no closing-issue decision" no no no "covering this head"
+reset
+export STUB_MARKER_EDITED='{"data":{"node":{"lastEditedAt":"2026-10-23T13:11:00Z"}}}'
+expect "an edited newest cost hold marker carries nothing at its own head" no no no "covering this head"
+STUB_COMMENTS="[$(marker "$OLD")]"
+nets "[$TF]" "[$TF]"
+expect "an edited newest cost hold marker carries nothing after a base merge" no no no "covering this head"
+STUB_COMMENTS="[$(marker "$HEAD" 2026-10-23T12:00:00Z),$(marker "$OLD")]"
+expect "an older unedited marker does not stand in for an edited newest one" no no no "covering this head"
+for answer in '{"data":{"node":null}}' '{"data":{"node":{}}}'; do
+  export STUB_MARKER_EDITED="$answer"
+  STUB_COMMENTS="[$MARKER]"
+  expect "a marker edit state reading '$answer' carries nothing" no no no "covering this head"
+done
+export STUB_MARKER_EDITED='{"data":{"node":{"lastEditedAt":null}}}' STUB_FAIL=marker-edited
+expect "an unreadable marker edit state carries nothing" no no no "covering this head"
 reset
 expect "at the decided head the decision carries" yes yes yes
 if grep -q 'compare/main\.\.\.' "$TMP_ROOT/log"; then fail "a decision at its own head read a compare"; else ok "a decision at its own head reads no compare"; fi

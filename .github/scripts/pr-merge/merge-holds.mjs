@@ -444,11 +444,13 @@ export function namesPull(text, number) {
 const COST_MARKER = /^<!-- claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) criteria=([a-z,-]+) -->(?:\n|$)/;
 const BRANCH = /^(?!-)(?!.*\.\.)[A-Za-z0-9._/-]{1,255}$/;
 
-// The head a cost decision made at `at` decided, from the pull request's
-// `comments`: the sha of the newest cost hold marker github-actions[bot]
-// posted before it, else null (babysit_merge_policy.decided_head; the first
-// of two at one time wins, as in the review lanes' hold step).
-export function decidedHead(comments, at) {
+// The newest cost hold marker github-actions[bot] posted among the pull
+// request's `comments` before a decision made at `at`, as { sha, node }
+// (the head it held and its comment's node id), else null
+// (babysit_merge_policy.cost_marker; the first of two at one time wins, as
+// in the review lanes' hold step). It decides a head only while never
+// edited, which the caller reads.
+export function costMarker(comments, at) {
   const cutoff = Date.parse(at);
   let found = null;
   let latest = -Infinity;
@@ -456,12 +458,15 @@ export function decidedHead(comments, at) {
     const marker = row?.user?.login === "github-actions[bot]" ? COST_MARKER.exec(String(row.body ?? "")) : null;
     const made = Date.parse(row?.created_at);
     if (marker && marker[2].split(",").includes("cost") && made < cutoff && made > latest) {
-      found = marker[1];
+      found = { sha: marker[1], node: String(row.node_id ?? "") };
       latest = made;
     }
   }
   return found;
 }
+
+// Whether a COMMENT_EDITED_QUERY answer's node was never edited.
+const unedited = (node) => Boolean(node) && "lastEditedAt" in node && node.lastEditedAt === null;
 
 // Whether two compare answers (base...head) show the same net change of the
 // pull request: the same filenames, each with the same status,
@@ -499,17 +504,23 @@ async function pages(github, path) {
 }
 
 // Whether the decision `comment` covers pull request `number` at `head`
-// (owner decisions Q17 c and Q18 d on #9436): its decided head (decidedHead)
-// is `head`, with no compare read, or every change since is a merge of the
-// base branch `base`, so the net change against it is the same at both
-// (sameNetChange). No marker, an unusable base name or a read that fails
-// carries nothing.
+// (owner decisions Q17 c and Q18 d on #9436): its decided head (costMarker,
+// never edited, so no one with write access moved its sha) is `head`, with
+// no compare read, or every change since is a merge of the base branch
+// `base`, so the net change against it is the same at both (sameNetChange).
+// No marker, an edited or unreadable newest marker (no older one stands in),
+// an unusable base name or a read that fails carries nothing.
 async function carries(github, repo, number, comment, head, base) {
   try {
-    const decided = decidedHead(await pages(github, `/repos/${repo}/issues/${number}/comments`), comment.created_at);
-    if (decided === null) {
+    const marker = costMarker(await pages(github, `/repos/${repo}/issues/${number}/comments`), comment.created_at);
+    if (marker === null) {
       return false;
     }
+    const node = (await github("POST", "/graphql", { query: COMMENT_EDITED_QUERY, variables: { id: marker.node } }))?.data?.node;
+    if (!unedited(node)) {
+      return false;
+    }
+    const decided = marker.sha;
     if (decided === head) {
       return true;
     }
@@ -594,7 +605,7 @@ export async function costDecision(github, repo, number, body, humans, head) {
         continue;
       }
       const node = (await github("POST", "/graphql", { query: COMMENT_EDITED_QUERY, variables: { id: String(comment.node_id) } }))?.data?.node;
-      if (node && "lastEditedAt" in node && node.lastEditedAt === null) {
+      if (unedited(node)) {
         decisions.push({ link: link[0], comment, own: target === number });
       }
     } catch {

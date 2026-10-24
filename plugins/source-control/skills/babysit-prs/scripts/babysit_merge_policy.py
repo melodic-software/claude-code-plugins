@@ -2009,14 +2009,14 @@ BASE_BRANCH = re.compile(r"(?!-)(?!.*\.\.)[A-Za-z0-9._/-]{1,255}")
 _NEVER = datetime.min.replace(tzinfo=UTC)
 
 
-def decided_head(comments: Any, at: Any) -> str | None:
-    """The head a cost decision made at `at` decided, from the pull
-    request's `comments`: the sha of the newest cost hold marker
-    github-actions[bot] posted before it, else None (merge-holds.mjs
-    `decidedHead`; the first of two at one time wins, as in the review lanes'
-    hold step)."""
+def cost_marker(comments: Any, at: Any) -> tuple[str, str] | None:
+    """The newest cost hold marker github-actions[bot] posted among the pull
+    request's `comments` before a decision made at `at`, as (the head it
+    held, its comment's node id), else None (merge-holds.mjs `costMarker`;
+    the first of two at one time wins, as in the review lanes' hold step).
+    It decides a head only while never edited, which the caller reads."""
     when = parse_timestamp(at)
-    found: tuple[datetime, str] | None = None
+    found: tuple[datetime, str, str] | None = None
     for row in json_array(comments):
         row = json_object(row)
         made = parse_timestamp(row.get("created_at"))
@@ -2033,8 +2033,8 @@ def decided_head(comments: Any, at: Any) -> str | None:
             and made < when
             and (found is None or made > found[0])
         ):
-            found = (made, marker[1])
-    return found[1] if found else None
+            found = (made, marker[1], str(row.get("node_id") or ""))
+    return (found[1], found[2]) if found else None
 
 
 def same_net_change(decided: Any, current: Any) -> bool:
@@ -2064,25 +2064,31 @@ def same_net_change(decided: Any, current: Any) -> bool:
 def _carries(repo: str, pr: Mapping[str, Any], comment: Mapping[str, Any]) -> bool:
     """Whether the decision `comment` covers the pull request at its head
     (owner decisions Q17 c and Q18 d on #9436): its decided head
-    (`decided_head`) is the head, with no compare read, or every change since
-    is a merge of the base branch, so the net change against it is the same at
-    both (`same_net_change`). No marker, an unusable base name or a read that
-    fails carries nothing."""
+    (`cost_marker`, never edited, so no one with write access moved its sha)
+    is the head, with no compare read, or every change since is a merge of the
+    base branch, so the net change against it is the same at both
+    (`same_net_change`). No marker, an edited or unreadable newest marker (no
+    older one stands in), an unusable base name or a read that fails carries
+    nothing."""
     sha = str(json_object(pr.get("head")).get("sha") or "")
     base = json_object(pr.get("base")).get("ref")
     owner, name = _split_repo(repo)
     try:
-        decided = decided_head(
+        marker = cost_marker(
             _paginated(
                 f"repos/{owner}/{name}/issues/{pr.get('number')}/comments?per_page=100",
                 "cost hold markers",
             ),
             comment.get("created_at"),
         )
+        if marker is None:
+            return False
+        node = _graphql(COMMENT_EDITED, "cost hold marker", id=marker[1]).get("node")
     except PolicyReadError:
         return False
-    if decided is None:
+    if not (is_json_object(node) and "lastEditedAt" in node and node["lastEditedAt"] is None):
         return False
+    decided = marker[0]
     if decided == sha:
         return True
     if not isinstance(base, str) or not BASE_BRANCH.fullmatch(base):
