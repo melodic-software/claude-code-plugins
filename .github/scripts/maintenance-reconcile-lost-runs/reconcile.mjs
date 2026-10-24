@@ -5,7 +5,7 @@
 // the record: a run at attempt 2 or later was already re-run, by this script
 // or a person, and is never touched again. No model.
 //
-// Three kinds are re-run:
+// These kinds are re-run:
 // - CI: a CI workflow's newest run on an open PR's current head. These
 //   workflows check no re-runner, but pr-verify, which runs after
 //   pr-require-checks, trusts its attempt 2 by github-actions[bot] only through
@@ -27,6 +27,12 @@
 //   plan step names each record, the workflow uploads them, and only then does
 //   the act step re-run the run, so the record exists before the re-run. The
 //   same holds for each CI re-run that carries a record.
+// - Spec: a pr-require-checks run that passed, at attempt 1, on a head with a
+//   pr-verify pass that the spec has since changed under (an issue edit or a
+//   new spec comment after the pass: resolve-pr's `spec-changed`, the same
+//   read pr-verify makes). The gate refuses that pass `verify:spec-changed`;
+//   the recorded re-run starts pr-verify, which judges the head against the
+//   spec as it is now. Once per head, as attempt 2 is never touched again.
 // Other lost lane runs (the review lanes, refine) are listed in the summary for
 // a person: their gates or the lanes token broker refuse a re-run
 // github-actions[bot] starts. A merge-group run is not covered: a re-run puts
@@ -47,7 +53,9 @@
 //   RECORD_PATH          the file plan writes for the record uploads
 //   GH_TOKEN             the job's GITHUB_TOKEN (actions: write, pull-requests: read)
 //   GITHUB_REPOSITORY    owner/repo
-//   KILL_SWITCH          `proceed` from the kill-switch step; anything else stops
+//   TRUSTED_ACTORS_PATH  the default branch's trusted-actor list; unset checks no spec
+//   VERIFY_AUTHORS, LANE_IDENTITY, SPEC_FROM_BODY_APPS  as pr-verify.yml passes resolve-pr
+//   KILL_SWITCH         `proceed` from the kill-switch step; anything else stops
 //   STATUS_URL           the status page's components endpoint (default githubstatus.com)
 //   GITHUB_OUTPUT        plan writes record-1 to record-3 there (empty when unused)
 //   GITHUB_STEP_SUMMARY  the outcome is listed there when set
@@ -58,7 +66,8 @@ import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
-import { createGitHub, paginate, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, loadTrustedList, paginate, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { resolvePull, specFromBodyApps } from "../pr-verify/resolve-pr.mjs";
 import { firstFailure, INFRA_BACKOFF_MINUTES, infraOnly, LOOKBACK_HOURS, reconcilerRetries, testedRun } from "./infra-failure.mjs";
 
 const STATUS_URL = "https://www.githubstatus.com/api/v2/components.json";
@@ -150,6 +159,10 @@ const isLost = (r, since) => r.status === "completed" && LOST.has(r.conclusion) 
 const isFailedIntake = (r, since) =>
   r.path === INTAKE_LABEL && r.event === "issues" && r.status === "completed" && r.conclusion === "failure" && r.run_attempt === 1 && Date.parse(r.created_at) >= since;
 const isLostLane = (r, since) => r.event === "workflow_run" && r.head_branch === "main" && SHA.test(r.head_sha ?? "") && isLost(r, since);
+// The checks run whose re-run starts pr-verify again: a pr-require-checks
+// pull_request run that passed on its first attempt.
+const isPassedChecks = (r) =>
+  RECORDED_UPSTREAMS.has(r?.path) && r.event === "pull_request" && r.status === "completed" && r.conclusion === "success" && r.run_attempt === 1;
 // A failed run whose failed jobs may be re-run now, if its failures are infra only.
 const isRetryable = (r, now) => reconcilerRetries(r, now) && now - Date.parse(r.updated_at) >= INFRA_BACKOFF_MINUTES[r.run_attempt - 1] * 60_000;
 const lostNow = (item, r, since) => {
@@ -161,6 +174,9 @@ const lostNow = (item, r, since) => {
   }
   if (item.kind === "intake") {
     return isFailedIntake(r, since);
+  }
+  if (item.kind === "spec") {
+    return isPassedChecks(r);
   }
   return item.kind === "lane" ? isLostLane(r, since) : isLost(r, since);
 };
@@ -204,10 +220,24 @@ async function holdReason(call, repo, runId) {
   return started.length === 0 ? "before any of its jobs started" : undefined;
 }
 
+// Whether the PR has an unexpired pr-verify PASS or PASS-NOTES at the head,
+// by exact name (write-verdict.mjs artifactName): two lookups, so resolve-pr's
+// full read runs only for a head that has one.
+async function passedAt(call, repo, number, head) {
+  for (const verdict of ["pass", "pass-notes"]) {
+    const name = `pr-verify-${number}-${head}-${verdict}`;
+    const page = await call("GET", `/repos/${repo}/actions/artifacts?name=${name}&per_page=100`);
+    if ((page?.artifacts ?? []).some((a) => a?.name === name && a.expired === false)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // Reads every open PR's head and the recorded lanes' runs, and returns the
 // re-runs to make in order, with a record name on each lane re-run and each
 // recorded CI re-run.
-async function plan({ repo, call, say, since, now, readStatus }) {
+async function plan({ repo, call, say, since, now, readStatus, judgeSpec }) {
   const pulls = (await paginate(call, `/repos/${repo}/pulls?state=open&base=main`, 5))
     .filter((p) => p.state === "open" && p.draft !== true && p.base?.ref === "main" && p.head?.repo?.full_name === repo && SHA.test(p.head?.sha ?? ""))
     .sort(byMergeCriticality);
@@ -288,6 +318,15 @@ async function plan({ repo, call, say, since, now, readStatus }) {
           continue;
         }
         set.push({ kind: "infra", pr: pull.number, id: r.id, path: r.path, conclusion: "failure (infra only)", attempt: r.run_attempt, head: pull.head.sha });
+      }
+      // A pass the spec has since changed under: re-running the head's
+      // passed checks starts pr-verify, which judges it again (resolve-pr's
+      // `spec-changed`). Attempt 1 only, so a head is judged again once.
+      const checks = newestByWorkflow(listing.workflow_runs).find((r) => RECORDED_UPSTREAMS.has(r.path));
+      if (set.length === 0 && judgeSpec && isPassedChecks(checks) && (await passedAt(call, repo, pull.number, pull.head.sha))) {
+        if ((await judgeSpec(checks.id)).reason === "spec-changed") {
+          set.push({ kind: "spec", pr: pull.number, id: checks.id, path: checks.path, conclusion: "success", attempt: 1, head: pull.head.sha });
+        }
       }
       if (set.length > 0) {
         ready.push(set.map(withRecord));
@@ -433,7 +472,11 @@ async function act({ repo, call, say, since, sleep, items }) {
         continue;
       }
       await call("POST", `/repos/${repo}/actions/runs/${item.id}/rerun`);
-      say(`${where}: re-ran run ${item.id} (${item.path}), which ended ${item.conclusion}`);
+      say(
+        item.kind === "spec"
+          ? `${where}: re-ran run ${item.id} (${item.path}) so pr-verify judges the head again: its spec changed after the pass`
+          : `${where}: re-ran run ${item.id} (${item.path}), which ended ${item.conclusion}`,
+      );
     } catch (error) {
       if (error instanceof RateLimited) {
         throw error;
@@ -478,6 +521,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
     }
     const repo = env.GITHUB_REPOSITORY;
     let last;
+    const injected = github !== undefined;
     github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse: (r) => (last = r) });
     const call = async (...args) => {
       try {
@@ -531,7 +575,28 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
       write();
       return finish(0);
     }
-    result = await plan({ repo, call, say, since, now, readStatus });
+    // resolve-pr's own read, with pr-verify.yml's inputs: `spec-changed` is
+    // exactly a head pr-verify would judge again. Without the trusted list
+    // nothing is checked.
+    let judgeSpec;
+    if (env.TRUSTED_ACTORS_PATH) {
+      const trusted = loadTrustedList(env.TRUSTED_ACTORS_PATH);
+      // The Refs read needs GraphQL errors back to tell a typo from a failure.
+      const readRefs = injected ? github : createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, keepGraphQLErrors: true });
+      judgeSpec = (upstreamRunId) =>
+        resolvePull({
+          github: call,
+          readRefs,
+          repository: repo,
+          upstreamRunId,
+          humans: trusted.humans,
+          verifyAuthors: env.VERIFY_AUTHORS ?? "lane",
+          laneIdentity: env.LANE_IDENTITY,
+          ownerIds: [...trusted.ids],
+          specFromBodyApps: specFromBodyApps(env.SPEC_FROM_BODY_APPS),
+        });
+    }
+    result = await plan({ repo, call, say, since, now, readStatus, judgeSpec });
     if (result.items.some(recorded) && !env.RECORD_PATH) {
       throw new Error("RECORD_PATH is not set");
     }

@@ -19,7 +19,8 @@ denied, and a denied read voids the verdict:
   issue a `Refs: #<n>` line of its body names, with its author's and last body editor's login, id
   and account type (`User` or `Bot`).
 - `SPEC_TEXT_FILE`: JSON with each of those issues' `body` and `comments` written, and last edited
-  if ever, by a trusted human, the pull request's author included. When the pull request links
+  if ever, by a trusted human, the pull request's author included, or by the lanes App before the
+  pull request existed: an issue it filed, or the criteria intake triage drafted. When the pull request links
   no issue and a trusted person or a script wrote its title and body, the file instead holds one
   entry with `source` `pull-request`: that title and body. Each entry's `spec_kind` says how it
   is linked: `closes` (an issue the pull request closes), `refs` (the one issue a `Refs:` line
@@ -44,20 +45,23 @@ Judge in this order:
    whole spec. Work the spec does not ask for, or puts out
    of scope, does not block by itself: name it in a note and return `pass-notes`. It blocks only
    when it is also a correctness or safety problem, when it changes what the code is for (such as
-   a CI fix that changes what the code does rather than how it passes), or when it touches a
-   hold the owner keeps: the hold on work from outside the organization, cost holds, rate,
-   capacity, work-in-progress and round caps, path and file-type refusals, package manifests
-   and lockfiles, anything with an effect outside this repository (deploys, cloud, billing,
-   secret values, organization or repository settings, CODEOWNERS, releases, other
-   repositories), or a `merge: human` setting.
+   a CI fix that changes what the code does rather than how it passes), or when it loosens a
+   hold the owner keeps: the hold on work from outside the organization, cost holds and billing,
+   rate, capacity, work-in-progress and round caps, secret values, organization or repository
+   settings, deploys, cloud resources, releases, or other repositories. Changes to workflows, CI,
+   hooks, scripts, agent instructions, package manifests and lockfiles are ordinary work: judge
+   them like any other code.
 2. Correctness. Read the changed code in the diff. Look for logic errors, broken or missing error handling,
    tests that cannot fail or do not cover the change, and anything that breaks a caller.
-3. Safety. Look for secrets or machine-specific data, weakened checks, permissions or guards,
-   unsafe handling of untrusted input, and changes to CI, hooks or agent instructions that widen
-   what automation may do.
+3. Safety. Look for secrets or machine-specific data, a check, permission or guard weakened
+   beyond what the spec asks for, and unsafe handling of untrusted input. Whatever the spec says,
+   a change to the takeover set is a takeover risk, since it could hand the repository to someone
+   outside the organization. The takeover set is the trusted-actor list (`.github/standards/trusted-actors/`), the
+   `check-trusted-trigger`, `check-kill-switch`, `request-lane-token` and `resolve-config` actions
+   under `.github/actions/`, a `CODEOWNERS` file, and `.gitmodules` or a submodule.
 
 Return `fail` when you find any blocking defect: the spec is not delivered, a correctness bug, a
-safety problem, a change of intent, or a change to a hold the owner keeps. A fix round reads a
+safety problem, a change of intent, a takeover risk, or a loosened hold the owner keeps. A fix round reads a
 `fail`'s notes, so make each one say what to change. Return `pass-notes` when nothing blocks but
 something deserves a human's attention, out-of-scope work included.
 Return `pass` only when nothing blocks and you have nothing to add. When the diff is too large or

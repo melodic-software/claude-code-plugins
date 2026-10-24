@@ -17,6 +17,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
+import { REFINE_MARKER } from "../intake-triage/admit.mjs";
 import { main, resolvePull } from "./resolve-pr.mjs";
 
 const REPO = "example-org/example-repo";
@@ -47,6 +48,10 @@ const LINKED = {
 };
 const HUMANS = new Set([100]);
 const LANE = "melodic-automation-lanes[bot]";
+// The fake pull request's creation, and a verify run's start after it and
+// after every edit the fixtures below make.
+const PR_CREATED = "2026-10-20T00:00:00Z";
+const JUDGED_AT = "2026-10-21T00:00:00Z";
 
 const upstream = (overrides = {}) => ({
   id: RUN,
@@ -83,12 +88,13 @@ const verifyRun = (id, overrides = {}) => ({
   head_sha: MAIN,
   repository: { full_name: REPO },
   head_repository: { full_name: REPO },
+  run_started_at: JUDGED_AT,
   ...overrides,
 });
 
 const artifact = (name, runId, expired = false) => ({ name, expired, workflow_run: { id: runId } });
 
-function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, restFails = false, associated = [], body: prBody = null, refs = {}, queries = [] } = {}) {
+function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, createdAt = PR_CREATED, restFails = false, associated = [], body: prBody = null, refs = {}, queries = [] } = {}) {
   const github = async (method, apiPath, body) => {
     if (apiPath === `/repos/${REPO}/actions/runs/${RUN}`) return run;
     const listed = /\/commits\/([0-9a-f]+)\/pulls\?per_page=100&page=(\d+)$/.exec(apiPath);
@@ -109,7 +115,7 @@ function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, o
       return refs[n]?.answer ?? { data: { repository: { issueOrPullRequest: refs[n] } } };
     }
     if (apiPath === "/graphql") {
-      return { data: { repository: { pullRequest: { ...edit, body: prBody, closingIssuesReferences: { totalCount: issues.length, nodes: issues } } } } };
+      return { data: { repository: { pullRequest: { ...edit, createdAt, body: prBody, closingIssuesReferences: { totalCount: issues.length, nodes: issues } } } } };
     }
     const named = /\/actions\/artifacts\?name=([^&]+)&per_page=100&page=(\d+)$/.exec(apiPath);
     if (named) {
@@ -496,9 +502,11 @@ async function specReads(setup) {
   return [reason, reads];
 }
 
-test("a head with a verdict named without issues skips before the linked issues are read", async () => {
-  for (const name of [`pr-verify-41-${HEAD}-pass`, `pr-verify-41-${HEAD}-fail`]) {
-    assert.deepEqual(await specReads({ artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77) } }), ["already-judged", 0], name);
+test("a FAIL named without issues skips before the linked issues are read, and a pass after one read", async () => {
+  // A pass is weighed against the spec's last change, which that read gives.
+  for (const [verdict, reads] of [["fail", 0], ["pass", 1]]) {
+    const name = `pr-verify-41-${HEAD}-${verdict}`;
+    assert.deepEqual(await specReads({ artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77) } }), ["already-judged", reads], name);
   }
 });
 
@@ -652,11 +660,23 @@ test("the spec text keeps only what trusted humans wrote and last edited", async
     "a trusted PR author's comments",
   );
   const editedBody = { ...issue, lastEditedAt: "2026-10-14T00:00:00Z", editor: lanes };
-  assert.equal((await resolve({ issues: [editedBody] })).specText[0].body, null, "a body the lanes App last edited");
+  assert.equal((await resolve({ issues: [editedBody] })).specText[0].body, "the spec", "a body the lanes App last edited before the PR");
+  const editedAfter = { ...issue, lastEditedAt: "2026-10-20T00:00:01Z", editor: lanes };
+  assert.equal((await resolve({ issues: [editedAfter] })).specText[0].body, null, "a body the lanes App edited after the PR was created");
   const byAuthor = (await resolve(byMaintainer, { verifyAuthors: "any" })).specText[0];
   assert.deepEqual(byAuthor, { number: 7, spec_kind: "closes", body: "the spec", comments: ["kept", "edited by the human"] }, "a trusted PR author's own text");
+  // Issue 7 predates pull request 41, so the lanes App filed it before the run.
   const lanesIssue = { ...issue, author: lanes };
-  assert.equal((await resolve({ issues: [lanesIssue] })).specText[0].body, null, "an issue the lanes App wrote");
+  assert.equal((await resolve({ issues: [lanesIssue] })).specText[0].body, "the spec", "an issue the lanes App filed before the PR");
+  const lanesLater = { ...lanesIssue, number: 42 };
+  assert.equal((await resolve({ issues: [lanesLater] })).specText[0].body, null, "an issue the lanes App filed after the PR");
+  for (const [label, author] of [
+    ["github-actions", { __typename: "Bot", login: "github-actions", databaseId: 41898282 }],
+    ["another App", { __typename: "Bot", login: "some-other-app", databaseId: 5 }],
+    ["a User named like the lanes App", { ...lanes, __typename: "User" }],
+  ]) {
+    assert.equal((await resolve({ issues: [{ ...issue, author }] })).specText[0].body, null, label);
+  }
   const strangerIssue = { ...issue, author: stranger, comments: { totalCount: 1, nodes: [comment("by the stranger", stranger)] } };
   const byStranger = { issues: [strangerIssue], pulls: [pull({ user: { id: 999, login: "stranger", type: "User" } })] };
   assert.deepEqual(
@@ -664,6 +684,72 @@ test("the spec text keeps only what trusted humans wrote and last edited", async
     { number: 7, spec_kind: "closes", body: null, comments: [] },
     "an untrusted PR author's own text",
   );
+});
+
+test("intake triage's refinement comment is spec only when the lanes App posted it before the pull request", async () => {
+  // refine.mjs posts the drafted criteria as the lanes App, opening with its marker.
+  const lanes = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };
+  const other = { __typename: "Bot", login: "github-actions", databaseId: 41898282 };
+  const refined = `${REFINE_MARKER}\n- [ ] the criterion`;
+  const cases = [
+    ["before the PR", { author: lanes, updatedAt: "2026-10-19T00:00:00Z" }, true],
+    ["edited by a listed human", { author: lanes, updatedAt: "2026-10-19T00:00:00Z", lastEditedAt: "2026-10-19T00:00:00Z", editor: { __typename: "User", login: "maintainer", databaseId: 100 } }, true],
+    ["updated after the PR was created", { author: lanes, updatedAt: "2026-10-20T00:00:01Z" }, false],
+    ["without the marker", { author: lanes, updatedAt: "2026-10-19T00:00:00Z", body: "- [ ] the criterion" }, false],
+    ["with the marker mid-body", { author: lanes, updatedAt: "2026-10-19T00:00:00Z", body: `note\n${refined}` }, false],
+    ["by another App", { author: other, updatedAt: "2026-10-19T00:00:00Z" }, false],
+    ["edited by another App", { author: lanes, updatedAt: "2026-10-19T00:00:00Z", lastEditedAt: "2026-10-19T00:00:00Z", editor: other }, false],
+  ];
+  for (const [label, fields, kept] of cases) {
+    const comment = { databaseId: 9, body: refined, lastEditedAt: null, editor: null, ...fields };
+    const result = await resolve({ issues: [{ ...ISSUE, comments: { totalCount: 1, nodes: [comment] } }] });
+    assert.deepEqual(result.specText[0].comments, kept ? [comment.body] : [], label);
+    assert.deepEqual(result.linkedIssues[0].spec_comments, kept ? [{ id: 9, updated_at: comment.updatedAt }] : [], label);
+  }
+});
+
+test("a pass judged before the spec last changed is judged again at the same head", async () => {
+  const name = `pr-verify-41-${HEAD}-pass`;
+  const passed = (start) => ({ artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77, { run_started_at: start }) } });
+  const human = { __typename: "User", login: "maintainer", databaseId: 100 };
+  const edited = { ...ISSUE, lastEditedAt: "2026-10-21T00:00:00Z", editor: human };
+  const commented = {
+    ...ISSUE,
+    comments: { totalCount: 1, nodes: [{ databaseId: 3, body: "one more criterion", updatedAt: "2026-10-21T00:00:00Z", author: human, lastEditedAt: null, editor: null }] },
+  };
+  for (const [label, issue] of [["a body edit", edited], ["a new spec comment", commented]]) {
+    assert.equal(await reason({ ...passed("2026-10-20T23:59:59Z"), issues: [issue] }), "spec-changed", `${label} after the pass`);
+    assert.equal(await reason({ ...passed("2026-10-21T00:00:01Z"), issues: [issue] }), "already-judged", `${label} before the pass`);
+  }
+  // A comment the spec leaves out changes nothing.
+  const bot = { ...commented.comments.nodes[0], author: { __typename: "Bot", login: "github-actions", databaseId: 41898282 } };
+  assert.equal(await reason({ ...passed("2026-10-20T23:59:59Z"), issues: [{ ...ISSUE, comments: { totalCount: 1, nodes: [bot] } }] }), "already-judged");
+  // A pass whose start cannot be read is judged again.
+  assert.equal(await reason(passed(undefined)), "spec-changed");
+  // One pass after the change is enough; a FAIL at the head still stops it.
+  const both = {
+    issues: [edited],
+    artifacts: [artifact(name, 77), artifact(name, 78)],
+    runs: { 77: verifyRun(77, { run_started_at: "2026-10-20T00:00:00Z" }), 78: verifyRun(78, { run_started_at: "2026-10-22T00:00:00Z" }) },
+  };
+  assert.equal(await reason(both), "already-judged");
+  const failed = { ...passed("2026-10-20T00:00:00Z"), issues: [edited] };
+  failed.artifacts.push(artifact(`pr-verify-41-${HEAD}-fail`, 79));
+  failed.runs[79] = verifyRun(79);
+  assert.equal(await reason(failed), "already-judged");
+});
+
+test("a pull request that is its own spec is judged again after a body edit", async () => {
+  const name = `pr-verify-41-${HEAD}-pass`;
+  const setup = (lastEditedAt) => ({
+    issues: [],
+    pulls: [HUMAN_PR],
+    edit: { lastEditedAt, editor: lastEditedAt ? { __typename: "User", login: "maintainer", databaseId: 100 } : null },
+    artifacts: [artifact(name, 77)],
+    runs: { 77: verifyRun(77) },
+  });
+  assert.equal(await reason(setup("2026-10-22T00:00:00Z"), { verifyAuthors: "any" }), "spec-changed");
+  assert.equal(await reason(setup("2026-10-19T00:00:00Z"), { verifyAuthors: "any" }), "already-judged");
 });
 
 test("the linked issues record each body's last editor", async () => {

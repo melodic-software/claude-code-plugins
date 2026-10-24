@@ -727,6 +727,89 @@ test("a PR's CI set carries one record, so the cap of 3 bounds the records at 3"
   assert.deepEqual(reruns.sort(), [101, 102, 103, 201, 202, 203]);
 });
 
+// A head whose pr-verify pass the spec changed under after the pass: resolve-pr
+// (pr-verify's own resolver) answers `spec-changed`, and the head's passed
+// checks run is re-run once, recorded, so pr-verify judges the head again.
+// Shapes follow resolve-pr.test.mjs: GET /commits/{sha}/pulls,
+// /actions/artifacts?name=, and the closingIssuesReferences GraphQL field.
+const LANE = "melodic-automation-lanes[bot]";
+const PASS_RUN = 701;
+const PASS_STARTED = "2026-10-19T19:30:00Z";
+function specChanged({ edited, attempt = 1, pass = true } = {}) {
+  const head = sha(1);
+  const checks = { ...run(601, head, { conclusion: "success", attempt }), repository: { full_name: REPO } };
+  const judged = { ...verifyRun(PASS_RUN, { conclusion: "success" }), repository: { full_name: REPO }, run_started_at: PASS_STARTED, jobs: [] };
+  const name = `pr-verify-1-${head}-pass`;
+  const issue = {
+    number: 7,
+    repository: { nameWithOwner: REPO },
+    body: "the spec",
+    lastEditedAt: edited,
+    author: { __typename: "User", login: "maintainer", databaseId: 100 },
+    editor: edited ? { __typename: "User", login: "maintainer", databaseId: 100 } : null,
+    comments: { totalCount: 0, nodes: [] },
+  };
+  const pull = { ...pr(1), user: { id: 9, login: LANE, type: "Bot" }, base: { ref: "main", sha: "b".repeat(40) } };
+  // The pull requests whose spec was read.
+  const specReads = [];
+  const wrap = (github) => async (method, apiPath, body) => {
+    if (apiPath === `/repos/${REPO}/commits/${head}/pulls?per_page=100&page=1`) return [pull];
+    const named = /\/actions\/artifacts\?name=([^&]+)&per_page=100(?:&page=1)?$/.exec(apiPath);
+    if (named) return { artifacts: pass && decodeURIComponent(named[1]) === name ? [{ name, expired: false, workflow_run: { id: PASS_RUN } }] : [] };
+    if (apiPath === `/repos/${REPO}/compare/${MAIN_TIP}...main`) return { status: "ahead" };
+    if (apiPath === "/graphql") {
+      specReads.push(body.variables.number);
+      return { data: { repository: { pullRequest: { body: "", createdAt: "2026-10-19T00:00:00Z", lastEditedAt: null, editor: null, closingIssuesReferences: { totalCount: 1, nodes: [issue] } } } } };
+    }
+    return github(method, apiPath, body);
+  };
+  return { setup: { pulls: [pr(1)], runs: [checks, judged], github: wrap }, specReads };
+}
+
+async function withTrustedList(fn) {
+  const dir = mkdtempSync(path.join(tmpdir(), "reconcile-actors-"));
+  try {
+    const actors = path.join(dir, "trusted-actors.json");
+    writeFileSync(actors, JSON.stringify({ version: 1, actors: [{ id: 100, login: "maintainer", kind: "human" }] }));
+    return await fn({ TRUSTED_ACTORS_PATH: actors, LANE_IDENTITY: LANE });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("a pass the spec changed under re-runs the head's passed checks once, with a record", async () => {
+  await withTrustedList(async (env) => {
+    const { code, outputs, reruns } = await reconcile({ ...specChanged({ edited: "2026-10-19T19:45:00Z" }).setup, env });
+    assert.equal(code, 0);
+    assert.deepEqual(reruns, [601]);
+    assert.equal(outputs["record-1"], `reconcile-rerun-601-2-${sha(1)}`);
+  });
+});
+
+test("a pass judged after the spec's last change, a second attempt, or no pass re-runs nothing", async () => {
+  await withTrustedList(async (env) => {
+    const cases = {
+      "edited before the pass": [{ edited: "2026-10-19T19:15:00Z" }, [1]],
+      "never edited": [{ edited: null }, [1]],
+      "already at attempt 2": [{ edited: "2026-10-19T19:45:00Z", attempt: 2 }, []],
+      "no pass at the head": [{ edited: "2026-10-19T19:45:00Z", pass: false }, []],
+    };
+    for (const [label, [options, read]] of Object.entries(cases)) {
+      const { setup, specReads } = specChanged(options);
+      const { code, reruns } = await reconcile({ ...setup, env });
+      assert.equal(code, 0, label);
+      assert.deepEqual(reruns, [], label);
+      assert.deepEqual(specReads, read, label);
+    }
+  });
+});
+
+test("without the trusted list no spec is checked", async () => {
+  const { code, reruns } = await reconcile(specChanged({ edited: "2026-10-19T19:45:00Z" }).setup);
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, []);
+});
+
 test("act re-runs no CI run whose plan names another record", async (t) => {
   t.mock.method(console, "log", () => {});
   const { github, calls } = fakeGitHub({ pulls: [pr(1)], runs: [run(101, sha(1))] });

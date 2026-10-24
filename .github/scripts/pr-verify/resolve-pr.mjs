@@ -21,12 +21,14 @@
 //   this PR, each looked up by exact artifact name, uploaded by a completed
 //   run that the pr-merge lane's reader would count (countedBy, the same checks as
 //   babysit_verify_evidence.py). A run still going or one that uploaded
-//   nothing does not stop a new judgment.
+//   nothing does not stop a new judgment, and neither do passes that all
+//   started before the spec last changed (`specChanged`): the head is judged
+//   again, with reason `spec-changed`.
 // The babysit-prs test test_verify_rules_sync.py runs this file to keep
 // DEPENDENCY_MANAGERS, isDependencyManager and countedBy in step with the gate.
 // It also writes the PR's closing issues, or, when it closes none, the one
 // issue its body's `Refs:` lines name (refsIssue), with their authors and last
-// body editors to SPEC_FILE, and the spec text trusted humans wrote to
+// body editors to SPEC_FILE, and the spec text `specTrust` keeps to
 // SPEC_TEXT_FILE (linkedIssues).
 // The head SHA is the run's, never the PR's live head.
 
@@ -42,6 +44,7 @@ import {
 } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { headRefDigest, issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { refsIssue } from "../pr-merge/merge-holds.mjs";
+import { REFINE_MARKER } from "../intake-triage/admit.mjs";
 
 export { refsIssue };
 
@@ -66,7 +69,7 @@ const ACTOR = "fragment actor on Actor { __typename login ... on User { database
 const SPEC_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      body lastEditedAt editor { ...actor }
+      body createdAt lastEditedAt editor { ...actor }
       closingIssuesReferences(first: 10) {
         totalCount
         nodes {
@@ -137,12 +140,17 @@ async function artifactsNamed(github, repository, name) {
 // complete: of verifier origin (path, event, branch, repository, head
 // repository, a head SHA on the branch), completed, and for a pass concluded
 // success. A read that fails counts nothing.
-export async function countedBy({ github, repository, runId, verdict, base }) {
+export async function countedBy(options) {
+  return (await countedRun(options)) !== null;
+}
+
+// countedBy's run record, or null when it would not count.
+async function countedRun({ github, repository, runId, verdict, base }) {
   let run;
   try {
     run = await github("GET", `/repos/${repository}/actions/runs/${runId}`);
   } catch {
-    return false;
+    return null;
   }
   if (
     run?.id !== runId ||
@@ -155,13 +163,13 @@ export async function countedBy({ github, repository, runId, verdict, base }) {
     (verdict !== "fail" && run.conclusion !== "success") ||
     !SHA.test(run.head_sha ?? "")
   ) {
-    return false;
+    return null;
   }
   try {
     const compare = await github("GET", `/repos/${repository}/compare/${run.head_sha}...${base}`);
-    return compare?.status === "ahead" || compare?.status === "identical";
+    return compare?.status === "ahead" || compare?.status === "identical" ? run : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -201,6 +209,8 @@ async function pullsOfCommit(github, repository, head) {
 // the head is judged again; so is a head whose linked issues a body edit
 // changed since this PR's FAIL there. Each costs a run and changes nothing
 // the gate decides: the earlier FAIL stays tied and refuses the head.
+// A counted FAIL answers `fail`; this PR's counted passes answer only their
+// runs' start times (`passes`), which `specChanged` weighs against the spec.
 async function judged({ github, repository, number, head, base, refs, issues }) {
   // The digest is hex whatever the branch holds, so any non-empty one is looked up.
   const named = (pr, verdict) => {
@@ -219,6 +229,7 @@ async function judged({ github, repository, number, head, base, refs, issues }) 
             .map((name) => name + suffix)
             .filter(isVerdictName)
         : [];
+  const passes = [];
   for (const name of names) {
     const [, , , verdict] = NAME.exec(name);
     for (const artifact of await artifactsNamed(github, repository, name)) {
@@ -226,29 +237,75 @@ async function judged({ github, repository, number, head, base, refs, issues }) 
         continue;
       }
       const runId = artifact.workflow_run?.id;
-      if (Number.isSafeInteger(runId) && (await countedBy({ github, repository, runId, verdict, base }))) {
-        return true;
+      const run = Number.isSafeInteger(runId) ? await countedRun({ github, repository, runId, verdict, base }) : null;
+      if (run !== null && verdict === "fail") {
+        return { fail: true, passes };
+      }
+      if (run !== null) {
+        passes.push(run.run_started_at);
       }
     }
   }
-  return false;
+  return { fail: false, passes };
+}
+
+// Whether every counted pass at the head started before the live spec last
+// changed (babysit_verify_evidence `_pass_refusal`, which refuses such a pass
+// `verify:spec-changed`): a linked issue's body edit, a spec comment added or
+// edited, or, for a pull request that is its own spec, a body edit. A pass
+// with no readable start time is stale. The gate also refuses a changed
+// closing set and a removed spec comment, which leave no time here; those
+// heads stay judged, as before.
+export function specChanged(passStarts, { linkedIssues: issues, specKind, bodyEditedAt }) {
+  const times = [
+    ...issues.flatMap((issue) => [issue.last_edited_at, ...issue.spec_comments.map((comment) => comment.updated_at)]),
+    ...(specKind === "pull-request" ? [bodyEditedAt] : []),
+  ].map((time) => Date.parse(time ?? ""));
+  const changed = Math.max(-Infinity, ...times.filter((time) => !Number.isNaN(time)));
+  return !passStarts.some((start) => Date.parse(start ?? "") > changed);
+}
+
+// Which spec text counts (babysit_verify_evidence `_trusted_spec` and
+// `_spec_comments` are its twins). A trusted human is a User on the trusted
+// list's humans, the PR author included. The lanes App (`laneIdentity`, a Bot
+// matched by login as laneAuthored is) counts only for text a triage or
+// filing step wrote before this pull request existed, never for text the run
+// that wrote the diff could have written: an issue body it filed (a lower
+// number than the pull request) or last edited before the pull request was
+// created, and a REFINE_MARKER comment, intake triage's refinement, last
+// updated before then. Every other Bot or App, github-actions included, and
+// every unlisted User is left out.
+export function specTrust({ humans, laneIdentity, prNumber, prCreatedAt }) {
+  const human = (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
+  const app = (actor) => laneAuthored({ type: actor?.__typename, login: actor?.login }, laneIdentity);
+  const created = Date.parse(prCreatedAt ?? "");
+  const before = (time) => Date.parse(time ?? "") < created;
+  return {
+    body: (issue) =>
+      (human(issue?.author) || (app(issue?.author) && Number.isSafeInteger(prNumber) && issue.number < prNumber)) &&
+      (issue.lastEditedAt == null || human(issue.editor) || (app(issue.editor) && before(issue.lastEditedAt))),
+    comment: (comment) =>
+      (human(comment?.author) && (comment.lastEditedAt == null || human(comment.editor))) ||
+      (app(comment?.author) &&
+        String(comment.body ?? "").startsWith(REFINE_MARKER) &&
+        before(comment.updatedAt) &&
+        (comment.lastEditedAt == null || human(comment.editor) || app(comment.editor))),
+  };
 }
 
 // The closing issues in this repository, or, when the pull request closes
 // none, the one issue its `Refs:` lines name (refsIssue), with their authors
-// and last body editors (`linkedIssues`), and the spec text: each body and comment written,
-// and last edited if ever, by a User on the trusted list's humans, the PR
-// author included (`specText`). Bots and Apps, the lanes App among them, are
-// left out even where select-trusted-text keeps them.
-async function linkedIssues(github, readRefs, repository, number, humans) {
+// and last body editors (`linkedIssues`), and the spec text `specTrust`
+// keeps (`specText`), even where select-trusted-text keeps more.
+async function linkedIssues(github, readRefs, repository, number, humans, laneIdentity) {
   const [owner, name] = repository.split("/");
   const data = await github("POST", "/graphql", { query: SPEC_QUERY, variables: { owner, name, number } });
   const refs = data?.data?.repository?.pullRequest?.closingIssuesReferences;
   if (!refs || !Array.isArray(refs.nodes) || refs.totalCount !== refs.nodes.length) {
     throw new Error(`#${number}: the closing issues could not be read`);
   }
-  const trusted = (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
-  const written = (item) => trusted(item?.author) && (item.lastEditedAt == null || trusted(item.editor));
+  const trust = specTrust({ humans, laneIdentity, prNumber: number, prCreatedAt: data.data.repository.pullRequest.createdAt });
+  const written = trust.comment;
   let nodes = refs.nodes;
   const named = refs.totalCount === 0 ? refsIssue(data.data.repository.pullRequest.body) : null;
   if (named !== null) {
@@ -274,6 +331,7 @@ async function linkedIssues(github, readRefs, repository, number, humans) {
   return {
     // Who last edited the pull request's own body: null when never edited.
     bodyEditor: pullRequest.lastEditedAt == null ? null : (pullRequest.editor?.databaseId ?? 0),
+    bodyEditedAt: pullRequest.lastEditedAt ?? null,
     linkedIssues: issues.map((issue) => ({
       number: issue.number,
       ...actorFields(issue.author, "author"),
@@ -291,7 +349,7 @@ async function linkedIssues(github, readRefs, repository, number, humans) {
     specText: issues.map((issue) => ({
       number: issue.number,
       spec_kind: named !== null ? "refs" : "closes",
-      body: written(issue) && typeof issue.body === "string" ? issue.body : null,
+      body: trust.body(issue) && typeof issue.body === "string" ? issue.body : null,
       comments: issue.comments.nodes.filter(written).map((comment) => String(comment.body ?? "")),
     })),
   };
@@ -351,13 +409,14 @@ export async function resolvePull({ github, readRefs = github, repository, upstr
       .filter((item) => Number.isSafeInteger(item?.number) && item.number > 0)
       .map((item) => [item.number, String(item.head?.ref ?? "")]),
   );
-  if (await judged({ github, repository, number: pull.number, head, base, refs })) {
+  const { fail, passes } = await judged({ github, repository, number: pull.number, head, base, refs });
+  if (fail) {
     return skip("already-judged");
   }
   // This PR's FAIL is named with the issues it records, read only now.
-  const specRead = await linkedIssues(github, readRefs, repository, pull.number, humans);
+  const specRead = await linkedIssues(github, readRefs, repository, pull.number, humans, laneIdentity);
   const issues = specRead.linkedIssues.map((issue) => issue.number);
-  if (await judged({ github, repository, number: pull.number, head, base, refs, issues })) {
+  if ((await judged({ github, repository, number: pull.number, head, base, refs, issues })).fail) {
     return skip("already-judged");
   }
   // No closing issue here: the title and body of a trusted person's PR, or
@@ -368,7 +427,7 @@ export async function resolvePull({ github, readRefs = github, repository, upstr
   // model's account may be a User (babysit_merge_policy.lane_eligibility's twin).
   // A body someone else edited is not the author's intent, unless a trusted
   // person did it; an editor GitHub cannot name is someone else.
-  const { bodyEditor, ...spec } = specRead;
+  const { bodyEditor, bodyEditedAt, ...spec } = specRead;
   const bodyIsIntent =
     (humans.has(pull.user?.id) || specFromBodyApps.includes(pull.user?.id)) &&
     (bodyEditor === null || bodyEditor === pull.user?.id || humans.has(bodyEditor));
@@ -377,15 +436,27 @@ export async function resolvePull({ github, readRefs = github, repository, upstr
     spec.specKind = "pull-request";
     spec.specText = [{ number: pull.number, source: "pull-request", spec_kind: "pull-request", body, comments: [] }];
   }
+  // A pass judged before the spec last changed is one the gate refuses, so
+  // the head is judged again against the spec as it is now.
+  if (passes.length > 0 && !specChanged(passes, { ...spec, bodyEditedAt })) {
+    return skip("already-judged");
+  }
   return {
     proceed: true,
-    reason: "ok",
+    reason: passes.length > 0 ? "spec-changed" : "ok",
     prNumber: pull.number,
     headSha: head,
     baseSha: pull.base.sha,
     headRef: String(pull.head.ref ?? ""),
     ...spec,
   };
+}
+
+// adoption.spec-from-body-apps as yq prints it, one id per line; anything but
+// an id leaves every App needing an issue.
+export function specFromBodyApps(text) {
+  const ids = String(text ?? "").split(/\s+/).filter(Boolean);
+  return ids.every((id) => /^[1-9][0-9]*$/.test(id)) ? ids.map(Number) : [];
 }
 
 export async function main(env = process.env, { github, fetchImpl } = {}) {
@@ -415,11 +486,7 @@ export async function main(env = process.env, { github, fetchImpl } = {}) {
     verifyAuthors: env.VERIFY_AUTHORS ?? "lane",
     laneIdentity: env.LANE_IDENTITY,
     ownerIds: [...trusted.ids],
-    // One id per line (yq); anything but an id leaves every App needing an issue.
-    specFromBodyApps: (() => {
-      const ids = String(env.SPEC_FROM_BODY_APPS ?? "").split(/\s+/).filter(Boolean);
-      return ids.every((id) => /^[1-9][0-9]*$/.test(id)) ? ids.map(Number) : [];
-    })(),
+    specFromBodyApps: specFromBodyApps(env.SPEC_FROM_BODY_APPS),
   });
   if (result.proceed && !/^[A-Za-z0-9._/-]+$/.test(result.headRef)) {
     throw new Error("the head branch has a name the outputs cannot carry");

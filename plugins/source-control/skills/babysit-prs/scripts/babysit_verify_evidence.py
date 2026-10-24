@@ -45,17 +45,22 @@ from a completed, successful one. Any other artifact is ignored.
   whose recorded head branch (its verdict.json) cannot be read is
   `verify:unreadable`, so one such artifact blocks every pull request until it
   is readable, expires or is deleted;
-- counted PASS or PASS-NOTES verdicts at the head of this pull request, each
-  checked, so any one that refuses refuses (`verify:spec-changed` before
-  `verify:untrusted-spec`, whatever the listing order): each is refused
-  `verify:spec-changed` unless the pull request's closing issues now are the
-  ones its verdict recorded, none was edited after its run started, and each
-  issue's trusted comments (`_spec_comments`) are the recorded ones by id and
-  update time; then allowed when it records no issue and `intent`
-  `pull-request` (the title and body were the spec), else only when every
-  linked issue it records was
-  written, and last edited if ever, by a User on the trusted list's humans
-  (the pull request's author among them), else `verify:untrusted-spec`;
+- counted PASS or PASS-NOTES verdicts at the head of this pull request, those
+  of the run created last (`_newest`; every one when a creation time is
+  missing), each checked, so any one that refuses refuses
+  (`verify:spec-changed` before `verify:untrusted-spec`, whatever the listing
+  order): each is refused `verify:spec-changed` unless the pull request's
+  closing issues now are the ones its verdict recorded, none was edited after
+  its run started, and each issue's spec comments (`_spec_comments`) are the
+  recorded ones by id and update time; then allowed when it records no issue
+  and `intent` `pull-request` (the title and body were the spec), else only
+  when every linked issue it records was written, and last edited if ever, by
+  a User on the trusted list's humans (the pull request's author among them)
+  or by the lanes App before the pull request existed (`_trusted_spec`), else
+  `verify:untrusted-spec`. A pass refused `verify:spec-changed` is judged
+  again at the same head: resolve-pr.mjs judges a head whose passes all
+  predate the spec's last change, and the lost-run reconciler re-runs the
+  head's checks to start that judgment;
 - otherwise `verify:missing`.
 
 `verify:too-old`, `verify:repeated-fail`, `verify:spec-changed` and
@@ -216,6 +221,9 @@ INELIGIBLE = "verify:ineligible"
 # A verdict's `intent` when its pull request closed no issue in this
 # repository: the title and body were the spec (write-verdict.mjs).
 INTENT_PULL_REQUEST = "pull-request"
+# The marker intake triage's refinement comment opens with
+# (.github/scripts/intake-triage/admit.mjs REFINE_MARKER).
+REFINE_MARKER = "<!-- intake-triage refinement -->"
 NEEDS_HUMAN = (
     REPEATED_FAIL,
     TOO_OLD,
@@ -224,7 +232,7 @@ NEEDS_HUMAN = (
 )
 ISSUE_FIELDS = (
     "number lastEditedAt repository{nameWithOwner} "
-    "comments(first:100){totalCount nodes{databaseId updatedAt lastEditedAt "
+    "comments(first:100){totalCount nodes{databaseId updatedAt lastEditedAt body "
     "author{...actor} editor{...actor}}} "
     "closedByPullRequestsReferences(first:50,includeClosedPrs:true){totalCount "
     "nodes{number repository{nameWithOwner}}}"
@@ -492,6 +500,9 @@ class Reader:
     )
     # `merge.max-verify-fails`: FAILed heads at which a pass no longer clears.
     max_fails: int = merge_policy.MAX_VERIFY_FAILS
+    # `merge.agent-identity`, the lanes App's login: spec text it wrote before
+    # the pull request counts (`_spec_trust`). None trusts no App.
+    agent_identity: str | None = None
     _artifacts: list[dict[str, Any]] | None = None
     _fetched_at: datetime | None = None  # when `_artifacts` began to be read
     _saved: bool = False  # `_artifacts` came from `listing_path`
@@ -871,24 +882,58 @@ class Reader:
         return humans
 
     def _trusted_actor(self, kind: Any, actor_id: Any) -> bool:
-        """The one spec-author filter (resolve-pr.mjs `trusted` is its
-        twin): a User on the trusted list's humans, the PR author included.
-        Bots and Apps, the lanes App among them, never pass."""
+        """A trusted human: a User on the trusted list's humans, the PR
+        author included."""
         return kind == "User" and actor_id in self._trusted_humans()
 
-    def _spec_comments(self, comments: list[Any]) -> set[tuple[Any, Any]]:
-        """The trusted comments, by id and update time: written, and last
-        edited if ever, by a trusted actor (`_trusted_actor`)."""
+    def _lanes_app(self, kind: Any, login: Any) -> bool:
+        """The lanes App (`agent_identity`), a Bot matched by login as
+        `merge_policy._lane_authored` matches it."""
+        key = merge_policy._login_key(self.agent_identity)
+        return bool(key) and kind == "Bot" and merge_policy._login_key(login) == key
 
-        def by(actor: Any) -> bool:
+    def _before(self, time: Any, pr: dict[str, Any] | None) -> bool:
+        """`time` is before the pull request was created; an unreadable time
+        on either side is not."""
+        try:
+            created = postmerge._time(json_object(pr).get("created_at"))
+            return postmerge._time(time) < created
+        except postmerge.PostMergeReadError:
+            return False
+
+    def _spec_comments(
+        self, comments: list[Any], pr: dict[str, Any] | None
+    ) -> set[tuple[Any, Any]]:
+        """The spec comments, by id and update time (resolve-pr.mjs
+        `specTrust` is the twin): written, and last edited if ever, by a
+        trusted human (`_trusted_actor`); or the lanes App's REFINE_MARKER
+        comment, intake triage's refinement, last updated before the pull
+        request was created and edited, if ever, by a trusted human or the
+        App."""
+
+        def human(actor: Any) -> bool:
             actor = json_object(actor)
             return self._trusted_actor(actor.get("__typename"), actor.get("databaseId"))
+
+        def app(actor: Any) -> bool:
+            actor = json_object(actor)
+            return self._lanes_app(actor.get("__typename"), actor.get("login"))
+
+        def kept(c: dict[str, Any]) -> bool:
+            unedited = c.get("lastEditedAt") is None
+            if human(c.get("author")) and (unedited or human(c.get("editor"))):
+                return True
+            return (
+                app(c.get("author"))
+                and str(c.get("body") or "").startswith(REFINE_MARKER)
+                and self._before(c.get("updatedAt"), pr)
+                and (unedited or human(c.get("editor")) or app(c.get("editor")))
+            )
 
         return {
             (c.get("databaseId"), c.get("updatedAt"))
             for c in map(json_object, comments)
-            if by(c.get("author"))
-            and (c.get("lastEditedAt") is None or by(c.get("editor")))
+            if kept(c)
         }
 
     def _recorded_comments(self, issue: dict[str, Any]) -> set[tuple[Any, Any]]:
@@ -903,23 +948,36 @@ class Reader:
             raise _Unreadable(f"#{issue.get('number')}: no spec comment record")
         return {(c["id"], c["updated_at"]) for c in recorded}
 
-    def _trusted_spec(self, record: dict[str, Any]) -> bool:
+    def _trusted_spec(
+        self, record: dict[str, Any], number: int, pr: dict[str, Any] | None
+    ) -> bool:
         """Every linked issue was written, and its body last edited if ever,
-        by a User on the trusted list's humans (`_trusted_actor`)."""
+        by a trusted human (`_trusted_actor`), or by the lanes App before the
+        pull request existed: an issue it filed has a lower number than the
+        pull request, and its last edit is before the pull request was
+        created (resolve-pr.mjs `specTrust` is the twin)."""
 
-        def trusted(issue: dict[str, Any], role: str) -> bool:
+        def human(issue: dict[str, Any], role: str) -> bool:
             return self._trusted_actor(
                 issue.get(f"{role}_type"), issue.get(f"{role}_id")
+            )
+
+        def app(issue: dict[str, Any], role: str) -> bool:
+            return self._lanes_app(issue.get(f"{role}_type"), issue.get(f"{role}_login"))
+
+        def written(issue: dict[str, Any]) -> bool:
+            filed = isinstance(issue.get("number"), int) and issue["number"] < number
+            edited = issue.get("last_edited_at")
+            return (human(issue, "author") or (app(issue, "author") and filed)) and (
+                edited is None
+                or human(issue, "editor")
+                or (app(issue, "editor") and self._before(edited, pr))
             )
 
         issues = [
             json_object(issue) for issue in json_array(record.get("linked_issues"))
         ]
-        return bool(issues) and all(
-            trusted(issue, "author")
-            and (issue.get("last_edited_at") is None or trusted(issue, "editor"))
-            for issue in issues
-        )
+        return bool(issues) and all(written(issue) for issue in issues)
 
     def _graphql(
         self, query: str, number: int, what: str, missing: str | None = None
@@ -1174,8 +1232,9 @@ class Reader:
         elif unreadable:
             refusal = UNREADABLE
         elif passes:
-            # Every pass at the head must allow, so listing order decides
-            # nothing; any unreadable one refuses (`_Unreadable`).
+            # Every pass of the newest run at the head must allow
+            # (`_newest`), so listing order decides nothing; any unreadable
+            # one refuses (`_Unreadable`).
             live, elsewhere = self._elsewhere(
                 number, failed_by_pr, unread_prs, failed_by_issue, unread_issues
             )
@@ -1188,7 +1247,7 @@ class Reader:
             else:
                 refusals = {
                     self._pass_refusal(run_id, name, number, head, live, pr, artifact)
-                    for run_id, name, artifact in passes
+                    for run_id, name, artifact in self._newest(passes)
                 }
                 refusal = next(
                     (r for r in (SPEC_CHANGED, UNTRUSTED_SPEC) if r in refusals),
@@ -1270,6 +1329,19 @@ class Reader:
             return postmerge._time(self._created[run_id])
         except postmerge.PostMergeReadError:
             return None
+
+    def _newest(
+        self, passes: list[tuple[int, str, Any]]
+    ) -> list[tuple[int, str, Any]]:
+        """The passes whose runs were created last: a pr-verify run that
+        judged the head again after the spec changed supersedes the passes
+        before it, which judged a spec that is gone. When any creation time is
+        missing, every pass decides."""
+        created = [self._fresh_created(run_id) for run_id, _, _ in passes]
+        if None in created:
+            return passes
+        last = max(c for c in created if c)
+        return [p for p, c in zip(passes, created, strict=True) if c == last]
 
     def _passes_follow(
         self, fails: list[Verdict], passes: list[tuple[int, str, Any]]
@@ -1387,7 +1459,7 @@ class Reader:
             (edited := node.get("lastEditedAt")) is not None
             and postmerge._time(edited) > started
             or self._spec_comments(
-                json_array(json_object(node.get("comments")).get("nodes"))
+                json_array(json_object(node.get("comments")).get("nodes")), pr
             )
             != self._recorded_comments(issues[n])
             for n, node in live.items()
@@ -1411,7 +1483,7 @@ class Reader:
             text = f"{pr.get('title') or ''}\n\n{pr.get('body') or ''}"
             live_digest = hashlib.sha256(text.encode()).hexdigest()
             return None if record.get("intent_sha256") == live_digest else SPEC_CHANGED
-        return None if self._trusted_spec(record) else UNTRUSTED_SPEC
+        return None if self._trusted_spec(record, number, pr) else UNTRUSTED_SPEC
 
     def queued_hold(self, number: int) -> str | None:
         """Why a queued entry must leave: no allowing verdict at its live
@@ -1579,6 +1651,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
             print(json.dumps(refusal.report() | link))
             return 0
         reader.max_fails = config.max_verify_fails
+        reader.agent_identity = config.agent_identity
     pr = None
     if args.lane_reviews:
         try:
