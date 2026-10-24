@@ -140,9 +140,10 @@ CODE=pr-review-hosted.yml
 SEC=pr-review-security-hosted.yml
 CODE_CHECK='pr-review / claude-review-status'
 SEC_CHECK='pr-review-security / security-review'
-# run <id> <file> [status] [sha] [event]
-run() { jq -cn --argjson id "$1" --arg f "$2" --arg st "${3:-completed}" --arg sha "${4:-$HEAD}" --arg ev "${5:-pull_request}" \
-  '{id: $id, path: (".github/workflows/" + $f), status: $st, head_sha: $sha, event: $ev, html_url: ("https://github.com/o/r/actions/runs/\($id)")}'; }
+# run <id> <file> [status] [sha] [event] [head repository]
+run() { jq -cn --argjson id "$1" --arg f "$2" --arg st "${3:-completed}" --arg sha "${4:-$HEAD}" --arg ev "${5:-pull_request}" --arg hr "${6:-o/r}" \
+  '{id: $id, path: (".github/workflows/" + $f), status: $st, head_sha: $sha, event: $ev, head_repository: {full_name: $hr},
+    html_url: ("https://github.com/o/r/actions/runs/\($id)")}'; }
 runs() { local IFS=,; printf '{"workflow_runs":[%s]}' "$*"; }
 # status <name> <status> <conclusion> [hold-step-conclusion]
 status() { jq -cn --arg n "$1" --arg st "$2" --arg c "$3" --arg h "${4:-success}" \
@@ -193,6 +194,13 @@ RUNS_CODE="$(runs "$(run 11 $CODE in_progress)" "$(run 10 $CODE)")" JOBS_11="$(j
 expect "a newer run whose review jobs are not listed yet is pending" 1 "'$CODE_CHECK' has not finished"
 RUNS_CODE="$(runs "$(run 10 $CODE)" "$(run 11 $CODE completed "${HEAD//0/f}")" "$(run 12 pr-review-shadow.yml)" "$(run 13 $CODE completed "$HEAD" push)")"
 expect "runs on another head, of another file or event do not count" 0 "passed on $HEAD (https://github.com/o/r/actions/runs/10)" "::error::"
+# A fork's run on the same commit is newest; only this repository's head counts.
+RUNS_CODE="$(runs "$(run 11 $CODE completed "$HEAD" pull_request fork/r)" "$(run 10 $CODE)")"
+JOBS_11="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed failure)")"
+expect "a newer run from a fork's head with the same commit does not count" 0 "passed on $HEAD (https://github.com/o/r/actions/runs/10)" "::error::"
+RUNS_CODE="$(runs "$(run 11 $CODE completed "$HEAD" pull_request fork/r)")"
+expect "a fork's run alone leaves the lane missing" 1 "::error::'$CODE_CHECK' is missing: no $CODE run on $HEAD yet."
+RUNS_CODE="$(runs "$(run 10 $CODE)")"
 
 RUNS_CODE="$(runs)"
 expect "no review run yet fails" 1 "::error::'$CODE_CHECK' is missing: no $CODE run on $HEAD yet."
@@ -209,11 +217,11 @@ JOBS_10="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed 
 expect "a skipped review (fork or unlisted bot) fails" 1 "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10; kill-switch job: success)"
 JOBS_10="$(jobs "$(kill_job success success)")"
 expect "a lane the kill switch stopped fails: the kill switch never waives review" 1 \
-  "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): the kill switch is on. Re-trigger the PR once it is off." "::notice::"
+  "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): a kill switch was on when it started. Once it is off, re-run all jobs of https://github.com/o/r/actions/runs/10; ci-status re-runs when it finishes." "::notice::"
 JOBS_10="$(jobs "$(kill_job success success)" "$(status "$CODE_CHECK" completed skipped skipped)")"
-expect "a kill-switch stop with the review listed as skipped fails" 1 "the kill switch is on" "::notice::"
+expect "a kill-switch stop with the review listed as skipped fails" 1 "a kill switch was on when it started" "::notice::"
 JOBS_10="$(jobs "$(kill_job success success)")" JOBS_20="$(jobs "$(kill_job success success)")"
-expect "both lanes stopped by the kill switch fail, each named" 1 "'$SEC_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/20): the kill switch is on"
+expect "both lanes stopped by the kill switch fail, each named" 1 "'$SEC_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/20): a kill switch was on when it started"
 JOBS_20="$PASS_SEC"
 JOBS_10="$(jobs "$(kill_job failure skipped)")"
 expect "a failed kill-switch job fails" 1 "kill-switch job: failure"

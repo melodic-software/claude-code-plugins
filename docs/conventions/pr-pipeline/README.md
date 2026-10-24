@@ -1687,9 +1687,11 @@ them on every `pull_request` run, contract-only runs included:
   head must have a successful status job (`pr-review / claude-review-status`,
   `pr-review-security / security-review`) whose `Apply the hold` step ran. A summary-mode run or
   one with no hold label does not count. A pending, failed, cancelled or skipped review fails with
-  the cause named. A lane the kill switch stopped fails too: the kill switch pauses review and
-  never waives it, so a head pushed while it is on waits for a review after it is off, and the
-  admin bypass stays the break-glass. A kill-switch job that failed also fails. A review skips a fork and a bot outside the caller's
+  the cause named. A lane a kill switch stopped (the switch was on when the review run started)
+  fails too: the kill switch pauses review and never waives it. Once it is off, a person on the
+  trusted-actor list re-runs all jobs of that review run, and its completion re-runs ci-status;
+  the admin bypass stays the break-glass. Only runs from this repository's head count, never a
+  fork's run on the same commit. A kill-switch job that failed also fails. A review skips a fork and a bot outside the caller's
   `allowed-bot-sender-ids`, so their PRs stay red until a person on the trusted-actor list pushes a
   commit to the head. Dependabot, the release App and the standards-sync App are exempt by numeric
   author id, except that their PR fails when a changed file (or a renamed file's old path) matches
