@@ -90,3 +90,24 @@ paths (`transcript:`, Prior-sessions rows, the `Read @` line). `out_dir` must be
 repository itself, and the files, the `predecessor-transcripts/` directory included, must
 stay in place until the writer runs: a missing predecessor transcript makes the next hop
 stamp every carried entry UNVERIFIED.
+
+## When and how to re-run
+
+Re-run the before and after arms on any change to how session-flow writes or reads a
+handoff, and on a Claude Code release that changes compaction, Read or context behavior.
+Run from a plain `claude` session (not `--worktree`), with every directory outside any
+repository and a short `TMPDIR` (a long one breaks the sandbox's Bash bridge sockets):
+
+```bash
+env TMPDIR=<short-dir> python3 -I plugins/session-flow/scripts/harness/resume_eval.py run \
+  --root <eval-root> --tmpdir <short-dir> --case <re-name> ... \
+  --arm before --arm free-hand --arm compact --reader claude-code --reader codex \
+  --copy before=<plugin-copy> --codex-model <codex-default-model> --runs 10 -j 4 --out <out-dir>
+python3 -I plugins/session-flow/scripts/harness/resume_eval.py report \
+  --graded <out-dir>/graded.jsonl --out <report-dir>
+```
+
+`run` resumes: it skips runs already graded without error and stops after the first
+usage-limit exclusion, so the same command continues after a reset. Each arm and reader
+gets its own result file in plugin eval's schema. Compare two of them with
+`plugins/evals/skills/plugin-eval/scripts/noise-report.py <after> --baseline <before> --margin 0.05`.
