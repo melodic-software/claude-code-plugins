@@ -3940,8 +3940,10 @@ def _demotion_changed(
     count as one: its body carries the marker now, or it may have been edited
     since it was opened (`updated_at` differs from `created_at`, or either is
     unreadable), so an earlier revision could. Creating, editing, closing or
-    reopening an issue updates it, so no new or changed record escapes. A
-    full page or an unreadable one counts as changed."""
+    reopening an issue updates it. REST timestamps are whole seconds, so a
+    marker stripped within the second its issue was opened escapes until the
+    next fresh `read_demotion`; no code here edits a record's body. A full
+    page or an unreadable one counts as changed."""
     since = (
         (shared.computed_at - SINCE_CLOCK_MARGIN)
         .astimezone(UTC)
