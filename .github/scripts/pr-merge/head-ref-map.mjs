@@ -18,8 +18,11 @@
 // downloaded (the run cache's fail-head-ref section, which only this run's
 // gate writes: carry-run-cache.mjs restores carried-* sections alone), each
 // kept only while the run's saved artifact listing lists its id unexpired,
-// written to HEAD_REFS_OUT for actions/upload-artifact. With no readable
-// listing nothing is written, and the next run reads an older map.
+// written to HEAD_REFS_OUT for actions/upload-artifact. With no listing file
+// (no candidates, or a listing the run could not read) the map read before
+// the gate is written as it is, and the next run that saves a listing prunes
+// it; a listing file that cannot be parsed writes nothing, and the next run
+// reads an older map.
 //
 // The map holds no verdict, only `{"version": 1, "repo": "<owner/repo>",
 // "head_refs": {"<artifact id>": "<head ref>"}}`, "" for a verdict that records
@@ -129,9 +132,12 @@ export async function main({ mode = process.argv[2], env = process.env, actions,
       writeAtomic(env.HEAD_REFS_PATH, serialize(repo, found.refs));
       console.log(`head-ref map of run ${found.run}: ${Object.keys(found.refs).length} artifacts`);
     } else if (mode === "write") {
-      const listing = JSON.parse(readFileSync(env.BABYSIT_VERIFY_LISTING, "utf8"));
-      if (!Array.isArray(listing?.artifacts)) throw new Error("the saved artifact listing has an unexpected shape");
-      let previous = {};
+      let listing;
+      if (existsSync(env.BABYSIT_VERIFY_LISTING ?? "")) {
+        listing = JSON.parse(readFileSync(env.BABYSIT_VERIFY_LISTING, "utf8"));
+        if (!Array.isArray(listing?.artifacts)) throw new Error("the saved artifact listing has an unexpected shape");
+      }
+      let previous;
       if (env.HEAD_REFS_PATH && existsSync(env.HEAD_REFS_PATH)) {
         try {
           previous = parseMap(readFileSync(env.HEAD_REFS_PATH, "utf8"), repo);
@@ -139,10 +145,18 @@ export async function main({ mode = process.argv[2], env = process.env, actions,
           console.log(`::warning title=head-ref map::the map read before the gate is dropped: ${escapeCommand(error?.message ?? error)}`);
         }
       }
-      const runCache = existsSync(env.BABYSIT_RUN_CACHE ?? "") ? JSON.parse(readFileSync(env.BABYSIT_RUN_CACHE, "utf8")) : {};
-      const refs = nextMap({ previous, runCache, listing, repo });
+      if (listing === undefined && previous === undefined) {
+        console.log("no saved artifact listing and no head-ref map to carry");
+        return 0;
+      }
+      let refs = previous;
+      if (listing !== undefined) {
+        const runCache = existsSync(env.BABYSIT_RUN_CACHE ?? "") ? JSON.parse(readFileSync(env.BABYSIT_RUN_CACHE, "utf8")) : {};
+        refs = nextMap({ previous, runCache, listing, repo });
+      }
       writeAtomic(env.HEAD_REFS_OUT, serialize(repo, refs));
-      console.log(`head-ref map for the next run: ${Object.keys(refs).length} artifacts`);
+      const count = Object.keys(refs).length;
+      console.log(listing === undefined ? `no saved artifact listing; the head-ref map is carried as it is: ${count} artifacts` : `head-ref map for the next run: ${count} artifacts`);
     } else {
       throw new Error("the mode is read or write");
     }
