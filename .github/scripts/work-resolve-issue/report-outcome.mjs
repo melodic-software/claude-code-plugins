@@ -170,7 +170,13 @@ const COMPARE_FILES_CAP = 300;
 // clampReset from here.
 export { clampReset };
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?Z$/;
-const MARKER = /^<!-- work-resolve-issue outcome=([a-z]+(?:-[a-z]+)*)(?: resets=(\S+))?(?: cap=(\d+))?(?: run=(\d+))?(?: branch=(resumed))? -->/;
+// The attended queue's escalation marker (work-items reference
+// escalation-marker.md): the first line of every comment that hands the issue
+// to a person, so /work-items:attend-queue lists it as escalated. The outcome
+// marker follows on the next line.
+export const ESCALATION_MARKER = "<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->";
+const escalated = (lines) => [ESCALATION_MARKER, ...lines];
+const MARKER = /^(?:<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->\r?\n)?<!-- work-resolve-issue outcome=([a-z]+(?:-[a-z]+)*)(?: resets=(\S+))?(?: cap=(\d+))?(?: run=(\d+))?(?: branch=(resumed))? -->/;
 
 // `branch=resumed` marks a resumed run that kept no branch of its own, so its
 // work is still on the branch it resumed (see findPrior).
@@ -190,7 +196,7 @@ export const turnCapMarker = ({ cap, runId, onResumed = false }) =>
 export const refsHoldMarker = (pr) => `<!-- work-resolve-issue refs-hold #${pr} -->`;
 
 // {outcome, resets, run, onResumed} from a comment body that opens with the lane's
-// marker, or null. resets is epoch milliseconds, or null when absent or
+// marker, alone or after ESCALATION_MARKER, or null. resets is epoch milliseconds, or null when absent or
 // unreadable; onResumed is true for `branch=resumed`.
 export function parseOutcomeMarker(body) {
   const match = MARKER.exec(String(body ?? ""));
@@ -316,7 +322,7 @@ const bullets = (items) =>
 // this report already handed on.
 function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed = false }) {
   const pushback = outcome.exit === "pushback";
-  const lines = [
+  const lines = escalated([
     `<!-- work-resolve-issue outcome=${outcome.exit}${runId ? ` run=${runId}` : ""}${resumedTag(onResumed)} -->`,
     pushback
       ? "The work-resolve-issue lane did not start this issue: it needs a person to make it clearer first."
@@ -325,7 +331,7 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
     "Why, in the run's own words:",
     "",
     quoted(outcome.reason || outcome.summary),
-  ];
+  ]);
   if (outcome.notDone.length) {
     lines.push("", "What the run says it did not do:", "", bullets(outcome.notDone.map(({ what }) => what)));
   }
@@ -379,10 +385,10 @@ const RETIRED_SKIPS = new Set(["not-assessed"]);
 // A run its issue dimensions skipped before any model turn: the issue goes to
 // a person with the next step, and agent-ready comes off.
 function dimensionSkipPlan({ reason, issueNumber, humanLabel, runUrl, runId }) {
-  const lines = [
+  const lines = escalated([
     `<!-- work-resolve-issue outcome=${reason}${runId ? ` run=${runId}` : ""} -->`,
     `The work-resolve-issue lane did not start this issue (\`${reason}\`). ${DIMENSION_STEPS[reason]}`,
-  ];
+  ]);
   if (runUrl) {
     lines.push("", `Run: ${runUrl}`);
   }
@@ -461,7 +467,7 @@ function turnCapPlan({ issueNumber, branch, cap, restart, humanLabel, runId, run
     exit: "turn-cap",
     issueNumber,
     runId,
-    comment: lines.join("\n"),
+    comment: (restart ? lines : escalated(lines)).join("\n"),
     addLabels: restart ? [] : [humanLabel],
     removeLabels: restart ? [] : ["agent-ready"],
   };
