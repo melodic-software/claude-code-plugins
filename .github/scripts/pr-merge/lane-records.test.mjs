@@ -66,9 +66,10 @@ async function readRun({ pages = [[]], files = {}, offMain = [], fail, planted }
     if (page) return { workflow_runs: pages[Number(page) - 1] ?? [] };
     const base = /\/compare\/([0-9a-f]{40})\.\.\.refs\/heads\/main\?per_page=1$/.exec(url)?.[1];
     if (base) return { status: offMain.includes(base) ? "diverged" : "ahead" };
-    const id = /\/actions\/runs\/(\d+)\/artifacts\?name=pr-merge-lane-records$/.exec(url)?.[1];
+    const id = /\/actions\/runs\/(\d+)\/artifacts\?per_page=100$/.exec(url)?.[1];
     assert.ok(id, `unexpected call ${url}`);
-    return { artifacts: id in files ? [{ expired: false }] : [] };
+    const artifacts = id in files ? [{ name: "pr-merge-lane-records", expired: false }] : [];
+    return { total_count: artifacts.length, artifacts };
   };
   const download = (id) => {
     downloads.push(id);

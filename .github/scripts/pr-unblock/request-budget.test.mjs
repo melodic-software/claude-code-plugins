@@ -166,6 +166,26 @@ test("a second rate limit after the wait is returned, with no third request", as
   assert.equal(gh.sent.length, 2);
 });
 
+test("a rate limit it gives up on is marked rateLimited; a refusal or a success is not", async () => {
+  const gh = github([
+    limited({ "x-ratelimit-reset": String(RESET) }),
+    limited({ "x-ratelimit-reset": String(RESET) }),
+    limited({ "x-ratelimit-reset": String(RESET + 3600) }),
+    { status: 403, body: '{"message":"Resource not accessible by integration"}', headers: rate(4000) },
+    { status: 200, body: "{}", headers: rate(3999) },
+  ]);
+  const time = clock(RESET - 20 * 60);
+  const budget = budgetedFetch({ fetch: gh.fetch, log: () => {}, ...time });
+  const pastBudget = await budget.fetch("https://api.example/repos/o/r/a", { headers: {} });
+  assert.equal(pastBudget.rateLimited, true, "a reset past the wait budget");
+  time.sleep(19 * 60 * 1000);
+  const again = await budget.fetch("https://api.example/repos/o/r/b", { headers: {} });
+  assert.equal(again.status, 403);
+  assert.equal(again.rateLimited, true, "a second rate limit after the wait");
+  assert.notEqual((await budget.fetch("https://api.example/repos/o/r/c", { headers: {} })).rateLimited, true, "a permission refusal");
+  assert.notEqual((await budget.fetch("https://api.example/repos/o/r/d", { headers: {} })).rateLimited, true, "a success");
+});
+
 test("a 200 that spends the last request is not waited on", async () => {
   const gh = github([{ status: 200, body: "{}", headers: rate(0) }]);
   const time = clock(RESET - 3000);
