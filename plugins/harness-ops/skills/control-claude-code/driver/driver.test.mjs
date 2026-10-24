@@ -339,7 +339,7 @@ test('a verified install whose native binding has since gone fails launch with t
   placeEngine(box.target, NATIVE_BROKEN, { marked: true });
   try {
     await withPath(box.bin, () =>
-      assert.rejects(main(['launch', '--plugin-dir', '/p', '--deps-dir', box.deps, '--session', session()]), (err) => {
+      assert.rejects(main(['launch', '--plugin-dir', '/p', '--deps-dir', box.deps, '--session', session(), '--ttl', '60']), (err) => {
         assert.equal(err.code, 4);
         assert.ok(err.message.includes(NATIVE_FAILURE), err.message);
         assert.match(err.message, /; repair: rm -rf /);
@@ -352,21 +352,24 @@ test('a verified install whose native binding has since gone fails launch with t
 });
 
 test('the holder exits and frees the session when claude exits', posixOnly, async () => {
-  // claude "exits" one second after it starts; until then the session answers.
-  const exits = `let started;
+  // claude "exits" once the test writes the sentinel; until then the session answers.
+  const box = sandbox();
+  const sentinel = join(box.root, 'claude-exited');
+  const exits = `import { existsSync } from 'node:fs';
 export const TuiTest = { ephemeral: () => ({
-  run: async () => { started = Date.now(); },
-  state: async () => ({ exited: Date.now() - started > 1000 ? 0 : null, exit_signal: null }),
+  run: async () => {},
+  state: async () => ({ exited: existsSync(${JSON.stringify(sentinel)}) ? 0 : null, exit_signal: null }),
   type: async () => {},
   close: async () => {},
   closeQuiet: async () => {},
 }) };
 `;
-  const box = sandbox();
   placeEngine(box.target, exits, { marked: true });
   const name = session();
   try {
-    await withPath(box.bin, () => main(['launch', '--plugin-dir', '/p', '--deps-dir', box.deps, '--session', name]));
+    await withPath(box.bin, () => main(['launch', '--plugin-dir', '/p', '--deps-dir', box.deps, '--session', name, '--ttl', '60']));
+    assert.equal(await main(['type', 'x', '--session', name]), 0, 'the session answers while claude runs');
+    writeFileSync(sentinel, '');
     let code;
     for (const deadline = Date.now() + 10_000; Date.now() < deadline; ) {
       code = await main(['type', 'x', '--session', name]).then(
