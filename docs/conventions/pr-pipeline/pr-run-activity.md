@@ -1873,7 +1873,8 @@ the escalation marker. What changes from the PR flow:
     off. A wait never adds `needs-human` and never counts toward `limits.limit-stops-per-issue`.
 
   The run of work began at the newest `agent-ready` a listed human added, or, for an issue the
-  App admitted, at the App's first one. Each marker's `ran=` is its job's model-step minutes from
+  App admitted, at the App's newest add that does not follow its own removal after a restart,
+  wait or no-progress marker, so a hand-off and a later re-admission start a new run. Each marker's `ran=` is its job's model-step minutes from
   the Actions API (the whole budget when the API cannot show it). Before a roll-over, re-queue or
   wait, report-outcome hands the issue back with `needs-human`, the progress note's link and the
   bullets under its Next heading when the run reaches `limits.worker-active-hours` of summed

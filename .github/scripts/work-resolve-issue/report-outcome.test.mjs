@@ -1538,8 +1538,39 @@ test("run time and the streak count from a listed human's newest agent-ready, wa
   // The App's or an unlisted triager's re-add resets nothing.
   const otherReAdd = [added("2026-10-16T00:00:00Z", OWNER), added("2026-10-17T01:00:00Z"), added("2026-10-17T01:30:00Z", { id: 42, login: "triager" })];
   assert.equal(stopHistory({ comments, events: otherReAdd, bot: BOT, humans: HUMANS, runId: "555" }).activeMinutes, 185);
-  // With no listed human's add, the run of work begins at the App's first add.
-  assert.equal(workSince({ events: [added("2026-10-16T05:00:00Z"), added("2026-10-16T09:00:00Z")], bot: BOT, humans: HUMANS }), Date.parse("2026-10-16T05:00:00Z"));
+  // With no listed human's add, the run of work begins at the App's add that
+  // started it: one its restarts (an App removal right before the re-add)
+  // continue, but not one after a hand-off that took the issue out of the lane.
+  const removed = (at) => ({ event: "unlabeled", label: { name: "agent-ready" }, actor: { login: BOT }, created_at: at });
+  const restarts = [added("2026-10-16T05:00:00Z"), removed("2026-10-16T09:00:00Z"), added("2026-10-16T09:00:01Z")];
+  const timeoutMarker = [{ outcome: "timeout", run: "7", at: Date.parse("2026-10-16T08:59:00Z") }];
+  assert.equal(workSince({ events: restarts, bot: BOT, humans: HUMANS, markers: timeoutMarker }), Date.parse("2026-10-16T05:00:00Z"));
+  // The same removal after a hand-off marker (split-required) starts a new run.
+  const handOff = [{ outcome: "split-required", run: "7", at: Date.parse("2026-10-16T08:59:00Z") }];
+  assert.equal(workSince({ events: restarts, bot: BOT, humans: HUMANS, markers: handOff }), Date.parse("2026-10-16T09:00:01Z"));
+});
+
+// A no-progress stop takes agent-ready off and the deferred sweep adds it back
+// up to an hour later: the same run of work, so the next no-progress stop is
+// the second in a row and the ceilings keep counting.
+test("a no-progress re-queue continues the run of work, so a second no-progress stop hands back", () => {
+  const removed = (at) => ({ event: "unlabeled", label: { name: "agent-ready" }, actor: { login: BOT }, created_at: at });
+  const comments = [{ user: { login: BOT }, body: "<!-- work-resolve-issue outcome=no-progress run=400 ran=55 -->", created_at: "2026-10-16T02:00:00Z" }];
+  const events = [added("2026-10-16T00:00:00Z"), removed("2026-10-16T02:00:01Z"), added("2026-10-16T02:47:00Z")];
+  const history = stopHistory({ comments, events, bot: BOT, humans: HUMANS, runId: "555" });
+  assert.equal(history.since, Date.parse("2026-10-16T00:00:00Z"));
+  assert.deepEqual(history.previousStop, { outcome: "no-progress", run: "400" });
+  assert.match(capped({ progress: false, ...history, now: Date.parse("2026-10-16T04:00:00Z") }).comment, /outcome=stalled/);
+});
+
+// Owner decision Q93's fallback hands a large issue back to intake, which can
+// admit it again days later: the wall clock starts at that re-admission.
+test("an issue the App admits again after a hand-off starts a new run of work", () => {
+  const removed = (at) => ({ event: "unlabeled", label: { name: "agent-ready" }, actor: { login: BOT }, created_at: at });
+  const events = [added("2026-10-06T00:00:00Z"), removed("2026-10-06T00:05:00Z"), added("2026-10-16T00:00:00Z")];
+  assert.equal(workSince({ events, bot: BOT, humans: HUMANS }), Date.parse("2026-10-16T00:00:00Z"));
+  const plan = capped({ since: workSince({ events, bot: BOT, humans: HUMANS }), now: Date.parse("2026-10-16T01:00:00Z") });
+  assert.equal(plan.action, "timeout");
 });
 
 test("a stopped job whose patch apply-issue-patch refused goes to a person", () => {

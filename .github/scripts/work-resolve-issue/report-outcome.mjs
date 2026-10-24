@@ -1262,17 +1262,37 @@ export async function apiRun(github, repo, { runId, runMinutes }) {
   return { minutes: Math.ceil(seconds / 60), timedOut: seconds >= Number(runMinutes) * 60 - TIMEOUT_SLACK_SECONDS };
 }
 
+// The App's outcome markers after which its removal of agent-ready keeps the
+// issue in the same run of work: a restart, a usage or funding wait, or a
+// no-progress re-queue. A hand-off (split-required, a pushback) is none.
+const CONTINUING = new Set(["limited", "funding", "turn-cap", "timeout", "no-progress", "refired"]);
+
 // When the issue's current run of work began: the newest agent-ready a listed
-// human added, else (an issue the App admitted) the oldest one the App added,
-// else never (-Infinity), which every ceiling counts as exceeded.
-export function workSince({ events, bot, humans }) {
-  const adds = events.filter((event) => event?.event === "labeled" && event.label?.name === "agent-ready");
+// human added, else (an issue the App admitted) the newest App add that does
+// not continue the run: one whose preceding agent-ready event is the App's
+// removal right after a CONTINUING marker (`markers`, the App's parsed
+// markers with `at`). Else never (-Infinity), which every ceiling counts as
+// exceeded. So an issue handed off and admitted again later starts a new run.
+export function workSince({ events, bot, humans, markers = [] }) {
+  const label = (event, kind) => event?.event === kind && event.label?.name === "agent-ready";
+  const adds = events.filter((event) => label(event, "labeled"));
   const human = adds.filter((event) => humans.has(event.actor?.id)).map((event) => Date.parse(event.created_at));
   if (human.length) {
     return Math.max(...human);
   }
-  const app = adds.filter((event) => event.actor?.login === bot).map((event) => Date.parse(event.created_at));
-  return app.length ? Math.min(...app) : Number.NEGATIVE_INFINITY;
+  const continues = (event) => {
+    const at = Date.parse(event.created_at);
+    const before = events.filter((item) => (label(item, "labeled") || label(item, "unlabeled")) && Date.parse(item.created_at) < at).at(-1);
+    if (!before || !label(before, "unlabeled") || before.actor?.login !== bot) {
+      return false;
+    }
+    const removedAt = Date.parse(before.created_at);
+    return CONTINUING.has(markers.filter((marker) => marker.at <= removedAt).at(-1)?.outcome);
+  };
+  const starts = adds
+    .filter((event) => event.actor?.login === bot && !continues(event))
+    .map((event) => Date.parse(event.created_at));
+  return starts.length ? Math.max(...starts) : Number.NEGATIVE_INFINITY;
 }
 
 // Since workSince, from the App's outcome markers other than this run's own:
@@ -1281,11 +1301,12 @@ export function workSince({ events, bot, humans }) {
 // no-progress marker ({outcome, run}), else null.
 export const STOP_OUTCOMES = new Set(["timeout", "turn-cap", "no-progress"]);
 export function stopHistory({ comments, events, bot, humans, runId }) {
-  const since = workSince({ events, bot, humans });
-  const markers = comments
-    .filter((comment) => comment.user?.login === bot && Date.parse(comment.created_at) > since)
-    .map((comment) => parseOutcomeMarker(comment.body))
-    .filter((marker) => marker !== null && marker.run !== runId);
+  const all = comments
+    .filter((comment) => comment.user?.login === bot)
+    .map((comment) => ({ ...parseOutcomeMarker(comment.body), at: Date.parse(comment.created_at) }))
+    .filter((marker) => marker.outcome !== undefined);
+  const since = workSince({ events, bot, humans, markers: all });
+  const markers = all.filter((marker) => marker.at > since && marker.run !== runId);
   const stops = markers.filter((marker) => STOP_OUTCOMES.has(marker.outcome));
   return {
     since,

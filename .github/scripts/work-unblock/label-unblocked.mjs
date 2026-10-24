@@ -992,7 +992,7 @@ async function restartRefusal({ github, actions, repo, issue, bot, humans, now, 
   // limits.worker-wall-days since the run of work began; the same bound here
   // stops a forged or stale marker from restarting past them. A stop with no
   // new commit is re-queued instead (no-progress), never restarted here.
-  const workStart = workSince({ events, bot, humans });
+  const workStart = workSince({ events, bot, humans, markers });
   const active = markers.filter((item) => item.at > workStart).reduce((sum, item) => sum + (item.ran ?? 0), 0);
   const restartable = ["turn-cap", "timeout", "limited"].includes(marker?.outcome);
   if (restartable && active >= limits["worker-active-hours"] * 60) {
