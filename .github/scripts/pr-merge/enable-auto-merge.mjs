@@ -696,7 +696,7 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
           detail = (await github("POST", "/graphql", { query: DETAIL_QUERY, variables }))?.data?.repository?.pullRequest ?? null;
           if (detail !== null) {
             const files = await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number);
-            const decision = costHold(files, null) ? await costDecision(github, repo[0], pull.number, pull.body, trustedHumans(env), pull.headRefOid, pull.baseRefOid) : null;
+            const decision = costHold(files, null) ? await costDecision(github, repo[0], pull.number, pull.body, trustedHumans(env), pull.headRefOid) : null;
             detail = { ...detail, files, costDecision: decision };
           }
         } catch (error) {

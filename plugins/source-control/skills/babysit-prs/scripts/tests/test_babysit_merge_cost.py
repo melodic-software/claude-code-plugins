@@ -21,14 +21,14 @@ LINK = "https://github.com/owner/repo/issues/40#issuecomment-7"
 IDENTITY = "agent-lanes[bot]"
 PR_CREATED = "2026-10-22T10:00:00Z"
 HEAD = "0123456789abcdef0123456789abcdef01234567"
-BASE = "89abcdef0123456789abcdef0123456789abcdef"
+BASE = "main"
 OLD = "fedcba9876543210fedcba9876543210fedcba98"
 LANE = {"login": "github-actions[bot]", "type": "Bot"}
 PULL = {
     "number": 99,
     "created_at": PR_CREATED,
     "head": {"sha": HEAD, "ref": "fix/cost", "repo": {"full_name": REPO}},
-    "base": {"sha": BASE},
+    "base": {"sha": "89abcdef0123456789abcdef0123456789abcdef", "ref": BASE},
 }
 TF = {"filename": "infra/main.tf", "status": "modified", "patch": "@@ -1 +1 @@\n-a\n+b"}
 
@@ -71,7 +71,6 @@ class CostDecision(unittest.TestCase):
         node: Any = ...,
         created: Any = None,
         markers: list[dict[str, Any]] | None = None,
-        pushes: list[dict[str, Any]] | None = None,
         compares: dict[str, Any] | None = None,
         unreadable: str = "",
         pull: dict[str, Any] | None = None,
@@ -93,9 +92,6 @@ class CostDecision(unittest.TestCase):
             self.reads.append(endpoint)
             if label == unreadable:
                 raise policy.PolicyReadError(label)
-            if "/activity?" in endpoint:
-                self.assertIn("ref=refs%2Fheads%2Ffix%2Fcost&", endpoint)
-                return pushes or []
             self.assertEqual(endpoint, "repos/owner/repo/issues/99/comments?per_page=100")
             return [_marker(HEAD)] if markers is None else markers
 
@@ -311,6 +307,11 @@ class CostDecision(unittest.TestCase):
         for name, extra in {
             "after": _marker(HEAD, "2026-10-22T12:30:00Z"),
             "a person": _marker(HEAD, "2026-10-22T11:30:00Z", user={"type": "User"}),
+            "another bot": _marker(
+                HEAD, "2026-10-22T11:30:00Z", user={"login": "claude[bot]", "type": "Bot"}
+            ),
+            "not on the first line": _marker(HEAD, "2026-10-22T11:30:00Z")
+            | {"body": f"Held.\n<!-- claude-lane-hold lane=claude-review sha={HEAD} criteria=cost -->"},
             "not cost": _marker(HEAD, "2026-10-22T11:30:00Z", criteria="trust-gate"),
         }.items():
             with self.subTest(name):
@@ -320,34 +321,81 @@ class CostDecision(unittest.TestCase):
         both = _marker(HEAD, "2026-10-22T11:30:00Z", criteria="cost,trust-gate")
         self.assertEqual(self.decide(markers=[_marker(OLD), both], compares=changed), LINK)
 
-    def test_with_no_marker_a_pull_request_decision_covers_the_last_push_before_it(
+    def test_with_no_marker_before_the_decision_nothing_carries(self) -> None:
+        link = "https://github.com/owner/repo/pull/99#issuecomment-7"
+        own = _comment(issue_url="https://api.github.com/repos/owner/repo/issues/99")
+        for body, comment in ((link, own), (LINK, None)):
+            with self.subTest(body):
+                self.assertIsNone(self.decide(body=body, comment=comment, markers=[]))
+                self.assertFalse(any("/compare/" in r for r in self.reads))
+
+    def test_at_the_decided_head_it_carries_with_no_compare_read(self) -> None:
+        pull = PULL | {"base": {"ref": "-unusable"}}
+        self.assertEqual(self.decide(pull=pull), LINK)
+        self.assertFalse(any("/compare/" in r for r in self.reads))
+
+    def test_a_duplicate_filename_a_pure_rename_or_an_unusable_base_does_not_carry(
         self,
     ) -> None:
-        link = "https://github.com/owner/repo/pull/99#issuecomment-7"
-        comment = _comment(issue_url="https://api.github.com/repos/owner/repo/issues/99")
-        added = {"filename": "b.tf", "status": "added", "patch": "+b"}
-        changed = {OLD: _net(TF), HEAD: _net(TF, added)}
+        self.assertIsNone(self.later({OLD: _net(TF, TF), HEAD: _net(TF, TF)}))
+        moved = {"filename": "b.tf", "status": "renamed", "previous_filename": "a.tf"}
+        self.assertIsNone(self.later({OLD: _net(moved), HEAD: _net(moved)}))
+        same = {OLD: _net(TF), HEAD: _net(TF)}
+        for base in ("-main", "a..b", "a b", "", "x" * 256, None):
+            with self.subTest(base):
+                pull = PULL | {"base": {"ref": base}}
+                self.assertIsNone(self.later(same, pull=pull))
+                self.assertFalse(any("/compare/" in r for r in self.reads))
+        pull = PULL | {"base": {"ref": "release/2.x"}}
+        self.assertEqual(self.later(same, pull=pull), LINK)
+        self.assertIn(f"repos/owner/repo/compare/release/2.x...{OLD}", self.reads)
 
-        def push(after: str, at: str) -> dict[str, Any]:
-            return {"activity_type": "push", "after": after, "timestamp": at}
+    def test_the_decision_is_the_newest_on_the_pull_request_else_the_issue(
+        self,
+    ) -> None:
+        def on_pull(n: int) -> str:
+            return f"https://github.com/owner/repo/pull/99#issuecomment-{n}"
 
-        def pushed(pushes: list[dict[str, Any]], **change: Any) -> str | None:
-            return self.decide(
-                body=link, comment=comment, markers=[], pushes=pushes, compares=changed, **change
-            )
+        rows = {
+            "7": _comment(created_at="2026-10-22T12:00:00Z"),
+            "8": _comment(
+                issue_url="https://api.github.com/repos/owner/repo/issues/99",
+                created_at="2026-10-22T11:00:00Z",
+            ),
+            "9": _comment(
+                issue_url="https://api.github.com/repos/owner/repo/issues/99",
+                created_at="2026-10-22T11:30:00Z",
+            ),
+        }
+        changed = {OLD: _net(TF), HEAD: _net(TF, {"filename": "b.tf", "status": "added", "patch": "+b"})}
 
-        before = push(HEAD, "2026-10-22T11:59:00Z")
-        self.assertEqual(pushed([before, push(OLD, "2026-10-22T11:00:00Z")]), link)
-        after = push(HEAD, "2026-10-22T12:01:00Z")
-        self.assertIsNone(pushed([after, push(OLD, "2026-10-22T11:00:00Z")]))
-        self.assertIsNone(pushed([after]))
-        self.assertIsNone(pushed([before], unreadable="head pushes"))
-        fork = PULL | {"head": PULL["head"] | {"repo": {"full_name": "fork/repo"}}}
-        self.assertIsNone(pushed([before], pull=fork))
-        self.assertFalse(any("/activity?" in r for r in self.reads))
-        # An issue decision with no marker carries nothing and reads no pushes.
-        self.assertIsNone(self.decide(markers=[], pushes=[before]))
-        self.assertFalse(any("/activity?" in r for r in self.reads))
+        def pick(body: str, markers: list[dict[str, Any]]) -> str | None:
+            def get(endpoint: str) -> tuple[int | None, Any]:
+                if "/compare/" in endpoint:
+                    sha = endpoint.rsplit("...", 1)[1]
+                    return 200, changed[sha]
+                return 200, rows[endpoint.rsplit("/", 1)[1]]
+
+            with (
+                mock.patch.object(policy, "_get", side_effect=get),
+                mock.patch.object(policy, "_paginated", return_value=markers),
+                mock.patch.object(
+                    policy, "_graphql", return_value={"node": {"lastEditedAt": None}}
+                ),
+            ):
+                return policy.cost_decision(
+                    REPO,
+                    PULL | {"body": body},
+                    40,
+                    permission=lambda login: "admin",
+                    agent_identity=IDENTITY,
+                )
+
+        every = f"Closes #40\n{LINK}\n{on_pull(8)}\n{on_pull(9)}"
+        self.assertEqual(pick(every, [_marker(HEAD, "2026-10-22T11:15:00Z")]), on_pull(9))
+        older_head = [_marker(HEAD, "2026-10-22T10:00:00Z"), _marker(OLD, "2026-10-22T11:15:00Z")]
+        self.assertIsNone(pick(every, older_head))
+        self.assertEqual(pick(f"Closes #40\n{LINK}", [_marker(HEAD)]), LINK)
 
     def test_a_failed_permission_read_clears_nothing(self) -> None:
         def refuse(login: str) -> str:

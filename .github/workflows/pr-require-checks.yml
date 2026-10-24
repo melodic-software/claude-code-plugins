@@ -3561,13 +3561,14 @@ jobs:
       #   `**Decision recorded.** Cost:`. One on the pull request itself counts
       #   as it is; one on its linked issue counts only when written after the
       #   pull request and naming it as `#<number>` (merge-holds.mjs
-      #   namesPull). It covers the head it decided (the latest review-lane
-      #   cost hold marker before it, else, for one on the pull request, the
-      #   last push before it) and a later head only when the pull request's
-      #   net change against the base is the same at both, so every change
-      #   since is a base merge (the base's merge-holds.mjs decidedHead,
-      #   pushedHead and sameNetChange; owner decisions Q17 c and Q18 d on
-      #   #9436). The linked issue is the one issue in this repository that
+      #   namesPull). Of those, the newest on the pull request, else the
+      #   newest on the issue, is the decision. It covers the head it decided
+      #   (the newest github-actions[bot] cost hold marker before it; with
+      #   none, no head) and a later head only when the pull request's net
+      #   change against its base branch is the same at both, so every change
+      #   since is a base merge (the base's merge-holds.mjs decidedHead and
+      #   sameNetChange; owner decisions Q17 c and Q18 d on #9436, as
+      #   ci-workflows v0.65.4's hold step reads them). The linked issue is the one issue in this repository that
       #   GitHub records it as closing, else, when it closes none, the one issue
       #   its plain `Refs:` lines name (the base's merge-holds.mjs refsIssue),
       #   read to be an issue and not a pull request. A second closing issue
@@ -3677,25 +3678,24 @@ jobs:
               console.log(run(...files.map((file) => JSON.parse(readFileSync(file, "utf8")))) ?? "");' \
               "$@" "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs"
           }
-          # carries <comment> <number>: whether the decision comment on <number>
-          # covers HEAD_SHA. Any read that fails carries nothing.
+          # carries <comment>: whether the decision comment covers HEAD_SHA:
+          # its decided head is HEAD_SHA, or the net change against the base
+          # branch is the same at both. No marker, an unusable base branch
+          # name or any read that fails carries nothing.
           carries() {
-            local at="$RUNNER_TEMP/cost-hold-at.json" decided pushes
+            local at="$RUNNER_TEMP/cost-hold-at.json" decided base_ref
             jq '.created_at' <<<"$1" >"$at" || return 1
             decided=$(holds_js decidedHead "$RUNNER_TEMP/cost-hold-comments.json" "$at") || return 1
-            if [ -z "$decided" ] && [ "$2" = "$PR_NUMBER" ] &&
-              jq -e --arg repo "$repo" '(.head.repo.full_name // "" | ascii_downcase) == ($repo | ascii_downcase)' <<<"$pr" >/dev/null; then
-              pushes=$(read_api "repos/$repo/activity?ref=refs%2Fheads%2F$ref&per_page=100" --paginate) || return 1
-              jq -sc 'add // []' <<<"$pushes" >"$RUNNER_TEMP/cost-hold-pushes.json" || return 1
-              decided=$(holds_js pushedHead "$RUNNER_TEMP/cost-hold-pushes.json" "$at") || return 1
-            fi
             [[ $decided =~ ^[0-9a-f]{40}$ ]] || return 1
             [ "$decided" != "$HEAD_SHA" ] || return 0
-            read_api "repos/$repo/compare/$BASE_SHA...$decided" >"$RUNNER_TEMP/cost-hold-then.json" || return 1
-            read_api "repos/$repo/compare/$BASE_SHA...$HEAD_SHA" >"$RUNNER_TEMP/cost-hold-now.json" || return 1
+            base_ref=$(jq -r '.base.ref // ""' <<<"$pr") || return 1
+            jq -en --arg b "$base_ref" '$b | test("^(?!-)(?!.*\\.\\.)[A-Za-z0-9._/-]{1,255}$")' >/dev/null || return 1
+            read_api "repos/$repo/compare/$base_ref...$decided" >"$RUNNER_TEMP/cost-hold-then.json" || return 1
+            read_api "repos/$repo/compare/$base_ref...$HEAD_SHA" >"$RUNNER_TEMP/cost-hold-now.json" || return 1
             [ "$(holds_js sameNetChange "$RUNNER_TEMP/cost-hold-then.json" "$RUNNER_TEMP/cost-hold-now.json")" = true ]
           }
-          decision='' decision_id='' refs_read=
+          # Every decision that counts, as {own, at, link, id, comment}.
+          decisions='[]' refs_read=
           while IFS=$'\t' read -r link owner name number id; do
             [ -n "$link" ] || continue
             [ "$(tr '[:upper:]' '[:lower:]' <<<"$owner/$name")" = "$(tr '[:upper:]' '[:lower:]' <<<"$repo")" ] || continue
@@ -3719,10 +3719,18 @@ jobs:
             # shellcheck disable=SC2016 # GraphQL variables, not shell
             edited=$(read_api graphql -f query='query($id:ID!){node(id:$id){... on IssueComment{lastEditedAt}}}' -F id="$node") || continue
             jq -e '.data.node | objects | has("lastEditedAt") and .lastEditedAt == null' <<<"$edited" >/dev/null 2>&1 || continue
-            carries "$comment" "$number" || continue
-            decision=$link decision_id=$id
-            break
+            decisions=$(jq -c --argjson c "$comment" --arg link "$link" --arg id "$id" --arg own "$([ "$number" = "$PR_NUMBER" ] && echo 1)" \
+              '. + [{own: ($own == "1"), at: ($c.created_at | fromdateiso8601? // -1), link: $link, id: $id, comment: $c}]' <<<"$decisions") || continue
           done <<<"$links"
+          # The decision is the newest on the pull request, else the newest on
+          # its linked issue (the first linked of two at one time), as the
+          # review lanes' hold step picks it; only it may carry.
+          chosen=$(jq -c '([.[] | select(.own)] | if length > 0 then . else null end) // [.[] | select(.own | not)]
+            | to_entries | sort_by([-.value.at, .key]) | .[0].value // empty' <<<"$decisions") || keep "the decisions do not parse"
+          decision='' decision_id=''
+          if [ -n "$chosen" ] && carries "$(jq -c .comment <<<"$chosen")"; then
+            decision=$(jq -r .link <<<"$chosen") decision_id=$(jq -r .id <<<"$chosen")
+          fi
           [ -n "$decision" ] || keep "the body cites no recorded owner cost decision covering this head"
           # Every hold a review lane recorded in the window, as {at, criteria}.
           holds='[]' vetted=''

@@ -1999,26 +1999,30 @@ def _after(value: Any, opened: datetime | None) -> bool:
 
 
 # A review lane's cost hold marker, as ci-workflows apply-review-hold writes
-# it: the head it held and its criteria, cost among them.
+# it on the first line of its hold comment: the head it held and its
+# criteria. The base branch name a compare takes, as the hold step reads it.
 COST_MARKER = re.compile(
-    r"(?:^|\n)<!-- claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) "
-    r"criteria=([a-z-]+(?:,[a-z-]+)*) -->(?![^\r\n])"
+    r"<!-- claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) "
+    r"criteria=([a-z,-]+) -->(?:\n|\Z)"
 )
-COMMIT_SHA = re.compile(r"[0-9a-f]{40}")
+BASE_BRANCH = re.compile(r"(?!-)(?!.*\.\.)[A-Za-z0-9._/-]{1,255}")
+_NEVER = datetime.min.replace(tzinfo=UTC)
 
 
 def decided_head(comments: Any, at: Any) -> str | None:
     """The head a cost decision made at `at` decided, from the pull
-    request's `comments`: the sha of the latest cost hold marker a Bot posted
-    before it, else None (merge-holds.mjs `decidedHead`)."""
+    request's `comments`: the sha of the newest cost hold marker
+    github-actions[bot] posted before it, else None (merge-holds.mjs
+    `decidedHead`; the first of two at one time wins, as in the review lanes'
+    hold step)."""
     when = parse_timestamp(at)
     found: tuple[datetime, str] | None = None
     for row in json_array(comments):
         row = json_object(row)
         made = parse_timestamp(row.get("created_at"))
         marker = (
-            COST_MARKER.search(str(row.get("body") or ""))
-            if json_object(row.get("user")).get("type") == "Bot"
+            COST_MARKER.match(str(row.get("body") or ""))
+            if json_object(row.get("user")).get("login") == "github-actions[bot]"
             else None
         )
         if (
@@ -2027,110 +2031,64 @@ def decided_head(comments: Any, at: Any) -> str | None:
             and made is not None
             and when is not None
             and made < when
-            and (found is None or made >= found[0])
+            and (found is None or made > found[0])
         ):
             found = (made, marker[1])
     return found[1] if found else None
 
 
-def pushed_head(pushes: Any, at: Any) -> str | None:
-    """The head of the branch when a decision on the pull request was made at
-    `at`, with no cost hold marker before it: the commit of the latest push
-    the repository activity `pushes` timestamp before it, else None
-    (merge-holds.mjs `pushedHead`). A commit's own dates are its author's
-    text, so they place nothing."""
-    when = parse_timestamp(at)
-    found: tuple[datetime, str] | None = None
-    for row in json_array(pushes):
-        row = json_object(row)
-        after = str(row.get("after") or "")
-        made = parse_timestamp(row.get("timestamp"))
-        if (
-            COMMIT_SHA.fullmatch(after)
-            and after.strip("0")
-            and made is not None
-            and when is not None
-            and made < when
-            and (found is None or made >= found[0])
-        ):
-            found = (made, after)
-    return found[1] if found else None
-
-
 def same_net_change(decided: Any, current: Any) -> bool:
     """Whether two compare answers (base...head) show the same net change of
-    the pull request: the same files by filename, each with the same status,
+    the pull request: the same filenames, each with the same status,
     previous_filename and patch. A list of 300 files or more (the compare
-    API's cap), a file with no patch, or an answer with no file list is not
-    the same (merge-holds.mjs `sameNetChange`)."""
+    API's cap), a file with no patch, a filename listed twice, or an answer
+    with no file list is not the same (merge-holds.mjs `sameNetChange`)."""
 
-    def net(compare: Any) -> list[str] | None:
+    def net(compare: Any) -> dict[str, tuple[Any, Any, str]] | None:
         files = json_object(compare).get("files")
         if not is_json_array(files) or len(files) >= 300:
             return None
-        rows = []
+        by_name: dict[str, tuple[Any, Any, str]] = {}
         for f in files:
-            if not is_json_object(f) or not all(
-                isinstance(f.get(k), str) for k in ("filename", "status", "patch")
-            ):
+            f = json_object(f)
+            name, patch = f.get("filename"), f.get("patch")
+            if not isinstance(name, str) or not isinstance(patch, str) or name in by_name:
                 return None
-            rows.append(
-                json.dumps(
-                    [f["filename"], f["status"], f.get("previous_filename"), f["patch"]]
-                )
-            )
-        return sorted(rows)
+            by_name[name] = (f.get("status"), f.get("previous_filename"), patch)
+        return by_name
 
-    then = net(decided)
-    return then is not None and then == net(current)
+    then, now = net(decided), net(current)
+    return then is not None and now is not None and then == now
 
 
-def _carries(
-    repo: str, pr: Mapping[str, Any], comment: Mapping[str, Any], on_pull: bool
-) -> bool:
+def _carries(repo: str, pr: Mapping[str, Any], comment: Mapping[str, Any]) -> bool:
     """Whether the decision `comment` covers the pull request at its head
-    (owner decisions Q17 c and Q18 d): its decided head (`decided_head`; for
-    a decision on the pull request with no marker before it, `pushed_head` on
-    its branch) is the head, or every change since it is a merge of the base,
-    so the net change against the base is the same at both
-    (`same_net_change`). A read that fails carries nothing."""
-    head, base = json_object(pr.get("head")), json_object(pr.get("base"))
-    sha, base_sha = str(head.get("sha") or ""), str(base.get("sha") or "")
-    if not COMMIT_SHA.fullmatch(sha) or not COMMIT_SHA.fullmatch(base_sha):
-        return False
+    (owner decisions Q17 c and Q18 d on #9436): its decided head
+    (`decided_head`) is the head, with no compare read, or every change since
+    is a merge of the base branch, so the net change against it is the same at
+    both (`same_net_change`). No marker, an unusable base name or a read that
+    fails carries nothing."""
+    sha = str(json_object(pr.get("head")).get("sha") or "")
+    base = json_object(pr.get("base")).get("ref")
     owner, name = _split_repo(repo)
-    at = comment.get("created_at")
     try:
         decided = decided_head(
             _paginated(
                 f"repos/{owner}/{name}/issues/{pr.get('number')}/comments?per_page=100",
                 "cost hold markers",
             ),
-            at,
+            comment.get("created_at"),
         )
-        branch = head.get("ref")
-        same_repo = (
-            str(json_object(head.get("repo")).get("full_name")).casefold()
-            == repo.casefold()
-        )
-        if decided is None and on_pull and same_repo and isinstance(branch, str) and branch:
-            ref = quote(f"refs/heads/{branch}", safe="")
-            decided = pushed_head(
-                _paginated(
-                    f"repos/{owner}/{name}/activity?ref={ref}&per_page=100",
-                    "head pushes",
-                ),
-                at,
-            )
     except PolicyReadError:
         return False
     if decided is None:
         return False
     if decided == sha:
         return True
+    if not isinstance(base, str) or not BASE_BRANCH.fullmatch(base):
+        return False
     reads = [
-        _get(f"repos/{owner}/{name}/compare/{base_sha}...{each}")
-        for each in (decided, sha)
+        _get(f"repos/{owner}/{name}/compare/{base}...{each}") for each in (decided, sha)
     ]
     if any(status != 200 for status, _ in reads):
         return False
@@ -2146,26 +2104,28 @@ def cost_decision(
     agent_identity: str | None,
     self_logins: Collection[str] = frozenset(),
 ) -> str | None:
-    """The first comment link in the body that is an owner decision covering
-    this pull request, else None: a comment on the pull request itself or on
-    `issue` (its linked issue, `_linked_issue`) in `repo`, by a User with
-    admin permission who is not the agent identity, not posted through an
-    App, never edited, and whose first line starts `**Decision recorded.**
-    Cost:`. It covers the head it decided and a later head only when every
-    change since is a base merge (`_carries`, owner decisions Q17 c and Q18 d
-    on #9436). One on the pull request counts as it is;
-    one on the issue counts only when its text names this pull request
-    (`names_pull`) and it was created after the pull request was, so a
-    decision recorded on the issue for another change does not cover a pull
-    request that links the issue later (an author can forge commit dates,
-    not these). A link inside an HTML comment, and a comment by a
-    `self_logins` account, count for nothing. A read that fails clears
-    nothing."""
+    """The comment link in the body that is an owner decision covering this
+    pull request at its head, else None: a comment on the pull request itself
+    or on `issue` (its linked issue, `_linked_issue`) in `repo`, by a User
+    with admin permission who is not the agent identity, not posted through
+    an App, never edited, and whose first line starts `**Decision recorded.**
+    Cost:`. One on the pull request counts as it is; one on the issue counts
+    only when its text names this pull request (`names_pull`) and it was
+    created after the pull request was, so a decision recorded on the issue
+    for another change does not cover a pull request that links the issue
+    later (an author can forge commit dates, not these). Of those, the
+    decision is the newest on the pull request, else the newest on the issue,
+    as the review lanes' hold step picks it; it covers the head it decided and
+    a later head only when every change since is a base merge (`_carries`,
+    owner decisions Q17 c and Q18 d on #9436). A link inside an HTML comment,
+    and a comment by a `self_logins` account, count for nothing. A read that
+    fails clears nothing."""
     owner, name = _split_repo(repo)
     covered = {pr.get("number"), issue} - {None}
     opened = parse_timestamp(pr.get("created_at"))
     excluded = {_login_key(agent_identity)} | {_login_key(x) for x in self_logins}
     body = HTML_COMMENT.sub("", str(pr.get("body") or ""))
+    decisions: list[tuple[bool, str, dict[str, Any]]] = []
     for link in COST_DECISION_LINK.finditer(body):
         if f"{link[1]}/{link[2]}".casefold() != repo.casefold():
             continue
@@ -2204,9 +2164,16 @@ def cost_decision(
             is_json_object(node)
             and "lastEditedAt" in node
             and node["lastEditedAt"] is None
-            and _carries(repo, pr, comment, int(link[3]) == pr.get("number"))
         ):
-            return link[0]
+            decisions.append((int(link[3]) == pr.get("number"), link[0], comment))
+    for own in (True, False):
+        mine = [d for d in decisions if d[0] is own]
+        if mine:
+            _, link, comment = max(
+                mine,
+                key=lambda d: parse_timestamp(d[2].get("created_at")) or _NEVER,
+            )
+            return link if _carries(repo, pr, comment) else None
     return None
 
 

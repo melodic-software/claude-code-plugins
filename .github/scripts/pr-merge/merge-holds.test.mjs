@@ -10,11 +10,12 @@
 // pins case by case. ci-status names its owner by the trusted-actor list, as
 // its cost-only review hold step does, so a review approval lifts a hold path
 // but never a cost hold. A decision binds to one pull request: one on the pull
-// request counts as it is, one on its linked issue (closing, else `Refs:`) only when it names
-// `#<number>`. It covers the head it decided, the sha of the latest cost hold
-// marker before it (else, for one on the pull request, the last push before
-// it), and a later head only when the net change against the base is the same
-// at both (owner decisions Q17 c and Q18 d on #9436).
+// request counts as it is, one on its linked issue (closing, else `Refs:`)
+// only when it names `#<number>`. It covers the head it decided, the sha of the
+// newest cost hold marker github-actions[bot] posted before it, and a later
+// head only when the net change against the base branch is the same at both
+// (owner decisions Q17 c and Q18 d on #9436, as ci-workflows v0.65.4's hold
+// step reads them).
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
 import { mkdtempSync, writeFileSync } from "node:fs";
@@ -22,7 +23,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { COMMENT_EDITED_QUERY, PULL_OPENED_QUERY, changeOf, costDecision, costHold, decidedHead, linkHold, main, pushedHead, sameNetChange } from "./merge-holds.mjs";
+import { COMMENT_EDITED_QUERY, PULL_OPENED_QUERY, changeOf, costDecision, costHold, decidedHead, linkHold, main, sameNetChange } from "./merge-holds.mjs";
 
 const REPO = "owner/repo";
 const LINK = "https://github.com/owner/repo/issues/40#issuecomment-7";
@@ -55,7 +56,7 @@ const comment = (changes = {}) => ({
 // A GitHub that answers the decision reads: the pull request's creation time
 // and closing issues, issue 40 (`target`), comment 7, and its edit time; then
 // the head reads: the pull request's `comments` (a cost hold marker at HEAD
-// by default), its branch's `pushes` and a `compares` answer per head.
+// by default) and a `compares` answer per head against `base`.
 // `fail` names a read that throws.
 function world({
   row = comment(),
@@ -65,13 +66,12 @@ function world({
   target = { number: 40 },
   fail,
   comments = [marker(HEAD)],
-  pushes = [],
   compares = {},
-  cross = false,
+  base = "main",
 } = {}) {
   const reads = [];
   const github = async (method, path, body) => {
-    const compare = /^\/repos\/owner\/repo\/compare\/([0-9a-f]{40})\.\.\.([0-9a-f]{40})$/.exec(path);
+    const compare = /^\/repos\/owner\/repo\/compare\/(.+)\.\.\.([0-9a-f]{40})$/.exec(path);
     const read =
       body?.query === PULL_OPENED_QUERY
         ? "pull"
@@ -79,11 +79,9 @@ function world({
           ? "edited"
           : path === "/repos/owner/repo/issues/99/comments?per_page=100&page=1"
             ? "comments"
-            : path === "/repos/owner/repo/activity?ref=refs%2Fheads%2Ffix%2Fcost&per_page=100&page=1"
-              ? "pushes"
-              : compare
-                ? `compare ${compare[2]}`
-                : `${method} ${path}`;
+            : compare
+              ? `compare ${compare[2]}`
+              : `${method} ${path}`;
     reads.push(read);
     if (read === fail) {
       throw new Error(`${read} failed`);
@@ -91,11 +89,8 @@ function world({
     if (read === "comments") {
       return comments;
     }
-    if (read === "pushes") {
-      return pushes;
-    }
     if (compare) {
-      assert.equal(compare[1], BASE);
+      assert.equal(compare[1], base);
       if (!(compare[2] in compares)) {
         throw new Error("no such commit");
       }
@@ -106,7 +101,7 @@ function world({
       return {
         data: {
           repository: {
-            pullRequest: { createdAt: created, headRefName: "fix/cost", isCrossRepository: cross, closingIssuesReferences: { totalCount: closing.length, nodes: closing } },
+            pullRequest: { createdAt: created, baseRefName: base, closingIssuesReferences: { totalCount: closing.length, nodes: closing } },
           },
         },
       };
@@ -126,7 +121,7 @@ function world({
 
 const decide = (body = `Closes #40\n\nCost decision: ${LINK}\n`, options = {}) => {
   const { github, reads } = world(options);
-  return costDecision(github, REPO, 99, body, HUMANS, options.head ?? HEAD, BASE).then((link) => ({ link, reads }));
+  return costDecision(github, REPO, 99, body, HUMANS, options.head ?? HEAD).then((link) => ({ link, reads }));
 };
 
 test("an owner decision on the closing issue, linked from the body, clears the cost hold", async () => {
@@ -402,7 +397,7 @@ test("a conflict resolution, a rename or a status change that alters the net cha
   }
 });
 
-test("a compare of 300 files or more, a file with no patch, or a failed compare read carries nothing", async () => {
+test("a compare of 300 files or more, a file with no patch, a filename listed twice, an unusable base name or a failed read carries nothing", async () => {
   const many = (n) => net(...Array.from({ length: n }, (_, i) => ({ filename: `f${i}`, status: "added", patch: "+x" })));
   assert.equal((await later({ [OLD]: many(299), [HEAD]: many(299) })).link, LINK);
   assert.equal((await later({ [OLD]: many(300), [HEAD]: many(300) })).link, null);
@@ -411,6 +406,55 @@ test("a compare of 300 files or more, a file with no patch, or a failed compare 
   assert.equal((await later({ [OLD]: net(TF), [HEAD]: net(TF) }, { fail: `compare ${HEAD}` })).link, null);
   assert.equal((await later({ [OLD]: net(TF), [HEAD]: { status: "diverged" } })).link, null);
   assert.equal((await later({ [OLD]: net(TF), [HEAD]: net(TF) }, { fail: "comments" })).link, null);
+  assert.equal((await later({ [OLD]: net(TF, TF), [HEAD]: net(TF, TF) })).link, null);
+  // A patchless pure rename never carries.
+  const moved = { filename: "b.tf", status: "renamed", previous_filename: "a.tf" };
+  assert.equal((await later({ [OLD]: net(moved), [HEAD]: net(moved) })).link, null);
+  for (const base of ["-main", "a..b", "a b", "", "x".repeat(256)]) {
+    const odd = await later({ [OLD]: net(TF), [HEAD]: net(TF) }, { base });
+    assert.equal(odd.link, null, base);
+    assert.ok(!odd.reads.some((read) => read.startsWith("compare")), base);
+  }
+  assert.equal((await later({ [OLD]: net(TF), [HEAD]: net(TF) }, { base: "release/2.x" })).link, LINK);
+});
+
+test("at the decided head the decision carries with no compare read", async () => {
+  const { link, reads } = await decide(undefined, { base: "" });
+  assert.equal(link, LINK);
+  assert.ok(!reads.some((read) => read.startsWith("compare")));
+});
+
+test("with no cost hold marker before the decision nothing carries, even at the same head", async () => {
+  const own = "https://github.com/owner/repo/pull/99#issuecomment-7";
+  const row = comment({ issue_url: "https://api.github.com/repos/owner/repo/issues/99", body: "**Decision recorded.** Cost: approve it." });
+  for (const options of [{ row, closing: [] }, {}]) {
+    const { link, reads } = await decide(options.row ? own : undefined, { ...options, comments: [] });
+    assert.equal(link, null);
+    assert.deepEqual(reads.slice(-1), ["comments"]);
+  }
+});
+
+test("the decision is the newest on the pull request, else the newest on its linked issue", async () => {
+  const onPull = (id, at) => `https://github.com/owner/repo/pull/99#issuecomment-${id}`;
+  const rows = {
+    7: comment({ created_at: "2026-10-22T12:00:00Z" }),
+    8: comment({ issue_url: "https://api.github.com/repos/owner/repo/issues/99", created_at: "2026-10-22T11:00:00Z", node_id: "IC_7" }),
+    9: comment({ issue_url: "https://api.github.com/repos/owner/repo/issues/99", created_at: "2026-10-22T11:30:00Z", node_id: "IC_7" }),
+  };
+  const pick = async (body, comments) => {
+    const { github: base } = world({ comments, compares: { [OLD]: net(TF), [HEAD]: net(TF, { filename: "b.tf", status: "added", patch: "+b" }) } });
+    const github = async (method, path, data) => {
+      const id = /\/issues\/comments\/([0-9]+)$/.exec(path)?.[1];
+      return id ? rows[id] : base(method, path, data);
+    };
+    return costDecision(github, REPO, 99, body, HUMANS, HEAD);
+  };
+  const all = `Closes #40\n${LINK}\n${onPull(8)}\n${onPull(9)}`;
+  // The pull request's newest (9, at 11:30) is the one judged, over the issue's newer one.
+  assert.equal(await pick(all, [marker(HEAD, "2026-10-22T11:15:00Z")]), onPull(9));
+  // Its decided head is not this head, and the older one at this head is not consulted.
+  assert.equal(await pick(all, [marker(HEAD, "2026-10-22T10:00:00Z"), marker(OLD, "2026-10-22T11:15:00Z")]), null);
+  assert.equal(await pick(`Closes #40\n${LINK}`, [marker(HEAD)]), LINK);
 });
 
 test("the decided head is the latest bot cost hold marker made before the decision", async () => {
@@ -422,33 +466,17 @@ test("the decided head is the latest bot cost hold marker made before the decisi
   for (const [name, extra] of Object.entries({
     after: marker(HEAD, "2026-10-22T12:30:00Z"),
     "a person": marker(HEAD, "2026-10-22T11:30:00Z", { user: { login: "owner-person", id: 5, type: "User" } }),
+    "another bot": marker(HEAD, "2026-10-22T11:30:00Z", { user: { login: "claude[bot]", id: 9, type: "Bot" } }),
+    "not on the first line": { ...marker(HEAD, "2026-10-22T11:30:00Z"), body: `Held.\n<!-- claude-lane-hold lane=claude-review sha=${HEAD} criteria=cost -->` },
     "not cost": marker(HEAD, "2026-10-22T11:30:00Z", { criteria: "trust-gate" }),
   })) {
     assert.equal((await decide(undefined, { comments: [marker(OLD), extra], compares: same })).link, null, name);
   }
   assert.equal((await decide(undefined, { comments: [marker(OLD), marker(HEAD, "2026-10-22T11:30:00Z", { criteria: "cost,trust-gate" })], compares: same })).link, LINK);
   assert.equal(decidedHead([marker(OLD), marker(HEAD, "2026-10-22T11:30:00Z")], "2026-10-22T11:30:00Z"), OLD);
+  // Of two at one time, the first listed wins, as in the hold step.
+  assert.equal(decidedHead([marker(OLD), marker(HEAD)], "2026-10-22T12:00:00Z"), OLD);
   assert.equal(decidedHead([], "2026-10-22T12:00:00Z"), null);
-});
-
-test("with no marker before it, a decision on the pull request covers the head of the last push before it", async () => {
-  const own = "https://github.com/owner/repo/pull/99#issuecomment-7";
-  const row = comment({ issue_url: "https://api.github.com/repos/owner/repo/issues/99", body: "**Decision recorded.** Cost: approve it." });
-  const push = (after, timestamp) => ({ activity_type: "push", after, timestamp });
-  const changed = { [OLD]: net(TF), [HEAD]: net(TF, { filename: "b.tf", status: "added", patch: "+b" }) };
-  const pushed = (pushes, options = {}) => decide(own, { row, closing: [], comments: [], pushes, compares: changed, ...options });
-  assert.equal((await pushed([push(HEAD, "2026-10-22T11:59:00Z"), push(OLD, "2026-10-22T11:00:00Z")])).link, own);
-  assert.equal((await pushed([push(HEAD, "2026-10-22T12:01:00Z"), push(OLD, "2026-10-22T11:00:00Z")])).link, null);
-  assert.equal((await pushed([push(HEAD, "2026-10-22T12:01:00Z")])).link, null);
-  assert.equal((await pushed([push(HEAD, "2026-10-22T11:59:00Z")], { fail: "pushes" })).link, null);
-  const fork = await pushed([push(HEAD, "2026-10-22T11:59:00Z")], { cross: true });
-  assert.equal(fork.link, null);
-  assert.ok(!fork.reads.includes("pushes"));
-  // An issue decision with no marker carries nothing and reads no pushes.
-  const issue = await decide(undefined, { comments: [], pushes: [push(HEAD, "2026-10-22T11:59:00Z")] });
-  assert.equal(issue.link, null);
-  assert.ok(!issue.reads.includes("pushes"));
-  assert.equal(pushedHead([push("0".repeat(40), "2026-10-22T11:59:00Z"), push(OLD, "2026-10-22T11:00:00Z")], "2026-10-22T12:00:00Z"), OLD);
 });
 
 test("sameNetChange compares filename, status, previous_filename and patch", () => {

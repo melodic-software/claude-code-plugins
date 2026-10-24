@@ -23,7 +23,7 @@ The repository's pipeline config is a hold path.
   place of an admin, a linked-issue comment counting only when it names the
   pull request as `#<number>` (`namesPull`, `names_pull`), and both carry it
   to the same heads: the decided head, or a later one with the same net
-  change against the base (`decidedHead`, `pushedHead`, `sameNetChange`).
+  change against the base branch (`decidedHead`, `sameNetChange`).
 """
 
 from __future__ import annotations
@@ -318,7 +318,7 @@ PR = {
     "number": 7,
     "created_at": "2026-01-02T00:00:00Z",
     "head": {"sha": HEAD, "ref": "b", "repo": {"full_name": REPO}},
-    "base": {"sha": BASE},
+    "base": {"sha": BASE, "ref": "main"},
 }
 ISSUE = 5
 OWNER = {"login": "owner", "id": 1, "type": "User"}
@@ -395,12 +395,13 @@ DECISIONS = {
 }
 def _marker(sha: str, at: str = "2026-01-02T12:00:00Z", **fields: Any) -> dict[str, Any]:
     body = f"<!-- claude-lane-hold lane=claude-review sha={sha} criteria=cost -->\nHeld."
-    return {"user": {"type": "Bot"}, "created_at": at, "body": body} | fields
+    user = {"login": "github-actions[bot]", "type": "Bot"}
+    return {"user": user, "created_at": at, "body": body} | fields
 
 
 # The head reads: the pull request's comments (a cost hold marker at the head
-# before the decision by default), its branch's pushes, a compare per head.
-DEFAULT_HEADS = {"markers": [_marker(HEAD)], "pushes": [], "compares": {}}
+# before the decision by default) and a compare per head.
+DEFAULT_HEADS = {"markers": [_marker(HEAD)], "compares": {}}
 TF = {"filename": "a.tf", "status": "modified", "patch": "@@ -1 +1 @@\n-a\n+b"}
 MORE = {"filename": "b.sh", "status": "added", "patch": "+c"}
 # Each case: the heads world for a decision on the pull request (_link(7)).
@@ -439,17 +440,20 @@ CARRIES = {
     },
     "a marker after it": {"markers": [_marker(HEAD, "2026-01-04T00:00:00Z")]},
     "a person's marker": {"markers": [_marker(HEAD, user={"type": "User"})]},
-    "no marker, pushed at the head before it": {
-        "markers": [],
-        "pushes": [{"after": HEAD, "timestamp": "2026-01-02T20:00:00Z"}],
+    "another bot's marker": {
+        "markers": [_marker(HEAD, user={"login": "claude[bot]", "type": "Bot"})]
     },
-    "no marker, pushed at the head after it": {
-        "markers": [],
-        "pushes": [
-            {"after": HEAD, "timestamp": "2026-01-03T01:00:00Z"},
-            {"after": OLD, "timestamp": "2026-01-02T20:00:00Z"},
-        ],
-        "compares": {OLD: {"files": [TF]}, HEAD: {"files": [TF, MORE]}},
+    "no marker": {"markers": []},
+    "a filename listed twice": {
+        "markers": [_marker(OLD)],
+        "compares": {OLD: {"files": [TF, TF]}, HEAD: {"files": [TF, TF]}},
+    },
+    "a patchless pure rename": {
+        "markers": [_marker(OLD)],
+        "compares": {
+            sha: {"files": [{"filename": "b", "status": "renamed", "previous_filename": "a"}]}
+            for sha in (OLD, HEAD)
+        },
     },
 }
 NODE_DECISION = """
@@ -462,22 +466,21 @@ const github = async (method, path, data) => {
     return heads.compares[sha];
   }
   if (method === "GET" && path === "/repos/o/r/issues/7/comments?per_page=100&page=1") return heads.markers;
-  if (method === "GET" && path === "/repos/o/r/activity?ref=refs%%2Fheads%%2Fb&per_page=100&page=1") return heads.pushes;
   if (method === "GET") return comment;
   if (data.variables.number !== undefined) {
-    return { data: { repository: { pullRequest: { createdAt: "2026-01-02T00:00:00Z", headRefName: "b", isCrossRepository: false,
+    return { data: { repository: { pullRequest: { createdAt: "2026-01-02T00:00:00Z", baseRefName: "main",
       closingIssuesReferences: { totalCount: 1, nodes: [{ number: issue, repository: { nameWithOwner: "o/r" } }] } } } } };
   }
   return { data: { node: { lastEditedAt: comment.edited } } };
 };
-console.log(JSON.stringify(await costDecision(github, "o/r", 7, body, new Set([1]), %s, %s)));
+console.log(JSON.stringify(await costDecision(github, "o/r", 7, body, new Set([1]), %s)));
 """
 
 
 def js_decision(
     body: str, comment: dict[str, Any], heads: dict[str, Any] = DEFAULT_HEADS
 ) -> str | None:
-    script = NODE_DECISION % (json.dumps(MODULE.as_uri()), json.dumps(HEAD), json.dumps(BASE))
+    script = NODE_DECISION % (json.dumps(MODULE.as_uri()), json.dumps(HEAD))
     proc = subprocess.run(
         [
             "node",
@@ -508,8 +511,6 @@ def py_decision(
         return 200, comment
 
     def paginated(endpoint: str, _label: str) -> list[dict[str, Any]]:
-        if endpoint == "repos/o/r/activity?ref=refs%2Fheads%2Fb&per_page=100":
-            return heads["pushes"]
         assert endpoint == "repos/o/r/issues/7/comments?per_page=100", endpoint
         return heads["markers"]
 
@@ -553,13 +554,11 @@ class TheCostDecisionIsTheGates(unittest.TestCase):
         for case in (
             "a marker at the head",
             "a base merge since the decided head",
-            "no marker, pushed at the head before it",
         ):
             self.assertEqual(answers[case], _link(7), case)
         for case in set(CARRIES) - {
             "a marker at the head",
             "a base merge since the decided head",
-            "no marker, pushed at the head before it",
         }:
             self.assertIsNone(answers[case], case)
 
