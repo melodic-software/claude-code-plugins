@@ -280,7 +280,7 @@ check "an unmapped shell file runs the whole shell corpus and is counted" $?
 
 plan -- .github/workflows/pr-require-checks.yml
 is "$(key bash_legs)" "[0,1,2,3,4,5]" && is "$(suites bash | wc -l | tr -d ' ')" 12 &&
-  is "$(suites python | wc -l | tr -d ' ')" 2 && is "$(key node_packages | wc -w | tr -d ' ')" 6 &&
+  is "$(suites python | wc -l | tr -d ' ')" 2 && is "$(key node_packages | wc -w | tr -d ' ')" 7 &&
   is "$(key windows_jobs)" "[]"
 check "a pr-require-checks.yml change runs every pr-require-checks.yml lane whole on 6 legs, and test-windows from the selection" $?
 
