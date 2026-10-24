@@ -634,6 +634,32 @@ test("an issue whose agent-ready label was removed is not labeled again", async 
   }
 });
 
+// Triage or a listed human adding status: ready after the newest removal
+// lifts it; anyone else's add, or one before the removal, does not.
+test("an issue marked status: ready after its agent-ready was removed is labeled again", async () => {
+  const removed = { event: "unlabeled", label: { name: "agent-ready" }, actor: OWNER, created_at: "2026-10-16T09:00:00Z" };
+  const marked = (actor, at = "2026-10-16T10:00:00Z") => ({ event: "labeled", label: { name: "status: ready" }, actor, created_at: at });
+  for (const [events, expected] of [
+    [[removed, marked(OWNER)], [labeled(20)]],
+    [[removed, marked(LANES_BOT)], [labeled(20)]],
+    [[marked(OWNER, "2026-10-16T08:00:00Z"), removed], []],
+    [[removed, marked({ id: 777, login: "triage-user" })], []],
+  ]) {
+    for (const run of [(github) => main({ env: envFor(), github }), (github) => sweep({ github })]) {
+      const { github, calls } = world({
+        closedList: [closedAt(10, "2026-10-16T11:30:00Z")],
+        blocking: [issue(20)],
+        issues: { 20: issue(20) },
+        blockedBy: { 20: [issue(10, { state: "closed" })] },
+        comments: { 20: [note()] },
+        events: { 20: events },
+      });
+      assert.equal(await run(github), 0);
+      assert.deepEqual(writes(calls), expected, JSON.stringify(events));
+    }
+  }
+});
+
 test("a removed label of another name does not stop the label", async () => {
   const { github, calls } = world({
     closedList: [closedAt(10, "2026-10-16T11:30:00Z")],
@@ -2531,7 +2557,7 @@ test("a person's mark the admission rules skip loses admission-deferred with a c
   const { github, calls } = markedWorld({ extraEvents: [removed] });
   assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
   assert.deepEqual(writes(calls), [
-    `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${skipText("agent-ready was removed before")}` })}`,
+    `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${skipText("agent-ready was removed and status: ready not added since")}` })}`,
     undeferred(25),
   ]);
 });

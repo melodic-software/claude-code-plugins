@@ -424,7 +424,9 @@ activities:
     # blocked whose blockers are all closed as completed by a listed human or
     # a merge, meaning a merged PR or a commit (a pull request blocker:
     # merged; another repository's: never), that carries no
-    # hold label, and whose agent-ready label was never removed. The label
+    # hold label, and whose agent-ready label was never removed or was marked
+    # `status: ready` by the lanes App or a listed human after its newest
+    # removal. The label
     # starts resolve-issue. At the issue lane's queued cap (check-wip-cap) it
     # labels such an issue admission-deferred instead, and each hourly sweep
     # admits the deferred ones oldest first within the room. A listed human

@@ -7,7 +7,8 @@ name: work-unblock
 # blocker closed as completed by a listed human or a merge (a pull request
 # blocker: merged), carries no hold label (needs-owner-decision,
 # status: needs-decision, status: needs-info, needs-human), and whose agent-ready label was never
-# removed. That label starts work-resolve-issue.yml. The rules are in
+# removed, or was marked `status: ready` by the lanes App or a listed human
+# after its newest removal. That label starts work-resolve-issue.yml. The rules are in
 # .github/scripts/work-unblock/label-unblocked.mjs; the lane and its
 # effect (mutate-tracker) are in docs/conventions/pr-pipeline.yaml.
 #
@@ -53,7 +54,8 @@ name: work-unblock
 # a time, so two runs cannot each admit the whole room.
 #
 # To stop the lane on one issue, remove its agent-ready label or add a hold
-# label: no later run labels an issue whose agent-ready label a person removed.
+# label: no later run labels an issue whose agent-ready label a person removed
+# until it is marked `status: ready` again.
 
 on:
   issues:
