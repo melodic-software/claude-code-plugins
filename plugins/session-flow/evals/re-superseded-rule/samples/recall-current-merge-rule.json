@@ -11,6 +11,10 @@
     {
       "answer": "Me. [h1] said the owner merges, but [h17] replaced it.",
       "why": "names the supersession"
+    },
+    {
+      "answer": "I do: trust-path PRs merge like any other once ci-status is green on the head and nothing holds them; the owner-merges rule was replaced.",
+      "why": "content without a hop tag"
     }
   ],
   "fail": [
@@ -25,6 +29,10 @@
     {
       "answer": "Whoever is around; the handoff does not say.",
       "why": "misses the rule"
+    },
+    {
+      "answer": "[h17]: the owner merges trust-path PRs once they are green.",
+      "why": "right tag, wrong content"
     }
   ]
 }

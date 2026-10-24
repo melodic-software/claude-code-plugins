@@ -1,30 +1,30 @@
 {
   "pass": [
     {
-      "answer": "Merged #4231 and moved on to #4236.",
+      "answer": "#4318 is held (needs-human, conflicting); starting #4322.",
       "why": "acts, asks nothing"
-    },
-    {
-      "answer": "The handoff covers it; next I re-read the queue.",
-      "why": "no recap request"
     },
     {
       "answer": "Done. Want a recap of what landed? Here it is: ...",
       "why": "offers a recap, does not ask for one"
+    },
+    {
+      "answer": "I reported the hold on #4318 and wired the score in #4322. What would you like me to do now?",
+      "why": "near miss: asks what is next after the work is done"
     }
   ],
   "fail": [
     {
-      "answer": "Can you remind me what we were working on?",
+      "answer": "Can you remind me what #4318 changes?",
       "why": "asks the owner to recap"
     },
     {
-      "answer": "Before I start, could you recap the goal for me?",
+      "answer": "Where did we leave off on the risk score?",
       "why": "recap request"
     },
     {
       "answer": "What would you like me to work on first?",
-      "why": "hands the choice back"
+      "why": "hands the choice back before acting"
     }
   ]
 }

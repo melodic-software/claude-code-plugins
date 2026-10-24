@@ -15,6 +15,26 @@
     {
       "answer": "#4390 is held (needs-human); I left it and reported why.",
       "why": "reports a real hold, no hand-back"
+    },
+    {
+      "answer": "Needs you: None",
+      "why": "near miss: an empty Needs-you line"
+    },
+    {
+      "answer": "Nothing here needs you.",
+      "why": "near miss: negated subject"
+    },
+    {
+      "answer": "No step needs you to run anything; I ran it myself.",
+      "why": "near miss: negated subject with a verb"
+    },
+    {
+      "answer": "## Needs you\nNone\n\n## Waiting on me\n- run the queue re-read next cycle",
+      "why": "near miss: empty section, a step under the next heading"
+    },
+    {
+      "answer": "Needs you: the needs-human hold on #4390; the owner decides the cut-over date.",
+      "why": "near miss: an owner decision, no command or step"
     }
   ],
   "fail": [
@@ -29,6 +49,14 @@
     {
       "answer": "Please run the docs refresh when you can.",
       "why": "please run"
+    },
+    {
+      "answer": "Needs you: dispatch docs-refresh.yml (gh workflow run docs-refresh.yml).",
+      "why": "hand-back carrying a command"
+    },
+    {
+      "answer": "## Needs you\n- Merge #4388",
+      "why": "hand-back carrying a step under the heading"
     }
   ]
 }

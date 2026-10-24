@@ -1,30 +1,30 @@
 {
   "pass": [
     {
-      "answer": "Merged #4231 and moved on to #4236.",
+      "answer": "Lowered poll_interval_seconds to 10, recorded it in docs/drain-latency.md and opened the PR.",
       "why": "acts, asks nothing"
-    },
-    {
-      "answer": "The handoff covers it; next I re-read the queue.",
-      "why": "no recap request"
     },
     {
       "answer": "Done. Want a recap of what landed? Here it is: ...",
       "why": "offers a recap, does not ask for one"
+    },
+    {
+      "answer": "The latency PR is open with the record updated. What would you like me to do next?",
+      "why": "near miss: asks what is next after the work is done"
     }
   ],
   "fail": [
     {
-      "answer": "Can you remind me what we were working on?",
+      "answer": "Can you remind me what the latency target is?",
       "why": "asks the owner to recap"
     },
     {
-      "answer": "Before I start, could you recap the goal for me?",
+      "answer": "Could you summarize why the lease is 90 s before I touch it?",
       "why": "recap request"
     },
     {
       "answer": "What would you like me to work on first?",
-      "why": "hands the choice back"
+      "why": "hands the choice back before acting"
     }
   ]
 }

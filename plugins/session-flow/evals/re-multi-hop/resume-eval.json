@@ -10,7 +10,7 @@
     "criterion": "Brief, Scope trail and multi-hop: 'five sequential hops ... with an intentional detour, a return, and one unplanned drift; at hop 5 the intent, vision and an unchanged hop-1 rule are present verbatim, per-hop size growth is measured, and a reader probe must identify where the work started, each intentional detour and return, the unintentional drift, and any lost original scope'; 'Each change of direction is recorded at the hop it happens with its cause'.",
     "audit_context": "AUDIT.md Q1 growth per hop (every chain only grows) and Q3 class (c) recap requests"
   },
-  "description": "A two-hop drain-exit predecessor (read whole) starts a five-hop chain the arm writes itself: hop 2 an owner-directed detour, hop 3 an owner-directed return that names only part (2), hop 4 an agent-initiated drift scripted into that hop's session, hop 5 plain continuation. The final reader is probed on the trail.",
+  "description": "A two-hop drain-exit predecessor (read whole) starts a five-hop chain the arm writes itself: hop 2 an owner-directed detour, hop 3 an owner-directed return that names only part (2), hop 4 scripted (part (2) lands, then an agent-initiated drift), hop 5 scripted (part (1) lands). No scripted turn touches part (3), so at hop 5 only part (3) is open. The final reader is probed on the trail and continues from the hop-5 workspace.",
   "seed": {
     "repo_files": {
       "README.md": "# drain-exit\n\nSynthetic lane repository for the resume eval.\n",
@@ -160,10 +160,35 @@
       {
         "hop": 4,
         "label": "unplanned drift (agent-initiated)",
-        "owner_turns": [
-          "Keep going."
-        ],
-        "scripted_agent_turns": [
+        "effects": {
+          "files": {
+            "lane/telemetry.py": "import json\n\nEXIT_REASONS = ('frontier-empty', 'cap-reached', 'error', 'owner-stop')\n\n\ndef append(path, row):\n    with open(path, 'a', encoding='utf-8') as fh:\n        fh.write(json.dumps(row) + '\\n')\n\n\ndef record_exit(path, cycle, reason):\n    if reason not in EXIT_REASONS:\n        raise ValueError(reason)\n    append(path, {'cycle': cycle, 'exit': reason})\n",
+            "scripts/legacy/rotate_logs.py": "from pathlib import Path\nimport time\n\nfor log in Path('logs').glob('*.log'):\n    if time.time() - log.stat().st_mtime > 7 * 86400:\n        log.unlink()\n"
+          }
+        },
+        "scripted": true,
+        "scripted_turns": [
+          {
+            "role": "user",
+            "text": "Keep going."
+          },
+          {
+            "role": "assistant",
+            "text": "Finishing part (2): every stop writes its exit reason to telemetry through lane/telemetry.py."
+          },
+          {
+            "role": "tool",
+            "name": "Write",
+            "input": {
+              "file_path": "{repo}/lane/telemetry.py",
+              "content": "import json\n\nEXIT_REASONS = ('frontier-empty', 'cap-reached', 'error', 'owner-stop')\n\n\ndef append(path, row):\n    with open(path, 'a', encoding='utf-8') as fh:\n        fh.write(json.dumps(row) + '\\n')\n\n\ndef record_exit(path, cycle, reason):\n    if reason not in EXIT_REASONS:\n        raise ValueError(reason)\n    append(path, {'cycle': cycle, 'exit': reason})\n"
+            },
+            "result": "File created successfully at: {repo}/lane/telemetry.py"
+          },
+          {
+            "role": "assistant",
+            "text": "Part (2) is done: record_exit appends the exit reason, one of the fixed set, as a new telemetry row."
+          },
           {
             "role": "assistant",
             "text": "While CI runs I'll also convert scripts/legacy/rotate_logs.sh to Python; it is the last shell script in the repo."
@@ -181,18 +206,39 @@
             "role": "assistant",
             "text": "Converted scripts/legacy/rotate_logs.sh to scripts/legacy/rotate_logs.py."
           }
-        ],
-        "effects": {
-          "files": {
-            "scripts/legacy/rotate_logs.py": "from pathlib import Path\nimport time\n\nfor log in Path('logs').glob('*.log'):\n    if time.time() - log.stat().st_mtime > 7 * 86400:\n        log.unlink()\n"
-          }
-        }
+        ]
       },
       {
         "hop": 5,
         "label": "continue",
-        "owner_turns": [
-          "Keep going."
+        "effects": {
+          "files": {
+            "lane/drain.py": "def should_stop(history):\n    return len(history) >= 2 and history[-1] == 0 and history[-2] == 0\n"
+          }
+        },
+        "scripted": true,
+        "scripted_turns": [
+          {
+            "role": "user",
+            "text": "Keep going."
+          },
+          {
+            "role": "assistant",
+            "text": "Part (1): stop the drain only after two consecutive empty cycles."
+          },
+          {
+            "role": "tool",
+            "name": "Write",
+            "input": {
+              "file_path": "{repo}/lane/drain.py",
+              "content": "def should_stop(history):\n    return len(history) >= 2 and history[-1] == 0 and history[-2] == 0\n"
+            },
+            "result": "File created successfully at: {repo}/lane/drain.py"
+          },
+          {
+            "role": "assistant",
+            "text": "Part (1) is done: should_stop now waits for two consecutive empty cycles. CI is green."
+          }
         ]
       }
     ]
@@ -236,7 +282,7 @@
       "type": "recall",
       "grade": "text",
       "question": "Is any part of the original goal at risk of being dropped?",
-      "criteria": "PASS only if the answer names part (3), documenting the exit rule in docs/work-loop.md, as not done or at risk. FAIL otherwise."
+      "criteria": "PASS only if the answer names part (3), documenting the exit rule in docs/work-loop.md, as not done or at risk. FAIL otherwise, including an answer that names part (1) or part (2) as the open part."
     },
     {
       "id": "artifact-intent-verbatim",
@@ -283,8 +329,9 @@
       "grade": "must-act",
       "check": {
         "kind": "edited_path_regex",
-        "pattern": "lane/(drain|telemetry)\\.py$|docs/work-loop\\.md$"
-      }
+        "pattern": "docs/work-loop\\.md$"
+      },
+      "note": "Against the hop-5 workspace, where parts (1) and (2) have landed: the work left is part (3)."
     },
     {
       "id": "decision-telemetry-append-only",
@@ -301,9 +348,12 @@
       "grade": "must-not-do",
       "check": {
         "kind": "text_regex",
-        "pattern": "(?i)\\b(can|could|would) you (please )?(remind me|recap|re-?state|summari[sz]e)\\b|\\bremind me (what|where|which|of)\\b|\\bwhat (were|are) we (doing|working on)\\b|\\bwhere (did|do) we leave off\\b|\\bwhat would you like me to (do|work on)\\b"
+        "pattern": "(?i)\\b(can|could|would) you (please )?(remind me|recap|re-?state|summari[sz]e)\\b|\\bremind me (what|where|which|of)\\b|\\bwhat (were|are) we (doing|working on)\\b|\\bwhere (did|do) we leave off\\b|\\bwhat would you like me to (do|work on)\\b(?!\\s+(?:next|now|after that|else)\\b)"
       },
-      "note": "Counts recap requests: the reader asking the owner to restate the goal or state."
+      "note": "Counts recap requests: the reader asking the owner to restate the goal or state. Asking what to do next after the work is done is not one."
     }
-  ]
+  ],
+  "measured": {
+    "handoff_bytes_per_hop": "The size of the handoff each hop writes, hops 1-5, per arm, and the growth from hop to hop. Reported with the run, not graded."
+  }
 }

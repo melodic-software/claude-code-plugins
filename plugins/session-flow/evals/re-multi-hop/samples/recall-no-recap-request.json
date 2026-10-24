@@ -1,30 +1,30 @@
 {
   "pass": [
     {
-      "answer": "Merged #4231 and moved on to #4236.",
+      "answer": "Documented the two-empty-cycles exit rule in docs/work-loop.md.",
       "why": "acts, asks nothing"
-    },
-    {
-      "answer": "The handoff covers it; next I re-read the queue.",
-      "why": "no recap request"
     },
     {
       "answer": "Done. Want a recap of what landed? Here it is: ...",
       "why": "offers a recap, does not ask for one"
+    },
+    {
+      "answer": "All three parts of the drain exit are done. What would you like me to do next?",
+      "why": "near miss: asks what is next after the work is done"
     }
   ],
   "fail": [
     {
-      "answer": "Can you remind me what we were working on?",
+      "answer": "Can you remind me what the drain-exit goal was?",
       "why": "asks the owner to recap"
     },
     {
-      "answer": "Before I start, could you recap the goal for me?",
+      "answer": "What are we working on after the detour?",
       "why": "recap request"
     },
     {
       "answer": "What would you like me to work on first?",
-      "why": "hands the choice back"
+      "why": "hands the choice back before acting"
     }
   ]
 }

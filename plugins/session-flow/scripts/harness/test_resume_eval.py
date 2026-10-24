@@ -239,6 +239,8 @@ def test_grader_reads_claude_events_and_stub_logs(tmp_path):
     assert match({"kind": "file_rewritten", "path": "notes.md"}, ctx)
     assert match({"kind": "edited_path_regex", "pattern": r"src/app\.py$"}, ctx)
     assert match({"kind": "handoff_contains", "text": "keep the lane moving"}, ctx)
+    assert match({"kind": "handoff_regex", "pattern": r"Intent:\s+keep"}, ctx)
+    assert not match({"kind": "handoff_regex", "pattern": r"archive/"}, ctx)
     assert match(
         {"kind": "tool_target_count", "target_regex": r"handoffs/", "at_least": 1}, ctx
     )
@@ -659,6 +661,17 @@ def test_multi_hop_writes_one_handoff_per_hop_and_applies_scripted_turns(tmp_pat
     for hop in hops:
         for rel in (hop.get("effects") or {}).get("files", {}):
             assert (run["repo"] / rel).is_file()
-    scripted = [t["text"] for hop in hops for t in hop.get("scripted_agent_turns", []) if t.get("text")]
-    transcripts = "".join(p.read_text(encoding="utf-8") for p in run["keydir"].glob("hop-session-*.jsonl"))
+    scripted = [
+        t["text"]
+        for hop in hops
+        for t in [*hop.get("scripted_agent_turns", []), *hop.get("scripted_turns", [])]
+        if t.get("text")
+    ]
+    transcripts = "".join(p.read_text(encoding="utf-8") for p in run["keydir"].glob("*.jsonl"))
     assert scripted and all(text in transcripts for text in scripted)
+    # A scripted hop sends none of its turns live: only the interrupt and the arm prompt run.
+    for hop in hops:
+        if hop.get("scripted"):
+            for turn in hop["scripted_turns"]:
+                if turn["role"] == "user":
+                    assert turn["text"] not in sent

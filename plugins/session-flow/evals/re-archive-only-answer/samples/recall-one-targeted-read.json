@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "reads": [
+        "{repo}/.work/handoffs/20261024T120000Z-handoff-queue-drain.md",
+        "{repo}/.work/handoffs/archive/20260615T080000Z-handoff-queue-drain/h19-1a2b3c4d.md"
+      ],
+      "why": "the hot file plus one archive read"
+    },
+    {
+      "reads": [
+        "{repo}/.work/handoffs/20261024T120000Z-handoff-queue-drain.md"
+      ],
+      "commands": [
+        "grep -n 'lease' {repo}/.work/handoffs/20260618T210000Z-handoff-queue-drain.md"
+      ],
+      "why": "one search of the predecessor"
+    },
+    {
+      "reads": [
+        "{repo}/.work/handoffs/20261024T120000Z-handoff-queue-drain.md"
+      ],
+      "commands": [
+        "ls .work/handoffs/archive/20260615T080000Z-handoff-queue-drain/",
+        "grep -n lease_seconds {repo}/.work/handoffs/archive/20260615T080000Z-handoff-queue-drain/h19-1a2b3c4d.md"
+      ],
+      "why": "near miss: an ls does not count"
+    }
+  ],
+  "fail": [
+    {
+      "reads": [
+        "{repo}/.work/handoffs/20261024T120000Z-handoff-queue-drain.md",
+        "{repo}/.work/handoffs/archive/20260615T080000Z-handoff-queue-drain/h19-1a2b3c4d.md",
+        "{repo}/.work/handoffs/20260618T210000Z-handoff-queue-drain.md"
+      ],
+      "why": "two cold reads"
+    },
+    {
+      "commands": [
+        "grep -n '^## ' {repo}/.work/handoffs/20260618T210000Z-handoff-queue-drain.md",
+        "sed -n 40,120p {repo}/.work/handoffs/20260618T210000Z-handoff-queue-drain.md"
+      ],
+      "why": "a heading grep, then a page"
+    },
+    {
+      "commands": [
+        "grep -rn lease .work/handoffs/archive/",
+        "grep -n lease {repo}/.work/handoffs/20260618T210000Z-handoff-queue-drain.md"
+      ],
+      "why": "two searches"
+    }
+  ]
+}

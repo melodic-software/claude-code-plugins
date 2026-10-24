@@ -504,6 +504,8 @@ def check_matches(check: dict, ctx: GradeContext) -> bool:
         return any(check_matches(inner, ctx) for inner in check["checks"])
     if kind == "handoff_contains":
         return ctx.handoff_text is not None and check["text"] in ctx.handoff_text
+    if kind == "handoff_regex":
+        return ctx.handoff_text is not None and re.search(check["pattern"], ctx.handoff_text) is not None
     if kind in ("file_regex", "file_rewritten"):
         path = ctx.repo / check["path"] if ctx.repo else None
         if path is None or not path.is_file():
@@ -804,6 +806,32 @@ def write_stage(case: dict, arm: str, run: dict, cfg: RunConfig) -> dict:
         if written.get("excluded"):
             return written
         extra = _instruction_flags(case, arm)
+        if hop.get("scripted"):
+            # Deterministic hop: the owner and agent turns are synthetic, so no live model
+            # turn can change what the hop does; only its handoff is written live.
+            if written.get("continue_session"):
+                session = written["continue_session"]
+                append_turns(run, session, hop["scripted_turns"], f"hop{hop['hop']}/")
+            else:
+                delivery = case["reader"]["delivery"][arm_base(arm)]
+                lead = delivery.get("lead")
+                first = f"{lead}\n\n{written['delivery']}" if lead else written["delivery"]
+                session = str(uuid.uuid4())
+                turns = [{"role": "user", "text": first}, *hop["scripted_turns"]]
+                expanded = json.loads(json.dumps(turns).replace("{repo}", str(run["repo"])))
+                (run["keydir"] / f"{session}.jsonl").write_text(
+                    "\n".join(render_history(expanded, session, str(run["repo"]), salt=f"hop{hop['hop']}/")) + "\n",
+                    encoding="utf-8",
+                )
+            for rel, content in (hop.get("effects") or {}).get("files", {}).items():
+                path = run["repo"] / rel
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content, encoding="utf-8")
+            written = _write_hop(case, arm, run, cfg, session, known)
+            for key in total:
+                total[key] += (written.get("writer_tokens") or {}).get(key, 0)
+            note(written)
+            continue
         if written.get("continue_session"):
             session = written["continue_session"]
         else:
@@ -988,6 +1016,10 @@ def run_once(case: dict, arm: str, readers: list[str], index: int, base_repo: Pa
     try:
         run = seed_run(case, run_dir, base_repo, cfg)
         written = write_stage(case, arm, run, cfg)
+        if case["writer"].get("hops"):
+            # File checks grade the final reader, so they compare against the workspace the
+            # last writer hop left, not the seed.
+            run["seeded"] = {rel: (run["repo"] / rel).read_bytes() for rel in run["seeded"] if (run["repo"] / rel).is_file()}
         log = run_dir / "gh-calls.log"
         if log.is_file():
             shutil.move(log, keep_root / "writer-gh-calls.log")

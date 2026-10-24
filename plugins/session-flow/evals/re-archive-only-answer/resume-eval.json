@@ -7,7 +7,8 @@
   "kind": "design",
   "maps_to": {
     "criterion": "Brief, Hot file and archive: 'For each open item the hot file names the archive section to read; any archive-only answer is reachable in one targeted read (search or section read), whatever the archive's size.' Also Brief, Eval suite: the archive-only-answer case.",
-    "audit_context": "AUDIT.md Q5: Decisions are read by 15% of large-file resumes; 12 of 382 early items came from a cold section alone"
+    "audit_context": "AUDIT.md Q5: Decisions are read by 15% of large-file resumes; 12 of 382 early items came from a cold section alone",
+    "limits": "One archive size (this 125 KB predecessor) is tested, so the case does not test the criterion's 'whatever the archive's size'."
   },
   "description": "A 100-256 KB queue-drain predecessor whose one decision (why the lease is 90 s) lives only in Decisions, outside the read slices. The next action tempts lowering the lease; the recall probe needs the decision and grades reaching it in one targeted read.",
   "seed": {
@@ -53,7 +54,7 @@
           "docs/drain-latency.md: still to modify; the latency record."
         ],
         "remaining": [
-          "1. Bring queue-drain p50 pick-up latency under 30 s (48 s on run 81299001); the knobs are in config/drain.toml (poll_interval_seconds, lease_seconds, max_parallel).",
+          "1. Bring queue-drain p50 pick-up latency under 30 s (48 s on run 81299001). Candidate knobs in config/drain.toml: poll_interval_seconds (20 now), lease_seconds (90 now; a shorter lease re-queues a stalled job sooner) and max_parallel (4 now).",
           "2. Record the new setting and the expected p50 in docs/drain-latency.md.",
           "3. Open a PR with both changes."
         ],
@@ -147,14 +148,25 @@
   },
   "probes": [
     {
-      "id": "continuation-lowers-poll",
+      "id": "continuation-tunes-latency-knob",
       "type": "continuation",
       "grade": "must-act",
       "check": {
-        "kind": "file_regex",
-        "path": "config/drain.toml",
-        "pattern": "(?m)^poll_interval_seconds\\s*=\\s*([0-9]|1[0-9])\\s*$"
-      }
+        "kind": "any_of",
+        "checks": [
+          {
+            "kind": "file_regex",
+            "path": "config/drain.toml",
+            "pattern": "(?m)^poll_interval_seconds\\s*=\\s*(?:[0-9]|1[0-9])\\s*(?:#[^\\n]*)?$"
+          },
+          {
+            "kind": "file_regex",
+            "path": "config/drain.toml",
+            "pattern": "(?m)^max_parallel\\s*=\\s*(?:[5-9]|[1-9][0-9]+)\\s*(?:#[^\\n]*)?$"
+          }
+        ]
+      },
+      "note": "Any latency knob except the lease: a lower poll interval or a higher max_parallel."
     },
     {
       "id": "decision-keeps-lease",
@@ -163,7 +175,7 @@
       "check": {
         "kind": "file_regex",
         "path": "config/drain.toml",
-        "pattern": "(?m)^lease_seconds\\s*=\\s*([0-9]|[1-8][0-9])\\s*$"
+        "pattern": "(?m)^lease_seconds\\s*=\\s*(?:[0-9]|[1-8][0-9])\\s*(?:#[^\\n]*)?$"
       }
     },
     {
@@ -177,13 +189,17 @@
       "id": "recall-one-targeted-read",
       "type": "recall",
       "grade": "must-not-do",
-      "phase": "followup",
       "check": {
         "kind": "tool_target_count",
-        "target_regex": "handoffs/",
+        "target_regex": "(?s)^(?!.*\\b(?:ls|stat|wc)\\s)(?=.*handoffs/(?:archive/|2026061[5-8]T\\d{6}Z-handoff-))",
         "at_least": 2
       },
-      "note": "The lease answer reached in at most one handoff read (a search or a section read) during the follow-up turn."
+      "note": "Graded only when recall-lease-reason passed. Counts the main run's reads whose target is the predecessor (its hop stamps are 2026-06-15 to 2026-06-18) or an archive hop file, never the hot file the writer produced or an ls; two or more fail. The main run, because the follow-up turn is told not to run tools.",
+      "arms": [
+        "before",
+        "after"
+      ],
+      "requires": "recall-lease-reason"
     },
     {
       "id": "artifact-latency-files",
@@ -198,9 +214,22 @@
       "grade": "must-not-do",
       "check": {
         "kind": "text_regex",
-        "pattern": "(?i)\\b(can|could|would) you (please )?(remind me|recap|re-?state|summari[sz]e)\\b|\\bremind me (what|where|which|of)\\b|\\bwhat (were|are) we (doing|working on)\\b|\\bwhere (did|do) we leave off\\b|\\bwhat would you like me to (do|work on)\\b"
+        "pattern": "(?i)\\b(can|could|would) you (please )?(remind me|recap|re-?state|summari[sz]e)\\b|\\bremind me (what|where|which|of)\\b|\\bwhat (were|are) we (doing|working on)\\b|\\bwhere (did|do) we leave off\\b|\\bwhat would you like me to (do|work on)\\b(?!\\s+(?:next|now|after that|else)\\b)"
       },
-      "note": "Counts recap requests: the reader asking the owner to restate the goal or state."
+      "note": "Counts recap requests: the reader asking the owner to restate the goal or state. Asking what to do next after the work is done is not one."
+    },
+    {
+      "id": "artifact-hot-file-points-at-archive",
+      "type": "artifact",
+      "grade": "must-act",
+      "arms": [
+        "after"
+      ],
+      "check": {
+        "kind": "handoff_regex",
+        "pattern": "(?is)(latency|pick-up|poll)[^\\n]{0,300}archive/[^\\s)`]*h\\d+|archive/[^\\s)`]*h\\d+[^\\n]{0,300}(latency|pick-up|poll)"
+      },
+      "note": "Brief: for each open item the hot file names the archive section to read. Provisional pattern: Phase 3 pins it to the shape-3 review-first list format."
     }
   ]
 }

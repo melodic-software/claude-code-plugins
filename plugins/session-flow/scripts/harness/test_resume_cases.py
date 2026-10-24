@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 import resume_cases
+import resume_eval
 from hop_chain import between_rails
 
 EVALS = Path(__file__).resolve().parents[2] / "evals"
@@ -40,6 +41,7 @@ CHECK_KINDS = {
     "file_rewritten",
     "edited_path_regex",
     "handoff_contains",
+    "handoff_regex",
     "tool_target_count",
     "any_of",
 }
@@ -313,22 +315,71 @@ def test_case_probes_are_well_formed(case_dir):
         )
 
 
+SAMPLE_KEYS = {
+    "answer",
+    "texts",
+    "commands",
+    "reads",
+    "edits",
+    "gh_calls",
+    "files",
+    "handoff",
+}
+
+
+def _sample_context(item: dict, repo: Path) -> resume_eval.GradeContext:
+    """A grading context from one sample: `answer` or `texts` (reader text), `commands`
+    (shell commands), `reads` (Read targets), `edits` (edited paths), `gh_calls`, `files` ({path: content} in
+    the workspace) and `handoff` (the produced handoff's text)."""
+    blocks = [{"type": "text", "text": t} for t in item.get("texts", [])]
+    if "answer" in item:
+        blocks.append({"type": "text", "text": item["answer"]})
+    blocks += [
+        {"type": "tool_use", "name": "Bash", "input": {"command": c}}
+        for c in item.get("commands", [])
+    ]
+    blocks += [
+        {"type": "tool_use", "name": "Read", "input": {"file_path": p}}
+        for p in item.get("reads", [])
+    ]
+    blocks += [
+        {"type": "tool_use", "name": "Edit", "input": {"file_path": p}}
+        for p in item.get("edits", [])
+    ]
+    for rel, content in item.get("files", {}).items():
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        (repo / rel).write_text(content, encoding="utf-8")
+    return resume_eval.GradeContext(
+        reader="claude-code",
+        events=[{"type": "assistant", "message": {"content": blocks}}],
+        gh_calls=item.get("gh_calls", []),
+        repo=repo,
+        seeded={},
+        handoff_text=item.get("handoff"),
+    )
+
+
 @pytest.mark.parametrize("case_dir", CASE_DIRS, ids=CASE_NAMES)
-def test_text_regex_samples_grade_as_labelled(case_dir):
-    """A text_regex probe's samples: a must-not-do pattern misses every pass sample and
-    hits every fail sample; a must-act pattern the reverse."""
+def test_check_samples_grade_as_labelled(case_dir, tmp_path):
+    """Every text_regex probe has samples, and any other graded check may: each pass
+    sample passes the probe through the real grader and each fail sample fails it."""
     spec = resume_cases.load_case(case_dir)
     for probe in spec["probes"]:
-        if probe["grade"] == "text" or probe["check"]["kind"] != "text_regex":
+        if probe["grade"] == "text":
             continue
         path = case_dir / "samples" / f"{probe['id']}.json"
+        if probe["check"]["kind"] != "text_regex" and not path.is_file():
+            continue
         sample = json.loads(path.read_text(encoding="utf-8"))
-        pattern = re.compile(probe["check"]["pattern"])
-        hit_means_pass = probe["grade"] == "must-act"
+        assert sample["pass"] and sample["fail"], probe["id"]
         for label, items in sample.items():
-            for item in items:
-                passed = bool(pattern.search(item["answer"])) == hit_means_pass
-                assert passed is (label == "pass"), (probe["id"], item["answer"])
+            for index, item in enumerate(items):
+                assert set(item) - {"why"} <= SAMPLE_KEYS and set(item) - {"why"}, item
+                repo = tmp_path / probe["id"] / f"{label}-{index}"
+                repo.mkdir(parents=True)
+                ctx = _sample_context(item, repo)
+                passed = resume_eval.probe_passes(probe, ctx)
+                assert passed is (label == "pass"), (probe["id"], item)
 
 
 @pytest.mark.parametrize("name", CASE_NAMES)

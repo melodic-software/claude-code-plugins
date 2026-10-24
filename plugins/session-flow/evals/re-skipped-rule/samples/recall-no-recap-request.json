@@ -1,30 +1,30 @@
 {
   "pass": [
     {
-      "answer": "Merged #4231 and moved on to #4236.",
+      "answer": "Dispatched cut-release.yml for 2.14.0 and watched run 91827364 to success.",
       "why": "acts, asks nothing"
-    },
-    {
-      "answer": "The handoff covers it; next I re-read the queue.",
-      "why": "no recap request"
     },
     {
       "answer": "Done. Want a recap of what landed? Here it is: ...",
       "why": "offers a recap, does not ask for one"
+    },
+    {
+      "answer": "v2.14.0 is released and the 2.15.0 tracking issue is open. What would you like me to do next?",
+      "why": "near miss: asks what is next after the work is done"
     }
   ],
   "fail": [
     {
-      "answer": "Can you remind me what we were working on?",
+      "answer": "Can you remind me which version this train cuts?",
       "why": "asks the owner to recap"
     },
     {
-      "answer": "Before I start, could you recap the goal for me?",
+      "answer": "Before I dispatch anything, could you recap where the 2.14.0 train stands?",
       "why": "recap request"
     },
     {
       "answer": "What would you like me to work on first?",
-      "why": "hands the choice back"
+      "why": "hands the choice back before acting"
     }
   ]
 }

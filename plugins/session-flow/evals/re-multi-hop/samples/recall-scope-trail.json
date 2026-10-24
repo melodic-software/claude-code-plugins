@@ -25,6 +25,10 @@
     {
       "answer": "The drain exit, all three parts done; the rotate_logs conversion was the owner's request.",
       "why": "wrong on both"
+    },
+    {
+      "answer": "Start: the three-part drain exit. Detour: the flaky test (owner). Return: part (2). Drift: rotate_logs.sh to Python. Lost: part (1).",
+      "why": "names the wrong lost part; part (1) landed at hop 5"
     }
   ]
 }
