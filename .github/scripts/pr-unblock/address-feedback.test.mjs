@@ -583,7 +583,7 @@ test("a path that only starts with .github is not protected", async () => {
   assert.equal((await run(fakeApi({ files: [{ filename: ".githubrc" }] }))).decision, "proceed");
 });
 
-test("rounds are capped at two by default: a third round escalates feedback-round-cap with no thread file", async () => {
+test("rounds are capped at two by default: a third round on the reviewer bot's own finding escalates feedback-round-cap with no thread file", async () => {
   const markers = (n) => [
     { id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) },
     ...Array.from({ length: n }, (_, i) => ({ id: 10 + i, user: { id: APP }, body: `${ROUND}\nround ${i + 1}` })),
@@ -595,7 +595,7 @@ test("rounds are capped at two by default: a third round escalates feedback-roun
   assert.equal(capped.file, undefined);
 });
 
-test("a configured cap of 3 allows a third round and escalates on the fourth", async () => {
+test("a configured cap of 3 allows a third round and escalates the reviewer bot's own finding on the fourth", async () => {
   const markers = (n) => [
     { id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) },
     ...Array.from({ length: n }, (_, i) => ({ id: 10 + i, user: { id: APP }, body: `${ROUND}\nround ${i + 1}` })),
@@ -673,7 +673,7 @@ for (const [label, overrides] of [
   ["a trusted person's fix request without write access", { permissions: { "kyle-sexton": "read" } }],
   ["a trusted person's newer reply that asks no fix", { body: DECISION }],
 ]) {
-  test(`at the cap, ${label} escalates feedback-round-cap`, async () => {
+  test(`at the cap, beside the reviewer bot's own finding, ${label} escalates feedback-round-cap`, async () => {
     const result = await pastCap(overrides);
     assert.equal(result.decision, "escalate");
     assert.equal(result.escalationReason, "feedback-round-cap");
@@ -722,6 +722,19 @@ for (const [label, roots] of [
     });
   }
 }
+
+test("at the cap, the reviewer bot's own finding ending in the code lane's footer still escalates: its footer is model text", async () => {
+  const api = fakeApi({
+    reviewComments: [comment(100, REVIEWER, { body: CODE_FINDING })],
+    issueComments: [
+      { id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) },
+      ...[1, 2, 3].map((n) => ({ id: 10 + n, user: { id: APP }, body: `${ROUND}\nround ${n}`, created_at: at(10) })),
+    ],
+  });
+  const result = await select({ api, pr: 42, headSha: HEAD, repository: "o/r", appId: APP, reviewerId: REVIEWER, maxRounds: 3 });
+  assert.equal(result.decision, "escalate");
+  assert.equal(result.escalationReason, "feedback-round-cap");
+});
 
 test("once the fresh fixer's round ran, the code lane's findings skip cost-gated: no person, no thread file", async () => {
   for (const rounds of [4, 9]) {

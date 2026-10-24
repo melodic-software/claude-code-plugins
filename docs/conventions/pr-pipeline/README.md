@@ -1973,7 +1973,7 @@ full review rounds, one more high-severity-only pass runs; if it still has findi
 escalates. Once `loop.review-rounds` of the address-feedback activity's rounds have run, a
 write-access trusted person's fix request on a thread after the newest round runs one more round,
 on the requested threads only. With no such request, a security lane finding, a pr-verify note (an
-intent mismatch) or a finding whose lane footer is missing hands the PR to a person; any other
+intent mismatch) or a `claude[bot]` finding, whose lane no footer proves, hands the PR to a person; any other
 finding goes to one fresh fixer round, a new session like every round, and after it the PR skips
 `cost-gated` with no label until the next fix request. The default is 2; this
 repository's value is in `docs/conventions/pr-pipeline.yaml` `loop`. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR

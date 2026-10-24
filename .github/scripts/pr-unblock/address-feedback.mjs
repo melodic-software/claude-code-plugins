@@ -77,10 +77,14 @@ export const isLaneComment = (comment) => comment.authorId === MARKER_AUTHOR_ID 
 
 // Past the round cap, the threads only a person may still decide: a security
 // lane finding, a verifier note (pr-verify judges the PR against its linked
-// issue, so a FAIL is an intent mismatch), and a finding whose lane its footer
-// does not name. Only the code lane's finding goes to a fresh fixer.
-export const needsPerson = (thread) =>
-  thread.comments[0]?.author !== "reviewer" || !CODE_LANE_FOOTER.test(lastLine(thread.comments[0].body));
+// issue, so a FAIL is an intent mismatch), and a finding whose lane no footer
+// pr-review-cli appended names: only on a github-actions[bot] root
+// (`rootAuthorId`) is the footer the reusable's, never model text. Only the
+// code lane's finding goes to a fresh fixer.
+export const needsPerson = (thread, rootAuthorId) =>
+  rootAuthorId !== MARKER_AUTHOR_ID ||
+  thread.comments[0]?.author !== "reviewer" ||
+  !CODE_LANE_FOOTER.test(lastLine(thread.comments[0].body));
 
 // Round markers the lanes App posted; any other author's copy is ignored.
 export const isRoundMarker = (comment, appId) => comment.user?.id === appId && firstLine(comment.body) === ROUND_MARKER;
@@ -499,7 +503,7 @@ export async function select({
       // other finding goes to a fresh fixer: one more round, a new session
       // like every round, reading only the thread file and the PR head. Past
       // that the PR waits for the next fix request with no label.
-      if (kept.some(needsPerson)) {
+      if (kept.some((thread) => needsPerson(thread, rows.get(thread.root_comment_id)?.user?.id))) {
         return { decision: "escalate", escalationReason: "feedback-round-cap", rounds, threads: kept };
       }
       if (rounds >= maxRounds + FRESH_FIXER_ROUNDS) {
