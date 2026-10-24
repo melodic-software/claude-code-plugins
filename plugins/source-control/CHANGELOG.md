@@ -3,6 +3,17 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.6] - 2026-10-24
+
+### Changed
+
+- The post-merge check asks the compare API once per branch tip when the branch moved after the gate's local clone was made, instead of once for every lane record. It compares the clone's copy of the branch with the live tip, and a record whose run head is on that copy is on the tip with no further call. A record off that copy, a diverged tip or an unreadable compare still gets its own compare, so every verdict is unchanged and every failed read still refuses.
+- An unattended gate run with no `--state-dir` (how the pr-merge lane runs) stops a pull request the REST record reads as merged before its demotion and post-merge reads, on the blocker it already gave it (`state=MERGED (not OPEN)`), instead of running the post-merge check first. The identity and queue readers are still read, so its queue sweep still dequeues a held entry. The verdict is unchanged. A closed pull request that was not merged, which can reopen, and any run with a state directory, where a recorded merge request's read-back needs the full policy, are read in full as before.
+
+### Fixed
+
+- The pr-merge gate no longer drops the run's shared post-merge answer (`postMergeShared: unused:demotion-changed`) because an ordinary issue `github-actions[bot]` or the agent identity opened since the answer was computed. `babysit_merge_policy._demotion_changed` now counts such an issue only when `read_demotion` could count it as a demotion record: its body carries the demotion marker, or it may have been edited since it was opened (`updated_at` differs from `created_at`, or either is missing or unreadable). A known record still counts whenever it is updated, and a full or unreadable issue page still counts as changed. Each candidate then skips its own demotion read, floor and post-merge check.
+
 ## [3.0.5] - 2026-10-24
 
 ### Fixed

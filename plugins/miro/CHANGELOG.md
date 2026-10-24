@@ -3,6 +3,12 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.16] - 2026-10-24
+
+### Changed
+
+- **Bump ip-address from 10.7.2 to 10.7.4 in /plugins/miro/server** (#9131).
+
 ## [0.6.15] - 2026-10-24
 
 ### Changed
