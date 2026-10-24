@@ -503,16 +503,17 @@ test("a GET that fails on the network is left to the client's own retry, not sen
   assert.deepEqual(writes, []);
 });
 
-test("an arm that fails three times on the network, while other calls answered, is skipped with a warning naming the cause", async () => {
+test("a lone arm that fails three times on the network is warned with its cause, and with no arm landing the run fails", async () => {
   const { code, writes, lines } = await run([pull(1)], {}, { armErrors: { PR_1: [reset(), reset(), reset(), reset()] } });
-  assert.equal(code, 0);
+  assert.equal(code, 1);
   assert.equal(writes.length, 3);
   assert.ok(lines.includes("::warning title=enable-auto-merge::#1 arm failed on the network after its resends, skipped this run: fetch failed (cause: ECONNRESET read ECONNRESET)"));
 });
 
-test("one pull request whose arm fails on the network every attempt is skipped, and the next is armed inside a cap of one", async () => {
-  const bare = () => new TypeError("fetch failed");
-  const { code, writes, lines } = await run([pull(1), pull(2)], {}, { armErrors: { PR_1: [bare(), bare(), bare()] } }, { ...ROOM, cap: 1 });
+const bare = () => new TypeError("fetch failed");
+
+test("one pull request whose arm fails on the network every attempt is skipped, the other is armed, and the run stays green", async () => {
+  const { code, writes, lines } = await run([pull(1), pull(2)], {}, { armErrors: { PR_1: [bare(), bare(), bare()] } });
   assert.equal(code, 0);
   assert.deepEqual(writes.at(-1), { mutation: "arm", id: "PR_2", head: HEAD });
   assert.ok(lines.includes("::warning title=enable-auto-merge::#1 arm failed on the network after its resends, skipped this run: fetch failed"));
@@ -521,19 +522,24 @@ test("one pull request whose arm fails on the network every attempt is skipped, 
   assert.ok(!lines.some((line) => line.startsWith("::error")));
 });
 
-test("a run where no call answers is an outage and fails red", async () => {
-  const github = async () => {
-    throw new TypeError("fetch failed");
-  };
-  const lines = [];
-  const log = console.log;
-  console.log = (line) => lines.push(line);
-  try {
-    assert.equal(await main({ env: ENV, github, verify: async () => PASSED, room: room(), sleep: async () => {} }), 1);
-  } finally {
-    console.log = log;
-  }
-  assert.ok(lines.includes("::error title=enable-auto-merge::fetch failed"));
+test("every arm in the run failing on the network, after the listing read, is an outage and fails red", async () => {
+  const { code, writes, lines } = await run([pull(1), pull(2)], {}, { armErrors: { PR_1: [bare(), bare(), bare()], PR_2: [bare(), bare(), bare()] } });
+  assert.equal(code, 1);
+  assert.equal(writes.length, 6);
+  assert.ok(lines.includes("::error title=enable-auto-merge::every arm this run failed: #1, #2"));
+});
+
+test("an arm that failed on the network keeps its slot, since it may have landed", async () => {
+  const { writes, lines } = await run([pull(1), pull(2)], {}, { armErrors: { PR_1: [bare(), bare(), bare()] } }, { ...ROOM, cap: 1 });
+  assert.deepEqual(writes, Array(3).fill({ mutation: "arm", id: "PR_1", head: HEAD }));
+  assert.ok(lines.includes("enable-auto-merge: #2 left: merge.max-in-flight is 1 and 1 merges are in flight"));
+});
+
+test("a refusal after a resend keeps the slot, since the first attempt may have landed", async () => {
+  const { writes, lines } = await run([pull(1), pull(2)], {}, { armErrors: { PR_1: [bare(), new GitHubError(200, "POST /graphql (GraphQL errors)")] } }, { ...ROOM, cap: 1 });
+  assert.deepEqual(writes, Array(2).fill({ mutation: "arm", id: "PR_1", head: HEAD }));
+  assert.ok(lines.some((line) => line.startsWith("::warning title=enable-auto-merge::#1 arm refused")));
+  assert.ok(lines.includes("enable-auto-merge: #2 left: merge.max-in-flight is 1 and 1 merges are in flight"));
 });
 
 test("each network trigger alone is sent again, and an error with another code is not", async () => {
@@ -582,11 +588,11 @@ test("a refused arm on one of two pull requests still arms the other, inside a c
   assert.ok(lines.includes(`enable-auto-merge: #2 armed at ${HEAD}`));
 });
 
-test("every arm refused still exits 0 and says so", async () => {
+test("two or more arms all refused fail the run and say so", async () => {
   const refusal = () => new GitHubError(422, "POST /graphql");
   const { code, lines } = await run([pull(1), pull(2)], {}, { armErrors: { PR_1: [refusal()], PR_2: [refusal()] } });
-  assert.equal(code, 0);
-  assert.ok(lines.includes("::warning title=enable-auto-merge::every arm this run was refused or failed on the network: #1, #2"));
+  assert.equal(code, 1);
+  assert.ok(lines.includes("::error title=enable-auto-merge::every arm this run failed: #1, #2"));
 });
 
 test("an arm answered 401, 403, 429 or 5xx is not a refusal of that pull request: not sent again, and the run fails", async () => {
@@ -634,6 +640,21 @@ test("a rate-limited GraphQL answer to an arm is not a refusal, and the run fail
     const { code, lines } = await served([pull(1)], () => Response.json({ errors: [{ type: "RATE_LIMITED", message: "API rate limit exceeded" }] }, { headers }));
     assert.equal(code, 1);
     assert.ok(!lines.some((line) => line.includes("arm refused")));
+  }
+});
+
+test("a GraphQL answer typed RATE_LIMITED is rate-limited without its headers, and the run fails", async () => {
+  const { code, lines } = await served([pull(1)], () => Response.json({ errors: [{ type: "RATE_LIMITED", message: "API rate limit exceeded" }] }));
+  assert.equal(code, 1);
+  assert.ok(!lines.some((line) => line.includes("arm refused")));
+});
+
+test("a GraphQL answer typed FORBIDDEN or INSUFFICIENT_SCOPES is not a refusal of that pull request, and the run fails", async () => {
+  for (const type of ["FORBIDDEN", "INSUFFICIENT_SCOPES"]) {
+    const { code, lines } = await served([pull(1), pull(2)], () => Response.json({ errors: [{ type, message: "Resource not accessible by integration" }] }));
+    assert.equal(code, 1);
+    assert.ok(!lines.some((line) => line.includes("arm refused")));
+    assert.ok(lines.some((line) => line.startsWith("::error title=enable-auto-merge::#1 arm:")));
   }
 });
 
