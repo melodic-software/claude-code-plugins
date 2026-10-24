@@ -244,10 +244,10 @@ committed config through their own install step.
 **Committed hook config runs the checked-out branch's code.** Lefthook and husky read their config,
 and plain shared hooks read `.githooks/`, from the branch that is checked out. Once a clone has
 installed hooks, a commit or push on a contributor's branch runs whatever that branch puts in
-`lefthook.yml`, `.lefthook/`, `.husky/` or `.githooks/`. Pinning the check scripts to the
-merge-base, as this repository's pre-push job does, does not reach the config file itself. Before
-committing or pushing on a branch you do not trust, read its diff to those paths: pre-commit and
-commit-msg hooks run at commit, before any push.
+`lefthook.yml`, `lefthook-local.yml`, `.lefthook/`, `.lefthook-local/`, `.husky/` or `.githooks/`.
+Pinning the check scripts to the merge-base, as this repository's pre-push job does, does not
+reach the config file itself. Before committing or pushing on a branch you do not trust, read its
+diff to those paths: pre-commit and commit-msg hooks run at commit, before any push.
 
 ### Drift: the content-hash stamp
 

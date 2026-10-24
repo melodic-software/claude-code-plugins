@@ -10,8 +10,9 @@ pre-push:
     # check tooling the branch changes, so a contributor branch checked out to review or fix
     # cannot run its own check code. This file itself is read from the checked-out branch, as
     # lefthook and husky always read their config, so a branch that edits lefthook.yml still
-    # controls this job: read a branch's lefthook.yml and .lefthook/ diff before committing or
-    # pushing on it, since the guardrails hooks below fire at commit too.
+    # controls this job: read a branch's diff to lefthook.yml, lefthook-local.yml, .lefthook/ and
+    # .lefthook-local/ before committing or pushing on it, since the guardrails hooks below fire at
+    # commit too.
     # Lefthook gives stdin to at most one job per hook, so this job judges HEAD rather than the
     # pushed refs. Exit 1 is a failing check and blocks the push; anything else passes, and CI
     # checks the pushed commit either way.

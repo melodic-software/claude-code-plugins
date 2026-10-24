@@ -38,18 +38,35 @@ jobs="$(awk '
 ' "$CONFIG")"
 expect "the remote config has one job per entry event" "commit-msg pre-commit pre-push" \
   "$(cut -d' ' -f1 <<<"$jobs" | sort | xargs)"
+GUARD="$(mktemp -d)"
+trap 'rm -rf "$GUARD"' EXIT
 while read -r event name script; do
   wrapper="$TOP/.lefthook/$event/$script"
   expect "$name: its script is under .lefthook/$event/" yes "$([[ -f "$wrapper" ]] && echo yes)"
   # shellcheck disable=SC2016 # matches the wrapper's literal text
-  target="$(sed -n 's#^exec bash "${BASH_SOURCE\[0\]%/\*}/\(.*\)" "\$@"$#\1#p' "$wrapper" 2>/dev/null)"
+  target="$(sed -n 's#^exec bash "${src%/\*}/\(.*\)" "\$@"$#\1#p' "$wrapper" 2>/dev/null)"
   expect "$name: its script runs an entry script that exists" yes \
     "$([[ -n "$target" && -f "$TOP/.lefthook/$event/$target" ]] && echo yes)"
-  out="$(bash "$wrapper" /nonexistent 2>&1)"
-  expect "$name: the work-tree copy exits 0 without running" "0:" "$?:$out"
+  # The wrapper beside a stub entry script that reports a run: once in a work tree, once under a
+  # fetched remote, with a Windows-style backslash path.
+  for root in "$GUARD/wt" "$GUARD/git/info/lefthook-remotes/r"; do
+    mkdir -p "$root/.lefthook/$event" "$(dirname "$root/.lefthook/$event/$target")"
+    cp "$wrapper" "$root/.lefthook/$event/$script"
+    printf '#!/usr/bin/env bash\necho ran\n' >"$root/.lefthook/$event/$target"
+  done
+  out="$(bash "$GUARD/wt/.lefthook/$event/$script" </dev/null 2>&1)"
+  expect "$name: the work-tree copy exits 0 without running the entry script" "0:" "$?:$out"
+  out="$(bash "$GUARD/git/info/lefthook-remotes/r/.lefthook/$event/$script" </dev/null 2>&1)"
+  expect "$name: the fetched copy runs the entry script" "ran" "$out"
+  # A file whose name holds the backslashes stands in for the Windows path of the fetched copy.
+  win="$GUARD/git\\info\\lefthook-remotes\\r\\.lefthook\\$event\\$script"
+  cp "$wrapper" "$win"
+  out="$(bash "$win" </dev/null 2>&1)"
+  expect "$name: the fetched copy runs from a backslash path" "ran" "$out"
   entry="${script#guardrails-}"
   expect "$name: not a shared-copy job name" yes "$([[ "$name" != "guardrails-${entry%.sh}" ]] && echo yes)"
 done <<<"$jobs"
+rm -rf "$GUARD"
 expect "entries.json's remote names this config" "plugins/guardrails/git-hooks/lefthook-remote.yml" \
   "$(jq -r '.remote.config' "$HERE/entries.json" 2>/dev/null || sed -n 's/.*"config": "\(.*\)".*/\1/p' "$HERE/entries.json")"
 

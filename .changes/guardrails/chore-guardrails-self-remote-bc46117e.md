@@ -2,4 +2,4 @@
 bump: none
 ---
 
-Test-only change: the lefthook-remote test also checks that the work-tree copy of each remote script exits 0 without running.
+No plugin file ships changed: the root `.lefthook/` remote scripts, which consumers fetch from `main`, now run only from lefthook's `info/lefthook-remotes/` cache (on Windows too), and the lefthook-remote test checks it.
