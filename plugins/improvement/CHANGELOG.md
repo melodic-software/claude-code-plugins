@@ -3,6 +3,12 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.3] - 2026-10-24
+
+### Fixed
+
+- An unattended `/improvement:improve` run whose caller's prompt does not authorize the ready flip now passes `--draft 'ready flip not authorized'` to `/source-control:pull-request create`, which otherwise runs `ready --unattended` itself when `pr_open_state` resolves `ready`, so the run still leaves a draft.
+
 ## [0.3.2] - 2026-10-22
 
 ### Changed

@@ -19,14 +19,16 @@
 //   criteria the lane checks;
 // - 8: no `refuse-labels` label, every blocker a merged pull request or an
 //   issue closed as completed by a listed human or a merge here (the close
-//   work-unblock counts), and no open pull request in this repository names
-//   the issue;
+//   work-unblock counts), and no open pull request in this repository is for
+//   the issue: one GitHub says closes it, or whose body has the issue lane's
+//   `Refs: #<issue>` line (report-outcome.mjs). A passing mention is not one;
 // - 9: the author is a listed human or the lanes App;
 // - lane-runnable done-when: no task-list item asks for what an unattended
 //   lane run cannot do (unrunnableCriteria below): a run on a named host or
 //   OS, a paid eval, a run repeated N times, a measurement over time, or a
 //   page on a host outside resolve-issue's web-access domains. The refusal
-//   recommends splitting those items into a needs-human child issue;
+//   recommends splitting those items into a needs-human child issue, which
+//   refine.mjs files when some items are left for the lane;
 // - 10: check-wip-cap's status: over the queued cap, or with the lane paused
 //   over the WIP or held cap (from wip.pause-from), the issue gets
 //   `admission-deferred`, which work-unblock's hourly sweep admits once there
@@ -46,6 +48,7 @@
 import { readFileSync } from "node:fs";
 
 import { isTrustedClose, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { closingPulls } from "../work-resolve-issue/report-outcome.mjs";
 
 export const AGENT_READY = "agent-ready";
 export const DEFERRED = "admission-deferred";
@@ -77,12 +80,39 @@ const here = (url, repository) =>
     .toLowerCase()
     .endsWith(`/repos/${repository}`.toLowerCase());
 
-// The open pull requests in `repository` an issue's timeline says reference it.
-export const openPullsNaming = (timeline, repository) =>
-  timeline
+// The open pull requests in `repository` for issue `number`: those `closing`
+// (closedByPullRequestsReferences nodes) lists in this repository, and those
+// the timeline says reference it whose body has a `Refs: #<number>` line.
+export function openPullsNaming(timeline, repository, number, closing = []) {
+  const refs = `Refs: #${number}`;
+  const linked = timeline
     .map((event) => (event?.event === "cross-referenced" ? event.source?.issue : null))
-    .filter((source) => source?.pull_request && source.state === "open" && here(source.repository_url, repository))
+    .filter(
+      (source) =>
+        source?.pull_request &&
+        source.state === "open" &&
+        here(source.repository_url, repository) &&
+        String(source.body ?? "")
+          .split("\n")
+          .some((line) => line.trim() === refs),
+    )
     .map((source) => source.number);
+  const closes = closing
+    .filter((node) => String(node?.repository?.nameWithOwner ?? "").toLowerCase() === repository.toLowerCase())
+    .map((node) => node.number);
+  return [...new Set([...closes, ...linked])];
+}
+
+// The open pull requests for an issue, read fresh (openPullsNaming).
+export async function openPullsFor(github, repository, number) {
+  const [owner, name] = repository.split("/");
+  return openPullsNaming(
+    await paginate(github, `/repos/${repository}/issues/${number}/timeline`),
+    repository,
+    Number(number),
+    await closingPulls(github, { owner, name, number: Number(number) }),
+  );
+}
 
 // Done-when items an unattended lane run cannot perform. Each pattern needs
 // an action or a place within one clause of its subject, so an item that only
@@ -140,17 +170,39 @@ const excerpt = (text) => {
   return plain.length > 80 ? `${plain.slice(0, 77)}...` : plain;
 };
 
+// [{line, text, more}] for each task-list item, in order: its index among
+// the body's `\n`-split lines, its text after the task-list prefix, and the
+// indexes of the lines after it indented deeper than its marker (a sub-list
+// or wrapped text, part of the item). Item n (1-based) is entry n - 1. Pure.
+export const taskItems = (body, taskList) => {
+  const lines = String(body ?? "").split("\n");
+  const indent = (line) => line.length - line.trimStart().length;
+  const items = [];
+  lines.forEach((line, index) => {
+    const trimmed = line.trimStart();
+    if (!trimmed.startsWith(taskList)) {
+      return;
+    }
+    const more = [];
+    for (let next = index + 1; next < lines.length && lines[next].trim() !== "" && indent(lines[next]) > indent(line); next += 1) {
+      more.push(next);
+    }
+    items.push({ line: index, text: trimmed.slice(taskList.length), more });
+  });
+  return items;
+};
+
+// The admission comment's text for a refusal, after ADMIT_MARKER.
+export const refusalText = (reasons) =>
+  `Not admitted to the issue lane: ${reasons}. A recorded decision does not change these rules (\`.github/actions/resolve-config/admission-rules.json\`); a person who wants it worked adds \`agent-ready\`.`;
+
 // [{n, kind, text}] for each task-list item (1-based n) the lane cannot
 // perform. `webHosts` is resolve-issue's web-access domains: "any" skips the
 // URL check, an absent list allows only GitHub and local hosts, and a `*.`
 // entry allows that domain's subdomains. Pure.
 export function unrunnableCriteria(body, taskList, webHosts) {
   const allowed = webHosts === "any" ? null : allowedBy([...GITHUB_HOSTS, ...(Array.isArray(webHosts) ? webHosts : [])].map((h) => h.toLowerCase()));
-  const items = String(body ?? "")
-    .split("\n")
-    .map((line) => line.trimStart())
-    .filter((line) => line.startsWith(taskList))
-    .map((line) => line.slice(taskList.length));
+  const items = taskItems(body, taskList).map(({ text }) => text);
   const found = [];
   items.forEach((text, index) => {
     let kind = UNRUNNABLE.find(([, pattern]) => pattern.test(text))?.[0];
@@ -201,7 +253,7 @@ export function admissionSettled(labels, events) {
 }
 
 // {verdict: admit | refuse | wait | skip, reasons}. Pure.
-export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, timeline, events, comments = [], bodyEditedAt = null, humans, appId, repository, webHosts }) {
+export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], events, comments = [], bodyEditedAt = null, humans, appId, repository, webHosts }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
@@ -270,9 +322,8 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
       wait.push(`blocker #${blocker.number} is not closed as completed by a listed human or a merge`);
     }
   }
-  const pulls = openPullsNaming(timeline, repository);
   for (const pull of pulls) {
-    wait.push(`open pull request #${pull} names it`);
+    wait.push(`open pull request #${pull} is for it`);
   }
   if (wait.length > 0) {
     return { verdict: "wait", reasons: wait, pulls };
@@ -373,7 +424,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
     parent: rules["types-under-parent"].includes(issue.type?.name) ? await parentOf(github, base) : null,
     blockers,
     trustedCloses,
-    timeline: await paginate(github, `${base}/timeline`),
+    pulls: await openPullsFor(github, repository, number),
     events: await paginate(github, `${base}/events`),
     humans,
     appId,
@@ -394,13 +445,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
     await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
     await github("POST", `${base}/labels`, { labels: [NEEDS_DECISION] });
     await undefer();
-    await sayWhy(
-      github,
-      repository,
-      base,
-      comments,
-      `Not admitted to the issue lane: ${reasons}. A recorded decision does not change these rules (\`.github/actions/resolve-config/admission-rules.json\`); a person who wants it worked adds \`agent-ready\`.`,
-    );
+    await sayWhy(github, repository, base, comments, refusalText(reasons));
     log(`admit: #${number} refused (${reasons})`);
     return { outcome: "refused", reasons: decision.reasons };
   }

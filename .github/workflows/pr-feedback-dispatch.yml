@@ -24,6 +24,16 @@ name: pr-feedback-dispatch
 # that head as its upstream, so the gate and the broker check the same kind of
 # run either way.
 #
+# A completed scheduled pr-unblock-dispatch.yml run, its half-hourly tick,
+# starts the dispatch job too, which sweeps the open lanes App PRs for a head
+# whose last address-feedback round had no model turn and dispatches one such
+# head again, through its newest completed review run, at most once per tick
+# (feedback-dispatch.mjs sweepNoModelTurn). That round released the head only
+# for a next review or pr-verify completion, which may never come. Taking
+# the tick's completion rather than a schedule of this file's own keeps
+# every dispatch a workflow_run dispatcher's, the one kind the gate and the
+# broker trust with a review run as its upstream.
+#
 # A completed review run on any same-repository PR also starts the
 # rerun-ci-status job, which re-runs the head's ci-status once the head's
 # last review lane has finished, so it reads both reviews (see that job).
@@ -38,17 +48,20 @@ name: pr-feedback-dispatch
 on:
   # workflow_run runs this file from the default branch, never a PR's copy.
   workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows: [pr-review-hosted, pr-review-security-hosted, pr-verify]
+    workflows: [pr-review-hosted, pr-review-security-hosted, pr-verify, pr-unblock-dispatch]
     types: [completed]
 
 permissions: {}
 
 # Both review lanes finish on the same head; one listing at a time per head.
-# A pr-verify run's head is main's, so each such run has a group of its own.
+# A pr-verify run's head is main's, so each such run has a group of its own;
+# the sweeps share one.
 concurrency:
   group: >-
     pr-feedback-dispatch-${{ github.event.workflow_run.path == '.github/workflows/pr-verify.yml'
-    && format('verify-{0}', github.event.workflow_run.id) || github.event.workflow_run.head_sha }}
+    && format('verify-{0}', github.event.workflow_run.id)
+    || github.event.workflow_run.path == '.github/workflows/pr-unblock-dispatch.yml' && 'sweep'
+    || github.event.workflow_run.head_sha }}
   cancel-in-progress: false
 
 jobs:
@@ -139,11 +152,16 @@ jobs:
     # The lanes App opens PRs only from work-resolve-issue lane branches
     # (work-resolve-issue/report-outcome.mjs), so a review run on any other
     # branch is not on a lanes App PR. A pr-verify run dispatches only once its
-    # notes are on the PR. A job skipped here starts no runner.
+    # notes are on the PR, and a pr-unblock-dispatch.yml run sweeps only when
+    # its schedule started it on main. A job skipped here starts no runner.
     if: >-
       ${{ !cancelled()
       && github.ref == 'refs/heads/main'
       && (needs.post-verify-notes.outputs.head-sha != ''
+      || github.event.workflow_run.path == '.github/workflows/pr-unblock-dispatch.yml'
+      && github.event.workflow_run.event == 'schedule'
+      && github.event.workflow_run.head_branch == 'main'
+      && github.event.workflow_run.repository.full_name == github.repository
       || github.event.workflow_run.event == 'pull_request'
       && github.event.workflow_run.head_repository.full_name == github.repository
       && startsWith(github.event.workflow_run.head_branch, 'work-resolve-issue/issue-')
@@ -195,9 +213,11 @@ jobs:
 
       # The newest record an earlier run at this head saved, if any. The key
       # names the event's head SHA, which reaches no shell; the script checks
-      # every entry it reads (dispatch-record.mjs).
+      # every entry it reads (dispatch-record.mjs). A sweep keeps no record.
       - name: Restore the dispatch record for this head
-        if: steps.kill.outputs.proceed == 'true'
+        if: >-
+          steps.kill.outputs.proceed == 'true'
+          && github.event.workflow_run.path != '.github/workflows/pr-unblock-dispatch.yml'
         continue-on-error: true
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:

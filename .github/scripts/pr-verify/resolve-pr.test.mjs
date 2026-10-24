@@ -47,6 +47,8 @@ const LINKED = {
 };
 const HUMANS = new Set([100]);
 const LANE = "melodic-automation-lanes[bot]";
+// A verify run's start, after every edit the fixtures below make.
+const JUDGED_AT = "2026-10-21T00:00:00Z";
 
 const upstream = (overrides = {}) => ({
   id: RUN,
@@ -83,6 +85,7 @@ const verifyRun = (id, overrides = {}) => ({
   head_sha: MAIN,
   repository: { full_name: REPO },
   head_repository: { full_name: REPO },
+  run_started_at: JUDGED_AT,
   ...overrides,
 });
 
@@ -496,9 +499,11 @@ async function specReads(setup) {
   return [reason, reads];
 }
 
-test("a head with a verdict named without issues skips before the linked issues are read", async () => {
-  for (const name of [`pr-verify-41-${HEAD}-pass`, `pr-verify-41-${HEAD}-fail`]) {
-    assert.deepEqual(await specReads({ artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77) } }), ["already-judged", 0], name);
+test("a FAIL named without issues skips before the linked issues are read, and a pass after one read", async () => {
+  // A pass is weighed against the spec's last change, which that read gives.
+  for (const [verdict, reads] of [["fail", 0], ["pass", 1]]) {
+    const name = `pr-verify-41-${HEAD}-${verdict}`;
+    assert.deepEqual(await specReads({ artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77) } }), ["already-judged", reads], name);
   }
 });
 
@@ -664,6 +669,50 @@ test("the spec text keeps only what trusted humans wrote and last edited", async
     { number: 7, spec_kind: "closes", body: null, comments: [] },
     "an untrusted PR author's own text",
   );
+});
+
+test("a pass judged before the spec last changed is judged again at the same head", async () => {
+  const name = `pr-verify-41-${HEAD}-pass`;
+  const passed = (start) => ({ artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77, { run_started_at: start }) } });
+  const human = { __typename: "User", login: "maintainer", databaseId: 100 };
+  const edited = { ...ISSUE, lastEditedAt: "2026-10-21T00:00:00Z", editor: human };
+  const commented = {
+    ...ISSUE,
+    comments: { totalCount: 1, nodes: [{ databaseId: 3, body: "one more criterion", updatedAt: "2026-10-21T00:00:00Z", author: human, lastEditedAt: null, editor: null }] },
+  };
+  for (const [label, issue] of [["a body edit", edited], ["a new spec comment", commented]]) {
+    assert.equal(await reason({ ...passed("2026-10-20T23:59:59Z"), issues: [issue] }), "spec-changed", `${label} after the pass`);
+    assert.equal(await reason({ ...passed("2026-10-21T00:00:01Z"), issues: [issue] }), "already-judged", `${label} before the pass`);
+  }
+  // A comment the spec leaves out changes nothing.
+  const bot = { ...commented.comments.nodes[0], author: { __typename: "Bot", login: "github-actions", databaseId: 41898282 } };
+  assert.equal(await reason({ ...passed("2026-10-20T23:59:59Z"), issues: [{ ...ISSUE, comments: { totalCount: 1, nodes: [bot] } }] }), "already-judged");
+  // A pass whose start cannot be read is judged again.
+  assert.equal(await reason(passed(undefined)), "spec-changed");
+  // One pass after the change is enough; a FAIL at the head still stops it.
+  const both = {
+    issues: [edited],
+    artifacts: [artifact(name, 77), artifact(name, 78)],
+    runs: { 77: verifyRun(77, { run_started_at: "2026-10-20T00:00:00Z" }), 78: verifyRun(78, { run_started_at: "2026-10-22T00:00:00Z" }) },
+  };
+  assert.equal(await reason(both), "already-judged");
+  const failed = { ...passed("2026-10-20T00:00:00Z"), issues: [edited] };
+  failed.artifacts.push(artifact(`pr-verify-41-${HEAD}-fail`, 79));
+  failed.runs[79] = verifyRun(79);
+  assert.equal(await reason(failed), "already-judged");
+});
+
+test("a pull request that is its own spec is judged again after a body edit", async () => {
+  const name = `pr-verify-41-${HEAD}-pass`;
+  const setup = (lastEditedAt) => ({
+    issues: [],
+    pulls: [HUMAN_PR],
+    edit: { lastEditedAt, editor: lastEditedAt ? { __typename: "User", login: "maintainer", databaseId: 100 } : null },
+    artifacts: [artifact(name, 77)],
+    runs: { 77: verifyRun(77) },
+  });
+  assert.equal(await reason(setup("2026-10-22T00:00:00Z"), { verifyAuthors: "any" }), "spec-changed");
+  assert.equal(await reason(setup("2026-10-19T00:00:00Z"), { verifyAuthors: "any" }), "already-judged");
 });
 
 test("the linked issues record each body's last editor", async () => {

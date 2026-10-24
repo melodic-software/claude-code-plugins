@@ -3,6 +3,12 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.4] - 2026-10-24
+
+### Changed
+
+- The vendored git-hook installer (`lib/git-hooks/install.mjs`) accepts an optional `remote` block in `git-hooks/entries.json` and a `plan --scope remote` that returns a lefthook `remotes:` entry for it; a plugin without the block behaves as before, and `copy --scope remote` is a usage error.
+
 ## [0.12.3] - 2026-10-22
 
 ### Changed

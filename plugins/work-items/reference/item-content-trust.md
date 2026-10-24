@@ -82,7 +82,8 @@ These are instances of the rule above, not separate rules:
   "Admission gate").
 - **Machine markers**: a queue marker is matched on its author, not on the marker text alone,
   because any commenter can paste a marker prefix ([`work-loop`](../skills/work-loop/SKILL.md),
-  "Admission gate").
+  "Admission gate"). Which authors an escalation marker counts from is defined once, in
+  [`escalation-marker.md`](escalation-marker.md#trusted-escalation-authors).
 - **The merge partition's work class**: read from the provider-permissioned `work-class:` label,
   never from a `Work-class: C<n>` body trailer, which any item author can write about their own
   item (`source-control`'s `babysit-loop`, "Rung partition").

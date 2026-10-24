@@ -542,6 +542,7 @@ export async function currentThreads({ api, pr, reviewerId, appId, trustedHumans
   const fixers = await reviewFixers({ reviewComments, trustedHumans, permission: api.getPermission });
   return {
     issueComments,
+    reviewComments,
     kept: keepThreads({ threads, reviewComments, reviews, heads: reviewedHeads(issueComments), reviewerId, appId, trustedHumans, fixers }),
   };
 }

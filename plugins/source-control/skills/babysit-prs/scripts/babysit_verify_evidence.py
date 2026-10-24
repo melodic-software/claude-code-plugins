@@ -45,9 +45,11 @@ from a completed, successful one. Any other artifact is ignored.
   whose recorded head branch (its verdict.json) cannot be read is
   `verify:unreadable`, so one such artifact blocks every pull request until it
   is readable, expires or is deleted;
-- counted PASS or PASS-NOTES verdicts at the head of this pull request, each
-  checked, so any one that refuses refuses (`verify:spec-changed` before
-  `verify:untrusted-spec`, whatever the listing order): each is refused
+- counted PASS or PASS-NOTES verdicts at the head of this pull request, those
+  of the run that started last (`_newest`; every one when a start time is
+  missing), each checked, so any one that refuses refuses
+  (`verify:spec-changed` before `verify:untrusted-spec`, whatever the listing
+  order): each is refused
   `verify:spec-changed` unless the pull request's closing issues now are the
   ones its verdict recorded, none was edited after its run started, and each
   issue's trusted comments (`_spec_comments`) are the recorded ones by id and
@@ -55,7 +57,13 @@ from a completed, successful one. Any other artifact is ignored.
   `pull-request` (the title and body were the spec), else only when every
   linked issue it records was
   written, and last edited if ever, by a User on the trusted list's humans
-  (the pull request's author among them), else `verify:untrusted-spec`;
+  (the pull request's author among them), else `verify:untrusted-spec`. A
+  pass refused `verify:spec-changed` for an issue edit or a spec comment
+  added or edited is judged again at the same head: resolve-pr.mjs judges a
+  head whose passes all predate the spec's last change, and the lost-run
+  reconciler re-runs the head's checks to start that judgment. A changed
+  closing set or a removed spec comment leaves no time to compare, and waits
+  for a person;
 - otherwise `verify:missing`.
 
 `verify:too-old`, `verify:repeated-fail`, `verify:spec-changed` and
@@ -1174,8 +1182,9 @@ class Reader:
         elif unreadable:
             refusal = UNREADABLE
         elif passes:
-            # Every pass at the head must allow, so listing order decides
-            # nothing; any unreadable one refuses (`_Unreadable`).
+            # Every pass of the run that started last must allow
+            # (`_newest`), so listing order decides nothing; any unreadable
+            # one refuses (`_Unreadable`).
             live, elsewhere = self._elsewhere(
                 number, failed_by_pr, unread_prs, failed_by_issue, unread_issues
             )
@@ -1188,7 +1197,7 @@ class Reader:
             else:
                 refusals = {
                     self._pass_refusal(run_id, name, number, head, live, pr, artifact)
-                    for run_id, name, artifact in passes
+                    for run_id, name, artifact in self._newest(passes)
                 }
                 refusal = next(
                     (r for r in (SPEC_CHANGED, UNTRUSTED_SPEC) if r in refusals),
@@ -1270,6 +1279,22 @@ class Reader:
             return postmerge._time(self._created[run_id])
         except postmerge.PostMergeReadError:
             return None
+
+    def _newest(
+        self, passes: list[tuple[int, str, Any]]
+    ) -> list[tuple[int, str, Any]]:
+        """The passes whose runs started last (`run_started_at`, which a
+        re-attempt moves, and which a re-attempt's judgment read the spec
+        at): a pr-verify run that judged the head again after the spec
+        changed supersedes the passes before it, which judged a spec that is
+        gone. resolve-pr.mjs `specChanged` weighs the same start times. When
+        any start time is missing or unreadable, every pass decides."""
+        try:
+            started = [postmerge._time(self._started.get(r)) for r, _, _ in passes]
+        except postmerge.PostMergeReadError:
+            return passes
+        last = max(started)
+        return [p for p, s in zip(passes, started, strict=True) if s == last]
 
     def _passes_follow(
         self, fails: list[Verdict], passes: list[tuple[int, str, Any]]
