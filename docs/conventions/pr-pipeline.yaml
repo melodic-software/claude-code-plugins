@@ -464,14 +464,20 @@ activities:
     # After intake triage, writes its verdict as the lanes App: the work-class
     # label, the Size, Complexity and Uncertainty issue fields, and
     # `status: ready` or `status: needs-decision`, read from the lane comment
-    # the triage run posted. On `status: ready` it adds agent-ready when
+    # the triage run posted, with a blocked-by edge for each open issue its
+    # `Blocked by:` line names. Only needs-human, a person's hold, the triage
+    # run's own escalation, an untrusted setter, a hold set after an earlier
+    # flagged verdict or with no readable earlier verdict, or the verdict
+    # itself holds the issue, and the reasons
+    # go on the issue in one comment it edits in place. On
+    # `status: ready` it adds agent-ready when
     # .github/actions/resolve-config/admission-rules.json holds and the caps
     # have room, else admission-deferred (owner decision Q51, #9212). A
     # script, no model.
     # .github/workflows/intake-triage.yml runs it.
     script: .github/scripts/intake-triage/apply-verdict.mjs
-    # Labels issues, sets issue fields, edits the lane comment and posts an
-    # admission comment; nothing else.
+    # Labels issues, sets issue fields, writes blocked-by edges, edits the
+    # lane comment and posts a reasons and an admission comment; nothing else.
     effect: mutate-tracker
     gating: advisory
     # Reads the lane comment, which carries model text.
