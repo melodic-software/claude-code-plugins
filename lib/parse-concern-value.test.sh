@@ -141,8 +141,8 @@ assert_eq 'a later key of a sequence item (example :152)' "false" \
   "$(bash "$SCRIPT" "$EX" lanes.post-merge-sweep-comments.slots.0.enabled true)"
 assert_eq 'a flow list inside a sequence item (example :111)' "run-tests" \
   "$(bash "$SCRIPT" "$EX" lanes.pr-run-checks.slots.1.needs --list)"
-assert_eq 'one item of a flow list by index (example :72)' "needs-human" \
-  "$(bash "$SCRIPT" "$EX" activities.resolve-conflicts.applies-when.labels-absent.1)"
+assert_eq 'one item of a flow list by index (example :80)' "base-sha" \
+  "$(bash "$SCRIPT" "$EX" activities.resolve-conflicts.inputs.1)"
 assert_eq 'a quoted glob in a flow list (example :19)' '**/*.md' \
   "$(bash "$SCRIPT" "$EX" activities.fix-docs.applies-when.paths --list)"
 assert_eq 'a list key read as a scalar is absent' ".none" \
