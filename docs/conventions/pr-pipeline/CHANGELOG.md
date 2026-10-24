@@ -1,5 +1,18 @@
 # Changelog for the PR pipeline convention
 
+## [4.16.0] - 2026-10-24
+
+### Added
+
+- Intake refinement now files the split admission recommends. When admission holds an issue at the lanes App's `status: needs-decision` only because some, not all, of its done-when items ask for what an unattended lane run cannot perform, and the triage raised no flag, the `refine-issue` run judges the split. When the model returns exactly the held item numbers, `apply-refinement` files one child issue as the lanes App, labeled `needs-human` and born triaged, that holds those items as written, with their indented sub-lines, and links back. It then replaces them in the issue body with one line linking the child, lifts `status: needs-decision`, and triages the issue once more so admission reads the rest. The refinement marker keeps it to once per issue, and a retry reuses the child it filed. A proposal that names any other items, drafts criteria or asks questions alongside a split is refused before anything is written.
+
+### Fixed
+
+- An address-feedback round whose reply job skipped `no-model-turn` no longer waits for a review or `pr-verify` run that may never come. `pr-feedback-dispatch.yml` also runs when a scheduled `pr-unblock-dispatch.yml` run completes (its half-hourly tick), and sweeps the open lanes App pull requests into `main`. The first head whose newest `pr-unblock / publish-feedback` check skipped `no-model-turn`, fewer than three times at that head, is decided and dispatched as for its newest completed review run, which the dispatched-run record names. A tick dispatches at most one head, keeps no dispatch record, and moves past a pull request it cannot read. The dispatcher stays a `workflow_run` run, so the trusted-trigger gate and the broker check it unchanged.
+
+- Admission waits only on an open pull request in this repository that is for the issue: one GitHub lists as closing it (`closedByPullRequestsReferences`), or one whose body has the issue lane's `Refs: #<issue>` line. A pull request that only mentions the issue no longer defers admission, in `admit.mjs` or in work-unblock's sweep of `admission-deferred` issues.
+- `publish-feedback` accepts an earlier fix on a retry. When the compare range holds no lane fix commit and the round wrote no patch, each `VALID` thread's fix may be the newest earlier commit on the pull request that the lanes App made through the API with the push job's `Lane-Activity` trailer, committed after the thread's newest comment by the reviewer, the verifier or the lane, that changed the thread's path and a line the reply's evidence cites (in a file no later commit on the pull request changed), and that no lane reply already names as a fix. A commit the lane already answered on that thread, or one the reviewer raised the finding again after, does not count. Before, a round whose fix had landed but whose replies did not post left every thread open, and every retry ended `feedback-not-landed`.
+
 ## [4.15.1] - 2026-10-24
 
 ### Fixed

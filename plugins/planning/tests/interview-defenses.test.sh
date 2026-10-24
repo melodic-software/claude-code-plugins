@@ -505,11 +505,12 @@ done
 # The emoji paragraph states its setting once with an inline fallback for an unexpanded token;
 # it changes how the option is read, not what any round resolves.
 # Idea-stage routing, brainstorm handoff, problem first, withheld why question
+# The existing-control paragraph adds a check before presenting a mechanism option; it resolves no question and leaves the no-silent-resolve rule unchanged.
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "ce08c11a748528b1b3ae3037f2ba56ca01fa8ca198a6e5f11a21307d0cc10976"
+  "72c58f0a264dcc23b121bacd2b0dcba855f4e2df81dcd62a6b79262542e89d8b"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
