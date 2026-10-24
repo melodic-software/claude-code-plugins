@@ -73,6 +73,19 @@ test("a failed job listing no failed step is a check of its own; the full list k
     failingChecks([withSteps([{ name: "Set up job", conclusion: "success" }, { name: "Aggregate hygiene results", conclusion: "failure" }])], gitleaks),
     [],
   );
+  // A failed step beside the aggregator still charges the job.
+  assert.deepEqual(
+    failingChecks(
+      [
+        withSteps([
+          { name: "Aggregate hygiene results", conclusion: "failure" },
+          { name: "Test hygiene result aggregation", conclusion: "failure" },
+        ]),
+      ],
+      gitleaks,
+    ),
+    ["lint-repo"],
+  );
 });
 
 const attempt = (n, conclusion, checks) => ({ attempt: n, conclusion, checks });

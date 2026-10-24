@@ -5,6 +5,7 @@
 // of the named workflow file, and only for a PR whose head
 // check-trusted-trigger would trust.
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -60,6 +61,9 @@ const run = (
     headBranch = "main",
     step = TOKEN_STEP,
     steps = fullSteps(step),
+    // The write runner's job as the jobs API names it (`<caller> / run`).
+    jobName = "apply-conflict-patch / run",
+    conclusion = "failure",
     messages = [denial(UNBLOCK)],
     actor = ACTIONS_BOT,
     rerunner = actor,
@@ -76,7 +80,7 @@ const run = (
   display_title: title,
   repository: { full_name: REPO },
   head_repository: { full_name: REPO },
-  job: { id: id * 10, conclusion: "failure", steps },
+  job: { id: id * 10, name: jobName, conclusion, steps },
   annotations: messages.map((message) => ({ annotation_level: "failure", message })),
 });
 // The failed check a dispatched run's report job posts on the PR's head.
@@ -325,6 +329,36 @@ test("a failed job whose step list lacks the token step is judged by its annotat
   assert.equal(await main({ env, github: full.github, actions: full.actions, now: NOW }), 0);
   assert.deepEqual(pushes(full.calls), []);
   assert.deepEqual(posts(full.calls), []);
+});
+
+const annotationReads = (calls) => calls.filter((call) => /\/check-runs\/\d+\/annotations/.test(call));
+
+test("a job that is no write runner job, or did not fail, has its annotations unread even with no steps listed", async () => {
+  // fix-ci / run is the read runner's job: it runs the model over PR content
+  // and requests no lane token, so its annotations are never trusted.
+  for (const runOptions of [
+    { jobName: "fix-ci / run", steps: [] },
+    { jobName: "apply-conflict-patch / report", steps: [] },
+    { conclusion: "success", steps: [] },
+  ]) {
+    const w = refusedWorld([pr(9)], { runOptions });
+    assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+    assert.deepEqual(annotationReads(w.calls), [], JSON.stringify(runOptions));
+    assert.deepEqual(pushes(w.calls), [], JSON.stringify(runOptions));
+    assert.deepEqual(posts(w.calls), [], JSON.stringify(runOptions));
+  }
+});
+
+test("every pr-unblock job that calls the write runner is read when its steps are missing", async () => {
+  // The callers come from pr-unblock.yml itself, so a new one is covered.
+  const yml = readFileSync(join(HERE, "../../workflows/pr-unblock.yml"), "utf8");
+  const callers = [...yml.matchAll(/^ {2}([a-z0-9-]+):\n(?:(?! {2}\S).*\n)*? {4}uses: \.\/\.github\/workflows\/pr-run-activity-write\.yml/gm)].map((m) => m[1]);
+  assert.ok(callers.includes("apply-conflict-patch") && callers.length >= 8, JSON.stringify(callers));
+  for (const caller of callers) {
+    const w = refusedWorld([pr(9)], { runOptions: { jobName: `${caller} / run`, steps: [] } });
+    assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+    assert.equal(pushes(w.calls).length, 1, caller);
+  }
 });
 
 test("only a head check-trusted-trigger trusts qualifies: no untrusted author, fork, draft or Dependabot PR is pushed to", async () => {

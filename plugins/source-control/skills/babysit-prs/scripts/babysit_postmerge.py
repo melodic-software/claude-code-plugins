@@ -1050,6 +1050,9 @@ class _Context:
     # Dispatch records whose artifact listing read empty twice.
     lane_empty: set[str] = field(default_factory=set)
     checks_cache: dict[tuple[int, int], frozenset[str]] = field(default_factory=dict)
+    # The checks of each attempt counted only because a job's steps were
+    # unknown: as a baseline they excuse nothing.
+    unknown_checks: dict[tuple[int, int], frozenset[str]] = field(default_factory=dict)
     # Full-history clones `contains` asks first; None until first resolved.
     local_clones: list[Path] | None = None
     # Per live branch tip, the clone's copy of the branch when the compare
@@ -1402,6 +1405,7 @@ class _Context:
                 else frozenset()
                 if newest.conclusion == "success"
                 else self.failing_checks(newest.id, newest.attempt)
+                - self.unknown_checks[(newest.id, newest.attempt)]
             )
         return self.baseline_cache[key]
 
@@ -1425,6 +1429,7 @@ class _Context:
                 set() if jobs else {f"{FULL_RUN_WORKFLOW}: no failed jobs"}
             )
             by_name: dict[str, dict[str, Any]] = {}
+            unknown: set[str] = set()
             for job in jobs:
                 name = str(job.get("name") or "")
                 if name == LANE_AGGREGATE_JOB and len(jobs) > 1:
@@ -1436,14 +1441,17 @@ class _Context:
                     for s in map(json_object, json_array(job.get("steps")))
                     if s.get("conclusion") in FAILED_CONCLUSIONS
                 }
-                # The jobs API can list a completed job's steps empty or cut
-                # short. A failed job listing no failed step has unknown
-                # steps, so the job counts whole.
-                if not gates or not steps or steps - {HYGIENE_AGGREGATE_STEP}:
+                if not gates or steps - {HYGIENE_AGGREGATE_STEP}:
                     checks.add(name)
+                elif not steps:
+                    # The jobs API can list a completed job's steps empty or
+                    # cut short. A failed job listing no failed step has
+                    # unknown steps, so the job counts whole.
+                    unknown.add(name)
                 checks |= {f"{name}: {g}" for g in gates - UNATTRIBUTABLE_GATES}
             self.check_jobs[key] = by_name
-            self.checks_cache[key] = frozenset(checks)
+            self.unknown_checks[key] = frozenset(unknown - checks)
+            self.checks_cache[key] = frozenset(checks | unknown)
         return self.checks_cache[key]
 
     def _failed_gates(self, job_id: Any) -> frozenset[str]:

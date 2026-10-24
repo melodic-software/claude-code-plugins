@@ -75,6 +75,18 @@ const LANES = Object.freeze({
       ".github/workflows/pr-unblock-dispatch.yml",
       ".github/workflows/pr-feedback-dispatch.yml",
     ],
+    // The jobs that call the write runner, whose `run` job alone requests the
+    // lane token; the jobs API names each `<caller> / run`.
+    writeCallers: [
+      "apply-conflict-patch",
+      "apply-feedback-patch",
+      "publish-feedback",
+      "apply-dependency-patch",
+      "apply-dependency-verdict",
+      "apply-patch",
+      "apply-patch-rung-up",
+      "report-escalation",
+    ],
   },
 });
 const REFUSED =
@@ -175,10 +187,12 @@ async function refusedFile({ actions, repo, run, lane }) {
     throw new Error(`run ${run.id}'s jobs have an unexpected shape`);
   }
   for (const job of jobs) {
-    // The jobs API can list a completed job's steps empty or cut short: a
-    // failed job whose list lacks the token step is judged by its annotations.
+    // Only a write runner job requests the token. The jobs API can list a
+    // completed job's steps empty or cut short: such a job whose list lacks
+    // the token step is judged by its annotations.
+    const writer = lane.writeCallers.some((caller) => job.name === `${caller} / run`);
     const token = (Array.isArray(job.steps) ? job.steps : []).find((step) => step.name === STEP);
-    const failedAtToken = job.conclusion === "failure" && (token === undefined || token.conclusion === "failure");
+    const failedAtToken = writer && job.conclusion === "failure" && (token === undefined || token.conclusion === "failure");
     if (!failedAtToken || !Number.isSafeInteger(job.id)) {
       continue;
     }

@@ -2330,6 +2330,23 @@ class Baseline(CheckCase):
                 self.red_after_merge(*jobs)
                 self.assertEqual([f.signal for f in self.check().failures], expected)
 
+    def test_a_baseline_job_with_unknown_steps_excuses_nothing(self) -> None:
+        # Before the merge, lint-repo failed only on gitleaks, but its steps
+        # read empty, so it counted whole. After the merge a real lint-repo
+        # step fails; that baseline entry must not excuse it.
+        base = self.gitleaks_red(301)
+        base[0]["steps"] = []
+        self.before_merge("failure", *base)
+        jobs = self.gitleaks_red(312)
+        jobs[0] = failed_job(
+            312,
+            "lint-repo",
+            "Aggregate hygiene results",
+            "Test hygiene result aggregation",
+        )
+        self.red_after_merge(*jobs)
+        self.assertEqual([f.signal for f in self.check().failures], ["schedule"])
+
     def test_unreadable_annotations_excuse_nothing(self) -> None:
         jobs = self.gitleaks_red(312)
         self.gh.annotations[312] = 403
