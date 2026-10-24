@@ -151,6 +151,7 @@ LOGGED_OPS = {
     "wait",
     "confirm-commitments",
     "restate",
+    "constraint",
     "finish",
 }
 BASIS_SENTENCES = 3
@@ -1395,6 +1396,26 @@ def op_restate(d, doc, a):
     return [], "restated the shared understanding"
 
 
+def op_constraint(d, doc, a):
+    """Record one constraint on the page's ledger: a new `C<N>`, or the text of an existing `id`."""
+    text = capped("constraint text", (a.text or "").strip(), LINE_CAP)
+    if not text or "\n" in text:
+        sys.exit("refused: constraint needs one line of text")
+    kept = doc.get("constraints") or []
+    cid = a.id
+    if cid is None:
+        nums = [int(c["id"][1:]) for c in kept if re.fullmatch(r"C[0-9]+", c["id"])]
+        cid = f"C{max(nums, default=0) + 1}"
+    elif not re.fullmatch(r"C[0-9]+", str(cid)):
+        sys.exit(f"refused: constraint id {cid!r} is not C<N>")
+    entry = {"id": cid, "text": text, "at": now()}
+    if any(c["id"] == cid for c in kept):
+        doc["constraints"] = [entry if c["id"] == cid else c for c in kept]
+        return [], f"revised constraint {cid}"
+    doc["constraints"] = [*kept, entry]
+    return [], f"recorded constraint {cid}"
+
+
 def op_activity(d, doc, a):
     text = capped("activity text", (a.text or "").strip(), LINE_CAP)
     if not text:
@@ -1630,6 +1651,7 @@ OP_ARGS = {
         {"id": None, "indices": None, "reason": None},
     ),
     "restate": (op_restate, {"sections": None}),
+    "constraint": (op_constraint, {"id": None, "text": None}),
 }
 
 

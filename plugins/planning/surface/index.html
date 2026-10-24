@@ -64,6 +64,11 @@ header.top{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;border-botto
 #reBanner{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px}
 #reBanner[hidden],.ntoast[hidden],.ctx[hidden],.handoff[hidden]{display:none}
 .ctx{font:500 12.5px/1 var(--mono);font-variant-numeric:tabular-nums;padding:6px 10px;border-radius:999px;border:1px solid var(--accent);color:var(--accent);background:var(--accent-soft);white-space:nowrap}
+.cons{margin-top:6px;font-size:13.5px;overflow-wrap:anywhere}
+.cons[hidden]{display:none}
+.cons summary{cursor:pointer;font-weight:600;color:var(--muted)}
+.cons ul{margin:4px 0 0;padding-left:20px}
+.cons li b{font:600 12.5px var(--mono);margin-right:6px}
 .handoff{margin-top:6px;padding:6px 10px;border:1px solid var(--accent);border-radius:6px;color:var(--ink);background:var(--accent-soft);font-size:13.5px;overflow-wrap:anywhere}
 .ntoast{position:fixed;left:16px;bottom:16px;z-index:40;display:flex;gap:8px;align-items:center;flex-wrap:wrap;max-width:min(440px,calc(100vw - 32px));border:1px solid var(--chg);background:var(--panel);border-radius:8px;padding:8px 12px;box-shadow:0 4px 18px rgba(0,0,0,.25);font-size:13.5px;pointer-events:none}
 .ntoast button{pointer-events:auto}
@@ -448,6 +453,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     </div>
     <div class="banner" id="reBanner" hidden></div>
     <div class="handoff" id="hoBanner" role="status" hidden></div>
+    <details class="cons" id="consPanel" hidden><summary id="consSum"></summary><ul id="consList"></ul></details>
   </header>
   <div class="layout" id="layout">
     <nav class="rail" aria-label="Questions">
@@ -988,6 +994,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     cb.hidden = !cx; cb.textContent = cl; cb.setAttribute("aria-label", cx ? "Context used: " + cl : "Context used");
     setHtml($("hoBanner"), S.handoff ? "<b>The interview continues:</b> " + esc(S.handoff.text) : ""); $("hoBanner").hidden = !S.handoff;
     renderNotice(); renderReBanner(); renderNeedToast();
+    const cons = S.doc.constraints || []; // the constraint ledger: absent in a file written before the constraint op
+    $("consPanel").hidden = !cons.length; $("consSum").textContent = "Constraints (" + cons.length + ")";
+    setHtml($("consList"), cons.map(c => "<li><b>" + esc(c.id) + "</b>" + esc(c.text) + "</li>").join(""));
     const na = openAssumptions(), ac = $("assumeCount"), u = uState(), sure = !!(u && u.alt === "confirm"), unticked = na + (na === 1 ? " commitment" : " commitments");
     ac.hidden = !na; ac.classList.toggle("long", sure); // confirming the understanding ticks no commitment: say so, so the count does not read as a failed Confirm
     ac.textContent = sure ? "Understanding confirmed · " + unticked + " unticked; they become named risks unless ticked" : na + " to confirm";

@@ -32,6 +32,7 @@
           {"$ref": "#/$defs/activity"},
           {"$ref": "#/$defs/confirm-commitments"},
           {"$ref": "#/$defs/restate"},
+          {"$ref": "#/$defs/constraint"},
           {"$ref": "#/$defs/finish"}
         ]
       }
@@ -350,6 +351,17 @@
       "properties": {
         "op": {"enum": ["restate"]},
         "sections": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/surface/questions#/$defs/sections"}
+      }
+    },
+    "constraint": {
+      "description": "Record one constraint the interview found, shown in the page header's Constraints panel. Appends `{id, text, at}` to `constraints` with the next `C<N>`; an `id` already recorded has its text replaced instead. `text` is one line.",
+      "type": "object",
+      "required": ["op", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["constraint"]},
+        "id": {"type": "string"},
+        "text": {"$ref": "#/$defs/line"}
       }
     }
   }
