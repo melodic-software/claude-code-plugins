@@ -5,6 +5,6 @@
   "type": "module",
   "description": "Terminal driver for the harness-ops control-claude-code skill. Installed on first use with npm ci from the lockfile; never vendored.",
   "dependencies": {
-    "@microsoft/tui-test": "0.1.1"
+    "@microsoft/tui-test": "0.1.0"
   }
 }
