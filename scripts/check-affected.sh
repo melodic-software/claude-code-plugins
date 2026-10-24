@@ -43,7 +43,9 @@
 #                          modes the pull_request run uses
 #   - changed-skills:      scripts/check-changed-skills.sh <base>, when a skill
 #                          file changed
-#   - tests (--tests):     scripts/affected-tests.sh --run --base <base>
+#   - tests (--tests):     scripts/affected-tests.sh --run --base <base>, after
+#                          scripts/setup-env.sh --node installs any missing or
+#                          stale locked npm packages
 #
 # Every hygiene gate the CI jobs run that this does not is printed as
 # `CI only: <gate>`. scripts/check-affected-gates.txt lists each gate with how it
@@ -395,6 +397,25 @@ fi
 if ((run_tests && foreign)); then
   skip tests "runs the checked tree's own test code"
 elif ((run_tests)); then
+  # Suites load the locked npm packages, which a fresh worktree lacks or a
+  # lockfile change leaves stale, so setup-env installs them first; it skips a
+  # current install. A failed install fails the run and runs no suite; one that
+  # could not run (npm or nice missing) is a SKIP, and the suites still run.
+  npm_failed=0
+  rc=0
+  bash "$tools/scripts/setup-env.sh" --node >"$out" 2>&1 || rc=$?
+  if ((rc == 0)); then
+    grep '^setup-env: installed' "$out" >&2
+  elif ((rc == 2 || rc == 127)); then
+    skip npm-deps "could not run, exit $rc: $(tail -n 1 "$out")"
+  else
+    npm_failed=1
+    failed+=(npm-deps)
+    {
+      printf '\nFAIL npm-deps (exit %s). Reproduce: bash scripts/setup-env.sh --node\n' "$rc"
+      tail -n 15 "$out"
+    } >>"$out.failures"
+  fi
   # affected-tests exits 3 when it ran every shell suite but selected suites of
   # another ecosystem it does not run; those are CI's, so that is a pass here.
   affected() {
@@ -403,7 +424,11 @@ elif ((run_tests)); then
     ((rc == 3)) && return 0
     return "$rc"
   }
-  run_check tests "scripts/affected-tests.sh --run --base $base" affected
+  if ((npm_failed)); then
+    skip tests "npm dependencies did not install"
+  else
+    run_check tests "scripts/affected-tests.sh --run --base $base" affected
+  fi
 fi
 
 for s in ${skipped[@]+"${skipped[@]}"}; do echo "check-affected: SKIP $s" >&2; done
