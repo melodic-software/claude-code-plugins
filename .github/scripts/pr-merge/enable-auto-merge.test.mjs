@@ -118,6 +118,10 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
     if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/issues/comments/7") {
       return COST_COMMENT;
     }
+    // Its decided head: a review lane's cost hold marker at the head, before it.
+    if (method === "GET" && /^\/repos\/melodic-software\/claude-code-plugins\/issues\/[0-9]+\/comments\?per_page=100&page=1$/.test(path)) {
+      return [{ user: { type: "Bot" }, created_at: "2026-10-22T11:00:00Z", body: `<!-- claude-lane-hold lane=claude-review sha=${HEAD} criteria=cost -->` }];
+    }
     // The read-back pin, posted before an arm.
     if (method === "POST" && String(body?.body ?? "").startsWith("<!-- babysit-merge-pin ")) {
       pins.push({ path, body: body.body });

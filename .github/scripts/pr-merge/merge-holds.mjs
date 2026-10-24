@@ -23,7 +23,8 @@
 // - A cost path (COST_PATHS): a changed file the gate holds for the owner's
 //   cost decision. An approval does not lift it; only the decision the gate
 //   reads does (costDecision), linked from the body: on the pull request, or
-//   on its linked issue naming it.
+//   on its linked issue naming it, for the head it decided or a later one
+//   whose every change since is a base merge.
 // - No verifier pass, when a verdicts file is given (ci-status gives one in
 //   the merge queue only): the head merges on a PASS or PASS-NOTES that
 //   pr-verify.yml uploaded from a completed, successful run on main
@@ -423,7 +424,7 @@ const DECISION_LINK = /https:\/\/github\.com\/([A-Za-z0-9-]+)\/([A-Za-z0-9._-]+)
 const DECISION_LINE = /^\*\*Decision recorded\.\*\*[ \t]+Cost:/;
 export const PULL_OPENED_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
-    pullRequest(number: $number) { createdAt closingIssuesReferences(first: 2) { totalCount nodes { number repository { nameWithOwner } } } }
+    pullRequest(number: $number) { createdAt headRefName isCrossRepository closingIssuesReferences(first: 2) { totalCount nodes { number repository { nameWithOwner } } } }
   }
 }`;
 export const COMMENT_EDITED_QUERY = "query($id: ID!) { node(id: $id) { ... on IssueComment { lastEditedAt } } }";
@@ -437,19 +438,119 @@ export function namesPull(text, number) {
   return Number.isSafeInteger(number) && new RegExp(`(?:^|[^A-Za-z0-9_#&/.-])#${number}(?:[^0-9]|$)`).test(String(text ?? ""));
 }
 
+// A review lane's cost hold marker, as ci-workflows apply-review-hold writes
+// it: the head it held and its criteria, cost among them.
+const COST_MARKER = /(?:^|\n)<!-- claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) criteria=([a-z-]+(?:,[a-z-]+)*) -->(?![^\r\n])/;
+const SHA = /^[0-9a-f]{40}$/;
+
+// The head a cost decision made at `at` decided, from the pull request's
+// `comments`: the sha of the latest cost hold marker a Bot posted before it,
+// else null (babysit_merge_policy.decided_head).
+export function decidedHead(comments, at) {
+  let found = null;
+  for (const row of Array.isArray(comments) ? comments : []) {
+    const marker = row?.user?.type === "Bot" ? COST_MARKER.exec(String(row.body ?? "")) : null;
+    const made = Date.parse(row?.created_at);
+    if (marker && marker[2].split(",").includes("cost") && made < Date.parse(at) && (found === null || made >= found.made)) {
+      found = { made, sha: marker[1] };
+    }
+  }
+  return found?.sha ?? null;
+}
+
+// The head of the branch when a decision on the pull request was made at
+// `at`, with no cost hold marker before it: the commit of the latest push
+// the repository activity `pushes` timestamp before it, else null
+// (babysit_merge_policy.pushed_head). A commit's own dates are its
+// author's text, so they place nothing.
+export function pushedHead(pushes, at) {
+  let found = null;
+  for (const row of Array.isArray(pushes) ? pushes : []) {
+    const made = Date.parse(row?.timestamp);
+    if (SHA.test(String(row?.after)) && !/^0+$/.test(row.after) && made < Date.parse(at) && (found === null || made >= found.made)) {
+      found = { made, sha: row.after };
+    }
+  }
+  return found?.sha ?? null;
+}
+
+// Whether two compare answers (base...head) show the same net change of the
+// pull request: the same files by filename, each with the same status,
+// previous_filename and patch. A list of 300 files or more (the compare
+// API's cap), a file with no patch, or an answer with no file list is not
+// the same (babysit_merge_policy.same_net_change).
+export function sameNetChange(decided, current) {
+  const net = (compare) => {
+    const files = compare?.files;
+    if (!Array.isArray(files) || files.length >= 300) return null;
+    if (!files.every((f) => typeof f?.filename === "string" && typeof f.status === "string" && typeof f.patch === "string")) return null;
+    return files
+      .map((f) => JSON.stringify([f.filename, f.status, f.previous_filename ?? null, f.patch]))
+      .sort()
+      .join("\n");
+  };
+  const [then, now] = [net(decided), net(current)];
+  return then !== null && then === now;
+}
+
+// Every page of the REST list at `path`.
+async function pages(github, path) {
+  const rows = [];
+  for (let page = 1; ; page += 1) {
+    const read = await github("GET", `${path}${path.includes("?") ? "&" : "?"}per_page=100&page=${page}`);
+    if (!Array.isArray(read)) {
+      throw new Error(`${path} is not a list`);
+    }
+    rows.push(...read);
+    if (read.length < 100) {
+      return rows;
+    }
+  }
+}
+
+// Whether the decision `comment` covers pull request `number` at `head`
+// (owner decisions Q17 c and Q18 d): its decided head (decidedHead; for a
+// decision on the pull request with no marker before it, pushedHead on the
+// branch `pull.headRefName` of `repo`) is `head`, or every change since it
+// is a merge of the base, so the net change against `base` is the same at
+// both (sameNetChange). A read that fails carries nothing.
+async function carries(github, repo, number, comment, onPull, pull, head, base) {
+  if (!SHA.test(String(head)) || !SHA.test(String(base))) {
+    return false;
+  }
+  try {
+    let decided = decidedHead(await pages(github, `/repos/${repo}/issues/${number}/comments`), comment.created_at);
+    if (decided === null && onPull && pull?.isCrossRepository === false && typeof pull.headRefName === "string" && pull.headRefName) {
+      decided = pushedHead(await pages(github, `/repos/${repo}/activity?ref=${encodeURIComponent(`refs/heads/${pull.headRefName}`)}`), comment.created_at);
+    }
+    if (decided === null) {
+      return false;
+    }
+    if (decided === head) {
+      return true;
+    }
+    const [then, now] = await Promise.all([decided, head].map((sha) => github("GET", `/repos/${repo}/compare/${base}...${sha}`)));
+    return sameNetChange(then, now);
+  } catch {
+    return false;
+  }
+}
+
 // The first comment link in `body`, outside HTML comments, that records the
-// owner's cost decision for pull request `number` of `repo`, else null: the
-// rule of babysit_merge_policy.cost_decision, with the owner a person whose
-// id is in `humans` (trusted-actors.json), as ci-status's cost-only review
-// hold step names one. A decision binds to one pull request and covers every
-// head of it: the comment is on the pull request, or on its linked issue in
-// `repo` (the one closing issue, else with none the one refsIssue names, read
-// to be an issue and not a pull request), newer than the pull request and
-// naming it (namesPull); by a User, not through an App; never edited; its
-// first line `**Decision recorded.** Cost:`. `github(method, path, body)`
+// owner's cost decision for pull request `number` of `repo` at `head`, else
+// null: the rule of babysit_merge_policy.cost_decision, with the owner a
+// person whose id is in `humans` (trusted-actors.json), as ci-status's
+// cost-only review hold step names one. The comment is on the pull request,
+// or on its linked issue in `repo` (the one closing issue, else with none the
+// one refsIssue names, read to be an issue and not a pull request), newer
+// than the pull request and naming it (namesPull); by a User, not through an
+// App; never edited; its first line `**Decision recorded.** Cost:`. It
+// covers the head it decided and a later one only when every change since is
+// a base merge (carries, against `base`). `github(method, path, body)`
 // reads; a failed read of the pull request or the Refs target decides
-// nothing, and one of a comment or its edit state skips that comment.
-export async function costDecision(github, repo, number, body, humans) {
+// nothing, and one of a comment, its edit state or its head skips that
+// comment.
+export async function costDecision(github, repo, number, body, humans, head, base) {
   const links = [...String(body ?? "").replaceAll(HTML_COMMENT, "").matchAll(DECISION_LINK)].filter(
     (link) => `${link[1]}/${link[2]}`.toLowerCase() === String(repo).toLowerCase(),
   );
@@ -503,7 +604,7 @@ export async function costDecision(github, repo, number, body, humans) {
         continue;
       }
       const node = (await github("POST", "/graphql", { query: COMMENT_EDITED_QUERY, variables: { id: String(comment.node_id) } }))?.data?.node;
-      if (node && "lastEditedAt" in node && node.lastEditedAt === null) {
+      if (node && "lastEditedAt" in node && node.lastEditedAt === null && (await carries(github, repo, number, comment, target === number, pull, head, base))) {
         return link[0];
       }
     } catch {
@@ -573,7 +674,7 @@ export function holds(body, items, files, holdPaths, lifters = [], decision = nu
   const cost = costHold(files, decision);
   if (cost) {
     reasons.push(
-      `${cost}; the owner's unedited comment opening '**Decision recorded.** Cost:' on this pull request, or on its linked issue naming this pull request, linked from the body, lifts it`,
+      `${cost}; the owner's unedited comment opening '**Decision recorded.** Cost:' on this pull request, or on its linked issue naming this pull request, linked from the body, lifts it for the head it decided and a later head that only merges the base`,
     );
   }
   if (BODY_HOLD.test(String(body ?? ""))) {
@@ -715,7 +816,7 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     const body = readFileSync(bodyFile, "utf8");
     const repo = String(env.GITHUB_REPOSITORY);
     const decision =
-      costHold(files, null) && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo) ? await costDecision(github, repo, Number(number), body, humans) : null;
+      costHold(files, null) && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo) ? await costDecision(github, repo, Number(number), body, humans, head, env.BASE_SHA) : null;
     if (decision) {
       console.log(`#${number}: ${decision} records the owner's cost decision, which lifts its cost hold.`);
     }

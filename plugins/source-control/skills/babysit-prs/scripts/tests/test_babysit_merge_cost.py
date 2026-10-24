@@ -1,7 +1,8 @@
 """`cost_decision`: only an owner `**Decision recorded.**` comment on the
 pull request, or on its linked issue naming it as `#<number>`, linked from
-the body, clears a cost hold (owner decision Q17, option b: a decision binds
-to one pull request and covers every head of it)."""
+the body, clears a cost hold, for the head it decided and a later head whose
+every change since is a base merge (owner decisions Q17 c and Q18 d on
+#9436)."""
 
 from __future__ import annotations
 
@@ -19,6 +20,31 @@ REPO = "owner/repo"
 LINK = "https://github.com/owner/repo/issues/40#issuecomment-7"
 IDENTITY = "agent-lanes[bot]"
 PR_CREATED = "2026-10-22T10:00:00Z"
+HEAD = "0123456789abcdef0123456789abcdef01234567"
+BASE = "89abcdef0123456789abcdef0123456789abcdef"
+OLD = "fedcba9876543210fedcba9876543210fedcba98"
+LANE = {"login": "github-actions[bot]", "type": "Bot"}
+PULL = {
+    "number": 99,
+    "created_at": PR_CREATED,
+    "head": {"sha": HEAD, "ref": "fix/cost", "repo": {"full_name": REPO}},
+    "base": {"sha": BASE},
+}
+TF = {"filename": "infra/main.tf", "status": "modified", "patch": "@@ -1 +1 @@\n-a\n+b"}
+
+
+def _marker(
+    sha: str,
+    at: str = "2026-10-22T11:00:00Z",
+    criteria: str = "cost",
+    user: dict[str, Any] = LANE,
+) -> dict[str, Any]:
+    body = f"<!-- claude-lane-hold lane=claude-review sha={sha} criteria={criteria} -->\nHeld."
+    return {"user": user, "created_at": at, "body": body}
+
+
+def _net(*files: dict[str, Any]) -> dict[str, Any]:
+    return {"files": list(files)}
 
 
 def _comment(**changes: Any) -> dict[str, Any]:
@@ -44,23 +70,45 @@ class CostDecision(unittest.TestCase):
         issue: int | None = 40,
         node: Any = ...,
         created: Any = None,
+        markers: list[dict[str, Any]] | None = None,
+        pushes: list[dict[str, Any]] | None = None,
+        compares: dict[str, Any] | None = None,
+        unreadable: str = "",
+        pull: dict[str, Any] | None = None,
     ) -> str | None:
         created = PR_CREATED if created is None else created
         self.reads: list[str] = []
+        compares = compares or {}
 
-        def get(endpoint: str) -> tuple[int, Any]:
+        def get(endpoint: str) -> tuple[int | None, Any]:
             self.reads.append(endpoint)
+            if "/compare/" in endpoint:
+                sha = endpoint.rsplit("...", 1)[1]
+                if sha in compares and unreadable != f"compare {sha}":
+                    return 200, compares[sha]
+                return 404, None
             return status, comment if comment is not None else _comment()
+
+        def paginated(endpoint: str, label: str) -> list[dict[str, Any]]:
+            self.reads.append(endpoint)
+            if label == unreadable:
+                raise policy.PolicyReadError(label)
+            if "/activity?" in endpoint:
+                self.assertIn("ref=refs%2Fheads%2Ffix%2Fcost&", endpoint)
+                return pushes or []
+            self.assertEqual(endpoint, "repos/owner/repo/issues/99/comments?per_page=100")
+            return [_marker(HEAD)] if markers is None else markers
 
         answer = {"lastEditedAt": edited} if node is ... else node
         graphql = mock.Mock(return_value={"node": answer})
         with (
             mock.patch.object(policy, "_get", side_effect=get),
+            mock.patch.object(policy, "_paginated", side_effect=paginated),
             mock.patch.object(policy, "_graphql", graphql),
         ):
             return policy.cost_decision(
                 REPO,
-                {"number": 99, "body": body, "created_at": created},
+                (pull or PULL) | {"body": body, "created_at": created},
                 issue,
                 permission=lambda login: permission,
                 agent_identity=IDENTITY,
@@ -69,7 +117,13 @@ class CostDecision(unittest.TestCase):
 
     def test_an_owner_decision_on_the_closing_issue_clears(self) -> None:
         self.assertEqual(self.decide(), LINK)
-        self.assertEqual(self.reads, ["repos/owner/repo/issues/comments/7"])
+        self.assertEqual(
+            self.reads,
+            [
+                "repos/owner/repo/issues/comments/7",
+                "repos/owner/repo/issues/99/comments?per_page=100",
+            ],
+        )
 
     def test_a_decision_on_the_pull_request_itself_clears(self) -> None:
         link = "https://github.com/owner/repo/pull/99#issuecomment-7"
@@ -108,9 +162,13 @@ class CostDecision(unittest.TestCase):
         link = "https://github.com/owner/repo/pull/99#issuecomment-7"
         comment = _comment(
             issue_url="https://api.github.com/repos/owner/repo/issues/99",
-            created_at=None,
+            created_at="2026-10-21T09:00:00Z",
         )
-        self.assertEqual(self.decide(body=link, comment=comment), link)
+        markers = [_marker(HEAD, "2026-10-21T08:00:00Z")]
+        self.assertEqual(self.decide(body=link, comment=comment, markers=markers), link)
+        # With no time it decides no head, so it carries to none.
+        timeless = comment | {"created_at": None}
+        self.assertIsNone(self.decide(body=link, comment=timeless))
 
     def test_a_decision_on_another_issue_does_not_cover_it(self) -> None:
         other = "https://github.com/owner/repo/issues/12#issuecomment-7"
@@ -183,6 +241,114 @@ class CostDecision(unittest.TestCase):
             with self.subTest(name):
                 self.assertIsNone(self.decide(**change))
 
+    # The carry rule (#9436 Q18 d): the decided head is OLD, the head HEAD.
+    def later(self, compares: dict[str, Any], **change: Any) -> str | None:
+        return self.decide(markers=[_marker(OLD)], compares=compares, **change)
+
+    def test_a_base_merge_after_the_decision_carries(self) -> None:
+        self.assertEqual(self.later({OLD: _net(TF), HEAD: _net(TF)}), LINK)
+        # The same decision at a head whose net change moved does not.
+        self.assertIsNone(self.later({OLD: _net(), HEAD: _net(TF)}))
+
+    def test_a_pull_request_commit_after_the_decision_re_holds(self) -> None:
+        script = {"filename": "scripts/run.sh", "status": "modified", "patch": "+y"}
+        self.assertIsNone(self.later({OLD: _net(TF), HEAD: _net(TF, script)}))
+        self.assertEqual(
+            self.reads[-2:],
+            [
+                f"repos/owner/repo/compare/{BASE}...{OLD}",
+                f"repos/owner/repo/compare/{BASE}...{HEAD}",
+            ],
+        )
+
+    def test_a_rebase_with_the_same_net_change_carries_in_any_file_order(
+        self,
+    ) -> None:
+        doc = {"filename": "docs/a.md", "status": "added", "patch": "+a"}
+        self.assertEqual(self.later({OLD: _net(TF, doc), HEAD: _net(doc, TF)}), LINK)
+        # A rebase that drops one of its files is a change of its own.
+        self.assertIsNone(self.later({OLD: _net(TF, doc), HEAD: _net(TF)}))
+
+    def test_a_conflict_resolution_that_changes_the_net_change_re_holds(
+        self,
+    ) -> None:
+        for name, changed in {
+            "an edited patch": TF | {"patch": "@@ -1 +1 @@\n-a\n+c"},
+            "a rename": TF | {"status": "renamed", "previous_filename": "old.tf"},
+            "a status": TF | {"status": "added"},
+        }.items():
+            with self.subTest(name):
+                self.assertIsNone(self.later({OLD: _net(TF), HEAD: _net(changed)}))
+
+    def test_a_compare_of_300_files_or_a_file_with_no_patch_does_not_carry(
+        self,
+    ) -> None:
+        def many(n: int) -> dict[str, Any]:
+            return _net(
+                *({"filename": f"f{i}", "status": "added", "patch": "+x"} for i in range(n))
+            )
+
+        self.assertEqual(self.later({OLD: many(299), HEAD: many(299)}), LINK)
+        self.assertIsNone(self.later({OLD: many(300), HEAD: many(300)}))
+        binary = {"filename": "a.png", "status": "modified"}
+        self.assertIsNone(self.later({OLD: _net(binary), HEAD: _net(binary)}))
+
+    def test_a_failed_read_does_not_carry(self) -> None:
+        same = {OLD: _net(TF), HEAD: _net(TF)}
+        self.assertIsNone(self.later(same, unreadable=f"compare {HEAD}"))
+        self.assertIsNone(self.later(same, unreadable="cost hold markers"))
+        self.assertIsNone(self.later({OLD: _net(TF), HEAD: {"status": "diverged"}}))
+
+    def test_the_decided_head_is_the_latest_bot_marker_before_the_decision(
+        self,
+    ) -> None:
+        added = {"filename": "b.tf", "status": "added", "patch": "+b"}
+        changed = {OLD: _net(TF), HEAD: _net(TF, added)}
+        older_head = [_marker(HEAD, "2026-10-22T10:30:00Z"), _marker(OLD, "2026-10-22T11:30:00Z")]
+        self.assertIsNone(self.decide(markers=older_head, compares=changed))
+        newer_head = [_marker(OLD, "2026-10-22T10:30:00Z"), _marker(HEAD, "2026-10-22T11:30:00Z")]
+        self.assertEqual(self.decide(markers=newer_head, compares=changed), LINK)
+        for name, extra in {
+            "after": _marker(HEAD, "2026-10-22T12:30:00Z"),
+            "a person": _marker(HEAD, "2026-10-22T11:30:00Z", user={"type": "User"}),
+            "not cost": _marker(HEAD, "2026-10-22T11:30:00Z", criteria="trust-gate"),
+        }.items():
+            with self.subTest(name):
+                self.assertIsNone(
+                    self.decide(markers=[_marker(OLD), extra], compares=changed)
+                )
+        both = _marker(HEAD, "2026-10-22T11:30:00Z", criteria="cost,trust-gate")
+        self.assertEqual(self.decide(markers=[_marker(OLD), both], compares=changed), LINK)
+
+    def test_with_no_marker_a_pull_request_decision_covers_the_last_push_before_it(
+        self,
+    ) -> None:
+        link = "https://github.com/owner/repo/pull/99#issuecomment-7"
+        comment = _comment(issue_url="https://api.github.com/repos/owner/repo/issues/99")
+        added = {"filename": "b.tf", "status": "added", "patch": "+b"}
+        changed = {OLD: _net(TF), HEAD: _net(TF, added)}
+
+        def push(after: str, at: str) -> dict[str, Any]:
+            return {"activity_type": "push", "after": after, "timestamp": at}
+
+        def pushed(pushes: list[dict[str, Any]], **change: Any) -> str | None:
+            return self.decide(
+                body=link, comment=comment, markers=[], pushes=pushes, compares=changed, **change
+            )
+
+        before = push(HEAD, "2026-10-22T11:59:00Z")
+        self.assertEqual(pushed([before, push(OLD, "2026-10-22T11:00:00Z")]), link)
+        after = push(HEAD, "2026-10-22T12:01:00Z")
+        self.assertIsNone(pushed([after, push(OLD, "2026-10-22T11:00:00Z")]))
+        self.assertIsNone(pushed([after]))
+        self.assertIsNone(pushed([before], unreadable="head pushes"))
+        fork = PULL | {"head": PULL["head"] | {"repo": {"full_name": "fork/repo"}}}
+        self.assertIsNone(pushed([before], pull=fork))
+        self.assertFalse(any("/activity?" in r for r in self.reads))
+        # An issue decision with no marker carries nothing and reads no pushes.
+        self.assertIsNone(self.decide(markers=[], pushes=[before]))
+        self.assertFalse(any("/activity?" in r for r in self.reads))
+
     def test_a_failed_permission_read_clears_nothing(self) -> None:
         def refuse(login: str) -> str:
             raise policy.PolicyReadError("permission unreadable")
@@ -193,7 +359,7 @@ class CostDecision(unittest.TestCase):
         ):
             decision = policy.cost_decision(
                 REPO,
-                {"number": 99, "body": LINK, "created_at": PR_CREATED},
+                PULL | {"body": LINK},
                 40,
                 permission=refuse,
                 agent_identity=IDENTITY,

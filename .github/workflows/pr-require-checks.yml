@@ -3558,11 +3558,16 @@ jobs:
       # - The pull request body, outside HTML comments, links a decision comment
       #   as babysit_merge_policy.py's cost_decision reads one: by a User on the
       #   trusted-actor list, not through an App, never edited, first line
-      #   `**Decision recorded.** Cost:`. A decision binds to one pull request
-      #   and covers every head of it: one on the pull request itself counts as
-      #   it is; one on its linked issue counts only when written after the
+      #   `**Decision recorded.** Cost:`. One on the pull request itself counts
+      #   as it is; one on its linked issue counts only when written after the
       #   pull request and naming it as `#<number>` (merge-holds.mjs
-      #   namesPull). The linked issue is the one issue in this repository that
+      #   namesPull). It covers the head it decided (the latest review-lane
+      #   cost hold marker before it, else, for one on the pull request, the
+      #   last push before it) and a later head only when the pull request's
+      #   net change against the base is the same at both, so every change
+      #   since is a base merge (the base's merge-holds.mjs decidedHead,
+      #   pushedHead and sameNetChange; owner decisions Q17 c and Q18 d on
+      #   #9436). The linked issue is the one issue in this repository that
       #   GitHub records it as closing, else, when it closes none, the one issue
       #   its plain `Refs:` lines name (the base's merge-holds.mjs refsIssue),
       #   read to be an issue and not a pull request. A second closing issue
@@ -3658,6 +3663,38 @@ jobs:
             issues=" $refs "
           fi
           opened=$(jq -r '.created_at | fromdateiso8601' <<<"$pr") || keep "the pull request has no creation time"
+          comments=$(read_api "repos/$repo/issues/$PR_NUMBER/comments?per_page=100" --paginate) || keep "the comments are unreadable"
+          jq -sc 'add // []' <<<"$comments" >"$RUNNER_TEMP/cost-hold-comments.json" || keep "the comments do not parse"
+          # holds_js <function> <json-file>...: one function of the base's
+          # merge-holds.mjs over the files. The module goes last: as the first
+          # argument it would run as the command line.
+          holds_js() {
+            # shellcheck disable=SC2016 # JavaScript, not shell
+            node --input-type=module -e 'import { readFileSync } from "node:fs";
+              import { pathToFileURL } from "node:url";
+              const [name, ...files] = process.argv.slice(1, -1);
+              const run = (await import(pathToFileURL(process.argv.at(-1)).href))[name];
+              console.log(run(...files.map((file) => JSON.parse(readFileSync(file, "utf8")))) ?? "");' \
+              "$@" "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs"
+          }
+          # carries <comment> <number>: whether the decision comment on <number>
+          # covers HEAD_SHA. Any read that fails carries nothing.
+          carries() {
+            local at="$RUNNER_TEMP/cost-hold-at.json" decided pushes
+            jq '.created_at' <<<"$1" >"$at" || return 1
+            decided=$(holds_js decidedHead "$RUNNER_TEMP/cost-hold-comments.json" "$at") || return 1
+            if [ -z "$decided" ] && [ "$2" = "$PR_NUMBER" ] &&
+              jq -e --arg repo "$repo" '(.head.repo.full_name // "" | ascii_downcase) == ($repo | ascii_downcase)' <<<"$pr" >/dev/null; then
+              pushes=$(read_api "repos/$repo/activity?ref=refs%2Fheads%2F$ref&per_page=100" --paginate) || return 1
+              jq -sc 'add // []' <<<"$pushes" >"$RUNNER_TEMP/cost-hold-pushes.json" || return 1
+              decided=$(holds_js pushedHead "$RUNNER_TEMP/cost-hold-pushes.json" "$at") || return 1
+            fi
+            [[ $decided =~ ^[0-9a-f]{40}$ ]] || return 1
+            [ "$decided" != "$HEAD_SHA" ] || return 0
+            read_api "repos/$repo/compare/$BASE_SHA...$decided" >"$RUNNER_TEMP/cost-hold-then.json" || return 1
+            read_api "repos/$repo/compare/$BASE_SHA...$HEAD_SHA" >"$RUNNER_TEMP/cost-hold-now.json" || return 1
+            [ "$(holds_js sameNetChange "$RUNNER_TEMP/cost-hold-then.json" "$RUNNER_TEMP/cost-hold-now.json")" = true ]
+          }
           decision='' decision_id='' refs_read=
           while IFS=$'\t' read -r link owner name number id; do
             [ -n "$link" ] || continue
@@ -3682,10 +3719,11 @@ jobs:
             # shellcheck disable=SC2016 # GraphQL variables, not shell
             edited=$(read_api graphql -f query='query($id:ID!){node(id:$id){... on IssueComment{lastEditedAt}}}' -F id="$node") || continue
             jq -e '.data.node | objects | has("lastEditedAt") and .lastEditedAt == null' <<<"$edited" >/dev/null 2>&1 || continue
+            carries "$comment" "$number" || continue
             decision=$link decision_id=$id
             break
           done <<<"$links"
-          [ -n "$decision" ] || keep "the body cites no recorded owner cost decision covering it"
+          [ -n "$decision" ] || keep "the body cites no recorded owner cost decision covering this head"
           # Every hold a review lane recorded in the window, as {at, criteria}.
           holds='[]' vetted=''
           while read -r file check; do
@@ -3714,7 +3752,6 @@ jobs:
             done < <(jq -nr --argjson since "$since" '[inputs.workflow_runs[] | select((.updated_at | fromdateiso8601) > $since) | "\(.id) \(.head_sha)"] | unique[]' <<<"$runs")
           done <<<'pr-review-hosted.yml pr-review / claude-review-status
           pr-review-security-hosted.yml pr-review-security / security-review'
-          comments=$(read_api "repos/$repo/issues/$PR_NUMBER/comments?per_page=100" --paginate) || keep "the comments are unreadable"
           # shellcheck disable=SC2016 # GraphQL variables, not shell
           deleted=$(read_api graphql -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){timelineItems(itemTypes:[COMMENT_DELETED_EVENT],last:100){filteredCount nodes{... on CommentDeletedEvent{createdAt}}}}}}' \
             -F owner="${repo%%/*}" -F name="${repo#*/}" -F number="$PR_NUMBER") || keep "the deleted comments are unreadable"

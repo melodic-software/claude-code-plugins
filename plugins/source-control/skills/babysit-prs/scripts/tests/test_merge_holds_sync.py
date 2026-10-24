@@ -21,7 +21,9 @@ The repository's pipeline config is a hold path.
 - The cost decision: `costDecision` accepts the same comments as
   `babysit_merge_policy.cost_decision`, with the owner a trusted person in
   place of an admin, a linked-issue comment counting only when it names the
-  pull request as `#<number>` (`namesPull`, `names_pull`).
+  pull request as `#<number>` (`namesPull`, `names_pull`), and both carry it
+  to the same heads: the decided head, or a later one with the same net
+  change against the base (`decidedHead`, `pushedHead`, `sameNetChange`).
 """
 
 from __future__ import annotations
@@ -309,7 +311,15 @@ def py_manifest_changes(change: dict[str, Any]) -> list[str]:
 
 
 REPO = "o/r"
-PR = {"number": 7, "created_at": "2026-01-02T00:00:00Z"}
+HEAD = "0123456789abcdef0123456789abcdef01234567"
+BASE = "89abcdef0123456789abcdef0123456789abcdef"
+OLD = "fedcba9876543210fedcba9876543210fedcba98"
+PR = {
+    "number": 7,
+    "created_at": "2026-01-02T00:00:00Z",
+    "head": {"sha": HEAD, "ref": "b", "repo": {"full_name": REPO}},
+    "base": {"sha": BASE},
+}
 ISSUE = 5
 OWNER = {"login": "owner", "id": 1, "type": "User"}
 OTHER = {"login": "other", "id": 2, "type": "User"}
@@ -383,30 +393,98 @@ DECISIONS = {
     "another decision": (_link(7), _comment(7, body="**Decision recorded.** Ship")),
     "indented": (_link(7), _comment(7, body=f"  {DECISION}")),
 }
+def _marker(sha: str, at: str = "2026-01-02T12:00:00Z", **fields: Any) -> dict[str, Any]:
+    body = f"<!-- claude-lane-hold lane=claude-review sha={sha} criteria=cost -->\nHeld."
+    return {"user": {"type": "Bot"}, "created_at": at, "body": body} | fields
+
+
+# The head reads: the pull request's comments (a cost hold marker at the head
+# before the decision by default), its branch's pushes, a compare per head.
+DEFAULT_HEADS = {"markers": [_marker(HEAD)], "pushes": [], "compares": {}}
+TF = {"filename": "a.tf", "status": "modified", "patch": "@@ -1 +1 @@\n-a\n+b"}
+MORE = {"filename": "b.sh", "status": "added", "patch": "+c"}
+# Each case: the heads world for a decision on the pull request (_link(7)).
+CARRIES = {
+    "a marker at the head": DEFAULT_HEADS,
+    "a base merge since the decided head": {
+        "markers": [_marker(OLD)],
+        "compares": {OLD: {"files": [TF]}, HEAD: {"files": [TF]}},
+    },
+    "a commit of its own since": {
+        "markers": [_marker(OLD)],
+        "compares": {OLD: {"files": [TF]}, HEAD: {"files": [TF, MORE]}},
+    },
+    "a rename since": {
+        "markers": [_marker(OLD)],
+        "compares": {
+            OLD: {"files": [TF]},
+            HEAD: {"files": [TF | {"status": "renamed", "previous_filename": "z.tf"}]},
+        },
+    },
+    "300 files": {
+        "markers": [_marker(OLD)],
+        "compares": {
+            sha: {"files": [TF | {"filename": f"f{i}"} for i in range(300)]}
+            for sha in (OLD, HEAD)
+        },
+    },
+    "a file with no patch": {
+        "markers": [_marker(OLD)],
+        "compares": {sha: {"files": [{"filename": "a.png", "status": "added"}]} for sha in (OLD, HEAD)},
+    },
+    "an unreadable compare": {"markers": [_marker(OLD)], "compares": {OLD: {"files": [TF]}}},
+    "the latest marker before it, not an older one at the head": {
+        "markers": [_marker(HEAD, "2026-01-02T06:00:00Z"), _marker(OLD)],
+        "compares": {OLD: {"files": [TF]}, HEAD: {"files": [TF, MORE]}},
+    },
+    "a marker after it": {"markers": [_marker(HEAD, "2026-01-04T00:00:00Z")]},
+    "a person's marker": {"markers": [_marker(HEAD, user={"type": "User"})]},
+    "no marker, pushed at the head before it": {
+        "markers": [],
+        "pushes": [{"after": HEAD, "timestamp": "2026-01-02T20:00:00Z"}],
+    },
+    "no marker, pushed at the head after it": {
+        "markers": [],
+        "pushes": [
+            {"after": HEAD, "timestamp": "2026-01-03T01:00:00Z"},
+            {"after": OLD, "timestamp": "2026-01-02T20:00:00Z"},
+        ],
+        "compares": {OLD: {"files": [TF]}, HEAD: {"files": [TF, MORE]}},
+    },
+}
 NODE_DECISION = """
 import { costDecision } from %s;
-const [body, comment, issue] = JSON.parse(process.argv[1]);
+const [body, comment, issue, heads] = JSON.parse(process.argv[1]);
 const github = async (method, path, data) => {
+  if (method === "GET" && path.includes("/compare/")) {
+    const sha = path.split("...")[1];
+    if (!(sha in heads.compares)) throw new Error("no such commit");
+    return heads.compares[sha];
+  }
+  if (method === "GET" && path === "/repos/o/r/issues/7/comments?per_page=100&page=1") return heads.markers;
+  if (method === "GET" && path === "/repos/o/r/activity?ref=refs%%2Fheads%%2Fb&per_page=100&page=1") return heads.pushes;
   if (method === "GET") return comment;
   if (data.variables.number !== undefined) {
-    return { data: { repository: { pullRequest: { createdAt: "2026-01-02T00:00:00Z",
+    return { data: { repository: { pullRequest: { createdAt: "2026-01-02T00:00:00Z", headRefName: "b", isCrossRepository: false,
       closingIssuesReferences: { totalCount: 1, nodes: [{ number: issue, repository: { nameWithOwner: "o/r" } }] } } } } };
   }
   return { data: { node: { lastEditedAt: comment.edited } } };
 };
-console.log(JSON.stringify(await costDecision(github, "o/r", 7, body, new Set([1]))));
+console.log(JSON.stringify(await costDecision(github, "o/r", 7, body, new Set([1]), %s, %s)));
 """
 
 
-def js_decision(body: str, comment: dict[str, Any]) -> str | None:
-    script = NODE_DECISION % json.dumps(MODULE.as_uri())
+def js_decision(
+    body: str, comment: dict[str, Any], heads: dict[str, Any] = DEFAULT_HEADS
+) -> str | None:
+    script = NODE_DECISION % (json.dumps(MODULE.as_uri()), json.dumps(HEAD), json.dumps(BASE))
     proc = subprocess.run(
         [
             "node",
             "--input-type=module",
             "-e",
             script,
-            json.dumps([body, comment, ISSUE]),
+            json.dumps([body, comment, ISSUE, DEFAULT_HEADS | heads]),
         ],
         capture_output=True,
         text=True,
@@ -415,12 +493,29 @@ def js_decision(body: str, comment: dict[str, Any]) -> str | None:
     return json.loads(proc.stdout)
 
 
-def py_decision(body: str, comment: dict[str, Any]) -> str | None:
+def py_decision(
+    body: str, comment: dict[str, Any], heads: dict[str, Any] = DEFAULT_HEADS
+) -> str | None:
+    heads = DEFAULT_HEADS | heads
+
     def graphql(_query: str, _what: str, **_vars: Any) -> dict[str, Any]:
         return {"node": {"lastEditedAt": comment["edited"]}}
 
+    def get(endpoint: str) -> tuple[int | None, Any]:
+        if "/compare/" in endpoint:
+            sha = endpoint.rsplit("...", 1)[1]
+            return (200, heads["compares"][sha]) if sha in heads["compares"] else (404, None)
+        return 200, comment
+
+    def paginated(endpoint: str, _label: str) -> list[dict[str, Any]]:
+        if endpoint == "repos/o/r/activity?ref=refs%2Fheads%2Fb&per_page=100":
+            return heads["pushes"]
+        assert endpoint == "repos/o/r/issues/7/comments?per_page=100", endpoint
+        return heads["markers"]
+
     with (
-        mock.patch.object(policy, "_get", return_value=(200, comment)),
+        mock.patch.object(policy, "_get", side_effect=get),
+        mock.patch.object(policy, "_paginated", side_effect=paginated),
         mock.patch.object(policy, "_graphql", graphql),
     ):
         return policy.cost_decision(
@@ -448,6 +543,25 @@ class TheCostDecisionIsTheGates(unittest.TestCase):
         self.assertIsNone(answers["on the closing issue, naming it only as an entity"])
         self.assertIsNone(answers["on the closing issue, naming it only after a #"])
         self.assertIsNone(answers["edited"])
+
+    def test_both_carry_a_decision_to_the_same_heads(self) -> None:
+        answers = {}
+        for case, heads in CARRIES.items():
+            with self.subTest(case):
+                answers[case] = py_decision(_link(7), _comment(7), heads)
+                self.assertEqual(js_decision(_link(7), _comment(7), heads), answers[case])
+        for case in (
+            "a marker at the head",
+            "a base merge since the decided head",
+            "no marker, pushed at the head before it",
+        ):
+            self.assertEqual(answers[case], _link(7), case)
+        for case in set(CARRIES) - {
+            "a marker at the head",
+            "a base merge since the decided head",
+            "no marker, pushed at the head before it",
+        }:
+            self.assertIsNone(answers[case], case)
 
 
 if __name__ == "__main__":

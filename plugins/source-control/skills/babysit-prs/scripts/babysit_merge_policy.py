@@ -1998,6 +1998,145 @@ def _after(value: Any, opened: datetime | None) -> bool:
     return made is not None and opened is not None and made > opened
 
 
+# A review lane's cost hold marker, as ci-workflows apply-review-hold writes
+# it: the head it held and its criteria, cost among them.
+COST_MARKER = re.compile(
+    r"(?:^|\n)<!-- claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) "
+    r"criteria=([a-z-]+(?:,[a-z-]+)*) -->(?![^\r\n])"
+)
+COMMIT_SHA = re.compile(r"[0-9a-f]{40}")
+
+
+def decided_head(comments: Any, at: Any) -> str | None:
+    """The head a cost decision made at `at` decided, from the pull
+    request's `comments`: the sha of the latest cost hold marker a Bot posted
+    before it, else None (merge-holds.mjs `decidedHead`)."""
+    when = parse_timestamp(at)
+    found: tuple[datetime, str] | None = None
+    for row in json_array(comments):
+        row = json_object(row)
+        made = parse_timestamp(row.get("created_at"))
+        marker = (
+            COST_MARKER.search(str(row.get("body") or ""))
+            if json_object(row.get("user")).get("type") == "Bot"
+            else None
+        )
+        if (
+            marker
+            and "cost" in marker[2].split(",")
+            and made is not None
+            and when is not None
+            and made < when
+            and (found is None or made >= found[0])
+        ):
+            found = (made, marker[1])
+    return found[1] if found else None
+
+
+def pushed_head(pushes: Any, at: Any) -> str | None:
+    """The head of the branch when a decision on the pull request was made at
+    `at`, with no cost hold marker before it: the commit of the latest push
+    the repository activity `pushes` timestamp before it, else None
+    (merge-holds.mjs `pushedHead`). A commit's own dates are its author's
+    text, so they place nothing."""
+    when = parse_timestamp(at)
+    found: tuple[datetime, str] | None = None
+    for row in json_array(pushes):
+        row = json_object(row)
+        after = str(row.get("after") or "")
+        made = parse_timestamp(row.get("timestamp"))
+        if (
+            COMMIT_SHA.fullmatch(after)
+            and after.strip("0")
+            and made is not None
+            and when is not None
+            and made < when
+            and (found is None or made >= found[0])
+        ):
+            found = (made, after)
+    return found[1] if found else None
+
+
+def same_net_change(decided: Any, current: Any) -> bool:
+    """Whether two compare answers (base...head) show the same net change of
+    the pull request: the same files by filename, each with the same status,
+    previous_filename and patch. A list of 300 files or more (the compare
+    API's cap), a file with no patch, or an answer with no file list is not
+    the same (merge-holds.mjs `sameNetChange`)."""
+
+    def net(compare: Any) -> list[str] | None:
+        files = json_object(compare).get("files")
+        if not is_json_array(files) or len(files) >= 300:
+            return None
+        rows = []
+        for f in files:
+            if not is_json_object(f) or not all(
+                isinstance(f.get(k), str) for k in ("filename", "status", "patch")
+            ):
+                return None
+            rows.append(
+                json.dumps(
+                    [f["filename"], f["status"], f.get("previous_filename"), f["patch"]]
+                )
+            )
+        return sorted(rows)
+
+    then = net(decided)
+    return then is not None and then == net(current)
+
+
+def _carries(
+    repo: str, pr: Mapping[str, Any], comment: Mapping[str, Any], on_pull: bool
+) -> bool:
+    """Whether the decision `comment` covers the pull request at its head
+    (owner decisions Q17 c and Q18 d): its decided head (`decided_head`; for
+    a decision on the pull request with no marker before it, `pushed_head` on
+    its branch) is the head, or every change since it is a merge of the base,
+    so the net change against the base is the same at both
+    (`same_net_change`). A read that fails carries nothing."""
+    head, base = json_object(pr.get("head")), json_object(pr.get("base"))
+    sha, base_sha = str(head.get("sha") or ""), str(base.get("sha") or "")
+    if not COMMIT_SHA.fullmatch(sha) or not COMMIT_SHA.fullmatch(base_sha):
+        return False
+    owner, name = _split_repo(repo)
+    at = comment.get("created_at")
+    try:
+        decided = decided_head(
+            _paginated(
+                f"repos/{owner}/{name}/issues/{pr.get('number')}/comments?per_page=100",
+                "cost hold markers",
+            ),
+            at,
+        )
+        branch = head.get("ref")
+        same_repo = (
+            str(json_object(head.get("repo")).get("full_name")).casefold()
+            == repo.casefold()
+        )
+        if decided is None and on_pull and same_repo and isinstance(branch, str) and branch:
+            ref = quote(f"refs/heads/{branch}", safe="")
+            decided = pushed_head(
+                _paginated(
+                    f"repos/{owner}/{name}/activity?ref={ref}&per_page=100",
+                    "head pushes",
+                ),
+                at,
+            )
+    except PolicyReadError:
+        return False
+    if decided is None:
+        return False
+    if decided == sha:
+        return True
+    reads = [
+        _get(f"repos/{owner}/{name}/compare/{base_sha}...{each}")
+        for each in (decided, sha)
+    ]
+    if any(status != 200 for status, _ in reads):
+        return False
+    return same_net_change(reads[0][1], reads[1][1])
+
+
 def cost_decision(
     repo: str,
     pr: Mapping[str, Any],
@@ -2012,8 +2151,9 @@ def cost_decision(
     `issue` (its linked issue, `_linked_issue`) in `repo`, by a User with
     admin permission who is not the agent identity, not posted through an
     App, never edited, and whose first line starts `**Decision recorded.**
-    Cost:`. A decision binds to one pull request and covers every head of it
-    (owner decision Q17, option b): one on the pull request counts as it is;
+    Cost:`. It covers the head it decided and a later head only when every
+    change since is a base merge (`_carries`, owner decisions Q17 c and Q18 d
+    on #9436). One on the pull request counts as it is;
     one on the issue counts only when its text names this pull request
     (`names_pull`) and it was created after the pull request was, so a
     decision recorded on the issue for another change does not cover a pull
@@ -2064,6 +2204,7 @@ def cost_decision(
             is_json_object(node)
             and "lastEditedAt" in node
             and node["lastEditedAt"] is None
+            and _carries(repo, pr, comment, int(link[3]) == pr.get("number"))
         ):
             return link[0]
     return None
