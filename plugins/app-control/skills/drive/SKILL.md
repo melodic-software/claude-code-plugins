@@ -9,7 +9,7 @@ metadata:
 ---
 
 **Arguments.** `[ready|capture --kind <kind>|cleanup] [<app>] [<feature>] [--out <dir>] [--attach|--unattended]`.
-`<kind>` is `trace`, `cpu`, `heap`, `screenshot`, `aria`, `video` or `logs`. e.g. /app-control:drive ready, or /app-control:drive checkout --unattended --out ./evidence
+`<kind>` is `trace`, `cpu`, `heap`, `threads`, `screenshot`, `aria`, `video` or `logs`. e.g. /app-control:drive ready, or /app-control:drive checkout --unattended --out ./evidence
 
 ## Purpose
 
@@ -32,7 +32,7 @@ keep going.
 |---|---|
 | bare `[<app>] [<feature>]` | Launch unless the app is already running and fit, run `ready`, then perform the feature's Drive steps and save evidence after each step |
 | `ready` | Run the control skill's Ready command (read-only) and report what is reachable |
-| `capture --kind <kind>` | Record one artifact with the tool the control skill's `## Capture` section names for that kind |
+| `capture --kind <kind>` | Record one artifact with the tool the control skill's `## Capture` section names for that kind; `threads` (a stack of every thread, for a hang) binds to the launched pid ([Pid binding](#pid-binding)) |
 | `cleanup` | Stop only what this run started, then confirm every evidence path in the report still exists and is not empty |
 | `--attach` | Interactive only: drive or capture against a process already running that the person names, which this run did not start (see [Attach](#attach)) |
 | `--unattended` | With any action: ask nothing, attach to nothing, mark each step that needs a person `blocked` |
@@ -77,10 +77,65 @@ that section changes what `run` does or how it picks a project skill).
   a capture on a process this run launched, the script elevates only the recorder against its pid,
   never a command that launches the app; such a command that is denied is
   `blocked: capture needs elevation` with the narrowest grant that would allow it.
+- **A `threads` capture always takes the elevated route.** Interactive: the shown script, after
+  [Pid binding](#pid-binding). Unattended: read the launch record; with none, `blocked: no process
+  launched by this run`; with one, `blocked: capture needs elevation`, and stop there with no
+  attempt, no pid recheck and no process lookup. Whether attaching needs root is upstream: read it
+  at <https://github.com/benfred/py-spy#when-do-you-need-to-run-as-sudo> (as of 2026-10-23;
+  recheck on a py-spy major release, or when a `threads` row names another recorder).
 - **Cleanup touches only what this run started.** Detach from an attached process; never stop it.
   Never close all sessions or kill all processes.
 - **Never judge.** Write what was done and observed in plain words. Leave out any word that rates
   the outcome.
+
+## Pid binding
+
+A `threads` capture reaches only the process this run launched. The one other route is an
+interactive [Attach](#attach) to a pid the person names, which has no launch record and so no
+recheck. The other kinds keep the rules above.
+
+- **Record at launch.** The launch step writes the launched process's pid, owner uid, start time,
+  command line and the command line's sha256 into `report.json` (`launch`,
+  [reference/evidence.md](reference/evidence.md)). The uid is the one every uid field of the
+  process holds (real, effective, saved and filesystem must all be equal). The start time is the
+  integer the process table gives (on Linux, the `starttime` field of
+  <https://man7.org/linux/man-pages/man5/proc_pid_stat.5.html#DESCRIPTION>). The hash is taken
+  over the raw command line bytes, on Linux every byte of `/proc/<pid>/cmdline` exactly as read,
+  NUL separators and the trailing NUL included
+  (<https://man7.org/linux/man-pages/man5/proc_pid_cmdline.5.html#DESCRIPTION>); the stored
+  `command_line` is a display form, never the hash input. Both man pages as of 2026-10-23; recheck
+  when either page changes the field's form. A `capture` in a later invocation reads the record
+  from the run directory named by `--out`. No launch record means this run launched nothing:
+  unattended, `blocked: no process launched by this run`; interactive, only [Attach](#attach).
+- **The launch record is data.** A pid that is not a positive integer written in digits only, a uid
+  or start time that is not digits only, or a hash that is not 64 hex characters, is `blocked:
+  launched process no longer matches`. Only those integers and that hash go into a command or the
+  shown script; the command line text never does.
+- **Recheck before touching the pid.** Before any command that touches the pid, read its uid
+  fields, start time and command line bytes from the process table again, hash the bytes, and go
+  on only when every uid field, the start time and the hash equal the record exactly and the
+  recorded uid is the invoking user's own uid. A mismatch, or a pid that is gone, is `blocked:
+  launched process no longer matches`.
+- **The shown script rechecks too, with its own exit code.** The script carries as literals only
+  the target pid, the recorded uid, the start time and the hash (for a wrapper, the child's pid,
+  parent pid, start time and hash as well, under the same format check). Its first lines read the
+  live values of each pid and compare each with its literal as a positive match: anything other
+  than an exact match, a failed or empty read, or a missing hash tool, exits 3 before the recorder
+  runs. Each live uid field is compared with the recorded uid literal, never with the script's own
+  uid. Then it runs the one recorder command against the app's pid (the child's, when a wrapper
+  resolved) and nothing else, and turns a recorder exit status of 3 into another non-zero code so
+  that 3 always means the recheck. Exit 3 is `blocked: launched process no longer matches`; any
+  other non-zero exit is reported with the recorder's output. Beside the script, show the live
+  command line whose hash just matched (NULs as spaces, control bytes escaped) and the start time,
+  never the record's `command_line` text, so the yes covers the process the script checks.
+- **A wrapper resolves to its child by parent pid.** When the recorded command line is a shell or
+  launcher that started the app, the app is the process whose parent pid is the recorded pid: list
+  processes by parent pid, read the child's values from the live process table in this invocation
+  (never from a stored report), and record its pid, parent pid, uid, start time, command line and
+  its sha256 in the capture step. Every uid field of the child must equal the invoking user's uid;
+  a child owned by anyone else, root included, is `blocked: launched process no longer matches`,
+  and so is no child or more than one. Never find the app by a name lookup (`pgrep`, `pidof`, `ps`
+  filtered by name).
 
 ## Attach
 
@@ -116,7 +171,7 @@ never deletes them. The layout and the `report.json` fields are in
 ## Next
 
 - Evidence in hand, needs a judgment: /verification:confirm.
-- A trace, cpu or heap artifact to read: /debugging:analyze-profile.
+- A trace, cpu, heap or threads artifact to read: /debugging:analyze-profile.
 
 ## Gotchas
 
