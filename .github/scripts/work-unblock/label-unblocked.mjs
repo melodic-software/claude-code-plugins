@@ -19,9 +19,9 @@
 //
 // A listed human adding admission-deferred to an issue with `status: ready`
 // is the mark of a decided issue (owner decision Q75): the sweep reads its
-// work-class label and its Size, Complexity and Uncertainty fields (a label
-// or value counts only when a listed human or the App added or set it, as
-// `status: ready` must be; no default stands in) and runs intake's admission
+// Size, Complexity and Uncertainty fields (a value counts only when a listed
+// human or the App set it, as `status: ready` must be added; no default
+// stands in) and runs intake's admission
 // rules on it (admit.mjs decide). It is admitted within the room only on an
 // admit verdict. A refusal gets admit.mjs's comment, `status: needs-decision`
 // for `status: ready`, and loses admission-deferred; a wait on an open pull
@@ -417,16 +417,13 @@ async function admitDeferred({ github, repo, humans, bot, gate, appId, admission
 
 const labelNames = (issue) => (issue?.labels ?? []).map((label) => String(typeof label === "string" ? label : label?.name));
 
-// The verdict intake's admission reads, from the issue itself: its one
-// work-class label, which counts only when a listed human or the App added
-// it, and each of Size, Complexity and Uncertainty as the config's key for
-// the option a listed human or the App set, else `unset`. The work lanes'
-// reader (resolve-config dimensions.mjs) reads an unset field as a default;
-// admission never does. A read of an unexpected shape throws.
-async function issueVerdict({ github, repo, number, issue, trusted, humans, appId, dimensionsConfig, fieldSetters }) {
-  const classes = labelNames(issue)
-    .filter((name) => name.startsWith("work-class:"))
-    .map((name) => (trusted(name) ? name : `${name} (added by neither a listed human nor the lanes App)`));
+// The verdict intake's admission reads, from the issue itself: each of Size,
+// Complexity and Uncertainty as the config's key for the option a listed
+// human or the App set, else `unset`. The work class gates nothing (owner
+// Q85, #9668); decide reads the untrusted-provenance hold from the labels.
+// The work lanes' reader (resolve-config dimensions.mjs) reads an unset field
+// as a default; admission never does. A read of an unexpected shape throws.
+async function issueVerdict({ github, repo, number, humans, appId, dimensionsConfig, fieldSetters }) {
   const rows = await github("GET", `/repos/${repo}/issues/${number}/issue-field-values`, undefined, FIELD_API);
   if (!Array.isArray(rows)) {
     throw new Error("the issue's field values have an unexpected shape");
@@ -441,21 +438,20 @@ async function issueVerdict({ github, repo, number, issue, trusted, humans, appI
     const counts = row !== undefined && (humans.has(setter) || (appId !== undefined && setter === appId));
     dimensions[name] = counts && Object.hasOwn(options, option) ? options[option] : "unset";
   }
-  const workClass = classes.length === 1 ? classes[0] : classes.length === 0 ? "no work-class label" : classes.join(" and ");
-  return { workClass, dimensions };
+  return { workClass: null, dimensions };
 }
 
 export const skipText = (reason) => `Left out of admission: ${reason}, so work-unblock removed \`${DEFERRED_LABEL}\`.`;
 
 // Runs intake's admission rules on an issue a listed human marked, and admits
-// it within the gate's room only on an admit verdict. `status: ready` and the
-// work-class label count only when the newest add of each, in `events`, is a
-// listed human's or the App's, as the mark's own add must be.
+// it within the gate's room only on an admit verdict. `status: ready` counts
+// only when its newest add, in `events`, is a listed human's or the App's, as
+// the mark's own add must be.
 async function admitMarked({ github, repo, number, issue, events, humans, bot, appId, closes, gate, admission }) {
   const base = `/repos/${repo}/issues/${number}`;
   const trusted = (name) => trustedLabeler(newestAdd(events, name), { bot, humans });
   const { rules, dimensionsConfig, webHosts, fieldSetters } = await admission();
-  const verdict = await issueVerdict({ github, repo, number, issue, trusted, humans, appId, dimensionsConfig, fieldSetters });
+  const verdict = await issueVerdict({ github, repo, number, humans, appId, dimensionsConfig, fieldSetters });
   const facts = await admissionFacts({
     github,
     repository: repo,

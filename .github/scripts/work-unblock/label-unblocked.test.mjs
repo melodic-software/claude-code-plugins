@@ -2324,8 +2324,8 @@ test("at the queued cap a run the WIP cap skipped is still re-fired: runs are ne
 // The HITL mark (owner decision Q75): a listed human adding admission-deferred
 // to a decided issue with `status: ready` has the sweep run intake's admission
 // rules (admit.mjs decide, on admission-rules.json) on it. The verdict is the
-// issue's own work-class label and the Size, Complexity and Uncertainty a
-// listed human or the App set; it is admitted within the room only on admit.
+// Size, Complexity and Uncertainty a listed human or the App set; it is
+// admitted within the room only on admit.
 const DIMS = {
   fields: {
     size: { "field-id": 15462270, options: { 27053568: "small", 27053567: "medium", 27053566: "large" } },
@@ -2489,7 +2489,7 @@ test("a person's mark whose field values or field setters read in an unexpected 
   assert.deepEqual(writes(setters.calls), []);
 });
 
-test("a person's mark admits only when a listed human or the App added status: ready and the work-class label", async (t) => {
+test("a person's mark admits only when a listed human or the App added status: ready", async (t) => {
   t.mock.method(console, "log", () => {});
   const outsider = { id: 999999, login: "drive-by", type: "User" };
   const human = markedWorld({ decided: [labelAdd("status: ready", OWNER), labelAdd("work-class: mechanical", OWNER)] });
@@ -2497,9 +2497,8 @@ test("a person's mark admits only when a listed human or the App added status: r
   assert.deepEqual(writes(human.calls), [labeled(25), undeferred(25)]);
   // The newest add counts: an outsider's re-add after the App's does not.
   for (const decided of [
-    [labelAdd("status: ready", LANES_BOT), labelAdd("work-class: mechanical", outsider)],
-    [labelAdd("status: ready", LANES_BOT), labelAdd("work-class: mechanical", LANES_BOT), labelAdd("work-class: mechanical", outsider, "2026-10-16T07:30:00Z")],
     [labelAdd("status: ready", outsider), labelAdd("work-class: mechanical", LANES_BOT)],
+    [labelAdd("status: ready", LANES_BOT), labelAdd("status: ready", outsider, "2026-10-16T07:30:00Z")],
     [labelAdd("work-class: mechanical", LANES_BOT)],
   ]) {
     const { github, calls } = markedWorld({ decided });
@@ -2507,9 +2506,25 @@ test("a person's mark admits only when a listed human or the App added status: r
     assert.ok(!writes(calls).includes(labeled(25)), `${JSON.stringify(decided)}\n${writes(calls).join("\n")}`);
     assert.ok(writes(calls).includes(undeferred(25)), JSON.stringify(decided));
   }
-  const workClass = markedWorld({ decided: [labelAdd("status: ready", LANES_BOT), labelAdd("work-class: mechanical", outsider)] });
-  await sweep({ github: workClass.github, admission: admissionFor() }, PAUSING);
-  assert.ok(writes(workClass.calls).some((call) => call.includes("added by neither a listed human nor the lanes App")), writes(workClass.calls).join("\n"));
+});
+
+// Owner decision Q85 (#9668): the work class gates nothing, so a class an
+// outsider added, a structural class or none at all still admits.
+test("a person's mark admits whatever work class the issue carries, except untrusted-provenance", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const outsider = { id: 999999, login: "drive-by", type: "User" };
+  for (const [labels, decided] of [
+    [MARKED, [labelAdd("status: ready", LANES_BOT), labelAdd("work-class: mechanical", outsider)]],
+    [["admission-deferred", "status: ready", "work-class: structural"], [labelAdd("status: ready", LANES_BOT)]],
+    [["admission-deferred", "status: ready"], [labelAdd("status: ready", LANES_BOT)]],
+  ]) {
+    const { github, calls } = markedWorld({ labels, decided });
+    assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+    assert.deepEqual(writes(calls), [labeled(25), undeferred(25)], JSON.stringify(labels));
+  }
+  const held = markedWorld({ labels: ["admission-deferred", "status: ready", "work-class: untrusted-provenance"], decided: [labelAdd("status: ready", LANES_BOT)] });
+  await sweep({ github: held.github, admission: admissionFor() }, PAUSING);
+  assert.ok(!writes(held.calls).includes(labeled(25)), writes(held.calls).join("\n"));
 });
 
 test("a person's mark waiting on an open blocker loses admission-deferred with the admission comment", async (t) => {
