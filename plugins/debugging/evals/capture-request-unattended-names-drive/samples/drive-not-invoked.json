@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no Skill call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "debugging:analyze-profile"
+          }
+        }
+      ],
+      "why": "another skill"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "app-control:drive",
+            "args": "capture --kind cpu"
+          }
+        }
+      ]
+    }
+  ]
+}

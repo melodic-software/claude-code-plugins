@@ -353,7 +353,7 @@ The content inside those headings is prose a reviewer reads: plain language, bot
 
 **Left out.** The section that records verification (`Verification`, or `Test plan` under the portable default) ends with one `Left out:` line naming what was not run or checked, each with its reason (for example, `Left out: end-to-end suite, needs a staging environment`), so a reviewer can tell a gap from an omission; when everything relevant was run, it says `Left out: nothing`. When that section closes the body, the §2.4.3 attribution line still follows it as the body's footer.
 
-**Write the body to a file with the Write tool.** Compose the body as literal text: `${CLOSES_LINE}` and a blank line when it is non-empty, then one `## <heading>` block per entry in `${SECTION_ORDER[@]}` with real content, leaving out an optional heading that has none (`Related` carries `${REFS_LINES}` when non-empty, else `N/A`), then the `## Acceptance criteria` block when a plan supplied one and no scaffold heading holds it, then the ad hoc `## Related` block when the rule above calls for one. Leave the attribution line out; §2.4.3 appends it after the gates. Write it to an absolute path outside the working tree (the session's scratchpad directory when one is listed, else the system temp directory), for example `<tmp>/pr-body-<branch-slug>.md`, and pass that path as `BODY_FILE` to every call below.
+**Write the body to a file with the Write tool.** Compose the body as literal text: `${CLOSES_LINE}`; when §2.7's `--hold` gave a line, that line on its own line directly below `${CLOSES_LINE}`, before the first `##` block, so the §2.4.2 gates check the body the PR opens with; a blank line when either is non-empty; then one `## <heading>` block per entry in `${SECTION_ORDER[@]}` with real content, leaving out an optional heading that has none (`Related` carries `${REFS_LINES}` when non-empty, else `N/A`), then the `## Acceptance criteria` block when a plan supplied one and no scaffold heading holds it, then the ad hoc `## Related` block when the rule above calls for one. Leave the attribution line out; §2.4.3 appends it after the gates. Write it to an absolute path outside the working tree (the session's scratchpad directory when one is listed, else the system temp directory), for example `<tmp>/pr-body-<branch-slug>.md`, and pass that path as `BODY_FILE` to every call below.
 
 **Why a file, not a shell variable:** the Write tool's content is a JSON string that no shell parses, so a `$(...)`, `${...}` or backtick typed into the orphan-PR or multi-issue prompt stays literal text with no quoting rule to get right, and a long body never pushes a Bash command past the tool's length cap (observed: inline `--body` calls rejected for length on an unattended lane). The §2.4.2 gates read the same file `--body-file` hands to `gh`.
 
@@ -462,7 +462,7 @@ The message names the exact missing heading(s) and the resolved config source (�
 - **Draft:** a PR a person asked to see early, or a multi-session container (a PR later sessions
   will keep adding to before it is complete); both carry a `Draft:` body line that holds them
   against unattended flips. A PR also stays a draft while it waits for `ready`: under the `draft`
-  open state, or after an unattended run.
+  open state, or when one of `ready`'s holds or gates stops the flip.
 - **Ready:** complete and through the local gates, which `/source-control:pull-request ready`
   runs before it flips the PR ([ready-for-review.md](ready-for-review.md)). Ready is what starts
   the test lanes, the AI reviews and code-owner review requests.
@@ -472,11 +472,12 @@ levels are in [../../../reference/config-resolution.md](../../../reference/confi
 "YAML keys"; read it yourself, since no script resolves it:
 
 0. **Request.** When the invocation asks for a draft (the user or the calling prompt asks for a
-   draft or to show the work early, or says the PR is a multi-session container), the state is
-   `draft` and the level is `request`, whatever the levels below say. Record it in the body as
-   its own last line before the attribution: `Draft: requested early look` or `Draft:
-   multi-session container`. That line tells unattended flippers the draft is a person's
-   choice; only a person removes it or flips the PR.
+   draft or to show the work early, says the PR is a multi-session container, or passes
+   `--draft '<reason>'`), the state is `draft` and the level is `request`, whatever the levels
+   below say. Record it in the body as its own last line before the attribution: `Draft:
+   requested early look`, `Draft: multi-session container`, or `Draft: <reason>` for the flag.
+   That line tells unattended flippers the draft is a person's choice; only a person removes it
+   or flips the PR.
 1. **Repository level.** When §2.4.1's `config-root.sh classify` printed `repo`, read
    `docs/conventions/source-control.yaml` at the PR's base branch in the base repository, never
    from the working tree or the branch being opened, the same way the review-bot rubric is read
@@ -488,19 +489,21 @@ levels are in [../../../reference/config-resolution.md](../../../reference/confi
    trailing `# comment` removed) wins. Report the level as `repository
    (docs/conventions/source-control.yaml at <base-branch>)`.
 2. **Per-user level.** Otherwise take the substituted value from SKILL.md's "PR open state" line.
-   `ready` reports the level as `userConfig`.
-3. **Default.** Otherwise, meaning a substituted `draft` or the unsubstituted token, the state is
-   `draft` and the level is `default`. A repository opts into `ready` at the repository level.
+   A substituted `draft` reports the level as `userConfig`; any other value except `ready` is an
+   invalid value at `userConfig`.
+3. **Default.** Otherwise, meaning a substituted `ready` or the unsubstituted token, the state is
+   `ready` and the level is `default`. A consumer opts into `draft` at the per-user or repository
+   level.
 
 A value other than `draft` or `ready` at the level that supplied it is not used: say which level
 held which value, take the state as `draft`, and report the level as `invalid value at <level>
 (fell back to draft)`.
 
-**An unattended run always opens a draft.** When no person is driving this run (a loop lane, a CI
-lane, a `dontAsk` session, a worker or orchestrator dispatched by another skill, and every
-`--pushed` run), a resolved `ready` is not used: the state is `draft` and the level reads
-`draft (unattended run; <level> set ready)`. Such a run acts on text it did not choose, so it
-leaves the flip to `/source-control:pull-request ready`, whose gates run first.
+**An unattended run follows the resolved state.** A loop lane, a CI lane, a `dontAsk` session, a
+worker or orchestrator dispatched by another skill, and every `--pushed` run resolve the state the
+same way an attended run does. A resolved `ready` runs Phase 2.5 as `ready --unattended`, whose
+holds still apply: a `Draft:` body line, a superseded item or a failed gate leaves the PR a draft
+and §2.6 reports why.
 
 **Every state opens as a draft; `ready` is reached by the flip.** The commands below always open
 a draft. When the state resolves to `ready`, run Phase 2.5 ([ready-for-review.md](ready-for-review.md))
@@ -537,7 +540,7 @@ call.
 - **Title shape:** whatever the resolved subject/title convention requires (Conventional Commits
   default shown; a custom resolved `pr_title_pattern` or the project's own convention overrides
   it).
-- **Open state:** always a draft at creation. A draft owes no review: review lanes that filter
+- **Open state:** always a draft at creation (`ready` flips it when the state resolves to `ready`). A draft owes no review: review lanes that filter
   drafts skip it, so opening ready for review would claim a review that has not happened yet.
   `/source-control:pull-request ready` performs the flip ([ready-for-review.md](ready-for-review.md)).
 
@@ -563,7 +566,7 @@ Record the expected set for comparison in Phase 3.
 
 ## 2.6 Report and stop
 
-Report the PR URL, captured `<pr_number>`, and recorded list of expected CI workflows. Report the open state and the level that supplied it (§2.4.3), for example `open state: draft (default)` or `open state: ready (repository (docs/conventions/source-control.yaml at main))`. For a `ready` state, report Phase 2.5's outcome: flipped, or left a draft with the gate that stopped it. For a draft, say that `/source-control:pull-request ready` is what flips it. When §2.4.1 found several plans and carried no acceptance criteria, name the candidates. End Phase 2 there. Monitoring (Phase 3), if needed, is invoked explicitly via `/source-control:pull-request monitor` or `/source-control:pull-request full`.
+Report the PR URL, captured `<pr_number>`, and recorded list of expected CI workflows. Report the open state and the level that supplied it (§2.4.3), for example `open state: ready (default)` or `open state: ready (repository (docs/conventions/source-control.yaml at main))`. For a `ready` state, report Phase 2.5's outcome: flipped, or left a draft with the gate that stopped it. For a draft, say that `/source-control:pull-request ready` is what flips it. When §2.4.1 found several plans and carried no acceptance criteria, name the candidates. End Phase 2 there. Monitoring (Phase 3), if needed, is invoked explicitly via `/source-control:pull-request monitor` or `/source-control:pull-request full`.
 
 ## 2.7 `create --pushed`: PR-only entry for an orchestrated flow
 
@@ -594,13 +597,22 @@ BRANCH=$(git -C "$WT" branch --show-current)
 
   else STOP (the worker returned without pushing HEAD).
 
+**Caller requests.** The orchestrator asks through two optional flags after `--worktree`:
+
+- `--draft '<reason>'` is §2.4.3's request level, the same flag the normal `create` path takes,
+  for example `Draft: merge hold unread`.
+- `--hold '<line>'` takes a line starting `Hold:`, which §2.4.1's body composition places
+  directly below `${CLOSES_LINE}` in `$BODY_FILE` before the §2.4.2 gates run, so the PR opens
+  with the hold before `ready --unattended` can flip it. A value not starting `Hold:` is refused:
+  STOP and report it.
+
 **Sub-steps relative to the normal `create` path:**
 
 - **§2.1 / §2.3 (branch-name prompts, stage + commit):** skipped. The worker already committed; the preconditions above replace them.
 - **§2.2 (rebase onto the default branch):** skipped. Bringing the branch current is the worker's pre-return responsibility, and residual staleness is caught by the Phase 3 mergeability read and CI. The out-of-tree orchestrator cannot rebase a branch it is not on with a clean tree, so it never owns this step.
 - **§2.4.1 (push):** skipped, replaced by the unpushed-commits assertion above.
 - **§2.4.0 (`Closes #N`), §2.4.1 (body assembly), §2.4.2 (pre-create gates):** run unchanged, except every `git`/diff read is anchored with `git -C "$WT"` and the branch is `$BRANCH`, never the session branch. In §2.4.0 this means passing `$BRANCH` as `parse-branch-issue.sh`'s explicit first positional and running it with `CLAUDE_PROJECT_DIR="$WT"` (`CLAUDE_PROJECT_DIR="$WT" parse-branch-issue.sh "$BRANCH" ['<branch-issue-pattern>']`), so it reads the worktree's own `source-control.md` layers rather than the orchestrator's. The script defaults to `git branch --show-current` **in its own process**, which an out-of-tree orchestrator cannot redirect with `git -C`, so leaving it implicit would parse `Closes #N` from the orchestrator's own branch and silently drop the linkage.
-- **§2.4.3 (create):** the PR create MUST name the head `$BRANCH` explicitly, since the invoker is not on the branch ([GitHub](../../../reference/providers/github/pull-request/create.md#open-the-pr-from-an-out-of-tree-orchestrator)). §2.4.3's open-state step reads `docs/conventions/source-control.yaml` at the PR's base branch, never from `$WT` or the worker's branch. A `--pushed` run is unattended, so its state is always `draft` and it never runs Phase 2.5.
+- **§2.4.3 (create):** the PR create MUST name the head `$BRANCH` explicitly, since the invoker is not on the branch ([GitHub](../../../reference/providers/github/pull-request/create.md#open-the-pr-from-an-out-of-tree-orchestrator)). §2.4.3's open-state step reads `docs/conventions/source-control.yaml` at the PR's base branch, never from `$WT` or the worker's branch. A `--pushed` run is unattended but follows the resolved state: a resolved `ready` runs Phase 2.5 as `ready "$PR_NUMBER" --unattended`, whose holds still apply. It runs with `$WT` as its working directory: every Phase 2.5 command takes the `( cd "$WT" && … )` form this section uses for `resolve-remote.sh`, and every forge call names `$PR_NUMBER`, the PR this run just opened. It stops when the branch in `$WT` resolves a different PR. Its code and security reviews run in fresh-context subagents at their own model binding ([ready-for-review.md](ready-for-review.md) §2.5.3); a caller that needs the base merge and the fixes at a stronger tier invokes `create --pushed` from an agent dispatched at that tier.
 
   In a sandboxed session that 403s, substitute §2.4.3's REST form, and anchor it, because the `{owner}`/`{repo}` placeholders expand from the current directory, which here is not the target repository. Run it from the worktree, in the subshell form this section already uses for `resolve-remote.sh`.
 
