@@ -151,6 +151,9 @@ export class RateLimitStop extends Error {
     super(`${what} was not sent: GitHub's ${poolLabel(pool)} rate limit holds until ${resetLabel(reset)}`);
     this.name = "RateLimitStop";
     this.status = 429;
+    // budgetedFetch's mark: a caller that defers its work on a rate limit
+    // defers on a refused call too.
+    this.rateLimited = true;
     this.pool = pool;
     this.reset = reset;
   }

@@ -172,7 +172,7 @@ jobs:
       contents: read
       pull-requests: write   # the review, its inline comments and the lane's
                              # reviewed-head marker comment
-    uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@914264587c35692c15e05c965103426eec18d1f0 # v0.65.6
+    uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@4c531cea137f5cbb38d4c132dbfa6e38f76fba7d # v0.65.7
     with:
       lane: security
       publish: comments
@@ -190,9 +190,10 @@ jobs:
       # no findings binds to the head and scores low.
       docs-only-paths: ''
       # A hold adds this label and a `claude-lane-hold` marker comment; ci-status
-      # fails while the label is on. The review holds only for its hold
-      # classes; a changed file matching hold-paths holds as trust-gate
-      # whatever the review says. Keep both lists equal in the two callers.
+      # fails while the label is on. The review holds only for a real-charge
+      # cost or a CRITICAL security finding; hold-paths names the files the
+      # prompt sends to extra security scrutiny and never holds by itself.
+      # Keep both lists equal in the two callers.
       hold-label: needs-human
       hold-paths: |
         .github/standards/trusted-actors/**

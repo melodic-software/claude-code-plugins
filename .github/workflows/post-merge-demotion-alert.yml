@@ -385,34 +385,11 @@ jobs:
                 main_recovered "$newer"
               fi
             fi
-            # failing_checks <run id> <attempt>: one check per line.
+            # failing_checks <run id> <attempt> [--baseline]: one check per
+            # line, by red-main.mjs's rule (failing-checks.mjs, run on the
+            # runner image's node, as the judge runs on its python3).
             failing_checks() {
-              local jobs count id name other gates gate
-              jobs="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$1/attempts/$2/jobs?per_page=100" \
-                --jq '.jobs[] | select(.conclusion | IN("failure", "timed_out", "cancelled", "startup_failure", "action_required"))
-                  | [.id, .name, ([.steps[]? | select(.conclusion | IN("failure", "timed_out", "cancelled"))
-                      | select(.name != "Aggregate hygiene results")] | length)] | @tsv')"
-              count="$(awk 'NF' <<<"$jobs" | wc -l)"
-              # A red run with no failed job (a workflow file that does not
-              # load) is one check of its own, never excused.
-              if [[ "$count" -eq 0 ]]; then
-                echo 'pr-require-checks.yml: no failed jobs'
-              fi
-              while IFS=$'\t' read -r id name other; do
-                if [[ -z "$id" || ("$name" == ci-status && "$count" -gt 1) ]]; then
-                  continue
-                fi
-                gates="$(gh api "repos/$GITHUB_REPOSITORY/check-runs/$id/annotations?per_page=100" \
-                  --jq '.[] | select(.annotation_level == "failure" and ((.title // "") | length) > 0) | .title')"
-                if [[ -z "$gates" || "$other" -gt 0 ]]; then
-                  echo "$name"
-                fi
-                while IFS= read -r gate; do
-                  if [[ -n "$gate" && "$gate" != 'gitleaks failed' ]]; then
-                    echo "$name: $gate"
-                  fi
-                done <<<"$gates"
-              done <<<"$jobs"
+              node .base/.github/scripts/post-merge-demotion-alert/failing-checks.mjs "$@"
             }
             now="$(mktemp)"
             failing_checks "$RUN_ID" "$RUN_ATTEMPT" >"$now"
@@ -430,7 +407,7 @@ jobs:
               IFS=$'\t' read -r base_id base_attempt base_conclusion <<<"$baseline"
               before="$(mktemp)"
               if [[ "$base_conclusion" != success ]]; then
-                failing_checks "$base_id" "$base_attempt" >"$before"
+                failing_checks "$base_id" "$base_attempt" --baseline >"$before"
               fi
               grep -xFf "$before" "$now" >"$kept" || true
               grep -vxFf "$before" "$now" >"$now.new" || true

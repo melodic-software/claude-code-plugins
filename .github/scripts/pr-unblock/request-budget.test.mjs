@@ -175,6 +175,32 @@ test("a second rate limit after the wait is returned, with no third request", as
   assert.equal(gh.sent.length, 2);
 });
 
+test("a rate limit it gives up on is marked rateLimited; a refusal or a success is not", async () => {
+  // Each case gets its own latch: a limit refuses that latch's later calls.
+  const pastGh = github([limited({ "x-ratelimit-reset": String(RESET) })]);
+  const past = budgeted({ fetch: pastGh.fetch, log: () => {}, ...clock(RESET - 20 * 60) });
+  const pastBudget = await past.fetch("https://api.example/repos/o/r/a", { headers: {} });
+  assert.equal(pastBudget.rateLimited, true, "a reset past the wait budget");
+  await assert.rejects(past.fetch("https://api.example/repos/o/r/b", { headers: {} }), (error) => error.rateLimited === true);
+  assert.equal(pastGh.sent.length, 1, "the later call is refused without a request, and marked rateLimited");
+
+  const againGh = github([limited({ "x-ratelimit-reset": String(RESET) }), limited({ "x-ratelimit-reset": String(RESET + 3600) })]);
+  const again = await budgeted({ fetch: againGh.fetch, log: () => {}, ...clock(RESET - 60) }).fetch("https://api.example/repos/o/r/b", { headers: {} });
+  assert.equal(again.status, 403);
+  assert.equal(again.rateLimited, true, "a second rate limit after the wait");
+
+  const plain = budgeted({
+    fetch: github([
+      { status: 403, body: '{"message":"Resource not accessible by integration"}', headers: rate(4000) },
+      { status: 200, body: "{}", headers: rate(3999) },
+    ]).fetch,
+    log: () => {},
+    ...clock(RESET - 60),
+  });
+  assert.notEqual((await plain.fetch("https://api.example/repos/o/r/c", { headers: {} })).rateLimited, true, "a permission refusal");
+  assert.notEqual((await plain.fetch("https://api.example/repos/o/r/d", { headers: {} })).rateLimited, true, "a success");
+});
+
 test("a 200 that spends the last request is not waited on", async () => {
   const gh = github([{ status: 200, body: "{}", headers: rate(0) }]);
   const time = clock(RESET - 3000);

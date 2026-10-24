@@ -18,7 +18,7 @@ Placeholder tokens use `{{double-braces}}`. The orchestrator performs simple tex
 - `{{ok_checks_collapsed}}`: a `<details>`/`</details>` block listing OK checks with one-line summaries.
 - `{{unknown_checks}}`: section if any UNKNOWN checks; otherwise replaced with empty string.
 - `{{remediations_section}}`: markdown for remediations attempted this run.
-- `{{discovery_section}}`: markdown listing new checks added to the catalog, with rationale.
+- `{{discovery_section}}`: markdown listing new checks added to the catalog, with rationale. On a `-Scheduled` run it ends with one line naming the research notes file, latest.json's `discovery_path`.
 - `{{open_questions}}`: pointer list to new `TODO.md` entries added this run.
 - `{{appendix}}`: collapsed `<details>` blocks with full inventories (driver list, winget list, etc.).
 

@@ -40,6 +40,8 @@
 //   GITHUB_REPOSITORY         owner/repo
 //   GITHUB_RUN_ID             read: this run, which has no file yet
 //   RUNNER_TEMP               read: where the artifact is downloaded
+//   PR_MERGE_READS_PATH       read: the job's shared GET answers
+//                             (rotation.mjs sharedReads), if set
 //   GITHUB_API_URL
 //   LANE_RECORDS_PATH         the file the checks read and rewrite
 //   BABYSIT_VERIFY_LISTING    write: the run's saved artifact listing, if any
@@ -50,7 +52,7 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { onMain } from "./head-ref-map.mjs";
-import { ghDownload, newestTrustedRun } from "./rotation.mjs";
+import { ghDownload, newestTrustedRun, sharedReads } from "./rotation.mjs";
 
 export const RECORDS_ARTIFACT = "pr-merge-lane-records";
 export const RECORDS_FILE = "lane-records.json";
@@ -97,7 +99,8 @@ function writeAtomic(path, text) {
 }
 
 // The newest trusted run's records, by name, or undefined when no run has any.
-export async function readRecords({ repo, runId, actions, download }) {
+export async function readRecords({ repo, runId, actions: client, download, shared }) {
+  const actions = sharedReads(client, shared);
   const accept = (run) => onMain({ repo, actions, sha: run.head_sha });
   const id = await newestTrustedRun({ repo, runId, actions, name: RECORDS_ARTIFACT, accept });
   return id === undefined ? undefined : { run: id, records: parseRecords(download(id), repo) };
@@ -134,7 +137,7 @@ export async function main({ mode = process.argv[2], env = process.env, actions,
     if (mode === "read") {
       actions ??= createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
       download ??= ghDownload({ repo, token: env.ACTIONS_TOKEN, dir: env.RUNNER_TEMP, name: RECORDS_ARTIFACT, file: RECORDS_FILE });
-      const found = await readRecords({ repo, runId: String(env.GITHUB_RUN_ID), actions, download });
+      const found = await readRecords({ repo, runId: String(env.GITHUB_RUN_ID), actions, download, shared: env.PR_MERGE_READS_PATH });
       if (found === undefined) {
         console.log("no earlier lane records; the post-merge check reads each record");
         return 0;

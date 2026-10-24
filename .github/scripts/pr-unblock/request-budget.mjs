@@ -21,7 +21,9 @@
 // maxWaitMs caps the waits of the whole run, summed, so the job fits its
 // timeout: a wait that does not fit is not taken, the response is returned at
 // once, and an error line names the reset. A second rate limit after the wait
-// is returned as it is, and the latch refuses what follows. A GET answered 5xx
+// is returned as it is, and the latch refuses what follows. Either response it
+// gives up on carries rateLimited: true, so a caller can defer its work
+// instead of failing. A GET answered 5xx
 // is first sent again by retryServerErrors, so only its last answer reaches
 // the above.
 
@@ -56,12 +58,13 @@ export function budgetedFetch({
         `::error::rate limited on ${init.method ?? "GET"} ${url}: the limit resets ${resetLabel(until)},` +
           ` past this run's ${Math.round(maxWaitMs / 1000)}s wait budget (${Math.round(waited / 1000)}s already waited)`,
       );
-      return response;
+      return Object.assign(response, { rateLimited: true });
     }
     log(`::notice::rate limited; waiting ${Math.ceil(wait / 1000)}s for the reset, then sending once more`);
     waited += wait;
     await sleep(wait);
-    return send(url, init);
+    const again = await send(url, init);
+    return latch.until(url) === null || !(await refused(again)) ? again : Object.assign(again, { rateLimited: true });
   }
 
   // GitHub refused this request: a rate-limit status, or a GraphQL 200 whose
