@@ -58,6 +58,8 @@
 set -uo pipefail
 
 SELECTOR="${SELECTION_AUDIT_SELECTOR:-scripts/affected-tests.sh}"
+# shellcheck source=scripts/lib/pytest-python.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/pytest-python.sh"
 SUMMARY_ROWS=200
 
 usage() {
@@ -133,7 +135,7 @@ trace_one() {
     return 0
   fi
   case "$suite" in
-  *.py) runner=(python3 -m pytest -q -p no:cacheprovider "$suite") ;;
+  *.py) runner=("$AUDIT_PYTHON" -m pytest -q -p no:cacheprovider "$suite") ;;
   *) runner=(bash "$suite") ;;
   esac
   start="$(date +%s)"
@@ -205,7 +207,12 @@ cmd_trace() {
   fi
 
   AUDIT_UNMAPPED_FLAG="$(unmapped_flag)"
-  export AUDIT_DEADLINE=0 AUDIT_SELECT_GRACE=$((budget * 2 / 5)) AUDIT_UNMAPPED_FLAG
+  # Resolved once, before any trace, so a venv build is neither traced nor raced.
+  AUDIT_PYTHON=python3
+  if printf '%s\n' "${suites[@]}" | grep -q '\.py$'; then
+    AUDIT_PYTHON="$(pytest_python::resolve)"
+  fi
+  export AUDIT_DEADLINE=0 AUDIT_SELECT_GRACE=$((budget * 2 / 5)) AUDIT_UNMAPPED_FLAG AUDIT_PYTHON
   ((budget > 0)) && AUDIT_DEADLINE=$(($(date +%s) + budget * 3 / 5))
   export -f trace_one select_one reads
   export ROOT SELECTOR
