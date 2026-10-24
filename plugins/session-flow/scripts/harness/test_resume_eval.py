@@ -363,6 +363,16 @@ def test_stub_gh_answers_from_the_fixture_in_order(tmp_path):
     ]
 
 
+def test_history_can_continue_an_existing_chain():
+    first = [json.loads(x) for x in resume_eval.render_history([{"role": "user", "text": "a"}], "s", "/w")]
+    more = [
+        json.loads(x)
+        for x in resume_eval.render_history([{"role": "assistant", "text": "b"}], "s", "/w", parent=first[-1]["uuid"], salt="hop4/")
+    ]
+    assert more[0]["parentUuid"] == first[-1]["uuid"]
+    assert more[0]["uuid"] != first[0]["uuid"]
+
+
 def _assistant(msg_id, usage, *blocks):
     return {
         "type": "assistant",
@@ -583,3 +593,72 @@ def test_one_before_run_flows_from_seed_to_graded_probes(tmp_path):
     kept_codex = tmp_path / "out" / case["name"] / "before" / "0" / "codex"
     assert (kept_codex / "gh-calls.log").read_text(encoding="utf-8").splitlines() == ["pr view 9"]
     assert (kept / "gh-calls.log").read_text(encoding="utf-8").splitlines() == ["pr view 4318"]
+
+
+def test_multi_hop_writes_one_handoff_per_hop_and_applies_scripted_turns(tmp_path):
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    here = Path(resume_eval.__file__).resolve().parent
+    case = resume_eval.load_cases(here.parents[1] / "evals", ["re-multi-hop"])[0]
+    origin = tmp_path / "base"
+    origin.mkdir()
+    (origin / "README.md").write_text("base\n", encoding="utf-8")
+    for args in (["init", "-q", "-b", "main"], ["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@e", "commit", "-q", "-m", "chore: base"]):
+        subprocess.run(["git", *args], cwd=origin, check=True)
+    subprocess.run(["git", "remote", "add", "origin", str(origin)], cwd=origin, check=True)
+    calls, made = [], []
+
+    def fake(cmd, cwd, env, stdin_text=None):
+        if cmd[0] != "claude":
+            done = subprocess.run(cmd, cwd=cwd, env={**env, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@e", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@e"}, capture_output=True, text=True)
+            return done.returncode, done.stdout, done.stderr
+        prompt = cmd[-1]
+        resume = cmd[cmd.index("--resume") + 1] if "--resume" in cmd else None
+        calls.append((resume, prompt))
+        sid = resume or f"hop-session-{len(calls)}"
+        if prompt.startswith("/session-flow:handoff"):
+            path = Path(cwd) / ".work" / "handoffs" / f"2999010{len(made)}T000000Z-handoff-fake.md"
+            path.write_text("# hop handoff\n" * (len(made) + 1), encoding="utf-8")
+            made.append(path)
+            text = "`/clear`, then copy everything between the dashed lines:\n\n" + "─" * 20 + f"\nRead @{path.name}.\n" + "─" * 20
+        else:
+            text = "ok"
+        events = [
+            {"type": "system", "subtype": "init", "session_id": sid},
+            {"type": "assistant", "message": {"id": f"m{len(calls)}", "content": [{"type": "text", "text": text}], "usage": {"input_tokens": 1, "output_tokens": 1}}},
+            {"type": "result", "result": text, "num_turns": 1, "is_error": False, "session_id": sid},
+        ]
+        if resume and resume.startswith("hop-session-"):
+            keydir = Path(env["HOME"]) / ".claude" / "projects" / resume_eval.project_key(cwd)
+            keydir.mkdir(parents=True, exist_ok=True)
+            with (keydir / f"{resume}.jsonl").open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps({"type": "user", "uuid": f"u-{len(calls)}", "message": {"role": "user", "content": prompt}}) + "\n")
+        return 0, "\n".join(json.dumps(e) for e in events), ""
+
+    cfg = resume_eval.RunConfig(root=tmp_path / "root", tmpdir=str(tmp_path), copies={"before": "/c/before"}, codex_model="m", call=fake, python=sys.executable)
+    home = tmp_path / "home"
+    old_home = os.environ.get("HOME")
+    os.environ["HOME"] = str(home)
+    try:
+        run = resume_eval.seed_run(case, cfg.root / "r", origin, cfg)
+        written = resume_eval.write_stage(case, "before", run, cfg)
+    finally:
+        os.environ["HOME"] = old_home or ""
+    assert written.get("excluded") is None, written
+    hops = case["writer"]["hops"]
+    assert len(made) == len(hops)
+    assert written["handoff"] == made[-1]
+    assert written["hop_bytes"] == [p.stat().st_size for p in made]
+    sent = [prompt for _resume, prompt in calls]
+    for hop in hops[1:]:
+        for turn in hop.get("owner_turns", []):
+            assert turn in sent
+    assert sent.count(case["writer"]["prompts"]["before"]) == len(hops)
+    for hop in hops:
+        for rel in (hop.get("effects") or {}).get("files", {}):
+            assert (run["repo"] / rel).is_file()
+    scripted = [t["text"] for hop in hops for t in hop.get("scripted_agent_turns", []) if t.get("text")]
+    transcripts = "".join(p.read_text(encoding="utf-8") for p in run["keydir"].glob("hop-session-*.jsonl"))
+    assert scripted and all(text in transcripts for text in scripted)

@@ -358,7 +358,7 @@ def write_report(graded_runs: list[dict], path, arm: str) -> None:
     Path(path).write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
 
 
-def render_history(turns: list[dict], session_id: str, cwd: str) -> list[str]:
+def render_history(turns: list[dict], session_id: str, cwd: str, parent: str | None = None, salt: str = "") -> list[str]:
     """Render synthetic turns as a parent-chained transcript `claude --resume` loads whole.
 
     Without the uuid/parentUuid chain a resume sees only the last line (probes.md P4).
@@ -408,9 +408,8 @@ def render_history(turns: list[dict], session_id: str, cwd: str) -> list[str]:
             }
             messages.append(("user", {"role": "user", "content": [result]}))
     lines = []
-    parent = None
     for index, (kind, message) in enumerate(messages):
-        record_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{session_id}/{index}"))
+        record_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{session_id}/{salt}{index}"))
         record = {
             "parentUuid": parent,
             "isSidechain": False,
@@ -737,12 +736,12 @@ def _claude(cfg: RunConfig, run: dict, prompt: str, *, arm: str, resume: str | N
     return code, out, err, stream_events(out)
 
 
-def write_stage(case: dict, arm: str, run: dict, cfg: RunConfig) -> dict:
+def _write_hop(case: dict, arm: str, run: dict, cfg: RunConfig, session: str, known: set) -> dict:
     """Carry the seeded session across the boundary. Returns the reader's delivery text
     (or the session to continue), writer tokens, the handoff file and any exclusion."""
     extra = _instruction_flags(case, arm)
     interrupt = case["writer"]["interrupt"]["text"]
-    code, out, err, events = _claude(cfg, run, interrupt, arm=arm, resume=run["sid"], extra=extra)
+    code, out, err, events = _claude(cfg, run, interrupt, arm=arm, resume=session, extra=extra)
     if reason := exclusion_reason(code, out, err, events):
         return {"excluded": f"interrupt: {reason}"}
     prompt = case["writer"]["prompts"][arm_base(arm)]
@@ -750,20 +749,20 @@ def write_stage(case: dict, arm: str, run: dict, cfg: RunConfig) -> dict:
     out_path = None
     if arm == "compact":
         before_usage = model_usage_total(events)
-        code, out, err, events = _claude(cfg, run, prompt["focus_prompt"], arm=arm, resume=run["sid"], fork=True, extra=extra)
+        code, out, err, events = _claude(cfg, run, prompt["focus_prompt"], arm=arm, resume=session, fork=True, extra=extra)
         if reason := exclusion_reason(code, out, err, events):
             return {"excluded": f"focus: {reason}"}
         focus = final_text(events).strip()
         focus_tokens = reader_tokens(events)
-        code, out, err, events = _claude(cfg, run, prompt["command"].format(focus=focus), arm=arm, resume=run["sid"], extra=extra)
+        code, out, err, events = _claude(cfg, run, prompt["command"].format(focus=focus), arm=arm, resume=session, extra=extra)
         if reason := exclusion_reason(code, out, err, events):
             return {"excluded": f"compact: {reason}"}
         after_usage = model_usage_total(events)
         delta = {key: after_usage[key] - before_usage[key] for key in after_usage}
         tokens["m1"] = focus_tokens["m1"] + sum(delta.values())
         tokens["m3"] = focus_tokens["m3"] + delta["input"] + delta["cache_create"] + delta["output"]
-        return {"continue_session": run["sid"], "writer_tokens": tokens, "writer_events": events, "focus": focus}
-    code, out, err, events = _claude(cfg, run, prompt, arm=arm, resume=run["sid"], extra=extra)
+        return {"continue_session": session, "writer_tokens": tokens, "writer_events": events, "focus": focus}
+    code, out, err, events = _claude(cfg, run, prompt, arm=arm, resume=session, extra=extra)
     if reason := exclusion_reason(code, out, err, events):
         return {"excluded": f"writer: {reason}"}
     measured = reader_tokens(events)
@@ -775,10 +774,82 @@ def write_stage(case: dict, arm: str, run: dict, cfg: RunConfig) -> dict:
 
     region = hop_chain.between_rails(reply)
     handoffs = sorted((run["repo"] / ".work" / "handoffs").glob("*-handoff-*.md"))
-    out_path = next((p for p in reversed(handoffs) if p not in run["chain"]), None)
+    out_path = next((p for p in reversed(handoffs) if p not in run["chain"] and p not in known), None)
     if region is None or out_path is None:
         return {"excluded": "writer produced no resume prompt or no new handoff file", "writer_events": events}
     return {"delivery": region, "writer_tokens": tokens, "writer_events": events, "handoff": out_path}
+
+
+def write_stage(case: dict, arm: str, run: dict, cfg: RunConfig) -> dict:
+    """Carry the seeded session across the boundary, once, or once per hop for a case with
+    `writer.hops` (each later hop resumes the previous hop's delivery, sends its owner
+    turns, appends its scripted agent turns and their file effects, then hands off).
+    Returns the last hop's delivery (or session to continue), writer tokens summed over
+    hops, the last handoff file, per-hop handoff bytes, and any exclusion."""
+    known: set = set()
+    written = _write_hop(case, arm, run, cfg, run["sid"], known)
+    hops = case["writer"].get("hops") or []
+    total = dict(written.get("writer_tokens") or {"m1": 0, "m3": 0})
+    hop_bytes = []
+
+    def note(result):
+        if result.get("handoff"):
+            known.add(result["handoff"])
+            hop_bytes.append(result["handoff"].stat().st_size)
+        elif result.get("delivery") is not None:
+            hop_bytes.append(len(result["delivery"].encode("utf-8")))
+
+    note(written)
+    for hop in hops[1:]:
+        if written.get("excluded"):
+            return written
+        extra = _instruction_flags(case, arm)
+        if written.get("continue_session"):
+            session = written["continue_session"]
+        else:
+            delivery = case["reader"]["delivery"][arm_base(arm)]
+            lead = delivery.get("lead")
+            first = f"{lead}\n\n{written['delivery']}" if lead else written["delivery"]
+            code, out, err, events = _claude(cfg, run, first, arm=arm, extra=extra)
+            if reason := exclusion_reason(code, out, err, events):
+                return {"excluded": f"hop {hop['hop']} resume: {reason}"}
+            session = session_of(events)
+        for turn in hop.get("owner_turns", []):
+            code, out, err, events = _claude(cfg, run, turn, arm=arm, resume=session, extra=extra)
+            if reason := exclusion_reason(code, out, err, events):
+                return {"excluded": f"hop {hop['hop']} owner turn: {reason}"}
+            session = session_of(events) or session
+        if hop.get("scripted_agent_turns"):
+            append_turns(run, session, hop["scripted_agent_turns"], f"hop{hop['hop']}/")
+        for rel, content in (hop.get("effects") or {}).get("files", {}).items():
+            path = run["repo"] / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        written = _write_hop(case, arm, run, cfg, session, known)
+        for key in total:
+            total[key] += (written.get("writer_tokens") or {}).get(key, 0)
+        note(written)
+    if not written.get("excluded"):
+        written["writer_tokens"] = total
+        written["hop_bytes"] = hop_bytes
+    return written
+
+
+def append_turns(run: dict, session: str, turns: list[dict], salt: str) -> None:
+    """Append synthetic turns to a live session's transcript, chained to its last record."""
+    path = run["keydir"] / f"{session}.jsonl"
+    last = None
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if record.get("uuid") and record.get("type") in ("user", "assistant"):
+            last = record["uuid"]
+    expanded = json.loads(json.dumps(turns).replace("{repo}", str(run["repo"])))
+    lines = render_history(expanded, session, str(run["repo"]), parent=last, salt=salt)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write("\n".join(lines) + "\n")
 
 
 def _instruction_flags(case: dict, arm: str) -> tuple:
