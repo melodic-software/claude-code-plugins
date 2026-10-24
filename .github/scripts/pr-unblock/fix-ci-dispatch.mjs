@@ -352,6 +352,10 @@ export async function dispatchCiFixes({
   try {
     active = (await api.listWorkflowRuns(workflow)).filter((run) => run.status !== "completed");
   } catch (error) {
+    if (error.rateLimited) {
+      log(`::warning::${workflow} run listing is rate limited (${error.message}); no fix-ci dispatched, a later run retries`);
+      return { dispatched, failed };
+    }
     log(`::error::could not list ${workflow} runs: ${error.message}`);
     return { dispatched, failed: 1 };
   }

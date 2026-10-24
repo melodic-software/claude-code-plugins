@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Done.\n\nSettings: tdd_refactor_step=on (docs/conventions/testing.yaml), first_test=user-flow (default)\n\nAll 7 tests pass.",
+      "why": "the exact shape the skill gives"
+    },
+    {
+      "answer": "Settings: `tdd_refactor_step=on` (`/tmp/claude-eval-ab12/home/cwd/docs/conventions/testing.yaml`), `first_test=user-flow` (default)",
+      "why": "code spans and the absolute source path the resolver prints"
+    },
+    {
+      "answer": "Settings: tdd_refactor_step: on (docs/conventions/testing.yaml); first_test: user-flow (default)",
+      "why": "colon in place of the equals sign"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Settings: tdd_refactor_step=on (default), first_test=user-flow (default)",
+      "why": "names the default, not the team file that set it"
+    },
+    {
+      "answer": "Settings: tdd_refactor_step=off (docs/conventions/testing.yaml)",
+      "why": "the wrong value"
+    },
+    {
+      "answer": "I added total_cents and apply_coupon; all tests pass.",
+      "why": "no Settings line"
+    }
+  ]
+}

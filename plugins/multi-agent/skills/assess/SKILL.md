@@ -42,6 +42,14 @@ close rather than recalling it:
 - Recheck: the page changes its comparison of subagents, skills, agent teams
   and workflows, or adds a scale or interruption row.
 
+For a close call between `subagent` and `single`, read the subagent page's
+comparison live:
+
+- Pointer: <https://code.claude.com/docs/en/sub-agents#choose-between-subagents-and-main-conversation>
+- As of: 2026-10-24
+- Recheck: that section changes its criteria for a subagent or the main
+  conversation.
+
 ## Steps
 
 1. **Availability.** Run:
