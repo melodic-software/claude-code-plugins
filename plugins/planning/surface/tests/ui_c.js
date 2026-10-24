@@ -594,6 +594,20 @@ async page => {
     const pr = await page.evaluate(() => ({text: document.getElementById("pill").textContent, title: document.getElementById("pill").title}));
     const st = await state();
     ok("reading with no lease and no waiter: the header reads Claude is working, not Live or Not listening", rel.ok() && reading && st.listener.state === "reading" && !st.listener.lease && st.listener.waiters === 0 && pr.text === "Claude is working" && /no watcher is waiting/.test(pr.title), JSON.stringify(pr) + " " + JSON.stringify(st.listener));
+    // A delivery unhandled for 11 minutes while the lease is still held (refreshed by polls) and no watcher waits: the header and the work line agree it stalled.
+    const tab = await page.context().newPage();
+    await tab.addInitScript(() => { window.EventSource = undefined; });
+    await tab.route(base + "api/state", async route => {
+      const res = await route.fetch(), s = await res.json(), ev = s.responses.events || [], n = Math.max(0, ...ev.map(e => e.seq)), ago = ms => new Date(Date.now() - ms).toISOString();
+      s.responses.events = [...ev, {seq: n + 1, id: "D1", kind: "ask", text: "Which one?", at: ago(670000), deliveredAt: ago(660000)}];
+      s.listener = {...s.listener, waiters: 0, lease: {watcher: "w1"}};
+      await route.fulfill({response: res, json: s});
+    });
+    await tab.goto(base);
+    await tab.waitForFunction(() => /not handled/.test(document.getElementById("workLine").textContent), null, {timeout: 8000}).catch(() => {});
+    const sh = await tab.evaluate(() => ({cls: document.getElementById("pill").className, text: document.getElementById("pill").textContent, line: document.getElementById("workLine").textContent}));
+    ok("lease held, no waiter, a delivery unhandled for 10 minutes: the header reads Not listening: type next beside Claude has not handled D1 yet", sh.cls === "pill idle" && sh.text === "Not listening: type next" && sh.line === "Claude has not handled D1 yet", JSON.stringify(sh));
+    await tab.close();
   }
   const real = errors.filter(e => !/status of 409 \(Conflict\)/.test(e) && !/status of 404 \(Not Found\) at \S*\/api\/visual-file\?id=vx$/.test(e));
   ok("AC37: zero console errors in phase " + PHASE + " (besides the network lines for an intended 409 and the missing file visual's 404)", real.length === 0, errors.join(" | "));
