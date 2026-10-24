@@ -19,7 +19,7 @@
 #                       | feedback-partial | feedback-incomplete
 #                       | feedback-disputed | feedback-unadjudicated
 #                       | feedback-question-intent | feedback-question-design
-#                       | feedback-question-security | feedback-stands
+#                       | feedback-question-security
 #                       | dependency-round-cap
 #                       | dependency-invalid | dependency-fix-not-landed
 #                       | dependency-security-close | dependency-escalate
@@ -79,7 +79,6 @@ case ${ESCALATION_REASON:-} in
   feedback-question-intent) why='an adjudicator found that a disputed review finding turns on what the change is meant to do, which a person decides' ;;
   feedback-question-design) why='an adjudicator found that a disputed review finding turns on a design choice, which a person decides' ;;
   feedback-question-security) why='an adjudicator found that a disputed review finding turns on a security judgment, which a person decides' ;;
-  feedback-stands) why='an adjudicator found that a disputed review finding stands, but this round pushed no fix, so no review run starts the round that fixes it; dispatching address-feedback starts that round' ;;
   dependency-round-cap) why='the lane has reviewed this dependency update as many rounds as its cap allows' ;;
   dependency-invalid) why='the dependency review verdict did not pass validation, so the lane acted on none of it' ;;
   dependency-fix-not-landed) why='the dependency review chose a fix, but no fix commit reached the branch (the lane lands a fix only when it changes nothing but the versions in npm or pip manifest and lock files outside .github/)' ;;

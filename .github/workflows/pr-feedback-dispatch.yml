@@ -26,9 +26,10 @@ name: pr-feedback-dispatch
 #
 # A completed scheduled pr-unblock-dispatch.yml run, its half-hourly tick,
 # starts the dispatch job too, which sweeps the open lanes App PRs for a head
-# whose last address-feedback round had no model turn and dispatches one such
-# head again, through its newest completed review run, at most once per tick
-# (feedback-dispatch.mjs sweepNoModelTurn). That round released the head only
+# whose last address-feedback round had no model turn, or left an adjudicated
+# finding standing with the head unmoved, and dispatches one such head again,
+# through its newest completed review run, at most once per tick
+# (feedback-dispatch.mjs sweepReleased). That round released the head only
 # for a next review or pr-verify completion, which may never come. Taking
 # the tick's completion rather than a schedule of this file's own keeps
 # every dispatch a workflow_run dispatcher's, the one kind the gate and the

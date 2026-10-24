@@ -999,8 +999,10 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    - after the replies, settles each posted `INCORRECT` reply by the adjudicator's verdict
      ([below](#the-adjudicator)): `lane` posts the fixed finding-answered reply and resolves the
      thread; `reviewer` posts the fixed finding-stands reply and leaves the thread open for the
-     next round, escalating `feedback-stands` when this round pushed no fix commit, since then no
-     review run follows to start that round; `human` posts nothing and escalates
+     next round; when the PR head did not move this round, no review run follows to start that
+     round, so the reply job skips `finding-stands` (when nothing escalates), and the dispatcher's
+     half-hourly sweep dispatches the head again, within the select job's round cap and three
+     such skips per head; `human` posts nothing and escalates
      `feedback-question-intent`, `feedback-question-design` or `feedback-question-security`; no
      verdict escalates `feedback-unadjudicated`. A thread whose finding stood at an earlier
      adjudication is not adjudicated again: any reply but `VALID` on it escalates
@@ -1052,7 +1054,8 @@ lane's validated evidence; no model text reaches the pull request.
 
 The next round reads the finding-stands reply: `threadAuthors` keeps a thread whose last lanes
 App comment is that reply, so `pr-feedback-dispatch.yml` dispatches it once the review lanes
-review the next head. The push job waits for this job, so it lands right before the reply job,
+review the next head, or, after a `finding-stands` skip at an unmoved head, at its next
+half-hourly sweep. The push job waits for this job, so it lands right before the reply job,
 as it did without one: a review run on that head that finished while this run still went would
 find it in progress and dispatch nothing.
 

@@ -40,9 +40,11 @@
 //      after a reply), feedback-uncertain (an UNCERTAIN or VALID-defer reply),
 //      or a reason adjudicate-feedback.mjs settleDisputes gives for an
 //      INCORRECT reply: feedback-unadjudicated, feedback-question-intent,
-//      feedback-question-design, feedback-question-security, feedback-stands,
-//      or feedback-disputed (the finding stood at an earlier adjudication and
-//      this round left it open).
+//      feedback-question-design, feedback-question-security, or
+//      feedback-disputed (the finding stood at an earlier adjudication and
+//      this round left it open). A finding that stands with the head unmoved
+//      skips finding-stands instead, which feedback-dispatch.mjs's sweep
+//      dispatches again.
 //
 // Environment:
 //   GH_TOKEN              the lane token (pull-requests: write, contents: read)
@@ -600,7 +602,9 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
     // feedback-disputed (adjudicate-feedback.mjs settleDisputes). The
     // adjudicator read the select job's head, which this round's fix push
     // may have moved past headSha.
-    escalationReason = await settleDisputes({
+    // A head that moved this round gets a review run, which starts the next
+    // round; an earlier fix (#9560's fallback) moves nothing.
+    const settled = await settleDisputes({
       api,
       pr,
       adjudicatedSha: run.head_sha,
@@ -609,13 +613,13 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       shown,
       now,
       verdicts: posted.some((entry) => entry.disposition === "INCORRECT") ? parseVerdicts(readAdjudication(), run.head_sha) : new Map(),
-      fixSha,
+      pushed: run.head_sha !== headSha,
       headMoved,
       resolveAfterReply,
       escalationReason,
       log,
     });
-    return { escalationReason, posted };
+    return { ...settled, posted };
   }
 }
 

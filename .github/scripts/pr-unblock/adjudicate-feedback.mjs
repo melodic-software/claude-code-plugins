@@ -239,21 +239,29 @@ const ORDER = [
   "feedback-question-design",
   "feedback-disputed",
   "feedback-uncertain",
-  "feedback-stands",
   "",
 ];
+
+// The reply job's skip reason for a round that left a finding standing with
+// the PR head where the select job read it: no review run follows to start
+// the round that fixes it, so feedback-dispatch.mjs's sweep dispatches that
+// head again.
+export const FINDING_STANDS_SKIP = "finding-stands";
 
 // publish-feedback.mjs's INCORRECT branch, after the lane's replies posted:
 // - a thread an adjudication stood before (stood) that this round left open
 //   is the cap: feedback-disputed, and no second adjudication;
 // - an INCORRECT thread with no verdict escalates feedback-unadjudicated;
-// - human: no reply, feedback-question-<intent|design|security>;
+// - human: no reply, feedback-question-<intent|design|security>; a question
+//   only the owner answers stays the owner's;
 // - lane: the fixed reply, then the thread is resolved;
-// - reviewer: the fixed FINDING_STANDS reply; with no fix commit this round
-//   no review run follows to start the next round, so feedback-stands.
+// - reviewer: the fixed FINDING_STANDS reply; when the head did not move
+//   this round (`pushed` false) and nothing escalates, the round skips
+//   FINDING_STANDS_SKIP.
 // A thread that changed, a moved head or a failed write stops here as
-// feedback-partial.
-export async function settleDisputes({ api, pr, adjudicatedSha, posted, replies, shown, now, verdicts, fixSha, headMoved, resolveAfterReply, escalationReason, log }) {
+// feedback-partial. Returns {escalationReason, skipReason}.
+export async function settleDisputes({ api, pr, adjudicatedSha, posted, replies, shown, now, verdicts, pushed, headMoved, resolveAfterReply, escalationReason, log }) {
+  let stands = false;
   let reason = escalationReason;
   const raise = (next) => {
     if (ORDER.indexOf(next) < ORDER.indexOf(reason)) {
@@ -310,9 +318,7 @@ export async function settleDisputes({ api, pr, adjudicatedSha, posted, replies,
         log(`${thread}: the finding does not hold; resolved`);
       } else {
         log(`${thread}: the finding stands`);
-        if (!fixSha) {
-          raise("feedback-stands");
-        }
+        stands = true;
       }
     } catch (error) {
       log(`stopped adjudicating at ${thread}: ${String(error?.message ?? error).slice(0, 300)}`);
@@ -320,7 +326,7 @@ export async function settleDisputes({ api, pr, adjudicatedSha, posted, replies,
       break;
     }
   }
-  return reason;
+  return { escalationReason: reason, skipReason: stands && !pushed && reason === "" ? FINDING_STANDS_SKIP : "" };
 }
 
 export async function main(argv, env, { api, log = (line) => console.log(line) } = {}) {

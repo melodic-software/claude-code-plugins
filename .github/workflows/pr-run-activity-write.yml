@@ -402,8 +402,8 @@ on:
           review-replies script feedback-uncertain, feedback-not-landed or
           feedback-invalid, feedback-partial, feedback-incomplete,
           feedback-disputed, feedback-unadjudicated, feedback-question-intent,
-          feedback-question-design, feedback-question-security or
-          feedback-stands; for the dependency-verdict script
+          feedback-question-design or feedback-question-security; for the
+          dependency-verdict script
           dependency-invalid, dependency-fix-not-landed, dependency-config-unreadable,
           dependency-files-truncated, dependency-control-uncited,
           dependency-workflow-held, dependency-fix-refused,
@@ -581,7 +581,7 @@ jobs:
             feedback-protected-path | feedback-round-cap | feedback-uncertain | feedback-not-landed | feedback-invalid) ;;
             feedback-partial | feedback-incomplete | feedback-disputed) ;;
             feedback-unadjudicated | feedback-question-intent | feedback-question-design) ;;
-            feedback-question-security | feedback-stands) ;;
+            feedback-question-security) ;;
             dependency-round-cap | dependency-invalid | dependency-fix-not-landed) ;;
             dependency-security-close | dependency-escalate | dependency-config-unreadable) ;;
             dependency-files-truncated | dependency-control-uncited | dependency-workflow-held) ;;
@@ -1937,7 +1937,7 @@ jobs:
               ?*:feedback-uncertain | ?*:feedback-not-landed | ?*:feedback-invalid) ;;
               ?*:feedback-partial | ?*:feedback-incomplete | ?*:feedback-disputed) ;;
               ?*:feedback-unadjudicated | ?*:feedback-question-intent | ?*:feedback-question-design) ;;
-              ?*:feedback-question-security | ?*:feedback-stands) ;;
+              ?*:feedback-question-security) ;;
               :ci-fix-invalid | :ci-fix-protected-path | :ci-fix-not-applied | :patch-invalid | :patch-protected-path | :patch-not-applied | :patch-empty)
                 [ "$PREPARE" = apply-patch ] || { echo "::error::the escalation reason file holds no reason this script may give"; exit 1; }
                 ;;

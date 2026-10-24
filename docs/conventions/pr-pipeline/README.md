@@ -175,12 +175,13 @@ the label stays on, and `clear-escalations.mjs` removes it only while no address
 record is on the lanes App's comments since it went on; to stop the lane working such a PR, a
 person adds `do-not-merge`, since re-adding a label already on records no event), the head has no
 `pr-unblock / address-feedback` check run (one that started before the head's newest
-`pr-unblock / publish-feedback` check run stops counting when that run skipped `no-model-turn`:
-the round handled nothing, and the round cap still bounds the retries; a limit stop keeps its
+`pr-unblock / publish-feedback` check run stops counting when that run skipped `no-model-turn`
+(the round handled nothing) or `finding-stands` (it left a finding standing at that head), and
+the round cap still bounds the retries; a limit stop keeps its
 reset hold and counts toward `limit-stops-per-head`; since such a head may see no later review,
 each scheduled `pr-unblock-dispatch.yml` run's completion also starts a sweep that decides one
-such head per tick as for its newest completed review run, under three `no-model-turn` skips at
-that head), and no `pr-unblock.yml` run titled
+such head per tick as for its newest completed review run, under three such skips at that
+head), and no `pr-unblock.yml` run titled
 `pr-unblock address-feedback #<n>` is still queued or going (both lanes finishing at once). Then it
 runs the base's resolve-config for that PR and head with `address-feedback` selected, so only that
 slot's `applies-when` is decided, and dispatches only when the `pr-unblock` lane and its
@@ -641,7 +642,9 @@ PR), `superseded-sha`, `disabled-by-config`, `untrusted-trigger` (a fork, no sam
 actor or author not on the trusted-actor list), `workflow-modified` (the token broker refused a
 write lane's mint for a workflow file the PR itself changes), `rung-up` (a fix-ci run's patch is
 held back for one retry one model rung up, [Lanes](#lanes)), `no-model-turn` (an address-feedback
-round whose model never ran, so the scan uploaded no replies), `clean-merge` (a resolve-conflicts
+round whose model never ran, so the scan uploaded no replies), `finding-stands` (an
+address-feedback round's reply job, when an adjudicator let a disputed finding stand and the head
+did not move, so no review run starts the round that fixes it), `clean-merge` (a resolve-conflicts
 round whose base merge left no conflict, so no model ran and the push job commits the merge), or, for an issue run under
 `models.issue-dimensions`, `research-first` or `probe-first` (its Uncertainty), or
 `split-required` (its Size is `split`). Issue mode posts no check, so work-resolve-issue.yml reports those three dimension skips
