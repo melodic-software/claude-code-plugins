@@ -6,7 +6,7 @@
     },
     {
       "answer": "cli/invite refuses ceo@example.com (exit 4), so the run stops at the form.",
-      "why": "parenthesised exit code"
+      "why": "exit code in parentheses"
     },
     {
       "answer": "The send command exits with code 4 and prints the refused floor.",
