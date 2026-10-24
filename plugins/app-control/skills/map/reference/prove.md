@@ -30,9 +30,9 @@ from the app argument when `--dir` names another directory:
 
 Step 2's report must carry `No control skill: drive used <fallback>.` or name
 `.claude/skills/control-<slug>` as its control skill. Any other control skill means drive ran
-another app's skill: stop, write nothing, and name that skill. When `.claude/skills/` already holds
-exactly one other app's control skill, drive uses it whatever the argument, so skip step 2's start
-check, say so, and let step 5 be the first launch. Step 5's report must name
+another app's skill: stop, write nothing, and name that skill. Drive keeps only `control-<slug>`
+when given `<slug>`, so another app's control skill already in `.claude/skills/` is never chosen and
+step 2 runs as written. Step 5's report must name
 `.claude/skills/control-<slug>`.
 
 ## Proving

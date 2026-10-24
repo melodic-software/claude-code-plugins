@@ -37,8 +37,8 @@ repository). It never changes what map writes, where, or which question or floor
 
 ### 1. Location
 
-The control skill goes to `.claude/skills/control-<app slug>/`, the one place drive looks, or to a
-`--dir` that names another such directory. The slug rule, the location rules and the real-path
+The control skill goes to `.claude/skills/control-<app slug>/`, which drive reads from disk, or to
+a `--dir` that names another such directory. The slug rule, the location rules and the real-path
 checks are in [reference/naming.md](reference/naming.md). A refused `--dir` never stops the run:
 name the value and the rule, and use the default.
 

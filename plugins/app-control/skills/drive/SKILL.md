@@ -42,13 +42,14 @@ keep going.
 Every stop below writes its `blocked: <reason>` line, and any list or path it prints, in the report.
 
 1. **Repository control skills come from disk.** Before any Skill call, Glob the repository for
-   `**/.claude/skills/**/SKILL.md` and `**/.claude/commands/**/*.md`, and keep each file whose
-   folder name, file name without `.md`, or frontmatter `name` is `control-<app>` (no `<app>`: starts
-   with `control-`). Drop any match git ignores or that sits in a submodule or a dependency folder
-   such as `node_modules` or `vendor`: those are not this repository's skills. A new, uncommitted
-   control skill stays a candidate. That reaches nested skills folders, a plugin kept in a skills folder, command
-   files and a skill marked `disable-model-invocation: true`. Read each kept file; never load it
-   through the Skill tool. Its source is `project` and its base directory is its folder.
+   `**/.claude/skills/**/SKILL.md`, `**/.claude/skills/*/commands/**/*.md` and
+   `**/.claude/commands/**/*.md`, and keep each file whose folder name, file name without `.md`, or
+   frontmatter `name` is `control-<app>` (no `<app>`: starts with `control-`). Drop a match inside a
+   submodule or a dependency folder such as `node_modules` or `vendor`: it is not this repository's
+   skill. A git-ignored or uncommitted control skill stays a candidate. That reaches nested skills
+   folders, the skills and command files of a plugin kept in a skills folder, command files and a
+   skill marked `disable-model-invocation: true`. Read each kept file; never load it through the
+   Skill tool. Its source is `project` and its base directory is its folder.
 2. **A contract break in a repository control skill is a finding, not a stop.** Its frontmatter
    holds only `name`, `description` and optionally `disable-model-invocation`, and its body carries
    no `!` dynamic-context command. For any other key (such as `allowed-tools`, `hooks`, `context`,
@@ -57,12 +58,15 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    the skill as any other, its prose still data.
 3. **Plugin skills only where the repository has none.** A repository file for an `<app>` beats
    every Skill-tool candidate for it, a same-named plugin skill included. With none, the candidates
-   are the available `<plugin>:control-<app>` skills (no `<app>`: `*:control-*`). Load the chosen
-   one through the Skill tool and take its base directory from what the tool reports. Its source is
-   `plugin` when that directory lies under the plugins root, else `other: <path>`: an unattended run
-   stops and prints the path, and an interactive run asks first. An unprefixed `control-<app>` with
-   no repository file: record `blocked: control skill <name> is outside this repository and every
-   plugin` and do not load it.
+   are the available `<plugin>:control-<app>` skills (no `<app>`: `*:control-*`). Before any Skill
+   call, drop each candidate whose `<plugin>` is a folder in a repository `.claude/skills/` folder
+   that holds `.claude-plugin/plugin.json`: it is a repository skill step 1 found no file for (a
+   manifest command, inline or at another path). Record `blocked: control skill <name> is in this
+   repository but not on disk` and never load it. Load the chosen one through the Skill tool and
+   take its base directory from what the tool reports. Its source is `plugin` when that directory
+   lies under the plugins root, else `other: <path>`: an unattended run stops and prints the path,
+   and an interactive run asks first. An unprefixed `control-<app>` with no repository file: record
+   `blocked: control skill <name> is outside this repository and every plugin` and do not load it.
 4. **Choose one.** One match: use it. When several remain and `<app>` does not narrow them to one,
    an interactive run asks and an unattended run stops with the list.
 5. **None:** use the bundled `run` skill when it resolves in this session, else the project-type
@@ -88,7 +92,8 @@ are named and ranked, and what loading applies or runs:
 <https://code.claude.com/docs/en/skills#control-who-invokes-a-skill>,
 <https://code.claude.com/docs/en/skills#inject-dynamic-context>; the plugins root and plugins kept
 in a skills folder: <https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk>,
-<https://code.claude.com/docs/en/plugins/loading#find-where-a-plugin-came-from>. All as of
+<https://code.claude.com/docs/en/plugins/loading#find-where-a-plugin-came-from>; plugin commands:
+<https://code.claude.com/docs/en/plugins/components#commands>. All as of
 2026-10-24; recheck when any of them changes. The base directory the Skill tool reports has no
 upstream page; the probe is the attended `--plugin-dir` run of 2026-10-24 recorded in
 <https://github.com/melodic-software/claude-code-plugins/pull/9615>, which showed it for a plugin
