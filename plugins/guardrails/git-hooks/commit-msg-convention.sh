@@ -20,6 +20,8 @@
 # prints a notice with the resolver's diagnostic to stderr (this hook has no
 # model channel): exit 1 with empty stderr is "no pattern", anything else a failure.
 # Fixup, squash and amend subjects pass, as rebase --autosquash consumes them.
+# So do the subjects git writes itself: `Merge ...` from git merge and
+# `Revert "..."` from git revert.
 # A violation prints how to fix the subject and exits 1; this hook never
 # suggests skipping it.
 set -uo pipefail
@@ -83,7 +85,7 @@ done <"$msg_file"
 [[ -n "$subject" ]] || exit 0
 
 case "$subject" in
-"fixup! "* | "squash! "* | "amend! "*) exit 0 ;;
+"fixup! "* | "squash! "* | "amend! "* | "Merge "* | 'Revert "'*) exit 0 ;;
 *) ;;
 esac
 
