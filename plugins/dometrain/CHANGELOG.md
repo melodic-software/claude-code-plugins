@@ -3,6 +3,12 @@
 All notable changes to the `dometrain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.1] - 2026-10-24
+
+### Fixed
+
+- The README gains a pointer record for MCP scope precedence (`mcp#scope-hierarchy-and-precedence`, as of 2026-10-24, with a recheck trigger), since a same-named server at a higher-precedence scope overrides the user-scope `dometrain` registration.
+
 ## [0.8.0] - 2026-10-20
 
 ### Changed
