@@ -24,7 +24,8 @@ Without it, the team layer is the `yaml config` block in `<root>/docs/convention
 resolver prints a warning naming each one it ignores. Lists concatenate across layers; a later
 layer's scalar overrides. The format is the adapters' YAML subset in every file; a glob that starts
 with `*` must be single-quoted. `docs/conventions/testing.yaml` also holds `/testing:run-e2e`'s
-`e2e_driver`, `reuse_running_instance` and `browser_driver`, which the scan ignores.
+`e2e_driver`, `reuse_running_instance` and `browser_driver`, and `/testing:write`'s
+`tdd_refactor_step` and `first_test`, which the scan ignores.
 
 The keys:
 
@@ -114,8 +115,8 @@ missing launcher.
 2. Ask only what the repository cannot answer: folders or files to leave out, test files the
    shipped globs miss (and which adapter reads them), adapters to turn off, rule levels.
 3. Write the team layer with the answers. The script writes the team file in use:
-   `docs/conventions/testing.yaml` whole (keeping its `e2e_driver`, `reuse_running_instance` and `browser_driver`
-   lines), else the body of the `yaml config` block in `docs/conventions/testing.md` (the rest of
+   `docs/conventions/testing.yaml` whole (keeping its `e2e_driver`, `reuse_running_instance`, `browser_driver`,
+   `tdd_refactor_step` and `first_test` lines), else the body of the `yaml config` block in `docs/conventions/testing.md` (the rest of
    that file stays), else `.claude/testing.yaml` whole; with none, it creates
    `docs/conventions/testing.yaml`. It keeps the result only when it resolves and writes nothing
    else; pass every value the team layer should hold, the existing ones included:

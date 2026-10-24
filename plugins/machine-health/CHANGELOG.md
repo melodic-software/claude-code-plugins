@@ -3,6 +3,21 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.0] - 2026-10-24
+
+### Added
+
+- A scheduled run researches up to five findings that are new since the previous run through `/discovery:research`, writes the notes to `discovery-<runStamp>.md` beside the report, and grounds its TODO.md check proposals with sources.
+
+### Changed
+
+- The monthly checkup runs in auto mode: the Task Scheduler wrapper is a static copy that starts `claude -p` with a 90-minute limit, without the exact allow rules or the deny settings file. Rerun `/machine-health:setup schedule` to replace an installed copy.
+- The Desktop scheduled task offers Auto mode only.
+
+### Removed
+
+- The legacy TODO.md-to-approvals migration: approvals come only from `/machine-health:setup`.
+
 ## [0.20.2] - 2026-10-23
 
 ### Fixed

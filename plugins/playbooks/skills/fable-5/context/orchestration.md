@@ -2,6 +2,8 @@
 
 Delegation spends a worker's context window instead of your own. This chapter governs when to spawn delegated workers, how to spec them, and how to treat what they return. (Your model-specific delegation bias, if any, is your model-adaptation chapter's concern.)
 
+For the workflow, subagent or single verdict on a task, `/multi-agent:assess` owns the rule.
+
 ## When to delegate, when to stay inline
 
 Delegate on three task shapes; treat everything else as inline work.
