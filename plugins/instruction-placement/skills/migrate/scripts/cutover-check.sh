@@ -14,7 +14,9 @@
 #      fetching". Either one alone is enough; neither is [UNMET].
 #   2  Every `claude-code-action` pin in every named repository installs a CLI
 #      at or above the floor, and a CI canary with a lone AGENTS.md is on
-#      record. Both clauses hold, or the condition does not.
+#      record. Both clauses hold, or the condition does not. A pin the release
+#      map lacks is resolved live from `base-action/action.yml` at that ref;
+#      a failed fetch or a file with no `CLAUDE_CODE_VERSION` is [UNREACH].
 #   3  A token canary with a lone non-empty AGENTS.md returns its line from a
 #      cwd under home AND from a cwd on a second drive or path. One metered
 #      `claude -p` turn per leg, in a scratch directory this script creates and
@@ -68,6 +70,8 @@ ENV_VARS_FILE=""
 CLAUDE_BIN="claude"
 CANARY_HOME_ROOT=""
 CANARY_ALT_ROOT=""
+# shellcheck disable=SC2016 # $1 is expanded by the `bash -c` that runs this, not here
+ACTION_FETCH='gh api -H "Accept: application/vnd.github.raw" "repos/anthropics/claude-code-action/contents/base-action/action.yml?ref=$1"'
 SKIP_CANARY=0
 SKIP_WRITE_PROBE=0
 REPOS=()
@@ -94,6 +98,10 @@ Usage: cutover-check.sh --repo <dir> [--repo <dir> ...] [options]
   --canary-alt-root <dir>   where the second-path canary makes its scratch
                             directory (default: D:/scratch where a D: drive
                             exists, else $TMPDIR)
+  --action-fetch <command>  how a claude-code-action pin missing from the release
+                            map is resolved: a shell command run with the pinned
+                            ref as $1 that prints base-action/action.yml at that
+                            ref (default: gh api on anthropics/claude-code-action)
   --skip-canary             run no canary: condition 3 and the nested write
                             probe both report [UNREACH]
   --skip-write-probe        skip only the nested write probe, which reports
@@ -159,6 +167,11 @@ while [[ $# -gt 0 ]]; do
   --canary-alt-root)
     need_arg "$1" $#
     CANARY_ALT_ROOT="$2"
+    shift 2
+    ;;
+  --action-fetch)
+    need_arg "$1" $#
+    ACTION_FETCH="$2"
     shift 2
     ;;
   --skip-canary)
@@ -433,8 +446,24 @@ action_cli_version() {
   return 1
 }
 
+# The map is an offline cache, not the only source. A pin it does not carry is
+# resolved through the derivation sources.md records: `base-action/action.yml`
+# at the pinned ref, and the `CLAUDE_CODE_VERSION` it assigns. A fetch failure,
+# or a file with no such assignment, resolves nothing, so the caller reports
+# [UNREACH] and never a pass.
+action_cli_version_live() {
+  local ref="$1" body ver
+  [[ "$ref" =~ ^[A-Za-z0-9._-]+$ ]] || return 1
+  body="$(bash -c "$ACTION_FETCH" cutover-fetch "$ref" 2>/dev/null)" || return 1
+  ver="$(printf '%s\n' "$body" | tr -d '\r' |
+    grep -oE 'CLAUDE_CODE_VERSION[=:][[:space:]]*["'"'"']?[0-9]+\.[0-9]+\.[0-9]+' |
+    head -n 1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+$')"
+  [[ -n "$ver" ]] || return 1
+  printf '%s' "$ver"
+}
+
 condition_2() {
-  local repo kind row ref ver pins=0 below=0 unknown=0 rows
+  local repo kind row ref ver src pins=0 below=0 unknown=0 rows
   echo "Condition 2: every claude-code-action pin installs CLI $CLI_FLOOR or later, and the CI canary is on record"
 
   for repo in "${REPOS[@]}"; do
@@ -471,16 +500,24 @@ condition_2() {
         note "$repo: could not parse a ref out of the pin ($row)"
         continue
       fi
-      if ver="$(action_cli_version "$ref")"; then
+      src="the release map"
+      if ! ver="$(action_cli_version "$ref")"; then
+        if ver="$(action_cli_version_live "$ref")"; then
+          src="base-action/action.yml at $ref"
+        else
+          ver=""
+        fi
+      fi
+      if [[ -n "$ver" ]]; then
         if ip_ver_ge "$ver" "$CLI_FLOOR"; then
-          note "$repo: pin $ref installs CLI $ver, at or above $CLI_FLOOR"
+          note "$repo: pin $ref installs CLI $ver ($src), at or above $CLI_FLOOR"
         else
           below=$((below + 1))
-          note "$repo: pin $ref installs CLI $ver, BELOW $CLI_FLOOR ($row)"
+          note "$repo: pin $ref installs CLI $ver ($src), BELOW $CLI_FLOOR ($row)"
         fi
       else
         unknown=$((unknown + 1))
-        note "$repo: pin $ref is not in the release map in $SOURCES_MD"
+        note "$repo: pin $ref is not in the release map in $SOURCES_MD, and base-action/action.yml could not be read with a CLAUDE_CODE_VERSION at that ref"
       fi
     done <"$(repo_plan "$repo")"
   done

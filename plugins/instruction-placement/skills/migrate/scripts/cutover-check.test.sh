@@ -414,10 +414,35 @@ printf 'jobs:\n  a:\n    steps:\n      - uses: anthropics/claude-code-action@000
 commit_all "$UNKNOWN"
 
 rc=0
-OUT=$(bash "$SCRIPT" --repo "$UNKNOWN" --sources "$REAL_SOURCES" \
+OUT=$(bash "$SCRIPT" --repo "$UNKNOWN" --sources "$REAL_SOURCES" --action-fetch 'exit 1' \
   --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary) || rc=$?
-assert_contains "a pin outside the release map is UNREACH" "$OUT" "is not in the release map"
+assert_contains "a pin outside the map whose fetch fails is UNREACH" "$OUT" "is not in the release map"
+assert_contains "and the fetch failure grades condition 2 [UNREACH]" "$OUT" "[UNREACH] 1 pin(s) map to no known CLI version"
 assert_not_contains "and is never reported as clearing the floor" "$OUT" "[MET]     1 pin"
+
+# A file that carries no CLAUDE_CODE_VERSION assignment resolves nothing.
+rc=0
+OUT=$(bash "$SCRIPT" --repo "$UNKNOWN" --sources "$REAL_SOURCES" \
+  --action-fetch 'printf "name: base\nruns:\n  using: composite\n"' \
+  --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary) || rc=$?
+assert_contains "a file without CLAUDE_CODE_VERSION is UNREACH" "$OUT" "[UNREACH] 1 pin(s) map to no known CLI version"
+assert_not_contains "and never clears the floor" "$OUT" "[MET]     1 pin"
+
+# A pin the map lacks is resolved live from the file at the pinned ref; the ref
+# is handed to the fetcher as $1.
+rc=0
+OUT=$(bash "$SCRIPT" --repo "$UNKNOWN" --sources "$REAL_SOURCES" \
+  --action-fetch 'printf "      CLAUDE_CODE_VERSION=\"2.1.290\"\n# ref %s\n" "$1"' \
+  --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary) || rc=$?
+assert_contains "a live-resolved pin reports its CLI version" "$OUT" "pin 0000000000000000000000000000000000000000 installs CLI 2.1.290 (base-action/action.yml at 0000000000000000000000000000000000000000), at or above"
+assert_not_contains "and is not reported unmapped" "$OUT" "is not in the release map"
+
+# A live-resolved version below the floor is UNMET, not UNREACH.
+rc=0
+OUT=$(bash "$SCRIPT" --repo "$UNKNOWN" --sources "$REAL_SOURCES" \
+  --action-fetch 'printf "CLAUDE_CODE_VERSION: 2.1.100\n"' \
+  --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary) || rc=$?
+assert_contains "a live-resolved pin below the floor is UNMET" "$OUT" "[UNMET]   1 of 1 pin(s) install a CLI below"
 
 # A ref the script cannot parse must not prefix-match the release map's first
 # row and borrow its CLI version.
