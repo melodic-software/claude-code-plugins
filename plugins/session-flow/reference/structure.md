@@ -7,18 +7,22 @@ and destination resolution live in the sibling `save-point.md` engine doc).
 Reader is a session with NO prior context. It will act on this file. Be specific. A vague handoff
 costs the next session a re-investigation, which is the cost this document exists to avoid.
 
-**Shape 2.** A handoff file written by this procedure carries `handoff_shape: 2` in its
-frontmatter. Every deterministic field of a shape-2 file is written by the engine script
+**Shape 3.** A handoff written by this procedure carries `handoff_shape: 3` in its frontmatter:
+a hot file plus one archive file per hop ([Shape 3](#shape-3-hot-file-and-per-hop-archive)).
+Shape-2 files (one self-contained file per hop, [Body sections (shape 2)](#body-sections-shape-2))
+still validate and read unchanged, and a shape-2 chain's next hop writes shape 3. Every
+deterministic field is written by the engine script
 `${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py` (`new` writes the skeleton, `fill` replaces its
 slots from one JSON object, `validate` gates it, `emit` prints its resume prompt); the model
 supplies only the reasoning slots the skeleton leaves as
 `<!-- FILL: <name> — <instruction> -->`, as the values in that object. The write procedure below
-is the one path that produces a shape-2 file. Files written before shape 2 (no `handoff_shape`
+is the one path that produces a handoff file. Files written before shape 2 (no `handoff_shape`
 key) are shape 1: read normally, tolerated by the validator with one WARN, and never rewritten.
 
 ## Contents
 
-- [Body sections](#body-sections)
+- [Shape 3: hot file and per-hop archive](#shape-3-hot-file-and-per-hop-archive)
+- [Body sections (shape 2)](#body-sections-shape-2)
   - [Cumulative sections and provenance tags](#cumulative-sections-and-provenance-tags)
   - [Original goal](#original-goal)
   - [Resumption brief](#resumption-brief)
@@ -39,11 +43,72 @@ key) are shape 1: read normally, tolerated by the validator with one WARN, and n
   - [Resume prompt](#resume-prompt)
 - [How this document is referenced elsewhere](#how-this-document-is-referenced-elsewhere)
 - [Full-path write procedure](#full-path-write-procedure)
+  - [Frontmatter shape 3](#frontmatter-shape-3)
   - [Frontmatter shape 2](#frontmatter-shape-2)
   - [Chain continuity, same task only](#chain-continuity-same-task-only)
   - [Legacy predecessors and unfinished skeletons](#legacy-predecessors-and-unfinished-skeletons)
 
-## Body sections
+## Shape 3: hot file and per-hop archive
+
+A shape-3 handoff is two files. The **hot file** is what a resume reads: a direct child of the
+handoffs directory, named and discovered like every other handoff. The **hop file**,
+`handoffs/archive/<chain-root-stem>/h<N>-<session8>.md`, is what this hop moved out of the hot
+file: `new` writes it once, with every predecessor section the hot file does not carry, verbatim.
+No reader globs the archive; a hot file names the archive section a question needs, and one
+targeted read (a search or a section read of one hop file) answers it. A hop file is never edited
+after its hop validates. Before validating, content this hop writes but the hot file cannot hold
+may be appended to this hop's own file; content from earlier hops is already in their files.
+
+Sections, in the one order `validate` checks:
+
+| Order | Section | Holds |
+|---|---|---|
+| 1 | Original goal | the goal quote, the owner's intent and vision, dated amendments and the opening ask, verbatim; copied off disk each hop, a new amendment appended below |
+| 2 | Review before you continue | what to read before the next action, tailored to it: archive sections by file and heading, the instruction file a preference points at, the command that re-reads live state |
+| 3 | Direction changes | one line per change of direction, `- [h<k>] <change> (<cause>)`, the cause owner-directed (quoting the owner) or agent-initiated; a remaining action that serves no recorded goal or detour is flagged `DRIFT` |
+| 4 | Resumption brief | where the work stands and the single next action |
+| 5 | Completion criteria | observable goal-states with met/unmet marks |
+| 6 | Remaining actions, in order | every action still to take |
+| 7 | Open questions | each with its options, a recommendation and what it unblocks |
+| 8 | Current rules | each goal-scoped rule's current text, verbatim, `- [R<n>] …` |
+| 9 | Observations | session-wide observations, summarized; detail stays in the archive or the transcript |
+| 10 | Pending commands | every command waiting on the user, verbatim |
+| 11 | Environment to re-establish | branch, services, background tasks, the task list to recreate |
+| 12 | Decisions in force | the decisions the remaining actions depend on |
+| 13 | This session | the `did: … · left: …` line and its `Re-scan: …` line, as in shape 2 |
+| 14 | Prior sessions | the last rows of the table, the newest describing the predecessor |
+| 15 | Standing preferences | rules that bind beyond this chain's goal, `- [R<n>] … (pending promotion: <instruction file>)` |
+| 16 | Resume prompt | the rails block, as in shape 2; always last |
+
+What the writer owns, since no script can judge it:
+
+- **Rules are current, not historical.** A changed rule is rewritten in place under its id, its
+  new text verbatim; a retired rule is deleted from the hot file. The predecessor's text of both
+  is already in this hop's file. A new rule takes the next unused id, which the skeleton's slot
+  names. Ids are never reused.
+- **A preference leaves once its instruction file holds it.** A rule that binds beyond this
+  chain's goal stays under Standing preferences, marked pending promotion, until the instruction
+  file it belongs in carries it; then the hot file keeps only the pointer under Review before you
+  continue. Auto memory is not a destination; an edit to the user's own instruction files goes
+  through the owner.
+- **No live GitHub fact.** Issue, PR, check and review state goes stale between hops. The hot
+  file lists the re-read command instead, taken from the source-control plugin's surface (for a
+  pull request, `/source-control:pull-request` names its status read); `validate` warns on a
+  state claim it recognizes.
+- **Over the size cap, move non-core content out.** `validate` names the cap. The core (Original
+  goal, Direction changes, Resumption brief, Current rules, Standing preferences) never moves;
+  shorten the other sections, appending what they drop to this hop's file. A core alone over the
+  cap still emits, marked UNVALIDATED.
+
+**From shape 2.** The first shape-3 hop of a shape-2 chain reads the predecessor as usual: its
+cumulative sections, every Prior-sessions row and its other sections land in that hop's file
+verbatim, and `new` replaces the `Opening ask: see <root>` pointer with the root's own verbatim
+ask. The writer then states the rules still in force under Current rules, with ids, reading the
+predecessor's Constraints in the hop file, and writes the direction trail so far. Hop numbers
+count from the chain root, shape-1 and shape-2 hops included; hop files start at that first
+shape-3 hop (`archive_from`).
+
+## Body sections (shape 2)
 
 Ordered so the cheapest useful layer comes first. A reader can stop after **Original goal** plus
 **Resumption brief** and still take the correct next action; everything below is there for the
@@ -603,13 +668,14 @@ FILE=$("$PY" -X utf8 "$SAVE_POINT" new --topic "$TOPIC" --memory-dir "$MEMORY_RO
 #          --previous "$DIR/<prior>-handoff-<topic>.md")
 
 # 6. Slot values, then one fill. Read the slot names out of $FILE itself: the set
-#    is branch-dependent (goal, amended, opening-ask and the bare cumulative
-#    slots only on a first hop; the <section>-new slots only on a continuation),
+#    is branch-dependent (goal, intent, vision, opening-ask and the bare rules
+#    and preferences slots only on a first hop; goal-new and the <section>-new
+#    slots only after a shape-3 predecessor),
 #    so a remembered template hits fill's unknown-key refusal. Write ONE JSON
 #    object keyed by those names, every value a string; a multi-line value is one
 #    string with escaped newlines ("First headline\nSecond headline"), which the
 #    next slot and the cumulative slots need. Leave an optional slot out
-#    (goal-first, goal-after, below-rail, <section>-new) and fill deletes its line. For a
+#    (goal-first, goal-after, below-rail, goal-new, <section>-new) and fill deletes its line. For a
 #    closing handoff the next value is exactly "Next: none (closed)", which fill
 #    puts on the line above before deleting the slot line.
 SLOTS="${FILE%.md}.slots.json"             # beside the handoff, same stem
@@ -666,12 +732,37 @@ itself goes to a temporary file in the target's own directory and is then replac
 an interrupted write cannot leave a truncated handoff.
 
 **Python-absent fallback.** When the ladder finds no Python 3.10+, say so in one line
-(`validator unavailable: no python3/python on PATH`), write the shape-2 file by hand from this
-document (frontmatter below, the 17 headings in order, the `## Resume prompt` section in the
-engine doc's full-path form), mark the checklist box `validate: SKIPPED (no interpreter)`, and
+(`validator unavailable: no python3/python on PATH`), write the file by hand from this document:
+after a shape-3 predecessor, a shape-3 hot file (frontmatter below, the 16 headings in order) and
+its hop file holding the predecessor's sections other than Original goal and Resume prompt,
+copied with the Read and Write tools, never retyped; otherwise a shape-2 file (the 17 headings in
+order). Both end in the `## Resume prompt` section in the engine doc's full-path form. Mark the checklist box `validate: SKIPPED (no interpreter)`, and
 still emit the rails from the file's `## Resume prompt` section. Never a shape-1 file, never a
 silent skip. This path is unchanged by `fill`: with no interpreter there is no `fill` either, so
 the hand-written file needs no slots JSON.
+
+### Frontmatter shape 3
+
+```yaml
+---
+type: handoff
+handoff_shape: 3
+date: <ISO-8601 UTC>
+topic: <kebab>
+session_id: <UUID>
+transcript: <absolute path>.jsonl         # or unresolved (…), as in shape 2
+previous_handoff: <prior-filename>.md     # CONDITIONAL — omit at the first hop of a task
+chain_root: <root-filename>.md            # replaces chain:
+hop: <N>                                  # counted from the chain root, every shape included
+archive: archive/<chain-root-stem>/       # relative to the handoffs directory
+archive_from: <M>                         # first shape-3 hop; hop files exist from M on
+repo: <the Handoff origin: line's first slot>
+---
+```
+
+`new` writes every key; `date`, `topic`, `session_id`, `transcript` and `previous_handoff` mean
+what they mean in shape 2. A fork (two successors of one predecessor) gives two hot files with the
+same `hop` and two sibling hop files, told apart by their session prefix.
 
 ### Frontmatter shape 2
 
