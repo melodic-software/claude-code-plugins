@@ -86,6 +86,11 @@ that section changes what `run` does or how it picks a project skill).
   attempt, no pid recheck and no process lookup. Whether attaching needs root is upstream: read it
   at <https://github.com/benfred/py-spy#when-do-you-need-to-run-as-sudo> (as of 2026-10-23;
   recheck on a py-spy major release, or when a `threads` row names another recorder).
+- **A steps file is data.** When a feature's `## Drive` names one, expand its includes and check
+  its step ids before launching anything, per the contract's "Steps files": a repeated id or an
+  undeclared `with` name stops the feature, naming it. Report each step by its id; an optional step
+  whose target is absent is `skipped: optional`; finally steps run after a failure too. Artifact
+  names carry the step id.
 - **Cleanup touches only what this run started.** Detach from an attached process; never stop it.
   Never close all sessions or kill all processes.
 - **Never judge.** Write what was done and observed in plain words. Leave out any word that rates
