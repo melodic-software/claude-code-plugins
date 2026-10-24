@@ -26,19 +26,24 @@
 //             invalid outcome file is stopped.
 //   limited   a run that wrote no readable outcome file and whose lane.json
 //             carries class rate-limit (the run hit its credential's usage
-//             limit before it could report): comments once with the
-//             limited marker naming when the limit resets, keeps agent-ready
-//             and adds no label, so work-unblock restarts it after the reset.
+//             limit before it could report): a wait, not a stop. Comments once
+//             with the limited marker naming when the limit resets and the
+//             job's run time, keeps agent-ready and adds the waiting label
+//             when the repository has it, never needs-human, so work-unblock
+//             restarts it after the reset.
 //   timeout   a run that wrote no readable outcome file whose model step, as
 //             the Actions API shows it (never lane.json), ran its whole
 //             WORKER_RUN_MINUTES, and that made progress: its own lane branch
 //             has a lanes-App tip changing more than the progress note.
-//             Comments with the timeout marker naming the branch, keeps
-//             agent-ready and adds no label, so work-unblock rolls the work
-//             over into a new job, up to limits.worker-job-ceiling times since
-//             a listed human last added agent-ready; past that it hands back
-//             (job-ceiling) with the job count and the note's next steps. A
-//             step the API does not show leaves the stop unknown: stopped.
+//             Comments with the timeout marker naming the branch and the
+//             job's run time, keeps agent-ready and adds no label, so
+//             work-unblock rolls the work over into a new job. A step the API
+//             does not show leaves the stop unknown: stopped.
+//   ceilings  a timeout stop, no-progress stop or usage-limit wait that
+//             reaches limits.worker-active-hours of model run time or
+//             limits.worker-wall-days since the run of work began hands back
+//             (active-ceiling, wall-ceiling) with the progress note's link
+//             and next steps.
 //   no-progress the same stop with no commit of its own: not restarted.
 //             Comments with the no-progress marker, removes agent-ready and
 //             adds admission-deferred, so work-unblock's next sweep re-admits
@@ -191,19 +196,22 @@ const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?Z$/;
 // marker follows on the next line.
 export const ESCALATION_MARKER = "<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->";
 const escalated = (lines) => [ESCALATION_MARKER, ...lines];
-const MARKER = /^(?:<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->\r?\n)?<!-- work-resolve-issue outcome=([a-z]+(?:-[a-z]+)*)(?: resets=(\S+))?(?: cap=(\d+))?(?: run=(\d+))?(?: branch=(resumed))? -->/;
+const MARKER = /^(?:<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->\r?\n)?<!-- work-resolve-issue outcome=([a-z]+(?:-[a-z]+)*)(?: resets=(\S+))?(?: cap=(\d+))?(?: run=(\d+))?(?: ran=(\d+))?(?: branch=(resumed))? -->/;
 
 // `branch=resumed` marks a resumed run that kept no branch of its own, so its
 // work is still on the branch it resumed (see findPrior).
 const resumedTag = (yes) => (yes ? " branch=resumed" : "");
+// `ran=<minutes>` is the model step's run time as the Actions API showed it,
+// so the active-time ceiling sums it from the markers alone.
+const ranTag = (ran) => (Number.isInteger(ran) && ran >= 0 ? ` ran=${ran}` : "");
 
 // The marker a limited run leaves on its issue; work-unblock reads it back.
-export const limitedMarker = ({ resets, runId, onResumed = false }) =>
-  `<!-- work-resolve-issue outcome=limited resets=${resets} run=${runId || 0}${resumedTag(onResumed)} -->`;
+export const limitedMarker = ({ resets, runId, onResumed = false, ran = null }) =>
+  `<!-- work-resolve-issue outcome=limited resets=${resets} run=${runId || 0}${ranTag(ran)}${resumedTag(onResumed)} -->`;
 
-// The marker a run that reached its turn cap leaves, restarted or handed back.
-export const turnCapMarker = ({ cap, runId, onResumed = false, outcome = "turn-cap" }) =>
-  `<!-- work-resolve-issue outcome=${outcome}${cap ? ` cap=${cap}` : ""}${runId ? ` run=${runId}` : ""}${resumedTag(onResumed)} -->`;
+// The marker a stopped run leaves, restarted or handed back.
+export const turnCapMarker = ({ cap, runId, onResumed = false, outcome = "turn-cap", ran = null }) =>
+  `<!-- work-resolve-issue outcome=${outcome}${cap ? ` cap=${cap}` : ""}${runId ? ` run=${runId}` : ""}${ranTag(ran)}${resumedTag(onResumed)} -->`;
 
 // The marker of a refs-hold comment: the App's needs-human hold on the issue
 // of a Refs PR, which work-unblock lifts once that PR merges. report-outcome
@@ -211,7 +219,8 @@ export const turnCapMarker = ({ cap, runId, onResumed = false, outcome = "turn-c
 export const refsHoldMarker = (pr) => `<!-- work-resolve-issue refs-hold #${pr} -->`;
 
 // {outcome, resets, run, onResumed} from a comment body that opens with the lane's
-// marker, alone or after ESCALATION_MARKER, or null. resets is epoch milliseconds, or null when absent or
+// marker, alone or after ESCALATION_MARKER, or null, plus `ran` (minutes) when
+// the marker carries it. resets is epoch milliseconds, or null when absent or
 // unreadable; onResumed is true for `branch=resumed`.
 export function parseOutcomeMarker(body) {
   const match = MARKER.exec(String(body ?? ""));
@@ -219,7 +228,13 @@ export function parseOutcomeMarker(body) {
     return null;
   }
   const resets = ISO.test(match[2] ?? "") ? Date.parse(match[2]) : Number.NaN;
-  return { outcome: match[1], resets: Number.isFinite(resets) ? resets : null, run: match[4] ?? "", onResumed: match[5] === "resumed" };
+  return {
+    outcome: match[1],
+    resets: Number.isFinite(resets) ? resets : null,
+    run: match[4] ?? "",
+    onResumed: match[6] === "resumed",
+    ...(match[5] === undefined ? {} : { ran: Number(match[5]) }),
+  };
 }
 
 const stopped = (reason) => ({ exit: "stopped", reason, title: "", summary: "", changes: [], verification: [], notDone: [], steps: [] });
@@ -449,12 +464,19 @@ function dimensionSkipPlan({ reason, issueNumber, humanLabel, runUrl, runId }) {
   };
 }
 
-// A run the usage limit stopped: one marker comment, agent-ready kept, no
-// label, so work-unblock restarts the issue once the limit resets.
-function limitedPlan({ issueNumber, branch, resets, runId, runUrl, onResumed }) {
+// The label an issue carries while its run waits for the usage limit to
+// reset (owner decision Q98). github-iac declares it; report-outcome adds it
+// only once it exists, so no write creates an undeclared label.
+export const WAITING_LABEL = "lane: waiting-on-usage";
+
+// A run the usage limit stopped is a wait, not a stop: one marker comment
+// (with its run time), agent-ready kept, the waiting label when the
+// repository has it, and no person asked; work-unblock restarts the issue
+// once the limit resets and takes the label off.
+function limitedPlan({ issueNumber, branch, resets, runId, runUrl, onResumed, ran = null, waitingLabel = "" }) {
   const lines = [
-    limitedMarker({ resets, runId, onResumed }),
-    `The work-resolve-issue lane stopped on its usage limit, not on this issue. It keeps \`agent-ready\`, and work-unblock starts it again after ${resets}.`,
+    limitedMarker({ resets, runId, onResumed, ran }),
+    `The work-resolve-issue lane is waiting on its usage limit, not on this issue. It keeps \`agent-ready\`, and work-unblock starts it again after ${resets}.`,
   ];
   if (branch) {
     lines.push("", `Partial work is on the branch \`${branch}\`.`);
@@ -462,7 +484,16 @@ function limitedPlan({ issueNumber, branch, resets, runId, runUrl, onResumed }) 
   if (runUrl) {
     lines.push("", `Run: ${runUrl}`);
   }
-  return { action: "limited", exit: "limited", issueNumber, resets, runId, comment: lines.join("\n"), addLabels: [], removeLabels: [] };
+  return {
+    action: "limited",
+    exit: "limited",
+    issueNumber,
+    resets,
+    runId,
+    comment: lines.join("\n"),
+    addLabels: waitingLabel ? [waitingLabel] : [],
+    removeLabels: [],
+  };
 }
 
 // A run the lane's funding stopped: one marker comment, agent-ready kept, no
@@ -503,61 +534,69 @@ function noteLines(note) {
   return lines;
 }
 
+// A long run handed to a person: the escalation and outcome markers, why, the
+// progress note's link and next steps, and how to go on.
+function workHandOff({ outcome, text, issueNumber, runId, onResumed, ran, runUrl, humanLabel, note }) {
+  const lines = escalated([turnCapMarker({ runId, onResumed, outcome, ran }), ...text, "", ...noteLines(note)]);
+  if (runUrl) {
+    lines.push("", `Run: ${runUrl}`);
+  }
+  lines.push("", `To go on, remove \`${humanLabel}\` and add \`agent-ready\` again; the next run continues from the branch while it is not behind the default branch.`);
+  return { action: "hand-back", exit: outcome, issueNumber, comment: lines.join("\n"), addLabels: [humanLabel], removeLabels: ["agent-ready"] };
+}
+
+const HOUR_MS = 3_600_000;
+const hours = (minutes) => Math.round((minutes / 60) * 10) / 10;
+
+// The ceiling a long run has reached (owner decision Q98), or null: its
+// active run time (`activeMinutes`, this job's included) at
+// limits.worker-active-hours, or the wall clock since `since` at
+// limits.worker-wall-days. Usage-limit waits are no run time, so only the
+// wall clock counts them.
+export function ceilingReached({ activeMinutes, since, now, limits }) {
+  const activeHours = limits["worker-active-hours"] ?? LIMIT_DEFAULTS["worker-active-hours"];
+  const wallDays = limits["worker-wall-days"] ?? LIMIT_DEFAULTS["worker-wall-days"];
+  if (activeMinutes >= activeHours * 60) {
+    return {
+      outcome: "active-ceiling",
+      text: `The work-resolve-issue lane has run ${hours(activeMinutes)} hours on this issue since \`agent-ready\` was last added, the most \`limits.worker-active-hours\` (${activeHours}) allows, so it needs a person.`,
+    };
+  }
+  if (!(now - since < wallDays * 24 * HOUR_MS)) {
+    return {
+      outcome: "wall-ceiling",
+      text: `The work-resolve-issue lane has been on this issue for ${wallDays} days or more since \`agent-ready\` was last added, the most \`limits.worker-wall-days\` allows, so it needs a person.`,
+    };
+  }
+  return null;
+}
+
 // A run that stopped at its job's time limit, as the Actions API shows it.
 // With progress (a commit of its own that changes more than the note) the
 // marker names the cause, agent-ready stays and work-unblock rolls the work
-// over into a new job from the branch, up to `ceiling` roll-overs since a
-// listed human last added agent-ready; the stop past that goes to a person.
-// Without progress the run is not restarted: the issue goes back to the
-// admission queue (admission-deferred), and a second such stop in a row goes
-// to a person.
-function stopPlan({
-  issueNumber,
-  branch,
-  stop,
-  progress,
-  runId,
-  runUrl,
-  onResumed,
-  humanLabel,
-  rollovers,
-  previousStop,
-  ceiling,
-  note,
-  runUrlOf,
-}) {
+// over into a new job from the branch. Without progress the run is not
+// restarted: the issue goes back to the admission queue
+// (admission-deferred), and a second such stop in a row goes to a person.
+// decide() checks the ceilings first.
+function stopPlan({ issueNumber, branch, stop, progress, runId, runUrl, onResumed, humanLabel, ran, previousStop, note, runUrlOf }) {
   const reached = stopText(stop);
-  const handOff = (outcome, text) => {
-    const lines = escalated([turnCapMarker({ runId, onResumed, outcome }), ...text, "", ...noteLines(note)]);
-    if (runUrl) {
-      lines.push("", `Run: ${runUrl}`);
-    }
-    lines.push("", `To go on, remove \`${humanLabel}\` and add \`agent-ready\` again; the next run continues from the branch while it is not behind the default branch.`);
-    return {
-      action: "hand-back",
-      exit: outcome,
-      issueNumber,
-      comment: lines.join("\n"),
-      addLabels: [humanLabel],
-      removeLabels: ["agent-ready"],
-    };
-  };
   if (!progress && previousStop?.outcome === "no-progress") {
     const earlier = runUrlOf(previousStop.run) || `run ${previousStop.run}`;
-    return handOff("stalled", [
-      `The work-resolve-issue lane stopped on this issue twice in a row with no new commit, so it needs a person: ${earlier}, then ${runUrl || `run ${runId}`}.`,
-    ]);
-  }
-  if (progress && rollovers >= ceiling) {
-    return handOff("job-ceiling", [
-      `The work-resolve-issue lane stopped on this issue at the end of job ${rollovers + 1}: ${reached}. It has rolled the work over ${rollovers} times since a person last added \`agent-ready\`, the most \`limits.worker-job-ceiling\` allows, so it needs a person.`,
-      "",
-      `The work so far is on the branch \`${branch}\`.`,
-    ]);
+    return workHandOff({
+      outcome: "stalled",
+      text: [`The work-resolve-issue lane stopped on this issue twice in a row with no new commit, so it needs a person: ${earlier}, then ${runUrl || `run ${runId}`}.`],
+      issueNumber,
+      runId,
+      onResumed,
+      ran,
+      runUrl,
+      humanLabel,
+      note,
+    });
   }
   if (!progress) {
     const lines = [
-      turnCapMarker({ runId, onResumed, outcome: "no-progress" }),
+      turnCapMarker({ runId, onResumed, outcome: "no-progress", ran }),
       `The work-resolve-issue lane stopped on this issue: ${reached}, with no new commit, so it is not restarted. It removed \`agent-ready\` and added \`${DEFERRED_LABEL}\`, so work-unblock's next sweep admits it again through the queue.`,
     ];
     if (runUrl) {
@@ -574,8 +613,8 @@ function stopPlan({
     };
   }
   const lines = [
-    turnCapMarker({ runId, onResumed, outcome: stop.cause }),
-    `The work-resolve-issue lane stopped on this issue: ${reached}. It keeps \`agent-ready\`, and work-unblock starts it again from the branch in a new job (job ${rollovers + 2} of at most ${ceiling + 1}).`,
+    turnCapMarker({ runId, onResumed, outcome: stop.cause, ran }),
+    `The work-resolve-issue lane stopped on this issue: ${reached}. It keeps \`agent-ready\`, and work-unblock starts it again from the branch in a new job.`,
     "",
     `Partial work is on the branch \`${branch}\`, and the restart continues from it. Delete the branch first to start fresh.`,
   ];
@@ -745,11 +784,12 @@ export function reusePlan({
 // {cause: "timeout"} when the Actions API shows the model step ran its whole
 // time budget (never lane.json, which code the run executed can rewrite), and
 // `progress` whether main found a commit of the run's own on its lane branch
-// that changes more than the note. `rollovers` counts the App's roll-over
-// markers since a listed human last added agent-ready, `previousStop` is the
-// newest stop marker since then, and `note` the progress note's link and next
-// steps. `checks` is readChecks' record for the branch's current tip; null
-// stops a done run.
+// that changes more than the note. `ran` is this run's model-step minutes,
+// `activeMinutes` the earlier runs' since `since` (workSince; NaN when main
+// read no history), `previousStop` the newest stop marker since then, `note`
+// the progress note's link and next steps, and `waitingLabel` the label a
+// usage-limit wait adds ("" when the repository lacks it). `checks` is
+// readChecks' record for the branch's current tip; null stops a done run.
 export function decide({
   outcome,
   issueNumber,
@@ -764,10 +804,13 @@ export function decide({
   limit = null,
   stop = null,
   progress = false,
-  rollovers = 0,
+  ran = null,
+  activeMinutes = 0,
+  since = Number.NaN,
   previousStop = null,
   note = null,
   runUrlOf = () => "",
+  waitingLabel = "",
   funding = null,
   limits = LIMIT_DEFAULTS,
   now = Date.now(),
@@ -785,9 +828,19 @@ export function decide({
   if (funding && outcome.unread) {
     return fundingPlan({ issueNumber, branch, regain: funding.regain, runId, runUrl, onResumed });
   }
+  // A long run's ceilings come before its wait or its next job; `since` is
+  // NaN when main did not read the history (no wait or stop), so it never
+  // trips them.
+  const ceiling =
+    (limit || stop) && outcome.unread && !Number.isNaN(since)
+      ? ceilingReached({ activeMinutes: activeMinutes + (ran ?? 0), since, now, limits })
+      : null;
+  if (ceiling) {
+    return workHandOff({ outcome: ceiling.outcome, text: [ceiling.text], issueNumber, runId, onResumed, ran, runUrl, humanLabel, note });
+  }
   if (limit && outcome.unread) {
     const resets = new Date(clampReset(limit.resets, now, limits)).toISOString().replace(/\.\d+Z$/, "Z");
-    return limitedPlan({ issueNumber, branch, resets, runId, runUrl, onResumed });
+    return limitedPlan({ issueNumber, branch, resets, runId, runUrl, onResumed, ran, waitingLabel });
   }
   if (stop && outcome.unread) {
     // A patch apply-issue-patch refused can never land, so a restart would
@@ -814,9 +867,8 @@ export function decide({
       runUrl,
       onResumed,
       humanLabel,
-      rollovers,
+      ran,
       previousStop,
-      ceiling: limits["worker-job-ceiling"] ?? LIMIT_DEFAULTS["worker-job-ceiling"],
       note,
       runUrlOf,
     });
@@ -1003,11 +1055,11 @@ function humanLabelFrom(path) {
 }
 
 // The outcomes after which the next run continues the marked run's branch.
-export const RESUMABLE = new Set(["turn-cap", "timeout", "no-progress", "stalled", "job-ceiling", "stopped", "limited", "funding"]);
+export const RESUMABLE = new Set(["turn-cap", "timeout", "no-progress", "stalled", "active-ceiling", "wall-ceiling", "stopped", "limited", "funding"]);
 // The note a run keeps at the checkout root for the next job of a long run.
 export const PROGRESS_NOTE = ".lane-progress.md";
 // The stops of one long run, resumed from a branch behind main too.
-const CONTINUES = new Set(["turn-cap", "timeout", "job-ceiling"]);
+const CONTINUES = new Set(["turn-cap", "timeout", "active-ceiling", "wall-ceiling"]);
 
 // The issue's lane branch name, capturing its run id and attempt.
 const laneBranch = (issueNumber) => new RegExp(`^work-resolve-issue/issue-${issueNumber}-([1-9][0-9]*)-([1-9][0-9]*)$`);
@@ -1190,12 +1242,11 @@ export const MODEL_STEP = "Run the skill activity";
 // the budget still counts as the whole budget.
 const TIMEOUT_SLACK_SECONDS = 60;
 
-// The run's stop at its job's time limit, read from the Actions API, never
-// from lane.json: {cause: "timeout"} when the newest attempt of the run job's
-// model step ran its whole budget (`runMinutes`), else null. A job or step the
-// listing does not show, or a budget that is not a whole number, is unknown:
-// null, so the run is handed back like any stop, never restarted.
-export async function apiStop(github, repo, { runId, runMinutes }) {
+// The run's model step as the Actions API shows it, never lane.json:
+// {minutes, timedOut}, its run time rounded up and whether it ran its whole
+// budget (`runMinutes`), or null when the listing does not show the newest
+// attempt of the run job's model step or the budget is not a whole number.
+export async function apiRun(github, repo, { runId, runMinutes }) {
   if (!runId || !/^[1-9][0-9]{0,3}$/.test(runMinutes ?? "")) {
     return null;
   }
@@ -1205,27 +1256,40 @@ export async function apiStop(github, repo, { runId, runMinutes }) {
     .sort((a, b) => (b.run_attempt ?? 0) - (a.run_attempt ?? 0))[0];
   const step = (Array.isArray(job?.steps) ? job.steps : []).find((item) => item?.name === MODEL_STEP);
   const seconds = (Date.parse(step?.completed_at) - Date.parse(step?.started_at)) / 1000;
-  if (!Number.isFinite(seconds)) {
+  if (!Number.isFinite(seconds) || seconds < 0) {
     return null;
   }
-  return seconds >= Number(runMinutes) * 60 - TIMEOUT_SLACK_SECONDS ? { cause: "timeout" } : null;
+  return { minutes: Math.ceil(seconds / 60), timedOut: seconds >= Number(runMinutes) * 60 - TIMEOUT_SLACK_SECONDS };
 }
 
-// The roll-overs and the newest stop since a listed human last added
-// agent-ready, from the App's outcome markers other than this run's own:
-// `rollovers` counts timeout and turn-cap markers, and `previousStop` is the
-// newest of those or a no-progress marker ({outcome, run}), else null.
+// When the issue's current run of work began: the newest agent-ready a listed
+// human added, else (an issue the App admitted) the oldest one the App added,
+// else never (-Infinity), which every ceiling counts as exceeded.
+export function workSince({ events, bot, humans }) {
+  const adds = events.filter((event) => event?.event === "labeled" && event.label?.name === "agent-ready");
+  const human = adds.filter((event) => humans.has(event.actor?.id)).map((event) => Date.parse(event.created_at));
+  if (human.length) {
+    return Math.max(...human);
+  }
+  const app = adds.filter((event) => event.actor?.login === bot).map((event) => Date.parse(event.created_at));
+  return app.length ? Math.min(...app) : Number.NEGATIVE_INFINITY;
+}
+
+// Since workSince, from the App's outcome markers other than this run's own:
+// `activeMinutes` sums their `ran` (model-step minutes; usage-limit waits are
+// not run time), and `previousStop` is the newest timeout, turn-cap or
+// no-progress marker ({outcome, run}), else null.
 export const STOP_OUTCOMES = new Set(["timeout", "turn-cap", "no-progress"]);
 export function stopHistory({ comments, events, bot, humans, runId }) {
-  const since = events
-    .filter((event) => event?.event === "labeled" && event.label?.name === "agent-ready" && humans.has(event.actor?.id))
-    .reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
-  const stops = comments
+  const since = workSince({ events, bot, humans });
+  const markers = comments
     .filter((comment) => comment.user?.login === bot && Date.parse(comment.created_at) > since)
     .map((comment) => parseOutcomeMarker(comment.body))
-    .filter((marker) => STOP_OUTCOMES.has(marker?.outcome) && marker.run !== runId);
+    .filter((marker) => marker !== null && marker.run !== runId);
+  const stops = markers.filter((marker) => STOP_OUTCOMES.has(marker.outcome));
   return {
-    rollovers: stops.filter((marker) => marker.outcome !== "no-progress").length,
+    since,
+    activeMinutes: markers.reduce((sum, marker) => sum + (marker.ran ?? 0), 0),
     previousStop: stops.length ? { outcome: stops.at(-1).outcome, run: stops.at(-1).run } : null,
   };
 }
@@ -1246,7 +1310,7 @@ export async function readNote(github, repo, { branch, serverUrl, repository }) 
   let inNext = false;
   for (const line of text.split("\n")) {
     if (/^#{1,6}\s/.test(line)) {
-      inNext = /^#{1,6}\s+next steps\b/i.test(line);
+      inNext = /^#{1,6}\s+next(?: steps)?\s*$/i.test(line);
     } else if (inNext && /^\s*(?:[-*+]|\d+[.)])\s+\S/.test(line)) {
       next.push(line.replace(/^\s*(?:[-*+]|\d+[.)])\s+/, ""));
     }
@@ -1578,13 +1642,21 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     // Only a run with no outcome of its own, and no limit or funding stop,
     // asks the Actions API whether it stopped at its job's time limit; only
     // such a stop reads the issue's history, the progress and the note.
-    const unread = !unreported && funding === null && limit === null && outcome?.unread === true;
-    const stop = unread ? await apiStop(github, repo, { runId, runMinutes: env.WORKER_RUN_MINUTES }) : null;
-    const capped = stop !== null;
+    // A run with no outcome of its own and no funding stop reads its model
+    // step from the Actions API: whether it stopped at its time limit, and
+    // its run time. A time-limit stop or a usage-limit wait then reads the
+    // issue's history, the progress and the note.
+    const unread = !unreported && funding === null && outcome?.unread === true;
+    const run = unread ? await apiRun(github, repo, { runId, runMinutes: env.WORKER_RUN_MINUTES }) : null;
+    // Run time the API cannot show counts as the whole budget, so the
+    // active-time ceiling comes sooner, never later.
+    const runMinutes = run?.minutes ?? (/^[1-9][0-9]{0,3}$/.test(env.WORKER_RUN_MINUTES ?? "") ? Number(env.WORKER_RUN_MINUTES) : null);
+    const stop = unread && limit === null && run?.timedOut ? { cause: "timeout" } : null;
+    const capped = stop !== null || (unread && limit !== null);
     const comments = capped ? await paginate(github, `${repo}/issues/${issueNumber}/comments`) : [];
-    const progress = capped ? await madeProgress(github, repo, { branch, issueNumber, runId, bot }) : false;
-    // An unreadable trusted-actor list counts every marker, so it hands back
-    // sooner, never later.
+    const progress = stop !== null ? await madeProgress(github, repo, { branch, issueNumber, runId, bot }) : false;
+    // An unreadable trusted-actor list counts from the App's first
+    // agent-ready, so it hands back sooner, never later.
     const history = capped
       ? stopHistory({
           comments,
@@ -1599,10 +1671,16 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           })(),
           runId,
         })
-      : { rollovers: 0, previousStop: null };
+      : { since: Number.NaN, activeMinutes: 0, previousStop: null };
     const note = capped
       ? await readNote(github, repo, { branch: branch || resumed, serverUrl: env.GITHUB_SERVER_URL, repository: env.GITHUB_REPOSITORY })
       : null;
+    // The waiting label is added only once github-iac has declared it: adding
+    // a label the repository lacks would create it undeclared.
+    const waitingLabel =
+      unread && limit !== null && (await github("GET", `${repo}/labels/${encodeURIComponent(WAITING_LABEL)}`).then(() => true, () => false))
+        ? WAITING_LABEL
+        : "";
     const humanLabel = humanLabelFrom(env.TRACKER_CONFIG ?? ".base/.work-item-tracker.json");
     let plan = unreported
       ? reusePlan({
@@ -1631,10 +1709,13 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           limit,
           stop,
           progress,
-          rollovers: history.rollovers,
+          ran: capped ? runMinutes : null,
+          activeMinutes: history.activeMinutes,
+          since: history.since,
           previousStop: history.previousStop,
           note,
           runUrlOf,
+          waitingLabel,
           funding,
           limits: readLimits(resolvedPath),
           now,
@@ -1681,6 +1762,9 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       });
       if (!posted) {
         await github("POST", `${repo}/issues/${issueNumber}/comments`, { body: plan.comment });
+        if (plan.addLabels.length) {
+          await github("POST", `${repo}/issues/${issueNumber}/labels`, { labels: plan.addLabels });
+        }
       }
       console.log(
         plan.action === "funding"

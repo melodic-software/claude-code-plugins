@@ -106,7 +106,7 @@
           "minimum": 1,
           "maximum": 10,
           "default": 3,
-          "description": "Limit stops since a person last added agent-ready after which work-unblock hands the issue to a person."
+          "description": "Funding stops since a person last added agent-ready after which work-unblock hands the issue to a person. An issue run's usage-limit waits do not count; worker-active-hours and worker-wall-days bound them."
         },
         "wip-cap": {
           "type": "integer",
@@ -115,12 +115,19 @@
           "default": 60,
           "description": "The issue lane's WIP cap when the lane merge rate cannot be read; otherwise wip.target-lead-time-hours sets it."
         },
-        "worker-job-ceiling": {
+        "worker-active-hours": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 50,
-          "default": 8,
-          "description": "Jobs an issue run may roll over into (stops at a job's time limit that committed new work) since a listed human last added agent-ready; the next such stop hands the issue to a person."
+          "maximum": 336,
+          "default": 48,
+          "description": "Hours of model run time (the sum of its jobs' model steps; usage-limit waits do not count) an issue run may spend since a listed human last added agent-ready; the stop or wait that reaches it hands the issue to a person."
+        },
+        "worker-wall-days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30,
+          "default": 7,
+          "description": "Days of wall-clock time, waits included, an issue run may take since a listed human last added agent-ready; the stop or wait past it hands the issue to a person."
         },
         "fix-ci-per-run": {
           "type": "integer",

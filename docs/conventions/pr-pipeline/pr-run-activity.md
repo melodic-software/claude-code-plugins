@@ -1854,20 +1854,32 @@ the escalation marker. What changes from the PR flow:
   `stopped` with `needs-human`. A stop at the time limit then branches on progress, also read from
   the API: this run's own lane branch exists, its tip is a lanes-App commit (apply-issue-patch
   commits only a non-empty patch), and that commit changes a file other than the progress note.
-  - With progress the job rolls over: the marker is `<!-- work-resolve-issue outcome=timeout run=<run id> -->`,
-    the comment names the branch, `agent-ready` stays with no label added, and the work-unblock
-    sweep restarts the issue from that branch as it does after a limit stop. At most
-    `limits.worker-job-ceiling` roll-overs count since a listed human last added `agent-ready`
-    (the App's and other labelers' adds reset nothing); the next stop hands back with
-    `outcome=job-ceiling`, `needs-human` and a comment naming the job count, linking the progress
-    note on the branch and listing the bullets under its Next steps heading.
+  - With progress the job rolls over: the marker is
+    `<!-- work-resolve-issue outcome=timeout run=<run id> ran=<minutes> -->`, the comment names
+    the branch, `agent-ready` stays with no label added, and the work-unblock sweep restarts the
+    issue from that branch as it does after a limit stop.
   - With none it is not restarted: the marker is `outcome=no-progress`, report-outcome removes
     `agent-ready` and then adds `admission-deferred`, and the next sweep re-admits it through the
-    queue, with no `needs-human` and no escalation marker. When the newest stop marker since that
-    human's `agent-ready` is already `no-progress`, it hands back instead with `outcome=stalled`,
+    queue, with no `needs-human` and no escalation marker. When the newest stop marker since the
+    run of work began is already `no-progress`, it hands back instead with `outcome=stalled`,
     `needs-human` and a comment naming both runs and the note. A roll-over in between resets that
     streak.
   - A stop whose patch apply-issue-patch refused hands back like `stopped`.
+  - A usage-limit stop (lane record class `rate-limit`) is a wait, not a stop: the marker is
+    `outcome=limited resets=<time> run=<run id> ran=<minutes>`, `agent-ready` stays, the
+    `lane: waiting-on-usage` label goes on when the repository has it (report-outcome reads the
+    label first, so it never creates an undeclared one), and work-unblock restarts the issue at
+    the reset, held within `limits.reset-clamp-min` and `reset-clamp-max`, and takes the label
+    off. A wait never adds `needs-human` and never counts toward `limits.limit-stops-per-issue`.
+
+  The run of work began at the newest `agent-ready` a listed human added, or, for an issue the
+  App admitted, at the App's first one. Each marker's `ran=` is its job's model-step minutes from
+  the Actions API (the whole budget when the API cannot show it). Before a roll-over, re-queue or
+  wait, report-outcome hands the issue back with `needs-human`, the progress note's link and the
+  bullets under its Next heading when the run reaches `limits.worker-active-hours` of summed
+  `ran=` minutes (`outcome=active-ceiling`; waits are not run time) or `limits.worker-wall-days`
+  of wall clock (`outcome=wall-ceiling`). work-unblock applies the same two ceilings before any
+  restart, so a forged or stale marker cannot restart past them.
 
   The run keeps its progress note, `.lane-progress.md` at the checkout root, in its change, so it
   rides the lane branch to the next job; the activity's `scripts/check-lane-progress-note.sh
@@ -1878,7 +1890,7 @@ the escalation marker. What changes from the PR flow:
   `error-text`, read by the `Read the run's API error` step from the execution file's result
   fields): the comment opens with `<!-- work-resolve-issue outcome=funding resets=<date> run=<run id> -->`
   (no `resets` when no date is readable), it keeps `agent-ready` and adds no label, it counts
-  toward `limits.limit-stops-per-issue` with limit stops, and work-unblock restarts the issue after the date, held
+  toward `limits.limit-stops-per-issue` (a usage-limit wait does not), and work-unblock restarts the issue after the date, held
   within `limits.reset-clamp-min` and `reset-clamp-max`; with no date a person restarts it. The
   status reads "Stopped on the lane's funding.". The next run resumes a funding-stopped run's
   branch like a `limited` one's.

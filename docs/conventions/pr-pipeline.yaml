@@ -673,23 +673,22 @@ models:
           "85127654": known
           "85127655": knowable
           "85127656": unknown
-    # A worker run has no turn or time cap of its own: it works as long as the
-    # issue takes, across as many jobs as it needs (owner decision C13). Each
-    # job runs up to GitHub's hosted-job maximum, 360 minutes
-    # (https://docs.github.com/en/actions/reference/limits); its model step
-    # stops 20 minutes earlier (resolve-config's SAVE_MINUTES) so the job
-    # saves the work to the lane branch, and work-unblock restarts the issue
-    # from that branch in a new job while each job commits new work.
-    # base-turns never binds before that: 50000 turns, at most 100000 with
-    # the high factor, in a 340-minute step would need a turn every 0.4
-    # seconds; the 6-digit cap record (report-outcome readStop) still holds it.
+    # A worker run has no turn or time cap of its own: it works across as
+    # many jobs as it needs (owner decision C13), within the limits block's
+    # worker-active-hours and worker-wall-days. Each job is about an hour
+    # (owner decision Q98): the job times out at 75 minutes and its model
+    # step 20 minutes earlier (resolve-config's SAVE_MINUTES), so the job
+    # commits the work and the progress note to the lane branch, and an
+    # outage loses at most one job. work-unblock then starts the next job
+    # from that branch. base-turns never binds first: 50000 turns in a
+    # 55-minute step would need about 15 turns a second.
     sizes:
       small:
         base-turns: 50000
-        timeout-minutes: 360
+        timeout-minutes: 75
       medium:
         base-turns: 50000
-        timeout-minutes: 360
+        timeout-minutes: 75
       # Too big for one run: large work is split into dependent issues before
       # any run picks it up (owner decision Q93). One that reaches the lane is
       # skipped (split-required) before any model turn and handed back to
@@ -738,11 +737,13 @@ limits:
   wip-cap: 12
   # An issue run has no turn or time cap of its own (owner decision C13): a
   # job that reaches its time limit after committing new work rolls over into
-  # a new job from its lane branch. At most this many roll-overs since a
-  # listed human last added agent-ready, about 48 hours at 6 hours a job; the
-  # next stop hands the issue to a person (owner decision Q97). Two
-  # consecutive stops with no new commit hand it to a person too.
-  worker-job-ceiling: 8
+  # a new job from its lane branch. Owner decision Q98 bounds the whole run,
+  # counted since a listed human last added agent-ready: 48 hours of model
+  # run time (usage-limit waits do not count) and 7 days of wall clock. The
+  # stop or wait that reaches either hands the issue to a person with the
+  # progress note, and so do two consecutive stops with no new commit.
+  worker-active-hours: 48
+  worker-wall-days: 7
   # Share of the lane's hourly merge rate admitted per hour. The queued cap
   # (check-wip-cap) is the larger of this rate and admission-min-per-hour,
   # times wip.merge-rate-window-hours; at it, past wip.pause-from, new

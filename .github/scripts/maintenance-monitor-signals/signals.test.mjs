@@ -388,7 +388,7 @@ const stop = (id, outcome, issue = 7677) => ({
 });
 
 test("signal 9: every lane stop and roll-over fires one key per outcome", () => {
-  const outcomes = ["funding", "limited", "turn-cap", "timeout", "no-progress", "job-ceiling", "stalled"];
+  const outcomes = ["funding", "limited", "turn-cap", "timeout", "no-progress", "active-ceiling", "wall-ceiling", "stalled"];
   const found = detect({ ...base, laneStops: [...outcomes.map((outcome, i) => stop(i + 1, outcome)), stop(20, "timeout", 42)] });
   assert.deepEqual(found.map((f) => f.key).sort(), outcomes.map((outcome) => `lane-stop:${outcome}`).sort());
   assert.deepEqual(found.find((f) => f.key === "lane-stop:timeout").facts.length, 2);

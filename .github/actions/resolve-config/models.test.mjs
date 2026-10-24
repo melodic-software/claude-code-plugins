@@ -266,12 +266,12 @@ test("live config: an issue with no Complexity keeps the default profile and run
   assert.equal(slot.models["max-turns"], 75000);
 });
 
-test("live config: an issue with no fields runs a whole hosted job, its model step stopping in time to save its work", () => {
+test("live config: an issue with no fields runs an hour-long job, its model step stopping in time to save its work", () => {
   const slot = liveIssueSlot({});
   assert.equal(slot.applies, true);
   assert.equal(slot["issue-dimensions"], "small/medium/known");
-  assert.equal(slot["timeout-minutes"], 360);
-  assert.equal(slot["run-minutes"], 340);
+  assert.equal(slot["timeout-minutes"], 75);
+  assert.equal(slot["run-minutes"], 55);
 });
 
 // Owner decision C13: a worker run has no turn cap that binds. Every running

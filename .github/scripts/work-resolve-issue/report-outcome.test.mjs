@@ -23,6 +23,7 @@ import {
   readChecks,
   readOutcome,
   stopHistory,
+  workSince,
   reusePlan,
   trustedLabeler,
 } from "./report-outcome.mjs";
@@ -1292,12 +1293,16 @@ test("the limited marker reads back with its reset and run", () => {
 
 const LIMIT_NOW = Date.parse("2026-10-17T12:00:00Z");
 const LIMITED_LANE = JSON.stringify({ branch: "", class: "rate-limit", resets: "2026-10-17T18:00:00Z" });
+// The App admitted the issue an hour before the limit stop, so the run of
+// work is young and no ceiling trips.
+const LIMIT_EVENTS = [{ event: "labeled", label: { name: "agent-ready" }, actor: { login: "melodic-automation-lanes[bot]" }, created_at: "2026-10-17T11:00:00Z" }];
 
 test("main on a limit stop comments the marker and touches no label", async () => {
   await withDir({ "lane.json": LIMITED_LANE }, async (dir) => {
     const { fetch, calls } = fakeFetch([
       ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
       ["GET", /\/issues\/77\/comments$/, 200, []],
+      ["GET", /\/issues\/77\/events$/, 200, LIMIT_EVENTS],
       ["POST", /\/issues\/77\/comments$/, 201, {}],
     ]);
     assert.equal(await main({ env: env(dir), fetch, now: LIMIT_NOW }), 0);
@@ -1318,6 +1323,7 @@ test("main takes the fallback reset and clamp from the resolved config's limits"
       const { fetch, calls } = fakeFetch([
         ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
         ["GET", /\/issues\/77\/comments$/, 200, []],
+        ["GET", /\/issues\/77\/events$/, 200, LIMIT_EVENTS],
         ["POST", /\/issues\/77\/comments$/, 201, {}],
       ]);
       assert.equal(await main({ env: { ...env(dir), RESOLVED_CONFIG: join(dir, "resolved.json") }, fetch, now: LIMIT_NOW }), 0);
@@ -1333,6 +1339,7 @@ test("main posts the limited marker once per run", async () => {
     const { fetch, calls } = fakeFetch([
       ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
       ["GET", /\/issues\/77\/comments$/, 200, [{ user: { login: "melodic-automation-lanes[bot]" }, body: marker }]],
+      ["GET", /\/issues\/77\/events$/, 200, LIMIT_EVENTS],
     ]);
     assert.equal(await main({ env: env(dir), fetch, now: LIMIT_NOW }), 0);
     assert.ok(!calls.some((c) => c.method === "POST"));
@@ -1355,6 +1362,9 @@ test("a late rerun finds its marker past the first page of the whole history", a
       if (pathname.endsWith("/comments")) {
         return ok(searchParams.get("page") === "1" ? filler : [{ user: { login: "melodic-automation-lanes[bot]" }, body: marker }]);
       }
+      if (pathname.endsWith("/events")) {
+        return ok(LIMIT_EVENTS);
+      }
       return ok(ISSUE[2]);
     };
     // Two days after the stop: a since-bounded read would miss the marker.
@@ -1370,6 +1380,7 @@ test("main does not take another account's copy of the marker as its own", async
     const { fetch, calls } = fakeFetch([
       ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
       ["GET", /\/issues\/77\/comments$/, 200, [{ user: { login: "stranger" }, body: marker }]],
+      ["GET", /\/issues\/77\/events$/, 200, LIMIT_EVENTS],
       ["POST", /\/issues\/77\/comments$/, 201, {}],
     ]);
     assert.equal(await main({ env: env(dir), fetch, now: LIMIT_NOW }), 0);
@@ -1377,15 +1388,16 @@ test("main does not take another account's copy of the marker as its own", async
   });
 });
 
-// A stopped run (owner decisions C13 and Q97): a run that left no outcome of
-// its own and whose model step, as the Actions API shows it, ran its whole
-// time budget. A job that committed new work rolls over into a new job (marker
-// `outcome=timeout run=<id>`, agent-ready kept), at most
-// limits.worker-job-ceiling times since a listed human last added
-// agent-ready; the next such stop goes to a person (`outcome=job-ceiling`).
-// One with no new commit is re-queued (`outcome=no-progress`), and a second in
-// a row goes to a person (`outcome=stalled`). lane.json's class decides
-// nothing: code the run executed can rewrite it.
+// A stopped run (owner decisions C13, Q97 and Q98): a run that left no
+// outcome of its own and whose model step, as the Actions API shows it, ran
+// its whole time budget. A job that committed new work rolls over into a new
+// job (marker `outcome=timeout run=<id> ran=<minutes>`, agent-ready kept),
+// within 48 hours of model run time and 7 days of wall clock since the run of
+// work began; the stop or wait that reaches either goes to a person
+// (`active-ceiling`, `wall-ceiling`). One with no new commit is re-queued
+// (`outcome=no-progress`), and a second in a row goes to a person
+// (`outcome=stalled`). lane.json's class decides nothing: code the run
+// executed can rewrite it.
 const OWNER = { id: 153232337, login: "kyle-sexton" };
 const added = (at, actor = { id: 1, login: "melodic-automation-lanes[bot]" }) => ({
   event: "labeled",
@@ -1393,6 +1405,7 @@ const added = (at, actor = { id: 1, login: "melodic-automation-lanes[bot]" }) =>
   actor,
   created_at: at,
 });
+const STOP_NOW = Date.parse("2026-10-17T12:00:00Z");
 const capped = (overrides = {}) =>
   decide({
     outcome: readOutcome("/nonexistent/work-outcome.json"),
@@ -1403,6 +1416,10 @@ const capped = (overrides = {}) =>
     stop: { cause: "timeout" },
     progress: true,
     runId: "555",
+    ran: 55,
+    activeMinutes: 0,
+    since: STOP_NOW - 3_600_000,
+    now: STOP_NOW,
     checks: NO_CHECKS,
     runUrlOf: (id) => (id ? `https://example/o/r/actions/runs/${id}` : ""),
     runUrl: "https://example/o/r/actions/runs/555",
@@ -1410,32 +1427,57 @@ const capped = (overrides = {}) =>
     ...overrides,
   });
 
-test("a job at its time limit that committed new work rolls over, keeping agent-ready", () => {
+test("a job at its time limit that committed new work rolls over, keeping agent-ready and recording its run time", () => {
   const plan = capped();
   assert.equal(plan.action, "timeout");
   assert.deepEqual(plan.addLabels, []);
   assert.deepEqual(plan.removeLabels, []);
-  assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=timeout run=555 -->\n"), plan.comment);
+  assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=timeout run=555 ran=55 -->\n"), plan.comment);
   assert.match(plan.comment, /time limit/);
   assert.ok(plan.comment.includes(BRANCH));
   assert.ok(!plan.comment.includes("work-items:escalation"), plan.comment);
-  assert.equal(parseOutcomeMarker(plan.comment).outcome, "timeout");
+  assert.deepEqual(parseOutcomeMarker(plan.comment), { outcome: "timeout", resets: null, run: "555", onResumed: false, ran: 55 });
 });
 
-test("the 8th roll-over restarts and the 9th stop goes to a person with the job count and the note's next steps", () => {
-  const eighth = capped({ rollovers: 7 });
-  assert.equal(eighth.action, "timeout");
-  const ninth = capped({ rollovers: 8 });
-  assert.equal(ninth.action, "hand-back");
-  assert.deepEqual(ninth.addLabels, ["needs-human"]);
-  assert.deepEqual(ninth.removeLabels, ["agent-ready"]);
-  assert.ok(ninth.comment.startsWith(ESC + "<!-- work-resolve-issue outcome=job-ceiling run=555 -->\n"), ninth.comment);
-  assert.match(ninth.comment, /job 9\b/);
-  assert.match(ninth.comment, /8 times/);
-  assert.ok(ninth.comment.includes("/blob/work-resolve-issue/issue-77-123-1/.lane-progress.md"), ninth.comment);
-  assert.ok(ninth.comment.includes("- Wire the reader") && ninth.comment.includes("- Add its test"), ninth.comment);
+test("the job that reaches 48 hours of run time goes to a person with the note's next steps; one short of it rolls over", () => {
+  assert.equal(capped({ activeMinutes: 48 * 60 - 56 }).action, "timeout");
+  const over = capped({ activeMinutes: 48 * 60 - 55 });
+  assert.equal(over.action, "hand-back");
+  assert.deepEqual(over.addLabels, ["needs-human"]);
+  assert.deepEqual(over.removeLabels, ["agent-ready"]);
+  assert.ok(over.comment.startsWith(ESC + "<!-- work-resolve-issue outcome=active-ceiling run=555 ran=55 -->\n"), over.comment);
+  assert.match(over.comment, /48 hours/);
+  assert.ok(over.comment.includes("/blob/work-resolve-issue/issue-77-123-1/.lane-progress.md"), over.comment);
+  assert.ok(over.comment.includes("- Wire the reader") && over.comment.includes("- Add its test"), over.comment);
   // The ceiling is the config's.
-  assert.equal(capped({ rollovers: 3, limits: { ...LIMIT_DEFAULTS, "worker-job-ceiling": 3 } }).action, "hand-back");
+  assert.equal(capped({ activeMinutes: 6 * 60, limits: { ...LIMIT_DEFAULTS, "worker-active-hours": 6 } }).action, "hand-back");
+  // A no-progress stop and a usage-limit wait reach it the same way.
+  assert.match(capped({ progress: false, activeMinutes: 48 * 60 }).comment, /outcome=active-ceiling/);
+  assert.match(capped({ stop: null, limit: { resets: null }, activeMinutes: 48 * 60 }).comment, /outcome=active-ceiling/);
+});
+
+test("7 days of wall clock since the run of work began hands back, waits included", () => {
+  const sevenDays = 7 * 24 * 3_600_000;
+  assert.equal(capped({ since: STOP_NOW - sevenDays + 60_000 }).action, "timeout");
+  for (const overrides of [{}, { stop: null, limit: { resets: null } }]) {
+    const plan = capped({ since: STOP_NOW - sevenDays, ...overrides });
+    assert.equal(plan.action, "hand-back", JSON.stringify(overrides));
+    assert.deepEqual(plan.addLabels, ["needs-human"]);
+    assert.match(plan.comment, /outcome=wall-ceiling/);
+    assert.ok(plan.comment.includes(".lane-progress.md"), plan.comment);
+  }
+  // An issue with no agent-ready add on record counts as past it.
+  assert.equal(capped({ since: Number.NEGATIVE_INFINITY }).action, "hand-back");
+});
+
+test("a usage-limit wait keeps agent-ready, adds the waiting label when the repository has it, and never adds needs-human", () => {
+  const plan = capped({ stop: null, limit: { resets: Date.parse("2026-10-17T18:00:00Z") }, waitingLabel: "lane: waiting-on-usage", activeMinutes: 40 * 60 });
+  assert.equal(plan.action, "limited");
+  assert.deepEqual(plan.addLabels, ["lane: waiting-on-usage"]);
+  assert.deepEqual(plan.removeLabels, []);
+  assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=limited resets=2026-10-17T18:00:00Z run=555 ran=55 -->\n"), plan.comment);
+  assert.ok(!plan.comment.includes("work-items:escalation") && !plan.comment.includes("needs-human"), plan.comment);
+  assert.deepEqual(capped({ stop: null, limit: { resets: null } }).addLabels, []);
 });
 
 test("a stopped job with no new commit is re-queued, not restarted, and no person is asked", () => {
@@ -1444,7 +1486,7 @@ test("a stopped job with no new commit is re-queued, not restarted, and no perso
     assert.equal(plan.action, "no-progress", JSON.stringify(overrides));
     assert.deepEqual(plan.addLabels, ["admission-deferred"]);
     assert.deepEqual(plan.removeLabels, ["agent-ready"]);
-    assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=no-progress run=555 -->\n"), plan.comment);
+    assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=no-progress run=555 ran=55 -->\n"), plan.comment);
     assert.ok(!plan.comment.includes("work-items:escalation"), plan.comment);
   }
 });
@@ -1453,7 +1495,7 @@ test("a second no-progress stop in a row goes to a person, naming both runs and 
   const plan = capped({ progress: false, branch: "", previousStop: { outcome: "no-progress", run: "400" } });
   assert.equal(plan.action, "hand-back");
   assert.deepEqual(plan.addLabels, ["needs-human"]);
-  assert.ok(plan.comment.startsWith(ESC + "<!-- work-resolve-issue outcome=stalled run=555 -->\n"), plan.comment);
+  assert.ok(plan.comment.startsWith(ESC + "<!-- work-resolve-issue outcome=stalled run=555 ran=55 -->\n"), plan.comment);
   assert.ok(plan.comment.includes("https://example/o/r/actions/runs/400"), plan.comment);
   assert.ok(plan.comment.includes("https://example/o/r/actions/runs/555"), plan.comment);
   assert.ok(plan.comment.includes(".lane-progress.md"), plan.comment);
@@ -1463,32 +1505,41 @@ test("a no-progress stop followed by a progress stop resets the streak", () => {
   // The newest stop since the person's agent-ready was a roll-over, so this
   // no-progress stop is the first in a row.
   const comments = [
-    { user: { login: BOT }, body: "<!-- work-resolve-issue outcome=no-progress run=400 -->", created_at: "2026-10-17T03:00:00Z" },
-    { user: { login: BOT }, body: "<!-- work-resolve-issue outcome=timeout run=401 -->", created_at: "2026-10-17T09:00:00Z" },
+    { user: { login: BOT }, body: "<!-- work-resolve-issue outcome=no-progress run=400 ran=55 -->", created_at: "2026-10-17T03:00:00Z" },
+    { user: { login: BOT }, body: "<!-- work-resolve-issue outcome=timeout run=401 ran=55 -->", created_at: "2026-10-17T09:00:00Z" },
   ];
   const events = [added("2026-10-17T01:00:00Z", OWNER)];
   const history = stopHistory({ comments, events, bot: BOT, humans: HUMANS, runId: "555" });
-  assert.deepEqual(history, { rollovers: 1, previousStop: { outcome: "timeout", run: "401" } });
+  assert.deepEqual(history, { since: Date.parse("2026-10-17T01:00:00Z"), activeMinutes: 110, previousStop: { outcome: "timeout", run: "401" } });
   assert.equal(capped({ progress: false, ...history }).action, "no-progress");
 });
 
-test("the roll-over count and the streak start again at a listed human's agent-ready, not another labeler's", () => {
-  const marker = (outcome, run, at, login = BOT) => ({ user: { login }, body: `<!-- work-resolve-issue outcome=${outcome} run=${run} -->`, created_at: at });
+test("run time and the streak count from a listed human's newest agent-ready, waits excluded, other labelers' adds ignored", () => {
+  const marker = (outcome, run, at, ran, login = BOT) => ({
+    user: { login },
+    body: `<!-- work-resolve-issue outcome=${outcome}${outcome === "limited" ? " resets=2026-10-17T03:00:00Z" : ""} run=${run} ran=${ran} -->`,
+    created_at: at,
+  });
   const comments = [
-    ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => marker("timeout", String(n), `2026-10-16T0${n}:30:00Z`)),
-    marker("no-progress", "9", "2026-10-16T09:30:00Z"),
-    marker("timeout", "10", "2026-10-17T02:00:00Z"),
-    marker("timeout", "11", "2026-10-17T03:00:00Z", "stranger"),
-    marker("timeout", "555", "2026-10-17T04:00:00Z"),
+    marker("timeout", "1", "2026-10-16T01:30:00Z", 55),
+    marker("no-progress", "2", "2026-10-16T09:30:00Z", 55),
+    marker("timeout", "10", "2026-10-17T02:00:00Z", 55),
+    // A usage-limit wait counts only the minutes its job ran, not the wait.
+    marker("limited", "11", "2026-10-17T02:30:00Z", 20),
+    marker("timeout", "12", "2026-10-17T03:00:00Z", 55, "stranger"),
+    marker("timeout", "555", "2026-10-17T04:00:00Z", 55),
   ];
   const humanReAdd = [added("2026-10-16T00:00:00Z", OWNER), added("2026-10-17T01:00:00Z", OWNER)];
   assert.deepEqual(stopHistory({ comments, events: humanReAdd, bot: BOT, humans: HUMANS, runId: "555" }), {
-    rollovers: 1,
+    since: Date.parse("2026-10-17T01:00:00Z"),
+    activeMinutes: 75,
     previousStop: { outcome: "timeout", run: "10" },
   });
   // The App's or an unlisted triager's re-add resets nothing.
   const otherReAdd = [added("2026-10-16T00:00:00Z", OWNER), added("2026-10-17T01:00:00Z"), added("2026-10-17T01:30:00Z", { id: 42, login: "triager" })];
-  assert.equal(stopHistory({ comments, events: otherReAdd, bot: BOT, humans: HUMANS, runId: "555" }).rollovers, 9);
+  assert.equal(stopHistory({ comments, events: otherReAdd, bot: BOT, humans: HUMANS, runId: "555" }).activeMinutes, 185);
+  // With no listed human's add, the run of work begins at the App's first add.
+  assert.equal(workSince({ events: [added("2026-10-16T05:00:00Z"), added("2026-10-16T09:00:00Z")], bot: BOT, humans: HUMANS }), Date.parse("2026-10-16T05:00:00Z"));
 });
 
 test("a stopped job whose patch apply-issue-patch refused goes to a person", () => {
@@ -1507,7 +1558,7 @@ test("a stop record beside a readable outcome keeps that outcome", () => {
 });
 
 test("the stop markers read back with their run", () => {
-  for (const outcome of ["turn-cap", "timeout", "no-progress", "stalled", "job-ceiling"]) {
+  for (const outcome of ["turn-cap", "timeout", "no-progress", "stalled", "active-ceiling", "wall-ceiling"]) {
     assert.deepEqual(parseOutcomeMarker(`<!-- work-resolve-issue outcome=${outcome} run=555 -->\ntext`), {
       outcome,
       resets: null,
@@ -1533,8 +1584,10 @@ const jobsAnswer = (minutes, { name = "resolve-issue / run", step = "Run the ski
     },
   ],
 });
-const NOTE = Buffer.from("# Progress\n\n## Done\n\n- the reader\n\n## Next steps\n\n- Wire the reader\n- Add its test\n").toString("base64");
-const STOP_ROUTES = ({ tip = STOP_TIP, comments = [], jobs = jobsAnswer(340), events = [] } = {}) => [
+const NOTE = Buffer.from("# Progress\n\n## Done\n\n- the reader\n\n## Next\n\n- Wire the reader\n- Add its test\n").toString("base64");
+// The App admitted the issue an hour ago, so the run of work is young.
+const RECENT_ADD = [{ event: "labeled", label: { name: "agent-ready" }, actor: { login: "melodic-automation-lanes[bot]" }, created_at: new Date(Date.now() - 3_600_000).toISOString() }];
+const STOP_ROUTES = ({ tip = STOP_TIP, comments = [], jobs = jobsAnswer(340), events = RECENT_ADD } = {}) => [
   ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
   ["GET", /\/actions\/runs\/123\/jobs$/, 200, jobs],
   ["GET", /\/issues\/77\/comments$/, 200, comments],
@@ -1557,7 +1610,7 @@ test("main on a job whose model step ran its whole budget, with a lanes-App comm
       assert.equal(await main({ env: stopEnv(dir), fetch }), 0);
       const writes = calls.filter((c) => c.method !== "GET");
       assert.equal(writes.length, 1, cls);
-      assert.ok(writes[0].body.body.startsWith("<!-- work-resolve-issue outcome=timeout run=123 -->"), writes[0].body.body);
+      assert.ok(writes[0].body.body.startsWith("<!-- work-resolve-issue outcome=timeout run=123 ran=340 -->"), writes[0].body.body);
     });
   }
 });
@@ -1600,7 +1653,7 @@ test("main on a stop whose branch tip is not the lanes App's re-queues it with n
     const { fetch, calls } = fakeFetch(STOP_ROUTES({ tip: { ...STOP_TIP, author: { login: "stranger" } } }));
     assert.equal(await main({ env: stopEnv(dir), fetch }), 0);
     const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
-    assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=no-progress run=123 -->"), comment);
+    assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=no-progress run=123 ran=340 -->"), comment);
     assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body, { labels: ["admission-deferred"] });
     // The marker comes before the label moves, so work-unblock reads the removal as a re-queue;
     // agent-ready comes off before admission-deferred goes on, so the deferred sweep never sees
@@ -1636,21 +1689,44 @@ test("main on a stop that names another run's branch, or none, counts no progres
   }
 });
 
-test("main at the ninth stop since a person's agent-ready hands back with the note's next steps", async () => {
-  const comments = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({
+test("main on the job that reaches 48 hours of run time since a person's agent-ready hands back with the note's next steps", async () => {
+  // 43 earlier jobs of 60 minutes; this one ran 340, so 49 hours in all.
+  const now = Date.now();
+  const comments = Array.from({ length: 43 }, (_, n) => ({
     user: { login: BOT },
-    body: `<!-- work-resolve-issue outcome=timeout run=${n} -->`,
-    created_at: `2026-10-16T0${n}:30:00Z`,
+    body: `<!-- work-resolve-issue outcome=timeout run=${n + 1} ran=60 -->`,
+    created_at: new Date(now - (60 - n) * 3_600_000).toISOString(),
   }));
+  const events = [added(new Date(now - 70 * 3_600_000).toISOString(), OWNER)];
   await withAsyncDir({ "lane.json": stopLane("timeout"), "trusted.json": TRUSTED_LIST }, async (dir) => {
-    const { fetch, calls } = fakeFetch(STOP_ROUTES({ comments, events: [added("2026-10-16T00:00:00Z", OWNER)] }));
+    const { fetch, calls } = fakeFetch(STOP_ROUTES({ comments, events }));
     assert.equal(await main({ env: { ...stopEnv(dir), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch }), 0);
     assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body, { labels: ["needs-human"] });
     const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
-    assert.match(comment, /outcome=job-ceiling run=123/);
+    assert.match(comment, /outcome=active-ceiling run=123 ran=340/);
     assert.ok(comment.includes("https://example/o/r/blob/work-resolve-issue/issue-77-123-1/.lane-progress.md"), comment);
     assert.ok(comment.includes("- Wire the reader"), comment);
   });
+});
+
+test("main on a usage-limit wait adds the waiting label only when the repository has it, and never needs-human", async () => {
+  for (const [labelStatus, expected] of [[200, [{ labels: ["lane: waiting-on-usage"] }]], [404, []]]) {
+    await withAsyncDir({ "lane.json": JSON.stringify({ branch: "", class: "rate-limit", resets: "" }) }, async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ...STOP_ROUTES(),
+        ["GET", /\/labels\/lane%3A%20waiting-on-usage$/, labelStatus, labelStatus === 200 ? { name: "lane: waiting-on-usage" } : { message: "Not Found" }],
+      ]);
+      assert.equal(await main({ env: stopEnv(dir), fetch }), 0);
+      const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+      assert.match(comment, /^<!-- work-resolve-issue outcome=limited resets=\S+ run=123 ran=340 -->/);
+      assert.deepEqual(
+        calls.filter((c) => c.method === "POST" && c.path.endsWith("/labels")).map((c) => c.body),
+        expected,
+        String(labelStatus),
+      );
+      assert.ok(!calls.some((c) => c.method === "DELETE"), String(labelStatus));
+    });
+  }
 });
 
 test("main on a rerun after its stop marker never posts it twice", async () => {
@@ -2664,6 +2740,37 @@ function runChecks({
     rmSync(root, { recursive: true, force: true });
   }
 }
+
+// The progress note travels on the lane branch between jobs and must not
+// reach a PR: the base's check-lane-progress-note.sh fails a branch that
+// still holds it, so a done run that left it opens no PR.
+test("a done run whose branch still holds the progress note opens no PR", () => {
+  const script = readFileSync(new URL("../../../scripts/check-lane-progress-note.sh", import.meta.url), "utf8");
+  const run = (laneFiles) =>
+    runChecks({
+      goodFragment: true,
+      checks: ["scripts/check-lane-progress-note.sh --check"],
+      baseFiles: { "scripts/check-lane-progress-note.sh": script },
+      laneFiles,
+    });
+  const kept = run({ ".lane-progress.md": "## Next steps\n\n- finish\n" });
+  assert.equal(kept.status, 0, kept.stdout);
+  assert.deepEqual(kept.checks.results, [{ check: "scripts/check-lane-progress-note.sh --check", exit: 1 }]);
+  const plan = decide({
+    outcome: done,
+    issueNumber: 77,
+    issueLabels: [],
+    branch: BRANCH,
+    changedFiles: ["README.md", ".lane-progress.md"],
+    holdPaths: [],
+    runId: "123",
+    checks: { tip: kept.checks.tip, results: kept.checks.results },
+  });
+  assert.equal(plan.action, "hand-back");
+  assert.ok(plan.comment.includes("check-lane-progress-note.sh --check failed (exit 1)"), plan.comment);
+  const removed = run({});
+  assert.deepEqual(removed.checks.results, [{ check: "scripts/check-lane-progress-note.sh --check", exit: 0 }]);
+});
 
 test("the runner runs each check's code from the base copy, reading the lane branch's committed scripts/ data", () => {
   const passing = runChecks({ goodFragment: true });

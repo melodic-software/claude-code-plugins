@@ -136,7 +136,7 @@ import { pathToFileURL } from "node:url";
 import { createGitHub, isTrustedClose, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
-import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
+import { WAITING_LABEL, clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker, workSince } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { admissionFacts, decide, loadRules, NEEDS_DECISION, openPullsFor, READY, refusalText, removalStands, sayWhy } from "../intake-triage/admit.mjs";
 
@@ -553,7 +553,7 @@ async function labelUnblocked({ github, repo, closed, sweep, humans, bot, gate }
   return failed;
 }
 
-// The hand-off to a person after limits.limit-stops-per-issue limit stops. Its marker lets
+// The hand-off to a person after limits.limit-stops-per-issue funding stops. Its marker lets
 // a later sweep see the comment was posted.
 const ESCALATED = "<!-- work-unblock escalated -->";
 export const escalationComment = (stops) =>
@@ -987,27 +987,32 @@ async function restartRefusal({ github, actions, repo, issue, bot, humans, now, 
   const since = events
     .filter((event) => isLabel(event, "labeled") && event.actor?.login !== bot)
     .reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
-  // report-outcome keeps agent-ready after a timeout stop only when the run
-  // committed new work, within limits.worker-job-ceiling roll-overs since a
-  // listed human last added agent-ready; the count here bounds a forged or
-  // stale marker the same way. A stop with no new commit is re-queued
-  // instead (no-progress), never restarted here.
+  // report-outcome keeps agent-ready after a timeout stop or a usage-limit
+  // wait only within limits.worker-active-hours of model run time and
+  // limits.worker-wall-days since the run of work began; the same bound here
+  // stops a forged or stale marker from restarting past them. A stop with no
+  // new commit is re-queued instead (no-progress), never restarted here.
+  const workStart = workSince({ events, bot, humans });
+  const active = markers.filter((item) => item.at > workStart).reduce((sum, item) => sum + (item.ran ?? 0), 0);
+  const restartable = ["turn-cap", "timeout", "limited"].includes(marker?.outcome);
+  if (restartable && active >= limits["worker-active-hours"] * 60) {
+    return { reason: `${Math.round(active / 60)} hours of run time since ${LABEL} was last added` };
+  }
+  if (restartable && !(now - workStart < limits["worker-wall-days"] * 24 * 3_600_000)) {
+    return { reason: `${limits["worker-wall-days"]} days since ${LABEL} was last added` };
+  }
   if (marker?.outcome === "turn-cap" || marker?.outcome === "timeout") {
-    const humanSince = events
-      .filter((event) => isLabel(event, "labeled") && humans.has(event.actor?.id))
-      .reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
-    const rollovers = markers.filter((item) => (item.outcome === "turn-cap" || item.outcome === "timeout") && item.at > humanSince).length;
-    return rollovers > limits["worker-job-ceiling"]
-      ? { reason: `${rollovers} roll-overs since a person last added ${LABEL}` }
-      : { reason: null, resets: marker.at };
+    return { reason: null, resets: marker.at };
   }
   const funding = marker?.outcome === "funding";
   if (!funding && marker?.outcome !== "limited") {
     return { reason: "no limit stop is its newest lane outcome" };
   }
-  // A limit or funding stop (ci-workflows#781) that keeps stopping the lane
-  // goes to a person: count both since a person last added agent-ready.
-  const stops = markers.filter((item) => (item.outcome === "limited" || item.outcome === "funding") && item.at > since).length;
+  // A funding stop (ci-workflows#781) that keeps stopping the lane goes to a
+  // person: count them since a person last added agent-ready. A usage-limit
+  // wait never does (owner decision Q98): it resumes at the reset, bounded by
+  // the run-time and wall-clock ceilings above.
+  const stops = funding ? markers.filter((item) => item.outcome === "funding" && item.at > since).length : 0;
   if (stops >= limits["limit-stops-per-issue"]) {
     const explained = comments.some(
       (comment) =>
@@ -1097,7 +1102,8 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
         console.log(`label-unblocked: #${issue.number} not restarted: ${reason}`);
         continue;
       }
-      ready.push({ ...verdict, number: Number(issue.number) });
+      const waiting = (issue.labels ?? []).some((label) => (typeof label === "string" ? label : label?.name) === WAITING_LABEL);
+      ready.push({ ...verdict, number: Number(issue.number), waiting });
     } catch (error) {
       failed += 1;
       reportError(issue.number, error);
@@ -1108,7 +1114,7 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
   for (const { number } of ready.slice(cap)) {
     console.log(`label-unblocked: #${number} restart deferred: ${cap} restarts this run`);
   }
-  for (const { number, refire, cause, recurrence, recorded, handOff, pr, explained, release, stranded, key: strandedKey, why } of ready.slice(0, cap)) {
+  for (const { number, refire, cause, recurrence, recorded, handOff, pr, explained, release, stranded, key: strandedKey, why, waiting } of ready.slice(0, cap)) {
     const base = `/repos/${repo}/issues/${number}`;
     if (stranded) {
       // The comment first and the hold last, as the escalation does.
@@ -1169,6 +1175,13 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
       await add().catch(add);
       const why = refire ? "re-fired after its failed run" : recurrence ? "relabeled after its reopen on a repeat failure" : "restarted after its limit stop";
       console.log(`label-unblocked: #${number} ${why}`);
+      // A usage-limit wait is over once the run restarts. Only an issue the
+      // listing showed carrying the label is written to; a failure is logged.
+      if (waiting && !refire && !recurrence) {
+        await github("DELETE", `/repos/${repo}/issues/${number}/labels/${encodeURIComponent(WAITING_LABEL)}`).catch(() =>
+          console.log(`label-unblocked: #${number} carried no ${WAITING_LABEL} to remove`),
+        );
+      }
     } catch (error) {
       failed += 1;
       reportError(number, new Error(`${LABEL} was removed for a restart but not added back: ${error?.message ?? error}`));

@@ -953,13 +953,13 @@ test("a stated reset in the past still waits an hour from the stop", async () =>
   assert.deepEqual(writes(late.calls), restarted(30));
 });
 
-// Three limit stops since a person last added agent-ready hand the issue to a
-// person: needs-human and a comment, no restart.
-test("a third limit stop since a person added agent-ready adds needs-human with a comment instead of restarting", async () => {
+// Three funding stops since a person last added agent-ready hand the issue to
+// a person: needs-human and a comment, no restart.
+test("a third funding stop since a person added agent-ready adds needs-human with a comment instead of restarting", async () => {
   const stops = [
-    limitedNote("2026-10-16T01:00:00Z", "2026-10-16T00:30:00Z"),
-    limitedNote("2026-10-16T03:00:00Z", "2026-10-16T02:30:00Z"),
-    limitedNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z"),
+    fundingNote("2026-10-16T01:00:00Z", "2026-10-16T00:30:00Z", 4),
+    fundingNote("2026-10-16T03:00:00Z", "2026-10-16T02:30:00Z", 5),
+    fundingNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z", 6),
   ];
   const third = stopped({ comments: [note(), ...stops] });
   assert.equal(await sweep({ github: third.github }), 0);
@@ -1005,17 +1005,12 @@ const capNote = (at, run = 7, outcome = "turn-cap") => ({
   created_at: at,
 });
 
-test("an issue a turn-cap or timeout stop left with new work is restarted up to limits.worker-job-ceiling roll-overs", async () => {
+test("an issue a turn-cap or timeout stop left with new work is restarted, however many jobs came before", async () => {
   for (const outcome of ["turn-cap", "timeout"]) {
-    const earlier = [1, 2, 3, 4, 5, 6, 7].map((n) => capNote(`2026-10-16T0${n}:30:00Z`, n, outcome));
-    const eighth = stopped({ comments: [note(), ...earlier, capNote("2026-10-16T11:55:00Z", 8, outcome)] });
-    assert.equal(await sweep({ github: eighth.github }), 0);
-    assert.deepEqual(writes(eighth.calls), restarted(30), outcome);
-    // A ninth roll-over marker (report-outcome hands that stop back, so this
-    // one is forged or stale) restarts nothing.
-    const ninth = stopped({ comments: [note(), ...earlier, capNote("2026-10-16T08:45:00Z", 8, outcome), capNote("2026-10-16T11:55:00Z", 9, outcome)] });
-    assert.equal(await sweep({ github: ninth.github }), 0);
-    assert.deepEqual(writes(ninth.calls), [], outcome);
+    const earlier = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => capNote(`2026-10-16T0${n}:30:00Z`, n, outcome));
+    const tenth = stopped({ comments: [note(), ...earlier, capNote("2026-10-16T11:55:00Z", 10, outcome)] });
+    assert.equal(await sweep({ github: tenth.github }), 0);
+    assert.deepEqual(writes(tenth.calls), restarted(30), outcome);
   }
 });
 
@@ -1096,20 +1091,78 @@ test("a funding-stopped issue before its regain date, or with none, waits", asyn
   }
 });
 
-// Funding and limit stops share limits.limit-stops-per-issue, so an outage
-// that outlasts the reset clamp hands the issue to a person, not a loop.
-test("a third funding or limit stop since a person added agent-ready goes to a person", async () => {
-  const comments = [
+// Funding stops count toward limits.limit-stops-per-issue, so a funding
+// outage that outlasts the reset clamp hands the issue to a person. A usage
+// limit is a wait (owner decision Q98): it never counts there.
+test("a third funding stop since a person added agent-ready goes to a person; usage-limit waits do not count", async () => {
+  const funding = [
     note(),
     fundingNote("2026-10-16T02:00:00Z", "2026-10-16T01:00:00Z", 4),
-    limitedNote("2026-10-16T04:00:00Z", "2026-10-16T03:00:00Z"),
+    fundingNote("2026-10-16T04:00:00Z", "2026-10-16T03:00:00Z", 5),
     fundingNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z", 6),
   ];
-  const { github, calls } = stopped({ comments, events: [added("2026-10-16T00:30:00Z", OWNER)] });
-  assert.equal(await sweep({ github }), 0);
-  const written = writes(calls);
+  const third = stopped({ comments: funding, events: [added("2026-10-16T00:30:00Z", OWNER)] });
+  assert.equal(await sweep({ github: third.github }), 0);
+  const written = writes(third.calls);
   assert.ok(written[0].includes("<!-- work-unblock escalated -->"), written[0]);
   assert.deepEqual(written.slice(1), [`POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`]);
+  // Two funding stops and a usage-limit wait: under the bound, so the wait,
+  // the newest marker, restarts at its reset with no needs-human.
+  const mixed = [note(), funding[1], funding[2], limitedNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z")];
+  const wait = stopped({ comments: mixed, events: [added("2026-10-16T00:30:00Z", OWNER)] });
+  assert.equal(await sweep({ github: wait.github }), 0);
+  assert.deepEqual(writes(wait.calls), restarted(30));
+});
+
+// A usage-limit wait (owner decision Q98) resumes at its reset however many
+// waits came before, never adds needs-human, and takes the waiting label off
+// when the issue carries it.
+test("a usage-limit wait resumes at its reset, however many came before, and drops the waiting label", async () => {
+  const waits = [1, 2, 3, 4, 5].map((n) => ({ ...limitedNote(`2026-10-16T0${n}:30:00Z`, `2026-10-16T0${n}:00:00Z`), id: 40 + n }));
+  const many = stopped({ comments: [note(), ...waits], labels: ["lane: waiting-on-usage"], events: [added("2026-10-16T00:30:00Z", OWNER)] });
+  assert.equal(await sweep({ github: many.github }), 0);
+  const written = writes(many.calls);
+  assert.deepEqual(written, [...restarted(30), `DELETE /repos/${REPO}/issues/30/labels/lane%3A%20waiting-on-usage`]);
+  assert.ok(!written.some((line) => line.includes("needs-human")));
+  // Before its reset it waits, label and all.
+  const early = stopped({ resets: "2026-10-16T13:00:00Z", labels: ["lane: waiting-on-usage"] });
+  assert.equal(await sweep({ github: early.github }), 0);
+  assert.deepEqual(writes(early.calls), []);
+});
+
+// The ceilings bound a long run (owner decision Q98): 48 hours of model run
+// time, summed from the markers' ran= minutes since the run of work began
+// (waits are not run time), and 7 days of wall clock. Past either, a forged
+// or stale marker restarts nothing.
+const ranNote = (outcome, run, at, ran) => ({ id: 50 + run, body: `<!-- work-resolve-issue outcome=${outcome} run=${run} ran=${ran} -->`, user: LANES_BOT, created_at: at });
+test("a stop or wait past 48 hours of run time, or 7 days of wall clock, is not restarted", async () => {
+  // 47 hours of run time over three jobs restarts; 48 does not. The usage
+  // wait between them adds no run time.
+  for (const [total, restartsIt] of [[47 * 60, true], [48 * 60, false]]) {
+    const comments = [
+      note(),
+      ranNote("timeout", 1, "2026-10-16T02:00:00Z", 60),
+      limitedNote("2026-10-16T05:00:00Z", "2026-10-16T03:00:00Z"),
+      ranNote("timeout", 2, "2026-10-16T06:00:00Z", 60),
+      ranNote("timeout", 3, "2026-10-16T11:55:00Z", total - 120),
+    ];
+    const { github, calls } = stopped({ comments, events: [added("2026-10-16T00:30:00Z", OWNER)] });
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writes(calls), restartsIt ? restarted(30) : [], String(total));
+  }
+  // Seven days since the person's agent-ready: no restart, even for a wait.
+  for (const marker of [ranNote("timeout", 9, "2026-10-16T11:55:00Z", 30), limitedNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z")]) {
+    const old = stopped({ comments: [note(), marker], events: [added("2026-10-09T11:00:00Z", OWNER)] });
+    assert.equal(await sweep({ github: old.github }), 0);
+    assert.deepEqual(writes(old.calls), [], marker.body);
+  }
+  // A new agent-ready from a listed human starts both counts again.
+  const reset = stopped({
+    comments: [note(), ranNote("timeout", 1, "2026-10-16T02:00:00Z", 48 * 60), ranNote("timeout", 2, "2026-10-16T11:55:00Z", 30)],
+    events: [added("2026-10-09T11:00:00Z", OWNER), added("2026-10-16T03:00:00Z", OWNER)],
+  });
+  assert.equal(await sweep({ github: reset.github }), 0);
+  assert.deepEqual(writes(reset.calls), restarted(30));
 });
 
 test("a funding stop under the bound is restarted after its date", async () => {
@@ -1142,7 +1195,7 @@ test("the resolved limits set the sweep's restarts per run, limit stops per issu
   assert.equal(await sweep({ github: many.github }, withLimits({ "restarts-per-run": 2 })), 0);
   assert.deepEqual(writes(many.calls), [31, 32].flatMap(restarted));
 
-  const stops = [limitedNote("2026-10-16T03:00:00Z", "2026-10-16T02:30:00Z"), limitedNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z")];
+  const stops = [fundingNote("2026-10-16T03:00:00Z", "2026-10-16T02:30:00Z", 4), fundingNote("2026-10-16T11:00:00Z", "2026-10-16T06:00:00Z", 5)];
   const second = stopped({ comments: [note(), ...stops] });
   assert.equal(await sweep({ github: second.github }, withLimits({ "limit-stops-per-issue": 2 })), 0);
   assert.deepEqual(writes(second.calls).slice(1), [`POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`]);

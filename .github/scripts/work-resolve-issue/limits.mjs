@@ -14,7 +14,8 @@ export const LIMIT_DEFAULTS = Object.freeze({
   "limit-stops-per-head": 3,
   "limit-stops-per-issue": 3,
   "wip-cap": 60,
-  "worker-job-ceiling": 8,
+  "worker-active-hours": 48,
+  "worker-wall-days": 7,
 });
 
 // Every leaf, each set integer within its range over its default.
