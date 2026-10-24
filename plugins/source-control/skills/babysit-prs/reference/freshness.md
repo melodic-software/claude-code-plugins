@@ -104,7 +104,8 @@ Only the orchestrator may refresh a branch:
    queue, require no human-review stop and a PR not authored by a dependency manager other than
    Dependabot (the helper refuses one; ask the manager to rebase instead), and take the snapshot's head SHA as
    `<expected-head-sha>`. For a Dependabot head (a `dependabot/` branch Dependabot opened) the
-   helper never updates the branch. Under `--apply` it posts one comment per base tip and
+   helper never updates the branch. It passes the same gates as any refresh, then under `--apply`
+   posts one comment per base tip, and at most one an hour unless the head conflicts, and
    holds the PR as `dependabot-rebase-requested`: `@dependabot rebase` when every commit is
    Dependabot's, `@dependabot recreate` when the others are only base merges GitHub made (Dependabot
    refuses to rebase a branch anyone else committed to). Any other commit posts nothing and holds

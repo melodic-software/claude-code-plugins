@@ -4146,6 +4146,7 @@ def request_dependabot_rebase(
             commits,
             lambda ep: gh_json(["api", ep]),
             identities=(str(inputs.get("identity") or ""),),
+            conflicting=json_object(inputs.get("pr")).get("mergeable_state") == "dirty",
         )
         if body is None:
             inputs_read["rebase"] = why

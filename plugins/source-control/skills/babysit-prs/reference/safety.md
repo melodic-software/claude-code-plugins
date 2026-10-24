@@ -102,8 +102,9 @@ value and its unset fallback.
   unreadable label refuses the refresh and holds the enqueue.
 - Never update a Dependabot head (a `dependabot/` branch Dependabot opened) from its base: a
   commit by anyone else stops Dependabot's own rebases and fails the Dependabot merge tier's
-  commit check. `refresh_pr_branch.py` and the unattended enqueue post one comment per base tip
-  instead and hold the PR as `dependabot-rebase-requested`: `@dependabot rebase`, or `@dependabot
+  commit check. `refresh_pr_branch.py` and the unattended enqueue (only when the base changed a
+  check input since the merge base) post one comment per base tip, at most one an hour unless
+  the head conflicts, instead and hold the PR as `dependabot-rebase-requested`: `@dependabot rebase`, or `@dependabot
   recreate` when the only other commits are base merges GitHub made. A head carrying any other
   commit gets no comment and holds as `dependabot-branch-edited`: a recreate would discard it.
   - **Pointer**: why a foreign commit stops Dependabot's rebases, in

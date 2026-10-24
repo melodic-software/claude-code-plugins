@@ -1855,6 +1855,7 @@ class RefreshAsksDependabotToRebase(unittest.TestCase):
         author: str = "app/dependabot",
         comments: list[dict[str, Any]] | None = None,
         commits: tuple[dict[str, Any], ...] = (DEPENDABOT_COMMIT,),
+        queue: bool = False,
     ) -> dict[str, object]:
         self.writes: list[list[str]] = []
         self.leases: list[Any] = []
@@ -1926,7 +1927,7 @@ class RefreshAsksDependabotToRebase(unittest.TestCase):
                 "find_open_prs_for_head_ref",
                 return_value=[f"{self.REPO}#{PR_NUMBER}"],
             ),
-            mock.patch.object(refresh, "base_requires_merge_queue", return_value=False),
+            mock.patch.object(refresh, "base_requires_merge_queue", return_value=queue),
             mock.patch.object(refresh, "gh_json", side_effect=gh_json),
             mock.patch.object(refresh, "fetch_paginated_api", side_effect=paginated),
         ):
@@ -1988,7 +1989,7 @@ class RefreshAsksDependabotToRebase(unittest.TestCase):
                 refresh, "human_stop_blocks_automation", side_effect=[False, True]
             ),
             self.assertRaisesRegex(
-                RuntimeError, "human review stop.*refusing the rebase request"
+                RuntimeError, "human review stop is active; refusing branch refresh"
             ),
         ):
             self._run()
@@ -2000,6 +2001,12 @@ class RefreshAsksDependabotToRebase(unittest.TestCase):
         self.assertEqual(self.writes, [])
         self.assertEqual(self.leases, [])
         self.assertEqual(result["rebase"], "would-request @dependabot rebase")
+
+    def test_a_dependabot_head_passes_the_refresh_gates_first(self) -> None:
+        # Asked only where a refresh would run: behind, no merge queue.
+        with self.assertRaisesRegex(RuntimeError, "merge queue"):
+            self._run(queue=True)
+        self.assertEqual(self.writes, [])
 
     def test_a_non_dependabot_head_is_still_updated(self) -> None:
         self._run(head_ref="feature/x", author="octocat")

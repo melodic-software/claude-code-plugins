@@ -56,7 +56,7 @@ import posixpath
 import re
 from collections.abc import Callable, Collection, Iterable, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import quote
 
@@ -209,14 +209,24 @@ def rebase_body(base_sha: str, command: str = REBASE_COMMAND) -> str:
     return f"{command}\n{rebase_marker(base_sha)}"
 
 
-def rebase_requested(
-    comments: Iterable[Any], base_sha: str, identities: Collection[str] = ()
-) -> bool:
-    """Whether a trusted comment (`TRUSTED_ASSOCIATIONS`, or one of
-    `identities`) already asked for a rebase or recreate onto `base_sha`:
-    the command on its first line and the marker on its second."""
-    marker = rebase_marker(base_sha)
+_REQUEST_MARKER = re.compile(
+    r"^<!-- babysit-dependabot-rebase base=([0-9a-f]{40}) -->$"
+)
+# At most one request per pull request in this window, so a head that stays
+# behind does not collect a comment at every base tip (judgment). A conflict
+# still gets its request, once per base tip.
+REQUEST_COOLDOWN = timedelta(hours=1)
+
+
+def counted_requests(
+    comments: Iterable[Any], identities: Collection[str] = ()
+) -> list[tuple[str, datetime | None]]:
+    """(base tip, posted at) of each request that counts: from a writer
+    (`TRUSTED_ASSOCIATIONS`) or one of `identities`, with the command on its
+    first line and the marker on its second. Anyone can comment on a public
+    repository, so another author's marker counts for nothing."""
     own = {i.casefold() for i in identities}
+    found = []
     for item in comments:
         comment = json_object(item)
         login = str(json_object(comment.get("user")).get("login") or "").casefold()
@@ -226,9 +236,24 @@ def rebase_requested(
         ):
             continue
         lines = str(comment.get("body") or "").replace("\r", "").split("\n")
-        if lines[1:2] == [marker] and lines[0] in (REBASE_COMMAND, RECREATE_COMMAND):
-            return True
-    return False
+        marker = _REQUEST_MARKER.match(lines[1] if len(lines) > 1 else "")
+        if marker and lines[0] in (REBASE_COMMAND, RECREATE_COMMAND):
+            found.append((marker.group(1), _when_utc(comment.get("created_at"))))
+    return found
+
+
+def _when_utc(text: Any) -> datetime | None:
+    try:
+        return datetime.fromisoformat(str(text).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def rebase_requested(
+    comments: Iterable[Any], base_sha: str, identities: Collection[str] = ()
+) -> bool:
+    """Whether a counted request (`counted_requests`) names `base_sha`."""
+    return any(base == base_sha for base, _ in counted_requests(comments, identities))
 
 
 def is_signed_dependabot_commit(item: Any) -> bool:
@@ -302,17 +327,32 @@ def rebase_request(
     commits: Sequence[Any],
     get: Get,
     identities: Collection[str] = (),
+    conflicting: bool = False,
+    now: datetime | None = None,
 ) -> tuple[str, str | None, str]:
     """(hold, comment body to post or None, why) for a behind Dependabot
-    head. Every commit Dependabot's: a rebase. The others all base merges
+    head. One request per base tip, and none within `REQUEST_COOLDOWN` of
+    the newest counted one unless the head conflicts with its base (an
+    unreadable time counts as recent). Every commit Dependabot's: a rebase. The others all base merges
     GitHub made (a stray update-branch): a recreate, which drops only them.
     Any other commit holds as edited and posts nothing, since a recreate
     would discard it. One request per base tip."""
-    if rebase_requested(comments, base_sha, identities):
+    requests = counted_requests(comments, identities)
+    if any(base == base_sha for base, _ in requests):
         return (
             REBASE_HOLD,
             None,
             f"a Dependabot request at base {base_sha} was already posted",
+        )
+    now = now or datetime.now(UTC)
+    if not conflicting and any(
+        at is None or now - at < REQUEST_COOLDOWN for _, at in requests
+    ):
+        return (
+            REBASE_HOLD,
+            None,
+            "a Dependabot request was posted within the last hour; the next "
+            "waits for it unless the head conflicts",
         )
     others = [c for c in commits if not is_signed_dependabot_commit(c)]
     for item in others:

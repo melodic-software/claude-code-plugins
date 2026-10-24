@@ -79,13 +79,13 @@ def validate_current_candidate(
     current = view_pr(repo, number)
     if str(current.get("state") or "").upper() != "OPEN":
         raise RuntimeError("PR is no longer open")
-    author_login = json_object(current.get("author")).get("login")
-    if dependabot.is_dependabot_head(current.get("headRefName"), author_login):
-        raise DependabotHead(current)
+    author = str(json_object(current.get("author")).get("login") or "")
+    # A Dependabot head passes every gate a refresh does, then is asked to
+    # rebase instead of being updated.
+    dependabot_head = dependabot.is_dependabot_head(current.get("headRefName"), author)
     # The same repository policy the merge gate resolves; an unreadable one raises.
     extra = repo_policy.resolve(repo, fallback or {}).extra_dependency_manager_logins
-    author = str(json_object(current.get("author")).get("login") or "")
-    if is_dependency_author(author, extra):
+    if not dependabot_head and is_dependency_author(author, extra):
         raise RuntimeError(
             f"PR is authored by dependency manager {author}; refusing branch refresh "
             "(an extra commit stops its own rebases: ask it to rebase instead)"
@@ -118,6 +118,8 @@ def validate_current_candidate(
         raise RuntimeError(
             "head branch is shared or its uniqueness could not be verified"
         )
+    if dependabot_head:
+        raise DependabotHead(current)
     return current
 
 
@@ -281,7 +283,13 @@ def request_dependabot_rebase(
         f"repos/{repo}/pulls/{number}/commits?per_page=100", f"#{number} commits"
     )
     hold, body, why = dependabot.rebase_request(
-        repo, base, tip, comments, commits, lambda ep: gh_json(["api", ep])
+        repo,
+        base,
+        tip,
+        comments,
+        commits,
+        lambda ep: gh_json(["api", ep]),
+        conflicting=str(current.get("mergeable") or "").upper() == "CONFLICTING",
     )
     result: dict[str, object] = {
         "key": key,
@@ -299,8 +307,6 @@ def request_dependabot_rebase(
     if not args.apply:
         result["rebase"] = f"would-request {command}"
         return result
-    if human_stop_blocks_automation(fetch_current_human_stop(repo, number, current)):
-        raise RuntimeError("human review stop is active; refusing the rebase request")
     require_worker_lease(args, state_dir, repo, number, renew=True)
     gh_json(
         ["api", "-X", "POST", f"repos/{repo}/issues/{number}/comments"]

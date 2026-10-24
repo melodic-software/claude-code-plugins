@@ -808,6 +808,8 @@ class Unattended(unittest.TestCase):
         # the assessment's, then the re-read before the enqueue.
         self.pr_user = {"login": IDENTITY, "type": "Bot"}
         self.pr_head_ref = "feat"
+        # REST `mergeable_state`; "dirty" is a conflict with the base.
+        self.pr_mergeable_state: str | None = None
         # The pull request's commits and the compare answers, by endpoint,
         # for the Dependabot rebase request; None leaves the reads unfaked.
         self.pr_commits: list[dict[str, Any]] | None = None
@@ -894,6 +896,7 @@ class Unattended(unittest.TestCase):
             "node_id": self.node_id,
             "base": {"ref": "main", "sha": BASE},
             "head": {"ref": self.pr_head_ref, "sha": self.scored_head},
+            "mergeable_state": self.pr_mergeable_state,
             "user": self.pr_user,
             "labels": self.pr_labels,
         }
@@ -2698,10 +2701,41 @@ class CheckInputsChangedOnTheBase(Unattended):
             self.log, [f"{self.REBASE_COMMENT} -f body={self.REBASE_BODY}"]
         )
 
-    def test_a_new_base_tip_asks_again(self) -> None:
+    def earlier_request(self, minutes_ago: int) -> None:
+        # A writer's request at an older base tip.
+        posted = datetime.now(UTC) - timedelta(minutes=minutes_ago)
+        self.comments = [
+            {
+                "id": 7,
+                "user": {"login": "a-member"},
+                "author_association": "MEMBER",
+                "created_at": posted.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "body": self.REBASE_BODY.replace(BASE, "9" * 40),
+            }
+        ]
+
+    def test_a_new_base_tip_within_the_hour_waits(self) -> None:
+        # A head that stays behind gets one request an hour, not one per merge.
         self.dependabot_head()
-        older = self.REBASE_BODY.replace(BASE, "9" * 40)
-        self.comments = [{"id": 7, "user": {"login": "someone"}, "body": older}]
+        self.earlier_request(minutes_ago=10)
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(self.log, [])
+        (blocker,) = [b for b in out["blockers"] if "dependabot-rebase-requested:" in b]
+        self.assertIn("within the last hour", blocker)
+
+    def test_a_new_base_tip_after_the_hour_asks_again(self) -> None:
+        self.dependabot_head()
+        self.earlier_request(minutes_ago=61)
+        self.run_main()
+        self.assertEqual(
+            self.log, [f"{self.REBASE_COMMENT} -f body={self.REBASE_BODY}"]
+        )
+
+    def test_a_conflicting_head_asks_within_the_hour(self) -> None:
+        self.dependabot_head()
+        self.pr_mergeable_state = "dirty"
+        self.earlier_request(minutes_ago=10)
         self.run_main()
         self.assertEqual(
             self.log, [f"{self.REBASE_COMMENT} -f body={self.REBASE_BODY}"]
