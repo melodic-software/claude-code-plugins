@@ -244,7 +244,8 @@ def _run_gh(
 # signals are the documented ones below; the shares of each pool's limit
 # (`writer-pause`, `read-floor`) are `limits.api` in pr-pipeline.yaml, unset
 # fields filled from the schema's defaults, and an unreadable block or schema
-# refuses every call. `evaluate_rate_response` is the shared decision table's
+# refuses every call. With no pr-pipeline.yaml at all (an installed plugin, a
+# consumer repo) there are no margins, and the signals alone still latch. `evaluate_rate_response` is the shared decision table's
 # port: .github/actions/log-api-budget/rate-guard.vectors.json tests it here
 # and in the JavaScript client.
 #   Pointer: <https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api>
@@ -274,6 +275,8 @@ LIMITS_SCHEMA = (
     _REPO_ROOT / "docs" / "conventions" / "pr-pipeline" / "pr-pipeline.schema.json"
 )
 LIMITS_FIELDS = ("writer-pause", "read-floor")
+# The shares with no repo config: no margin, so only a signal stops a call.
+NO_MARGINS = dict.fromkeys(LIMITS_FIELDS, 0.0)
 TOKEN_POOLS = frozenset({"github-token", "lanes-app"})
 # The YAML reader's runner, bound at import: a test that fakes `gh` through
 # `run_command` still reads the real limits.
@@ -463,6 +466,8 @@ def warm_rate_guard() -> None:
 def _read_pool_limits(pool: str) -> dict[str, float] | str:
     import babysit_merge_policy as merge_policy  # noqa: PLC0415 - imports this module
 
+    if not LIMITS_CONFIG.exists():
+        return dict(NO_MARGINS)
     try:
         schema = json.loads(LIMITS_SCHEMA.read_text(encoding="utf-8"))
         fields = dig(schema, "$defs", "api-pool", "properties")

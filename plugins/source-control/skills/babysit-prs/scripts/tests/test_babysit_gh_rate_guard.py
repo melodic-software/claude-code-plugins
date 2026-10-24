@@ -268,11 +268,76 @@ class HeadroomShares(GuardCase):
         self.assertEqual(len(self.sent), 2)
 
 
+class NoRepoConfig(GuardCase):
+    """The installed-plugin layout: no pr-pipeline.yaml or schema beside it."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        for name in ("LIMITS_CONFIG", "LIMITS_SCHEMA"):
+            patcher = mock.patch.object(gh, name, REPO_ROOT / f"no-such-{name}")
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_calls_go_through_with_no_margins(self) -> None:
+        self.answer(0, head(200, **core(1)) + "{}")
+        self.answer(0, head(200, **core(1)) + "{}")
+        gh.gh_capture(["api", "repos/o/r/pulls/1"])
+        self.assertFalse(gh.low_headroom())
+        self.assertFalse(gh.writes_paused())
+        gh.gh_capture(["pr", "comment", "1", "--body", "x"])
+        self.assertEqual(len(self.sent), 2)
+
+    def test_the_latch_still_trips_on_a_403_or_429(self) -> None:
+        for status, message in (
+            (403, "API rate limit exceeded for user ID 1."),
+            (429, "You have exceeded a secondary rate limit."),
+        ):
+            gh.reset_rate_guard()
+            self.sent.clear()
+            self.answer(
+                1,
+                head(status, **core(0)) + json.dumps({"message": message}),
+                f"gh: {message} (HTTP {status})",
+            )
+            with self.assertRaises(gh.RateLimitExhausted):
+                gh.gh_capture(["api", "repos/o/r/pulls/1"])
+            with self.assertRaises(gh.RateLimitExhausted):
+                gh.gh_capture(["api", "repos/o/r/pulls/2"])
+            self.assertEqual(len(self.sent), 1, status)
+
+
 class FailClosed(GuardCase):
-    def test_an_unreadable_limits_block_sends_nothing(self) -> None:
-        with mock.patch.object(gh, "LIMITS_CONFIG", REPO_ROOT / "no-such-file.yaml"):
+    def present_config(self, text: str) -> pathlib.Path:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        config = pathlib.Path(tmp.name, "pr-pipeline.yaml")
+        config.write_text(text, encoding="utf-8")
+        return config
+
+    def test_a_present_limits_block_that_is_not_a_share_sends_nothing(self) -> None:
+        config = self.present_config(
+            "limits:\n  api:\n    github-token:\n      writer-pause: lots\n"
+        )
+        with mock.patch.object(gh, "LIMITS_CONFIG", config):
             with self.assertRaises(gh.RateLimitExhausted) as raised:
                 gh.gh_capture(["api", "repos/o/r/pulls/1"])
+        self.assertIn("fail closed", str(raised.exception))
+        self.assertEqual(self.sent, [])
+
+    def test_a_present_config_its_reader_cannot_run_sends_nothing(self) -> None:
+        # No usable bash: the shared reader fails.
+        def no_bash(
+            argv: list[str], **_kwargs: Any
+        ) -> subprocess.CompletedProcess[str]:
+            raise FileNotFoundError(argv[0])
+
+        config = self.present_config("limits:\n  api: {}\n")
+        with (
+            mock.patch.object(gh, "LIMITS_CONFIG", config),
+            mock.patch.object(gh, "_reader_run", no_bash),
+            self.assertRaises(gh.RateLimitExhausted) as raised,
+        ):
+            gh.gh_capture(["api", "repos/o/r/pulls/1"])
         self.assertIn("fail closed", str(raised.exception))
         self.assertEqual(self.sent, [])
 
