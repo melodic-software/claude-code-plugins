@@ -108,7 +108,7 @@ nothing else):
 2. Change has no security-relevant surface after reading the diff. A diff that deletes, narrows,
    or softens a standing instruction is not eligible for this skip until it has been read under
    the instruction-surface lens below: it reads as prose-only while it can remove a control. A
-   change to a `trust-gate` path ("Reporting") is never eligible for it either
+   change to a trust control ("Trust controls" below) is never eligible for it either
 3. This head already has a successful security review that still applies
 
 ## Criteria
@@ -129,10 +129,30 @@ GitHub Actions hardening is zizmor's advisory lane: dangerous triggers such as
 expression injection through the `github` context inside `run:` blocks,
 permission-widening changes to a workflow's `permissions:` or to settings /
 config, and supply-chain risk from loosened or unpinned action / dependency
-pins. Defer to it and do not re-report those findings here. This lane's value
+pins. Defer to it and do not re-report those findings here, except a trust-control
+widening (below), which this lane always reports. This lane's value
 is the logic, architecture, data-flow, and trust-boundary security reasoning
 static analysis cannot reach, so report an Actions finding only when it needs
 that reasoning. If you find no security issues, say so plainly.
+
+**Trust controls.** No path holds the merge for being trusted alone, so this lane is what stops a
+change to the controls that decide who and what the automation trusts. Each of these is CRITICAL
+unless the diff shows it keeps or narrows what the control allows, and the finding says which
+control and what now gets through:
+
+- it widens who passes the trusted-trigger check (in this repository
+  `.github/actions/check-trusted-trigger/`, which reads the trusted-actor list);
+- it widens the scope of the lanes App token a workflow requests or the broker mints (in this
+  repository `.github/actions/request-lane-token/`, or a workflow's token request);
+- it leaves the lanes kill switch unable to stop a lane: a read that no longer fails closed, a
+  lane that no longer consults it, or an output a lane no longer honors (in this repository
+  `.github/actions/check-kill-switch/`);
+- it changes code the token broker runs in its signer process (in this repository
+  `.github/actions/resolve-config/`) and does not show the change narrows what that process
+  signs or grants.
+
+This repository's review callers pass those paths in `hold-paths`, beside the trusted-actor
+list, `CODEOWNERS` and `.gitmodules`: read each such file's whole change and what it gates.
 
 **Instruction-surface deletions.** Removing a guardrail makes the surrounding context the model's
 only judgment input, and a hostile context then decides what the removed rule used to. When the
@@ -176,8 +196,11 @@ eligible for skip 2. Compare the base and head manifests:
 
 For each item the diff hits, the summary carries one line, `manifest <field>: pass` or
 `manifest <field>: flag, <reason>`, so the outcome reads without the inline comments. Every
-`flag` line is a finding and counts in the review's findings total; it is IMPORTANT unless its
-exploit path makes it CRITICAL.
+`flag` line is a finding and counts in the review's findings total. A flag on a key that installs
+or runs code, a `plugin.json` `hooks`, `mcpServers`, `lspServers`, `monitors`,
+`experimental.monitors` or `dependencies`, or a marketplace entry's `source`, is CRITICAL: it
+runs new code for installed users. Every other flag is IMPORTANT unless its exploit path makes it
+CRITICAL.
 
 The pointers below are reading material for naming what a flagged field runs, never the test
 for whether it is flagged. Pointer: what each field loads, runs, grants, or stores is read at
@@ -225,14 +248,10 @@ The merge gate reads severity from two plain-text lines, never HTML comments:
 A comment or summary without its one readable line counts every finding it holds as CRITICAL.
 
 **Hold for a person.** When the wrapper's output schema has a `hold` field, fill it as that
-schema defines it, only for these classes, each named by its criterion, with a reason naming the
-findings or files:
-
-- `critical-security`: one or more CRITICAL findings. Each keeps its `severity: CRITICAL` line and
-  its place in `critical-findings: <n>`; the hold adds to neither count.
-- `trust-gate`: the change touches `.github/standards/trusted-actors/**`,
-  `.github/actions/check-trusted-trigger/**`, a `CODEOWNERS` file or a `.gitmodules` file, with or
-  without a finding.
+schema defines it, only for `critical-security`: one or more CRITICAL findings, a CRITICAL
+`manifest <field>: flag` line and a trust-control finding included, with a reason naming them.
+Each keeps its `severity: CRITICAL` line and its place in `critical-findings: <n>`; the hold adds
+to neither count. A trusted path with no CRITICAL finding sets no hold.
 
 An IMPORTANT or SUGGESTION finding, a `manifest <field>: flag` line short of CRITICAL, and every
 other finding is a normal finding and never sets `hold`. With no `hold` field in the schema,
