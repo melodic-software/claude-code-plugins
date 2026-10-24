@@ -1859,7 +1859,14 @@ test("a Refs PR merging lifts the needs-human report-outcome set for it: needs-t
   assert.deepEqual(writes(calls), [comment, triage, `DELETE /repos/${REPO}/issues/30/labels/needs-human`, agentReady]);
 });
 
-test("a needs-human that report-outcome did not set for the merged PR, or a PR that has not merged, keeps the hold", async () => {
+test("a Refs PR closed unmerged lifts the needs-human report-outcome set for it and hands the issue to triage", async () => {
+  const { github, calls } = refsHeld({ pulls: [lanePull({ merged: false })] });
+  assert.equal(await sweep({ github }), 0);
+  const [comment, triage, agentReady] = triaged(30, 7805, refsClosedComment(7805));
+  assert.deepEqual(writes(calls), [comment, triage, `DELETE /repos/${REPO}/issues/30/labels/needs-human`, agentReady]);
+});
+
+test("a needs-human that report-outcome did not set for the ended PR, or a PR still open, keeps the hold", async () => {
   for (const [name, fake] of [
     ["the marker by a person", refsHeld({ comments: [note(), holdNote(7805, OWNER)] })],
     ["the marker names another PR", refsHeld({ comments: [note(), holdNote(7804)] })],
@@ -1877,7 +1884,6 @@ test("a needs-human that report-outcome did not set for the merged PR, or a PR t
       }),
     ],
     ["the PR is open", refsHeld({ pulls: [lanePull({ state: "open" })] })],
-    ["the PR closed unmerged", refsHeld({ pulls: [lanePull({ merged: false })] })],
     ["another hold beside it", refsHeld({ labels: ["needs-human", "needs-owner-decision"] })],
   ]) {
     assert.equal(await sweep({ github: fake.github }), 0, name);

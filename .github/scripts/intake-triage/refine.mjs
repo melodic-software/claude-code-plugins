@@ -12,8 +12,10 @@
 // (admit.mjs unrunnableCriteria, the check that held it) while at least one
 // item stays once they move; the context then carries those items as `split`. It refines only an open
 // issue whose author is a listed human or the lanes App, that no person holds
-// (`needs-human`), whose one intake lane comment this run wrote, and that the
-// lanes App has not refined before (the loop guard). The context holds the
+// (`needs-human`), whose one intake lane comment this run wrote, and whose
+// body as it is now the lanes App has not refined (the loop guard: each
+// refinement names the body it is for, by hash, so a person's edit gets one
+// more). The context holds the
 // issue's title, body and labels, the listed humans' comments
 // (select-trusted-text's author and edit rules), the triage comment, and the
 // open and closed issues and merged pull requests a title search finds, as
@@ -34,21 +36,22 @@
 // re-triage then would only refuse again. Not exact: the comment
 // asks numbered questions, each with a `RECOMMENDED:` answer and its basis,
 // and the issue keeps or gets `status: needs-decision`, which a person's
-// `**Decision recorded.**` sends back through intake-reenter.yml. It never
-// adds `agent-ready`, or `needs-human` to the issue it refines.
+// `**Decision recorded.**` sends back through intake-reenter.yml. An exact
+// output that names a duplicate or fixing change becomes not exact, with one
+// question whether to close the issue. It never adds `agent-ready` or
+// `needs-human`, and files no issue.
 //
 // A split the model judges sound names exactly the held item numbers; the
-// model writes no text the lanes read. The script files one child issue,
-// authored by the lanes App, labeled `needs-human` and typed CHILD_TYPE with
-// the born-triaged marker last (so intake skips it), that holds those items
-// as written and links back; lifts the App's
-// `status: needs-decision` and asks for triage again; and rewrites the
-// issue's body, replacing those items with one plain line linking the child,
-// so admission reads the rest. It splits only when admission's comment
-// refused the issue for those items alone; an item's deeper-indented lines
-// move with it, so every task-list line nested under a moved item must be one
-// the lane cannot perform too. A retry reuses a child the App already filed for the issue
-// with the same items (on the issue's timeline), so it files one.
+// model writes no text the lanes read. The refinement comment lists those
+// items as written, quoted, as checks a person runs that the lane does not
+// do; then the script lifts the App's `status: needs-decision`, asks for
+// triage again, and rewrites the issue's body, replacing those items with one
+// plain line pointing at that comment, so admission reads the rest. It splits
+// only when admission's comment refused the issue for those items alone; an
+// item's deeper-indented lines move with it, so every task-list line nested
+// under a moved item must be one the lane cannot perform too. The comment
+// names the body the split leaves, so a retry after a failed body edit reuses
+// it.
 //
 // Model text is data: each field is rendered on one line, with `<`, `[`, `]`,
 // `(` and `)` escaped, and mentions, `#N` and `GH-N` references, `://` and
@@ -67,11 +70,11 @@
 //   KILL_SWITCH           `proceed`, or the run stops before any API call
 //   CONTEXT_PATH          where --select writes, and --apply reads, the context
 //   REFINEMENT_PATH       the model's structured output (--apply)
+import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { BORN_TRIAGED_MARKER } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
@@ -79,9 +82,6 @@ import { ADMIT_MARKER, hasTrustedCriteria, loadRules, REFINE_MARKER, refusalText
 import { LANES_APP_LOGIN, MARKER } from "./apply-verdict.mjs";
 
 export { REFINE_MARKER };
-// Opens the body of the child issue a split files.
-export const SPLIT_MARKER = "<!-- intake-triage split -->";
-const CHILD_TYPE = "Task";
 const TASK = "- [ ] ";
 const LANE_BOT = "github-actions[bot]";
 const NEEDS_DECISION = "status: needs-decision";
@@ -100,6 +100,12 @@ const labelNames = (issue) => (issue.labels ?? []).map((label) => (typeof label 
 // The lanes App's own refinement comment: posted by its account id, marker first.
 export const isRefinement = (comment, appId) =>
   appId !== undefined && comment?.user?.id === appId && String(comment.body ?? "").startsWith(REFINE_MARKER);
+
+// The refinement comment's second line: the issue body it is for.
+export const bodyVersion = (body) => `<!-- refined body sha256:${createHash("sha256").update(String(body ?? "")).digest("hex")} -->`;
+
+// Whether the lanes App already refined `body`.
+const refinedBody = (comments, appId, body) => comments.some((comment) => isRefinement(comment, appId) && String(comment.body).split("\n")[1] === bodyVersion(body));
 
 // The verdict's flags, or null without exactly one unquoted Flags line.
 const flagsOf = (laneBody) => {
@@ -212,8 +218,8 @@ export async function selectRefinement({ github, repository, number, humans, app
   if (lane.length !== 1 || !(Date.parse(lane[0].updated_at) >= startedAt)) {
     return no("no single intake lane comment from this run");
   }
-  if (comments.some((comment) => isRefinement(comment, appId))) {
-    return no("the lanes App already refined it");
+  if (refinedBody(comments, appId, issue.body)) {
+    return no("the lanes App already refined this body");
   }
   const { thin, reasons } = isThin({ body: issue.body, laneBody: lane[0].body });
   const admission = comments.find((comment) => appId !== undefined && comment?.user?.id === appId && String(comment.body ?? "").startsWith(ADMIT_MARKER))?.body;
@@ -259,7 +265,7 @@ export function validateOutput(output, known, split = null) {
   if (typeof output.exact !== "boolean" || !isText(output.outcome)) {
     throw new Error("`exact` must be a boolean and `outcome` a string");
   }
-  const criteria = list(output.criteria, "criteria", (item) => isText(item) && item.trim() !== "");
+  let criteria = list(output.criteria, "criteria", (item) => isText(item) && item.trim() !== "");
   const dependencies = list(output.dependencies, "dependencies", isText);
   const sources = list(output.sources, "sources", isText);
   const related = list(
@@ -267,23 +273,35 @@ export function validateOutput(output, known, split = null) {
     "related",
     (item) => item && Number.isInteger(item.number) && RELATIONS.has(item.relation) && isText(item.note) && Object.keys(item).length === 3,
   ).filter((item) => known.has(item.number));
-  const questions = list(
+  let questions = list(
     output.questions,
     "questions",
     (item) => item && [item.question, item.recommended, item.basis].every((text) => isText(text) && text.trim() !== "") && Object.keys(item).length === 3,
   );
-  const moved = list(output.split, "split", Number.isInteger);
-  if (output.exact) {
+  let moved = list(output.split, "split", Number.isInteger);
+  let exact = output.exact;
+  if (exact) {
     if ((split === null && criteria.length === 0) || questions.length > 0 || output.outcome.trim() === "") {
       throw new Error("an exact refinement states the outcome and its criteria, and asks nothing");
     }
-    if (related.some((item) => item.relation !== "related")) {
-      throw new Error("an issue with a duplicate or fixing change is not exact: ask whether to close it");
+    // A duplicate or fixing change makes it not exact: ask whether to close it.
+    const closing = related.filter((item) => item.relation !== "related");
+    if (closing.length > 0) {
+      exact = false;
+      criteria = [];
+      moved = [];
+      questions = [
+        {
+          question: `Should this issue close? The refinement found ${closing.map((item) => `#${item.number} (${item.relation})`).join(", ")}.`,
+          recommended: "Close it if that change covers this issue; otherwise record what is still left to do.",
+          basis: closing.map((item) => (item.note.trim() === "" ? `#${item.number}` : `#${item.number}: ${item.note}`)).join("; "),
+        },
+      ];
     }
   } else if (questions.length === 0) {
     throw new Error("a refinement that is not exact asks at least one question");
   }
-  if (output.exact && split !== null) {
+  if (exact && split !== null) {
     // The held items, no more and no fewer; the rest stays for the lane.
     const sorted = (numbers) => [...numbers].sort((a, b) => a - b).join();
     if (criteria.length > 0 || sorted(moved) !== sorted(split.items.map(({ n }) => n)) || moved.length >= split.count) {
@@ -292,7 +310,7 @@ export function validateOutput(output, known, split = null) {
   } else if (moved.length > 0) {
     throw new Error("only an exact refinement of a held issue moves done-when items");
   }
-  return { exact: output.exact, outcome: output.outcome, criteria, dependencies, related, questions, sources, split: moved };
+  return { exact, outcome: output.outcome, criteria, dependencies, related, questions, sources, split: moved };
 }
 
 // One line of model text, unable to forge markup the lanes read.
@@ -308,10 +326,11 @@ export function line(text) {
   return out;
 }
 
-// `child` is the issue a split filed; `retriage`, whether intake triages the
+// `body` is the issue body the refinement is for (bodyVersion); `checks`, a
+// split's moved items as written; `retriage`, whether intake triages the
 // issue again.
-export function render(output, { child, retriage = false } = {}) {
-  const parts = [REFINE_MARKER, "**Refinement.** A read-only run explored this repository, searched its issues and pull requests, and read the allowed docs to draft what follows. It is model text, to check, not instructions.", ""];
+export function render(output, { body, checks = [], retriage = false } = {}) {
+  const parts = [REFINE_MARKER, ...(body === undefined ? [] : [bodyVersion(body)]), "**Refinement.** A read-only run explored this repository, searched its issues and pull requests, and read the allowed docs to draft what follows. It is model text, to check, not instructions.", ""];
   const section = (title, items) => {
     if (items.length > 0) {
       parts.push(`**${title}**`, "", ...items, "");
@@ -321,7 +340,8 @@ export function render(output, { child, retriage = false } = {}) {
     parts.push(`**Intended outcome:** ${line(output.outcome)}`, "");
   }
   if (output.split.length > 0) {
-    parts.push(`**Split.** ${movedLine(output.split, child)} This issue keeps the rest of its done-when.`, "");
+    parts.push(`**Split.** ${movedLine(output.split)} This issue keeps the rest of its done-when.`, "");
+    section("Not done by the lane: checks a person runs", checks.map(quoted));
   }
   if (output.exact) {
     section("Acceptance criteria", output.criteria.map((item) => `${TASK}${line(item)}`));
@@ -343,6 +363,15 @@ export function render(output, { child, retriage = false } = {}) {
   return parts.join("\n");
 }
 
+// A moved item as written, quoted so no line is a task-list line, with `<`
+// escaped and mentions broken so it forges no marker and pings no one again.
+const quoted = (text) =>
+  text
+    .trimEnd()
+    .split("\n")
+    .map((row) => `> ${row.replaceAll("<", "&lt;").replaceAll("@", "@​")}`)
+    .join("\n");
+
 async function removeLabel(github, base, name) {
   try {
     await github("DELETE", `${base}/labels/${encodeURIComponent(name)}`);
@@ -353,24 +382,10 @@ async function removeLabel(github, base, name) {
   }
 }
 
-const movedLine = (moved, child) =>
-  `Done-when ${moved.length === 1 ? "item" : "items"} ${[...moved].sort((a, b) => a - b).join(", ")} ${moved.length === 1 ? "needs" : "need"} a person, so ${moved.length === 1 ? "it moved" : "they moved"} to #${child}.`;
-
-// The child issue's body: the moved items as written (`texts`, each an
-// item's lines with its task-list prefix), mentions broken so they do not
-// ping again, then the born-triaged marker, so intake skips it.
-export function childBody(number, texts) {
-  return [
-    SPLIT_MARKER,
-    `Split from #${number}: an unattended lane run cannot perform these done-when items, so a person does. #${number} keeps the rest.`,
-    "",
-    "## Done when",
-    "",
-    ...texts.map((text) => text.trimEnd().replaceAll("@", "@​")),
-    "",
-    BORN_TRIAGED_MARKER,
-  ].join("\n");
-}
+const movedLine = (moved) =>
+  moved.length === 1
+    ? `Done-when item ${moved[0]} needs a person, so it moved to the lanes App's refinement comment, as a check a person runs.`
+    : `Done-when items ${[...moved].sort((a, b) => a - b).join(", ")} need a person, so they moved to the lanes App's refinement comment, as checks a person runs.`;
 
 // The moved items, each its first line from the task-list prefix on and its
 // deeper-indented lines after it, as one text per item; an item nested under
@@ -385,8 +400,8 @@ export function movedTexts(body, taskList, moved) {
 
 // The issue's body with the moved task-list items taken out, their
 // deeper-indented lines with them: the first one's line becomes a plain list
-// line linking the child, the others go. Pure.
-export function splitBody(body, taskList, moved, child) {
+// line pointing at the refinement comment, the others go. Pure.
+export function splitBody(body, taskList, moved) {
   const gone = ownedLines(taskItems(body, taskList), moved);
   let linked = false;
   return String(body)
@@ -399,58 +414,21 @@ export function splitBody(body, taskList, moved, child) {
         return [];
       }
       linked = true;
-      return [`${text.slice(0, text.length - text.trimStart().length)}- ${movedLine(moved, child)}`];
+      return [`${text.slice(0, text.length - text.trimStart().length)}- ${movedLine(moved)}`];
     })
     .join("\n");
 }
 
-// Gives the child CHILD_TYPE as intake's reusable does, through GraphQL. The
-// type only lets intake skip the child, so a failure is logged, not thrown.
-async function setType(github, repository, nodeId, log) {
-  try {
-    const [owner, name] = repository.split("/");
-    const types = (
-      await github("POST", "/graphql", {
-        query: "query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { issueTypes(first: 25) { nodes { id name isEnabled } } } }",
-        variables: { owner, name },
-      })
-    )?.data?.repository?.issueTypes?.nodes;
-    const type = (types ?? []).find((node) => node?.name === CHILD_TYPE && node.isEnabled)?.id;
-    if (typeof nodeId !== "string" || typeof type !== "string") {
-      throw new Error(`no ${CHILD_TYPE} type or no issue id`);
-    }
-    await github("POST", "/graphql", {
-      query: "mutation($id: ID!, $type: ID!) { updateIssue(input: { id: $id, issueTypeId: $type }) { issue { issueType { name } } } }",
-      variables: { id: nodeId, type },
-    });
-  } catch (error) {
-    log(`::warning title=refine::the child got no ${CHILD_TYPE} type, so intake triages it (${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")})`);
-  }
-}
-
-// The child the lanes App already filed for this issue with `body`, the
-// items it would move now, from the issue's timeline, or undefined.
-async function childOf(github, repository, base, appId, body) {
-  return (await paginate(github, `${base}/timeline`))
-    .map((event) => (event?.event === "cross-referenced" ? event.source?.issue : null))
-    .find(
-      (source) =>
-        source &&
-        !source.pull_request &&
-        source.user?.id === appId &&
-        String(source.repository_url ?? "").toLowerCase().endsWith(`/repos/${repository}`.toLowerCase()) &&
-        source.body === body,
-    )?.number;
-}
-
 // Sets the labels, then posts the refinement. {outcome, redispatch}.
 // `context` is what the model read: an issue whose title or body changed
-// since gets nothing. The comment goes last because its marker stops every
-// later refinement: a failure before it leaves no marker, so the next triage
-// refines the issue again and finishes the labels. A split files or finds
-// the child first, then sets the labels, then rewrites the body: a failure
-// before the body edit leaves the held items in place for the next triage to
-// hold and split again, onto the same child.
+// since gets nothing, and is triaged again. The comment goes last because
+// its marker stops a later refinement of the same body: a failure before it
+// leaves no marker, so the next triage refines the issue again and finishes
+// the labels. A split posts its comment first, naming the body the split
+// leaves, so the moved items are on the issue before the body loses them;
+// then it sets the labels and rewrites the body. A failure before the body
+// edit leaves the held items in place for the next triage to hold and split
+// again, reusing that comment.
 // `humans` and `rules` decide whether an exact refinement asks for a
 // re-triage (admit.mjs hasTrustedCriteria); a failed read of the spec throws
 // before any label write.
@@ -458,9 +436,9 @@ export async function applyRefinement({ github, repository, number, appId, human
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
   const labels = labelNames(issue);
-  const skip = (why) => {
-    log(`refine: #${number} ${why}; nothing written`);
-    return { outcome: "skipped", redispatch: false };
+  const skip = (why, redispatch = false) => {
+    log(`refine: #${number} ${why}; nothing written${redispatch ? ", triage asked again" : ""}`);
+    return { outcome: "skipped", redispatch };
   };
   if (issue.pull_request || issue.state !== "open") {
     return skip("is not an open issue");
@@ -469,46 +447,33 @@ export async function applyRefinement({ github, repository, number, appId, human
     return skip(`is held by ${NEEDS_HUMAN}`);
   }
   if (String(issue.title ?? "") !== context?.issue?.title || String(issue.body ?? "") !== context?.issue?.body) {
-    return skip("changed while the model ran");
+    return skip("changed while the model ran", true);
   }
-  if ((await paginate(github, `${base}/comments`)).some((comment) => isRefinement(comment, appId))) {
+  const comments = await paginate(github, `${base}/comments`);
+  if (refinedBody(comments, appId, issue.body)) {
     return skip("is already refined");
   }
   if (output.split.length > 0) {
     if (!labels.includes(NEEDS_DECISION) || (await decisionSetter(github, base)) !== appId) {
       return skip(`is no longer held by the lanes App's ${NEEDS_DECISION}`);
     }
-    const body = childBody(number, movedTexts(issue.body, rules["task-list"], output.split));
-    let child = await childOf(github, repository, base, appId, body);
-    if (child === undefined) {
-      const filed = (
-        await github("POST", `/repos/${repository}/issues`, {
-          title: `${String(issue.title)} (checks a person runs)`.slice(0, 256),
-          body,
-          labels: [NEEDS_HUMAN],
-        })
-      );
-      if (!Number.isInteger(filed?.number)) {
-        throw new Error("the child issue came back with no number");
-      }
-      child = filed.number;
-      log(`refine: #${number} filed #${child} for done-when items ${output.split.join(", ")}`);
-      await setType(github, repository, filed.node_id, log);
+    const after = splitBody(issue.body, rules["task-list"], output.split);
+    if (!refinedBody(comments, appId, after)) {
+      await github("POST", `${base}/comments`, { body: render(output, { body: after, checks: movedTexts(issue.body, rules["task-list"], output.split), retriage: true }) });
     }
     // Read again before the labels and the body edit, so a person's edit
-    // since is kept: the issue stays held, and a later split reuses the child.
+    // since is kept: the issue stays held, and its next triage reads the edit.
     if (String((await github("GET", base))?.body ?? "") !== String(issue.body ?? "")) {
-      log(`refine: #${number} changed before its body edit; #${child} filed, body left as is`);
-      return { outcome: "skipped", redispatch: false, child };
+      log(`refine: #${number} changed before its body edit; body and labels left as is, triage asked again`);
+      return { outcome: "skipped", redispatch: true };
     }
     await github("POST", `${base}/labels`, { labels: [NEEDS_TRIAGE] });
     await removeLabel(github, base, NEEDS_DECISION);
-    await github("PATCH", base, { body: splitBody(issue.body, rules["task-list"], output.split, child) });
-    await github("POST", `${base}/comments`, { body: render(output, { child, retriage: true }) });
-    log(`refine: #${number} split; items ${output.split.join(", ")} moved to #${child}, ${NEEDS_DECISION} lifted and triage asked again`);
-    return { outcome: "split", redispatch: true, child };
+    await github("PATCH", base, { body: after });
+    log(`refine: #${number} split; items ${output.split.join(", ")} listed as checks a person runs, ${NEEDS_DECISION} lifted and triage asked again`);
+    return { outcome: "split", redispatch: true };
   }
-  const post = (retriage = false) => github("POST", `${base}/comments`, { body: render(output, { retriage }) });
+  const post = (retriage = false) => github("POST", `${base}/comments`, { body: render(output, { body: issue.body, retriage }) });
   // Admission reads criteria only from a listed human's text, so a re-triage
   // without them would refuse again: one read, before any label write.
   const untrusted = async () => {
