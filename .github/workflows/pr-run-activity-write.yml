@@ -459,6 +459,10 @@ jobs:
         ${{ steps.act-script.outputs.escalation-reason || steps.patch-select.outputs.escalation-reason }}
       rung-up: ${{ steps.patch-select.outputs.skip-reason == 'rung-up' }}
       patch-skip-reason: ${{ steps.patch-select.outputs.skip-reason }}
+      # apply-patch: the SHA-256 of the withheld part apply-patch.mjs wrote
+      # and the upload step stored, empty when it withheld nothing.
+      kept-sha256: ${{ steps.kept-upload.outcome == 'success' && steps.act-script.outputs.kept-sha256 || '' }}
+      gate-number: ${{ inputs.issue-number || steps.gate.outputs.pr-number }}
       # The base action's own failure text, so the report names why the run
       # job failed before its act step.
       run-failure: ${{ steps.lane-token.outputs.failure-reason }}
@@ -1826,6 +1830,9 @@ jobs:
           PATCH_SHA256: ${{ steps.config.outputs.prepare == 'apply-patch' && inputs.patch-sha256 || '' }}
           HOLD_LABELS: ${{ steps.hold-label.outputs.labels }}
           ESCALATION_REASON_FILE: ${{ runner.temp }}/escalation-reason
+          # apply-patch.mjs only: where it writes the part of the patch it
+          # withholds (kept-paths.mjs), which the next step uploads.
+          KEPT_PATCH_DIR: ${{ steps.config.outputs.prepare == 'apply-patch' && format('{0}/kept-paths', runner.temp) || '' }}
           # apply-patch.mjs only: the trusted rules copy, the target, and what
           # names the commit; the issue target's required labels.
           BASE_DIR: ${{ steps.apply-base.outputs.dir }}
@@ -1921,6 +1928,20 @@ jobs:
             esac
           fi
           echo "escalation-reason=$escalation" >>"$GITHUB_OUTPUT"
+
+      # apply-patch withheld part of the patch (kept-paths.mjs): the runner,
+      # never the model, uploads it beside its SHA-256 for the kept-paths job
+      # to post and a later job to apply.
+      - name: Upload the withheld kept-path patch
+        id: kept-upload
+        if: >-
+          steps.act-script.outcome == 'success' && steps.act-script.outputs.kept-sha256 != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: kept-paths-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/kept-paths/kept.diff
+          retention-days: 30
+          if-no-files-found: error
 
       # Issue mode, apply-patch: the model job's lane.json names no branch,
       # since that job made none; the branch this job made is written into it
@@ -2051,6 +2072,66 @@ jobs:
               core.notice(`DELETE returned 204 but the read-back was not yet refused (GET ${after}); the lane token expires within the hour`);
             } else {
               core.info('the lane token is confirmed revoked (DELETE 204, GET 401)');
+            }
+
+  # The withheld kept-path patch, posted on the PR (or the issue, in issue
+  # mode) in one marker comment edited in place: for reading only. The job
+  # that applies it reads the artifact and checks its SHA-256.
+  kept-paths:
+    needs: run
+    if: >-
+      always() && needs.run.outputs.kept-sha256 != ''
+      && !(github.event_name == 'pull_request'
+      && github.event.pull_request.head.repo.full_name != github.repository)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Download the withheld kept-path patch
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: kept-paths-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/kept-paths
+
+      - name: Post the kept-path comment
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          KEPT_SHA256: ${{ needs.run.outputs.kept-sha256 }}
+          NUMBER: ${{ needs.run.outputs.gate-number }}
+          HEAD_SHA: ${{ needs.run.outputs.head-sha }}
+          KEPT_FILE: ${{ runner.temp }}/kept-paths/kept.diff
+        with:
+          retries: 0
+          script: |
+            const { createHash } = await import('node:crypto');
+            const { readFileSync } = await import('node:fs');
+            const { pathToFileURL } = await import('node:url');
+            const { KEPT_MARKER, keptComment, keptPaths } = await import(
+              pathToFileURL(`${process.env.GITHUB_WORKSPACE}/.base/.github/scripts/apply-patch/kept-paths.mjs`).href
+            );
+            const { KEPT_SHA256, NUMBER, HEAD_SHA, KEPT_FILE } = process.env;
+            const patch = readFileSync(KEPT_FILE, 'utf8');
+            if (createHash('sha256').update(patch).digest('hex') !== KEPT_SHA256 || !/^[1-9][0-9]*$/.test(NUMBER)) {
+              core.setFailed('the kept-path patch does not match its SHA-256, or no PR or issue number');
+              return;
+            }
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${context.runId}`;
+            const body = keptComment({ patch, sha256: KEPT_SHA256, headSha: HEAD_SHA, runId: String(context.runId), runUrl, paths: keptPaths(patch) });
+            const comments = await github.paginate(github.rest.issues.listComments, { ...context.repo, issue_number: Number(NUMBER), per_page: 100 });
+            const mine = comments.find((comment) => comment.user?.type === 'Bot' && comment.user?.login === 'github-actions[bot]' && comment.body?.startsWith(KEPT_MARKER));
+            if (mine) {
+              await github.rest.issues.updateComment({ ...context.repo, comment_id: mine.id, body });
+            } else {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: Number(NUMBER), body });
             }
 
   report:

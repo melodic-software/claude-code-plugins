@@ -613,6 +613,49 @@ test("checkRow names an unknown content rule", () => {
 });
 
 // Gap 3: the pairs come from BASE_DIR's dependabot.yml, never the checkout's.
+test("main writes the withheld part to KEPT_PATCH_DIR with its SHA-256, and an all-withheld PR patch skips prerequisite-missing", async (t) => {
+  const base = scratch(t);
+  mkdirSync(join(base, dirname(RULES_PATH)), { recursive: true });
+  cpSync(join(REPO_ROOT, RULES_PATH), join(base, RULES_PATH));
+  for (const [what, edit, outcome] of [
+    ["with the rest", (repo) => (writeFileSync(join(repo, "settings.json"), "{}\n"), writeFileSync(join(repo, "README.md"), "# fixed\n")), "pushed"],
+    ["alone", (repo) => writeFileSync(join(repo, "settings.json"), "{}\n"), "withheld"],
+  ]) {
+    const fix = repoWithPatch(t, edit);
+    const out = scratch(t);
+    const env = {
+      BASE_DIR: base,
+      PATCH_PREPARE: "",
+      GH_TOKEN: "t",
+      GITHUB_REPOSITORY: "o/r",
+      PR_NUMBER: "42",
+      HEAD_SHA: fix.head,
+      PATCH_HEAD_SHA: fix.head,
+      HEAD_REF: "feat/x",
+      LANE: "pr-refine",
+      PATCH_ACTIVITY: "fix-docs",
+      PATCH_FILE: fix.patchFile,
+      PATCH_SHA256: fix.sum,
+      HOLD_LABELS: "[]",
+      SKIP_REASON_FILE: join(out, "skip"),
+      ESCALATION_REASON_FILE: join(out, "escalation"),
+      GITHUB_OUTPUT: join(out, "output"),
+      KEPT_PATCH_DIR: join(out, "kept"),
+    };
+    await main([], env, { api: fakeApi(fix.repo, fix.head), cwd: fix.repo, gitBin: "git", log: () => {} });
+    const kept = readFileSync(join(out, "kept", "kept.diff"), "utf8");
+    assert.match(kept, /^diff --git a\/settings\.json b\/settings\.json$/m, what);
+    assert.doesNotMatch(kept, /README/, what);
+    assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), new RegExp(`^kept-sha256=${sha256(kept)}$`, "m"), what);
+    assert.throws(() => readFileSync(env.ESCALATION_REASON_FILE), what);
+    if (outcome === "withheld") {
+      assert.equal(readFileSync(env.SKIP_REASON_FILE, "utf8"), "prerequisite-missing\n");
+    } else {
+      assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), /^commit=c{40}$/m);
+    }
+  }
+});
+
 test("main reads the dependency-manifests pairs from the base dependabot.yml", async (t) => {
   const fix = dependencyPatch(t, bump);
   const base = scratch(t);
