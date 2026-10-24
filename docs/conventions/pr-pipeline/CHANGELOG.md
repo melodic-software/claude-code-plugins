@@ -1,5 +1,23 @@
 # Changelog for the PR pipeline convention
 
+## [5.2.1] - 2026-10-24
+
+### Changed
+
+- Intake triage no longer holds an issue for cost when the work only spends from a flat or prepaid source: model runs, lane runs and `claude plugin eval` passes bill the prepaid API keys, which do not auto-refill (owner Q37). Only a new or renewing charge (Actions billing, Azure, a key or plan that renews or auto-recharges) is cost (`.github/workflows/intake-triage.yml`).
+
+## [5.2.0] - 2026-10-24
+
+### Added
+
+- intake-reenter sends an issue back to intake triage when a listed human removes `needs-human` and leaves no `status:` label, no `agent-ready` and an author intake admits.
+
+## [5.1.0] - 2026-10-24
+
+### Changed
+
+- On an issue whose body a listed human wrote, and last edited if ever, intake triage's newest refinement comment (opening `<!-- intake-triage refinement -->`) by the lanes App now counts as spec while it is unedited: pr-verify's `resolve-pr.mjs` gives it to the verifier as spec text when it was posted before the pull request opened, and admission (`admit.mjs`) counts its task list for criterion 7. The lanes App is the trusted-actor list's id for `merge.agent-identity` in pr-verify and the list's id for the App's login in admission. An edited newest refinement counts nothing and no older one stands in for it; an App-filed issue, a body someone else last edited, a comment whose first text is not exactly the marker, and any other Bot's or App's comment stay out. A lane pull request still never supplies its own spec. The refinement stays out of the recorded spec comments the merge gate compares, whose filter stays human-only, so the gate does not see a refinement edited, hidden or added after a pass; an edit only removes it from spec. Intake's refinement banner and `refine.mjs`'s criteria check follow the rule.
+
 ## [5.0.0] - 2026-10-24
 
 ### Changed

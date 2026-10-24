@@ -1,8 +1,9 @@
 name: maintenance-monitor-signals
 
 # The monitoring lane: every hour, reads a fixed set of factory signals and
-# keeps one issue per signal and key, so a recurrence updates the existing
-# issue instead of filing a second. docs/conventions/pr-pipeline/README.md,
+# keeps one rolling issue per signal family, rewritten when its state changes,
+# closed when it clears and reopened when it fires again; GitHub incidents go
+# to the run summary only. docs/conventions/pr-pipeline/README.md,
 # "The monitoring lane", lists the signals and the dedup rules; the scripts
 # and tests are in .github/scripts/maintenance-monitor-signals/.
 #
