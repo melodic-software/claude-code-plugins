@@ -270,6 +270,18 @@
       "expect": { "verdict": "refuse", "reason": "cost hit in title or body: larger runner" }
     },
     {
+      "name": "body naming a spending limit refuses as a cost hit",
+      "source": "owner rule 2026-10-24: metered or renewing charges hold",
+      "issue": { "body": "Raise the Actions spending limit for the org." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: spending limit" }
+    },
+    {
+      "name": "model or eval spend with no billing term admits",
+      "source": "owner rule 2026-10-24: Claude, model and eval spend draws on a fixed monthly credit with no auto-renewal, so it holds nothing",
+      "issue": { "title": "Run claude plugin eval on the paid tier and report the cost", "body": "Spend the eval quota; pricing is per run." },
+      "expect": { "verdict": "admit", "rule": "R2" }
+    },
+    {
       "name": "plain docs wording with no charge term still admits",
       "source": "the cost list stays narrow so ordinary work is not refused",
       "issue": { "title": "Fix the plan step wording in the README" },
