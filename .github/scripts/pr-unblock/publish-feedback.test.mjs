@@ -612,7 +612,7 @@ test("a VALID fix that changes its thread's path and another file lands, named o
 
 // A finding on one file of the PR fixed in another: run.json's pr_paths
 // carry the PR's files into the thread's scope.
-test("a VALID fix in another file the PR changes, citing a line it changed, lands, a new file included; uncited or not in the PR, it does not", async () => {
+test("a VALID fix in another file, citing a line it changed, lands, in the PR or not and a new file included; uncited, it does not", async () => {
   // The doc and the script, as files the checkout holds.
   const thread = { ...RUN.threads[0], path: "docs/b.md" };
   const script = "src/a.js";
@@ -620,7 +620,7 @@ test("a VALID fix in another file the PR changes, citing a line it changed, land
     ["in the PR", [thread.path, script], { filename: script, status: "modified" }, true],
     ["in the PR, not cited", [thread.path, script], { filename: script, status: "modified" }, false, [`${thread.path}:1`]],
     ["in the PR, cited outside the fix's hunks", [thread.path, script], { filename: script, status: "modified" }, false, [`${script}:9`]],
-    ["not in the PR", [thread.path], { filename: script, status: "modified" }, false],
+    ["not in the PR", [thread.path], { filename: script, status: "modified" }, true],
     ["added by the fix", [thread.path, script], { filename: script, status: "added" }, true],
   ]) {
     const api = fakeApi({

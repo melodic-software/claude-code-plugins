@@ -579,8 +579,10 @@ token has no `workflows` permission), `**/settings*.json` (a Claude settings fil
 a job that loads the head would run), a symbolic link, a gitlink, a backslash path, and a rename
 into any of those, with its source. A kept path is never a stop: on a `[head]` row
 `apply-patch.mjs` withholds each kept change, pushes the rest, and writes the withheld part as
-`kept.diff` (`KEPT_PATCH_DIR`, its SHA-256 the step's `kept-sha256` output). The write runner
-uploads it as the `kept-paths-<lane>-<activity>-<attempt>` artifact, and its `kept-paths` job posts
+`kept.diff` (`KEPT_PATCH_DIR`, its SHA-256 the step's `kept-sha256` output) beside `kept.json`,
+a manifest naming the commit it applies to (the one pushed, else the gated head), the SHA-256,
+the paths, the PR or issue, and the run. The write runner uploads both as the
+`kept-paths-<lane>-<activity>-<attempt>` artifact, and its `kept-paths` job posts
 it in one comment, found by its `<!-- lane-kept-paths -->` marker and edited in place, naming the
 head, the SHA-256 and the run, pending an automated apply; the names are the exports of
 [`kept-paths.mjs`](../../../.github/scripts/apply-patch/kept-paths.mjs). A patch of kept paths

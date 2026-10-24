@@ -61,8 +61,8 @@ The preamble names the tool's path. It is the only shell command this mode runs:
    ```
 
    `VALID` and `INCORRECT` need at least one `path:line` in the checkout, at most 10. A `VALID`
-   fix that does not change the thread's own path must cite a line it changed in another of the
-   pull request's files, or its reply does not land, and nor does any other reply in the round. `fix_sha`
+   fix that does not change the thread's own path must cite a line it changed in another file, or
+   its reply does not land, and nor does any other reply in the round. `fix_sha`
    stays empty, or is left out: the reply job finds the commit the push job made. `VALID-defer`
    is VALID (defer). The note is 1-2000 characters of plain prose: no control characters, no HTML
    comment (`<!--`, `-->`), no token, no @-mention. It is posted in a code fence.

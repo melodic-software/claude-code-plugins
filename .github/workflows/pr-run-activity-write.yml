@@ -462,7 +462,6 @@ jobs:
       # apply-patch: the SHA-256 of the withheld part apply-patch.mjs wrote
       # and the upload step stored, empty when it withheld nothing.
       kept-sha256: ${{ steps.kept-upload.outcome == 'success' && steps.act-script.outputs.kept-sha256 || '' }}
-      gate-number: ${{ inputs.issue-number || steps.gate.outputs.pr-number }}
       # The base action's own failure text, so the report names why the run
       # job failed before its act step.
       run-failure: ${{ steps.lane-token.outputs.failure-reason }}
@@ -1939,7 +1938,9 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: kept-paths-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/kept-paths/kept.diff
+          path: |
+            ${{ runner.temp }}/kept-paths/kept.diff
+            ${{ runner.temp }}/kept-paths/kept.json
           retention-days: 30
           if-no-files-found: error
 
@@ -2106,26 +2107,26 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           KEPT_SHA256: ${{ needs.run.outputs.kept-sha256 }}
-          NUMBER: ${{ needs.run.outputs.gate-number }}
-          HEAD_SHA: ${{ needs.run.outputs.head-sha }}
-          KEPT_FILE: ${{ runner.temp }}/kept-paths/kept.diff
+          KEPT_DIR: ${{ runner.temp }}/kept-paths
         with:
           retries: 0
           script: |
             const { createHash } = await import('node:crypto');
             const { readFileSync } = await import('node:fs');
             const { pathToFileURL } = await import('node:url');
-            const { KEPT_MARKER, keptComment, keptPaths } = await import(
+            const { KEPT_MANIFEST_FILE, KEPT_MARKER, KEPT_PATCH_FILE, keptComment } = await import(
               pathToFileURL(`${process.env.GITHUB_WORKSPACE}/.base/.github/scripts/apply-patch/kept-paths.mjs`).href
             );
-            const { KEPT_SHA256, NUMBER, HEAD_SHA, KEPT_FILE } = process.env;
-            const patch = readFileSync(KEPT_FILE, 'utf8');
-            if (createHash('sha256').update(patch).digest('hex') !== KEPT_SHA256 || !/^[1-9][0-9]*$/.test(NUMBER)) {
-              core.setFailed('the kept-path patch does not match its SHA-256, or no PR or issue number');
+            const { KEPT_SHA256, KEPT_DIR } = process.env;
+            const patch = readFileSync(`${KEPT_DIR}/${KEPT_PATCH_FILE}`, 'utf8');
+            const manifest = JSON.parse(readFileSync(`${KEPT_DIR}/${KEPT_MANIFEST_FILE}`, 'utf8'));
+            const NUMBER = String(manifest.number);
+            if (createHash('sha256').update(patch).digest('hex') !== KEPT_SHA256 || manifest.sha256 !== KEPT_SHA256 || !/^[1-9][0-9]*$/.test(NUMBER) || !/^[0-9a-f]{40}$/.test(String(manifest.applies_to))) {
+              core.setFailed('the kept-path patch or its manifest does not match its SHA-256, or names no PR, issue or commit');
               return;
             }
             const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${context.runId}`;
-            const body = keptComment({ patch, sha256: KEPT_SHA256, headSha: HEAD_SHA, runId: String(context.runId), runUrl, paths: keptPaths(patch) });
+            const body = keptComment({ patch, sha256: KEPT_SHA256, headSha: manifest.applies_to, runId: String(context.runId), runUrl, paths: manifest.paths });
             const comments = await github.paginate(github.rest.issues.listComments, { ...context.repo, issue_number: Number(NUMBER), per_page: 100 });
             const mine = comments.find((comment) => comment.user?.type === 'Bot' && comment.user?.login === 'github-actions[bot]' && comment.body?.startsWith(KEPT_MARKER));
             if (mine) {

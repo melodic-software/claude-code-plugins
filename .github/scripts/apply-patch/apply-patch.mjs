@@ -67,7 +67,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { fixRefusal, parseConfig } from "../pr-unblock/dependency-classify.mjs";
-import { KEPT_PATCH_FILE } from "./kept-paths.mjs";
+import { KEPT_MANIFEST_FILE, KEPT_PATCH_FILE } from "./kept-paths.mjs";
 import { PREDICATES } from "./predicates.mjs";
 
 export const MAX_PATCH_BYTES = 1024 * 1024;
@@ -819,7 +819,7 @@ export async function push({
   const renames = changes(git(["diff-tree", "-r", "-z", "-M", "--diff-filter=R", from, tree]));
   // A refused entry of this patch is withheld, a rename's source with its
   // target, and the rest goes on; a refused path only the start commit's own
-  // commits reach cannot be withheld and refuses the whole patch.
+  // commits reach cannot be withheld and refuses the whole patch as invalid.
   const refuse = [...row.refuse, ...ALWAYS];
   const checks = [
     ...renames.map((entry) => [entry, ["rename-into-refused"]]),
@@ -831,7 +831,7 @@ export async function push({
   for (const [entry, names] of checks) {
     const [refusal] = refusalsOf(entry, names);
     if (refusal && !own.has(entry.path)) {
-      return escalate(REFUSALS[refusal].kind, `refused (${refusal}): ${entry.path}`);
+      return escalate("invalid", `refused (${refusal}): ${entry.path}`);
     }
     if (refusal && !kept.has(entry.path)) {
       log(`withheld (${refusal}): ${entry.path}`);
@@ -1130,12 +1130,29 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
   if (result.outcome === "pushed" && env.GITHUB_OUTPUT) {
     appendFileSync(env.GITHUB_OUTPUT, `commit=${result.commit}\nbranch=${result.branch}\n`);
   }
-  // The withheld part, as its own patch file for the run job to upload.
+  // The withheld part, as its own patch file and manifest for the run job to
+  // upload. It applies to the commit pushed, else to the gated head.
   if (result.kept && env.KEPT_PATCH_DIR) {
+    const sha256 = sha256Of(Buffer.from(result.kept.patch));
+    const manifest = {
+      version: 1,
+      repository: env.GITHUB_REPOSITORY,
+      target: row.target,
+      number: Number(env[numberKey]),
+      ref: result.branch ?? env.HEAD_REF,
+      applies_to: result.commit ?? env.HEAD_SHA,
+      sha256,
+      paths: result.kept.paths,
+      lane: env.LANE,
+      activity: env.PATCH_ACTIVITY,
+      run_id: env.GITHUB_RUN_ID ?? "",
+      run_attempt: env.GITHUB_RUN_ATTEMPT ?? "",
+    };
     mkdirSync(env.KEPT_PATCH_DIR, { recursive: true });
     writeFileSync(join(env.KEPT_PATCH_DIR, KEPT_PATCH_FILE), result.kept.patch);
+    writeFileSync(join(env.KEPT_PATCH_DIR, KEPT_MANIFEST_FILE), `${JSON.stringify(manifest, null, 2)}\n`);
     if (env.GITHUB_OUTPUT) {
-      appendFileSync(env.GITHUB_OUTPUT, `kept-sha256=${sha256Of(Buffer.from(result.kept.patch))}\n`);
+      appendFileSync(env.GITHUB_OUTPUT, `kept-sha256=${sha256}\n`);
     }
   }
   // All withheld waits on the kept part's apply, which needs the workflows

@@ -224,9 +224,9 @@ export function lineChanged(patch, line) {
 }
 
 // Whether a fix commit's changed files touch a thread's path: the path itself,
-// a file the pull request already changes whose line the reply's evidence
-// cites inside a hunk of the fix (`cited`), so a finding on one file fixed in another of the PR's files
-// lands, or for a skill's SKILL.md any file under that skill's directory.
+// a file whose line the reply's evidence cites inside a hunk of the fix
+// (`cited`), so a finding on one file fixed in another lands, or for a
+// skill's SKILL.md any file under that skill's directory.
 function touchesThread(changed, threadPath, cited) {
   if (changed.some((file) => cited.has(file))) {
     return true;
@@ -294,7 +294,7 @@ const claimedFixes = (reviewComments, appId) =>
 // VALID, every path that range changes must be one inThreadScope allows (plain
 // and in normal form). With a VALID reply the range must hold
 // exactly one fix commit (isLaneFix), and it must change every VALID thread's path, a
-// file the PR already changes at a line the reply's evidence cites, or for a
+// file at a line the reply's evidence cites, or for a
 // thread on a skill's SKILL.md any file in that skill's directory (touchesThread).
 // With no fix commit in the range and no patch written this round
 // (`patchWritten`, whose push then did not land), each VALID thread takes its
@@ -314,7 +314,6 @@ async function fixesLanded({ api, pr, run, headSha, replies, appId, judgedAt, pa
   const fixes = valid.length === 0 ? [] : (comparison.commits ?? []).filter((commit) => isLaneFix(commit, appId));
   const fixSha = fixes.length === 1 ? fixes[0].sha : "";
   const threadPath = new Map(run.threads.map((thread) => [thread.id, thread.path]));
-  const prPaths = new Set(run.pr_paths ?? []);
   const files = comparison.files ?? [];
   const inRange =
     ["ahead", "identical"].includes(comparison.status) &&
@@ -334,12 +333,12 @@ async function fixesLanded({ api, pr, run, headSha, replies, appId, judgedAt, pa
     const commitFiles = (await api.getCommit(fixSha)).files ?? [];
     const changed = commitFiles.map((file) => file.filename);
     const patches = new Map(commitFiles.map((file) => [file.filename, file.patch]));
-    // The pr_paths files whose cited line the fix commit changed.
+    // The files whose cited line the fix commit changed.
     const cited = (reply) =>
       new Set(
         reply.evidence
           .map((ev) => [ev.slice(0, ev.lastIndexOf(":")), Number(ev.slice(ev.lastIndexOf(":") + 1))])
-          .filter(([path, line]) => prPaths.has(path) && lineChanged(patches.get(path), line))
+          .filter(([path, line]) => lineChanged(patches.get(path), line))
           .map(([path]) => path),
       );
     if (!valid.every((reply) => touchesThread(changed, threadPath.get(reply.thread), cited(reply)))) {

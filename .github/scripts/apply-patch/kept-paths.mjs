@@ -1,14 +1,17 @@
 // The kept-path hand-off. apply-patch.mjs withholds a patch's changes to a
 // path the lane token may not push or the review job would load (a workflow,
 // a settings file, a symbolic link, a gitlink, a backslash path, a rename into
-// one), pushes the rest, and writes the withheld part as its own patch file.
-// The run job uploads it as KEPT_ARTIFACT, beside its SHA-256; the report job
-// posts it for people in one comment that KEPT_MARKER finds and edits in
-// place. A job that applies the kept part trusts the artifact and its
+// one), pushes the rest, and writes the withheld part as its own patch file,
+// KEPT_PATCH_FILE, beside KEPT_MANIFEST_FILE: the commit it applies to, its
+// SHA-256, its paths, the run, lane, activity and PR or issue. The run job
+// uploads both as the keptArtifactName artifact; the kept-paths job posts the
+// patch for people in one comment that KEPT_MARKER finds and edits in place.
+// A job that applies the kept part trusts the artifact, its manifest and the
 // SHA-256, never the comment text.
 
 export const KEPT_MARKER = "<!-- lane-kept-paths -->";
 export const KEPT_PATCH_FILE = "kept.diff";
+export const KEPT_MANIFEST_FILE = "kept.json";
 export const keptArtifactName = ({ lane, activity, attempt }) => `kept-paths-${lane}-${activity}-${attempt}`;
 
 // GitHub refuses a comment body over 65536 characters.
@@ -24,9 +27,11 @@ export function keptComment({ patch, sha256, headSha, runId, runUrl, paths }) {
   const shown = String(patch).replace(/^GIT binary patch\n[\s\S]*?(?=^diff --git |(?![\s\S]))/gm, "(binary, not shown)\n");
   const lines = [
     KEPT_MARKER,
-    "**Pending an automated apply.** The lane pushed the rest of its change; these paths are withheld from that push, because the lane token may not push them or a review job would load them before review:",
+    "**Pending an automated apply.** These paths are withheld from the lane's push, which carries the rest of its change if any, because the lane token may not push them or a review job would load them before review:",
     "",
-    ...paths.map((path) => `- \`${path}\``),
+    `${fenceFor(paths.join("\n"))}text`,
+    ...paths,
+    fenceFor(paths.join("\n")),
     "",
     `- head: \`${headSha}\``,
     `- kept patch SHA-256: \`${sha256}\``,

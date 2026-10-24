@@ -2780,7 +2780,7 @@ test("pr-run-activity-read.yml: the dirty-tree check runs no git config the mode
     "the staged .lane/ is no change",
   );
   assert.equal(check(({ work }) => writeFileSync(join(work, ".npmrc"), "")), "dirty-tree=false\n", "an empty CLI scrub stub is no change");
-  assert.equal(check(({ work }) => writeFileSync(join(work, ".env"), "TOKEN=x\n")), "dirty-tree=true\n", "a scrub stub name with content, the collector's exit 3");
+  assert.equal(check(({ work }) => writeFileSync(join(work, ".env"), "TOKEN=x\n")), "dirty-tree=false\n", "a scrub stub name with content is left out, as the collector leaves it out of a patch");
   // A collector that fails fails the step.
   const broken = plantedCheckout(t);
   writeFileSync(join(broken.temp, "read-patch", "collect-patch.sh"), "exit 1\n");
@@ -5065,8 +5065,10 @@ test("pr-run-activity-read.yml: a collector refusal sets state refused, which th
     const result = runStep(collect, state.work, { HEAD_SHA: state.head, PATCH_DIR: join(state.temp, "patch"), RUNNER_TEMP: state.temp, GITHUB_OUTPUT: output });
     return { status: result.status, outputs: outputLines(output) };
   };
-  // A scrub stub name with content is the collector's exit 3; the step still fails.
-  assert.deepEqual(collectIn(({ work }) => writeFileSync(join(work, ".env"), "TOKEN=x\n")), { status: 3, outputs: { state: "refused" } });
+  // A scrub stub name with content is left out of the patch, never refused.
+  assert.deepEqual(collectIn(({ work }) => writeFileSync(join(work, ".env"), "TOKEN=x\n")), { status: 0, outputs: { state: "empty", sha256: "" } });
+  // A collector exit 3 still sets state refused.
+  assert.deepEqual(collectIn(({ temp }) => writeFileSync(join(temp, "read-patch", "collect-patch.sh"), "exit 3\n")), { status: 3, outputs: { state: "refused" } });
   assert.deepEqual(collectIn(() => {}), { status: 0, outputs: { state: "empty", sha256: "" } });
   // Any other collector failure is no refusal.
   assert.deepEqual(

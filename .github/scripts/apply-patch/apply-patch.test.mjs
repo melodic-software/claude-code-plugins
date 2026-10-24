@@ -647,6 +647,25 @@ test("main writes the withheld part to KEPT_PATCH_DIR with its SHA-256, and an a
     assert.match(kept, /^diff --git a\/settings\.json b\/settings\.json$/m, what);
     assert.doesNotMatch(kept, /README/, what);
     assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), new RegExp(`^kept-sha256=${sha256(kept)}$`, "m"), what);
+    const manifest = JSON.parse(readFileSync(join(out, "kept", "kept.json"), "utf8"));
+    assert.deepEqual(
+      { ...manifest, run_id: undefined, run_attempt: undefined },
+      {
+        version: 1,
+        repository: "o/r",
+        target: "pr",
+        number: 42,
+        ref: "feat/x",
+        applies_to: outcome === "pushed" ? "c".repeat(40) : fix.head,
+        sha256: sha256(kept),
+        paths: ["settings.json"],
+        lane: "pr-refine",
+        activity: "fix-docs",
+        run_id: undefined,
+        run_attempt: undefined,
+      },
+      what,
+    );
     assert.throws(() => readFileSync(env.ESCALATION_REASON_FILE), what);
     if (outcome === "withheld") {
       assert.equal(readFileSync(env.SKIP_REASON_FILE, "utf8"), "prerequisite-missing\n");
@@ -1483,10 +1502,10 @@ function resumeWith(t, earlier) {
   return { fix: { ...fix, head: resumeTip, sum: sha256(text) }, base: fix.head };
 }
 
-test("issue target: a resume tip carrying a refused path is refused, though the patch itself is clean", async (t) => {
+test("issue target: a resume tip carrying a refused path escalates patch-invalid to a person, since no withheld part carries it", async (t) => {
   for (const [what, earlier, reason] of [
-    ["a .claude/settings.json", (repo) => (mkdirSync(join(repo, ".claude")), writeFileSync(join(repo, ".claude/settings.json"), "{}\n")), "patch-protected-path"],
-    ["a .github/ workflow", (repo) => (mkdirSync(join(repo, ".github/workflows"), { recursive: true }), writeFileSync(join(repo, ".github/workflows/x.yml"), "on: push\n")), "patch-protected-path"],
+    ["a .claude/settings.json", (repo) => (mkdirSync(join(repo, ".claude")), writeFileSync(join(repo, ".claude/settings.json"), "{}\n")), "patch-invalid"],
+    ["a .github/ workflow", (repo) => (mkdirSync(join(repo, ".github/workflows"), { recursive: true }), writeFileSync(join(repo, ".github/workflows/x.yml"), "on: push\n")), "patch-invalid"],
   ]) {
     const { fix, base } = resumeWith(t, earlier);
     const api = fakeApi(fix.repo, fix.head, { labels: READY });

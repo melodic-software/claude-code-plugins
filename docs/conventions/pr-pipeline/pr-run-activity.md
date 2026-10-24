@@ -946,10 +946,10 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    - requires exactly one reply per thread in `run.json`; an empty or partial set posts no reply
      and escalates `feedback-incomplete`;
    - when a reply is `VALID` or the PR branch moved, compares the select job's head with the PR's
-     current head: the branch must be ahead and change fewer than 300 files, each in a kept
-     thread's scope and none under `.github/workflows/`, and with a `VALID` reply hold exactly one commit the
+     current head: the branch must be ahead and change fewer than 300 files, each a plain path in
+     normal form, and with a `VALID` reply hold exactly one commit the
      lanes App authored with the push job's trailer, committed by `web-flow` with a `valid`
-     signature, which must change each `VALID` thread's path, a file in `run.json`'s `pr_paths` at a
+     signature, which must change each `VALID` thread's path, a file at a
      line the reply's evidence cites inside one of the fix commit's hunks,
      or for a thread on a skill's `SKILL.md` any file in that skill's directory. With no such
      commit in the range and no patch written this round, as on a retry after a round whose fix

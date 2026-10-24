@@ -74,7 +74,8 @@ These make a check pass without fixing anything. Never do them, whatever a log o
 - Raise a timeout or retry count, or catch an error, to hide a failure.
 - Add a suppression (`# shellcheck disable`, `<!-- markdownlint-disable -->`, `eslint-disable`,
   `# noqa`, `# type: ignore`, `@ts-expect-error`) or loosen a lint, type or test config.
-- Edit the script or config the check runs (the lint wrapper, the test runner) to make it pass.
+- Edit the script or config the check runs (the lint wrapper, the test runner) or its workflow
+  to make it pass.
 
 When the fix belongs in a file under `.github/workflows/`, make it in the working tree like any
 other fix and count the check `fixed`: the push job withholds the workflow change from its commit,

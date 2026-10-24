@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "node:test";
 
-import { KEPT_MARKER, KEPT_PATCH_FILE, keptArtifactName, keptComment, keptPaths } from "./kept-paths.mjs";
+import { KEPT_MANIFEST_FILE, KEPT_MARKER, KEPT_PATCH_FILE, keptArtifactName, keptComment, keptPaths } from "./kept-paths.mjs";
 
 const PATCH = [
   "diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml",
@@ -35,7 +37,17 @@ const args = { patch: PATCH, sha256: "a".repeat(64), headSha: "b".repeat(40), ru
 test("the hand-off names are fixed for the job that applies the kept part", () => {
   assert.equal(KEPT_MARKER, "<!-- lane-kept-paths -->");
   assert.equal(KEPT_PATCH_FILE, "kept.diff");
+  assert.equal(KEPT_MANIFEST_FILE, "kept.json");
   assert.equal(keptArtifactName({ lane: "pr-unblock", activity: "apply-ci-patch", attempt: "2" }), "kept-paths-pr-unblock-apply-ci-patch-2");
+});
+
+test("the write runner uploads and downloads the artifact by keptArtifactName, holding both files", () => {
+  const yaml = readFileSync(join(import.meta.dirname, "../../workflows/pr-run-activity-write.yml"), "utf8");
+  const name = keptArtifactName({ lane: "${{ inputs.lane }}", activity: "${{ inputs.activity }}", attempt: "${{ github.run_attempt }}" });
+  assert.equal(yaml.split(`name: ${name}\n`).length - 1, 2);
+  for (const file of [KEPT_PATCH_FILE, KEPT_MANIFEST_FILE]) {
+    assert.ok(yaml.includes(`/kept-paths/${file}`), file);
+  }
 });
 
 test("keptPaths lists each path a diff changes once", () => {
@@ -49,6 +61,7 @@ test("the comment opens with the marker and names the head, the SHA-256 and the 
   assert.match(body, new RegExp(`head: \`${"b".repeat(40)}\``));
   assert.match(body, new RegExp(`SHA-256: \`${"a".repeat(64)}\``));
   assert.match(body, /\[123\]\(https:\/\/github\.com\/o\/r\/actions\/runs\/123\)/);
+  assert.match(body, /```text\n\.github\/workflows\/ci\.yml\nbin\.dat\nsettings\.json\n```/, "the paths are fenced, so none renders as markup");
   assert.match(body, /```diff\n-on: push|```diff\ndiff --git a\/\.github/);
   assert.match(body, /\+on: pull_request/);
   assert.match(body, /\(binary, not shown\)/);
