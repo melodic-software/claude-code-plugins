@@ -53,6 +53,8 @@ jobs:
   # no head code, as fix-ci-context's is for fix-ci. Without it the report
   # trusts only the head read at report time, so a push mid-run posts failure
   # on the new head.
+  # It also reads whether the human-gated label holds fix-docs: only when a
+  # lane escalation did not put it on (lane-hold.mjs); a held PR runs nothing.
   fix-docs-head:
     if: >-
       inputs.pr-number != '' && inputs.activity == 'fix-docs'
@@ -60,9 +62,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
+      contents: read # check out main
       pull-requests: read
     outputs:
       head-sha: ${{ steps.head.outputs.sha }}
+      held: ${{ steps.hold.outputs.held }}
+      lane-escalated: ${{ steps.hold.outputs.lane-escalated }}
     steps:
       - name: Read the PR's head SHA
         id: head
@@ -75,17 +80,40 @@ jobs:
           [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::no PR head SHA read"; exit 1; }
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
 
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Check the human-gated hold
+        id: hold
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr-number }}
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          ACTIVITY: fix-docs
+        run: node .base/.github/scripts/pr-unblock/lane-hold.mjs
+
   # fix-docs is four jobs, so no model ever holds a write token. The model
   # job: a read activity with no write token and no OIDC token in the job that
   # runs head code. The skill fixes the changed Markdown files; the runner
   # uploads its uncommitted edits as a patch. It runs on the pr-unblock
-  # role's API key alone. Drafts and held PRs skip in the config's
-  # applies-when, before any model turn.
+  # role's API key alone. Drafts and do-not-merge PRs skip in the config's
+  # applies-when, a human-gated hold in fix-docs-head, before any model turn.
   fix-docs:
     needs: fix-docs-head
     if: >-
       inputs.pr-number != '' && inputs.activity == 'fix-docs'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
+      && needs.fix-docs-head.outputs.held == 'false'
     permissions:
       contents: read
       pull-requests: read
@@ -221,4 +249,7 @@ jobs:
       patch-attempt: ${{ needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-patch-attempt || needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-patch-attempt || '' }}
       patch-activity: fix-docs
       patch-head-sha: ${{ needs.fix-docs-head.outputs.head-sha }}
+      # true drops the human-gated label from the holds: a lane escalation
+      # put it on (lane-hold.mjs).
+      patch-fix-requested: ${{ needs.fix-docs-head.outputs.lane-escalated }}
       reply-attempt: ${{ needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-reply-attempt || needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-reply-attempt || '' }}

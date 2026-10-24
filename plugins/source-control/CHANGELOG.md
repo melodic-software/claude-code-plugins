@@ -3,6 +3,24 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.3] - 2026-10-24
+
+### Fixed
+
+- The Dependabot classifier (`babysit_dependabot.py`) now reads a security update's version jump from its own verified commit subject when the commit metadata names the package and version but carries no `update-type`, so a patch such as `fast-uri` 3.1.8 to 3.1.9 is no longer held as an unreadable version. The subject must open with `Bump <name> from <a> to <b>` for the same package and version; the editable PR title is never read for it, and a group subject, a missing metadata version or an unreadable subject version still holds.
+
+## [3.0.2] - 2026-10-24
+
+### Fixed
+
+- The post-merge check counts a lanes App merge as native when arming an already mergeable pull request enqueued it at once, so GitHub recorded no auto-merge event. It counts the merge only when every enqueue on the pull request is the identity's and `merge.lane-prs` was `native` at the merge commit's parent. Such a merge no longer waits on a pin the gate never posts, and no longer turns into a false read-back demotion after six hours. A human enqueue, `merge.lane-prs: gate`, or an unreadable config keeps the pin read-back. The babysit-prs safety reference describes this rule, the pin `enable-auto-merge` now posts before it arms, and the residual.
+
+## [3.0.1] - 2026-10-24
+
+### Changed
+
+- Among several pr-verify passes at the head, the merge gate's verifier reader (`babysit_verify_evidence.py`) now decides on those of the run that started last, as `resolve-pr.mjs` weighs them, so a pass judged again after a spec change replaces the stale one. Spec trust is unchanged; trusting lanes App spec text is held for an owner decision.
+
 ## [3.0.0] - 2026-10-24
 
 ### Changed

@@ -3,6 +3,12 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0] - 2026-10-24
+
+### Changed
+
+- Moved the control-skill contract to `reference/control-skill.md` at plugin level. Feature files are now `features/[<module>/]<feature>/README.md` with Parts, Sub-features, Entry points, Reset, Drive and Gotchas sections (`## States` is gone), and `/app-control:drive` resolves a feature id to its folder README, then to a legacy `features/<id>.md`.
+
 ## [0.4.0] - 2026-10-24
 
 ### Added

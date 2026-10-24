@@ -34,6 +34,8 @@ import {
 export const DEFAULT_MAX_ROUNDS = 2;
 export const MODEL_CHECK = "pr-unblock / review-dependency";
 export const VERDICTS = Object.freeze(["merge", "fix", "close", "escalate"]);
+const ROUND_PREFIX = "<!-- pr-unblock:review-dependency-round ";
+const ROUND_HEAD = /\shead=([0-9a-f]{40})\s/;
 const ROUND_LINE = /^<!-- pr-unblock:review-dependency-round head=([0-9a-f]{40}) verdict=(merge|fix|close|escalate|invalid) run=([1-9][0-9]{0,14}-[1-9][0-9]{0,4}|none) -->$/;
 // The pulls files listing stops here
 // (docs.github.com/en/rest/pulls/pulls#list-pull-requests-files, as of
@@ -60,7 +62,22 @@ export function rounds(issueComments, appId) {
     .map((match) => ({ head: match[1], verdict: match[2], run: match[3] }));
 }
 
-export const countRounds = (issueComments, appId) => rounds(issueComments, appId).length;
+// The lanes App's round markers at the pull request's current commits
+// (`shas`): a marker at a head a recreate or force push replaced is not a round
+// of this pull request. A marker that names no head counts, so a malformed one
+// stops the lane sooner, never later; with no `shas` (a listing that is not the
+// whole pull request), every marker counts.
+export function countRounds(issueComments, appId, shas = null) {
+  const current = Array.isArray(shas) ? new Set(shas) : null;
+  return issueComments
+    .filter((comment) => comment.user?.id === appId)
+    .map((comment) => firstLine(comment.body))
+    .filter((line) => line.startsWith(ROUND_PREFIX))
+    .filter((line) => {
+      const head = ROUND_HEAD.exec(line)?.[1];
+      return head === undefined || current === null || current.has(head);
+    }).length;
+}
 
 // The model job's check run, posted by its report job on the head it gated.
 // It counts a round whose verdict job never ran; a forged one only stops the
@@ -176,7 +193,10 @@ export async function select({ api, pr, headSha, appId, dependabotId, config = n
   }
   const comments = await api.listIssueComments(pr);
   const checkRuns = await Promise.all(commits.map((commit) => api.listCheckRuns(commit.sha, MODEL_CHECK)));
-  const done = Math.max(countRounds(comments, appId), countCheckRounds(checkRuns));
+  // The commits listing stops at 250: a partial one cannot show a head is gone.
+  const whole = commits.length === pull.commits && commits.at(-1)?.sha === headSha;
+  const shas = whole ? commits.map((commit) => commit.sha) : null;
+  const done = Math.max(countRounds(comments, appId, shas), countCheckRounds(checkRuns));
   if (done >= maxRounds) {
     return { decision: "escalate", escalationReason: "dependency-round-cap", rounds: done, classification };
   }

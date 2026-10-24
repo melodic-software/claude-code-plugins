@@ -74,21 +74,21 @@ test("live config: resolve-conflicts holds no write token; its push job may only
   assert.equal(push.script, ".github/scripts/apply-patch/apply-patch.mjs");
   assert.equal(push.prepare, "apply-patch");
   assert.deepEqual(push.needs, ["resolve-conflicts"]);
-  for (const labels of [["needs-human"], ["do-not-merge"]]) {
-    assert.equal(selected("pr-unblock", "apply-conflict-patch", { labels }).applies, false, labels[0]);
-  }
+  assert.equal(selected("pr-unblock", "apply-conflict-patch", { labels: ["do-not-merge"] }).applies, false);
+  // The write runner holds needs-human itself unless the select job read
+  // another lane's escalation (patch-fix-requested).
+  assert.equal(selected("pr-unblock", "apply-conflict-patch", { labels: ["needs-human"] }).applies, true);
   assert.equal(selected("pr-unblock", "apply-conflict-patch", { draft: true }).applies, false);
 });
 
-test("live config: resolve-conflicts waits for a human while a hold label is on the PR", () => {
+// needs-human is the select job's to decide (lane-hold.mjs): it holds unless
+// another lane's escalation put it on.
+test("live config: resolve-conflicts waits for a human while do-not-merge is on the PR, and leaves needs-human to the select job", () => {
   assert.equal(
     skipReason("pr-unblock", "resolve-conflicts", { labels: ["do-not-merge"] }),
     "awaiting-human",
   );
-  assert.equal(
-    skipReason("pr-unblock", "resolve-conflicts", { labels: ["needs-human"] }),
-    "awaiting-human",
-  );
+  assert.equal(selected("pr-unblock", "resolve-conflicts", { labels: ["needs-human"] }).applies, true);
 });
 
 test("live config: resolve-conflicts does not apply to a draft or a clean PR", () => {
@@ -208,13 +208,25 @@ test("live config: address-feedback applies to a needs-human PR", () => {
   );
 });
 
+// resolve-conflicts, fix-ci and fix-docs, and their push jobs, leave
+// needs-human to a base-code job that lets another lane's escalation pass.
 test("live config: every other PR activity still waits on needs-human", () => {
   for (const [lane, activity, facts] of [
-    ["pr-unblock", "resolve-conflicts", {}],
     ["pr-unblock", "review-dependency", { mergeable: "clean" }],
-    ["pr-refine", "fix-docs", {}],
+    ["pr-unblock", "apply-dependency-patch", {}],
   ]) {
     assert.equal(skipReason(lane, activity, { ...facts, labels: ["needs-human"] }), "awaiting-human", activity);
+  }
+  for (const [lane, activity] of [
+    ["pr-unblock", "resolve-conflicts"],
+    ["pr-unblock", "apply-conflict-patch"],
+    ["pr-unblock", "fix-ci"],
+    ["pr-unblock", "apply-patch"],
+    ["pr-refine", "fix-docs"],
+    ["pr-refine", "apply-patch"],
+  ]) {
+    assert.equal(skipReason(lane, activity, { labels: ["do-not-merge"] }), "awaiting-human", activity);
+    assert.equal(selected(lane, activity, { labels: ["needs-human"] }).applies, true, activity);
   }
 });
 
@@ -259,7 +271,9 @@ test("live config: fix-ci holds no write token and its push job may only write i
   assert.equal(selected("pr-unblock", "apply-patch").prepare, "apply-patch");
   assert.equal(selected("pr-unblock", "apply-patch").script, ".github/scripts/apply-patch/apply-patch.mjs");
   assert.equal(selected("pr-unblock", "apply-patch").applies, true);
-  assert.equal(selected("pr-unblock", "fix-ci", { labels: ["needs-human"] }).applies, false);
+  assert.equal(selected("pr-unblock", "fix-ci", { labels: ["do-not-merge"] }).applies, false);
+  // fix-ci-context holds needs-human unless another lane's escalation put it on.
+  assert.equal(selected("pr-unblock", "fix-ci", { labels: ["needs-human"] }).applies, true);
 });
 
 test("live config: review-dependency holds no write token; its push job may only write its branch, its verdict job only PRs and issues", () => {
@@ -466,10 +480,10 @@ test("live config: label-unblocked may only write issues", () => {
   });
 });
 
-test("live config: fix-docs applies to a Markdown change and waits on needs-human", () => {
+test("live config: fix-docs applies to a Markdown change and waits on do-not-merge", () => {
   assert.equal(selected("pr-refine", "fix-docs").applies, true);
   assert.equal(
-    skipReason("pr-refine", "fix-docs", { labels: ["needs-human"] }),
+    skipReason("pr-refine", "fix-docs", { labels: ["do-not-merge"] }),
     "awaiting-human",
   );
 });

@@ -260,6 +260,20 @@ test("a limit-stopped head is held until its reset, dispatched after it, and hel
   assert.deepEqual(capped.dispatched, [], "the resolved limits set the cap");
 });
 
+// Three limit stops under a resolved cap of 5: the newest holds the head until
+// its reset, the head is not recorded, and it dispatches after the reset.
+test("three limit stops under a cap of 5 leave the head unrecorded and dispatched after the last reset", async () => {
+  const node = pr(71);
+  const runs = [limitStop("2026-10-17T07:00:00Z"), limitStop("2026-10-17T08:00:00Z"), limitStop("2026-10-17T09:30:00Z"), noModelTurn("2026-10-17T09:35:00Z")];
+  const limits = { ...LIMIT_DEFAULTS, "limit-stops-per-head": 5 };
+  const record = emptyRecord();
+  const before = await run(fakeApi({ nodes: [node], checks: headOf(node, runs) }), { record, limits, now: Date.parse("2026-10-17T10:00:00Z") });
+  assert.deepEqual(before.dispatched, [], "held before the newest stop's reset");
+  assert.equal(record.handled.get(CHECK), undefined, "a limit stop is not recorded");
+  const after = await run(fakeApi({ nodes: [node], checks: headOf(node, runs) }), { record, limits, now: Date.parse("2026-10-17T11:00:00Z") });
+  assert.deepEqual(after.dispatched, [{ number: 71, workflowRunId: "7071" }], "3 stops of a cap of 5");
+});
+
 test("a round that answered, or a newer review-dependency check, still holds the head", async () => {
   for (const [label, runs] of [
     ["the last round escalated", [roundRun("review-dependency", "success", "Passed", "2026-10-17T10:00:00Z"), roundRun("apply-dependency-verdict", "neutral", "Skipped: awaiting-human", "2026-10-17T10:05:00Z")]],
