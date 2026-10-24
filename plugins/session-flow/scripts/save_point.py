@@ -617,7 +617,7 @@ def parse_entries(body: list[str]) -> list[Entry]:
 class Findings:
     def __init__(self) -> None:
         self.items: list[tuple[str, str]] = []
-        # A shape-3 core alone over the byte cap: exit 0, labelled UNVALIDATED.
+        # A shape-3 core alone over the byte cap: exit 0, labeled UNVALIDATED.
         self.unvalidated = False
 
     def warn(self, message: str) -> None:

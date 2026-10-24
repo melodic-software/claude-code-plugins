@@ -250,7 +250,7 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
   `unresolved (…)` transcript from WARN into FAIL (the acceptance harness passes it). It also runs
   a WARN-only secret-shape scan; the model rules on each hit under the redaction pass above. On a
   shape-3 file it also checks the hot file against its predecessor and both hop files; each FAIL
-  line names the fix, and a core too large for the size cap passes labelled UNVALIDATED.
+  line names the fix, and a core too large for the size cap passes labeled UNVALIDATED.
 - `save_point.py emit <file>` prints the `## Resume prompt` section body verbatim (heading
   excluded, leading and trailing blank lines trimmed) and exits 1 on a shape-1 file (no section,
   says so) or a file that still carries a `FILL` slot (an unfinished skeleton is never emitted).
