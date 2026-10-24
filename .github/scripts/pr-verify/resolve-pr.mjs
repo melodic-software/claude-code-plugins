@@ -268,13 +268,15 @@ export function specChanged(passStarts, { linkedIssues: issues, specKind, bodyEd
 // Which spec text counts (babysit_verify_evidence `_trusted_spec` and
 // `_spec_comments` are its twins). A trusted human is a User on the trusted
 // list's humans, the PR author included. The lanes App (`laneIdentity`, a Bot
-// matched by login as laneAuthored is) counts only for text a triage or
-// filing step wrote before this pull request existed, never for text the run
-// that wrote the diff could have written: an issue body it filed (a lower
-// number than the pull request) or last edited before the pull request was
-// created, and a REFINE_MARKER comment, intake triage's refinement, last
-// updated before then. Every other Bot or App, github-actions included, and
-// every unlisted User is left out.
+// matched by login as laneAuthored is) counts for two texts: an issue body it
+// filed, with a lower number than the pull request, and never edited since
+// but by a trusted human; and a comment opening with REFINE_MARKER, intake
+// triage's refinement, last updated before the pull request was created. The
+// resolve run that wrote the diff holds no write token, and report-outcome's
+// issue comments open with their own marker, so neither is text it wrote. No
+// lane script edits an issue body as the App, so an App body edit is left
+// out. Every other Bot or App, github-actions included, and every unlisted
+// User is left out.
 export function specTrust({ humans, laneIdentity, prNumber, prCreatedAt }) {
   const human = (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
   const app = (actor) => laneAuthored({ type: actor?.__typename, login: actor?.login }, laneIdentity);
@@ -283,7 +285,7 @@ export function specTrust({ humans, laneIdentity, prNumber, prCreatedAt }) {
   return {
     body: (issue) =>
       (human(issue?.author) || (app(issue?.author) && Number.isSafeInteger(prNumber) && issue.number < prNumber)) &&
-      (issue.lastEditedAt == null || human(issue.editor) || (app(issue.editor) && before(issue.lastEditedAt))),
+      (issue.lastEditedAt == null || human(issue.editor)),
     comment: (comment) =>
       (human(comment?.author) && (comment.lastEditedAt == null || human(comment.editor))) ||
       (app(comment?.author) &&

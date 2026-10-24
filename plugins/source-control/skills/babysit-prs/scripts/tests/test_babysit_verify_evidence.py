@@ -1761,14 +1761,23 @@ class TheLanesAppsSpecBeforeThePullRequestIsTrusted(unittest.TestCase):
         later = {**TRUSTED_ISSUE, **self.APP, "number": 42}
         self.assertEqual(self.with_issue(later), "verify:untrusted-spec")
 
-    def test_an_app_edit_counts_only_before_the_pull_request(self) -> None:
-        for edited, refusal in (
-            ("2026-10-09T23:59:59Z", None),
-            ("2026-10-10T00:00:01Z", "verify:untrusted-spec"),
-        ):
-            with self.subTest(edited):
-                issue = {**TRUSTED_ISSUE, **self.APP_EDIT, "last_edited_at": edited}
-                self.assertEqual(self.with_issue(issue), refusal)
+    def test_an_app_body_edit_never_counts(self) -> None:
+        # No lane script edits an issue body as the App, before the pull
+        # request or after it.
+        for edited in ("2026-10-09T23:59:59Z", "2026-10-10T00:00:01Z"):
+            for author in (TRUSTED_ISSUE, {**TRUSTED_ISSUE, **self.APP}):
+                with self.subTest(edited, author=author["author_type"]):
+                    issue = {**author, **self.APP_EDIT, "last_edited_at": edited}
+                    self.assertEqual(self.with_issue(issue), "verify:untrusted-spec")
+        by_human = {
+            **TRUSTED_ISSUE,
+            **self.APP,
+            "last_edited_at": "2026-10-11T00:00:00Z",
+            "editor_login": "maintainer",
+            "editor_id": 100,
+            "editor_type": "User",
+        }
+        self.assertIsNone(self.with_issue(by_human))
 
     def test_another_bot_or_a_user_named_like_the_app_refuses(self) -> None:
         cases = {

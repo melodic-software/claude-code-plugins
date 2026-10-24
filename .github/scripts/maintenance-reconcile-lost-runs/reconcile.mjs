@@ -323,9 +323,18 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec }) {
       // passed checks starts pr-verify, which judges it again (resolve-pr's
       // `spec-changed`). Attempt 1 only, so a head is judged again once.
       const checks = newestByWorkflow(listing.workflow_runs).find((r) => RECORDED_UPSTREAMS.has(r.path));
-      if (set.length === 0 && judgeSpec && isPassedChecks(checks) && (await passedAt(call, repo, pull.number, pull.head.sha))) {
-        if ((await judgeSpec(checks.id)).reason === "spec-changed") {
-          set.push({ kind: "spec", pr: pull.number, id: checks.id, path: checks.path, conclusion: "success", attempt: 1, head: pull.head.sha });
+      // A read that fails here re-runs nothing and is no listing failure: the
+      // next tick asks again. A rate limit still stops the run.
+      if (set.length === 0 && judgeSpec && isPassedChecks(checks)) {
+        try {
+          if ((await passedAt(call, repo, pull.number, pull.head.sha)) && (await judgeSpec(checks.id)).reason === "spec-changed") {
+            set.push({ kind: "spec", pr: pull.number, id: checks.id, path: checks.path, conclusion: "success", attempt: 1, head: pull.head.sha });
+          }
+        } catch (error) {
+          if (error instanceof RateLimited) {
+            throw error;
+          }
+          say(`#${pull.number}: its spec could not be checked (${escapeCommand(error?.message ?? error)}); the next run checks again`);
         }
       }
       if (set.length > 0) {

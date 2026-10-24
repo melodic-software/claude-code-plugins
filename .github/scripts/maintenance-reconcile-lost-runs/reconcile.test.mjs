@@ -804,6 +804,21 @@ test("a pass judged after the spec's last change, a second attempt, or no pass r
   });
 });
 
+test("a spec read that fails re-runs nothing and leaves the run green", async (t) => {
+  t.mock.method(console, "log", () => {});
+  await withTrustedList(async (env) => {
+    const { setup } = specChanged({ edited: "2026-10-19T19:45:00Z" });
+    const inner = setup.github;
+    const failing = (github) => async (method, apiPath, body) => {
+      if (apiPath === "/graphql") throw new Error("GraphQL failed with status 502");
+      return inner(github)(method, apiPath, body);
+    };
+    const { code, reruns } = await reconcile({ ...setup, github: failing, env });
+    assert.equal(code, 0);
+    assert.deepEqual(reruns, []);
+  });
+});
+
 test("without the trusted list no spec is checked", async () => {
   const { code, reruns } = await reconcile(specChanged({ edited: "2026-10-19T19:45:00Z" }).setup);
   assert.equal(code, 0);

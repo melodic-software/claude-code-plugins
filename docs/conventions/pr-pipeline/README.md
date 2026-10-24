@@ -1415,19 +1415,21 @@ judges a person's pull request at each ready head, before it is idle. A pull req
 issue is judged against its own title and body only as [Adoption](#adoption) says. Work the spec
 does not ask for passes with a note (`pass-notes`) unless it is also a correctness or safety
 problem, changes what the code is for, or loosens a hold the owner keeps; then it fails the
-verdict. Changes to workflows, CI, hooks, scripts, agent instructions and package manifests are
-judged like any other code; a change to the takeover set (the merge gate's HIGH floor) fails
-whatever the spec says. `any` judges every author's. Any other
+verdict, as does unasked-for work on secret values or organization or repository settings.
+Changes to workflows, CI, hooks, scripts, agent instructions and package manifests are judged
+like any other code; a change to the takeover set (the merge gate's HIGH floor) fails whatever
+the spec says. `any` judges every author's. Any other
 value judges none (`verify-authors-invalid`). The trusted-spec rule below does not depend on who
 opened the pull request: a spec written by a trusted human counts, so an adopted owner pull
 request whose closing issue the owner wrote is judged against that issue as its spec. Text the
 lanes App wrote before the pull request existed counts too, since a filing or intake-triage step
-wrote it rather than the run that wrote the diff: an issue body it filed (a lower number than the
-pull request) or last edited before the pull request was created, and intake triage's refinement
-comment (opening with refine.mjs's marker) last updated before then. Anything the lanes App wrote
-later, any other Bot's or App's text, `github-actions` included, and text an untrusted account
-wrote or last edited still read `verify:untrusted-spec` or are left out, so a lane pull request
-never supplies its own spec.
+wrote it rather than the run that wrote the diff, which holds no write token: an issue body it
+filed (a lower number than the pull request) and edited since, if ever, only by a trusted human,
+and intake triage's refinement comment (opening with refine.mjs's marker) last updated before the
+pull request was created. An issue body the lanes App edited (no lane script does), anything it
+wrote after the pull request, any other Bot's or App's text, `github-actions` included, and text
+an untrusted account wrote or last edited still read `verify:untrusted-spec` or are left out, so a
+lane pull request never supplies its own spec.
 
 A trusted edit to the spec after a pass, an issue body edit or a spec comment added or edited,
 makes the gate refuse that pass `verify:spec-changed`. The resolver then judges the head again:

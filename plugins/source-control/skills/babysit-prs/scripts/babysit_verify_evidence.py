@@ -948,30 +948,25 @@ class Reader:
             raise _Unreadable(f"#{issue.get('number')}: no spec comment record")
         return {(c["id"], c["updated_at"]) for c in recorded}
 
-    def _trusted_spec(
-        self, record: dict[str, Any], number: int, pr: dict[str, Any] | None
-    ) -> bool:
-        """Every linked issue was written, and its body last edited if ever,
-        by a trusted human (`_trusted_actor`), or by the lanes App before the
-        pull request existed: an issue it filed has a lower number than the
-        pull request, and its last edit is before the pull request was
-        created (resolve-pr.mjs `specTrust` is the twin)."""
+    def _trusted_spec(self, record: dict[str, Any], number: int) -> bool:
+        """Every linked issue was written by a trusted human
+        (`_trusted_actor`), or filed by the lanes App with a lower number than
+        the pull request, and its body last edited, if ever, by a trusted
+        human (resolve-pr.mjs `specTrust` is the twin)."""
 
         def human(issue: dict[str, Any], role: str) -> bool:
             return self._trusted_actor(
                 issue.get(f"{role}_type"), issue.get(f"{role}_id")
             )
 
-        def app(issue: dict[str, Any], role: str) -> bool:
-            return self._lanes_app(issue.get(f"{role}_type"), issue.get(f"{role}_login"))
-
         def written(issue: dict[str, Any]) -> bool:
-            filed = isinstance(issue.get("number"), int) and issue["number"] < number
-            edited = issue.get("last_edited_at")
-            return (human(issue, "author") or (app(issue, "author") and filed)) and (
-                edited is None
-                or human(issue, "editor")
-                or (app(issue, "editor") and self._before(edited, pr))
+            filed = (
+                self._lanes_app(issue.get("author_type"), issue.get("author_login"))
+                and isinstance(issue.get("number"), int)
+                and issue["number"] < number
+            )
+            return (human(issue, "author") or filed) and (
+                issue.get("last_edited_at") is None or human(issue, "editor")
             )
 
         issues = [
@@ -1483,7 +1478,7 @@ class Reader:
             text = f"{pr.get('title') or ''}\n\n{pr.get('body') or ''}"
             live_digest = hashlib.sha256(text.encode()).hexdigest()
             return None if record.get("intent_sha256") == live_digest else SPEC_CHANGED
-        return None if self._trusted_spec(record, number, pr) else UNTRUSTED_SPEC
+        return None if self._trusted_spec(record, number) else UNTRUSTED_SPEC
 
     def queued_hold(self, number: int) -> str | None:
         """Why a queued entry must leave: no allowing verdict at its live

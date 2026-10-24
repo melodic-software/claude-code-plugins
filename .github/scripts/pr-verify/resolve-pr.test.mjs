@@ -660,9 +660,7 @@ test("the spec text keeps only what trusted humans wrote and last edited", async
     "a trusted PR author's comments",
   );
   const editedBody = { ...issue, lastEditedAt: "2026-10-14T00:00:00Z", editor: lanes };
-  assert.equal((await resolve({ issues: [editedBody] })).specText[0].body, "the spec", "a body the lanes App last edited before the PR");
-  const editedAfter = { ...issue, lastEditedAt: "2026-10-20T00:00:01Z", editor: lanes };
-  assert.equal((await resolve({ issues: [editedAfter] })).specText[0].body, null, "a body the lanes App edited after the PR was created");
+  assert.equal((await resolve({ issues: [editedBody] })).specText[0].body, null, "a body the lanes App last edited");
   const byAuthor = (await resolve(byMaintainer, { verifyAuthors: "any" })).specText[0];
   assert.deepEqual(byAuthor, { number: 7, spec_kind: "closes", body: "the spec", comments: ["kept", "edited by the human"] }, "a trusted PR author's own text");
   // Issue 7 predates pull request 41, so the lanes App filed it before the run.
@@ -670,6 +668,9 @@ test("the spec text keeps only what trusted humans wrote and last edited", async
   assert.equal((await resolve({ issues: [lanesIssue] })).specText[0].body, "the spec", "an issue the lanes App filed before the PR");
   const lanesLater = { ...lanesIssue, number: 42 };
   assert.equal((await resolve({ issues: [lanesLater] })).specText[0].body, null, "an issue the lanes App filed after the PR");
+  const lanesEdited = { ...lanesIssue, lastEditedAt: "2026-10-14T00:00:00Z" };
+  assert.equal((await resolve({ issues: [{ ...lanesEdited, editor: lanes }] })).specText[0].body, null, "the lanes App's issue it edited");
+  assert.equal((await resolve({ issues: [{ ...lanesEdited, editor: human }] })).specText[0].body, "the spec", "the lanes App's issue a listed human edited");
   for (const [label, author] of [
     ["github-actions", { __typename: "Bot", login: "github-actions", databaseId: 41898282 }],
     ["another App", { __typename: "Bot", login: "some-other-app", databaseId: 5 }],

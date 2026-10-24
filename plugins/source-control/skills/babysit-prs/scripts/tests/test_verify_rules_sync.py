@@ -177,7 +177,6 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
                 reader._trusted_spec(
                     {"linked_issues": [{"number": n, "last_edited_at": t, **side(a, "author"), **side(e, "editor")}]},
                     41,
-                    pr,
                 )
                 for n, a, e, t in issues
             ]
