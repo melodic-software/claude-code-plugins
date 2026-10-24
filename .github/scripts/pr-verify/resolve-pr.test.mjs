@@ -49,6 +49,8 @@ const HUMANS = new Set([100]);
 const LANE = "melodic-automation-lanes[bot]";
 // A verify run's start, after every edit the fixtures below make.
 const JUDGED_AT = "2026-10-21T00:00:00Z";
+// When the pull request was opened: after every fixture comment but those a test posts later.
+const PR_OPENED = "2026-10-20T00:00:00Z";
 
 const upstream = (overrides = {}) => ({
   id: RUN,
@@ -112,7 +114,7 @@ function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, o
       return refs[n]?.answer ?? { data: { repository: { issueOrPullRequest: refs[n] } } };
     }
     if (apiPath === "/graphql") {
-      return { data: { repository: { pullRequest: { ...edit, body: prBody, closingIssuesReferences: { totalCount: issues.length, nodes: issues } } } } };
+      return { data: { repository: { pullRequest: { createdAt: PR_OPENED, ...edit, body: prBody, closingIssuesReferences: { totalCount: issues.length, nodes: issues } } } } };
     }
     const named = /\/actions\/artifacts\?name=([^&]+)&per_page=100&page=(\d+)$/.exec(apiPath);
     if (named) {
@@ -680,7 +682,8 @@ test("on an issue a listed human wrote, intake's newest unedited refinement comm
   let next = 0;
   const comment = (body, author, extra = {}) => {
     next += 1;
-    return { databaseId: next, updatedAt: `2026-10-1${next}T00:00:00Z`, body, author, lastEditedAt: null, editor: null, ...extra };
+    const at = `2026-10-1${next}T00:00:00Z`;
+    return { databaseId: next, createdAt: at, updatedAt: at, body, author, lastEditedAt: null, editor: null, ...extra };
   };
   const on = (nodes, overrides = {}) => ({ ...ISSUE, ...overrides, comments: { totalCount: nodes.length, nodes } });
   const comments = async (issue) => (await resolve({ issues: [issue] }, { laneAppId: 337595936 })).specText[0].comments;
@@ -711,6 +714,17 @@ test("on an issue a listed human wrote, intake's newest unedited refinement comm
   for (const body of [`${MARKER.toUpperCase()}\nx`, ` ${MARKER}\nx`, `<!-- intake-triage refinements -->\nx`, `note\n${MARKER}`, "<!-- intake-triage admission -->\nx"]) {
     assert.deepEqual(await comments(on([comment(body, lanes)])), [], `marker mismatch: ${JSON.stringify(body)}`);
   }
+  // pr-verify counts only a refinement posted before the pull request opened.
+  const late = comment(`${MARKER}\nposted after the pull request opened`, lanes, { createdAt: "2026-10-20T00:00:01Z", updatedAt: "2026-10-20T00:00:01Z" });
+  assert.deepEqual(await comments(on([refinement, late])), [], "a refinement posted after the pull request opened");
+  assert.deepEqual(await comments(on([late])), [], "the only refinement, posted after the pull request opened");
+  const early = comment(`${MARKER}\nposted just before`, lanes, { createdAt: "2026-10-19T23:59:59Z", updatedAt: "2026-10-19T23:59:59Z" });
+  assert.deepEqual(await comments(on([early])), [early.body], "a refinement posted before the pull request opened");
+  const undated = comment(`${MARKER}\nno creation time`, lanes, { createdAt: undefined });
+  assert.deepEqual(await comments(on([undated])), [], "a refinement with no readable creation time");
+  const opened = (createdAt) => resolve({ issues: [on([early])], edit: { lastEditedAt: null, editor: null, createdAt } }, { laneAppId: 337595936 });
+  assert.deepEqual((await opened(undefined)).specText[0].comments, [], "a pull request with no readable creation time");
+
   for (const [who, author] of [["github-actions", actions], ["a Bot with the App's login and another id", impostor], ["the App as a User", { ...lanes, __typename: "User" }]]) {
     assert.deepEqual(await comments(on([comment(`${MARKER}\nx`, author)])), [], who);
   }
@@ -725,7 +739,7 @@ test("main identifies the lanes App by merge.agent-identity's id on the trusted 
   );
   const lanes = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };
   const body = "<!-- intake-triage refinement -->\n- [ ] Line 3 says nineteen.";
-  const issue = { ...ISSUE, comments: { totalCount: 1, nodes: [{ databaseId: 1, updatedAt: "2026-10-11T00:00:00Z", body, author: lanes, lastEditedAt: null, editor: null }] } };
+  const issue = { ...ISSUE, comments: { totalCount: 1, nodes: [{ databaseId: 1, createdAt: "2026-10-11T00:00:00Z", updatedAt: "2026-10-11T00:00:00Z", body, author: lanes, lastEditedAt: null, editor: null }] } };
   const run = async (identity) => {
     const files = { out: path.join(dir, `out-${identity}`), spec: path.join(dir, "spec.json"), text: path.join(dir, `text-${identity}.json`) };
     const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: REPO, GITHUB_OUTPUT: files.out, UPSTREAM_RUN_ID: String(RUN), SPEC_FILE: files.spec, SPEC_TEXT_FILE: files.text, TRUSTED_ACTORS_PATH: actors, LANE_IDENTITY: identity };

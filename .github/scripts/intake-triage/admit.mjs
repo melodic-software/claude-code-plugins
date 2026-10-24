@@ -408,7 +408,8 @@ export const noTrustedSpec = (taskList) =>
 // as spec, or undefined: the newest that opens with REFINE_MARKER, and only
 // while never edited; an older one never stands in for it. `comments` are in
 // GraphQL order, oldest first. The caller checks the body a listed human
-// wrote (resolve-pr.mjs linkedIssues shares this rule). Pure.
+// wrote; resolve-pr.mjs linkedIssues shares this rule and also requires the
+// comment to predate the pull request. Pure.
 export function refinementSpec(comments, appId) {
   const newest = (comments ?? []).findLast(
     (comment) =>

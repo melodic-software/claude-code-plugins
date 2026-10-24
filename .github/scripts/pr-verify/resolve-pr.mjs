@@ -64,12 +64,12 @@ const MAX_PAGES = 100;
 
 const ISSUE_FIELDS = `number repository { nameWithOwner } body lastEditedAt
           author { ...actor } editor { ...actor }
-          comments(first: 100) { totalCount nodes { databaseId updatedAt body lastEditedAt author { ...actor } editor { ...actor } } }`;
+          comments(first: 100) { totalCount nodes { databaseId createdAt updatedAt body lastEditedAt author { ...actor } editor { ...actor } } }`;
 const ACTOR = "fragment actor on Actor { __typename login ... on User { databaseId } ... on Bot { databaseId } }";
 const SPEC_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      body lastEditedAt editor { ...actor }
+      createdAt body lastEditedAt editor { ...actor }
       closingIssuesReferences(first: 10) {
         totalCount
         nodes {
@@ -271,8 +271,14 @@ export function specChanged(passStarts, { linkedIssues: issues, specKind, bodyEd
 // and last edited if ever, by a User on the trusted list's humans, the PR
 // author included, and, on an issue whose body is such text, intake's
 // refinement comment by the lanes App (`laneAppId`), the newest and only
-// while unedited (admit.mjs refinementSpec) (`specText`). Other Bot and App
-// text is left out even where select-trusted-text keeps it.
+// while unedited (admit.mjs refinementSpec) and created before the pull
+// request, so nothing the App posts once a lane run has the issue becomes
+// spec (`specText`). Other Bot and App text is left out even where
+// select-trusted-text keeps it.
+// The merge gate cannot see the refinement: an edit, a hide (isMinimized)
+// or a newer one after a pass leaves that pass standing. An edit only takes
+// the refinement out of spec, so no one gains a spec by it; a person's
+// correction made after a pass waits for the next head.
 async function linkedIssues(github, readRefs, repository, number, humans, laneAppId) {
   const [owner, name] = repository.split("/");
   const data = await github("POST", "/graphql", { query: SPEC_QUERY, variables: { owner, name, number } });
@@ -324,7 +330,8 @@ async function linkedIssues(github, readRefs, repository, number, humans, laneAp
     // issue a `Refs:` line names, which the verifier judges as a partial slice.
     specKind: issues.length === 0 ? "none" : named !== null ? "refs" : "closes",
     specText: issues.map((issue) => {
-      const refinement = written(issue) ? refinementSpec(issue.comments.nodes, laneAppId) : undefined;
+      const newest = written(issue) ? refinementSpec(issue.comments.nodes, laneAppId) : undefined;
+      const refinement = Date.parse(newest?.createdAt ?? "") < Date.parse(pullRequest.createdAt ?? "") ? newest : undefined;
       return {
         number: issue.number,
         spec_kind: named !== null ? "refs" : "closes",

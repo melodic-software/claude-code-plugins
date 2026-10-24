@@ -21,7 +21,7 @@ denied, and a denied read voids the verdict:
 - `SPEC_TEXT_FILE`: JSON with each of those issues' `body` and `comments` written, and last edited
   if ever, by a trusted human, the pull request's author included, and, on an issue whose body
   such a human wrote, intake triage's unedited refinement comment (opening
-  `<!-- intake-triage refinement -->`). When the pull request links
+  `<!-- intake-triage refinement -->`) posted before the pull request opened. When the pull request links
   no issue and a trusted person or a script wrote its title and body, the file instead holds one
   entry with `source` `pull-request`: that title and body. Each entry's `spec_kind` says how it
   is linked: `closes` (an issue the pull request closes), `refs` (the one issue a `Refs:` line
