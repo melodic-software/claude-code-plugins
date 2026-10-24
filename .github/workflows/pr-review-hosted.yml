@@ -197,6 +197,9 @@ jobs:
       hold-paths: |
         .github/standards/trusted-actors/**
         .github/actions/check-trusted-trigger/**
+        .github/actions/resolve-config/**
+        .github/actions/request-lane-token/**
+        .github/actions/check-kill-switch/**
         **/CODEOWNERS
         **/.gitmodules
     # The reviews role's key runs first; its subscription token only after the
