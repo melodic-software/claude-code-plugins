@@ -64,7 +64,7 @@ before the first attempt.
 5. **Holdout, only when item 4 is given.** Write `holdout.json` in the slice, holding the
    holdout's `Frozen:` command and sha; like `keep-rule.json` it is never edited during the run.
    It is not a key of `keep-rule.json`, which `decide` accepts only with its three keys. Then run
-   the holdout once in each worktree as step 4 does: the counters agree, the error counts are zero
+   the holdout once in each worktree, by absolute path, as step 4 does: the counters agree, the error counts are zero
    and the work counts match, or stop and say which number differed. This is a stability check
    only; its number is never compared at the end. Run the holdout nowhere else until the run ends.
 
@@ -171,7 +171,7 @@ Log:       <absolute path to log.tsv>
 Counter:   <counter>, <direction>; Realistic target <Realistic target>
 Moved:     <start value> -> <last kept value> (<percent change>)
 Evidence:  min_attempts <n>; logged <n>: kept <k>, reverted <r>
-Holdout:   <held|did not hold>; start sha <n> -> last kept sha <n>   (only when a holdout was given; with errors or work counts that differ, name them)
+Holdout:   <held|did not hold>; <holdout counter on start sha> -> <holdout counter on last kept sha>, or "not run (nothing kept)"   (only when a holdout was given; with errors or work counts that differ, name them)
 Next idea: <the untried hypothesis most likely to move the counter, or "none left">
 Changes, oldest first, one line each:
   <sha> <change> (<files> files, +<added> -<removed>)
@@ -207,5 +207,5 @@ Changes, oldest first, one line each:
   count before concluding a mechanism had no effect.
 - **The baseline worktree is detached on purpose.** It follows kept commits only; a branch there
   would collide with `climb/<goal-slug>`.
-- **Run the harness by absolute path in both worktrees.** A relative path run from the wrong
-  directory measures the same tree twice.
+- **Run the harness, and the holdout harness, by absolute path in both worktrees.** A relative
+  path run from the wrong directory measures the same tree twice.
