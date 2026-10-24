@@ -8,7 +8,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { droppedLine, prepareItems, writeAll } from "./file-findings.mjs";
+import { checkBornTriaged } from "../../actions/check-born-triaged/check-born-triaged.mjs";
+import { droppedLine, FILING_LABELS, prepareItems, writeAll } from "./file-findings.mjs";
 import { planFiling } from "./findings.mjs";
 import { parseJudgeOutput } from "./write-findings.mjs";
 
@@ -107,6 +108,24 @@ test("one failed write is recorded and the rest still file", async () => {
     reopened: [],
     failed: [{ target: "aaaa", error: "POST /repos/o/r/issues: HTTP 422" }],
   });
+});
+
+test("a filed fix issue is born triaged: marker, Bug type, confirmed status and high priority, no needs-triage", async () => {
+  const calls = [];
+  const call = async (method, path, body) => {
+    calls.push(body);
+    return { number: 1 };
+  };
+  const plan = { file: [{ fingerprint: "aaaa", finding: finding() }], comment: [], reopen: [] };
+  await writeAll({ plan, call, repo: "o/r", labels: FILING_LABELS, runUrl: "u", wait: async () => {} });
+  const [filed] = calls;
+  assert.equal(filed.type, "Bug");
+  assert.ok(filed.labels.includes("status: confirmed"));
+  assert.ok(filed.labels.includes("priority: high"));
+  assert.ok(!filed.labels.includes("needs-triage"));
+  const issue = { body: filed.body, user: { id: 7 }, type: { name: filed.type }, labels: filed.labels.map((name) => ({ name })) };
+  const list = { version: 1, actors: [{ id: 7, kind: "human" }] };
+  assert.deepEqual(checkBornTriaged({ issue, list }), { skip: "true", reason: "born-triaged" });
 });
 
 test("a reopen comments with the checked claims, re-triages, then sets the state open as reopened", async () => {

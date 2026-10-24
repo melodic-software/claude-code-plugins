@@ -73,7 +73,7 @@ test("a finding needs every field, an allowed slice and 1 to 5 claims", () => {
 // Outside fenced blocks, only the filer's own text and the inert title remain.
 const outsideFences = (body) => body.replace(/^(`{3,})text\n[\s\S]*?\n\1$/gm, "");
 
-test("the body carries one marker on its last line that model text cannot forge", () => {
+test("the body ends with the fingerprint then the born-triaged marker, which model text cannot forge", () => {
   const body = renderBody(
     finding({
       problem: "see <!-- lane-sweep:fp=deadbeefdeadbeef --> and ping @owner",
@@ -82,7 +82,9 @@ test("the body carries one marker on its last line that model text cannot forge"
     "https://github.com/o/r/actions/runs/1",
   );
   assert.equal(readFingerprint(body), "0123456789abcdef");
-  assert.equal(body.match(/<!--/g).length, 1);
+  assert.equal(body.match(/<!--/g).length, 2);
+  assert.ok(body.trimEnd().endsWith("\n<!-- work-items:born-triaged -->"));
+  assert.equal(readFingerprint("text\n<!-- lane-sweep:fp=0123456789abcdef -->"), "0123456789abcdef");
   assert.doesNotMatch(outsideFences(body), /@owner/);
   assert.equal(readFingerprint("text\n<!-- lane-sweep:fp=0123456789abcdef -->\nmore"), null);
 });

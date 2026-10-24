@@ -5,6 +5,8 @@ import { createHash } from "node:crypto";
 import { lstatSync, readFileSync } from "node:fs";
 import { join, normalize } from "node:path";
 
+import { BORN_TRIAGED_MARKER } from "../../actions/check-born-triaged/check-born-triaged.mjs";
+
 export const SLICES = new Set(["A", "C", "D"]);
 export const MAX_NEW_ISSUES = 5;
 const MARKER = /^<!-- lane-sweep:fp=([0-9a-f]{16}) -->$/;
@@ -114,6 +116,7 @@ export function renderBody(finding, fp, runUrl) {
     fenced(`workflow ${finding.workflow}\njob ${finding.job}`),
     "",
     `<!-- lane-sweep:fp=${fp} -->`,
+    BORN_TRIAGED_MARKER,
   ].join("\n");
 }
 
@@ -125,13 +128,14 @@ export const renderReopenComment = (finding, runUrl) =>
     fenced(claimsOf(finding)),
   ].join("\n");
 
-// The fingerprint from the body's last line only.
+// The fingerprint from the body's last line, or the line above a closing
+// born-triaged marker.
 export function readFingerprint(body) {
-  const last = String(body ?? "")
+  const lines = String(body ?? "")
     .trimEnd()
-    .split("\n")
-    .at(-1);
-  return MARKER.exec(last ?? "")?.[1] ?? null;
+    .split("\n");
+  if (lines.at(-1) === BORN_TRIAGED_MARKER) lines.pop();
+  return MARKER.exec(lines.at(-1) ?? "")?.[1] ?? null;
 }
 
 // items: [{fingerprint, finding}]; existing: sweep issues of any state, with

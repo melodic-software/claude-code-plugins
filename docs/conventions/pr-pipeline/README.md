@@ -1796,13 +1796,16 @@ labels an issue `agent-ready`, so nothing it files starts work. Its scripts and 
   `quote` from main.
 - **file**, a script with no model and `issues: write`, drops a finding when any quote is not on its
   line in the run's main commit, then de-duplicates it by fingerprint: a hash of the slice, workflow,
-  job and the error signature with numbers, SHAs and times removed, kept as the last line of the
-  issue body. An open match gets a "seen again" comment; a match closed as not planned or duplicate
+  job and the error signature with numbers, SHAs and times removed, kept in the issue body's
+  second-to-last line. An open match gets a "seen again" comment; a match closed as not planned or duplicate
   is skipped; any other closed match, whatever its age, is reopened with a comment carrying the
   checked claims. A finding whose
-  `covered_by` names an open item is skipped. It files at most 5 issues a run, labeled
-  `needs-triage` and `source: lane-sweep` where those labels exist, writes 1 s apart, and stops at 50
-  calls.
+  `covered_by` names an open item is skipped. It files at most 5 issues a run, born triaged so they
+  skip the `needs-triage` queue: Issue Type `Bug`, labels `status: confirmed`, `priority: high` and
+  `source: lane-sweep` where those labels exist, and the body's last line
+  `<!-- work-items:born-triaged -->`. The body's **Where** section names the failing workflow and
+  job, which identify the owning lane. A reopen re-applies those labels. It writes 1 s apart and
+  stops at 50 calls.
 
 CI logs can carry text written to steer the judge, so every model-written field of an issue renders
 inside a code fence and its title has links, mentions and references defused. A person rewrites

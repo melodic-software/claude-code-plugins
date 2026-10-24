@@ -21,7 +21,10 @@ import {
 } from "./findings.mjs";
 
 export const FILER_LOGIN = "github-actions[bot]";
-const LABELS = ["needs-triage", "source: lane-sweep"];
+// Filed born triaged: the owning session works a confirmed lane defect
+// without a needs-triage pass. Labels that do not exist are left off.
+export const FILING_LABELS = ["status: confirmed", "priority: high", "source: lane-sweep"];
+export const ISSUE_TYPE = "Bug";
 
 export function prepareItems({ findingsDir, baseDir }) {
   const items = [];
@@ -81,6 +84,7 @@ export async function writeAll({ plan, call, repo, labels, runUrl, wait = () => 
         title: inertTitle(finding.title),
         body: renderBody(finding, fp, runUrl),
         labels,
+        type: ISSUE_TYPE,
       });
       filed.push(issue.number);
     } catch (error) {
@@ -100,8 +104,7 @@ export async function writeAll({ plan, call, repo, labels, runUrl, wait = () => 
   }
   // The marker is the fingerprint, which a reopen leaves unchanged, so the
   // PATCH sets the state only and keeps any rewrite a person made. Before it,
-  // the issue goes back to triage: the filing labels that exist return, and
-  // agent-ready comes off (a 404 means it was not on the issue). The PATCH
+  // the filing labels that exist return, and agent-ready comes off (a 404 means it was not on the issue). The PATCH
   // runs last, so a failed label call leaves the issue closed and retried.
   for (const { number, finding } of plan.reopen) {
     try {
@@ -166,7 +169,7 @@ async function main() {
     openNumbers: new Set(openItems.map((i) => i.number)),
   });
   const labels = [];
-  for (const name of LABELS) {
+  for (const name of FILING_LABELS) {
     if (await call("GET", `/repos/${repo}/labels/${encodeURIComponent(name)}`)) labels.push(name);
   }
   const runUrl = `${env.GITHUB_SERVER_URL}/${repo}/actions/runs/${env.GITHUB_RUN_ID}`;

@@ -1,9 +1,10 @@
 name: maintenance-audit-lane-runs
 
 # The lane sweep: once a day, audits the last 24 hours of this repository's
-# lane runs and open pull requests and files what it finds as issues labeled
-# needs-triage. It never labels an issue agent-ready, so nothing it files
-# starts work. docs/conventions/pr-pipeline/README.md, "The lane sweep", has
+# lane runs and open pull requests and files what it finds as born-triaged
+# Bug issues labeled status: confirmed and priority: high, so they skip the
+# needs-triage queue. It never labels an issue agent-ready, so nothing it
+# files starts work. docs/conventions/pr-pipeline/README.md, "The lane sweep", has
 # the rules.
 #
 # Three jobs:
