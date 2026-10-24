@@ -299,11 +299,11 @@ every rule that grants a shell, file-write or network action beside the proposed
 `$f = Join-Path ($env:CLAUDE_CONFIG_DIR ?? (Join-Path $HOME '.claude')) 'settings.json'; if (Test-Path -LiteralPath $f) { @((Get-Content -Raw -LiteralPath $f | ConvertFrom-Json).permissions.allow) -match '^(Bash|PowerShell|Monitor|Edit|Write|NotebookEdit|WebFetch|WebSearch|Agent|Workflow|mcp__)' } else { 'no user settings file' }`
 Quote the rules as data. Never edit the settings file: narrowing a rule is the owner's change.
 
-**The monthly run researches the web in auto mode.** Both routes run in auto mode, where a
-classifier reviews each action instead of a prompt
+**The monthly run researches the web in auto mode.** Both routes run in auto mode
 ([Permission modes, "Eliminate permission prompts with auto mode"](https://code.claude.com/docs/en/permission-modes#eliminate-permission-prompts-with-auto-mode);
 **As of**: 2026-10-23; **Recheck trigger**: that section stops offering auto mode to `claude -p`
-runs). The audit researches new unfamiliar findings and its check proposals through
+runs), with no tool list or deny rules of their own: auto mode and the owner's settings decide
+what the run may do. The audit researches new unfamiliar findings and its check proposals through
 `/discovery:research` when that skill is available (audit SKILL.md, step 5), so the run reads web
 pages and writes a notes file beside the report. Say so to the owner with the task. Before step 1
 of either route, run, appended to the [roots block](#resolving-the-state-root):

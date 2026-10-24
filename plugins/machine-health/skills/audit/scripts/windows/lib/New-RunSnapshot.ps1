@@ -119,8 +119,10 @@ function Get-NewFindingKey {
     $baseline = @{}
     foreach ($check in @(Get-SnapshotField $previous 'checks')) {
         $id = Get-SnapshotField $check 'id'
-        $items = Get-SnapshotField (Get-SnapshotField $check 'detail') 'items'
-        if ($id -isnot [string] -or $null -eq $items -or (Get-SnapshotField $check 'severity') -eq 'SKIPPED') { continue }
+        # Test the property itself: reading an empty items array through the pipeline yields $null.
+        $detail = Get-SnapshotField $check 'detail'
+        $listed = $detail -is [pscustomobject] -and $null -ne $detail.PSObject.Properties['items']
+        if ($id -isnot [string] -or -not $listed -or (Get-SnapshotField $check 'severity') -eq 'SKIPPED') { continue }
         $baseline[$id] = [System.Collections.Generic.HashSet[string]]::new([string[]](Get-CheckItemKey $check))
     }
     $new = [System.Collections.Generic.List[string]]::new()

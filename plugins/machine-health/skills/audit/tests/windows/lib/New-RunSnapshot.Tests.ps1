@@ -78,6 +78,13 @@ Describe 'Get-NewFindingKey' -Tag 'lib' {
         @(Get-NewFindingKey -PreviousPath $previous -Checks $now) | Should -Be @($script:D)
     }
 
+    It 'keeps the baseline of a check that listed no items, so its first finding is new' {
+        $previous = Write-Previous @(Get-FixtureCheck -Id 'x' -Severity 'OK' -Items @())
+        $now = @(Get-FixtureCheck -Id 'x' -Severity 'WARN' -Items @(Get-FixtureItem $script:C))
+
+        @(Get-NewFindingKey -PreviousPath $previous -Checks $now) | Should -Be @($script:C)
+    }
+
     It 'keeps the baseline of an UNKNOWN check that still listed items, as an unelevated partial read does' {
         $previous = Write-Previous @(Get-FixtureCheck -Id 'x' -Severity 'UNKNOWN' -Items @(Get-FixtureItem $script:A))
         $now = @(Get-FixtureCheck -Id 'x' -Severity 'UNKNOWN' -Items @((Get-FixtureItem $script:A), (Get-FixtureItem $script:C)))
