@@ -199,7 +199,10 @@ class TestActions(ViewCase):
         canary = self.tmp / "canary"
         text = INJECTION.format(canary=canary)
         self.act(notes={"note": text})
-        code, body = self.request("GET", "/api/wait?after=handled&timeout=5")
+        watch = {"X-View-Token": self.hub.watch_token}
+        code, body = self.request(
+            "GET", "/api/wait?after=handled&timeout=5", headers=watch, token=False
+        )
         self.assertEqual(code, 200)
         self.assertEqual(body["events"][0]["notes"]["note"], text)
         self.assertEqual(body["note"], sb.DATA_NOTE)
@@ -229,7 +232,10 @@ class TestActions(ViewCase):
             [(1, True, "Moved #4 to needs-info."), (2, True, None)],
         )
         self.assertNotIn("notes", state["events"][0])
-        code, body = self.request("GET", "/api/wait?after=handled&timeout=1")
+        watch = {"X-View-Token": self.hub.watch_token}
+        code, body = self.request(
+            "GET", "/api/wait?after=handled&timeout=1", headers=watch, token=False
+        )
         self.assertEqual((code, body["timedOut"]), (200, True))
 
     def test_apply_refuses_a_reply_to_no_action_and_unknown_fields(self):

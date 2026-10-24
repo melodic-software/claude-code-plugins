@@ -675,17 +675,18 @@ def start(handler, make_hub, port, nonce=""):
         "port": port,
         "url": hub.url,
         "token": hub.token,
-        "watchToken": hub.watch_token,
         "dataDir": str(hub.dir),
         "nonce": nonce,
         "startedAt": now_iso(),
     }
+    env = f"PID={pid}\nPORT={port}\nTOKEN={hub.token}\n"
+    # Only an app's own watcher token is written; without one, readers fall back to the page token.
+    if hub._watch_token:
+        session["watchToken"] = hub._watch_token
+        env += f"WATCH_TOKEN={hub._watch_token}\n"
     json_name, env_name = session_files(hub.name)
     write_private(hub.dir / json_name, json.dumps(session, indent=2) + "\n")
-    write_private(
-        hub.dir / env_name,
-        f"PID={pid}\nPORT={port}\nTOKEN={hub.token}\nWATCH_TOKEN={hub.watch_token}\nNONCE={nonce}\n",
-    )
+    write_private(hub.dir / env_name, f"{env}NONCE={nonce}\n")
     return httpd, hub
 
 
