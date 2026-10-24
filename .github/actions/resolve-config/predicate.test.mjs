@@ -13,7 +13,6 @@ const facts = {
   event: "synchronize",
   changedPaths: ["src/app.js", "docs/guide.md"],
   labels: ["C2", "area:docs"],
-  workClasses: ["C2"],
 };
 
 test("no predicate applies, with no skip reason", () => {
@@ -54,40 +53,17 @@ test("an events miss gives not-applicable, and an unmapped event misses", () => 
   );
 });
 
-test("a work-classes miss gives not-applicable", () => {
-  assert.equal(
-    applies({ "work-classes": ["C3"] }, facts).skipReason,
-    "not-applicable",
-  );
-  assert.equal(applies({ "work-classes": ["C2", "C3"] }, facts).applies, true);
-});
-
-test("admission admits a listed class, and refuses any other class beside it", () => {
-  const admission = { classes: ["work-class: read-only", "work-class: mechanical"] };
-  const issue = (labels, ratified) => ({ event: "labeled", labels, ratified });
-  assert.equal(applies({ admission }, issue(["agent-ready", "work-class: mechanical"])).applies, true);
-  assert.equal(
-    applies({ admission }, issue(["work-class: mechanical", "work-class: scoped"])).skipReason,
-    "not-applicable",
-  );
-  assert.equal(applies({ admission }, issue(["agent-ready"])).skipReason, "not-applicable");
-});
-
-test("admission refuses a held class however its label is cased or spaced", () => {
-  const admission = { classes: ["work-class: mechanical"] };
-  for (const held of ["Work-class: scoped", "work-class:scoped", "WORK-CLASS :  scoped"]) {
-    assert.equal(
-      applies({ admission }, { labels: ["work-class: mechanical", held] }).skipReason,
-      "not-applicable",
-      held,
-    );
+// No key reads a work class, so a class decides nothing.
+test("an issue with no work class and a structural one get the same answer", () => {
+  const predicate = { events: ["labeled"], labels: ["agent-ready"], "labels-absent": ["needs-human"] };
+  for (const labels of [["agent-ready"], ["agent-ready", "work-class: structural"]]) {
+    assert.deepEqual(applies(predicate, { event: "labeled", labels }), { applies: true, skipReason: null }, labels.join());
   }
-  // A listed class written another way is still that class, not a held one.
-  assert.equal(applies({ admission }, { labels: ["work-class: mechanical", "Work-Class:mechanical"] }).applies, true);
 });
 
-test("admission reads labels now, so a held class added while the run waits still refuses it", () => {
-  assert.deepEqual(factsFor({ admission: { classes: ["work-class: read-only"] } }).sort(), ["freshLabels", "labels"]);
+test("admission and work-classes are no predicate keys, so they read no fact", () => {
+  assert.deepEqual(factsFor({ admission: { classes: ["work-class: read-only"] } }), []);
+  assert.deepEqual(factsFor({ "work-classes": ["C2"] }), []);
 });
 
 test("every listed key must match: a paths miss wins over another miss", () => {
@@ -106,10 +82,6 @@ test("a predicate over a fact nobody supplied throws instead of guessing", () =>
     () => applies({ paths: ["src/**"] }, { event: "push" }),
     MissingFact,
   );
-  assert.throws(
-    () => applies({ "work-classes": ["C2"] }, { event: "push" }),
-    MissingFact,
-  );
 });
 
 test("factsFor names the facts a predicate reads", () => {
@@ -118,7 +90,6 @@ test("factsFor names the facts a predicate reads", () => {
     factsFor({ paths: ["a"], labels: ["b"], events: ["push"] }).sort(),
     ["changedPaths", "labels"],
   );
-  assert.deepEqual(factsFor({ "work-classes": ["C2"] }), ["workClasses"]);
 });
 
 test("pipelineEvent maps GitHub events onto the predicate's event names", () => {
