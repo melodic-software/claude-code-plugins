@@ -2247,6 +2247,65 @@ class Assess(unittest.TestCase):
         self.assertIs(result.promoted, True)
         self.assertEqual(result.report()["credentials"], "identity-only")
 
+    def test_a_merged_pull_request_stops_before_the_post_merge_reads(self) -> None:
+        gh = self.readable()
+        gh.rest[f"repos/{REPO}/pulls/1"].update(state="closed", merged=True)
+        later = mock.Mock(side_effect=AssertionError("read after the refusal"))
+        with (
+            mock.patch.object(policy, "read_demotion", later),
+            mock.patch.object(policy, "in_flight", later),
+            mock.patch.object(policy, "eligibility", later),
+        ):
+            result = self.assess(
+                post_merge=later, promotion=later, stop_when_closed=True
+            )
+        later.assert_not_called()
+        # The gate's own blocker for a pull request that is not open.
+        self.assertEqual(result.reason, "state=MERGED (not OPEN)")
+        self.assertIs(result.enabled, False)
+        self.assertIs(result.report()["reportOnly"], False)
+        # What the queue sweep reads: the identity, branch and readers.
+        for key in ("identity", "branch", "config", "permission", "self_logins"):
+            self.assertIn(key, result.inputs)
+
+    def test_a_closed_unmerged_pull_request_is_read_in_full_with_the_stop(
+        self,
+    ) -> None:
+        # Closed but not merged can reopen before the gate's own state read,
+        # so only a merge, which is final, stops early.
+        gh = self.readable()
+        gh.rest[f"repos/{REPO}/pulls/1"].update(state="closed", merged=False)
+        self.all_clear()
+        seen: list[Any] = []
+        self.assess(
+            post_merge=lambda floor, who: seen.append(who) or gate(),
+            promotion=lambda s: PROMOTED,
+            stop_when_closed=True,
+        )
+        self.assertEqual(seen, [IDENTITY])
+
+    def test_a_closed_pull_request_is_read_in_full_without_the_stop(self) -> None:
+        gh = self.readable()
+        gh.rest[f"repos/{REPO}/pulls/1"].update(state="closed", merged=True)
+        self.all_clear()
+        seen: list[Any] = []
+        self.assess(
+            post_merge=lambda floor, who: seen.append(who) or gate(),
+            promotion=lambda s: PROMOTED,
+        )
+        self.assertEqual(seen, [IDENTITY])
+
+    def test_an_open_pull_request_is_read_in_full_with_the_stop(self) -> None:
+        gh = self.readable()
+        gh.rest[f"repos/{REPO}/pulls/1"].update(state="open", merged=False)
+        self.all_clear()
+        result = self.assess(
+            post_merge=lambda floor, who: gate(),
+            promotion=lambda s: PROMOTED,
+            stop_when_closed=True,
+        )
+        self.assertIsNone(result.reason)
+
     def test_config_is_read_at_the_pull_requests_base_sha(self) -> None:
         gh = self.readable()
         self.all_clear()
