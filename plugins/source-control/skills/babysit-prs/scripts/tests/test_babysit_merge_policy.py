@@ -5103,6 +5103,28 @@ class SharedPostMergeAnswer(unittest.TestCase):
         result = self.lane_assess(post_merge=never, shared=self.shared(gate()))
         self.assertEqual(result.details["postMergeShared"], "used")
 
+    def test_a_fresh_filer_issue_without_the_marker_leaves_the_answer_bound(
+        self,
+    ) -> None:
+        # `read_demotion` never counts it: no marker, and never touched since
+        # it was opened, so no earlier revision could carry one.
+        gh = self.bound()
+        gh.rest[self.issues_since()] = [
+            {
+                "number": 93,
+                "user": {"login": "github-actions[bot]"},
+                "body": "Scheduled report",
+                "state": "open",
+                "created_at": "2026-10-24T07:00:33Z",
+                "updated_at": "2026-10-24T07:00:33Z",
+            }
+        ]
+        self.flight()
+        never = mock.Mock(side_effect=AssertionError("read fresh"))
+        with mock.patch.object(policy, "read_demotion", never):
+            result = self.lane_assess(post_merge=never, shared=self.shared(gate()))
+        self.assertEqual(result.details["postMergeShared"], "used")
+
     def test_a_demoted_answer_needs_no_re_read(self) -> None:
         # Already demoted, the answer is the conservative one.
         gh = self.bound()
@@ -5179,6 +5201,74 @@ def lane_gate(verified: bool, failed: bool = False) -> policy.PostMergeGate:
             "failures": [{"signal": "full-run", "number": 8040}] if failed else [],
         }
     )
+
+
+class DemotionChanged(unittest.TestCase):
+    """`_demotion_changed`: an issue updated since the answer counts only
+    when `read_demotion` could count it as a record. That is a known record,
+    or a record filer's issue whose body carries the marker now, or that may
+    have been edited since it was opened (`updated_at` differs from
+    `created_at`, or either is unreadable), so an earlier revision could."""
+
+    OPENED = "2026-10-24T07:00:33Z"
+
+    def changed(self, issue: dict[str, Any], records: tuple[int, ...] = ()) -> bool:
+        answer = policy.SharedPostMerge(
+            main_sha=MAIN_SHA,
+            config_sha=CONFIG_SHA,
+            identity=IDENTITY,
+            self_logins=frozenset(),
+            lane_merges_only=True,
+            computed_at=policy.datetime.fromisoformat(self.OPENED),
+            demotion=policy.Demotion(False, None, records),
+            floor=policy.datetime.fromisoformat(ENABLED_AT),
+            gate=gate(),
+        )
+        with mock.patch.object(policy, "_get", return_value=(200, [issue])):
+            return policy._demotion_changed("owner", "repo", answer, IDENTITY)
+
+    def filed(self, **fields: Any) -> dict[str, Any]:
+        """A fresh, unedited issue `github-actions[bot]` opened, no marker."""
+        issue = {
+            "number": 93,
+            "user": {"login": "github-actions[bot]"},
+            "body": "Scheduled report",
+            "state": "open",
+            "created_at": self.OPENED,
+            "updated_at": self.OPENED,
+        }
+        issue.update(fields)
+        return {k: v for k, v in issue.items() if v is not None}
+
+    def test_a_fresh_unedited_filer_issue_without_the_marker_is_unchanged(
+        self,
+    ) -> None:
+        self.assertFalse(self.changed(self.filed()))
+        self.assertFalse(self.changed(self.filed(user={"login": IDENTITY})))
+        self.assertFalse(self.changed(self.filed(body="")))
+
+    def test_a_filer_issue_with_the_marker_is_changed(self) -> None:
+        self.assertTrue(self.changed(self.filed(body=DEMOTION_BODY)))
+
+    def test_a_filer_issue_touched_since_it_was_opened_is_changed(self) -> None:
+        self.assertTrue(self.changed(self.filed(updated_at="2026-10-24T07:05:00Z")))
+
+    def test_a_filer_issue_without_readable_timestamps_is_changed(self) -> None:
+        for fields in (
+            {"created_at": None},
+            {"updated_at": None},
+            {"created_at": None, "updated_at": None},
+            {"updated_at": "not a time"},
+            {"created_at": "2026-10-24T07:00:33"},
+        ):
+            with self.subTest(fields=fields):
+                self.assertTrue(self.changed(self.filed(**fields)))
+
+    def test_a_known_record_updated_is_changed(self) -> None:
+        known = self.filed(user={"login": OPERATOR}, number=12)
+        self.assertTrue(self.changed(known, records=(12,)))
+        # Its author and its timestamps do not matter.
+        self.assertTrue(self.changed(self.filed(number=12), records=(12,)))
 
 
 class AStaleSharedAnswerIsRefreshed(unittest.TestCase):
