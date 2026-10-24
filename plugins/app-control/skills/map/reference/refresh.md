@@ -53,6 +53,11 @@ The path argument, when given, is one of:
   rule it breaks. A legacy map is converted only when the person passes its path; refresh reads no
   testing setting and looks in no default place to find one.
 
+A feature id in place of a path names the control skill whose `features/<id>/README.md` exists
+(with several, an attended pass asks which; an unattended one is **blocked**, naming them). Steps 4
+and 5 then cover that feature only, and a clean outcome skips the `record` command, since the other
+features went unchecked.
+
 Without an argument, take each `.claude/skills/control-*/` directory, each held to the same rules
 and checks as a given one (a refused directory is skipped and named in the report); with several,
 an attended pass asks which and an unattended one refreshes each in turn, one branch per skill (see
@@ -155,7 +160,7 @@ Sort every difference between the control skill and the app:
 
 | Class | What the passes show | Where it goes |
 |---|---|---|
-| Doc drift | The app works and the files describe it wrongly: a renamed handle, a moved route, a missing or extra entry point, a stale gotcha, a changed step order, a missing prerequisite | A correction to the feature file or hub, in the contract's shape, with the index's entry-point counts and `sources` globs kept true. Ships in the pull request |
+| Doc drift | The app works and the files describe it wrongly: a renamed handle, a moved route, a missing or extra entry point, a stale gotcha, a changed step order, a missing prerequisite, a lesson to place (SKILL.md Lessons) | A correction to the feature file or hub, in the contract's shape, with the index's entry-point counts and `sources` globs kept true. Ships in the pull request |
 | Driver gap | The behavior works but the control skill cannot drive it: a `cli/` command that fails or is missing, a Ready that misses a wedged app | Attended: after the person agrees, a fix in `cli/` or the hub, documented in `cli/README.md`, then that feature driven again live; it ships only when that re-drive passes, else it goes in the report unwritten. Unattended: the fix goes in the report unwritten and nothing is driven again, since the `cli/` code enforces the safety floors and no one has reviewed the change. Never a floor loosened |
 | Product regression | A behavior the files list is gone, or fails against a healthy app | The entry stays as written: the control skill never records a lost behavior as current. Written up through `/bugs:write` when it is enabled, else in the report with drive's evidence. Kept out of the pull request |
 | Not mapped | A user-facing feature the control skill does not list | The report |
@@ -247,6 +252,7 @@ legacy map's conversion is written before step 4 (see there); a flat one's at st
 - the driving tool and the hub line naming it;
 - each edit, by triage class, with the `file:line` or drive evidence behind it;
 - each regression and whether it went to `/bugs:write`;
+- each lesson and the Gotchas it went to, or that it is left for `/corrections:codify`;
 - the features found but not mapped;
 - each `feature-map-upkeep/*` branch found, local or remote, by name, and not adopted;
 - for a conversion, the old and new paths, whether a stopped pass undid the conversion, and the pointer and setting
