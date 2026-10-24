@@ -53,6 +53,10 @@ if [[ -f "$fix/fail" ]]; then
   echo "gh: Bad credentials (HTTP 401)" >&2
   exit 1
 fi
+if [[ -f "$fix/auth_forbidden" ]]; then
+  echo "gh: Resource protected by organization SAML enforcement; authentication required (HTTP 403)" >&2
+  exit 1
+fi
 case "$endpoint" in
 graphql)
   if [[ -f "$fix/graphql_refused" ]]; then
@@ -534,8 +538,43 @@ SHAPE
 gql_refused "the #7075 merge-queue enqueue shape" "$SC_7075"
 scenario unresolved none green green
 touch "$FIX/fail"
-run "literal node id that cannot be read: fails closed" 'gh api graphql -f query='"'"'mutation{mergePullRequest(input:{pullRequestId:"PR_kwDOabc"}){clientMutationId}}'"'"'' 2
+GQL_LITERAL='gh api graphql -f query='"'"'mutation{mergePullRequest(input:{pullRequestId:"PR_kwDOabc"}){clientMutationId}}'"'"''
+run "literal node id, gh unauthenticated: fails open" "$GQL_LITERAL" 0
+assert_contains "unauthenticated literal id -> says it will run unchecked" "$OUT" "will run unchecked"
+assert_contains "unauthenticated literal id -> user channel too" "$OUT" '"systemMessage"'
+scenario none none green green
+rm -f "$FIX/graphql_node.json"
+run "literal node id that cannot be read for another reason: fails closed" "$GQL_LITERAL" 2
 assert_contains "unreadable node -> names the node" "$ERR" "PR_kwDOabc"
+scenario none none green green
+touch "$FIX/auth_forbidden"
+run "literal node id, 403 that mentions authentication: fails closed" "$GQL_LITERAL" 2
+assert_contains "403 mentioning authentication -> names the node" "$ERR" "PR_kwDOabc"
+# gh missing (#7376): a literal id fails open with the notice on both channels;
+# a non-literal id still blocks.
+# gh_missing <tool> <command>: the hook with no gh on PATH.
+gh_missing() {
+  local payload
+  if [[ "$1" == PowerShell ]]; then payload="$(pwsh_command_json "$2")"; else payload="$(command_json "$2")"; fi
+  scenario none none green green
+  OUT=$(env PATH="$NOGH" FAKE_GH_DIR="$FIX" "$NOGH/bash" "$HOOK" <<<"$payload" 2>"$TEST_TMPDIR/err")
+  RC=$?
+  ERR=$(cat "$TEST_TMPDIR/err")
+}
+GQL_VAR='gh api graphql -F id=$ID -f query='"'"'mutation($id:ID!){mergePullRequest(input:{pullRequestId:$id}){clientMutationId}}'"'"''
+GQL_SUBST='gh api graphql -F id="$(jq -r .id <<<"$PR")" -f query='"'"'mutation($id:ID!){mergePullRequest(input:{pullRequestId:$id}){clientMutationId}}'"'"''
+for tool in Bash PowerShell; do
+  gh_missing "$tool" "$GQL_LITERAL"
+  assert_exit "$tool: literal PR_ id, gh missing: fails open" 0 "$RC"
+  assert_contains "$tool: literal PR_ id, gh missing -> says gh is not on PATH" "$OUT" "gh is not on PATH"
+  assert_contains "$tool: literal PR_ id, gh missing -> says it will run unchecked" "$OUT" "will run unchecked"
+  assert_contains "$tool: literal PR_ id, gh missing -> user channel too" "$OUT" '"systemMessage"'
+  gh_missing "$tool" "$GQL_VAR"
+  assert_exit "$tool: id from a variable, gh missing: fails closed" 2 "$RC"
+  assert_contains "$tool: id from a variable, gh missing -> says why" "$ERR" "could not be checked"
+  gh_missing "$tool" "$GQL_SUBST"
+  assert_exit "$tool: id from \$(...), gh missing: fails closed" 2 "$RC"
+done
 # --- 8c. a merge whose target is not literal FAILS CLOSED (#8598) ------------
 # The PR is clean, so a guard that let these through would exit 0.
 unresolvable() { # <label> <command> [ENV=value ...]

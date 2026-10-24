@@ -54,6 +54,7 @@
         { "id": "fix-docs-subscription", "workflow": "pr-refine.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "address-feedback", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_API_KEY"] },
         { "id": "address-feedback-subscription", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "adjudicate-feedback", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_API_KEY"] },
         { "id": "review-dependency", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_API_KEY"] },
         { "id": "review-dependency-subscription", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "resolve-conflicts", "workflow": "pr-unblock.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["PR_UNBLOCK_CLAUDE_API_KEY"] },

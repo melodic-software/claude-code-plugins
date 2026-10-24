@@ -1,9 +1,9 @@
 name: maintenance-audit-lane-runs
 
 # The lane sweep: once a day, audits the last 24 hours of this repository's
-# lane runs and open pull requests and files what it finds as issues labeled
-# needs-triage. It never labels an issue agent-ready, so nothing it files
-# starts work. docs/conventions/pr-pipeline/README.md, "The lane sweep", has
+# lane runs and open pull requests and writes what it finds into one rolling
+# digest issue. It never labels an issue agent-ready, and takes agent-ready
+# off the digest whenever it rewrites it, so nothing it writes starts work. docs/conventions/pr-pipeline/README.md, "The lane sweep", has
 # the rules.
 #
 # Three jobs:
@@ -13,9 +13,9 @@ name: maintenance-audit-lane-runs
 #   file and the main checkout with Read, Grep and Glob, has no shell, and
 #   returns structured findings. CI logs and titles reach it as data.
 # - file: a script with no model checks every quoted line against main,
-#   de-duplicates by fingerprint against issues earlier sweeps filed, and files
-#   at most 5 issues, within 50 calls. It writes with the job's own token, so
-#   its issues come from github-actions[bot] and start no workflow.
+#   fingerprints each finding, and replaces the digest issue's body with the
+#   open findings, within 50 calls. It writes with the job's own token, so
+#   the digest comes from github-actions[bot] and starts no workflow.
 #
 # A fourth job, triage-sweep, runs alone every hour (and with the daily run):
 # it dispatches intake-triage.yml for open issues intake never reached, at
@@ -262,7 +262,7 @@ jobs:
     permissions:
       actions: read # download the findings artifacts
       contents: read # check out main for the claim check
-      issues: write # file issues and comment on earlier ones
+      issues: write # file, rewrite and comment on the digest issue
     steps:
       - name: Check out the run's main commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -306,6 +306,8 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           BASE_DIR: .base
           FINDINGS_DIR: ${{ runner.temp }}/lane-sweep-findings
+          UNITS_DIR: ${{ runner.temp }}/lane-sweep/units
+          COLLECT_STATUS_PATH: ${{ runner.temp }}/lane-sweep/collect-status.json
           OPEN_ITEMS_PATH: ${{ runner.temp }}/lane-sweep/open-items.json
           CALL_BUDGET: "50"
         run: |
