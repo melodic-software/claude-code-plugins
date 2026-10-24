@@ -17,6 +17,7 @@
     "at": {"type": "string"},
     "deliveredAt": {"type": "string"},
     "withdrawn": {"type": "boolean"},
+    "autoHandled": {"type": "boolean", "description": "Set by the server on a plain accept (no text) or plain confirm, except an accept that settles its round's last open question: it wakes no agent. The agent never handles it, and an undo of it holds until the agent handles a later event."},
     "undoSeq": {"type": "integer"},
     "auditSeq": {"type": "integer"},
     "contentRev": {"type": "integer"},

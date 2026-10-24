@@ -672,7 +672,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   const waitText = q => (stateOf(q) === "need" ? "Needs your answer: " : "Pending research: ") + (q.waitsOn || "");
   function parents(q){ return [...new Set([...(q.dependsOn || []), ...(q.followUpOf ? [q.followUpOf] : [])])].filter(id => Q[id] && id !== q.id); }
-  const isHandled = seq => seq <= (S.doc.handledSeq || 0) || (S.doc.handled || []).includes(seq);
+  const isHandled = seq => seq <= (S.doc.handledSeq || 0) || (S.doc.handled || []).includes(seq) || !!(events().find(e => e.seq === seq) || {}).autoHandled; // the server handles a plain accept or confirm at save time
   const queued = () => S.online && !stalled() && pending().some(delivered) ? " Queued, Claude is busy." : ""; // a wake is in flight: an event was delivered and not yet handled
   const delivered = e => !!e.deliveredAt || (S.watchSeq > 0 && e.seq <= S.watchSeq) || isHandled(e.seq);
   const events = () => S.resp.events || [];
