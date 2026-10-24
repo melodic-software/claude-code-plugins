@@ -60,7 +60,7 @@ test("permission config and non-test code in the same plugin are refused", () =>
   }
 });
 
-test("hooks, manifests, agent rules, monitors, bin and MCP config in the same plugin are in scope", () => {
+test("hooks, manifests, agent rules, monitors, bin and MCP config in the same plugin are out of scope", () => {
   const named = new Set(["plugins/p/skills/s/SKILL.md"]);
   for (const path of [
     "plugins/p/hooks/hooks.json",
@@ -73,7 +73,7 @@ test("hooks, manifests, agent rules, monitors, bin and MCP config in the same pl
     "plugins/p/.mcp.json",
     "plugins/p/.lsp.json",
   ]) {
-    assert.equal(inThreadScope(path, named), true, path);
+    assert.equal(inThreadScope(path, named), false, path);
   }
 });
 

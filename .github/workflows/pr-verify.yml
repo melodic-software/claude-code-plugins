@@ -17,7 +17,7 @@ name: pr-verify
 # issues are data files in pr-verify-data under the working directory, and the
 # model reads them with the Read tool alone: its rules allow that directory
 # and deny .base and every other tool. The judgment runs on ci-workflows'
-# run-claude-cli as the automations role, on one credential per job. The
+# run-claude-cli as the pr-verify role, on one credential per job. The
 # check-intent job holds only the API key. The check-intent-subscription job
 # holds only the subscription token and runs, on a new ubuntu-24.04 VM, only
 # when check-intent's key leg handed off (run-claude-cli's handoff output:
@@ -195,8 +195,8 @@ jobs:
         id: credential
         if: steps.agree.outcome == 'success'
         env:
-          PRESENT: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY != '' }}
-          SECRET_NAME: AUTOMATIONS_CLAUDE_API_KEY
+          PRESENT: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY != '' }}
+          SECRET_NAME: PR_VERIFY_CLAUDE_API_KEY
         run: |
           if [ "$PRESENT" = true ]; then
             echo "present=true" >>"$GITHUB_OUTPUT"
@@ -265,12 +265,12 @@ jobs:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
           lane: pr-verify
-          role: automations
+          role: pr-verify
           prompt-file: ${{ runner.temp }}/pr-verify-prompt.md
           preamble: >-
             You run unattended; return only the verdict the schema asks for;
             nothing you write is posted.
-          api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
+          api-key: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}
           model: ${{ steps.models.outputs.model }}
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
@@ -306,8 +306,8 @@ jobs:
           LANE_CLASS: ${{ steps.judge.outputs.lane-class }}
         run: |
           case "$LANE_CLASS" in
-            auth) echo "::warning::the API refused the automations role's API key (AUTOMATIONS_CLAUDE_API_KEY), class auth; the owner must replace the secret" ;;
-            *) echo "::warning::the automations role's API key (AUTOMATIONS_CLAUDE_API_KEY) hit a credit stop; rotate a spare key in" ;;
+            auth) echo "::warning::the API refused the pr-verify role's API key (PR_VERIFY_CLAUDE_API_KEY), class auth; the owner must replace the secret" ;;
+            *) echo "::warning::the pr-verify role's API key (PR_VERIFY_CLAUDE_API_KEY) hit a credit stop; rotate a spare key in" ;;
           esac
           node .base/.github/scripts/pr-verify/write-verdict.mjs check-key-leg
           echo "::notice::check-intent-subscription judges on the subscription token"
@@ -519,8 +519,8 @@ jobs:
         id: credential
         if: steps.agree.outcome == 'success'
         env:
-          PRESENT: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN != '' }}
-          SECRET_NAME: AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN
+          PRESENT: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+          SECRET_NAME: PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN
         run: |
           if [ "$PRESENT" = true ]; then
             echo "present=true" >>"$GITHUB_OUTPUT"
@@ -587,12 +587,12 @@ jobs:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
           lane: pr-verify
-          role: automations
+          role: pr-verify
           prompt-file: ${{ runner.temp }}/pr-verify-prompt.md
           preamble: >-
             You run unattended; return only the verdict the schema asks for;
             nothing you write is posted.
-          subscription-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+          subscription-token: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}
           model: ${{ steps.models.outputs.model }}
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}

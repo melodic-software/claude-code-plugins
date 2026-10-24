@@ -260,7 +260,7 @@ never merges; the pr-merge lane merges on its `verdict=merge` marker at the curr
 `fix-ci-context` (base code only, read-only token) writes the failing checks' context or hands
 the pull request to a person once `loop.fix-ci-rounds` fixes were pushed; `fix-ci` (a `read`
 skill in [patch output mode](pr-run-activity.md#patch-output-mode), on run-claude-cli with the
-automations role's API key) runs `source-control:pull-request ci --ci`, which reruns, fixes and
+pr-unblock role's API key) runs `source-control:pull-request ci --ci`, which reruns, fixes and
 reruns the checks; `fix-ci-subscription` runs the same on the role's OAuth token, only when
 `fix-ci-handoff`'s read of this run's jobs shows `fix-ci` posted no check, as a credit stop or an
 empty key leaves it
@@ -296,7 +296,7 @@ lowest number first. Their run ids join the dispatched-runs record. The dispatch
 concurrency group cancels a run in progress, so a burst of pushes ends in one listing.
 
 `pr-refine`'s `fix-docs` runs the same way in three jobs of `pr-refine.yml`: `fix-docs` (a
-`read` skill in patch output mode with no prepare mode, on run-claude-cli with the automations
+`read` skill in patch output mode with no prepare mode, on run-claude-cli with the pr-unblock
 role's API key) runs `ai-slop:audit fix` on the PR's changed Markdown files;
 `fix-docs-subscription` runs the same on the role's OAuth token, only when `fix-docs-handoff`'s
 read of this run's jobs shows the broker allowed `fix-docs` and `fix-docs` posted no check, as a
@@ -1367,7 +1367,7 @@ work, or claims the whole issue, fails. The body only narrows what is judged, ne
 requirement, and the spec trust rules below are unchanged. resolve-pr marks each spec entry's
 `spec_kind` (`closes`, `refs` or `pull-request`), and the verdict records it, so the gate refuses a
 pass (`verify:spec-changed`) when the issue is now linked the other way. The model runs
-on ci-workflows' `run-claude-cli` as the `automations` role ([Funding](#funding)), with the Read
+on ci-workflows' `run-claude-cli` as the `pr-verify` role ([Funding](#funding)), with the Read
 tool alone, allowed only on the data files in the working directory's `pr-verify-data`. The run
 uploads one artifact, `pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>`, holding the verdict JSON. Every
 reader also accepts that name followed by `-<ref-digest>`, the first 16 hex digits of the SHA-256
@@ -1886,10 +1886,9 @@ the pipeline. A role's secrets are `<ROLE>_CLAUDE_API_KEY` and
 
 [`.github/lane-funding.json`](../../../.github/lane-funding.json) is the source of truth: each
 role's secrets, whether it is keyed, and each lane's workflow, job, launcher, triggers, gate, and
-the secrets its job reads today, which can still be another role's or the bare
-`CLAUDE_CODE_OAUTH_TOKEN` until its wiring moves. `callers.test.mjs` in
-`.github/actions/resolve-config/` fails when a job that reads a Claude secret is missing from the
-catalog, or reads secrets other than those listed, and when a job that holds one under
+the secrets its job reads. `callers.test.mjs` in `.github/actions/resolve-config/` fails when a
+job that reads a Claude secret is missing from the catalog, reads secrets other than those
+listed or another role's, or passes a `role:` other than its own, and when a job that holds one under
 `pull_request_target`, `issues` or `workflow_run` shows no author gate (check-trusted-trigger in a
 job it needs, or the intake reusable's `allowed-author-ids`) or same-repo gate.
 
