@@ -74,7 +74,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, loadTrustedList, paginate, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { refsIssue, resolvePull, specFromBodyApps } from "../pr-verify/resolve-pr.mjs";
 import { headRefDigest } from "../pr-verify/write-verdict.mjs";
-import { firstFailure, INFRA_BACKOFF_MINUTES, infraOnly, LOOKBACK_HOURS, reconcilerRetries, testedRun } from "./infra-failure.mjs";
+import { firstFailure, INFRA_BACKOFF_MINUTES, infraOnly, LOOKBACK_HOURS, lostRunnerNoted, reconcilerRetries, stepsKnown, testedRun } from "./infra-failure.mjs";
 
 const STATUS_URL = "https://www.githubstatus.com/api/v2/components.json";
 // A failed run's failed jobs are re-run only while both pages show indicator none.
@@ -218,6 +218,18 @@ const recorded = (item) => item.kind === "lane" || item.record !== undefined;
 const byMergeCriticality = (a, b) => Number(b.auto_merge != null) - Number(a.auto_merge != null) || a.number - b.number;
 const byAge = (a, b) => Date.parse(a.created_at) - Date.parse(b.created_at) || a.id - b.id;
 
+// A job whose steps did not list in full may have lost its runner, which cuts
+// the list at the running step; its check-run annotations tell
+// (infra-failure.mjs lostRunnerNoted). Reads them for each such job `wanted` picks.
+const withAnnotations = (call, repo, jobs, wanted = () => true) =>
+  Promise.all(
+    jobs.map(async (job) =>
+      wanted(job) && !stepsKnown(job) && Number.isSafeInteger(job?.id)
+        ? { ...job, annotations: await call("GET", `/repos/${repo}/check-runs/${job.id}/annotations?per_page=100`) }
+        : job,
+    ),
+  );
+
 // Why the run's first attempt must not be re-run, or undefined when it may be:
 // no job started any step. An unreadable listing throws.
 async function holdReason(call, repo, runId) {
@@ -225,7 +237,14 @@ async function holdReason(call, repo, runId) {
   if (!Array.isArray(listing?.jobs) || listing.total_count > 100) {
     throw new Error("its job listing is not one complete page");
   }
-  const started = listing.jobs
+  // A job whose steps did not list in full (stepsKnown) throws too, so the
+  // next pass reads it again, unless it lost its runner: then its list ends at
+  // the step that was running.
+  const jobs = await withAnnotations(call, repo, listing.jobs);
+  if (!jobs.every((job) => stepsKnown(job) || lostRunnerNoted(job))) {
+    throw new Error("a job's steps did not list in full, so which steps ran is unknown");
+  }
+  const started = jobs
     .flatMap((job) => (Array.isArray(job?.steps) ? job.steps : []))
     .filter((s) => s?.conclusion != null && s.conclusion !== "skipped");
   return started.length === 0 ? "before any of its jobs started" : undefined;
@@ -402,7 +421,8 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec }) {
             if (!Array.isArray(listed?.jobs) || listed.total_count > 100) {
               throw new Error(`run ${r.id}'s job listing is not one complete page`);
             }
-            return listed.jobs;
+            // infraCause reads a failed job's annotations.
+            return withAnnotations(call, repo, listed.jobs, (job) => job?.conclusion === "failure");
           }),
         );
       }
