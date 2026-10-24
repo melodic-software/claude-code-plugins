@@ -79,7 +79,8 @@ that section changes what `run` does or how it picks a project skill).
   `blocked: capture needs elevation` with the narrowest grant that would allow it.
 - **A `threads` capture needs elevation.** Its recorder attaches to the launched pid and cannot
   start the app as its child, so drive always takes the elevated route for it: the shown script
-  when interactive, `blocked: capture needs elevation` when unattended, with no attempt run first.
+  when interactive, `blocked: capture needs elevation` when unattended. Unattended, it stops there:
+  no attempt, no pid recheck and no process lookup runs, since nothing will touch the pid.
   When attaching to a process that is not the recorder's child needs root is upstream: read it at
   <https://github.com/benfred/py-spy#when-do-you-need-to-run-as-sudo> (as of 2026-10-23; recheck
   on a py-spy major release, or when a `threads` row names another recorder).
