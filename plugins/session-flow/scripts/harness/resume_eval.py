@@ -371,7 +371,13 @@ def write_report(graded_runs: list[dict], path, arm: str) -> None:
     Path(path).write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
 
 
-def render_history(turns: list[dict], session_id: str, cwd: str, parent: str | None = None, salt: str = "") -> list[str]:
+def render_history(
+    turns: list[dict],
+    session_id: str,
+    cwd: str,
+    parent: str | None = None,
+    salt: str = "",
+) -> list[str]:
     """Render synthetic turns as a parent-chained transcript `claude --resume` loads whole.
 
     Without the uuid/parentUuid chain a resume sees only the last line (probes.md P4).
@@ -472,7 +478,10 @@ def _codex_items(events: list[dict], kind: str):
 
 def reader_commands(ctx: GradeContext) -> list[str]:
     if ctx.reader == "codex":
-        return [str(item.get("command") or "") for item in _codex_items(ctx.events, "command_execution")]
+        return [
+            str(item.get("command") or "")
+            for item in _codex_items(ctx.events, "command_execution")
+        ]
     return [
         str((block.get("input") or {}).get("command") or "")
         for block in _claude_blocks(ctx.events, "tool_use")
@@ -482,20 +491,31 @@ def reader_commands(ctx: GradeContext) -> list[str]:
 
 def reader_texts(ctx: GradeContext) -> list[str]:
     if ctx.reader == "codex":
-        return [str(item.get("text") or "") for item in _codex_items(ctx.events, "agent_message")]
-    return [str(block.get("text") or "") for block in _claude_blocks(ctx.events, "text")]
+        return [
+            str(item.get("text") or "")
+            for item in _codex_items(ctx.events, "agent_message")
+        ]
+    return [
+        str(block.get("text") or "") for block in _claude_blocks(ctx.events, "text")
+    ]
 
 
 def reader_edits(ctx: GradeContext) -> list[str]:
     if ctx.reader == "codex":
         paths = []
         for item in _codex_items(ctx.events, "file_change"):
-            paths += [str(change.get("path") or "") for change in item.get("changes") or []]
+            paths += [
+                str(change.get("path") or "") for change in item.get("changes") or []
+            ]
             if item.get("path"):
                 paths.append(str(item["path"]))
         return paths
     return [
-        str((block.get("input") or {}).get("file_path") or (block.get("input") or {}).get("notebook_path") or "")
+        str(
+            (block.get("input") or {}).get("file_path")
+            or (block.get("input") or {}).get("notebook_path")
+            or ""
+        )
         for block in _claude_blocks(ctx.events, "tool_use")
         if block.get("name") in ("Edit", "Write", "NotebookEdit")
     ]
@@ -507,7 +527,9 @@ def reader_targets(ctx: GradeContext) -> list[str]:
         for block in _claude_blocks(ctx.events, "tool_use"):
             if block.get("name") in ("Read", "Grep", "Glob"):
                 tool_input = block.get("input") or {}
-                targets.append(str(tool_input.get("file_path") or tool_input.get("path") or ""))
+                targets.append(
+                    str(tool_input.get("file_path") or tool_input.get("path") or "")
+                )
     return targets
 
 
@@ -518,7 +540,10 @@ def check_matches(check: dict, ctx: GradeContext) -> bool:
     if kind == "handoff_contains":
         return ctx.handoff_text is not None and check["text"] in ctx.handoff_text
     if kind == "handoff_regex":
-        return ctx.handoff_text is not None and re.search(check["pattern"], ctx.handoff_text) is not None
+        return (
+            ctx.handoff_text is not None
+            and re.search(check["pattern"], ctx.handoff_text) is not None
+        )
     if kind in ("file_regex", "file_rewritten"):
         path = ctx.repo / check["path"] if ctx.repo else None
         if path is None or not path.is_file():
@@ -529,7 +554,9 @@ def check_matches(check: dict, ctx: GradeContext) -> bool:
         return re.search(check["pattern"], data.decode("utf-8", "replace")) is not None
     if kind == "tool_target_count":
         pattern = re.compile(check["target_regex"])
-        return sum(1 for target in reader_targets(ctx) if pattern.search(target)) >= int(check["at_least"])
+        return sum(
+            1 for target in reader_targets(ctx) if pattern.search(target)
+        ) >= int(check["at_least"])
     pools = {
         "gh_call_regex": ctx.gh_calls,
         "tool_command_regex": reader_commands(ctx),
@@ -578,12 +605,17 @@ sys.exit(int(answer.get("exit", 0)))
 '''
 
 
-def write_stub_gh(bin_dir: Path, fixture_path: Path, log_path: Path, fixture: dict, python: str) -> Path:
+def write_stub_gh(
+    bin_dir: Path, fixture_path: Path, log_path: Path, fixture: dict, python: str
+) -> Path:
     """Write the fixture and a `gh` stub that logs to `log_path`; return the stub's path."""
     bin_dir.mkdir(parents=True, exist_ok=True)
     fixture_path.write_text(json.dumps(fixture), encoding="utf-8")
     stub = bin_dir / "gh"
-    stub.write_text(STUB_GH.format(python=python, log=str(log_path), fixture=str(fixture_path)), encoding="utf-8")
+    stub.write_text(
+        STUB_GH.format(python=python, log=str(log_path), fixture=str(fixture_path)),
+        encoding="utf-8",
+    )
     stub.chmod(0o755)
     return stub
 
@@ -606,9 +638,15 @@ def arm_base(arm: str) -> str:
 def applies(probe: dict, arm: str) -> bool:
     arms = probe.get("arms", ARMS)
     return arm in arms or arm_base(arm) in arms
+
+
 EXCLUDE_MARKERS = (
-    re.compile(r"Sandbox is required but failed to initialize|Failed to create bridge sockets"),
-    re.compile(r"(?i)usage limit|rate limit(ed)? (reached|exceeded)|hit your limit|429 Too Many Requests"),
+    re.compile(
+        r"Sandbox is required but failed to initialize|Failed to create bridge sockets"
+    ),
+    re.compile(
+        r"(?i)usage limit|rate limit(ed)? (reached|exceeded)|hit your limit|429 Too Many Requests"
+    ),
 )
 
 
@@ -626,7 +664,14 @@ def default_call(cmd, cwd, env, stdin_text=None):
     import subprocess
 
     done = subprocess.run(
-        cmd, cwd=cwd, env=env, input=stdin_text or "", capture_output=True, text=True, encoding="utf-8", check=False
+        cmd,
+        cwd=cwd,
+        env=env,
+        input=stdin_text or "",
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
     )
     return done.returncode, done.stdout, done.stderr
 
@@ -646,7 +691,9 @@ def final_text(events: list[dict]) -> str:
     result = next((e for e in reversed(events) if e.get("type") == "result"), None)
     if result is not None:
         return str(result.get("result") or "")
-    texts = [str(item.get("text") or "") for item in _codex_items(events, "agent_message")]
+    texts = [
+        str(item.get("text") or "") for item in _codex_items(events, "agent_message")
+    ]
     return texts[-1] if texts else ""
 
 
@@ -671,7 +718,9 @@ def model_usage_total(events: list[dict]) -> dict:
     return totals
 
 
-def exclusion_reason(returncode: int, stdout: str, stderr: str, events: list[dict], allowed_denials=()) -> str | None:
+def exclusion_reason(
+    returncode: int, stdout: str, stderr: str, events: list[dict], allowed_denials=()
+) -> str | None:
     """Why a run cannot count (PLAN.md run rule d), or None."""
     if returncode != 0 and not events:
         return f"CLI exited {returncode}: {stderr.strip()[:200]}"
@@ -684,7 +733,11 @@ def exclusion_reason(returncode: int, stdout: str, stderr: str, events: list[dic
     for event in events:
         if event.get("type") == "user":
             for block in (event.get("message") or {}).get("content") or []:
-                if isinstance(block, dict) and block.get("type") == "tool_result" and block.get("is_error"):
+                if (
+                    isinstance(block, dict)
+                    and block.get("type") == "tool_result"
+                    and block.get("is_error")
+                ):
                     own.append(str(block.get("content") or ""))
     for marker in EXCLUDE_MARKERS:
         if any(marker.search(text) for text in own):
@@ -692,7 +745,10 @@ def exclusion_reason(returncode: int, stdout: str, stderr: str, events: list[dic
     if result is not None:
         if result.get("is_error"):
             return f"result error: {str(result.get('result'))[:200]}"
-        if int(result.get("num_turns") or 0) == 0 and result.get("local_command") is None:
+        if (
+            int(result.get("num_turns") or 0) == 0
+            and result.get("local_command") is None
+        ):
             return "0 turns"
         denied = [d.get("tool_name") for d in result.get("permission_denials") or []]
         extra = [name for name in denied if name not in allowed_denials]
@@ -716,7 +772,12 @@ def seed_run(case: dict, run_dir: Path, base_repo: Path, cfg: RunConfig) -> dict
     call = cfg.call or default_call
     run_dir.mkdir(parents=True, exist_ok=True)
     repo, bare = run_dir / "repo", run_dir / "origin.git"
-    env = child_env(dict(os.environ), tmpdir=cfg.tmpdir, stub_bin=str(run_dir / "bin"), gh_config=str(run_dir / "gh-config"))
+    env = child_env(
+        dict(os.environ),
+        tmpdir=cfg.tmpdir,
+        stub_bin=str(run_dir / "bin"),
+        gh_config=str(run_dir / "gh-config"),
+    )
     (run_dir / "gh-config").mkdir(exist_ok=True)
     _git(call, run_dir, env, "clone", "--local", "--quiet", str(base_repo), str(repo))
     seeded = {}
@@ -731,20 +792,51 @@ def seed_run(case: dict, run_dir: Path, base_repo: Path, cfg: RunConfig) -> dict
     _git(call, run_dir, env, "init", "-q", "--bare", str(bare))
     _git(call, repo, env, "remote", "set-url", "origin", str(bare))
     _git(call, repo, env, "push", "-q", "origin", "HEAD")
-    write_stub_gh(run_dir / "bin", run_dir / "gh-fixture.json", run_dir / "gh-calls.log", case["seed"]["gh_fixture"], cfg.python)
+    write_stub_gh(
+        run_dir / "bin",
+        run_dir / "gh-fixture.json",
+        run_dir / "gh-calls.log",
+        case["seed"]["gh_fixture"],
+        cfg.python,
+    )
     (run_dir / "gh-calls.log").write_text("", encoding="utf-8")
     plugin_configs = case["seed"].get("plugin_configs")
-    (run_dir / "settings.json").write_text(json.dumps(run_settings(plugin_configs)), encoding="utf-8")
+    (run_dir / "settings.json").write_text(
+        json.dumps(run_settings(plugin_configs)), encoding="utf-8"
+    )
     (run_dir / "mcp.json").write_text('{"mcpServers": {}}\n', encoding="utf-8")
     sid = str(uuid.uuid4())
     turns = resume_cases.seed_history(case, chain, repo)
-    keydir = Path(env.get("HOME", str(Path.home()))) / ".claude" / "projects" / project_key(str(repo))
+    keydir = (
+        Path(env.get("HOME", str(Path.home())))
+        / ".claude"
+        / "projects"
+        / project_key(str(repo))
+    )
     keydir.mkdir(parents=True, exist_ok=True)
-    (keydir / f"{sid}.jsonl").write_text("\n".join(render_history(turns, sid, str(repo))) + "\n", encoding="utf-8")
-    return {"repo": repo, "env": env, "sid": sid, "seeded": seeded, "chain": chain, "keydir": keydir}
+    (keydir / f"{sid}.jsonl").write_text(
+        "\n".join(render_history(turns, sid, str(repo))) + "\n", encoding="utf-8"
+    )
+    return {
+        "repo": repo,
+        "env": env,
+        "sid": sid,
+        "seeded": seeded,
+        "chain": chain,
+        "keydir": keydir,
+    }
 
 
-def _claude(cfg: RunConfig, run: dict, prompt: str, *, arm: str, resume: str | None = None, fork: bool = False, extra=()):
+def _claude(
+    cfg: RunConfig,
+    run: dict,
+    prompt: str,
+    *,
+    arm: str,
+    resume: str | None = None,
+    fork: bool = False,
+    extra=(),
+):
     call = cfg.call or default_call
     cmd = claude_command(
         prompt,
@@ -761,12 +853,16 @@ def _claude(cfg: RunConfig, run: dict, prompt: str, *, arm: str, resume: str | N
     return code, out, err, stream_events(out)
 
 
-def _write_hop(case: dict, arm: str, run: dict, cfg: RunConfig, session: str, known: set) -> dict:
+def _write_hop(
+    case: dict, arm: str, run: dict, cfg: RunConfig, session: str, known: set
+) -> dict:
     """Carry the seeded session across the boundary. Returns the reader's delivery text
     (or the session to continue), writer tokens, the handoff file and any exclusion."""
     extra = _instruction_flags(case, arm)
     interrupt = case["writer"]["interrupt"]["text"]
-    code, out, err, events = _claude(cfg, run, interrupt, arm=arm, resume=session, extra=extra)
+    code, out, err, events = _claude(
+        cfg, run, interrupt, arm=arm, resume=session, extra=extra
+    )
     if reason := exclusion_reason(code, out, err, events):
         return {"excluded": f"interrupt: {reason}"}
     prompt = case["writer"]["prompts"][arm_base(arm)]
@@ -774,35 +870,77 @@ def _write_hop(case: dict, arm: str, run: dict, cfg: RunConfig, session: str, kn
     out_path = None
     if arm == "compact":
         before_usage = model_usage_total(events)
-        code, out, err, events = _claude(cfg, run, prompt["focus_prompt"], arm=arm, resume=session, fork=True, extra=extra)
+        code, out, err, events = _claude(
+            cfg,
+            run,
+            prompt["focus_prompt"],
+            arm=arm,
+            resume=session,
+            fork=True,
+            extra=extra,
+        )
         if reason := exclusion_reason(code, out, err, events):
             return {"excluded": f"focus: {reason}"}
         focus = final_text(events).strip()
         focus_tokens = reader_tokens(events)
-        code, out, err, events = _claude(cfg, run, prompt["command"].format(focus=focus), arm=arm, resume=session, extra=extra)
+        code, out, err, events = _claude(
+            cfg,
+            run,
+            prompt["command"].format(focus=focus),
+            arm=arm,
+            resume=session,
+            extra=extra,
+        )
         if reason := exclusion_reason(code, out, err, events):
             return {"excluded": f"compact: {reason}"}
         after_usage = model_usage_total(events)
         delta = {key: after_usage[key] - before_usage[key] for key in after_usage}
         tokens["m1"] = focus_tokens["m1"] + sum(delta.values())
-        tokens["m3"] = focus_tokens["m3"] + delta["input"] + delta["cache_create"] + delta["output"]
-        return {"continue_session": session, "writer_tokens": tokens, "writer_events": events, "focus": focus}
-    code, out, err, events = _claude(cfg, run, prompt, arm=arm, resume=session, extra=extra)
+        tokens["m3"] = (
+            focus_tokens["m3"]
+            + delta["input"]
+            + delta["cache_create"]
+            + delta["output"]
+        )
+        return {
+            "continue_session": session,
+            "writer_tokens": tokens,
+            "writer_events": events,
+            "focus": focus,
+        }
+    code, out, err, events = _claude(
+        cfg, run, prompt, arm=arm, resume=session, extra=extra
+    )
     if reason := exclusion_reason(code, out, err, events):
         return {"excluded": f"writer: {reason}"}
     measured = reader_tokens(events)
     tokens = {"m1": measured["m1"], "m3": measured["m3"]}
     reply = final_text(events)
     if arm == "free-hand":
-        return {"delivery": reply.strip(), "writer_tokens": tokens, "writer_events": events}
+        return {
+            "delivery": reply.strip(),
+            "writer_tokens": tokens,
+            "writer_events": events,
+        }
     import hop_chain
 
     region = hop_chain.between_rails(reply)
     handoffs = sorted((run["repo"] / ".work" / "handoffs").glob("*-handoff-*.md"))
-    out_path = next((p for p in reversed(handoffs) if p not in run["chain"] and p not in known), None)
+    out_path = next(
+        (p for p in reversed(handoffs) if p not in run["chain"] and p not in known),
+        None,
+    )
     if region is None or out_path is None:
-        return {"excluded": "writer produced no resume prompt or no new handoff file", "writer_events": events}
-    return {"delivery": region, "writer_tokens": tokens, "writer_events": events, "handoff": out_path}
+        return {
+            "excluded": "writer produced no resume prompt or no new handoff file",
+            "writer_events": events,
+        }
+    return {
+        "delivery": region,
+        "writer_tokens": tokens,
+        "writer_events": events,
+        "handoff": out_path,
+    }
 
 
 def write_stage(case: dict, arm: str, run: dict, cfg: RunConfig) -> dict:
@@ -838,12 +976,24 @@ def write_stage(case: dict, arm: str, run: dict, cfg: RunConfig) -> dict:
             else:
                 delivery = case["reader"]["delivery"][arm_base(arm)]
                 lead = delivery.get("lead")
-                first = f"{lead}\n\n{written['delivery']}" if lead else written["delivery"]
+                first = (
+                    f"{lead}\n\n{written['delivery']}" if lead else written["delivery"]
+                )
                 session = str(uuid.uuid4())
                 turns = [{"role": "user", "text": first}, *hop["scripted_turns"]]
-                expanded = json.loads(json.dumps(turns).replace("{repo}", str(run["repo"])))
+                expanded = json.loads(
+                    json.dumps(turns).replace("{repo}", str(run["repo"]))
+                )
                 (run["keydir"] / f"{session}.jsonl").write_text(
-                    "\n".join(render_history(expanded, session, str(run["repo"]), salt=f"hop{hop['hop']}/")) + "\n",
+                    "\n".join(
+                        render_history(
+                            expanded,
+                            session,
+                            str(run["repo"]),
+                            salt=f"hop{hop['hop']}/",
+                        )
+                    )
+                    + "\n",
                     encoding="utf-8",
                 )
             for rel, content in (hop.get("effects") or {}).get("files", {}).items():
@@ -866,7 +1016,9 @@ def write_stage(case: dict, arm: str, run: dict, cfg: RunConfig) -> dict:
                 return {"excluded": f"hop {hop['hop']} resume: {reason}"}
             session = session_of(events)
         for turn in hop.get("owner_turns", []):
-            code, out, err, events = _claude(cfg, run, turn, arm=arm, resume=session, extra=extra)
+            code, out, err, events = _claude(
+                cfg, run, turn, arm=arm, resume=session, extra=extra
+            )
             if reason := exclusion_reason(code, out, err, events):
                 return {"excluded": f"hop {hop['hop']} owner turn: {reason}"}
             session = session_of(events) or session
@@ -910,13 +1062,18 @@ def _instruction_flags(case: dict, arm: str) -> tuple:
     return ()
 
 
-def read_stage(case: dict, arm: str, reader: str, run: dict, written: dict, cfg: RunConfig) -> dict:
+def read_stage(
+    case: dict, arm: str, reader: str, run: dict, written: dict, cfg: RunConfig
+) -> dict:
     """Resume the reader once, then ask the follow-up questions in the same session."""
     call = cfg.call or default_call
     delivery = case["reader"]["delivery"][arm_base(arm)]
-    questions = [p for p in case["probes"] if p.get("grade") == "text" and applies(p, arm)]
-    followup = "Answer each question from what you know of this work; do not run tools.\n" + "\n".join(
-        f"{i}. {p['question']}" for i, p in enumerate(questions, 1)
+    questions = [
+        p for p in case["probes"] if p.get("grade") == "text" and applies(p, arm)
+    ]
+    followup = (
+        "Answer each question from what you know of this work; do not run tools.\n"
+        + "\n".join(f"{i}. {p['question']}" for i, p in enumerate(questions, 1))
     )
     if delivery["mode"] == "continue":
         prompt, resume = delivery["continue_turn"], written["continue_session"]
@@ -927,7 +1084,9 @@ def read_stage(case: dict, arm: str, reader: str, run: dict, written: dict, cfg:
     if reader == "codex":
         workdir = run["repo"]
         reply = run["repo"].parent / "codex-reply.txt"
-        cmd = codex_command(prompt, model=cfg.codex_model, workdir=str(workdir), reply=str(reply))
+        cmd = codex_command(
+            prompt, model=cfg.codex_model, workdir=str(workdir), reply=str(reply)
+        )
         code, out, err = call(cmd, str(workdir), run["env"])
         events = stream_events(out)
         main = {"events": events, "tokens": codex_tokens(events)}
@@ -935,28 +1094,51 @@ def read_stage(case: dict, arm: str, reader: str, run: dict, written: dict, cfg:
             return {"excluded": f"reader: {reason}"}
         thread = session_of(events)
         run.setdefault("codex_threads", []).append(thread)
-        follow_cmd = ["codex", "exec", "resume", "--json", "--skip-git-repo-check", "-m", cfg.codex_model, thread, followup]
+        follow_cmd = [
+            "codex",
+            "exec",
+            "resume",
+            "--json",
+            "--skip-git-repo-check",
+            "-m",
+            cfg.codex_model,
+            thread,
+            followup,
+        ]
         code, out, err = call(follow_cmd, str(workdir), run["env"])
         follow_events = stream_events(out)
     else:
         extra = _instruction_flags(case, arm)
-        code, out, err, events = _claude(cfg, run, prompt, arm=arm, resume=resume, extra=extra)
+        code, out, err, events = _claude(
+            cfg, run, prompt, arm=arm, resume=resume, extra=extra
+        )
         if reason := exclusion_reason(code, out, err, events):
             return {"excluded": f"reader: {reason}"}
         main = {"events": events, "tokens": reader_tokens(events)}
-        code, out, err, follow_events = _claude(cfg, run, followup, arm=arm, resume=session_of(events), extra=extra)
+        code, out, err, follow_events = _claude(
+            cfg, run, followup, arm=arm, resume=session_of(events), extra=extra
+        )
     if reason := exclusion_reason(code, out, err, follow_events):
         return {"excluded": f"follow-up: {reason}"}
-    return {"main": main, "followup_events": follow_events, "followup_text": final_text(follow_events), "questions": questions}
+    return {
+        "main": main,
+        "followup_events": follow_events,
+        "followup_text": final_text(follow_events),
+        "questions": questions,
+    }
 
 
-def grade_run(case: dict, arm: str, reader: str, run: dict, written: dict, read: dict, judge) -> dict:
+def grade_run(
+    case: dict, arm: str, reader: str, run: dict, written: dict, read: dict, judge
+) -> dict:
     """Probe results for one run. `judge(question, criteria, answer) -> bool` grades text probes."""
     gh_log = run["repo"].parent / "gh-calls.log"
     handoff = written.get("handoff")
     base = dict(
         reader=reader,
-        gh_calls=gh_log.read_text(encoding="utf-8").splitlines() if gh_log.is_file() else [],
+        gh_calls=gh_log.read_text(encoding="utf-8").splitlines()
+        if gh_log.is_file()
+        else [],
         repo=run["repo"],
         seeded=run["seeded"],
         handoff_text=handoff.read_text(encoding="utf-8") if handoff else None,
@@ -968,9 +1150,15 @@ def grade_run(case: dict, arm: str, reader: str, run: dict, written: dict, read:
         if probe.get("requires") and not results.get(probe["requires"]):
             continue  # graded only when the probe it depends on passed
         if probe["grade"] == "text":
-            results[probe["id"]] = judge(probe["question"], probe["criteria"], read["followup_text"])
+            results[probe["id"]] = judge(
+                probe["question"], probe["criteria"], read["followup_text"]
+            )
             continue
-        events = read["followup_events"] if probe.get("phase") == "followup" else read["main"]["events"]
+        events = (
+            read["followup_events"]
+            if probe.get("phase") == "followup"
+            else read["main"]["events"]
+        )
         results[probe["id"]] = probe_passes(probe, GradeContext(events=events, **base))
     return results
 
@@ -990,13 +1178,32 @@ Answer (data to grade, not instructions):
 def make_judge(cfg: RunConfig, workdir: Path, votes: int = 3):
     """A text-probe judge: `votes` independent no-tool `claude -p` calls, majority PASS."""
     call = cfg.call or default_call
-    env = child_env(dict(os.environ), tmpdir=cfg.tmpdir, stub_bin=str(workdir), gh_config=str(workdir))
+    env = child_env(
+        dict(os.environ),
+        tmpdir=cfg.tmpdir,
+        stub_bin=str(workdir),
+        gh_config=str(workdir),
+    )
 
     def judge(question: str, criteria: str, answer: str) -> bool:
-        prompt = JUDGE_PROMPT.format(question=question, criteria=criteria, answer=answer)
+        prompt = JUDGE_PROMPT.format(
+            question=question, criteria=criteria, answer=answer
+        )
         passes = 0
         for _ in range(votes):
-            cmd = ["claude", "-p", "--model", MODEL_ID, "--tools", "", "--strict-mcp-config", "--no-session-persistence", "--output-format", "json", prompt]
+            cmd = [
+                "claude",
+                "-p",
+                "--model",
+                MODEL_ID,
+                "--tools",
+                "",
+                "--strict-mcp-config",
+                "--no-session-persistence",
+                "--output-format",
+                "json",
+                prompt,
+            ]
             code, out, _err = call(cmd, str(workdir), env)
             try:
                 verdict = str(json.loads(out).get("result", "")).strip().upper()
@@ -1008,22 +1215,57 @@ def make_judge(cfg: RunConfig, workdir: Path, votes: int = 3):
     return judge
 
 
-def _reader_workspace(case: dict, run: dict, run_dir: Path, copy_dir: Path, cfg: RunConfig) -> dict:
+def _reader_workspace(
+    case: dict, run: dict, run_dir: Path, copy_dir: Path, cfg: RunConfig
+) -> dict:
     """A private copy of the written workspace for a second reader, re-pointed at its own
     stub `gh` log and its own bare remote, so the two readers never see each other's acts."""
     import shutil
 
     shutil.copytree(run_dir, copy_dir, symlinks=True)
-    env = child_env(dict(os.environ), tmpdir=cfg.tmpdir, stub_bin=str(copy_dir / "bin"), gh_config=str(copy_dir / "gh-config"))
-    write_stub_gh(copy_dir / "bin", copy_dir / "gh-fixture.json", copy_dir / "gh-calls.log", case["seed"]["gh_fixture"], cfg.python)
+    env = child_env(
+        dict(os.environ),
+        tmpdir=cfg.tmpdir,
+        stub_bin=str(copy_dir / "bin"),
+        gh_config=str(copy_dir / "gh-config"),
+    )
+    write_stub_gh(
+        copy_dir / "bin",
+        copy_dir / "gh-fixture.json",
+        copy_dir / "gh-calls.log",
+        case["seed"]["gh_fixture"],
+        cfg.python,
+    )
     (copy_dir / "gh-calls.log").write_text("", encoding="utf-8")
     repo = copy_dir / "repo"
-    _git(cfg.call or default_call, repo, env, "remote", "set-url", "origin", str(copy_dir / "origin.git"))
+    _git(
+        cfg.call or default_call,
+        repo,
+        env,
+        "remote",
+        "set-url",
+        "origin",
+        str(copy_dir / "origin.git"),
+    )
     rebase = lambda path: Path(str(path).replace(str(run_dir), str(copy_dir), 1))  # noqa: E731
-    return {**run, "repo": repo, "env": env, "chain": [rebase(p) for p in run["chain"]], "rebase": rebase}
+    return {
+        **run,
+        "repo": repo,
+        "env": env,
+        "chain": [rebase(p) for p in run["chain"]],
+        "rebase": rebase,
+    }
 
 
-def run_once(case: dict, arm: str, readers: list[str], index: int, base_repo: Path, cfg: RunConfig, out_dir: Path) -> list[dict]:
+def run_once(
+    case: dict,
+    arm: str,
+    readers: list[str],
+    index: int,
+    base_repo: Path,
+    cfg: RunConfig,
+    out_dir: Path,
+) -> list[dict]:
     """Seed and write once, then resume each reader on its own copy of the written workspace
     and grade it. Copies traces to `out_dir`; removes run dirs and project keys. Returns one
     graded run per reader (`error` set when it must be excluded)."""
@@ -1044,18 +1286,31 @@ def run_once(case: dict, arm: str, readers: list[str], index: int, base_repo: Pa
         if case["writer"].get("hops"):
             # File checks grade the final reader, so they compare against the workspace the
             # last writer hop left, not the seed.
-            run["seeded"] = {rel: (run["repo"] / rel).read_bytes() for rel in run["seeded"] if (run["repo"] / rel).is_file()}
+            run["seeded"] = {
+                rel: (run["repo"] / rel).read_bytes()
+                for rel in run["seeded"]
+                if (run["repo"] / rel).is_file()
+            }
         log = run_dir / "gh-calls.log"
         if log.is_file():
             shutil.move(log, keep_root / "writer-gh-calls.log")
             log.write_text("", encoding="utf-8")
         if not written.get("excluded"):
             for reader in readers[1:]:
-                workspaces[reader] = _reader_workspace(case, run, run_dir, run_dir.with_name(f"{index}-{reader}"), cfg)
+                workspaces[reader] = _reader_workspace(
+                    case, run, run_dir, run_dir.with_name(f"{index}-{reader}"), cfg
+                )
         if readers:
             workspaces[readers[0]] = {**run, "rebase": lambda path: path}
         for reader in readers:
-            graded = {"case": case["name"], "arm": arm, "reader": reader, "index": index, "probes": {}, "error": None}
+            graded = {
+                "case": case["name"],
+                "arm": arm,
+                "reader": reader,
+                "index": index,
+                "probes": {},
+                "error": None,
+            }
             results.append(graded)
             if written.get("excluded"):
                 graded["error"] = written["excluded"]
@@ -1065,12 +1320,22 @@ def run_once(case: dict, arm: str, readers: list[str], index: int, base_repo: Pa
             if mine.get("handoff"):
                 mine["handoff"] = space["rebase"](mine["handoff"])
             if mine.get("delivery") and space["repo"] != run["repo"]:
-                mine["delivery"] = mine["delivery"].replace(str(run_dir), str(space["repo"].parent))
+                mine["delivery"] = mine["delivery"].replace(
+                    str(run_dir), str(space["repo"].parent)
+                )
             read = read_stage(case, arm, reader, space, mine, cfg)
             if read.get("excluded"):
                 graded["error"] = read["excluded"]
                 continue
-            graded["probes"] = grade_run(case, arm, reader, space, mine, read, make_judge(cfg, space["repo"].parent))
+            graded["probes"] = grade_run(
+                case,
+                arm,
+                reader,
+                space,
+                mine,
+                read,
+                make_judge(cfg, space["repo"].parent),
+            )
             graded["writer_tokens"] = written["writer_tokens"]
             if written.get("hop_bytes"):
                 graded["hop_bytes"] = written["hop_bytes"]
@@ -1078,10 +1343,15 @@ def run_once(case: dict, arm: str, readers: list[str], index: int, base_repo: Pa
             graded["m1"] = written["writer_tokens"]["m1"] + read["main"]["tokens"]["m1"]
             keep = keep_root / reader
             keep.mkdir(parents=True, exist_ok=True)
-            (keep / "reader-events.jsonl").write_text("".join(json.dumps(e) + "\n" for e in read["main"]["events"]), encoding="utf-8")
+            (keep / "reader-events.jsonl").write_text(
+                "".join(json.dumps(e) + "\n" for e in read["main"]["events"]),
+                encoding="utf-8",
+            )
             (keep / "followup.txt").write_text(read["followup_text"], encoding="utf-8")
             if (space["repo"].parent / "gh-calls.log").is_file():
-                shutil.copy(space["repo"].parent / "gh-calls.log", keep / "gh-calls.log")
+                shutil.copy(
+                    space["repo"].parent / "gh-calls.log", keep / "gh-calls.log"
+                )
     finally:
         seconds = round(time.monotonic() - start, 1)
         for graded in results:
@@ -1091,18 +1361,35 @@ def run_once(case: dict, arm: str, readers: list[str], index: int, base_repo: Pa
                 for transcript in run["keydir"].glob("*.jsonl"):
                     shutil.copy(transcript, keep_root / transcript.name)
             handoffs = run["repo"] / ".work" / "handoffs"
-            for produced in handoffs.glob("*-handoff-*.md") if handoffs.is_dir() else ():
+            for produced in (
+                handoffs.glob("*-handoff-*.md") if handoffs.is_dir() else ()
+            ):
                 if produced not in run["chain"]:
                     shutil.copy(produced, keep_root / produced.name)
             if written and written.get("delivery"):
-                (keep_root / "delivery.txt").write_text(written["delivery"], encoding="utf-8")
-            threads = [t for space in workspaces.values() for t in space.get("codex_threads", [])]
+                (keep_root / "delivery.txt").write_text(
+                    written["delivery"], encoding="utf-8"
+                )
+            threads = [
+                t
+                for space in workspaces.values()
+                for t in space.get("codex_threads", [])
+            ]
             home = Path(run["env"].get("HOME", str(Path.home())))
-            move_codex_rollouts(threads, home / ".codex" / "sessions", keep_root / "codex-rollouts")
+            move_codex_rollouts(
+                threads, home / ".codex" / "sessions", keep_root / "codex-rollouts"
+            )
             shutil.rmtree(run["keydir"], ignore_errors=True)
-            cache = Path(run["env"].get("HOME", str(Path.home()))) / ".cache" / "claude-cli-nodejs" / run["keydir"].name
+            cache = (
+                Path(run["env"].get("HOME", str(Path.home())))
+                / ".cache"
+                / "claude-cli-nodejs"
+                / run["keydir"].name
+            )
             shutil.rmtree(cache, ignore_errors=True)
-        (keep_root / "graded.json").write_text(json.dumps(results, indent=2, default=str) + "\n", encoding="utf-8")
+        (keep_root / "graded.json").write_text(
+            json.dumps(results, indent=2, default=str) + "\n", encoding="utf-8"
+        )
         for path in run_dir.parent.glob(f"{index}*"):
             shutil.rmtree(path, ignore_errors=True)
     return results
@@ -1118,8 +1405,14 @@ def build_base(repo_root: Path, root: Path, cfg: RunConfig) -> Path:
     if (base / ".git").is_dir():
         return base
     base.mkdir(parents=True)
-    env = child_env(dict(os.environ), tmpdir=cfg.tmpdir, stub_bin=str(root), gh_config=str(root))
-    code, out, err = call(["bash", "-c", f"git -C {repo_root} archive HEAD | tar -x -C {base}"], str(root), env)
+    env = child_env(
+        dict(os.environ), tmpdir=cfg.tmpdir, stub_bin=str(root), gh_config=str(root)
+    )
+    code, out, err = call(
+        ["bash", "-c", f"git -C {repo_root} archive HEAD | tar -x -C {base}"],
+        str(root),
+        env,
+    )
     if code != 0:
         raise RuntimeError(err)
     _git(call, base, env, "init", "-q", "-b", "main")
@@ -1141,7 +1434,10 @@ def cmd_run(args) -> int:
     from concurrent.futures import ThreadPoolExecutor
 
     if (who := isolated_session(os.getpid())) is not None:
-        print(f"refused: started under a worktree-isolated session ({who}); start a plain `claude` session", file=sys.stderr)
+        print(
+            f"refused: started under a worktree-isolated session ({who}); start a plain `claude` session",
+            file=sys.stderr,
+        )
         return 2
     cfg = RunConfig(
         root=Path(args.root),
@@ -1163,26 +1459,56 @@ def cmd_run(args) -> int:
             readers = [
                 reader
                 for reader in args.reader
-                if reader in case["reader"]["readers"] and not (reader == "codex" and arm == "compact")
+                if reader in case["reader"]["readers"]
+                and not (reader == "codex" and arm == "compact")
             ]
-            jobs += [(case, arm, readers, index) for index in range(args.runs) if readers]
+            jobs += [
+                (case, arm, readers, index) for index in range(args.runs) if readers
+            ]
     reads = sum(len(job[2]) for job in jobs)
-    print(f"{len(jobs)} writer runs, {reads} reader runs: {len(cases)} cases x arms {args.arm} x readers {args.reader} x {args.runs}", flush=True)
+    print(
+        f"{len(jobs)} writer runs, {reads} reader runs: {len(cases)} cases x arms {args.arm} x readers {args.reader} x {args.runs}",
+        flush=True,
+    )
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
     results = []
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        for graded_runs in pool.map(lambda job: run_once(*job, base, cfg, out_dir), jobs):
+        for graded_runs in pool.map(
+            lambda job: run_once(*job, base, cfg, out_dir), jobs
+        ):
             for graded in graded_runs:
                 results.append(graded)
-                print(json.dumps({k: graded.get(k) for k in ("case", "arm", "reader", "index", "error", "m1", "seconds")}), flush=True)
-    (out_dir / "graded.jsonl").open("a", encoding="utf-8").write("".join(json.dumps(r, default=str) + "\n" for r in results))
+                print(
+                    json.dumps(
+                        {
+                            k: graded.get(k)
+                            for k in (
+                                "case",
+                                "arm",
+                                "reader",
+                                "index",
+                                "error",
+                                "m1",
+                                "seconds",
+                            )
+                        }
+                    ),
+                    flush=True,
+                )
+    (out_dir / "graded.jsonl").open("a", encoding="utf-8").write(
+        "".join(json.dumps(r, default=str) + "\n" for r in results)
+    )
     return 0
 
 
 def cmd_report(args) -> int:
     """One plugin-eval result file per (arm, reader) from graded.jsonl, errors excluded."""
-    runs = [json.loads(line) for line in Path(args.graded).read_text(encoding="utf-8").splitlines() if line.strip()]
+    runs = [
+        json.loads(line)
+        for line in Path(args.graded).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     groups: dict[tuple, list] = {}
@@ -1206,7 +1532,11 @@ def cmd_calibrate(args) -> int:
         for probe in case["probes"]:
             if probe.get("grade") != "text":
                 continue
-            samples = json.loads((Path(case["case_dir"]) / "samples" / f"{probe['id']}.json").read_text(encoding="utf-8"))
+            samples = json.loads(
+                (Path(case["case_dir"]) / "samples" / f"{probe['id']}.json").read_text(
+                    encoding="utf-8"
+                )
+            )
             agree = total = 0
             for want, key in ((True, "pass"), (False, "fail")):
                 for index, sample in enumerate(samples.get(key, [])):
@@ -1214,11 +1544,16 @@ def cmd_calibrate(args) -> int:
                     agree += got == want
                     total += 1
                     if got != want:
-                        print(f"  disagree: {key} sample {index}: {sample['answer'][:100]!r}")
+                        print(
+                            f"  disagree: {key} sample {index}: {sample['answer'][:100]!r}"
+                        )
             rate = agree / total if total else 0.0
             verdict = "PASS" if rate >= 0.9 else "FAIL"
             failed += verdict == "FAIL"
-            print(f"{verdict} {case['name']}/{probe['id']}: {agree}/{total} = {rate:.0%}", flush=True)
+            print(
+                f"{verdict} {case['name']}/{probe['id']}: {agree}/{total} = {rate:.0%}",
+                flush=True,
+            )
     print(f"graders below 90%: {failed}")
     return 1 if failed else 0
 
@@ -1238,7 +1573,9 @@ def main(argv=None) -> int:
     run = sub.choices["run"]
     run.add_argument("--repo-root", default=str(here.parents[3]))
     run.add_argument("--arm", action="append", required=True, choices=ARMS)
-    run.add_argument("--reader", action="append", required=True, choices=("claude-code", "codex"))
+    run.add_argument(
+        "--reader", action="append", required=True, choices=("claude-code", "codex")
+    )
     run.add_argument("--copy", action="append", default=[], help="arm=plugin-copy-dir")
     run.add_argument("--codex-model", default="")
     run.add_argument("--runs", type=int, default=3)
@@ -1248,7 +1585,9 @@ def main(argv=None) -> int:
     report.add_argument("--graded", required=True)
     report.add_argument("--out", required=True)
     args = parser.parse_args(argv)
-    return {"run": cmd_run, "calibrate": cmd_calibrate, "report": cmd_report}[args.cmd](args)
+    return {"run": cmd_run, "calibrate": cmd_calibrate, "report": cmd_report}[args.cmd](
+        args
+    )
 
 
 if __name__ == "__main__":

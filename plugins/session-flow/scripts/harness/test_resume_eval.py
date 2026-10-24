@@ -278,7 +278,11 @@ def test_after_limits_a_check_to_what_followed_its_gate():
         seeded={},
         handoff_text=None,
     )
-    watch = {"kind": "gh_call_regex", "pattern": r"release view|run watch", "after": r"workflow run cut-release"}
+    watch = {
+        "kind": "gh_call_regex",
+        "pattern": r"release view|run watch",
+        "after": r"workflow run cut-release",
+    }
     assert resume_eval.check_matches(watch, ctx)
     ctx.gh_calls = ["release view v2", "workflow run cut-release.yml"]
     assert not resume_eval.check_matches(watch, ctx)
@@ -368,10 +372,19 @@ def test_stub_gh_answers_from_the_fixture_in_order(tmp_path):
 
 
 def test_history_can_continue_an_existing_chain():
-    first = [json.loads(x) for x in resume_eval.render_history([{"role": "user", "text": "a"}], "s", "/w")]
+    first = [
+        json.loads(x)
+        for x in resume_eval.render_history([{"role": "user", "text": "a"}], "s", "/w")
+    ]
     more = [
         json.loads(x)
-        for x in resume_eval.render_history([{"role": "assistant", "text": "b"}], "s", "/w", parent=first[-1]["uuid"], salt="hop4/")
+        for x in resume_eval.render_history(
+            [{"role": "assistant", "text": "b"}],
+            "s",
+            "/w",
+            parent=first[-1]["uuid"],
+            salt="hop4/",
+        )
     ]
     assert more[0]["parentUuid"] == first[-1]["uuid"]
     assert more[0]["uuid"] != first[0]["uuid"]
@@ -381,14 +394,34 @@ def test_exclusion_ignores_limit_words_in_conversation_text():
     """A seeded lane history or a case prompt may mention usage limits; only the CLI's
     own error result or stderr marks a run as limit-hit."""
     talk = [
-        {"type": "user", "message": {"content": "the lane hit its usage limit yesterday; rate limit reached twice"}},
-        {"type": "result", "result": "Noted the usage limit history.", "num_turns": 1, "is_error": False},
+        {
+            "type": "user",
+            "message": {
+                "content": "the lane hit its usage limit yesterday; rate limit reached twice"
+            },
+        },
+        {
+            "type": "result",
+            "result": "Noted the usage limit history.",
+            "num_turns": 1,
+            "is_error": False,
+        },
     ]
     stdout = "\n".join(json.dumps(e) for e in talk)
     assert resume_eval.exclusion_reason(0, stdout, "", talk) is None
-    hit = [{"type": "result", "result": "You've hit your session limit · resets 4pm", "num_turns": 1, "is_error": True}]
+    hit = [
+        {
+            "type": "result",
+            "result": "You've hit your session limit · resets 4pm",
+            "num_turns": 1,
+            "is_error": True,
+        }
+    ]
     assert resume_eval.exclusion_reason(1, json.dumps(hit[0]), "", hit) is not None
-    assert resume_eval.exclusion_reason(1, "", "Error: rate limit exceeded", []) is not None
+    assert (
+        resume_eval.exclusion_reason(1, "", "Error: rate limit exceeded", [])
+        is not None
+    )
 
 
 def test_codex_rollouts_move_out_of_the_store_by_thread_id(tmp_path):
@@ -555,13 +588,30 @@ def test_one_before_run_flows_from_seed_to_graded_probes(tmp_path):
     from pathlib import Path
 
     here = Path(resume_eval.__file__).resolve().parent
-    case = resume_eval.load_cases(here.parents[1] / "evals", ["re-stale-github-fact"])[0]
+    case = resume_eval.load_cases(here.parents[1] / "evals", ["re-stale-github-fact"])[
+        0
+    ]
     origin = tmp_path / "base"
     origin.mkdir()
     (origin / "README.md").write_text("base\n", encoding="utf-8")
-    for args in (["init", "-q", "-b", "main"], ["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@e", "commit", "-q", "-m", "chore: base"]):
+    for args in (
+        ["init", "-q", "-b", "main"],
+        ["add", "-A"],
+        [
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@e",
+            "commit",
+            "-q",
+            "-m",
+            "chore: base",
+        ],
+    ):
         subprocess.run(["git", *args], cwd=origin, check=True)
-    subprocess.run(["git", "remote", "add", "origin", str(origin)], cwd=origin, check=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(origin)], cwd=origin, check=True
+    )
     calls = []
 
     def fake(cmd, cwd, env, stdin_text=None):
@@ -569,41 +619,94 @@ def test_one_before_run_flows_from_seed_to_graded_probes(tmp_path):
             prompt = cmd[-1]
             calls.append("codex: " + prompt)
             if "Read @fake" in prompt:
-                subprocess.run([str(Path(cwd).parent / "bin" / "gh"), "pr", "view", "9"], env=env, capture_output=True)
+                subprocess.run(
+                    [str(Path(cwd).parent / "bin" / "gh"), "pr", "view", "9"],
+                    env=env,
+                    capture_output=True,
+                )
             events = [
                 {"type": "thread.started", "thread_id": "th-1"},
-                {"type": "item.completed", "item": {"type": "agent_message", "text": "1. answer"}},
-                {"type": "turn.completed", "usage": {"input_tokens": 5, "output_tokens": 2}},
+                {
+                    "type": "item.completed",
+                    "item": {"type": "agent_message", "text": "1. answer"},
+                },
+                {
+                    "type": "turn.completed",
+                    "usage": {"input_tokens": 5, "output_tokens": 2},
+                },
             ]
             return 0, "\n".join(json.dumps(e) for e in events), ""
         if cmd[0] != "claude":
-            done = subprocess.run(cmd, cwd=cwd, env={**env, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@e", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@e"}, capture_output=True, text=True)
+            done = subprocess.run(
+                cmd,
+                cwd=cwd,
+                env={
+                    **env,
+                    "GIT_AUTHOR_NAME": "t",
+                    "GIT_AUTHOR_EMAIL": "t@e",
+                    "GIT_COMMITTER_NAME": "t",
+                    "GIT_COMMITTER_EMAIL": "t@e",
+                },
+                capture_output=True,
+                text=True,
+            )
             return done.returncode, done.stdout, done.stderr
         prompt = cmd[-1]
         calls.append(prompt)
         if prompt.startswith("/session-flow:handoff"):
             made = Path(cwd) / ".work" / "handoffs" / "29990101T000000Z-handoff-fake.md"
             made.write_text("# fake handoff\n", encoding="utf-8")
-            text = "`/clear`, then copy everything between the dashed lines:\n\n" + "─" * 20 + "\nRead @fake. Continue.\n" + "─" * 20
+            text = (
+                "`/clear`, then copy everything between the dashed lines:\n\n"
+                + "─" * 20
+                + "\nRead @fake. Continue.\n"
+                + "─" * 20
+            )
         elif prompt.startswith("Answer each question"):
             text = "1. answer"
         else:
             text = "ok"
             if "Read @fake" in prompt:
-                subprocess.run([str(Path(cwd).parent / "bin" / "gh"), "pr", "view", "4318"], env=env, capture_output=True)
+                subprocess.run(
+                    [str(Path(cwd).parent / "bin" / "gh"), "pr", "view", "4318"],
+                    env=env,
+                    capture_output=True,
+                )
         events = [
             {"type": "system", "subtype": "init", "session_id": "sess-1"},
-            {"type": "assistant", "message": {"id": f"m{len(calls)}", "content": [{"type": "text", "text": text}], "usage": {"input_tokens": 10, "output_tokens": 1}}},
-            {"type": "result", "result": text, "num_turns": 1, "is_error": False, "session_id": "sess-1"},
+            {
+                "type": "assistant",
+                "message": {
+                    "id": f"m{len(calls)}",
+                    "content": [{"type": "text", "text": text}],
+                    "usage": {"input_tokens": 10, "output_tokens": 1},
+                },
+            },
+            {
+                "type": "result",
+                "result": text,
+                "num_turns": 1,
+                "is_error": False,
+                "session_id": "sess-1",
+            },
         ]
         return 0, "\n".join(json.dumps(e) for e in events), ""
 
-    cfg = resume_eval.RunConfig(root=tmp_path / "root", tmpdir=str(tmp_path), copies={"before": "/c/before"}, codex_model="m", call=fake, python=sys.executable)
+    cfg = resume_eval.RunConfig(
+        root=tmp_path / "root",
+        tmpdir=str(tmp_path),
+        copies={"before": "/c/before"},
+        codex_model="m",
+        call=fake,
+        python=sys.executable,
+    )
     home = tmp_path / "home"
     old_home = os.environ.get("HOME")
     os.environ["HOME"] = str(home)
     try:
-        both = resume_eval.run_once(case, "before", ["claude-code", "codex"], 0, origin, cfg, tmp_path / "out")
+        both = resume_eval.run_once(
+            case, "before", ["claude-code", "codex"], 0, origin, cfg, tmp_path / "out"
+        )
         graded = both[0]
     finally:
         os.environ["HOME"] = old_home or ""
@@ -611,10 +714,14 @@ def test_one_before_run_flows_from_seed_to_graded_probes(tmp_path):
     assert calls[0] == case["writer"]["interrupt"]["text"]
     assert calls[1] == case["writer"]["prompts"]["before"]
     assert calls[2] == "Read @fake. Continue."
-    assert set(graded["probes"]) == {p["id"] for p in case["probes"] if "before" in p.get("arms", resume_eval.ARMS)}
+    assert set(graded["probes"]) == {
+        p["id"] for p in case["probes"] if "before" in p.get("arms", resume_eval.ARMS)
+    }
     assert graded["m1"] == 11 + 11
     kept = tmp_path / "out" / case["name"] / "before" / "0" / "claude-code"
-    assert (kept / "gh-calls.log").read_text(encoding="utf-8").startswith("pr view 4318")
+    assert (
+        (kept / "gh-calls.log").read_text(encoding="utf-8").startswith("pr view 4318")
+    )
     assert not (cfg.root / "runs" / case["name"] / "before" / "0").exists()
     assert not any((home / ".claude" / "projects").iterdir())
     codex = both[1]
@@ -622,8 +729,12 @@ def test_one_before_run_flows_from_seed_to_graded_probes(tmp_path):
     assert codex["m1"] == 11 + 7
     assert sum(1 for c in calls if c == case["writer"]["prompts"]["before"]) == 1
     kept_codex = tmp_path / "out" / case["name"] / "before" / "0" / "codex"
-    assert (kept_codex / "gh-calls.log").read_text(encoding="utf-8").splitlines() == ["pr view 9"]
-    assert (kept / "gh-calls.log").read_text(encoding="utf-8").splitlines() == ["pr view 4318"]
+    assert (kept_codex / "gh-calls.log").read_text(encoding="utf-8").splitlines() == [
+        "pr view 9"
+    ]
+    assert (kept / "gh-calls.log").read_text(encoding="utf-8").splitlines() == [
+        "pr view 4318"
+    ]
 
 
 def test_multi_hop_writes_one_handoff_per_hop_and_applies_scripted_turns(tmp_path):
@@ -636,39 +747,110 @@ def test_multi_hop_writes_one_handoff_per_hop_and_applies_scripted_turns(tmp_pat
     origin = tmp_path / "base"
     origin.mkdir()
     (origin / "README.md").write_text("base\n", encoding="utf-8")
-    for args in (["init", "-q", "-b", "main"], ["add", "-A"], ["-c", "user.name=t", "-c", "user.email=t@e", "commit", "-q", "-m", "chore: base"]):
+    for args in (
+        ["init", "-q", "-b", "main"],
+        ["add", "-A"],
+        [
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@e",
+            "commit",
+            "-q",
+            "-m",
+            "chore: base",
+        ],
+    ):
         subprocess.run(["git", *args], cwd=origin, check=True)
-    subprocess.run(["git", "remote", "add", "origin", str(origin)], cwd=origin, check=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", str(origin)], cwd=origin, check=True
+    )
     calls, made = [], []
 
     def fake(cmd, cwd, env, stdin_text=None):
         if cmd[0] != "claude":
-            done = subprocess.run(cmd, cwd=cwd, env={**env, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@e", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@e"}, capture_output=True, text=True)
+            done = subprocess.run(
+                cmd,
+                cwd=cwd,
+                env={
+                    **env,
+                    "GIT_AUTHOR_NAME": "t",
+                    "GIT_AUTHOR_EMAIL": "t@e",
+                    "GIT_COMMITTER_NAME": "t",
+                    "GIT_COMMITTER_EMAIL": "t@e",
+                },
+                capture_output=True,
+                text=True,
+            )
             return done.returncode, done.stdout, done.stderr
         prompt = cmd[-1]
         resume = cmd[cmd.index("--resume") + 1] if "--resume" in cmd else None
         calls.append((resume, prompt))
         sid = resume or f"hop-session-{len(calls)}"
         if prompt.startswith("/session-flow:handoff"):
-            path = Path(cwd) / ".work" / "handoffs" / f"2999010{len(made)}T000000Z-handoff-fake.md"
+            path = (
+                Path(cwd)
+                / ".work"
+                / "handoffs"
+                / f"2999010{len(made)}T000000Z-handoff-fake.md"
+            )
             path.write_text("# hop handoff\n" * (len(made) + 1), encoding="utf-8")
             made.append(path)
-            text = "`/clear`, then copy everything between the dashed lines:\n\n" + "─" * 20 + f"\nRead @{path.name}.\n" + "─" * 20
+            text = (
+                "`/clear`, then copy everything between the dashed lines:\n\n"
+                + "─" * 20
+                + f"\nRead @{path.name}.\n"
+                + "─" * 20
+            )
         else:
             text = "ok"
         events = [
             {"type": "system", "subtype": "init", "session_id": sid},
-            {"type": "assistant", "message": {"id": f"m{len(calls)}", "content": [{"type": "text", "text": text}], "usage": {"input_tokens": 1, "output_tokens": 1}}},
-            {"type": "result", "result": text, "num_turns": 1, "is_error": False, "session_id": sid},
+            {
+                "type": "assistant",
+                "message": {
+                    "id": f"m{len(calls)}",
+                    "content": [{"type": "text", "text": text}],
+                    "usage": {"input_tokens": 1, "output_tokens": 1},
+                },
+            },
+            {
+                "type": "result",
+                "result": text,
+                "num_turns": 1,
+                "is_error": False,
+                "session_id": sid,
+            },
         ]
         if resume and resume.startswith("hop-session-"):
-            keydir = Path(env["HOME"]) / ".claude" / "projects" / resume_eval.project_key(cwd)
+            keydir = (
+                Path(env["HOME"])
+                / ".claude"
+                / "projects"
+                / resume_eval.project_key(cwd)
+            )
             keydir.mkdir(parents=True, exist_ok=True)
             with (keydir / f"{resume}.jsonl").open("a", encoding="utf-8") as handle:
-                handle.write(json.dumps({"type": "user", "uuid": f"u-{len(calls)}", "message": {"role": "user", "content": prompt}}) + "\n")
+                handle.write(
+                    json.dumps(
+                        {
+                            "type": "user",
+                            "uuid": f"u-{len(calls)}",
+                            "message": {"role": "user", "content": prompt},
+                        }
+                    )
+                    + "\n"
+                )
         return 0, "\n".join(json.dumps(e) for e in events), ""
 
-    cfg = resume_eval.RunConfig(root=tmp_path / "root", tmpdir=str(tmp_path), copies={"before": "/c/before"}, codex_model="m", call=fake, python=sys.executable)
+    cfg = resume_eval.RunConfig(
+        root=tmp_path / "root",
+        tmpdir=str(tmp_path),
+        copies={"before": "/c/before"},
+        codex_model="m",
+        call=fake,
+        python=sys.executable,
+    )
     home = tmp_path / "home"
     old_home = os.environ.get("HOME")
     os.environ["HOME"] = str(home)
@@ -696,7 +878,9 @@ def test_multi_hop_writes_one_handoff_per_hop_and_applies_scripted_turns(tmp_pat
         for t in [*hop.get("scripted_agent_turns", []), *hop.get("scripted_turns", [])]
         if t.get("text")
     ]
-    transcripts = "".join(p.read_text(encoding="utf-8") for p in run["keydir"].glob("*.jsonl"))
+    transcripts = "".join(
+        p.read_text(encoding="utf-8") for p in run["keydir"].glob("*.jsonl")
+    )
     assert scripted and all(text in transcripts for text in scripted)
     # A scripted hop sends none of its turns live: only the interrupt and the arm prompt run.
     for hop in hops:
