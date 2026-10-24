@@ -399,12 +399,15 @@ if ((run_tests && foreign)); then
 elif ((run_tests)); then
   # Suites load the locked npm packages, which a fresh worktree lacks or a
   # lockfile change leaves stale, so setup-env installs them first; it skips a
-  # current install. A failed install fails the run and runs no suite.
+  # current install. A failed install fails the run and runs no suite; one that
+  # could not run (npm or nice missing) is a SKIP, and the suites still run.
   npm_failed=0
   rc=0
   bash "$tools/scripts/setup-env.sh" --node >"$out" 2>&1 || rc=$?
   if ((rc == 0)); then
     grep '^setup-env: installed' "$out" >&2
+  elif ((rc == 2 || rc == 127)); then
+    skip npm-deps "could not run, exit $rc: $(tail -n 1 "$out")"
   else
     npm_failed=1
     failed+=(npm-deps)

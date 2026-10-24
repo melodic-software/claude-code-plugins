@@ -162,6 +162,10 @@ run STUB_SETUP_ENV=1 -- --base base --tests
 check "--tests fails, naming the command, when setup-env --node fails, and runs no suites" \
   '[[ $RC == 1 && $ERR == *"FAIL npm-deps (exit 1). Reproduce: bash scripts/setup-env.sh --node"* && $ERR == *"SKIP tests (npm dependencies did not install)"* ]]'
 
+run STUB_SETUP_ENV=127 -- --base base --tests
+check "--tests skips npm-deps and still runs the suites when setup-env --node could not run" \
+  '[[ $RC == 0 && $ERR == *"SKIP npm-deps (could not run, exit 127"* && $OUT == *"passed"* ]]'
+
 # A fresh worktree has lockfiles but no node_modules: --tests installs each
 # through the real setup-env.sh --node. The npm stand-in logs its arguments and
 # creates the node_modules its --prefix names, or exits STUB_NPM.
