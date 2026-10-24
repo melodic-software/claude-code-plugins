@@ -117,7 +117,7 @@ describe("decide", () => {
       const result = await admit({ github, repository: "o/r", number: 7, verdict: VERDICT, rules: RULES, humans, appId: APP, webHosts: HOSTS, status: async () => assert.fail("a refusal reads no status"), log: () => {} });
       assert.deepEqual(result, { outcome: "refused", reasons: [NO_SPEC] });
       const writes = calls.filter((call) => call.method !== "GET" && call.path !== "/graphql").map((call) => `${call.method} ${call.path}`);
-      assert.deepEqual(writes, ["DELETE /repos/o/r/issues/7/labels/status%3A%20ready", "POST /repos/o/r/issues/7/labels", "POST /repos/o/r/issues/7/comments"]);
+      assert.deepEqual(writes, ["POST /repos/o/r/issues/7/labels", "DELETE /repos/o/r/issues/7/labels/status%3A%20ready", "POST /repos/o/r/issues/7/comments"]);
       assert.deepEqual(calls.find((call) => call.method === "POST" && call.path.endsWith("/labels")).body, { labels: [NEEDS_DECISION] });
     });
   });
@@ -332,6 +332,14 @@ describe("decide", () => {
       assert.match(result.reasons.join(), /example\.org/);
     });
 
+    test("criteria past the comments read do not count: more comments than read is a refusal", () => {
+      const spec = { ...humanSpec(thin, [written(USER(HUMAN))]), commentCount: 150 };
+      const result = decide(facts({ issue: thin, spec }));
+      assert.equal(result.verdict, "refuse");
+      assert.match(result.reasons.join(), /150 comments, more than the 100 pr-verify reads/);
+      assert.equal(decide(facts({ issue: thin, spec: { ...spec, commentCount: 1 } })).verdict, "admit");
+    });
+
     for (const [name, author] of [
       ["github-actions[bot]", { __typename: "Bot", databaseId: 41898282 }],
       ["an outsider", USER(OUTSIDER)],
@@ -351,10 +359,13 @@ describe("decide", () => {
 // `spec` is what SPEC_QUERY answers (by default the issue's body as a listed
 // human wrote it); "no-issue" and "no-body" answer an unexpected shape.
 // `closing` is what closedByPullRequestsReferences answers.
-function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, timeline = [], closing = [], events = [], comments = [], spec } = {}) {
+function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, timeline = [], closing = [], events = [], comments = [], spec, failOn } = {}) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
+    if (failOn?.(method, path, body)) {
+      throw new Error(`${method} ${path} failed with status 500`);
+    }
     const base = "/repos/o/r/issues/7";
     if (method === "POST" && path === "/graphql") {
       if (body.query.includes("closedByPullRequestsReferences")) {
@@ -365,7 +376,7 @@ function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = 
         return { data: { repository: { issue: null } } };
       }
       const answer = spec === "no-body" ? { ...humanSpec(issue), body: null } : (spec ?? humanSpec(issue));
-      return { data: { repository: { issue: { ...answer, comments: { nodes: answer.comments } } } } };
+      return { data: { repository: { issue: { ...answer, comments: { totalCount: answer.totalCount ?? answer.comments.length, nodes: answer.comments } } } } };
     }
     if (method !== "GET") {
       return null;
@@ -469,8 +480,8 @@ describe("admit", () => {
     assert.equal(result.outcome, "refused");
     const done = writes(fake.calls);
     assert.equal(done.length, 3);
-    assert.match(done[0], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/status%3A%20ready/);
-    assert.equal(done[1], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+    assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+    assert.match(done[1], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/status%3A%20ready/);
     assert.match(done[2], /^POST \/repos\/o\/r\/issues\/7\/comments /);
     assert.ok(done[2].includes(ADMIT_MARKER.replaceAll('"', '\\"')));
     assert.match(done[2], /no trusted-human acceptance criteria/);
@@ -482,9 +493,22 @@ describe("admit", () => {
     assert.equal(result.outcome, "refused");
     const done = writes(fake.calls);
     assert.ok(!done.some((call) => call.includes("/labels ") && call.includes(AGENT_READY)));
-    assert.match(done[0], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/status%3A%20ready/);
-    assert.equal(done[1], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+    assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+    assert.match(done[1], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/status%3A%20ready/);
     assert.match(done[2], /item 2 .*Windows 11 host.*recommended split: keep the other items here .* needs-human child issue/);
+  });
+
+  test("a refusal whose needs-decision write fails keeps status: ready, so admission-deferred never stands alone", async () => {
+    const failOn = (method, path, body) => method === "POST" && path.endsWith("/labels") && body?.labels?.includes(NEEDS_DECISION);
+    const fake = fakeGitHub({ issue: issueOf({ body: "Make the README better.", labels: [{ name: READY }, { name: DEFERRED }] }), failOn });
+    await assert.rejects(() => go(fake), /failed with status 500/);
+    assert.ok(!writes(fake.calls).some((call) => call.startsWith("DELETE ")), writes(fake.calls).join("\n"));
+  });
+
+  test("an issue with more comments than the text read covers is refused, as pr-verify stops on it", async () => {
+    const result = await go(fakeGitHub({ spec: { ...humanSpec(issueOf()), totalCount: 101 } }));
+    assert.equal(result.outcome, "refused");
+    assert.match(result.reasons.join(), /101 comments, more than the 100 pr-verify reads/);
   });
 
   test("a refusal edits the App's earlier admission comment instead of adding one", async () => {

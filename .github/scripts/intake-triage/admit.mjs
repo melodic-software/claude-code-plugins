@@ -17,7 +17,9 @@
 //   lane checks, in text pr-verify will read: the body or a comment written,
 //   and last edited if ever, by a listed human (resolve-pr.mjs linkedIssues).
 //   Criteria only the lanes App wrote (refine.mjs's refinement comment, an
-//   App-filed issue) do not count, since pr-verify never sees them;
+//   App-filed issue) do not count, since pr-verify never sees them, and an
+//   issue with more comments than the 100 pr-verify reads is refused, since
+//   pr-verify stops on it;
 // - 8: no `refuse-labels` label, every blocker a merged pull request or an
 //   issue closed as completed by a listed human or a merge here (the close
 //   work-unblock counts), and no open pull request in this repository is for
@@ -290,7 +292,11 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     refuse.push(`Uncertainty ${verdict.dimensions?.uncertainty} is not one of ${rules.uncertainty.join(", ")}`);
   }
   // pr-verify judges a lane PR only against text a listed human wrote, so
-  // the criteria count only there.
+  // the criteria count only there, and it stops on an issue with more
+  // comments than it reads (resolve-pr.mjs linkedIssues).
+  if ((spec?.commentCount ?? 0) > (spec?.comments?.length ?? 0)) {
+    refuse.push(`it has ${spec.commentCount} comments, more than the ${SPEC_COMMENTS} pr-verify reads, so pr-verify cannot verify a pull request for it`);
+  }
   const lines = trustedSpecTexts(spec, humans).flatMap((text) => text.split("\n"));
   if (!lines.some((line) => line.trimStart().startsWith(rules["task-list"]))) {
     refuse.push(noTrustedSpec(rules["task-list"]));
@@ -360,29 +366,31 @@ export async function sayWhy(github, repository, base, comments, text) {
   }
 }
 
-// The body and the first 100 comments, each with its author, last editor and
-// edit time: the first 100 comments are what pr-verify reads.
+// The body, the comment count and the first 100 comments, each with its
+// author, last editor and edit time: the first 100 comments are what pr-verify
+// reads, and it stops on an issue with more.
+const SPEC_COMMENTS = 100;
 const SPEC_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) { issue(number: $number) {
     body lastEditedAt author { ...actor } editor { ...actor }
-    comments(first: 100) { nodes { body lastEditedAt author { ...actor } editor { ...actor } } }
+    comments(first: ${SPEC_COMMENTS}) { totalCount nodes { body lastEditedAt author { ...actor } editor { ...actor } } }
   } }
 }
 fragment actor on Actor { __typename ... on User { databaseId } ... on Bot { databaseId } }`;
 
-// {body, lastEditedAt, author, editor, comments: [{body, lastEditedAt,
-// author, editor}]} for the issue, as GraphQL answers them. An unexpected
-// shape throws.
+// {body, lastEditedAt, author, editor, commentCount, comments: [{body,
+// lastEditedAt, author, editor}]} for the issue, as GraphQL answers them. An
+// unexpected shape throws.
 async function specOf(github, repository, number) {
   const [owner, name] = repository.split("/");
   const issue = (await github("POST", "/graphql", { query: SPEC_QUERY, variables: { owner, name, number: Number(number) } }))?.data?.repository?.issue;
   const text = (item) =>
     item !== null && typeof item === "object" && typeof item.body === "string" && (item.lastEditedAt === null || typeof item.lastEditedAt === "string");
-  if (!text(issue) || !Array.isArray(issue.comments?.nodes) || !issue.comments.nodes.every(text)) {
+  if (!text(issue) || !Array.isArray(issue.comments?.nodes) || !issue.comments.nodes.every(text) || !Number.isSafeInteger(issue.comments.totalCount)) {
     throw new Error("the issue's text, authors and edit times have an unexpected shape");
   }
   const { body, lastEditedAt, author, editor } = issue;
-  return { body, lastEditedAt, author, editor, comments: issue.comments.nodes };
+  return { body, lastEditedAt, author, editor, commentCount: issue.comments.totalCount, comments: issue.comments.nodes };
 }
 
 export const noTrustedSpec = (taskList) =>
@@ -423,7 +431,7 @@ export async function noteUnrunnable({ github, repository, issue, rules, webHost
 // (humans, appId, repository, webHosts), for `issue` as just read.
 // `isTrusted(number)` answers whether a closed blocker's close counts; by
 // default it reads the blocker fresh.
-export async function admissionFacts({ github, repository, number, issue, rules, humans, appId, isTrusted }) {
+export async function admissionFacts({ github, repository, number, issue, rules, humans, isTrusted }) {
   const base = `/repos/${repository}/issues/${number}`;
   const blockers = await paginate(github, `${base}/dependencies/blocked_by`);
   // Anyone may close their own issue as completed, so a blocking issue counts
@@ -458,7 +466,7 @@ export async function admissionFacts({ github, repository, number, issue, rules,
 export async function admit({ github, repository, number, verdict, rules, humans, appId, status, webHosts, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
-  const facts = await admissionFacts({ github, repository, number, issue, rules, humans, appId });
+  const facts = await admissionFacts({ github, repository, number, issue, rules, humans });
   const { comments } = facts;
   const decision = decide({
     ...facts,
@@ -480,8 +488,10 @@ export async function admit({ github, repository, number, verdict, rules, humans
     return { outcome: "skipped", reasons: decision.reasons };
   }
   if (decision.verdict === "refuse") {
-    await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
+    // The hold before status: ready comes off: a failed write never leaves
+    // admission-deferred on an issue with neither, which the sweep admits.
     await github("POST", `${base}/labels`, { labels: [NEEDS_DECISION] });
+    await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
     await undefer();
     await sayWhy(github, repository, base, comments, refusalText(reasons));
     log(`admit: #${number} refused (${reasons})`);

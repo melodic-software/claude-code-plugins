@@ -94,14 +94,19 @@ fragment field on IssueFields { ... on IssueFieldSingleSelect { fullDatabaseId }
 
 // Field id -> the account id that last set it (null after a removal or for an
 // actor with no id), from the issue's newest 100 field events, oldest first.
+// An answer with no issue or no event list throws: it is no answer, not unset.
 export async function fieldSetters(github, repository, number) {
   const [owner, name] = repository.split("/");
   const answer = await github("POST", "/graphql", { query: FIELD_EVENTS, variables: { owner, name, number } });
   if (Array.isArray(answer?.errors) && answer.errors.length > 0) {
     throw new Error(`the issue's field events could not be read: ${answer.errors.map((e) => e?.message).join("; ")}`);
   }
+  const nodes = answer?.data?.repository?.issue?.timelineItems?.nodes;
+  if (!Array.isArray(nodes)) {
+    throw new Error("the issue's field events have an unexpected shape");
+  }
   const setters = Object.create(null);
-  for (const node of answer?.data?.repository?.issue?.timelineItems?.nodes ?? []) {
+  for (const node of nodes) {
     const field = node?.issueField?.fullDatabaseId;
     if (typeof field === "string" && /^[1-9][0-9]*$/.test(field)) {
       const id = node.actor?.databaseId;

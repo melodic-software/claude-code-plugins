@@ -22,6 +22,7 @@ import {
   refireComment,
   refsClosedComment,
   refsMergedComment,
+  skipText,
   strandedComment,
 } from "./label-unblocked.mjs";
 
@@ -113,7 +114,7 @@ function world({
   const base = `/repos/${REPO}/issues`;
   const github = async (method, path, body) => {
     calls.push(body === undefined ? `${method} ${path}` : `${method} ${path} ${JSON.stringify(body)}`);
-    if (failOn && path.startsWith(failOn)) {
+    if (failOn && (typeof failOn === "function" ? failOn(method, path, body) : path.startsWith(failOn))) {
       throw new Error(`${method} ${path} failed with status 500`);
     }
     const route = path.replace(/\?.*$/, "");
@@ -222,7 +223,8 @@ function world({
           lastEditedAt: null,
           comments: [],
         };
-        return { data: { repository: { issue: spec === "bad" ? null : { ...spec, comments: { nodes: spec.comments } } } } };
+        const comments = { totalCount: spec.totalCount ?? spec.comments?.length, nodes: spec.comments };
+        return { data: { repository: { issue: spec === "bad" ? null : { ...spec, comments } } } };
       }
       const found = lookup(String(number));
       const nodes = found?.state === "closed" ? [{ closer: found.graphCloser }] : [];
@@ -1147,6 +1149,7 @@ const laneRun = ({ number = 30, at = "2026-10-16T10:00:03Z", status = "completed
   created_at: at,
   status,
   conclusion,
+  updated_at: at,
 });
 const refireNote = (key, at = "2026-10-16T09:00:00Z", user = LANES_BOT) => ({ id: 50, body: refireComment(key), user, created_at: at });
 const refired = (n, key = KEY) => [
@@ -2342,15 +2345,32 @@ const admissionFor = (setter = OWNER.id) => async () => ({
 });
 const MARKED = ["admission-deferred", "status: ready", "work-class: mechanical"];
 const markedIssue = (labels) => ({ ...issue(25, { labels }), user: OWNER, type: { name: "Task" }, body: "Fix it.\n\n## Done when\n\n- [ ] Line 3 says nineteen." });
-const markedWorld = ({ labels = MARKED, fields = SMALL_LOW_KNOWN, by = OWNER, queuedIssues = [], specs = {}, timeline = [], closing = [] } = {}) =>
+// Who added each label: intake's App wrote the decision, a person marked it.
+const labelAdd = (name, actor, at = "2026-10-16T07:00:00Z") => ({ event: "labeled", label: { name }, actor, created_at: at });
+const DECIDED = [labelAdd("status: ready", LANES_BOT), labelAdd("work-class: mechanical", LANES_BOT)];
+const markedWorld = ({
+  labels = MARKED,
+  fields = SMALL_LOW_KNOWN,
+  by = OWNER,
+  decided = DECIDED,
+  queuedIssues = [],
+  specs = {},
+  timeline = [],
+  closing = [],
+  comments = [note()],
+  extraEvents = [],
+  blockers = [issue(10, { state: "closed" })],
+  failOn,
+} = {}) =>
   world({
     specs,
+    failOn,
     closing: { 25: closing },
     deferred: [markedIssue(labels)],
     issues: { 25: markedIssue(labels) },
-    blockedBy: { 25: [issue(10, { state: "closed" })] },
-    comments: { 25: [note()] },
-    events: { 25: [deferredAdd(by)] },
+    blockedBy: { 25: blockers },
+    comments: { 25: comments },
+    events: { 25: [...decided, ...extraEvents, deferredAdd(by)] },
     timeline: { 25: timeline },
     fieldValues: { 25: fields },
     queuedIssues,
@@ -2371,8 +2391,8 @@ test("a person's mark on an inadmissible issue is refused: the admission comment
   t.mock.method(console, "log", () => {});
   const refusedWrites = (reasons) => [
     `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${refusalText(reasons.join("; "))}` })}`,
-    `DELETE /repos/${REPO}/issues/25/labels/status%3A%20ready`,
     `POST /repos/${REPO}/issues/25/labels {"labels":["status: needs-decision"]}`,
+    `DELETE /repos/${REPO}/issues/25/labels/status%3A%20ready`,
     undeferred(25),
   ];
   const large = markedWorld({ fields: LARGE_LOW_KNOWN });
@@ -2430,6 +2450,90 @@ test("a person's admissible mark with no room stays deferred", async (t) => {
   const lines = log.mock.calls.map((call) => String(call.arguments[0]));
   assert.ok(lines.includes("label-unblocked: #25, marked by a person, passes the admission rules"), lines.join("\n"));
   assert.ok(lines.includes("label-unblocked: #25 admission deferred: queued work is at the queued cap"), lines.join("\n"));
+});
+
+const NEEDS_DECISION_WRITE = `POST /repos/${REPO}/issues/25/labels {"labels":["status: needs-decision"]}`;
+// The labels a sweep's writes leave on issue 25, the failed write left out.
+const labelsAfter = (labels, calls, failed) =>
+  writes(calls)
+    .filter((call) => call !== failed)
+    .reduce((now, call) => {
+      const add = call.match(/^POST \/repos\/\S+\/issues\/25\/labels (.+)$/);
+      const removed = call.match(/^DELETE \/repos\/\S+\/issues\/25\/labels\/(.+)$/);
+      if (add) {
+        return [...now, ...JSON.parse(add[1]).labels.filter((name) => !now.includes(name))];
+      }
+      return removed ? now.filter((name) => name !== decodeURIComponent(removed[1])) : now;
+    }, labels);
+
+test("a refusal whose needs-decision write fails keeps status: ready, so the next sweep admits nothing", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const failOn = (method, path, body) => method === "POST" && path.endsWith("/issues/25/labels") && body?.labels?.includes("status: needs-decision");
+  const first = markedWorld({ fields: LARGE_LOW_KNOWN, failOn });
+  assert.equal(await sweep({ github: first.github, admission: admissionFor() }, PAUSING), 1);
+  assert.ok(!writes(first.calls).includes(`DELETE /repos/${REPO}/issues/25/labels/status%3A%20ready`), writes(first.calls).join("\n"));
+  const left = labelsAfter(MARKED, first.calls, NEEDS_DECISION_WRITE);
+  const second = markedWorld({ labels: left, fields: LARGE_LOW_KNOWN });
+  assert.equal(await sweep({ github: second.github, admission: admissionFor() }, PAUSING), 0);
+  assert.ok(!writes(second.calls).includes(labeled(25)), `${left}\n${writes(second.calls).join("\n")}`);
+});
+
+test("a person's mark whose field values or field setters read in an unexpected shape writes nothing", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const rows = markedWorld({ fields: { message: "Not Found" } });
+  assert.equal(await sweep({ github: rows.github, admission: admissionFor() }, PAUSING), 1);
+  assert.deepEqual(writes(rows.calls), []);
+  const noSetters = async () => ({ ...(await admissionFor()()), fieldSetters: async () => { throw new Error("the issue's field events have an unexpected shape"); } });
+  const setters = markedWorld();
+  assert.equal(await sweep({ github: setters.github, admission: noSetters }, PAUSING), 1);
+  assert.deepEqual(writes(setters.calls), []);
+});
+
+test("a person's mark admits only when a listed human or the App added status: ready and the work-class label", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const outsider = { id: 999999, login: "drive-by", type: "User" };
+  const human = markedWorld({ decided: [labelAdd("status: ready", OWNER), labelAdd("work-class: mechanical", OWNER)] });
+  assert.equal(await sweep({ github: human.github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(human.calls), [labeled(25), undeferred(25)]);
+  // The newest add counts: an outsider's re-add after the App's does not.
+  for (const decided of [
+    [labelAdd("status: ready", LANES_BOT), labelAdd("work-class: mechanical", outsider)],
+    [labelAdd("status: ready", LANES_BOT), labelAdd("work-class: mechanical", LANES_BOT), labelAdd("work-class: mechanical", outsider, "2026-10-16T07:30:00Z")],
+    [labelAdd("status: ready", outsider), labelAdd("work-class: mechanical", LANES_BOT)],
+    [labelAdd("work-class: mechanical", LANES_BOT)],
+  ]) {
+    const { github, calls } = markedWorld({ decided });
+    assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+    assert.ok(!writes(calls).includes(labeled(25)), `${JSON.stringify(decided)}\n${writes(calls).join("\n")}`);
+    assert.ok(writes(calls).includes(undeferred(25)), JSON.stringify(decided));
+  }
+  const workClass = markedWorld({ decided: [labelAdd("status: ready", LANES_BOT), labelAdd("work-class: mechanical", outsider)] });
+  await sweep({ github: workClass.github, admission: admissionFor() }, PAUSING);
+  assert.ok(writes(workClass.calls).some((call) => call.includes("added by neither a listed human nor the lanes App")), writes(workClass.calls).join("\n"));
+});
+
+test("a person's mark waiting on an open blocker loses admission-deferred with the admission comment", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const { github, calls } = markedWorld({ blockers: [issue(10)] });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  const why = "blocker #10 is not closed as completed by a listed human or a merge";
+  assert.deepEqual(writes(calls), [
+    `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\nNot admitted to the issue lane yet: ${why}.` })}`,
+    undeferred(25),
+  ]);
+  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+  assert.ok(lines.includes(`label-unblocked: #25, marked by a person, waits: ${why}`), lines.join("\n"));
+});
+
+test("a person's mark the admission rules skip loses admission-deferred with a comment saying why", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const removed = { event: "unlabeled", label: { name: "agent-ready" }, actor: OWNER, created_at: "2026-10-16T07:10:00Z" };
+  const { github, calls } = markedWorld({ extraEvents: [removed] });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(calls), [
+    `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${skipText("agent-ready was removed before")}` })}`,
+    undeferred(25),
+  ]);
 });
 
 // A stranded agent-ready issue: no hold, no open lane PR, no marker since its
@@ -2492,4 +2596,38 @@ test("an issue with a recent lane run or label is left alone; past 3 hours it co
   });
   assert.equal(await sweep({ github: withPr.github, actions: withPr.github }), 0);
   assert.deepEqual(writes(withPr.calls), []);
+});
+
+test("a stranded issue's no-report clock starts when its run ended, not when it started", async () => {
+  // A run created over 3 hours ago that ended an hour ago: left alone.
+  const recent = failedRun({
+    runs: [{ ...laneRun({ at: "2026-10-16T08:00:03Z", conclusion: "success" }), updated_at: "2026-10-16T11:00:00Z" }],
+    events: [added("2026-10-16T08:00:00Z", OWNER)],
+  });
+  assert.equal(await sweep({ github: recent.github, actions: recent.actions }), 0);
+  assert.deepEqual(writes(recent.calls), []);
+  const ended = failedRun({
+    runs: [{ ...laneRun({ at: "2026-10-16T08:00:03Z", conclusion: "success" }), updated_at: "2026-10-16T08:59:00Z" }],
+    events: [added("2026-10-16T08:00:00Z", OWNER)],
+  });
+  assert.equal(await sweep({ github: ended.github, actions: ended.actions }), 0);
+  assert.deepEqual(writes(ended.calls), refiredFor(30, NO_REPORT_CAUSE));
+});
+
+test("a stranded issue whose re-fired run failed again over 3 hours ago gets one comment and needs-human", async () => {
+  const { github, actions, calls } = failedRun({
+    comments: [note(), refireNote(KEY, "2026-10-16T07:59:59Z")],
+    events: [
+      added("2026-10-16T07:00:00Z", OWNER),
+      { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T08:00:00Z" },
+      added("2026-10-16T08:00:01Z"),
+    ],
+    runs: [{ ...laneRun({ at: "2026-10-16T08:00:04Z" }), updated_at: "2026-10-16T08:30:00Z" }],
+  });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), [
+    `POST /repos/${REPO}/issues/30/comments ${JSON.stringify({ body: strandedComment(KEY, "failed-again") })}`,
+    `POST /repos/${REPO}/issues/30/labels {"labels":["needs-human"]}`,
+  ]);
+  assert.ok(strandedComment(KEY, "failed-again").includes("failed or was cancelled before it reported"));
 });

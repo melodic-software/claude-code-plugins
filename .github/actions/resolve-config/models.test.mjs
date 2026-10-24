@@ -918,6 +918,15 @@ test("main fails when the field events answer with GraphQL errors", async () => 
   await assert.rejects(() => fieldSetters(github, "o/r", 7), /field events could not be read: Resource not accessible/);
 });
 
+test("the field setters read fails on an answer with no issue or no field events, never reads them as unset", async () => {
+  const { fieldSetters } = await import("./resolve-config.mjs");
+  for (const answer of [{}, { data: null }, { data: { repository: { issue: null } } }, { data: { repository: { issue: { timelineItems: {} } } } }]) {
+    await assert.rejects(() => fieldSetters(async () => answer, "o/r", 7), /field events have an unexpected shape/, JSON.stringify(answer));
+  }
+  const empty = { data: { repository: { issue: { timelineItems: { nodes: [] } } } } };
+  assert.deepEqual({ ...(await fieldSetters(async () => empty, "o/r", 7)) }, {});
+});
+
 test("main reads a field removed after it was set as unset", async () => {
   const { outputs } = await mainOnIssue([
     fieldEvent("IssueFieldAddedEvent", 15462270, LISTED),

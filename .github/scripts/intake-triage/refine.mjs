@@ -26,8 +26,9 @@
 // until a listed human posts them as their own (owner decision Q9: pr-verify
 // reads only their text); when the lanes App set the issue's
 // `status: needs-decision`, it takes that off and adds `needs-triage`, and the
-// job's `redispatch` output starts one more triage, which admits the issue
-// when the rules hold. Not exact: the comment
+// job's `redispatch` output starts one more triage, which runs admission
+// again; that triage admits the issue only when the rules hold on text a
+// listed human wrote, so the refinement alone never admits it. Not exact: the comment
 // asks numbered questions, each with a `RECOMMENDED:` answer and its basis,
 // and the issue keeps or gets `status: needs-decision`, which a person's
 // `**Decision recorded.**` sends back through intake-reenter.yml. It never
