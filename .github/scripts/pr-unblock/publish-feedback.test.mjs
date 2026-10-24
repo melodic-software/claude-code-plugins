@@ -85,6 +85,8 @@ function fakeApi(overrides = {}) {
       return calls.filter((call) => call[0] === "readBranch").length > (overrides.movesAfter ?? Infinity) ? PUSHED : NOW;
     },
     getCommit: async (sha) => overrides.commits?.[sha] ?? { files: [{ filename: "src/a.js" }] },
+    // The PR's commits, oldest first; none earlier than the range by default.
+    listPullCommits: async () => overrides.pullCommits ?? [],
     compare: async (base, head) => {
       calls.push(["compare", base, head]);
       return overrides.compare ?? { status: "ahead", commits: [fixCommit()], files: [{ filename: "src/a.js" }] };
@@ -444,6 +446,48 @@ for (const [label, compare] of [
     assert.deepEqual(api.posted(), []);
     assert.deepEqual(api.resolved(), []);
     assert.equal(api.markers().length, 1);
+  });
+}
+
+// A retry after a round whose fix commit landed but whose replies did not
+// post: the branch did not move since, and the fix is an earlier commit on
+// the PR. The thread's first comment is from 10:00.
+const EARLIER = "e".repeat(40);
+const earlierFix = ({ date = "2026-10-22T11:00:00Z", ...fields } = {}) =>
+  fixCommit(EARLIER, { ...fields, commit: { ...fixCommit().commit, committer: { date }, ...fields.commit } });
+const retry = (pullCommits, files = [{ filename: "src/a.js" }]) =>
+  fakeApi({
+    compare: { status: "identical", commits: [], files: [] },
+    pullCommits: [{ sha: "0".repeat(40), author: { id: HUMAN }, commit: { message: "feat: start\n", committer: { date: "2026-10-22T09:00:00Z" } } }, ...pullCommits],
+    commits: { [EARLIER]: { files } },
+    reviewComments: [
+      { id: 100, user: { id: REVIEWER }, pull_request_review_id: 10, path: "src/a.js", line: 1, body: "finding 100", created_at: "2026-10-22T10:00:00Z" },
+    ],
+  });
+
+test("a VALID reply whose fix is an earlier lane commit after the thread's comment on its path lands, naming that commit", async () => {
+  const api = retry([earlierFix()]);
+  const result = await run(api, lines(reply({ disposition: "VALID", note: "Guarded the null case." })));
+  assert.equal(result.escalationReason, "");
+  assert.equal(api.posted().length, 1);
+  assert.match(api.posted()[0][3], new RegExp(`^Fix: ${EARLIER}$`, "m"));
+  assert.deepEqual(api.resolved(), ["PRRT_a"]);
+});
+
+for (const [label, pullCommits, files] of [
+  ["it is a person's commit", [earlierFix({ author: { id: HUMAN } })]],
+  ["it carries no fix trailer", [earlierFix({ commit: { message: "Address review feedback on feature\n" } })]],
+  ["it is not signed by web-flow", [earlierFix({ committer: { id: HUMAN } })]],
+  ["its signature is not valid", [earlierFix({ commit: { verification: { verified: false, reason: "unsigned" } } })]],
+  ["it was committed before the thread's comment", [earlierFix({ date: "2026-10-22T09:30:00Z" })]],
+  ["it changed another path", [earlierFix()], [{ filename: "docs/b.md" }]],
+]) {
+  test(`feedback-not-landed, nothing posted: an earlier commit is no fix when ${label}`, async () => {
+    const api = retry(pullCommits, files);
+    const result = await run(api, lines(reply({ disposition: "VALID" })));
+    assert.equal(result.escalationReason, "feedback-not-landed");
+    assert.deepEqual(api.posted(), []);
+    assert.deepEqual(api.resolved(), []);
   });
 }
 

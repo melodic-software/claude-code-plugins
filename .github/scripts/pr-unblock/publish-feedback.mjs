@@ -11,12 +11,15 @@
 //   2. For VALID replies, which name no commit (the model job commits
 //      nothing), finds the one commit apply-feedback-patch pushed: the lanes
 //      App's, after the select job's head, carrying the review-threads
-//      row's Lane-Activity trailer (fixCommitOf). Confirms it changes each
+//      row's Lane-Activity trailer (isLaneFix). Confirms it changes each
 //      VALID thread's path and that the branch changed no path outside the
 //      kept threads' scope (thread-scope.mjs) and none under
-//      .github/workflows/. A
-//      push that was superseded, refused, escalated or held left no such
-//      commit, so the round ends feedback-not-landed.
+//      .github/workflows/. With no such commit in that range (a retry after
+//      a round whose fix landed but whose replies did not post), each VALID
+//      thread's fix is an earlier commit on the PR of the same kind,
+//      committed after the thread's first comment, that changed the thread's
+//      path (earlierFixOf). A push that was superseded, refused, escalated or
+//      held, with no earlier fix either, ends the round feedback-not-landed.
 //   3. Re-reads each thread and skips one that is resolved, moved, or has a
 //      comment the model job did not see; posts the templated reply on its
 //      root comment and resolves it only when it is VALID. The PR head is
@@ -230,22 +233,31 @@ function touchesThread(changed, threadPath, cited) {
   return skillDir === undefined ? changed.includes(threadPath) : changed.some((file) => file.startsWith(skillDir));
 }
 
-// The one commit in a range that the lanes App authored through the API (the
-// web-flow committer, with a valid signature, as upstreamHeadHolds in
-// check-trusted-trigger.mjs requires) with the fix trailer on a line of its
-// own; null for none or more than one.
-export function fixCommitOf(commits, appId) {
-  const fixes = commits.filter(
-    (commit) =>
-      commit.author?.id === appId &&
-      commit.committer?.id === WEB_FLOW_ID &&
-      commit.commit?.verification?.verified === true &&
-      commit.commit.verification.reason === "valid" &&
-      String(commit.commit?.message ?? "")
-        .split("\n")
-        .some((line) => line.replace(/\r$/, "") === FIX_TRAILER),
-  );
-  return fixes.length === 1 ? fixes[0].sha : null;
+// A commit the lanes App authored through the API (the web-flow committer,
+// with a valid signature, as upstreamHeadHolds in check-trusted-trigger.mjs
+// requires) with the fix trailer on a line of its own.
+const isLaneFix = (commit, appId) =>
+  commit.author?.id === appId &&
+  commit.committer?.id === WEB_FLOW_ID &&
+  commit.commit?.verification?.verified === true &&
+  commit.commit.verification.reason === "valid" &&
+  String(commit.commit?.message ?? "")
+    .split("\n")
+    .some((line) => line.replace(/\r$/, "") === FIX_TRAILER);
+
+// The newest of the PR's `commits` (oldest first, as GET /pulls/{n}/commits
+// lists them) that is a lane fix commit, committed (the date GitHub sets for
+// a web-flow commit) after `after` (epoch ms), whose files touch `threadPath`;
+// null for none. `filesOf` reads a commit's changed paths. Only the path
+// itself, or for a SKILL.md any file in its skill's directory: the evidence's
+// line numbers are the current head's, not that commit's.
+export async function earlierFixOf({ commits, appId, after, threadPath, filesOf }) {
+  for (const commit of [...commits].reverse()) {
+    if (isLaneFix(commit, appId) && Date.parse(commit.commit?.committer?.date ?? "") > after && touchesThread(await filesOf(commit.sha), threadPath, new Set())) {
+      return commit.sha;
+    }
+  }
+  return null;
 }
 
 // Whenever the PR branch moved since the select job's head, or a reply is
@@ -253,23 +265,29 @@ export function fixCommitOf(commits, appId) {
 // threads' paths and the PR's own files (run.json, whose SHA-256 the select
 // job recorded), adding none of those files, and nothing under
 // .github/workflows/. With a VALID reply the range must hold
-// exactly one fix commit (fixCommitOf), and it must change every VALID thread's path, a
+// exactly one fix commit (isLaneFix), and it must change every VALID thread's path, a
 // file the PR already changes at a line the reply's evidence cites, or for a
-// thread on a skill's SKILL.md any file in that skill's directory (touchesThread). Returns the fix commit, "" when no reply is VALID, or null.
-async function fixesLanded({ api, run, headSha, replies, appId }) {
+// thread on a skill's SKILL.md any file in that skill's directory (touchesThread).
+// With no fix commit in the range, each VALID thread takes its earlier fix
+// on the PR instead (earlierFixOf, after the thread's first comment, whose
+// time `rootAt` gives). Returns each VALID thread's fix commit by thread id
+// (empty when no reply is VALID), or null.
+async function fixesLanded({ api, pr, run, headSha, replies, appId, rootAt }) {
   const valid = replies.filter((reply) => reply.disposition === "VALID");
+  const landed = new Map();
   if (valid.length === 0 && run.head_sha === headSha) {
-    return "";
+    return landed;
   }
   const comparison = await api.compare(run.head_sha, headSha);
-  const fixSha = valid.length === 0 ? "" : fixCommitOf(comparison.commits ?? [], appId);
+  const fixes = valid.length === 0 ? [] : (comparison.commits ?? []).filter((commit) => isLaneFix(commit, appId));
+  const fixSha = fixes.length === 1 ? fixes[0].sha : "";
   const threadPath = new Map(run.threads.map((thread) => [thread.id, thread.path]));
   const paths = new Set(threadPath.values());
   const prPaths = new Set(run.pr_paths ?? []);
   const files = comparison.files ?? [];
   const inRange =
     ["ahead", "identical"].includes(comparison.status) &&
-    fixSha !== null &&
+    fixes.length <= 1 &&
     files.length < LIMITS.files &&
     files.every((file) =>
       [file.filename, file.previous_filename].every(
@@ -299,8 +317,29 @@ async function fixesLanded({ api, run, headSha, replies, appId }) {
     if (!valid.every((reply) => touchesThread(changed, threadPath.get(reply.thread), cited(reply)))) {
       return null;
     }
+    for (const reply of valid) {
+      landed.set(reply.thread, fixSha);
+    }
+    return landed;
   }
-  return fixSha;
+  if (valid.length > 0) {
+    const commits = await api.listPullCommits(pr);
+    const read = new Map();
+    const filesOf = async (sha) => {
+      if (!read.has(sha)) {
+        read.set(sha, ((await api.getCommit(sha)).files ?? []).map((file) => file.filename));
+      }
+      return read.get(sha);
+    };
+    for (const reply of valid) {
+      const sha = await earlierFixOf({ commits, appId, after: rootAt(reply.thread), threadPath: threadPath.get(reply.thread), filesOf });
+      if (sha === null) {
+        return null;
+      }
+      landed.set(reply.thread, sha);
+    }
+  }
+  return landed;
 }
 
 // Resolves a VALID thread only while it holds exactly the model's view plus
@@ -424,19 +463,22 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       escalationReason = "feedback-incomplete";
       return { escalationReason, posted: [] };
     }
-    const { kept } = await currentThreads({ api, pr, reviewerId, appId, trustedHumans });
+    const { kept, reviewComments } = await currentThreads({ api, pr, reviewerId, appId, trustedHumans });
     const now = new Map(kept.map((thread) => [thread.id, thread]));
-    const fixSha = await fixesLanded({ api, run, headSha, replies, appId });
-    if (fixSha === null) {
+    const shown = new Map(run.threads.map((thread) => [thread.id, thread]));
+    const createdAt = new Map(reviewComments.map((comment) => [comment.id, comment.created_at]));
+    // NaN compares false, so a first comment with no readable time finds no earlier fix.
+    const rootAt = (thread) => Date.parse(createdAt.get(shown.get(thread).comment_ids[0]) ?? "");
+    const landed = await fixesLanded({ api, pr, run, headSha, replies, appId, rootAt });
+    if (landed === null) {
       log("no reply is posted: no one fix commit for the VALID replies reached the PR branch, or the branch changed another path");
       escalationReason = "feedback-not-landed";
       return { escalationReason, posted: [] };
     }
-    replies = replies.map((reply) => (reply.disposition === "VALID" ? { ...reply, fixSha } : reply));
+    replies = replies.map((reply) => (reply.disposition === "VALID" ? { ...reply, fixSha: landed.get(reply.thread) } : reply));
     if (replies.some((reply) => reply.disposition === "UNCERTAIN" || reply.disposition === "VALID-defer")) {
       escalationReason = "feedback-uncertain";
     }
-    const shown = new Map(run.threads.map((thread) => [thread.id, thread]));
     const posted = [];
     for (const reply of replies) {
       const ids = shown.get(reply.thread).comment_ids;
