@@ -11,9 +11,9 @@ execution:
   max_turns: 20
   timeout_seconds: 600
 graders:
-  - name: names-dead-path
+  - name: reports-index-dead-line
     type: regex
-    pattern: 'features/refunds/README\.md'
+    pattern: 'index-dead \| SKILL\.md \| features/refunds/README\.md'
     arm: both
   - name: writes-nothing
     type: tool_used

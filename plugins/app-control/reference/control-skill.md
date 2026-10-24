@@ -35,7 +35,7 @@ Below them, an index with one line per feature file, in this form:
 ```
 
 `<n>` is the number of lines under the feature's `## Entry points`; `sources` names the globs of
-the files that implement the feature. A feature with no module drops that folder:
+the files that implement the feature, relative to the project directory that holds `.claude/`. A feature with no module drops that folder:
 `features/<feature>/README.md`.
 
 ## Writing the Capture section
