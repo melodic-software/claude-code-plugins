@@ -28,8 +28,8 @@
 // DEPENDENCY_MANAGERS, isDependencyManager and countedBy in step with the gate.
 // It also writes the PR's closing issues, or, when it closes none, the one
 // issue its body's `Refs:` lines name (refsIssue), with their authors and last
-// body editors to SPEC_FILE, and the spec text trusted humans wrote to
-// SPEC_TEXT_FILE (linkedIssues).
+// body editors to SPEC_FILE, and the spec text trusted humans wrote, with
+// intake's refinement on their issues, to SPEC_TEXT_FILE (linkedIssues).
 // The head SHA is the run's, never the PR's live head.
 
 import { appendFileSync, writeFileSync } from "node:fs";
@@ -44,6 +44,7 @@ import {
 } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { headRefDigest, issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { refsIssue } from "../pr-merge/merge-holds.mjs";
+import { refinementSpec } from "../intake-triage/admit.mjs";
 
 export { refsIssue };
 
@@ -63,12 +64,12 @@ const MAX_PAGES = 100;
 
 const ISSUE_FIELDS = `number repository { nameWithOwner } body lastEditedAt
           author { ...actor } editor { ...actor }
-          comments(first: 100) { totalCount nodes { databaseId updatedAt body lastEditedAt author { ...actor } editor { ...actor } } }`;
+          comments(first: 100) { totalCount nodes { databaseId createdAt updatedAt body lastEditedAt author { ...actor } editor { ...actor } } }`;
 const ACTOR = "fragment actor on Actor { __typename login ... on User { databaseId } ... on Bot { databaseId } }";
 const SPEC_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      body lastEditedAt editor { ...actor }
+      createdAt body lastEditedAt editor { ...actor }
       closingIssuesReferences(first: 10) {
         totalCount
         nodes {
@@ -268,9 +269,17 @@ export function specChanged(passStarts, { linkedIssues: issues, specKind, bodyEd
 // none, the one issue its `Refs:` lines name (refsIssue), with their authors
 // and last body editors (`linkedIssues`), and the spec text: each body and comment written,
 // and last edited if ever, by a User on the trusted list's humans, the PR
-// author included (`specText`). Bots and Apps, the lanes App among them, are
-// left out even where select-trusted-text keeps them.
-async function linkedIssues(github, readRefs, repository, number, humans) {
+// author included, and, on an issue whose body is such text, intake's
+// refinement comment by the lanes App (`laneAppId`), the newest and only
+// while unedited (admit.mjs refinementSpec) and created before the pull
+// request, so nothing the App posts once a lane run has the issue becomes
+// spec (`specText`). Other Bot and App text is left out even where
+// select-trusted-text keeps it.
+// The merge gate cannot see the refinement: an edit, a hide (isMinimized)
+// or a newer one after a pass leaves that pass standing. An edit only takes
+// the refinement out of spec, so no one gains a spec by it; a person's
+// correction made after a pass waits for the next head.
+async function linkedIssues(github, readRefs, repository, number, humans, laneAppId) {
   const [owner, name] = repository.split("/");
   const data = await github("POST", "/graphql", { query: SPEC_QUERY, variables: { owner, name, number } });
   const refs = data?.data?.repository?.pullRequest?.closingIssuesReferences;
@@ -310,8 +319,9 @@ async function linkedIssues(github, readRefs, repository, number, humans) {
       ...actorFields(issue.author, "author"),
       last_edited_at: typeof issue.lastEditedAt === "string" ? issue.lastEditedAt : null,
       ...actorFields(issue.editor, "editor"),
-      // The spec comments the model gets, which the gate recomputes with the
-      // same filter (babysit_verify_evidence._spec_comments).
+      // The humans' spec comments the model gets, which the gate recomputes
+      // with the same filter (babysit_verify_evidence._spec_comments); the
+      // refinement stays out, since that filter is human-only.
       spec_comments: issue.comments.nodes
         .filter(written)
         .map((comment) => ({ id: comment.databaseId, updated_at: comment.updatedAt })),
@@ -319,16 +329,20 @@ async function linkedIssues(github, readRefs, repository, number, humans) {
     // How the spec was linked: `closes` for closing issues, `refs` for the one
     // issue a `Refs:` line names, which the verifier judges as a partial slice.
     specKind: issues.length === 0 ? "none" : named !== null ? "refs" : "closes",
-    specText: issues.map((issue) => ({
-      number: issue.number,
-      spec_kind: named !== null ? "refs" : "closes",
-      body: written(issue) && typeof issue.body === "string" ? issue.body : null,
-      comments: issue.comments.nodes.filter(written).map((comment) => String(comment.body ?? "")),
-    })),
+    specText: issues.map((issue) => {
+      const newest = written(issue) ? refinementSpec(issue.comments.nodes, laneAppId) : undefined;
+      const refinement = Date.parse(newest?.createdAt ?? "") < Date.parse(pullRequest.createdAt ?? "") ? newest : undefined;
+      return {
+        number: issue.number,
+        spec_kind: named !== null ? "refs" : "closes",
+        body: written(issue) && typeof issue.body === "string" ? issue.body : null,
+        comments: issue.comments.nodes.filter((comment) => written(comment) || comment === refinement).map((comment) => String(comment.body ?? "")),
+      };
+    }),
   };
 }
 
-export async function resolvePull({ github, readRefs = github, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, ownerIds: owners = [], specFromBodyApps = [] }) {
+export async function resolvePull({ github, readRefs = github, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, ownerIds: owners = [], specFromBodyApps = [] }) {
   const skip = (reason) => ({ proceed: false, reason });
   if (!RUN_ID.test(String(upstreamRunId))) {
     throw new Error("the upstream run id is not a run id");
@@ -387,7 +401,7 @@ export async function resolvePull({ github, readRefs = github, repository, upstr
     return skip("already-judged");
   }
   // This PR's FAIL is named with the issues it records, read only now.
-  const specRead = await linkedIssues(github, readRefs, repository, pull.number, humans);
+  const specRead = await linkedIssues(github, readRefs, repository, pull.number, humans, laneAppId);
   const issues = specRead.linkedIssues.map((issue) => issue.number);
   if ((await judged({ github, repository, number: pull.number, head, base, refs, issues })).fail) {
     return skip("already-judged");
@@ -458,6 +472,8 @@ export async function main(env = process.env, { github, fetchImpl } = {}) {
     // pr-verify.yml reads both from main's pr-pipeline.yaml; unset is `lane`.
     verifyAuthors: env.VERIFY_AUTHORS ?? "lane",
     laneIdentity: env.LANE_IDENTITY,
+    // The lanes App's id: merge.agent-identity's entry on the trusted list.
+    laneAppId: trusted.logins.get(String(env.LANE_IDENTITY ?? "").toLowerCase()),
     ownerIds: [...trusted.ids],
     specFromBodyApps: specFromBodyApps(env.SPEC_FROM_BODY_APPS),
   });
