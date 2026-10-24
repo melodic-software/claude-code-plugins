@@ -56,7 +56,7 @@ function pr(number, { checks = [lanes("FAILURE")], ...overrides } = {}) {
   };
 }
 
-function fakeApi({ pages = [[]], cost = 1, workflowRuns = [], failDispatch = new Set(), runIds = new Map(), requiredRuns = new Map() } = {}) {
+function fakeApi({ pages = [[]], cost = 1, workflowRuns = [], failDispatch = new Set(), runIds = new Map(), requiredRuns = new Map(), baseCommittedAt } = {}) {
   const calls = { list: 0, runs: 0, dispatch: [], jobs: [], paths: [] };
   return {
     calls,
@@ -78,6 +78,7 @@ function fakeApi({ pages = [[]], cost = 1, workflowRuns = [], failDispatch = new
       return {
         rateLimit: { cost, remaining: 4990 },
         pullRequests: { nodes: pages[index], pageInfo: { hasNextPage: index + 1 < pages.length, endCursor: String(index + 1) } },
+        baseCommittedAt,
       };
     },
     async listWorkflowRuns() {
@@ -182,6 +183,53 @@ test("a head that already has a fix-ci run is skipped, unless every run failed w
     result.dispatched.map((d) => d.number),
     [4, 6, 7],
   );
+});
+
+// A head's fix-ci runs that failed or found nothing to fix count toward
+// fix-ci-restarts only on the base they ran against: once the base tip moves
+// past them the head is dispatched again, until limit-stops-per-head (3) such
+// runs stand on it. A new head carries none of the old head's runs.
+test("a new base dispatches a failed or not-applicable head again, within the per-head cap", async () => {
+  const BASE_AT = "2026-10-22T11:00:00Z";
+  const before = { completedAt: "2026-10-22T10:00:00Z" };
+  const after = { completedAt: "2026-10-22T11:30:00Z" };
+  const fix = (conclusion, extra) => check("pr-unblock / fix-ci", conclusion, extra);
+  const notApplicable = (extra) => fix("NEUTRAL", { title: "Skipped: not-applicable", ...extra });
+  const failed = lanes("FAILURE");
+  const { api, result } = await run(
+    {
+      pages: [
+        [
+          pr(1, { checks: [failed, notApplicable(before)] }),
+          pr(2, { checks: [failed, notApplicable(after)] }),
+          pr(3, { checks: [failed, fix("FAILURE", before), fix("FAILURE", before)] }),
+          pr(4, { checks: [failed, fix("FAILURE", after), fix("FAILURE", after)] }),
+          pr(5, { checks: [failed, fix("FAILURE", before), fix("FAILURE", before), notApplicable(before)] }),
+          pr(6, { checks: [failed, fix("SUCCESS", before)] }),
+          pr(7, { checks: [failed] }),
+        ],
+      ],
+      baseCommittedAt: BASE_AT,
+    },
+    { maxDispatch: 10 },
+  );
+  assert.deepEqual(result.dispatched.map((d) => d.number), [1, 3, 7]);
+  assert.equal(api.calls.list, 1, "the base tip comes with the listing");
+});
+
+test("many base moves on one unchanged head dispatch it at most three times", async () => {
+  const fix = (completedAt) => check("pr-unblock / fix-ci", "NEUTRAL", { title: "Skipped: not-applicable", completedAt });
+  const runs = [];
+  let dispatches = 0;
+  for (let hour = 1; hour <= 10; hour += 1) {
+    const base = `2026-10-22T${String(hour).padStart(2, "0")}:00:00Z`;
+    const { result } = await run({ pages: [[pr(9, { checks: [lanes("FAILURE"), ...runs] })]], baseCommittedAt: base });
+    if (result.dispatched.length > 0) {
+      dispatches += 1;
+      runs.push(fix(`2026-10-22T${String(hour).padStart(2, "0")}:30:00Z`));
+    }
+  }
+  assert.equal(dispatches, 3);
 });
 
 test("a restart count of 0 never dispatches a head again", async () => {
@@ -359,13 +407,21 @@ test("the adapter sends one query naming the PR, its last commit's check rollup 
     fetch: async (url, init) => {
       requests.push({ url, body: JSON.parse(init.body) });
       return new Response(
-        JSON.stringify({ data: { rateLimit: { cost: 4, remaining: 9 }, repository: { pullRequests: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } }),
+        JSON.stringify({
+          data: {
+            rateLimit: { cost: 4, remaining: 9 },
+            repository: { ref: { target: { committedDate: "2026-10-22T11:00:00Z" } }, pullRequests: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } },
+          },
+        }),
         { status: 200 },
       );
     },
   });
   const page = await api.listCiFixCandidates({ base: "main" });
   assert.equal(page.rateLimit.cost, 4);
+  assert.equal(page.baseCommittedAt, "2026-10-22T11:00:00Z");
+  assert.ok(LIST_QUERY.includes("ref(qualifiedName: $base) { target { ... on Commit { committedDate } } }"));
+  assert.ok(LIST_QUERY.includes("title completedAt checkSuite"));
   assert.equal(requests.length, 1);
   assert.equal(requests[0].url, "https://api.example/graphql");
   assert.equal(requests[0].body.query, LIST_QUERY);

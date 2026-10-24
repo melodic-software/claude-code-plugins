@@ -299,7 +299,7 @@ export function createGitHubApi({
     // fix-ci-dispatch.mjs's listing: one query per page, with its cost.
     async listCiFixCandidates({ base, after }) {
       const data = await graphql(CI_FIX_QUERY, { owner, name, base, after: after ?? null });
-      return { rateLimit: data.rateLimit, pullRequests: data.repository.pullRequests };
+      return { rateLimit: data.rateLimit, pullRequests: data.repository.pullRequests, baseCommittedAt: data.repository.ref?.target?.committedDate };
     },
     // fix-docs-dispatch.mjs's listing and its per-PR check-run history.
     async listDocsFixCandidates({ base, after }) {
@@ -531,6 +531,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
       appSenderId: Number(env.APP_SENDER_ID),
       maxDispatch: limits["fix-ci-per-run"] ?? 2,
       restarts: limits["fix-ci-restarts"] ?? 1,
+      maxRunsPerHead: limits["limit-stops-per-head"] ?? CI_FIX_DEFAULTS.maxRunsPerHead,
       adoption: { ownerIds, idleHours: adoption["idle-hours"], held: ownersHeld },
       holdLabels,
       now,

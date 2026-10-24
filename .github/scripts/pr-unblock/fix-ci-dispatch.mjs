@@ -11,10 +11,13 @@
 // The listing is one GraphQL query per page of 50 pull requests: each one's
 // author, labels, body, last update, and its last commit's date and check
 // rollup. Its rateLimit.cost
-// is logged, the baseline for what the listing spends. A head is dispatched
-// when it has no pr-unblock / fix-ci check run from the GitHub Actions app,
-// or when every such run failed and there are at most `fix-ci-restarts` of
-// them; at most `fix-ci-per-run` per dispatcher run, lowest PR number first.
+// is logged, the baseline for what the listing spends; the same query reads
+// when the base tip was committed. A head is dispatched when it has no
+// pr-unblock / fix-ci check run from the GitHub Actions app, or when every
+// such run failed or found no failing check, fewer than
+// `limit-stops-per-head` of them stand on it, and since the base tip at most
+// `fix-ci-restarts` failed and none found nothing; at most `fix-ci-per-run`
+// per dispatcher run, lowest PR number first.
 // A head whose lanes passed but whose pr-test-windows run failed is a
 // candidate too. A head is skipped while the lost-run reconciler still re-runs
 // its failed run (infra-failure.mjs reconcilerOwns: an infra-only failure for
@@ -41,7 +44,14 @@ export const DEFAULTS = Object.freeze({
   holdLabels: Object.freeze(["do-not-merge", "needs-human"]),
   // No owner is adopted unless the config lists one.
   adoption: Object.freeze({ ownerIds: Object.freeze([]), idleHours: 24 }),
+  // Failed or not-applicable fix-ci runs one head gets across base moves:
+  // limits.limit-stops-per-head's default, which dispatch.mjs passes resolved.
+  maxRunsPerHead: 3,
 });
+
+// The neutral check fix-ci-not-run posts when fix-ci-context found no failing
+// check to fix (report-check-run's `Skipped: <reason>` title).
+const NOT_APPLICABLE = "Skipped: not-applicable";
 
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
 const MAX_PAGES = 20;
@@ -64,6 +74,7 @@ export function humanGatedLabel(text) {
 export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!, $after: String) {
   rateLimit { cost remaining }
   repository(owner: $owner, name: $name) {
+    ref(qualifiedName: $base) { target { ... on Commit { committedDate } } }
     pullRequests(states: OPEN, baseRefName: $base, first: 50, after: $after) {
       nodes {
         number isDraft isCrossRepository baseRefName headRefOid updatedAt body
@@ -77,7 +88,7 @@ export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!
                 contexts(first: 100) {
                   nodes {
                     __typename
-                    ... on CheckRun { name status conclusion title checkSuite { app { databaseId } } }
+                    ... on CheckRun { name status conclusion title completedAt checkSuite { app { databaseId } } }
                     ... on StatusContext { context state creator { login } }
                   }
                   pageInfo { hasNextPage }
@@ -134,7 +145,10 @@ const advisoryFailed = (node, checks, checkName) =>
   checks.some((run) => run.name !== checkName && run.name !== "ci-status" && run.status === "COMPLETED" && run.conclusion === "FAILURE");
 
 // Why a listed PR is not dispatched, or "" when it is a candidate.
-export function skipReason(node, { base, appSenderId, actionsAppId, checkName, holdLabels, restarts, adoption = DEFAULTS.adoption, now = Date.now() }) {
+export function skipReason(
+  node,
+  { base, appSenderId, actionsAppId, checkName, holdLabels, restarts, maxRunsPerHead = DEFAULTS.maxRunsPerHead, baseAt = NaN, adoption = DEFAULTS.adoption, now = Date.now() },
+) {
   if (node.isDraft !== false || node.isCrossRepository !== false || node.baseRefName !== base) {
     return "not a ready same-repository PR into the base";
   }
@@ -185,10 +199,22 @@ export function skipReason(node, { base, appSenderId, actionsAppId, checkName, h
   if (runs.length === 0) {
     return "";
   }
-  if (runs.some((run) => run.status !== "COMPLETED" || run.conclusion !== "FAILURE")) {
+  // A run that failed or found no failing check to fix may be retried; any
+  // other run (going, pushed a fix, escalated) handles the head.
+  const retryable = (run) => run.status === "COMPLETED" && (run.conclusion === "FAILURE" || (run.conclusion === "NEUTRAL" && run.title === NOT_APPLICABLE));
+  if (!runs.every(retryable)) {
     return `head already has a ${checkName} check run`;
   }
-  return runs.length <= restarts ? "" : `head's ${checkName} failed ${runs.length} time(s), past ${restarts} restart(s)`;
+  if (runs.length >= maxRunsPerHead) {
+    return `head's ${checkName} ran ${runs.length} time(s), the most one head gets`;
+  }
+  // Only a run on the current base tip counts: one that ended before the tip
+  // was committed ran against an older base (an unreadable time counts).
+  const current = runs.filter((run) => !(Date.parse(run.completedAt ?? "") < baseAt));
+  if (current.some((run) => run.conclusion !== "FAILURE")) {
+    return `head's ${checkName} found no failing check on this base`;
+  }
+  return current.length <= restarts ? "" : `head's ${checkName} failed ${current.length} time(s) on this base, past ${restarts} restart(s)`;
 }
 
 export async function dispatchCiFixes({
@@ -198,6 +224,7 @@ export async function dispatchCiFixes({
   appSenderId,
   maxDispatch,
   restarts,
+  maxRunsPerHead = DEFAULTS.maxRunsPerHead,
   base = DEFAULTS.base,
   workflow = DEFAULTS.workflow,
   activity = DEFAULTS.activity,
@@ -212,11 +239,15 @@ export async function dispatchCiFixes({
   }
   const candidates = [];
   let after;
+  // When the base tip was committed, from the first page: a fix-ci run that
+  // ended before it ran against an older base.
+  let baseAt;
   for (let page = 1; ; page += 1) {
-    const { rateLimit, pullRequests } = await api.listCiFixCandidates({ base, after });
+    const { rateLimit, pullRequests, baseCommittedAt } = await api.listCiFixCandidates({ base, after });
     log(`fix-ci listing page ${page}: rateLimit.cost=${rateLimit?.cost} remaining=${rateLimit?.remaining}`);
+    baseAt ??= Date.parse(baseCommittedAt ?? "");
     for (const node of pullRequests.nodes) {
-      if (skipReason(node, { base, appSenderId, actionsAppId, checkName, holdLabels, restarts, adoption, now }) === "") {
+      if (skipReason(node, { base, appSenderId, actionsAppId, checkName, holdLabels, restarts, maxRunsPerHead, baseAt, adoption, now }) === "") {
         candidates.push(node);
       }
     }
@@ -266,7 +297,7 @@ export async function dispatchCiFixes({
       log(`::warning::#${node.number}: could not read its required run's jobs (${error.message}); left for a later run`);
       continue;
     }
-    const reason = skipReason({ ...node, requiredRun }, { base, appSenderId, actionsAppId, checkName, holdLabels, restarts, adoption, now });
+    const reason = skipReason({ ...node, requiredRun }, { base, appSenderId, actionsAppId, checkName, holdLabels, restarts, maxRunsPerHead, baseAt, adoption, now });
     if (reason !== "") {
       log(`skip fix-ci #${node.number}: ${reason}`);
       continue;
