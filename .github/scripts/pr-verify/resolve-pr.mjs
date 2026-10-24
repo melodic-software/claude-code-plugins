@@ -28,7 +28,7 @@
 // DEPENDENCY_MANAGERS, isDependencyManager and countedBy in step with the gate.
 // It also writes the PR's closing issues, or, when it closes none, the one
 // issue its body's `Refs:` lines name (refsIssue), with their authors and last
-// body editors to SPEC_FILE, and the spec text `specTrust` keeps to
+// body editors to SPEC_FILE, and the spec text trusted humans wrote to
 // SPEC_TEXT_FILE (linkedIssues).
 // The head SHA is the run's, never the PR's live head.
 
@@ -44,7 +44,6 @@ import {
 } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { headRefDigest, issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { refsIssue } from "../pr-merge/merge-holds.mjs";
-import { REFINE_MARKER } from "../intake-triage/admit.mjs";
 
 export { refsIssue };
 
@@ -69,7 +68,7 @@ const ACTOR = "fragment actor on Actor { __typename login ... on User { database
 const SPEC_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      body createdAt lastEditedAt editor { ...actor }
+      body lastEditedAt editor { ...actor }
       closingIssuesReferences(first: 10) {
         totalCount
         nodes {
@@ -265,49 +264,21 @@ export function specChanged(passStarts, { linkedIssues: issues, specKind, bodyEd
   return !passStarts.some((start) => Date.parse(start ?? "") > changed);
 }
 
-// Which spec text counts (babysit_verify_evidence `_trusted_spec` and
-// `_spec_comments` are its twins). A trusted human is a User on the trusted
-// list's humans, the PR author included. The lanes App (`laneIdentity`, a Bot
-// matched by login as laneAuthored is) counts for two texts: an issue body it
-// filed, with a lower number than the pull request, and never edited since
-// but by a trusted human; and a comment opening with REFINE_MARKER, intake
-// triage's refinement, last updated before the pull request was created. The
-// resolve run that wrote the diff holds no write token, and report-outcome's
-// issue comments open with their own marker, so neither is text it wrote. No
-// lane script edits an issue body as the App, so an App body edit is left
-// out. Every other Bot or App, github-actions included, and every unlisted
-// User is left out.
-export function specTrust({ humans, laneIdentity, prNumber, prCreatedAt }) {
-  const human = (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
-  const app = (actor) => laneAuthored({ type: actor?.__typename, login: actor?.login }, laneIdentity);
-  const created = Date.parse(prCreatedAt ?? "");
-  const before = (time) => Date.parse(time ?? "") < created;
-  return {
-    body: (issue) =>
-      (human(issue?.author) || (app(issue?.author) && Number.isSafeInteger(prNumber) && issue.number < prNumber)) &&
-      (issue.lastEditedAt == null || human(issue.editor)),
-    comment: (comment) =>
-      (human(comment?.author) && (comment.lastEditedAt == null || human(comment.editor))) ||
-      (app(comment?.author) &&
-        String(comment.body ?? "").startsWith(REFINE_MARKER) &&
-        before(comment.updatedAt) &&
-        (comment.lastEditedAt == null || human(comment.editor) || app(comment.editor))),
-  };
-}
-
 // The closing issues in this repository, or, when the pull request closes
 // none, the one issue its `Refs:` lines name (refsIssue), with their authors
-// and last body editors (`linkedIssues`), and the spec text `specTrust`
-// keeps (`specText`), even where select-trusted-text keeps more.
-async function linkedIssues(github, readRefs, repository, number, humans, laneIdentity) {
+// and last body editors (`linkedIssues`), and the spec text: each body and comment written,
+// and last edited if ever, by a User on the trusted list's humans, the PR
+// author included (`specText`). Bots and Apps, the lanes App among them, are
+// left out even where select-trusted-text keeps them.
+async function linkedIssues(github, readRefs, repository, number, humans) {
   const [owner, name] = repository.split("/");
   const data = await github("POST", "/graphql", { query: SPEC_QUERY, variables: { owner, name, number } });
   const refs = data?.data?.repository?.pullRequest?.closingIssuesReferences;
   if (!refs || !Array.isArray(refs.nodes) || refs.totalCount !== refs.nodes.length) {
     throw new Error(`#${number}: the closing issues could not be read`);
   }
-  const trust = specTrust({ humans, laneIdentity, prNumber: number, prCreatedAt: data.data.repository.pullRequest.createdAt });
-  const written = trust.comment;
+  const trusted = (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
+  const written = (item) => trusted(item?.author) && (item.lastEditedAt == null || trusted(item.editor));
   let nodes = refs.nodes;
   const named = refs.totalCount === 0 ? refsIssue(data.data.repository.pullRequest.body) : null;
   if (named !== null) {
@@ -351,7 +322,7 @@ async function linkedIssues(github, readRefs, repository, number, humans, laneId
     specText: issues.map((issue) => ({
       number: issue.number,
       spec_kind: named !== null ? "refs" : "closes",
-      body: trust.body(issue) && typeof issue.body === "string" ? issue.body : null,
+      body: written(issue) && typeof issue.body === "string" ? issue.body : null,
       comments: issue.comments.nodes.filter(written).map((comment) => String(comment.body ?? "")),
     })),
   };
@@ -416,7 +387,7 @@ export async function resolvePull({ github, readRefs = github, repository, upstr
     return skip("already-judged");
   }
   // This PR's FAIL is named with the issues it records, read only now.
-  const specRead = await linkedIssues(github, readRefs, repository, pull.number, humans, laneIdentity);
+  const specRead = await linkedIssues(github, readRefs, repository, pull.number, humans);
   const issues = specRead.linkedIssues.map((issue) => issue.number);
   if ((await judged({ github, repository, number: pull.number, head, base, refs, issues })).fail) {
     return skip("already-judged");

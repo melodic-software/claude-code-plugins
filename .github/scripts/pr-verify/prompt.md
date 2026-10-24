@@ -19,8 +19,7 @@ denied, and a denied read voids the verdict:
   issue a `Refs: #<n>` line of its body names, with its author's and last body editor's login, id
   and account type (`User` or `Bot`).
 - `SPEC_TEXT_FILE`: JSON with each of those issues' `body` and `comments` written, and last edited
-  if ever, by a trusted human, the pull request's author included, or by the lanes App before the
-  pull request existed: an issue it filed, or the criteria intake triage drafted for the issue. When the pull request links
+  if ever, by a trusted human, the pull request's author included. When the pull request links
   no issue and a trusted person or a script wrote its title and body, the file instead holds one
   entry with `source` `pull-request`: that title and body. Each entry's `spec_kind` says how it
   is linked: `closes` (an issue the pull request closes), `refs` (the one issue a `Refs:` line

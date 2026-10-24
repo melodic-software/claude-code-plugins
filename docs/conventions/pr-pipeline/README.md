@@ -1421,15 +1421,9 @@ like any other code; a change to the takeover set (the merge gate's HIGH floor) 
 the spec says. `any` judges every author's. Any other
 value judges none (`verify-authors-invalid`). The trusted-spec rule below does not depend on who
 opened the pull request: a spec written by a trusted human counts, so an adopted owner pull
-request whose closing issue the owner wrote is judged against that issue as its spec. Text the
-lanes App wrote before the pull request existed counts too, since a filing or intake-triage step
-wrote it rather than the run that wrote the diff, which holds no write token: an issue body it
-filed (a lower number than the pull request) and edited since, if ever, only by a trusted human,
-and intake triage's refinement comment (opening with refine.mjs's marker) last updated before the
-pull request was created. An issue body the lanes App edited (no lane script does), anything it
-wrote after the pull request, any other Bot's or App's text, `github-actions` included, and text
-an untrusted account wrote or last edited still read `verify:untrusted-spec` or are left out, so a
-lane pull request never supplies its own spec.
+request whose closing issue the owner wrote is judged against that issue as its spec. A spec the
+lanes App or any other Bot or App wrote, or one an untrusted account wrote or last edited, still
+reads `verify:untrusted-spec`, so a lane pull request never supplies its own spec.
 
 A trusted edit to the spec after a pass, an issue body edit or a spec comment added or edited,
 makes the gate refuse that pass `verify:spec-changed`. The resolver then judges the head again:

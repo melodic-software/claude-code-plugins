@@ -17,7 +17,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { REFINE_MARKER } from "../intake-triage/admit.mjs";
 import { main, resolvePull } from "./resolve-pr.mjs";
 
 const REPO = "example-org/example-repo";
@@ -48,9 +47,7 @@ const LINKED = {
 };
 const HUMANS = new Set([100]);
 const LANE = "melodic-automation-lanes[bot]";
-// The fake pull request's creation, and a verify run's start after it and
-// after every edit the fixtures below make.
-const PR_CREATED = "2026-10-20T00:00:00Z";
+// A verify run's start, after every edit the fixtures below make.
 const JUDGED_AT = "2026-10-21T00:00:00Z";
 
 const upstream = (overrides = {}) => ({
@@ -94,7 +91,7 @@ const verifyRun = (id, overrides = {}) => ({
 
 const artifact = (name, runId, expired = false) => ({ name, expired, workflow_run: { id: runId } });
 
-function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, createdAt = PR_CREATED, restFails = false, associated = [], body: prBody = null, refs = {}, queries = [] } = {}) {
+function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, onMain = [MAIN], issues = [ISSUE], edit = { lastEditedAt: null, editor: null }, restFails = false, associated = [], body: prBody = null, refs = {}, queries = [] } = {}) {
   const github = async (method, apiPath, body) => {
     if (apiPath === `/repos/${REPO}/actions/runs/${RUN}`) return run;
     const listed = /\/commits\/([0-9a-f]+)\/pulls\?per_page=100&page=(\d+)$/.exec(apiPath);
@@ -115,7 +112,7 @@ function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, o
       return refs[n]?.answer ?? { data: { repository: { issueOrPullRequest: refs[n] } } };
     }
     if (apiPath === "/graphql") {
-      return { data: { repository: { pullRequest: { ...edit, createdAt, body: prBody, closingIssuesReferences: { totalCount: issues.length, nodes: issues } } } } };
+      return { data: { repository: { pullRequest: { ...edit, body: prBody, closingIssuesReferences: { totalCount: issues.length, nodes: issues } } } } };
     }
     const named = /\/actions\/artifacts\?name=([^&]+)&per_page=100&page=(\d+)$/.exec(apiPath);
     if (named) {
@@ -663,21 +660,8 @@ test("the spec text keeps only what trusted humans wrote and last edited", async
   assert.equal((await resolve({ issues: [editedBody] })).specText[0].body, null, "a body the lanes App last edited");
   const byAuthor = (await resolve(byMaintainer, { verifyAuthors: "any" })).specText[0];
   assert.deepEqual(byAuthor, { number: 7, spec_kind: "closes", body: "the spec", comments: ["kept", "edited by the human"] }, "a trusted PR author's own text");
-  // Issue 7 predates pull request 41, so the lanes App filed it before the run.
   const lanesIssue = { ...issue, author: lanes };
-  assert.equal((await resolve({ issues: [lanesIssue] })).specText[0].body, "the spec", "an issue the lanes App filed before the PR");
-  const lanesLater = { ...lanesIssue, number: 42 };
-  assert.equal((await resolve({ issues: [lanesLater] })).specText[0].body, null, "an issue the lanes App filed after the PR");
-  const lanesEdited = { ...lanesIssue, lastEditedAt: "2026-10-14T00:00:00Z" };
-  assert.equal((await resolve({ issues: [{ ...lanesEdited, editor: lanes }] })).specText[0].body, null, "the lanes App's issue it edited");
-  assert.equal((await resolve({ issues: [{ ...lanesEdited, editor: human }] })).specText[0].body, "the spec", "the lanes App's issue a listed human edited");
-  for (const [label, author] of [
-    ["github-actions", { __typename: "Bot", login: "github-actions", databaseId: 41898282 }],
-    ["another App", { __typename: "Bot", login: "some-other-app", databaseId: 5 }],
-    ["a User named like the lanes App", { ...lanes, __typename: "User" }],
-  ]) {
-    assert.equal((await resolve({ issues: [{ ...issue, author }] })).specText[0].body, null, label);
-  }
+  assert.equal((await resolve({ issues: [lanesIssue] })).specText[0].body, null, "an issue the lanes App wrote");
   const strangerIssue = { ...issue, author: stranger, comments: { totalCount: 1, nodes: [comment("by the stranger", stranger)] } };
   const byStranger = { issues: [strangerIssue], pulls: [pull({ user: { id: 999, login: "stranger", type: "User" } })] };
   assert.deepEqual(
@@ -685,28 +669,6 @@ test("the spec text keeps only what trusted humans wrote and last edited", async
     { number: 7, spec_kind: "closes", body: null, comments: [] },
     "an untrusted PR author's own text",
   );
-});
-
-test("intake triage's refinement comment is spec only when the lanes App posted it before the pull request", async () => {
-  // refine.mjs posts the drafted criteria as the lanes App, opening with its marker.
-  const lanes = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };
-  const other = { __typename: "Bot", login: "github-actions", databaseId: 41898282 };
-  const refined = `${REFINE_MARKER}\n- [ ] the criterion`;
-  const cases = [
-    ["before the PR", { author: lanes, updatedAt: "2026-10-19T00:00:00Z" }, true],
-    ["edited by a listed human", { author: lanes, updatedAt: "2026-10-19T00:00:00Z", lastEditedAt: "2026-10-19T00:00:00Z", editor: { __typename: "User", login: "maintainer", databaseId: 100 } }, true],
-    ["updated after the PR was created", { author: lanes, updatedAt: "2026-10-20T00:00:01Z" }, false],
-    ["without the marker", { author: lanes, updatedAt: "2026-10-19T00:00:00Z", body: "- [ ] the criterion" }, false],
-    ["with the marker mid-body", { author: lanes, updatedAt: "2026-10-19T00:00:00Z", body: `note\n${refined}` }, false],
-    ["by another App", { author: other, updatedAt: "2026-10-19T00:00:00Z" }, false],
-    ["edited by another App", { author: lanes, updatedAt: "2026-10-19T00:00:00Z", lastEditedAt: "2026-10-19T00:00:00Z", editor: other }, false],
-  ];
-  for (const [label, fields, kept] of cases) {
-    const comment = { databaseId: 9, body: refined, lastEditedAt: null, editor: null, ...fields };
-    const result = await resolve({ issues: [{ ...ISSUE, comments: { totalCount: 1, nodes: [comment] } }] });
-    assert.deepEqual(result.specText[0].comments, kept ? [comment.body] : [], label);
-    assert.deepEqual(result.linkedIssues[0].spec_comments, kept ? [{ id: 9, updated_at: comment.updatedAt }] : [], label);
-  }
 });
 
 test("a pass judged before the spec last changed is judged again at the same head", async () => {

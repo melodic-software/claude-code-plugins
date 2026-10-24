@@ -4,4 +4,4 @@ bump: patch
 
 ### Changed
 
-- The merge gate's verifier reader (`babysit_verify_evidence.py`) trusts the lanes App's spec text from before the pull request existed, as `resolve-pr.mjs` does: an issue it filed with a lower number than the pull request, edited since only by a trusted human, and intake triage's refinement comment from before the pull request was created. `Reader.agent_identity` carries `merge.agent-identity`; with none set (the `evidence` command without `--base-sha`) no App is trusted. Among several passes at the head, those of the pr-verify run that started last decide, as `resolve-pr.mjs` weighs them, so a pass judged again after a spec change replaces the stale one.
+- Among several pr-verify passes at the head, the merge gate's verifier reader (`babysit_verify_evidence.py`) now decides on those of the run that started last, as `resolve-pr.mjs` weighs them, so a pass judged again after a spec change replaces the stale one. Spec trust is unchanged; trusting lanes App spec text is held for an owner decision.
