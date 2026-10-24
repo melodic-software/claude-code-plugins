@@ -84,6 +84,11 @@ only"), so `[intake]` inherits that exclusion and this lane re-derives nothing f
 exception: a telemetry issue carrying a `kind=ratify-first-drain` marker from a trusted escalation
 author while it wears the human-gated role label is a `[ratify]` row, since that issue is where
 a worker loop asks to end its first-drain period. No other marker kind lists a telemetry issue.
+A `[ratify]` row from a lanes App marker, of either ratify kind, only prompts the operator. The
+operator's own ratification in this session ratifies, never an App comment. Who may end the
+period and what counts as ratification are owned by the work-loop references
+([`first-drain-ratification.md`](${CLAUDE_PLUGIN_ROOT}/skills/work-loop/reference/first-drain-ratification.md),
+[`c3-ratification-queue.md`](${CLAUDE_PLUGIN_ROOT}/skills/work-loop/reference/c3-ratification-queue.md)).
 
 Present the merged table with one-line summaries, then work rows in the operator's chosen order
 (default: oldest first, `[ratify]` rows before `[escalated]` before `[intake]` at equal age,
