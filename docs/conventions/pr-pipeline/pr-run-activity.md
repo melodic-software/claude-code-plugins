@@ -1040,7 +1040,11 @@ lane cited, at most ten (never its note), and those files at the select job's he
 the contents API, each up to 200 KiB and staged with a `.txt` suffix so a cited `CLAUDE.md` or
 `.claude/**` file is never loaded as instructions. A thread a trusted person directed (a fix
 request, or a reply after an escalation) stays theirs: an `INCORRECT` reply on it escalates
-`feedback-disputed` with no adjudication. Each thread gets one fresh
+`feedback-disputed` with no adjudication. Only a finding a verifier note opened, or a review
+comment whose footer names the code-review lane (`claude-lane: claude-review`), is adjudicated: a
+security-review finding, or one whose lane its root comment does not name, always goes to a
+person, so an `INCORRECT` reply on it escalates `feedback-disputed`, takes no slot, and any verdict
+for it is ignored. Each thread gets one fresh
 `run-claude-cli` call, after `apply-claude-managed-settings` and runner isolation, on the
 pr-unblock API key (`PR_UNBLOCK_CLAUDE_API_KEY`), under `dontAsk` with Read alone, `Read(./adjudicate/**)` the one allow rule, Read
 denied on the base checkout and the runner's temp directory (which holds the lane's replies and

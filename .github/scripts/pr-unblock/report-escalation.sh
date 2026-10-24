@@ -76,7 +76,7 @@ case ${ESCALATION_REASON:-} in
   feedback-invalid) why='the review replies the lane recorded did not pass validation, so none was posted' ;;
   feedback-partial) why='posting the review replies stopped partway, or a fixed thread could not be resolved, so a person finishes them' ;;
   feedback-incomplete) why='the lane did not record a disposition for every review thread it kept, so none was posted' ;;
-  feedback-disputed) why='an adjudicator found that a disputed review finding stands, and the next round left it open again, so a person decides that thread' ;;
+  feedback-disputed) why='a disputed review finding is one only a person decides (a security-review finding, a thread a person directed, or one an adjudicator found stands and the next round left open again)' ;;
   feedback-unadjudicated) why='the lane replied with evidence that a review finding is incorrect, and no adjudicator verdict on that thread was recorded, so a person decides it' ;;
   feedback-question-intent) why='an adjudicator found that a disputed review finding turns on what the change is meant to do, which a person decides' ;;
   feedback-question-design) why='an adjudicator found that a disputed review finding turns on a design choice, which a person decides' ;;

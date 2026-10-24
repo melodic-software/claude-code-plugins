@@ -140,6 +140,43 @@ test(`disputes adjudicates at most ${MAX_THREADS} threads and names the rest`, (
   assert.deepEqual(over, ["PRRT_d"]);
 });
 
+// A security-review finding always goes to a person, and so does a finding
+// whose lane its root comment does not name; neither takes a slot.
+const securityThread = (id) => thread(id, [{ id: 1, author: "reviewer", body: SECURITY }]);
+const unnamedThread = (id) => thread(id, [{ id: 1, author: "reviewer", body: "The guard is missing." }]);
+
+test("disputes never adjudicates a security-review finding or one of unknown lane, and they take no slot", () => {
+  const ids = ["PRRT_s", "PRRT_u", "PRRT_a", "PRRT_b", "PRRT_c", "PRRT_d"];
+  const file = fileOf(securityThread("PRRT_s"), unnamedThread("PRRT_u"), ...ids.slice(2).map((id) => thread(id)));
+  const { slots, over } = disputes(file, ids.map((id) => incorrect(id)).join("\n"));
+  assert.deepEqual(slots.map((slot) => slot.thread), ["PRRT_a", "PRRT_b", "PRRT_c"]);
+  assert.deepEqual(over, ["PRRT_d"]);
+  const [note] = noteComments({ head: HEAD, summary: "s", notes: ["lib/install.mjs:4 x"], files: ["lib/install.mjs"] });
+  assert.deepEqual(disputes(fileOf(thread("PRRT_v", [{ id: 1, author: "verifier", body: note.body }])), incorrect("PRRT_v")).slots.map((slot) => slot.thread), ["PRRT_v"]);
+});
+
+test("settleDisputes sends an INCORRECT reply on a security-review or unknown-lane thread to a person, whatever verdict arrived", async () => {
+  const api = new Proxy({}, { get: (_, name) => () => assert.fail(`no API call expected, got ${String(name)}`) });
+  for (const now of [new Map([["PRRT_a", securityThread("PRRT_a")]]), new Map([["PRRT_a", unnamedThread("PRRT_a")]]), new Map()]) {
+    const result = await settleDisputes({
+      api,
+      pr: 42,
+      adjudicatedSha: HEAD,
+      posted: [{ thread: "PRRT_a", disposition: "INCORRECT" }],
+      replies: [],
+      shown: new Map([["PRRT_a", { comment_ids: [1, 2] }]]),
+      now,
+      verdicts: new Map([["PRRT_a", { verdict: "lane", question: "none" }]]),
+      pushed: false,
+      headMoved: async () => false,
+      resolveAfterReply: async () => assert.fail("not resolved"),
+      escalationReason: "",
+      log: () => {},
+    });
+    assert.deepEqual(result, { escalationReason: "feedback-disputed", skipReason: "" });
+  }
+});
+
 test("prepare writes one slot per dispute with the files at the head, and refuses another head's thread file", async (t) => {
   const dir = mkdtempSync(join(tmpdir(), "adjudicate-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));

@@ -10,8 +10,9 @@
 //            with the job's read-only token, before any model turn: reads the
 //            select job's threads.json and the scan job's replies.jsonl, each
 //            checked against the SHA-256 its writer recorded, and for each
-//            INCORRECT reply on a thread no adjudication has stood before and
-//            no trusted person directed (up to MAX_THREADS) writes
+//            INCORRECT reply on an adjudicable thread no adjudication has
+//            stood before and no trusted person directed (up to MAX_THREADS)
+//            writes
 //            <OUT_DIR>/<slot>/: finding.json (path, line, head, and the
 //            claim: the review comment's first paragraph, with its severity
 //            line), evidence.json (the cited path:line list, never the
@@ -32,7 +33,7 @@ import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, writeFi
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { createGitHubApi, FINDING_STANDS, need, SHA, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
+import { createGitHubApi, FINDING_STANDS, laneOf, need, SHA, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 
 // The most disputed threads one round adjudicates: pr-unblock.yml runs one
 // model step per slot. A thread past it is not adjudicated, and the round
@@ -68,6 +69,15 @@ export const stood = (comments) => (comments ?? []).some((comment) => comment.au
 // it): their call outranks an adjudicator's, so such a thread is never
 // adjudicated.
 export const directed = (comments) => (comments ?? []).some((comment) => comment.direction === true);
+
+// Whether an adjudicator may judge a dispute on the thread: only one a
+// pr-verify verifier note opened, or a review comment whose footer names the
+// code-review lane. A security-review finding, and one whose lane its root
+// comment does not name, always goes to a person.
+export const adjudicable = (comments) => {
+  const root = comments?.[0];
+  return root?.author === "verifier" || (root?.author === "reviewer" && laneOf(root.body) === "claude-review");
+};
 
 // The review comment's claim, without its rationale: a leading `severity:`
 // line, then the first paragraph after it, cut at CLAIM_CHARS. The repro,
@@ -116,8 +126,8 @@ function readChecked(path, expected, what) {
 }
 
 // The slots to adjudicate: each INCORRECT reply whose thread the select job
-// kept, no adjudication has stood and no trusted person directed, in reply
-// order, one slot per thread. Returns [{thread, finding, evidence, paths}] and
+// kept, is adjudicable, no adjudication has stood and no trusted person
+// directed, in reply order, one slot per thread. Returns [{thread, finding, evidence, paths}] and
 // the threads past MAX_THREADS.
 export function disputes(threadFile, repliesText) {
   const kept = new Map((threadFile.threads ?? []).map((thread) => [thread.id, thread]));
@@ -127,7 +137,7 @@ export function disputes(threadFile, repliesText) {
   for (const line of repliesText.split("\n").filter((row) => row.trim() !== "")) {
     const reply = JSON.parse(line);
     const thread = kept.get(reply?.thread);
-    if (reply?.disposition !== "INCORRECT" || !thread || !THREAD_ID.test(thread.id) || seen.has(thread.id) || stood(thread.comments) || directed(thread.comments)) {
+    if (reply?.disposition !== "INCORRECT" || !thread || !THREAD_ID.test(thread.id) || seen.has(thread.id) || !adjudicable(thread.comments) || stood(thread.comments) || directed(thread.comments)) {
       continue;
     }
     seen.add(thread.id);
@@ -286,6 +296,9 @@ export const FINDING_STANDS_SKIP = "finding-stands";
 //   is the cap: feedback-disputed, and no second adjudication;
 // - an INCORRECT thread a trusted person directed (directed) is theirs:
 //   feedback-disputed, and no adjudication;
+// - an INCORRECT thread that is not adjudicable (a security-review finding,
+//   or one of unknown lane) goes to a person: feedback-disputed, and any
+//   verdict for it is ignored;
 // - an INCORRECT thread with no verdict escalates feedback-unadjudicated;
 // - human: no reply, feedback-question-<intent|design|security>; a question
 //   only the owner answers stays the owner's;
@@ -317,6 +330,11 @@ export async function settleDisputes({ api, pr, adjudicatedSha, posted, replies,
     }
     if (directed(now.get(thread)?.comments)) {
       log(`${thread}: a trusted person directed this thread; it goes back to them, not to an adjudicator`);
+      raise("feedback-disputed");
+      continue;
+    }
+    if (!adjudicable(now.get(thread)?.comments)) {
+      log(`${thread}: not a code-review or verifier finding; it goes to a person, not to an adjudicator`);
       raise("feedback-disputed");
       continue;
     }

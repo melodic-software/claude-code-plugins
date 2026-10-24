@@ -48,7 +48,8 @@ const lines = (...replies) => replies.map((r) => JSON.stringify(r)).join("\n");
 
 function fakeApi(overrides = {}) {
   const calls = [];
-  const comment = (id, user, path) => ({ id, user: { id: user }, pull_request_review_id: 10, path, line: 1, body: `finding ${id}` });
+  // A code-review lane finding, which the adjudicator may judge.
+  const comment = (id, user, path) => ({ id, user: { id: user }, pull_request_review_id: 10, path, line: 1, body: `finding ${id}\n\nclaude-lane: claude-review` });
   const threads = overrides.threads ?? {
     PRRT_a: { ids: [100], resolved: false },
     PRRT_b: { ids: [200], resolved: false },
@@ -59,7 +60,7 @@ function fakeApi(overrides = {}) {
     resolved: () => calls.filter((call) => call[0] === "resolve").map((call) => call[1]),
     markers: () => calls.filter((call) => call[0] === "comment"),
     listIssueComments: async () => [{ id: 1, user: { id: ACTIONS_BOT }, body: marker }, ...(overrides.issueComments ?? [])],
-    listReviews: async () => [{ id: 10, user: { id: REVIEWER }, commit_id: GATED }],
+    listReviews: async () => [{ id: 10, user: { id: REVIEWER }, commit_id: GATED }, ...(overrides.reviews ?? [])],
     listReviewComments: async () =>
       overrides.reviewComments ?? [comment(100, REVIEWER, "src/a.js"), comment(200, REVIEWER, "docs/b.md")],
     listThreads: async () =>
@@ -448,6 +449,23 @@ test("an INCORRECT reply the adjudicator rules for the lane is answered, resolve
   assert.deepEqual(api.resolved(), ["PRRT_a", "PRRT_b"]);
 });
 
+test("an INCORRECT reply on a security-review finding goes to a person even with a lane verdict, and is not adjudicated", async () => {
+  const security = { id: 200, user: { id: ACTIONS_BOT }, pull_request_review_id: 20, path: "docs/b.md", line: 1, body: "finding 200\n\nclaude-lane: claude-security-review" };
+  const api = fakeApi({
+    reviewComments: [{ id: 100, user: { id: REVIEWER }, pull_request_review_id: 10, path: "src/a.js", line: 1, body: "finding 100\n\nclaude-lane: claude-review" }, security],
+    reviews: [{ id: 20, user: { id: ACTIONS_BOT }, commit_id: GATED }],
+  });
+  const result = await run(
+    api,
+    lines(reply({ disposition: "VALID" }), reply({ thread: "PRRT_b", evidence: ["docs/b.md:1"] })),
+    JSON.stringify(RUN),
+    verdicts(judged("PRRT_b", "lane")),
+  );
+  assert.equal(result.escalationReason, "feedback-disputed");
+  assert.deepEqual(api.posted().map((call) => call[2]), [100, 200], "the lane's replies, and no adjudication reply");
+  assert.deepEqual(api.resolved(), ["PRRT_a"]);
+});
+
 test("an INCORRECT reply with no verdict, or a verdict for another head, escalates feedback-unadjudicated", async () => {
   // NOW is the gated head, past the select job's: the adjudicator never read it.
   for (const adjudication of [null, "{", JSON.stringify({ version: 1, head_sha: NOW, threads: [judged("PRRT_a", "lane")] }), verdicts(judged("PRRT_b", "lane"))]) {
@@ -530,8 +548,8 @@ test("a VALID reply landed on an earlier fix pushes nothing: a finding standing 
     pullCommits: [fixCommit("e".repeat(40), { commit: { ...fixCommit().commit, committer: { date: at("11:00") } } })],
     commits: { ["e".repeat(40)]: { files: [{ filename: "src/a.js", patch: "@@ -1,2 +1,4 @@\n a\n+b\n+c\n d" }] } },
     reviewComments: [
-      { id: 100, user: { id: REVIEWER }, pull_request_review_id: 10, path: "src/a.js", line: 1, body: "finding 100", created_at: at("10:00") },
-      { id: 200, user: { id: REVIEWER }, pull_request_review_id: 10, path: "docs/b.md", line: 1, body: "finding 200", created_at: at("10:00") },
+      { id: 100, user: { id: REVIEWER }, pull_request_review_id: 10, path: "src/a.js", line: 1, body: "finding 100\n\nclaude-lane: claude-review", created_at: at("10:00") },
+      { id: 200, user: { id: REVIEWER }, pull_request_review_id: 10, path: "docs/b.md", line: 1, body: "finding 200\n\nclaude-lane: claude-review", created_at: at("10:00") },
     ],
   });
   const result = await run(
@@ -579,7 +597,7 @@ const stoodApi = (overrides = {}) =>
   fakeApi({
     threads: { PRRT_a: { ids: [100, 101, 102], resolved: false } },
     reviewComments: [
-      { id: 100, user: { id: REVIEWER }, pull_request_review_id: 10, path: "src/a.js", line: 1, body: "finding 100" },
+      { id: 100, user: { id: REVIEWER }, pull_request_review_id: 10, path: "src/a.js", line: 1, body: "finding 100\n\nclaude-lane: claude-review" },
       { id: 101, user: { id: APP }, pull_request_review_id: 11, path: "src/a.js", line: 1, body: "**pr-unblock / address-feedback: INCORRECT, left open**" },
       { id: 102, user: { id: APP }, pull_request_review_id: 12, path: "src/a.js", line: 1, body: STOOD },
     ],

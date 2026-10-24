@@ -59,15 +59,16 @@ const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "")
 // github-actions[bot] (MARKER_AUTHOR_ID), its last non-blank line the lane's
 // `claude-lane: <lane>` footer. Any other github-actions[bot] comment is not a
 // finding.
-const LANE_FOOTER = /^`?claude-lane: (?:claude-review|claude-security-review)`?$/;
-export const isLaneComment = (comment) =>
-  comment.authorId === MARKER_AUTHOR_ID &&
-  LANE_FOOTER.test(
-    String(comment.body ?? "")
+const LANE_FOOTER = /^`?claude-lane: (claude-review|claude-security-review)`?$/;
+// The lane a comment body's footer names, or null.
+export const laneOf = (body) =>
+  LANE_FOOTER.exec(
+    String(body ?? "")
       .split("\n")
       .map((line) => line.trim())
       .findLast((line) => line !== "") ?? "",
-  );
+  )?.[1] ?? null;
+export const isLaneComment = (comment) => comment.authorId === MARKER_AUTHOR_ID && laneOf(comment.body) !== null;
 
 // Round markers the lanes App posted; any other author's copy is ignored.
 export const isRoundMarker = (comment, appId) => comment.user?.id === appId && firstLine(comment.body) === ROUND_MARKER;
