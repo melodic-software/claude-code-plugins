@@ -2,14 +2,16 @@
   "skill": "overengineering:justify",
   "plugin": "overengineering",
   "skill_dir": "plugins/overengineering/skills/justify",
-  "ranking_note": "Authored from the before descriptions at commit c67216035c, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin siblings and nearby model-invoked skills, as near-miss targets.",
+  "ranking_note": "Authored from the before descriptions at commit c67216035c, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin siblings and nearby model-invoked skills, as near-miss targets. Queries pos-train-07, pos-train-08, pos-val-05, neg-train-06 and neg-val-04 were written alongside the planned-mode description, not before it.",
   "competitors": [
     "overengineering:audit",
     "overengineering:delta",
     "overengineering:realign",
     "discovery:trace-intent",
     "docs-hygiene:audit-derivability",
-    "code-tidying:audit-dead-code"
+    "code-tidying:audit-dead-code",
+    "planning:devils-advocate",
+    "planning:plan"
   ],
   "competitor_dirs": {
     "overengineering:audit": "plugins/overengineering/skills/audit",
@@ -17,7 +19,9 @@
     "overengineering:realign": "plugins/overengineering/skills/realign",
     "discovery:trace-intent": "plugins/discovery/skills/trace-intent",
     "docs-hygiene:audit-derivability": "plugins/docs-hygiene/skills/audit-derivability",
-    "code-tidying:audit-dead-code": "plugins/code-tidying/skills/audit-dead-code"
+    "code-tidying:audit-dead-code": "plugins/code-tidying/skills/audit-dead-code",
+    "planning:devils-advocate": "plugins/planning/skills/devils-advocate",
+    "planning:plan": "plugins/planning/skills/plan"
   },
   "queries": [
     {
@@ -127,6 +131,36 @@
       "split": "validation",
       "expect_trigger": false,
       "request": "What new automation should we add to catch this class of bug?"
+    },
+    {
+      "id": "pos-train-07",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We plan to add a release branch, a workflow to sync it and a ruleset to guard it. Is that overengineered?"
+    },
+    {
+      "id": "pos-train-08",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before I build it: do we need a dedicated service account for this deploy step, or does something we already have cover it?"
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Step 3 of the plan adds a cache layer in front of the config loader. Is there a simpler way?"
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Poke holes in this migration plan and tell me what could go wrong in production."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write an implementation plan for adding SMS notifications."
     }
   ]
 }

@@ -233,6 +233,44 @@
         "Reports both the ranked count and the surviving count",
         "Presents survivors as candidates to choose from, never as findings, and attaches no verdict"
       ]
+    },
+    {
+      "id": 17,
+      "name": "planned-mechanism-dropped-for-existing-control",
+      "prompt": "/overengineering:justify Proposal: so consumers of this repository's shared settings always get the latest version without picking up a broken commit, add a long-lived `stable` branch they install from, a workflow that fast-forwards it to `main` after each merge, a ruleset blocking direct pushes to it, and a bot app the workflow authenticates as to push past that ruleset. `main` already blocks direct pushes, requires a review and a passing end-to-end job that installs the settings into a sample consumer on every pull request.",
+      "expected_output": "Planned mode: nothing is built yet, so the run writes no findings artifact, derives no finding id and uses none of the six artifact verdict tokens. It lists the four mechanisms and, for each, names the existing control that already covers the same risk: the protection on `main` and the end-to-end job on every pull request. Each verdict is `drop: use <existing control>`, or the mechanism falls with the one it only serves (the ruleset and the bot app exist only for the branch). It counts moving parts and names consumers installing from `main`, which adds none, as the option with the fewest. A control on a different object (main, not stable) is recognized as covering the same risk.",
+      "files": [],
+      "expectations": [
+        "Writes no findings artifact and uses none of the six artifact verdict tokens",
+        "Lists each of the four mechanisms with its own verdict",
+        "Each mechanism is dropped, citing main's protection or the pull request end-to-end job as the control that already covers its risk",
+        "Counts moving parts and names installing from main as the option with the fewest"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "planned-abstraction-for-stated-second-consumer-kept",
+      "prompt": "/overengineering:justify Proposal: before writing the email order confirmation, add a `Notifier` interface with one method, `send(recipient, message)`, and make the email sender its first implementation. The SMS confirmation is the second: it is a stated requirement in this milestone, scheduled right after email, with the same send shape.",
+      "expected_output": "Planned mode, inline only, nothing persisted. The interface is `needed`: its second consumer is a stated requirement, not a someday one, and the shared shape `send(recipient, message)` is namable and stable, which the consuming repository's standards (simpler-code's named failure modes, reference-dont-duplicate's ordered tests) place on the not-overengineering side. The run does not call it speculative generality or YAGNI and does not demand a third occurrence before extracting.",
+      "files": [],
+      "expectations": [
+        "Verdict on the interface is `needed`",
+        "Cites the stated SMS requirement as the second consumer",
+        "Treats send(recipient, message) as a namable, stable shape",
+        "Does NOT call it speculative generality or YAGNI, and does not ask for a third occurrence"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "planned-security-control-is-flagged-not-dropped",
+      "prompt": "/overengineering:justify Proposal: add a secret-scanning check to the pre-commit hooks. Nobody has asked for it; it just seems sensible.",
+      "expected_output": "Planned mode, inline only, nothing persisted. The secret-scanning check serves no stated requirement, but it is in a protected class (secret detection), so it never takes `drop: no stated requirement`: the run reports it as a human decision with its evidence, naming the protected class that matched, and uses no artifact verdict token. If an existing control already scans for secrets and the run cites its enforcing source, `drop: use <that control>` may stand instead.",
+      "files": [],
+      "expectations": [
+        "Does NOT give `drop: no stated requirement` for the secret-scanning check",
+        "Reports it as a human decision and names the protected class that matched, unless it cites an existing secret-scanning control from its enforcing source",
+        "Writes no findings artifact"
+      ]
     }
   ]
 }

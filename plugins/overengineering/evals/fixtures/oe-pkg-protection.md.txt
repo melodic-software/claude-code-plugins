@@ -1,0 +1,8 @@
+# Branch protection
+
+`main` is protected by a repository rule:
+
+- Direct pushes are blocked; every change lands through a pull request.
+- One approving review is required.
+- The `ci / consumer-e2e` status check must pass before merge.
+- Force pushes and deletion are blocked.
