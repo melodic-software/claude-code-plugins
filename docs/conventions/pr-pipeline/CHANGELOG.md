@@ -1,5 +1,27 @@
 # Changelog for the PR pipeline convention
 
+## [5.0.0] - 2026-10-24
+
+### Changed
+
+- At the address-feedback round cap (`loop.review-rounds`), a pull request whose open findings all come from the code review lane no longer goes to a person. One more round runs on every kept thread, a fresh fixer in a new session like every round, and the round marker names it as past the cap. After that round the select job skips `cost-gated`, adds no label, and waits for the next write-access fix request. A security lane finding, a pr-verify note (an intent mismatch), a `claude[bot]` finding, whose lane no footer proves, or a pull request a person gated with the human-gated label (its hold lifts only on a fix request newer than the last round) still escalates `feedback-round-cap`, before and after the fresh fixer's round.
+
+- pr-merge's `enable-auto-merge` job skips its work, green with a notice, when another run's `enable-auto-merge` job still waits and does the same work, so a backlog of events costs one pass instead of one serial pass each. On a pull request event it runs only for a lanes App pull request (`AUTOMATION_LANES_APP_SENDER_ID`), so any other pull request's check reads skipped instead of pending behind the queue.
+- pr-merge's merge job reuses its run's `post-merge-dispatch` check when that check judged main at the merge job's commit under six minutes ago, instead of running the same check again.
+- The merge and `enable-auto-merge` jobs read main's pr-merge run listing, each run's artifact list and each compare once between their kept-file readers (the gate cursor, the head-ref map and the lane records).
+
+### Removed
+
+- **Breaking:** the `admission` and `work-classes` keys of `applies-when` are gone from the schema, so a `pr-pipeline.yaml` that still sets either fails validation; delete the key. No pipeline predicate reads a work class (owner decision Q85, [#9668](https://github.com/melodic-software/claude-code-plugins/issues/9668)): an issue with no class or any class, `work-class: structural` included, is decided by its labels, events and holds alone. resolve-issue's PR still carries `Hold: a human merges this` for an issue labeled `work-class: untrusted-provenance`, a trust hold that reads no other class.
+
+### Fixed
+
+- pr-merge's refire step now reads the annotations of a failed pr-unblock write-runner job (`<caller> / run`) when the jobs API lists its steps empty or cut short without the token step, so a refused run still gets its empty commit. A job that lists the token step as passed, and any job that is not a write-runner job, are still skipped.
+- The red-main report counts a failed job that lists no failed step as a failing check of its own, matching the post-merge check.
+- The demotion alert judges failing checks with red-main's rule (`failing-checks.mjs`) instead of its own shell copy. A failed job that lists no failed step now files, and, as a baseline entry, such a job excuses nothing.
+
+- A merge job no longer skips its gate citing a pending run whose merge job already ran: a run reads pending while any one of its jobs waits, so the skip now reads the pending run's jobs and counts it only while its merge job still waits.
+
 ## [4.21.0] - 2026-10-24
 
 ### Changed
