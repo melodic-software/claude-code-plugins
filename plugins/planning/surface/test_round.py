@@ -455,6 +455,56 @@ class TestRefusals(DirCase):
         self.assertEqual(rc, 0)
         self.assertIn("basis", err)
 
+    def test_basis_without_an_outcome_label_warns_and_check_exits_zero(self):
+        q = question("Q4")
+        before = self.raw()
+        path = self.file("round.json", {"questions": [q]})
+        rc, out, err = self.rp("add-round", "--file", path, "--check")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("Q4 basis carries no outcome label", err)
+        self.assertEqual(self.raw(), before)
+
+    def test_basis_with_a_leading_or_trailing_outcome_label_is_quiet(self):
+        bases = (
+            "The code does this. Judgment",
+            "The code does this. Verified: round.py:607",
+            "Basis: verified. The code does this.",
+            "judgment: the code does this.",
+        )
+        for n, basis in enumerate(bases, start=4):
+            q = question(f"Q{n}", basis=basis)
+            rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+            self.assertEqual(rc, 0, out + err)
+            self.assertNotIn("outcome label", err, basis)
+
+    def test_a_withheld_recommendation_needs_no_outcome_label(self):
+        q = question("Q4", recommendation="Withheld: the load test would settle it.")
+        rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("outcome label", err)
+
+    def test_a_bare_local_file_reference_warns(self):
+        q = question(
+            "Q4",
+            recommendation="Approve block A: see DECISIONS.md block A.",
+            basis="Judgment",
+        )
+        rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("Q4 recommendation names a local file", err)
+
+    def test_a_file_reference_with_the_list_inline_or_a_link_is_quiet(self):
+        recs = (
+            "Approve block A from DECISIONS.md:\n- one\n- two",
+            "Approve block A (DECISIONS.md):\n> one and two",
+            "Approve block A: [DECISIONS.md](https://example.com/DECISIONS.md)",
+        )
+        for n, rec in enumerate(recs, start=4):
+            q = question(f"Q{n}", recommendation=rec, basis="Judgment")
+            rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+            self.assertEqual(rc, 0, out + err)
+            self.assertNotIn("names a local file", err, rec)
+
     def test_bare_unknown_id_token_warns(self):
         q = question(
             "Q4",
