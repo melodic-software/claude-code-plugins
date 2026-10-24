@@ -116,7 +116,9 @@ that already submitted an attempt in this run. When a step fails because the con
 wrong (a handle, a route, a missing precondition), fix the control skill and run again, once; a
 second failure leaves it written but unproven. When the run fails
 against a healthy app, report the control skill as written but unproven, with drive's evidence; do
-not call it done. When the tool the hub names cannot run on this host, the outcome is
+not call it done. When a step cannot run at all (no shell, a missing tool), report drive's
+`blocked: <reason>` line for that step with its entry point, never a projected or guessed result.
+When the tool the hub names cannot run on this host, the outcome is
 `blocked: driver unavailable` with drive's gap report; do not edit the hub or switch tools.
 
 [reference/prove.md](reference/prove.md) holds the sign-in rule, which comes first, the exact drive
