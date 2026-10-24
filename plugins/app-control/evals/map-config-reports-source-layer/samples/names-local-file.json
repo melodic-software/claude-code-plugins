@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "A loosening in config/local.json is refused; only the committed defaults file loosens a floor.",
+      "why": "names the per-person local file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Each person keeps overrides in ~/.shop/settings.json.",
+      "why": "not the contract's local file"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Values come from config/defaults.json (committed), then config/local.json, then environment variables, then flags.",
+      "why": "names the committed defaults file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Settings live in settings.yaml and can be overridden on the command line.",
+      "why": "not the contract's files"
+    }
+  ]
+}
