@@ -172,7 +172,7 @@ jobs:
       contents: read
       pull-requests: write   # the review, its inline comments and the lane's
                              # reviewed-head marker comment
-    uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@6d6cb798e7cb7560a0f9327d8a22398961c23b31 # v0.64.2
+    uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@b49ac366bb3426039363a6927c41512e44533808 # v0.65.1
     with:
       lane: security
       publish: comments

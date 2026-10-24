@@ -360,8 +360,9 @@ activities:
         - agent-ready
   report-outcome:
     # Opens a ready pull request from the branch, or comments on the issue
-    # and labels it needs-human. A Refs pull request also labels the issue
-    # needs-human, with a refs-hold comment. A script, no model.
+    # and labels it needs-human. It writes nothing to a Refs pull request's
+    # issue; work-unblock still lifts an existing refs-hold through its
+    # marker. A script, no model.
     script: .github/scripts/work-resolve-issue/report-outcome.mjs
     effect: publish-artifact
     gating: advisory
@@ -389,11 +390,14 @@ activities:
     inputs: [pr, head-sha]
   enable-auto-merge:
     # Turns on GitHub's native auto-merge (squash, at the head it read) for
-    # each open lanes App pull request into main that opens with `Closes #<n>`
-    # and carries no hold (a `Hold:` line, do-not-merge, the human-gated
+    # each open lanes App pull request into main whose issue link the merge
+    # gate takes (one closing issue, or one plain `Refs: #<n>` issue) and
+    # that carries no hold (a `Hold:` line, do-not-merge, the human-gated
     # label, a member's "do not merge" comment, a head that changes a denied
-    # path), and turns it off on an armed one that now carries a hold;
-    # auto-merge a person turned off stays off. No
+    # path, a hold on the gate's risk score), while the gate's lane has
+    # room (no demotion, rung on, below merge.max-in-flight), and turns it
+    # off on an armed one that now carries a hold or while the gate holds the
+    # lane off; auto-merge a person turned off stays off. No
     # model. The enable-auto-merge job of .github/workflows/pr-merge.yml runs
     # it when the issue lane finishes, on a listed human's PR edit, and on the
     # schedule.
@@ -786,8 +790,15 @@ merge:
   agent-identity: melodic-automation-lanes[bot]
   # true: report each decision and write nothing.
   report-only: false
-  # A PR merges only with a passing pr-verify.yml verdict at its head. Must be
-  # true at a rung above off: the gate refuses otherwise.
+  # native: the lanes App's pull requests merge through GitHub's auto-merge
+  # (the enable-auto-merge activity arms them, ci-status gates them), and the
+  # gate below neither lists, scores nor enqueues them. gate: the gate also
+  # lists, scores and enqueues them. Owner PRs and Dependabot's are gated in
+  # both. Absent is native.
+  lane-prs: native
+  # A PR the gate lists merges only with a passing pr-verify.yml verdict at its
+  # head (lane PRs under lane-prs native are not listed). Must be true at a
+  # rung above off: the gate refuses otherwise.
   require-verifier-verdict: true
   # Lane merges in flight at once (queued plus merged and not yet verified).
   # The merge queue tests each PR against the latest base plus the PRs ahead
@@ -827,20 +838,6 @@ merge:
   # 30-minute timeout with the minute before the loop and the closing steps
   # (judgment).
   gate-deferred-minutes: 20
-  # The share of GITHUB_TOKEN's core limit (GET /rate_limit) that must be
-  # left for the gate's review-evidence reads (timeline, comments, lane runs,
-  # attempts, jobs, annotations) to use it; below it, or when the limit cannot
-  # be read, they use the lane App token. An early switch only: a read refused
-  # for a rate limit also moves them to the lane App token for the rest of
-  # the run, since /rate_limit read 3934 of 5000 left while the token was
-  # already refused. Either token reads the same data, so no gate decision
-  # changes. The pool is 1,000 an hour per repository and shared by
-  # every job; moving these reads onto it added an estimated 600-1,500 an
-  # hour, and it ran out at 05:26Z on 2026-10-23, failing pr-merge's full-run
-  # dispatch on runs 39905758340, 39905868587 and 39906176584. 0.3 keeps 300
-  # for the dispatches, waits and post-merge checks, the share
-  # babysit_whole_review.py's MIN_SHARE keeps (judgment).
-  read-token-floor: 0.3
   # Minutes a MED or HIGH reasons comment must stand unchanged at the head
   # before the gate adds the human-gated label; 0 is no minimum. 60 is longer
   # than a review lane's run (judgment), so a review still running at the

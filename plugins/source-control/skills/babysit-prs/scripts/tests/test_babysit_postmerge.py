@@ -158,6 +158,15 @@ def failure_annotation(title: str = "") -> dict[str, Any]:
     }
 
 
+def armed_pull(
+    pr_id: str, number: int, *, author: dict[str, str], armer: dict[str, str] | None
+) -> dict[str, Any]:
+    """An open pull request as the armed read returns it; `armer` None is one
+    with auto-merge off."""
+    request = None if armer is None else {"enabledBy": armer}
+    return {"id": pr_id, "number": number, "author": author, "autoMergeRequest": request}
+
+
 def completed(
     stdout: Any = None, *, returncode: int = 0, stderr: str = ""
 ) -> subprocess.CompletedProcess[str]:
@@ -176,12 +185,19 @@ class FakeGh:
         # SHAs main reached at or after MERGE_SHA; anything else does not contain it.
         self.descendants = {MERGE_SHA, LATER_SHA}
         # Commits on main itself: the history of its tip, `refs/heads/main`.
-        self.on_main = {MERGE_SHA, LATER_SHA, TIP_SHA}
+        # HEAD_SHA stands for a commit before the merge.
+        self.on_main = {HEAD_SHA, MERGE_SHA, LATER_SHA, TIP_SHA}
         self.main_tip = TIP_SHA
         # What a compare against the bare name `main` reaches; None means the
         # branch, a set stands in for a same-named tag on another history.
         self.bare_main: set[str] | None = None
         self.queue: list[dict[str, Any]] = []
+        # Open pull requests into the branch, as the armed read returns them.
+        self.open_pulls: list[dict[str, Any]] = []
+        # True: every armed page says another follows.
+        self.open_pulls_endless = False
+        # Armed pages served in order, one per read, when set.
+        self.armed_pages: list[dict[str, Any]] = []
         self.issues: list[dict[str, Any]] = []
         self.comments: dict[int, list[dict[str, Any]]] = {}
         self.fail_reads: set[str] = set()
@@ -386,6 +402,20 @@ class FakeGh:
             return completed(
                 {"data": {"dequeuePullRequest": {"clientMutationId": None}}}
             )
+        if "disablePullRequestAutoMerge" in joined:
+            return completed(
+                {"data": {"disablePullRequestAutoMerge": {"clientMutationId": None}}}
+            )
+        if "PostMergeArmed" in joined and self.armed_pages:
+            return completed(
+                {"data": {"repository": {"pullRequests": self.armed_pages.pop(0)}}}
+            )
+        if "PostMergeArmed" in joined:
+            page = {
+                "pageInfo": {"hasNextPage": self.open_pulls_endless, "endCursor": "c"},
+                "nodes": self.open_pulls,
+            }
+            return completed({"data": {"repository": {"pullRequests": page}}})
         if "PostMergeQueue" in joined:
             entries = {"totalCount": len(self.queue), "nodes": self.queue}
             return completed(
@@ -711,6 +741,211 @@ class Verification(CheckCase):
         self.assertEqual(verdict.reruns, ())
 
 
+def auto_merge_event(
+    actor: Any,
+    kind: str = "AutoMergeEnabledEvent",
+    at: str = "2026-10-12T09:40:00Z",
+) -> dict[str, Any]:
+    """The `autoMerge` connection: the newest auto-merge enable or disable."""
+    return {"nodes": [{"__typename": kind, "createdAt": at, "actor": actor}]}
+
+
+class NativeAutoMerge(CheckCase):
+    """`enable-auto-merge.mjs` arms the lanes App's pull request with the App
+    token, so GitHub enqueues it under the identity with no pin comment: the
+    merge is the identity's and verifies on the dispatch and canary runs."""
+
+    LATE = datetime(2026, 10, 12, 17, 0, tzinfo=UTC)
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.native(auto_merge_event(APP_ACTOR))
+
+    def native(self, events: dict[str, Any]) -> None:
+        self.gh.merged = [identity_merge(autoMerge=events)]
+
+    def check_unpinned(self, now: datetime | None = None) -> pm.PostMergeVerdict:
+        def no_pin_read(merge: Any) -> str | None:
+            raise AssertionError(f"read the pin of #{merge.number}")
+
+        return pm.check(
+            REPO,
+            agent_identity=IDENTITY,
+            is_human=human,
+            merged_since=SINCE,
+            now=now or self.LATE,
+            pinned_sha=no_pin_read,
+        )
+
+    def test_a_native_merge_verifies_without_a_pin_past_the_deadline(self) -> None:
+        self.all_green()
+        verdict = self.check_unpinned()
+        self.assertTrue(verdict.merges[0].merge.by_identity)
+        self.assertEqual(verdict.failures, ())
+        self.assertTrue(verdict.merges[0].verified)
+        self.assertTrue(verdict.ok)
+
+    def test_an_arm_at_the_enqueue_time_is_native(self) -> None:
+        self.native(auto_merge_event(APP_ACTOR, at="2026-10-12T09:50:00Z"))
+        self.all_green()
+        self.assertTrue(self.check_unpinned().merges[0].verified)
+
+    def test_another_enqueue_without_auto_merge_events_stays_readable(self) -> None:
+        self.gh.merged = [merged_pr(autoMerge=None)]
+        self.all_green()
+        verdict = self.check_unpinned()
+        self.assertTrue(verdict.readable)
+        self.assertTrue(verdict.merges[0].verified)
+
+    def test_a_native_merge_with_no_dispatch_run_asks_for_one(self) -> None:
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+        verdict = self.check_unpinned(datetime(2026, 10, 12, 11, 0, tzinfo=UTC))
+        self.assertEqual(verdict.merges[0].pending, ("dispatch-run-pending",))
+        self.assertTrue(verdict.needs_dispatch)
+
+    def test_a_native_merge_is_judged_by_the_lane(self) -> None:
+        self.all_green()
+        verdict = pm.check(
+            REPO,
+            agent_identity=IDENTITY,
+            is_human=human,
+            merged_since=SINCE,
+            now=self.LATE,
+            lane_merges_only=True,
+        )
+        self.assertEqual(self.numbers(verdict), [7001])
+        self.assertTrue(verdict.merges[0].verified)
+
+    def test_a_red_main_after_a_native_merge_demotes(self) -> None:
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(11, "failure", run_attempt=2, triggering_actor=by(IDENTITY)),
+        )
+        self.gh.attempts[(11, 1)] = dispatch_run(11, conclusion="failure")
+        verdict = self.check_unpinned()
+        self.assertEqual(
+            [(f.signal, f.merge.number) for f in verdict.failures], [("dispatch", 7001)]
+        )
+        self.assertFalse(verdict.ok)
+
+    def test_a_red_canary_after_a_native_merge_demotes(self) -> None:
+        self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
+        self.gh.add_runs(
+            "post-merge-detect-silent-revert.yml",
+            "push",
+            canary_run(21, conclusion="failure"),
+        )
+        self.assertEqual([f.signal for f in self.check_unpinned().failures], ["canary"])
+
+    def test_a_gate_merge_still_fails_its_read_back_past_the_deadline(self) -> None:
+        self.native({"nodes": []})
+        self.all_green()
+        verdict = self.check(pinned=None, now=self.LATE)
+        self.assertEqual([f.signal for f in verdict.failures], ["read-back"])
+
+    def test_the_pin_stays_required_unless_the_identity_armed_before_the_enqueue(
+        self,
+    ) -> None:
+        slug_user = {"__typename": "User", "login": "agent-lanes"}
+        cases = {
+            "disarmed since": auto_merge_event(APP_ACTOR, "AutoMergeDisabledEvent"),
+            "armed after the enqueue": auto_merge_event(
+                APP_ACTOR, at="2026-10-12T09:55:00Z"
+            ),
+            "armed by a person": auto_merge_event(HUMAN),
+            "armed by a user named like the app": auto_merge_event(slug_user),
+        }
+        self.all_green()
+        for name, events in cases.items():
+            with self.subTest(name):
+                self.native(events)
+                verdict = self.check(pinned=None, now=self.LATE)
+                self.assertEqual([f.signal for f in verdict.failures], ["read-back"])
+
+    def test_an_identity_arm_on_a_pull_request_it_did_not_open_needs_its_pin(
+        self,
+    ) -> None:
+        # enable-auto-merge.mjs arms only the identity's own same-repository
+        # pull requests; any other arm under its token is off the gate.
+        self.all_green()
+        for name, fields in {
+            "opened by a person": {"author": HUMAN},
+            "from a fork": {"isCrossRepository": True},
+            "unknown origin": {"isCrossRepository": None},
+        }.items():
+            with self.subTest(name):
+                self.gh.merged = [
+                    identity_merge(autoMerge=auto_merge_event(APP_ACTOR), **fields)
+                ]
+                verdict = self.check(pinned=None, now=self.LATE)
+                self.assertEqual([f.signal for f in verdict.failures], ["read-back"])
+
+    def test_a_queue_bypassing_native_merge_needs_no_pin(self) -> None:
+        self.gh.merged = [
+            merged_pr(
+                timelineItems={"nodes": []},
+                mergedBy=APP_ACTOR,
+                autoMerge=auto_merge_event(APP_ACTOR),
+            )
+        ]
+        self.all_green()
+        self.assertTrue(self.check_unpinned().ok)
+
+    def test_an_identity_merge_without_its_auto_merge_events_is_unreadable(
+        self,
+    ) -> None:
+        for events in (None, {"nodes": None}):
+            with self.subTest(events=events):
+                self.native(events)
+                verdict = self.check(now=self.LATE)
+                self.assertFalse(verdict.readable)
+                self.assertIn("no auto-merge events", verdict.reason)
+
+
+class RunsOffTheBranch(CheckCase):
+    """A run on a tag named like the branch reports the branch as its
+    `head_branch`. Its commit may descend from the merge, yet it is not on
+    `refs/heads/main`, so it is neither the merge's evidence nor its failure."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.gh.descendants.add(FORK_SHA)
+
+    def test_a_red_schedule_run_off_the_branch_is_not_charged(self) -> None:
+        self.all_green()
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "schedule",
+            schedule_run(31, head_sha=FORK_SHA, created_at="2026-10-12T10:02:00Z"),
+        )
+        verdict = self.check()
+        self.assertEqual(verdict.failures, ())
+        self.assertEqual(verdict.reruns, ())
+        self.assertTrue(verdict.merges[0].verified)
+
+    def test_a_red_canary_off_the_branch_is_not_charged(self) -> None:
+        self.all_green()
+        self.gh.add_runs(
+            "post-merge-detect-silent-revert.yml",
+            "push",
+            canary_run(22, conclusion="failure", head_sha=FORK_SHA),
+        )
+        self.assertEqual(self.check().failures, ())
+
+    def test_a_green_dispatch_off_the_branch_does_not_verify(self) -> None:
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(11, head_sha=FORK_SHA),
+        )
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+        verdict = self.check()
+        self.assertFalse(verdict.merges[0].verified)
+        self.assertTrue(verdict.needs_dispatch)
+
+
 class DroppedDispatchListing(CheckCase):
     """A listing that answers without runs it holds (a degraded API) must
     not read as "no dispatch run": past the deadline, a read by the merge
@@ -816,6 +1051,21 @@ class DroppedDispatchListing(CheckCase):
 
     def reads_by_sha(self, sha: str) -> bool:
         return any(f"head_sha={sha}" in " ".join(c) for c in self.gh.calls)
+
+    def test_a_dropped_run_off_the_branch_leaves_the_failure_standing(
+        self,
+    ) -> None:
+        # The commit listing names a commit off refs/heads/main (a tag named
+        # main): a run at it is no run the listing should have held.
+        self.gh.descendants.add(FORK_SHA)
+        self.gh.branch_commits = [commit_on_main(FORK_SHA, "2026-10-12T15:00:00Z")]
+        self.gh.unlisted[("pr-require-checks.yml", "workflow_dispatch")] = [
+            dispatch_run(11, head_sha=FORK_SHA)
+        ]
+        verdict = self.check(now=self.LATE)
+        self.assertTrue(self.reads_by_sha(FORK_SHA))
+        self.assertTrue(verdict.readable, verdict.reason)
+        self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
 
     def test_a_descendant_in_the_window_is_read_by_sha(self) -> None:
         self.gh.branch_commits = [commit_on_main(LATER_SHA, "2026-10-12T15:00:00Z")]
@@ -1711,6 +1961,19 @@ class Baseline(CheckCase):
         if jobs:
             self.gh.jobs[(30, 1)] = list(jobs)
 
+    def test_a_baseline_run_on_a_commit_not_on_main_is_ignored(self) -> None:
+        # A red run on a tag named main cannot excuse a check: its commit is
+        # not main's, so the merge is judged as if it had no baseline.
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "schedule",
+            schedule_run(30, "failure", head_sha=FORK_SHA, created_at=self.BEFORE),
+        )
+        self.gh.jobs[(30, 1)] = [failed_job(301, "test-bash", "Run the bash tests")]
+        self.red_after_merge(failed_job(312, "test-bash", "Run the bash tests"))
+        verdict = self.check()
+        self.assertEqual([f.signal for f in verdict.failures], ["schedule"])
+
     def test_a_check_already_red_before_the_merge_is_not_charged_to_it(self) -> None:
         self.before_merge("failure", failed_job(301, "test-bash", "Run the bash tests"))
         self.red_after_merge(failed_job(312, "test-bash", "Run the bash tests"))
@@ -2125,6 +2388,130 @@ class Remediation(CheckCase):
         dequeues = [w for w in self.gh.writes() if "dequeuePullRequest" in " ".join(w)]
         self.assertEqual(len(dequeues), 1)
         self.assertIn("id=PR_a", dequeues[0])
+
+    def armed_pulls(self) -> None:
+        # Only a lanes App pull request the lanes App armed is disarmed.
+        self.gh.open_pulls = [
+            armed_pull("PR_lane", 7020, author=APP_ACTOR, armer=APP_ACTOR),
+            armed_pull("PR_person_armed", 7021, author=APP_ACTOR, armer=HUMAN),
+            armed_pull("PR_person_pr", 7022, author=HUMAN, armer=APP_ACTOR),
+            armed_pull("PR_unarmed", 7023, author=APP_ACTOR, armer=None),
+        ]
+
+    def disarms(self) -> list[list[str]]:
+        return [
+            w for w in self.gh.writes() if "disablePullRequestAutoMerge" in " ".join(w)
+        ]
+
+    def test_remediate_disarms_only_the_lanes_own_armed_pull_requests(self) -> None:
+        verdict = self.failing_verdict()
+        self.armed_pulls()
+        self.gh.queue = [
+            {"enqueuer": APP_ACTOR, "pullRequest": {"id": "PR_a", "number": 7010}}
+        ]
+        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        self.assertEqual(report["disarmed"], [7020])
+        self.assertEqual(report["dequeued"], [7010])
+        self.assertEqual(report["errors"], [])
+        disarms = self.disarms()
+        self.assertEqual(len(disarms), 1)
+        self.assertIn("id=PR_lane", disarms[0])
+        # Disarmed before the dequeue, so none enters the queue after its read.
+        writes = [" ".join(w) for w in self.gh.writes()]
+        self.assertIn("disablePullRequestAutoMerge", writes[0])
+        self.assertIn("dequeuePullRequest", writes[1])
+
+    def test_a_failed_disarm_is_an_error_and_the_rest_still_run(self) -> None:
+        verdict = self.failing_verdict()
+        self.gh.open_pulls = [
+            armed_pull("PR_x", 7030, author=APP_ACTOR, armer=APP_ACTOR),
+            armed_pull("PR_y", 7031, author=APP_ACTOR, armer=APP_ACTOR),
+        ]
+        self.gh.queue = [
+            {"enqueuer": APP_ACTOR, "pullRequest": {"id": "PR_a", "number": 7010}}
+        ]
+        self.gh.fail_reads = {"id=PR_x"}
+        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        self.assertEqual(report["disarmed"], [7031])
+        self.assertEqual(len(report["errors"]), 1)
+        self.assertTrue(report["errors"][0].startswith("disarm: disarm #7030"))
+        self.assertEqual(report["dequeued"], [7010])
+        self.assertEqual(report["issues"], [9001])
+
+    def test_a_failed_dequeue_read_still_disarms(self) -> None:
+        verdict = self.failing_verdict()
+        self.armed_pulls()
+        self.gh.fail_reads = {"PostMergeQueue"}
+        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        self.assertEqual(report["disarmed"], [7020])
+        self.assertTrue(any(e.startswith("dequeue:") for e in report["errors"]))
+
+    def test_an_unreadable_armed_listing_is_an_error_and_still_dequeues(
+        self,
+    ) -> None:
+        verdict = self.failing_verdict()
+        self.gh.queue = [
+            {"enqueuer": APP_ACTOR, "pullRequest": {"id": "PR_a", "number": 7010}}
+        ]
+        self.gh.fail_reads = {"PostMergeArmed"}
+        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        self.assertEqual(report["disarmed"], [])
+        self.assertTrue(report["errors"][0].startswith("disarm: armed pull requests"))
+        self.assertEqual(report["dequeued"], [7010])
+
+    def test_an_armed_listing_past_the_page_limit_still_disarms_what_it_read(
+        self,
+    ) -> None:
+        verdict = self.failing_verdict()
+        self.armed_pulls()
+        self.gh.open_pulls_endless = True
+        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        self.assertTrue(len(self.disarms()) >= 1)
+        self.assertIn(7020, report["disarmed"])
+        self.assertTrue(
+            report["errors"][0].startswith("disarm: armed pull requests: more than")
+        )
+
+    def test_the_armed_listing_follows_the_cursor_on_the_judged_branch(
+        self,
+    ) -> None:
+        verdict = self.failing_verdict()
+        self.gh.armed_pages = [
+            {
+                "pageInfo": {"hasNextPage": True, "endCursor": "c1"},
+                "nodes": [armed_pull("PR_p1", 7040, author=HUMAN, armer=HUMAN)],
+            },
+            {
+                "pageInfo": {"hasNextPage": False, "endCursor": None},
+                "nodes": [armed_pull("PR_p2", 7041, author=APP_ACTOR, armer=APP_ACTOR)],
+            },
+        ]
+        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        self.assertEqual(report["disarmed"], [7041])
+        reads = [c for c in self.gh.calls if "PostMergeArmed" in " ".join(c)]
+        self.assertEqual(len(reads), 2)
+        self.assertIn("c=c1", reads[1])
+        self.assertIn(f"b={verdict.branch}", reads[0])
+
+    def test_a_malformed_armed_page_is_an_error(self) -> None:
+        verdict = self.failing_verdict()
+        self.gh.armed_pages = [{"pageInfo": {"hasNextPage": False}, "nodes": None}]
+        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        self.assertEqual(report["disarmed"], [])
+        self.assertTrue(
+            report["errors"][0].startswith("disarm: armed pull requests: the listing")
+        )
+
+    def test_no_failure_disarms_nothing(self) -> None:
+        self.gh.merged = [identity_merge()]
+        self.all_green()
+        verdict = self.check()
+        self.assertFalse(verdict.failures)
+        self.armed_pulls()
+        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        self.assertEqual(report["disarmed"], [])
+        self.assertFalse(any("PostMergeArmed" in " ".join(c) for c in self.gh.calls))
+        self.assertEqual(self.disarms(), [])
 
     def test_a_second_sighting_under_one_marker_reopens_a_closed_record(
         self,

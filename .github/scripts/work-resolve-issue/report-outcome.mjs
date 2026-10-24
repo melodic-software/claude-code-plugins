@@ -4,9 +4,9 @@
 //
 //   done      opens a ready PR from the run's branch: the body starts
 //             `Closes #<issue>`, or `Refs: #<issue>` when the run reports
-//             `"link": "refs"` (a recorded decision keeps the issue open),
-//             which also gives the issue the human-gated label and a
-//             refs-hold comment. The title is the run's Conventional
+//             `"link": "refs"` (a recorded decision keeps the issue open);
+//             the merge lane reads a plain `Refs:` issue as it reads a
+//             closing one. The title is the run's Conventional
 //             Commits title, with any `#` or `/` a space
 //             (else one built from the issue title), and the body carries
 //             the hold line when a human must merge it. The PR gets no label:
@@ -184,12 +184,10 @@ export const limitedMarker = ({ resets, runId, onResumed = false }) =>
 export const turnCapMarker = ({ cap, runId, onResumed = false }) =>
   `<!-- work-resolve-issue outcome=turn-cap${cap ? ` cap=${cap}` : ""}${runId ? ` run=${runId}` : ""}${resumedTag(onResumed)} -->`;
 
-// A Refs PR has no closing issue, so the merge lane never merges it: the issue
-// gets `label` and this comment, whose marker tells work-unblock which hold it
-// may lift once that PR merges.
+// The marker of a refs-hold comment: the App's needs-human hold on the issue
+// of a Refs PR, which work-unblock lifts once that PR merges. report-outcome
+// sets none, since the merge lane merges a plain `Refs:` PR as a closing one.
 export const refsHoldMarker = (pr) => `<!-- work-resolve-issue refs-hold #${pr} -->`;
-export const refsHoldComment = (pr, label) =>
-  `${refsHoldMarker(pr)}\nThe lanes App's pull request #${pr} links this issue with \`Refs:\`, not \`Closes\`, so the merge lane never merges it. report-outcome added \`${label}\` so a person merges or closes it. When it merges, work-unblock removes this \`${label}\` and \`agent-ready\` and adds \`needs-triage\`, so triage decides what work is left. To keep the issue held after the merge, add \`needs-owner-decision\`.`;
 
 // {outcome, resets, run, onResumed} from a comment body that opens with the lane's
 // marker, or null. resets is epoch milliseconds, or null when absent or
@@ -336,7 +334,7 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
       "",
       pushback
         ? `Partial work is on the branch \`${branch}\`.`
-        : `Partial work is on the branch \`${branch}\`. A retry continues from it; delete the branch first to start again from the default branch.`,
+        : `Partial work is on the branch \`${branch}\`. A retry continues from it while it is not behind the default branch, and otherwise starts fresh from the default branch; delete the branch first to always start fresh.`,
     );
   }
   if (runUrl) {
@@ -427,7 +425,7 @@ function fundingPlan({ issueNumber, branch, regain, runId, runUrl, onResumed }) 
       : "The work-resolve-issue lane stopped on its funding (`funding`: no credit or a disabled key), not on this issue. It keeps `agent-ready`; once the lane is funded again, a person removes and adds `agent-ready` to restart it.",
   ];
   if (branch) {
-    lines.push("", `Partial work is on the branch \`${branch}\`; the restart continues from it.`);
+    lines.push("", `Partial work is on the branch \`${branch}\`; the restart continues from it while it is not behind the default branch, and otherwise starts fresh.`);
   }
   if (runUrl) {
     lines.push("", `Run: ${runUrl}`);
@@ -443,20 +441,20 @@ function turnCapPlan({ issueNumber, branch, cap, restart, humanLabel, runId, run
   const lines = [
     turnCapMarker({ cap, runId, onResumed }),
     restart
-      ? `The work-resolve-issue lane stopped on this issue: ${reached}. It keeps \`agent-ready\`, and work-unblock starts it again from the branch.`
+      ? `The work-resolve-issue lane stopped on this issue: ${reached}. It keeps \`agent-ready\`, and work-unblock starts it again from the branch, or fresh from the default branch once the branch is behind it.`
       : `The work-resolve-issue lane stopped on this issue: ${reached}. It has used its restarts, so it needs a person.`,
   ];
   lines.push(
     "",
     branch
-      ? `Partial work is on the branch \`${branch}\`; a restart or retry continues from it. Delete the branch first to start again from the default branch.`
+      ? `Partial work is on the branch \`${branch}\`; a restart or retry continues from it while it is not behind the default branch, and otherwise starts fresh. Delete the branch first to always start fresh.`
       : "The run committed nothing.",
   );
   if (runUrl) {
     lines.push("", `Run: ${runUrl}`);
   }
   if (!restart) {
-    lines.push("", `To retry from the branch, remove \`${humanLabel}\` and add \`agent-ready\` again; a smaller issue, or a larger Size or Complexity field, may fit the cap.`);
+    lines.push("", `To retry (from the branch while it is not behind the default branch, else fresh), remove \`${humanLabel}\` and add \`agent-ready\` again; a smaller issue, or a larger Size or Complexity field, may fit the cap.`);
   }
   return {
     action: restart ? "turn-cap" : "hand-back",
@@ -819,7 +817,6 @@ export function decide({
     title: prTitle(outcome.title, issueTitle, issueNumber),
     body,
     branch,
-    refsHold: refs ? humanLabel : null,
   };
 }
 
@@ -902,11 +899,15 @@ export function readBranch(dir, issueNumber, key = "branch") {
 //          runs that kept no branch, is turn-cap, stopped, limited or funding
 //          and names a run whose newest lane branch passes the same
 //          tip, commit and PR checks, with every commit ahead of the default
-//          branch verified, by the lanes App, committed by web-flow: the model runs on a new lane branch
-//          made at that branch's tip (`tip`, the sha read), so it continues
-//          the work instead of starting from the default branch;
+//          branch verified, by the lanes App, committed by web-flow, and no
+//          commit behind the default branch: the model runs on a new lane
+//          branch made at that branch's tip (`tip`, the sha read), so it
+//          continues the work instead of starting from the default branch.
+//          A branch behind the default branch would carry its stale base into
+//          the runner's whole-branch checks, so it starts fresh instead
+//          (`stale` names it) and is left as it is;
 //   run    otherwise.
-// `branches` are {name, sha, aheadBy, tip, tipAt, pulls, commits} (commits
+// `branches` are {name, sha, aheadBy, behindBy, tip, tipAt, pulls, commits} (commits
 // from GET /compare, null when the listing is cut short; tip from GET
 // /commits/{sha}, tipAt epoch ms, pulls from
 // GET /pulls?state=all&head=); `closing` the issue's open closing PRs as
@@ -961,6 +962,9 @@ export function findPrior({ issueNumber, repo, bot, humans, branches, closing, m
     RESUMABLE.has(decisive?.outcome) && decisive.run !== ""
       ? lane.find((branch) => branch.match[1] === decisive.run && usable(branch) && allLane(branch))
       : null;
+  if (resume && resume.behindBy !== 0) {
+    return { action: "run", stale: { branch: resume.name, behindBy: resume.behindBy } };
+  }
   return resume ? { action: "resume", branch: resume.name, tip: resume.sha, cause: decisive.outcome } : { action: "run" };
 }
 
@@ -1161,6 +1165,9 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
       if (!Number.isSafeInteger(comparison?.ahead_by) || comparison.ahead_by < 0) {
         throw new Error(`the commits ${ref.name} holds ahead of ${base} could not be read`);
       }
+      if (!Number.isSafeInteger(comparison.behind_by) || comparison.behind_by < 0) {
+        throw new Error(`the commits ${ref.name} lacks from ${base} could not be read`);
+      }
       const pulls = await paginate(github, `${repo}/pulls?state=all&head=${encodeURIComponent(`${owner}:${ref.name}`)}`);
       if (!/^[0-9a-f]{40}$/.test(ref.sha ?? "")) {
         throw new Error(`the tip of ${ref.name} could not be read`);
@@ -1175,7 +1182,7 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
       // carries no commit list, so it is never resumed.
       const commits =
         Array.isArray(comparison.commits) && comparison.commits.length === comparison.total_commits ? comparison.commits : null;
-      branches.push({ name: ref.name, sha: ref.sha, aheadBy: comparison.ahead_by, tip, tipAt, pulls, commits });
+      branches.push({ name: ref.name, sha: ref.sha, aheadBy: comparison.ahead_by, behindBy: comparison.behind_by, tip, tipAt, pulls, commits });
     }
     const prior = findPrior({ issueNumber, repo: env.GITHUB_REPOSITORY, bot, humans, branches, closing, markers });
     const runs = prior.action === "run" || prior.action === "resume";
@@ -1191,7 +1198,9 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
       : { proceed: "false", "skip-reason": "not-applicable", "reuse-branch": prior.action === "reuse" ? prior.branch : "" };
     appendFileSync(env.GITHUB_OUTPUT, Object.entries(outputs).map(([key, value]) => `${key}=${value}\n`).join(""));
     console.log(
-      prior.action === "run"
+      prior.stale
+        ? `report-outcome: ${prior.stale.branch} is ${prior.stale.behindBy} commits behind the default branch, so the model starts issue #${issueNumber} fresh from the default branch instead of resuming it; the branch is left as it is`
+        : prior.action === "run"
         ? `report-outcome: no earlier run of issue #${issueNumber} left work to report; the model runs`
         : prior.action === "resume"
           ? `report-outcome: the model resumes issue #${issueNumber} from ${prior.branch} at ${prior.tip} (${prior.cause})`
@@ -1455,11 +1464,6 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         });
       } else {
         console.log(`report-outcome: opened PR #${pull.number} for issue #${issueNumber}`);
-        if (plan.refsHold) {
-          // The label first, so a failed comment still leaves the issue with a person.
-          await github("POST", `${repo}/issues/${issueNumber}/labels`, { labels: [plan.refsHold] });
-          await github("POST", `${repo}/issues/${issueNumber}/comments`, { body: refsHoldComment(pull.number, plan.refsHold) });
-        }
         return 0;
       }
     }

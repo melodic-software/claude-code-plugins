@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "Run `/app-control:drive capture --kind cpu` against the export worker, then come back with the profile."
+    },
+    {
+      "answer": "Run /app-control:drive capture export-worker --kind=cpu and share the .cpuprofile."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Record a CPU profile with node --cpu-prof and send it over.",
+      "why": "no drive command"
+    },
+    {
+      "answer": "Use /app-control:drive ready first.",
+      "why": "wrong action"
+    }
+  ]
+}

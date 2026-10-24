@@ -645,10 +645,10 @@ Read file, PR mode: a skill runs on ci-workflows'
 [`run-claude-cli`](https://github.com/melodic-software/ci-workflows/blob/7b362428c76085a160e28656cd2c75c3147a69ff/README.md)
 (v0.54.0), which takes exactly one credential and falls back to the subscription only as a second
 job. The caller calls the read file twice, each call with one secret, named for its `role`:
-`pr-unblock.yml`'s `fix-ci` passes only `claude-api-key` (`AUTOMATIONS_CLAUDE_API_KEY`), and
+`pr-unblock.yml`'s `fix-ci` passes only `claude-api-key` (`PR_UNBLOCK_CLAUDE_API_KEY`), and
 `fix-ci-subscription` passes only `claude-code-oauth-token`
-(`AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN`); its `fix-docs`, `address-feedback` and
-`review-dependency` calls and their `-subscription` calls do the same. Both queue in
+(`PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN`); its `address-feedback` and `review-dependency` calls,
+`pr-refine.yml`'s `fix-docs`, and their `-subscription` calls do the same. Both queue in
 `pr-pipeline-write-<pr>`. Each fallback call starts on no first-call output: a handoff job
 (`fix-ci-handoff`, `fix-ci-rung-up-handoff`, `address-feedback-handoff`,
 `review-dependency-handoff`, and `pr-refine.yml`'s `fix-docs-handoff`) with only `actions: read`
@@ -870,7 +870,7 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    `cancelled` or `timed_out`) still runs one more round, on those threads only; a
    round with no readable time grants none. Both escalations skip `awaiting-human`, and no model
    job runs. Otherwise it writes `threads.json` and `run.json` (the gated head and the kept
-   threads' ids, paths, comment ids and named paths, from the thread file) and uploads both as
+   threads' ids, paths, comment ids and named paths, and `pr_paths`, from the thread file) and uploads both as
    `feedback-context-<run attempt>`. Its outputs are `proceed`, the head it read, the
    escalation, `fix-requested`, both files' SHA-256 and that attempt; every later job takes its
    gate, head and reply inputs from them, never from a model call's run job, whose runner head
@@ -893,9 +893,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    thread's scope or any `.github/workflows/` path, read with no hook, fsmonitor or untracked-cache config.
    Every path must be plain ASCII letters, digits and `_@+.-` in `/`-separated segments. A
    thread's scope is its path; a file in the `plugins/<p>/` directory its path sits in, except an
-   instruction path (`CLAUDE.md`, `AGENTS.md`, `.mcp.json`, `.lsp.json`, `.gitmodules` or
-   `CODEOWNERS` at any depth, a `.claude` or `.claude-plugin` directory, a plugin's `hooks/`,
-   `monitors/` or `bin/`) or a `.sh`, `.bash`, `.zsh`, `.ps1`,
+   instruction path
+   (`.gitmodules`, `CODEOWNERS`, a `settings*.json`, `package.json`, `package-lock.json` or `requirements*.txt`, at any depth) or a `.sh`, `.bash`, `.zsh`, `.ps1`,
    `.py`, `.mjs`, `.cjs`, `.js`, `.ts`, `.mts` or `.cts` file; a test file (`test_*.py`, `*_test.py`, `*.test.*`, `*.spec.*`) in its path's
    directory; and its `named_paths`. The select job sets those from the thread's fix requests by a
    trusted person with write access: each file-shaped word outside fenced code and quoted lines,
@@ -903,7 +902,15 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    does not, kept when it is in the thread path's `plugins/<p>/` directory, in normal form, not
    under `.github/workflows/` and not an instruction path (the same list), and
    a regular file, not a symbolic link or gitlink, at the gated head (ten per thread
-   at most).
+   at most). Every kept thread's scope also holds the thread file's `pr_paths`: each file the
+   pull request's file listing changes, rename sources included, in normal form, not under
+   `.github/workflows/`, not a `.gitmodules`, `CODEOWNERS`, `settings*.json`, package manifest or
+   `requirements*.txt`, and not a control-plane or agent-instruction surface: anything under
+   `.github/` (the pr-merge HIGH floor's trusted-actor list, trusted-trigger check and
+   `resolve-config` among it), `CLAUDE.md`, `AGENTS.md`, `.mcp.json` or `.lsp.json`, a `.claude`
+   or `.claude-plugin` directory, or a plugin's `hooks/`, `monitors/` or `bin/`. A path the fix creates gets no scope from `pr_paths`: the tool checks it exists at
+   the gated head, `apply-patch.mjs` refuses an added entry, and the reply job an `added`,
+   `renamed` or `copied` file.
 3. After the skill, the run job carries the tool's `replies.jsonl` beside the patch, at most
    49152 bytes, sealed for the scan job ([Patch output mode](#patch-output-mode)), and only for a
    `review-threads` skill. The scan job scans it with the reply and the patch and, on a clean
@@ -917,7 +924,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    `scan-*` outputs, never a run job's, and only when that call's scan also uploaded replies.
    Before the mint it downloads the select
    job's thread file and fails red unless its SHA-256 is the select job's; `apply-patch.mjs` then
-   admits only paths in a kept thread's scope (the `kept-threads` rule, `named_paths` included),
+   admits only paths in a kept thread's scope (the `kept-threads` rule, `named_paths` and
+   `pr_paths` included),
    skips `superseded-sha` when the head moved since the select job read it, keeps the
    human-gated hold unless the select job reported `fix-requested`, and commits with the
    `Lane-Activity: pr-unblock/address-feedback` trailer. An empty patch (every reply needs no fix)
@@ -955,7 +963,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
      current head: the branch must be ahead and change fewer than 300 files, each in a kept
      thread's scope and none under `.github/workflows/`, and with a `VALID` reply hold exactly one commit the
      lanes App authored with the push job's trailer, committed by `web-flow` with a `valid`
-     signature, which must change each `VALID` thread's path,
+     signature, which must change each `VALID` thread's path, a file in `run.json`'s `pr_paths` at a
+     line the reply's evidence cites inside one of the fix commit's hunks,
      or for a thread on a skill's `SKILL.md` any file in that skill's directory. Otherwise it
      posts no reply and escalates `feedback-not-landed`: a push that was superseded, refused,
      escalated or held made no such commit;
@@ -1156,7 +1165,7 @@ warns of a [classifier gap](README.md#classifier-gaps).
 
 pr-unblock's `fix-ci` fixes a lanes App or [adopted](README.md#adoption) owner pull request's
 failing checks in separate jobs, so no model
-holds a write token: a base job, a read model job in this mode on the automations role's API key,
+holds a write token: a base job, a read model job in this mode on the pr-unblock role's API key,
 its fallback call on the role's OAuth token after a credit stop or with the key empty
 ([Two calls on one credential each](#two-calls-on-one-credential-each)), and an
 [`apply-patch`](#prepare-apply-patch) script job.
@@ -1521,8 +1530,8 @@ form, any case) and down through every reusable workflow those runs call. It fai
 such a run names `AUTOMATION_LANES_APP_PRIVATE_KEY` or `app-private-key` in a key or value, has a
 `private-key` key, passes `secrets: inherit`, or has a `${{ }}` expression, in a key, a value or a `#` line of
 a `run:` block, whose `secrets` reference is not `secrets.<name>` with `<name>` on the allowlist
-`claude_code_oauth_token`, `automations_claude_code_oauth_token` (the lanes' Claude Code OAuth
-token), `github_token` (case-insensitive, `-` read as `_`); `toJSON(secrets)`,
+`claude_code_oauth_token`, `pr_unblock_claude_code_oauth_token`,
+`issue_lane_claude_code_oauth_token`, `claude_api_key`, `pr_unblock_claude_api_key`, `github_token` (case-insensitive, `-` read as `_`); `toJSON(secrets)`,
 `secrets[...]` and bare `secrets` fail. It also fails when any file of such a run sets
 `permissions: write-all`, and, in the read file, when the top level is not `permissions: {}`, a
 job has no permissions map, `id-token` is named anywhere outside the `broker-check` job, that job
@@ -1584,7 +1593,7 @@ for `intake-triage.yml` only while the issue it names is open. The broker (azure
 JSON integer, is the `dispatcher-run-id` input, sent only when set. The broker reads it only when
 the OIDC actor is `github-actions[bot]`: such a run mints only when the `pr-unblock-dispatch.yml`
 run it names passes the checks the trusted-trigger gate applies. That run must be on `main`,
-started by a push or a listed human, with a re-run attempt started by a listed human. Its head
+started by a push, a schedule or a listed human, with a re-run attempt started by a listed human. Its head
 must be an ancestor of the tip and no tag may be named `main`. This run must be a `pr-unblock.yml`
 `workflow_dispatch` created between the dispatcher run's `run_started_at` and the earlier of its
 `updated_at` and `run_started_at` plus 10 minutes. The dispatcher run must also hold an unexpired
@@ -1716,8 +1725,10 @@ in line, holding no runner, instead of spending the lanes App's hourly API quota
 caller or the write file merges while it waits, the broker would refuse the apply job's mint
 as `workflow-modified`. Before any model turn, the read file's `workflow-current` step compares
 the caller's and the write file's blobs at `github.workflow_sha` with the default branch checkout, the broker's
-rule, and on a difference fails red `workflow-stale` with no model turn and no outcome marker;
-work-unblock's hourly sweep re-fires such a failed run on main's files. An issue that
+rule. On a difference it sets `stale=true` and ends green: the `Stop on stale workflow files`
+step runs, `go` is `false`, so no model turn, no outcome marker and no caller job follows, and
+the run counts as no failure. work-unblock's hourly sweep finds that step in the run's job
+listing and re-fires the issue on main's files, once per version of the two files. An issue that
 `pick-slot`'s resolve skips on its dimensions (`split-required`, `research-first` or
 `probe-first`) takes no model turn and leaves no outcome, so the caller's `report-skip` job,
 which needs `admit` and `pick-slot` only, runs `report-outcome` in the write file with
@@ -1759,9 +1770,11 @@ step under an `outcome=<reason>` marker. What changes from the PR flow:
   those markers that carry `branch=resumed`, left by a resumed run that kept no branch of its own)
   and names a run whose newest lane branch passes the same commit, tip and PR checks
   with every commit ahead of the default branch verified, authored by the lanes App and committed
-  by `web-flow` (a listing the compare cuts short resumes nothing), the run resumes it; when that
-  run's branch is gone or fails a check, the run starts from the default branch, never from an
-  older run's branch: `issue-prior`
+  by `web-flow` (a listing the compare cuts short resumes nothing) and no commit behind the default
+  branch, the run resumes it; when that run's branch is gone, fails a check or is behind the
+  default branch (its stale base would fail the runner's whole-branch checks), the run starts from
+  the default branch under a new lane branch, never from an older run's branch, and leaves the old
+  branch as it is: `issue-prior`
   outputs `resume-branch`, `resume-tip` (the tip it read) and `resume-cause`, and the job checks
   out that tip, so its patch is made there instead of on the default branch tip. Any failed
   read, or an answer of the wrong shape, fails the step, so no model runs.

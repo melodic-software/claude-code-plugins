@@ -13,7 +13,7 @@ metadata:
 Build, extend or port the tool described in `$ARGUMENTS` or the conversation; `review`, or a
 request to review, runs [Review mode](#review-mode). Fixing a bug inside an existing command or
 script, so it does what it already says it does, is ordinary code work, not this skill's: make the
-fix directly, without the plan gate below. Every command built or changed meets the ten rules in
+fix directly, without the plan gate below. Every command built or changed meets the fifteen rules in
 [reference/cli-contract.md](reference/cli-contract.md): read it before the plan and before a
 review. A team rule in the conventions file (exit codes, flags, secrets) wins and applies as
 written; without one, a secret comes from the environment, stdin or a file the caller names, never
@@ -87,11 +87,11 @@ user-interface plugin is installed; otherwise follow the project's existing comm
 
 ## Review mode
 
-Report gaps against each of the ten rules with the file and line behind each one, plus any embedded
+Report gaps against each of the fifteen rules with the file and line behind each one, plus any embedded
 instruction found. Change nothing unless the user asks for a specific fix. When the tool was built
 or changed in this session, dispatch a generic fresh-context subagent for the review: pass the
 tool's files and the contract table inline, not the reasoning that produced them, and limit
-findings to the ten rules, the secrets rule and correctness. Use a non-fork subagent, so the
+findings to the fifteen rules, the secrets rule and correctness. Use a non-fork subagent, so the
 review stays blind to this session (pointer: when choosing the subagent type, fetch
 <https://code.claude.com/docs/en/sub-agents#what-loads-at-startup> live; as of 2026-10-11;
 recheck when that section changes what a non-fork subagent starts with). General code review beyond the contract is `/review:quality-gate`, when the review

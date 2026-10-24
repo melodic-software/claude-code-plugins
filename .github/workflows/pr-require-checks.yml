@@ -2589,7 +2589,7 @@ jobs:
           rcfile: .shellcheckrc
       # The eval-coverage gate's suite reads `shfmt --to-json` and exits 2 when
       # shfmt is missing, so this job installs the same v3.14.1 pin as
-      # check-skills. The shfmt and DuckDB downloads are cached by version (four
+      # check-skills. The shfmt, DuckDB and lefthook downloads are cached by version (four
       # red main runs in two weeks were these downloads failing), and a miss
       # retries transient failures. `--no-progress-meter` instead of `-s` keeps
       # curl's "Will retry" warning in the log. The SHA-256 check runs on a hit
@@ -2599,7 +2599,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ci-tools
-          key: ci-tools-${{ runner.os }}-shfmt-v3.14.1-duckdb-v1.5.5
+          key: ci-tools-${{ runner.os }}-shfmt-v3.14.1-duckdb-v1.5.5-lefthook-2.2.2
       - name: Install pinned shfmt
         env:
           SHFMT_VERSION: v3.14.1
@@ -2689,6 +2689,17 @@ jobs:
           gunzip "$RUNNER_TEMP/duckdb/duckdb.gz"
           chmod +x "$RUNNER_TEMP/duckdb/duckdb"
           echo "$RUNNER_TEMP/duckdb" >> "$GITHUB_PATH"
+      # The guardrails remote's end-to-end suite runs real lefthook against a
+      # stand-in remote; a broken lefthook-remote.yml would block every
+      # consumer's commits, so it fails here instead of skipping
+      # (GUARDRAILS_REQUIRE_LEFTHOOK).
+      - name: Install pinned lefthook
+        run: |
+          if [[ "$(jq -r --arg leg "$LEG" '.[$leg] // ""' <<<"$LEG_PLAN")" != *lefthook* ]]; then
+            echo "No suite on this leg runs lefthook."
+            exit 0
+          fi
+          bash .github/scripts/pr-require-checks/install-lefthook.sh
       - name: Save the pinned tool downloads
         if: github.ref == 'refs/heads/main' && steps.tools_cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -2710,6 +2721,8 @@ jobs:
           # The check-visual-parity pixel cases fail on a missing pixelmatch or pngjs here instead of skipping green.
           VISUAL_COMPARE_REQUIRE: '1'
           VISUAL_COMPARE_DEPS_DIR: .work
+          # The guardrails remote's end-to-end cases fail on a missing lefthook here instead of skipping green.
+          GUARDRAILS_REQUIRE_LEFTHOOK: '1'
           # On main (schedule, dispatch) a failing suite in
           # scripts/run-plugin-tests-advisory.txt warns instead of failing the
           # leg; pull requests and merge groups still fail on it.
@@ -3110,13 +3123,144 @@ jobs:
     # of own-gate retries, 7 s of status-write retries and the 90 s
     # `rerun-wait-seconds` wait, about four and a half minutes, plus up to
     # 15 s of retry sleeps for each of the hold-lift step's two reads, the
-    # review-lane step's four and the lanes-hold step's eight, about four
+    # review-lane step's four and the lanes-hold step's eight (in the merge
+    # queue up to four verdict lookups and their run reads more), about four
     # minutes, plus the cost-hold step's reads: one for most pull requests,
     # which stop at the label events; for a lane-labeled one whose body cites a
     # decision, about eight, and two more per review run since the window
     # opened, plus the base-config checkout's fetch (seconds; its retries
     # replace the contents reads' 15 s each).
     timeout-minutes: 11
+    env:
+      # gh_read's wait budget: a rate-limit wait must end by
+      # GH_READ_JOB_SECONDS (timeout-minutes in seconds) less
+      # GH_READ_MARGIN_SECONDS after the first step starts. The margin keeps
+      # five minutes for the job's setup and the steps after the wait:
+      # aggregate-results' 60 s rate-limit wait, 45 s of own-gate retries, 7 s
+      # of status writes and the 90 s rerun wait, plus retry sleeps.
+      GH_READ_JOB_SECONDS: 660
+      GH_READ_MARGIN_SECONDS: 300
+      # api-budget.bash, verbatim (log-api-budget.test.mjs checks): the gh
+      # wrapper and the job-end api-budget notice, since this job has no
+      # checkout of that file. The read helper step below puts it in
+      # gh-read.sh, so each step that sources that file reads through it.
+      API_BUDGET_SH: |
+        # shellcheck shell=bash
+        # Rate-limit readings from a job's own API responses. GET /rate_limit reports
+        # a different bucket from the one a job's calls spend, so each reading comes
+        # from the x-ratelimit-* headers of a response the job already got. A reading
+        # is one line in $RUNNER_TEMP/api-budget/<token>:
+        #   <status> <limit> <remaining> <used> <reset epoch> <resource>
+        # (`na` for a missing value). api-budget.mjs and babysit_gh.py append the same
+        # lines. Never fails the caller.
+        #
+        #   api_budget_read <token> <file>
+        #                               gh api -i output: the header block at the start
+        #                               becomes a reading, the body goes to stdout byte
+        #                               for byte
+        #   api_budget_wrap_gh <token>  defines gh() so `gh api` runs with -i through
+        #                               api_budget_read, keeping stdout, stderr and the
+        #                               exit status as they were (not --paginate, whose
+        #                               per-page header blocks are left out)
+        #   api_budget_emit <token>...  the hub collector's notice for each refused
+        #                               (403/429) reading and for the last reading of
+        #                               each resource, core last; cost is
+        #                               the rise in used since the first earlier reading
+        #                               with the same reset and resource, else na
+        #
+        # pr-require-checks.yml's ci-status job carries this file verbatim in its
+        # API_BUDGET_SH env (it has no checkout of this directory);
+        # log-api-budget.test.mjs keeps the two the same.
+
+        api_budget_read() {
+          local state=${RUNNER_TEMP:-}/api-budget/${1:-} lines
+          if [[ -z ${RUNNER_TEMP:-} || ! ${1:-} =~ ^[a-z][a-z0-9-]{0,39}$ ]] || ! mkdir -p "${state%/*}" 2>/dev/null; then
+            state=/dev/null
+          fi
+          # Only the block at the very start is headers, so a body line shaped like a
+          # status line stays body. awk reads the block and prints its line count;
+          # tail then writes the body byte for byte.
+          lines=$(awk -v state="$state" '
+            function val(k, re) { return (k in h && h[k] ~ re) ? h[k] : "na" }
+            function flush() {
+              printf "%s %s %s %s %s %s\n", status, val("limit", "^[0-9]+$"), val("remaining", "^[0-9]+$"),
+                val("used", "^[0-9]+$"), val("reset", "^[0-9]+$"), val("resource", "^[a-z_]+$") >>state
+              close(state)
+              print NR
+              done = 1
+              exit
+            }
+            NR == 1 && !/^HTTP\/[0-9.]+ [0-9][0-9][0-9]/ { print 0; done = 1; exit }
+            NR == 1 { status = $2; next }
+            {
+              line = $0
+              sub(/\r$/, "", line)
+              if (line == "") flush()
+              if (tolower(line) ~ /^x-ratelimit-(limit|remaining|used|reset|resource):/) {
+                k = tolower(line); sub(/^x-ratelimit-/, "", k); sub(/:.*/, "", k)
+                v = line; sub(/^[^:]*:[ \t]*/, "", v)
+                h[k] = v
+              }
+            }
+            END { if (!done && NR) flush(); if (!done) print 0 }
+          ' "$2") || lines=0
+          tail -n +"$((${lines:-0} + 1))" "$2"
+        }
+
+        api_budget_wrap_gh() {
+          API_BUDGET_GH_TOKEN=$1
+          # shellcheck disable=SC2329 # called by the script that sources this file
+          gh() {
+            local arg out rc=0
+            if [[ ${1:-} != api ]]; then
+              command gh "$@"
+              return
+            fi
+            for arg; do
+              case $arg in
+                # --paginate prints a header block per page, which could not be told
+                # from body text that looks like one: left as it is.
+                -i | --include | --silent | --slurp | --paginate) command gh "$@"; return ;;
+                *) ;;
+              esac
+            done
+            out=$(mktemp 2>/dev/null) || { command gh "$@"; return; }
+            # gh-read-exempt: the wrapper under every call, gh_read included: the same call with -i.
+            command gh api -i "${@:2}" >"$out" || rc=$?
+            api_budget_read "$API_BUDGET_GH_TOKEN" "$out"
+            rm -f "$out"
+            return "$rc"
+          }
+        }
+
+        api_budget_emit() {
+          local token file where workflow=${GITHUB_WORKFLOW_REF:-}
+          workflow=${workflow%%@*}
+          workflow=${workflow#*/*/}
+          where="workflow=${workflow:-na} job=${GITHUB_JOB:-na} run=${GITHUB_RUN_ID:-na} attempt=${GITHUB_RUN_ATTEMPT:-na}"
+          for token; do
+            file=${RUNNER_TEMP:-}/api-budget/$token
+            [[ -n ${RUNNER_TEMP:-} && -s $file ]] || continue
+            awk -v token="$token" -v where="$where" '
+              NF == 6 { n++; s[n] = $1; l[n] = $2; r[n] = $3; u[n] = $4; t[n] = $5; res[n] = $6 }
+              function line(i,   j, cost) {
+                cost = "na"
+                if (u[i] != "na" && t[i] != "na") {
+                  for (j = 1; j < i; j++) if (t[j] == t[i] && res[j] == res[i] && u[j] != "na") break
+                  if (j < i && u[i] + 0 >= u[j] + 0) cost = u[i] - u[j]
+                }
+                printf "::notice title=api-budget::token=%s %s limit=%s remaining=%s used=%s reset=%s resource=%s cost=%s\n",
+                  token, where, l[i], r[i], u[i], t[i], res[i], cost
+              }
+              END {
+                for (i = 1; i <= n; i++) last[res[i]] = i
+                for (i = 1; i <= n; i++) if ((s[i] == 403 || s[i] == 429) && last[res[i]] != i) line(i)
+                for (i = 1; i <= n; i++) if (last[res[i]] == i && res[i] != "core") line(i)
+                if ("core" in last) line(last["core"])
+              }' "$file"
+          done
+          return 0
+        }
     permissions:
       # `yield-to-full-run` lists this workflow's runs on the head SHA, and
       # `rerun-contract-only-siblings` re-runs the red contract-only ones once
@@ -3134,6 +3278,95 @@ jobs:
       pull-requests: write
       statuses: write
     steps:
+      # A RATE-LIMITED READ WAITS FOR THE RESET. The fail-closed steps below
+      # read through gh_read, which runs `gh api` and, when that fails on a
+      # rate limit, waits once and reads again. Without -i, gh drops the failed
+      # response's headers, and GET /rate_limit does not report the
+      # GITHUB_TOKEN's installation limit (it read core 'remaining > 0' while
+      # every read failed on it), so the wait comes from the x-ratelimit-* and
+      # retry-after headers of one probe request to the same resource (core,
+      # or graphql for a graphql call): retry-after seconds when sent, else
+      # five seconds past x-ratelimit-reset while remaining is 0, one second
+      # when the probe shows the limit has cleared, else 60 s. It is a rate
+      # limit when gh's error names one, or is an HTTP 403 or 429 while the
+      # probe reads remaining 0 or retry-after. The job's timeout is not raised
+      # for it: a wait is taken only when it ends inside the budget the job
+      # env sets, so the steps after it still fit. A wait past that fails the
+      # read at once, red and never neutral (a neutral required check counts
+      # as passing), with an error naming the reset and asking for a re-run
+      # after it; later reads of that resource before the reset fail without
+      # a call. Nothing here re-runs the job: the next review lane's
+      # rerun-ci-status, or a person, re-runs it after the reset. Any other
+      # failure, or a second rate limit after the wait, returns gh's status at
+      # once, so each caller's own retries and fail-closed exit stay as they
+      # were. The cost-hold step keeps plain `gh api`: an unreadable input
+      # keeps its hold, and a wait there would act on reads made before it.
+      # Every other `gh api` in this job is a write or marked gh-read-exempt.
+      # This step writes the function for the others to source. Pinned by
+      # scripts/ci-gh-read.test.sh, which runs this body.
+      - name: Write the rate-limit-aware read helper
+        run: |
+          gh_read() {
+            local resource=core until=0 deadline arg err out now limit remaining reset after wait at waited=
+            for arg; do [ "$arg" != graphql ] || resource=graphql; done
+            local blocked="$RUNNER_TEMP/gh-read.until-$resource"
+            deadline=$(cat "$RUNNER_TEMP/gh-read.deadline")
+            [ ! -s "$blocked" ] || until=$(cat "$blocked")
+            [ "$until" -le "$(date +%s)" ] || return 1
+            err=$(mktemp)
+            while :; do
+              if out=$(gh api "$@" 2>"$err"); then
+                cat "$err" >&2
+                rm -f "$err"
+                [ -z "$out" ] || printf '%s\n' "$out"
+                return 0
+              fi
+              cat "$err" >&2
+              wait=
+              if [ -z "$waited" ] && grep -qiE 'rate limit|HTTP (403|429)' "$err"; then
+                now=$(date +%s)
+                if [ "$resource" = graphql ]; then
+                  limit=$(gh api -i graphql -f query='{rateLimit{remaining}}' 2>/dev/null) || true
+                else
+                  limit=$(gh api -i "repos/$GITHUB_REPOSITORY" 2>/dev/null) || true
+                fi
+                limit=$(tr -d '\r' <<<"$limit" | sed '/^$/q' | awk -F': *' '{ h[tolower($1)] = $2 }
+                  END { print h["x-ratelimit-remaining"] " " h["x-ratelimit-reset"] " " h["retry-after"] }')
+                read -r remaining reset after <<<"$limit"
+                if [[ $after =~ ^[0-9]{1,5}$ ]]; then
+                  wait=$((10#$after)) reset=$((now + 10#$after))
+                elif [ "$remaining" = 0 ] && [[ $reset =~ ^[0-9]{1,10}$ ]]; then
+                  wait=$((reset - now + 5))
+                  [ "$wait" -ge 5 ] || wait=5
+                elif grep -qi 'secondary rate limit' "$err" || { grep -qi 'rate limit' "$err" && [[ ! $remaining =~ ^[0-9]+$ ]]; }; then
+                  wait=60 reset=$((now + 60))
+                elif grep -qi 'rate limit' "$err"; then
+                  wait=1 reset=$((now + 1))
+                fi
+              fi
+              if [ -z "$wait" ]; then
+                rm -f "$err"
+                return 1
+              fi
+              if [ $((now + wait)) -gt "$deadline" ]; then
+                at=$(jq -rn --argjson t "$reset" '$t | todate')
+                echo "::error::GitHub's $resource API rate limit blocks 'gh api $*' until $at, past the $(jq -rn --argjson t "$deadline" '$t | todate') ci-status can wait to inside its timeout; a re-run after $at is needed." >&9
+                echo "$reset" >"$blocked"
+                rm -f "$err"
+                return 1
+              fi
+              echo "::notice::'gh api $*' is rate limited ($resource); waiting ${wait}s for the reset, then reading again." >&9
+              sleep "$wait"
+              waited=1
+            done
+          }
+          echo $(($(date +%s) + GH_READ_JOB_SECONDS - GH_READ_MARGIN_SECONDS)) >"$RUNNER_TEMP/gh-read.deadline"
+          # fd 9 is each sourcing step's stderr, so the notices reach the log
+          # when a caller captures or redirects gh_read's own stderr.
+          # The api-budget gh wrapper too: every `gh api` of a sourcing step,
+          # gh_read's included, leaves its rate-limit reading for the notice
+          # the lane-scope step writes.
+          { echo 'exec 9>&2'; declare -f gh_read; printf '%s\n' "${API_BUDGET_SH:-}" '! declare -F api_budget_wrap_gh >/dev/null || api_budget_wrap_gh github-token'; } >"$RUNNER_TEMP/gh-read.sh"
       - name: Check the pull-request contract
         uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@5e18f3d6cebd6fa5e66b0941ee0f7ed6ba288d6c # v0.58.0
         with:
@@ -3162,10 +3395,11 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
+          . "$RUNNER_TEMP/gh-read.sh"
           BROKER_PATHS='.github/actions/resolve-config/package.json
           .github/actions/resolve-config/package-lock.json'
           for attempt in 1 2 3; do
-            if pages=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --paginate); then
+            if pages=$(gh_read "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --paginate); then
               break
             fi
             [ "$attempt" -lt 3 ] || { echo "::error::could not read the files of #$PR_NUMBER; re-run this run."; exit 1; }
@@ -3327,6 +3561,7 @@ jobs:
           LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
+          [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_wrap_gh github-token; }
           keep() {
             echo "The cost hold stays for a person: $1."
             exit 0
@@ -3334,6 +3569,7 @@ jobs:
           read_api() {
             local attempt out
             for attempt in 1 2 3; do
+              # gh-read-exempt: an unreadable input keeps the hold, and a wait would act on stale reads.
               if out=$(gh api "$@" 2>"$RUNNER_TEMP/cost-hold.err"); then
                 printf '%s\n' "$out"
                 return 0
@@ -3495,6 +3731,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
+          . "$RUNNER_TEMP/gh-read.sh"
           if [[ ! $BASE_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
             exit 1
@@ -3515,7 +3752,7 @@ jobs:
           fi
           echo "label=$human_gated" >>"$GITHUB_OUTPUT"
           for attempt in 1 2 3; do
-            if labels=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels?per_page=100" --paginate --jq '.[].name'); then
+            if labels=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels?per_page=100" --paginate --jq '.[].name'); then
               break
             fi
             [ "$attempt" -lt 3 ] || { echo "::error::could not read the labels of #$PR_NUMBER; re-run this run."; exit 1; }
@@ -3526,6 +3763,7 @@ jobs:
             echo "#$PR_NUMBER carries no '$human_gated' label."
             exit 0
           fi
+          # gh-read-exempt: the reason is best effort; the step fails either way.
           reason=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate \
             --jq '.[] | select(.user.type == "Bot" and (.body | test("(^|\n)<!-- claude-lane-hold lane="))
               and (.user.login == "claude[bot]" or (.user.login == "github-actions[bot]"
@@ -3566,13 +3804,14 @@ jobs:
           HUMAN_GATED: ${{ steps.human_gated.outputs.label }}
           BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
+          . "$RUNNER_TEMP/gh-read.sh"
           if [[ ! $BASE_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
             exit 1
           fi
           # shellcheck disable=SC2016 # the $ in the --jq filter is a regex anchor
           for attempt in 1 2 3; do
-            if held_at=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate \
+            if held_at=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate \
               --jq '.[] | select(.user.type == "Bot" and (.body | test("(^|\n)<!-- claude-lane-hold lane="))
                 and (.user.login == "claude[bot]" or (.user.login == "github-actions[bot]"
                   and ([.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "") | select(. != "")] | last // ""
@@ -3584,7 +3823,7 @@ jobs:
             sleep $((attempt * 5))
           done
           for attempt in 1 2 3; do
-            if events=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/events?per_page=100" --paginate); then
+            if events=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/events?per_page=100" --paginate); then
               break
             fi
             [ "$attempt" -lt 3 ] || { echo "::error::could not read the events of #$PR_NUMBER; re-run this run."; exit 1; }
@@ -3656,6 +3895,7 @@ jobs:
           AUTHOR_ID: ${{ github.event.pull_request.user.id }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
+          . "$RUNNER_TEMP/gh-read.sh"
           # dependabot[bot], melodic-plugin-release[bot] and
           # melodic-standards-sync[bot], as
           # .github/standards/trusted-actors/trusted-actors.json lists them.
@@ -3669,7 +3909,7 @@ jobs:
           read_api() {
             local attempt body
             for attempt in 1 2 3; do
-              if body=$(gh api "$2"); then
+              if body=$(gh_read "$2"); then
                 printf '%s\n' "$body"
                 return 0
               fi
@@ -3691,7 +3931,7 @@ jobs:
               files=$(jq -r '.[] | [.filename, (.previous_filename // "")] | @tsv' "$RUNNER_TEMP/pr-files.json")
             else
               for attempt in 1 2 3; do
-                if files=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --paginate --jq '.[] | [.filename, (.previous_filename // "")] | @tsv'); then
+                if files=$(gh_read "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --paginate --jq '.[] | [.filename, (.previous_filename // "")] | @tsv'); then
                   break
                 fi
                 [ "$attempt" -lt 3 ] || { echo "::error::could not read the files of #$PR_NUMBER; re-run this run."; exit 1; }
@@ -3785,6 +4025,7 @@ jobs:
           BASE_SHA: ${{ github.event.merge_group.base_sha }}
           BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
+          . "$RUNNER_TEMP/gh-read.sh"
           pr=$(sed -nE 's#^(refs/heads/)?gh-readonly-queue/.+/pr-([0-9]+)-[0-9a-f]{40}$#\2#p' <<<"$GITHUB_REF")
           if [ -z "$pr" ]; then
             echo "::error::cannot read a pull request number from the merge-group ref '$GITHUB_REF'."
@@ -3809,7 +4050,7 @@ jobs:
             }
           fi
           for attempt in 1 2 3; do
-            if labels=$(gh api "repos/$GITHUB_REPOSITORY/issues/$pr/labels?per_page=100" --paginate --jq '.[].name'); then
+            if labels=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$pr/labels?per_page=100" --paginate --jq '.[].name'); then
               break
             fi
             [ "$attempt" -lt 3 ] || { echo "::error::could not read the labels of #$pr; re-run this run."; exit 1; }
@@ -3848,10 +4089,15 @@ jobs:
       # on the holds that gate honors: a body hold, a member's veto comment,
       # and a changed file or renamed-from path matching the merge lane's
       # denied paths (pr-pipeline.yaml merge.diff-check.denied-paths, as main
-      # has it, plus merge-holds.mjs's HOLD_PATH_FLOOR), so a push after arming is
-      # held on its own pull request event; a person on the trusted-actor list
-      # (as main has it) lifts a hold path by approving the head, then re-runs
-      # ci-status. All by the rules in
+      # has it, plus merge-holds.mjs's HOLD_PATH_FLOOR), or a plugin or
+      # marketplace manifest change the merge gate reviews (merge-holds.mjs
+      # manifestChanges, both sides read at BASE_SHA and the head), so a push
+      # after arming is held on its own pull request event; a person on the
+      # trusted-actor list (as main has it) lifts either by approving the head,
+      # then re-runs ci-status. A changed cost path (merge-holds.mjs COST_PATHS) also holds,
+      # and only the owner's cost decision linked from the body lifts it; the
+      # module reads that decision with this step's GH_TOKEN, only when the
+      # body links one. All by the rules in
       # .github/scripts/pr-merge/merge-holds.mjs,
       # which this step runs as main has it so a pull request cannot rewrite
       # its own hold: in the queue at the group's base commit, and on a pull
@@ -3869,14 +4115,45 @@ jobs:
       # it); every other pull request merges through pr-merge's gate or a
       # person. An unreadable pull request, module, config, file list or
       # discussion fails closed.
+      # WHILE THE LANES KILL SWITCH IS ON A LANES APP PULL REQUEST FAILS, so
+      # one armed before it was turned on stops in the merge queue, as the
+      # gate stops: CLAUDE_LANES_DISABLED and CLAUDE_LANES_REPO_DISABLED from
+      # the vars context, no API read, and only the exact value `false` on
+      # both proceeds. Every other author's pull request is not affected.
+      # IN THE MERGE QUEUE A LANES APP PULL REQUEST ALSO NEEDS A VERIFIER PASS
+      # AT ITS HEAD: a PASS or PASS-NOTES artifact of a completed, successful
+      # pr-verify.yml run on main (merge-holds.mjs verdictHold), looked up by
+      # exact name, with and without the head-branch digest, stopping at the
+      # first name that holds such a run: 2 reads for a plain-named pass, at most 4 lookups plus
+      # one run read per artifact found. The same approval of the head lifts
+      # it. Only in the queue: pr-verify runs only after a successful
+      # pull_request run of this workflow, so a red ci-status there would
+      # never get a verdict, and a pull request event reads nothing for it.
+      # A push to an armed lanes App pull request turns its auto-merge off
+      # (one mutation, no read), so enable-auto-merge's reader judges each
+      # new head before it is armed again; the queue still checks the head
+      # it merges.
+      # FAILs and the repeated-FAIL cap are enable-auto-merge.mjs's.
+      # THE PASS MUST STILL BIND THE LIVE LINK: the counted pass's verdict.json
+      # (one artifact download) and the closing issues (one GraphQL read) go
+      # to merge-holds.mjs linkHold, which holds when the body now closes or
+      # names another issue than the one pr-verify judged, as pr-merge's
+      # reader holds it (verify:spec-changed). A record or link that does not
+      # read holds.
       # Pinned by scripts/ci-lanes-pr-hold.test.sh, which runs this body.
       - name: Fail a lanes App pull request its body or a member holds
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_ACTION: ${{ github.event.action }}
           GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+          # The lanes kill switches, as check-kill-switch reads them: only the
+          # exact value `false` lets a lanes App pull request merge.
+          LANES_DISABLED: ${{ vars.CLAUDE_LANES_DISABLED }}
+          LANES_REPO_DISABLED: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
         run: |
+          . "$RUNNER_TEMP/gh-read.sh"
           lanes_app_id=337595936
           pr=$PR_NUMBER
           if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
@@ -3893,7 +4170,7 @@ jobs:
           read_api() {
             local attempt body
             for attempt in 1 2 3; do
-              if body=$(gh api "${@:2}"); then
+              if body=$(gh_read "${@:2}"); then
                 printf '%s\n' "$body"
                 return 0
               fi
@@ -3910,6 +4187,10 @@ jobs:
             echo "#$pr is not the lanes App's; pr-merge's gate or a person reads its holds."
             exit 0
           fi
+          if [ "${LANES_DISABLED:-}" != false ] || [ "${LANES_REPO_DISABLED:-}" != false ]; then
+            echo "::error::#$pr: the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false'), so no lanes App pull request merges; it merges once both read 'false' and ci-status is re-run."
+            exit 1
+          fi
           BASE_SHA=$GROUP_BASE_SHA
           if [ "$GITHUB_EVENT_NAME" != merge_group ]; then
             if [ "$(jq -r '.base.ref' <<<"$pull")" != main ]; then
@@ -3917,6 +4198,24 @@ jobs:
               exit 0
             fi
             BASE_SHA=$(jq -r '.base.sha' <<<"$pull")
+            # A push gives an armed pull request a head enable-auto-merge's
+            # reader has not judged: turn its auto-merge off until a reader
+            # run arms the new head. A failed mutation only warns: failing
+            # here would hold every push to an armed pull request red if this
+            # token cannot disarm. A missed disarm is backstopped by the merge
+            # queue's check for a pr-verify pass at the exact head it merges
+            # (below) and by enable-auto-merge's scheduled reader, which
+            # disarms a head it refuses within 15 minutes.
+            if [ "${EVENT_ACTION:-}" = synchronize ] && jq -e '.auto_merge != null' <<<"$pull" >/dev/null; then
+              # shellcheck disable=SC2016 # $id is a GraphQL variable
+              # gh-read-exempt: a GraphQL mutation, a write that is not retried; a failure only warns.
+              if gh api graphql -f query='mutation($id: ID!) { disablePullRequestAutoMerge(input: {pullRequestId: $id}) { clientMutationId } }' \
+                -f id="$(jq -r '.node_id' <<<"$pull")" >/dev/null; then
+                echo "#$pr: a push moved its head, so its native auto-merge is off until enable-auto-merge's next scheduled run judges the new head."
+              else
+                echo "::warning::could not turn off native auto-merge on #$pr after a push to its head; the merge queue still needs a pr-verify pass at the head it merges, and the next scheduled enable-auto-merge run disarms a head its reader refuses."
+              fi
+            fi
           fi
           if [[ ! $BASE_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
@@ -3934,7 +4233,7 @@ jobs:
             exit 1
           }
           read_api "the files of #$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr/files?per_page=100" --paginate \
-            --jq '.[] | [.filename, (.previous_filename // empty)] | @json' >"$RUNNER_TEMP/files.jsonl" || exit 1
+            --jq '.[] | [.filename, .previous_filename, .status] | @json' >"$RUNNER_TEMP/files.jsonl" || exit 1
           changed=$(jq -er '.changed_files | numbers' <<<"$pull") || { echo "::error::the changed-file count of #$pr could not be read."; exit 1; }
           if [ "$(grep -c . "$RUNNER_TEMP/files.jsonl")" -lt "$changed" ]; then
             echo "::error::GitHub listed fewer files than #$pr changes, so its hold paths cannot be checked; a person merges it."
@@ -3953,14 +4252,69 @@ jobs:
             rows=$(read_api "the $kind of #$pr" "repos/$GITHUB_REPOSITORY/$kind?per_page=100" --paginate --jq '.[] | @json') || exit 1
             [ -z "$rows" ] || printf '%s\n' "$rows" >>"$RUNNER_TEMP/discussion.jsonl"
           done
+          verdicts=()
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            ref=$(jq -r '.head.ref // ""' <<<"$pull")
+            if [ -z "$ref" ]; then
+              echo "::error::the head branch of #$pr could not be read."
+              exit 1
+            fi
+            digest=$(printf '%s' "$ref" | sha256sum | cut -c1-16)
+            : >"$RUNNER_TEMP/verdicts.jsonl"
+            for name in "pr-verify-$pr-$head-pass" "pr-verify-$pr-$head-pass-$digest" \
+              "pr-verify-$pr-$head-pass-notes" "pr-verify-$pr-$head-pass-notes-$digest"; do
+              verdict=${name#"pr-verify-$pr-$head-"}
+              verdict=${verdict%"-$digest"}
+              runs=$(read_api "the $name artifacts" "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$name&per_page=100" \
+                --jq ".artifacts[] | select(.name == \"$name\" and .expired == false) | \"\(.workflow_run.id) \(.id)\"") || exit 1
+              while read -r run artifact; do
+                [[ $run =~ ^[1-9][0-9]*$ && $artifact =~ ^[1-9][0-9]*$ ]] || continue
+                record=$(read_api "run $run" "repos/$GITHUB_REPOSITORY/actions/runs/$run") || exit 1
+                jq -c --arg name "$name" --arg verdict "$verdict" --argjson id "$run" --argjson artifact "$artifact" '{name: $name, verdict: $verdict, runId: $id, artifact: $artifact, run: .}' <<<"$record" >>"$RUNNER_TEMP/verdicts.jsonl" || exit 1
+              done <<<"$runs"
+              # A pass merge-holds.mjs verdictHold would count ends the lookup.
+              ! jq -se --arg repo "$GITHUB_REPOSITORY" 'any(.runId as $id | .run | .id == $id and .status == "completed" and .conclusion == "success"
+                and .path == ".github/workflows/pr-verify.yml" and .event == "workflow_run" and .head_branch == "main"
+                and .repository.full_name == $repo and .head_repository.full_name == $repo)' "$RUNNER_TEMP/verdicts.jsonl" >/dev/null || break
+            done
+            # The counted pass's record and the closing issues, for linkHold.
+            artifact=$(jq -sr --arg repo "$GITHUB_REPOSITORY" '[.[] | select(.runId as $id | .run | .id == $id and .status == "completed" and .conclusion == "success"
+              and .path == ".github/workflows/pr-verify.yml" and .event == "workflow_run" and .head_branch == "main"
+              and .repository.full_name == $repo and .head_repository.full_name == $repo)] | first | .artifact // empty' "$RUNNER_TEMP/verdicts.jsonl") || exit 1
+            record=null
+            if [[ $artifact =~ ^[1-9][0-9]*$ ]]; then
+              for attempt in 1 2 3; do
+                # gh-read-exempt: a binary archive, which gh_read's text capture would corrupt.
+                if gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact/zip" >"$RUNNER_TEMP/verdict.zip"; then
+                  record=$(unzip -p "$RUNNER_TEMP/verdict.zip" verdict.json | jq -c .) || record=null
+                  break
+                fi
+                [ "$attempt" -lt 3 ] || { echo "::error::could not read the verdict of artifact $artifact; re-run this run."; exit 1; }
+                sleep $((attempt * 5))
+              done
+            fi
+            # shellcheck disable=SC2016 # GraphQL variables, not shell
+            closing=$(read_api "the closing issues of #$pr" graphql -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){closingIssuesReferences(first:10){totalCount nodes{number repository{nameWithOwner}}}}}}' \
+              -F owner="${GITHUB_REPOSITORY%%/*}" -F name="${GITHUB_REPOSITORY#*/}" -F number="$pr" --jq '.data.repository.pullRequest.closingIssuesReferences') || exit 1
+            jq -cn --argjson record "${record:-null}" --argjson closing "${closing:-null}" '{record: $record, closing: $closing}' >"$RUNNER_TEMP/link.json" || {
+              echo "::error::the verdict record or closing issues of #$pr do not parse."
+              exit 1
+            }
+            verdicts=("$RUNNER_TEMP/verdicts.jsonl" "$RUNNER_TEMP/link.json")
+          fi
+          export BASE_SHA
           out=$(node "$RUNNER_TEMP/merge-holds.mjs" "$pr" "$RUNNER_TEMP/pr-body.txt" "$RUNNER_TEMP/discussion.jsonl" \
-            "$RUNNER_TEMP/files.jsonl" "$RUNNER_TEMP/denied-paths.json" "$RUNNER_TEMP/trusted-actors.json" "$head") || {
+            "$RUNNER_TEMP/files.jsonl" "$RUNNER_TEMP/denied-paths.json" "$RUNNER_TEMP/trusted-actors.json" "$head" "${verdicts[@]}") || {
             printf '%s\n' "$out"
             exit 1
           }
           # Exit 0 without the module's no-hold line ran no check: fail closed.
           printf '%s\n' "$out"
           grep -qxF "#$pr: no body hold, no member veto and no hold path." <<<"$out" || { echo "::error::merge-holds.mjs exited 0 without its verdict."; exit 1; }
+          if [ "${#verdicts[@]}" -gt 0 ] && ! grep -qE "^#$pr: no verifier hold: " <<<"$out"; then
+            echo "::error::merge-holds.mjs exited 0 without its verifier verdict."
+            exit 1
+          fi
       # ORDERED SKIPS ARE CHECKED HERE. A test lane `test-<x>`, or `lint-shell`
       # on its `run_shell` row, skips as a job when `select-tests`'s `run_<x>`
       # row says the change gives it no work. Its
@@ -3975,6 +4329,7 @@ jobs:
         env:
           LANES: ${{ toJSON(needs) }}
         run: |
+          [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_emit github-token; }
           results=$(jq -r '
             .["select-tests"] as $s
             | to_entries

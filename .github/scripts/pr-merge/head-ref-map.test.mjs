@@ -2,13 +2,16 @@
 // pr-merge.yml: the map is read only from the newest scheduled or hand-started
 // pr-merge.yml run on main other than this one (found the way rotation.mjs
 // finds the cursor) whose head commit is on main, holds artifact id to head ref and nothing else, keeps an
-// entry only while its id is listed, adds only this run's own downloads, and on
-// any failure writes nothing.
+// entry only while its id is listed (with no listing file, every entry as it
+// is), adds only this run's own downloads, and on any other failure writes
+// nothing.
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { main, nextMap } from "./head-ref-map.mjs";
 
@@ -147,7 +150,7 @@ async function writeRun({ previous, runCache, listing }) {
   const paths = Object.fromEntries(["in", "cache", "listing", "out"].map((k) => [k, join(dir, `${k}-${n}.json`)]));
   if (previous !== undefined) writeFileSync(paths.in, previous);
   if (runCache !== undefined) writeFileSync(paths.cache, JSON.stringify(runCache));
-  if (listing !== undefined) writeFileSync(paths.listing, JSON.stringify(listing));
+  if (listing !== undefined) writeFileSync(paths.listing, typeof listing === "string" ? listing : JSON.stringify(listing));
   const lines = [];
   const log = console.log;
   console.log = (line) => lines.push(String(line));
@@ -165,7 +168,7 @@ async function writeRun({ previous, runCache, listing }) {
   } finally {
     console.log = log;
   }
-  return { written: existsSync(paths.out) ? JSON.parse(readFileSync(paths.out, "utf8")) : undefined, lines };
+  return { written: existsSync(paths.out) ? JSON.parse(readFileSync(paths.out, "utf8")) : undefined, out: paths.out, lines };
 }
 
 test("write merges the map read before the gate with the run's downloads", async () => {
@@ -177,13 +180,43 @@ test("write merges the map read before the gate with the run's downloads", async
   assert.deepEqual(written, { version: 1, repo: REPO, head_refs: { 30: "feat/other", 40: "feat/x" } });
 });
 
-test("write with no listing writes nothing; a bad previous map is dropped", async () => {
-  const none = await writeRun({ previous: mapOf({ 30: "a" }), runCache: cached({}) });
+test("write with no listing carries the map read before the gate, quietly", async () => {
+  // A run with no candidates saves no listing; the next run that saves one prunes the map.
+  const { written, lines } = await writeRun({ previous: mapOf({ 30: "a", 31: "" }), runCache: cached({ [`${REPO}|40`]: { head_ref: "b" } }) });
+  // 40 is a download no listing vouches for, so only the map read before the gate is carried.
+  assert.deepEqual(written, { version: 1, repo: REPO, head_refs: { 30: "a", 31: "" } });
+  assert.equal(lines.length, 1);
+  assert.ok(!lines[0].startsWith("::warning"));
+  // No map read before the gate, or one that is dropped: nothing to carry.
+  const none = await writeRun({ runCache: cached({}) });
   assert.equal(none.written, undefined);
-  assert.ok(none.lines.some((line) => line.startsWith("::warning title=head-ref map::")));
+  assert.equal(none.lines.length, 1);
+  assert.ok(!none.lines[0].startsWith("::warning"));
+  assert.equal((await writeRun({ previous: "{" })).written, undefined);
+});
+
+test("a listing that exists but cannot be read writes nothing and warns", async () => {
+  for (const listing of ["{", JSON.stringify({ artifacts: "none" })]) {
+    const result = await writeRun({ previous: mapOf({ 30: "a" }), runCache: cached({}), listing });
+    assert.equal(result.written, undefined);
+    assert.ok(result.lines.some((line) => line.startsWith("::warning title=head-ref map::")));
+  }
+});
+
+test("a bad previous map is dropped; no run cache prunes the previous map", async () => {
   const bad = await writeRun({ previous: "{", runCache: cached({ [`${REPO}|40`]: { head_ref: "b" } }), listing: listed(30, 40) });
   assert.deepEqual(bad.written.head_refs, { 40: "b" });
-  // No run cache: the map read before the gate, pruned.
   const bare = await writeRun({ previous: mapOf({ 30: "a", 31: "c" }), listing: listed(30) });
   assert.deepEqual(bare.written.head_refs, { 30: "a" });
+});
+
+// The gate's reader (babysit_verify_evidence.py `load_head_refs`) loads the
+// map a run with no listing carries.
+test("the gate reads the carried map", async () => {
+  const { out } = await writeRun({ previous: mapOf({ 30: "a", 31: "" }) });
+  const scripts = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
+  const load = "import json, sys; from babysit_verify_evidence import load_head_refs; print(json.dumps(load_head_refs(sys.argv[1], sys.argv[2])))";
+  const run = spawnSync("python3", ["-c", load, out, REPO], { cwd: scripts, encoding: "utf8" });
+  assert.equal(run.status, 0, run.stderr);
+  assert.deepEqual(JSON.parse(run.stdout), { 30: "a", 31: "" });
 });

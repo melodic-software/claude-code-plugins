@@ -50,6 +50,8 @@ BASE = "c" * 40
 PR = fixtures.PR_NUMBER
 OPERATOR_LOGIN = "operator"
 IDENTITY = "agent-lanes[bot]"
+# A person on the trusted-actor list, kind human.
+PERSON_ID = 4242
 INERT = policy.UnattendedPolicy(reason="authority-unconfigured")
 INERT_BLOCKER = "unattended merge refused: authority-unconfigured"
 # Captured before setUpModule stubs `_role_label` for the rest of the module.
@@ -206,6 +208,7 @@ class RemappedHumanGatedLabel(unittest.TestCase):
         with (
             mock.patch.object(merge, "gh_capture", capture),
             mock.patch.object(merge, "upsert_marker_comment", return_value="created"),
+            mock.patch.object(merge, "fetch_paginated_api", return_value=[]),
         ):
             merge.escalate_verify(
                 "owner/repo",
@@ -277,6 +280,7 @@ class UnreadableHumanGatedLabel(unittest.TestCase):
         with (
             mock.patch.object(merge, "gh_capture", capture),
             mock.patch.object(merge, "upsert_marker_comment", return_value="created"),
+            mock.patch.object(merge, "fetch_paginated_api", return_value=[]),
         ):
             merge.escalate_verify(
                 "owner/repo",
@@ -749,6 +753,14 @@ class Unattended(unittest.TestCase):
         self.eligible = policy.Eligibility(True, None, "C2", 40)
         self.lanes = BOUND
         self.comments: list[dict[str, Any]] = []
+        self.timeline: list[dict[str, Any]] = []
+        self.timeline_error: Exception | None = None
+        self.timeline_reads: list[dict[str, Any]] = []
+        # The trusted-actor list's people, and each ref it was read at.
+        self.trusted_humans: tuple[int, ...] = (PERSON_ID,)
+        self.trusted_refs: list[str] = []
+        # The repository's default branch as `repository_default_branch` reads it.
+        self.repo_default: str | None = "main"
         self.files = ((LOW_FILE,), True)
         self.pr_view = fixtures._pr()
         self.queue = fixtures._queue_read(required=True)
@@ -812,9 +824,8 @@ class Unattended(unittest.TestCase):
             else self.dependabot_reads[0]
         )
 
-    def _lane_evidence(self, *args: Any, **kwargs: Any) -> Any:
+    def _lane_evidence(self, *args: Any) -> Any:
         self.lane_args = args
-        self.lane_kwargs = kwargs
         if self.lane_error is not None:
             raise self.lane_error
         return self.lanes, self.comments
@@ -827,6 +838,12 @@ class Unattended(unittest.TestCase):
         # The pr-merge human-veto scan reads the inline review comments too.
         if endpoint == f"repos/owner/repo/pulls/{PR}/comments?per_page=100":
             return []
+        # The timeline an escalation reads for a person's removal of its label.
+        if endpoint == f"repos/owner/repo/issues/{PR}/timeline?per_page=100":
+            self.timeline_reads.append(kwargs)
+            if self.timeline_error is not None:
+                raise self.timeline_error
+            return self.timeline
         return self._real_paginated(endpoint, label, **kwargs)
 
     def _default_branch(self, repo: str, *, shared: bool = False) -> str:
@@ -988,6 +1005,13 @@ class Unattended(unittest.TestCase):
             ),
             mock.patch.object(merge, "_lane_evidence", side_effect=self._lane_evidence),
             mock.patch.object(
+                policy,
+                "trusted_actors",
+                side_effect=lambda repo, ref, exclude=(): (
+                    self.trusted_refs.append(ref) or ((), self.trusted_humans)
+                ),
+            ),
+            mock.patch.object(
                 merge, "fetch_paginated_api", side_effect=self._paginated
             ),
             # The comment readers `babysit_merge` imports from `babysit_gh`
@@ -1014,7 +1038,11 @@ class Unattended(unittest.TestCase):
                 "fetch_pull_request_reviews",
                 return_value=fixtures.CLEAN_APPROVAL,
             ),
-            mock.patch.object(merge, "repository_default_branch", return_value="main"),
+            mock.patch.object(
+                merge,
+                "repository_default_branch",
+                side_effect=lambda repo: self.repo_default,
+            ),
             mock.patch.object(merge, "read_merge_queue", return_value=self.queue),
             mock.patch.object(merge, "async_merge", self.async_merge),
             mock.patch.object(merge, "rerun_rate_limited_reviews", self.rerun),
@@ -1491,7 +1519,7 @@ class LaneMode(Unattended):
     def test_a_read_past_the_candidate_deadline_stops_before_any_write(self) -> None:
         read_on: list[float] = []
 
-        def slow_read(*args: Any, **_: Any) -> Any:
+        def slow_read(*args: Any) -> Any:
             self._command_at(241.0)
             read_on.append(self.now)
             return self.lanes, self.comments
@@ -1507,7 +1535,7 @@ class LaneMode(Unattended):
         self.dequeue.assert_not_called()
 
     def test_the_same_slow_read_without_a_deadline_still_enqueues(self) -> None:
-        def slow_read(*args: Any, **_: Any) -> Any:
+        def slow_read(*args: Any) -> Any:
             self._command_at(10_000.0)
             return self.lanes, self.comments
 
@@ -2083,6 +2111,20 @@ class EachRefusalMakesNoMergeCall(Unattended):
         self.lane_error = RuntimeError(
             "pr-review-hosted.yml runs: total_count 1000, 1000 returned, "
             "at the 1000-run search cap"
+        )
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(
+            {(e["bound"], e["unboundReason"]) for e in out["unattended"]["evidence"]},
+            {(False, "evidence-missing")},
+        )
+
+    def test_a_rate_limited_evidence_read_holds_the_candidate(self) -> None:
+        # A rate-limited evidence read binds no lane, so the candidate holds
+        # until a later run reads again.
+        self.lane_error = RuntimeError(
+            "gh api repos/owner/repo/issues/1/timeline failed: gh: API rate limit"
+            " exceeded for installation ID 4242. (HTTP 403)"
         )
         code, out = self.run_main()
         self.assert_no_merge(code)
@@ -3027,11 +3069,6 @@ class LaneEvidenceGetsTheChangedPaths(Unattended):
         self.run_main(merge_flag=False)
         self.assertIsNone(self.lane_args[-1])
 
-    def test_the_configured_read_token_floor_reaches_the_lane_evidence(self) -> None:
-        self.config = dataclasses.replace(self.config, read_token_floor=0.75)
-        self.run_main(merge_flag=False)
-        self.assertEqual(self.lane_kwargs, {"read_floor": 0.75})
-
 
 class ReasonsComment(Unattended):
     """MED/HIGH on an eligible pull request: one upserted comment (T14, D15)."""
@@ -3218,6 +3255,250 @@ class ReasonsComment(Unattended):
             out["unattended"]["writes"]["riskEscalation"],
             {"label": "added", "comment": "unchanged"},
         )
+
+    def unlabeled(
+        self,
+        login: str,
+        kind: str,
+        at: datetime,
+        name: str = "Needs-Human",
+        actor_id: int = PERSON_ID,
+    ) -> dict[str, Any]:
+        """A REST timeline event removing `name` at `at`."""
+        return {
+            "event": "unlabeled",
+            "actor": {"login": login, "type": kind, "id": actor_id},
+            "label": {"name": name},
+            "created_at": at.isoformat().replace("+00:00", "Z"),
+        }
+
+    def escalated_earlier(self) -> None:
+        """An earlier run escalated at this head at WRITTEN; the label is off."""
+        self.setUp()
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(f"{body}\n\n{merge.RISK_ESCALATION_LINE}")
+        self.lanes = UNBOUND
+
+    def test_a_person_removing_the_label_after_the_escalation_keeps_it_off(
+        self,
+    ) -> None:
+        self.escalated_earlier()
+        self.timeline = [
+            self.unlabeled("owner-person", "User", self.WRITTEN + timedelta(minutes=30))
+        ]
+        _, out = self.run_main()
+        self.assertEqual(self.log, [])
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"],
+            {"label": "lifted", "comment": "unchanged"},
+        )
+        # The trusted list is read at the default branch, never the head.
+        self.assertEqual(self.trusted_refs, ["main"])
+
+    def test_the_trusted_list_is_read_at_the_default_branch(self) -> None:
+        # The pull request's base is main; a retarget cannot pick the list.
+        self.escalated_earlier()
+        self.repo_default = "trunk"
+        self.timeline = [
+            self.unlabeled("owner-person", "User", self.WRITTEN + timedelta(minutes=30))
+        ]
+        _, out = self.run_main()
+        self.assertEqual(self.trusted_refs, ["trunk"])
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"]["label"], "lifted"
+        )
+
+    def test_an_unread_default_branch_is_no_lift(self) -> None:
+        self.escalated_earlier()
+        self.repo_default = None
+        self.timeline = [
+            self.unlabeled("owner-person", "User", self.WRITTEN + timedelta(minutes=30))
+        ]
+        _, out = self.run_main()
+        self.assertEqual(self.log, [self.LABEL])
+        self.assertEqual(self.trusted_refs, [])
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"]["liftUnread"],
+            "default branch unread",
+        )
+
+    def test_a_person_removing_through_an_app_is_no_lift(self) -> None:
+        # An agent driving a person's token through an App is not the person.
+        self.escalated_earlier()
+        removal = self.unlabeled(
+            "owner-person", "User", self.WRITTEN + timedelta(minutes=30)
+        )
+        removal["performed_via_github_app"] = {"slug": "agent-app"}
+        self.timeline = [removal]
+        _, out = self.run_main()
+        self.assertEqual(self.log, [self.LABEL])
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"],
+            {"label": "added", "comment": "unchanged"},
+        )
+
+    def test_a_trusted_id_on_a_bot_account_is_no_lift(self) -> None:
+        self.escalated_earlier()
+        self.timeline = [
+            self.unlabeled("person-app", "Bot", self.WRITTEN + timedelta(minutes=30))
+        ]
+        self.run_main()
+        self.assertEqual(self.log, [self.LABEL])
+
+    def test_a_tie_goes_to_the_later_removal(self) -> None:
+        # Same second: the person's removal, then the lanes App's.
+        self.escalated_earlier()
+        at = self.WRITTEN + timedelta(minutes=30)
+        self.timeline = [
+            self.unlabeled("owner-person", "User", at),
+            self.unlabeled("melodic-automation-lanes[bot]", "Bot", at, actor_id=1),
+        ]
+        self.run_main()
+        self.assertEqual(self.log, [self.LABEL])
+
+    def test_a_write_user_off_the_trusted_list_is_no_lift(self) -> None:
+        # A model-driven User account can hold write access.
+        self.escalated_earlier()
+        self.timeline = [
+            self.unlabeled(
+                "model-agent",
+                "User",
+                self.WRITTEN + timedelta(minutes=30),
+                actor_id=199161495,
+            )
+        ]
+        _, out = self.run_main()
+        self.assertEqual(self.log, [self.LABEL])
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"],
+            {"label": "added", "comment": "unchanged"},
+        )
+
+    def test_a_trusted_person_with_triage_access_is_no_lift(self) -> None:
+        self.escalated_earlier()
+        self.permission_reader = lambda repo: (
+            lambda who: "triage" if who == "owner-person" else "write"
+        )
+        self.timeline = [
+            self.unlabeled("owner-person", "User", self.WRITTEN + timedelta(minutes=30))
+        ]
+        self.run_main()
+        self.assertEqual(self.log, [self.LABEL])
+
+    def test_the_newest_removal_decides(self) -> None:
+        # A person removed it; the lanes App put it back and took it off again.
+        self.escalated_earlier()
+        self.timeline = [
+            self.unlabeled(
+                "owner-person", "User", self.WRITTEN + timedelta(minutes=30)
+            ),
+            {
+                "event": "labeled",
+                "actor": {"login": "melodic-automation-lanes[bot]", "type": "Bot"},
+                "label": {"name": "needs-human"},
+                "created_at": "2026-10-12T10:40:00Z",
+            },
+            self.unlabeled(
+                "melodic-automation-lanes[bot]",
+                "Bot",
+                self.WRITTEN + timedelta(minutes=50),
+                actor_id=1,
+            ),
+        ]
+        self.run_main()
+        self.assertEqual(self.log, [self.LABEL])
+
+    def test_an_escalation_comment_with_no_time_is_no_lift(self) -> None:
+        self.escalated_earlier()
+        for key in ("created_at", "updated_at"):
+            self.comments[0][key] = "not a time"
+        self.timeline = [
+            self.unlabeled("owner-person", "User", self.WRITTEN + timedelta(minutes=30))
+        ]
+        self.run_main()
+        self.assertEqual(self.log, [self.LABEL])
+        self.assertEqual(self.timeline_reads, [])
+
+    def test_a_bot_or_a_reader_removing_the_label_is_no_lift(self) -> None:
+        later = self.WRITTEN + timedelta(minutes=30)
+        for login, kind in (
+            ("melodic-automation-lanes[bot]", "Bot"),
+            ("github-actions[bot]", "Bot"),
+            (IDENTITY, "Bot"),
+            ("reader-person", "User"),
+        ):
+            with self.subTest(login):
+                self.escalated_earlier()
+                self.permission_reader = lambda repo: (
+                    lambda who: "read" if who == "reader-person" else "write"
+                )
+                self.timeline = [self.unlabeled(login, kind, later)]
+                _, out = self.run_main()
+                self.assertEqual(self.log, [self.LABEL])
+                self.assertEqual(
+                    out["unattended"]["writes"]["riskEscalation"],
+                    {"label": "added", "comment": "unchanged"},
+                )
+
+    def test_a_removal_before_the_escalation_is_no_lift(self) -> None:
+        self.escalated_earlier()
+        self.timeline = [
+            self.unlabeled("owner-person", "User", self.WRITTEN - timedelta(minutes=5)),
+            self.unlabeled("owner-person", "User", self.WRITTEN),
+        ]
+        self.run_main()
+        self.assertEqual(self.log, [self.LABEL])
+
+    def test_another_labels_removal_is_no_lift(self) -> None:
+        self.escalated_earlier()
+        self.timeline = [
+            self.unlabeled(
+                "owner-person", "User", self.WRITTEN + timedelta(minutes=30), "bug"
+            )
+        ]
+        self.run_main()
+        self.assertEqual(self.log, [self.LABEL])
+
+    def test_an_unread_timeline_escalates(self) -> None:
+        self.escalated_earlier()
+        self.timeline_error = RuntimeError("HTTP 403: rate limit")
+        _, out = self.run_main()
+        self.assertEqual(self.log, [self.LABEL])
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"],
+            {
+                "label": "added",
+                "comment": "unchanged",
+                "liftUnread": "RuntimeError: HTTP 403: rate limit",
+            },
+        )
+
+    def test_the_timeline_is_read_under_the_verdict_readers_token(self) -> None:
+        self.escalated_earlier()
+        with mock.patch.dict(os.environ, {merge.verify_evidence.TOKEN_ENV: "reader"}):
+            self.run_main()
+        self.assertEqual(
+            self.timeline_reads, [{"env_overrides": {"GH_TOKEN": "reader"}}]
+        )
+
+    def test_a_removal_before_a_new_escalation_does_not_lift_it(self) -> None:
+        # The reasons comment says the refusal for the first time at this
+        # head, so a person's earlier removal lifted some other escalation.
+        body = self.body()
+        self.setUp()
+        self.earlier_sweep(body)
+        self.lanes = UNBOUND
+        self.timeline = [
+            self.unlabeled("owner-person", "User", self.WRITTEN + timedelta(minutes=30))
+        ]
+        _, out = self.run_main()
+        self.assertEqual(self.log, ["risk-comment:PATCH", self.LABEL])
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"],
+            {"label": "added", "comment": "updated"},
+        )
+        self.assertEqual(self.timeline_reads, [])
 
     def test_an_escalated_comment_at_a_new_head_drops_the_line(self) -> None:
         old = self.body().replace(HEAD, "d" * 40)
@@ -3710,22 +3991,13 @@ class HeadPushers(unittest.TestCase):
 class LaneEvidenceReadToken(unittest.TestCase):
     """The gate's review-evidence reads (timeline, comments, lane runs and
     their attempts, jobs and annotations) run under the job's read-only token
-    (`BABYSIT_VERIFY_GH_TOKEN`), off the lane App's quota, while that token
-    has `merge.read-token-floor` of its core limit left; each is a GET."""
+    (`BABYSIT_VERIFY_GH_TOKEN`), off the lane App's quota; each is a GET."""
 
     RUN = 11
     JOB = 21
-    # GET /rate_limit's core bucket for the read token: (remaining, limit),
-    # or None for a read that fails.
-    core: tuple[int, int] | None = (1000, 1000)
 
     def answer(self, args: list[str]) -> Any:
         endpoint = args[1]
-        if endpoint == "rate_limit":
-            assert self.core is not None
-            left, limit = self.core
-            bucket = {"remaining": left, "limit": limit}
-            return {"resources": {"core": bucket, "graphql": bucket}}
         runs = f"repos/owner/repo/actions/runs/{self.RUN}"
         bot = {"login": IDENTITY}
         if endpoint.endswith(f"/pulls/{PR}/commits?per_page=100"):
@@ -3753,22 +4025,13 @@ class LaneEvidenceReadToken(unittest.TestCase):
             return [[]]
         raise AssertionError(f"unexpected gh call: {args}")
 
-    def calls(
-        self, environ: dict[str, str], **floor: float
-    ) -> list[tuple[list[str], Any]]:
-        return self.read(environ, **floor)[0]
-
-    def read(
-        self, environ: dict[str, str], **floor: float
-    ) -> tuple[list[tuple[list[str], Any]], Any]:
+    def calls(self, environ: dict[str, str]) -> list[tuple[list[str], Any]]:
         calls: list[tuple[list[str], Any]] = []
 
         def fake_gh(
             args: list[str], *, env_overrides: Any = None, **_: Any
         ) -> subprocess.CompletedProcess[str]:
             calls.append((args, env_overrides))
-            if args[1] == "rate_limit" and self.core is None:
-                return subprocess.CompletedProcess(args, 1, "", "HTTP 502")
             return subprocess.CompletedProcess(
                 args, 0, json.dumps(self.answer(args)), ""
             )
@@ -3785,31 +4048,13 @@ class LaneEvidenceReadToken(unittest.TestCase):
             mock.patch.object(gh, "_run_gh", side_effect=fake_gh),
             mock.patch.object(merge, "fetch_review_threads", return_value=[]),
         ):
-            result = merge._lane_evidence(
-                "owner/repo",
-                PR,
-                pr,
-                IDENTITY,
-                frozenset(),
-                lambda login: "write",
-                (),
-                **floor,
+            merge._lane_evidence(
+                "owner/repo", PR, pr, IDENTITY, frozenset(), lambda login: "write", ()
             )
-        return calls, result
-
-    def evidence_tokens(self, **floor: float) -> list[Any]:
-        """The env of every evidence read, the limit read and the shared
-        commits read left out."""
-        calls = self.calls({"BABYSIT_VERIFY_GH_TOKEN": "read-tok"}, **floor)
-        return [
-            env
-            for args, env in calls
-            if args[1] != "rate_limit" and not args[1].endswith("/commits?per_page=100")
-        ]
+        return calls
 
     def test_the_evidence_reads_carry_the_read_token_and_are_gets(self) -> None:
         calls = self.calls({"BABYSIT_VERIFY_GH_TOKEN": "read-tok"})
-        calls = [(args, env) for args, env in calls if args[1] != "rate_limit"]
         carried = [args for args, env in calls if env == {"GH_TOKEN": "read-tok"}]
         for args in carried:
             with self.subTest(args[1]):
@@ -3838,57 +4083,15 @@ class LaneEvidenceReadToken(unittest.TestCase):
         self.assertEqual(len(calls), 1 + 2 + 2 * 4)
         self.assertEqual([env for _, env in calls], [None] * len(calls))
 
-    # The floor's boundary from the default 0.3 of a 1,000 limit: 300 left
-    # is at the floor and keeps the read token, 299 is under it.
-    def test_at_the_floor_the_evidence_reads_keep_the_read_token(self) -> None:
-        self.core = (300, 1000)
-        tokens = self.evidence_tokens(read_floor=0.3)
-        self.assertEqual(len(tokens), 2 + 2 * 4)
-        self.assertEqual(tokens, [{"GH_TOKEN": "read-tok"}] * len(tokens))
-
-    def test_under_the_floor_the_evidence_reads_use_the_lane_token(self) -> None:
-        self.core = (299, 1000)
-        stderr = io.StringIO()
-        with contextlib.redirect_stderr(stderr):
-            tokens = self.evidence_tokens(read_floor=0.3)
-        self.assertEqual(len(tokens), 2 + 2 * 4)
-        self.assertEqual(tokens, [None] * len(tokens))
-        self.assertIn("core:299/1000 is under 0.3", stderr.getvalue())
-
-    def test_the_default_floor_is_the_settings_default(self) -> None:
-        self.core = (299, 1000)
-        with contextlib.redirect_stderr(io.StringIO()):
-            tokens = self.evidence_tokens()
-        self.assertEqual(tokens, [None] * len(tokens))
-
-    def test_a_limit_read_that_fails_uses_the_lane_token(self) -> None:
-        self.core = None
-        stderr = io.StringIO()
-        with contextlib.redirect_stderr(stderr):
-            tokens = self.evidence_tokens(read_floor=0.3)
-        self.assertEqual(len(tokens), 2 + 2 * 4)
-        self.assertEqual(tokens, [None] * len(tokens))
-        self.assertIn("unreadable", stderr.getvalue())
-
-    def test_a_limit_reply_without_its_bucket_uses_the_lane_token(self) -> None:
-        answer = self.answer
-
-        def no_core(args: list[str]) -> Any:
-            return {"resources": {}} if args[1] == "rate_limit" else answer(args)
-
-        self.answer = no_core  # type: ignore[method-assign]
-        with contextlib.redirect_stderr(io.StringIO()):
-            tokens = self.evidence_tokens(read_floor=0.3)
-        self.assertEqual(tokens, [None] * len(tokens))
-
-
 
 class LaneEvidenceReadTokenOutage(unittest.TestCase):
-    """GitHub can refuse the read token for a rate limit while GET
-    /rate_limit still shows room: at 05:3xZ on 2026-10-23 it read 3934 of
-    5000 left as `github.token` answered 403 "API rate limit exceeded for
-    installation". The evidence is then read again with the lane token and
-    still binds, and later candidates in the run skip the read token. The
+    """A review-evidence read refused under the read token stays refused: no
+    read moves to the lane token, whatever the refusal, since GitHub's Terms
+    of Service bar sharing tokens to exceed its rate limits. The read is made
+    once, not retried, and raises, so `score_unattended` holds the candidate
+    with `evidence-missing`. At 05:3xZ on 2026-10-23 `github.token` answered
+    403 "API rate limit exceeded for installation" while GET /rate_limit
+    still showed room, so no limit read decides anything here either. The
     fixture is a complete, passing review on the head for both lanes, so a
     bound result proves the reads that fed `bind()` succeeded."""
 
@@ -3911,9 +4114,6 @@ class LaneEvidenceReadTokenOutage(unittest.TestCase):
 
     def answer(self, endpoint: str) -> Any:
         bot = {"login": IDENTITY}
-        if endpoint == "rate_limit":
-            bucket = {"remaining": 3934, "limit": 5000}
-            return {"resources": {"core": bucket, "graphql": bucket}}
         if endpoint.endswith(f"/pulls/{PR}/commits?per_page=100"):
             return [[{"sha": HEAD, "author": bot, "committer": bot}]]
         if endpoint.endswith("/timeline?per_page=100"):
@@ -3993,7 +4193,7 @@ class LaneEvidenceReadTokenOutage(unittest.TestCase):
         ) -> subprocess.CompletedProcess[str]:
             token = (env_overrides or {}).get("GH_TOKEN", "lane-tok")
             calls.append((args[1], token))
-            if token == "read-tok" and args[1] != "rate_limit" and self.refusal:
+            if token == "read-tok" and self.refusal:
                 if check:
                     raise RuntimeError(f"gh {' '.join(args)} failed: {self.refusal}")
                 return subprocess.CompletedProcess(args, 1, "", self.refusal)
@@ -4029,51 +4229,37 @@ class LaneEvidenceReadTokenOutage(unittest.TestCase):
                     frozenset(),
                     lambda login: "write",
                     (),
-                    read_floor=0.3,
                 )
             except RuntimeError as exc:
                 result = exc
         return calls, result
 
-    def test_a_rate_limited_read_token_reads_again_on_the_lane_token(self) -> None:
+    def test_a_refused_read_is_made_once_and_never_on_the_lane_token(self) -> None:
+        timeline = f"repos/owner/repo/issues/{PR}/timeline?per_page=100"
+        for refusal in (self.LIMITED, self.REFUSED):
+            with self.subTest(refusal=refusal):
+                self.refusal = refusal
+                calls, result = self.read()
+                self.assertIsInstance(result, RuntimeError)
+                self.assertIn(refusal, str(result))
+                # One attempt, on the read token: no retry, no limit read,
+                # and no call at all under the lane token.
+                self.assertEqual(calls, [(timeline, "read-tok")])
+
+    def test_the_next_candidate_reads_with_the_read_token_again(self) -> None:
+        self.read()
+        self.refusal = None
         calls, result = self.read()
         lanes, comments = result
         self.assertEqual([lane.bound for lane in lanes], [True, True])
         self.assertEqual([lane.open_findings for lane in lanes], [0, 0])
         self.assertEqual(len(comments), 2)
-        # 3934 of 5000 is above the 0.3 floor, so the read token was tried
-        # first, refused once, and every evidence read then ran on the lane
-        # token.
-        tried = [e for e, token in calls if token == "read-tok" and e != "rate_limit"]
-        self.assertEqual(tried, [f"repos/owner/repo/issues/{PR}/timeline?per_page=100"])
-        after = calls[calls.index((tried[0], "read-tok")) + 1 :]
-        self.assertTrue(after)
-        self.assertEqual({token for _, token in after}, {"lane-tok"})
-
-    def test_a_later_candidate_skips_the_limited_read_token(self) -> None:
-        self.read()
-        self.refusal = None
-        calls, result = self.read()
-        lanes, _ = result
-        self.assertEqual([lane.bound for lane in lanes], [True, True])
-        # Not even the limit read: the run cache says the token is spent.
-        self.assertEqual([e for e, token in calls if token == "read-tok"], [])
-
-    def test_a_refusal_that_is_no_rate_limit_is_not_read_again(self) -> None:
-        self.refusal = self.REFUSED
-        calls, result = self.read()
-        self.assertIsInstance(result, RuntimeError)
-        self.assertIn("Resource not accessible", str(result))
-        evidence = [
-            e
-            for e, token in calls
-            if token == "lane-tok" and not e.endswith("/commits?per_page=100")
-        ]
-        self.assertEqual(evidence, [])
-        # Nor is the token marked spent for the rest of the run.
-        self.refusal = None
-        calls, _ = self.read()
-        self.assertIn(("rate_limit", "read-tok"), calls)
+        # No mark carries the refusal to later candidates: every evidence
+        # read is under the read token, and only the shared commits read
+        # keeps the process token.
+        lane = [e for e, token in calls if token == "lane-tok"]
+        self.assertEqual(lane, [f"repos/owner/repo/pulls/{PR}/commits?per_page=100"])
+        self.assertNotIn("rate_limit", [e for e, _ in calls])
 
 
 class CandidateReadsOnce(unittest.TestCase):
@@ -4616,6 +4802,89 @@ class DependabotMajorEscalation(unittest.TestCase):
         self.assertEqual(self.calls, [])
         self.assertEqual(
             out["majorEscalation"], {"label": "present", "comment": "unchanged"}
+        )
+
+    def lifted(self, timeline: list[dict[str, Any]]) -> dict[str, Any]:
+        """A rerun at the head after the label came off, over `timeline`."""
+        self.comments = [
+            {
+                "id": 90,
+                "user": {"login": "agent-lanes[bot]", "type": "Bot"},
+                "created_at": "2026-10-18T10:00:00Z",
+                "body": merge.major_escalation_body("x", self.HEAD),
+            }
+        ]
+        with mock.patch.object(merge, "fetch_paginated_api", return_value=timeline):
+            return self.writes("ineligible:dependabot-major-held:x")
+
+    def test_a_person_removing_the_label_keeps_a_held_major_off(self) -> None:
+        with self.person():
+            out = self.lifted([self.REMOVED])
+        self.assertEqual(self.calls, [])
+        self.assertEqual(
+            out["majorEscalation"], {"label": "lifted", "comment": "unchanged"}
+        )
+
+    REMOVED = {
+        "event": "unlabeled",
+        "actor": {"login": "owner-person", "type": "User", "id": PERSON_ID},
+        "label": {"name": "status: needs-decision"},
+        "created_at": "2026-10-18T11:00:00Z",
+    }
+
+    def person(self) -> contextlib.ExitStack:
+        """`owner-person` has admin access and is a person on the list."""
+        stack = contextlib.ExitStack()
+        stack.enter_context(
+            mock.patch.object(
+                policy, "permission_reader", return_value=lambda _: "admin"
+            )
+        )
+        stack.enter_context(
+            mock.patch.object(policy, "trusted_actors", return_value=((), (PERSON_ID,)))
+        )
+        stack.enter_context(
+            mock.patch.object(merge, "repository_default_branch", return_value="main")
+        )
+        return stack
+
+    def test_only_the_identitys_comment_dates_the_escalation(self) -> None:
+        # With no agent identity no escalation comment is the identity's.
+        comments = [
+            {
+                "id": 90,
+                "user": {"login": "agent-lanes[bot]", "type": "Bot"},
+                "created_at": "2026-10-18T10:00:00Z",
+                "body": merge.major_escalation_body("x", self.HEAD),
+            }
+        ]
+        with (
+            self.person(),
+            mock.patch.object(
+                merge, "fetch_paginated_api", return_value=[self.REMOVED]
+            ),
+        ):
+            for identity in ("", "agent-lanes[bot]"):
+                with self.subTest(identity=identity):
+                    self.assertEqual(
+                        merge._lifted_by_person(
+                            self.REPO,
+                            self.PR,
+                            identity,
+                            "status: needs-decision",
+                            merge.MAJOR_ESCALATION_MARKER,
+                            comments,
+                            {},
+                        ),
+                        (identity != "", ""),
+                    )
+
+    def test_a_held_major_whose_label_write_failed_is_labeled_again(self) -> None:
+        out = self.lifted([])
+        (label,) = self.calls
+        self.assertEqual(label[-1], "labels[]=status: needs-decision")
+        self.assertEqual(
+            out["majorEscalation"], {"label": "added", "comment": "unchanged"}
         )
 
     def test_the_first_line_is_the_attend_queue_escalation_marker(self) -> None:

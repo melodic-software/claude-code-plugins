@@ -302,7 +302,7 @@ const TRUSTED_ACTORS = ".github/standards/trusted-actors/trusted-actors.json";
 test("forced denied paths are added when the config sets no merge section", () => {
   assert.deepEqual(
     run(fixture("valid.yaml")).merge["diff-check"]["denied-paths"],
-    [CONFIG_PATH, ".github/**", TRUSTED_ACTORS],
+    [CONFIG_PATH, TRUSTED_ACTORS],
   );
 });
 
@@ -311,14 +311,14 @@ test("forced denied paths are added after the config's own, once each", () => {
     doc.merge = {
       rung: "C2",
       "diff-check": {
-        "denied-paths": [".claude/**", ".github/**"],
+        "denied-paths": [".claude/**", CONFIG_PATH],
         "max-changed-lines": 400,
       },
     };
   });
   const resolved = run(config);
   assert.deepEqual(resolved.merge["diff-check"], {
-    "denied-paths": [".claude/**", ".github/**", CONFIG_PATH, TRUSTED_ACTORS],
+    "denied-paths": [".claude/**", CONFIG_PATH, TRUSTED_ACTORS],
     "max-changed-lines": 400,
   });
 });
@@ -420,11 +420,12 @@ test("wip: the schema's defaults are the readers' defaults", () => {
   assert.deepEqual(WIP_DEFAULTS, WIP);
 });
 
-test("defaults are materialized: loop 2/3/2/3, merge off and manual, slot scope diff and enabled", () => {
+test("defaults are materialized: loop 2/3/2/3, merge off, manual and native, slot scope diff and enabled", () => {
   const resolved = run(fixture("valid.yaml"), { activity: "run-tests" });
   assert.deepEqual(resolved.loop, { "review-rounds": 2, "no-progress": 3, "dependency-review-rounds": 2, "fix-ci-rounds": 3 });
   assert.equal(resolved.merge.rung, "off");
   assert.equal(resolved.merge["stack-landing"], "manual");
+  assert.equal(resolved.merge["lane-prs"], "native");
   assert.equal(resolved.version, 1);
   assert.deepEqual(resolved.source, {
     "base-path": ".base",

@@ -773,11 +773,12 @@ jobs:
       # workflow-modified when the caller's or the write file's blob at the
       # run's commit differs from main's tip (the files work-unblock's re-fire
       # sweep compares too), so this checks the same rule against the default branch
-      # checkout first and fails red before any model turn. The failed run
-      # leaves no outcome marker, so work-unblock's hourly sweep re-fires the
-      # issue on main's files. A commit the checkout cannot read is left to
-      # the broker. This file is called by a local path, so it runs from the
-      # caller's commit.
+      # checkout first. On a difference it sets stale=true and ends green: no
+      # model turn, no outcome marker, and go=false skips every later step and
+      # caller job. The stop step below marks the run for work-unblock's hourly
+      # sweep, which re-fires the issue on main's files. A commit the checkout
+      # cannot read is left to the broker. This file is called by a local path,
+      # so it runs from the caller's commit.
       - name: Check the run's workflow files against main
         id: workflow-current
         if: >-
@@ -796,10 +797,17 @@ jobs:
           fi
           for path in "$caller" .github/workflows/pr-run-activity-write.yml; do
             if [ "$(git -C .base rev-parse -q --verify "$WORKFLOW_SHA:$path")" != "$(git -C .base rev-parse -q --verify "HEAD:$path")" ]; then
-              echo "::error::workflow-stale: $path differs from main's tip, so the broker would refuse this run's apply job; no model ran, and work-unblock's sweep re-fires the issue on main's files"
-              exit 1
+              echo "::warning::workflow-stale: $path differs from main's tip, so the broker would refuse this run's apply job; no model ran, and work-unblock's sweep re-fires the issue on main's files"
+              echo "stale=true" >>"$GITHUB_OUTPUT"
+              exit 0
             fi
           done
+
+      # work-unblock's sweep matches this step's name, run, in the job listing:
+      # a green run that stopped here did no work and is re-fired.
+      - name: Stop on stale workflow files
+        if: steps.workflow-current.outputs.stale == 'true'
+        run: echo "workflow-stale; the run stops before any model turn"
 
       # Issue mode, before any model turn, with the job's read-only token:
       # skips the model when an earlier run already did the work: a
@@ -807,30 +815,33 @@ jobs:
       # human opened a PR that closes the issue (stop), or a lane branch
       # holds commits no report handed on (reuse-branch, which report-outcome
       # opens a PR from). Both skip not-applicable. When the newest outcome
-      # marker is turn-cap, stopped or limited for a run whose lane branch
-      # passes the same tip check, the model runs on that branch's tip
-      # instead (resume-branch, resume-tip, resume-cause).
+      # marker is turn-cap, stopped, limited or funding for a run whose lane branch
+      # passes the same tip check and is not behind the default branch, the
+      # model runs on that branch's tip instead (resume-branch, resume-tip,
+      # resume-cause); a branch behind it starts fresh from the default tip.
       - name: Check for an earlier run's work on the issue
         id: issue-prior
         if: >-
           inputs.issue-number != '' && steps.config.outputs.applies == 'true'
           && steps.config.outputs.kind == 'skill'
+          && steps.workflow-current.outputs.stale != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ inputs.issue-number }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/work-resolve-issue/report-outcome.mjs --find-prior
 
-      # Whether the activity runs: it applies, and in issue mode no earlier
-      # run's work stops it. Every step below that touches the activity keys
-      # on this.
+      # Whether the activity runs: it applies, and in issue mode neither stale
+      # workflow files nor an earlier run's work stops it. Every step below
+      # that touches the activity keys on this.
       - name: Decide whether the activity runs
         id: go
         if: steps.config.outputs.applies == 'true'
         env:
           PRIOR: ${{ steps.issue-prior.outputs.proceed }}
+          STALE: ${{ steps.workflow-current.outputs.stale }}
         run: |
-          if [ "$PRIOR" = false ]; then
+          if [ "$PRIOR" = false ] || [ "$STALE" = true ]; then
             echo "run=false" >>"$GITHUB_OUTPUT"
           else
             echo "run=true" >>"$GITHUB_OUTPUT"
@@ -1019,7 +1030,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@164c2809f6150429b6f24d4a2777bb377af953d9 # v0.61.0
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
 
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
@@ -1298,7 +1309,7 @@ jobs:
         if: steps.key-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 50
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@164c2809f6150429b6f24d4a2777bb377af953d9 # v0.61.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -1350,7 +1361,7 @@ jobs:
         if: steps.token-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: 50
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@164c2809f6150429b6f24d4a2777bb377af953d9 # v0.61.0
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -1696,7 +1707,7 @@ jobs:
         if: >-
           always() && inputs.issue-number != ''
           && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@164c2809f6150429b6f24d4a2777bb377af953d9 # v0.61.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
         with:
           outcome: ${{ steps.act-result.outputs.outcome || steps.act-skill.outcome }}
           execution-file: >-
@@ -1715,7 +1726,7 @@ jobs:
           always() && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.lane-class != 'credit-stop'
           && (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure'
           || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@164c2809f6150429b6f24d4a2777bb377af953d9 # v0.61.0
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
         with:
           outcome: ${{ steps.act-key.outcome != 'skipped' && steps.act-key.outcome || steps.act-token.outcome }}
           execution-file: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file }}

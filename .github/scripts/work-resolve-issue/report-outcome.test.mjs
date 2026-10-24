@@ -24,7 +24,6 @@ import {
   readChecks,
   readOutcome,
   readTurnCap,
-  refsHoldComment,
   reusePlan,
   trustedLabeler,
 } from "./report-outcome.mjs";
@@ -103,16 +102,15 @@ test("done opens a PR whose body starts with Closes #N", () => {
   assert.ok(plan.body.startsWith("Closes #77\n"), plan.body);
 });
 
-// A recorded keep-Refs decision (#7741): the PR links without closing. The
-// merge gate finds no closing issue to read, so it never merges it; Refs alone
-// adds no hold line.
+// A recorded keep-Refs decision: the PR links without closing. The merge gate
+// reads a plain `Refs: #N` first line as the PR's issue, so Refs alone adds no
+// hold line.
 test('done with "link": "refs" opens a PR that starts Refs: #N and carries no hold line', () => {
   withDir({ "work-outcome.json": JSON.stringify({ ...done, link: "refs" }) }, (dir) => {
     const plan = decideDone({ outcome: readOutcome(join(dir, "work-outcome.json")) });
-    assert.ok(plan.body.startsWith("Refs: #77\n"), plan.body);
+    assert.ok(plan.body.startsWith("Refs: #77\n\n## Summary"), plan.body);
     assert.ok(!plan.body.includes("Closes #77"), plan.body);
     assert.ok(!plan.body.includes("Hold: a human merges this"), plan.body);
-    assert.equal(plan.refsHold, "needs-human");
   });
 });
 
@@ -624,7 +622,7 @@ test("stopped removes agent-ready and names the branch that holds partial work",
   assert.deepEqual(plan.addLabels, ["needs-human"]);
   assert.deepEqual(plan.removeLabels, ["agent-ready"]);
   assert.ok(plan.comment.includes(BRANCH));
-  assert.match(plan.comment, /A retry continues from it; delete the branch first to start again from the default branch\./);
+  assert.match(plan.comment, /A retry continues from it while it is not behind the default branch, and otherwise starts fresh from the default branch; delete the branch first to always start fresh\./);
   assert.ok(plan.comment.includes("remove `needs-human` and add `agent-ready` again"), plan.comment);
 });
 
@@ -856,10 +854,9 @@ test("main on done writes the runner's check results into the PR body", async ()
   );
 });
 
-// pr-merge merges only a PR with exactly one closing issue, so a Refs PR waits
-// for a person: the issue gets the human-gated label, then the marker comment
-// work-unblock reads to lift only this hold once the PR merges.
-test("main on done with Refs opens the PR, then adds needs-human to the issue and the refs-hold comment", async () => {
+// The merge lane merges a plain Refs PR as a closing one, so opening it puts no
+// hold on the issue: work-unblock hands the issue to triage once it merges.
+test("main on done with Refs opens the PR and writes nothing to the issue", async () => {
   await withDir(
     { "work-outcome.json": JSON.stringify({ ...done, link: "refs" }), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() },
     async (dir) => {
@@ -870,16 +867,11 @@ test("main on done with Refs opens the PR, then adds needs-human to the issue an
         ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
         ["GET", /\/pulls$/, 200, []],
         ["POST", /\/pulls$/, 201, { number: 90 }],
-        ["POST", /\/issues\/77\/labels$/, 200, []],
-        ["POST", /\/issues\/77\/comments$/, 201, {}],
       ]);
       assert.equal(await main({ env: env(dir), fetch }), 0);
       const writes = calls.filter((c) => c.method !== "GET").map((c) => `${c.method} ${c.path}`);
-      assert.deepEqual(writes, ["POST /repos/o/r/pulls", "POST /repos/o/r/issues/77/labels", "POST /repos/o/r/issues/77/comments"]);
-      assert.deepEqual(calls.find((c) => c.path.endsWith("/issues/77/labels")).body, { labels: ["needs-human"] });
-      const comment = calls.find((c) => c.path.endsWith("/issues/77/comments")).body.body;
-      assert.ok(comment.startsWith("<!-- work-resolve-issue refs-hold #90 -->\n"), comment);
-      assert.equal(comment, refsHoldComment(90, "needs-human"));
+      assert.deepEqual(writes, ["POST /repos/o/r/pulls"]);
+      assert.ok(calls.find((c) => c.path.endsWith("/pulls") && c.method === "POST").body.body.startsWith("Refs: #77\n"));
     },
   );
 });
@@ -1482,11 +1474,12 @@ const LANE_TIP = {
   committer: { login: "web-flow" },
   commit: { committer: { date: "2026-10-16T10:00:00Z" }, verification: { verified: true, reason: "valid" } },
 };
-const branchFact = (name, { aheadBy = 2, tip = LANE_TIP, tipAt = Date.parse("2026-10-16T10:00:00Z"), pulls = [], sha = "a".repeat(40), commits = [LANE_TIP, LANE_TIP] } = {}) => ({
+const branchFact = (name, { aheadBy = 2, behindBy = 0, tip = LANE_TIP, tipAt = Date.parse("2026-10-16T10:00:00Z"), pulls = [], sha = "a".repeat(40), commits = [LANE_TIP, LANE_TIP] } = {}) => ({
   sha,
   commits,
   name,
   aheadBy,
+  behindBy,
   tip,
   tipAt,
   pulls,
@@ -1697,6 +1690,35 @@ test("a marked run's branch with any commit not the lanes App's, or a cut-short 
   }
 });
 
+// A resumed branch carries its base into the runner's whole-branch checks, so
+// one behind main starts fresh from main under a new branch, and the old
+// branch is left for a person to delete.
+test("a marked run's branch behind main starts fresh instead of resuming", () => {
+  for (const behindBy of [1, 865]) {
+    const branches = [branchFact(lane(400), { sha: SHA_400, behindBy })];
+    assert.deepEqual(
+      prior({ branches, markers: [marked("stopped", "400")] }),
+      { action: "run", stale: { branch: lane(400), behindBy } },
+      String(behindBy),
+    );
+  }
+});
+
+test("a lanes-App PR open from a lane branch behind main still stops the run", () => {
+  const branches = [branchFact(lane(400), { sha: SHA_400, behindBy: 865, pulls: [pullBy(BOT)] })];
+  assert.equal(prior({ branches, markers: [marked("stopped", "400")] }).action, "stop");
+});
+
+// The fresh run that replaced a stale resume reports under its own run, so
+// the next admission never falls back to the stale branch.
+test("after a fresh run replaced a stale resume, the stale branch is not resumed again", () => {
+  const branches = [branchFact(lane(400), { sha: SHA_400, behindBy: 865 })];
+  for (const outcome of ["stopped", "turn-cap", "pushback"]) {
+    const markers = [marked("stopped", "400"), marked(outcome, "401", "2026-10-23T16:00:00Z")];
+    assert.deepEqual(prior({ branches, markers }), { action: "run" }, outcome);
+  }
+});
+
 test("of a marked run's attempts, the newest is resumed", () => {
   const branches = [branchFact(lane(400, 1), { sha: "1".repeat(40) }), branchFact(lane(400, 2), { sha: "2".repeat(40) })];
   assert.equal(prior({ branches, markers: [marked("turn-cap", "400")] }).tip, "2".repeat(40));
@@ -1709,10 +1731,18 @@ test("an unreported branch is still reused before a marked one is resumed", () =
 
 test("--find-prior names the resumed branch, its tip and the cause, and still runs the model", async () => {
   const comments = [{ user: { login: BOT }, body: "<!-- work-resolve-issue outcome=turn-cap cap=75 run=400 -->", created_at: "2026-10-16T11:00:00Z" }];
-  const comparison = { ahead_by: 1, total_commits: 1, commits: [LANE_TIP] };
+  const comparison = { ahead_by: 1, behind_by: 0, total_commits: 1, commits: [LANE_TIP] };
   const { code, output } = await runPrior({ comments, refs: [refOf(lane(400))], comparison });
   assert.equal(code, 0);
   assert.equal(output, `proceed=true\nskip-reason=\nreuse-branch=\nresume-branch=${lane(400)}\nresume-tip=${"a".repeat(40)}\nresume-cause=turn-cap\n`);
+});
+
+test("--find-prior runs the model fresh, with no resume outputs, when the marked run's branch is behind main", async () => {
+  const comments = [{ user: { login: BOT }, body: "<!-- work-resolve-issue outcome=stopped run=400 -->", created_at: "2026-10-16T11:00:00Z" }];
+  const comparison = { ahead_by: 1, behind_by: 865, total_commits: 1, commits: [LANE_TIP] };
+  const { code, output } = await runPrior({ comments, refs: [refOf(lane(400))], comparison });
+  assert.equal(code, 0);
+  assert.equal(output, "proceed=true\nskip-reason=\nreuse-branch=\n");
 });
 
 test("another issue's lane branches are never this issue's", () => {
@@ -1758,7 +1788,7 @@ async function runPrior({
   closingAnswer = graphql(nodes),
   refs = [],
   pulls = [],
-  comparison = { ahead_by: 2 },
+  comparison = { ahead_by: 2, behind_by: 0 },
   repoAnswer = { default_branch: "main" },
   commitAnswer = LANE_TIP,
   graphqlPages,
@@ -1923,6 +1953,12 @@ test("--find-prior fails on a tip commit with no readable time when a marker nam
   const comments = [{ user: { login: BOT }, body: "<!-- work-resolve-issue outcome=stopped -->", created_at: "2026-10-16T11:00:00Z" }];
   for (const commitAnswer of [{}, { ...LANE_TIP, commit: { ...LANE_TIP.commit, committer: { date: "not a date" } } }]) {
     await failsClosed(JSON.stringify(commitAnswer), { comments, refs: [refOf(lane(400))], commitAnswer });
+  }
+});
+
+test("--find-prior fails on a comparison with no whole-number behind_by", async () => {
+  for (const behind of [undefined, "3", null, 1.5, -1]) {
+    await failsClosed(String(behind), { refs: [refOf(lane(400))], comparison: { ahead_by: 1, behind_by: behind } });
   }
 });
 

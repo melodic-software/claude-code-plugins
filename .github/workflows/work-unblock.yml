@@ -26,10 +26,11 @@ name: work-unblock
 # The hourly sweep also restarts an issue the usage limit stopped: once the
 # limit has reset, the App removes and re-adds agent-ready (at most five a run);
 # after three limit stops since a person added agent-ready it adds needs-human.
-# It re-fires the same way an issue whose work-resolve-issue run failed with no
-# report: a crash, a rerun the token broker refused as workflow-modified
-# (a rerun keeps its first event's workflow files), or a run that waited in
-# its slot past a lane workflow change and stopped as workflow-stale, or a run
+# It re-fires the same way an issue whose work-resolve-issue run did no work and
+# left no report: a crash, a rerun the token broker refused as workflow-modified
+# (a rerun keeps its first event's workflow files), a run that waited in its
+# slot past a lane workflow change and stopped green at `Stop on stale workflow
+# files`, or a run
 # cancelled after admit and before resolve-issue started (pick-slot's timeout); a
 # run a newer agent-ready run replaced is not. It does that once per issue
 # per version of the lane's two workflow files on main, recorded in a comment.
@@ -198,21 +199,6 @@ jobs:
           pull-requests: ${{ steps.config.outputs.pull-requests }}
           issues: ${{ steps.config.outputs.issues }}
 
-      # Measures the run's spend on the lane token and on the job's own token:
-      # this reading and the one at job end bracket the run. The lanes App's
-      # bucket is shared by every job using it, so the lane figure includes
-      # their calls. Never fails the job.
-      - name: Log the API budget at mint
-        if: steps.lane-token.outputs.token != ''
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: |
-            lane ${{ steps.lane-token.outputs.token }}
-            github-token ${{ github.token }}
-
       # The script re-reads every blocked issue, its labels, blockers and
       # comments from the API; nothing is taken from the event but the closed
       # issue's number and who closed it (a sweep lists the closed issues from
@@ -230,17 +216,6 @@ jobs:
           ACTOR_ID: ${{ github.actor_id }}
           TRIGGERING_ACTOR: ${{ github.triggering_actor }}
         run: node ".base/$SCRIPT"
-
-      - name: Log the API budget at job end
-        if: always() && steps.lane-token.outputs.token != ''
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: |
-            lane ${{ steps.lane-token.outputs.token }}
-            github-token ${{ github.token }}
 
       # The token is cancelled as soon as the job is done; it would otherwise
       # expire within the hour. This never fails the job.

@@ -1,8 +1,8 @@
 // Starts the pr-unblock lane for each open pull request GitHub reports as
 // conflicting, because no pull_request event fires on a conflicting PR.
-// Run by .github/workflows/pr-unblock-dispatch.yml on a push to main, after
-// the kill switch and, where needed, the trusted-trigger gate; this script
-// does no sender check of its own.
+// Run by .github/workflows/pr-unblock-dispatch.yml on a push to main or its
+// half-hourly tick, after the kill switch and, where needed, the
+// trusted-trigger gate; this script does no sender check of its own.
 //
 // It lists open PRs into main, keeps the non-draft, same-repository ones
 // whose mergeable state is CONFLICTING (re-querying UNKNOWN a bounded number

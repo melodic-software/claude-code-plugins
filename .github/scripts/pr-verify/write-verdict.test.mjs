@@ -42,13 +42,49 @@ test("each verdict names its artifact with the PR, the head and the verdict", ()
       base_sha: BASE,
       head_ref: "feat/x",
       linked_issues: [ISSUE],
+      spec_kind: "closes",
       intent: "issues",
       verdict,
       summary: "s",
       notes: ["n"],
       run_id: 9001,
     });
-    assert.equal(artifactName(built), `pr-verify-41-${HEAD}-${verdict}`);
+    assert.equal(artifactName(built), `pr-verify-41-${HEAD}-${verdict}${verdict === "fail" ? "-i7" : ""}`);
+  }
+});
+
+test("a FAIL's name carries the issues it records, ascending and once each", () => {
+  const issue = (number) => ({ ...ISSUE, number });
+  const name = (verdict, linkedIssues) =>
+    artifactName(buildVerdict({ ...ids, linkedIssues, output: JSON.stringify({ verdict, summary: "s", notes: [] }) }));
+  assert.equal(name("fail", [issue(12), issue(7), issue(12)]), `pr-verify-41-${HEAD}-fail-i7.12`);
+  assert.equal(name("fail", []), `pr-verify-41-${HEAD}-fail`);
+  assert.equal(name("pass", [issue(7)]), `pr-verify-41-${HEAD}-pass`);
+  assert.equal(name("pass-notes", [issue(7)]), `pr-verify-41-${HEAD}-pass-notes`);
+  const ten = Array.from({ length: 10 }, (_, i) => issue(i + 1));
+  assert.equal(name("fail", ten), `pr-verify-41-${HEAD}-fail-i1.2.3.4.5.6.7.8.9.10`);
+});
+
+test("a FAIL whose issues no name can carry is written under the plain name, with one warning", (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const fail = (numbers) => ({ pr: 41, head_sha: HEAD, verdict: "fail", linked_issues: numbers.map((number) => ({ number })) });
+  // Eleven issues pass the cap; an 11-digit issue number passes the pattern.
+  const eleven = Array.from({ length: 11 }, (_, i) => i + 1);
+  for (const numbers of [eleven, [10000000000]]) {
+    log.mock.resetCalls();
+    assert.equal(artifactName(fail(numbers)), `pr-verify-41-${HEAD}-fail`, JSON.stringify(numbers));
+    assert.equal(log.mock.callCount(), 1);
+    assert.match(log.mock.calls[0].arguments[0], /^::warning::/);
+  }
+});
+
+test("a name the readers would not take is refused before any upload", () => {
+  // An 11-digit pull request number, or a head that is not lowercase hex:
+  // the readers' pattern (resolve-pr NAME) refuses both, so the writer does.
+  const fail = (overrides) => ({ pr: 41, head_sha: HEAD, verdict: "fail", linked_issues: [], ...overrides });
+  assert.equal(artifactName(fail({ pr: 9999999999 })), `pr-verify-9999999999-${HEAD}-fail`);
+  for (const verdict of [fail({ pr: 10000000000 }), fail({ head_sha: "A".repeat(40) })]) {
+    assert.throws(() => artifactName(verdict), /no reader takes/, JSON.stringify(verdict));
   }
 });
 
@@ -116,6 +152,22 @@ test("linked issues outside their schema throw", () => {
   assert.equal(buildVerdict({ ...ids, output: ok }).intent_sha256, undefined);
   assert.equal(buildVerdict({ ...ids, linkedIssues: [], specText: [], output: ok }).intent, "issues");
   assert.equal(buildVerdict({ ...ids, output: ok }).intent, "issues");
+  // The link kind resolve-pr gave each spec entry: a Refs issue is recorded as
+  // `refs`, which the gate binds to the live link.
+  const kind = (specText, linked = [ISSUE]) => buildVerdict({ ...ids, linkedIssues: linked, specText, output: ok }).spec_kind;
+  assert.equal(kind([{ number: 7, spec_kind: "refs", body: "b", comments: [] }]), "refs");
+  assert.equal(kind([{ number: 7, spec_kind: "closes", body: "b", comments: [] }]), "closes");
+  assert.equal(kind(own, []), "pull-request");
+  assert.equal(kind([], []), "none");
+  // A Refs FAIL carries its issue in its name, as a closing one does: the
+  // gate counts another PR's FAILs toward the issue's cap by name alone.
+  const refsFail = buildVerdict({
+    ...ids,
+    linkedIssues: [ISSUE],
+    specText: [{ number: 7, spec_kind: "refs", body: "b", comments: [] }],
+    output: JSON.stringify({ verdict: "fail", summary: "s", notes: [] }),
+  });
+  assert.equal(artifactName(refsFail), `pr-verify-41-${HEAD}-fail-i7`);
   const edited = { ...ISSUE, last_edited_at: "2026-10-14T00:00:00Z", editor_login: "lanes", editor_id: 200, editor_type: "Bot" };
   assert.deepEqual(buildVerdict({ ...ids, linkedIssues: [edited], output: ok }).linked_issues, [edited]);
 });
@@ -248,7 +300,7 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
   assert.equal(written.verdict, "fail");
   assert.equal(written.summary, "wrong");
   assert.deepEqual(written.linked_issues, [ISSUE]);
-  assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), `name=pr-verify-41-${HEAD}-fail\nverdict=fail\n`);
+  assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), `name=pr-verify-41-${HEAD}-fail-i7\nverdict=fail\n`);
 
   const okFile = execution("ok", JSON.parse(ok));
   const unparsable = path.join(dir, "unparsable.json");

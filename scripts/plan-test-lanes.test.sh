@@ -172,6 +172,12 @@ is "$(key bash_needs)" '{"0":"browser"}'
 check "the shared-page UI suite gets Chromium on whatever leg it lands" $?
 rm -rf "$repo/plugins/planning"
 
+mk plugins/guardrails/git-hooks/lefthook-remote.test.sh
+plan -- plugins/guardrails/git-hooks/lefthook-remote.test.sh
+is "$(key bash_needs)" '{"0":"lefthook"}'
+check "the guardrails remote's end-to-end suite gets lefthook on whatever leg it lands" $?
+rm -rf "$repo/plugins/guardrails"
+
 plan -- plugins/p/p.py
 is "$(suites python)" "plugins/p/test_p.py" && is "$(key bash)" false && is "$(key python_legs)" "[0]"
 check "a Python change plans its test module on test-python, and test-bash has no work" $?

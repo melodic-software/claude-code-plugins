@@ -1532,9 +1532,9 @@ cat >"$TMP/lane-annotations.json" <<'EOF'
   "12": "failure class=rate-limit",
   "13": "turns=4 max-turns=50",
   "14": "failure class=auth",
-  "20": "failure class=rate-limit",
-  "21": "failure class=rate-limit",
-  "22": "failure class=rate-limit"
+  "20": "pr-verify exited with: failure class=rate-limit credential=CLAUDE_CODE_OAUTH_TOKEN models=claude-opus-5-5",
+  "21": "pr-verify exited with: failure class=rate-limit credential=CLAUDE_CODE_OAUTH_TOKEN models=claude-opus-5-5",
+  "22": "pr-verify exited with: failure class=rate-limit credential=CLAUDE_CODE_OAUTH_TOKEN models=claude-opus-5-5"
 }
 EOF
 OUT_LANES="$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" \
@@ -1566,8 +1566,181 @@ OUT_LANES_BAD="$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --p
   --decisions-json "$TMP/decisions.json" --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \
   --lane-runs-json "$TMP/lane-runs-bad.json" 2>&1)"
 assert_contains "lanes: a runs file that is not an object is UNREADABLE" "$(section "$OUT_LANES_BAD" "== Lanes")" "UNREADABLE:"
+assert_contains "models: a pr-verify record with models= and no profile= gets its row" "$LANES" \
+  "    pr-verify  profile=unknown  runs=3  pass=0/3  median-turns=-  max-turns-hits=0  models=claude-opus-5-5"
 assert_contains "models: a lane whose records carry no models= still gets a row" "$LANES" \
-  "    pr-verify  profile=unknown  runs=3  pass=0/3  median-turns=-  max-turns-hits=0  models=none recorded"
+  "    work-resolve-issue  profile=unknown  runs=5  pass=1/5  median-turns=4  max-turns-hits=0  models=none recorded"
+assert_not_contains "keys: runs with no lane-outcome record print no KEY line" "$LANES" "KEY:"
+
+# --- Lanes: dead and credit-stopped API keys ----------------------------------
+# One lane-outcome record per credential attempt, after the marker. REVIEWS:
+# run 50 handed off on auth, so only the subscription leg's record names the
+# role and the line names the key secret derived from it; run 51 is a healthy
+# key leg. INTAKE: run 60 is a key leg that failed with class=auth (a 403
+# hands nothing off). AUTOMATIONS: pr-verify run 70 carries the key leg's
+# class=rate-limit record and the subscription leg's fallback=credit-stop;
+# run 71 is healthy, in the live shape. PR_UNBLOCK: run 80 is a healthy key
+# leg and run 81 a no-key fallback, neither a key problem; run 82's
+# subscription token failed with class auth, which is no key problem either,
+# and run 83's records are malformed. ZED: run 90's auth fallback is in a
+# record version this reader does not know. Run 84 names two roles: TWO_A is
+# healthy and TWO_B's key failed with class auth.
+cat >"$TMP/key-runs.json" <<'EOF'
+{
+  "pr-review-hosted.yml": [
+    {"id": 50, "html_url": "http://x/runs/50", "event": "pull_request", "display_title": "PR K", "head_sha": "k1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T10:00:00Z"},
+    {"id": 51, "html_url": "http://x/runs/51", "event": "pull_request", "display_title": "PR L", "head_sha": "l1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T11:00:00Z"}
+  ],
+  "intake-triage.yml": [
+    {"id": 60, "html_url": "http://x/runs/60", "event": "issues", "display_title": "Issue K", "head_sha": "m1", "status": "completed", "conclusion": "failure", "created_at": "2026-07-19T10:00:00Z"}
+  ],
+  "pr-verify.yml": [
+    {"id": 70, "html_url": "http://x/runs/70", "event": "workflow_run", "display_title": "PR M", "head_sha": "n1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T10:00:00Z"},
+    {"id": 71, "html_url": "http://x/runs/71", "event": "workflow_run", "display_title": "PR N", "head_sha": "n2", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T11:00:00Z"}
+  ],
+  "pr-unblock.yml": [
+    {"id": 80, "html_url": "http://x/runs/80", "event": "workflow_dispatch", "display_title": "Fix #3", "head_sha": "p1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T10:00:00Z"},
+    {"id": 81, "html_url": "http://x/runs/81", "event": "workflow_dispatch", "display_title": "Fix #4", "head_sha": "p2", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T11:00:00Z"},
+    {"id": 82, "html_url": "http://x/runs/82", "event": "workflow_dispatch", "display_title": "Fix #6", "head_sha": "p4", "status": "completed", "conclusion": "failure", "created_at": "2026-07-19T11:10:00Z"},
+    {"id": 83, "html_url": "http://x/runs/83", "event": "workflow_dispatch", "display_title": "Fix #7", "head_sha": "p5", "status": "completed", "conclusion": "failure", "created_at": "2026-07-19T11:20:00Z"},
+    {"id": 84, "html_url": "http://x/runs/84", "event": "workflow_dispatch", "display_title": "Fix #8", "head_sha": "p6", "status": "completed", "conclusion": "failure", "created_at": "2026-07-19T11:30:00Z"},
+    {"id": 90, "html_url": "http://x/runs/90", "event": "workflow_dispatch", "display_title": "Fix #5", "head_sha": "p3", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T12:00:00Z"}
+  ]
+}
+EOF
+cat >"$TMP/key-annotations.json" <<'EOF'
+{
+  "50": "pr-review completed: credential=REVIEWS_CLAUDE_CODE_OAUTH_TOKEN fallback=auth turns=9 max-turns=30 models=claude-opus-5-5. lane-outcome {\"v\":1,\"lane\":\"pr-review\",\"outcome\":\"success\",\"credential\":{\"secret\":\"REVIEWS_CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\",\"role\":\"REVIEWS\"},\"fallback\":{\"reason\":\"auth\"},\"turns\":9,\"models\":[\"claude-opus-5-5\"]} Findings (if any) are in the PR comments.",
+  "51": "pr-review completed: credential=REVIEWS_CLAUDE_API_KEY turns=7 max-turns=30 models=claude-opus-5-5. lane-outcome {\"v\":1,\"lane\":\"pr-review\",\"outcome\":\"success\",\"credential\":{\"secret\":\"REVIEWS_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"REVIEWS\"},\"turns\":7,\"models\":[\"claude-opus-5-5\"]} Findings (if any) are in the PR comments.",
+  "60": "Claude intake triage exited with: failure class=auth credential=INTAKE_CLAUDE_API_KEY. lane-outcome {\"v\":1,\"lane\":\"intake-triage\",\"outcome\":\"failure\",\"class\":\"auth\",\"credential\":{\"secret\":\"INTAKE_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"INTAKE\"},\"error\":{\"type\":\"permission_error\"}} Last SDK result: {\"is_error\":true}",
+  "70": "pr-verify exited with: failure class=rate-limit credential=AUTOMATIONS_CLAUDE_API_KEY. lane-outcome {\"v\":1,\"lane\":\"pr-verify\",\"outcome\":\"failure\",\"class\":\"rate-limit\",\"credential\":{\"secret\":\"AUTOMATIONS_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"AUTOMATIONS\"}}\npr-verify completed: credential=AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN fallback=credit-stop turns=4 max-turns=60 models=claude-opus-5-5. lane-outcome {\"v\":1,\"lane\":\"pr-verify\",\"outcome\":\"success\",\"credential\":{\"secret\":\"AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\",\"role\":\"AUTOMATIONS\"},\"fallback\":{\"reason\":\"credit-stop\"},\"turns\":4,\"maxTurns\":60,\"models\":[\"claude-opus-5-5\"]} Findings (if any) are in the PR comments.",
+  "71": "pr-verify completed: credential=AUTOMATIONS_CLAUDE_API_KEY turns=5 max-turns=60 models=claude-opus-5-5. lane-outcome {\"v\":1,\"lane\":\"pr-verify\",\"outcome\":\"success\",\"credential\":{\"secret\":\"AUTOMATIONS_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"AUTOMATIONS\"},\"turns\":5,\"maxTurns\":60,\"models\":[\"claude-opus-5-5\"]} Findings (if any) are in the PR comments.",
+  "80": "pr-unblock completed: credential=PR_UNBLOCK_CLAUDE_API_KEY turns=6 max-turns=40 models=claude-sonnet-5. lane-outcome {\"v\":1,\"lane\":\"fix-ci\",\"outcome\":\"success\",\"credential\":{\"secret\":\"PR_UNBLOCK_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"PR_UNBLOCK\"},\"turns\":6}\nactivity=fix-ci",
+  "81": "pr-unblock completed: credential=PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN fallback=no-key turns=6 max-turns=40 models=claude-sonnet-5. lane-outcome {\"v\":1,\"lane\":\"fix-ci\",\"outcome\":\"success\",\"credential\":{\"secret\":\"PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\",\"role\":\"PR_UNBLOCK\"},\"fallback\":{\"reason\":\"no-key\"},\"turns\":6}\nactivity=fix-ci",
+  "82": "pr-unblock exited with: failure class=auth credential=PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN. lane-outcome {\"v\":1,\"lane\":\"fix-ci\",\"outcome\":\"failure\",\"class\":\"auth\",\"credential\":{\"secret\":\"PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\",\"role\":\"PR_UNBLOCK\"}}",
+  "83": "pr-unblock exited with: failure class=auth. lane-outcome {\"v\":1,\"credential\":\"PR_UNBLOCK_CLAUDE_API_KEY\",\"class\":\"auth\"}\npr-unblock exited. lane-outcome {\"v\":1,\"credential\":{\"role\":\"PR_UNBLOCK\"},\"fallback\":\"auth\"}\npr-unblock exited. lane-outcome {\"v\":1,\"credential\":{\"role\":\"BAD\\n\",\"kind\":\"api-key\"},\"class\":\"auth\"}",
+  "84": "fix-ci completed. lane-outcome {\"v\":1,\"lane\":\"fix-ci\",\"outcome\":\"success\",\"credential\":{\"secret\":\"TWO_A_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"TWO_A\"}}\nfix-docs exited with: failure class=auth. lane-outcome {\"v\":1,\"lane\":\"fix-docs\",\"outcome\":\"failure\",\"class\":\"auth\",\"credential\":{\"secret\":\"TWO_B_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"TWO_B\"}}",
+  "90": "pr-unblock completed: credential=ZED_CLAUDE_CODE_OAUTH_TOKEN fallback=auth turns=6. lane-outcome {\"v\":2,\"lane\":\"fix-ci\",\"outcome\":\"success\",\"credential\":{\"secret\":\"ZED_CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\",\"role\":\"ZED\"},\"fallback\":{\"reason\":\"auth\"}}"
+}
+EOF
+KEYS="$(section "$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" \
+  --decisions-json "$TMP/decisions.json" --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \
+  --lane-runs-json "$TMP/key-runs.json" --lane-annotations-json "$TMP/key-annotations.json" "${CLEAR_COST_ARGS[@]}" 2>&1)" "== Lanes")"
+assert_contains "keys: a successful run with fallback=auth flags the role and names its key secret" "$KEYS" \
+  "  KEY: REVIEWS auth (fallback on 1 of 2 runs read) — replace REVIEWS_CLAUDE_API_KEY"
+assert_not_contains "keys: the auth line never names the subscription token" "$KEYS" "replace REVIEWS_CLAUDE_CODE_OAUTH_TOKEN"
+assert_contains "keys: a failing key leg with class=auth is flagged" "$KEYS" \
+  "  KEY: INTAKE auth (fallback on 1 of 1 runs read) — replace INTAKE_CLAUDE_API_KEY"
+assert_contains "keys: pr-verify's class=rate-limit with fallback=credit-stop is a credit stop" "$KEYS" \
+  "  KEY: AUTOMATIONS credit-stop (1 of 2) — rotate a spare key into AUTOMATIONS"
+assert_not_contains "keys: a credit stop is not read as auth" "$KEYS" "KEY: AUTOMATIONS auth"
+assert_not_contains "keys: a healthy key leg and a no-key fallback print no KEY line" "$KEYS" "KEY: PR_UNBLOCK"
+assert_not_contains "keys: a record version this reader does not know is not read" "$KEYS" "KEY: ZED"
+assert_not_contains "keys: malformed records leave the section readable" "$KEYS" "UNREADABLE"
+assert_not_contains "keys: a role name with a trailing newline is not a role" "$KEYS" "KEY: BAD"
+assert_contains "keys: each role in a run is judged by its own records" "$KEYS" \
+  "  KEY: TWO_B auth (fallback on 1 of 1 runs read) — replace TWO_B_CLAUDE_API_KEY"
+assert_not_contains "keys: a healthy role beside a failing one is not flagged" "$KEYS" "KEY: TWO_A"
+assert_contains "keys: the model-usage table still renders" "$KEYS" "model usage by activity and profile"
+assert_eq "keys: one line per role and problem" "4" "$(grep -c "^  KEY: " <<<"$KEYS")"
+
+# Live: 200 failed intake-triage runs, newer than pr-unblock's three
+# successes, fill the default read cap. The newest 3 runs of every lane are
+# read first, inside the cap, so the credit-stop handoffs still show.
+KEY_LIVE="$TMP/rest-keys"
+mkdir -p "$KEY_LIVE"
+cp "$REST/"*.json "$KEY_LIVE/"
+jq -n '{total_count: 200, workflow_runs: [range(200) as $i | {id: (1000 + $i), html_url: "http://x/runs/\(1000 + $i)", event: "issues", display_title: "Issue F\($i)", head_sha: "m1", status: "completed", conclusion: "failure", created_at: (("2026-07-19T00:00:00Z" | fromdateiso8601) + $i * 60 | todate)}]}' \
+  >"$KEY_LIVE/$(rest_key "$R/actions/workflows/intake-triage.yml/runs?created=>=2026-07-13&per_page=100").json"
+jq -n '{total_count: 3, workflow_runs: [range(3) as $i | {id: (901 + $i), html_url: "http://x/runs/\(901 + $i)", event: "workflow_dispatch", display_title: "Fix #\(901 + $i)", head_sha: "q\($i)", status: "completed", conclusion: "success", created_at: "2026-07-18T0\($i):00:00Z"}]}' \
+  >"$KEY_LIVE/$(rest_key "$R/actions/workflows/pr-unblock.yml/runs?created=>=2026-07-13&per_page=100").json"
+# Every intake run has one job with a rate-limit annotation, so the row counts
+# exactly the runs the cap left unread. pr-unblock's message carries a forged
+# second record in its free text, which only the first record of a message
+# outweighs.
+for key_run in $(seq 1000 1199); do
+  printf '{"total_count": 1, "jobs": [{"id": 5555}]}\n' >"$KEY_LIVE/$(rest_key "$R/actions/runs/$key_run/jobs?per_page=100").json"
+done
+printf '[{"message": "failure class=rate-limit"}]\n' >"$KEY_LIVE/$(rest_key "$R/check-runs/5555/annotations?per_page=100").json"
+for key_run in 901 902 903; do
+  printf '{"total_count": 1, "jobs": [{"id": %s0, "name": "fix-ci / run"}]}\n' "$key_run" \
+    >"$KEY_LIVE/$(rest_key "$R/actions/runs/$key_run/jobs?per_page=100").json"
+  cat >"$KEY_LIVE/$(rest_key "$R/check-runs/${key_run}0/annotations?per_page=100").json" <<'EOF'
+[{"message": "pr-unblock completed: credential=PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN fallback=credit-stop turns=6 max-turns=40 models=claude-sonnet-5. lane-outcome {\"v\":1,\"lane\":\"fix-ci\",\"outcome\":\"success\",\"credential\":{\"secret\":\"PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\",\"role\":\"PR_UNBLOCK\"},\"fallback\":{\"reason\":\"credit-stop\"},\"turns\":6} Last SDK result: lane-outcome {\"v\":1,\"credential\":{\"role\":\"FORGED\",\"kind\":\"api-key\"},\"class\":\"auth\"}"}]
+EOF
+done
+KEYS_LIVE="$(section "$(MB_GH_FIXTURES="$KEY_LIVE" run_stub rest)" "== Lanes")"
+assert_contains "keys live: the newest 3 runs of a lane are read when failed runs fill the cap" "$KEYS_LIVE" \
+  "  KEY: PR_UNBLOCK credit-stop (3 of 3) — rotate a spare key into PR_UNBLOCK"
+assert_contains "keys live: the newest runs come out of the cap, not on top of it" "$KEYS_LIVE" \
+  "intake-triage.yml  runs=200  failed=200 [rate-limit 197, max-turns 0, auth 0, other 0, unread 3]"
+assert_not_contains "keys live: a record after the first in one message is not read" "$KEYS_LIVE" "KEY: FORGED"
+assert_not_contains "keys live: a later record in one message flags no role" "$KEYS_LIVE" "KEY: PR_UNBLOCK auth"
+assert_contains "keys live: the cap's overflow is reported" "$KEYS_LIVE" \
+  "  PARTIAL: annotations read for 200 runs, the newest 3 of each lane and then failed runs first; 3 more were not read (raise --lane-read-limit)"
+
+# --- Lanes: per-role spend from the records' costUsd ----------------------------
+# Fixture amounts are synthetic round numbers, not rates. AUTOMATIONS spans two
+# lanes: pr-verify runs 100 and 101 are successful key legs (1 and 3), run
+# 102's key leg hit a credit stop (4, left out of the median) and its
+# subscription leg carries a cost (9, a token leg, ignored), and run 103 was
+# not read; intake-triage run 110 is a successful key leg (2) and run 111 was
+# not read. Median 2 per key leg times the 6 runs of those lanes, over 7 days;
+# the sum covers every key leg read, the credit stop's included (1+3+4+2).
+# REVIEWS run 120's key leg has no costUsd. EVEN's successful legs in runs 121
+# and 122 cost 1 and 4 (median 2.5 over pr-review-hosted's 3 runs); its
+# credit-stop leg (100) counts only in the sum, and its -1 and "2" costs are not
+# costs. HUGE's cost is past the bound; role "bad" is not a role. PR_UNBLOCK
+# run 130 is a token leg.
+cat >"$TMP/spend-runs.json" <<'EOF'
+{
+  "pr-verify.yml": [
+    {"id": 100, "html_url": "http://x/runs/100", "event": "workflow_run", "display_title": "PR S1", "head_sha": "s1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T10:00:00Z"},
+    {"id": 101, "html_url": "http://x/runs/101", "event": "workflow_run", "display_title": "PR S2", "head_sha": "s2", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T11:00:00Z"},
+    {"id": 102, "html_url": "http://x/runs/102", "event": "workflow_run", "display_title": "PR S3", "head_sha": "s3", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T12:00:00Z"},
+    {"id": 103, "html_url": "http://x/runs/103", "event": "workflow_run", "display_title": "PR S4", "head_sha": "s4", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T13:00:00Z"}
+  ],
+  "intake-triage.yml": [
+    {"id": 110, "html_url": "http://x/runs/110", "event": "issues", "display_title": "Issue S", "head_sha": "t1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T10:00:00Z"},
+    {"id": 111, "html_url": "http://x/runs/111", "event": "issues", "display_title": "Issue T", "head_sha": "t2", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T11:00:00Z"}
+  ],
+  "pr-review-hosted.yml": [
+    {"id": 120, "html_url": "http://x/runs/120", "event": "pull_request", "display_title": "PR R", "head_sha": "r1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T10:00:00Z"},
+    {"id": 121, "html_url": "http://x/runs/121", "event": "pull_request", "display_title": "PR R2", "head_sha": "r2", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T11:00:00Z"},
+    {"id": 122, "html_url": "http://x/runs/122", "event": "pull_request", "display_title": "PR R3", "head_sha": "r3", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T12:00:00Z"}
+  ],
+  "pr-unblock.yml": [
+    {"id": 130, "html_url": "http://x/runs/130", "event": "workflow_dispatch", "display_title": "Fix #9", "head_sha": "u1", "status": "completed", "conclusion": "success", "created_at": "2026-07-19T10:00:00Z"}
+  ]
+}
+EOF
+cat >"$TMP/spend-annotations.json" <<'EOF'
+{
+  "100": "pr-verify completed: credential=AUTOMATIONS_CLAUDE_API_KEY turns=5. lane-outcome {\"v\":1,\"lane\":\"pr-verify\",\"outcome\":\"success\",\"credential\":{\"secret\":\"AUTOMATIONS_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"AUTOMATIONS\"},\"turns\":5,\"costUsd\":1}",
+  "101": "pr-verify completed: credential=AUTOMATIONS_CLAUDE_API_KEY turns=5. lane-outcome {\"v\":1,\"lane\":\"pr-verify\",\"outcome\":\"success\",\"credential\":{\"secret\":\"AUTOMATIONS_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"AUTOMATIONS\"},\"turns\":5,\"costUsd\":3}",
+  "102": "pr-verify exited with: failure class=credit-stop credential=AUTOMATIONS_CLAUDE_API_KEY. lane-outcome {\"v\":1,\"lane\":\"pr-verify\",\"outcome\":\"failure\",\"class\":\"credit-stop\",\"credential\":{\"secret\":\"AUTOMATIONS_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"AUTOMATIONS\"},\"handoff\":true,\"costUsd\":4}\npr-verify completed: credential=AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN fallback=credit-stop turns=4. lane-outcome {\"v\":1,\"lane\":\"pr-verify\",\"outcome\":\"success\",\"credential\":{\"secret\":\"AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\",\"role\":\"AUTOMATIONS\"},\"fallback\":{\"reason\":\"credit-stop\"},\"turns\":4,\"costUsd\":9}",
+  "110": "Claude intake triage completed: credential=AUTOMATIONS_CLAUDE_API_KEY turns=3. lane-outcome {\"v\":1,\"lane\":\"intake-triage\",\"outcome\":\"success\",\"credential\":{\"secret\":\"AUTOMATIONS_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"AUTOMATIONS\"},\"turns\":3,\"costUsd\":2}",
+  "120": "pr-review completed: credential=REVIEWS_CLAUDE_API_KEY turns=7. lane-outcome {\"v\":1,\"lane\":\"pr-review\",\"outcome\":\"success\",\"credential\":{\"secret\":\"REVIEWS_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"REVIEWS\"},\"turns\":7}",
+  "121": "pr-review completed. lane-outcome {\"v\":1,\"lane\":\"pr-review\",\"outcome\":\"success\",\"credential\":{\"secret\":\"EVEN_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"EVEN\"},\"costUsd\":1}\nother leg. lane-outcome {\"v\":1,\"lane\":\"pr-review\",\"outcome\":\"success\",\"credential\":{\"secret\":\"bad_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"bad\"},\"costUsd\":1}\nother leg. lane-outcome {\"v\":1,\"lane\":\"pr-review\",\"outcome\":\"success\",\"credential\":{\"secret\":\"HUGE_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"HUGE\"},\"costUsd\":1e17}",
+  "122": "pr-review completed. lane-outcome {\"v\":1,\"lane\":\"pr-review\",\"outcome\":\"success\",\"credential\":{\"secret\":\"EVEN_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"EVEN\"},\"costUsd\":4}\nother leg. lane-outcome {\"v\":1,\"lane\":\"pr-review\",\"outcome\":\"success\",\"credential\":{\"secret\":\"EVEN_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"EVEN\"},\"class\":\"credit-stop\",\"costUsd\":100}\nother leg. lane-outcome {\"v\":1,\"lane\":\"pr-review\",\"outcome\":\"success\",\"credential\":{\"secret\":\"EVEN_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"EVEN\"},\"costUsd\":-1}\nother leg. lane-outcome {\"v\":1,\"lane\":\"pr-review\",\"outcome\":\"success\",\"credential\":{\"secret\":\"EVEN_CLAUDE_API_KEY\",\"kind\":\"api-key\",\"role\":\"EVEN\"},\"costUsd\":\"2\"}",
+  "130": "pr-unblock completed: credential=PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN fallback=no-key turns=6. lane-outcome {\"v\":1,\"lane\":\"fix-ci\",\"outcome\":\"success\",\"credential\":{\"secret\":\"PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN\",\"kind\":\"oauth-token\",\"role\":\"PR_UNBLOCK\"},\"fallback\":{\"reason\":\"no-key\"},\"turns\":6,\"costUsd\":5}\nactivity=fix-ci"
+}
+EOF
+SPEND="$(section "$(bash "$BRIEF" --now "$NOW" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" \
+  --decisions-json "$TMP/decisions.json" --telemetry-json "$TMP/telemetry.json" --merged-json "$TMP/merged-clean.json" \
+  --lane-runs-json "$TMP/spend-runs.json" --lane-annotations-json "$TMP/spend-annotations.json" "${CLEAR_COST_ARGS[@]}" 2>&1)" "== Lanes")"
+assert_contains "spend: the median successful key leg, scaled by the role's lane runs per day, labeled a list-price estimate" "$SPEND" \
+  "  SPEND: AUTOMATIONS ~\$1.71/day (list price, n=4) — estimate: median \$2.00 per successful key leg × 6 runs over 7d; \$10.00 summed over the legs read"
+assert_eq "spend: one line per role prefix, across lanes and secrets" "1" "$(grep -c "^  SPEND: AUTOMATIONS " <<<"$SPEND")"
+assert_not_contains "spend: never grouped by lane id" "$SPEND" "SPEND: pr-verify"
+assert_contains "spend: a key leg with no costUsd says so" "$SPEND" "  SPEND: REVIEWS cost not recorded (n=1)"
+assert_not_contains "spend: a role with only token legs prints no spend line" "$SPEND" "SPEND: PR_UNBLOCK"
+assert_contains "spend: an even count takes the mean of the middle two; a successful credit-stop leg and a negative or string cost are left out" "$SPEND" \
+  "  SPEND: EVEN ~\$1.07/day (list price, n=5) — estimate: median \$2.50 per successful key leg × 3 runs over 7d; \$105.00 summed over the legs read"
+assert_contains "spend: a cost past the bound is not a cost" "$SPEND" "  SPEND: HUGE cost not recorded (n=1)"
+assert_not_contains "spend: a role outside the role pattern prints nothing" "$SPEND" "SPEND: bad"
+assert_not_contains "spend: the section stays readable" "$SPEND" "UNREADABLE"
+assert_contains "spend: legs without costUsd elsewhere print cost not recorded" "$KEYS" "  SPEND: INTAKE cost not recorded (n=1)"
 
 # --- Lanes: model usage by activity and profile ---------------------------------
 # pr-unblock runs 30-36: resolve-conflicts with no profile= runs 30, 31, 34 and

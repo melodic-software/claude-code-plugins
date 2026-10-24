@@ -43,13 +43,13 @@
       "id": 4,
       "name": "unattended-skips-upstream-and-throttles",
       "prompt": "Run /improvement:improve --unattended on plugins/example/. This is a scheduled run with no user present.",
-      "expected_output": "Asks no question. Counts open PRs on improve branches and stops with a report if three or more are open. Otherwise measures the target against the repo's written standards only, without fetching upstream guidance, ships one draft PR or reports that no gap was found, and files any overflow as a deduplicated work item.",
+      "expected_output": "Asks no question. Counts open PRs on improve branches and stops with a report if three or more are open. Otherwise measures the target against the repo's written standards only, without fetching upstream guidance, ships one PR, a draft requested with --draft since the prompt does not authorize the ready flip, or reports that no gap was found, and files any overflow as a deduplicated work item.",
       "files": [],
       "expectations": [
         "Asks the user nothing",
         "Checks the open improve-PR count before working and stops at the throttle limit",
         "Does not fetch upstream guidance or invoke a research skill",
-        "Opens at most one draft PR, states the issue linkage in its body without asking, and never merges it"
+        "Opens at most one PR, passing --draft to /source-control:pull-request create because the prompt does not authorize the ready flip, states the issue linkage in its body without asking, and never merges it"
       ]
     },
     {

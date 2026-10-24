@@ -21,8 +21,10 @@ from a completed, successful one. Any other artifact is ignored.
   (tied as in the item after next): `verify:repeated-fail`, whatever a pass
   says, a FAIL at the head included. Before a FAIL at the head or a pass
   decides, FAILs of other pull requests in this repository, open or closed, that close one of its
-  closing issues count too, at their own heads (a FAIL among them whose run
-  cannot be read is `verify:unreadable`);
+  issues (its closing issues, or its `Refs:` issue) count too, at their own
+  heads, and so does every FAIL whose name carries one of those issues, a
+  `Refs:` pull request's FAILs among them (a FAIL among them whose run cannot
+  be read is `verify:unreadable`);
 - a counted FAIL at the head, under any pull request number: `verify:fail`;
 - a counted FAIL at another head of this pull request: its number, one of its
   commits (`pulls/<n>/commits`), or a verdict recording its head branch (read
@@ -87,20 +89,27 @@ a scheduled or hand-started run of main's pr-merge.yml, which only that run's
 steps can upload (.github/scripts/pr-merge/head-ref-map.mjs). An entry ties or
 unties the FAIL as the download would; a missing or malformed map is no map,
 and the FAIL is downloaded.
+
+`python3 babysit_verify_evidence.py evidence --repo R [--max-fails N] <pr>
+<head>` prints `Evidence.report()` for one pull request as one JSON line;
+.github/scripts/pr-merge/enable-auto-merge.mjs arms native auto-merge only on
+its null `refusal` at the head it read.
 """
 
 from __future__ import annotations
 
+import argparse
 import contextlib
 import hashlib
 import io
 import json
 import os
 import re
+import sys
 import tempfile
 import time
 import zipfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -126,8 +135,17 @@ HEAD_REFS_ENV = "BABYSIT_VERIFY_HEAD_REFS"
 # (head-ref-map.mjs writes both).
 HEAD_REFS_VERSION = 1
 ARTIFACT_ID_RE = re.compile(r"[1-9][0-9]{0,15}")
+# A verdict's name, then optionally the head-ref digest, then, for a FAIL
+# only, optionally `-i` and the numbers of the issues the verdict records,
+# ascending, each once, joined by dots (`NAMED_ISSUES_MAX` at most), so one
+# verdict has one name. write-verdict.mjs writes the issues after the readers
+# accept them. `verdict_name` applies the order; NAME_RE alone does not.
+NAMED_ISSUES_MAX = 10
 NAME_RE = re.compile(
-    r"pr-verify-([1-9][0-9]*)-([0-9a-f]{40})-(pass|pass-notes|fail)(?:-([0-9a-f]{16}))?"
+    r"pr-verify-([1-9][0-9]{0,9})-([0-9a-f]{40})-"
+    r"(pass(?:-notes)?(?=(?:-[0-9a-f]{16})?\Z)|fail)"
+    r"(?:-([0-9a-f]{16}))?"
+    rf"(?:-i([1-9][0-9]{{0,9}}(?:\.[1-9][0-9]{{0,9}}){{0,{NAMED_ISSUES_MAX - 1}}}))?"
 )
 # The head-ref digest in a verdict's name: the first HEAD_REF_DIGEST_HEX hex
 # digits of the SHA-256 of the head branch's UTF-8 bytes. write-verdict.mjs
@@ -135,6 +153,34 @@ NAME_RE = re.compile(
 # them. Equal branches always give equal digests, so a collision can only tie
 # a FAIL to a branch it did not judge: it holds, never clears.
 HEAD_REF_DIGEST_HEX = 16
+
+
+def named_issues(match: re.Match[str]) -> frozenset[int]:
+    """The issue numbers a `NAME_RE` match names; none for an older name."""
+    return frozenset(int(n) for n in match[5].split(".")) if match[5] else frozenset()
+
+
+# The longest name the grammar allows: `pr-verify-` (10), a 10-digit number
+# and `-` (11), the SHA (40), `-fail` (5), `-` and the digest (17), `-i` (2),
+# then 10 issues of 10 digits and 9 dots (109).
+NAME_MAX = 10 + 11 + 40 + 5 + 17 + 2 + NAMED_ISSUES_MAX * 10 + NAMED_ISSUES_MAX - 1
+# What starts like a FAIL's name, with any digits for the number (leading
+# zeros and more than 10 included); one that is not a verdict name is held
+# (`Reader._evidence`), never skipped.
+FAIL_PREFIX_RE = re.compile(r"pr-verify-([0-9]+)-([0-9a-f]{40})-fail")
+
+
+def verdict_name(name: str) -> re.Match[str] | None:
+    """`NAME_RE`'s full match of `name`, when it is at most `NAME_MAX` long
+    and its issues, if any, are ascending and each listed once; else None,
+    as for any other name."""
+    match = NAME_RE.fullmatch(name) if len(name) <= NAME_MAX else None
+    if match is None or not match[5]:
+        return match
+    numbers = [int(n) for n in match[5].split(".")]
+    return match if all(a < b for a, b in zip(numbers, numbers[1:])) else None
+
+
 PASSES = ("pass", "pass-notes")
 # Artifacts last at most 90 days in this repository (the retention maximum,
 # and the repository's setting), so a verdict on an older pull request may be
@@ -164,6 +210,9 @@ UNREADABLE = "verify:unreadable"
 TOO_OLD = "verify:too-old"
 UNTRUSTED_SPEC = "verify:untrusted-spec"
 SPEC_CHANGED = "verify:spec-changed"
+# `evidence --lane-link`: the pull request's issue link is not one the
+# pr-merge lane takes (`Reader.link_refusal`), so no verdict is read.
+INELIGIBLE = "verify:ineligible"
 # A verdict's `intent` when its pull request closed no issue in this
 # repository: the title and body were the spec (write-verdict.mjs).
 INTENT_PULL_REQUEST = "pull-request"
@@ -173,16 +222,31 @@ NEEDS_HUMAN = (
     UNTRUSTED_SPEC,
     SPEC_CHANGED,
 )
-CLOSING_QUERY = (
-    "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
-    "pullRequest(number:$n){closingIssuesReferences(first:10){totalCount "
-    "nodes{number lastEditedAt repository{nameWithOwner} "
+ISSUE_FIELDS = (
+    "number lastEditedAt repository{nameWithOwner} "
     "comments(first:100){totalCount nodes{databaseId updatedAt lastEditedAt "
     "author{...actor} editor{...actor}}} "
     "closedByPullRequestsReferences(first:50,includeClosedPrs:true){totalCount "
-    "nodes{number repository{nameWithOwner}}}}}}}}"
+    "nodes{number repository{nameWithOwner}}}"
+)
+# The issue parts `_closing_issues` reads whole: a cut list refuses.
+ISSUE_LISTS = ("comments", "closedByPullRequestsReferences")
+ACTOR_FRAGMENT = (
     "fragment actor on Actor{__typename login "
     "... on User{databaseId} ... on Bot{databaseId}}"
+)
+CLOSING_QUERY = (
+    "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
+    "pullRequest(number:$n){body closingIssuesReferences(first:10){totalCount "
+    f"nodes{{{ISSUE_FIELDS}}}}}}}}}}}{ACTOR_FRAGMENT}"
+)
+# The one issue a `Refs:` line names, when the pull request closes none, and
+# the key `_closing_issues` marks it with.
+REFS_MARK = "refsLink"
+REFS_QUERY = (
+    "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
+    f"issueOrPullRequest(number:$n){{__typename ... on Issue{{{ISSUE_FIELDS}}}}}}}}}"
+    f"{ACTOR_FRAGMENT}"
 )
 
 # A run's standing: unreadable, foreign (not of verifier origin), origin (of
@@ -444,6 +508,11 @@ class Reader:
     _mapped: dict[int, str] | None = None  # the head-ref map, once loaded
     _humans: frozenset[int] | None = None
     _humans_at: datetime | None = None  # when `_humans` was read
+    # The pull requests `link_refusal` read, each taken by the next
+    # `_closing_issues` instead of reading it again.
+    _linked: dict[int, dict[str, Any]] = field(default_factory=dict)
+    # The issue number `link_refusal` took for each pull request.
+    linked_issue: dict[int, Any] = field(default_factory=dict)
 
     def _listing(self) -> list[dict[str, Any]]:
         """`_current_listing`, noting when it began to be read
@@ -852,32 +921,61 @@ class Reader:
             for issue in issues
         )
 
+    def _graphql(
+        self, query: str, number: int, what: str, missing: str | None = None
+    ) -> dict[str, Any]:
+        """The query's `repository`. A NOT_FOUND for `missing` alone
+        (`merge_policy.names_nothing`), which gh exits nonzero on, reads as
+        `missing` an empty object, so a null there without that error stays
+        apart; any other error raises `_Unreadable`."""
+        owner, _, name = self.repo.partition("/")
+        args = ["api", "graphql", "-f", f"query={query}"]
+        args += ["-f", f"o={owner}", "-f", f"r={name}", "-F", f"n={number}"]
+        try:
+            proc = postmerge.gh_capture(args)
+        except (RuntimeError, ValueError, OSError) as exc:
+            raise _Unreadable(f"#{number} {what}: {exc}") from exc
+        if missing and merge_policy.names_nothing(proc.stdout, missing):
+            return {missing: {}}
+        if proc.returncode != 0:
+            raise _Unreadable(f"#{number} {what}: {(proc.stderr or '').strip()}")
+        try:
+            payload = json_object(json.loads(proc.stdout))
+        except ValueError as exc:
+            raise _Unreadable(f"#{number} {what}: {exc}") from exc
+        if payload.get("errors"):
+            raise _Unreadable(f"#{number}: the {what} could not be read")
+        repository = json_object(payload.get("data")).get("repository")
+        if not is_json_object(repository):
+            raise _Unreadable(f"#{number}: the {what} answer has no repository")
+        return repository
+
     def _closing_issues(self, number: int) -> dict[Any, Any]:
         """The PR's closing issues in this repository now, each with its
         body's lastEditedAt, read as the resolver reads them
-        (closingIssuesReferences, first 10)."""
-        owner, _, name = self.repo.partition("/")
-        payload = json_object(
-            _read(
-                ["api", "graphql", "-f", f"query={CLOSING_QUERY}"]
-                + ["-f", f"o={owner}", "-f", f"r={name}", "-F", f"n={number}"],
-                f"#{number} closing issues",
-            )
+        (closingIssuesReferences, first 10), or, when it closes none, the one
+        issue its body's `Refs:` lines name (`merge_policy.refs_issue`)."""
+        pull = self._linked.pop(number, None) or json_object(
+            self._graphql(CLOSING_QUERY, number, "closing issues").get("pullRequest")
         )
-        refs = json_object(
-            json_object(
-                json_object(json_object(payload.get("data")).get("repository")).get(
-                    "pullRequest"
-                )
-            ).get("closingIssuesReferences")
-        )
+        refs = json_object(pull.get("closingIssuesReferences"))
         nodes = refs.get("nodes")
-        if (
-            payload.get("errors")
-            or not is_json_array(nodes)
-            or refs.get("totalCount") != len(nodes)
-        ):
+        if not is_json_array(nodes) or refs.get("totalCount") != len(nodes):
             raise _Unreadable(f"#{number}: the closing issues could not be read")
+        if refs.get("totalCount") == 0:
+            named, _ = merge_policy.refs_issue(pull.get("body"))
+            if named is not None:
+                node = self._graphql(
+                    REFS_QUERY, named, "Refs issue", "issueOrPullRequest"
+                ).get("issueOrPullRequest")
+                if not is_json_object(node):
+                    raise _Unreadable(f"#{named}: the Refs issue answer is empty")
+                # Marked so the gate can bind a pass to how it was linked.
+                nodes = (
+                    [node | {REFS_MARK: True}]
+                    if node.get("__typename") == "Issue"
+                    else []
+                )
         live = {
             json_object(node).get("number"): json_object(node)
             for node in nodes
@@ -885,7 +983,7 @@ class Reader:
             == self.repo
         }
         for issue in live.values():
-            for part in ("comments", "closedByPullRequestsReferences"):
+            for part in ISSUE_LISTS:
                 listed = json_object(issue.get(part))
                 if not is_json_array(listed.get("nodes")) or listed.get(
                     "totalCount"
@@ -894,6 +992,26 @@ class Reader:
                         f"#{issue.get('number')}: its {part} could not be read"
                     )
         return live
+
+    def link_refusal(self, number: int) -> str | None:
+        """Why the pull request's issue link is not one the pr-merge lane
+        takes from a pull request the lane opened, or None when it is: the
+        gate's own rule (`merge_policy._linked_issue`, as `lane_eligibility`
+        reads it), so one closing issue in this repository, or, with none,
+        the one issue its plain `Refs:` lines name. A failed read refuses."""
+        try:
+            pull = json_object(
+                self._graphql(CLOSING_QUERY, number, "closing issues").get(
+                    "pullRequest"
+                )
+            )
+            issue, refusal = merge_policy._linked_issue(pull, self.repo)
+        except (_Unreadable, merge_policy.PolicyReadError) as exc:
+            return f"unreadable: {exc}"
+        if refusal is None:
+            self._linked[number] = pull
+            self.linked_issue[number] = issue.get("number")
+        return refusal
 
     def _closers(self, live: dict[Any, Any]) -> set[int]:
         """The pull requests in this repository, open or closed, that close
@@ -955,13 +1073,30 @@ class Reader:
         unreadable: str | None = None
         # FAILs of verifier origin by pull request number, and the numbers
         # with a FAIL whose run cannot be read, for the cap's other pull
-        # requests (`_closers`).
+        # requests (`_elsewhere`).
         failed_by_pr: dict[int, set[str]] = {}
         unread_prs: set[int] = set()
+        # The same by each issue a FAIL's name carries (`named_issues`).
+        failed_by_issue: dict[int, set[str]] = {}
+        unread_issues: set[int] = set()
         for item in map(json_object, self._listing()):
             name = str(item.get("name") or "")
-            match = NAME_RE.fullmatch(name)
-            if not match or item.get("expired") is not False:
+            match = verdict_name(name)
+            if item.get("expired") is not False:
+                continue
+            if not match:
+                if (off := FAIL_PREFIX_RE.match(name)) is not None:
+                    # Compared as text: the digits are unbounded, and a string
+                    # past Python's int-conversion limit would raise.
+                    digits = off[1].lstrip("0")
+                    hold, unread = self._off_grammar(
+                        item, name, digits == str(number) or off[2] in commits
+                    )
+                    unreadable = unreadable or hold
+                    if unread and len(digits) <= 10:
+                        # Held only if its pull request is one the cap counts,
+                        # which a number over 10 digits never is.
+                        unread_prs.add(int(digits or "0"))
                 continue
             pr_n, sha, verdict = int(match[1]), match[2], match[3]
             run_id = json_object(item.get("workflow_run")).get("id")
@@ -986,12 +1121,15 @@ class Reader:
                 continue
             if state == UNREAD:
                 unread_prs.add(pr_n)
+                unread_issues.update(named_issues(match))
                 if tied:
                     unreadable = unreadable or f"run of {name}"
                 else:
                     ignored += 1
                 continue
             failed_by_pr.setdefault(pr_n, set()).add(sha)
+            for issue in named_issues(match):
+                failed_by_issue.setdefault(issue, set()).add(sha)
             if not tied and match[4] is not None:
                 # The name, which the run authenticates, carries the head
                 # branch the verdict records: no download.
@@ -1018,7 +1156,9 @@ class Reader:
         elif head in failed:
             # A FAIL here gets a fix round, so the cap counts the other pull
             # requests for its issues first: a round past it cannot merge.
-            _, elsewhere = self._elsewhere(number, failed_by_pr, unread_prs)
+            _, elsewhere = self._elsewhere(
+                number, failed_by_pr, unread_prs, failed_by_issue, unread_issues
+            )
             refusal = FAIL
             if len(failed | elsewhere) >= self.max_fails:
                 refusal = REPEATED_FAIL
@@ -1036,7 +1176,9 @@ class Reader:
         elif passes:
             # Every pass at the head must allow, so listing order decides
             # nothing; any unreadable one refuses (`_Unreadable`).
-            live, elsewhere = self._elsewhere(number, failed_by_pr, unread_prs)
+            live, elsewhere = self._elsewhere(
+                number, failed_by_pr, unread_prs, failed_by_issue, unread_issues
+            )
             if len(failed | elsewhere) >= self.max_fails:
                 refusal = REPEATED_FAIL
                 detail = (
@@ -1065,17 +1207,47 @@ class Reader:
             else None,
         )
 
+    def _off_grammar(
+        self, item: dict[str, Any], name: str, tied: bool
+    ) -> tuple[str | None, bool]:
+        """Why a FAIL-shaped name no reader takes holds, and whether its run
+        cannot be read. It holds when its run is of verifier origin, or, tied
+        to this pull request, cannot be read: it may be a FAIL the cap or the
+        head should count, so it is never skipped. One from any other run is
+        ignored; an untied one whose run cannot be read is left to the cap
+        (`_elsewhere`), as any such FAIL is."""
+        run_id = json_object(item.get("workflow_run")).get("id")
+        if not isinstance(run_id, int) or isinstance(run_id, bool):
+            return None, False
+        state = self._run_state(run_id, shared=True)
+        if state == FOREIGN:
+            return None, False
+        if state == UNREAD and not tied:
+            return None, True
+        return f"off-grammar FAIL name {name}", state == UNREAD
+
     def _elsewhere(
-        self, number: int, failed_by_pr: dict[int, set[str]], unread_prs: set[int]
+        self,
+        number: int,
+        failed_by_pr: dict[int, set[str]],
+        unread_prs: set[int],
+        failed_by_issue: dict[int, set[str]],
+        unread_issues: set[int],
     ) -> tuple[dict[Any, Any], set[str]]:
-        """The live closing issues, and the heads of counted FAILs of the
-        other pull requests that close one of them. A FAIL among those whose
-        run cannot be read raises `_Unreadable`."""
+        """The live issues (`_closing_issues`: closing, or the `Refs:` one),
+        and the heads of counted FAILs of the other pull requests that close
+        one of them, and of every counted FAIL whose name carries one of them
+        (`named_issues`: a `Refs:` pull request's FAILs count only so), from
+        the listing already read. A FAIL among those whose run cannot be read
+        raises `_Unreadable`."""
         live = self._closing_issues(number)
         others = self._closers(live) - {number}
-        if others & unread_prs:
+        if others & unread_prs or unread_issues & set(live):
             raise _Unreadable("a FAIL run of a pull request for the same issue")
-        return live, set().union(*(failed_by_pr.get(n, set()) for n in others))
+        return live, set().union(
+            *(failed_by_pr.get(n, set()) for n in others),
+            *(failed_by_issue.get(n, set()) for n in live),
+        )
 
     def _fresh_created(self, run_id: int) -> datetime | None:
         """When the run was created, from a record this process read from
@@ -1221,6 +1393,14 @@ class Reader:
             for n, node in live.items()
         ):
             return SPEC_CHANGED
+        # A `Refs:` issue is judged as a partial slice (write-verdict.mjs
+        # `spec_kind`), so a pass judged that way never covers a pull request
+        # that now closes it, nor the reverse. A record from before the kind
+        # was written judged closing issues.
+        if live and any(n.get(REFS_MARK) for n in live.values()) != (
+            record.get("spec_kind", "closes") == "refs"
+        ):
+            return SPEC_CHANGED
         # No closing issue, then and now: the verdict judged the pull
         # request's own title and body, which only a trusted author's adopted
         # pull request reaches the gate with (`lane_eligibility`).
@@ -1246,3 +1426,200 @@ class Reader:
             return None
         head = str(json_object(pr.get("head")).get("sha"))
         return self.evidence(number, head, pr).refusal
+
+
+def lane_risk_refusal(
+    repo: str,
+    number: int,
+    pr: dict[str, Any],
+    config: merge_policy.PipelineConfig,
+    rung: str,
+    issue: int | None,
+) -> str | None:
+    """Why pr-merge's gate would hold the pull request on its risk score, or
+    None: `babysit_risk.score` and `holding` over the inputs the gate builds
+    (`babysit_merge.score_unattended`) for a lane pull request, class
+    `LANE_CLASS` at `rung`, with `config` the base's tightened by the
+    default branch head's. So the review lanes' evidence (an open CRITICAL
+    security finding, a review not bound to the head), a symlink, submodule
+    or other non-regular mode, a high path, the manifest review, the trust
+    gate and the cost review all hold, the cost review lifted only by the
+    owner's decision on the pull request or its linked `issue`
+    (`merge_policy.cost_decision`). A read that fails holds."""
+    # Imported here: babysit_merge imports this module.
+    import babysit_merge  # noqa: PLC0415
+    import babysit_risk  # noqa: PLC0415
+
+    try:
+        identity = config.agent_identity
+        if not identity:
+            return "unreadable: no agent identity"
+        permission = merge_policy.permission_reader(repo)
+        files, complete = merge_policy.changed_files(repo, pr)
+        lanes, _ = babysit_merge._lane_evidence(
+            repo,
+            number,
+            pr,
+            identity,
+            frozenset(),
+            permission,
+            [p for f in files for p in (f.path, f.previous_path) if p]
+            if complete
+            else None,
+        )
+        files = merge_policy.with_contents(repo, pr, files)
+        private = json_object(json_object(pr.get("base")).get("repo")).get("private")
+        risk_input = babysit_risk.RiskInput(
+            work_class=merge_policy.LANE_CLASS,
+            rung=babysit_risk.Rung[rung.upper()],
+            files=files,
+            files_complete=complete,
+            max_changed_lines=config.max_changed_lines,
+            high_paths=config.denied_paths,
+            lanes=lanes,
+            blast_radius=None,
+            public=True if private is False else None,
+            pulumi_dirs=merge_policy.pulumi_dirs_at(repo, pr),
+            high_floor=config.high_path_floor,
+            c2_contradictions=config.c2_contradictions,
+            max_changed_files=config.max_changed_files,
+            lines_optional=True,
+        )
+        risk = babysit_risk.score(risk_input)
+        if any(r.code == babysit_risk.COST_CODE for r in risk.reasons):
+            decision = merge_policy.cost_decision(
+                repo, pr, issue, permission=permission, agent_identity=identity
+            )
+            if decision:
+                risk = babysit_risk.score(replace(risk_input, cost_decision=decision))
+    except Exception as exc:  # noqa: BLE001 - any doubt holds, as the gate's
+        return f"unreadable: {type(exc).__name__}: {exc}"
+    held = babysit_risk.holding(risk)
+    return "; ".join(f"{r.code}: {r.detail}" for r in held) or None
+
+
+def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
+    """`evidence <number> <head>`: one pull request's evidence at `head` as
+    one JSON line (`Evidence.report`), as pr-merge's gate judges it.
+    enable-auto-merge.mjs arms native auto-merge only on a null `refusal`
+    at the head it read. Exit 0 whenever the line is printed, a refusal
+    included.
+
+    With `--base-sha`, the FAIL cap is the gate's: `merge.max-verify-fails`
+    of the config at that base commit and at the default branch head, the
+    lower one (`with_default_branch`); a config that cannot be read refuses
+    `verify:unreadable`. A pass judged on the run's saved listing is judged
+    again on a listing of its own, as the gate does before it allows.
+
+    With `--lane-link`, the line also carries `ineligible`: null when the
+    pull request's issue link is one the pr-merge lane takes
+    (`Reader.link_refusal`), else why not, with refusal `verify:ineligible`
+    and no verdict or config read. With `--lane-reviews` (and `--base-sha`
+    and `--rung`, the lane room's effective rung), a line whose refusal is
+    null also carries `reviews`: null when pr-merge's gate would not hold
+    the pull request on its risk score (`lane_risk_refusal`), else why.
+
+    `lane-room --postmerge-result <file> [--rung-cap <value>]`: whether the
+    pr-merge lane may merge one more of its own pull requests now
+    (`merge_policy.lane_room`, `LaneRoom.report`), from this run's
+    `babysit_postmerge.py` report and the `CLAUDE_LANES_MERGE_RUNG_CAP` value
+    the workflow read (empty is no cap; missing holds the rung off)."""
+    parser = argparse.ArgumentParser(
+        prog="babysit_verify_evidence.py", allow_abbrev=False
+    )
+    sub = parser.add_subparsers(dest="command", required=True)
+    cmd = sub.add_parser("evidence", allow_abbrev=False)
+    cmd.add_argument("--repo", required=True)
+    cmd.add_argument("--branch", default="main")
+    cmd.add_argument("--max-fails", type=int, default=merge_policy.MAX_VERIFY_FAILS)
+    cmd.add_argument("--base-sha", default=None)
+    cmd.add_argument("--lane-link", action="store_true")
+    cmd.add_argument("--lane-reviews", action="store_true")
+    cmd.add_argument("--rung", default=None)
+    cmd.add_argument("number", type=int)
+    cmd.add_argument("head")
+    room = sub.add_parser("lane-room", allow_abbrev=False)
+    room.add_argument("--repo", required=True)
+    room.add_argument("--postmerge-result", required=True)
+    room.add_argument("--rung-cap", default=None)
+    args = parser.parse_args(argv)
+    if args.command == "lane-room":
+        shared = postmerge.read_shared(args.postmerge_result)
+        answer = merge_policy.lane_room(args.repo, shared, lane_rung_cap=args.rung_cap)
+        print(json.dumps(answer.report()))
+        return 0
+    if (
+        args.max_fails < 1
+        or not merge_policy.SHA_RE.fullmatch(args.head)
+        or (
+            args.base_sha is not None
+            and not merge_policy.SHA_RE.fullmatch(args.base_sha)
+        )
+    ):
+        parser.error(
+            "--max-fails must be 1 or more, and head and --base-sha full commit SHAs"
+        )
+    reader = Reader(args.repo, args.branch, now=now, max_fails=args.max_fails)
+    link: dict[str, Any] = {}
+    config: merge_policy.PipelineConfig | None = None
+    if args.lane_link:
+        link["ineligible"] = reader.link_refusal(args.number)
+        if link["ineligible"] is not None:
+            refusal = Evidence(INELIGIBLE, args.head, (), 0, link["ineligible"])
+            print(json.dumps(refusal.report() | link))
+            return 0
+    if args.base_sha is not None:
+        try:
+            base = merge_policy.read_config_at(args.repo, args.base_sha)
+            if base.error:
+                raise merge_policy.PolicyReadError(base.error)
+            config = merge_policy.with_default_branch(args.repo, base)
+        except merge_policy.PolicyReadError as exc:
+            refusal = Evidence(UNREADABLE, args.head, (), 0, f"config: {exc}")
+            print(json.dumps(refusal.report() | link))
+            return 0
+        reader.max_fails = config.max_verify_fails
+    pr = None
+    if args.lane_reviews:
+        try:
+            pr = merge_policy.pull_request(args.repo, args.number)
+        except merge_policy.PolicyReadError as exc:
+            refusal = Evidence(UNREADABLE, args.head, (), 0, str(exc))
+            print(json.dumps(refusal.report() | link))
+            return 0
+    evidence = reader.evidence(args.number, args.head, pr)
+    if evidence.refusal is None and reader.saved:
+        reader.refresh()
+        evidence = reader.evidence(args.number, args.head, pr)
+    if args.lane_reviews and evidence.refusal is None:
+        head = json_object(json_object(pr).get("head")).get("sha")
+        if head != args.head:
+            link["reviews"] = f"unreadable: the head is {head}, not {args.head}"
+        elif config is None:
+            link["reviews"] = "unreadable: no --base-sha, so no config to score at"
+        else:
+            # The lowest of the room's effective rung and this base's config.
+            rung = merge_policy.effective_rung(
+                config_rung=config.rung,
+                loop_merge=config.loop_merge,
+                cap=args.rung if args.rung in merge_policy.RUNG_RANK else "off",
+                demoted=False,
+            ).rung
+            link["reviews"] = (
+                f"unreadable: the lane's rung is {args.rung}"
+                if rung == "off"
+                else lane_risk_refusal(
+                    args.repo,
+                    args.number,
+                    json_object(pr),
+                    config,
+                    rung,
+                    reader.linked_issue.get(args.number),
+                )
+            )
+    print(json.dumps(evidence.report() | link))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

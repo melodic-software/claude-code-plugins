@@ -11,7 +11,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { refsHoldComment } from "../work-resolve-issue/report-outcome.mjs";
+import { refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import {
   checkCloser,
   escalationComment,
@@ -1555,6 +1555,66 @@ test("a cancelled run admit did not pass, one whose resolve-issue started, or a 
   }
 });
 
+// A run that waited in its slot past a lane workflow change ends green
+// at the read runner's `Stop on stale workflow files` step, with no model turn
+// and no outcome marker, so the sweep re-fires it like a failed run.
+const staleRunJob = (stop) => ({
+  name: "resolve-issue / run",
+  conclusion: "success",
+  steps: [
+    { name: "Check the run's workflow files against main", conclusion: "success" },
+    { name: "Stop on stale workflow files", conclusion: stop },
+  ],
+});
+const STOPPED_STALE = [ADMITTED, pickSlot, BROKER_ALLOWED, staleRunJob("success"), { name: "report-outcome", conclusion: "skipped", steps: [] }];
+
+test("a run that stopped green on stale workflow files is re-fired, once per version of the lane workflow files", async () => {
+  const fresh = stalledRun({ jobs: STOPPED_STALE, conclusion: "success" });
+  assert.equal(await sweep({ github: fresh.github, actions: fresh.actions }), 0);
+  assert.deepEqual(writes(fresh.calls), refired(30));
+  // didNoWork and stoppedStale share one read of the run's job listing.
+  assert.equal(fresh.calls.filter((call) => call.startsWith(`GET /repos/${REPO}/actions/runs/5030/jobs`)).length, 1);
+  // The App's re-add on these workflow files stopped stale again: stop there.
+  const again = stalledRun({
+    jobs: STOPPED_STALE,
+    conclusion: "success",
+    comments: [note(), refireNote(KEY, "2026-10-16T09:59:59Z")],
+    events: [
+      added("2026-10-16T09:00:00Z", OWNER),
+      { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T09:59:59Z" },
+      added(LABELED_AT),
+    ],
+  });
+  assert.equal(await sweep({ github: again.github, actions: again.actions }), 0);
+  assert.deepEqual(writes(again.calls), []);
+  // A newer version of the lane workflow files re-fires it once more.
+  const newer = "3".repeat(40);
+  const changed = stalledRun({
+    jobs: STOPPED_STALE,
+    conclusion: "success",
+    comments: [note(), refireNote(KEY, "2026-10-16T09:59:59Z")],
+    events: [
+      added("2026-10-16T09:00:00Z", OWNER),
+      { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T09:59:59Z" },
+      added(LABELED_AT),
+    ],
+    blobs: { ...BLOBS, ".github/workflows/work-resolve-issue.yml": newer },
+  });
+  assert.equal(await sweep({ github: changed.github, actions: changed.actions }), 0);
+  assert.deepEqual(writes(changed.calls), refired(30, `${WRITE_SHA}-${newer}`));
+});
+
+test("a green run whose stale stop did not run, or a stop step outside resolve-issue, is not re-fired", async () => {
+  for (const [name, jobs] of [
+    ["stop step skipped", [ADMITTED, pickSlot, BROKER_ALLOWED, staleRunJob("skipped")]],
+    ["stop step in another job", [ADMITTED, pickSlot, { ...staleRunJob("success"), name: "report-outcome / run" }]],
+  ]) {
+    const { github, actions, calls } = stalledRun({ jobs, conclusion: "success" });
+    assert.equal(await sweep({ github, actions }), 0, name);
+    assert.deepEqual(writes(calls), [], name);
+  }
+});
+
 // The job ids and step names the sweep matches in a run's job listing. A job a
 // reusable workflow runs is listed as `<caller job id> / <called job id>` when
 // the called job sets no name.
@@ -1575,6 +1635,7 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
   const read = jobs(workflow("pr-run-activity-read.yml"));
   assert.ok(steps(read["broker-check"]).includes("Ask the broker whether the lane may run"));
   assert.ok(read.run !== undefined);
+  assert.ok(steps(read.run).includes("Stop on stale workflow files"));
   for (const id of ["broker-check", "run"]) {
     assert.doesNotMatch(read[id], /^ {4}name:/m, `read runner job ${id} keeps its id as its name`);
   }
@@ -1750,7 +1811,7 @@ test("an open lane PR hands nothing off, whatever its body", async () => {
 
 // report-outcome's hold on a Refs PR: the App added needs-human just after
 // opening the PR, with the refs-hold comment naming it.
-const holdNote = (pr = 7805, user = LANES_BOT) => ({ id: 64, body: refsHoldComment(pr, "needs-human"), user, created_at: "2026-10-16T10:20:06Z" });
+const holdNote = (pr = 7805, user = LANES_BOT) => ({ id: 64, body: `${refsHoldMarker(pr)}\nThe hold report-outcome put on the issue of a Refs PR.`, user, created_at: "2026-10-16T10:20:06Z" });
 const humanLabeled = (at = "2026-10-16T10:20:05Z", actor = LANES_BOT, event = "labeled") => ({
   event,
   label: { name: "needs-human" },

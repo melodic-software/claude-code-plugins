@@ -297,8 +297,15 @@ class TheKeyCoversEveryInput(unittest.TestCase):
             {"id": 3, "name": f"pr-verify-9-{'e' * 40}-fail", "expired": False},
             {"id": 4, "name": f"pr-verify-7-{HEAD}-pass", "expired": True},
             {"id": 5, "name": "pr-merge-gate-cursor", "expired": False},
+            {"id": 6, "name": f"pr-verify-7-{HEAD}-fail-i3.7", "expired": False},
+            # Not verdict names: a pass carries no issues, and issues are
+            # ascending and listed once.
+            {"id": 7, "name": f"pr-verify-7-{HEAD}-pass-i3", "expired": False},
+            {"id": 8, "name": f"pr-verify-7-{HEAD}-pass-notes-i3", "expired": False},
+            {"id": 9, "name": f"pr-verify-7-{HEAD}-fail-i7.3", "expired": False},
+            {"id": 10, "name": f"pr-verify-7-{HEAD}-fail-i3.3", "expired": False},
         ]
-        self.assertEqual([i for i, _ in skip.verdicts(listing, 7, HEAD)], [1, 2])
+        self.assertEqual([i for i, _ in skip.verdicts(listing, 7, HEAD)], [1, 2, 6])
 
     def test_a_cut_short_or_mismatched_read_gives_no_state(self) -> None:
         cut = _node()
@@ -319,6 +326,23 @@ class TheKeyCoversEveryInput(unittest.TestCase):
         }.items():
             with self.subTest(name):
                 self.assertIsNone(skip.pr_state(node))
+
+
+class ARefsPullRequestIsNeverSkipped(unittest.TestCase):
+    """The key carries closing issues' update times only, so a pull request
+    linked by a `Refs:` line has no key and is gated every run."""
+
+    def test_a_refs_issue_gives_no_state(self) -> None:
+        refs = _node()
+        refs["closingIssuesReferences"] = {"totalCount": 0, "nodes": []}
+        refs["body"] = "Refs: #3\n\nPart one."
+        self.assertIsNone(skip.pr_state(refs))
+        # No issue at all, or a closing one beside a Refs line, keeps a key.
+        refs["body"] = "Part one."
+        self.assertIsNotNone(skip.pr_state(refs))
+        closing = _node()
+        closing["body"] = "Refs: #4"
+        self.assertIsNotNone(skip.pr_state(closing))
 
 
 class ASkipRepeatsOnlyAnUnchangedAllowedRefusal(unittest.TestCase):

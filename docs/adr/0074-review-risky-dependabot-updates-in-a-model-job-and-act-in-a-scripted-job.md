@@ -69,14 +69,14 @@ and `pr-unblock` never merges
 - **Run the repository's tests in the model job.** Rejected: a write-effect activity must not run
   head code (README, "Activities", `effect`), and the bumped dependency is head code. `ci-status`
   runs them on every pushed head.
-- **A schedule on the dispatcher.** Not possible without a broker change: the broker accepts a
-  dispatcher run started only by a push or a listed human
+- **A schedule on the dispatcher.** Left out of this decision. ADR 0071 later added a half-hourly
+  schedule, which the broker accepts
   ([`pr-run-activity.md`, "The lane token broker"](../conventions/pr-pipeline/pr-run-activity.md#the-lane-token-broker)).
 
 ## Consequences
 
-- A review-tier Dependabot pull request is reviewed after the next push to `main` or a hand run
-  of the dispatcher, not on a timer.
+- A review-tier Dependabot pull request is reviewed after the next push to `main`, the
+  dispatcher's half-hourly tick (ADR 0071) or a hand run of the dispatcher.
 - The pr-merge lane merges a review-tier pull request whose current head carries the lanes App's
   `verdict=merge` marker (owner decision, 2026-10-16; [ADR 0073](0073-merge-dependabot-pull-requests-in-the-pr-merge-lane.md)), so the decision and the merge stay
   in separate lanes.
@@ -113,7 +113,7 @@ model job no longer holds `contents: write`.
 
 - **The model job is a read skill.** `review-dependency` is an `effect: read` skill leaf with
   `applied-by` `{patch: apply-dependency-patch, dependency-verdict: apply-dependency-verdict}`, on
-  the read runner, on `run-claude-cli` (the automations role's API key, then its subscription
+  the read runner, on `run-claude-cli` (the pr-unblock role's API key, then its subscription
   token after a credit stop or with an empty key). Its tools are Read, Grep, Glob, Skill, Edit,
   Write and Agent, with no Bash, and WebFetch on the five configured hosts. It leaves a fix
   uncommitted; the runner hands it on as a patch, and its verdict, the launcher's structured

@@ -941,7 +941,6 @@ function resolveMerge(merge = {}, configPath) {
     ...new Set([
       ...(diffCheck["denied-paths"] ?? []),
       configPath,
-      ".github/**",
       TRUSTED_ACTORS_PATH,
     ]),
   ];
@@ -949,6 +948,7 @@ function resolveMerge(merge = {}, configPath) {
     rung: merge.rung ?? "off",
     "diff-check": { ...diffCheck, "denied-paths": denied },
     "stack-landing": merge["stack-landing"] ?? "manual",
+    "lane-prs": merge["lane-prs"] ?? "native",
   };
 }
 

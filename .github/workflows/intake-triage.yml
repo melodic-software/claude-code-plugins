@@ -195,10 +195,10 @@ jobs:
     concurrency:
       group: intake-triage-${{ github.event.issue.number || inputs.issue-number || github.run_id }}
       cancel-in-progress: false
-    uses: melodic-software/ci-workflows/.github/workflows/intake-triage.yml@2fe38c031867900824c164e33a140a335ed9ecf0 # v0.62.0
+    uses: melodic-software/ci-workflows/.github/workflows/intake-triage.yml@b0ecc273abe492d12f2efa98ee4741a84c219ed2 # b0ecc27 2026-10-23 v0.65.0 plus a docs-only commit
     with:
       runner: ubuntu-24.04
-      role: automations
+      role: intake
       claude-args: ${{ needs.born-triaged.outputs.claude-args }}
       issue-number: ${{ inputs.issue-number }}
       allowed-author-ids: ${{ needs.born-triaged.outputs.human-ids }}
@@ -292,8 +292,8 @@ jobs:
            label, quote the decision, say in one sentence that it settles the open questions, and ask
            nothing again. Triage the rest as usual.
     secrets:
-      CLAUDE_API_KEY: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
-      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+      CLAUDE_API_KEY: ${{ secrets.INTAKE_CLAUDE_API_KEY }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.INTAKE_CLAUDE_CODE_OAUTH_TOKEN }}
 
   # Writes the triage run's verdict on the issue as the lanes App, so the work
   # lanes count it: the work-class label, the Size, Complexity and Uncertainty
@@ -388,21 +388,6 @@ jobs:
           pull-requests: ${{ steps.config.outputs.pull-requests }}
           issues: ${{ steps.config.outputs.issues }}
 
-      # Measures the run's spend on the lane token and on the job's own token:
-      # this reading and the one at job end bracket the run. The lanes App's
-      # bucket is shared by every job using it, so the lane figure includes
-      # their calls. Never fails the job.
-      - name: Log the API budget at mint
-        if: steps.lane-token.outputs.token != ''
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: |
-            lane ${{ steps.lane-token.outputs.token }}
-            github-token ${{ github.token }}
-
       - name: Write the verdict
         if: steps.lane-token.outputs.token != ''
         env:
@@ -415,17 +400,6 @@ jobs:
           BASE_PATH: .base
           RESOLVED_CONFIG: ${{ runner.temp }}/resolved-config.json
         run: node ".base/$SCRIPT"
-
-      - name: Log the API budget at job end
-        if: always() && steps.lane-token.outputs.token != ''
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: end
-          tokens: |
-            lane ${{ steps.lane-token.outputs.token }}
-            github-token ${{ github.token }}
 
       # The token is cancelled as soon as the job is done; it would otherwise
       # expire within the hour. This never fails the job.
@@ -696,7 +670,7 @@ jobs:
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
-          claude_code_oauth_token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_code_oauth_token: ${{ secrets.INTAKE_CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
           # A dispatch (intake-reenter.yml, the triage sweep) runs as
           # github-actions[bot]; refine-select admitted the run's actor.

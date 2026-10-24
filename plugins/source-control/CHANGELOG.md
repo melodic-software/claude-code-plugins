@@ -3,6 +3,82 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.15.0] - 2026-10-24
+
+### Added
+
+- `babysit_verify_evidence.py evidence --lane-link` first reads the pull request's issue link by the pr-merge lane's own rule (`babysit_merge_policy._linked_issue`: one closing issue in this repository, or, with none, the one issue its plain `Refs:` lines name) and adds `ineligible` to its line: null when the lane takes the link, else why not, with refusal `verify:ineligible` and no verdict or config read. A failed read refuses. The verdict read that follows takes the link read's pull request instead of reading it again.
+- `babysit_verify_evidence.py lane-room` prints whether the pr-merge lane may merge one more of its own pull requests now (`babysit_merge_policy.lane_room`): the gate's run-level refusals (another authority, a post-merge refusal, the effective rung off, a demotion included) as `refusal`, a failed read, or a post-merge answer the gate would not reuse for its age or a changed demotion record (`shared_refusal`'s checks), as `unreadable`, and otherwise the merges in flight against `merge.max-in-flight`. `InFlight` now carries that count.
+- `babysit_verify_evidence.py evidence --lane-reviews --base-sha <sha> --rung <rung>` adds `reviews` to a line whose refusal is null: null when the gate would not hold the pull request on its risk score (`lane_risk_refusal`: `babysit_risk.score` and `holding` over the inputs `babysit_merge.score_unattended` builds for a lane pull request, the cost decision included), else why. A failed read, a moved head, or no rung holds. `lane-room` reports the effective rung as `rung`.
+
+## [2.14.2] - 2026-10-23
+
+### Fixed
+
+- `babysit_merge.py --unattended` no longer adds the human-gated label back after a person removed it: a User of kind `human` on the trusted-actor list read at the repository's default branch, with write access. The escalation is the risk, verifier, held-major or shared-copy one, its comment is unchanged (same head and reasons), and the label's newest removal was that person's, after the comment last changed. The run reports `label: lifted`. A removal by a bot, the lanes App included, by an account off that list, or made through a GitHub App lifts nothing. A new head or new reasons escalate again. An unreadable timeline or default branch adds the label as before, and the run reports why as `liftUnread`.
+
+## [2.14.1] - 2026-10-23
+
+### Fixed
+
+- A test keeps the native auto-merge cost paths and manifest holds in step with `babysit_risk`.
+
+- The PR-body linkage gate no longer times out on a very long line or a long run of trailing newlines. The code-span mask splits each line at its backticks in one pass instead of reading it one character at a time, which took 4.8 s on a 30,000-word line; `negation_trigger_to` reads only the last five words before a closing keyword without copying the line once per word (a line of about 27,000 words before `closes #N` passed the 15 s hook timeout, and a timed-out hook does not block), and `linkage::chomp_to` removes the trailing newline run in one step. Verdicts are unchanged.
+
+## [2.14.0] - 2026-10-23
+
+### Added
+
+- The merge gate reads a pull request that closes no issue as linked to the one issue its body names with a plain `Refs: #<n>` line (owner decision 2026-10-23), in the pr-merge lane and the worker tier alike: the work class, its label provenance, the lane claim, the cost decision, the verifier-verdict binding and the enqueue recheck read that issue as they read a closing issue. A closing issue always wins. A `Refs:` line inside an HTML comment or a fenced code block, or not in the first column, names nothing; one in any other form refuses `refs-line-not-plain`, two or more issues refuse `refs-issues:<n>`, and a number that is a pull request, or names no issue or pull request at all (GitHub's NOT_FOUND, such as a typo), refuses `refs-not-an-issue`. An adopted pull request whose `Refs:` lines name no single issue stays its own intent, as before. Nothing closes the `Refs:` issue on merge. The gate allows a verifier pass only when the verdict's `spec_kind` matches how the issue is linked now, so a pass judged as a `Refs:` slice never covers the same issue closed, nor the reverse (`verify:spec-changed`). The cross-pull-request repeated-fail cap counts a `Refs:` pull request's `fail` verdicts for its issue by the issue numbers their names carry, as for a closing pull request, so closing a failed pull request and opening a new `Refs:` one does not reset the count; the gate reads no issue timeline, so cross-references to an issue hold nothing. pr-merge's skip key never carries a refusal for a `Refs:` pull request, whose issue's update times it does not read, so such a pull request is gated every run.
+
+## [2.13.6] - 2026-10-23
+
+### Changed
+
+- The babysit scripts' gh seam (`babysit_gh._run_gh`) records rate-limit readings from its own `gh api` responses when the job names the token. That needs `API_BUDGET_TOKEN` (or `API_BUDGET_OVERRIDE_TOKEN`, for a call that carries its own `GH_TOKEN`) and `RUNNER_TEMP`. A call that is not `--paginate` then runs with `-i`, and the leading header block's `x-ratelimit-*` values become one line in `$RUNNER_TEMP/api-budget/<token>`. The rest of stdout comes back byte for byte, so the caller gets the output it would have had without `-i`. With those variables unset, nothing changes.
+
+## [2.13.5] - 2026-10-23
+
+### Fixed
+
+- The post-merge check takes the newest green full run for a red run's affected set (`_Context.affected`) and the newest completed run for its baseline (`_Context._baseline`). It now picks only a run whose head commit is the branch's tip or an ancestor of `refs/heads/<branch>` (`_Context.on_branch`, through `_Context.contains`). The same check now filters the scheduled, dispatched and canary runs a merge is judged on, the runs read by commit to prove a listing incomplete, and the lane re-run probe, so a red run on such a tag can no longer fail a merge. The promotion evidence (`publish-promotion-evidence.mjs`) filters its post-merge runs the same way. Before, it trusted any run that reported `head_branch: main`, and a run on a tag named `main` reports that too. Such a run could check out a writer's own commit and run its plan script, or narrow the affected set so that a red main run read as unaffected and filed no demotion.
+
+- The post-merge check (`babysit_postmerge.py`) recognizes a native auto-merge of the agent identity's pull request: the identity opened it from a branch of this repository, and the newest auto-merge enable or disable event is the identity's enable, made no later than the merge-queue enqueue. Such a merge posts no `babysit-merge-pin` comment, so it no longer waits for a pin read-back and fails it at the dispatch deadline, which filed a demotion record and held pr-merge for owner and Dependabot pull requests. It is still the identity's merge, so post-merge-dispatch starts its full run, and it verifies on the dispatch and canary runs alone; a red full run or canary after it still fails it. The auto-merge events come from a second aliased `timelineItems` connection in the same merged-pull-request query, and a native merge skips the pin read, so no read is added. The promotion evidence (`publish-promotion-evidence.mjs`) applies the same rule, requiring one lane identity as author, enqueuer and armer, and refuses to publish when that identity's auto-merge events cannot be read, so its demotion counts still match. A gate merge keeps its read-back: the gate disarms an armed auto-merge before it pins, and an arm made after the enqueue does not count.
+
+## [2.13.4] - 2026-10-23
+
+### Added
+
+- `babysit_verify_evidence.py evidence --repo R [--max-fails N] <pr> <head>` prints the gate's verifier evidence for one pull request as one JSON line, which the pr-merge lane's native auto-merge arms on.
+
+## [2.13.3] - 2026-10-23
+
+### Changed
+
+- The post-merge check (`babysit_postmerge.py`) answers a lane dispatch or re-run record from the file pr-merge.yml names in `BABYSIT_POSTMERGE_LANE_RECORDS` before listing it: a record an earlier check proved is present with no request once it is unexpired and the run that uploaded it passes the check's sender rule again (pr-merge.yml on the branch, an event of the job that writes the record, a head commit on the branch tip). The check writes back, to the same file, the records it read in and each it proves whose uploading run completed and whose artifact was listed unexpired, merged with the file as another check of the run left it since (a record this check read in but never asked for, which that check dropped, stays dropped), keeping those unexpired and created at or after the lowest floor any check of the run used; a file it cannot parse at all, a nesting too deep to read included, is no file. A record it holds decides as a successful read would; the decision differs only where today's read fails: a failed listing or sender read leaves the verdict unreadable, and a listing that reads empty twice is an unlisted-record hold, where the carried record reads present, as an earlier successful read found it. Any other record is read as before, and a missing, unreadable or malformed file (another version or repository, a name that is no lane record, an entry missing its dates, artifact id or completed sender) is no file. Without the variable nothing changes.
+
+### Fixed
+
+- The pr-merge gate's verdict reader (`babysit_verify_evidence`) compares the number of a name that starts like a FAIL's but is no verdict name as text, so any length of digits is read without raising, and a number over 10 digits never counts toward the cap. pr-verify now writes the FAIL names with `-i` and the verdict's issues that 2.13.1 described as not written yet.
+
+## [2.13.2] - 2026-10-23
+
+### Removed
+
+- The unattended merge gate no longer reads its review evidence with the process (lane) token when `BABYSIT_VERIFY_GH_TOKEN` is short or rate limited: `_evidence_read_env`, `ReadTokenLimited`, the `read-token-limited` run-cache mark, `PipelineConfig.read_token_floor` and `babysit_gh.gh_rate_limited` are gone, and `babysit_whole_review._short_bucket` takes only `env` again. With the read token set, every evidence read uses it; a refused read, a rate limit included, raises once and the candidate holds with `evidence-missing`.
+
+## [2.13.1] - 2026-10-23
+
+### Changed
+
+- The pr-merge gate's verdict reader (`babysit_verify_evidence`) accepts a pr-verify FAIL artifact name that ends with `-i` and the numbers of the issues its verdict records, ascending, each once, joined by dots (at most 10). The cross-pull-request repeated-fail cap counts every counted FAIL whose name carries one of the pull request's closing issues, read from the artifact listing the gate already holds, so it adds no request. A name without the issues keeps today's rule. A PASS or PASS-NOTES name that carries issues, or issues out of order or repeated, is no verdict name, here and in the merge-skip key (`babysit_merge_skip`), and neither is a pull request number over 10 digits or a name over 194 characters. A name that starts like a FAIL's (any digits for the number) but is no verdict name holds (`verify:unreadable`) when its run is of verifier origin, or is tied to the pull request and cannot be read, rather than being skipped; it costs one run read, shared by the run's gate processes through the run cache. Deleting such an artifact clears the hold. pr-verify does not write these names yet.
+
+## [2.13.0] - 2026-10-23
+
+### Changed
+
+- The review-thread tool (`feedback-thread.sh`) of `/source-control:pull-request comments --ci` admits a file in the thread file's `pr_paths`, the files the pull request already changes, in every kept thread's scope while the gated head holds it. `reference/comments-ci.md` tells the model to run `check-paths` before calling a fix out of scope, and to cite a changed line in such a file as evidence.
+
 ## [2.12.0] - 2026-10-23
 
 ### Changed

@@ -50,7 +50,7 @@ file and every reader in the same change, and this document changes with it.
       },
       "degrade": "Without gh, /work-items:work stops before it claims an item.",
       "install": { "docs": "https://cli.github.com/", "brew": "gh", "winget": "GitHub.cli", "apt": "gh" },
-      "check": "/work-items:check"
+      "check": "/harness-ops:prerequisites"
     }
   ]
 }

@@ -9,7 +9,7 @@ they mean.
 
 | Skill | What it does |
 |---|---|
-| `/app-control:drive` | Bare drive performs a feature's steps; `ready` reports what is reachable; `capture --kind <kind>` records one artifact; `cleanup` stops what the run started and checks the evidence survives; `--attach` reaches a process already running, with a person present to approve each attach; `--unattended` asks nothing |
+| `/app-control:drive` | Bare drive performs a feature's steps; `ready` reports what is reachable; `capture --kind <kind>` records one artifact; `cleanup` stops what the run started and checks the evidence survives; `--attach` reaches a process already running that the person named, in an interactive session only; `--unattended` asks nothing |
 
 The skill is model-invoked, so other skills, scheduled runs and CI jobs call it instead of the
 project's own control skill.

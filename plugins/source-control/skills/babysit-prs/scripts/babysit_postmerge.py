@@ -15,8 +15,9 @@ warning `unqueued-merge`. It is verified when a green
 dispatch run by the identity on a SHA containing the merge, a green canary
 run on such a SHA, and a matching read-back all exist, and no red full run or
 canary run counted against it first. Only an enqueue by the identity has a
-pinned SHA to read back; any other enqueue verifies on the dispatch and canary
-runs alone. A red full run is attributed after one `rerun-failed-jobs` the
+pinned SHA to read back; any other enqueue, and the identity's own native
+auto-merge (`native_auto_merge`), verifies on the dispatch and canary runs
+alone. A red full run is attributed after one `rerun-failed-jobs` the
 wrapper triggers: red again is a failure, green is a flake. A red full run the
 pr-merge lane dispatched gets that one re-run from pr-merge.yml's own
 `post-merge-dispatch` job, which records it (`_Context.lane_rerun`); with
@@ -26,8 +27,9 @@ for checks that were not already failing on the newest completed run of the
 same event before the merge (`_Context.regressions`); with none left it is
 reported as unattributed and passes like a green run.
 
-`remediate()` acts on failures in order: dequeue the identity's merge-queue
-entries, file or comment on the demotion issue, then record the telemetry
+`remediate()` acts on failures in order: disarm the native auto-merge the
+identity armed on its own open pull requests, dequeue the identity's
+merge-queue entries, file or comment on the demotion issue, then record the telemetry
 count. `attribute()` triggers the one re-run, and `dispatch_full_run()` the
 dispatch. The CLI is read-only unless `--remediate` is given; with it, a cycle
 also dispatches one full run on the branch tip whenever an unverified
@@ -96,6 +98,17 @@ LANE_RERUN_ARTIFACT = "pr-merge-rerun-"
 # the re-run record.
 LANE_DISPATCH_EVENTS = frozenset({"schedule", "workflow_dispatch", "push"})
 LANE_RERUN_EVENTS = frozenset({"schedule", "workflow_dispatch"})
+# A record found once stays found: pr-merge.yml names a file here that holds
+# the records earlier checks proved (.github/scripts/pr-merge/lane-records.mjs
+# reads it from the last trusted pr-merge run's artifact). A record in it is
+# answered with no read once its sender passes `_Context._lane_sender` again;
+# the check writes back the records it proved whose uploading run completed
+# and whose artifact was listed unexpired. Any other file is no file.
+LANE_RECORDS_ENV = "BABYSIT_POSTMERGE_LANE_RECORDS"
+LANE_RECORDS_VERSION = 1
+_LANE_RECORD_NAME = re.compile(
+    r"pr-merge-(?:dispatched-[1-9][0-9]{0,15}|rerun-[1-9][0-9]{0,15}-attempt-2)"
+)
 # With `--lane-merges-only`, a red attempt 1 of a lane-dispatched full run
 # created within red-main.confirm-wait-minutes plus this, with a newly failing
 # check that demotes (`_Context.regressions`), gets that re-run even when no
@@ -480,9 +493,12 @@ MERGED_QUERY = (
     "repository(owner:$o,name:$r){pullRequests(baseRefName:$b,states:MERGED,"
     f"first:{MERGED_PAGE_SIZE},after:$c,orderBy:{{field:UPDATED_AT,direction:DESC}}){{"
     "pageInfo{hasNextPage endCursor} nodes{number url mergedAt updatedAt headRefOid "
-    "mergedBy{__typename login} "
+    "mergedBy{__typename login} author{__typename login} isCrossRepository "
     "mergeCommit{oid} timelineItems(itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT],last:1){nodes{"
-    "... on AddedToMergeQueueEvent{createdAt actor{__typename login} enqueuer{__typename login}}}}}}}}"
+    "... on AddedToMergeQueueEvent{createdAt actor{__typename login} enqueuer{__typename login}}}} "
+    "autoMerge:timelineItems(itemTypes:[AUTO_MERGE_ENABLED_EVENT,AUTO_MERGE_DISABLED_EVENT],last:1){nodes{"
+    "__typename ... on AutoMergeEnabledEvent{createdAt actor{__typename login}} "
+    "... on AutoMergeDisabledEvent{createdAt actor{__typename login}}}}}}}}"
 )
 QUEUE_QUERY = (
     "query PostMergeQueue($o:String!,$r:String!,$b:String!){repository(owner:$o,name:$r){"
@@ -490,6 +506,60 @@ QUEUE_QUERY = (
     "enqueuer{__typename login} pullRequest{id number}}}}}}"
 )
 DEQUEUE_MUTATION = "mutation PostMergeDequeue($id:ID!){dequeuePullRequest(input:{id:$id}){clientMutationId}}"
+ARMED_QUERY = (
+    "query PostMergeArmed($o:String!,$r:String!,$b:String!,$c:String){"
+    "repository(owner:$o,name:$r){pullRequests(states:OPEN,baseRefName:$b,"
+    "first:100,after:$c){pageInfo{hasNextPage endCursor} nodes{id number "
+    "author{__typename login} autoMergeRequest{enabledBy{__typename login}}}}}}"
+)
+# Open pull request pages the armed read walks: 1000, as enable-auto-merge.mjs.
+ARMED_PAGE_LIMIT = 10
+DISARM_MUTATION = (
+    "mutation PostMergeDisarm($id:ID!){"
+    "disablePullRequestAutoMerge(input:{pullRequestId:$id}){clientMutationId}}"
+)
+
+
+def native_auto_merge(pr: dict[str, Any], merge: AutoMerge, identity: str) -> bool:
+    """Whether the identity's merge landed through GitHub's native auto-merge
+    (`enable-auto-merge.mjs` arms it), which posts no pin: the identity opened
+    the pull request from a branch of this repository, as that script requires,
+    and the newest auto-merge enable or disable event is the identity's enable,
+    made no later than the merge-queue enqueue. An arm under the identity token
+    on anyone else's pull request keeps the pin read-back. The gate disarms an
+    armed auto-merge before it pins and enqueues, and an arm after its enqueue
+    is not what queued the head, so either keeps the pin read-back.
+
+    Residuals: nothing compares a native merge's head with any vetted head.
+    `expectedHeadOid` binds only the head at arm time, and a writer's push
+    after the arm (address-feedback, apply-patch) leaves auto-merge armed, so
+    the later head merges natively. An arm that lands between the gate's
+    disarm check and its enqueue also reads as native and skips that merge's
+    read-back, and so does an arm in the same second as the enqueue: event
+    times have one-second resolution, so the comparison is at or before."""
+    if not merge.by_identity:
+        return False
+    if (
+        _actor_key(pr.get("author")) != identity
+        or pr.get("isCrossRepository") is not False
+    ):
+        return False
+    connection = pr.get("autoMerge")
+    if not is_json_object(connection) or not is_json_array(connection.get("nodes")):
+        raise PostMergeReadError(f"#{merge.number}: no auto-merge events")
+    if not connection["nodes"]:
+        return False
+    event = json_object(connection["nodes"][-1])
+    if event.get("__typename") != "AutoMergeEnabledEvent":
+        return False
+    if _actor_key(event.get("actor")) != identity:
+        return False
+    if not merge.queued:
+        return True
+    queued = json_array(json_object(pr.get("timelineItems")).get("nodes"))
+    return _time(event.get("createdAt")) <= _time(
+        json_object(queued[-1]).get("createdAt")
+    )
 
 
 def _default_branch(owner: str, name: str) -> str:
@@ -823,6 +893,76 @@ def affected_suites(base_sha: str, head_sha: str) -> frozenset[str] | None:
             policy._git(root, "worktree", "remove", "--force", str(tree))
 
 
+def _sender_fields(record: dict[str, Any]) -> dict[str, Any]:
+    """The fields of an uploading run `_Context._lane_sender` reads, and its
+    status."""
+    return {
+        **{k: record.get(k) for k in ("id", "path", "event", "status")},
+        **{k: record.get(k) for k in ("head_branch", "head_sha")},
+        **{
+            k: {"full_name": json_object(record.get(k)).get("full_name")}
+            for k in ("repository", "head_repository")
+        },
+    }
+
+
+def load_lane_records(
+    path: str, repo: str
+) -> tuple[dict[str, dict[str, Any]], datetime | None]:
+    """The records in the file at `path`, by artifact name, and the lowest
+    floor a check of this run saved them under (None in a file read from an
+    earlier run). Raises `ValueError` for any file of another shape, so none
+    of it is used."""
+    data = json_object(json.loads(Path(path).read_text(encoding="utf-8")))
+    records = data.get("records")
+    if (
+        data.get("version") != LANE_RECORDS_VERSION
+        or data.get("repo") != repo
+        or not is_json_object(records)
+    ):
+        raise ValueError("an unexpected shape")
+    try:
+        floor = None if data.get("floor") is None else _time(data["floor"])
+    except PostMergeReadError as exc:
+        raise ValueError(f"floor: {exc}") from exc
+    for name, entry in records.items():
+        entry = json_object(entry)
+        sender = json_object(entry.get("sender"))
+        artifact = entry.get("artifact")
+        try:
+            _time(entry.get("created_at"))
+            _time(entry.get("expires_at"))
+        except PostMergeReadError as exc:
+            raise ValueError(f"{name!r}: {exc}") from exc
+        if not (
+            _LANE_RECORD_NAME.fullmatch(name)
+            and isinstance(artifact, int)
+            and not isinstance(artifact, bool)
+            and artifact > 0
+            and isinstance(sender.get("id"), int)
+            and sender.get("status") == "completed"
+            and sender == _sender_fields(sender)
+        ):
+            raise ValueError(f"{name!r}: an entry of another shape")
+    return records, floor
+
+
+def _read_lane_file(
+    path: str, repo: str
+) -> tuple[dict[str, dict[str, Any]], datetime | None]:
+    """`load_lane_records`, with no records and a warning for a file it
+    cannot use: any failure, a parse too deep to finish included, is no
+    file."""
+    if not Path(path).exists():
+        return {}, None
+    try:
+        return load_lane_records(path, repo)
+    except Exception as exc:  # noqa: BLE001  (any unusable file is no file)
+        text = re.sub(r"[\r\n%]", " ", f"{type(exc).__name__}: {exc}")[:300]
+        print(f"lane records not used: {text}", file=sys.stderr)
+        return {}, None
+
+
 @dataclass
 class _Context:
     owner: str
@@ -865,6 +1005,16 @@ class _Context:
     quarantines: dict[tuple[str, str], Quarantine] = field(default_factory=dict)
     # The branch's dispatch runs at each commit, read by SHA.
     dispatch_at_cache: dict[str, dict[int, Run]] = field(default_factory=dict)
+    # The lane records file (`LANE_RECORDS_ENV`), its records once loaded,
+    # and the final records this check proved, which `save_lane_records` adds.
+    lane_records_path: str | None = field(
+        default_factory=lambda: os.environ.get(LANE_RECORDS_ENV) or None
+    )
+    lane_carried: dict[str, dict[str, Any]] | None = None
+    lane_floor: datetime | None = None
+    lane_proved: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # Carried records whose sender failed `_lane_sender`: never written back.
+    lane_rejected: set[str] = field(default_factory=set)
 
     def dispatch_runs_through(
         self, commit: str, merged_at: datetime, deadline: datetime
@@ -916,7 +1066,7 @@ class _Context:
             self.dispatch_at_cache[commit] = {
                 r.id: r
                 for r in _run_rows(rows, "workflow_dispatch", self.owner, self.name)
-                if r.head_branch == self.branch
+                if r.head_branch == self.branch and self.on_branch(r)
             }
         return self.dispatch_at_cache[commit]
 
@@ -1069,11 +1219,31 @@ class _Context:
                     and r.created_at < run.created_at
                     and r.head_sha != run.head_sha
                 ]
-            green = max(greens, key=lambda r: r.created_at, default=None)
+            green = self._newest_on_branch(greens)
             self.affected_cache[run.id] = (
                 None if green is None else affected_suites(green.head_sha, run.head_sha)
             )
         return self.affected_cache[run.id]
+
+    def on_branch(self, run: Run) -> bool:
+        """Whether `run`'s head commit is on the branch as `refs/heads/`
+        names it. A run's `head_branch` is only a name: a run on a tag named
+        like the branch carries it too, and its commit (and plan script) can
+        be anyone's with write access."""
+        return bool(_FULL_SHA.fullmatch(run.head_sha or "")) and self.contains(
+            run.head_sha, self._branch_tip()
+        )
+
+    def _newest_on_branch(self, runs: list[Run]) -> Run | None:
+        """The newest of `runs` on the branch (`on_branch`)."""
+        return next(
+            (
+                r
+                for r in sorted(runs, key=lambda r: r.created_at, reverse=True)
+                if self.on_branch(r)
+            ),
+            None,
+        )
 
     def _quarantine_days(self, sha: str) -> int:
         if self.quarantine_days is None:
@@ -1133,7 +1303,7 @@ class _Context:
                 and r.head_branch == self.branch
                 and r.status == "completed"
             ]
-            newest = max(runs, key=lambda r: r.created_at, default=None)
+            newest = self._newest_on_branch(runs)
             self.baseline_cache[key] = (
                 None
                 if newest is None
@@ -1215,7 +1385,7 @@ class _Context:
         its `pr-merge-dispatched-<id>` artifact was uploaded by a run of
         pr-merge.yml in this repository on the branch."""
         return run.actor == LANE_DISPATCH_ACTOR and self._lane_record(
-            f"{LANE_DISPATCH_ARTIFACT}{run.id}", LANE_DISPATCH_EVENTS, reread=True
+            run, f"{LANE_DISPATCH_ARTIFACT}{run.id}", LANE_DISPATCH_EVENTS, reread=True
         )
 
     def lane_unlisted(self, run: Run) -> bool:
@@ -1232,51 +1402,154 @@ class _Context:
         its post-merge-dispatch job uploads `pr-merge-rerun-<id>-attempt-2`
         only after its own `rerun-failed-jobs` call made that attempt."""
         return self.lane_dispatched(run) and self._lane_record(
-            f"{LANE_RERUN_ARTIFACT}{run.id}-attempt-2", LANE_RERUN_EVENTS
+            run, f"{LANE_RERUN_ARTIFACT}{run.id}-attempt-2", LANE_RERUN_EVENTS
         )
 
     def _lane_record(
-        self, artifact: str, events: frozenset[str], *, reread: bool = False
+        self, run: Run, artifact: str, events: frozenset[str], *, reread: bool = False
     ) -> bool:
         """Whether a run of the branch's own pr-merge.yml (`_lane_sender`)
-        uploaded an artifact named `artifact`. Only steps of a run can upload
-        its artifacts. A failed read raises, so the verdict is unreadable
-        rather than the record taken as present. With `reread`, an empty
-        listing is read once more, and a second empty one is noted in
-        `lane_empty`; the record still reads absent."""
+        uploaded an artifact named `artifact`, recorded for full run `run`.
+        Only steps of a run can upload its artifacts. A record the lane
+        records file holds, unexpired, whose sender passes `_lane_sender`
+        again, is present with no read. A failed read raises, so the verdict
+        is unreadable rather than the record taken as present. With `reread`,
+        an empty listing is read once more, and a second empty one is noted
+        in `lane_empty`; the record still reads absent."""
         if artifact not in self.lane_cache:
+            if self._carried_record(artifact, events):
+                self.lane_cache[artifact] = True
+                return True
             repo = f"{self.owner}/{self.name}"
             senders = self._lane_senders(repo, artifact)
             if not senders and reread:
                 senders = self._lane_senders(repo, artifact)
                 if not senders:
                     self.lane_empty.add(artifact)
-            self.lane_cache[artifact] = any(
-                isinstance(sender, int)
-                and self._lane_sender(
-                    json_object(
-                        _read(
-                            ["api", f"repos/{repo}/actions/runs/{sender}"],
-                            f"run {sender}",
-                        )
-                    ),
-                    events,
+            found = False
+            for sender, item in senders.items():
+                if not isinstance(sender, int):
+                    continue
+                record = json_object(
+                    _read(
+                        ["api", f"repos/{repo}/actions/runs/{sender}"],
+                        f"run {sender}",
+                    )
                 )
-                for sender in senders
-            )
+                if self._lane_sender(record, events):
+                    found = True
+                    self._prove(run, artifact, item, record)
+                    break
+            self.lane_cache[artifact] = found
         return self.lane_cache[artifact]
 
-    def _lane_senders(self, repo: str, artifact: str) -> set[Any]:
-        """The ids of the runs that uploaded an artifact named `artifact`."""
+    def _lane_senders(self, repo: str, artifact: str) -> dict[Any, dict[str, Any]]:
+        """The runs that uploaded an artifact named `artifact`: each run's id
+        and the artifact it uploaded."""
         listing = _read(
             ["api", f"repos/{repo}/actions/artifacts?name={artifact}&per_page=100"],
             f"record {artifact}",
         )
         return {
-            json_object(a.get("workflow_run")).get("id")
+            json_object(a.get("workflow_run")).get("id"): a
             for a in map(json_object, json_array(json_object(listing).get("artifacts")))
             if a.get("name") == artifact
         }
+
+    def _carried_records(self) -> dict[str, dict[str, Any]]:
+        """The lane records file's records, read once: none without the
+        file, and none, with a warning, for a file of another shape."""
+        if self.lane_carried is None:
+            self.lane_carried = {}
+            if self.lane_records_path:
+                self.lane_carried, self.lane_floor = _read_lane_file(
+                    self.lane_records_path, f"{self.owner}/{self.name}"
+                )
+        return self.lane_carried
+
+    def _carried_record(self, artifact: str, events: frozenset[str]) -> bool:
+        """Whether the lane records file holds `artifact` unexpired, sent by
+        a run `_lane_sender` accepts. An entry that fails is dropped, and the
+        record is read as before."""
+        carried = self._carried_records()
+        entry = carried.get(artifact)
+        if entry is None:
+            return False
+        if self.now < _time(entry["expires_at"]) and self._lane_sender(
+            entry["sender"], events
+        ):
+            return True
+        del carried[artifact]
+        self.lane_rejected.add(artifact)
+        return False
+
+    def _prove(
+        self,
+        run: Run,
+        artifact: str,
+        item: dict[str, Any],
+        record: dict[str, Any],
+    ) -> None:
+        """Keep a record just proved for the lane records file when it is
+        final: its uploading run completed and its artifact listed unexpired
+        with an expiry."""
+        expires = item.get("expires_at")
+        try:
+            dated = expires is not None and _time(expires) > self.now
+        except PostMergeReadError:
+            dated = False
+        sender = _sender_fields(record)
+        if dated and item.get("expired") is False and sender["status"] == "completed":
+            artifact_id = item.get("id")
+            if isinstance(artifact_id, int) and not isinstance(artifact_id, bool):
+                self.lane_proved[artifact] = {
+                    "created_at": run.created_at.astimezone(UTC).isoformat(),
+                    "artifact": artifact_id,
+                    "expires_at": expires,
+                    "sender": sender,
+                }
+
+    def save_lane_records(self, floor: datetime) -> None:
+        """Write the lane records file back: the records it holds now
+        (another check of the run may have written since this one read it),
+        those this check read and those it proved, less any whose sender
+        failed and any it read in but never asked for that another check
+        has since dropped, each unexpired and created at or after the lowest floor any
+        check of the run saved under. Best effort: a failure is logged, and
+        the file is left as it was."""
+        path = self.lane_records_path
+        if not path:
+            return
+        carried = self._carried_records()
+        on_disk, disk_floor = _read_lane_file(path, f"{self.owner}/{self.name}")
+        low = min(f for f in (floor, self.lane_floor, disk_floor) if f is not None)
+        held = {
+            name: entry
+            for name, entry in {**on_disk, **carried}.items()
+            if name not in self.lane_rejected
+            and (name in on_disk or name in self.lane_cache)
+        }
+        records = {
+            name: entry
+            for name, entry in {**held, **self.lane_proved}.items()
+            if _time(entry["created_at"]) >= low
+            and _time(entry["expires_at"]) > self.now
+        }
+        payload = {
+            "version": LANE_RECORDS_VERSION,
+            "repo": f"{self.owner}/{self.name}",
+            "floor": low.isoformat(),
+            "records": records,
+        }
+        target = Path(path)
+        tmp = target.with_name(f"{target.name}.{os.getpid()}.tmp")
+        try:
+            tmp.write_text(json.dumps(payload), encoding="utf-8")
+            os.replace(tmp, target)
+        except OSError as exc:
+            print(f"lane records not written to {path}: {exc}", file=sys.stderr)
+            with contextlib.suppress(OSError):
+                tmp.unlink(missing_ok=True)
 
     def _lane_sender(self, record: dict[str, Any], events: frozenset[str]) -> bool:
         """Whether workflow run `record` ran this repository's own pr-merge.yml
@@ -1457,6 +1730,7 @@ def _judge(
     pinned: str | None,
     now: datetime,
     tally: _Tally,
+    pin_required: bool,
 ) -> MergeState:
     pending: list[str] = []
     failures: list[Failure] = []
@@ -1489,7 +1763,7 @@ def _judge(
         r for r in canaries if ctx.outcome(r, attributable=False)[0] == GREEN
     ]
 
-    if merge.by_identity and pinned is None:
+    if pin_required and pinned is None:
         # A missing or edited pin is pending until the dispatch deadline, then
         # a failure, so a demotion record is filed and a human close restarts
         # the floor instead of the lane holding forever.
@@ -1504,7 +1778,7 @@ def _judge(
             )
         else:
             pending.append("read-back-unrecorded")
-    elif merge.by_identity and pinned != merge.head_ref_oid:
+    elif pin_required and pinned != merge.head_ref_oid:
         failures.append(
             Failure(
                 SIGNAL_READ_BACK,
@@ -1670,6 +1944,9 @@ def _lane_reruns(ctx: _Context, now: datetime, tally: _Tally) -> list[str]:
                 and run.attempt == 1
                 and ctx.outcome(run, attributable=True)[0] == RERUN
                 and ctx.lane_dispatched(run)
+                # Only a run that could be marked pays for the ancestry read,
+                # and one off the branch never reaches the affected set.
+                and ctx.on_branch(run)
                 and ctx.regressions(SIGNAL_DISPATCH, run, run.created_at)
             ):
                 tally.reruns[run.id] = Rerun(
@@ -1710,10 +1987,14 @@ def check(
     if merged_since.utcoffset() is None:
         return PostMergeVerdict(False, "merged-since-not-timezone-aware")
     now = now or datetime.now(UTC)
+    ctx: _Context | None = None
     try:
         owner, name = _split_repo(repo)
         branch = branch or _default_branch(owner, name)
         merges: list[AutoMerge] = []
+        # The identity's merges with a pin to read back: not its native
+        # auto-merges, which verify on the dispatch and canary runs alone.
+        pinned_merges: set[int] = set()
         warnings: list[str] = []
         identity = _login_key(agent_identity)
         for pr in _merged_since(owner, name, branch, merged_since):
@@ -1724,6 +2005,8 @@ def check(
                 warnings.append(derived)
             elif derived is not None:
                 merges.append(derived)
+                if derived.by_identity and not native_auto_merge(pr, derived, identity):
+                    pinned_merges.add(derived.number)
         merges.sort(key=lambda m: (str(m.merged_at), m.number))
         ctx = _Context(
             owner,
@@ -1762,9 +2045,18 @@ def check(
                 floor,
             )
         ]
-        full_runs.sort(key=lambda item: item[1].created_at)
+        # A listing filtered by branch name also returns runs on a tag named
+        # like the branch, whose red would be charged to the merge.
+        full_runs = sorted(
+            (item for item in full_runs if ctx.on_branch(item[1])),
+            key=lambda item: item[1].created_at,
+        )
         canary_runs = sorted(
-            _runs(owner, name, CANARY_WORKFLOW, "push", branch, floor),
+            (
+                r
+                for r in _runs(owner, name, CANARY_WORKFLOW, "push", branch, floor)
+                if ctx.on_branch(r)
+            ),
             key=lambda r: r.created_at,
         )
         states = tuple(
@@ -1773,7 +2065,10 @@ def check(
                 ctx,
                 full_runs=full_runs,
                 canary_runs=canary_runs,
-                pinned=pinned_sha(merge) if pinned_sha and merge.by_identity else None,
+                pinned=pinned_sha(merge)
+                if pinned_sha and merge.number in pinned_merges
+                else None,
+                pin_required=merge.number in pinned_merges,
                 now=now,
                 tally=tally,
             )
@@ -1789,6 +2084,9 @@ def check(
             hold=held.hold if held else None,
             recover_dispatch=bool(held and held.dispatch),
         )
+    finally:
+        if ctx is not None:
+            ctx.save_lane_records(merged_since)
     return PostMergeVerdict(
         True,
         merges=states,
@@ -1981,6 +2279,64 @@ def dequeue_identity_entries(
     if failed:
         raise PostMergeWriteError("; ".join(failed))
     return unknown
+
+
+def disarm_identity_pulls(
+    repo: str, branch: str, identity: str, *, disarmed: list[int] | None = None
+) -> None:
+    """Turn off native auto-merge on every open pull request into `branch`
+    that the agent identity both opened and armed, appending each number to
+    `disarmed` as it goes. A pull request a person armed, or one the identity
+    did not open, is left armed. Every one is tried; a failed one does not
+    stop the rest. A read past the page limit still disarms what it found,
+    then raises `PostMergeReadError`; otherwise `PostMergeWriteError` names
+    every failed one."""
+    owner, name = _split_repo(repo)
+    key = _login_key(identity)
+    armed: list[tuple[str, int]] = []
+    cursor = None
+    overflow = False
+    for _ in range(ARMED_PAGE_LIMIT):
+        data = _graphql(
+            ARMED_QUERY, "armed pull requests", o=owner, r=name, b=branch, c=cursor
+        )
+        pulls = json_object(json_object(data.get("repository")).get("pullRequests"))
+        nodes = pulls.get("nodes")
+        page = pulls.get("pageInfo")
+        if not is_json_array(nodes) or not is_json_object(page):
+            raise PostMergeReadError("armed pull requests: the listing did not read")
+        for pr in (json_object(n) for n in nodes):
+            request = pr.get("autoMergeRequest")
+            if (
+                is_json_object(request)
+                and _actor_key(pr.get("author")) == key
+                and _actor_key(request.get("enabledBy")) == key
+            ):
+                armed.append((str(pr.get("id")), pr.get("number")))
+        if not page.get("hasNextPage"):
+            break
+        cursor = page.get("endCursor")
+    else:
+        overflow = True
+    failed: list[str] = []
+    for pr_id, number in armed:
+        try:
+            _graphql(
+                DISARM_MUTATION, f"disarm #{number}", PostMergeWriteError, id=pr_id
+            )
+        except PostMergeWriteError as exc:
+            failed.append(str(exc))
+            continue
+        if disarmed is not None:
+            disarmed.append(number)
+    if overflow:
+        failed.insert(
+            0,
+            f"armed pull requests: more than {ARMED_PAGE_LIMIT} pages of open pull requests",
+        )
+        raise PostMergeReadError("; ".join(failed))
+    if failed:
+        raise PostMergeWriteError("; ".join(failed))
 
 
 # The pinned-head record: an identity-authored comment the wrapper posts on the
@@ -2369,14 +2725,17 @@ def remediate(
     label: str | None = None,
     record_telemetry: Callable[[int], None] | None = None,
 ) -> dict[str, Any]:
-    """Act on the verdict's failures: dequeue every merge-queue entry the agent
-    identity enqueued, then file one demotion issue per (signal, merge SHA) or
+    """Act on the verdict's failures: turn off native auto-merge on every open
+    pull request the agent identity opened and armed, so GitHub enqueues none
+    of them, then dequeue every merge-queue entry the agent identity enqueued,
+    then file one demotion issue per (signal, merge SHA) or
     failing run, or comment on the existing one, also found by its failing run (reopening it first when closed and the sighting
     is new; only the filers' own comments count as a prior sighting), then
     record the number of new issues as
     `demotion_events`. Each step runs even when an earlier one failed; errors are
     listed in the report. No failure, no write."""
     report: dict[str, Any] = {
+        "disarmed": [],
         "dequeued": [],
         "issues": [],
         "comments": [],
@@ -2403,9 +2762,17 @@ def remediate(
             report["errors"].append(f"quarantine issue: {exc}")
     if not verdict.failures:
         return report
+    # The queue is the judged branch's unless the caller names another.
+    queue_branch = branch or verdict.branch
     try:
-        # The queue is the judged branch's unless the caller names another.
-        queue_branch = branch or verdict.branch
+        if not queue_branch:
+            raise PostMergeReadError("no branch to read the pull requests of")
+        disarm_identity_pulls(
+            repo, queue_branch, agent_identity, disarmed=report["disarmed"]
+        )
+    except (PostMergeReadError, PostMergeWriteError) as exc:
+        report["errors"].append(f"disarm: {exc}")
+    try:
         if not queue_branch:
             raise PostMergeReadError("no branch to read the merge queue of")
         unknown = dequeue_identity_entries(

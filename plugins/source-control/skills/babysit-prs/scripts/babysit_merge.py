@@ -138,11 +138,9 @@ from __future__ import annotations
 
 import argparse
 import functools
-import hashlib
 import json
 import os
 import re
-import sys
 import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
@@ -194,7 +192,6 @@ from babysit_gh import (
     gh_capture,
     gh_http_status,
     gh_json,
-    gh_rate_limited,
     normalized_rest_author,
     parse_repo_number,
     pull_request_commits_once,
@@ -2924,10 +2921,7 @@ UNATTENDED_QUEUE_QUERY = (
     "mergeQueue(branch:$b){entries(first:100){totalCount nodes{enqueuedAt position "
     "enqueuer{__typename login} pullRequest{id number}}}}}}"
 )
-DISARM_MUTATION = (
-    "mutation($id:ID!){disablePullRequestAutoMerge(input:{pullRequestId:$id})"
-    "{clientMutationId}}"
-)
+DISARM_MUTATION = postmerge.DISARM_MUTATION
 _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f  ]")
 
 
@@ -2950,55 +2944,6 @@ class HeadPusherUnproven(Exception):
     """A head commit's pusher cannot be shown not to be a human."""
 
 
-# The run cache section where a gate process records that the read token hit
-# a rate limit, keyed by a digest of that token, so later candidates in the
-# run read their evidence with the lane token without trying it first.
-READ_TOKEN_LIMITED = "read-token-limited"
-
-
-class ReadTokenLimited(RuntimeError):
-    """A review-evidence read under the read token was refused for a rate
-    limit; the same GETs can be made with the lane token."""
-
-
-def _token_key(token: str) -> str:
-    return hashlib.sha256(token.encode()).hexdigest()
-
-
-def _evidence_read_env(floor: float) -> dict[str, str] | None:
-    """`env_overrides` for the review-evidence reads: the verdict reader's
-    token while its core bucket has at least `floor` of its limit left and no
-    earlier candidate in this run saw it rate limited, else None, the process
-    (lane) token. Both tokens read the same data, so the choice changes no
-    gate decision. A limit that cannot be read is treated as short; GET
-    /rate_limit spends no budget. The share is only an early switch: GitHub
-    can refuse the token while /rate_limit still shows room, which
-    `_lane_evidence` handles by reading again with the lane token."""
-    token = os.environ.get(verify_evidence.TOKEN_ENV)
-    if not token:
-        return None
-    if run_cache.get(READ_TOKEN_LIMITED, _token_key(token), None) is not None:
-        print(
-            f"read-token-floor: {verify_evidence.TOKEN_ENV} was rate limited earlier"
-            " in this run; the review-evidence reads use the lane token",
-            file=sys.stderr,
-        )
-        return None
-    env = {"GH_TOKEN": token}
-    try:
-        short = whole_review._short_bucket(env, share=floor, buckets=("core",))
-    except (RuntimeError, KeyError, TypeError, ValueError) as exc:
-        short = f"unreadable ({exc})"
-    if short is None:
-        return env
-    print(
-        f"read-token-floor: {verify_evidence.TOKEN_ENV} core {short} is under"
-        f" {floor}; the review-evidence reads use the lane token",
-        file=sys.stderr,
-    )
-    return None
-
-
 def _lane_evidence(
     repo: str,
     number: int,
@@ -3007,39 +2952,6 @@ def _lane_evidence(
     self_logins: frozenset[str],
     permission: Callable[[str], str | None],
     changed_paths: Sequence[str] | None,
-    read_floor: float = merge_policy.READ_TOKEN_FLOOR,
-) -> tuple[tuple[LaneEvidence, ...], list[dict[str, Any]]]:
-    """`_read_lane_evidence` under `_evidence_read_env`'s token. When a read
-    under the read token is refused for a rate limit, the run cache records
-    it for later candidates and every read is made again with the lane
-    token: all of them are GETs, so nothing is sent twice that changes
-    GitHub."""
-    args = (repo, number, pr, identity, self_logins, permission, changed_paths)
-    read_env = _evidence_read_env(read_floor)
-    if read_env is None:
-        return _read_lane_evidence(*args, None)
-    try:
-        return _read_lane_evidence(*args, read_env)
-    except ReadTokenLimited as exc:
-        run_cache.put(READ_TOKEN_LIMITED, _token_key(read_env["GH_TOKEN"]), True)
-        print(
-            f"read-token-floor: {verify_evidence.TOKEN_ENV} was rate limited"
-            f" ({str(exc)[-200:]}); reading the review evidence again with the"
-            " lane token",
-            file=sys.stderr,
-        )
-        return _read_lane_evidence(*args, None)
-
-
-def _read_lane_evidence(
-    repo: str,
-    number: int,
-    pr: dict[str, Any],
-    identity: str,
-    self_logins: frozenset[str],
-    permission: Callable[[str], str | None],
-    changed_paths: Sequence[str] | None,
-    read_env: dict[str, str] | None,
 ) -> tuple[tuple[LaneEvidence, ...], list[dict[str, Any]]]:
     """Each lane's evidence for the pull request's head, and its comments.
     `changed_paths` is `bind()`'s: None when the changed files are unproven.
@@ -3050,26 +2962,18 @@ def _read_lane_evidence(
     finding away. A commit with no linked author or committer, or a head with
     more commits than the list returns, raises `HeadPusherUnproven`. A retargeted base unbinds every lane.
 
-    The timeline, the comments and the lane runs are read with `read_env`
-    (None: the process token), keeping them off the lane App's quota when it
-    names the verdict reader's token; every read here is a GET. A rate limit
-    on one of those reads raises `ReadTokenLimited`."""
+    The timeline, the comments and the lane runs are read under the verdict
+    reader's token when one is set, keeping them off the lane App's quota;
+    every read here is a GET. A refused read, a rate limit included, raises
+    and is never made again with the lane token: GitHub's Terms of Service
+    bar sharing tokens to exceed its rate limits, so the candidate holds."""
     head = json_object(pr.get("head"))
-
-    def under_read_env(read: Callable[[], Any]) -> Any:
-        try:
-            return read()
-        except RuntimeError as exc:
-            if read_env is not None and gh_rate_limited(str(exc)):
-                raise ReadTokenLimited(str(exc)) from exc
-            raise
-
-    timeline = under_read_env(
-        lambda: fetch_paginated_api(
-            f"repos/{repo}/issues/{number}/timeline?per_page=100",
-            f"#{number} timeline",
-            env_overrides=read_env,
-        )
+    token = os.environ.get(verify_evidence.TOKEN_ENV)
+    read_env = {"GH_TOKEN": token} if token else None
+    timeline = fetch_paginated_api(
+        f"repos/{repo}/issues/{number}/timeline?per_page=100",
+        f"#{number} timeline",
+        env_overrides=read_env,
     )
     commits = pull_request_commits_once(
         repo,
@@ -3108,12 +3012,10 @@ def _read_lane_evidence(
     }
     excluded.add(str(json_object(pr.get("user")).get("login") or "").casefold())
     excluded.discard("")
-    comments = under_read_env(
-        lambda: fetch_paginated_api(
-            f"repos/{repo}/issues/{number}/comments?per_page=100",
-            f"#{number} comments",
-            env_overrides=read_env,
-        )
+    comments = fetch_paginated_api(
+        f"repos/{repo}/issues/{number}/comments?per_page=100",
+        f"#{number} comments",
+        env_overrides=read_env,
     )
     try:
         threads: list[Any] | None = fetch_review_threads(
@@ -3121,15 +3023,13 @@ def _read_lane_evidence(
         )
     except GraphQLUnavailableError:
         threads = None
-    runs = under_read_env(
-        lambda: collect_lane_runs(
-            repo,
-            number,
-            str(head.get("ref")),
-            review_evidence.LANES.values(),
-            str(pr.get("created_at") or ""),
-            read_env,
-        )
+    runs = collect_lane_runs(
+        repo,
+        number,
+        str(head.get("ref")),
+        review_evidence.LANES.values(),
+        str(pr.get("created_at") or ""),
+        read_env,
     )
 
     def human(actor: Any) -> bool:
@@ -3262,7 +3162,6 @@ def score_unattended(
             [p for f in files for p in (f.path, f.previous_path) if p]
             if complete
             else None,
-            read_floor=config.read_token_floor,
         )
     except HeadPusherUnproven as exc:
         # Fail closed: refused, and its own queued entry leaves.
@@ -3715,16 +3614,19 @@ def escalate(
     `marker`, then the tracker's human-gated role label on the pull request,
     added only when no label matches it case-insensitively. The comment goes
     first so a label never stands unexplained; a failed label is retried by
-    the next run, which finds the comment unchanged. Raises `RuntimeError` on
-    a failed write."""
+    the next run, which finds the comment unchanged. A label a person removed
+    after that comment last changed is not a failed write but a lift
+    (`_lifted_by_person`): it stays off, as `lifted`, until the comment
+    changes (a new head or reason). Raises `RuntimeError` on a failed write."""
     pr = json_object(inputs.get("pr"))
+    # Read once here, so the lift check reuses what the upsert read.
+    comments = inputs.get("comments")
+    if comments is None:
+        comments = fetch_paginated_api(
+            f"repos/{repo}/issues/{number}/comments?per_page=100", f"#{number} comments"
+        )
     comment = upsert_marker_comment(
-        repo,
-        number,
-        identity,
-        body,
-        inputs.get("comments"),
-        marker=marker,
+        repo, number, identity, body, comments, marker=marker
     )
     try:
         label = human_gated_label(repo)
@@ -3735,6 +3637,13 @@ def escalate(
         str(json_object(item).get("name") or "").casefold() == label.casefold()
         for item in labels
     )
+    unread = ""
+    if not present and comment == "unchanged":
+        lifted, unread = _lifted_by_person(
+            repo, number, identity, label, marker, comments, inputs
+        )
+        if lifted:
+            return {"label": "lifted", "comment": comment}
     if not present:
         proc = gh_capture(
             ["api", "-X", "POST", f"repos/{repo}/issues/{number}/labels"]
@@ -3742,7 +3651,77 @@ def escalate(
         )
         if proc.returncode != 0:
             raise RuntimeError(f"label {label}: {proc.stderr.strip()}")
-    return {"label": "present" if present else "added", "comment": comment}
+    result = {"label": "present" if present else "added", "comment": comment}
+    if unread:
+        result["liftUnread"] = unread
+    return result
+
+
+def _lifted_by_person(
+    repo: str,
+    number: int,
+    identity: str,
+    label: str,
+    marker: str,
+    comments: list[dict[str, Any]],
+    inputs: Mapping[str, Any],
+) -> tuple[bool, str]:
+    """Whether the newest removal of `label` came strictly after the
+    identity's `marker` comment last changed and was a person's, acting in
+    person (no `performed_via_github_app`): a User of kind `human` on the
+    trusted-actor list read at the repository's default branch (never the
+    head, nor a base a retarget could pick), who also passes
+    `merge_policy.is_human` (write access, not a bot, the agent identity or
+    a self-login). That comment names the head and the reasons, so the
+    removal lifted this escalation. The timeline is read under the verdict
+    reader's token when one is set; any failure, unreadable list or default
+    branch, or unparsable time is no lift, so the label goes on. The second
+    value names a read that failed, empty otherwise."""
+    token = os.environ.get(verify_evidence.TOKEN_ENV)
+    try:
+        prior = _newest_marker_comment(comments, identity, marker) or {}
+        escalated = parse_github_timestamp(
+            str(prior.get("updated_at") or prior.get("created_at") or "")
+        )
+        if escalated is None:
+            return False, ""
+        timeline = fetch_paginated_api(
+            f"repos/{repo}/issues/{number}/timeline?per_page=100",
+            f"#{number} timeline",
+            env_overrides={"GH_TOKEN": token} if token else None,
+        )
+        removals = [
+            (at, event)
+            for event in timeline
+            if event.get("event") == "unlabeled"
+            and str(json_object(event.get("label")).get("name") or "").casefold()
+            == label.casefold()
+            and (at := parse_github_timestamp(str(event.get("created_at") or "")))
+            is not None
+        ]
+        if not removals:
+            return False, ""
+        default = repository_default_branch(repo)
+        if not default:
+            return False, "default branch unread"
+        # The newest removal decides; a tie keeps the later timeline item.
+        at, event = max(enumerate(removals), key=lambda r: (r[1][0], r[0]))[1]
+        actor = json_object(event.get("actor"))
+        return (
+            at > escalated
+            and event.get("performed_via_github_app") is None
+            and actor.get("type") == "User"
+            and actor.get("id") in merge_policy.trusted_actors(repo, default)[1]
+            and merge_policy.is_human(
+                {"__typename": "User", "login": actor.get("login")},
+                repo=repo,
+                agent_identity=identity or None,
+                self_logins=inputs.get("self_logins") or frozenset(),
+                permission=inputs.get("permission"),
+            )
+        ), ""
+    except Exception as exc:  # noqa: BLE001 -- any failure escalates as before
+        return False, f"{type(exc).__name__}: {exc}"
 
 
 def _failed_merge_group_runs(repo: str, branch: str, number: int) -> list[str] | None:

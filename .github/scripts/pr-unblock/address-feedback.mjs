@@ -13,7 +13,8 @@
 //           the configured number of rounds already ran and no write-access
 //           fix request came after the newest one) or proceed, writing the thread file
 //           the skill's review-thread tool reads, with the same-plugin files
-//           a write-access fix request names (namedPaths), and run.json, the
+//           a write-access fix request names (namedPaths) and the files the
+//           PR already changes (pr_paths, prPathsOf), and run.json, the
 //           record the reply job checks the replies against (runRecord). On a PR carrying the
 //           human-gated label it keeps only threads a trusted person with
 //           write access asked it to fix (isFixRequest), and skips
@@ -31,7 +32,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { commentItems, gateSource, listLabelEvents, ROUND_MARKER } from "./gate-source.mjs";
-import { isProtectedPath, namedInScope } from "./thread-scope.mjs";
+import { isProtectedPath, namedInScope, prPathsOf } from "./thread-scope.mjs";
 
 // The round cap is the config's `loop.review-rounds`, passed in as
 // REVIEW_ROUNDS; the resolver's default is the fallback.
@@ -498,7 +499,7 @@ export async function select({
     // put the label on.
     fixRequested: labeled,
     threads: worked,
-    file: { version: 1, repository, pr, head_sha: headSha, threads: worked },
+    file: { version: 1, repository, pr, head_sha: headSha, pr_paths: prPathsOf(files), threads: worked },
   };
 }
 
@@ -509,6 +510,7 @@ export function runRecord(file) {
   const run = {
     version: 1,
     head_sha: file.head_sha,
+    pr_paths: file.pr_paths,
     threads: file.threads.map((t) => ({
       id: t.id,
       path: t.path,

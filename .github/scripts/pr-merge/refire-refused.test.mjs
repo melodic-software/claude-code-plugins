@@ -207,10 +207,10 @@ test("a pr-refine.yml run is no longer read or re-fired", async () => {
 const POSTED = (path, blob, head) =>
   `<!-- pr-lane-refire ${path}@${blob} head ${head} -->\nA lane run on this pull request's head failed because the token broker refused it as workflow-modified: \`${path}\` changed on main after the run's event, and a rerun keeps the old file. pr-merge pushes an empty commit so new runs start on main's files. It does this once per version of that file, so if a run fails the same way again, a person looks at it.`;
 const UNBLOCK_START =
-  "the conflict-resolution run starts at the next push to main, or when a listed person runs `pr-unblock-dispatch` by hand";
+  "the conflict-resolution run starts at the next push to main or half-hourly `pr-unblock-dispatch` tick, or when a listed person runs it by hand";
 const postedBody = (calls) => JSON.parse(posts(calls)[0].replace(/^POST \S+ /, "")).body;
 
-test("a pr-unblock re-fire says its conflict-resolution run waits for the next push to main or a listed person's dispatch", async () => {
+test("a pr-unblock re-fire says its conflict-resolution run waits for the next push to main, the next dispatcher tick or a listed person's dispatch", async () => {
   const w = refusedWorld([pr(9)], { runOptions: { messages: [denial(WRITER)] } });
   assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
   const body = postedBody(w.calls);

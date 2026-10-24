@@ -17,19 +17,27 @@ name: pr-unblock-dispatch
 # that changes a Markdown file, carries no hold label and never had a fix-docs
 # check run, whoever opened it except Dependabot, the release App and the
 # standards-sync App, at most limits.fix-docs-per-run per run, from its own
-# logged GraphQL listing (.github/scripts/pr-unblock/fix-docs-dispatch.mjs). No
-# schedule: the broker accepts a dispatcher run started by a push or a listed
-# human only.
+# logged GraphQL listing (.github/scripts/pr-unblock/fix-docs-dispatch.mjs).
+#
+# It also runs half-hourly, five minutes after each
+# maintenance-reconcile-lost-runs tick, so a PR whose reconciler re-run failed
+# gets fix-ci at the first tick after that failure, not at the next push to
+# main. A tick runs the same listings as a push run; heads the dispatch record
+# holds are not read again. pr-unblock.yml's trigger gate and the broker accept
+# a dispatcher run started by a push, a schedule or a listed human.
 #
 # No model and no App token: the job's GITHUB_TOKEN can only read and start
 # workflow runs. A run started by hand, or a re-run of a push run, must come
-# from a listed trusted human. The dispatched lane runs its own trigger gate,
-# kill switch and config. Only the fix-ci and fix-docs listings filter by
-# author and hold label: fix-ci to spend no model run on a PR the lane would
-# skip, fix-docs to leave alone PRs whose files are generated or synced.
+# from a listed trusted human. A re-run of a scheduled run fails at the trigger
+# check, which handles no schedule event; the next tick replaces it. The
+# dispatched lane runs its own trigger gate, kill switch and config. Only the
+# fix-ci and fix-docs listings filter by author and hold label: fix-ci to spend
+# no model run on a PR the lane would skip, fix-docs to leave alone PRs whose
+# files are generated or synced.
 #
-# The token's budget is logged at the start and end of the job
-# (.github/actions/log-api-budget), and the script logs its own call counts.
+# The job token's rate-limit readings, from the script's own responses, are
+# logged at the end of the job (.github/actions/log-api-budget), and the
+# script logs its own call counts.
 # The heads whose check runs already handle them for good are carried from
 # run to run in the Actions cache (dispatch-record.mjs), so a later run skips
 # their reads. A run only skips work on the record, never dispatches on it.
@@ -37,6 +45,10 @@ name: pr-unblock-dispatch
 on:
   push:
     branches: [main]
+  # Minutes 9 and 39: five after the reconciler's 4 and 34, and used by no
+  # other schedule here.
+  schedule:
+    - cron: "9,39 * * * *"
   workflow_dispatch: {}
 
 permissions: {}
@@ -45,13 +57,16 @@ jobs:
   dispatch:
     # A dispatch on another branch would run that branch's copy of this file.
     if: github.ref == 'refs/heads/main'
-    # A burst of pushes collapses into one listing: a newer run cancels the
-    # one waiting or going, since the newest listing reads main as it is
-    # now. The record steps run on cancel too (always()), so a run cancelled
-    # after a dispatch still records it.
+    # A burst of pushes collapses into one listing: a push cancels the run
+    # going, since the newest listing reads main as it is now. A tick or a
+    # hand run never cancels one going; it waits, and only replaces a run
+    # still waiting. The record steps run on cancel too (always()), so a run
+    # cancelled after a dispatch still records the runs it started; its
+    # dispatch-record changes are not saved, so the next run reads those heads
+    # again, and its in-flight check skips a PR whose dispatched run is queued.
     concurrency:
       group: pr-unblock-dispatch
-      cancel-in-progress: true
+      cancel-in-progress: ${{ github.event_name == 'push' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -76,14 +91,6 @@ jobs:
           node-version-file: .base/.node-version
           package-manager-cache: false
 
-      - name: Log the API budget at the start
-        continue-on-error: true
-        timeout-minutes: 1
-        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
-        with:
-          phase: start
-          tokens: github-token ${{ github.token }}
-
       - name: Check the kill switch
         id: kill
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
@@ -98,9 +105,10 @@ jobs:
         run: |
           echo "::notice::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); nothing dispatched"
 
-      # A push run on its first attempt was started by the push itself. A hand
-      # run, or any re-run, is checked against the base list: the sender and
-      # the re-runner must be listed, and the lanes App bot is denied.
+      # A push or scheduled run on its first attempt was started by the event
+      # itself. A hand run, or any re-run, is checked against the base list:
+      # the sender and the re-runner must be listed, and the lanes App bot is
+      # denied. A scheduled run's re-run stops here with no-pr.
       - name: Check the trigger
         id: gate
         if: >-
@@ -120,6 +128,10 @@ jobs:
         env:
           REASON: ${{ steps.gate.outputs.reason }}
         run: |
+          if [ "$GITHUB_EVENT_NAME" = schedule ]; then
+            echo "::error::${REASON:-no-pr}: a re-run of a scheduled run is not supported; run the workflow by hand or wait for the next tick"
+            exit 1
+          fi
           echo "::error::${REASON:-untrusted-actor}: this run was not started by a listed trusted human"
           exit 1
 
@@ -150,6 +162,7 @@ jobs:
           && (steps.gate.outcome == 'skipped' || steps.gate.outputs.proceed == 'true')
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
           # fix-ci starts on PRs the lanes App opened, matched by this id, and
           # on idle PRs of the owners in the config's `adoption` section.
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
@@ -207,5 +220,4 @@ jobs:
         timeout-minutes: 1
         uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
-          phase: end
-          tokens: github-token ${{ github.token }}
+          tokens: github-token

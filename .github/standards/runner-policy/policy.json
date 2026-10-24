@@ -307,6 +307,58 @@
         "issues": "write"
       }
     },
+    "melodic-software/ci-workflows/.github/workflows/intake-triage.yml@d02b8697e092705153f0996549b05f95a446bb52": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "role": "automations",
+      "allowedInputs": [
+        "runner",
+        "allowed-labels",
+        "escalation-label",
+        "floor-label",
+        "instructions",
+        "cli-version",
+        "claude-args",
+        "issue-number",
+        "allowed-author-ids",
+        "allowed-bot-sender-ids",
+        "role"
+      ],
+      "allowedSecrets": {
+        "CLAUDE_API_KEY": "${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}",
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "issues": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/intake-triage.yml@b0ecc273abe492d12f2efa98ee4741a84c219ed2": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "role": "intake",
+      "allowedInputs": [
+        "runner",
+        "allowed-labels",
+        "escalation-label",
+        "floor-label",
+        "instructions",
+        "cli-version",
+        "claude-args",
+        "issue-number",
+        "allowed-author-ids",
+        "allowed-bot-sender-ids",
+        "role"
+      ],
+      "allowedSecrets": {
+        "CLAUDE_API_KEY": "${{ secrets.INTAKE_CLAUDE_API_KEY }}",
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.INTAKE_CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "issues": "write"
+      }
+    },
     "melodic-software/ci-workflows/.github/workflows/pr-review.yml@ab83b01273026ab5c23c6f3b40e946d97a863fa2": {
       "routing": "runner-input",
       "runnerInput": "runner",
@@ -834,6 +886,48 @@
       }
     },
     "melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@6d6cb798e7cb7560a0f9327d8a22398961c23b31": {
+      "routing": "hosted-only",
+      "fixedRunsOn": ["ubuntu-24.04"],
+      "allowedInputs": [
+        "lane",
+        "publish",
+        "role",
+        "model-args",
+        "allowed-bot-sender-ids",
+        "allowed-author-ids",
+        "docs-only-paths",
+        "incremental-review",
+        "cli-version",
+        "hold-label",
+        "hold-paths"
+      ],
+      "allowedSecrets": {
+        "CLAUDE_API_KEY": "${{ secrets.REVIEWS_CLAUDE_API_KEY }}",
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.REVIEWS_CLAUDE_CODE_OAUTH_TOKEN }}"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@d02b8697e092705153f0996549b05f95a446bb52": {
+      "routing": "hosted-only",
+      "fixedRunsOn": ["ubuntu-24.04"],
+      "allowedInputs": [
+        "lane",
+        "publish",
+        "role",
+        "model-args",
+        "allowed-bot-sender-ids",
+        "allowed-author-ids",
+        "docs-only-paths",
+        "incremental-review",
+        "cli-version",
+        "hold-label",
+        "hold-paths"
+      ],
+      "allowedSecrets": {
+        "CLAUDE_API_KEY": "${{ secrets.REVIEWS_CLAUDE_API_KEY }}",
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.REVIEWS_CLAUDE_CODE_OAUTH_TOKEN }}"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@b49ac366bb3426039363a6927c41512e44533808": {
       "routing": "hosted-only",
       "fixedRunsOn": ["ubuntu-24.04"],
       "allowedInputs": [

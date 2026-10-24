@@ -1,6 +1,6 @@
 {
   "name": "app-control",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Launches and operates the project's app, observes it and records evidence, and never judges: /app-control:drive finds the project's own control skill (or falls back to the bundled run skill or a project-type recipe), reports what is reachable with ready, records one artifact with capture, stops only what it started with cleanup, and writes a fixed report.md and report.json that a verifier, a debugger or a CI job reads.",
   "author": {
     "name": "Melodic Software",

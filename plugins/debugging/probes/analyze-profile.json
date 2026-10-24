@@ -1,0 +1,136 @@
+{
+  "skill": "debugging:analyze-profile",
+  "plugin": "debugging",
+  "skill_dir": "plugins/debugging/skills/analyze-profile",
+  "ranking_note": "Written from the before description at commit d2bf4aeeb21944fdee1e6f743c1dd54644152c05 and committed after the rewrite's first commit; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the sibling debugging skill that reproduces and fixes a failure, and app-control:drive, which records a new artifact. neg-train-07, neg-train-08 and neg-val-05 ask to record a profile with none in hand: they were positives under the before contract and are negatives under the after contract, which routes recording to /app-control:drive capture.",
+  "competitors": [
+    "debugging:debug",
+    "app-control:drive"
+  ],
+  "competitor_dirs": {
+    "debugging:debug": "plugins/debugging/skills/debug",
+    "app-control:drive": "plugins/app-control/skills/drive"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I exported a .heapsnapshot from our Node API after it ran for a day and the memory kept climbing. Can you tell me which object is keeping all that alive?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "here's a .cpuprofile from the build script, it takes forever. where is the time going? just tell me the file and line, don't change anything"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Got a Chrome performance trace saved as trace.json from the dashboard page. Figure out what's blocking the main thread."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "load this profile into sqlite and show me the top self-time functions"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "The checkout total is wrong when a coupon and gift card are both applied. I can reproduce it every time with the integration test. Find the bug, fix it and add a regression test."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Login throws a null reference exception after the latest merge. Steps: open /login, submit empty form. Debug it and get it working."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Our pytest suite has 3 failures in test_orders.py since yesterday. Why do they fail and can you fix them?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write a benchmark that compares the old and new parser and tell me if the change made it faster."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "This function is O(n^2), rewrite it to use a hash map instead."
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "The nightly job crashes with a segfault about once an hour. I have a script that triggers it in under a minute. Help me find the root cause and fix it properly."
+    },
+    {
+      "id": "neg-train-07",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "my worker process leaks memory slowly in prod and I can't reproduce it locally. can you grab a heap profile of the running process and see what's growing? I'm at my desk so I can approve whatever you need to run"
+    },
+    {
+      "id": "neg-train-08",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "The Node service pegs a CPU core under load. Record a profile of it for 30 seconds and tell me what's hot. I'll watch and approve the capture."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "can you open this 400MB heap dump from the Chrome devtools and find what's retaining the detached DOM nodes?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Here's a flame graph export from the V8 profiler for our SSR render. Which function is the bottleneck? Just diagnose, I'll handle the change."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Chrome trace attached, the page janks on scroll. What does it show?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Users report the export button does nothing on Safari. I can repro it with the Playwright script in tests/e2e. Walk through hypotheses, fix it, and make sure it can't regress."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Add Redis caching in front of the product lookup endpoint to cut response times."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write unit tests for the date parsing helper, including leap years and timezone edge cases."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "A flaky test fails about 1 in 10 runs on CI. Build a loop that reproduces it fast, find the race, fix it and add a test."
+    },
+    {
+      "id": "neg-val-05",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Our Electron app's memory balloons after an hour and I don't have repro steps. Take a snapshot of the renderer and work out what is piling up. I'm here to okay it."
+    }
+  ]
+}

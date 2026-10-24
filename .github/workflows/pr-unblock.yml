@@ -271,7 +271,7 @@ jobs:
   # again, refuses any conflict tree but the select job's, and gives the
   # skill the conflicts as read-only files with no git or Bash; the skill
   # resolves them in place and the runner hands its edits on as a patch
-  # measured from the conflict tree. It runs on the automations role's API
+  # measured from the conflict tree. It runs on the pr-unblock role's API
   # key alone, in the per-PR write queue.
   resolve-conflicts:
     needs: resolve-conflicts-select
@@ -288,7 +288,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
-      role: automations
+      role: pr-unblock
       lane: pr-unblock
       activity: resolve-conflicts
       pr-number: ${{ inputs.pr-number }}
@@ -300,7 +300,7 @@ jobs:
       # The 50-minute launcher step, the CLI install and the merge.
       timeout-minutes: 60
     secrets:
-      claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
+      claude-api-key: ${{ secrets.PR_UNBLOCK_CLAUDE_API_KEY }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # Whether resolve-conflicts's report job posted its check, read from this
@@ -353,7 +353,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
-      role: automations
+      role: pr-unblock
       lane: pr-unblock
       activity: resolve-conflicts
       fallback: handoff
@@ -365,7 +365,7 @@ jobs:
       merge-conflict-tree: ${{ needs.resolve-conflicts-select.outputs.conflict-tree }}
       timeout-minutes: 60
     secrets:
-      claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+      claude-code-oauth-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # The push job: apply-patch.mjs under patch-rules.json's merge-base row, a
@@ -397,7 +397,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
-      role: automations
+      role: pr-unblock
       lane: pr-unblock
       activity: apply-conflict-patch
       pr-number: ${{ inputs.pr-number }}
@@ -656,7 +656,7 @@ jobs:
   # the job that runs head code. The skill fixes the kept threads and records
   # a reply for each with the review-thread tool; the runner uploads its
   # uncommitted edits as a patch and, after its leak scan, its replies. It
-  # runs on the automations role's API key alone, in the per-PR write queue.
+  # runs on the pr-unblock role's API key alone, in the per-PR write queue.
   address-feedback:
     needs: address-feedback-select
     if: ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true' }}
@@ -671,7 +671,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
-      role: automations
+      role: pr-unblock
       lane: pr-unblock
       activity: address-feedback
       pr-number: ${{ inputs.pr-number }}
@@ -683,7 +683,7 @@ jobs:
       # The 50-minute launcher step and the CLI install.
       timeout-minutes: 60
     secrets:
-      claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
+      claude-api-key: ${{ secrets.PR_UNBLOCK_CLAUDE_API_KEY }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # Whether address-feedback's report job posted its check, read from this run's
@@ -736,7 +736,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
-      role: automations
+      role: pr-unblock
       lane: pr-unblock
       activity: address-feedback
       fallback: handoff
@@ -748,7 +748,7 @@ jobs:
       head-sha: ${{ needs.address-feedback-select.outputs.head-sha }}
       timeout-minutes: 60
     secrets:
-      claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+      claude-code-oauth-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # The push job: apply-patch.mjs under patch-rules.json's review-threads
@@ -780,7 +780,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
-      role: automations
+      role: pr-unblock
       lane: pr-unblock
       activity: apply-feedback-patch
       pr-number: ${{ inputs.pr-number }}
@@ -821,7 +821,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
-      role: automations
+      role: pr-unblock
       lane: pr-unblock
       activity: publish-feedback
       pr-number: ${{ inputs.pr-number }}
@@ -1024,7 +1024,7 @@ jobs:
   # the job that runs head code. The skill reviews the update and returns its
   # verdict as structured output; on a fix it leaves the fix uncommitted, and
   # the runner hands it on as a patch. Its upstream release notes are
-  # untrusted text. It runs on the automations role's API key alone, in the
+  # untrusted text. It runs on the pr-unblock role's API key alone, in the
   # per-PR write queue.
   review-dependency:
     needs: review-dependency-select
@@ -1040,7 +1040,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
-      role: automations
+      role: pr-unblock
       lane: pr-unblock
       activity: review-dependency
       pr-number: ${{ inputs.pr-number }}
@@ -1052,7 +1052,7 @@ jobs:
       # The 50-minute launcher step and the CLI install.
       timeout-minutes: 60
     secrets:
-      claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
+      claude-api-key: ${{ secrets.PR_UNBLOCK_CLAUDE_API_KEY }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # Whether review-dependency's report job posted its check, read from this run's
@@ -1105,7 +1105,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
-      role: automations
+      role: pr-unblock
       lane: pr-unblock
       activity: review-dependency
       fallback: handoff
@@ -1117,7 +1117,7 @@ jobs:
       head-sha: ${{ needs.review-dependency-select.outputs.head-sha }}
       timeout-minutes: 60
     secrets:
-      claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+      claude-code-oauth-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # The push job: apply-patch.mjs under patch-rules.json's dependency-review
@@ -1150,7 +1150,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
-      role: automations
+      role: pr-unblock
       lane: pr-unblock
       activity: apply-dependency-patch
       pr-number: ${{ inputs.pr-number }}
@@ -1189,7 +1189,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
-      role: automations
+      role: pr-unblock
       lane: pr-unblock
       activity: apply-dependency-verdict
       pr-number: ${{ inputs.pr-number }}
@@ -1330,7 +1330,7 @@ jobs:
   # The model job: a read activity with no write token and no OIDC token in
   # the job that runs head code. The skill reruns the failing checks, fixes
   # them and reruns them; the runner uploads its uncommitted edits as a patch.
-  # It runs on the automations role's API key alone. The per-PR write queue
+  # It runs on the pr-unblock role's API key alone. The per-PR write queue
   # holds it, never the run's own group, pr-unblock-fix-ci-<pr>: a job group
   # with that name waits on its own run and never starts.
   fix-ci:
@@ -1347,7 +1347,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
-      role: automations
+      role: pr-unblock
       lane: pr-unblock
       activity: fix-ci
       pr-number: ${{ inputs.pr-number }}
@@ -1359,7 +1359,7 @@ jobs:
       # Reproducing, fixing and rerunning several checks outlasts the default.
       timeout-minutes: 60
     secrets:
-      claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
+      claude-api-key: ${{ secrets.PR_UNBLOCK_CLAUDE_API_KEY }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # Whether fix-ci's report job posted its check, read from this run's jobs
@@ -1417,7 +1417,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
-      role: automations
+      role: pr-unblock
       lane: pr-unblock
       activity: fix-ci
       fallback: handoff
@@ -1429,7 +1429,7 @@ jobs:
       head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
       timeout-minutes: 60
     secrets:
-      claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+      claude-code-oauth-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # The push job: apply-patch.mjs, a script with no model that runs no head
@@ -1459,7 +1459,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
-      role: automations
+      role: pr-unblock
       lane: pr-unblock
       activity: apply-patch
       pr-number: ${{ inputs.pr-number }}
@@ -1502,7 +1502,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
-      role: automations
+      role: pr-unblock
       lane: pr-unblock
       activity: fix-ci
       pr-number: ${{ inputs.pr-number }}
@@ -1514,7 +1514,7 @@ jobs:
       model-rung: "1"
       timeout-minutes: 60
     secrets:
-      claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
+      claude-api-key: ${{ secrets.PR_UNBLOCK_CLAUDE_API_KEY }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # As fix-ci-handoff and fix-ci-subscription are for fix-ci.
@@ -1564,7 +1564,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
-      role: automations
+      role: pr-unblock
       lane: pr-unblock
       activity: fix-ci
       fallback: handoff
@@ -1577,7 +1577,7 @@ jobs:
       model-rung: "1"
       timeout-minutes: 60
     secrets:
-      claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+      claude-code-oauth-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   apply-patch-rung-up:
@@ -1598,7 +1598,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
-      role: automations
+      role: pr-unblock
       lane: pr-unblock
       activity: apply-patch
       pr-number: ${{ inputs.pr-number }}
@@ -1760,7 +1760,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
-      role: automations
+      role: pr-unblock
       lane: pr-unblock
       activity: report-escalation
       pr-number: ${{ inputs.pr-number }}

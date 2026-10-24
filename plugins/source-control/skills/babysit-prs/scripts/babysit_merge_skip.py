@@ -119,7 +119,7 @@ SHA_RE = re.compile(r"[0-9a-f]{40}")
 KEY_RE = re.compile(r"[0-9a-f]{64}")
 ZONED_RE = re.compile(r"(Z|[+-]\d\d:\d\d)$")
 STATE_FIELDS = (
-    "number headRefOid baseRefOid isInMergeQueue updatedAt reviewDecision "
+    "number body headRefOid baseRefOid isInMergeQueue updatedAt reviewDecision "
     "labels(first:100){totalCount nodes{name}} reviews{totalCount} "
     "comments(last:50){totalCount nodes{databaseId updatedAt}} "
     "reviewThreads(first:100){totalCount nodes{isResolved isOutdated}} "
@@ -232,7 +232,9 @@ def _complete(connection: Any, limit_: int) -> list[dict[str, Any]] | None:
 
 def pr_state(node: Mapping[str, Any]) -> dict[str, Any] | None:
     """The key's view of one GraphQL node, or None when any part of it is
-    missing or cut short."""
+    missing or cut short, or when its issue is a `Refs:` one
+    (`merge_policy.refs_issue`), whose update times this read does not carry:
+    such a pull request is gated every run."""
     commits = json_array(json_object(node.get("commits")).get("nodes"))
     commit = json_object(json_object(commits[0]).get("commit")) if commits else {}
     head = node.get("headRefOid")
@@ -250,6 +252,8 @@ def pr_state(node: Mapping[str, Any]) -> dict[str, Any] | None:
         or not isinstance(node.get("baseRefOid"), str)
         or not isinstance(node.get("isInMergeQueue"), bool)
         or None in (labels, threads, issues, contexts)
+        or not issues
+        and verify_evidence.merge_policy.refs_issue(node.get("body"))[0] is not None
         or not isinstance(comments.get("totalCount"), int)
         or not is_json_array(comments.get("nodes"))
         or not isinstance(reviews, int)
@@ -307,7 +311,7 @@ def verdicts(listing: Iterable[Any], number: int, head: str) -> list[list[Any]]:
     [id, name], by id."""
     found = []
     for item in map(json_object, listing):
-        match = verify_evidence.NAME_RE.fullmatch(str(item.get("name") or ""))
+        match = verify_evidence.verdict_name(str(item.get("name") or ""))
         if not match or item.get("expired") is not False:
             continue
         if int(match[1]) == number or match[2] == head:
@@ -484,7 +488,7 @@ def keys_for(
             "head": head,
             "skippable": not state["inQueue"],
             "passAtHead": any(
-                (m := verify_evidence.NAME_RE.fullmatch(str(name))) is not None
+                (m := verify_evidence.verdict_name(str(name))) is not None
                 and m[2] == head
                 and m[3] in verify_evidence.PASSES
                 for _, name in found

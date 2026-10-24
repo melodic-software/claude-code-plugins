@@ -50,7 +50,9 @@ test("the re-dispatch for earlier lane merges waits on neither the listing nor t
       "Set up Node",
       "Check the kill switch",
       "Read report-only",
+      "Read the lane records the last run kept",
       "Check earlier lane merges",
+      "Keep the post-merge report for enable-auto-merge",
       "Start the full CI run on main",
       "Record the dispatched run",
       "Re-run a red lane-dispatched full run",
@@ -85,7 +87,9 @@ test("the early re-dispatch keeps the trusted mechanics and skips untrusted even
 // fails its first `failures` calls, with `.base` pointing at this checkout,
 // or, given `edit`, at a copy whose pr-pipeline.yaml is `edit(text)` and whose
 // trusted-actors.json is `actors`, when given, else this checkout's.
-const runListing = (failures, edit, actors) => {
+// `env` overrides the step's environment: merge.lane-prs is `gate` unless it
+// says otherwise, the mode that lists the lanes App's own pull requests.
+const runListing = (failures, edit, actors, env = {}) => {
   const dir = mkdtempSync(join(tmpdir(), "pr-merge-listing-"));
   try {
     const bin = join(dir, "bin");
@@ -124,14 +128,19 @@ const runListing = (failures, edit, actors) => {
         GITHUB_OUTPUT: output,
         REPO: "o/r",
         DEPENDABOT: "off",
+        LANE_PRS: "gate",
+        ...env,
       },
     });
+    const read = (name) => (existsSync(join(dir, name)) ? readFileSync(join(dir, name), "utf8") : "");
     return {
       status: result.status,
       stdout: result.stdout,
       stderr: result.stderr,
-      calls: Number(readFileSync(join(dir, "calls"), "utf8")),
-      args: readFileSync(join(dir, "args"), "utf8"),
+      calls: Number(read("calls") || 0),
+      args: read("args"),
+      candidates: read("candidates.json"),
+      drafts: read("drafts.json"),
       prefiltered: existsSync(join(dir, "prefilter.json")),
       output: existsSync(output) ? readFileSync(output, "utf8") : "",
     };
@@ -175,6 +184,52 @@ test("without an adoption section no trusted actor is listed", () => {
   assert.deepEqual(authorsOf(noIdle.args), ["app/melodic-automation-lanes"]);
 });
 
+// merge.lane-prs: native leaves the lanes App's pull requests to GitHub's
+// auto-merge: the listing never asks for them, so the gate never reads them.
+test("under lane-prs native the listing skips the lanes App and keeps every other author", () => {
+  const actors = [
+    { id: 1, login: "a-person", kind: "human" },
+    { id: 3, login: "melodic-automation-lanes[bot]", kind: "bot" },
+  ];
+  const native = runListing(0, (config) => config, actors, { LANE_PRS: "native", DEPENDABOT: "enforce" });
+  assert.equal(native.status, 0, native.stderr);
+  assert.deepEqual(authorsOf(native.args), ["a-person", "app/dependabot"]);
+  assert.match(native.output, /^count=1$/m);
+  // gate lists the lanes App first, as before the setting existed.
+  const gate = runListing(0, (config) => config, actors, { LANE_PRS: "gate", DEPENDABOT: "enforce" });
+  assert.equal(gate.status, 0, gate.stderr);
+  assert.deepEqual(authorsOf(gate.args), ["app/melodic-automation-lanes", "a-person", "app/dependabot"]);
+});
+
+test("under lane-prs native with no other author the listing calls nothing and lists no candidate", () => {
+  const run = runListing(0, (config) => config.replace(/^adoption:\n( {2}.*\n)*/m, ""), undefined, { LANE_PRS: "native" });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.calls, 0);
+  assert.equal(run.candidates.trim(), "[]");
+  assert.equal(run.drafts.trim(), "[]");
+  assert.match(run.output, /^count=0$/m);
+});
+
+test("the mode step outputs merge.lane-prs as resolve-config resolved it, and the listing reads it", () => {
+  for (const mode of ["native", "gate"]) {
+    const dir = mkdtempSync(join(tmpdir(), "pr-merge-mode-"));
+    try {
+      symlinkSync(root, join(dir, ".base"));
+      writeFileSync(join(dir, "resolved-config.json"), JSON.stringify({ merge: { "lane-prs": mode } }));
+      const result = spawnSync("bash", ["-c", runScript("Read report-only")], {
+        cwd: dir,
+        encoding: "utf8",
+        env: { ...process.env, RUNNER_TEMP: dir, GITHUB_OUTPUT: join(dir, "output") },
+      });
+      assert.equal(result.status, 0, result.stderr);
+      assert.match(readFileSync(join(dir, "output"), "utf8"), new RegExp(`^lane-prs=${mode}$`, "m"));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+  assert.match(step("List the candidate PRs"), /\n {10}LANE_PRS: \$\{\{ steps\.mode\.outputs\.lane-prs \}\}\n/);
+});
+
 test("the listing fails with one clear error after three failed tries", () => {
   const run = runListing(3);
   assert.equal(run.status, 1);
@@ -184,20 +239,20 @@ test("the listing fails with one clear error after three failed tries", () => {
   assert.doesNotMatch(run.stderr, /jq: error|Traceback/);
 });
 
-test("the API budget is logged through the shared action at mint and at job end, for both tokens", () => {
-  for (const [name, phase, condition] of [
-    ["Log the API budget at mint", "start", "steps.lane-token.outputs.token != ''"],
-    ["Log the API budget at job end", "end", "always() && steps.lane-token.outputs.token != ''"],
-  ]) {
-    const block = step(name);
-    assert.match(block, /\n {8}uses: \.\/\.base\/\.github\/actions\/log-api-budget /);
-    assert.match(block, new RegExp(`\\n {8}if: ${condition.replace(/[().|$]/g, "\\$&")}\\n`));
-    assert.match(block, /\n {8}continue-on-error: true\n/);
-    assert.match(block, new RegExp(`\\n {10}phase: ${phase}\\n`));
-    assert.match(block, /\n {12}lane \$\{\{ steps\.lane-token\.outputs\.token \}\}\n {12}github-token \$\{\{ github\.token \}\}\n/);
-  }
-  assert.doesNotMatch(job, /gh api rate_limit/);
+test("the job end logs both tokens' readings from the job's own responses, and reads no /rate_limit", () => {
+  const block = step("Log the API budget at job end");
+  assert.match(block, /\n {8}uses: \.\/\.base\/\.github\/actions\/log-api-budget /);
+  assert.match(block, /\n {8}if: always\(\) && steps\.lane-token\.outputs\.token != ''\n/);
+  assert.match(block, /\n {8}continue-on-error: true\n/);
+  assert.match(block, /\n {10}tokens: lanes-app github-token\n/);
+  assert.doesNotMatch(job, /gh api rate_limit|phase: start|\$\{\{ [^}]*token[^}]* \}\}\n {10}tokens:/);
+  // The gate's babysit calls read into both names: the lane token by default,
+  // the job token for the verdict reads that carry it.
+  const gate = step("Run the merge gate on each candidate");
+  assert.match(gate, /\n {10}API_BUDGET_TOKEN: lanes-app\n/);
+  assert.match(gate, /\n {10}API_BUDGET_OVERRIDE_TOKEN: github-token\n/);
   const names = steps.map((s) => s.name);
+  assert.ok(names.indexOf("Run the merge gate on each candidate") < names.indexOf("Log the API budget at job end"));
   assert.ok(names.indexOf("Log the API budget at job end") < names.indexOf("Revoke the lane token"));
 });
 
@@ -224,13 +279,13 @@ const runSweepCost = (costs, reached, skipped = 0) => {
 };
 
 test("the sweep cost names both tokens' spend, the candidates, those reached and those skipped, in the log and the summary", () => {
-  const run = runSweepCost("lane-cost=312 github-token-cost=41", 3, 2);
+  const run = runSweepCost("lanes-app-cost=312 github-token-cost=41", 3, 2);
   assert.equal(run.status, 0);
   const line = "sweep-cost=312 github-token-cost=41 candidates=5 reached=3 skipped=2\n";
   assert.equal(run.stdout, line);
   assert.equal(run.stepSummary, line);
   // A rolled window, or no end reading, reads unknown.
-  assert.equal(runSweepCost("lane-cost=unknown", 0).stdout, "sweep-cost=unknown github-token-cost=unknown candidates=5 reached=0 skipped=0\n");
+  assert.equal(runSweepCost("lanes-app-cost=unknown", 0).stdout, "sweep-cost=unknown github-token-cost=unknown candidates=5 reached=0 skipped=0\n");
   const block = step("Write the sweep cost");
   assert.match(block, /\n {8}if: always\(\) && steps\.gate\.outcome != 'skipped'\n/);
   assert.match(block, /COSTS: \$\{\{ steps\.budget-end\.outputs\.costs \}\}/);
@@ -315,6 +370,48 @@ test("the gate reads the head-ref map the last run uploaded and uploads the next
   }
   for (const s of steps.filter((s) => s.block.includes("actions/cache/"))) {
     assert.ok(!s.block.includes("head-refs"), s.name);
+  }
+});
+
+// The lane records (lane-records.mjs): read before every post-merge check,
+// the gate's included, from the last trusted run's artifact; written after
+// the gate and uploaded by scheduled and hand-started runs of the merge job
+// only, the runs a later read accepts; never through actions/cache.
+test("every post-merge check reads the lane records, and only the merge job uploads them", () => {
+  const file = "${{ runner.temp }}/lane-records.json";
+  const out = "${{ runner.temp }}/lane-records/lane-records.json";
+  const early = stepsOf(jobBlock("post-merge-dispatch"));
+  for (const list of [steps, early]) {
+    const names = list.map((s) => s.name);
+    const read = step("Read the lane records the last run kept", list);
+    assert.ok(names.indexOf("Read the lane records the last run kept") < names.indexOf("Check earlier lane merges"));
+    assert.match(read, /run: node \.base\/\.github\/scripts\/pr-merge\/lane-records\.mjs read\n/);
+    assert.ok(read.includes(`LANE_RECORDS_PATH: ${file}\n`) && read.includes("ACTIONS_TOKEN: ${{ github.token }}\n"));
+    assert.match(read, /\n {8}continue-on-error: true\n/);
+    assert.ok(step("Check earlier lane merges", list).includes(`BABYSIT_POSTMERGE_LANE_RECORDS: ${file}\n`));
+  }
+  for (const name of ["Record a failed lane merge", "Run the merge gate on each candidate"]) {
+    assert.ok(step(name).includes(`BABYSIT_POSTMERGE_LANE_RECORDS: ${file}\n`), name);
+  }
+  const names = steps.map((s) => s.name);
+  const keep = step("Keep the lane records the checks proved");
+  assert.ok(names.indexOf("Run the merge gate on each candidate") < names.indexOf("Keep the lane records the checks proved"));
+  assert.match(keep, /lane-records\.mjs write\n/);
+  for (const line of [`LANE_RECORDS_PATH: ${file}`, "BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json", `LANE_RECORDS_OUT: ${out}`]) {
+    assert.ok(keep.includes(`${line}\n`), line);
+  }
+  assert.ok(
+    keep.includes(
+      "always() && steps.post-merge.outcome != 'skipped'\n          && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')\n",
+    ),
+  );
+  const upload = step("Upload the lane records for the next run");
+  assert.match(upload, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 /);
+  assert.ok(upload.includes("name: pr-merge-lane-records\n") && upload.includes(`path: ${out}\n`));
+  assert.match(upload, /\n {8}if: always\(\) && steps\.lane-records\.outcome == 'success'\n/);
+  assert.doesNotMatch(jobBlock("post-merge-dispatch"), /name: pr-merge-lane-records|lane-records\.mjs write/);
+  for (const s of steps.filter((s) => s.block.includes("actions/cache/"))) {
+    assert.ok(!s.block.includes("lane-records"), s.name);
   }
 });
 
@@ -489,7 +586,7 @@ test("the record step warns on refused re-runs and errors when the record was no
   assert.equal(refused.status, 0);
   assert.match(refused.stdout, /^::warning::the post-merge remediation exited 4 /m);
   assert.doesNotMatch(refused.stdout, /::error::/);
-  for (const error of ["demotion issue: HTTP 403", "dequeue: HTTP 502"]) {
+  for (const error of ["demotion issue: HTTP 403", "dequeue: HTTP 502", "disarm: HTTP 502"]) {
     const failed = runRecord(4, { remediation: { errors: ["re-run: HTTP 403", error] } });
     assert.equal(failed.status, 0);
     assert.match(failed.stdout, /^::error::the post-merge remediation could not file the demotion record/m);

@@ -4,7 +4,7 @@
   "types-under-parent": ["Feature"],
   "classes": ["work-class: read-only", "work-class: mechanical", "work-class: scoped"],
   "sizes": ["small", "medium"],
-  "uncertainty": ["known"],
+  "uncertainty": ["known", "knowable"],
   "refuse-labels": ["duplicate", "needs-owner-decision", "do-not-merge", "wontfix"],
   "task-list": "- [ ] "
 }

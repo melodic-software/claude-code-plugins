@@ -348,7 +348,7 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   assert.match(prompt, /denied="Bash,Edit,Write,NotebookEdit,WebSearch,Agent,Skill"/);
   assert.match(prompt, /mcp__github,mcp__github_comment,mcp__github_file_ops,mcp__github_ci,mcp__github_inline_comment/);
   assert.match(prompt, /WebFetch\(domain:\$domain\)/);
-  assert.deepEqual(stepSecrets(model), ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"]);
+  assert.deepEqual(stepSecrets(model), ["INTAKE_CLAUDE_CODE_OAUTH_TOKEN"]);
   for (const job of [select, apply, again]) {
     assert.deepEqual(stepSecrets(job), []);
   }
@@ -722,9 +722,9 @@ test("work-resolve-issue.yml: resolve-issue's timeout is the resolved issue dime
 // and its apply job mints from them. The broker refuses that mint as
 // workflow-modified when the caller's or the write runner's blob at the run's
 // commit differs from main's tip (azure-iac binding.mjs), so the read runner's run job checks the same
-// rule before any model turn and fails red; work-unblock's sweep re-fires a
-// failed run that left no outcome marker.
-test("pr-run-activity-read.yml: an issue run on stale workflow files fails before any model turn", () => {
+// rule before any model turn and, on a difference, ends green with stale=true,
+// which stops the run; work-unblock's sweep re-fires a run that stopped there.
+test("pr-run-activity-read.yml: an issue run on stale workflow files stops green before any model turn", () => {
   const { jobs } = workflow("pr-run-activity-read.yml");
   const steps = jobs.run.steps;
   const index = (id) => steps.findIndex((step) => step.id === id);
@@ -738,6 +738,27 @@ test("pr-run-activity-read.yml: an issue run on stale workflow files fails befor
   for (const step of steps.slice(index("workflow-current") + 1, index("go") + 1)) {
     assert.doesNotMatch(String(step.if ?? ""), /always\(\)|failure\(\)|!cancelled\(\)/, step.name);
   }
+  // A stale run stops at the stop step: no earlier-work check and no activity.
+  const stop = steps.find((step) => step.name === "Stop on stale workflow files");
+  assert.ok(index("workflow-current") < steps.indexOf(stop) && steps.indexOf(stop) < index("issue-prior"));
+  const prior = steps[index("issue-prior")];
+  const issueSkill = { "inputs.issue-number": "7", "steps.config.outputs.applies": "true", "steps.config.outputs.kind": "skill" };
+  for (const [stale, stops] of [["true", true], ["", false]]) {
+    const context = { ...issueSkill, "steps.workflow-current.outputs.stale": stale };
+    assert.equal(evaluate(stop.if, context), stops, `stop step, stale=${stale}`);
+    assert.equal(evaluate(prior.if, context), !stops, `issue-prior, stale=${stale}`);
+  }
+  const go = steps[index("go")];
+  assert.equal(go.env.STALE, "${{ steps.workflow-current.outputs.stale }}");
+  const decideGo = (env) => {
+    const out = join(mkdtempSync(join(tmpdir(), "workflow-go-")), "out");
+    writeFileSync(out, "");
+    spawnSync("bash", ["-c", go.run], { encoding: "utf8", env: { ...process.env, PRIOR: "", STALE: "", ...env, GITHUB_OUTPUT: out } });
+    return readFileSync(out, "utf8").trim();
+  };
+  assert.equal(decideGo({ STALE: "true" }), "run=false");
+  assert.equal(decideGo({ PRIOR: "false" }), "run=false");
+  assert.equal(decideGo({}), "run=true");
   // A skill run in issue mode only.
   for (const [issue, kind, runs] of [["7", "skill", true], ["7", "script", false], ["", "skill", false]]) {
     const context = {
@@ -769,31 +790,42 @@ test("pr-run-activity-read.yml: an issue run on stale workflow files fails befor
   spawnSync("git", ["init", "-q", "-b", "main", base]);
   spawnSync("mkdir", ["-p", join(base, ".github/workflows")]);
   const run = commit({ [caller]: "caller 1\n", [reusable]: "write 1\n", "README.md": "a\n" });
-  const runCheck = (sha = run, ref = `melodic-software/claude-code-plugins/${caller}@refs/heads/main`) =>
-    spawnSync("bash", ["-c", check.run], {
+  const output = join(dir, "github-output");
+  // The check's exit status and what it wrote to GITHUB_OUTPUT.
+  const runCheck = (sha = run, ref = `melodic-software/claude-code-plugins/${caller}@refs/heads/main`) => {
+    writeFileSync(output, "");
+    const result = spawnSync("bash", ["-c", check.run], {
       cwd: dir,
       encoding: "utf8",
-      env: { ...process.env, WORKFLOW_REF: ref, WORKFLOW_SHA: sha },
+      env: { ...process.env, WORKFLOW_REF: ref, WORKFLOW_SHA: sha, GITHUB_OUTPUT: output },
     });
+    return { ...result, written: readFileSync(output, "utf8") };
+  };
+  const proceeds = (result, message) => {
+    assert.equal(result.status, 0, message);
+    assert.equal(result.written, "", message);
+  };
 
-  assert.equal(runCheck().status, 0, "the run's own commit is main's tip");
+  proceeds(runCheck(), "the run's own commit is main's tip");
   commit({ "README.md": "b\n" });
-  assert.equal(runCheck().status, 0, "main moved, but neither workflow file changed");
+  proceeds(runCheck(), "main moved, but neither workflow file changed");
   commit({ [caller]: "caller 2\n" });
   const callerStale = runCheck();
-  assert.equal(callerStale.status, 1, "the caller changed on main");
-  assert.match(callerStale.stdout, /::error::workflow-stale: \.github\/workflows\/work-resolve-issue\.yml /);
+  assert.equal(callerStale.status, 0, "the caller changed on main: the step ends green");
+  assert.equal(callerStale.written, "stale=true\n");
+  assert.match(callerStale.stdout, /::warning::workflow-stale: \.github\/workflows\/work-resolve-issue\.yml /);
   const fresh = git("rev-parse", "HEAD");
-  assert.equal(runCheck(fresh).status, 0, "a run on main's current files proceeds");
+  proceeds(runCheck(fresh), "a run on main's current files proceeds");
   commit({ [reusable]: "write 2\n" });
   const reusableStale = runCheck(fresh);
-  assert.equal(reusableStale.status, 1, "the write runner changed on main");
-  assert.match(reusableStale.stdout, /::error::workflow-stale: \.github\/workflows\/pr-run-activity-write\.yml /);
+  assert.equal(reusableStale.status, 0, "the write runner changed on main: the step ends green");
+  assert.equal(reusableStale.written, "stale=true\n");
+  assert.match(reusableStale.stdout, /::warning::workflow-stale: \.github\/workflows\/pr-run-activity-write\.yml /);
 
   // A commit or caller this checkout cannot read is left to the broker.
-  assert.equal(runCheck("0".repeat(40)).status, 0);
-  assert.equal(runCheck("").status, 0);
-  assert.equal(runCheck(run, "").status, 0);
+  proceeds(runCheck("0".repeat(40)));
+  proceeds(runCheck(""));
+  proceeds(runCheck(run, ""));
 });
 
 // The issue lane's model job holds no write token. resolve-issue
@@ -1225,6 +1257,28 @@ test("every job that reads a Claude secret is a catalog lane, and every catalog 
   }
 });
 
+// run-claude-cli names the lane record's credential from `role:`, never from
+// the secret passed, so the role and the secret are checked together.
+test("every catalog lane reads only its role's secrets, and every role: it passes is its role", () => {
+  const jobs = claudeSecretJobs();
+  for (const { role, lane, key } of catalogLanes()) {
+    for (const name of lane.currentSecrets) assert.ok([role.keySecret, role.tokenSecret].includes(name), `${key} reads ${name}`);
+    const { job } = jobs.get(key);
+    const roles = [job.with?.role, ...(job.steps ?? []).map((step) => step.with?.role)].filter((value) => value !== undefined);
+    for (const value of roles) assert.equal(value, role.id, key);
+  }
+  // A runner caller that reads no Claude secret still names the credential
+  // the lane record reports, so it passes its workflow's role.
+  const workflowRoles = new Map();
+  for (const { role, lane } of catalogLanes()) workflowRoles.set(lane.workflow, [...new Set([...(workflowRoles.get(lane.workflow) ?? []), role.id])]);
+  for (const [file, ids] of workflowRoles) {
+    if (ids.length !== 1) continue;
+    for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
+      if (job?.uses === READ_RUNNER || job?.uses === "./.github/workflows/pr-run-activity-write.yml") assert.equal(job.with?.role, ids[0], `${file} ${id}`);
+    }
+  }
+});
+
 test("a job reads a Claude API key only when its catalog lane runs on run-claude-cli", () => {
   const lanes = new Map(catalogLanes().map(({ lane, key }) => [key, lane]));
   const keyed = [...claudeSecretJobs()].filter(([, { names }]) => names.some(isApiKey));
@@ -1315,7 +1369,7 @@ test("the trigger-gate check names an ungated job and accepts only the lanes' ga
   const admit = (step = { id: "gate", uses: TRUSTED_TRIGGER }) => ({ outputs: { proceed: "${{ steps.gate.outputs.proceed }}" }, steps: [step] });
   const gates = (on, jobs) => Object.fromEntries(gatedTriggerJobs(["f.yml"], () => ({ on, jobs })));
   const intake = (uses, ids) => ({ uses, with: { "allowed-author-ids": ids }, secrets: { CLAUDE_CODE_OAUTH_TOKEN: "${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}" } });
-  const PINNED = "melodic-software/ci-workflows/.github/workflows/intake-triage.yml@2fe38c031867900824c164e33a140a335ed9ecf0";
+  const PINNED = "melodic-software/ci-workflows/.github/workflows/intake-triage.yml@d02b8697e092705153f0996549b05f95a446bb52";
   const cases = {
     "ungated issues job": [{ issues: { types: ["labeled"] } }, { run: { steps: [launcher] } }, { "f.yml run": [] }],
     "ungated issue_comment job": [{ issue_comment: { types: ["created"] } }, { run: { steps: [launcher] } }, { "f.yml run": [] }],
@@ -1372,7 +1426,7 @@ test("pr-run-activity-read.yml: the run job can only read, and each launcher ste
   const { jobs } = workflow("pr-run-activity-read.yml");
   assert.deepEqual(jobs.run.permissions, { contents: "read", "pull-requests": "read" }, "read-only, no id-token");
   const step = (id) => jobs.run.steps.find((s) => s.id === id);
-  const launcher = "melodic-software/ci-workflows/.github/actions/run-claude-cli@164c2809f6150429b6f24d4a2777bb377af953d9";
+  const launcher = "melodic-software/ci-workflows/.github/actions/run-claude-cli@d02b8697e092705153f0996549b05f95a446bb52";
   for (const [id, input, secret] of [
     ["act-key", "api-key", "claude-api-key"],
     ["act-token", "subscription-token", "claude-code-oauth-token"],
@@ -1429,9 +1483,13 @@ test("no run-claude-cli plugin-dirs or add-dirs value names runner.temp, RUNNER_
 // Launcher SHAs checked to pass `--permission-prompts none` unconditionally,
 // under which the default mode denies every call no rule allows, as dontAsk
 // does; check-permission-mode.sh accepts default for dontAsk on that basis.
-// 7b362428: lane.cjs:311-312; 164c2809: lane.cjs:355-358; in cliArgs. A pin bump fails here until its
-// lane.cjs is read and its SHA added.
-const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set(["7b362428c76085a160e28656cd2c75c3147a69ff", "164c2809f6150429b6f24d4a2777bb377af953d9"]);
+// 7b362428: lane.cjs:311-312; 164c2809: lane.cjs:355-358; d02b8697: lane.cjs:357-358; in cliArgs. A pin
+// bump fails here until its lane.cjs is read and its SHA added.
+const PERMISSION_PROMPTS_NONE_LAUNCHERS = new Set([
+  "7b362428c76085a160e28656cd2c75c3147a69ff",
+  "164c2809f6150429b6f24d4a2777bb377af953d9",
+  "d02b8697e092705153f0996549b05f95a446bb52",
+]);
 
 test("pr-run-activity-read.yml: every run-claude-cli pin is a launcher checked to pass --permission-prompts none", () => {
   const pins = [];
@@ -1591,14 +1649,14 @@ test("pr-run-activity-read.yml: the fallback call's lane record names why it ran
   const lane = (fallback) =>
     atStep(
       record.with.lane.replace(/format\('([^']*)', inputs\.lane, inputs\.activity(?:, steps\.launch\.outputs\.key-name)?\)/g, (_, text) =>
-        JSON.stringify(text.replace("{0}", "pr-unblock").replace("{1}", "fix-ci").replace("{2}", "AUTOMATIONS_CLAUDE_API_KEY")),
+        JSON.stringify(text.replace("{0}", "pr-unblock").replace("{1}", "fix-ci").replace("{2}", "PR_UNBLOCK_CLAUDE_API_KEY")),
       ),
       { "inputs.fallback": fallback },
     );
   assert.equal(lane(""), "pr-unblock/fix-ci");
-  assert.equal(lane("credit-stop"), "pr-unblock/fix-ci (key AUTOMATIONS_CLAUDE_API_KEY hit a credit stop)");
-  assert.equal(lane("no-key"), "pr-unblock/fix-ci (key AUTOMATIONS_CLAUDE_API_KEY is empty)");
-  assert.equal(lane("handoff"), "pr-unblock/fix-ci (key AUTOMATIONS_CLAUDE_API_KEY posted no check)");
+  assert.equal(lane("credit-stop"), "pr-unblock/fix-ci (key PR_UNBLOCK_CLAUDE_API_KEY hit a credit stop)");
+  assert.equal(lane("no-key"), "pr-unblock/fix-ci (key PR_UNBLOCK_CLAUDE_API_KEY is empty)");
+  assert.equal(lane("handoff"), "pr-unblock/fix-ci (key PR_UNBLOCK_CLAUDE_API_KEY posted no check)");
   assert.equal(record.with["step-timeout-minutes"], 50, "the launcher step's timeout");
 });
 
@@ -1712,11 +1770,11 @@ for (const [file, firstId, subId, extraNeeds, extraProceed, applyId] of PATCH_LA
     assert.equal(first.uses, READ_RUNNER);
     assert.equal(sub.uses, READ_RUNNER);
     assert.deepEqual([sub.needs].flat(), [...extraNeeds, firstId, ...(HANDOFF[firstId] ? [HANDOFF[firstId]] : [])]);
-    assert.deepEqual(first.secrets, { "claude-api-key": "${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}", ...CARRIER_SECRETS });
-    assert.deepEqual(sub.secrets, { "claude-code-oauth-token": "${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}", ...CARRIER_SECRETS });
+    assert.deepEqual(first.secrets, { "claude-api-key": "${{ secrets.PR_UNBLOCK_CLAUDE_API_KEY }}", ...CARRIER_SECRETS });
+    assert.deepEqual(sub.secrets, { "claude-code-oauth-token": "${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}", ...CARRIER_SECRETS });
     // The report job posts and labels through the caller's grant.
     for (const job of [first, sub]) assert.equal(job.permissions.issues, "write");
-    assert.equal(first.with.role, "automations");
+    assert.equal(first.with.role, "pr-unblock");
     assert.equal(first.with.fallback, undefined);
     const { fallback, ...same } = sub.with;
     assert.deepEqual(same, first.with, "the fallback call runs the same activity on the same inputs");
@@ -3234,7 +3292,7 @@ test("scan job: every gate, skip and launcher class value the runner sets passes
   const schema = JSON.parse(read("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json"));
   const gateReasons = Object.keys(JSON.parse(read("../report-check-run/gate-skip-reasons.json")));
   // run-claude-cli's failure classes, the keys of SUMMARY_NOTES in lane.cjs at
-  // the pinned 164c2809. cant-fail-ok: an external contract's value list.
+  // the pinned d02b8697. cant-fail-ok: an external contract's value list.
   const laneClasses = ["credit-stop", "rate-limit", "auth", "overloaded", "max-turns", "timeout", "other"];
   const cases = [
     ...schema.$defs["skip-reason"].enum.map((value) => ["skip-reason", value]),

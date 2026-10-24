@@ -201,16 +201,104 @@ def _run_gh(
     (`gh_call_summary`)."""
     kind = gh_call_kind(args, env_overrides)
     _gh_call_counts[kind] = _gh_call_counts.get(kind, 0) + 1
-    return run_command(
-        ["gh", *args],
+    token = None if binary else _api_budget_token(args, env_overrides)
+    proc = run_command(
+        ["gh", "api", "-i", *args[1:]] if token else ["gh", *args],
         allowed_executables=("gh",),
         timeout_seconds=(
             timeout_seconds if timeout_seconds is not None else _default_timeout_seconds
         ),
-        check=check,
+        check=check and not token,
         env_overrides=env_overrides,
         binary=binary,
     )
+    if token:
+        proc.stdout = _api_budget_read(proc.stdout, token)
+        if check and proc.returncode != 0:
+            detail = proc.stderr.strip() or proc.stdout.strip()
+            raise RuntimeError(f"{' '.join(['gh', *args])} failed: {detail}")
+    return proc
+
+
+# Rate-limit readings for the job-end api-budget notice
+# (.github/actions/log-api-budget/api-budget.bash holds the line shape and the
+# notice). Only in a job that names the token: API_BUDGET_TOKEN for a call on
+# the process's own GH_TOKEN, API_BUDGET_OVERRIDE_TOKEN for one that carries
+# its own. Such an `api` call runs with -i; its leading header block becomes one
+# reading line in $RUNNER_TEMP/api-budget/<token> and is dropped from stdout,
+# so the caller sees the output it would have without -i.
+# --paginate prints a header block per page, which could not be told from
+# body text that looks like one, so such a call runs as it is.
+_API_BUDGET_SKIP_FLAGS = frozenset(
+    {"-i", "--include", "--silent", "--slurp", "--paginate"}
+)
+_API_BUDGET_NAME = re.compile(r"[a-z][a-z0-9-]{0,39}")
+_API_BUDGET_STATUS = re.compile(r"HTTP/[0-9.]+ ([0-9]{3})(?:\s|$)")
+_API_BUDGET_VALUES = {
+    "limit": re.compile(r"[0-9]+"),
+    "remaining": re.compile(r"[0-9]+"),
+    "used": re.compile(r"[0-9]+"),
+    "reset": re.compile(r"[0-9]+"),
+    "resource": re.compile(r"[a-z_]+"),
+}
+
+
+def _api_budget_token(
+    args: list[str], env_overrides: Mapping[str, str] | None
+) -> str | None:
+    # GET /rate_limit reports another bucket than the one the calls spend.
+    if (
+        not args
+        or args[0] != "api"
+        or "rate_limit" in args
+        or _API_BUDGET_SKIP_FLAGS.intersection(args)
+    ):
+        return None
+    own = bool(env_overrides and "GH_TOKEN" in env_overrides)
+    name = os.environ.get(
+        "API_BUDGET_OVERRIDE_TOKEN" if own else "API_BUDGET_TOKEN", ""
+    )
+    if not os.environ.get("RUNNER_TEMP") or not _API_BUDGET_NAME.fullmatch(name):
+        return None
+    return name
+
+
+def _api_budget_read(stdout: str, token: str) -> str:
+    """`gh api -i` output without its leading header block, which is appended
+    as a reading. Only the block at the very start is headers: body text that
+    looks like a status line stays body. Never raises: a reading that cannot be
+    written is dropped."""
+    lines = stdout.splitlines(keepends=True)
+    match = _API_BUDGET_STATUS.match(lines[0].rstrip("\r\n")) if lines else None
+    if match is None:
+        return stdout
+    headers: dict[str, str] = {}
+    offset = len(lines[0])
+    for line in lines[1:]:
+        offset += len(line)
+        bare = line.rstrip("\r\n")
+        if bare == "":
+            break
+        name, _, value = bare.partition(":")
+        key = name.strip().lower()
+        if key.startswith("x-ratelimit-"):
+            headers[key.removeprefix("x-ratelimit-")] = value.strip()
+    try:
+        path = os.path.join(os.environ["RUNNER_TEMP"], "api-budget")
+        os.makedirs(path, exist_ok=True)
+        with open(os.path.join(path, token), "a", encoding="utf-8") as handle:
+            handle.write(_api_budget_line(match.group(1), headers))
+    except OSError:
+        pass
+    return stdout[offset:]
+
+
+def _api_budget_line(status: str, headers: Mapping[str, str]) -> str:
+    values = [
+        headers[key] if pattern.fullmatch(headers.get(key, "")) else "na"
+        for key, pattern in _API_BUDGET_VALUES.items()
+    ]
+    return f"{status} {' '.join(values)}\n"
 
 
 def run_gh(args: list[str], *, timeout_seconds: float | None = None) -> str:
@@ -311,14 +399,6 @@ def gh_http_status(text: str) -> int | None:
     """
     matches = GH_HTTP_STATUS_RE.findall(text or "")
     return int(matches[-1]) if matches else None
-
-
-def gh_rate_limited(text: str) -> bool:
-    """Whether a `gh` failure message reports a rate limit: HTTP 429, or a 403
-    whose message names one ("API rate limit exceeded", "secondary rate
-    limit"). Any other 403 is a refusal, not a limit."""
-    status = gh_http_status(text)
-    return status == 429 or (status == 403 and "rate limit" in text.casefold())
 
 
 def is_graphql_unavailable(failure: BaseException | str) -> bool:

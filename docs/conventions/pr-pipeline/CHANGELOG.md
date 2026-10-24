@@ -1,5 +1,119 @@
 # Changelog for the PR pipeline convention
 
+## [4.14.1] - 2026-10-24
+
+### Changed
+
+- pr-merge's head-ref map (`.github/scripts/pr-merge/head-ref-map.mjs`) is carried on a run that saves no artifact listing, such as a run with no candidates: the map read before the gate is uploaded as it is, with one log line and no warning, and the next run that saves a listing prunes it. Before, that run warned and uploaded no map, so once the trusted-run window passed the next run downloaded every untied FAIL again. A listing file that exists but cannot be read still uploads nothing, and with no map read before the gate nothing is uploaded. The map is still read only from the newest scheduled or hand-started `pr-merge.yml` run on main and never passes through `actions/cache`.
+
+## [4.14.0] - 2026-10-24
+
+### Changed
+
+- The `enable-auto-merge` activity arms a lanes App pull request whose issue link the merge gate takes, a plain `Refs: #<n>` issue included, instead of only one whose body opens with `Closes #<issue>`. The link is read with the verdict, through the gate's own rule (`babysit_verify_evidence.py evidence --lane-link`, which runs `babysit_merge_policy._linked_issue`), on the scheduled and hand-started runs only: two or more `Refs:` issues, a `Refs:` line in any other form, a number that is no issue, two closing issues, a closing issue in another repository, and a failed read all leave the pull request unarmed, or disarm it. An event run reads no link, so it never disarms on one.
+- The `enable-auto-merge` activity applies the merge gate's run-level refusals, which native auto-merge would otherwise skip. Each scheduled or hand-started run waits for the same run's `post-merge-dispatch` job, which keeps its post-merge report as a one-day artifact, and reads the lane's room from that report (`babysit_verify_evidence.py lane-room`, `babysit_merge_policy.lane_room`). While a demotion record, `merge.rung`, the loop setting or the rung cap holds the lane off, or a lane merge failed its post-merge check, nothing is armed and every armed lanes App pull request is disarmed. At `merge.max-in-flight`, counting the queue's lane entries, the lane's unverified merges and armed pull requests not yet queued, nothing more is armed. A missing report, one the gate would not reuse (`shared_refusal`: older than 30 minutes, as a re-run job reads the run's first report, a demotion record filed or changed since, or a lane merge landed since that it does not count), or a room that cannot be read, holds as a refusal does: nothing is armed and every armed lanes App pull request is disarmed. The report is read whenever `post-merge-dispatch` ran, so a later step of that job failing does not disarm anything. The job now holds `pull-requests: read` for the merge-queue and merge reads.
+- In the merge queue, `ci-status` holds a lanes App pull request whose verifier pass no longer binds its live issue link. It reads the counted pass's `verdict.json` (one artifact download) and the closing issues (one GraphQL read), and `merge-holds.mjs` `linkHold` holds unless the body still closes, or with no closing issue still names by a plain `Refs:` line, the one issue the pass judged, linked the same way. This is pr-merge's reader rule (`verify:spec-changed`), so a body edited after arming, such as `Refs: #A` to `Closes #B`, no longer merges on a pass for the old issue. A trusted approval of the head lifts it, as it lifts the verifier hold. `refsIssue` moves to `merge-holds.mjs`, which `resolve-pr.mjs` re-exports.
+- `enable-auto-merge` holds a lanes App pull request on the merge gate's risk score: `evidence --lane-reviews` runs `babysit_risk.score` and `holding` over the inputs the gate builds, at the lane room's effective rung. Each of these leaves it unarmed or disarms it: an open CRITICAL security-lane finding or a review not bound to the head (whether or not the lane applied its hold label), a symlink, submodule or other non-regular mode, a high path, the manifest review, the trust gate, and the cost review unless the owner's decision lifts it. The job now also holds `checks: read` for the lanes' annotations.
+- `ci-status` fails a lanes App pull request while the lanes kill switch (`CLAUDE_LANES_DISABLED` or `CLAUDE_LANES_REPO_DISABLED`) reads anything but `false`, so one armed before the switch was turned on stops in the merge queue. It reads the vars context and makes no API call. Owner and Dependabot pull requests are not affected.
+
+## [4.13.3] - 2026-10-23
+
+### Changed
+
+- `pr-unblock-dispatch.yml` also runs half-hourly, at minutes 9 and 39, five minutes after each `maintenance-reconcile-lost-runs` tick. A lanes App pull request whose reconciler re-run failed now gets `fix-ci` at the first tick after that failure instead of waiting for the next push to `main`, and a conflicting or Markdown-changing pull request is picked up the same way. A tick runs the same listings as a push run, and heads the dispatch record holds are not read again. The gate and the token broker already accept a dispatcher run started by a schedule. A re-run of a scheduled run fails at the trigger check, which handles no `schedule` event; the next tick replaces it. Only a push cancels a dispatcher run in progress; a tick or a hand run waits behind it, so a tick never cuts short a push run's dispatches.
+
+## [4.13.2] - 2026-10-23
+
+### Fixed
+
+- The pr-merge lane no longer adds `needs-human` back to a pull request after a person removed it (a User of kind `human` on the trusted-actor list at the default branch, with write access), while the escalation it explains is unchanged (same head and reasons). A removal by a bot, by an account off that list, or through a GitHub App lifts nothing, and a new head or new reasons escalate again ([README.md, The pr-merge lane](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#the-pr-merge-lane)).
+
+## [4.13.1] - 2026-10-23
+
+### Fixed
+
+- `ci-status` and `enable-auto-merge` hold a lanes App pull request that changes the marketplace manifest (until a trusted approval of the head) or a merge-gate cost path (until the owner's linked cost decision).
+
+## [4.13.0] - 2026-10-23
+
+### Added
+
+- pr-verify's resolver gives the verifier the one issue a plain `Refs: #<n>` line names as the spec of a pull request that closes no issue, by the same rule the pr-merge gate reads (`refsIssue`, kept equal to `babysit_merge_policy.refs_issue` by `test_verify_rules_sync.py`), and marks each spec entry's `spec_kind` (`closes`, `refs` or `pull-request`), which the verdict records as `spec_kind`. The verifier judges a `Refs:` issue as a partial slice (owner decision 2026-10-23): only the part the pull request body says it delivers, in the issue's scope, correct and coherent, with the body naming what remains; a body naming no delivered part or no remaining work, or claiming the whole issue, fails. Closing issues are still judged whole, and the spec trust rules are unchanged.
+- A `Refs: #<n>` whose number names no issue or pull request (GitHub's NOT_FOUND) gives the resolver no linked issue instead of failing the run; the resolver reads the `Refs:` issue with a GitHub helper that keeps GraphQL errors, so the default helper's throw on any `errors` never reaches it, and an answer with no repository, or a null issue without that NOT_FOUND, fails the read. work-resolve-issue's report-outcome no longer puts the human-gated label and a refs-hold comment on the issue of a `Refs:` pull request it opens, since the merge lane now merges a plain `Refs:` pull request; work-unblock still lifts a hold set before.
+
+## [4.12.3] - 2026-10-23
+
+### Changed
+
+- API budget logging reads the rate limit from each job's own responses. It no longer reads `GET /rate_limit`, which reports a different bucket from the one the job spends. `.github/actions/log-api-budget` holds three parts:
+  - `api-budget.bash`: a `gh` wrapper and the notice
+  - `api-budget.mjs`: the fetch side
+  - an end-of-job emitter
+- Each named token gets one notice for its last reading and one for each refused (403/429) reading: `token=<name> workflow=<path> job=<id> run=<id> attempt=<n> limit= remaining= used= reset=<epoch> resource= cost=<N or na>`. `cost` is how much `used` rose since the first reading with the same reset.
+- Where the notices come from:
+  - `ci-status` wraps its own `gh api` reads and writes its notice before the aggregate step.
+  - pr-merge's merge job reads through the babysit gh seam.
+  - The pr-feedback-dispatch and pr-unblock-dispatch jobs read through `request-budget.mjs`.
+  - Those three jobs write their notices from their existing end steps.
+- The start-of-job `/rate_limit` steps are gone, including those in work-unblock, intake-triage and pr-run-activity-write.
+- The lanes App token is now named `lanes-app` (it was `lane`). The monitor-signals ceiling reads both names and both notice shapes.
+
+- `pr-feedback-dispatch.yml`'s `rerun-ci-status` re-runs a head's ci-status once, after the last review lane finishes, instead of once per lane: while the other lane's newest run on the head is still going it stops after one read, since ci-status would still be red and that lane's completion starts the job again. A head with no run of the other lane re-runs on one lane. A ci-status that started after both lanes finished, or a re-run already queued, is left alone. The job list is read once, and each 60-second poll reads only the run. A read refused by the token's primary rate limit (403 or 429) waits `retry-after` seconds, else, with `x-ratelimit-remaining: 0`, until one second past `x-ratelimit-reset` inside the same 10-minute cap instead of failing; a reset past the cap fails the job with an error naming the reset, since nothing else re-runs a ci-status left stale.
+
+## [4.12.2] - 2026-10-23
+
+### Fixed
+
+- Native auto-merge of a lanes App pull request now needs the verifier verdict pr-merge's gate needs. `enable-auto-merge.mjs` arms, and keeps armed, only when pr-merge's gate reader refuses nothing at the head it read (a pr-verify pass, no FAIL at the head, FAILs under `merge.max-verify-fails`, an unchanged trusted spec), and only on its scheduled or hand-started run; event runs never arm. `ci-status` turns an armed lanes App pull request's auto-merge off on each push to its head. In the merge queue, `ci-status` requires a pass or pass-notes artifact at the queued head from a successful pr-verify run on main; a trusted approval of the head lifts it. Pull request events read no verdict, since pr-verify runs only after a green pull request run.
+
+## [4.12.1] - 2026-10-23
+
+### Changed
+
+- pr-verify names a FAIL verdict's artifact with `-i` and the issues its verdict records, ascending and joined by dots (`write-verdict.mjs` `artifactName`), so the pr-merge gate counts it toward each issue's repeated-fail cap from the artifact listing alone. PASS and PASS-NOTES names are unchanged. The writer checks every name against the readers' pattern (`NAME`, now kept in `write-verdict.mjs` and re-exported by `resolve-pr.mjs`) and fails the job before upload on one no reader takes. The resolver checks the names without issues first and skips a head judged under one without reading the linked issues; only then does it read them, which the spec needs anyway, and look up its own FAIL under the `-i` name; a FAIL another pull request left at the same head is still missed and that head judged again, at the cost of a run, and so is this pull request's own FAIL once a body edit changes its linked issues at the same head, one run per change of the issue set; neither changes the gate's decision, since the earlier FAIL stays tied and refuses the head. A FAIL whose issues no name carries (more than 10, or a number over 10 digits) keeps the plain name with a warning, and the resolver never looks such a name up, so that pull request is still judged.
+
+- pr-merge carries the `pr-merge-dispatched-<id>` and `pr-merge-rerun-<id>-attempt-2` records the post-merge check proved from one run to the next as the `pr-merge-lane-records` artifact (`.github/scripts/pr-merge/lane-records.mjs`), so the check stops listing each record and reading the run that uploaded it on every run. Before each post-merge check, in the `merge` job and in `post-merge-dispatch`, a step reads the file from the newest scheduled or hand-started `pr-merge.yml` run on main other than itself whose head commit is on main, found the way the gate cursor and the head-ref map are; the check steps, the `--remediate` step and the gate step name it in `BABYSIT_POSTMERGE_LANE_RECORDS`. After the gate a scheduled or hand-started `merge` job uploads the records the checks read in and proved, while unexpired and still listed by the run's artifact listing under the record's name and sender run; the read step removes any file already at its path first; with no listing file (no candidates, or a listing the run could not read), unexpired records are carried as they are and pruned on the next run that saves a listing; a listing file that exists but cannot be parsed uploads nothing, and the next run reads an older file. Only a run's own steps can upload its artifacts, and the file never passes through `actions/cache`. Any failure leaves no file, and the check reads each record as before. Permissions are unchanged.
+
+## [4.12.0] - 2026-10-23
+
+### Changed
+
+- `merge.lane-prs` (default `native`) leaves the lanes App's pull requests to GitHub's native auto-merge: pr-merge's `merge` job no longer lists them, so its gate never scores, escalates or enqueues one. Adopted owner pull requests and Dependabot's are gated as before. `gate` restores the earlier listing, and this repository sets it until `ci-status` or `enable-auto-merge` enforces the pr-verify verdict and the post-merge check judges native merges ([README.md, Native auto-merge](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#native-auto-merge)).
+
+### Removed
+
+- `merge.read-token-floor` and the pr-merge gate's switch to the lane App token. The gate's review-evidence reads (timeline, comments, review-lane runs with their attempts, jobs and annotations) stay on `GITHUB_TOKEN` whatever its budget, since GitHub's [Terms of Service](https://docs.github.com/en/site-policy/github-terms/github-terms-of-service) section H bars sharing tokens to exceed its rate limits ([owner decision](https://github.com/melodic-software/claude-code-plugins/issues/9297#issuecomment-6368281689)). A read refused for a rate limit is made once and not retried: the candidate's lanes read `evidence-missing` and it holds until a later run reads again. **Breaking:** `merge.read-token-floor` is gone from the schema, so a `pr-pipeline.yaml` that still sets it fails validation; delete the key.
+
+### Fixed
+
+- `work-resolve-issue` no longer resumes an earlier run's lane branch that is behind the default branch. Such a branch carried its stale base into the runner's whole-branch checks, which failed and handed the issue to a person with no pull request. The run now starts fresh from the default branch under a new lane branch and leaves the old one in place. `issue-prior` reads `behind_by` from the compare call it already makes, and fails the step when that value is not a whole number. The outcome comments say a restart continues from the branch only while it is not behind.
+
+## [4.11.1] - 2026-10-23
+
+### Changed
+
+- The verifier-notes poster (`verify-notes.mjs`) and `pr-feedback-dispatch.yml`'s FAIL filter accept a FAIL artifact name that ends with `-i` and the issues the verdict records, ascending, each once, joined by dots, so `write-verdict.mjs` can start writing them later. `pr-feedback-dispatch.yml` fails its run on a FAIL-shaped name no reader takes rather than skipping it, and anchors its filter at the true end of the name; the notes poster refuses a name whose issues are not the ones its verdict JSON records. The resolver's name pattern (`resolve-pr.mjs` `NAME`, checked by `isVerdictName`) follows the same grammar, though its already-judged lookup still builds exact names and finds an issue-named FAIL only once the writer change teaches it to. `test_verify_rules_sync.py` checks that the gate, the resolver's pattern (`isVerdictName`; it does not exercise `judged()`), the notes poster and the workflow filter accept the same names, with the same 10-digit pull request bound and 194-character limit.
+
+## [4.11.0] - 2026-10-23
+
+### Changed
+
+- `address-feedback` may fix a finding in any file the pull request already changes that the gated head holds, not only in the thread's own scope. The select job writes the PR's files, rename sources included, as `pr_paths` in the thread file and `run.json`, less `.github/workflows/`, `.gitmodules`, `CODEOWNERS`, `settings*.json`, package manifests, `requirements*.txt`, anything under `.github/`, `CLAUDE.md`, `AGENTS.md`, `.mcp.json`, `.lsp.json`, a `.claude` or `.claude-plugin` directory and a plugin's `hooks/`, `monitors/` and `bin/`. `apply-patch.mjs`'s `kept-threads` rule and the reply job admit them, and only as changes to an existing file: a file the fix creates keeps the old scope. A `VALID` fix commit lands when it changes the thread's path or a `pr_paths` file at a line the reply's evidence cites inside one of its hunks. Every apply-patch refusal still applies.
+
+## [4.10.2] - 2026-10-23
+
+### Fixed
+
+- A `resolve-conflicts` round whose scan refused the model's output (a leak-scan block or an oversize patch) now escalates `unresolved-conflict` instead of ending with a failed leg and no escalation. The new `conflict-scan-refusal` job in [`pr-unblock.yml`](https://github.com/melodic-software/claude-code-plugins/blob/main/.github/workflows/pr-unblock.yml) runs when the answering leg handed on no patch state, downloads the read runner's scan-refusal markers by name, never a job output, and reads them with `scanRefusal` through [`conflict-scan-refusal.mjs`](https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/pr-unblock/conflict-scan-refusal.mjs); `report-escalation` and `report-conflict-status` take its reason. No marker escalates nothing ([#9391](https://github.com/melodic-software/claude-code-plugins/issues/9391)).
+
+## [4.10.1] - 2026-10-23
+
+### Changed
+
+- `pr-review-hosted.yml` and `pr-review-security-hosted.yml` call ci-workflows' [`pr-review-cli.yml`](https://github.com/melodic-software/ci-workflows/blob/6d6cb798e7cb7560a0f9327d8a22398961c23b31/.github/workflows/pr-review-cli.yml) v0.64.2, which spends fewer job-token API requests per run ([ci-workflows#869](https://github.com/melodic-software/ci-workflows/pull/869)). It reads the pull request's file list once instead of three times and pulls.get twice instead of three times, and the publish gate now comes through git. A whole review with an inline comment drops from 15 requests to 8. Check names, the marker comment, the review-complete notice and holds are unchanged.
+
+- The pr-merge lane token carries no Actions permission: `merge-pr`'s `activity-grants` row is gone, and a test pins that no live slot resolves an actions permission. The verdict downloads, the artifact listing, the run records and the compares stay on `GITHUB_TOKEN`, and nothing is built to fall back from them to the lane token.
+
 ## [4.10.0] - 2026-10-23
 
 ### Added

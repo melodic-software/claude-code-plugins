@@ -47,28 +47,38 @@ scratch_dir=${FEEDBACK_SCRATCH:-} workspace=${FEEDBACK_WORKSPACE:-}
 # Not under .github/workflows/ in any letter case, with no empty, . or .. segment, of
 # plain ASCII segments, and in a kept thread's scope: its path, a file in the
 # plugins/<p>/ directory it sits in that is no instruction path (.gitmodules,
-# CODEOWNERS, a settings*.json, a package manifest or lockfile) and no script
-# or code file, a test file in its directory, or a path in its named_paths
+# CODEOWNERS, a settings*.json, a package manifest or lockfile), no control
+# surface (CLAUDE.md, AGENTS.md, .mcp.json, .lsp.json, .claude-plugin/, hooks/,
+# monitors/, bin/) and no script or code file, a test file in its directory, or a path in its named_paths
 # (the files a write-access fix request named) in that same plugins/<p>/
-# directory that is no instruction path. The same rule as
+# directory that is no instruction path; or, when the gated head holds it as a
+# regular file, a file in the thread file's pr_paths (the files the pull request already
+# changes, which the select job already held to thread-scope.mjs's
+# prPathsOf). The same rule as
 # .github/scripts/pr-unblock/thread-scope.mjs, which the promote step and
 # the reply job apply.
 allowed() {
+  local tracked=false mode
+  # A regular or executable file at the gated head: no new file, symbolic link or gitlink.
+  mode=$(git_tree ls-tree HEAD -- "$1" 2>/dev/null | cut -d' ' -f1) || mode=""
+  [[ $mode == 100644 || $mode == 100755 ]] && tracked=true
   [[ ! ${1,,} =~ ^\.github/workflows(/|$) && ! $1 =~ (^|/)\.{0,2}(/|$) ]] &&
-    jq -e --arg p "$1" '
+    jq -e --arg p "$1" --argjson tracked "$tracked" '
       def dir: sub("[^/]*$"; "");
       def plugin: first(capture("^(?<c>plugins/[^/]+/)").c) // null;
       ($p | test("^[A-Za-z0-9_@+.-]+(/[A-Za-z0-9_@+.-]+)*$")) as $plain
       | ($p | test("(^|/)(\\.gitmodules|codeowners|settings[^/]*\\.json|package(-lock)?\\.json|requirements[^/]*\\.txt)$"; "i")) as $instruction
-      | (if $instruction or ($p | test("\\.(sh|bash|zsh|ps1|py|mjs|cjs|js|ts|mts|cts)$"; "i"))
+      | ($p | test("^\\.github/|(^|/)(CLAUDE\\.md|AGENTS\\.md|\\.mcp\\.json|\\.lsp\\.json)$|(^|/)\\.claude(-plugin)?/|^plugins/[^/]+/(hooks|monitors|bin)/"; "i")) as $control
+      | (if $instruction or $control or ($p | test("\\.(sh|bash|zsh|ps1|py|mjs|cjs|js|ts|mts|cts)$"; "i"))
          then null else $p | plugin end) as $plugin
       | ($p | sub("^.*/"; "") | test("^(test_[^/]*\\.py|[^/]*_test\\.py|[^/]*\\.(test|spec)\\.[^/]+)$")) as $test
       | (if $instruction then null else $p | plugin end) as $named
-      | $plain and any(.threads[]; .path as $t
+      | ($tracked and any(.pr_paths[]?; . == $p)) as $pr
+      | $plain and ($pr or any(.threads[]; .path as $t
           | $t == $p
           or ($plugin != null and ($t | startswith($plugin)))
           or ($test and ($t | dir) == ($p | dir))
-          or ($named != null and ($t | plugin) == $named and any(.named_paths[]?; . == $p)))' "$threads_file" >/dev/null
+          or ($named != null and ($t | plugin) == $named and any(.named_paths[]?; . == $p))))' "$threads_file" >/dev/null
 }
 
 # git in the checkout with no system, global, hook, fsmonitor or untracked
@@ -171,6 +181,8 @@ cmd_record() {
     mapfile -d '' -t untracked < <(git_tree ls-files --others --exclude-standard -z)
     wait "$!" || die 1 "cannot read the working tree's untracked files"
     for path in "${untracked[@]}"; do
+      # The lane's sandbox masks a dotfile with /dev/null, a device git will not add.
+      [[ -L $workspace/$path || ! -c $workspace/$path ]] || continue
       is_stub "$path" || paths+=("$path")
     done
     ((${#paths[@]} < 300)) || die 1 "the working tree changes too many files to check"
