@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.24.2] - 2026-10-24
+
+### Added
+
+- The skill criteria's Body section gains a bullet on choosing leading words on purpose: prefer a term the model already holds, and keep it only when a `/evals:plugin-eval --baseline` comparison shows it moves behavior. Source: Matt Pocock's `writing-for-agents`.
+
 ## [0.24.1] - 2026-10-22
 
 ### Fixed

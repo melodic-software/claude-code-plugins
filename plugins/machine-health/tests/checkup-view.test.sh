@@ -189,6 +189,7 @@ check("latest.json that is not JSON exits 1",
 // Headless browser over the DevTools protocol.
 const profile = `${work}/profile`;
 const browser = spawn(chrome, ["--headless=new", "--no-sandbox", "--disable-gpu", "--no-first-run", "--remote-debugging-port=0", `--user-data-dir=${profile}`, "about:blank"], { stdio: "ignore" });
+const exited = new Promise((resolve) => browser.once("exit", resolve));
 const deadline = Date.now() + 60000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const portFile = `${profile}/DevToolsActivePort`;
@@ -259,9 +260,19 @@ if (shots) {
   }
 }
 
-await send("Browser.close").catch(() => {});
+// Wait for the browser process to exit, not for a reply: Chrome can drop the socket before it
+// answers Browser.close, and a browser still shutting down writes into the profile the EXIT
+// trap removes.
+socket.send(JSON.stringify({ id: ++seq, method: "Browser.close" }));
+let timer;
+const closed = await Promise.race([exited.then(() => true), new Promise((resolve) => { timer = setTimeout(resolve, 10000, false); })]);
+clearTimeout(timer);
+if (!closed) {
+  browser.kill("SIGKILL");
+  await exited;
+}
 socket.close();
-browser.kill();
+check("browser: the browser exits before its profile is removed", browser.exitCode !== null || browser.signalCode !== null);
 
 if (failed) {
   console.error(`${failed} check(s) failed`);

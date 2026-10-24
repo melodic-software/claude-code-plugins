@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.3] - 2026-10-24
+
+### Fixed
+
+- The Dependabot classifier (`babysit_dependabot.py`) now reads a security update's version jump from its own verified commit subject when the commit metadata names the package and version but carries no `update-type`, so a patch such as `fast-uri` 3.1.8 to 3.1.9 is no longer held as an unreadable version. The subject must open with `Bump <name> from <a> to <b>` for the same package and version; the editable PR title is never read for it, and a group subject, a missing metadata version or an unreadable subject version still holds.
+
 ## [3.0.2] - 2026-10-24
 
 ### Fixed
