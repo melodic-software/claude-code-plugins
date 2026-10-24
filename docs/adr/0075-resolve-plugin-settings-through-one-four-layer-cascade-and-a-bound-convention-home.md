@@ -1,6 +1,6 @@
 # Resolve plugin settings through one four-layer cascade and a bound convention home
 
-- Status: accepted
+- Status: accepted; amended 2026-10-24 (the convention-home bullet on always-loaded content, see the amendment below)
 - Date: 2026-10-18
 - Supersedes: [ADR 0061](0061-adopt-a-five-layer-plugin-config-cascade-read-through-one-shared-resolver.md)
   for its layers and paths (the five-layer list, the user-global `~/docs/conventions/` layer and its
@@ -94,7 +94,8 @@ and it settles #7104 item 1 against ADR 0061's "lower layer keeps the key".
 - YAML never goes under `.claude/`. There are no plugin-specific convention files and no
   `.work-item-tracker.json`.
 - Guidance reaches consumers through the settings cascade. A setup action offers to write the
-  convention files, and nothing is always-loaded.
+  convention files. Nothing is always-loaded, except the one evidence-gated trigger line the
+  amendment below allows.
 
 ### Superseded and kept decisions
 
@@ -167,3 +168,29 @@ context". The values land with the threads that use them.
   they land, a surface that still reads `~/.claude/<name>` or a `.claude/` overlay is a declared
   deviation from this contract, not a conformant one.
 - #6594's fixed-YAML-path proposal is overruled by fix 3.
+
+## Amendment (2026-10-24): one evidence-gated trigger line per plugin
+
+The owner decided on 2026-10-24 (Q98, [#6594](https://github.com/melodic-software/claude-code-plugins/issues/6594))
+that a plugin's setup may add one trigger line to the always-loaded root `AGENTS.md`, only with
+stumble evidence that the plugin needs it. This replaces "nothing is always-loaded" in the convention
+home section, and the same wording in the
+[config-cascade contract](../conventions/config-cascade/README.md).
+
+- **Where.** One line per plugin, inside the shared
+  `<!-- BEGIN GENERATED: plugin-conventions -->` block of the root `AGENTS.md`. A plugin's setup owns
+  its own line and no other byte of the block or the file.
+- **How.** The plugin's setup writes the line after the operator confirms it. A plugin never writes it
+  unasked.
+- **What it names.** Only model-invokable skills. A skill with `disable-model-invocation: true` is
+  not named, because the model cannot start it.
+- **When.** Only with that plugin's own stumble evidence: the same failure seen more than once
+  against the current model, named where the line is added (`docs/plugin-philosophy.md`, Instruction
+  economy). Another plugin's evidence does not carry over, and anticipation is not evidence.
+- **Shipped form.** The `developer-experience` block
+  (`plugins/developer-experience/skills/setup/scripts/pointer-line.sh`) is kept as the form
+  that ships, and the owner doc
+  ([setup lifecycle](../conventions/setup-lifecycle/README.md)) records the rule.
+
+The rest of the convention home section stands: topic conventions still live at the home and load on
+demand, and the user-global file layer stays retired (fix 9).
