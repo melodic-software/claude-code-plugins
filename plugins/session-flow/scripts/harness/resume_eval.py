@@ -982,7 +982,7 @@ def make_judge(cfg: RunConfig, workdir: Path, votes: int = 3):
         prompt = JUDGE_PROMPT.format(question=question, criteria=criteria, answer=answer)
         passes = 0
         for _ in range(votes):
-            cmd = ["claude", "-p", "--model", MODEL_ID, "--tools", "", "--strict-mcp-config", "--output-format", "json", prompt]
+            cmd = ["claude", "-p", "--model", MODEL_ID, "--tools", "", "--strict-mcp-config", "--no-session-persistence", "--output-format", "json", prompt]
             code, out, _err = call(cmd, str(workdir), env)
             try:
                 verdict = str(json.loads(out).get("result", "")).strip().upper()
