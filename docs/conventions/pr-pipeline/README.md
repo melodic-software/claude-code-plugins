@@ -1805,12 +1805,15 @@ labels an issue `agent-ready`, so nothing it files starts work. Its scripts and 
   `quote` from main.
 - **file**, a script with no model and `issues: write`, drops a finding whose slice is not its
   unit's, whose workflow is not its A or D unit's, or whose job is not among the jobs its unit's data
-  lists (when it lists any), or when any quote is not on its line in the run's main commit, then
-  de-duplicates it by fingerprint: a hash of the slice, workflow, job and the error signature with
-  numbers, SHAs and times removed, kept as the last line of the issue body. An open match gets a "seen again" comment; a match closed as not planned or duplicate
-  is skipped; any other closed match, whatever its age, is reopened with a comment carrying the
-  checked claims. A finding whose
-  `covered_by` names an open item is skipped. It files at most 5 issues a run, labeled
+  lists, or when any quote is not on its line in the run's main commit, then de-duplicates it by
+  fingerprint: a hash of the slice, workflow, job and the error signature with numbers, SHAs and
+  times removed, kept as the last line of the issue body. A unit whose data lists no jobs (a C unit,
+  a D unit with no green run, an A unit whose runs list no failed job) leaves the job unbound. The
+  signature is free text in every slice, so binding does not stop a steered judge minting fresh
+  fingerprints; the per-run filing cap limits them. An open match gets a "seen again" comment; a
+  match closed as not planned or duplicate is skipped; any other closed match, whatever its age, is
+  reopened with a comment carrying the checked claims. A finding whose `covered_by` names an open
+  item is skipped. It files at most 5 issues a run, labeled
   `needs-triage` and `source: lane-sweep` where those labels exist, writes 1 s apart, and stops at 50
   calls.
 
