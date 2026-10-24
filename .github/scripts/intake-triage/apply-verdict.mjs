@@ -404,11 +404,13 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
       );
     }
   }
+  // Before any label: a failed edge write leaves the labels as they were,
+  // never `status: ready` without admission. A re-run skips edges written.
+  const edges = verdict.blockedBy.length > 0 ? await writeEdges({ github, repository, number, blockers: verdict.blockedBy }) : null;
   const floor = plan.remove.filter((name) => name === NEEDS_TRIAGE);
   await removeLabels(github, base, plan.remove.filter((name) => name !== NEEDS_TRIAGE));
   await addLabels(github, base, plan.add);
   await removeLabels(github, base, floor);
-  const edges = verdict.blockedBy.length > 0 ? await writeEdges({ github, repository, number, blockers: verdict.blockedBy }) : null;
   // Before the reword: whether the App may edit github-actions[bot]'s
   // comment is unproven, and a refused edit must not stop admission. An
   // admission error stops neither the reword nor the summary; the caller

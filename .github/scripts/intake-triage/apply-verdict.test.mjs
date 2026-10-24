@@ -1050,6 +1050,23 @@ describe("run", () => {
     assert.ok(result.summary.includes("- Blocked by: #12 written; #13 skipped (not open)"), result.summary);
   });
 
+  test("an edge write that fails leaves the issue's labels as they were", async () => {
+    const fake = fakeGitHub({
+      comments: [
+        laneComment(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", "Blocked by: #12"] })),
+      ],
+      blockers: { 12: { id: 9012, number: 12, state: "open", repository_url: "https://api.github.com/repos/o/r" } },
+    });
+    const github = async (method, path, body) => {
+      if (method === "POST" && path.endsWith("/dependencies/blocked_by")) {
+        throw new GitHubError(500, "POST");
+      }
+      return fake.github(method, path, body);
+    };
+    await assert.rejects(run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, log: () => {} }));
+    assert.ok(!fake.calls.some(({ method, path }) => method !== "GET" && path.includes("/labels")));
+  });
+
   test("an escalated verdict writes no edge", async () => {
     const fake = fakeGitHub({ comments: [laneComment(`${ESCALATED_BODY}\nBlocked by: #12`)] });
     await go(fake);
