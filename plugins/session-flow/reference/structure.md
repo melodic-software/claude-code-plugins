@@ -98,7 +98,8 @@ What the writer owns, since no script can judge it:
 - **Over the size cap, move non-core content out.** `validate` names the cap. The core (Original
   goal, Direction changes, Resumption brief, Current rules, Standing preferences) never moves;
   shorten the other sections, appending what they drop to this hop's file. A core alone over the
-  cap still emits, marked UNVALIDATED.
+  cap still emits, marked UNVALIDATED, until the file passes the Read page cap (25,000 tokens'
+  worth); past that, `validate` fails whatever the core holds.
 
 **From shape 2.** The first shape-3 hop of a shape-2 chain reads the predecessor as usual: its
 cumulative sections, every Prior-sessions row and its other sections land in that hop's file

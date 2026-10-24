@@ -1436,7 +1436,14 @@ def build_base(repo_root: Path, root: Path, cfg: RunConfig) -> Path:
         dict(os.environ), tmpdir=cfg.tmpdir, stub_bin=str(root), gh_config=str(root)
     )
     code, out, err = call(
-        ["bash", "-c", f"git -C {repo_root} archive HEAD | tar -x -C {base}"],
+        [
+            "bash",
+            "-c",
+            'set -o pipefail; git -C "$1" archive HEAD | tar -x -C "$2"',
+            "bash",
+            str(repo_root),
+            str(base),
+        ],
         str(root),
         env,
     )

@@ -2461,6 +2461,9 @@ SID_E = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"
 HOP4 = "20260904T100000Z-handoff-widget.md"
 HOP5 = "20260905T100000Z-handoff-widget.md"
 HOT_CAP = 24_600
+# The Read tool's 25,000-token page cap at 2.34 bytes per token (#9238 asks for a
+# FAIL above it).
+READ_CAP = 58_500
 # The Brief's hot-file content list in its written order, `Original goal` first and
 # `## Resume prompt` last (PLAN.md "Hot file and archive"): an external contract.
 SHAPE3_SECTIONS = [
@@ -2667,6 +2670,19 @@ def test_shape3_core_alone_over_the_cap_is_unvalidated_and_still_emits(tmp_path)
     assert emitted.returncode == 0, err(emitted)
     assert out(emitted) == _section_body(hop1, "Resume prompt")
     assert "UNVALIDATED" in err(emitted)
+
+
+def test_shape3_hot_file_over_the_read_cap_fails_even_when_its_core_is_too_large(
+    tmp_path,
+):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path, values={"rules": "- [R1] " + "y" * READ_CAP})
+    assert len(hop1.read_bytes()) > READ_CAP
+    result = strict(hop1)
+    assert result.returncode == 1, out(result)
+    assert f"FAIL: size: {len(hop1.read_bytes())} bytes" in out(result), out(result)
+    assert f"{READ_CAP}-byte Read page cap" in out(result), out(result)
+    assert "UNVALIDATED" not in out(result), out(result)
 
 
 def test_shape3_goal_must_start_with_the_predecessors_section_byte_for_byte(tmp_path):

@@ -19,7 +19,8 @@ uses, against a fake runner that writes a synthetic transcript and result JSON
 while calling the real `save_point.py new` / `emit` / `validate`. `--budget`
 generates a 20-hop chain through `new` with deterministic filler sized from the
 shape-1 corpus median, cumulative entries sized to the audited per-hop growth,
-and reports the size at hops 1, 5, and 20 and the median growth per hop.
+and reports the size at hops 1, 5, and 20 and the median growth per hop; its
+shape-3 projection runs to the longest audited chain's 56 hops.
 
 Stdlib only; Python 3.10+. Every file is opened UTF-8 and every subprocess runs
 with `text=True, encoding="utf-8"`.
@@ -138,6 +139,10 @@ SHAPE1_MEDIAN_LINES = 154
 SHAPE1_MEDIAN_TOKENS = 3200
 BUDGET_HOPS = 20
 BUDGET_REPORT_HOPS = (1, 5, 20)
+# The longest audited chain has 56 hops; the shape-3 projection checks the hot
+# file against its cap that far.
+SHAPE3_BUDGET_HOPS = 56
+SHAPE3_REPORT_HOPS = (1, 5, 20, 56)
 ATTESTATION_CHECK_HOPS = 9
 ATTESTATION_MARK = "Re-scan"
 CUMULATIVE_ENTRIES_PER_HOP = 2
@@ -1295,14 +1300,14 @@ def cmd_budget(cfg: argparse.Namespace) -> int:
             return 1
         from save_point import HOT_FILE_MAX_BYTES
 
-        hot = generate_chain(root / "shape3", BUDGET_HOPS, shape=3)
+        hot = generate_chain(root / "shape3", SHAPE3_BUDGET_HOPS, shape=3)
         hot_sizes = [len(path.read_bytes()) for path in hot]
         print(f"shape 3: {len(hot)} hot files validate strictly")
-        for hop in BUDGET_REPORT_HOPS:
+        for hop in SHAPE3_REPORT_HOPS:
             print(f"{hop}\t{hot_sizes[hop - 1]} bytes\tshape-3 hot file")
         if max(hot_sizes) > HOT_FILE_MAX_BYTES:
             print(
-                f"budget: a projected shape-3 hot file reaches {max(hot_sizes)} bytes by hop {BUDGET_HOPS}, over the {HOT_FILE_MAX_BYTES}-byte cap",
+                f"budget: a projected shape-3 hot file reaches {max(hot_sizes)} bytes by hop {SHAPE3_BUDGET_HOPS}, over the {HOT_FILE_MAX_BYTES}-byte cap",
                 file=sys.stderr,
             )
             return 1

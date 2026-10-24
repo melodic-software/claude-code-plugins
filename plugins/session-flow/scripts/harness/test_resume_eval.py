@@ -1001,6 +1001,29 @@ def test_removing_one_run_leaves_runs_whose_index_shares_its_prefix(tmp_path):
     assert sorted(p.name for p in arm.iterdir()) == ["10", "10-codex", "11", "2"]
 
 
+def test_base_snapshot_takes_paths_with_spaces_and_shell_metacharacters(
+    tmp_path, monkeypatch
+):
+    import subprocess
+
+    for key in ("GIT_AUTHOR", "GIT_COMMITTER"):
+        monkeypatch.setenv(f"{key}_NAME", "eval")
+        monkeypatch.setenv(f"{key}_EMAIL", "eval@example.invalid")
+    repo = tmp_path / "src dir;touch PWNED-1"
+    repo.mkdir()
+    (repo / "kept.txt").write_text("kept\n", encoding="utf-8")
+    for args in (["init", "-q"], ["add", "-A"], ["commit", "-q", "-m", "seed"]):
+        subprocess.run(["git", "-C", str(repo), *args], check=True)
+    root = tmp_path / "eval root $(touch PWNED-2)"
+    root.mkdir()
+    cfg = resume_eval.RunConfig(
+        root=root, tmpdir=str(tmp_path), copies={}, codex_model="unused"
+    )
+    base = resume_eval.build_base(repo, root, cfg)
+    assert (base / "kept.txt").read_text(encoding="utf-8") == "kept\n"
+    assert not list(tmp_path.rglob("PWNED-*"))
+
+
 def test_writer_tokens_count_the_whole_writer_run_past_its_writes():
     def call(msg_id, tokens, *blocks):
         usage = {key: tokens for key in resume_eval.TOKEN_KEYS}

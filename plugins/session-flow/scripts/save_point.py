@@ -132,6 +132,11 @@ ARCHIVE_TYPE = "handoff-archive"
 # 2.34-2.52; the handoff-efficiency audit of 274 handoffs, 2026-10). PROVISIONAL,
 # not eval-set: the eval that was to choose 5K, 10K or 20K tokens was not run.
 HOT_FILE_MAX_BYTES = 24_600
+# The Read tool's page cap, 25,000 tokens ("cap 25000" in its truncation banner),
+# at the lowest audited density above (2.34 bytes per token), so no audited file
+# under it overflows one Read. A hot file over it FAILs even when its core alone
+# passes the hot-file cap: the core's UNVALIDATED pass ends here.
+READ_CAP_BYTES = 58_500
 # GitHub state claims in a shape-3 hot file (validate WARNs): an issue or pull
 # request reference beside a state word, either order. The hot file lists the
 # command that re-reads the state instead.
@@ -1482,7 +1487,11 @@ def _validate_shape3(
     _check_prior_rows_3(doc, f, previous, pred, rel, archived, report)
 
     size, core = _cap_state(doc)
-    if size > HOT_FILE_MAX_BYTES:
+    if size > READ_CAP_BYTES:
+        f.fail(
+            f"size: {size} bytes is over the {READ_CAP_BYTES}-byte Read page cap, so one Read cannot hold this file; move non-core content into {rel} (the core holds {core} bytes)"
+        )
+    elif size > HOT_FILE_MAX_BYTES:
         if core > HOT_FILE_MAX_BYTES:
             f.unvalidated = True
             f.warn(
