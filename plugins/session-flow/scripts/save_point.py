@@ -2352,8 +2352,13 @@ def hop_file_text(
 
 
 def _next_rule_id(pred: Doc | None) -> int:
-    ids = [rid for rid, _, _ in _rule_entries(pred)] if pred is not None else []
-    return max([rid for rid in ids if rid is not None], default=0) + 1
+    """The first rule id this hop may assign. Monotonic along the chain: the
+    predecessor's own `next_rule_id` floor, so an id retired from the hot file
+    is never offered again, and one past every id the predecessor holds."""
+    if pred is None or pred.shape != 3:
+        return 1
+    ids = [rid for rid, _, _ in _rule_entries(pred) if rid is not None]
+    return max(_fm_int(pred, "next_rule_id") or 1, max(ids, default=0) + 1)
 
 
 def build_skeleton_3(
@@ -2371,6 +2376,7 @@ def build_skeleton_3(
     root, hop, start = _chain_position(pred, target.name)
     hop_rel = hop_file_path(Path(), root, hop, session_id).as_posix()
     carried = pred is not None and pred.shape == 3
+    next_id = _next_rule_id(pred)
     fm = [
         "---",
         "type: handoff",
@@ -2387,6 +2393,7 @@ def build_skeleton_3(
         f"hop: {hop}",
         f"archive: {ARCHIVE_DIR}/{_stem(root)}/",
         f"archive_from: {start}",
+        f"next_rule_id: {next_id}",
         f"repo: {origin}",
         "---",
     ]
@@ -2509,7 +2516,6 @@ def build_skeleton_3(
     ):
         section(title, [slot(name, instruction)])
 
-    next_id = _next_rule_id(pred if carried else None)
     rule_line = f"one per line, '- [R<n>] <the rule's current text, verbatim>', new ids from R{next_id}; a rule binding beyond this chain's goal goes under Standing preferences"
     if carried:
         rules = [

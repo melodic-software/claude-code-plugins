@@ -756,6 +756,7 @@ chain_root: <root-filename>.md            # replaces chain:
 hop: <N>                                  # counted from the chain root, every shape included
 archive: archive/<chain-root-stem>/       # relative to the handoffs directory
 archive_from: <M>                         # first shape-3 hop; hop files exist from M on
+next_rule_id: <K>                         # first [R<n>] id this hop may assign; never lowered
 repo: <the Handoff origin: line's first slot>
 ---
 ```

@@ -3030,3 +3030,18 @@ def test_shape2_to_3_new_refuses_a_chain_entry_that_leaves_the_archive(tmp_path)
     made = _new_in(handoffs, tmp_path, handoffs / HOP3, SID_D, "2026-09-10T10:00:00Z")
     assert made.returncode == 1, err(made)
     assert sorted(p.as_posix() for p in tmp_path.rglob("*")) == before
+
+
+def test_shape3_a_retired_rule_id_is_never_offered_again(tmp_path):
+    repo = make_repo(tmp_path)
+    hop1 = s3_hop(repo, tmp_path)
+    made = s3_new(repo, tmp_path, hop1, sid=SID_B, now="2026-09-02T10:00:00Z")
+    hop2 = Path(out(made).strip())
+    hop2.write_text(shape3_fill(hop2.read_text(encoding="utf-8")), encoding="utf-8", newline="\n")
+    edit(hop2, "- [R2] Never push to main.\n", "")
+    assert strict(hop2).returncode == 0, out(strict(hop2))
+    hop3 = s3_hop(repo, tmp_path, hop2, sid=SID_C, now="2026-09-03T10:00:00Z")
+    assert strict(hop3).returncode == 0, out(strict(hop3))
+    made = s3_new(repo, tmp_path, hop3, sid=SID_D, now="2026-09-04T10:00:00Z")
+    skeleton = Path(out(made).strip()).read_text(encoding="utf-8")
+    assert "new ids from R3" in slot_instructions(skeleton)["rules-new"]
