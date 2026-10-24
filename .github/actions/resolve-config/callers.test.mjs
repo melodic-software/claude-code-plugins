@@ -740,7 +740,7 @@ test("pr-run-activity-read.yml: an issue run on stale workflow files stops green
   assert.ok(index("base") < index("workflow-current"), "it reads the default branch checkout");
   assert.ok(index("workflow-current") < index("issue-prior"));
   assert.ok(index("workflow-current") < index("go"), "it runs before the run decides to start");
-  assert.ok(index("go") < index("act-skill"));
+  assert.ok(index("go") < index("act-key"));
   // Every step from the check to the decision runs only while no step failed.
   for (const step of steps.slice(index("workflow-current") + 1, index("go") + 1)) {
     assert.doesNotMatch(String(step.if ?? ""), /always\(\)|failure\(\)|!cancelled\(\)/, step.name);
@@ -835,18 +835,24 @@ test("pr-run-activity-read.yml: an issue run on stale workflow files stops green
   proceeds(runCheck(run, ""));
 });
 
-// The issue lane's model job holds no write token. resolve-issue
-// runs on the read runner, whose run job (the one that runs the model) gets
-// only the job's read-only GITHUB_TOKEN; the App token is minted only by the
-// apply job that commits the patch.
-test("work-resolve-issue.yml: the resolve-issue model job receives no App token and no write permission", () => {
+// The issue lane's model jobs hold no write token. resolve-issue and its
+// subscription call run on the read runner, whose run job (the one that runs
+// the model) gets only the job's read-only GITHUB_TOKEN; the App token is
+// minted only by the apply job that commits the patch. The first call holds
+// the issue lane's API key alone, the second its OAuth token alone.
+test("work-resolve-issue.yml: the resolve-issue model jobs receive no App token and no write permission", () => {
   const { jobs } = workflow("work-resolve-issue.yml");
-  const resolve = jobs["resolve-issue"];
-  assert.equal(resolve.uses, "./.github/workflows/pr-run-activity-read.yml");
-  assert.equal(resolve.with.activity, "resolve-issue");
-  assert.equal(resolve.with["output-mode"], undefined, "patch mode comes from the activity's applied-by");
-  assert.deepEqual(Object.keys(resolve.secrets), ["claude-code-oauth-token", "scan-carrier-private-key"], "only the issue lane's Claude credential, and the scan-carrier key by name");
-  assert.equal(resolve.secrets["claude-code-oauth-token"], "${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN }}");
+  for (const [id, input, secret] of [
+    ["resolve-issue", "claude-api-key", "ISSUE_LANE_CLAUDE_API_KEY"],
+    ["resolve-issue-subscription", "claude-code-oauth-token", "ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN"],
+  ]) {
+    const resolve = jobs[id];
+    assert.equal(resolve.uses, "./.github/workflows/pr-run-activity-read.yml", id);
+    assert.equal(resolve.with.activity, "resolve-issue", id);
+    assert.equal(resolve.with["output-mode"], undefined, "patch mode comes from the activity's applied-by");
+    assert.deepEqual(Object.keys(resolve.secrets), [input, "scan-carrier-private-key"], `${id}: only one of the issue lane's Claude credentials, and the scan-carrier key by name`);
+    assert.equal(resolve.secrets[input], `\${{ secrets.${secret} }}`, id);
+  }
 
   const read = workflow("pr-run-activity-read.yml");
   const run = read.jobs.run;
@@ -858,13 +864,14 @@ test("work-resolve-issue.yml: the resolve-issue model job receives no App token 
     assert.equal(step.with["persist-credentials"], false, `${step.name} leaves no git credential`);
     assert.equal(step.with.token, undefined, `${step.name} takes no token`);
   }
-  // The issue skill's step and the launcher steps each name one Claude
-  // secret, and nothing else is a secret.
+  // The launcher steps each name one Claude secret, and nothing else is a
+  // secret.
   const secrets = [...text.matchAll(/secrets\.([\w-]+)/g)].map((m) => m[1]);
   assert.deepEqual([...new Set(secrets)].sort(), ["claude-api-key", "claude-code-oauth-token"]);
-  const skill = run.steps.find((s) => s.id === "act-skill");
-  assert.deepEqual(stepSecrets(skill), ["claude-code-oauth-token"]);
-  assert.equal(skill.with.github_token, "${{ github.token }}", "the action gets the job's read-only token only");
+  for (const [id, secret] of [["act-key", "claude-api-key"], ["act-token", "claude-code-oauth-token"]]) {
+    assert.deepEqual(stepSecrets(run.steps.find((s) => s.id === id)), [secret], id);
+  }
+  assert.ok(!run.steps.some((s) => String(s.uses ?? "").startsWith("anthropics/claude-code-action@")), "no claude-code-action step");
   // No job of the read runner holds a write permission but the report job's
   // checks and issues and the broker-check job's id-token, none of which runs
   // the model.
@@ -881,7 +888,7 @@ test("work-resolve-issue.yml: apply-issue-patch commits the written patch from t
   const { jobs } = workflow("work-resolve-issue.yml");
   const apply = jobs["apply-issue-patch"];
   assert.equal(apply.uses, "./.github/workflows/pr-run-activity-write.yml");
-  assert.equal(apply.needs, "resolve-issue");
+  assert.deepEqual(apply.needs, ["resolve-issue", "resolve-issue-subscription"]);
   assert.equal(apply.with.activity, "apply-issue-patch");
   assert.equal(apply.with["patch-activity"], "resolve-issue");
   assert.equal(apply.secrets, undefined, "the apply job gets no Claude credential");
@@ -893,12 +900,26 @@ test("work-resolve-issue.yml: apply-issue-patch commits the written patch from t
     ["patch-resume-tip", "scan-resume-tip"],
     ["reply-attempt", "scan-reply-attempt"],
   ]) {
-    assert.equal(apply.with[input], `\${{ needs.resolve-issue.outputs.${output} }}`, input);
+    // The subscription call's when it ran, else the first call's.
+    for (const from of ["resolve-issue", "resolve-issue-subscription"]) {
+      const context = {
+        "needs.resolve-issue-subscription.result": from === "resolve-issue" ? "skipped" : "success",
+        [`needs.resolve-issue-subscription.outputs.${output}`]: from === "resolve-issue" ? "" : "sub",
+        [`needs.resolve-issue.outputs.${output}`]: from === "resolve-issue" ? "first" : "",
+      };
+      assert.equal(evaluate(apply.with[input], context), from === "resolve-issue" ? "first" : "sub", `${input} after ${from}`);
+    }
   }
   assert.equal(apply.concurrency.group, "work-resolve-issue-write-${{ github.event.issue.number }}");
   assert.equal(apply.concurrency.queue, "max");
   const runs = (started, state) =>
-    evaluate(apply.if, { "needs.resolve-issue.outputs.scan-issue-run-started": started, "needs.resolve-issue.outputs.scan-patch-state": state });
+    evaluate(apply.if, {
+      "needs.resolve-issue-subscription.result": "skipped",
+      "needs.resolve-issue-subscription.outputs.scan-issue-run-started": "",
+      "needs.resolve-issue-subscription.outputs.scan-patch-state": "",
+      "needs.resolve-issue.outputs.scan-issue-run-started": started,
+      "needs.resolve-issue.outputs.scan-patch-state": state,
+    });
   assert.equal(runs("true", "written"), true);
   assert.equal(runs("true", "empty"), false, "an empty patch makes no branch");
   assert.equal(runs("true", ""), false);
@@ -963,7 +984,7 @@ test("work-resolve-issue.yml: every job that gets the issue lane's credential or
   const guarded = Object.entries(jobs).filter(
     ([, job]) => JSON.stringify(job).includes(ISSUE_SECRET) || job.uses === "./.github/workflows/pr-run-activity-read.yml",
   );
-  assert.deepEqual(guarded.map(([id]) => id), ["resolve-issue"]);
+  assert.deepEqual(guarded.map(([id]) => id), ["resolve-issue", "resolve-issue-subscription"]);
   for (const [id, job] of [...guarded, ["pick-slot", jobs["pick-slot"]]]) {
     assert.ok(needsOf(jobs, id).has("admit"), `${id} needs admit`);
     assert.ok(String(job.if).includes(ADMITTED), `${id} requires the gate's proceed`);
@@ -971,6 +992,7 @@ test("work-resolve-issue.yml: every job that gets the issue lane's credential or
       "github.event.label.name": "agent-ready",
       "needs.admit.outputs.proceed": "true",
       "needs.pick-slot.outputs.capped": "false",
+      "needs.resolve-issue-handoff.outputs.handed-off": "true",
     };
     assert.equal(evaluate(job.if, context), true, `${id} runs once admitted`);
     for (const proceed of ["false", ""]) {
@@ -1092,6 +1114,7 @@ test("every read-runner caller job passes exactly one Claude secret, named for i
     "pr-unblock.yml review-dependency",
     "pr-unblock.yml review-dependency-subscription",
     "work-resolve-issue.yml resolve-issue",
+    "work-resolve-issue.yml resolve-issue-subscription",
   ]);
 });
 
@@ -1446,8 +1469,8 @@ test("pr-run-activity-read.yml: the run job can only read, and each launcher ste
     assert.equal(launch.with[input === "api-key" ? "subscription-token" : "api-key"], undefined, id);
     assert.equal(launch.with["permission-mode"], "${{ steps.config.outputs.permission-mode }}", id);
     assert.equal(launch["continue-on-error"], true, id);
-    assert.equal(launch["timeout-minutes"], 50, id);
-    assert.equal(launch.with["leg-timeout-minutes"], "45", id);
+    assert.equal(launch["timeout-minutes"], "${{ fromJSON(steps.launch.outputs.step-minutes) }}", id);
+    assert.equal(launch.with["leg-timeout-minutes"], "${{ steps.launch.outputs.leg-minutes }}", id);
     for (const list of ["tools", "allowed-tools", "disallowed-tools", "plugin-dirs", "preamble"]) {
       assert.equal(launch.with[list], `\${{ steps.stage.outputs.${list} }}`, `${id} ${list}`);
     }
@@ -1553,10 +1576,10 @@ test("pr-run-activity-read.yml: each launcher leg is followed by a check of the 
     assert.equal(runs("auto", file(`${check}-bad.json`, "{not json")), 1, "an unreadable file");
     assert.equal(runs("", file(`${check}-empty.json`, init(""))), 1, "an empty mode");
   }
-  const ran = { "steps.act-key.outcome": "failure", "steps.act-key.outputs.lane-class": "max-turns" };
+  const ran = { "steps.act-key.outcome": "failure", "steps.act-key.outputs.handoff": "false" };
   assert.equal(atStep(steps[at("mode-key")].if, ran), true);
-  assert.equal(atStep(steps[at("mode-key")].if, { ...ran, "steps.act-key.outputs.lane-class": "credit-stop" }), false, "a credit stop hands off");
-  assert.equal(atStep(steps[at("mode-key")].if, { "steps.act-key.outcome": "skipped", "steps.act-key.outputs.lane-class": "" }), false);
+  assert.equal(atStep(steps[at("mode-key")].if, { ...ran, "steps.act-key.outputs.handoff": "true" }), false, "a handoff (a credit stop, or a 401 or 402)");
+  assert.equal(atStep(steps[at("mode-key")].if, { "steps.act-key.outcome": "skipped", "steps.act-key.outputs.handoff": "" }), false);
   // A failed check fails the job before the patch is collected.
   assert.ok(at("mode-token") < at("patch"));
   assert.match(steps[at("patch")].if, /job\.status == 'success'/);
@@ -1577,32 +1600,48 @@ test("pr-run-activity-read.yml: a handoff skips every upload, the lane record, t
     "steps.config.outputs.kind": "skill",
     "steps.config.outputs.applied-by-patch": "apply-patch",
     "steps.launch.outcome": "success",
-    "steps.act-skill.outcome": "skipped",
     "steps.act-token.outcome": "skipped",
+    "steps.mode-token.outcome": "skipped",
     "steps.token-present.outcome": "skipped",
     "steps.token-present.outputs.present": "",
     "steps.key-present.outcome": "success",
     "steps.patch.outputs.state": "written",
   };
+  // run-claude-cli's handoff output: a credit stop, or class auth with a 401
+  // or 402; the mode check skips a handoff.
   const handoffs = {
-    "an empty key": { ...base, "steps.key-present.outputs.present": "false", "steps.act-key.outcome": "skipped", "steps.act-key.outputs.lane-class": "" },
-    "a credit stop": { ...base, "steps.key-present.outputs.present": "true", "steps.act-key.outcome": "failure", "steps.act-key.outputs.lane-class": "credit-stop" },
+    "an empty key": { ...base, "steps.key-present.outputs.present": "false", "steps.act-key.outcome": "skipped", "steps.act-key.outputs.handoff": "", "steps.mode-key.outcome": "skipped" },
+    "a credit stop": { ...base, "steps.key-present.outputs.present": "true", "steps.act-key.outcome": "failure", "steps.act-key.outputs.handoff": "true", "steps.mode-key.outcome": "skipped" },
   };
-  const ran = { ...base, "steps.key-present.outputs.present": "true", "steps.act-key.outcome": "success", "steps.act-key.outputs.lane-class": "" };
+  const ran = { ...base, "steps.key-present.outputs.present": "true", "steps.act-key.outcome": "success", "steps.act-key.outputs.handoff": "false", "steps.mode-key.outcome": "success" };
   const guarded = run.steps.filter((s) => /^actions\/upload-artifact@|\/report-lane-outcome@/.test(String(s.uses ?? "")) || s.id === "patch");
   assert.deepEqual(
     guarded.map((s) => s.id ?? s.name),
-    ["lane-record", "Record the launcher's lane outcome", "patch"],
+    ["lane-record", "patch"],
   );
+  const outcome = run.steps.find((s) => s.name === "Collect the issue outcome");
   for (const step of guarded) {
     for (const [name, context] of Object.entries(handoffs)) {
       assert.equal(atStep(step.if, context), false, `${step.id ?? step.name} after ${name}`);
+      // An issue run's handoff too: the fallback call's outcome and patch are the run's.
+      assert.equal(atStep(step.if, { ...context, "inputs.issue-number": "7" }), false, `${step.id ?? step.name} after ${name} in issue mode`);
     }
   }
-  // A PR-mode call that ran collects its patch and records its outcome; its uploads are the scan job's.
-  for (const step of guarded.filter((s) => !String(s.if).includes("inputs.issue-number != ''"))) {
+  for (const [name, context] of Object.entries(handoffs)) {
+    assert.equal(atStep(outcome.if, { ...context, "inputs.issue-number": "7" }), false, `the issue outcome after ${name}`);
+  }
+  assert.equal(atStep(outcome.if, { ...ran, "inputs.issue-number": "7" }), true, "an issue run that ran collects its outcome");
+  // A call that ran collects its patch and records its outcome; its uploads are the scan job's.
+  for (const step of guarded) {
     assert.equal(atStep(step.if, ran), true, step.id ?? step.name);
   }
+  // An issue run keeps a failed leg's partial patch only when its permission
+  // mode checked out.
+  const failed = { ...ran, "inputs.issue-number": "7", "job.status": "failure", "steps.act-key.outcome": "failure" };
+  const patch = run.steps.find((s) => s.id === "patch");
+  assert.equal(atStep(patch.if, failed), true, "a failed leg in the asked mode");
+  assert.equal(atStep(patch.if, { ...failed, "steps.mode-key.outcome": "failure" }), false, "a leg in another mode");
+  assert.equal(atStep(patch.if, { ...failed, "inputs.issue-number": "" }), false, "a failed PR-mode leg collects nothing");
   // The scan job, which uploads the reply, patch and verdict, is skipped on a handoff.
   const scanRuns = (handedOffOutput, result = "success") =>
     atStep(jobs.scan.if, { "needs.run.outputs.handed-off": handedOffOutput, "needs.run.result": result });
@@ -1615,8 +1654,8 @@ test("pr-run-activity-read.yml: a handoff skips every upload, the lane record, t
   assert.equal(handedOff(handoffs["an empty key"]), true);
   assert.equal(handedOff(handoffs["a credit stop"]), true);
   assert.equal(handedOff(ran), false);
-  assert.equal(handedOff({ "steps.key-present.outputs.present": "", "steps.act-key.outputs.lane-class": "" }), false, "the fallback call never hands off");
-  assert.equal(handedOff({ ...ran, "steps.act-key.outcome": "failure", "steps.act-key.outputs.lane-class": "rate-limit" }), false);
+  assert.equal(handedOff({ "steps.key-present.outputs.present": "", "steps.act-key.outputs.handoff": "" }), false, "the fallback call never hands off");
+  assert.equal(handedOff({ ...ran, "steps.act-key.outcome": "failure", "steps.act-key.outputs.handoff": "false" }), false, "a rate limit or a 403 is no handoff");
 
   const report = (handedOffOutput) =>
     atStep(jobs.report.if, {
@@ -1636,14 +1675,14 @@ test("pr-run-activity-read.yml: a handoff skips every upload, the lane record, t
   assert.equal(run.steps.at(-1), fail, "the run job's last step");
   for (const [name, context] of Object.entries(handoffs)) assert.equal(atStep(fail.if, context), false, name);
   assert.equal(atStep(fail.if, ran), false);
-  assert.equal(atStep(fail.if, { ...ran, "steps.act-key.outcome": "failure", "steps.act-key.outputs.lane-class": "max-turns" }), true);
+  assert.equal(atStep(fail.if, { ...ran, "steps.act-key.outcome": "failure", "steps.act-key.outputs.handoff": "false" }), true);
   const noToken = {
     ...base,
-    "inputs.fallback": "credit-stop",
+    "inputs.fallback": "handoff",
     "steps.key-present.outcome": "skipped",
     "steps.key-present.outputs.present": "",
     "steps.act-key.outcome": "skipped",
-    "steps.act-key.outputs.lane-class": "",
+    "steps.act-key.outputs.handoff": "",
     "steps.token-present.outcome": "success",
     "steps.token-present.outputs.present": "false",
   };
@@ -1651,21 +1690,31 @@ test("pr-run-activity-read.yml: a handoff skips every upload, the lane record, t
   assert.equal(spawnSync("bash", ["-c", fail.run]).status, 1);
 });
 
+// The lane record's name, with each format() call filled from `values`.
+function laneRecordName(record, context, values) {
+  const filled = record.with.lane.replace(/format\('([^']*)'((?:, [\w.-]+)+)\)/g, (_, text, args) =>
+    JSON.stringify(args.split(", ").slice(1).reduce((out, arg, i) => out.replace(`{${i}}`, values[arg]), text)),
+  );
+  return atStep(filled, { ...context, "inputs.lane": values["inputs.lane"] });
+}
+
 test("pr-run-activity-read.yml: the fallback call's lane record names why it ran", () => {
   const { jobs } = workflow("pr-run-activity-read.yml");
   const record = jobs.run.steps.find((s) => s.name === "Record the launcher's lane outcome");
-  const lane = (fallback) =>
-    atStep(
-      record.with.lane.replace(/format\('([^']*)', inputs\.lane, inputs\.activity(?:, steps\.launch\.outputs\.key-name)?\)/g, (_, text) =>
-        JSON.stringify(text.replace("{0}", "pr-unblock").replace("{1}", "fix-ci").replace("{2}", "PR_UNBLOCK_CLAUDE_API_KEY")),
-      ),
-      { "inputs.fallback": fallback },
-    );
+  const pr = { "inputs.lane": "pr-unblock", "inputs.activity": "fix-ci", "steps.launch.outputs.key-name": "PR_UNBLOCK_CLAUDE_API_KEY" };
+  const lane = (fallback) => laneRecordName(record, { "inputs.issue-number": "", "inputs.fallback": fallback }, pr);
   assert.equal(lane(""), "pr-unblock/fix-ci");
   assert.equal(lane("credit-stop"), "pr-unblock/fix-ci (key PR_UNBLOCK_CLAUDE_API_KEY hit a credit stop)");
   assert.equal(lane("no-key"), "pr-unblock/fix-ci (key PR_UNBLOCK_CLAUDE_API_KEY is empty)");
   assert.equal(lane("handoff"), "pr-unblock/fix-ci (key PR_UNBLOCK_CLAUDE_API_KEY posted no check)");
-  assert.equal(record.with["step-timeout-minutes"], 50, "the launcher step's timeout");
+  // An issue run keeps the lane's own name, which the issue lane's records
+  // carried on claude-code-action.
+  const issue = { "inputs.lane": "work-resolve-issue", "inputs.activity": "resolve-issue", "steps.launch.outputs.key-name": "ISSUE_LANE_CLAUDE_API_KEY" };
+  const issueLane = (fallback) => laneRecordName(record, { "inputs.issue-number": "7", "inputs.fallback": fallback }, issue);
+  assert.equal(issueLane(""), "work-resolve-issue");
+  assert.equal(issueLane("handoff"), "work-resolve-issue (key ISSUE_LANE_CLAUDE_API_KEY handed off)");
+  assert.equal(record.with["step-timeout-minutes"], "${{ steps.launch.outputs.step-minutes }}", "the launcher step's timeout");
+  assert.equal(record.with.credential, "${{ steps.act-key.outputs.credential || steps.act-token.outputs.credential }}", "the credential the leg ran on");
 });
 
 // A caller whose handoff job read only that the first call posted no check
@@ -2026,7 +2075,7 @@ test("pr-run-activity-read.yml: with output-mode gone, issue mode still refuses 
   const index = (predicate) => steps.findIndex(predicate);
   assert.ok(index((s) => s === guard) > index((s) => s.id === "config"));
   assert.ok(index((s) => s === guard) < index((s) => s.name === "Check out the PR head"), "before any head code");
-  assert.ok(index((s) => s === guard) < index((s) => s.id === "act-skill"));
+  assert.ok(index((s) => s === guard) < index((s) => s.id === "act-key"));
 });
 
 // --- the PR-mode leak scan, before any upload or summary ---
@@ -2036,23 +2085,10 @@ const scanSteps = () => workflow("pr-run-activity-read.yml").jobs.scan.steps;
 const writesSummary = (step) => /GITHUB_STEP_SUMMARY|core\.summary/.test(`${step.run ?? ""}${step.with?.script ?? ""}`);
 const isUpload = (step) => String(step.uses ?? "").startsWith("actions/upload-artifact@");
 
-test("pr-run-activity-read.yml: the model job uploads nothing in either mode, and writes no step summary in PR mode", () => {
+test("pr-run-activity-read.yml: the model job uploads nothing and writes no step summary in either mode", () => {
   const steps = runSteps();
   assert.deepEqual(steps.filter(isUpload).map((s) => s.name), [], "every upload is the scan job's");
-  const out = steps.filter((step) => isUpload(step) || writesSummary(step));
-  // The one summary left is an issue-mode gate skill's verdict, which no
-  // issue lane runs (resolve-issue is no gate).
-  assert.deepEqual(out.map((s) => s.name), ["Check the gate skill's verdict"]);
-  // claude-code-action runs only in issue mode, so a PR run's act-skill is skipped.
-  const actSkill = steps.find((s) => s.id === "act-skill");
-  assert.equal(atStep(actSkill.if, prRun(actSkill.if, { "steps.config.outputs.kind": "skill" })), false);
-  for (const step of out) {
-    // Under every PR-mode context, the step stays off.
-    const pr = [{}, { "steps.act-key.outcome": "failure" }, { "steps.act-key.outcome": "skipped", "steps.act-token.outcome": "success" }, { "steps.config.outputs.gating": "gate" }];
-    for (const overrides of pr) {
-      assert.equal(atStep(step.if, prRun(step.if, overrides)), false, `${step.name} ${JSON.stringify(overrides)}`);
-    }
-  }
+  assert.deepEqual(steps.filter(writesSummary).map((s) => s.name), [], "the scan job shows the run after its leak scan");
   // The leak scan and the verdict are the scan job's alone; a
   // dependency-review skill's dependency-verdict.json is a payload it carries.
   for (const step of steps) {
@@ -2807,7 +2843,7 @@ test("pr-run-activity-read.yml: after the collector, no checkout's post step fin
   assert.equal(runs({}), true);
   assert.equal(runs({ "steps.patch.outcome": "failure", "job.status": "failure" }), true);
   assert.equal(runs({ "steps.go.outputs.run": "" }), false, "no head checkout");
-  assert.equal(runs({ "inputs.issue-number": "7" }), false, "issue mode is unchanged");
+  assert.doesNotMatch(remove.if, /issue-number/, "issue mode too, now on the launcher");
   // actions/checkout@3d3c42e5 cleanup() returns when <path>/.git/config is
   // missing (src/git-source-provider.ts:331-336), and each post step passes
   // its own checkout's path (src/main.ts:34): the workspace and .base.
@@ -3426,7 +3462,7 @@ test("pr-run-activity-read.yml: the scan-carrier key is passed by name by each r
       }
     }
   }
-  assert.equal(callers, 13, "resolve-conflicts, address-feedback, review-dependency, fix-ci, fix-docs and their subscription calls, fix-ci's rung-up pair, and resolve-issue");
+  assert.equal(callers, 14, "resolve-conflicts, address-feedback, review-dependency, fix-ci, fix-docs, resolve-issue and their subscription calls, and fix-ci's rung-up pair");
   // In the read runner, one step of one job.
   for (const [id, job] of Object.entries(read.jobs)) {
     const steps = (job.steps ?? []).filter((step) => /scan-carrier-private-key|SCAN_CARRIER_PRIVATE_KEY/i.test(JSON.stringify(step)));
@@ -5418,6 +5454,7 @@ test("no subscription leg's if: reads a read runner run-job output", () => {
     "pr-unblock.yml fix-ci-subscription",
     "pr-unblock.yml resolve-conflicts-subscription",
     "pr-unblock.yml review-dependency-subscription",
+    "work-resolve-issue.yml resolve-issue-subscription",
   ]);
 });
 

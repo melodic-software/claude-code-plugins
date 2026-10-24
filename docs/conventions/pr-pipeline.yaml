@@ -641,6 +641,8 @@ models:
     triage-issue: triage
     # work-resolve-issue's read-only pass that describes a reused lane branch.
     summarize-reuse: summary
+    # An issue's code change, on run-claude-cli, which needs a model alias.
+    resolve-issue: code-fix
   # A run on an issue (resolve-issue) takes its budget from the issue's Size,
   # Complexity and Uncertainty org issue fields, read by id. An empty field,
   # or one whose latest setter is not a listed human or the lanes App, reads

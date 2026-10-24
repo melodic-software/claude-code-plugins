@@ -1279,18 +1279,18 @@ function launchResolved(extra) {
 }
 const PATCH = { "applied-by": { patch: "apply-patch" } };
 
-test("run-claude-cli refuses an issue lane, a writing skill, a patch-producing skill with a prepare mode, a gate and any check before any output", () => {
-  const appliedBy = launchResolved(PATCH);
+test("run-claude-cli refuses a writing skill, a patch-producing skill with a prepare mode, a gate and a check outside a no-prepare patch skill before any output", () => {
+  const onlyPatch = /checks, self-checks and verify-scripts run only in a skill that hands on a patch with no prepare mode/;
   for (const [overrides, message] of [
-    [{ ISSUE_NUMBER: "7" }, /an issue lane runs on claude-code-action/],
     [{ EFFECT: "mutate-branch", CAN_COMMIT: "true" }, /only a read skill/],
     [{ PREPARE: "review-threads" }, /only a read skill/],
     [{ PREPARE: "merge-base" }, /only a read skill/],
     [{ PREPARE: "dependency-review" }, /only a read skill/],
     [{ GATING: "gate" }, /a gate skill's verdict is not read from the launcher/],
-    [{ RESOLVED: launchResolved({ ...PATCH, checks: ["scripts/check-x.sh --check"] }) }, /checks, self-checks and verify-scripts have no wrapper/],
-    [{ RESOLVED: launchResolved({ ...PATCH, "self-checks": ["scripts/check-x.sh"] }) }, /checks, self-checks and verify-scripts have no wrapper/],
-    [{ RESOLVED: launchResolved({ ...PATCH, "verify-scripts": [VERIFY] }) }, /checks, self-checks and verify-scripts have no wrapper/],
+    [{ RESOLVED: launchResolved({ checks: ["scripts/check-x.sh --check"] }) }, onlyPatch],
+    [{ RESOLVED: launchResolved({ "self-checks": ["scripts/check-x.sh"] }) }, onlyPatch],
+    [{ RESOLVED: launchResolved({ "verify-scripts": [VERIFY] }) }, onlyPatch],
+    [{ RESOLVED: launchResolved({ ...PATCH, checks: ["scripts/check-x.sh --check"] }), PREPARE: "merge-base" }, onlyPatch],
   ]) {
     const run = launch(overrides);
     assert.notEqual(run.status, 0, JSON.stringify(overrides));
@@ -1298,6 +1298,44 @@ test("run-claude-cli refuses an issue lane, a writing skill, a patch-producing s
     assert.deepEqual(run.tools, []);
     assert.equal(run.promptFile, "");
   }
+});
+
+// pr-run-activity.md, "Issue mode": the issue lane runs on the launcher, so its
+// check and verify-script wrappers are staged for .lane/checks and
+// .lane/verify (--restricted reads nothing outside the checkout), named there
+// in the rules and the preamble, and denied to the file tools; the prompt
+// passes the issue before the activity's args.
+test("run-claude-cli: an issue lane's patch skill stages its check and verify-script wrappers for .lane/, denied to the file tools", () => {
+  mkdirSync(path.join(base, "scripts"), { recursive: true });
+  writeFileSync(path.join(base, "scripts", "check-x.sh"), "#!/usr/bin/env bash\necho check\n", { mode: 0o755 });
+  mkdirSync(path.join(base, "plugins", "vtest", "skills", "audit", "scripts"), { recursive: true });
+  writeFileSync(path.join(base, VERIFY), "echo scan\n");
+  const run = launch({
+    ISSUE_NUMBER: "7",
+    SKILL: "source-control:pull-request",
+    RESOLVED: launchResolved({ ...PATCH, checks: ["scripts/check-x.sh --check"], "verify-scripts": [VERIFY] }),
+  });
+  assert.equal(run.status, 0, run.stdout);
+  const lane = `${WORKSPACE}/.lane`;
+  for (const rule of [`Bash(${lane}/checks/bin/check-x)`, `Bash(${lane}/verify/bin/scan *)`]) {
+    assert.ok(run.allowedTools.includes(rule), `${rule} in ${run.allowedTools.join(" | ")}`);
+  }
+  for (const dir of ["checks", "verify"]) {
+    for (const tool of ["Edit", "Write", "NotebookEdit"]) {
+      const rule = `${tool}(./.lane/${dir}/**)`;
+      assert.ok(run.deniedTools.includes(rule), `${rule} in ${run.deniedTools.join(" | ")}`);
+    }
+  }
+  const check = readFileSync(path.join(run.stageDir, "checks", "bin", "check-x"), "utf8");
+  assert.ok(check.endsWith(`CHECK_DATA_ROOT=${WORKSPACE} exec ${lane}/checks/scripts/check-x.sh --check\n`), check);
+  assert.ok(check.includes("export CHECK_AFFECTED_SCRIPT_EXEC_BIT=1\n"), check);
+  assert.equal(readFileSync(path.join(run.stageDir, "checks", "scripts", "check-x.sh"), "utf8"), "#!/usr/bin/env bash\necho check\n");
+  assert.ok(readFileSync(path.join(run.stageDir, "verify", "bin", "scan"), "utf8").includes(`copy=${lane}/verify/${VERIFY}\n`));
+  assert.equal(readFileSync(path.join(run.stageDir, "verify", VERIFY), "utf8"), "echo scan\n");
+  assert.ok(run.preamble.includes(`run each of these repository checks as written, with no arguments: ${lane}/checks/bin/check-x.`), run.preamble);
+  assert.ok(run.preamble.includes(`with the script's own arguments and paths inside the checkout: ${lane}/verify/bin/scan <arguments>.`), run.preamble);
+  assert.ok(run.preamble.startsWith("You run unattended as a CI lane activity on an issue,"), run.preamble);
+  assert.equal(run.promptFile, "Call the Skill tool with skill source-control:pull-request and args --issue 7 fix, then follow the skill instructions to the end.\n");
 });
 
 test("run-claude-cli: a staged plugin with no .mcp.json gets an empty server list, and one that ships its own keeps it", () => {
