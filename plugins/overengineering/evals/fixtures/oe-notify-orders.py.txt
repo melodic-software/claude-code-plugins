@@ -1,0 +1,4 @@
+def place_order(order):
+    order.save()
+    # TODO(R1): send the order confirmation
+    return order

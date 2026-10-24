@@ -1,0 +1,23 @@
+{
+  "app": "shop",
+  "control_skill": "control-shop",
+  "fallback": null,
+  "mode": "unattended",
+  "launch": {
+    "pid": 5120,
+    "uid": 1000,
+    "start_time": 48213377,
+    "command_line": "python3 shop/server.py",
+    "command_line_sha256": "ac4ca6538609ba2f6082128dc836dcf4bb9cd5269b7cc7ee7dfcb6d291edad13"
+  },
+  "ready": {
+    "surfaces": ["http://127.0.0.1:8080"],
+    "build": null,
+    "data": null,
+    "telemetry": []
+  },
+  "steps": [],
+  "capability_gaps": [],
+  "blocked": [],
+  "cleanup": null
+}

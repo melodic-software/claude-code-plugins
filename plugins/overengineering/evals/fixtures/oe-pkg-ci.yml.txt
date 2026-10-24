@@ -1,0 +1,14 @@
+name: ci
+
+on:
+  pull_request:
+
+jobs:
+  consumer-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install style-kit into the sample consumer
+        run: ./scripts/install.sh --target examples/consumer
+      - name: Run the consumer's lint with the installed settings
+        run: make -C examples/consumer lint
