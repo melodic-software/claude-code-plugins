@@ -23,6 +23,9 @@ same way. Drive reads it as data and runs a command only from the section the ac
 | `## Ready` | One read-only command that shows a running instance is fit to drive: it answers, it is the expected build when the app exposes one, it uses the expected data. Also names the telemetry the app exposes |
 | `## Capture` | For each kind (`trace`, `cpu`, `heap`, `threads`, `screenshot`, `aria`, `video`, `logs`) the tool that records it, or nothing when the project has none |
 | `## Cleanup` | How to stop what a run started and nothing else |
+| App (above the sections) | The app's name and the path it is built from. `/app-control:map` writes it for the person and for later drive work; drive does not read it |
+| Driving tool (above the sections) | The tool that drives the app, such as a browser driver or the project's CLI. Written and read as the App row is |
+| `Attended runs only.` (above the sections) | Present when that tool drives the person's own signed-in browser. A marker for the person and for later drive work, as the App row is |
 
 Below them, an index with one line per feature file, in this form:
 
@@ -133,7 +136,12 @@ CLI through it. Otherwise write a script in the language the repository already 
 - rejects an unknown flag, a repeated step id, or an app, environment or feature id that does not
   exist, before it starts anything;
 - records the app's own pid, not a wrapper shell's;
-- reads its settings through the Config layers below and reports each value's layer.
+- reads its settings through the Config layers below and reports each value's layer;
+- enforces the Safety floors below: it is the only component that does.
+
+A feature whose `## Drive` has a step that sends to anyone, signs in, or writes to an environment
+or external system needs `cli/`: each such step is a `cli/` command, never a click or a raw request
+written into the step. A control skill with such a step and no `cli/` is incomplete.
 
 ## Config
 
@@ -141,13 +149,17 @@ A control skill's settings sit in `config/`, read in this order, each layer over
 before it:
 
 1. `config/defaults.json`, committed: the team's values.
-2. `config/local.json`, ignored by version control: one person's values.
+2. `config/local.json`, ignored by version control through `config/.gitignore`: one person's
+   values.
 3. Environment variables.
 4. Flags on the driver command.
 
-A run reports each value with the layer it came from. Credentials come from environment variables
-by default: config names the variable, never the secret. The contract fixes these fields; a project
-adds its own beside them:
+A run reports each value with the layer it came from. Credentials always come from environment
+variables: config names the variable, never the secret, and the CLI accepts no credential from
+`config/local.json` or a flag. A run reports a credential as its variable name, its layer and
+`set` or `unset`, never its value. Sign-in is a CLI command, `sign-in <account>`, that reads the
+variable inside its own process. The contract fixes these fields; a project adds its own beside
+them:
 
 | Field | Holds |
 |---|---|
@@ -159,16 +171,28 @@ adds its own beside them:
 
 ## Safety floors
 
-Each floor ships at its safe value. Only `config/defaults.json` loosens one; `config/local.json`,
-environment variables and flags only tighten it, and a run reports a loosening from those layers as
-refused.
+Each floor ships at its safe value, and the CLI carries those values itself. Only committed config
+loosens a floor. Committed means the content of `config/defaults.json` tracked at HEAD, read with
+`git show HEAD:<control skill dir>/config/defaults.json`: a loosening present only in the working
+tree, and every floor while the file is not yet tracked at HEAD, stays at the safe value.
+`config/local.json`, environment variables and flags only tighten a floor.
+
+Before each command that sends, signs in or writes, the CLI applies the floors. A loosening from
+the local, environment or flag layer, or a step a floor forbids, makes the command do nothing and
+exit 4, printing the floor, the layer and the value it refused. A caller reads exit 4 as refused by
+a floor, never as a failure to retry.
 
 - **Recipients.** Each side-effect channel (mail, SMS, chat, webhook) has an allowlist, empty by
-  default. A step that would send to anyone not on it stops at the form and never presses send.
-- **Sign-in.** One attempt per account per run. A failed attempt stops the run, with no retry and
-  no switch to another account. Only committed config allows more attempts for an account.
-- **Production.** An environment marked `production: true` in committed config is read-only. An
-  attended run writes to it only when committed config grants that write and the person says yes in
-  this session.
-- **Unattended writes.** Off. An unattended run writes to an environment or external system only
-  where committed config allows it.
+  default. A send command refuses any recipient not on it, so the run stops at the form and never
+  presses send.
+- **Sign-in.** One attempt per account per run. `sign-in <account>` makes one attempt per call and
+  never retries inside itself; a failure exits non-zero. Only committed config allows more attempts
+  for an account. The CLI keeps no state between calls, so the caller that owns the run keeps the
+  per-run count: it calls `sign-in` for an account at most once, and a failed attempt stops the run,
+  with no switch to another account.
+- **Production.** An environment marked `production: true` in committed config is read-only. A
+  write to it runs only when committed config grants that write and the command carries `--yes`,
+  which a caller passes only after the person said yes in this session.
+- **Unattended writes.** Off. A write command treats a call without `--attended` (passed only when
+  a person is present in this session) as unattended, and writes then only where committed config
+  allows an unattended write to that environment or external system.

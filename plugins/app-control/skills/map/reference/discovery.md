@@ -20,5 +20,5 @@ only, before any question. A row ends `found`, with the file or command that sho
 | Team vs personal | What is committed and team-wide, what is per user, and where per-user values live |
 | Related repositories | Systems whose pages a journey crosses but live elsewhere, and whether this checkout can reach them |
 
-A row the repository cannot answer becomes a question in step 3, or, under `--unattended`, the
-stop.
+A row the repository cannot answer becomes a question in step 3, or, under `--unattended`, an
+open question in the dry run's report.

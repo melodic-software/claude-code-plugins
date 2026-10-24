@@ -4,7 +4,7 @@ description: The control-skill writer refuses a location inside a run-<name> rec
 tags: [map, location, slug, invented]
 expected_outcome: The reply refuses .claude/skills/run-storefront/features because a segment starts with run-, names --dir and the value, does not stop, and says the control skill goes to .claude/skills/control-storefront/. It names the folder for `Billing / Export!` features/billing-export. Nothing is written.
 execution:
-  prompt: "/app-control:map create storefront --dir .claude/skills/run-storefront/features. Do not read the repository or write any file yet. First tell me the directory the control skill will be written to and why, and the folder the feature `Billing / Export!` will get, then stop."
+  prompt: "/app-control:map create storefront --dir .claude/skills/run-storefront/features. First tell me the directory the control skill will be written to and why, and the folder the feature `Billing / Export!` will get, then stop."
   allowed_tools: [Read, Glob, Grep, Write]
   max_turns: 6
   timeout_seconds: 300
