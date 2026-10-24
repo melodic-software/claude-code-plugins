@@ -18,7 +18,9 @@
 //      written this round (a retry after a round whose fix landed but whose
 //      replies did not post), each VALID thread's fix is an earlier commit on
 //      the PR of the same kind, committed after the thread's newest reviewer
-//      or lane comment, that changed the thread's path (earlierFixOf). A push
+//      or lane comment, that changed the thread's path and a line the
+//      reply's evidence cites, and that no lane reply already named as a
+//      fix (earlierFixOf). A push
 //      that was superseded, refused, escalated or held ends the round
 //      feedback-not-landed.
 //   3. Re-reads each thread and skips one that is resolved, moved, or has a
@@ -248,18 +250,46 @@ const isLaneFix = (commit, appId) =>
 
 // The newest of the PR's `commits` (oldest first, as GET /pulls/{n}/commits
 // lists them) that is a lane fix commit, committed (the date GitHub sets for
-// a web-flow commit) after `after` (epoch ms), whose files touch `threadPath`;
-// null for none. `filesOf` reads a commit's changed paths. Only the path
-// itself, or for a SKILL.md any file in its skill's directory: the evidence's
-// line numbers are the current head's, not that commit's.
-export async function earlierFixOf({ commits, appId, after, threadPath, filesOf }) {
-  for (const commit of [...commits].reverse()) {
-    if (isLaneFix(commit, appId) && Date.parse(commit.commit?.committer?.date ?? "") > after && touchesThread(await filesOf(commit.sha), threadPath, new Set())) {
+// a web-flow commit) after `after` (epoch ms), not in `claimed` (a commit a
+// lane reply already named as another thread's fix), whose files touch
+// `threadPath` (the path, or for a SKILL.md any file in its skill's
+// directory), and in which one `evidence` path:line falls inside a hunk of
+// that path, a path no later PR commit changed, so the head's line numbers
+// are still that commit's; null for none. `filesOf` reads a commit's files,
+// each {filename, patch}.
+export async function earlierFixOf({ commits, appId, after, threadPath, evidence, claimed, filesOf }) {
+  const cites = evidence.map((ev) => [ev.slice(0, ev.lastIndexOf(":")), Number(ev.slice(ev.lastIndexOf(":") + 1))]);
+  for (let i = commits.length - 1; i >= 0; i -= 1) {
+    const commit = commits[i];
+    if (!isLaneFix(commit, appId) || claimed.has(commit.sha) || !(Date.parse(commit.commit?.committer?.date ?? "") > after)) {
+      continue;
+    }
+    const files = await filesOf(commit.sha);
+    if (!touchesThread(files.map((file) => file.filename), threadPath, new Set())) {
+      continue;
+    }
+    const later = new Set();
+    for (const next of commits.slice(i + 1)) {
+      for (const file of await filesOf(next.sha)) {
+        later.add(file.filename);
+      }
+    }
+    const patches = new Map(files.map((file) => [file.filename, file.patch]));
+    if (cites.some(([path, line]) => patches.has(path) && !later.has(path) && lineChanged(patches.get(path), line))) {
       return commit.sha;
     }
   }
   return null;
 }
+
+// The commits lane replies already named as a thread's fix (renderReply's
+// `Fix: <sha>` line), read from the PR's review comments.
+const claimedFixes = (reviewComments, appId) =>
+  new Set(
+    reviewComments
+      .filter((comment) => comment.user?.id === appId)
+      .flatMap((comment) => [...String(comment.body ?? "").matchAll(/^Fix: ([0-9a-f]{40})$/gm)].map((match) => match[1])),
+  );
 
 // Whenever the PR branch moved since the select job's head, or a reply is
 // VALID, that range may change only what inThreadScope allows around the kept
@@ -274,9 +304,10 @@ export async function earlierFixOf({ commits, appId, after, threadPath, filesOf 
 // earlier fix on the PR instead (earlierFixOf, after the time `judgedAt` gives:
 // the thread's newest comment by the reviewer or the lane, so a commit the
 // lane already answered on that thread, or one a reviewer re-raised the
-// finding after, is not its fix). Returns each VALID thread's fix commit by
+// finding after, is not its fix; nor one a lane reply already named as a
+// fix, `claimed`). Returns each VALID thread's fix commit by
 // thread id (empty when no reply is VALID), or null.
-async function fixesLanded({ api, pr, run, headSha, replies, appId, judgedAt, patchWritten }) {
+async function fixesLanded({ api, pr, run, headSha, replies, appId, judgedAt, patchWritten, claimed = new Set() }) {
   const valid = replies.filter((reply) => reply.disposition === "VALID");
   const landed = new Map();
   if (valid.length === 0 && run.head_sha === headSha) {
@@ -334,12 +365,20 @@ async function fixesLanded({ api, pr, run, headSha, replies, appId, judgedAt, pa
     const read = new Map();
     const filesOf = async (sha) => {
       if (!read.has(sha)) {
-        read.set(sha, ((await api.getCommit(sha)).files ?? []).map((file) => file.filename));
+        read.set(sha, (await api.getCommit(sha)).files ?? []);
       }
       return read.get(sha);
     };
     for (const reply of valid) {
-      const sha = await earlierFixOf({ commits, appId, after: judgedAt(reply.thread), threadPath: threadPath.get(reply.thread), filesOf });
+      const sha = await earlierFixOf({
+        commits,
+        appId,
+        after: judgedAt(reply.thread),
+        threadPath: threadPath.get(reply.thread),
+        evidence: reply.evidence,
+        claimed,
+        filesOf,
+      });
       if (sha === null) {
         return null;
       }
@@ -484,7 +523,17 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       // Math.max of an empty list is -Infinity, and of one NaN is NaN.
       return times.length === 0 ? Number.NaN : Math.max(...times);
     };
-    const landed = await fixesLanded({ api, pr, run, headSha, replies, appId, judgedAt, patchWritten: patchState === "written" });
+    const landed = await fixesLanded({
+      api,
+      pr,
+      run,
+      headSha,
+      replies,
+      appId,
+      judgedAt,
+      patchWritten: patchState === "written",
+      claimed: claimedFixes(reviewComments, appId),
+    });
     if (landed === null) {
       log("no reply is posted: no one fix commit for the VALID replies reached the PR branch, or the branch changed another path");
       escalationReason = "feedback-not-landed";
