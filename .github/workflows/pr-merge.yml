@@ -1364,7 +1364,7 @@ jobs:
       queue: max
     runs-on: ubuntu-24.04
     # Above the sum of its steps' timeouts (workflow.test.mjs checks it).
-    timeout-minutes: 25
+    timeout-minutes: 30
     permissions:
       contents: read # check out main
       actions: read # the verifier verdicts, their runs and the head-ref map
@@ -1378,6 +1378,7 @@ jobs:
         with:
           ref: refs/heads/main
           path: .base
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Node
@@ -1513,7 +1514,7 @@ jobs:
       # decision and writes nothing.
       - name: Arm and disarm auto-merge
         if: steps.lane-token.outputs.token != ''
-        timeout-minutes: 14
+        timeout-minutes: 18
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
