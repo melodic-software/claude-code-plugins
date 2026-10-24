@@ -100,6 +100,17 @@ test("a person's comment since the label went on holds every activity; one befor
   assert.equal(allows(after, "resolve-conflicts"), false);
   assert.equal(allows(before, "fix-ci"), true);
   assert.equal(allows(bot, "fix-ci"), true, "a bot's comment is no one asking to wait");
+  // GitHub's REST timeline: a review carries submitted_at, an inline comment sits under line-commented.
+  const review = [...base, { event: "reviewed", user: OWNER, submitted_at: "2026-10-18T11:00:00Z", state: "changes_requested" }];
+  const inline = [...base, { event: "line-commented", comments: [{ user: OWNER, created_at: "2026-10-18T11:00:00Z" }] }];
+  assert.equal(allows(review, "fix-ci"), false, "a person's review");
+  assert.equal(allows(inline, "resolve-conflicts"), false, "a person's inline comment");
+});
+
+test("an escalation reason report-escalation.sh does not list holds every activity", () => {
+  const timeline = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("some-new-reason")];
+  assert.equal(allows(timeline, "fix-ci"), false);
+  assert.equal(allows(timeline, "resolve-conflicts"), false);
 });
 
 test("a person's label, a review-lane hold or an escalation with no reason holds every activity", () => {

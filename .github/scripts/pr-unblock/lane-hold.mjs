@@ -13,7 +13,7 @@ import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { createGitHubApi, humanGatedLabelFrom, need, positive } from "./address-feedback.mjs";
-import { commentItems, prHold } from "./gate-source.mjs";
+import { prHold } from "./gate-source.mjs";
 
 const ACTIVITY = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 
@@ -41,7 +41,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     head: pull.head?.sha,
     activity: env.ACTIVITY,
     appId,
-    readTimeline: async () => [...commentItems(await client.listIssueComments(pr)), ...(await client.listLabelEvents(pr))],
+    readTimeline: () => client.listTimeline(pr),
   });
   appendFileSync(env.GITHUB_OUTPUT, `held=${held}\nlane-escalated=${laneEscalated}\n`);
   log(held ? `#${pr} ${why}` : `#${pr} not held for ${env.ACTIVITY}${laneEscalated ? ` (another lane's escalation put ${gateLabel} on)` : ""}`);

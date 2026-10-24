@@ -144,7 +144,11 @@ export function gateSource({ timeline, label, head, isLanesApp }) {
 // The Reason line report-escalation.sh writes into its escalation comment.
 const REASON_LINE = /^- Reason: `([a-z][a-z-]*)`$/;
 
-// The activity a reason resumes, as report-escalation.sh maps it.
+// resolve-conflicts's reasons, which report-escalation.sh maps by default.
+const CONFLICT_REASONS = new Set(["protected-path-conflict", "workflow-staged", "unexpected-path-staged", "repeat-cap", "unresolved-conflict"]);
+
+// The activity a reason resumes, as report-escalation.sh maps it, or null for
+// a reason it does not list, which holds every activity.
 export const escalationActivity = (reason) =>
   reason.startsWith("feedback-")
     ? "address-feedback"
@@ -152,7 +156,24 @@ export const escalationActivity = (reason) =>
       ? "review-dependency"
       : reason.startsWith("ci-fix-")
         ? "fix-ci"
-        : "resolve-conflicts";
+        : CONFLICT_REASONS.has(reason) || reason.startsWith("conflict-patch-")
+          ? "resolve-conflicts"
+          : null;
+
+// When a timeline item was written, and by whom, for a comment or a review
+// (clear-escalations.mjs reads people speaking the same way).
+export function spoken(item) {
+  if (item.event === "commented") {
+    return [{ user: item.user ?? item.actor, at: Date.parse(item.created_at) }];
+  }
+  if (item.event === "reviewed") {
+    return [{ user: item.user, at: Date.parse(item.submitted_at) }];
+  }
+  if (item.event === "line-commented" || item.event === "commit-commented") {
+    return (item.comments ?? []).map((comment) => ({ user: comment.user, at: Date.parse(comment.created_at) }));
+  }
+  return [];
+}
 
 // Whether `activity` may work a PR while its human-gated `label` stays on: only
 // when gateSource reads a lane escalation, no person has commented since the
@@ -165,15 +186,16 @@ export function laneEscalationAllows({ timeline, label, head, isLanesApp, activi
     return { allowed: false, why: `${label} is not a lane escalation (${gate.source})` };
   }
   const { since } = labelHistory(timeline, label);
-  // As clear-escalations.mjs keeps the label: a person who commented since it
-  // went on may want the lanes to wait.
-  if (timeline.some((item) => item.event === "commented" && item.user?.type !== "Bot" && writtenSince(item, since))) {
-    return { allowed: false, why: `a person commented since ${label} went on` };
+  // As clear-escalations.mjs keeps the label: a person who commented or
+  // reviewed since it went on may want the lanes to wait. An unknown author
+  // counts as a person.
+  if (timeline.flatMap(spoken).some(({ user, at }) => !(at <= since) && user?.type !== "Bot")) {
+    return { allowed: false, why: `a person commented or reviewed since ${label} went on` };
   }
   const appComments = timeline.filter((item) => item.event === "commented" && isLanesApp(item.user));
   const reasons = escalationsSince(appComments, since).map(({ body }) => body.map((line) => REASON_LINE.exec(line.trim())?.[1]).find(Boolean));
-  if (reasons.some((reason) => reason === undefined)) {
-    return { allowed: false, why: `a lane escalation since ${label} went on names no reason` };
+  if (reasons.some((reason) => reason === undefined || escalationActivity(reason) === null)) {
+    return { allowed: false, why: `a lane escalation since ${label} went on names no reason report-escalation.sh lists` };
   }
   if (reasons.some((reason) => escalationActivity(reason) === activity)) {
     return { allowed: false, why: `${activity} escalated it` };

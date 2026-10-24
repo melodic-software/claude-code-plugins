@@ -132,9 +132,9 @@ a trusted human's `workflow_dispatch`:
 - It skips a held PR without recording it: `do-not-merge`, or the human-gated label unless
   another lane's escalation put it on (below). The next run after the hold comes off picks it up.
 - It skips a PR whose head already has a `pr-unblock / resolve-conflicts` check run from the
-  GitHub Actions app, unless that run is a neutral `Skipped: untrusted-trigger` or
-  `Skipped: awaiting-human` (a skip while held), a limit stop past its reset, or a failure, until
-  `limits.limit-stops-per-head` failures, limit stops included, stand on the head.
+  GitHub Actions app, unless that run is a neutral `Skipped: untrusted-trigger`, or a
+  `Skipped: awaiting-human` (a skip while held), a limit stop past its reset or a failure, until
+  `limits.limit-stops-per-head` of those last three stand on the head.
 - It dispatches `pr-unblock.yml` on `refs/heads/main` for at most 3 PRs per run, lowest number
   first, passing `pr-number` and `dispatcher-run-id`.
 - A hand run or a re-run must be started by a listed human (`check-trusted-trigger` with
@@ -243,7 +243,9 @@ writes (`ci-fix-*` is `fix-ci`'s, `feedback-*` `address-feedback`'s, `dependency
 (`resolve-conflicts-select` and `pr-refine.yml`'s `fix-docs-head` through `lane-hold.mjs`,
 `fix-ci-context`) read it; anything else, a person's label included, holds the PR as
 `awaiting-human`, and `do-not-merge` holds it in their `labels-absent`. When they work past the
-label, the write runner lifts only the human-gated hold for that push. The label stays on, and
+label, the write runner lifts only the human-gated hold for that push. That verdict is read once,
+before the model turn: a person who comments, or a hold that lands, while the run works does not
+stop that run's push (the next dispatch reads it), and `do-not-merge` still does. The label stays on, and
 `pr-merge` refuses the PR until it comes off.
 
 On a PR carrying the human-gated role label (`needs-human` unless the base's

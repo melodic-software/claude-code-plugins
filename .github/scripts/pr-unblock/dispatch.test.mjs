@@ -125,12 +125,10 @@ function fakeApi({
     async readRequiredRun() {
       return { run: null, jobs: [] };
     },
-    async listIssueComments(number) {
+    // The REST issue timeline: its comments, then its label events.
+    async listTimeline(number) {
       calls.timeline.push(number);
-      return comments.get(number) ?? [];
-    },
-    async listLabelEvents(number) {
-      return labelEvents.get(number) ?? [];
+      return [...(comments.get(number) ?? []).map((comment) => ({ event: "commented", ...comment })), ...(labelEvents.get(number) ?? [])];
     },
     async listWorkflowRuns(workflow) {
       calls.runs.push(workflow);

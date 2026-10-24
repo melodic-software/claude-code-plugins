@@ -70,12 +70,10 @@ function fakeApi({
   const calls = { list: 0, runs: 0, dispatch: [], jobs: [], paths: [], timeline: [] };
   return {
     calls,
-    async listIssueComments(number) {
+    // The REST issue timeline: its comments, then its label events.
+    async listTimeline(number) {
       calls.timeline.push(number);
-      return comments.get(number) ?? [];
-    },
-    async listLabelEvents(number) {
-      return labelEvents.get(number) ?? [];
+      return [...(comments.get(number) ?? []).map((comment) => ({ event: "commented", ...comment })), ...(labelEvents.get(number) ?? [])];
     },
     // The head's tested run of the workflow at path and its latest jobs; a
     // real failure at attempt 2 (its one re-run spent) unless the test names
@@ -292,10 +290,19 @@ test("needs-human from another lane's escalation does not hold fix-ci; fix-ci's 
   assert.deepEqual(api.calls.timeline, [1, 2, 3], "a do-not-merge PR needs no timeline read");
 });
 
-test("an awaiting-human skip left while the PR was held does not count once the hold is gone", async () => {
+test("an awaiting-human skip left while the PR was held does not hold it once the hold is gone, but counts toward the per-head cap", async () => {
   const held = check("pr-unblock / fix-ci", "NEUTRAL", { title: "Skipped: awaiting-human" });
-  const { result } = await run({ pages: [[pr(1, { checks: [lanes("FAILURE"), held] })]] });
-  assert.deepEqual(result.dispatched.map((d) => d.number), [1]);
+  const { result } = await run({ pages: [[pr(1, { checks: [lanes("FAILURE"), held] }), pr(2, { checks: [lanes("FAILURE"), held, held, held] })]] });
+  assert.deepEqual(result.dispatched.map((d) => d.number), [1], "three held skips reach the cap of three");
+});
+
+test("a hold that cannot be read counts as a failed dispatch", async () => {
+  const api = fakeApi({ pages: [[pr(1, humanGated)]] });
+  api.listTimeline = async () => {
+    throw new Error("GET timeline returned 502");
+  };
+  const result = await dispatchCiFixes({ api, runId: "1", log: () => {}, appSenderId: APP, maxDispatch: 2, restarts: 1, gateLabel: "needs-human", now: NOW });
+  assert.deepEqual(result, { dispatched: [], failed: 1 });
 });
 
 test("a restart count of 0 never dispatches a head again", async () => {

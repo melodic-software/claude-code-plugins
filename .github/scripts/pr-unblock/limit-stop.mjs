@@ -63,18 +63,23 @@ const untrustedSkip = (run) =>
 const heldSkip = (run) => run.status === "completed" && run.conclusion === "neutral" && run.output?.title === "Skipped: awaiting-human";
 
 // Two opt-ins, for a dispatcher that checks the PR's holds itself before it
-// reads the check runs: with `heldSkipsRelease` a held skip is ignored like an
-// untrusted one, so a head skipped while held is dispatched once the hold is
-// gone; with `failuresRetry` a failed run of any kind stops handling the head
-// until `limit-stops-per-head` failures, limit stops included, stand on it.
-const ignored = (run, heldSkipsRelease) => untrustedSkip(run) || (heldSkipsRelease && heldSkip(run));
+// reads the check runs: with `heldSkipsRelease` a held skip stops handling the
+// head, so a head skipped while held is dispatched once the hold is gone; with
+// `failuresRetry` a failed run of any kind does too. Either way the head is
+// handled once `limit-stops-per-head` of them, limit stops included, stand on
+// it, so a dispatcher and a run that disagree about a hold stop there.
+const released = (run, heldSkipsRelease) => heldSkipsRelease && heldSkip(run);
 
 // Whether `runs` handle the head: any run that is not an untrusted skip or a
 // reset limit stop does, and so do `limit-stops-per-head` limit stops.
 export function anyHandles(runs, { now, limits = LIMIT_DEFAULTS, failuresRetry = false, heldSkipsRelease = false }) {
   let stops = 0;
   for (const run of runs) {
-    if (ignored(run, heldSkipsRelease)) {
+    if (untrustedSkip(run)) {
+      continue;
+    }
+    if (released(run, heldSkipsRelease)) {
+      stops += 1;
       continue;
     }
     if (run.status !== "completed" || run.conclusion !== "failure") {
@@ -94,9 +99,7 @@ export function anyHandles(runs, { now, limits = LIMIT_DEFAULTS, failuresRetry =
 // the cap of failures). anyHandles is true then whatever `now` is, so a
 // dispatcher may record the head and skip reading its check runs again.
 export function permanentlyHandles(runs, { limits = LIMIT_DEFAULTS, failuresRetry = false, heldSkipsRelease = false } = {}) {
-  const done = runs.filter((run) => run.status === "completed" && !ignored(run, heldSkipsRelease));
-  if (!failuresRetry) {
-    return done.some((run) => limitResetsAt(run) === null);
-  }
-  return done.some((run) => run.conclusion !== "failure") || done.length >= limits["limit-stops-per-head"];
+  const done = runs.filter((run) => run.status === "completed" && !untrustedSkip(run));
+  const retryable = (run) => released(run, heldSkipsRelease) || (failuresRetry ? run.conclusion === "failure" : limitResetsAt(run) !== null);
+  return done.some((run) => !retryable(run)) || (done.length > 0 && done.filter(retryable).length >= limits["limit-stops-per-head"]);
 }

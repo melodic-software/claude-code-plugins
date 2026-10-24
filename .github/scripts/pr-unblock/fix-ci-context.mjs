@@ -21,7 +21,7 @@ import { appendFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { createGitHubApi, humanGatedLabelFrom, keepThreads, need, positive, reviewedHeads, reviewerIdFrom, SHA } from "./address-feedback.mjs";
-import { commentItems, prHold } from "./gate-source.mjs";
+import { prHold } from "./gate-source.mjs";
 
 // The trailer apply-patch.mjs writes on every fix commit, from the ci-context
 // row of patch-rules.json; a round is one.
@@ -147,7 +147,7 @@ export async function select({ api, pr, appId, reviewerId, maxRounds, humanGated
     head: headSha,
     activity: "fix-ci",
     appId,
-    readTimeline: async () => [...commentItems(await api.listIssueComments(pr)), ...(await api.listLabelEvents(pr))],
+    readTimeline: () => api.listTimeline(pr),
   });
   if (held) {
     return { decision: "skip", skipReason: "awaiting-human", headSha };

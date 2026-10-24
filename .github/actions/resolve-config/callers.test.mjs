@@ -4354,13 +4354,30 @@ test("pr-run-activity-write.yml: the verdict job reads context.json from the sel
 test("pr-run-activity-write.yml: apply-patch drops the human-gated hold only on its caller's base-code verdict", () => {
   const step = workflow("pr-run-activity-write.yml").jobs.run.steps.find((s) => s.id === "hold-label");
   const requested = (prepare, fixRequested) =>
-    evaluate(step.env.FIX_REQUESTED, { "inputs.patch-prepare": prepare, "inputs.patch-fix-requested": fixRequested });
-  assert.equal(requested("review-threads", "true"), "true");
-  assert.equal(requested("review-threads", "false"), "false");
-  // Another row's caller passes its base-code job's lane-escalated verdict.
-  assert.equal(requested("ci-context", "true"), "true");
-  assert.equal(requested("merge-base", "false"), "false");
-  assert.equal(requested("", ""), "", "a caller that passes nothing keeps every hold");
+    evaluate(step.env.FIX_REQUESTED, { "steps.config.outputs.prepare": prepare, "inputs.patch-fix-requested": fixRequested });
+  assert.equal(requested("apply-patch", "true"), "true");
+  assert.equal(requested("apply-patch", "false"), "false");
+  assert.equal(requested("apply-patch", ""), "", "a caller that passes nothing keeps every hold");
+  assert.equal(requested("ci-context", "true"), "", "a skill run never drops it");
+  // The step itself: the labels it hands the commit and push steps, from a
+  // resolved config whose labels-absent is do-not-merge alone.
+  const dir = mkdtempSync(join(tmpdir(), "hold-label-"));
+  try {
+    const resolved = join(dir, "resolved.json");
+    writeFileSync(resolved, JSON.stringify({ selected: { "applies-when": { "labels-absent": ["do-not-merge"] } } }));
+    const labels = (fixRequested) => {
+      const output = join(dir, "out");
+      writeFileSync(output, "");
+      const result = spawnSync("bash", ["-c", step.run], { cwd: dir, env: { ...process.env, RESOLVED: resolved, FIX_REQUESTED: fixRequested, GITHUB_OUTPUT: output } });
+      assert.equal(result.status, 0, String(result.stderr));
+      return JSON.parse(readFileSync(output, "utf8").replace(/^labels=/, ""));
+    };
+    assert.deepEqual(labels("true"), ["do-not-merge"]);
+    assert.deepEqual(labels(""), ["do-not-merge", "needs-human"]);
+    assert.deepEqual(labels("false"), ["do-not-merge", "needs-human"]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("pr-run-activity-write.yml: the reply job reads run.json from the select job's artifact and the replies from the scan job's", () => {

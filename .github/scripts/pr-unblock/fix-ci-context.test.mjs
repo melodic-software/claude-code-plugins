@@ -254,7 +254,11 @@ const gatedApi = (actor, reason) => {
       },
     ],
   });
-  api.listLabelEvents = async () => [{ event: "labeled", actor, label: { name: "needs-human" }, created_at: "2026-10-22T10:00:00Z" }];
+  const comments = api.listIssueComments;
+  api.listTimeline = async (pr) => [
+    ...(await comments(pr)).map((comment) => ({ event: "commented", ...comment })),
+    { event: "labeled", actor, label: { name: "needs-human" }, created_at: "2026-10-22T10:00:00Z" },
+  ];
   return api;
 };
 

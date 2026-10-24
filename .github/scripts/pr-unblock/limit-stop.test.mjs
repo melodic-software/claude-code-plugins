@@ -136,4 +136,9 @@ test("with held skips released, an awaiting-human skip does not handle the head"
   assert.equal(permanentlyHandles([heldSkip], { heldSkipsRelease: true }), false);
   const other = { ...heldSkip, output: { title: "Skipped: not-applicable" } };
   assert.equal(anyHandles([other], { now, heldSkipsRelease: true }), true, "another skip still handles it");
+  // A run that reads a hold the dispatcher does not stops at the cap.
+  const three = [heldSkip, { ...heldSkip, id: 10 }, { ...heldSkip, id: 11 }];
+  assert.equal(anyHandles(three, { now, heldSkipsRelease: true }), true);
+  assert.equal(permanentlyHandles(three, { heldSkipsRelease: true }), true);
+  assert.equal(anyHandles([heldSkip, run(1), run(2)], { now, heldSkipsRelease: true, failuresRetry: true }), true, "held skips and failures share the cap");
 });

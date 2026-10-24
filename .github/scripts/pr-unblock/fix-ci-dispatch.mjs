@@ -28,7 +28,7 @@
 
 import { reconcilerOwns } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { runTitle } from "./feedback-dispatch.mjs";
-import { commentItems, prHold } from "./gate-source.mjs";
+import { prHold } from "./gate-source.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -214,19 +214,20 @@ export function skipReason(
       return owned;
     }
   }
-  // An untrusted-trigger skip ran nothing, so it does not count, nor does a
-  // skip on a PR held then: a held PR stopped above.
+  // An untrusted-trigger skip ran nothing, so it does not count.
   const runs = checks.filter(
-    (run) =>
-      run.name === checkName &&
-      !(run.conclusion === "NEUTRAL" && (String(run.title ?? "").startsWith("Skipped: untrusted-trigger") || run.title === HELD_SKIP)),
+    (run) => run.name === checkName && !(run.conclusion === "NEUTRAL" && String(run.title ?? "").startsWith("Skipped: untrusted-trigger")),
   );
   if (runs.length === 0) {
     return "";
   }
-  // A run that failed or found no failing check to fix may be retried; any
-  // other run (going, pushed a fix, escalated) handles the head.
-  const retryable = (run) => run.status === "COMPLETED" && (run.conclusion === "FAILURE" || (run.conclusion === "NEUTRAL" && run.title === NOT_APPLICABLE));
+  // A run that failed, found no failing check to fix, or skipped on a PR held
+  // then (a held PR stopped above) may be retried; any other run (going,
+  // pushed a fix, escalated) handles the head. All of them count toward the
+  // per-head cap, so a hold the run reads and this dispatcher does not stops
+  // there.
+  const held = (run) => run.conclusion === "NEUTRAL" && run.title === HELD_SKIP;
+  const retryable = (run) => run.status === "COMPLETED" && (run.conclusion === "FAILURE" || held(run) || (run.conclusion === "NEUTRAL" && run.title === NOT_APPLICABLE));
   if (!runs.every(retryable)) {
     return `head already has a ${checkName} check run`;
   }
@@ -235,7 +236,7 @@ export function skipReason(
   }
   // Only a run on the current base tip counts: one that ended before the tip
   // was committed ran against an older base (an unreadable time counts).
-  const current = runs.filter((run) => !(Date.parse(run.completedAt ?? "") < baseAt));
+  const current = runs.filter((run) => !held(run) && !(Date.parse(run.completedAt ?? "") < baseAt));
   if (current.some((run) => run.conclusion !== "FAILURE")) {
     return `head's ${checkName} found no failing check on this base`;
   }
@@ -324,11 +325,12 @@ export async function dispatchCiFixes({
         head: node.headRefOid,
         activity,
         appId: appSenderId,
-        readTimeline: async () => [...commentItems(await api.listIssueComments(node.number)), ...(await api.listLabelEvents(node.number))],
+        readTimeline: () => api.listTimeline(node.number),
       });
       laneGate = hold.held ? hold.why : "";
     } catch (error) {
-      log(`::warning::#${node.number}: could not read where its ${gateLabel} label came from (${error.message}); left for a later run`);
+      failed += 1;
+      log(`::error::#${node.number}: could not read where its ${gateLabel} label came from (${error.message}); left for a later run`);
       continue;
     }
     // A failure an outside outage explains, or a first failure, is the

@@ -18,7 +18,7 @@
 // numbers, SHAs, run ids and counts only.
 
 import { isHandled, markHandled, emptyRecord } from "./dispatch-record.mjs";
-import { commentItems, prHold } from "./gate-source.mjs";
+import { prHold } from "./gate-source.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -225,7 +225,7 @@ export async function dispatchDocsFixes({
         head: node.headRefOid,
         activity,
         appId: appSenderId,
-        readTimeline: async () => [...commentItems(await api.listIssueComments(node.number)), ...(await api.listLabelEvents(node.number))],
+        readTimeline: () => api.listTimeline(node.number),
       });
       if (held) {
         log(`skip fix-docs #${node.number}: ${why}`);

@@ -56,11 +56,9 @@ function fakeApi({ pages = [[]], histories = {}, workflowRuns = [], failHistory 
   const calls = { history: [], dispatch: [] };
   return {
     calls,
-    async listIssueComments(number) {
-      return comments.get(number) ?? [];
-    },
-    async listLabelEvents(number) {
-      return labelEvents.get(number) ?? [];
+    // The REST issue timeline: its comments, then its label events.
+    async listTimeline(number) {
+      return [...(comments.get(number) ?? []).map((comment) => ({ event: "commented", ...comment })), ...(labelEvents.get(number) ?? [])];
     },
     async listDocsFixCandidates({ after }) {
       const index = after === undefined ? 0 : Number(after);

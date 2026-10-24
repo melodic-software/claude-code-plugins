@@ -15,14 +15,15 @@ const HEAD = "a".repeat(40);
 function fakeApi({ labels = ["needs-human"], actor = APP, reason = "feedback-disputed" } = {}) {
   return {
     getPull: async () => ({ head: { sha: HEAD }, labels: labels.map((name) => ({ name })) }),
-    listIssueComments: async () => [
+    listTimeline: async () => [
       {
+        event: "commented",
         user: APP,
         created_at: "2026-10-22T10:00:05Z",
         body: `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${"b".repeat(40)} -->\nStopped.\n\n- Reason: \`${reason}\``,
       },
+      { event: "labeled", actor, label: { name: "needs-human" }, created_at: "2026-10-22T10:00:00Z" },
     ],
-    listLabelEvents: async () => [{ event: "labeled", actor, label: { name: "needs-human" }, created_at: "2026-10-22T10:00:00Z" }],
   };
 }
 

@@ -1139,7 +1139,7 @@ jobs:
           && (steps.config.outputs.kind == 'skill' || steps.config.outputs.prepare == 'apply-patch')
         env:
           RESOLVED: ${{ runner.temp }}/resolved-config.json
-          FIX_REQUESTED: ${{ inputs.patch-fix-requested }}
+          FIX_REQUESTED: ${{ steps.config.outputs.prepare == 'apply-patch' && inputs.patch-fix-requested || '' }}
         run: |
           hold_label=needs-human
           if [ -f .base/.work-item-tracker.json ]; then

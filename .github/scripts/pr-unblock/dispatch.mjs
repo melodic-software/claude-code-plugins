@@ -36,7 +36,7 @@ import { testedRun } from "../maintenance-reconcile-lost-runs/infra-failure.mjs"
 import { DEPENDABOT_ID, POLICY_PATH } from "./dependency-classify.mjs";
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
 import { emptyRecord, isHandled, markHandled, pruneRecord, readRecord, writeRecord } from "./dispatch-record.mjs";
-import { commentItems, listLabelEvents, prHold } from "./gate-source.mjs";
+import { prHold } from "./gate-source.mjs";
 import { runTitle } from "./feedback-dispatch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel, LIST_QUERY as CI_FIX_QUERY } from "./fix-ci-dispatch.mjs";
 import { dispatchDocsFixes, HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY, LIST_QUERY as DOCS_FIX_QUERY } from "./fix-docs-dispatch.mjs";
@@ -181,7 +181,7 @@ export async function dispatchConflicting({
         head: node.headRefOid,
         activity,
         appId: appSenderId,
-        readTimeline: async () => [...commentItems(await api.listIssueComments(node.number)), ...(await api.listLabelEvents(node.number))],
+        readTimeline: () => api.listTimeline(node.number),
       });
       // Not recorded: the hold can come off with the head unchanged.
       if (held) {
@@ -332,10 +332,8 @@ export function createGitHubApi({
     async getCommit(sha) {
       return request(`${apiUrl}/repos/${owner}/${name}/commits/${encodeURIComponent(sha)}`);
     },
-    // A held PR's timeline pieces (gate-source.mjs): its issue comments and
-    // label events.
-    listIssueComments: (number) => paginate(`issues/${Number(number)}/comments`),
-    listLabelEvents: (number) => listLabelEvents({ graphql, repository, number: Number(number) }),
+    // A held PR's issue timeline (gate-source.mjs reads its REST shape).
+    listTimeline: (number) => paginate(`issues/${Number(number)}/timeline`),
     async listCheckRuns({ sha, checkName, appId }) {
       const query = new URLSearchParams({
         check_name: checkName,
@@ -438,19 +436,17 @@ function wrapRunIds(base, env) {
   };
 }
 
-// A held PR's comments and label events are read at most once a run, however
-// many dispatchers ask.
+// A held PR's timeline is read at most once a run, however many dispatchers
+// ask.
 export function shareTimeline(base) {
-  const memo = (read) => {
-    const seen = new Map();
-    return (number) => {
-      if (!seen.has(number)) {
-        seen.set(number, read(number));
-      }
-      return seen.get(number);
-    };
+  const seen = new Map();
+  const listTimeline = (number) => {
+    if (!seen.has(number)) {
+      seen.set(number, base.listTimeline(number));
+    }
+    return seen.get(number);
   };
-  return { ...base, listIssueComments: memo(base.listIssueComments), listLabelEvents: memo(base.listLabelEvents) };
+  return { ...base, listTimeline };
 }
 
 // Writes the dispatched run ids, lowest PR first, as the step output run-ids,
