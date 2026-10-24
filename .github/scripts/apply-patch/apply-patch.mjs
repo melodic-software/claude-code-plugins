@@ -61,12 +61,13 @@
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { appendFileSync, existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { fixRefusal, parseConfig } from "../pr-unblock/dependency-classify.mjs";
+import { KEPT_PATCH_FILE } from "./kept-paths.mjs";
 import { PREDICATES } from "./predicates.mjs";
 
 export const MAX_PATCH_BYTES = 1024 * 1024;
@@ -101,11 +102,6 @@ export function segments(path) {
 const PATH_RULES = {
   // The lane token has no workflows permission, so GitHub refuses the push.
   "github-workflows": (s) => s[0] === ".github" && s[1] === "workflows",
-  // The three places GitHub reads a CODEOWNERS file from
-  // (docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners,
-  // as of 2026-10-22; recheck when that page names another location).
-  codeowners: (s) => s.at(-1) === "codeowners" && (s.length === 1 || (s.length === 2 && [".github", "docs"].includes(s[0]))),
-  gitmodules: (s) => s.at(-1) === ".gitmodules",
   settings: (s) => /^settings[^/]*\.json$/.test(s.at(-1) ?? ""),
 };
 const pathRule = (name) => (entry) => PATH_RULES[name](segments(entry.path));
@@ -119,8 +115,6 @@ export const REFUSALS = {
   // A backslash reads as a directory separator on Windows checkouts.
   backslash: { kind: "protected-path", test: (entry) => entry.path.includes("\\") },
   "github-workflows": { kind: "protected-path", test: pathRule("github-workflows") },
-  codeowners: { kind: "protected-path", test: pathRule("codeowners") },
-  gitmodules: { kind: "protected-path", test: pathRule("gitmodules") },
   settings: { kind: "protected-path", test: pathRule("settings") },
   symlink: { kind: "invalid", test: (entry) => entry.oldMode === SYMLINK || entry.newMode === SYMLINK },
   gitlink: { kind: "invalid", test: (entry) => entry.oldMode === GITLINK || entry.newMode === GITLINK },
@@ -806,7 +800,7 @@ export async function push({
   if (!tree) {
     return escalate("not-applied", "the patch does not apply to the gated head");
   }
-  const entries = changes(git(["diff-tree", "-r", "-z", "--no-renames", headSha, tree]));
+  let entries = changes(git(["diff-tree", "-r", "-z", "--no-renames", headSha, tree]));
   if (entries.length === 0) {
     return escalate("empty", "the patch changes nothing");
   }
@@ -823,18 +817,60 @@ export async function push({
   }
   const reaching = from === headSha ? entries : changes(git(["diff-tree", "-r", "-z", "--no-renames", from, tree]));
   const renames = changes(git(["diff-tree", "-r", "-z", "-M", "--diff-filter=R", from, tree]));
-  // One refused entry refuses the whole patch, before anything is written.
-  // A rename is checked as one first; every entry then meets the rest.
+  // A refused entry of this patch is withheld, a rename's source with its
+  // target, and the rest goes on; a refused path only the start commit's own
+  // commits reach cannot be withheld and refuses the whole patch.
   const refuse = [...row.refuse, ...ALWAYS];
   const checks = [
     ...renames.map((entry) => [entry, ["rename-into-refused"]]),
     ...entries.map((entry) => [entry, refuse]),
     ...(reaching === entries ? [] : reaching.map((entry) => [entry, refuse])),
   ];
+  const own = new Set(entries.map((entry) => entry.path));
+  const kept = new Set();
   for (const [entry, names] of checks) {
     const [refusal] = refusalsOf(entry, names);
-    if (refusal) {
+    if (refusal && !own.has(entry.path)) {
       return escalate(REFUSALS[refusal].kind, `refused (${refusal}): ${entry.path}`);
+    }
+    if (refusal && !kept.has(entry.path)) {
+      log(`withheld (${refusal}): ${entry.path}`);
+      kept.add(entry.path);
+      if (own.has(entry.renamedFrom)) {
+        kept.add(entry.renamedFrom);
+      }
+    }
+  }
+  // Every patched blob, withheld or not, meets the size and credential caps
+  // (a gitlink names a commit, no blob): the withheld part is published.
+  const written = entries.filter((entry) => !ZERO.test(entry.newSha) && entry.newMode !== GITLINK);
+  const sizes = written.map((entry) => Number(git(["cat-file", "-s", entry.newSha]).toString("utf8").trim()));
+  const big = sizes.findIndex((size) => !(size <= MAX_BLOB_BYTES));
+  if (big !== -1) {
+    return escalate("invalid", `the patched ${written[big].path} is over ${MAX_BLOB_BYTES} bytes`);
+  }
+  if (sizes.reduce((sum, size) => sum + size, 0) > MAX_TOTAL_BLOB_BYTES) {
+    return escalate("invalid", `the patched blobs total over ${MAX_TOTAL_BLOB_BYTES} bytes`);
+  }
+  const leaked = written.find((entry) => credentialIn(git(["cat-file", "blob", entry.newSha]).toString("latin1")));
+  if (leaked) {
+    return escalate("invalid", `the patched ${leaked.path} carries a credential shape`);
+  }
+  let keptPart;
+  if (kept.size > 0) {
+    const paths = [...kept].sort();
+    const patch = git(["diff", "--binary", "--full-index", "--no-renames", "--no-ext-diff", "--no-textconv", "--no-color", headSha, tree, "--", ...paths.map((path) => `:(literal)${path}`)]).toString("utf8");
+    keptPart = { patch, paths };
+    for (const entry of entries.filter((item) => kept.has(item.path))) {
+      git(ZERO.test(entry.oldSha) ? ["update-index", "--force-remove", "--", entry.path] : ["update-index", "--add", "--cacheinfo", `${entry.oldMode},${entry.oldSha},${entry.path}`]);
+    }
+    tree = git(["write-tree"]).toString("utf8").trim();
+    entries = entries.filter((entry) => !kept.has(entry.path));
+    if (entries.length === 0) {
+      // Nothing else to push: an issue has no PR to carry the rest, so its
+      // report hands it back; a PR waits for the kept part's apply.
+      log("every change the patch makes is withheld");
+      return row.target === "issue" ? { ...escalate("protected-path", "nothing but withheld paths"), kept: keptPart } : { outcome: "withheld", kept: keptPart };
     }
   }
   if (row["max-files"] !== null && entries.length > row["max-files"]) {
@@ -844,20 +880,7 @@ export async function push({
   if (outside) {
     return escalate("protected-path", `not allowed by ${row.allow.join(", ")}: ${outside.path}`);
   }
-  const written = entries.filter((entry) => !ZERO.test(entry.newSha));
-  const sizes = written.map((entry) => Number(git(["cat-file", "-s", entry.newSha]).toString("utf8").trim()));
-  const big = sizes.findIndex((size) => !(size <= MAX_BLOB_BYTES));
-  if (big !== -1) {
-    return escalate("invalid", `the patched ${written[big].path} is over ${MAX_BLOB_BYTES} bytes`);
-  }
-  if (sizes.reduce((sum, size) => sum + size, 0) > MAX_TOTAL_BLOB_BYTES) {
-    return escalate("invalid", `the patched blobs total over ${MAX_TOTAL_BLOB_BYTES} bytes`);
-  }
-  const blobs = written.map((entry) => ({ entry, bytes: git(["cat-file", "blob", entry.newSha]) }));
-  const leaked = blobs.find(({ bytes }) => credentialIn(bytes.toString("latin1")));
-  if (leaked) {
-    return escalate("invalid", `the patched ${leaked.entry.path} carries a credential shape`);
-  }
+  const blobs = entries.filter((entry) => !ZERO.test(entry.newSha)).map((entry) => ({ entry, bytes: git(["cat-file", "blob", entry.newSha]) }));
   // Before any tree or commit is built: each file's change must also meet the
   // row's content rule.
   const contentRefusal = row["content-rule"] === undefined ? null : await CONTENT_RULES[row["content-rule"]]({ entries, git, context });
@@ -903,7 +926,7 @@ export async function push({
     throw new Error(`${headRef} reads ${after} after the write of ${commit}`);
   }
   log(`pushed ${commit} (${entries.length} path(s)) onto ${headRef}`);
-  return { outcome: "pushed", commit, branch: headRef };
+  return { outcome: "pushed", commit, branch: headRef, ...(keptPart ? { kept: keptPart } : {}) };
 }
 
 // The REST calls apply-patch makes. GitHub signs a commit made with no author
@@ -1107,8 +1130,19 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
   if (result.outcome === "pushed" && env.GITHUB_OUTPUT) {
     appendFileSync(env.GITHUB_OUTPUT, `commit=${result.commit}\nbranch=${result.branch}\n`);
   }
+  // The withheld part, as its own patch file for the run job to upload.
+  if (result.kept && env.KEPT_PATCH_DIR) {
+    mkdirSync(env.KEPT_PATCH_DIR, { recursive: true });
+    writeFileSync(join(env.KEPT_PATCH_DIR, KEPT_PATCH_FILE), result.kept.patch);
+    if (env.GITHUB_OUTPUT) {
+      appendFileSync(env.GITHUB_OUTPUT, `kept-sha256=${sha256Of(Buffer.from(result.kept.patch))}\n`);
+    }
+  }
+  // All withheld waits on the kept part's apply, which needs the workflows
+  // permission the lane token lacks: a missing prerequisite, not a person.
+  const skips = { superseded: "superseded-sha", withheld: "prerequisite-missing" };
   if (result.outcome !== "pushed") {
-    writeFileSync(env.SKIP_REASON_FILE, result.outcome === "superseded" ? "superseded-sha\n" : "awaiting-human\n");
+    writeFileSync(env.SKIP_REASON_FILE, `${skips[result.outcome] ?? "awaiting-human"}\n`);
   }
   log(`apply-patch (${row.name}): ${result.outcome}${result.escalationReason ? ` (${result.escalationReason})` : ""}`);
   return 0;

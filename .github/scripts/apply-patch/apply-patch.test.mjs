@@ -60,11 +60,8 @@ test("refuses .claude/settings.json as a settings file only", () => {
   assert.deepEqual(refusalsOf(entry(".claude/settings.json")), ["settings"]);
 });
 
-test("refuses CODEOWNERS where GitHub reads it: the root, .github/ and docs/", () => {
-  for (const path of ["CODEOWNERS", ".github/CODEOWNERS", "docs/codeowners", "Docs/CODEOWNERS"]) {
-    assert.deepEqual(refusalsOf(entry(path)), ["codeowners"], path);
-  }
-  for (const path of ["plugins/p/CODEOWNERS", "docs/sub/CODEOWNERS", "CODEOWNERS.md"]) {
+test("admits CODEOWNERS and .gitmodules anywhere: the security review reads them", () => {
+  for (const path of ["CODEOWNERS", ".github/CODEOWNERS", "docs/codeowners", "Docs/CODEOWNERS", "plugins/p/CODEOWNERS", ".gitmodules", "vendor/.gitmodules"]) {
     assert.deepEqual(refusalsOf(entry(path)), [], path);
   }
 });
@@ -75,10 +72,6 @@ test("admits the root .mcp.json", () => {
 
 test("admits a plugin's .mcp.json", () => {
   assert.deepEqual(refusalsOf(entry("plugins/p/.mcp.json")), []);
-});
-
-test("refuses .gitmodules", () => {
-  assert.deepEqual(refusalsOf(entry(".gitmodules")), ["gitmodules"]);
 });
 
 test("refuses plugins/p/settings.local.json", () => {
@@ -222,7 +215,7 @@ test("under the ci-context row a fix that sets script exec bits and edits a fixt
   }
 });
 
-test("refuses a rename from an allowed path into .github/workflows/", async (t) => {
+test("withholds a rename from an allowed path into .github/workflows/, its source with it, and pushes nothing else", async (t) => {
   const fix = repoWithPatch(
     t,
     (repo) => {
@@ -234,8 +227,11 @@ test("refuses a rename from an allowed path into .github/workflows/", async (t) 
   assert.match(readFileSync(fix.patchFile, "utf8"), /^rename to \.github\/workflows\/notes\.md$/m);
   const api = fakeApi(fix.repo, fix.head);
   const lines = [];
-  assert.deepEqual(await pushWith(fix, api, { log: (line) => lines.push(line) }), { outcome: "escalate", escalationReason: "patch-protected-path" });
-  assert.deepEqual(lines, ["refused (rename-into-refused): .github/workflows/notes.md"]);
+  const result = await pushWith(fix, api, { log: (line) => lines.push(line) });
+  assert.equal(result.outcome, "withheld");
+  assert.deepEqual(result.kept.paths, [".github/workflows/notes.md", "notes.md"]);
+  assert.match(result.kept.patch, /^deleted file mode 100644$/m);
+  assert.deepEqual(lines, ["withheld (rename-into-refused): .github/workflows/notes.md", "every change the patch makes is withheld"]);
   assert.deepEqual(api.calls, []);
 });
 
@@ -249,20 +245,65 @@ test("a patch that edits .github/scripts/ or .github/actions/ pushes", async (t)
   assert.deepEqual(await pushWith(fix, fakeApi(fix.repo, fix.head), { row: row("ci-context") }), { outcome: "pushed", commit: "c".repeat(40), branch: "feat/x" });
 });
 
-test("refuses a patched path holding a backslash, such as a .github\\x.yml add", async (t) => {
+test("withholds a patched path holding a backslash, such as a .github\\x.yml add", async (t) => {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, ".github\\x.yml"), "on: push\n"));
   const api = fakeApi(fix.repo, fix.head);
-  assert.deepEqual(await pushWith(fix, api), { outcome: "escalate", escalationReason: "patch-protected-path" });
+  assert.equal((await pushWith(fix, api)).outcome, "withheld");
   assert.deepEqual(api.calls, []);
 });
 
-test("a patch that touches .github/ is refused end to end before any API call", async (t) => {
+test("a patch that only touches .github/workflows/ is withheld whole with no API call, escalating nothing", async (t) => {
   const fix = repoWithPatch(t, (repo) => {
     mkdirSync(join(repo, ".github/workflows"), { recursive: true });
     writeFileSync(join(repo, ".github/workflows/ci.yml"), "on: push\n");
   });
   const api = fakeApi(fix.repo, fix.head);
-  assert.deepEqual(await pushWith(fix, api, { row: row("ci-context") }), { outcome: "escalate", escalationReason: "ci-fix-protected-path" });
+  const result = await pushWith(fix, api, { row: row("ci-context") });
+  assert.equal(result.outcome, "withheld");
+  assert.equal(result.escalationReason, undefined);
+  assert.deepEqual(result.kept.paths, [".github/workflows/ci.yml"]);
+  assert.deepEqual(api.calls, []);
+});
+
+// A workflow, a settings file and a symbolic link are kept: withheld from the
+// push, which carries the rest, and handed on as their own patch.
+test("a patch that also touches a kept path pushes the rest and hands on the kept part as a patch that applies to the pushed tree", async (t) => {
+  const fix = repoWithPatch(t, (repo) => {
+    mkdirSync(join(repo, ".github/workflows"), { recursive: true });
+    writeFileSync(join(repo, ".github/workflows/ci.yml"), "on: push\n");
+    writeFileSync(join(repo, "settings.json"), "{}\n");
+    symlinkSync("README.md", join(repo, "link"));
+    writeFileSync(join(repo, "README.md"), "# fixed\n");
+  });
+  const api = fakeApi(fix.repo, fix.head);
+  const lines = [];
+  const result = await pushWith(fix, api, { row: row("ci-context"), log: (line) => lines.push(line) });
+  assert.equal(result.outcome, "pushed");
+  assert.deepEqual(result.kept.paths, [".github/workflows/ci.yml", "link", "settings.json"]);
+  assert.deepEqual(lines.slice(0, 3).sort(), ["withheld (github-workflows): .github/workflows/ci.yml", "withheld (settings): settings.json", "withheld (symlink): link"]);
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.equal(git(fix.repo, ["cat-file", "blob", `${createCommit.tree}:README.md`]), "# fixed");
+  for (const path of [".github/workflows/ci.yml", "settings.json", "link"]) {
+    assert.throws(() => git(fix.repo, ["rev-parse", "--verify", "-q", `${createCommit.tree}:${path}`]), path);
+  }
+  // The kept patch applies to the pushed tree and makes the model's whole tree.
+  const index = join(scratch(t), "index");
+  const env = { ...process.env, GIT_INDEX_FILE: index };
+  execFileSync("git", ["read-tree", createCommit.tree], { cwd: fix.repo, env });
+  execFileSync("git", ["apply", "--cached"], { cwd: fix.repo, env, input: result.kept.patch });
+  const whole = execFileSync("git", ["write-tree"], { cwd: fix.repo, env, encoding: "utf8" }).trim();
+  execFileSync("git", ["read-tree", fix.head], { cwd: fix.repo, env });
+  execFileSync("git", ["apply", "--cached", fix.patchFile], { cwd: fix.repo, env });
+  assert.equal(whole, execFileSync("git", ["write-tree"], { cwd: fix.repo, env, encoding: "utf8" }).trim());
+});
+
+test("a credential shape in a withheld blob refuses the whole patch, since the kept part is published", async (t) => {
+  const fix = repoWithPatch(t, (repo) => {
+    writeFileSync(join(repo, "settings.json"), Buffer.concat([Buffer.from([0, 1, 2]), Buffer.from(ANTHROPIC_KEY)]));
+    writeFileSync(join(repo, "README.md"), "# fixed\n");
+  });
+  const api = fakeApi(fix.repo, fix.head);
+  assert.deepEqual(await pushWith(fix, api), { outcome: "escalate", escalationReason: "patch-invalid" });
   assert.deepEqual(api.calls, []);
 });
 
@@ -307,9 +348,9 @@ test("a patch over max-files is refused", async (t) => {
   assert.deepEqual(api.calls, []);
 });
 
-// Agent instructions, plugin hooks and manifests, MCP config and .claude
-// reach review on every row; settings files, submodules and code owners stay
-// refused on every row.
+// Agent instructions, plugin hooks and manifests, MCP config, .claude,
+// submodule config and code owners reach review on every row; settings files
+// stay kept on every row.
 const INSTRUCTION_PATHS = [
   ["CLAUDE.md", []],
   ["AGENTS.md", []],
@@ -324,13 +365,13 @@ const INSTRUCTION_PATHS = [
   [".claude-plugin/marketplace.json", []],
   [".mcp.json", []],
   ["plugins/p/.MCP.json", []],
-  [".gitmodules", ["gitmodules"]],
-  ["CODEOWNERS", ["codeowners"]],
-  ["docs/CODEOWNERS", ["codeowners"]],
-  ["docs/codeowners", ["codeowners"]],
+  [".gitmodules", []],
+  ["CODEOWNERS", []],
+  ["docs/CODEOWNERS", []],
+  ["docs/codeowners", []],
 ];
 
-test("every row refuses the same instruction paths: settings, submodules and code owners only", () => {
+test("every row keeps the same instruction paths: settings files only", () => {
   for (const [path, refusals] of INSTRUCTION_PATHS) {
     for (const name of Object.keys(RULES)) {
       assert.deepEqual(refusalsOf(entry(path), RULES[name].refuse), refusals, `${name} ${path}`);
@@ -339,8 +380,8 @@ test("every row refuses the same instruction paths: settings, submodules and cod
 });
 
 // fix-docs hands on its patch with no prepare mode, so the default row holds
-// it: an edit to an agent instruction or a plugin hook pushes, and one to a
-// code owners file is refused whole before any API call.
+// it: an edit to an agent instruction, a plugin hook or a code owners file
+// pushes.
 for (const [path, edit] of [
   ["CLAUDE.md", (repo) => writeFileSync(join(repo, "CLAUDE.md"), "Follow the rules.\n")],
   ["docs/AGENTS.md", (repo) => (mkdirSync(join(repo, "docs")), writeFileSync(join(repo, "docs/AGENTS.md"), "x\n"))],
@@ -355,20 +396,13 @@ for (const [path, edit] of [
   });
 }
 
-test("a fix-docs patch that edits docs/CODEOWNERS is refused patch-protected-path before any API call", async (t) => {
+test("a fix-docs patch that edits docs/CODEOWNERS pushes", async (t) => {
   const fix = repoWithPatch(t, (repo) => {
     writeFileSync(join(repo, "README.md"), "# fixed\n");
     mkdirSync(join(repo, "docs"));
     writeFileSync(join(repo, "docs/CODEOWNERS"), "* @o\n");
   });
-  const api = fakeApi(fix.repo, fix.head);
-  const lines = [];
-  assert.deepEqual(await pushWith(fix, api, { lane: "pr-refine", activity: "fix-docs", log: (line) => lines.push(line) }), {
-    outcome: "escalate",
-    escalationReason: "patch-protected-path",
-  });
-  assert.deepEqual(lines, ["refused (codeowners): docs/CODEOWNERS"]);
-  assert.deepEqual(api.calls, []);
+  assert.equal((await pushWith(fix, fakeApi(fix.repo, fix.head), { lane: "pr-refine", activity: "fix-docs" })).outcome, "pushed");
 });
 
 test("a fix-docs patch of 300 files pushes, and one of 301 escalates patch-invalid with no API call", async (t) => {
@@ -534,7 +568,6 @@ const SCOPE_PAIRS = [["github-actions", "/"], ["npm", "/"], ["npm", "/plugins/mi
 test("dependency-manifests refuses a path outside fix scope, whatever the base config lists", async (t) => {
   for (const path of [
     "plugins/miro/server/src/index.js",
-    ".github/workflows/x.yml",
     ".github/actions/resolve-config/package.json",
     ".github/requirements-ci.txt",
     "plugins/animation/setup.py",
@@ -642,16 +675,9 @@ test("a pushed patch commits the row's message and trailer on the gated head and
 // The kept threads as keptThreadsFrom reads them from a threads.json.
 const keptOf = (threads) => ({ paths: new Set(threads.map((thread) => thread.path)), threads });
 
-test("kept-threads admits a kept thread's path and refuses one outside every thread's scope", async (t) => {
+test("kept-threads admits any plain path, and still needs the run's kept threads", async (t) => {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
-  const kept = fakeApi(fix.repo, fix.head);
-  assert.equal((await pushWith(fix, kept, { row: row("review-threads"), context: { keptThreads: keptOf([{ path: "README.md" }]) } })).outcome, "pushed");
-  const outside = fakeApi(fix.repo, fix.head);
-  assert.deepEqual(await pushWith(fix, outside, { row: row("review-threads"), context: { keptThreads: keptOf([{ path: "notes.md" }]) } }), {
-    outcome: "escalate",
-    escalationReason: "patch-protected-path",
-  });
-  assert.deepEqual(outside.calls, []);
+  assert.equal((await pushWith(fix, fakeApi(fix.repo, fix.head), { row: row("review-threads"), context: { keptThreads: keptOf([{ path: "notes.md" }]) } })).outcome, "pushed");
   await assert.rejects(pushWith(fix, fakeApi(fix.repo, fix.head), { row: row("review-threads") }), /kept thread paths/);
   await assert.rejects(pushWith(fix, fakeApi(fix.repo, fix.head), { row: row("review-threads"), context: { keptThreads: new Set(["README.md"]) } }), /kept thread paths/);
 });
@@ -680,28 +706,12 @@ test("review-threads: the thread's path, its plugin's files and a sibling test p
   assert.equal((await threadPush(fix)).outcome, "pushed");
 });
 
-for (const path of ["plugins/q/evals/c/samples/new.json", "src/lib/test_round.py", "plugins/p/lib/run.js"]) {
-  test(`review-threads: a change outside every kept thread's scope is refused whole: ${path}`, async (t) => {
+for (const path of ["plugins/q/evals/c/samples/new.json", "src/lib/test_round.py", "plugins/p/lib/run.js", "plugins/p/CODEOWNERS", "CLAUDE.md"]) {
+  test(`review-threads: a change outside the kept threads' own paths pushes: ${path}`, async (t) => {
     const fix = threadPatch(t, ["plugins/p/evals/c/case.yaml", path]);
-    assert.deepEqual(await threadPush(fix), { outcome: "escalate", escalationReason: "patch-protected-path" });
+    assert.equal((await threadPush(fix)).outcome, "pushed");
   });
 }
-
-// #8116: a write-access fix request named a same-plugin code file, which the
-// thread file carries as named_paths; without it the file is out of scope.
-test("review-threads: a file a kept thread's named_paths holds pushes; the same file unnamed, or a named instruction path, is refused", async (t) => {
-  const named = [{ path: "plugins/p/evals/c/case.yaml", named_paths: ["plugins/p/lib/run.js"] }];
-  assert.equal((await threadPush(threadPatch(t, ["plugins/p/lib/run.js"]), named)).outcome, "pushed");
-  assert.deepEqual(await threadPush(threadPatch(t, ["plugins/p/lib/run.js"]), [{ path: "plugins/p/evals/c/case.yaml" }]), {
-    outcome: "escalate",
-    escalationReason: "patch-protected-path",
-  });
-  const instruction = [{ path: "plugins/p/evals/c/case.yaml", named_paths: ["plugins/p/CODEOWNERS"] }];
-  assert.deepEqual(await threadPush(threadPatch(t, ["plugins/p/CODEOWNERS"]), instruction), {
-    outcome: "escalate",
-    escalationReason: "patch-protected-path",
-  });
-});
 
 // A finding on a doc fixed in a script the pull request also changes: the
 // thread file's pr_paths carry the PR's files into every thread's scope.
@@ -713,18 +723,19 @@ test("review-threads: a thread on one PR file fixed in another PR file pushes", 
   assert.equal((await docPush(fix, ["README.md", "scripts/x.sh"])).outcome, "pushed");
 });
 
-test("review-threads: a fix in a file the PR does not change is refused", async (t) => {
+test("review-threads: a fix in a file the PR does not change, or a new file, pushes", async (t) => {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "scripts/x.sh"), "#!/bin/sh\nfoo=2\n"));
-  assert.deepEqual(await docPush(fix, ["README.md"]), { outcome: "escalate", escalationReason: "patch-protected-path" });
+  assert.equal((await docPush(fix, ["README.md"])).outcome, "pushed");
+  const added = repoWithPatch(t, (repo) => writeFileSync(join(repo, "scripts/new.sh"), "#!/bin/sh\n"));
+  assert.equal((await docPush(added, ["README.md"])).outcome, "pushed");
 });
 
-test("review-threads: a new file stays refused even when pr_paths lists it", async (t) => {
-  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "scripts/new.sh"), "#!/bin/sh\n"));
-  assert.deepEqual(await docPush(fix, ["README.md", "scripts/new.sh"]), { outcome: "escalate", escalationReason: "patch-protected-path" });
-});
-
-test("review-threads: a protected path the PR changes is still refused", async (t) => {
-  for (const path of [".github/workflows/ci.yml", "CODEOWNERS", ".github/actions/resolve-config/resolve.mjs"]) {
+test("review-threads: a workflow the PR changes is withheld; CODEOWNERS and .github/actions/ push", async (t) => {
+  for (const [path, outcome] of [
+    [".github/workflows/ci.yml", "withheld"],
+    ["CODEOWNERS", "pushed"],
+    [".github/actions/resolve-config/resolve.mjs", "pushed"],
+  ]) {
     const fix = repoWithPatch(
       t,
       (repo) => writeFileSync(join(repo, path), "changed\n"),
@@ -735,16 +746,16 @@ test("review-threads: a protected path the PR changes is still refused", async (
         },
       },
     );
-    assert.deepEqual(await docPush(fix, ["README.md", path]), { outcome: "escalate", escalationReason: "patch-protected-path" }, path);
+    assert.equal((await docPush(fix, ["README.md", path])).outcome, outcome, path);
   }
 });
 
-test("review-threads: a symbolic link at an in-scope path is refused patch-invalid", async (t) => {
+test("review-threads: a symbolic link is withheld", async (t) => {
   const fix = repoWithPatch(t, (repo) => {
     mkdirSync(join(repo, "plugins/p"), { recursive: true });
     symlinkSync("../../README.md", join(repo, "plugins/p/notes.md"));
   });
-  assert.deepEqual(await threadPush(fix), { outcome: "escalate", escalationReason: "patch-invalid" });
+  assert.equal((await threadPush(fix)).outcome, "withheld");
 });
 
 test("keptThreadsFrom reads a threads.json's paths and named_paths, and refuses any other shape", (t) => {
@@ -1256,20 +1267,27 @@ test("issue target: a patch made on another commit is refused, never applied wit
   assert.deepEqual(api.calls, []);
 });
 
-test("issue target: the issue row refuses the universal set, each refusal before any API call", async (t) => {
+test("issue target: a patch of kept paths alone escalates patch-protected-path with the kept part, before any API call", async (t) => {
   const cases = [
-    ["a .github/ workflow", (repo) => (mkdirSync(join(repo, ".github/workflows"), { recursive: true }), writeFileSync(join(repo, ".github/workflows/x.yml"), "on: push\n")), "patch-protected-path"],
-    ["CODEOWNERS", (repo) => writeFileSync(join(repo, "CODEOWNERS"), "* @o\n"), "patch-protected-path"],
-    [".gitmodules", (repo) => writeFileSync(join(repo, ".gitmodules"), "\n"), "patch-protected-path"],
-    ["a settings.json", (repo) => writeFileSync(join(repo, "settings.json"), "{}\n"), "patch-protected-path"],
-    ["a symbolic link", (repo) => symlinkSync("README.md", join(repo, "link")), "patch-invalid"],
+    ["a .github/ workflow", (repo) => (mkdirSync(join(repo, ".github/workflows"), { recursive: true }), writeFileSync(join(repo, ".github/workflows/x.yml"), "on: push\n"))],
+    ["a settings.json", (repo) => writeFileSync(join(repo, "settings.json"), "{}\n")],
+    ["a symbolic link", (repo) => symlinkSync("README.md", join(repo, "link"))],
   ];
-  assert.deepEqual(issueRow().refuse, ["github-workflows", "codeowners", "gitmodules", "settings", "symlink", "gitlink", "rename-into-refused"]);
-  for (const [what, edit, reason] of cases) {
+  assert.deepEqual(issueRow().refuse, ["github-workflows", "settings", "symlink", "gitlink", "rename-into-refused"]);
+  for (const [what, edit] of cases) {
     const fix = repoWithPatch(t, edit);
     const api = fakeApi(fix.repo, fix.head, { labels: READY });
-    assert.deepEqual(await pushIssue(fix, api), { outcome: "escalate", escalationReason: reason }, what);
+    const result = await pushIssue(fix, api);
+    assert.equal(result.escalationReason, "patch-protected-path", what);
+    assert.equal(result.kept.paths.length, 1, what);
     assert.deepEqual(api.calls, [], what);
+  }
+  for (const [what, edit] of [
+    ["CODEOWNERS", (repo) => writeFileSync(join(repo, "CODEOWNERS"), "* @o\n")],
+    [".gitmodules", (repo) => writeFileSync(join(repo, ".gitmodules"), "\n")],
+  ]) {
+    const fix = repoWithPatch(t, edit);
+    assert.equal((await pushIssue(fix, fakeApi(fix.repo, fix.head, { labels: READY }))).outcome, "pushed", what);
   }
 });
 
@@ -1312,7 +1330,7 @@ test("issue target: a resumed run keeps the executable bits its earlier lane com
   }
 });
 
-test("issue target: a resumed run whose patch adds a gitlink to a commit not in the repository escalates patch-invalid", async (t) => {
+test("issue target: a resumed run whose patch adds only a gitlink withholds it and escalates patch-protected-path", async (t) => {
   const fix = repoWithPatch(t, () => {});
   writeFileSync(join(fix.repo, "notes.md"), "earlier run's work\n");
   const resumeTip = commitAll(fix.repo, "earlier lane commit");
@@ -1322,7 +1340,9 @@ test("issue target: a resumed run whose patch adds a gitlink to a commit not in 
   writeFileSync(fix.patchFile, text);
   const api = fakeApi(fix.repo, resumeTip, { labels: READY });
   const resumed = { ...fix, head: resumeTip, sum: sha256(text) };
-  assert.deepEqual(await pushIssue(resumed, api, { headRef: `${LANE}/issue-7-124-1`, refusalBase: fix.head }), { outcome: "escalate", escalationReason: "patch-invalid" });
+  const result = await pushIssue(resumed, api, { headRef: `${LANE}/issue-7-124-1`, refusalBase: fix.head });
+  assert.equal(result.escalationReason, "patch-protected-path");
+  assert.deepEqual(result.kept.paths, ["vendor/sub"]);
   assert.deepEqual(api.calls, []);
 });
 
@@ -1424,7 +1444,6 @@ test("issue target: a resume tip carrying a refused path is refused, though the 
   for (const [what, earlier, reason] of [
     ["a .claude/settings.json", (repo) => (mkdirSync(join(repo, ".claude")), writeFileSync(join(repo, ".claude/settings.json"), "{}\n")), "patch-protected-path"],
     ["a .github/ workflow", (repo) => (mkdirSync(join(repo, ".github/workflows"), { recursive: true }), writeFileSync(join(repo, ".github/workflows/x.yml"), "on: push\n")), "patch-protected-path"],
-    ["CODEOWNERS", (repo) => writeFileSync(join(repo, "CODEOWNERS"), "* @o\n"), "patch-protected-path"],
   ]) {
     const { fix, base } = resumeWith(t, earlier);
     const api = fakeApi(fix.repo, fix.head, { labels: READY });
@@ -1624,11 +1643,14 @@ test("a patch that edits a path outside the conflicted set escalates unexpected-
   assert.deepEqual(api.calls, []);
 });
 
-test("a model-authored workflow or code-owners edit is refused conflict-patch-protected-path before any API call", async (t) => {
-  for (const path of [".github/workflows/ci.yml", "CODEOWNERS"]) {
+test("a model-authored workflow edit is refused conflict-patch-protected-path, and a code-owners edit outside the conflicts unexpected-path-staged, before any API call", async (t) => {
+  for (const [path, reason] of [
+    [".github/workflows/ci.yml", "conflict-patch-protected-path"],
+    ["CODEOWNERS", "unexpected-path-staged"],
+  ]) {
     const fix = mergeFixture(t, { ...CONFLICT, resolve: (repo) => write(repo, { "a.txt": "resolved\n", [path]: "x\n" }) });
     const api = fakeApi(fix.repo, fix.head);
-    assert.deepEqual(await mergePush(fix, api), { outcome: "escalate", escalationReason: "conflict-patch-protected-path" }, path);
+    assert.deepEqual(await mergePush(fix, api), { outcome: "escalate", escalationReason: reason }, path);
     assert.deepEqual(api.calls, [], path);
   }
 });

@@ -98,8 +98,8 @@ test("an unresolved reviewer-bot thread on a marker-confirmed head proceeds and 
 
 // A finding on a doc whose fix lives in a script the PR also changes: the
 // thread file lists every file the PR changes, rename sources included, but
-// none a fix may never change.
-test("the thread file's pr_paths hold the PR's files, rename sources included, less the refused ones", async () => {
+// none off plain ASCII.
+test("the thread file's pr_paths hold the PR's plain files, rename sources included", async () => {
   const files = [
     { filename: "plugins/p/skills/s/converge.md" },
     { filename: "plugins/p/skills/s/scripts/converge-plan.sh" },
@@ -115,8 +115,13 @@ test("the thread file's pr_paths hold the PR's files, rename sources included, l
   const result = await run(fakeApi({ files }));
   assert.equal(result.decision, "proceed");
   assert.deepEqual(result.file.pr_paths, [
+    ".github/actions/check-trusted-trigger/action.yml",
+    ".github/actions/resolve-config/resolve.mjs",
+    ".github/standards/trusted-actors/trusted-actors.json",
+    "CODEOWNERS",
     "docs/new.md",
     "docs/old.md",
+    "plugins/p/.claude/settings.json",
     "plugins/p/skills/s/converge.md",
     "plugins/p/skills/s/scripts/converge-plan.sh",
     "src/a.js",
@@ -550,37 +555,19 @@ test("a thread longer than one comment page is left alone", async () => {
   assert.equal((await run(fakeApi({ threads: [big] }))).decision, "skip");
 });
 
-test("a PR that changes .github/workflows/** escalates feedback-protected-path before any model turn", async () => {
+// A workflow or other control path in the PR is the security review's
+// finding, not a stop: the threads proceed, and apply-patch.mjs withholds a
+// fix's workflow part as a proposed diff.
+test("a PR that changes .github/workflows/**, CODEOWNERS or the rest of .github/ proceeds", async () => {
   for (const files of [
     [{ filename: "src/a.js" }, { filename: ".github/workflows/ci.yml" }],
     [{ filename: "src/b.js", previous_filename: ".github/workflows/x.yml" }],
     [{ filename: ".GitHub/Workflows/ci.yml" }],
-  ]) {
-    const result = await run(fakeApi({ files }));
-    assert.equal(result.decision, "escalate");
-    assert.equal(result.escalationReason, "feedback-protected-path");
-    assert.equal(result.file, undefined);
-  }
-});
-
-test("a PR that changes the rest of .github/ proceeds", async () => {
-  for (const files of [
-    [{ filename: "src/b.js", previous_filename: ".github/scripts/x.sh" }],
     [{ filename: ".github/CODEOWNERS" }, { filename: ".github/actions/a/action.yml" }],
+    Array.from({ length: 3000 }, (_, i) => ({ filename: `src/f${i}.js` })),
   ]) {
     assert.equal((await run(fakeApi({ files }))).decision, "proceed");
   }
-});
-
-test("a diff at the files listing's 3000-file limit escalates, since it could hide a .github/workflows/ path", async () => {
-  const files = Array.from({ length: 3000 }, (_, i) => ({ filename: `src/f${i}.js` }));
-  const result = await run(fakeApi({ files }));
-  assert.equal(result.escalationReason, "feedback-protected-path");
-  assert.equal((await run(fakeApi({ files: files.slice(1) }))).decision, "proceed");
-});
-
-test("a path that only starts with .github is not protected", async () => {
-  assert.equal((await run(fakeApi({ files: [{ filename: ".githubrc" }] }))).decision, "proceed");
 });
 
 test("rounds are capped at two by default: a third round escalates feedback-round-cap with no thread file", async () => {
@@ -750,13 +737,8 @@ test("main select writes outputs and the thread file; escalation writes no threa
   await main(["select"], heldEnv, { api: fakeApi({ ...escalated(), labels: ["status: blocked-human"] }), log: () => {} });
   assert.equal(readFileSync(join(dir, "held.out"), "utf8"), "proceed=false\nfix-requested=false\nskip-reason=awaiting-human\nescalation-reason=\n");
 
-  await main(["select"], env("esc"), { api: fakeApi({ files: [{ filename: ".github/workflows/x.yml" }] }), log: () => {} });
-  assert.equal(
-    readFileSync(join(dir, "esc.out"), "utf8"),
-    "proceed=false\nfix-requested=false\nskip-reason=awaiting-human\nescalation-reason=feedback-protected-path\n",
-  );
-  assert.throws(() => readFileSync(join(dir, "esc.json")));
-  assert.throws(() => readFileSync(join(dir, "esc.run.json")), "an escalation writes no run.json");
+  await main(["select"], env("wf"), { api: fakeApi({ files: [{ filename: ".github/workflows/x.yml" }] }), log: () => {} });
+  assert.equal(readFileSync(join(dir, "wf.out"), "utf8"), "proceed=true\nfix-requested=false\nskip-reason=\nescalation-reason=\n");
 });
 
 test("main select needs RUN_FILE beside THREAD_FILE, and no LANE_BRANCH", async () => {
@@ -868,15 +850,13 @@ test("a repository-relative name with a :line suffix in the same plugin is added
   assert.deepEqual(result.file.threads[0].named_paths, ["plugins/knowledge/README.md"]);
 });
 
-test("a name in another plugin, under .github/ or on an instruction path is not added, and no tree is read for it", async () => {
+test("a name in another plugin, under .github/ or on an instruction path is added when the head holds it as a regular file", async () => {
   const body =
     "PR-fix lane: please fix this finding. Edit plugins/other/x.js, .github/workflows/x.yml, " +
     "plugins/knowledge/CODEOWNERS and `plugins/knowledge/.claude/settings.json`.";
-  const { api, reads } = named([[101, HUMAN, body]]);
-  const result = await run(api);
+  const result = await run(named([[101, HUMAN, body]]).api);
   assert.equal(result.decision, "proceed");
-  assert.equal(result.file.threads[0].named_paths, undefined);
-  assert.deepEqual(reads, []);
+  assert.deepEqual(result.file.threads[0].named_paths, ["plugins/other/x.js", ".github/workflows/x.yml"]);
 });
 
 test("a ../ traversal or an absolute name is not added", async () => {

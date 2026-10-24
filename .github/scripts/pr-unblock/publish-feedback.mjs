@@ -12,9 +12,8 @@
 //      nothing), finds the one commit apply-feedback-patch pushed: the lanes
 //      App's, after the select job's head, carrying the review-threads
 //      row's Lane-Activity trailer (isLaneFix). Confirms it changes each
-//      VALID thread's path and that the branch changed no path outside the
-//      kept threads' scope (thread-scope.mjs) and none under
-//      .github/workflows/. With no such commit in that range and no patch
+//      VALID thread's path and that every path the branch changed is plain
+//      and in normal form (thread-scope.mjs). With no such commit in that range and no patch
 //      written this round (a retry after a round whose fix landed but whose
 //      replies did not post), each VALID thread's fix is an earlier commit on
 //      the PR of the same kind, committed after the thread's newest reviewer
@@ -292,10 +291,8 @@ const claimedFixes = (reviewComments, appId) =>
   );
 
 // Whenever the PR branch moved since the select job's head, or a reply is
-// VALID, that range may change only what inThreadScope allows around the kept
-// threads' paths and the PR's own files (run.json, whose SHA-256 the select
-// job recorded), adding none of those files, and nothing under
-// .github/workflows/. With a VALID reply the range must hold
+// VALID, every path that range changes must be one inThreadScope allows (plain
+// and in normal form). With a VALID reply the range must hold
 // exactly one fix commit (isLaneFix), and it must change every VALID thread's path, a
 // file the PR already changes at a line the reply's evidence cites, or for a
 // thread on a skill's SKILL.md any file in that skill's directory (touchesThread).
@@ -317,7 +314,6 @@ async function fixesLanded({ api, pr, run, headSha, replies, appId, judgedAt, pa
   const fixes = valid.length === 0 ? [] : (comparison.commits ?? []).filter((commit) => isLaneFix(commit, appId));
   const fixSha = fixes.length === 1 ? fixes[0].sha : "";
   const threadPath = new Map(run.threads.map((thread) => [thread.id, thread.path]));
-  const paths = new Set(threadPath.values());
   const prPaths = new Set(run.pr_paths ?? []);
   const files = comparison.files ?? [];
   const inRange =
@@ -328,10 +324,7 @@ async function fixesLanded({ api, pr, run, headSha, replies, appId, judgedAt, pa
       [file.filename, file.previous_filename].every(
         (path) =>
           path === undefined ||
-          inThreadScope(path, paths, run.threads, {
-            prPaths,
-            added: path === file.filename && ["added", "renamed", "copied"].includes(file.status),
-          }),
+          inThreadScope(path),
       ),
     );
   if (!inRange) {

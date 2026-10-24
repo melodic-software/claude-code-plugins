@@ -1038,7 +1038,7 @@ test("a lane run fails closed on patch rules a row of which does not refuse the 
   const broken = JSON.parse(readFileSync(join(FIXTURES, "patch-rules-missing-universal.json"), "utf8"));
   await assert.rejects(
     resolveFromBase({ env, github: noApi, readRules: rulesWith("./patch-rules.json", broken) }),
-    (error) => error.code === "patch-rules" && /does not refuse codeowners/.test(error.message),
+    (error) => error.code === "patch-rules" && /does not refuse settings/.test(error.message),
   );
 });
 

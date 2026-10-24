@@ -434,9 +434,6 @@ for (const [label, compare] of [
   ["the App's new commit is another activity's", { status: "ahead", commits: [fixCommit(FIX, { commit: { ...fixCommit().commit, message: "Fix\n\nLane-Activity: pr-unblock/fix-ci\n" } })], files: [{ filename: "src/a.js" }] }],
   ["two fix commits", { status: "ahead", commits: [fixCommit(), fixCommit("e".repeat(40))], files: [{ filename: "src/a.js" }] }],
   ["the branch diverged from the gated head", { status: "diverged", commits: [fixCommit()], files: [{ filename: "src/a.js" }] }],
-  ["the branch changed a path no kept thread names", { status: "ahead", commits: [fixCommit()], files: [{ filename: "src/a.js" }, { filename: "src/other.js" }] }],
-  ["the branch changed .github/", { status: "ahead", commits: [fixCommit()], files: [{ filename: ".github/workflows/ci.yml" }] }],
-  ["the branch renamed a file out of .github/", { status: "ahead", commits: [fixCommit()], files: [{ filename: "src/a.js", previous_filename: ".github/x.yml" }] }],
   ["the branch changed too many files to check", { status: "ahead", commits: [fixCommit()], files: Array(300).fill({ filename: "src/a.js" }) }],
 ]) {
   test(`feedback-not-landed, nothing posted: ${label}`, async () => {
@@ -448,6 +445,27 @@ for (const [label, compare] of [
     assert.equal(api.markers().length, 1);
   });
 }
+
+// Scope is path hygiene only: a fix range that also changes another file,
+// .github/ or a workflow lands, and the review lanes judge what it touched.
+for (const [label, files] of [
+  ["a path no kept thread names", [{ filename: "src/a.js" }, { filename: "src/other.js" }]],
+  [".github/ and a workflow", [{ filename: "src/a.js" }, { filename: ".github/workflows/ci.yml" }]],
+  ["a file renamed out of .github/", [{ filename: "src/a.js", previous_filename: ".github/x.yml" }]],
+]) {
+  test(`a VALID fix lands when its range also changes ${label}`, async () => {
+    const api = fakeApi({ compare: { status: "ahead", commits: [fixCommit()], files } });
+    assert.equal((await run(api, lines(reply({ disposition: "VALID" })))).escalationReason, "", label);
+    assert.equal(api.posted().length, 1, label);
+  });
+}
+test("a range off normal form or plain ASCII still lands nothing", async () => {
+  for (const filename of ["src/../x.js", "src/a b.js"]) {
+    const api = fakeApi({ compare: { status: "ahead", commits: [fixCommit()], files: [{ filename: "src/a.js" }, { filename }] } });
+    assert.equal((await run(api, lines(reply({ disposition: "VALID" })))).escalationReason, "feedback-not-landed", filename);
+    assert.deepEqual(api.posted(), []);
+  }
+});
 
 // A retry after a round whose fix commit landed but whose replies did not
 // post: the branch did not move since, and the fix is an earlier commit on
@@ -554,12 +572,12 @@ test("no earlier commit stands in when this round wrote a patch that did not lan
   assert.deepEqual(api.posted(), []);
 });
 
-test("a VALID fix that also adds a file in its thread's plugin lands; another plugin's file does not", async () => {
+test("a VALID fix that also adds a file lands, in its thread's plugin or another", async () => {
   const caseRun = JSON.stringify({ ...RUN, threads: [{ ...RUN.threads[0], path: "plugins/p/evals/c/case.yaml" }] });
   for (const [sample, landed] of [
     ["plugins/p/evals/c/samples/new.json", true],
     ["plugins/p/evals/other/samples/new.json", true],
-    ["plugins/q/evals/c/samples/new.json", false],
+    ["plugins/q/evals/c/samples/new.json", true],
   ]) {
     const api = fakeApi({
       compare: { status: "ahead", commits: [fixCommit()], files: [{ filename: "plugins/p/evals/c/case.yaml" }, { filename: sample }] },
@@ -573,13 +591,13 @@ test("a VALID fix that also adds a file in its thread's plugin lands; another pl
 
 // #8116's thread PRRT_kwDOTCGFQM6tojDu: the owner's fix request on
 // write-transcript.js named run-transcript.js.
-test("a VALID fix that changes a file its thread's named_paths holds lands; one not named, or a malformed list, does not", async () => {
+test("a VALID fix that changes its thread's path and another file lands, named or not; a malformed list does not", async () => {
   const T = "plugins/knowledge/skills/video-digest/extraction/transcript";
   const thread = { ...RUN.threads[0], path: `${T}/write-transcript.js` };
   for (const [threads, landed] of [
     [[{ ...thread, named_paths: [`${T}/run-transcript.js`] }], true],
-    [[thread], false],
-    [[{ ...thread, named_paths: ["plugins/other/run-transcript.js"] }], false],
+    [[thread], true],
+    [[{ ...thread, named_paths: ["plugins/other/run-transcript.js"] }], true],
   ]) {
     const api = fakeApi({
       compare: { status: "ahead", commits: [fixCommit()], files: [{ filename: thread.path }, { filename: `${T}/run-transcript.js` }] },
@@ -594,7 +612,7 @@ test("a VALID fix that changes a file its thread's named_paths holds lands; one 
 
 // A finding on one file of the PR fixed in another: run.json's pr_paths
 // carry the PR's files into the thread's scope.
-test("a VALID fix in another file the PR changes, citing a line it changed, lands; uncited, not in the PR, new or protected, it does not", async () => {
+test("a VALID fix in another file the PR changes, citing a line it changed, lands, a new file included; uncited or not in the PR, it does not", async () => {
   // The doc and the script, as files the checkout holds.
   const thread = { ...RUN.threads[0], path: "docs/b.md" };
   const script = "src/a.js";
@@ -603,9 +621,7 @@ test("a VALID fix in another file the PR changes, citing a line it changed, land
     ["in the PR, not cited", [thread.path, script], { filename: script, status: "modified" }, false, [`${thread.path}:1`]],
     ["in the PR, cited outside the fix's hunks", [thread.path, script], { filename: script, status: "modified" }, false, [`${script}:9`]],
     ["not in the PR", [thread.path], { filename: script, status: "modified" }, false],
-    ["added by the fix", [thread.path, script], { filename: script, status: "added" }, false],
-    ["under .github/workflows/", [thread.path, ".github/workflows/x.yml"], { filename: ".github/workflows/x.yml", status: "modified" }, false],
-    ["CODEOWNERS", [thread.path, "CODEOWNERS"], { filename: "CODEOWNERS", status: "modified" }, false],
+    ["added by the fix", [thread.path, script], { filename: script, status: "added" }, true],
   ]) {
     const api = fakeApi({
       compare: { status: "ahead", commits: [fixCommit()], files: [file] },
@@ -660,12 +676,12 @@ test("a VALID fix on a thread that is not a SKILL.md still needs its exact path,
   assert.equal(result.escalationReason, "feedback-not-landed");
 });
 
-test("feedback-not-landed with no VALID reply when the branch moved onto .github/ or another path", async () => {
+test("with no VALID reply, a branch that moved onto .github/ or another path posts the replies", async () => {
   for (const filename of [".github/actions/x/action.yml", "src/other.js"]) {
     const api = fakeApi({ compare: { status: "ahead", commits: [fixCommit()], files: [{ filename }] } });
     const result = await run(api, lines(reply()));
-    assert.equal(result.escalationReason, "feedback-not-landed", filename);
-    assert.deepEqual(api.posted(), []);
+    assert.equal(result.escalationReason, "feedback-disputed", filename);
+    assert.equal(api.posted().length, 1, filename);
   }
 });
 

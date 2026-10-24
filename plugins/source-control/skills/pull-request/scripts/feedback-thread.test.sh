@@ -83,114 +83,32 @@ setup
 out=$(run list)
 assert_eq "list prints the kept thread ids" "PRRT_a PRRT_b" "$(jq -r 'map(.id) | join(" ")' <<<"$out")"
 
-# check-paths
+# check-paths: path hygiene only. Any plain path in normal form passes, in or
+# out of a thread's plugin, code, control and instruction files and
+# .github/workflows/ included; the review lanes judge what a fix touches.
 setup
-run check-paths src/a.js docs/b.md >/dev/null 2>&1
-assert_exit "check-paths allows paths kept threads name" 0 "$?"
-run check-paths src/a.js src/other.js >/dev/null 2>&1
-assert_exit "check-paths refuses a path no kept thread names" 1 "$?"
-jq '.threads += [{"id":"PRRT_g","path":".github/workflows/ci.yml","root_comment_id":300,"comments":[]},
-  {"id":"PRRT_G","path":".GITHUB/WORKFLOWS/x.yml","root_comment_id":301,"comments":[]},
-  {"id":"PRRT_s","path":".github/scripts/x.mjs","root_comment_id":302,"comments":[]}]' "$STUB/threads.json" >"$STUB/t2" &&
-  mv "$STUB/t2" "$STUB/threads.json"
-run check-paths .github/workflows/ci.yml >/dev/null 2>&1
-assert_exit "check-paths refuses .github/workflows/ even when a thread names it" 1 "$?"
-run check-paths .GITHUB/WORKFLOWS/x.yml >/dev/null 2>&1
-assert_exit "check-paths refuses .github/workflows/ in any letter case" 1 "$?"
-run check-paths .github/workflows/ci.test.yml >/dev/null 2>&1
-assert_exit "check-paths refuses a test file beside a .github/workflows/ thread path" 1 "$?"
-run check-paths .github/scripts/x.mjs .github/scripts/x.test.mjs >/dev/null 2>&1
-assert_exit "check-paths allows a .github/scripts/ thread path and a test file beside it" 0 "$?"
-
-# check-paths: a file in a kept thread's plugins/<p>/ directory other than permission config,
-# package manifests and non-test code, and test files beside a thread path
-setup
-jq '.threads += [{"id":"PRRT_e","path":"plugins/p/evals/c/case.yaml","root_comment_id":400,"comments":[]},
-  {"id":"PRRT_s","path":"plugins/planning/surface/round.py","root_comment_id":401,"comments":[]}]' \
-  "$STUB/threads.json" >"$STUB/t2" && mv "$STUB/t2" "$STUB/threads.json"
-for path in plugins/p/evals/c/samples/y.json plugins/p/evals/c/samples/deep/z.json \
-  plugins/p/evals/other/samples/y.json plugins/p/skills/s/SKILL.md plugins/p/evals/x.json \
-  plugins/planning/README.md plugins/planning/surface/test_round.py plugins/planning/surface/round_test.py src/a.test.js src/a.spec.ts; do
+for path in src/a.js docs/b.md src/other.js src/new.js plugins/q/evals/c/samples/y.json \
+  plugins/p/hooks/hooks.json plugins/p/.claude-plugin/plugin.json plugins/p/AGENTS.md \
+  plugins/p/skills/s/CLAUDE.md plugins/p/.claude/rules/r.md plugins/p/scripts/run.sh \
+  plugins/p/.claude/settings.json plugins/p/package.json plugins/p/monitors/monitors.json \
+  plugins/p/bin/tool plugins/p/.lsp.json CODEOWNERS .gitmodules .github/workflows/ci.yml \
+  .GITHUB/WORKFLOWS/x.yml .github/scripts/x.mjs; do
   run check-paths "$path" >/dev/null 2>&1
   assert_exit "check-paths allows $path" 0 "$?"
 done
-for path in plugins/q/evals/c/samples/y.json plugins/pp/README.md plugins/README.md \
-  plugins/p/hooks/hooks.json plugins/p/.claude-plugin/plugin.json plugins/p/AGENTS.md \
-  plugins/p/skills/s/CLAUDE.md plugins/p/.claude/rules/r.md \
-  plugins/p/scripts/run.sh plugins/p/.claude/settings.json plugins/p/package.json plugins/p/lib/X.TS \
-  plugins/planning/surface/helper.py plugins/planning/test_round.py \
-  src/lib/a.test.js src/helper.js src/test_a.sh test_root.py \
-  plugins/p/evals/c/../../../../.github/workflows/x.yml plugins/p/evals/c/./y.json plugins/p/evals/c//y.json \
-  /src/a.js ./src/a.js; do
+for path in plugins/p/evals/c/../../../../.github/workflows/x.yml plugins/p/evals/c/./y.json \
+  plugins/p/evals/c//y.json /src/a.js ./src/a.js "plugins/knowledge/a b.js" \
+  "plugins/knowledge/hooKs/hooks.json" "plugins/knowledge/AGENTſ.md"; do
   run check-paths "$path" >/dev/null 2>&1
   assert_exit "check-paths refuses $path" 1 "$?"
 done
-
-# check-paths: a file the pull request already changes (pr_paths) joins every thread's scope while
-# the gated head holds it; a new file and a .github/workflows/ path stay out even when pr_paths
-# lists them (the select job leaves instruction and HIGH floor paths out of pr_paths)
+run check-paths src/a.js ./src/a.js >/dev/null 2>&1
+assert_exit "check-paths refuses a list holding one bad path" 1 "$?"
 setup
-mkdir -p "$STUB/ws/.github/workflows"
-echo 'c' >"$STUB/ws/.github/workflows/ci.yml"
-fixture_git add -A
-fixture_git commit -q -m more
-run check-paths src/other.js >/dev/null 2>&1
-assert_exit "check-paths refuses a file the pull request changes when pr_paths does not list it" 1 "$?"
-jq '.pr_paths = ["src/other.js", "src/new.js", ".github/workflows/ci.yml"]' \
-  "$STUB/threads.json" >"$STUB/t2" && mv "$STUB/t2" "$STUB/threads.json"
-run check-paths src/other.js >/dev/null 2>&1
-assert_exit "check-paths allows a file pr_paths lists, outside every thread's own scope" 0 "$?"
-ln -s a.js "$STUB/ws/src/link.js"
-fixture_git add -A
-fixture_git commit -q -m link
-jq '.pr_paths += ["src/link.js"]' "$STUB/threads.json" >"$STUB/t2" && mv "$STUB/t2" "$STUB/threads.json"
-for path in src/new.js .github/workflows/ci.yml src/helper.js src/link.js; do
-  run check-paths "$path" >/dev/null 2>&1
-  assert_exit "check-paths refuses $path with pr_paths set" 1 "$?"
-done
 echo 'fixed' >"$STUB/ws/src/other.js"
-disposition '{"disposition":"VALID","evidence":["src/other.js:1"],"fix_sha":"","note":"fixed in src/other.js"}'
+disposition '{"disposition":"VALID","evidence":["src/a.js:3"],"fix_sha":"","note":"fixed in src/other.js"}'
 run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
-assert_exit "record takes a VALID fix made in a pr_paths file" 0 "$?"
-
-# check-paths: a kept thread's named_paths join its scope only in its own plugins/<p>/ directory,
-# never under .github/, never an instruction path, and never off normal form. run-transcript.js is
-# the file #8116's thread PRRT_kwDOTCGFQM6tojDu was refused.
-setup
-T=plugins/knowledge/skills/video-digest/extraction/transcript
-run check-paths "$T/run-transcript.js" >/dev/null 2>&1
-assert_exit "check-paths refuses a .js file no thread names" 1 "$?"
-jq --arg t "$T" '.threads += [{"id":"PRRT_n","path":($t + "/write-transcript.js"),"root_comment_id":500,"comments":[],
-  "named_paths":[($t + "/run-transcript.js"), "plugins/other/x.js", ".github/workflows/x.yml",
-    "plugins/knowledge/AGENTS.md", "plugins/knowledge/hooks/guard.sh", "plugins/knowledge/.claude-plugin/plugin.json",
-    "plugins/knowledge/.mcp.json", "plugins/knowledge/skills/s/CLAUDE.md", "plugins/knowledge/.claude/settings.json",
-    "plugins/knowledge/../other/x.js", "plugins/knowledge/a b.js"]}]' \
-  "$STUB/threads.json" >"$STUB/t2" && mv "$STUB/t2" "$STUB/threads.json"
-run check-paths "$T/run-transcript.js" >/dev/null 2>&1
-assert_exit "check-paths allows a same-plugin file a fix request named" 0 "$?"
-for path in plugins/knowledge/AGENTS.md plugins/knowledge/hooks/guard.sh plugins/knowledge/.claude-plugin/plugin.json \
-  plugins/knowledge/.mcp.json plugins/knowledge/skills/s/CLAUDE.md; do
-  run check-paths "$path" >/dev/null 2>&1
-  assert_exit "check-paths allows named $path" 0 "$?"
-done
-for path in plugins/other/x.js .github/workflows/x.yml \
-  plugins/knowledge/.claude/settings.json plugins/knowledge/../other/x.js "plugins/knowledge/a b.js" "$T/run-watch.js"; do
-  run check-paths "$path" >/dev/null 2>&1
-  assert_exit "check-paths refuses named $path" 1 "$?"
-done
-
-# check-paths: more code files, package manifests and non-ASCII letters stay out of the
-# plugin-wide scope, and so do plugin monitors, bin and .lsp.json (control surfaces)
-run check-paths plugins/knowledge/README.md >/dev/null 2>&1
-assert_exit "check-paths allows plugins/knowledge/README.md in the named thread's plugin" 0 "$?"
-for path in plugins/knowledge/monitors/monitors.json plugins/knowledge/bin/tool plugins/knowledge/.lsp.json; do
-  run check-paths "$path" >/dev/null 2>&1
-  assert_exit "check-paths refuses control surface $path in the named thread's plugin" 1 "$?"
-done
-for path in plugins/knowledge/package-lock.json plugins/knowledge/lib/x.cjs plugins/knowledge/lib/x.ps1 "plugins/knowledge/hooKs/hooks.json" "plugins/knowledge/AGENTſ.md"; do
-  run check-paths "$path" >/dev/null 2>&1
-  assert_exit "check-paths refuses $path" 1 "$?"
-done
+assert_exit "record takes a VALID fix made in a file no thread names" 0 "$?"
 
 # record VALID: the uncommitted fix is checked in the working tree and the
 # reply appended, with an empty fix_sha and no GitHub call
@@ -211,7 +129,9 @@ run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "a second record on the same thread is refused" 1 "$?"
 assert_eq "the refused second record appends nothing" 1 "$(recorded)"
 # the CLI's empty scrub stubs at the top of the checkout are no fix: an
-# untracked empty one is passed over, one with content is refused
+# untracked empty one is passed over; one with content, or a stub name below
+# the top, is a plain path the record takes (the patch collector drops a
+# root stub from the patch)
 setup
 echo 'guarded' >"$STUB/ws/src/a.js"
 : >"$STUB/ws/package.json"
@@ -222,29 +142,15 @@ assert_exit "untracked empty scrub stubs do not refuse the VALID record" 0 "$?"
 setup
 echo 'guarded' >"$STUB/ws/src/a.js"
 echo 'TOKEN=x' >"$STUB/ws/.env"
+disposition '{"disposition":"VALID","evidence":["src/a.js:3"],"fix_sha":"","note":"fixed"}'
 run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
-assert_exit "a scrub-stub name with content refuses the VALID record" 1 "$?"
+assert_exit "a scrub-stub name with content does not refuse the VALID record" 0 "$?"
 setup
 echo 'guarded' >"$STUB/ws/src/a.js"
 mkdir -p "$STUB/ws/src/nested" && : >"$STUB/ws/src/nested/package.json"
+disposition '{"disposition":"VALID","evidence":["src/a.js:3"],"fix_sha":"","note":"fixed"}'
 run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
-assert_exit "an empty stub name below the top of the checkout refuses the VALID record" 1 "$?"
-# A plugin's control files stay out of the plugin-wide scope of a thread on another of its files.
-setup
-mkdir -p "$STUB/ws/plugins/p/.claude-plugin" "$STUB/ws/plugins/p/hooks"
-echo 'r' >"$STUB/ws/plugins/p/README.md"
-echo '{}' >"$STUB/ws/plugins/p/.claude-plugin/plugin.json"
-echo '{}' >"$STUB/ws/plugins/p/hooks/hooks.json"
-echo 'a' >"$STUB/ws/plugins/p/AGENTS.md"
-echo 'n' >"$STUB/ws/plugins/p/notes.md"
-fixture_git add -A && fixture_git commit -q -m plugin
-jq '.threads = [{"id":"PRRT_p","path":"plugins/p/README.md","line":1,"review_commit":.head_sha,"root_comment_id":300,"comments":[{"id":300,"body":"x"}]}]' "$STUB/threads.json" >"$STUB/t2.json" && mv "$STUB/t2.json" "$STUB/threads.json"
-for path in plugins/p/.claude-plugin/plugin.json plugins/p/hooks/hooks.json plugins/p/AGENTS.md; do
-  run check-paths "$path" >/dev/null 2>&1
-  assert_exit "check-paths refuses $path through the plugin-wide scope" 1 "$?"
-done
-run check-paths plugins/p/notes.md >/dev/null 2>&1
-assert_exit "check-paths allows a plain file in the thread's plugin" 0 "$?"
+assert_exit "an empty stub name below the top of the checkout does not refuse the VALID record" 0 "$?"
 # The lane's sandbox masks a dotfile in the checkout with /dev/null, a device git
 # will not add: it is no fix, while a symlink to /dev/null still is one.
 if bwrap --bind / / --dev /dev true 2>/dev/null; then
@@ -263,7 +169,7 @@ echo 'guarded' >"$STUB/ws/src/a.js"
 ln -s /dev/null "$STUB/ws/.bash_profile"
 disposition '{"disposition":"VALID","evidence":["src/a.js:3"],"fix_sha":"","note":"fixed"}'
 run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
-assert_exit "an untracked symlink to /dev/null refuses the VALID record" 1 "$?"
+assert_exit "an untracked symlink to /dev/null is a plain path the VALID record takes" 0 "$?"
 
 setup
 disposition '{"disposition":"VALID","evidence":["src/a.js:3"],"note":"fix_sha left out"}'
@@ -301,7 +207,7 @@ disposition "{\"disposition\":\"INCORRECT\",\"evidence\":[\"src/a.js:3\"],\"note
 run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "a note of 2001 emoji is refused" 1 "$?"
 
-# a fix steered outside the thread paths, or into .github/, is not recorded:
+# a fix that also changes another file, .github/ or a workflow is recorded:
 # a tracked change, a new untracked file, or a removal
 for edit in 'echo f >"$STUB/ws/src/other.js"' 'mkdir -p "$STUB/ws/.github/workflows" && echo f >"$STUB/ws/.github/workflows/release.yml"' \
   'mkdir -p "$STUB/ws/.GitHub" && echo f >"$STUB/ws/.GitHub/CODEOWNERS"' \
@@ -311,14 +217,14 @@ for edit in 'echo f >"$STUB/ws/src/other.js"' 'mkdir -p "$STUB/ws/.github/workfl
   eval "$edit"
   disposition '{"disposition":"VALID","evidence":["src/a.js:3"],"fix_sha":"","note":"fixed"}'
   run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
-  assert_exit "a working tree that also runs $edit refuses the VALID record" 1 "$?"
-  assert_eq "nothing is recorded after $edit" 0 "$(recorded)"
+  assert_exit "a working tree that also runs $edit takes the VALID record" 0 "$?"
+  assert_eq "the record is kept after $edit" 1 "$(recorded)"
 done
 setup
 fixture_git mv .github/x.yml src/b.js
 disposition '{"disposition":"VALID","evidence":["src/a.js:3"],"fix_sha":"","note":"fixed"}'
 run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
-assert_exit "a rename out of .github/ refuses the VALID record" 1 "$?"
+assert_exit "a rename out of .github/ takes the VALID record" 0 "$?"
 assert_eq "a refused VALID record makes no GitHub call" 0 "$(wc -l <"$STUB/calls")"
 
 setup

@@ -9,8 +9,6 @@ import { Rejection } from "./resolve.mjs";
 // Every patch-rules.json row refuses these, so no row can admit them.
 const UNIVERSAL_REFUSE = Object.freeze([
   "github-workflows",
-  "codeowners",
-  "gitmodules",
   "settings",
   "symlink",
   "gitlink",

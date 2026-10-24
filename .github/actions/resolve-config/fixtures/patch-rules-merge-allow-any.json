@@ -2,8 +2,6 @@
   "default": {
     "refuse": [
       "github-workflows",
-      "codeowners",
-      "gitmodules",
       "settings",
       "symlink",
       "gitlink",
@@ -32,8 +30,6 @@
   "issue": {
     "refuse": [
       "github-workflows",
-      "codeowners",
-      "gitmodules",
       "settings",
       "symlink",
       "gitlink",
@@ -62,8 +58,6 @@
   "merge-base": {
     "refuse": [
       "github-workflows",
-      "codeowners",
-      "gitmodules",
       "settings",
       "symlink",
       "gitlink",
