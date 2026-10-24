@@ -927,6 +927,22 @@ test("work-resolve-issue.yml: apply-issue-patch commits the written patch from t
   for (const job of ["run-checks", "report-outcome"]) {
     assert.ok(jobs[job].needs.includes("apply-issue-patch"), `${job} waits for the branch`);
   }
+  // A started run whose scan failed or whose run job timed out uploads no
+  // outcome, so run-checks skips instead of failing on the missing artifact.
+  const checks = (started, uploaded, reuse) =>
+    evaluate(jobs["run-checks"].if.replace(/^\$\{\{ |\s*\}\}$/g, "").replace(/!cancelled\(\) && /, ""), {
+      "needs.resolve-issue-subscription.result": "skipped",
+      "needs.resolve-issue-subscription.outputs.scan-issue-run-started": "",
+      "needs.resolve-issue-subscription.outputs.scan-outcome-uploaded": "",
+      "needs.resolve-issue-subscription.outputs.scan-reuse-branch": "",
+      "needs.resolve-issue.outputs.scan-issue-run-started": started,
+      "needs.resolve-issue.outputs.scan-outcome-uploaded": uploaded,
+      "needs.resolve-issue.outputs.scan-reuse-branch": reuse,
+    });
+  assert.equal(checks("true", "true", ""), true);
+  assert.equal(checks("true", "", ""), false, "no uploaded outcome runs no checks");
+  assert.equal(checks("", "", "work-resolve-issue/issue-7-1-1"), true, "a reuse runs checks without an outcome");
+  assert.equal(checks("", "true", ""), false);
 });
 
 test("no job using pr-run-activity-write.yml runs the resolve-issue model step, and the write runner refuses an issue skill", () => {
@@ -3356,7 +3372,7 @@ test("work-resolve-issue.yml: every resolve-issue output a job reads is the read
   const { jobs } = workflow("work-resolve-issue.yml");
   const outputs = workflow("pr-run-activity-read.yml").on.workflow_call.outputs;
   const names = [...new Set([...JSON.stringify(jobs).matchAll(/needs\.resolve-issue\.outputs\.([\w-]+)/g)].map((m) => m[1]))].sort();
-  assert.deepEqual(names, ["scan-base-sha", "scan-issue-run-started", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt", "scan-resume-branch", "scan-resume-tip", "scan-reuse-branch"]);
+  assert.deepEqual(names, ["scan-base-sha", "scan-issue-run-started", "scan-outcome-uploaded", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt", "scan-resume-branch", "scan-resume-tip", "scan-reuse-branch"]);
   for (const name of names) assert.match(outputs[name].value, /^\$\{\{ jobs\.(scan|issue-fields)\.outputs\.[\w-]+ \}\}$/, name);
 });
 
