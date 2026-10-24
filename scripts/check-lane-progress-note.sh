@@ -9,6 +9,9 @@
 #       no PR.
 #
 # Runs from the repository root, or from CHECK_DATA_ROOT when the runner sets it.
+#
+# Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr. That is
+# the check-script family contract stated in README.md.
 set -euo pipefail
 
 if [[ "${1:-}" != "--check" ]]; then

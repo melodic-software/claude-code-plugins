@@ -95,6 +95,7 @@ REGISTRY=(
   "check-html-assets.sh|HTMLHINT_BIN=/nonexistent/htmlhint|-|html_assets"
   "check-killswitch-hoist.sh|jq|-|killswitch_hoist"
   "check-lane-coverage.sh|-|-|-"
+  "check-lane-progress-note.sh|-|--check|-"
   "check-loop-lane-floor-drift.sh|git|-|-"
   "check-orphaned-fixtures.sh|-|-|-"
   "check-pipefail-grep-q.sh|awk|-|pipefail_grep_q"
