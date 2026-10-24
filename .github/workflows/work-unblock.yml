@@ -37,7 +37,8 @@ name: work-unblock
 # When that run opened a lanes-App PR instead, and the PR merged with `Refs:`
 # or was closed unmerged, the App adds needs-triage and takes agent-ready off,
 # after a comment; a person adding agent-ready again re-runs it. A Refs PR
-# merging also lifts the needs-human report-outcome put on the issue for it.
+# merging also lifts a needs-human refs-hold already on the issue for it.
+# report-outcome no longer sets that hold, so only an existing one is lifted.
 # It also relabels a red-main fix issue post-merge-demotion-alert.yml reopened
 # on a repeat failure: that reopen keeps agent-ready but, made with the
 # workflow's GITHUB_TOKEN, starts no run. Matched by the issue's
