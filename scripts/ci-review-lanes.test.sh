@@ -6,7 +6,7 @@
 # On a ready pull request, ci-status passes only when the newest pull_request
 # run of each review caller on the head has a successful status job whose
 # `Apply the hold` step ran. Pending, failed, skipped or missing reviews fail
-# with the cause named; a lane the kill switch stopped passes; Dependabot, the
+# with the cause named, a lane the kill switch stopped among them; Dependabot, the
 # release App and the standards-sync App are exempt by numeric author id. It
 # fails closed when it cannot read.
 # test-scope: .github/workflows/pr-require-checks.yml
@@ -208,9 +208,13 @@ expect "a green status job whose hold step did not run (summary mode) does not c
 JOBS_10="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed skipped skipped)")"
 expect "a skipped review (fork or unlisted bot) fails" 1 "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10; kill-switch job: success)"
 JOBS_10="$(jobs "$(kill_job success success)")"
-expect "a lane the kill switch stopped passes" 0 "::notice::a kill switch stopped '$CODE_CHECK' on $HEAD" "::error::"
+expect "a lane the kill switch stopped fails: the kill switch never waives review" 1 \
+  "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): the kill switch is on. Re-trigger the PR once it is off." "::notice::"
 JOBS_10="$(jobs "$(kill_job success success)" "$(status "$CODE_CHECK" completed skipped skipped)")"
-expect "a kill-switch stop with the review listed as skipped passes" 0 "a kill switch stopped" "::error::"
+expect "a kill-switch stop with the review listed as skipped fails" 1 "the kill switch is on" "::notice::"
+JOBS_10="$(jobs "$(kill_job success success)")" JOBS_20="$(jobs "$(kill_job success success)")"
+expect "both lanes stopped by the kill switch fail, each named" 1 "'$SEC_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/20): the kill switch is on"
+JOBS_20="$PASS_SEC"
 JOBS_10="$(jobs "$(kill_job failure skipped)")"
 expect "a failed kill-switch job fails" 1 "kill-switch job: failure"
 JOBS_10="$(jobs "$(kill_job success skipped)")"

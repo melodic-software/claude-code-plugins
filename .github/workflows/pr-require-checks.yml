@@ -3983,9 +3983,12 @@ jobs:
       # without a hold label never counts. A pending, failed or cancelled
       # review fails, as does a skipped one (a fork, or a bot outside the
       # caller's allowed-bot-sender-ids), with the cause named. A lane the
-      # kill switch stopped passes: its kill-switch job succeeded and ran its
-      # `Report the kill switch` step. A kill-switch job that failed stopped
-      # the review too, and fails. Dependabot, the release App and the
+      # kill switch stopped (its kill-switch job succeeded and ran its
+      # `Report the kill switch` step) fails too: the kill switch pauses
+      # review, it never waives it, so a head pushed while it is on waits for a
+      # review once it is off; the admin bypass stays the break-glass. A
+      # kill-switch job that failed stopped the review too, and fails.
+      # Dependabot, the release App and the
       # standards-sync App, by numeric author id, are exempt: no review lane
       # reviews them. An exempt author's PR still fails when a changed file
       # (or a renamed file's old path) matches the callers' hold-paths, since
@@ -4088,7 +4091,10 @@ jobs:
                 else "missing \($k.conclusion // "absent")" end' <<<"$jobs")
             case $verdict in
             pass) echo "'$check' passed on $HEAD_SHA ($url)." ;;
-            stopped) echo "::notice::a kill switch stopped '$check' on $HEAD_SHA ($url); the lane is not required." ;;
+            stopped)
+              echo "::error::'$check' did not run on $HEAD_SHA ($url): the kill switch is on. Re-trigger the PR once it is off."
+              failed=1
+              ;;
             pending)
               echo "::error::'$check' has not finished on $HEAD_SHA ($url). ci-status re-runs when the review finishes."
               failed=1
