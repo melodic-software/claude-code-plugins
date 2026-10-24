@@ -56,7 +56,7 @@ const comment = (changes = {}) => ({
 });
 
 // A GitHub that answers the decision reads: the pull request's creation time
-// and closing issues, issue 40 (`target`), comment 7, and its edit time; then
+// and closing issues, the linked issue (`target`), comment 7, and its edit time; then
 // the head reads: the pull request's `comments` (a cost hold marker at HEAD
 // by default) and a `compares` answer per head against `base`.
 // `fail` names a read that throws.
