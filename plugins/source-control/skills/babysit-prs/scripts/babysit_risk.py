@@ -207,7 +207,8 @@ class RiskResult:
 # owner decision Q51), with check-kill-switch, whose writeOutputs both of those
 # actions write their verdicts through, request-lane-token, which mints and
 # hands out the lanes App token in every privileged workflow, and the rate
-# guard check-trusted-trigger sends every call through.
+# guard check-trusted-trigger sends every call through, with the api-budget
+# module it records readings through.
 HIGH_FLOOR: tuple[str, ...] = (
     ".github/standards/trusted-actors/**",
     ".github/actions/check-trusted-trigger/**",
@@ -217,6 +218,7 @@ HIGH_FLOOR: tuple[str, ...] = (
     ".github/actions/check-kill-switch/**",
     ".github/actions/request-lane-token/**",
     ".github/actions/log-api-budget/rate-guard.mjs",
+    ".github/actions/log-api-budget/api-budget.mjs",
 )
 
 # plugin.json keys whose values Claude Code runs or reads as run config.

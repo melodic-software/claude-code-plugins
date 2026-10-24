@@ -161,6 +161,7 @@ export const HOLD_PATH_FLOOR = Object.freeze([
   ".github/actions/check-kill-switch/**",
   ".github/actions/request-lane-token/**",
   ".github/actions/log-api-budget/rate-guard.mjs",
+  ".github/actions/log-api-budget/api-budget.mjs",
 ]);
 
 // babysit_risk.is_manifest_path: a plugin manifest or the marketplace
