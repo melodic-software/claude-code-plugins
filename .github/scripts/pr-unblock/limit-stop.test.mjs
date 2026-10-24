@@ -97,6 +97,17 @@ test("the resolved limits set how many reset limit stops handle a head", () => {
   assert.equal(anyHandles([posted(LIMIT, { id: 1 })], { now, limits: SET }), true);
 });
 
+// Without an opt-in, the count of limit stops holds a head (anyHandles) but
+// never records it: a head recorded at the default cap of 3 would stay
+// recorded under a resolved cap of 5.
+test("limit stops alone never handle a head for good, under the default cap or a higher one", () => {
+  const three = [1, 2, 3].map((id) => posted(LIMIT, { id }));
+  const FIVE = { ...SET, "limit-stops-per-head": 5 };
+  assert.equal(permanentlyHandles(three, { limits: FIVE }), false);
+  assert.equal(permanentlyHandles(three), false);
+  assert.equal(anyHandles(three, { now: ended + 30 * HOUR, limits: FIVE }), false, "3 reset stops of a cap of 5");
+});
+
 test("a failed run with no summary record handles the head, however long ago it ended", () => {
   assert.equal(anyHandles([run()], { now: ended + 30 * 24 * HOUR }), true);
   assert.equal(anyHandles([posted(LIMIT, { id: 1 }), run(2)], { now: ended + 6 * HOUR }), true);

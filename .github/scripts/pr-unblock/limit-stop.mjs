@@ -98,8 +98,12 @@ export function anyHandles(runs, { now, limits = LIMIT_DEFAULTS, failuresRetry =
 // untrusted skip, and not a limit stop (with failuresRetry: not a failure, or
 // the cap of failures). anyHandles is true then whatever `now` is, so a
 // dispatcher may record the head and skip reading its check runs again.
+// Without an opt-in, limit stops never handle the head for good, however many:
+// anyHandles holds it at the cap, and a head recorded at one cap would stay
+// recorded under a higher one.
 export function permanentlyHandles(runs, { limits = LIMIT_DEFAULTS, failuresRetry = false, heldSkipsRelease = false } = {}) {
   const done = runs.filter((run) => run.status === "completed" && !untrustedSkip(run));
-  const retryable = (run) => released(run, heldSkipsRelease) || (failuresRetry ? run.conclusion === "failure" : limitResetsAt(run) !== null);
-  return done.some((run) => !retryable(run)) || (done.length > 0 && done.filter(retryable).length >= limits["limit-stops-per-head"]);
+  const retryable = (run) => released(run, heldSkipsRelease) || (failuresRetry ? run.conclusion === "failure" : limitResetsAt(run, limits) !== null);
+  const capped = (failuresRetry || heldSkipsRelease) && done.length > 0 && done.filter(retryable).length >= limits["limit-stops-per-head"];
+  return done.some((run) => !retryable(run)) || capped;
 }
