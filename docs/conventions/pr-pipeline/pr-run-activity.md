@@ -176,7 +176,7 @@ a run whose broker-check job skipped the broker on a kill-switch stop its run jo
 Re-running all jobs asks the broker again.
 
 The read file's `broker-allowed` job `needs` broker-check alone, runs only when `allowed` is
-`true`, holds no permission and runs one `echo` step. Its conclusion (`success`, else `skipped`) is
+`true`, holds no permission (`permissions: {}`) and runs one `echo` step. Its conclusion (`success`, else `skipped`) is
 the caller's job-level record of the allow: the Actions API returns a job's conclusion as the job
 ends, where a step's can stay empty for minutes, and no run job output reaches it.
 
