@@ -252,6 +252,24 @@ def run_locked(
     return result
 
 
+def acting_login() -> str:
+    """The login the session's gh credentials act as, so an App identity
+    (association NONE) counts its own earlier request; unreadable raises."""
+    try:
+        data = json_object(
+            gh_json(["api", "graphql", "-f", "query=query{viewer{login}}"])
+        )
+        login = json_object(json_object(data.get("data")).get("viewer")).get("login")
+    except RuntimeError:
+        # A session whose proxy refuses GraphQL reads a user token over REST.
+        login = json_object(gh_json(["api", "user"])).get("login")
+    if not isinstance(login, str) or not login:
+        raise RuntimeError(
+            "the acting login is unreadable; refusing the rebase request"
+        )
+    return login
+
+
 def request_dependabot_rebase(
     args: argparse.Namespace,
     state_dir: Path,
@@ -289,7 +307,7 @@ def request_dependabot_rebase(
         comments,
         commits,
         lambda ep: gh_json(["api", ep]),
-        conflicting=str(current.get("mergeable") or "").upper() == "CONFLICTING",
+        identities=(acting_login(),),
     )
     result: dict[str, object] = {
         "key": key,

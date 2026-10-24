@@ -104,12 +104,17 @@ Only the orchestrator may refresh a branch:
    queue, require no human-review stop and a PR not authored by a dependency manager other than
    Dependabot (the helper refuses one; ask the manager to rebase instead), and take the snapshot's head SHA as
    `<expected-head-sha>`. For a Dependabot head (a `dependabot/` branch Dependabot opened) the
-   helper never updates the branch. It passes the same gates as any refresh, then under `--apply`
-   posts one comment per base tip, and at most one an hour unless the head conflicts, and
+   helper never updates the branch. It passes the same gates as any refresh (a conflicting PR is
+   still refused), then under `--apply` posts one comment per base tip, at most one an hour, and
    holds the PR as `dependabot-rebase-requested`: `@dependabot rebase` when every commit is
-   Dependabot's, `@dependabot recreate` when the others are only base merges GitHub made (Dependabot
-   refuses to rebase a branch anyone else committed to). Any other commit posts nothing and holds
-   as `dependabot-branch-edited`, since a recreate would discard it.
+   Dependabot's, `@dependabot recreate` when the others are only base merges GitHub made. Any
+   other commit posts nothing and holds as `dependabot-branch-edited`, since a recreate would
+   discard it.
+   - **Pointer**: the rebase and recreate commands, in
+     [Dependabot pull request comment commands](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-pull-request-comment-commands#commands-for-dependabot-pull-requests).
+   - **As of**: 2026-10-24.
+   - **Recheck trigger**: that section changes what rebase or recreate does to a branch that
+     carries another author's commits.
 2. Run the guarded helper, which uses GitHub's default merge update and `expected_head_sha`
    optimistic locking:
 

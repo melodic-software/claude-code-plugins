@@ -1856,6 +1856,8 @@ class RefreshAsksDependabotToRebase(unittest.TestCase):
         comments: list[dict[str, Any]] | None = None,
         commits: tuple[dict[str, Any], ...] = (DEPENDABOT_COMMIT,),
         queue: bool = False,
+        mergeable: str = "MERGEABLE",
+        acting: str = "a-maintainer",
     ) -> dict[str, object]:
         self.writes: list[list[str]] = []
         self.leases: list[Any] = []
@@ -1864,7 +1866,7 @@ class RefreshAsksDependabotToRebase(unittest.TestCase):
             "author": {"login": author},
             "headRefName": head_ref,
             "headRefOid": HEAD,
-            "mergeable": "MERGEABLE",
+            "mergeable": mergeable,
             "mergeStateStatus": "BEHIND",
             "baseRefName": "main",
         }
@@ -1874,6 +1876,8 @@ class RefreshAsksDependabotToRebase(unittest.TestCase):
                 return {"object": {"sha": self.TIP}}
             if args[:2] == ["api", f"repos/{self.REPO}/pulls/{PR_NUMBER}"]:
                 return {"auto_merge": None, "labels": []}
+            if args[:2] == ["api", "graphql"]:
+                return {"data": {"viewer": {"login": acting}}}
             if args[0] == "api" and args[1] in STRAY_MERGE_COMPARES:
                 return STRAY_MERGE_COMPARES[args[1]]
             self.writes.append(args)
@@ -2001,6 +2005,25 @@ class RefreshAsksDependabotToRebase(unittest.TestCase):
         self.assertEqual(self.writes, [])
         self.assertEqual(self.leases, [])
         self.assertEqual(result["rebase"], "would-request @dependabot rebase")
+
+    def test_the_lane_apps_own_request_is_not_repeated(self) -> None:
+        # An App identity's comment carries association NONE.
+        own = {
+            "id": 1,
+            "body": self.BODY,
+            "author_association": "NONE",
+            "user": {"login": "agent-lanes[bot]", "type": "Bot"},
+        }
+        result = self._run(comments=[own], acting="agent-lanes[bot]")
+        self.assertEqual(self.writes, [])
+        self.assertEqual(result["rebase"], "none")
+
+    def test_a_conflicting_dependabot_head_is_refused_as_before(self) -> None:
+        with self.assertRaisesRegex(
+            RuntimeError, "merge conflict; refusing branch refresh"
+        ):
+            self._run(mergeable="CONFLICTING")
+        self.assertEqual(self.writes, [])
 
     def test_a_dependabot_head_passes_the_refresh_gates_first(self) -> None:
         # Asked only where a refresh would run: behind, no merge queue.

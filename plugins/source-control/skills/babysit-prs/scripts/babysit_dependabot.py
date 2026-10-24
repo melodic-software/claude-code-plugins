@@ -173,11 +173,14 @@ def is_dependabot(login: Any) -> bool:
     return str(login or "").strip().casefold() in DEPENDABOT_LOGINS
 
 
-# A Dependabot head is never updated from its base: a commit by anyone else
-# stops Dependabot's own rebases and breaks the Dependabot merge tier. Its
-# rebase is asked for instead, once per base tip; a head another writer has
-# already merged the base into is recreated, since Dependabot refuses to
-# rebase a branch someone else edited.
+# A Dependabot head is never updated from its base: the Dependabot merge
+# tier's commit check refuses a merge of the base by anyone else. Its rebase is asked for instead,
+# once per base tip; a head another writer has only merged the base into is
+# recreated.
+#   Pointer: <https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-pull-request-comment-commands#commands-for-dependabot-pull-requests>
+#   As-of: 2026-10-24.
+#   Recheck trigger: that section changes what rebase or recreate does to a
+#   branch that carries another author's commits.
 REBASE_HOLD = "dependabot-rebase-requested"
 EDITED_HOLD = "dependabot-branch-edited"
 REBASE_COMMAND = "@dependabot rebase"
