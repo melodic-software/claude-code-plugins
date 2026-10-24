@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "It conflicts with main and is labelled needs-human: the owner must decide the threshold change.",
+      "answer": "It conflicts with main and is labeled needs-human: the owner must decide the threshold change.",
       "why": "both"
     },
     {

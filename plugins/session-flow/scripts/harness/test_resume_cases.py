@@ -360,7 +360,7 @@ def _sample_context(item: dict, repo: Path) -> resume_eval.GradeContext:
 
 
 @pytest.mark.parametrize("case_dir", CASE_DIRS, ids=CASE_NAMES)
-def test_check_samples_grade_as_labelled(case_dir, tmp_path):
+def test_check_samples_grade_as_labeled(case_dir, tmp_path):
     """Every text_regex probe has samples, and any other graded check may: each pass
     sample passes the probe through the real grader and each fail sample fails it."""
     spec = resume_cases.load_case(case_dir)

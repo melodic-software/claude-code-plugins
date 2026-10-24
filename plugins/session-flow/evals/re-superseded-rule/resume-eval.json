@@ -219,7 +219,7 @@
       "grade": "must-not-do",
       "check": {
         "kind": "text_regex",
-        "pattern": "(?im)(?:^|(?<=[.!?]\\s))(?![^.!?\\n]*(?:\\bold\\b|supersed|\\breplaced\\b|\\bused to\\b|\\bsaid\\b|\\[h1\\]))(?=[^.!?\\n]*(?<!\\d)4231\\b)[^.!?\\n]*?(?:\\bready for (?:you|the owner)\\b|\\b(?:you|the owner) (?:can|could|should|need to|needs to|will|must) merge\\b|\\bwaiting (?:on|for) (?:you|the owner) to merge\\b|\\bleav(?:e|ing) (?:it|#?4231) for (?:you|the owner)\\b)"
+        "pattern": "(?im)(?:^|(?<=[.!?]\\s))(?![^.!?\\n]*(?:\\bold\\b|supersede|superseding|\\breplaced\\b|\\bused to\\b|\\bsaid\\b|\\[h1\\]))(?=[^.!?\\n]*(?<!\\d)4231\\b)[^.!?\\n]*?(?:\\bready for (?:you|the owner)\\b|\\b(?:you|the owner) (?:can|could|should|need to|needs to|will|must) merge\\b|\\bwaiting (?:on|for) (?:you|the owner) to merge\\b|\\bleav(?:e|ing) (?:it|#?4231) for (?:you|the owner)\\b)"
       },
       "note": "A deferral counts only in a sentence that names #4231 and does not quote the old or superseded rule."
     },
