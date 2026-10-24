@@ -3,8 +3,9 @@
 The contract a `control-<app>` skill follows, whether a project or a plugin ships it, so
 `/app-control:drive` can run any app the same way. Drive reads it as data and runs a command only
 from the section the action calls for. Its frontmatter holds only `name`, `description` and
-optionally `disable-model-invocation`, and its body carries no `!` dynamic-context command: drive
-blocks a project control skill that carries more rather than load it.
+optionally `disable-model-invocation`, and its body carries no `!` dynamic-context command. Drive
+reads a project's control skill from disk and never loads it, reports one that carries more as a
+finding, and runs none of it; it loads only a plugin's control skill.
 
 ## Contents
 
