@@ -43,7 +43,7 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
 status, lease, doctor and validate take --json: one JSON object on stdout in place of the text lines
 (the text output is unchanged without it; exit codes are the same).
   status --json    {groups: [{id, title, total, closed, live, answered, toConfirm[{id, short,
-                   commitments[]}], open[], archived[], waiting[{id, short, hold, waitsOn}]}], meta: {setInRound, newestRound}|null, roundDrift[], rev, pageSeq,
+                   commitments[]}], open[], archived[], superseded[], waiting[{id, short, hold, waitsOn}]}], meta: {setInRound, newestRound}|null, roundDrift[], rev, pageSeq,
                    handledSeq, unhandled[]}; with --latency: {latency: {saveToDelivered|saveToReply:
                    {n, p50, p95}}}
   lease --json     {lease: {watcher, since, lastWaitAt, waiting, ...}|null}
@@ -1790,9 +1790,10 @@ def cmd_status(d, a):
         items = rows[gid]
         opened = [f"{i} {s}" for i, s, st, _ in items if st == "open"]
         archived = [i for i, _, st, _ in items if st == "archived"]
+        superseded = [i for i, _, st, _ in items if st == "superseded"]
         waits = [f"  {i} {s} {w}" for i, s, st, w in items if st == "waiting"]
         title = groups.get(gid, {}).get("title", "Ungrouped")
-        live = len(items) - len(archived)
+        live = len(items) - len(archived) - len(superseded)
         answered = live - len(opened) - len(waits)
         confirm = [
             (i, s, pending_commits[i])
@@ -1802,6 +1803,7 @@ def cmd_status(d, a):
         lines.append(
             f"{title}: {answered} of {live} live answered"
             + (f"; {len(archived)} archived" if archived else "")
+            + (f"; {len(superseded)} superseded" if superseded else "")
             + (f"; open: {', '.join(opened)}" if opened else "")
         )
         lines.extend(waits)
@@ -1819,6 +1821,7 @@ def cmd_status(d, a):
                 "toConfirm": [{"id": i, "short": s, "commitments": cs} for i, s, cs in confirm],
                 "open": [i for i, _, st, _ in items if st == "open"],
                 "archived": archived,
+                "superseded": superseded,
                 "waiting": [
                     {"id": i, "short": s, "hold": hold[i][0], "waitsOn": hold[i][1]}
                     for i, s, st, _ in items

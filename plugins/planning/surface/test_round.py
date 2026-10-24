@@ -1285,6 +1285,38 @@ class TestStatusLive(DirCase):
         line = next(x for x in out.splitlines() if "live answered" in x)
         self.assertIn("0 of 7 live answered; 14 archived", line)
 
+    def test_superseded_is_neither_live_nor_answered(self):
+        doc = base_doc()
+        doc["questions"] += [
+            question("Q4", group="g1", round=1, supersededBy="Q2"),
+            question(
+                "Q5", group="g1", round=1, archived={"why": "Off path.", "at": "2026-09-24T10:00:00Z"}
+            ),
+        ]
+        self.write_doc(doc)
+        self.write_events(
+            [
+                {
+                    "seq": 1,
+                    "id": "Q1",
+                    "kind": "accept",
+                    "alt": None,
+                    "text": "",
+                    "at": "2026-09-24T10:00:00Z",
+                }
+            ]
+        )
+        rc, out, err = self.rp("status")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn(
+            "First group: 1 of 2 live answered; 1 archived; 1 superseded; open: Q2 Short Q2",
+            out.splitlines(),
+        )
+        rc, out, err = self.rp("status", "--json")
+        self.assertEqual(rc, 0, out + err)
+        g1 = json.loads(out)["groups"][0]
+        self.assertEqual((g1["live"], g1["answered"], g1["superseded"]), (2, 1, ["Q4"]))
+
     def test_an_accepted_row_with_an_unticked_commitment_is_named(self):
         doc = base_doc()
         doc["questions"][0]["commits"] = ["No network"]
