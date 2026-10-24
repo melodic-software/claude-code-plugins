@@ -1419,17 +1419,22 @@ def resolve_row(text, qid, how, note, where):
             if form == "answer":
                 return "answered", lead + encode({"answer": old}, None)
             return "answered", lead + old
+        marked = None
         if form == "named":
-            # `was` holds the whole displaced row; the reconfirmed row keeps its answer.
+            # `was` holds the whole displaced row; the reconfirmed row keeps its answer, its note
+            # when no --note replaces it, and its commitments. An earlier reconfirm's proposal and
+            # `was` have no field left to go in, so they are dropped.
             held = parse_named(old, where)
-            old = held[0].get("answer", old) if held else old
+            if held:
+                old, marked = held[0].get("answer", old), held[1]
+                note = note or held[0].get("note")
         fields = {
             "proposal": new,
             "was": old,
             "answer": f"accepted: {new}",
             "note": note or None,
         }
-        return "answered", lead + encode(fields, None)
+        return "answered", lead + encode(fields, marked)
 
     return edit_row(text, qid, where, change)
 

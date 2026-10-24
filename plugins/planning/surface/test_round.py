@@ -3603,6 +3603,34 @@ class TestSupersedeResolve(DirCase):
             res = self.row(int(q[1])).split("|", 4)[4].strip()
             fields = exporters.parse_named(res, "t")[0]
             self.assertEqual((fields["was"], fields["answer"]), (was, "accepted: x"))
+        res = self.row(1).split("|", 4)[4].strip()
+        self.assertEqual(exporters.parse_named(res, "t")[0]["note"], "n; m")
+        fresh = self.tmp / "fresh"
+        fresh.mkdir()
+        rc, out, err = run_round(fresh, "import-ledger", "--ledger", str(self.ledger))
+        self.assertEqual(rc, 0, out + err)
+
+    def test_reconfirm_keeps_the_displaced_note_and_commitments(self):
+        import exporters
+
+        self.ledger.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | answered | round 1 | Which queue? | "
+            + exporters.encode(
+                {"answer": "accepted: SQS", "note": "n; m"}, [(True, "A; b"), (False, "C")]
+            )
+            + "\n\n## Deferred questions\n\nNone.\n",
+            encoding="utf-8",
+        )
+        before = self.ledger.read_bytes()
+        for flag, note in (((), "n; m"), (("--note", "per review"), "per review")):
+            self.ledger.write_bytes(before)
+            self.edit("supersede", "Q1", "--proposes", "x")
+            self.edit("resolve", "Q1", "reconfirm", *flag)
+            res = self.row(1).split("|", 4)[4].strip()
+            fields, marked = exporters.parse_named(res, "t")
+            self.assertEqual((fields["was"], fields["note"]), ("accepted: SQS", note))
+            self.assertEqual(marked, [(True, "A; b"), (False, "C")])
         fresh = self.tmp / "fresh"
         fresh.mkdir()
         rc, out, err = run_round(fresh, "import-ledger", "--ledger", str(self.ledger))
