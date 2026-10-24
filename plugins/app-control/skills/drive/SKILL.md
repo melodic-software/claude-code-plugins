@@ -46,7 +46,10 @@ keep going.
    in [reference/project-types.md](reference/project-types.md), found from the repository's own docs
    and manifests. The report then carries the line `No control skill: drive used <fallback>.`
 3. Read no settings file. The shape a control skill follows is
-   [reference/control-skill.md](reference/control-skill.md).
+   [control-skill.md](../../reference/control-skill.md).
+4. Resolve `<feature>` to its file by id, where the id is `<feature>` or `<module>/<feature>`:
+   `features/<id>/README.md` first, then the legacy `features/<id>.md`. Neither exists: say so and
+   stop that feature rather than guess a file.
 
 The bundled `run` skill and its deferral to a project skill are upstream specifics. Read them live
 at <https://code.claude.com/docs/en/skills#run-and-verify-your-app> (as of 2026-10-21; recheck when

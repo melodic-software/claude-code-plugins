@@ -941,7 +941,7 @@ def export_brief(d, text=None):
     superseded = count["superseded-by-plan"]
     out = ["## Brief", "", "### TLDR", ""]
     out.append(
-        f"- {len(rows)} questions: {count['answered']} answered, {count['deferred']} deferred, "
+        f"- {len(rows)} question{'' if len(rows) == 1 else 's'}: {count['answered']} answered, {count['deferred']} deferred, "
         f"{count['blocked']} blocked, {count['withdrawn']} withdrawn, {count['open']} open"
         + (f", {superseded} superseded-by-plan" if superseded else "")
     )

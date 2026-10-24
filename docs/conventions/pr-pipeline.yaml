@@ -427,7 +427,18 @@ activities:
     # hold label, and whose agent-ready label was never removed. The label
     # starts resolve-issue. At the issue lane's queued cap (check-wip-cap) it
     # labels such an issue admission-deferred instead, and each hourly sweep
-    # admits the deferred ones oldest first within the room. Hourly it also hands an agent-ready issue whose
+    # admits the deferred ones oldest first within the room. A listed human
+    # adding admission-deferred to an issue with `status: ready` marks it
+    # decided (owner decision Q75): the sweep reads its work-class label, its
+    # Size, Complexity and Uncertainty issue fields (each counting only when a
+    # listed human or the lanes App set it) and the default branch's
+    # .github/actions/resolve-config/admission-rules.json, runs intake's
+    # admission rules, and admits it only on their admit verdict; a refusal
+    # moves it to `status: needs-decision` with a comment. Hourly it also
+    # re-fires an agent-ready issue left stranded (no run, or one that ended
+    # with no report, for three hours) once per version of the lane workflow
+    # files, then hands it to a person with needs-human and a comment; and it
+    # hands an agent-ready issue whose
     # lanes-App PR merged with `Refs:` or closed unmerged to triage
     # (needs-triage on, agent-ready off), lifting only the needs-human
     # report-outcome set for a merged Refs PR. A script, no model.
@@ -461,8 +472,11 @@ activities:
     # After intake triage, for a thin issue (Flags: intent, or no task list in
     # the body): posts the read-only refine-issue run's output as one marked
     # comment. Exact: the drafted criteria as a task list (admission's
-    # criterion 7 counts it), the lanes App's `status: needs-decision` lifted
-    # and one more triage. Not exact: numbered questions with RECOMMENDED
+    # criterion 7 counts them only once a listed human posts them as their
+    # own, owner decision Q9); one more triage, lifting the lanes App's
+    # `status: needs-decision`, only when a listed human's text already holds
+    # a task list, else the labels stay and the comment asks a listed human
+    # to post the criteria as their own decision comment. Not exact: numbered questions with RECOMMENDED
     # answers at `status: needs-decision`. For an issue admission held at the
     # App's needs-decision for some, not all, done-when items a lane run
     # cannot perform, a split the model judges sound files one needs-human
@@ -879,13 +893,14 @@ merge:
   # Dependabot pull requests answer to this switch, not report-only: tier auto
   # (every update non-major, allowed Actions publishers) merges once ci-status
   # passes; tier review merges once the pr-unblock review leaves a merge
-  # verdict at the head and ci-status passes. Owner decision 2026-10-18: a
-  # major update, or one whose version cannot be read (a SHA pin) or whose
-  # sources disagree, waits for a human whatever the verdict (`majors: hold`); `review` lets the verdict
-  # merge it.
+  # verdict at the head and ci-status passes. A major update, or one whose
+  # version cannot be read (a SHA pin) or whose sources disagree, merges on
+  # that review verdict too (`majors: review`; owner direction 2026-10-24: the
+  # review lanes decide whether a pull request needs a person); `hold` would
+  # make it wait for a human whatever the verdict.
   dependabot:
     mode: enforce
-    majors: hold
+    majors: review
   # The HIGH path floor is on in both lanes. It holds only the takeover set
   # (owner direction 2026-10-23): the trusted-actor list, the trusted-trigger
   # check, code owners, submodules and resolve-config (babysit_risk.py

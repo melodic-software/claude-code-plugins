@@ -35,6 +35,13 @@ const issueOf = (overrides = {}) => ({
   labels: [{ name: READY }, { name: "work-class: mechanical" }],
   ...overrides,
 });
+// Authors and editors as GraphQL answers them, for the trusted-spec criterion.
+const USER = (databaseId) => ({ __typename: "User", databaseId });
+const APP_ACTOR = { __typename: "Bot", databaseId: APP };
+// A body or comment as SPEC_QUERY answers it; by default it carries BODY's task list.
+const written = (author, { body = BODY, editor = null, lastEditedAt = editor ? "2026-10-20T00:00:00Z" : null } = {}) => ({ body, author, editor, lastEditedAt });
+// The issue's text as a listed human wrote it, unedited.
+const humanSpec = (issue, comments = []) => ({ ...written(USER(HUMAN), { body: issue.body }), comments });
 const VERDICT = {
   workClass: "work-class: mechanical",
   dimensions: { size: "small", complexity: "low", uncertainty: "known" },
@@ -52,10 +59,69 @@ const facts = (overrides = {}) => ({
   appId: APP,
   webHosts: HOSTS,
   repository: "o/r",
+  spec: humanSpec(overrides.issue ?? issueOf()),
   ...overrides,
 });
 
 describe("decide", () => {
+  // Owner decision Q9 (#8999): pr-verify judges a lane PR only against text a
+  // listed human wrote and last edited (resolve-pr.mjs linkedIssues), so an
+  // issue with no such body or comment fails verify at every head.
+  describe("trusted-human acceptance criteria", () => {
+    const appIssue = issueOf({ user: { id: APP } });
+    const NO_SPEC =
+      "no trusted-human acceptance criteria: a listed human must put the confirmed `- [ ]` criteria in the body or post them as their own comment (owner Q9, #8999)";
+    const goAhead = written(USER(HUMAN), { body: "Go ahead." });
+
+    test("an App-authored issue with criteria only in its body is refused", () => {
+      for (const spec of [{ ...written(APP_ACTOR), comments: [] }, { ...written(APP_ACTOR), comments: [written(APP_ACTOR), written(USER(OUTSIDER))] }]) {
+        assert.deepEqual(decide(facts({ issue: appIssue, spec })), { verdict: "refuse", reasons: [NO_SPEC] });
+      }
+    });
+
+    test("an App-drafted task list with a listed human's comment that carries none is refused", () => {
+      assert.deepEqual(decide(facts({ issue: appIssue, spec: { ...written(APP_ACTOR), comments: [goAhead] } })), { verdict: "refuse", reasons: [NO_SPEC] });
+    });
+
+    test("the same issue with a listed human's comment carrying the task list is admitted", () => {
+      for (const comment of [written(USER(HUMAN)), written(USER(HUMAN), { editor: USER(HUMAN) })]) {
+        assert.deepEqual(decide(facts({ issue: appIssue, spec: { ...written(APP_ACTOR), comments: [goAhead, comment] } })), { verdict: "admit", reasons: [] });
+      }
+      // A human's comment the App last edited is no longer theirs.
+      const edited = decide(facts({ issue: appIssue, spec: { ...written(APP_ACTOR), comments: [written(USER(HUMAN), { editor: APP_ACTOR })] } }));
+      assert.deepEqual(edited.reasons, [NO_SPEC]);
+    });
+
+    test("a human-authored body last edited by the App is refused unless a human comment carries the task list", () => {
+      const body = written(USER(HUMAN), { editor: APP_ACTOR });
+      assert.deepEqual(decide(facts({ spec: { ...body, comments: [] } })), { verdict: "refuse", reasons: [NO_SPEC] });
+      assert.deepEqual(decide(facts({ spec: { ...body, comments: [goAhead] } })), { verdict: "refuse", reasons: [NO_SPEC] });
+      assert.deepEqual(decide(facts({ spec: { ...body, comments: [written(USER(HUMAN))] } })), { verdict: "admit", reasons: [] });
+      // No spec read at all fails closed.
+      assert.deepEqual(decide(facts({ spec: undefined })).reasons, [NO_SPEC]);
+    });
+
+    test("admit() writes nothing when the text read answers an unexpected shape", async () => {
+      for (const spec of ["no-issue", "no-body"]) {
+        const { github, calls } = fakeGitHub({ spec });
+        await assert.rejects(
+          admit({ github, repository: "o/r", number: 7, verdict: VERDICT, rules: RULES, humans, appId: APP, webHosts: HOSTS, status: async () => ({}), log: () => {} }),
+          /unexpected shape/,
+        );
+        assert.deepEqual(calls.filter((call) => call.method !== "GET" && call.path !== "/graphql"), [], spec);
+      }
+    });
+
+    test("admit() reads the authors and refuses an App-only spec to status: needs-decision", async () => {
+      const { github, calls } = fakeGitHub({ issue: appIssue, spec: { ...written(APP_ACTOR), comments: [] } });
+      const result = await admit({ github, repository: "o/r", number: 7, verdict: VERDICT, rules: RULES, humans, appId: APP, webHosts: HOSTS, status: async () => assert.fail("a refusal reads no status"), log: () => {} });
+      assert.deepEqual(result, { outcome: "refused", reasons: [NO_SPEC] });
+      const writes = calls.filter((call) => call.method !== "GET" && call.path !== "/graphql").map((call) => `${call.method} ${call.path}`);
+      assert.deepEqual(writes, ["POST /repos/o/r/issues/7/labels", "DELETE /repos/o/r/issues/7/labels/status%3A%20ready", "POST /repos/o/r/issues/7/comments"]);
+      assert.deepEqual(calls.find((call) => call.method === "POST" && call.path.endsWith("/labels")).body, { labels: [NEEDS_DECISION] });
+    });
+  });
+
   test("admits a clear Task that meets every criterion", () => {
     assert.deepEqual(decide(facts()), { verdict: "admit", reasons: [] });
   });
@@ -110,7 +176,7 @@ describe("decide", () => {
       /Size large/,
     ],
     ["criterion 3: a structural class", { verdict: { ...VERDICT, workClass: "work-class: structural" } }, /work-class: structural/],
-    ["criterion 7: no task list to check", { issue: issueOf({ body: "Make the README better." }) }, /no `- \[ \] ` task list/],
+    ["criterion 7: no task list to check", { issue: issueOf({ body: "Make the README better." }) }, /no trusted-human acceptance criteria: .*confirmed `- \[ \]` criteria/],
     [
       "criterion 8: a duplicate label",
       {
@@ -239,45 +305,50 @@ describe("decide", () => {
     assert.equal(result.verdict, "refuse");
   });
 
-  describe("criterion 7 from the lanes App's refinement comment", () => {
+  // The App's refinement comment is model text pr-verify never reads, so its
+  // task list admits nothing; a listed human who confirms it posts it as their own.
+  describe("criterion 7 and the lanes App's refinement comment", () => {
     const thin = issueOf({ body: "Make the README skill count right." });
-    const refinement = (user, body = `${REFINE_MARKER}\n**Refinement.**\n\n- [ ] Line 3 says nineteen.`) => ({ id: 41, body, user, created_at: "2026-10-20T00:00:00Z" });
-    const app = { id: APP, login: "melodic-automation-lanes[bot]", type: "Bot" };
+    const refinement = (body = `${REFINE_MARKER}\n**Refinement.**\n\n- [ ] Line 3 says nineteen.`) => written(APP_ACTOR, { body });
+    const NO_SPEC = /^no trusted-human acceptance criteria: /;
 
-    test("admits a thin issue whose task list is in the App's refinement comment", () => {
-      assert.deepEqual(decide(facts({ issue: thin, comments: [refinement(app)] })), { verdict: "admit", reasons: [] });
+    test("a thin issue whose only task list is the App's refinement comment is refused", () => {
+      const result = decide(facts({ issue: thin, spec: humanSpec(thin, [refinement()]) }));
+      assert.equal(result.verdict, "refuse");
+      assert.match(result.reasons.join(), NO_SPEC);
     });
 
-    test("a rendered refinement criterion that reads a page outside the lane's web hosts is still refused", () => {
+    test("a listed human's comment carrying the confirmed criteria admits the thin issue", () => {
+      const confirmed = written(USER(HUMAN), { body: "Confirmed:\n\n- [ ] Line 3 says nineteen." });
+      assert.deepEqual(decide(facts({ issue: thin, spec: humanSpec(thin, [refinement(), confirmed]) })), { verdict: "admit", reasons: [] });
+    });
+
+    test("a rendered refinement a listed human posts as their own is still checked for pages outside the lane's web hosts", () => {
       const output = { exact: true, outcome: "Match the spec.", criteria: ["The page at https://example.org/spec says nineteen."], dependencies: [], related: [], questions: [], sources: [], split: [] };
       const body = render(validateOutput(output, new Set()));
       assert.ok(!body.includes("https://"), "the rendered comment breaks the URL");
-      const result = decide(facts({ issue: thin, comments: [refinement(app, body)] }));
+      const result = decide(facts({ issue: thin, spec: humanSpec(thin, [written(USER(HUMAN), { body })]) }));
       assert.equal(result.verdict, "refuse");
       assert.match(result.reasons.join(), /example\.org/);
     });
 
-    const lookalikes = [
-      ["github-actions[bot]", refinement({ id: 41898282, login: "github-actions[bot]", type: "Bot" })],
-      ["a listed human", refinement({ id: HUMAN, login: "maintainer", type: "User" })],
-      ["an outsider using the App's login text", refinement({ id: OUTSIDER, login: "melodic-automation-lanes[bot]", type: "User" })],
-      ["the App, with the marker mid-body", refinement(app, `See below.\n${REFINE_MARKER}\n- [ ] Line 3 says nineteen.`)],
-      ["the App, with only a quoted task list", refinement(app, `${REFINE_MARKER}\n> - [ ] Line 3 says nineteen.`)],
-      ["the App's admission comment", refinement(app, `${ADMIT_MARKER}\n- [ ] Line 3 says nineteen.`)],
-    ];
-    test("a refinement older than the body's last edit does not count; one newer does", () => {
-      const before = decide(facts({ issue: thin, comments: [refinement(app)], bodyEditedAt: "2026-10-21T00:00:00Z" }));
-      assert.equal(before.verdict, "refuse");
-      assert.match(before.reasons.join(), /task list/);
-      const after = decide(facts({ issue: thin, comments: [refinement(app)], bodyEditedAt: "2026-10-19T00:00:00Z" }));
-      assert.equal(after.verdict, "admit");
+    test("criteria past the comments read do not count: more comments than read is a refusal", () => {
+      const spec = { ...humanSpec(thin, [written(USER(HUMAN))]), commentCount: 150 };
+      const result = decide(facts({ issue: thin, spec }));
+      assert.equal(result.verdict, "refuse");
+      assert.match(result.reasons.join(), /150 comments, more than the 100 pr-verify reads/);
+      assert.equal(decide(facts({ issue: thin, spec: { ...spec, commentCount: 1 } })).verdict, "admit");
     });
 
-    for (const [name, comment] of lookalikes) {
-      test(`a look-alike from ${name} does not count`, () => {
-        const result = decide(facts({ issue: thin, comments: [comment] }));
+    for (const [name, author] of [
+      ["github-actions[bot]", { __typename: "Bot", databaseId: 41898282 }],
+      ["an outsider", USER(OUTSIDER)],
+      ["the App", APP_ACTOR],
+    ]) {
+      test(`a task list from ${name} does not count`, () => {
+        const result = decide(facts({ issue: thin, spec: humanSpec(thin, [written(author)]) }));
         assert.equal(result.verdict, "refuse");
-        assert.match(result.reasons.join(), /task list/);
+        assert.match(result.reasons.join(), NO_SPEC);
       });
     }
   });
@@ -285,17 +356,27 @@ describe("decide", () => {
 
 // A fake GitHub for admit(): the issue, its parent, blockers, timeline,
 // events and comments, recording every call.
-function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, timeline = [], closing = [], events = [], comments = [], bodyEditedAt = null } = {}) {
+// `spec` is what SPEC_QUERY answers (by default the issue's body as a listed
+// human wrote it); "no-issue" and "no-body" answer an unexpected shape.
+// `closing` is what closedByPullRequestsReferences answers.
+function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, timeline = [], closing = [], events = [], comments = [], spec, failOn } = {}) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
+    if (failOn?.(method, path, body)) {
+      throw new Error(`${method} ${path} failed with status 500`);
+    }
     const base = "/repos/o/r/issues/7";
     if (method === "POST" && path === "/graphql") {
       if (body.query.includes("closedByPullRequestsReferences")) {
         const refs = { nodes: closing, pageInfo: { hasNextPage: false, endCursor: null } };
         return { data: { repository: { issue: { closedByPullRequestsReferences: refs } } } };
       }
-      return { data: { repository: { issue: { lastEditedAt: bodyEditedAt } } } };
+      if (spec === "no-issue") {
+        return { data: { repository: { issue: null } } };
+      }
+      const answer = spec === "no-body" ? { ...humanSpec(issue), body: null } : (spec ?? humanSpec(issue));
+      return { data: { repository: { issue: { ...answer, comments: { totalCount: answer.totalCount ?? answer.comments.length, nodes: answer.comments } } } } };
     }
     if (method !== "GET") {
       return null;
@@ -350,6 +431,7 @@ const go = (fake, { status = open } = {}) =>
     status: async () => status,
     log: () => {},
   });
+// The GraphQL reads are POSTs but write nothing.
 const writes = (calls) => calls.filter((call) => call.method !== "GET" && call.path !== "/graphql").map(({ method, path, body }) => `${method} ${path} ${JSON.stringify(body)}`);
 
 describe("admit", () => {
@@ -398,11 +480,11 @@ describe("admit", () => {
     assert.equal(result.outcome, "refused");
     const done = writes(fake.calls);
     assert.equal(done.length, 3);
-    assert.match(done[0], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/status%3A%20ready/);
-    assert.equal(done[1], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+    assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+    assert.match(done[1], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/status%3A%20ready/);
     assert.match(done[2], /^POST \/repos\/o\/r\/issues\/7\/comments /);
     assert.ok(done[2].includes(ADMIT_MARKER.replaceAll('"', '\\"')));
-    assert.match(done[2], /task list/);
+    assert.match(done[2], /no trusted-human acceptance criteria/);
   });
 
   test("a Windows-host done-when item stays out of the lane: needs-decision and a recommended split, never agent-ready", async () => {
@@ -411,9 +493,22 @@ describe("admit", () => {
     assert.equal(result.outcome, "refused");
     const done = writes(fake.calls);
     assert.ok(!done.some((call) => call.includes("/labels ") && call.includes(AGENT_READY)));
-    assert.match(done[0], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/status%3A%20ready/);
-    assert.equal(done[1], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+    assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+    assert.match(done[1], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/status%3A%20ready/);
     assert.match(done[2], /item 2 .*Windows 11 host.*recommended split: keep the other items here .* needs-human child issue/);
+  });
+
+  test("a refusal whose needs-decision write fails keeps status: ready, so admission-deferred never stands alone", async () => {
+    const failOn = (method, path, body) => method === "POST" && path.endsWith("/labels") && body?.labels?.includes(NEEDS_DECISION);
+    const fake = fakeGitHub({ issue: issueOf({ body: "Make the README better.", labels: [{ name: READY }, { name: DEFERRED }] }), failOn });
+    await assert.rejects(() => go(fake), /failed with status 500/);
+    assert.ok(!writes(fake.calls).some((call) => call.startsWith("DELETE ")), writes(fake.calls).join("\n"));
+  });
+
+  test("an issue with more comments than the text read covers is refused, as pr-verify stops on it", async () => {
+    const result = await go(fakeGitHub({ spec: { ...humanSpec(issueOf()), totalCount: 101 } }));
+    assert.equal(result.outcome, "refused");
+    assert.match(result.reasons.join(), /101 comments, more than the 100 pr-verify reads/);
   });
 
   test("a refusal edits the App's earlier admission comment instead of adding one", async () => {
@@ -431,15 +526,13 @@ describe("admit", () => {
     assert.match(writes(fake.calls).at(-1), /^PATCH \/repos\/o\/r\/issues\/comments\/31 /);
   });
 
-  test("a thin issue the App refined is admitted from the comment's task list; another author's copy is refused", async () => {
+  test("a thin issue is refused on the App's refinement alone and admitted on a listed human's confirmed criteria", async () => {
     const thin = issueOf({ body: "Make the README skill count right." });
-    const comment = (user) => ({ id: 41, body: `${REFINE_MARKER}\n- [ ] Line 3 says nineteen.`, user });
-    const refined = await go(fakeGitHub({ issue: thin, comments: [comment({ id: APP, login: "melodic-automation-lanes[bot]", type: "Bot" })] }));
-    assert.equal(refined.outcome, "admitted");
-    const copied = await go(fakeGitHub({ issue: thin, comments: [comment({ id: OUTSIDER, login: "someone", type: "User" })] }));
-    assert.equal(copied.outcome, "refused");
-    const rewritten = await go(fakeGitHub({ issue: thin, bodyEditedAt: "2026-10-21T00:00:00Z", comments: [{ ...comment({ id: APP, login: "melodic-automation-lanes[bot]", type: "Bot" }), created_at: "2026-10-20T00:00:00Z" }] }));
-    assert.equal(rewritten.outcome, "refused", "the body changed after the refinement");
+    const refinement = written(APP_ACTOR, { body: `${REFINE_MARKER}\n- [ ] Line 3 says nineteen.` });
+    const refined = await go(fakeGitHub({ issue: thin, spec: humanSpec(thin, [refinement]) }));
+    assert.equal(refined.outcome, "refused");
+    const confirmed = await go(fakeGitHub({ issue: thin, spec: humanSpec(thin, [refinement, written(USER(HUMAN), { body: "- [ ] Line 3 says nineteen." })]) }));
+    assert.equal(confirmed.outcome, "admitted");
   });
 
   test("an open blocker posts the reason and keeps status: ready", async () => {

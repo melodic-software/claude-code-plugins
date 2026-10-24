@@ -17,6 +17,26 @@
 // defers those), stays deferred, and any other loses admission-deferred. Restarts, re-fires and relabels below
 // re-run admitted issues and are never paced.
 //
+// A listed human adding admission-deferred to an issue with `status: ready`
+// is the mark of a decided issue (owner decision Q75): the sweep reads its
+// work-class label and its Size, Complexity and Uncertainty fields (a label
+// or value counts only when a listed human or the App added or set it, as
+// `status: ready` must be; no default stands in) and runs intake's admission
+// rules on it (admit.mjs decide). It is admitted within the room only on an
+// admit verdict. A refusal gets admit.mjs's comment, `status: needs-decision`
+// for `status: ready`, and loses admission-deferred; a wait on an open pull
+// request stays deferred, and one on a blocker loses admission-deferred, so
+// its blocker's close admits it. One the rules leave alone loses
+// admission-deferred with a comment saying why.
+//
+// An agent-ready issue left with nothing running is stranded: no hold, no open
+// lane pull request, no outcome marker since its newest agent-ready, and no
+// work-resolve-issue run for that label, or only one that ended with no
+// report, over STRANDED_HOURS ago. It is re-fired once per version of the
+// lane workflow files with the re-fire record below; one already re-fired on
+// those files gets one comment saying why and needs-human instead. Both share
+// limits.restarts-per-run.
+//
 // On `schedule` it sweeps instead: every issue closed in the last
 // LOOKBACK_HOURS goes through the same rules, so an issue a bot closed (a
 // pull request merge), which starts no close run, is still picked up. A
@@ -103,6 +123,8 @@
 //   GITHUB_API_URL
 //   RESOLVED_CONFIG        resolve-config's output (default
 //                          $RUNNER_TEMP/resolved-config.json), for the limits
+//   BASE_PATH              the default branch checkout (default .base), for
+//                          the admission rules and models.issue-dimensions
 import { readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -112,7 +134,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { openPullsFor } from "../intake-triage/admit.mjs";
+import { admissionFacts, decide, loadRules, NEEDS_DECISION, openPullsFor, READY, refusalText, sayWhy } from "../intake-triage/admit.mjs";
 
 const LABEL = "agent-ready";
 const HUMAN_LABEL = "needs-human";
@@ -149,6 +171,12 @@ const RELABELED = /^<!-- work-unblock recurrence ([1-9][0-9]{0,15}) -->/;
 const IN_FLIGHT = ["queued", "in_progress", "waiting", "pending", "requested"];
 // The sweep's window: three hourly runs overlap, so a missed run loses nothing.
 export const LOOKBACK_HOURS = 3;
+// How long an agent-ready issue may sit with no run working on it.
+export const STRANDED_HOURS = 3;
+const STRANDED = /^<!-- work-unblock stranded ([0-9a-f]{40}-[0-9a-f]{40}) -->/;
+// The REST version that documents issue-field-values.
+const FIELD_API = { "X-GitHub-Api-Version": "2026-03-10" };
+const DIMENSIONS = ["size", "complexity", "uncertainty"];
 
 // Whether the account that closed the issue (ACTOR_ID, by id) and the one
 // that started this run (TRIGGERING_ACTOR, by login; a re-runner may be
@@ -204,6 +232,10 @@ function isRestart(events, index, markers, bot) {
 // human (by id): the labelers whose labels the lane acts on.
 const trustedLabeler = (event, { bot, humans }) => event?.actor?.login === bot || humans.has(event?.actor?.id);
 
+// The newest `labeled` event for label `name` among an issue's events.
+const newestAdd = (events, name) =>
+  events.filter((event) => event.event === "labeled" && String(event.label?.name).toLowerCase() === name.toLowerCase()).at(-1);
+
 // Why `number` is not promoted (`reason`, null when it is ready), whether a
 // hold label is the reason, and whether it carries admission-deferred.
 async function refusal(args) {
@@ -212,7 +244,7 @@ async function refusal(args) {
   const lower = (current.labels ?? []).map((label) => String(typeof label === "string" ? label : label.name).toLowerCase());
   const held = lower.find((label) => HOLDS.has(label));
   const reason = current.state !== "open" ? "not open" : held ? `held by ${held}` : await readiness({ ...args, base, lower });
-  return { reason, held: current.state === "open" && Boolean(held), deferred: lower.includes(DEFERRED_LABEL) };
+  return { reason, held: current.state === "open" && Boolean(held), deferred: lower.includes(DEFERRED_LABEL), current };
 }
 
 async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base, lower }) {
@@ -333,7 +365,7 @@ async function admit({ github, repo, number, gate, deferred }) {
 
 // Revisits the open admission-deferred issues, oldest first. Returns how many
 // reads or writes failed.
-async function admitDeferred({ github, repo, humans, bot, gate }) {
+async function admitDeferred({ github, repo, humans, bot, gate, appId, admission }) {
   let waiting;
   try {
     waiting = (await paginate(github, `/repos/${repo}/issues?state=open&labels=${DEFERRED_LABEL}&sort=created&direction=asc`)).filter(
@@ -351,14 +383,17 @@ async function admitDeferred({ github, repo, humans, bot, gate }) {
       // Anyone who can label could add admission-deferred, and re-admitting
       // it adds the App's agent-ready, which starts a credentialed run: only
       // the App's or a listed human's newest add of it counts.
-      const adds = (await paginate(github, `/repos/${repo}/issues/${number}/events`)).filter(
-        (event) => event.event === "labeled" && String(event.label?.name).toLowerCase() === DEFERRED_LABEL,
-      );
-      if (!trustedLabeler(adds.at(-1), { bot, humans })) {
+      const events = await paginate(github, `/repos/${repo}/issues/${number}/events`);
+      const mark = newestAdd(events, DEFERRED_LABEL);
+      if (!trustedLabeler(mark, { bot, humans })) {
         console.log(`::warning title=label-unblocked::#${number}: ${DEFERRED_LABEL} was added by neither the lanes App nor a listed human, so it is left as is and not re-admitted`);
         continue;
       }
-      const { reason, held, deferred } = await refusal({ github, repo, number, humans, closes, bot });
+      const { reason, held, deferred, current } = await refusal({ github, repo, number, humans, closes, bot });
+      if (humans.has(mark.actor?.id) && labelNames(current).includes(READY) && !held && current.state === "open") {
+        await admitMarked({ github, repo, number, issue: current, events, humans, bot, appId, closes, gate, admission });
+        continue;
+      }
       // Intake defers an issue an open pull request is for; it waits here
       // until no such pull request is open.
       const pulls = reason === null ? await openPullsFor(github, repo, number) : [];
@@ -378,6 +413,86 @@ async function admitDeferred({ github, repo, humans, bot, gate }) {
     }
   }
   return failed;
+}
+
+const labelNames = (issue) => (issue?.labels ?? []).map((label) => String(typeof label === "string" ? label : label?.name));
+
+// The verdict intake's admission reads, from the issue itself: its one
+// work-class label, which counts only when a listed human or the App added
+// it, and each of Size, Complexity and Uncertainty as the config's key for
+// the option a listed human or the App set, else `unset`. The work lanes'
+// reader (resolve-config dimensions.mjs) reads an unset field as a default;
+// admission never does. A read of an unexpected shape throws.
+async function issueVerdict({ github, repo, number, issue, trusted, humans, appId, dimensionsConfig, fieldSetters }) {
+  const classes = labelNames(issue)
+    .filter((name) => name.startsWith("work-class:"))
+    .map((name) => (trusted(name) ? name : `${name} (added by neither a listed human nor the lanes App)`));
+  const rows = await github("GET", `/repos/${repo}/issues/${number}/issue-field-values`, undefined, FIELD_API);
+  if (!Array.isArray(rows)) {
+    throw new Error("the issue's field values have an unexpected shape");
+  }
+  const setters = await fieldSetters(github, repo, number);
+  const dimensions = {};
+  for (const name of DIMENSIONS) {
+    const { "field-id": fieldId, options } = dimensionsConfig.fields[name];
+    const row = rows.find((item) => item?.issue_field_id === fieldId);
+    const setter = setters[String(fieldId)];
+    const option = String(row?.single_select_option?.id);
+    const counts = row !== undefined && (humans.has(setter) || (appId !== undefined && setter === appId));
+    dimensions[name] = counts && Object.hasOwn(options, option) ? options[option] : "unset";
+  }
+  const workClass = classes.length === 1 ? classes[0] : classes.length === 0 ? "no work-class label" : classes.join(" and ");
+  return { workClass, dimensions };
+}
+
+export const skipText = (reason) => `Left out of admission: ${reason}, so work-unblock removed \`${DEFERRED_LABEL}\`.`;
+
+// Runs intake's admission rules on an issue a listed human marked, and admits
+// it within the gate's room only on an admit verdict. `status: ready` and the
+// work-class label count only when the newest add of each, in `events`, is a
+// listed human's or the App's, as the mark's own add must be.
+async function admitMarked({ github, repo, number, issue, events, humans, bot, appId, closes, gate, admission }) {
+  const base = `/repos/${repo}/issues/${number}`;
+  const trusted = (name) => trustedLabeler(newestAdd(events, name), { bot, humans });
+  const { rules, dimensionsConfig, webHosts, fieldSetters } = await admission();
+  const verdict = await issueVerdict({ github, repo, number, issue, trusted, humans, appId, dimensionsConfig, fieldSetters });
+  const facts = await admissionFacts({
+    github,
+    repository: repo,
+    number,
+    issue,
+    rules,
+    humans,
+    isTrusted: (blocker) => trustedClose({ github, repo, number: blocker, humans, closes }),
+  });
+  const decision = trusted(READY)
+    ? decide({ ...facts, verdict, rules, humans, appId, repository: repo, webHosts })
+    : { verdict: "skip", reasons: [`${READY} was added by neither a listed human nor the lanes App`] };
+  const reasons = decision.reasons.join("; ");
+  if (decision.verdict === "admit") {
+    console.log(`label-unblocked: #${number}, marked by a person, passes the admission rules`);
+    await admit({ github, repo, number, gate, deferred: true });
+  } else if (decision.verdict === "refuse") {
+    // The comment first, then the needs-decision hold before status: ready
+    // comes off, and admission-deferred last: a failed write leaves the issue
+    // either still marked, for the next sweep, or held, which no sweep admits.
+    await sayWhy(github, repo, base, facts.comments, refusalText(reasons));
+    await github("POST", `${base}/labels`, { labels: [NEEDS_DECISION] });
+    await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
+    await github("DELETE", `${base}/labels/${DEFERRED_LABEL}`);
+    console.log(`label-unblocked: #${number}, marked by a person, refused: ${reasons}`);
+  } else if (decision.verdict === "wait") {
+    await sayWhy(github, repo, base, facts.comments, `Not admitted to the issue lane yet: ${reasons}.`);
+    if (decision.pulls.length === 0) {
+      await github("DELETE", `${base}/labels/${DEFERRED_LABEL}`);
+    }
+    console.log(`label-unblocked: #${number}, marked by a person, waits: ${reasons}`);
+  } else {
+    // A skip drops the person's mark, so the comment tells them why.
+    await sayWhy(github, repo, base, facts.comments, skipText(reasons));
+    await github("DELETE", `${base}/labels/${DEFERRED_LABEL}`);
+    console.log(`label-unblocked: #${number} deferral dropped: ${reasons}`);
+  }
 }
 
 // Labels each issue `closed` blocked that is ready, each at most once per run,
@@ -434,8 +549,21 @@ export const escalationComment = (stops) =>
 
 // The re-fire's record, posted before the label moves: one per issue per
 // version of the lane workflow files.
-export const refireComment = (key) =>
-  `<!-- work-unblock refired ${key} -->\nThe work-resolve-issue run that \`${LABEL}\` started failed or was cancelled before it reported, or it stopped or the token broker refused it because its workflow files differ from main's. work-unblock removed and added \`${LABEL}\` back to start a fresh run on main's workflow files. It does this once per version of those files, so if this run fails the same way, a person looks at it.`;
+const FAILED_CAUSE = `The work-resolve-issue run that \`${LABEL}\` started failed or was cancelled before it reported, or it stopped or the token broker refused it because its workflow files differ from main's.`;
+export const refireComment = (key, cause = FAILED_CAUSE) =>
+  `<!-- work-unblock refired ${key} -->\n${cause} work-unblock removed and added \`${LABEL}\` back to start a fresh run on main's workflow files. It does this once per version of those files, so if this run fails the same way, a person looks at it.`;
+
+// Why a stranded issue has nothing running, as the comments say it.
+const strandedCause = {
+  "no-run": `No work-resolve-issue run started in the ${STRANDED_HOURS} hours since \`${LABEL}\` was last added.`,
+  "no-report": `The work-resolve-issue run that \`${LABEL}\` started ended over ${STRANDED_HOURS} hours ago with no report and no pull request.`,
+  "failed-again": `The work-resolve-issue run that \`${LABEL}\` started failed or was cancelled before it reported, over ${STRANDED_HOURS} hours ago.`,
+};
+
+// The hand-off of a stranded issue already re-fired on these workflow files:
+// one per label add.
+export const strandedComment = (key, cause) =>
+  `<!-- work-unblock stranded ${key} -->\n${strandedCause[cause]} work-unblock already re-fired it once on these lane workflow files, so it no longer does, and the issue would hold a place in the issue lane's queue with nothing running. It added \`${HUMAN_LABEL}\`. To try again, remove \`${HUMAN_LABEL}\`, then remove \`${LABEL}\` and add it back.`;
 
 // The relabel's record, posted before the label moves: one per recurrence
 // comment.
@@ -718,22 +846,47 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
   if (!actions) {
     return { reason: "no Actions token to read its lane run" };
   }
+  // A record counts once the App added the label back at or after it; one
+  // whose label write failed is finished by the next sweep, not posted again.
+  const relabeled = (marker) =>
+    events.some((event) => isLabel(event, "labeled") && event.actor?.login === bot && Date.parse(event.created_at) >= marker.at);
+  // An issue with nothing running since `since`: once STRANDED_HOURS have
+  // passed with no open lane PR, re-fired once per version of the lane
+  // workflow files, then handed to a person.
+  const stranded = async (since, why, cause) => {
+    if (now - since < STRANDED_HOURS * HOUR_MS) {
+      return { reason: why };
+    }
+    const open = (await lanePulls({ github, repo, number, bot })).find((item) => item.state === "open");
+    if (open) {
+      return { reason: `${why}; its lane PR #${open.number} is open` };
+    }
+    const key = await workflowKey();
+    const fired = markers.filter((marker) => marker.outcome === "refired" && marker.key === key);
+    if (fired.some(relabeled)) {
+      const explained = comments.some(
+        (comment) => comment.user?.login === bot && STRANDED.exec(String(comment.body ?? ""))?.[1] === key && Date.parse(comment.created_at) >= addedAt,
+      );
+      return { reason: null, resets: since, stranded: cause, key, explained, why };
+    }
+    return { reason: null, resets: since, refire: key, recorded: fired.length > 0, cause: strandedCause[cause] };
+  };
   const { mine: runs, untitled } = await laneRuns(actions, repo, number, addedAt);
   if (runs.length === 0) {
-    return {
-      reason:
-        untitled > 0
-          ? `cannot tell whether a lane run started since ${LABEL} was added: ${untitled} work-resolve-issue run(s) then name no issue in their title`
-          : `no lane run since ${LABEL} was added`,
-    };
+    return untitled > 0
+      ? {
+          reason: `cannot tell whether a lane run started since ${LABEL} was added: ${untitled} work-resolve-issue run(s) then name no issue in their title`,
+        }
+      : stranded(addedAt, `no lane run since ${LABEL} was added`, "no-run");
   }
   if (runs.some((run) => run.status !== "completed")) {
     return { reason: "its lane run is still going" };
   }
+  // When the newest of its runs ended: every clock below starts there.
+  const ended = Math.max(...runs.map((run) => Date.parse(run.updated_at)).filter(Number.isFinite), addedAt);
   const jobsOf = jobLister(actions, repo);
   const stalled = await didNoWork(jobsOf, runs);
   if (stalled) {
-    const ended = Math.max(...runs.map((run) => Date.parse(run.updated_at)).filter(Number.isFinite), addedAt);
     const due = ended + limits["reset-clamp-min"] * HOUR_MS;
     if (now < due) {
       return { reason: `its lane run did no work; it is re-fired after ${new Date(due).toISOString()}` };
@@ -756,16 +909,12 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
     return { reason: null, resets: due, refire: key, recorded };
   }
   if (!runs.some((run) => FAILED.has(run.conclusion)) && !(await cancelledBeforeWork(jobsOf, runs)) && !(await stoppedStale(jobsOf, runs))) {
-    return { reason: "its lane run did not fail" };
+    return stranded(ended, "its lane run did not fail", "no-report");
   }
   const key = await workflowKey();
-  // A record counts once the App added the label back at or after it; one
-  // whose label write failed is finished by the next sweep, not posted again.
   const recorded = markers.filter((marker) => marker.outcome === "refired" && marker.key === key);
-  const relabeled = (marker) =>
-    events.some((event) => isLabel(event, "labeled") && event.actor?.login === bot && Date.parse(event.created_at) >= marker.at);
   if (recorded.some(relabeled)) {
-    return { reason: `already re-fired for workflow files ${key}` };
+    return stranded(ended, `already re-fired for workflow files ${key}`, "failed-again");
   }
   return { reason: null, resets: addedAt, refire: key, recorded: recorded.length > 0 };
 }
@@ -947,8 +1096,22 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
   for (const { number } of ready.slice(cap)) {
     console.log(`label-unblocked: #${number} restart deferred: ${cap} restarts this run`);
   }
-  for (const { number, refire, recurrence, recorded, handOff, pr, explained, release } of ready.slice(0, cap)) {
+  for (const { number, refire, cause, recurrence, recorded, handOff, pr, explained, release, stranded, key: strandedKey, why } of ready.slice(0, cap)) {
     const base = `/repos/${repo}/issues/${number}`;
+    if (stranded) {
+      // The comment first and the hold last, as the escalation does.
+      try {
+        if (!explained) {
+          await github("POST", `${base}/comments`, { body: strandedComment(strandedKey, stranded) });
+        }
+        await github("POST", `${base}/labels`, { labels: [HUMAN_LABEL] });
+        console.log(`label-unblocked: #${number} handed to a person: nothing running on it (${why})`);
+      } catch (error) {
+        failed += 1;
+        reportError(number, error);
+      }
+      continue;
+    }
     if (handOff) {
       // The comment first, then the labels; agent-ready comes off last, so a
       // failed write leaves the issue for the next sweep, which finds the
@@ -972,7 +1135,7 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
     try {
       // The record first: a failed comment re-fires nothing, so the bound holds.
       if (refire && !recorded) {
-        await github("POST", `${base}/comments`, { body: refireComment(refire) });
+        await github("POST", `${base}/comments`, { body: refireComment(refire, cause) });
       }
       // The labels, not the record, bound a relabel, so a failed record (the
       // alert locks every fix issue) is named and the relabel goes ahead.
@@ -1002,7 +1165,29 @@ async function restartLimited({ github, actions, repo, bot, humans, now, limits,
   return failed;
 }
 
-export async function main({ env = process.env, github, actions, now = Date.now(), rate = searchRateLimit() } = {}) {
+// What a marked issue's admission check reads from the default branch: the
+// rules, models.issue-dimensions, the issue lane's web hosts and the field
+// setter reader. resolve-config needs the packages its step installed in this
+// job, so it loads only when a marked issue needs it.
+const baseAdmission = (env) => {
+  let loaded;
+  return () =>
+    (loaded ??= (async () => {
+      const config = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
+      const dimensionsConfig = config.issueDimensionsFromBase(env);
+      if (!dimensionsConfig?.fields) {
+        throw new Error("the config sets no models.issue-dimensions");
+      }
+      return {
+        rules: loadRules(`${env.BASE_PATH || ".base"}/.github/actions/resolve-config/admission-rules.json`),
+        dimensionsConfig,
+        webHosts: config.issueLaneWebHostsFromBase(env),
+        fieldSetters: config.fieldSetters,
+      };
+    })());
+};
+
+export async function main({ env = process.env, github, actions, now = Date.now(), rate = searchRateLimit(), admission = baseAdmission(env) } = {}) {
   try {
     if (!REPO.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
@@ -1029,7 +1214,7 @@ export async function main({ env = process.env, github, actions, now = Date.now(
       }
     }
     const repo = env.GITHUB_REPOSITORY;
-    const humans = loadTrustedList(env.TRUSTED_ACTORS_PATH).humans;
+    const { humans, logins } = loadTrustedList(env.TRUSTED_ACTORS_PATH);
     github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse: rate.onResponse });
     const closed = sweep
       ? await closedSince(github, repo, new Date(now - LOOKBACK_HOURS * 3_600_000))
@@ -1045,7 +1230,7 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     let read;
     const status = () => (read ??= checkWip(github, { repo, bot, now, limits, wip, remaining: rate.remaining }));
     const gate = admissionGate(status);
-    let failed = sweep ? await admitDeferred({ github, repo, humans, bot, gate }) : 0;
+    let failed = sweep ? await admitDeferred({ github, repo, humans, bot, gate, appId: logins.get(bot), admission }) : 0;
     failed += await labelUnblocked({ github, repo, closed, sweep, humans, bot, gate });
     if (sweep) {
       actions ??= env.ACTIONS_TOKEN ? createGitHub({ token: env.ACTIONS_TOKEN, apiUrl: env.GITHUB_API_URL || undefined }) : null;
