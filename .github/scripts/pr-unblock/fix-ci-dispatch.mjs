@@ -148,7 +148,8 @@ function lanesState(node) {
   return status?.creator?.__typename === "Bot" && status.creator.databaseId === ACTIONS_BOT_ID ? status.state : null;
 }
 
-const lanesFailed = (node) => ["FAILURE", "ERROR"].includes(lanesState(node));
+const failedState = (state) => ["FAILURE", "ERROR"].includes(state);
+const lanesFailed = (node) => failedState(lanesState(node));
 
 // The lanes passed and another check failed: an advisory lane's, if any.
 const advisoryFailed = (node, checks, checkName) =>
@@ -207,7 +208,7 @@ export function skipReason(
   }
   const advisory = advisoryFailed(node, checks, checkName);
   if (!lanesFailed(node) && !advisory) {
-    return "ci-lanes has not failed";
+    return failedState(lanesStatus(node)?.state) ? "ci-lanes failed but the GitHub Actions bot did not set it" : "ci-lanes has not failed";
   }
   // node.requiredRun, the head's tested pr-require-checks run (pr-test-windows
   // when only an advisory check failed) and its latest jobs, is attached by
@@ -285,7 +286,7 @@ export async function dispatchCiFixes({
       const reason = skipReason(node, { base, appSenderId, actionsAppId, checkName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, now });
       if (reason === "") {
         candidates.push(node);
-      } else if (["FAILURE", "ERROR"].includes(lanesStatus(node)?.state)) {
+      } else if (failedState(lanesStatus(node)?.state)) {
         // A head whose lanes failed, whoever set the status, is the one a
         // silent skip would hide.
         log(`skip fix-ci #${node.number}: ${reason}`);

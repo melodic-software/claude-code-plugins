@@ -652,17 +652,17 @@ test("a ci-lanes failure set by any other actor, or with no creator, is not trus
   assert.deepEqual(result.dispatched, []);
   assert.deepEqual(api.calls.paths, []);
   for (const number of [1, 2, 3, 4, 5, 9]) {
-    assert.ok(lines.includes(`skip fix-ci #${number}: ci-lanes has not failed`), lines.join("\n"));
+    assert.ok(lines.includes(`skip fix-ci #${number}: ci-lanes failed but the GitHub Actions bot did not set it`), lines.join("\n"));
   }
 });
 
 test("a listed head with failed lanes that is skipped logs why; a passing or pending one stays quiet", async () => {
   const { lines, result } = await run({
-    pages: [[pr(1, { isDraft: true }), pr(2, { checks: [lanes("SUCCESS")] }), pr(3, { checks: [lanes("PENDING")] }), pr(4, { checks: [] })]],
+    pages: [[pr(1, { isDraft: true }), pr(2, { checks: [lanes("SUCCESS")] }), pr(3, { checks: [lanes("PENDING")] }), pr(4, { checks: [] }), pr(5, { isDraft: true, checks: [lanes("ERROR")] })]],
   });
   assert.deepEqual(result.dispatched, []);
   assert.deepEqual(
     lines.filter((line) => line.includes("fix-ci #")),
-    ["skip fix-ci #1: not a ready same-repository PR into the base"],
+    ["skip fix-ci #1: not a ready same-repository PR into the base", "skip fix-ci #5: not a ready same-repository PR into the base"],
   );
 });
