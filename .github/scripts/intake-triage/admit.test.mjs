@@ -126,6 +126,23 @@ describe("decide", () => {
     assert.deepEqual(decide(facts()), { verdict: "admit", reasons: [] });
   });
 
+  // Owner decision Q85 (#9668): the work class gates nothing.
+  test("admits a structural class, a class outside `classes` and no class", () => {
+    for (const workClass of ["work-class: structural", "work-class: anything-goes", null]) {
+      assert.deepEqual(decide(facts({ verdict: { ...VERDICT, workClass } })), { verdict: "admit", reasons: [] }, String(workClass));
+    }
+  });
+
+  test("an untrusted-provenance label removed by neither a listed human nor the App still refuses", () => {
+    const event = (kind, id) => ({ event: kind, label: { name: "work-class: untrusted-provenance" }, actor: { id } });
+    const refused = decide(facts({ events: [event("labeled", APP), event("unlabeled", OUTSIDER)] }));
+    assert.equal(refused.verdict, "refuse");
+    assert.match(refused.reasons.join(), /untrusted-provenance work needs a person/);
+    for (const remover of [HUMAN, APP]) {
+      assert.deepEqual(decide(facts({ events: [event("labeled", APP), event("unlabeled", remover)] })), { verdict: "admit", reasons: [] }, String(remover));
+    }
+  });
+
   test("admits Uncertainty Knowable, which the lane researches first", () => {
     const verdict = { ...VERDICT, dimensions: { ...VERDICT.dimensions, uncertainty: "knowable" } };
     assert.deepEqual(decide(facts({ verdict })), { verdict: "admit", reasons: [] });
@@ -175,7 +192,12 @@ describe("decide", () => {
       },
       /Size large/,
     ],
-    ["criterion 3: a structural class", { verdict: { ...VERDICT, workClass: "work-class: structural" } }, /work-class: structural/],
+    ["criterion 3: untrusted-provenance work", { verdict: { ...VERDICT, workClass: "work-class: untrusted-provenance" } }, /untrusted-provenance work needs a person/],
+    [
+      "criterion 3: an untrusted-provenance label on the issue",
+      { issue: issueOf({ labels: [{ name: READY }, { name: "work-class: untrusted-provenance" }] }) },
+      /untrusted-provenance work needs a person/,
+    ],
     ["criterion 7: no task list to check", { issue: issueOf({ body: "Make the README better." }) }, /no trusted-human acceptance criteria: .*confirmed `- \[ \]` criteria/],
     [
       "criterion 8: a duplicate label",
