@@ -28,7 +28,8 @@ usage() {
 Usage: check-map.sh <control-skill-dir> [--root <repository-root>]
 
 Checks a control skill's structure and prints `<rule> | <path> | <detail>` per finding.
---root   where index source globs resolve (default: the git top level, else <dir>/../../..)
+--root   where index source globs resolve (default: the project holding .claude/, for a
+         <project>/.claude/skills/<name> directory; else the git top level)
 EOF
 }
 
@@ -75,8 +76,13 @@ done
   exit 2
 }
 dir="$(cd "$dir" && pwd)"
-if [[ -z "$root" ]] && ! root="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)"; then
-  root="$(cd "$dir/../../.." && pwd)"
+if [[ -z "$root" ]]; then
+  if [[ "$(basename "$(dirname "$(dirname "$dir")")")" == .claude ]]; then
+    root="$(cd "$dir/../../.." && pwd)"
+  elif ! root="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)"; then
+    echo "check-map.sh: $dir is not under .claude/skills/ or in a git repository; pass --root" >&2
+    exit 2
+  fi
 fi
 [[ -d "$root" ]] || {
   echo "check-map.sh: not a directory: $root" >&2
