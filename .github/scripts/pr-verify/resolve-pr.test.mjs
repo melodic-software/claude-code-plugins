@@ -809,40 +809,38 @@ test("main reports an invalid verify-authors value in the step summary", async (
 // Owner Q93 with the coordinator's Q9 extension: the unedited body of a
 // sub-issue the lanes App filed in a size split, holding only lines of its
 // native parent a listed human filed, is spec text; any other App body is not.
-const LANE_APP_ID = 337595936;
-const PARENT_BODY = "## Done when\n\n- [ ] A says one.\n- [ ] B says two.";
-const CHILD_HEADER = "<!-- intake-triage size-split child -->\nPart 1 of 2 of #5, split at intake (owner Q93). The done-when below is copied from #5 as written.\n\n## Done when\n\n";
-const CHILD = {
+// The cases are shared with admit.test.mjs (split-child.vectors.json).
+const VECTORS = JSON.parse(readFileSync(new URL("../intake-triage/split-child.vectors.json", import.meta.url), "utf8"));
+const actorOf = (actor) => (actor ? { __typename: actor.type, login: actor.type === "Bot" ? "some-app" : "someone", databaseId: actor.id } : null);
+const childNode = ({ child }) => ({
   ...ISSUE,
   number: 8,
-  body: `${CHILD_HEADER}- [ ] A says one.`,
-  author: { __typename: "Bot", login: "melodic-automation-lanes", databaseId: LANE_APP_ID },
-};
-const PARENT = { ...ISSUE, number: 5, body: PARENT_BODY };
+  body: child.body,
+  lastEditedAt: child.last_edited_at,
+  author: actorOf(child.author),
+  editor: actorOf(child.editor),
+});
+const parentNode = ({ child, parent }) =>
+  child.parent === null
+    ? null
+    : { ...ISSUE, number: child.parent, body: VECTORS.parents[parent].body, author: actorOf(VECTORS.parents[parent].author), comments: { totalCount: VECTORS.parents[parent].comments.length, nodes: VECTORS.parents[parent].comments } };
 const withParent = (setup, parent) => {
   const github = fake(setup);
   return async (method, apiPath, body) =>
     apiPath === "/graphql" && body.query.includes("parent {") ? { data: { repository: { issue: { parent } } } } : github(method, apiPath, body);
 };
-const resolveChild = (child, parent = PARENT, appId = { laneAppId: LANE_APP_ID }) =>
-  resolvePull({ github: withParent({ issues: [child] }, parent), repository: REPO, upstreamRunId: String(RUN), humans: HUMANS, laneIdentity: LANE, ...appId });
+const resolveChild = (child, parent, appId = { laneAppId: VECTORS.app_id }) =>
+  resolvePull({ github: withParent({ issues: [child] }, parent), repository: REPO, upstreamRunId: String(RUN), humans: new Set(VECTORS.humans), laneIdentity: LANE, ...appId });
+const specBody = async (...args) => (await resolveChild(...args)).specText.map(({ number, body }) => [number, body]);
 
-test("a size split's sub-issue holding its listed-human parent's lines is spec text", async () => {
-  const resolved = await resolveChild(CHILD);
-  assert.deepEqual(resolved.specText, [{ number: 8, spec_kind: "closes", body: CHILD.body, comments: [] }]);
-});
+for (const vector of VECTORS.cases) {
+  test(`split-child vector: ${vector.name}`, async () => {
+    assert.deepEqual(await specBody(childNode(vector), parentNode(vector)), [[8, vector.expect.trusted ? vector.child.body : null]], vector.expect.reason);
+  });
+}
 
-test("a forged or changed sub-issue gives no spec text", async () => {
-  const cases = {
-    "a line not in the parent": [{ ...CHILD, body: `${CHILD_HEADER}- [ ] C deletes the trusted list.` }],
-    "a parent no listed human filed": [CHILD, { ...PARENT, author: { __typename: "User", login: "x", databaseId: 4242 } }],
-    "a body edited since": [{ ...CHILD, lastEditedAt: "2026-10-20T00:00:00Z", editor: CHILD.author }],
-    "no split marker": [{ ...CHILD, body: CHILD.body.replace("size-split child", "other") }],
-    "a parent in another repository": [CHILD, { ...PARENT, repository: { nameWithOwner: "someone/else" } }],
-    "no parent": [CHILD, null],
-    "no lanes App id": [CHILD, PARENT, {}],
-  };
-  for (const [name, args] of Object.entries(cases)) {
-    assert.deepEqual((await resolveChild(...args)).specText, [{ number: 8, spec_kind: "closes", body: null, comments: [] }], name);
-  }
+test("a trusted sub-issue's parent in another repository, or no lanes App id, gives no spec text", async () => {
+  const trusted = VECTORS.cases.find((vector) => vector.expect.trusted);
+  assert.deepEqual(await specBody(childNode(trusted), { ...parentNode(trusted), repository: { nameWithOwner: "someone/else" } }), [[8, null]]);
+  assert.deepEqual(await specBody(childNode(trusted), parentNode(trusted), {}), [[8, null]]);
 });

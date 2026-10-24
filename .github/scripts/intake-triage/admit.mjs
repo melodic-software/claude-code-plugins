@@ -308,6 +308,11 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   }
 
   const refuse = [];
+  // A trusted size-split sub-issue never splits again, so Size Large neither
+  // parks nor refuses it; a run has no turn or time cap (owner Q93, C13).
+  if (splitChildBody(spec, humans) !== null && !rules.sizes.includes("large")) {
+    rules = { ...rules, sizes: [...rules.sizes, "large"] };
+  }
   const author = issue.user?.id;
   if (!(humans.has(author) || (appId !== undefined && author === appId))) {
     refuse.push("the author is neither a listed human nor the lanes App");

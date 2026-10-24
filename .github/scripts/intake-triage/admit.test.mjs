@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { renderSplitRecord, SIZE_SPLIT_MARKER, SPLIT_CHILD_MARKER, splitChildHeader } from "./admit.mjs";
+import { renderSplitRecord, SIZE_SPLIT_MARKER, splitChildHeader } from "./admit.mjs";
 import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 
 import { ADMIT_MARKER, AGENT_READY, DEFERRED, admit, decide, loadRules, noteUnrunnable, openPullsNaming, unrunnableCriteria } from "./admit.mjs";
 import { REFINE_MARKER, render, validateOutput } from "./refine.mjs";
 
+const VECTORS = JSON.parse(readFileSync(new URL("./split-child.vectors.json", import.meta.url), "utf8"));
 const RULES = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)));
 const HUMAN = 153232337;
 const OUTSIDER = 4242;
@@ -793,24 +795,36 @@ describe("size split sub-issues", () => {
   const NO_SPEC =
     "no trusted-human acceptance criteria: a listed human must put the confirmed `- [ ]` criteria in the body or post them as their own comment (owner Q9, #8999)";
 
-  test("an unedited sub-issue holding only its listed-human parent's lines is admitted", () => {
-    assert.deepEqual(decide(facts({ issue: childIssue(), spec: childSpec() })), { verdict: "admit", reasons: [] });
+  // The shared cases (split-child.vectors.json), as specOf and admissionFacts
+  // shape them: a trusted child is admitted at its Size, Large included; an
+  // untrusted one is refused at Small and at Large.
+  const actorOf = (actor) => (actor ? { __typename: actor.type, databaseId: actor.id } : null);
+  const vectorSpec = ({ child, parent }) => ({
+    body: child.body,
+    lastEditedAt: child.last_edited_at,
+    author: actorOf(child.author),
+    editor: actorOf(child.editor),
+    comments: [],
+    ...(child.parent === null
+      ? {}
+      : { splitParent: { number: child.parent, spec: { ...written(actorOf(VECTORS.parents[parent].author), { body: VECTORS.parents[parent].body }), comments: VECTORS.parents[parent].comments }, appId: VECTORS.app_id } }),
   });
-
-  test("a forged or changed sub-issue is refused", () => {
-    const forgeries = {
-      "a line not in the parent": childSpec({ body: childBody(["- [ ] Line 3 says nineteen.", "- [ ] Delete the trusted-actor list."]) }),
-      "a parent no listed human filed": childSpec({ parent: parentSpec(USER(OUTSIDER)) }),
-      "no split marker": childSpec({ body: childBody().replace(SPLIT_CHILD_MARKER, "<!-- other -->") }),
-      "a body edited since": childSpec({ editor: APP_ACTOR }),
-      "a header naming another parent": childSpec({ body: childBody(undefined, 6) }),
-      "another Bot's body": childSpec({ author: { __typename: "Bot", databaseId: 999 } }),
-      "no parent read": { ...childSpec(), splitParent: undefined },
-    };
-    for (const [name, spec] of Object.entries(forgeries)) {
-      assert.deepEqual(decide(facts({ issue: childIssue(spec.body), spec })), { verdict: "refuse", reasons: [NO_SPEC] }, name);
-    }
-  });
+  for (const vector of VECTORS.cases) {
+    test(`split-child vector: ${vector.name}`, () => {
+      assert.deepEqual([VECTORS.app_id, VECTORS.humans], [APP, [...humans]]);
+      const spec = vectorSpec(vector);
+      const issue = issueOf({ user: { id: vector.child.author.id }, body: vector.child.body });
+      const at = (size) => decide(facts({ issue, spec, verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size } } }));
+      if (vector.expect.trusted) {
+        assert.deepEqual(at(vector.size), { verdict: "admit", reasons: [] }, vector.expect.reason);
+      } else {
+        assert.equal(at("small").verdict, "refuse", vector.expect.reason);
+        assert.ok(at("small").reasons.includes(NO_SPEC), vector.expect.reason);
+        assert.equal(at("large").verdict, "refuse", vector.expect.reason);
+        assert.ok(at("large").reasons.some((reason) => /^Size large/.test(reason)), vector.expect.reason);
+      }
+    });
+  }
 
   test("an issue waits while a sub-issue is open, and not for a closed one", () => {
     const subIssues = [
