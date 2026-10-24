@@ -47,7 +47,7 @@ MD
 cat >src/orders.py <<'PY'
 def place_order(order):
     order.save()
-    # TODO(R1): send the order confirmation
+    # R1: the order confirmation is sent here
     return order
 PY
 

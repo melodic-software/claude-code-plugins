@@ -52,10 +52,7 @@ SH
 chmod +x scripts/install.sh
 mkdir -p settings
 printf '%s\n' 'max-line-length = 100' >settings/lint.cfg
-cat >examples/consumer/Makefile <<'MK'
-lint:
-	@test -f lint.cfg && echo "lint ok"
-MK
+printf 'lint:\n\t@test -f lint.cfg && echo "lint ok"\n' >examples/consumer/Makefile
 
 git add -A
 git commit -q -m "add fixtures"
