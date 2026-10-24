@@ -101,8 +101,8 @@ protection.
 Only the orchestrator may refresh a branch:
 
 1. Hold the PR's worker lease, require a unique head repository/branch across the open watched
-   queue, require no human-review stop and a PR not authored by a dependency manager (the helper
-   refuses one; ask the manager to rebase instead), and take the snapshot's head SHA as
+   queue, require no human-review stop and a PR not authored by a dependency manager other than
+   Dependabot (the helper refuses one; ask the manager to rebase instead), and take the snapshot's head SHA as
    `<expected-head-sha>`. For a Dependabot head (a `dependabot/` branch Dependabot opened) the
    helper never updates the branch. Under `--apply` it posts one comment per base tip and
    holds the PR as `dependabot-rebase-requested`: `@dependabot rebase` when every commit is

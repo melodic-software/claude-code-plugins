@@ -4139,7 +4139,13 @@ def request_dependabot_rebase(
             f"repos/{repo}/pulls/{number}/commits?per_page=100", f"#{number} commits"
         )
         hold, body, why = dependabot.rebase_request(
-            repo, branch, tip, comments, commits, lambda ep: gh_json(["api", ep])
+            repo,
+            branch,
+            tip,
+            comments,
+            commits,
+            lambda ep: gh_json(["api", ep]),
+            identities=(str(inputs.get("identity") or ""),),
         )
         if body is None:
             inputs_read["rebase"] = why

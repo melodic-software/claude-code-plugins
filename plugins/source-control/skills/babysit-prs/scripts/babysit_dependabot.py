@@ -183,7 +183,14 @@ EDITED_HOLD = "dependabot-branch-edited"
 REBASE_COMMAND = "@dependabot rebase"
 RECREATE_COMMAND = "@dependabot recreate"
 # The most files the compare endpoint lists; a full list may hide more.
+#   Pointer: <https://docs.github.com/en/rest/commits/commits#compare-two-commits>
+#   As-of: 2026-10-24.
+#   Recheck trigger: that section changes how many files a comparison returns.
 COMPARE_FILES_LIMIT = 300
+# Who may have posted a request that counts: a writer, or the caller's own
+# identity (a lane App's association does not show write access). Anyone can
+# comment on a public repository, so another author's marker suppresses nothing.
+TRUSTED_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
 Get = Callable[[str], Any]
 
 
@@ -202,10 +209,37 @@ def rebase_body(base_sha: str, command: str = REBASE_COMMAND) -> str:
     return f"{command}\n{rebase_marker(base_sha)}"
 
 
-def rebase_requested(bodies: Iterable[Any], base_sha: str) -> bool:
-    """Whether a comment already asked for a rebase or recreate onto `base_sha`."""
+def rebase_requested(
+    comments: Iterable[Any], base_sha: str, identities: Collection[str] = ()
+) -> bool:
+    """Whether a trusted comment (`TRUSTED_ASSOCIATIONS`, or one of
+    `identities`) already asked for a rebase or recreate onto `base_sha`:
+    the command on its first line and the marker on its second."""
     marker = rebase_marker(base_sha)
-    return any(marker in str(body or "") for body in bodies)
+    own = {i.casefold() for i in identities}
+    for item in comments:
+        comment = json_object(item)
+        login = str(json_object(comment.get("user")).get("login") or "").casefold()
+        if (
+            comment.get("author_association") not in TRUSTED_ASSOCIATIONS
+            and login not in own
+        ):
+            continue
+        lines = str(comment.get("body") or "").replace("\r", "").split("\n")
+        if lines[1:2] == [marker] and lines[0] in (REBASE_COMMAND, RECREATE_COMMAND):
+            return True
+    return False
+
+
+def is_signed_dependabot_commit(item: Any) -> bool:
+    """A commit authored by Dependabot and committed and signed by GitHub, as
+    Dependabot's own commits are; an author line alone is text anyone sets."""
+    commit = json_object(json_object(item).get("commit"))
+    return (
+        is_dependabot_commit(item)
+        and json_object(commit.get("committer")).get("email") == GITHUB_COMMITTER_EMAIL
+        and json_object(commit.get("verification")).get("verified") is True
+    )
 
 
 def _compare_files(get: Get, repo: str, old: str, new: str) -> dict[str, Any] | None:
@@ -267,19 +301,20 @@ def rebase_request(
     comments: Iterable[Any],
     commits: Sequence[Any],
     get: Get,
+    identities: Collection[str] = (),
 ) -> tuple[str, str | None, str]:
     """(hold, comment body to post or None, why) for a behind Dependabot
     head. Every commit Dependabot's: a rebase. The others all base merges
     GitHub made (a stray update-branch): a recreate, which drops only them.
     Any other commit holds as edited and posts nothing, since a recreate
     would discard it. One request per base tip."""
-    if rebase_requested((json_object(c).get("body") for c in comments), base_sha):
+    if rebase_requested(comments, base_sha, identities):
         return (
             REBASE_HOLD,
             None,
             f"a Dependabot request at base {base_sha} was already posted",
         )
-    others = [c for c in commits if not is_dependabot_commit(c)]
+    others = [c for c in commits if not is_signed_dependabot_commit(c)]
     for item in others:
         sha = str(json_object(item).get("sha") or "")[:12]
         merge = is_base_merge(item, repo, base_ref, get)

@@ -106,6 +106,10 @@ value and its unset fallback.
   instead and hold the PR as `dependabot-rebase-requested`: `@dependabot rebase`, or `@dependabot
   recreate` when the only other commits are base merges GitHub made. A head carrying any other
   commit gets no comment and holds as `dependabot-branch-edited`: a recreate would discard it.
+  - **Pointer**: why a foreign commit stops Dependabot's rebases, in
+    [managing pull requests for dependency updates](https://docs.github.com/en/code-security/dependabot/working-with-dependabot/managing-pull-requests-for-dependency-updates).
+  - **As of**: 2026-10-24.
+  - **Recheck trigger**: that page changes when Dependabot rebases over or refuses extra commits.
 - Head-ref uniqueness guard: two open PRs sharing one head repository/branch is a stop-and-ask.
   Escalate, never guess which PR a push would update.
 - Lease-protected removal: never remove a worktree without holding that PR's worker lease

@@ -2667,17 +2667,36 @@ class CheckInputsChangedOnTheBase(Unattended):
                 )
 
     def test_a_second_run_at_the_same_base_does_not_ask_again(self) -> None:
+        # The identity's own request, or a writer's.
+        posters = (
+            {"user": {"login": IDENTITY, "type": "Bot"}, "author_association": "NONE"},
+            {"user": {"login": "a-member"}, "author_association": "MEMBER"},
+        )
         for body in (self.REBASE_BODY, self.RECREATE_BODY):
-            with self.subTest(body=body):
-                self.log = []
-                self.dependabot_head(DEPENDABOT_COMMIT, STRAY_MERGE)
-                self.comments = [{"id": 7, "user": {"login": "someone"}, "body": body}]
-                code, out = self.run_main()
-                self.assert_no_merge(code)
-                self.assertEqual(self.log, [])
-                self.assertTrue(
-                    any("dependabot-rebase-requested:" in b for b in out["blockers"])
-                )
+            for poster in posters:
+                with self.subTest(body=body, poster=poster["user"]["login"]):
+                    self.log = []
+                    self.dependabot_head(DEPENDABOT_COMMIT, STRAY_MERGE)
+                    self.comments = [{"id": 7, "body": body, **poster}]
+                    code, out = self.run_main()
+                    self.assert_no_merge(code)
+                    self.assertEqual(self.log, [])
+
+    def test_an_outsiders_marker_does_not_suppress_the_request(self) -> None:
+        # Anyone can comment on a public repository.
+        self.dependabot_head()
+        self.comments = [
+            {
+                "id": 7,
+                "user": {"login": "drive-by"},
+                "author_association": "NONE",
+                "body": self.REBASE_BODY,
+            }
+        ]
+        self.run_main()
+        self.assertEqual(
+            self.log, [f"{self.REBASE_COMMENT} -f body={self.REBASE_BODY}"]
+        )
 
     def test_a_new_base_tip_asks_again(self) -> None:
         self.dependabot_head()

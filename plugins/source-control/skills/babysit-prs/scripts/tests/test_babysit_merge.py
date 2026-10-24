@@ -1967,21 +1967,33 @@ class RefreshAsksDependabotToRebase(unittest.TestCase):
         for body in (self.BODY, self.RECREATE):
             with self.subTest(body=body):
                 result = self._run(
-                    comments=[{"id": 1, "body": body}],
+                    comments=[
+                        {"id": 1, "body": body, "author_association": "COLLABORATOR"}
+                    ],
                     commits=(DEPENDABOT_COMMIT, STRAY_MERGE),
                 )
                 self.assertEqual(self.writes, [])
                 self.assertEqual(result["rebase"], "none")
+
+    def test_an_outsiders_marker_does_not_suppress_the_request(self) -> None:
+        self._run(comments=[{"id": 1, "body": self.BODY, "author_association": "NONE"}])
+        self.assertEqual(
+            self.writes,
+            [["api", "-X", "POST", self.COMMENTS, "-f", f"body={self.BODY}"]],
+        )
 
     def test_a_live_human_stop_posts_nothing(self) -> None:
         with (
             mock.patch.object(
                 refresh, "human_stop_blocks_automation", side_effect=[False, True]
             ),
-            self.assertRaisesRegex(RuntimeError, "human review stop"),
+            self.assertRaisesRegex(
+                RuntimeError, "human review stop.*refusing the rebase request"
+            ),
         ):
             self._run()
         self.assertEqual(self.writes, [])
+        self.assertEqual(self.leases, [])
 
     def test_a_dry_run_posts_nothing(self) -> None:
         result = self._run(apply=False)
