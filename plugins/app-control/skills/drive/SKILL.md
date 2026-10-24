@@ -119,7 +119,9 @@ All as of 2026-10-25; recheck when any of them changes.
 - **Read-only by default.** A step that would write outside the app's own data, or needs a grant the
   run lacks, is not performed. The report names the narrowest grant that would allow it. Pass
   `--attended` only with a person present and `--yes` only after that person said yes in this
-  session; exit 4 is `blocked:` with the floor it names, never retried. A capture
+  session. A write to an environment marked `production: true` needs a committed grant for it
+  and `--yes`, and `--yes` needs `--attended`; without them, or on exit 4, the step is `blocked:`
+  with the floor, never retried. A capture
   that needs elevation follows "Elevated captures go through a shown script" instead.
 - **Name the tool, never substitute.** Capture uses the tool the control skill names for the kind,
   one tool per tier. Drive implements no capture and picks no tool of its own. When no tool is named,

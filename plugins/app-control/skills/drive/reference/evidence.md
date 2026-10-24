@@ -10,7 +10,8 @@
 
 One directory per run: `--out <dir>` when given, else a new temporary directory whose path the
 report prints. It holds `report.md`, `report.json` and the artifacts. Each artifact name carries the
-feature and entry point it came from, for example `checkout-cart-02-screenshot.png`.
+feature and entry point it came from, and the tier for a capture with a row per tier, for example
+`checkout-cart-02-screenshot.png`.
 
 Raw captures (traces, profiles, heap snapshots, thread dumps, recordings) are written straight into this
 directory and kept as evidence. Drive's `cleanup` never deletes the run directory or anything in it:
