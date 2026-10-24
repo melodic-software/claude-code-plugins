@@ -1332,7 +1332,8 @@ MECHANISMS: tuple[Mechanism, ...] = (
         id="postmerge.remediate-gates-every-write",
         claim=(
             "babysit_postmerge.py calls its writers (the attribution re-run, the "
-            "full-run dispatch, the dequeue and the demotion issue) only inside one "
+            "full-run dispatch, the disarm, the dequeue and the demotion issue) only "
+            "inside one "
             "branch of main() that needs --remediate, a readable verdict and a known "
             "branch. Without the flag it reads GitHub and prints the verdict, whatever "
             "the verdict says."
@@ -1478,7 +1479,8 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         mutation=CONDITIONAL,
         mutates_what=(
             "re-runs failed jobs of a red full run; dispatches a full run when none "
-            "covers an unverified auto-merge; dequeues the agent identity's "
+            "covers an unverified auto-merge; turns off native auto-merge the agent "
+            "identity armed on its own pull requests; dequeues the agent identity's "
             "merge-queue entries; files, reopens, or comments on the demotion issue; "
             "files or comments on a quarantine issue"
         ),

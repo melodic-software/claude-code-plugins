@@ -27,8 +27,9 @@ for checks that were not already failing on the newest completed run of the
 same event before the merge (`_Context.regressions`); with none left it is
 reported as unattributed and passes like a green run.
 
-`remediate()` acts on failures in order: dequeue the identity's merge-queue
-entries, file or comment on the demotion issue, then record the telemetry
+`remediate()` acts on failures in order: disarm the native auto-merge the
+identity armed on its own open pull requests, dequeue the identity's
+merge-queue entries, file or comment on the demotion issue, then record the telemetry
 count. `attribute()` triggers the one re-run, and `dispatch_full_run()` the
 dispatch. The CLI is read-only unless `--remediate` is given; with it, a cycle
 also dispatches one full run on the branch tip whenever an unverified
@@ -505,6 +506,18 @@ QUEUE_QUERY = (
     "enqueuer{__typename login} pullRequest{id number}}}}}}"
 )
 DEQUEUE_MUTATION = "mutation PostMergeDequeue($id:ID!){dequeuePullRequest(input:{id:$id}){clientMutationId}}"
+ARMED_QUERY = (
+    "query PostMergeArmed($o:String!,$r:String!,$b:String!,$c:String){"
+    "repository(owner:$o,name:$r){pullRequests(states:OPEN,baseRefName:$b,"
+    "first:100,after:$c){pageInfo{hasNextPage endCursor} nodes{id number "
+    "author{__typename login} autoMergeRequest{enabledBy{__typename login}}}}}}"
+)
+# Open pull request pages the armed read walks: 1000, as enable-auto-merge.mjs.
+ARMED_PAGE_LIMIT = 10
+DISARM_MUTATION = (
+    "mutation PostMergeDisarm($id:ID!){"
+    "disablePullRequestAutoMerge(input:{pullRequestId:$id}){clientMutationId}}"
+)
 
 
 def native_auto_merge(pr: dict[str, Any], merge: AutoMerge, identity: str) -> bool:
@@ -2268,6 +2281,64 @@ def dequeue_identity_entries(
     return unknown
 
 
+def disarm_identity_pulls(
+    repo: str, branch: str, identity: str, *, disarmed: list[int] | None = None
+) -> None:
+    """Turn off native auto-merge on every open pull request into `branch`
+    that the agent identity both opened and armed, appending each number to
+    `disarmed` as it goes. A pull request a person armed, or one the identity
+    did not open, is left armed. Every one is tried; a failed one does not
+    stop the rest. A read past the page limit still disarms what it found,
+    then raises `PostMergeReadError`; otherwise `PostMergeWriteError` names
+    every failed one."""
+    owner, name = _split_repo(repo)
+    key = _login_key(identity)
+    armed: list[tuple[str, int]] = []
+    cursor = None
+    overflow = False
+    for _ in range(ARMED_PAGE_LIMIT):
+        data = _graphql(
+            ARMED_QUERY, "armed pull requests", o=owner, r=name, b=branch, c=cursor
+        )
+        pulls = json_object(json_object(data.get("repository")).get("pullRequests"))
+        nodes = pulls.get("nodes")
+        page = pulls.get("pageInfo")
+        if not is_json_array(nodes) or not is_json_object(page):
+            raise PostMergeReadError("armed pull requests: the listing did not read")
+        for pr in (json_object(n) for n in nodes):
+            request = pr.get("autoMergeRequest")
+            if (
+                is_json_object(request)
+                and _actor_key(pr.get("author")) == key
+                and _actor_key(request.get("enabledBy")) == key
+            ):
+                armed.append((str(pr.get("id")), pr.get("number")))
+        if not page.get("hasNextPage"):
+            break
+        cursor = page.get("endCursor")
+    else:
+        overflow = True
+    failed: list[str] = []
+    for pr_id, number in armed:
+        try:
+            _graphql(
+                DISARM_MUTATION, f"disarm #{number}", PostMergeWriteError, id=pr_id
+            )
+        except PostMergeWriteError as exc:
+            failed.append(str(exc))
+            continue
+        if disarmed is not None:
+            disarmed.append(number)
+    if overflow:
+        failed.insert(
+            0,
+            f"armed pull requests: more than {ARMED_PAGE_LIMIT} pages of open pull requests",
+        )
+        raise PostMergeReadError("; ".join(failed))
+    if failed:
+        raise PostMergeWriteError("; ".join(failed))
+
+
 # The pinned-head record: an identity-authored comment the wrapper posts on the
 # pull request immediately before it enqueues, so the read-back has a source no
 # host stores.
@@ -2654,14 +2725,17 @@ def remediate(
     label: str | None = None,
     record_telemetry: Callable[[int], None] | None = None,
 ) -> dict[str, Any]:
-    """Act on the verdict's failures: dequeue every merge-queue entry the agent
-    identity enqueued, then file one demotion issue per (signal, merge SHA) or
+    """Act on the verdict's failures: turn off native auto-merge on every open
+    pull request the agent identity opened and armed, so GitHub enqueues none
+    of them, then dequeue every merge-queue entry the agent identity enqueued,
+    then file one demotion issue per (signal, merge SHA) or
     failing run, or comment on the existing one, also found by its failing run (reopening it first when closed and the sighting
     is new; only the filers' own comments count as a prior sighting), then
     record the number of new issues as
     `demotion_events`. Each step runs even when an earlier one failed; errors are
     listed in the report. No failure, no write."""
     report: dict[str, Any] = {
+        "disarmed": [],
         "dequeued": [],
         "issues": [],
         "comments": [],
@@ -2688,9 +2762,17 @@ def remediate(
             report["errors"].append(f"quarantine issue: {exc}")
     if not verdict.failures:
         return report
+    # The queue is the judged branch's unless the caller names another.
+    queue_branch = branch or verdict.branch
     try:
-        # The queue is the judged branch's unless the caller names another.
-        queue_branch = branch or verdict.branch
+        if not queue_branch:
+            raise PostMergeReadError("no branch to read the pull requests of")
+        disarm_identity_pulls(
+            repo, queue_branch, agent_identity, disarmed=report["disarmed"]
+        )
+    except (PostMergeReadError, PostMergeWriteError) as exc:
+        report["errors"].append(f"disarm: {exc}")
+    try:
         if not queue_branch:
             raise PostMergeReadError("no branch to read the merge queue of")
         unknown = dequeue_identity_entries(

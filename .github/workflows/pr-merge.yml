@@ -797,9 +797,9 @@ jobs:
       # hears of a full run this workflow dispatched only when the push job
       # sends it, and not of one the merge job or post-merge-dispatch started:
       # a run started with GITHUB_TOKEN raises no workflow_run event. So the check runs again
-      # with --remediate under the lane token, which files the record (or
-      # comments on it, reopening it on a new sighting) and dequeues the
-      # lane's merge-queue entries. The lane token holds no Actions
+      # with --remediate under the lane token, which disarms the lane's armed
+      # pull requests, dequeues the lane's merge-queue entries and files the
+      # record (or comments on it, reopening it on a new sighting). The lane token holds no Actions
       # permission, so the re-run and dispatch --remediate also attempts fail
       # here and are reported as a write failure (exit 4); the
       # post-merge-dispatch job starts those. Live mode only.
@@ -825,8 +825,8 @@ jobs:
           # the report, not the exit code, says whether the record was filed.
           if ! jq -e '.remediation.errors | type == "array"' "$report" >/dev/null 2>&1; then
             echo "::error::the post-merge remediation exited $code with no remediation report; no demotion record was filed"
-          elif jq -e '[.remediation.errors[] | select(startswith("demotion issue:") or startswith("dequeue:"))] | length > 0' "$report" >/dev/null; then
-            echo "::error::the post-merge remediation could not file the demotion record or dequeue the lane's entries; see its report above"
+          elif jq -e '[.remediation.errors[] | select(startswith("demotion issue:") or startswith("dequeue:") or startswith("disarm:"))] | length > 0' "$report" >/dev/null; then
+            echo "::error::the post-merge remediation could not file the demotion record, dequeue the lane's entries or disarm its pull requests; see its report above"
           elif [ "$code" -eq 4 ]; then
             echo "::warning::the post-merge remediation exited $code (re-run or dispatch refused: the lane token has no Actions permission)"
           fi
