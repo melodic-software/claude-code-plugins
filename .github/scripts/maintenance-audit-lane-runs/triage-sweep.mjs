@@ -23,8 +23,9 @@
 // files no issue. No model. The count is per triage cycle: a work-unblock
 // hand-back comment the lanes App posted after the state comment's last edit
 // starts a new cycle with no runs, in the same comment. An issue still
-// carrying needs-triage whose comments hold the hand-off text is skipped
-// unread, found by one search, so hand-offs cannot use up the call budget.
+// carrying needs-triage whose own state comment hands it off is skipped
+// without a REST read, found by one GraphQL search that returns the hits'
+// comments, so hand-offs cannot use up the call budget.
 //
 // Accepted exposure: intake reads an issue's comments, and anyone can comment
 // in the hour before the sweep dispatches. Intake treats them as untrusted
@@ -154,20 +155,59 @@ async function search(call, query, pick) {
   return numbers;
 }
 
+// The issues this sweep handed off in a comment, from one GraphQL search per
+// 50 issues that also returns each hit's first 100 comments, so a hit costs no
+// REST read. The search only finds issues where github-actions commented and
+// some comment, by anyone, holds the hand-off text, so a hit counts only when
+// the bot's own state comment reads filed=handed and no Bot's work-unblock
+// hand-back is newer than it; anything else is read and judged as usual. A
+// failed search excludes nothing.
+const HANDED_QUERY = `query($q: String!, $after: String) {
+  search(query: $q, type: ISSUE, first: 50, after: $after) {
+    pageInfo { hasNextPage endCursor }
+    nodes { ... on Issue { number comments(first: 100) { nodes { author { __typename login } body createdAt updatedAt } } } }
+  }
+}`;
+const isActionsBot = (author) => author?.__typename === "Bot" && author.login === "github-actions";
+
+export function handedInComments(comments) {
+  const state = comments.find((c) => isActionsBot(c.author) && STATE.test(String(c.body ?? "")));
+  if (STATE.exec(String(state?.body ?? ""))?.[2] !== HANDED) return false;
+  const at = Date.parse(state.updatedAt ?? state.createdAt);
+  return !comments.some((c) => c.author?.__typename === "Bot" && HAND_BACK.test(String(c.body ?? "")) && !(Date.parse(c.createdAt) <= at));
+}
+
+async function handedInSweepComments(call, repo) {
+  const numbers = new Set();
+  const q = `repo:${repo} is:issue is:open commenter:app/github-actions in:comments "${HANDED_TEXT}"`;
+  let after = null;
+  try {
+    for (let page = 1; page <= SEARCH_PAGES; page += 1) {
+      const answer = await call("POST", "/graphql", { query: HANDED_QUERY, variables: { q, after } });
+      const found = answer?.data?.search;
+      if (!found || answer.errors) return new Set();
+      for (const node of found.nodes ?? []) {
+        if (Number.isInteger(node?.number) && handedInComments(node.comments?.nodes ?? [])) numbers.add(node.number);
+      }
+      if (!found.pageInfo?.hasNextPage) break;
+      after = found.pageInfo.endCursor;
+    }
+  } catch (error) {
+    if (/call budget/.test(error.message)) throw error;
+    return new Set();
+  }
+  return numbers;
+}
+
 // The issues handed to a maintainer, so their comments cost no reads: those an
 // older sweep filed a hand-off issue for (only a title the bot wrote counts),
-// and those whose comments hold this sweep's hand-off text. The caller skips
-// them only while they carry needs-triage, so one whose label came off (an
-// intake verdict reaches ready only without it, apply-verdict.mjs) and that
-// work-unblock later handed back is read, and its new cycle starts.
+// and those whose own state comment hands them off (handedInSweepComments).
+// The caller skips them only while they carry needs-triage.
 async function handedOff(call, repo) {
   const filed = await search(call, `repo:${repo} is:issue author:app/github-actions in:title "Intake triage left"`, (item) =>
     item.user?.login === BOT ? Number(FILED_TITLE.exec(String(item.title ?? ""))?.[1] ?? 0) : 0,
   );
-  const commented = await search(call, `repo:${repo} is:issue is:open commenter:app/github-actions in:comments "${HANDED_TEXT}"`, (item) =>
-    Number(item.number),
-  );
-  return new Set([...filed, ...commented]);
+  return new Set([...filed, ...(await handedInSweepComments(call, repo))]);
 }
 
 // One pass. `call` returns null for a GET that 404s.

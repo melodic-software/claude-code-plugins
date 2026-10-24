@@ -161,6 +161,21 @@ function fakeGitHub({ issues, comments = {}, runs = {}, failPatch = () => false,
       assert.ok(found, decodeURIComponent(m[1]));
       return { incomplete_results: false, items: found.slice((Number(m[2]) - 1) * 100, Number(m[2]) * 100) };
     }
+    // The hand-off search: GitHub matches the phrase in any comment, so each
+    // hit comes with its comments as GraphQL answers them.
+    if (method === "POST" && path === "/graphql") {
+      assert.equal(body.variables.q, 'repo:o/r is:issue is:open commenter:app/github-actions in:comments "so the sweep no longer dispatches it"');
+      const start = body.variables.after === null ? 0 : Number(body.variables.after);
+      const author = (user) => (user?.login === BOT.login ? { __typename: "Bot", login: "github-actions" } : { __typename: "User", login: user?.login });
+      const nodes = handedIssues.slice(start, start + 50).map(({ number }) => ({
+        number,
+        comments: {
+          nodes: (comments[number] ?? []).slice(0, 100).map((c) => ({ author: author(c.user), body: c.body, createdAt: c.created_at, updatedAt: c.updated_at })),
+        },
+      }));
+      const next = start + 50 < handedIssues.length;
+      return { data: { search: { pageInfo: { hasNextPage: next, endCursor: next ? String(start + 50) : null }, nodes } } };
+    }
     if (method === "GET" && (m = /^\/repos\/o\/r\/issues\?state=open&per_page=100&page=(\d+)$/.exec(path))) {
       return issues.slice((Number(m[1]) - 1) * 100, Number(m[1]) * 100);
     }
@@ -485,6 +500,39 @@ test("a search hit without needs-triage is read, so a hand-back after its label 
   });
   const result = await sweep(gh);
   assert.deepEqual(result.dispatched, [1]);
+});
+
+// Security review on #9814: the search matches the hand-off text in anyone's
+// comment, so a hit is skipped only on the bot's own filed=handed state
+// comment, with no newer hand-back. Each needs-triage hit below is read and
+// dispatched; the control, the bot's own hand-off, is skipped unread.
+test("a search hit whose hand-off text is not the bot's own hand-off is read and dispatched", async () => {
+  const text = "Intake triage did not triage this issue after 2 dispatches, so the sweep no longer dispatches it.";
+  const floor = [{ name: "needs-triage" }];
+  for (const [name, notes] of [
+    ["someone else's comment", [{ id: 7, user: { login: "someone", id: OUTSIDER }, body: text }]],
+    ["a forged state comment", [{ id: 7, user: { login: "someone", id: OUTSIDER }, body: renderState({ runs: [1, 2], filed: HANDED, repoUrl: "u" }) }]],
+    ["the bot's state still dispatching", [stateAt([11], null, "2026-10-17T06:00:00Z"), { id: 7, user: { login: "someone", id: OUTSIDER }, body: text }]],
+  ]) {
+    const gh = fakeGitHub({ issues: [issue(1, { labels: floor })], comments: { 1: notes }, runs: triaged, handedIssues: [{ number: 1 }] });
+    const result = await sweep(gh);
+    assert.deepEqual(result.dispatched, [1], name);
+  }
+  const own = fakeGitHub({
+    issues: [issue(1, { labels: floor })],
+    comments: { 1: [stateAt([11, 22], HANDED, "2026-10-17T06:00:00Z")] },
+    runs: triaged,
+    handedIssues: [{ number: 1 }],
+  });
+  const reads = [];
+  const call = (method, path, body) => {
+    if (method === "GET") reads.push(path);
+    return own.call(method, path, body);
+  };
+  const result = await runSweep({ call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP) });
+  assert.equal(result.candidates, 0);
+  assert.equal(reads.filter((p) => p.includes("/comments")).length, 0);
+  assert.deepEqual(own.writes, []);
 });
 
 test("an issue past the comment pages that already carries needs-triage is not handed off again", async () => {
