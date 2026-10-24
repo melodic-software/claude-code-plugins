@@ -13,8 +13,9 @@ name: intake-triage
 # caps allow (.github/scripts/intake-triage/admit.mjs). A thin issue (no exact
 # outcome, or no task list) then gets one read-only refinement run, posted as
 # a separate lanes App comment; an issue admission held for done-when items a
-# lane run cannot perform gets the same run, which may split those items into
-# a needs-human child issue (.github/scripts/intake-triage/refine.mjs).
+# lane run cannot perform gets the same run, which may split those items out
+# of the done-when into its comment as checks a person runs
+# (.github/scripts/intake-triage/refine.mjs).
 #
 # workflow_dispatch triages one issue by number: issues a job's GITHUB_TOKEN
 # creates (the lane sweep's) start no issues run, and intake-reenter.yml
@@ -273,6 +274,10 @@ jobs:
         A charge a diff shows (IaC resources or SKUs, runner labels or cron schedules in
         workflows, model, effort or turn flags, new secrets) gets no `cost` flag, no `needs-human`
         and no Cost line: the merge-time cost hold catches it after review.
+        Spend drawn from a flat or prepaid source is not a charge either: model runs, lane runs and
+        `claude plugin eval` passes bill the prepaid API keys, which do not auto-refill (owner Q37).
+        They get no `cost` flag, no `needs-human` and no Cost line. Only a new or renewing charge
+        (Actions billing, Azure, a key or plan that renews or auto-recharges) is cost.
 
         ESCALATION. This section replaces the general needs_human rule in your output format ("true
         when a person must decide: a security report, unclear scope, a request to change
@@ -455,8 +460,8 @@ jobs:
   # outcome) or whose body has no task list (no checkable criteria). It also
   # takes an issue admission held at the lanes App's needs-decision for some,
   # not all, of its done-when items being ones a lane run cannot perform: a
-  # sound split files those items as a needs-human child issue and rewrites
-  # the issue's done-when to the rest. Three
+  # sound split lists those items in the refinement comment as checks a
+  # person runs and rewrites the issue's done-when to the rest. Three
   # jobs, as the reusable and apply-verdict split it: refine-select (no model,
   # read token) picks the issue and writes the context; refine-issue (the
   # model, contents: read only) explores the default branch, checks the
@@ -665,7 +670,8 @@ jobs:
              its own, no decision the owner must make is open, and no candidate is a `duplicate` or
              `fixed-by`. Then set `split` to exactly the numbers in `split.items`, `outcome` to one
              sentence of what the issue delivers without them, and leave `criteria` and `questions`
-             empty: a script moves those items to a needs-human child issue and keeps the rest here.
+             empty: a script lists those items in the refinement comment as checks a person runs and
+             keeps the rest here.
              Otherwise follow step 5.
           Each string is one line of plain text.
           PROMPT
@@ -745,8 +751,8 @@ jobs:
   # Posts the refinement as the lanes App, with the grant apply-verdict gets
   # (issues: write). No model: refine.mjs --apply validates the output
   # against closed shapes and renders each field on one line. It never adds
-  # agent-ready, and adds needs-human only to the child issue a split files;
-  # a split also rewrites the refined issue's done-when.
+  # agent-ready or needs-human and files no issue; a split also rewrites the
+  # refined issue's done-when.
   apply-refinement:
     needs: [born-triaged, refine-select, refine-issue]
     if: ${{ !cancelled() && needs.refine-issue.result == 'success' }}
@@ -885,8 +891,10 @@ jobs:
   # An exact refinement lifted the lanes App's needs-decision: triage the
   # issue once more, as intake-reenter.yml does, so apply-verdict and
   # admission read it with the refinement. refine-select skips the next run
-  # (the issue is refined), so this runs at most once per issue. Its own job
-  # holds the dispatch grant, not the job with the App token.
+  # (the body is refined), so this runs at most once per body version. An
+  # issue edited while the model ran is triaged again the same way, with
+  # nothing written. Its own job holds the dispatch grant, not the job with
+  # the App token.
   redispatch-refined:
     needs: [apply-refinement]
     if: ${{ !cancelled() && needs.apply-refinement.outputs.redispatch == 'true' }}
