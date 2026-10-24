@@ -1,6 +1,6 @@
 ---
 description: "Generate a project's control skill (its control-* skill) to the app-control contract: discover the repository first, ask only what discovery left open, write the hub, feature folders, config and driver CLI, then prove it once through /app-control:drive; check lists contract breaks, editing nothing; refresh brings it back in line with the app, or converts a testing feature map, through one upkeep pull request. Use when: 'create a control skill', 'map the features of this app', 'write a feature map', 'set up app control for this repo', 'check the control skill', 'refresh the control skill', 'refresh the feature map'."
-argument-hint: "[create [<app>] | check [<dir>] | refresh [<path>]] [--dir .claude/skills/control-<slug>] [--unattended]"
+argument-hint: "[create [<app>]|check [<dir>]|refresh [<path>]] [--dir .claude/skills/control-<slug>] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Generate, prove and keep current a control skill /app-control:drive runs
 ---
 
-**Arguments.** `[create [<app>] | check [<dir>] | refresh [<path>]] [--dir .claude/skills/control-<slug>] [--unattended]`.
+**Arguments.** `[create [<app>]|check [<dir>]|refresh [<path>]] [--dir .claude/skills/control-<slug>] [--unattended]`.
 e.g. /app-control:map create storefront, /app-control:map check .claude/skills/control-storefront, or
 /app-control:map refresh --unattended
 
@@ -137,7 +137,8 @@ the evidence and no-orphan checks.
 
 1. Run `bash "${CLAUDE_SKILL_DIR}/scripts/check-map.sh" <dir>`. It prints one `<rule> | <path> |
    <detail>` line per structural finding and lists its rules in its header. Without a shell, Read
-   the script and apply those rules by hand.
+   the script and apply those rules by hand, resolving source globs against the directory that
+   holds `.claude/`; report only what the rules find, never a finding that might apply.
 2. Judge the copied recipe, which the script cannot: a hub or feature section that repeats the
    commands or steps of a recipe kept elsewhere (a `run-<name>` or verify skill, `cli/README.md`,
    another feature's Drive) instead of naming it, against the contract's "Driver commands". Report

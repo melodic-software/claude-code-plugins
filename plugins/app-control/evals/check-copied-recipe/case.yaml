@@ -11,9 +11,9 @@ execution:
   max_turns: 20
   timeout_seconds: 600
 graders:
-  - name: names-run-shop
+  - name: reports-copied-recipe-line
     type: regex
-    pattern: 'run-shop'
+    pattern: 'copied-recipe \| [^|\n]*SKILL\.md \| [^\n]*run-shop'
     arm: both
   - name: writes-nothing
     type: tool_used

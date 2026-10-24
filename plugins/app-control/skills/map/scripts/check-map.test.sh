@@ -130,15 +130,19 @@ bash "$CHECK" "$TEST_TMPDIR/absent" >/dev/null 2>&1
 assert_equals "usage: missing directory exits 2" "$?" "2"
 bash "$CHECK" "$TEST_TMPDIR" --nope >/dev/null 2>&1
 assert_equals "usage: unknown argument exits 2" "$?" "2"
+mkdir -p "$TEST_TMPDIR/loose" && : >"$TEST_TMPDIR/loose/SKILL.md"
+bash "$CHECK" "$TEST_TMPDIR/loose" >/dev/null 2>&1
+assert_equals "usage: no .claude/skills parent and no repository exits 2" "$?" "2"
 
 # Clean: nothing printed, exit 0, and the default root resolves the globs.
 new_case
 out="$(run_check)"
 assert_equals "clean: exit 0" "$?" "0"
 assert_equals "clean: prints nothing" "$out" ""
-git init -q "$ROOT"
+# The project holding .claude/ is the default root, even inside an enclosing repository.
+git init -q "$TEST_TMPDIR"
 out="$(bash "$CHECK" "$SKILL")"
-assert_equals "clean: git top level as default root prints nothing" "$out" ""
+assert_equals "clean: default root is the project holding .claude, not the git top level" "$out" ""
 
 # index-dead, also: exit 0 with a finding and the tree is unchanged.
 new_case
