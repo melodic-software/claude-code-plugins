@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: interview-option-known-repetition-keeps
+description: An interview over a proposed interface whose second consumer is a stated requirement with the same send shape recommends keeping the interface rather than calling it speculative
+tags: [interview, recommendation, known-repetition, scaffold]
+expected_outcome: The first round's recommendation on how to structure the senders keeps the Notifier interface (or an equivalent shared abstraction), citing the stated SMS requirement R2 in docs/requirements.md as the second consumer and the shared send(recipient, message) shape. It does not call the interface speculative generality or YAGNI and does not ask to wait for a third channel. No Write or Edit touches PLAN.md.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/planning:interview topic order-confirmations. Problem: requirement R1 in docs/requirements.md, the email order confirmation, is next. My plan: before writing the email sender, add a `Notifier` interface with one method, `send(recipient, message)`, and make the email sender its first implementation. Ask me your first round."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 20
+  timeout_seconds: 900
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?interview"'
+    arm: with-only
+  - name: keeps-known-repetition
+    type: llm
+    arm: both
+    focus: last_message
+    criteria: "PASS only if all hold: (1) where the reply recommends how to structure the senders, the recommendation keeps the Notifier interface or an equivalent shared abstraction; (2) its basis cites the stated SMS requirement (R2 in docs/requirements.md) as a second consumer that already exists; (3) no recommendation drops the interface as speculative generality, YAGNI or premature abstraction, and none asks to wait for a third channel. FAIL if the reply recommends dropping or deferring the interface, or keeps it without citing the stated second consumer."
+  - name: no-plan-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*PLAN\.md"'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-plan-edit
+    type: tool_used
+    tool: Edit
+    input_match: '"file_path":"[^"]*PLAN\.md"'
+    min: 0
+    max: 0
+    arm: both

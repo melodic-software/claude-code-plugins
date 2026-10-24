@@ -123,6 +123,8 @@ Step 5, the approval gate, is placed with the gates above so a compaction re-att
 
 ### Step 1: Prerequisite Check
 
+Before a step adds a mechanism (a branch, workflow, ruleset, app, service, file, dependency or check), name the existing control that already covers the same risk (a CI check or test, branch protection, a hook, a workflow) and drop the mechanism if one does; an abstraction for a stated, known repetition with a namable shape is not overengineering (the standards index's `simpler-code` and `reference-dont-duplicate` entries draw that line). For a non-trivial new mechanism, run `/overengineering:justify` on the proposal if enabled.
+
 Prefer the simplest plan that works and keep each step's changes surgical. Before planning, verify:
 
 - **Is the effort coherent enough to plan?** If the work is too big to hold at once AND still too foggy to phrase as sharp decisions (questions you can't yet state, not just unanswered ones), `/planning:plan` is premature. Guide the user to `/planning:wayfind` when an interview of the effort already outgrew one session, else to `/planning:interview` first; recommend, never auto-switch. Skip when the effort is scoped and the open items are answerable questions
