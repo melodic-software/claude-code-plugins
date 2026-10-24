@@ -469,6 +469,9 @@ CARRIES = {
     "more deleted comments than listed": {
         "deleted": {"filteredCount": 2, "nodes": [{"createdAt": "2026-01-01T00:00:00Z"}]}
     },
+    "a deleted-comment count that is not a number": {
+        "deleted": {"filteredCount": True, "nodes": [{"createdAt": "2026-01-01T00:00:00Z"}]}
+    },
     "a patchless pure rename": {
         "markers": [_marker(OLD)],
         "compares": {

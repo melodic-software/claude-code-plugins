@@ -2056,7 +2056,7 @@ def deleted_since(answer: Any, at: Any) -> bool:
         )
     )
     nodes, count = items.get("nodes"), items.get("filteredCount")
-    if when is None or not is_json_array(nodes) or not isinstance(count, int) or count > len(nodes):
+    if when is None or not is_json_array(nodes) or not isinstance(count, int) or isinstance(count, bool) or count > len(nodes):
         return True
     for node in nodes:
         made = parse_timestamp(json_object(node).get("createdAt"))

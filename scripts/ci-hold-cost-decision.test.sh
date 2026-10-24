@@ -504,6 +504,14 @@ reset
 lifted
 export STUB_DELETED='{"data":{"repository":{"pullRequest":{"timelineItems":{"filteredCount":1,"nodes":[{"createdAt":"2026-10-23T13:09:00Z"}]}}}}}'
 expect "a comment deleted before the newest marker does not stop the carry" yes yes yes
+# A deletion in the window but before the marker passes the carry and is still caught by the window.
+reset
+lifted
+STUB_COMMENTS="[$(marker "$HEAD" 2026-10-23T13:17:00Z)]"
+STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T13:18:00Z '**Decision recorded.** Cost: accepted for #6419.')" '{"111": $c}')"
+export STUB_COMMENTS STUB_DECISIONS
+export STUB_DELETED='{"data":{"repository":{"pullRequest":{"timelineItems":{"filteredCount":1,"nodes":[{"createdAt":"2026-10-23T13:16:00Z"}]}}}}}'
+expect "a comment deleted in the window before the newest marker keeps the label" no no no "was deleted"
 # A late event for an older head lifts nothing off the live one.
 reset
 STUB_PR="$(jq -c --arg o "$OLD" '.head.sha = $o' <<<"$STUB_PR")"
