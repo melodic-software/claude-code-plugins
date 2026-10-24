@@ -59,9 +59,9 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
 3. **Plugin skills only where the repository has none.** A repository file for an `<app>` beats
    every Skill-tool candidate for it, a same-named plugin skill included. With none, the candidates
    are the available `<plugin>:control-<app>` skills (no `<app>`: `*:control-*`). Before any Skill
-   call, drop each candidate whose `<plugin>` is a folder in a repository `.claude/skills/` folder
-   that holds `.claude-plugin/plugin.json`: it is a repository skill step 1 found no file for (a
-   manifest command, inline or at another path). Record `blocked: control skill <name> is in this
+   call, drop each candidate whose `<plugin>` is the `name` in, or the folder holding, a repository
+   `.claude/skills/*/.claude-plugin/plugin.json`: it is a repository skill step 1 found no file for
+   (a manifest command, inline or at another path). Record `blocked: control skill <name> is in this
    repository but not on disk` and never load it. Load the chosen one through the Skill tool and
    take its base directory from what the tool reports. Its source is `plugin` when that directory
    lies under the plugins root, else `other: <path>`: an unattended run stops and prints the path,
