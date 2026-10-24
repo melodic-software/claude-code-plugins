@@ -162,8 +162,8 @@ reads the file itself, through a script where the key names one below.
   1. the default, `ready` (a consumer opts into `draft`);
   2. the `pr_open_state` `userConfig` value (the per-user level);
   3. `pr_open_state` in `docs/conventions/source-control.yaml` (the repository level);
-  4. an invocation that asks for a draft or names the PR a multi-session container (the request
-     level).
+  4. an invocation that asks for a draft, passes `--draft '<reason>'`, or names the PR a
+     multi-session container (the request level).
 
   The repository level is read at the pull request's base branch, never from the working tree or
   the head branch, with the same `contents?ref=<base-branch>` read the
@@ -176,7 +176,8 @@ reads the file itself, through a script where the key names one below.
   unknown value never flips a PR ready for review. A `pr_open_state` H2 in any
   `source-control.md` layer is not read. `create` reports which level supplied the value. The
   `userConfig` option declares `ready` as its default, so a substituted `ready` is reported as the
-  default level: the two give the same result.
+  default level (the two give the same result) and a substituted `draft` as the `userConfig`
+  level.
 - `pre_ready`: which pre-flip steps `/source-control:pull-request ready` runs, a list of
   `{step, enabled}` mappings over `base-merge`, `plan-evidence`, `code-review`, `security-review`
   and `verify`; a step the list leaves out runs. Team level only, with no `userConfig` option: a
