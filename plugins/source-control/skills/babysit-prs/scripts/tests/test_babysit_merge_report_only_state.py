@@ -80,7 +80,6 @@ class MergedQueueEntryUnderTheLane(harness.Unattended):
             patcher.start()
             self.addCleanup(patcher.stop)
         self.opt_in_recheck = "not-lane-authored-or-opted-in"
-        self.promotion = policy.Promotion(None, "resolver-failed")
         self.kill = []
         self.flight = policy.InFlight(False, f"unverified-auto-merge:#{PR}")
         self.pr_view = fixtures._pr(state="MERGED")

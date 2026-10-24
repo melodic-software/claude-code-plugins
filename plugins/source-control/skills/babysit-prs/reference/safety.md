@@ -1020,14 +1020,12 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    above leaves `unattended.enabled: false` and stops every later read.
 3. The rung (demotion record and `CLAUDE_LANES_MERGE_RUNG_CAP`), the merges in flight (the
    identity's queue entries plus its unverified merges, refused at `merge.max-in-flight`), and
-   eligibility. The rung and its cap are pacing caps: a pull request at any rung up to the
-   effective one needs no promotion cell. The promotion evidence (from the babysit-loop resolver,
-   which reads its four options from the operator's managed and user settings) is still read and
-   reported under `unattended.promotion`, an unreadable or lane-writable surface as its `reason`,
-   but it refuses nothing.
+   eligibility. The rung and its cap are pacing caps: at any effective rung above off, no
+   promotion cell is needed, and the gate reads no promotion evidence. After a demotion record
+   closes, the rung returns with it; nothing re-ratifies a promotion cell first.
    Past an on rung, an in-flight refusal of a pull request that has no merge-queue entry of its
-   own and is not a Dependabot pull request stops the reads there: the promotion evidence,
-   eligibility, and step 4 are not read, and the refusal is `in-flight:<reason>` as it would be
+   own and is not a Dependabot pull request stops the reads there: eligibility and step 4 are not
+   read, and the refusal is `in-flight:<reason>` as it would be
    after the full read. A queued pull request, a Dependabot one, or one whose queue read was not whole
    is still read in full.
    In the pr-merge lane, eligibility admits a pull request the lanes App opened or one it adopts:
@@ -1045,8 +1043,12 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    - **Pointer**: when the commits list's cap matters, fetch
      [list commits on a pull request](https://docs.github.com/en/rest/pulls/pulls#list-commits-on-a-pull-request)
      live. **As of**: 2026-10-12. **Recheck trigger**: that section changes the cap or its paging.
-   No work class is read: eligibility holds only an issue carrying `work-class:
-   untrusted-provenance`, or one a non-human removed it from (the trust hold). A LOW score merges, and so does a MED one whose
+   No work class is read: the only class-named check is the trust hold, which refuses an issue
+   carrying `work-class: untrusted-provenance`, or one a non-human removed it from. Eligibility
+   also needs the linked issue vouched for by a human (`issue-not-vouched:<why>` otherwise): a
+   write-access human wrote it, or one applied the tracker's admission label (`agent-ready` unless
+   `.work-item-tracker.json` maps the `autonomous-eligible` role, read at the base branch) in
+   person with no body edit after. A LOW score merges, and so does a MED one whose
    every reason is a size or reported review-finding reason (`babysit_risk.holds`): an open claude-review finding and an IMPORTANT
    or SUGGESTION security finding are reported and do not hold; an unbound or missing review
    lane, an unread file listing and every HIGH reason hold. The security lane holds only on a
@@ -1133,7 +1135,8 @@ Named residuals:
 - Event times have one-second resolution, so an identity arm in the same second as a gate enqueue
   counts as at or before it, and that gate merge reads as native and skips its read-back. So does
   an arm between the gate's disarm check and its enqueue.
-- The pull request's author can apply the opt-in label, and remove the untrusted-provenance label:
+- The pull request's author can apply the opt-in and admission labels, and remove the
+  untrusted-provenance label:
   provenance asks only that a human with write permission did so in person, within write-access
   trust.
   Label provenance also cannot tell the operator from an agent driving the operator's own `gh`

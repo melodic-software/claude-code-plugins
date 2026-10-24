@@ -46,10 +46,10 @@ attended queue. No lane crosses into another's authority.
 ### Autonomy ladder (merge authority)
 
 Merge authority is a configurable ladder with the safest rung shipped by default: **human merge for
-every PR except gate-proven C2-mechanical ones**. The exception is a *work-class* test, not an
-authorship test. A PR qualifies only when the item classifies C2 (mechanical), whether a bot, a
-human, or a worker authored it; bot authorship alone is never sufficient. C3 and unclassified items
-stay human-gated regardless of author, by default. **In the babysit loop's partition, no rung, no
+every PR except gate-proven C2-mechanical ones**. In the babysit loop's partition the exception is
+a *work-class* test, not an authorship test. There a PR qualifies only when the item classifies C2
+(mechanical), whether a bot, a human, or a worker authored it; bot authorship alone is never
+sufficient. C3 and unclassified items stay human-gated there regardless of author, by default. **In the babysit loop's partition, no rung, no
 tracked config, and no invocation argument reaches C4 (structural) or C5 (untrusted-provenance)**, per the autonomy matrix's own
 promotion contract, under which they never promote: "No merge rung reaches these cells, and no
 evidence predicate exists for them"

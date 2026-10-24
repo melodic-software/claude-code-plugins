@@ -2771,7 +2771,6 @@ class LaneRequiresAVerdict(unattended.Unattended):
             (".github/**",), "c2-mechanical", require_verifier_verdict=True,
         )  # fmt: skip
         self.opt_in_recheck = "not-lane-authored-or-opted-in"
-        self.promotion = policy.Promotion(None, "resolver-failed")
         self.kill = []
         self.verdicts: dict[int, ve.Evidence] = {}
         self.read = mock.Mock(
@@ -3291,7 +3290,6 @@ class LaneRequiresAVerdict(unattended.Unattended):
     def test_the_lane_switches_turned_on_restore_the_refusals(self) -> None:
         self.config = dataclasses.replace(
             self.config, high_path_floor=True, max_changed_files=8,
-            c2_contradictions=True,
         )  # fmt: skip
         self.files = ((changed(".gitmodules"),), True)
         _, out = self.lane()
@@ -3360,7 +3358,6 @@ class LocalBabysitReadsNoVerdict(unattended.Unattended):
         # Q624 turns the floor and caps off for the pr-merge lane only.
         self.config = dataclasses.replace(
             self.config, high_path_floor=False, max_changed_files=None,
-            c2_contradictions=False,
         )  # fmt: skip
         self.files = ((changed(".gitmodules"),), True)
         code, out = self.run_main()
@@ -3408,7 +3405,6 @@ class TheSweepKeepsTheListingBound(unattended.Unattended):
             (".github/**",), "c2-mechanical", require_verifier_verdict=True,
         )  # fmt: skip
         self.opt_in_recheck = "not-lane-authored-or-opted-in"
-        self.promotion = policy.Promotion(None, "resolver-failed")
         self.kill = []
         self.flight = policy.InFlight(False, "identity-entry-queued:#5")
         self.queued = [unattended.PR, 5]

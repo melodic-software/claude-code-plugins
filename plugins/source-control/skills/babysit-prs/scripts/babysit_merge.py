@@ -79,8 +79,7 @@ Contract enforced here (encoded as code, not convention):
   wiring order: identity, the `gh auth status` credential chokepoint, the kill
   switch, the post-merge check (`babysit_postmerge`), demotion and cap, in
   flight, eligibility, the review evidence and the diff score
-  (`babysit_merge_policy`, `babysit_review_evidence`, `babysit_risk`); the
-  promotion evidence is read and reported but refuses nothing.
+  (`babysit_merge_policy`, `babysit_review_evidence`, `babysit_risk`).
   Any refusal is the blocker `unattended merge refused: <reason>` and the
   report's `unattended` block says which. With `--merge`, a stop refusal
   dequeues the identity's queued entries, a held identity entry leaves the
@@ -218,7 +217,6 @@ from babysit_util import (
     parse_allowed_owners,
     parse_csv_set,
     read_deadline,
-    run_command,
     split_owner,
 )
 
@@ -2927,21 +2925,6 @@ DISARM_MUTATION = postmerge.DISARM_MUTATION
 _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f-\x9f  ]")
 
 
-def _checkout() -> Path:
-    """The checkout the lane runs in, which the promotion evidence must sit
-    outside; the working directory when it is not a git checkout."""
-    try:
-        proc = run_command(
-            ["git", "rev-parse", "--show-toplevel"],
-            allowed_executables=("git",),
-            check=False,
-        )
-    except (RuntimeError, ValueError, OSError):
-        return Path.cwd()
-    top = proc.stdout.strip()
-    return Path(top) if proc.returncode == 0 and top else Path.cwd()
-
-
 class HeadPusherUnproven(Exception):
     """A head commit's pusher cannot be shown not to be a human."""
 
@@ -3279,19 +3262,13 @@ def assess_unattended(
 ) -> merge_policy.UnattendedPolicy:
     """The unattended decision for one pull request, in the wiring order:
     identity, the credential chokepoint, the kill switch, a default-branch
-    base, the post-merge check (or the run's `shared` answer), demotion and cap, in flight, promotion evidence, eligibility, then
+    base, the post-merge check (or the run's `shared` answer), demotion and cap, in flight, eligibility, then
     the review evidence and the score. Raises `PolicyReadError` when the
     pull request or its pipeline config cannot be read."""
 
     post_merge = postmerge.gate_reader(
         repo, self_logins, lane_merges_only=authority == merge_policy.PR_MERGE
     )
-
-    def promotion(window_start: datetime | None) -> merge_policy.Promotion:
-        return merge_policy.read_promotion(
-            checkout=_checkout(),
-            window_start=window_start,
-        )
 
     # The label an adopted owner pull request holds on; unreadable adopts none.
     human_gated = None
@@ -3306,7 +3283,6 @@ def assess_unattended(
         human_gated=human_gated,
         self_logins=self_logins,
         post_merge=post_merge,
-        promotion=promotion,
         authority=authority,
         lane_kill_switch=lane_kill_switch,
         lane_rung_cap=lane_rung_cap,

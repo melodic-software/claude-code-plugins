@@ -708,7 +708,6 @@ UNBOUND = tuple(
     LaneEvidence(lane, False, "no-marker", None)
     for lane in ("claude-review", "claude-security-review")
 )
-PROMOTED = policy.Promotion(dict.fromkeys(policy.PROMOTABLE_CELLS, "promoted"), None)
 PROCEED = policy.KillSwitch(True, "proceed")
 REAL_ASYNC_MERGE = merge.async_merge
 
@@ -765,7 +764,6 @@ class Unattended(unittest.TestCase):
         self.demotion = policy.Demotion(False, None, ())
         self.cap = policy.RungCap(None, "no-cap")
         self.flight = policy.InFlight(True, None)
-        self.promotion = PROMOTED
         self.eligible = policy.Eligibility(True, None, "C2", 40)
         self.lanes = BOUND
         self.comments: list[dict[str, Any]] = []
@@ -997,7 +995,6 @@ class Unattended(unittest.TestCase):
             mock.patch.object(postmerge, "check", self.post_check),
             mock.patch.object(policy, "read_rung_cap", self.read_cap),
             mock.patch.object(policy, "in_flight", self.in_flight),
-            mock.patch.object(policy, "read_promotion", return_value=self.promotion),
             mock.patch.object(policy, "eligibility", return_value=self.eligible),
             # None runs the real lane eligibility over the stubbed reads.
             *(
@@ -1059,9 +1056,6 @@ class Unattended(unittest.TestCase):
                 policy,
                 "recheck_opt_in",
                 side_effect=lambda *a, **k: self.opt_in_recheck,
-            ),
-            mock.patch.object(
-                merge, "_checkout", return_value=pathlib.Path("/checkout")
             ),
             mock.patch.object(
                 postmerge, "identity_queue", return_value=(self.queued, 0)
@@ -1155,8 +1149,6 @@ class LaneMode(Unattended):
         self.addCleanup(patcher.stop)
         # The local opt-in re-read is not a lane rule: reaching it would hold.
         self.opt_in_recheck = "not-lane-authored-or-opted-in"
-        # D16 replaces the local promotion read: an unpromoted cell must not hold.
-        self.promotion = policy.Promotion(None, "resolver-failed")
         # The lane never reads the variables kill switch: a read would pop
         # from an empty list and fail the test.
         self.kill = []
@@ -1626,7 +1618,6 @@ class DependabotLane(Unattended):
             report_only=True, dependabot_mode="enforce",
         )  # fmt: skip
         self.opt_in_recheck = "not-lane-authored-or-opted-in"
-        self.promotion = policy.Promotion(None, "resolver-failed")
         self.kill = []
         self.pr_user = {"login": "dependabot[bot]", "type": "Bot"}
         self.pr_view = fixtures._pr(author={"login": "app/dependabot"})
@@ -1806,22 +1797,8 @@ class AllInputsGood(Unattended):
         self.assertEqual(out["unattended"]["risk"]["score"], "LOW")
         self.assertIs(out["unattended"]["enabled"], True)
         self.assertIsNone(out["unattended"]["reason"])
-        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
-
-    def test_unreadable_promotion_evidence_still_enqueues(self) -> None:
-        # Owner direction: the promotion evidence is reported, never a stop.
-        self.promotion = policy.Promotion(
-            None, "options-unset:promotion_evidence_checker"
-        )
-        code, out = self.run_main()
-        self.assertEqual(code, 0, out["blockers"])
-        self.assertIsNone(out["unattended"]["reason"])
-        self.assertEqual(
-            out["unattended"]["promotion"]["reason"],
-            "options-unset:promotion_evidence_checker",
-        )
-        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
         self.assertIs(out["enqueued"], True)
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
 
     def test_a_cached_head_config_is_read_again_before_the_enqueue(self) -> None:
         # The gate took main's config from the run cache, read at head B.
