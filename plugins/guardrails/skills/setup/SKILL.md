@@ -184,8 +184,11 @@ registration with your edit tools (the
 `<event>.d/guardrails.<name>` marker for plain hooks, the `guardrails-<name>` job in the lefthook
 config, its line in `.husky/<event>`) and the copy under `guardrails/`, on the user's yes; a shared
 registration is a committed change the team reviews. A remote entry stays in the committed
-`lefthook.yml`, so stop it in this clone alone with a job named `guardrails-remote-<name>` and
-`skip: true` under its event in the gitignored `lefthook-local.yml`. This is the way out the `reference-verify`
+`lefthook.yml`, so stop it in this clone alone by skipping its job, `guardrails-remote-<name>`,
+in the clone's gitignored lefthook local config, written as lefthook's docs say at the time
+(pointer: [lefthook-local](https://lefthook.dev/examples/lefthook-local/) and
+[skip](https://lefthook.dev/configuration/skip/); as of 2026-10-23; recheck trigger: a lefthook
+release that changes how a local config overrides a remote's job). This is the way out the `reference-verify`
 failure names for a cli-flag finding, which is unverified rather than proven wrong.
 
 ## `apply install-read-deny [local|shared] [user] [remove]` (opt-in, explicit argument only)
