@@ -35,6 +35,8 @@ HEAD = (
 
 class ApiBudgetTests(unittest.TestCase):
     def setUp(self) -> None:
+        gh.reset_rate_guard()
+        self.addCleanup(gh.reset_rate_guard)
         self.dir = tempfile.mkdtemp()
         self.addCleanup(lambda: subprocess.run(["rm", "-rf", self.dir], check=False))
         self.calls: list[list[str]] = []
@@ -94,10 +96,30 @@ class ApiBudgetTests(unittest.TestCase):
             self.readings("lanes-app"), "200 5000 4880 120 1792748042 core\n"
         )
 
-    def test_a_refused_call_is_read_and_still_raises_as_without_headers(self) -> None:
-        body = '{"message":"API rate limit exceeded for installation."}'
+    def test_a_failed_call_is_read_and_still_raises_as_without_headers(self) -> None:
+        body = '{"message":"Not Found"}'
         env = {"RUNNER_TEMP": self.dir, "API_BUDGET_TOKEN": "github-token"}
         with self.assertRaises(RuntimeError) as raised:
+            self.run_gh(
+                HEAD.format(status=404, remaining=4000, used=1000) + body,
+                ["api", "repos/o/r/pulls/1"],
+                env=env,
+                code=1,
+                stderr="gh: Not Found (HTTP 404)\n",
+                check=True,
+            )
+        self.assertEqual(
+            str(raised.exception),
+            "gh api repos/o/r/pulls/1 failed: gh: Not Found (HTTP 404)",
+        )
+        self.assertEqual(
+            self.readings("github-token"), "404 5000 4000 1000 1792748042 core\n"
+        )
+
+    def test_a_rate_limited_call_is_read_before_the_latch_trips(self) -> None:
+        body = '{"message":"API rate limit exceeded for installation."}'
+        env = {"RUNNER_TEMP": self.dir, "API_BUDGET_TOKEN": "github-token"}
+        with self.assertRaises(gh.RateLimitExhausted):
             self.run_gh(
                 HEAD.format(status=403, remaining=0, used=5000) + body,
                 ["api", "repos/o/r/pulls/1"],
@@ -106,10 +128,6 @@ class ApiBudgetTests(unittest.TestCase):
                 stderr="gh: API rate limit exceeded (HTTP 403)\n",
                 check=True,
             )
-        self.assertEqual(
-            str(raised.exception),
-            "gh api repos/o/r/pulls/1 failed: gh: API rate limit exceeded (HTTP 403)",
-        )
         self.assertEqual(
             self.readings("github-token"), "403 5000 0 5000 1792748042 core\n"
         )
@@ -131,7 +149,9 @@ class ApiBudgetTests(unittest.TestCase):
         )
         self.assertFalse(pathlib.Path(self.dir, "api-budget", "lanes-app").exists())
 
-    def test_without_a_token_name_or_for_a_non_api_call_nothing_changes(self) -> None:
+    def test_without_a_token_name_or_for_a_non_api_call_nothing_is_read(self) -> None:
+        # Every `api` call but a paginated one still runs with -i, for the
+        # guard; only a named token writes a reading.
         self.run_gh(
             "{}", ["api", "x"], env={"RUNNER_TEMP": self.dir, "API_BUDGET_TOKEN": ""}
         )
@@ -153,7 +173,7 @@ class ApiBudgetTests(unittest.TestCase):
         self.assertEqual(
             self.calls,
             [
-                ["gh", "api", "x"],
+                ["gh", "api", "-i", "x"],
                 ["gh", "pr", "view", "1"],
                 ["gh", "api", "x", "--slurp", "--paginate"],
                 ["gh", "api", "x", "--paginate", "--jq", "."],

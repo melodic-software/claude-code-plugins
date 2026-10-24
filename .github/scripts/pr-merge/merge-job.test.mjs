@@ -1052,10 +1052,11 @@ test("the re-run step refuses a run id that is not a number", () => {
 test("the re-run record is named by run and attempt, uploaded only after a recorded re-run", () => {
   const list = earlySteps();
   const rerun = step("Re-run a red lane-dispatched full run", list);
-  // Only a check that could judge (exit 0, 1 or 5) names a run to re-run.
+  // Only a check that could judge (exit 0, 1 or 5) names a run to re-run,
+  // and nothing is sent after the dispatch stopped on a rate limit.
   assert.match(
     rerun,
-    /\n {8}if: >-\n {10}!cancelled\(\)\n {10}&& contains\(fromJSON\('\["0","1","5"\]'\), steps\.post-merge\.outputs\.code\)\n {10}&& steps\.post-merge\.outputs\.lane-rerun != ''\n/,
+    /\n {8}if: >-\n {10}!cancelled\(\)\n {10}&& steps\.dispatch\.outputs\.rate-limited != 'true'\n {10}&& contains\(fromJSON\('\["0","1","5"\]'\), steps\.post-merge\.outputs\.code\)\n {10}&& steps\.post-merge\.outputs\.lane-rerun != ''\n/,
   );
   assert.match(rerun, /\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n/);
   const upload = step("Record the re-run", list);

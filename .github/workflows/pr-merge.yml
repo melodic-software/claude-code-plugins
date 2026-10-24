@@ -204,6 +204,7 @@ jobs:
           needs=$(jq '.needsDispatch == true' "$RUNNER_TEMP/post-merge.json" 2>/dev/null || echo false)
           case $code in
             2 | 3 | 4) echo "::warning::the post-merge check exited $code (2 refused, 3 unreadable, 4 write failed); needsDispatch=$needs" ;;
+            75) echo "::error::the post-merge check stopped on a GitHub rate limit; no full run is started or re-run" && needs=false ;;
           esac
           if [[ $(jq -r '.hold // ""' "$RUNNER_TEMP/post-merge.json" 2>/dev/null || true) == recovery-unrecorded ]]; then
             echo "::error::the post-merge hold's recovery run has no pr-merge-dispatched record either; no further full run starts: $(jq -r '.reason // ""' "$RUNNER_TEMP/post-merge.json")"
@@ -279,14 +280,17 @@ jobs:
               message=$(jq -r '.message // ""' <<<"$body" 2>/dev/null || true)
               after=$(header retry-after) left=$(header x-ratelimit-remaining) reset=$(header x-ratelimit-reset)
               why="HTTP $status: ${message:-no message} (retry-after=${after:-none} remaining=${left:-none} reset=${reset:-none})"
-              if [[ $after =~ ^[0-9]+$ ]]; then
-                wait=$after
-              elif [ "$left" = 0 ] && [[ $reset =~ ^[0-9]+$ ]]; then
-                wait=$((reset - $(date +%s)))
-                if ((wait < 0)); then wait=0; fi
-                wait=$((wait + 1))
-              elif [ "$left" = 0 ] || [[ ${message,,} == *"rate limit"* ]]; then
-                wait=60
+              if [[ $after =~ ^[0-9]+$ ]] || [ "$left" = 0 ] || [[ ${message,,} == *"rate limit"* ]]; then
+                now=$(date +%s) until='' resource=$(header x-ratelimit-resource) pool="every pool"
+                if [[ $after =~ ^[0-9]+$ ]]; then until=$((now + after)); fi
+                if [ "$left" = 0 ] && [[ $reset =~ ^[0-9]+$ ]] && ((reset > ${until:-0})); then until=$reset; fi
+                if ! [[ $after =~ ^[0-9]+$ ]] && [ "$left" = 0 ]; then
+                  [[ $resource =~ ^[a-z_]+$ ]] || resource=core
+                  pool="the $resource pool"
+                fi
+                echo "::error title=GitHub rate limit::$pool is exhausted ($why); nothing more is sent before $(date -u -d "@${until:-$((now + 60))}" +%Y-%m-%dT%H:%M:%SZ)"
+                echo "rate-limited=true" >>"$GITHUB_OUTPUT"
+                exit 1
               fi
             elif [ -z "$status" ]; then
               error=$(tail -n 1 "$RUNNER_TEMP/dispatch-stderr")
@@ -335,11 +339,13 @@ jobs:
       # run. The record is uploaded only after this job's own re-run made
       # attempt 2, so a re-run anyone else started never gets one. Only a
       # check that could judge (exit 0, 1 or 5) names a run. It runs after the
-      # dispatch, and either failing leaves the other to run.
+      # dispatch, and either failing leaves the other to run, except a
+      # dispatch stopped on a rate limit, after which nothing calls GitHub.
       - name: Re-run a red lane-dispatched full run
         id: rerun
         if: >-
           !cancelled()
+          && steps.dispatch.outputs.rate-limited != 'true'
           && contains(fromJSON('["0","1","5"]'), steps.post-merge.outputs.code)
           && steps.post-merge.outputs.lane-rerun != ''
         env:
@@ -674,8 +680,14 @@ jobs:
           for author in "${authors[@]}"; do
             for attempt in 1 2 3; do
               if gh pr list --repo "$REPO" --base main --state open --limit 500 \
-                --author "$author" --json id,number,headRefOid,isDraft,updatedAt,labels,body >>"$listing"; then
+                --author "$author" --json id,number,headRefOid,isDraft,updatedAt,labels,body >>"$listing" 2>"$RUNNER_TEMP/list-stderr"; then
                 break
+              fi
+              cat "$RUNNER_TEMP/list-stderr" >&2
+              # A rate limit is never retried: calling on while limited risks a ban.
+              if grep -qi 'rate limit' "$RUNNER_TEMP/list-stderr"; then
+                echo "::error title=GitHub rate limit::gh pr list --author $author was rate limited; nothing more is sent, and the next scheduled run lists again"
+                exit 1
               fi
               if [ "$attempt" = 3 ]; then
                 echo "::error::gh pr list --author $author failed 3 times; no candidates listed, the gate does not run"
@@ -1076,6 +1088,14 @@ jobs:
             ' "$out" >>"$results"
             save
             reached=$((reached + 1))
+            # 75: the gate stopped on a GitHub rate limit (babysit_gh.py); a
+            # later candidate's gate would call GitHub again while limited.
+            if [ "$code" = 75 ]; then
+              limited=$number
+              echo "::error title=GitHub rate limit::PR #$number's gate stopped on a GitHub rate limit; no later candidate is gated this run"
+              echo "{\"last\":$number${deferred:+,\"deferred\":$deferred}}" >"$cursor"
+              break
+            fi
             if [ "$code" = 11 ] && [ "$was_deferred" = true ]; then
               echo "::warning::PR #$number's gate ran past merge.gate-deferred-minutes ($DEFERRED_MINUTES) after a deferral; it goes back to the capped rotation"
             elif [ "$code" = 11 ] && [ -z "$deferred" ]; then
@@ -1085,6 +1105,7 @@ jobs:
           done < <(jq -r '.[] | "\(.number) \(.head) \(.updatedAt) \(.deferred == true)"' "$RUNNER_TEMP/candidates.json")
           dispatch=$(jq 'any(.[]; .merged and .dispatched != true)' "$summary")
           echo "dispatch=$dispatch" >>"$GITHUB_OUTPUT"
+          [ -z "${limited:-}" ] || exit 1
 
       # The next run's starting point (rotation.mjs reads it), uploaded even
       # when the job is cancelled, since cursor.json is rewritten after each
@@ -1687,10 +1708,12 @@ jobs:
     permissions:
       actions: write # start pr-require-checks.yml on main, read its status, and send a red one to post-merge-demotion-alert.yml
     steps:
-      # At most three POSTs. A rate-limited 403 or 429 waits as GitHub
-      # documents: retry-after seconds, else until one second past
-      # x-ratelimit-reset while remaining is 0, else 60 s (a secondary
-      # limit). No response is sent again, after a full-jitter backoff (up to
+      # At most three POSTs. A rate-limited 403 or 429 (a retry-after,
+      # remaining 0, or a message naming a rate limit) is never sent again:
+      # GitHub may ban an integration that keeps calling while limited, so the
+      # step fails red naming the reset, the later of retry-after and
+      # x-ratelimit-reset while remaining is 0, else a minute on. No response
+      # is sent again, after a full-jitter backoff (up to
       # 10 s, then 20 s), only when gh's error shows the connection failed
       # before the request went out: a `dial tcp` error (a DNS lookup, a
       # refused or unreachable connection, a connect timeout) or a failed TLS
@@ -1740,14 +1763,17 @@ jobs:
               message=$(jq -r '.message // ""' <<<"$body" 2>/dev/null || true)
               after=$(header retry-after) left=$(header x-ratelimit-remaining) reset=$(header x-ratelimit-reset)
               why="HTTP $status: ${message:-no message} (retry-after=${after:-none} remaining=${left:-none} reset=${reset:-none})"
-              if [[ $after =~ ^[0-9]+$ ]]; then
-                wait=$after
-              elif [ "$left" = 0 ] && [[ $reset =~ ^[0-9]+$ ]]; then
-                wait=$((reset - $(date +%s)))
-                if ((wait < 0)); then wait=0; fi
-                wait=$((wait + 1))
-              elif [ "$left" = 0 ] || [[ ${message,,} == *"rate limit"* ]]; then
-                wait=60
+              if [[ $after =~ ^[0-9]+$ ]] || [ "$left" = 0 ] || [[ ${message,,} == *"rate limit"* ]]; then
+                now=$(date +%s) until='' resource=$(header x-ratelimit-resource) pool="every pool"
+                if [[ $after =~ ^[0-9]+$ ]]; then until=$((now + after)); fi
+                if [ "$left" = 0 ] && [[ $reset =~ ^[0-9]+$ ]] && ((reset > ${until:-0})); then until=$reset; fi
+                if ! [[ $after =~ ^[0-9]+$ ]] && [ "$left" = 0 ]; then
+                  [[ $resource =~ ^[a-z_]+$ ]] || resource=core
+                  pool="the $resource pool"
+                fi
+                echo "::error title=GitHub rate limit::$pool is exhausted ($why); nothing more is sent before $(date -u -d "@${until:-$((now + 60))}" +%Y-%m-%dT%H:%M:%SZ)"
+                echo "rate-limited=true" >>"$GITHUB_OUTPUT"
+                exit 1
               fi
             elif [ -z "$status" ]; then
               error=$(tail -n 1 "$RUNNER_TEMP/dispatch-stderr")

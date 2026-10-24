@@ -193,6 +193,7 @@ from babysit_gh import (
     gh_capture,
     gh_http_status,
     gh_json,
+    low_headroom,
     normalized_rest_author,
     parse_repo_number,
     pull_request_commits_once,
@@ -3581,12 +3582,14 @@ def _fail_summary(
 ) -> str | None:
     """The summary of the head FAIL a `verify:repeated-fail` refusal names,
     read through the gate's verdict reader; None for any other refusal, with
-    no FAIL at the head, or when the record cannot be read."""
+    no FAIL at the head, when the record cannot be read, or below the read
+    floor: the quote is report-only, and the escalation stands without it."""
     fail = json_object(verify.get("headFail"))
     reader = inputs.get("verify_reader")
     run_id, name = fail.get("run"), fail.get("artifact")
     if (
-        verify.get("refusal") != verify_evidence.REPEATED_FAIL
+        low_headroom()
+        or verify.get("refusal") != verify_evidence.REPEATED_FAIL
         or not isinstance(reader, verify_evidence.Reader)
         or not isinstance(run_id, int)
         or not isinstance(name, str)

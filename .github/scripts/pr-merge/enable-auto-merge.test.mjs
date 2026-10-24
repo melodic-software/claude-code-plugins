@@ -555,6 +555,17 @@ test("each network trigger alone is sent again, and an error with another code i
   assert.equal(writes.length, 1);
 });
 
+test("an arm GitHub answers with a rate limit is never sent again", async () => {
+  // GitHub answers a primary or secondary limit with 403 or 429; sending more
+  // while limited risks the integration's ban.
+  for (const status of [403, 429]) {
+    const { code, writes, slept } = await run([pull(1)], {}, { armErrors: { PR_1: [new GitHubError(status, "POST /graphql")] } });
+    assert.equal(code, 1);
+    assert.equal(writes.length, 1);
+    assert.deepEqual(slept, []);
+  }
+});
+
 test("the resend warning names the arm and its pull request", async () => {
   const { lines } = await run([pull(1)], {}, { armErrors: { PR_1: [closed()] } });
   assert.ok(lines.some((line) => line.startsWith("::warning::enable-auto-merge: POST /graphql (arm) for PR_1 failed (TypeError UND_ERR_SOCKET)")));

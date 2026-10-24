@@ -4107,8 +4107,9 @@ class TheHeadRefMapSparesASweepItsDownloads(unittest.TestCase):
         import babysit_gh as gh
 
         def answer(cmd: list[str], **kwargs: Any) -> Any:
+            # The fake answers without headers, so the guard's `-i` is dropped.
             return fake(
-                cmd[1:],
+                [a for i, a in enumerate(cmd[1:]) if (i, a) != (1, "-i")],
                 env_overrides=kwargs.get("env_overrides"),
                 binary=kwargs.get("binary"),
             )
