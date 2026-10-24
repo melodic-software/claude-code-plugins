@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [5.5.1] - 2026-10-24
+
+### Fixed
+
+- A handoff job's log now shows the decision: `handoff-evidence.sh` prints one line naming each settled fact and the read count, such as `handoff evidence: posted=false allowed=true (1 read)`, before it exits successfully (`.github/scripts/lib/handoff-evidence.sh`).
+
 ## [5.5.0] - 2026-10-24
 
 ### Added
