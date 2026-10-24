@@ -944,7 +944,9 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
      `no-model-turn`, escalating nothing (no model turn: a credit stop on both calls, a broker
      refusal, the kill switch). The dispatcher dispatches a head whose newest reply job skipped
      `no-model-turn` again on its next trigger, a review or `pr-verify` run completing at that
-     head; the round cap bounds those retries;
+     head, or the half-hourly sweep after each scheduled `pr-unblock-dispatch.yml` run, which
+     dispatches one such head per tick through its newest completed review run and stops after
+     three `no-model-turn` skips at a head; the round cap bounds those retries;
    - refuses a `replies.jsonl` whose SHA-256 is not the scan job's (`review-replies-sha256`) as
      `feedback-invalid`;
    - validates the whole artifact: `run.json` with the select job's SHA-256
