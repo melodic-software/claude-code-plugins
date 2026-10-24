@@ -194,6 +194,20 @@ test("enable-auto-merge skips its work when a waiting run's enable-auto-merge jo
   assert.doesNotMatch(job("merge"), /SUPERSEDED_JOB/);
 });
 
+// Each job's readers of the files the last run kept share one file of GET
+// answers in that job's RUNNER_TEMP; the readers' tests count what it saves.
+test("the merge and enable-auto-merge jobs' kept-file readers share their reads", () => {
+  for (const [id, scripts] of [
+    ["merge", ["rotation.mjs", "head-ref-map.mjs read", "lane-records.mjs read"]],
+    ["enable-auto-merge", ["head-ref-map.mjs read", "lane-records.mjs read"]],
+  ]) {
+    for (const script of scripts) {
+      const step = new RegExp(`\\n {10}PR_MERGE_READS_PATH: (.*)\\n {8}run: node \\.base/\\.github/scripts/pr-merge/${script.replace(".", "\\.")}\\n`).exec(job(id));
+      assert.equal(step?.[1], "${{ runner.temp }}/pr-merge-reads.json", `${id}: ${script}`);
+    }
+  }
+});
+
 test("the last verifier read enable-auto-merge starts ends inside its step's timeout", () => {
   const arm = job("enable-auto-merge");
   const step = /- name: Arm and disarm auto-merge\n {8}if: .*\n {8}timeout-minutes: ([0-9]+)\n/.exec(arm);

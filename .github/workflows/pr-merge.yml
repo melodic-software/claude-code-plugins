@@ -692,12 +692,17 @@ jobs:
       # pr-merge-gate-cursor artifact) and wraps round: every candidate is
       # reached across runs. The cursor sets only the order; any error
       # leaves the listing order. Rules: .github/scripts/pr-merge/rotation.mjs.
+      # This read, the head-ref map's and the lane records' share main's run
+      # listing, each run's artifact list and each compare through
+      # PR_MERGE_READS_PATH (rotation.mjs sharedReads); each still picks and
+      # checks its own run and file.
       - name: Start after the candidate the last run reached
         if: steps.candidates.outcome == 'success'
         continue-on-error: true
         env:
           ACTIONS_TOKEN: ${{ github.token }}
           CANDIDATES_PATH: ${{ runner.temp }}/candidates.json
+          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
         run: node .base/.github/scripts/pr-merge/rotation.mjs
 
       # The head ref each untied pr-verify FAIL's verdict.json records, by
@@ -712,6 +717,7 @@ jobs:
         env:
           ACTIONS_TOKEN: ${{ github.token }}
           HEAD_REFS_PATH: ${{ runner.temp }}/head-refs-in.json
+          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
         run: node .base/.github/scripts/pr-merge/head-ref-map.mjs read
 
       # The verdict reads that never change (FAIL run records, FAIL head refs,
@@ -754,6 +760,7 @@ jobs:
         env:
           ACTIONS_TOKEN: ${{ github.token }}
           LANE_RECORDS_PATH: ${{ runner.temp }}/lane-records.json
+          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
         run: node .base/.github/scripts/pr-merge/lane-records.mjs read
 
       # The post-merge check, read-only, on every run whether or not any PR is
@@ -1477,6 +1484,7 @@ jobs:
         env:
           ACTIONS_TOKEN: ${{ github.token }}
           HEAD_REFS_PATH: ${{ runner.temp }}/head-refs-in.json
+          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
         run: node .base/.github/scripts/pr-merge/head-ref-map.mjs read
 
       - name: Restore the verdict reads the last gate run kept
@@ -1530,6 +1538,7 @@ jobs:
         env:
           ACTIONS_TOKEN: ${{ github.token }}
           LANE_RECORDS_PATH: ${{ runner.temp }}/lane-records.json
+          PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
         run: node .base/.github/scripts/pr-merge/lane-records.mjs read
 
       # While merge.report-only is anything but false it reports each

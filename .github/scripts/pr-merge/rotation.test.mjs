@@ -9,6 +9,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 
+import { main as headRefs } from "./head-ref-map.mjs";
+import { main as laneRecords } from "./lane-records.mjs";
 import { main, rotate } from "./rotation.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
@@ -59,9 +61,10 @@ async function run({ pages = [[]], cursors = {}, fail } = {}) {
     if (fail) throw fail;
     const page = /\/actions\/workflows\/pr-merge\.yml\/runs\?branch=main&.*&page=(\d+)$/.exec(path)?.[1];
     if (page) return { workflow_runs: pages[Number(page) - 1] ?? [] };
-    const id = /\/actions\/runs\/(\d+)\/artifacts\?name=pr-merge-gate-cursor$/.exec(path)?.[1];
+    const id = /\/actions\/runs\/(\d+)\/artifacts\?per_page=100$/.exec(path)?.[1];
     assert.ok(id, `unexpected call ${path}`);
-    return { artifacts: id in cursors ? [{ expired: false }] : [] };
+    const artifacts = id in cursors ? [{ name: "pr-merge-summary", expired: false }, { name: "pr-merge-gate-cursor", expired: false }] : [];
+    return { total_count: artifacts.length, artifacts };
   };
   const download = (id) => {
     downloads.push(id);
@@ -143,4 +146,81 @@ test("an unreadable cursor leaves the listing order with a warning", async () =>
     assert.deepEqual(result.order, [30, 10, 20]);
     assert.ok(result.lines.some((line) => line.startsWith("::warning title=rotation::")));
   }
+});
+
+// One job's three readers, as the merge job runs them, against main's runs
+// newest first: this run (999), a run that skipped its gate and kept nothing
+// but its summary (8), and the run that kept all three files (7). Counted by
+// hand, each reader alone lists the runs, asks runs 8 and 7 for artifacts and,
+// for the map and the records, compares run 7's head with main: 3 + 4 + 4 = 11
+// calls. Shared, those are read once: 4.
+const RECORDS = JSON.stringify({ version: 1, repo: REPO, records: {} });
+const MAP = JSON.stringify({ version: 1, repo: REPO, head_refs: { 5: "feat/x" } });
+async function job({ shared, total } = {}) {
+  n += 1;
+  const paths = {
+    candidates: join(dir, `candidates-${n}.json`),
+    map: join(dir, `map-${n}.json`),
+    records: join(dir, `records-${n}.json`),
+    reads: shared ? join(dir, `reads-${n}.json`) : undefined,
+  };
+  writeFileSync(paths.candidates, JSON.stringify(prs(30, 10, 20)));
+  const calls = [];
+  const sha = (id) => String(id).padStart(40, "a");
+  const kept = {
+    "pr-merge-gate-cursor": '{"last": 10}',
+    "pr-merge-head-refs": MAP,
+    "pr-merge-lane-records": RECORDS,
+  };
+  const actions = async (method, path) => {
+    calls.push(path);
+    if (/\/actions\/workflows\/pr-merge\.yml\/runs\?/.test(path)) {
+      return { workflow_runs: [999, 8, 7].map((id) => ({ ...wf(id, "schedule"), head_sha: sha(id) })) };
+    }
+    if (/\/compare\//.test(path)) return { status: "ahead" };
+    const [, id, query] = /\/actions\/runs\/(\d+)\/artifacts\?(.*)$/.exec(path);
+    const artifacts = [{ name: "pr-merge-summary", expired: false }, ...(id === "7" ? Object.keys(kept).map((name) => ({ name, expired: false })) : [])];
+    if (query.startsWith("name=")) return { artifacts: artifacts.filter((a) => a.name === query.slice(5)) };
+    return { total_count: total ?? artifacts.length, artifacts };
+  };
+  const download = (name) => (id) => {
+    assert.equal(id, 7);
+    return kept[name];
+  };
+  const env = { GITHUB_REPOSITORY: REPO, GITHUB_RUN_ID: "999", PR_MERGE_READS_PATH: paths.reads };
+  const log = console.log;
+  console.log = () => {};
+  try {
+    await main({ env: { ...env, CANDIDATES_PATH: paths.candidates }, actions, download: download("pr-merge-gate-cursor") });
+    await headRefs({ mode: "read", env: { ...env, HEAD_REFS_PATH: paths.map }, actions, download: download("pr-merge-head-refs") });
+    await laneRecords({ mode: "read", env: { ...env, LANE_RECORDS_PATH: paths.records }, actions, download: download("pr-merge-lane-records") });
+  } finally {
+    console.log = log;
+  }
+  return {
+    calls,
+    order: numbers(JSON.parse(readFileSync(paths.candidates, "utf8"))),
+    map: readFileSync(paths.map, "utf8"),
+    records: readFileSync(paths.records, "utf8"),
+  };
+}
+
+test("a job's readers share one run listing, each run's artifact list and each compare", async () => {
+  const alone = await job();
+  const shared = await job({ shared: true });
+  assert.equal(alone.calls.length, 11);
+  assert.equal(shared.calls.length, 4);
+  // Every reader still finds its own file, so the answers are the same.
+  for (const result of [alone, shared]) {
+    assert.deepEqual(result.order, [20, 30, 10]);
+    assert.equal(result.map, MAP);
+    assert.equal(result.records, RECORDS);
+  }
+});
+
+test("a run whose artifacts fill more than one page is asked by name", async () => {
+  const result = await job({ shared: true, total: 101 });
+  assert.ok(result.calls.some((path) => path.endsWith("/runs/7/artifacts?name=pr-merge-head-refs")));
+  assert.deepEqual(result.order, [20, 30, 10]);
+  assert.equal(result.map, MAP);
 });
