@@ -970,7 +970,8 @@ class AWholeSpecPassClearsASliceFailOnTheSameChange(unittest.TestCase):
         self.assertIsNone(read(self.closing_another(7)).refusal)
 
     def test_a_closes_pass_of_another_issue_keeps_the_fail(self) -> None:
-        # Failed under `Refs: #7`, relinked to `Closes #8` on the same diff.
+        # Failed as a slice of issue 7, then relinked to close issue 8 on the
+        # same diff.
         self.assertEqual(
             read(self.closing_another(8)).refusal, "verify:earlier-fail"
         )
