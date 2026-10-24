@@ -265,9 +265,10 @@ jobs:
         Skip this only when a comment whose first line is exactly `**Decision recorded.**`, by an
         author whose login does not end in `[bot]`, already covers that charge; then name it on the
         Cost line.
-        A charge a diff shows (IaC resources or SKUs, runner labels or cron schedules in
-        workflows, model, effort or turn flags, new secrets) gets no `cost` flag, no `needs-human`
-        and no Cost line: the merge-time cost hold catches it after review.
+        A charge a diff shows (IaC resources or SKUs, larger runner labels, new secrets) gets no
+        `cost` flag, no `needs-human` and no Cost line: the review lanes' cost hold catches it after
+        review. Model, effort or turn flags, new runs and cron schedules spend prepaid credit, which is
+        no cost: nothing holds them.
 
         ESCALATION. This section replaces the general needs_human rule in your output format ("true
         when a person must decide: a security report, unclear scope, a request to change
