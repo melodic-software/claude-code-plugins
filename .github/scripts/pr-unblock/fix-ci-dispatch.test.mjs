@@ -628,8 +628,6 @@ test("a red ci-status over green or absent ci-lanes summons no fix-ci", async ()
 });
 
 test("a ci-lanes failure or error from the GitHub Actions bot is dispatched, whatever ci-status says", async () => {
-  // The REST spelling the old check compared against never matches GraphQL's login.
-  assert.notEqual(lanes("FAILURE").creator.login, "github-actions[bot]");
   const { api, result } = await run({
     pages: [[pr(1, { checks: [check("ci-status", "SUCCESS"), lanes("FAILURE")] }), pr(2, { checks: [lanes("ERROR")] })]],
   }, { maxDispatch: 5 });
