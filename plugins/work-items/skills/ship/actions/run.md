@@ -87,7 +87,9 @@ any run with no human to answer, STOP before any claim and report that `run` is 
      does with `${CLAUDE_PLUGIN_ROOT}/scripts/merge-hold.sh`: read before `create --pushed`, the
      line added right after it. When the open state resolves `ready`, `create --pushed` runs
      `ready --unattended` itself (it merges the base, runs the code and security reviews,
-     verifies the merged head, then flips), so the run dispatches no `ready` of its own. When
+     verifies the merged head, then flips), so the run dispatches no `ready` of its own; run
+     `create --pushed` at the strong tier's current alias, dispatching it at that tier when this
+     session runs below it. When
      `create --pushed` reports the PR left a draft (a `draft` open state, a requested draft, or a
      `ready` refusal: a hold, a superseded item, a failed gate), carry the reason it reported
      into the report, and never lift the hold or flip the PR another way. When the user says
