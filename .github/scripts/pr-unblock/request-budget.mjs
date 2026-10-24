@@ -19,7 +19,9 @@
 // waited on. maxWaitMs caps the waits of the whole run, summed, so the job
 // fits its timeout: a wait that does not fit is not taken, the response is
 // returned at once, and an error line names the reset. A second rate limit
-// after the wait is returned as it is. The same policy as ci-workflows'
+// after the wait is returned as it is. Either response it gives up on carries
+// rateLimited: true, so a caller can defer its work instead of failing. The
+// same policy as ci-workflows'
 // pr-require-checks gh-api.sh. A GET answered 5xx is first sent again by
 // createGitHub's retryServerErrors, so only its last answer reaches the above.
 
@@ -55,12 +57,13 @@ export function budgetedFetch({
         `::error::rate limited on ${init.method ?? "GET"} ${url}: the limit resets ${at},` +
           ` past this run's ${Math.round(maxWaitMs / 1000)}s wait budget (${Math.round(waited / 1000)}s already waited)`,
       );
-      return response;
+      return Object.assign(response, { rateLimited: true });
     }
     log(`::notice::rate limited; waiting ${Math.ceil(wait / 1000)}s, then sending once more`);
     waited += wait;
     await sleep(wait);
-    return (await send(url, init))[0];
+    const [again, againMessage] = await send(url, init);
+    return rateLimitWait(again.headers, againMessage) === null ? again : Object.assign(again, { rateLimited: true });
   }
 
   function rateLimitWait(headers, message) {
