@@ -208,10 +208,16 @@ function world({
     if (method === "POST" && route === "/graphql") {
       const { owner, name, number } = body.variables;
       assert.equal(`${owner}/${name}`, REPO);
-      // admit.mjs's author read: by default a listed human wrote the body.
+      // admit.mjs's text read: by default a listed human wrote the body.
       if (body.query.includes("comments(first: 100)")) {
-        const spec = specs[String(number)] ?? { author: { __typename: "User", databaseId: OWNER.id }, editor: null, lastEditedAt: null, comments: [] };
-        return { data: { repository: { issue: { ...spec, comments: { nodes: spec.comments } } } } };
+        const spec = specs[String(number)] ?? {
+          body: String(lookup(String(number))?.body ?? ""),
+          author: { __typename: "User", databaseId: OWNER.id },
+          editor: null,
+          lastEditedAt: null,
+          comments: [],
+        };
+        return { data: { repository: { issue: spec === "bad" ? null : { ...spec, comments: { nodes: spec.comments } } } } };
       }
       const found = lookup(String(number));
       const nodes = found?.state === "closed" ? [{ closer: found.graphCloser }] : [];
@@ -2320,8 +2326,9 @@ const admissionFor = (setter = OWNER.id) => async () => ({
 });
 const MARKED = ["admission-deferred", "status: ready", "work-class: mechanical"];
 const markedIssue = (labels) => ({ ...issue(25, { labels }), user: OWNER, type: { name: "Task" }, body: "Fix it.\n\n## Done when\n\n- [ ] Line 3 says nineteen." });
-const markedWorld = ({ labels = MARKED, fields = SMALL_LOW_KNOWN, by = OWNER, queuedIssues = [] } = {}) =>
+const markedWorld = ({ labels = MARKED, fields = SMALL_LOW_KNOWN, by = OWNER, queuedIssues = [], specs = {} } = {}) =>
   world({
+    specs,
     deferred: [markedIssue(labels)],
     issues: { 25: markedIssue(labels) },
     blockedBy: { 25: [issue(10, { state: "closed" })] },
@@ -2366,6 +2373,20 @@ test("a person's mark on an inadmissible issue is refused: the admission comment
   assert.equal(await sweep({ github: intake.github, admission: admissionFor() }, PAUSING), 0);
   assert.deepEqual(writes(intake.calls), [labeled(25), undeferred(25)]);
   assert.equal(fieldReads(intake.calls), 0);
+});
+
+test("a person's mark whose criteria only the App wrote is refused; a text read of an unexpected shape writes nothing", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const app = { __typename: "Bot", databaseId: LANES_APP_ID };
+  const appOnly = markedWorld({
+    specs: { 25: { body: "- [ ] Line 3 says nineteen.", author: app, editor: null, lastEditedAt: null, comments: [{ body: "Go ahead.", author: { __typename: "User", databaseId: OWNER.id }, editor: null, lastEditedAt: null }] } },
+  });
+  assert.equal(await sweep({ github: appOnly.github, admission: admissionFor() }, PAUSING), 0);
+  assert.ok(writes(appOnly.calls).includes(`POST /repos/${REPO}/issues/25/labels {"labels":["status: needs-decision"]}`), writes(appOnly.calls).join("\n"));
+  assert.ok(writes(appOnly.calls).some((call) => call.includes("no trusted-human acceptance criteria")));
+  const bad = markedWorld({ specs: { 25: "bad" } });
+  assert.equal(await sweep({ github: bad.github, admission: admissionFor() }, PAUSING), 1);
+  assert.deepEqual(writes(bad.calls), []);
 });
 
 test("a person's admissible mark with no room stays deferred", async (t) => {

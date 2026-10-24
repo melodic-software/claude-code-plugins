@@ -9,4 +9,4 @@ bump: minor
 
 ### Changed
 
-- Intake admission now refuses an issue with no acceptance criteria a listed human wrote, in the body or a comment of their own, since pr-verify judges a lane pull request only against that text (owner decision Q9).
+- Intake admission now reads the `- [ ]` acceptance criteria only from text a listed human wrote, in the body or a comment of their own, since pr-verify judges a lane pull request only against that text (owner decision Q9). The lanes App's refinement comment no longer satisfies the criteria check; a person who confirms it posts the criteria as their own comment.

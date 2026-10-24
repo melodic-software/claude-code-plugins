@@ -13,18 +13,16 @@
 //   parent issue a listed human filed that awaits no decision;
 // - 3: the class, Size and Uncertainty apply-verdict wrote are in `classes`,
 //   `sizes` and `uncertainty`;
-// - 7: the body, or a comment the lanes App's account posted opening with
-//   REFINE_MARKER (refine.mjs, which writes a task list only for an issue
-//   it made exact) after the body's last edit, has a `task-list` line, the
-//   criteria the lane checks;
+// - 7 (with owner decision Q9, #8999): a `task-list` line, the criteria the
+//   lane checks, in text pr-verify will read: the body or a comment written,
+//   and last edited if ever, by a listed human (resolve-pr.mjs linkedIssues).
+//   Criteria only the lanes App wrote (refine.mjs's refinement comment, an
+//   App-filed issue) do not count, since pr-verify never sees them;
 // - 8: no `refuse-labels` label, every blocker a merged pull request or an
 //   issue closed as completed by a listed human or a merge here (the close
 //   work-unblock counts), and no open pull request in this repository names
 //   the issue;
 // - 9: the author is a listed human or the lanes App;
-// - trusted spec (owner decision Q9, #8999): the body or a comment is
-//   written, and last edited if ever, by a listed human, the only text
-//   pr-verify judges a lane PR against; App-written criteria alone fail it;
 // - lane-runnable done-when: no task-list item asks for what an unattended
 //   lane run cannot do (unrunnableCriteria below): a run on a named host or
 //   OS, a paid eval, a run repeated N times, a measurement over time, or a
@@ -205,7 +203,7 @@ export function admissionSettled(labels, events) {
 }
 
 // {verdict: admit | refuse | wait | skip, reasons}. Pure.
-export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, timeline, events, comments = [], bodyEditedAt = null, spec, humans, appId, repository, webHosts }) {
+export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, timeline, events, spec, humans, appId, repository, webHosts }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
@@ -239,20 +237,14 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (!rules.uncertainty.includes(verdict.dimensions?.uncertainty)) {
     refuse.push(`Uncertainty ${verdict.dimensions?.uncertainty} is not one of ${rules.uncertainty.join(", ")}`);
   }
-  // A refinement drafted before the body's last edit may not fit the body now.
-  const refinements = refinementsOf(comments, appId)
-    .filter((comment) => bodyEditedAt === null || Date.parse(comment.created_at) >= Date.parse(bodyEditedAt))
-    .map((comment) => String(comment.body));
-  const lines = [String(issue.body ?? ""), ...refinements].flatMap((text) => text.split("\n"));
+  // pr-verify judges a lane PR only against text a listed human wrote, so
+  // the criteria count only there.
+  const lines = trustedSpecTexts(spec, humans).flatMap((text) => text.split("\n"));
   if (!lines.some((line) => line.trimStart().startsWith(rules["task-list"]))) {
-    refuse.push(`it has no \`${rules["task-list"]}\` task list to check`);
+    refuse.push(noTrustedSpec(rules["task-list"]));
   }
-  // pr-verify judges a lane PR only against text a listed human wrote.
-  if (!hasTrustedSpec(spec, humans)) {
-    refuse.push(NO_TRUSTED_SPEC);
-  }
-  // A refinement breaks `://` and `www.` with a zero-width space so no link
-  // renders; the check reads the URL as written.
+  // A copied refinement breaks `://` and `www.` with a zero-width space so no
+  // link renders; the check reads the URL as written.
   const unrunnable = unrunnableReason(unrunnableCriteria(lines.join("\n").replaceAll("\u200b", ""), rules["task-list"], webHosts));
   if (unrunnable) {
     refuse.push(unrunnable);
@@ -317,42 +309,42 @@ export async function sayWhy(github, repository, base, comments, text) {
   }
 }
 
-const refinementsOf = (comments, appId) =>
-  comments.filter((comment) => appId !== undefined && comment?.user?.id === appId && String(comment.body ?? "").startsWith(REFINE_MARKER));
-
-// The body's and the first 100 comments' authors, last editors and edit
-// times: the first 100 comments are what pr-verify reads.
+// The body and the first 100 comments, each with its author, last editor and
+// edit time: the first 100 comments are what pr-verify reads.
 const SPEC_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) { issue(number: $number) {
-    lastEditedAt author { ...actor } editor { ...actor }
-    comments(first: 100) { nodes { lastEditedAt author { ...actor } editor { ...actor } } }
+    body lastEditedAt author { ...actor } editor { ...actor }
+    comments(first: 100) { nodes { body lastEditedAt author { ...actor } editor { ...actor } } }
   } }
 }
 fragment actor on Actor { __typename ... on User { databaseId } ... on Bot { databaseId } }`;
 
-// {lastEditedAt, author, editor, comments: [{lastEditedAt, author, editor}]}
-// for the issue, as GraphQL answers them. An unexpected shape throws.
-async function specAuthorsOf(github, repository, number) {
+// {body, lastEditedAt, author, editor, comments: [{body, lastEditedAt,
+// author, editor}]} for the issue, as GraphQL answers them. An unexpected
+// shape throws.
+async function specOf(github, repository, number) {
   const [owner, name] = repository.split("/");
   const issue = (await github("POST", "/graphql", { query: SPEC_QUERY, variables: { owner, name, number: Number(number) } }))?.data?.repository?.issue;
-  const edited = (item) => item !== null && typeof item === "object" && (item.lastEditedAt === null || typeof item.lastEditedAt === "string");
-  if (!edited(issue) || !Array.isArray(issue.comments?.nodes) || !issue.comments.nodes.every(edited)) {
-    throw new Error("the issue's authors and edit times have an unexpected shape");
+  const text = (item) =>
+    item !== null && typeof item === "object" && typeof item.body === "string" && (item.lastEditedAt === null || typeof item.lastEditedAt === "string");
+  if (!text(issue) || !Array.isArray(issue.comments?.nodes) || !issue.comments.nodes.every(text)) {
+    throw new Error("the issue's text, authors and edit times have an unexpected shape");
   }
-  return { lastEditedAt: issue.lastEditedAt, author: issue.author, editor: issue.editor, comments: issue.comments.nodes };
+  const { body, lastEditedAt, author, editor } = issue;
+  return { body, lastEditedAt, author, editor, comments: issue.comments.nodes };
 }
 
-export const NO_TRUSTED_SPEC =
-  "no trusted-human acceptance criteria: a listed human must put the confirmed criteria in the body or post them as their own comment (owner Q9, #8999)";
+export const noTrustedSpec = (taskList) =>
+  `no trusted-human acceptance criteria: a listed human must put the confirmed \`${taskList.trim()}\` criteria in the body or post them as their own comment (owner Q9, #8999)`;
 
-// Whether pr-verify will find spec text on the issue: the body or a comment
-// written, and last edited if ever, by a User among `humans`
+// The texts pr-verify will read as spec: the body and each comment written,
+// and last edited if ever, by a User among `humans`
 // (.github/scripts/pr-verify/resolve-pr.mjs linkedIssues). Bots and Apps, the
 // lanes App among them, never count. Pure.
-export function hasTrustedSpec(spec, humans) {
+export function trustedSpecTexts(spec, humans) {
   const trusted = (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
   const written = (item) => trusted(item?.author) && (item.lastEditedAt == null || trusted(item.editor));
-  return spec !== undefined && spec !== null && (written(spec) || (spec.comments ?? []).some(written));
+  return spec ? [spec, ...(spec.comments ?? [])].filter(written).map((item) => String(item.body ?? "")) : [];
 }
 
 // For an issue apply-verdict held without admission (a flag, an escalation or
@@ -399,13 +391,13 @@ export async function admissionFacts({ github, repository, number, issue, rules,
       }
     }
   }
-  const comments = await paginate(github, `${base}/comments`);
-  const spec = await specAuthorsOf(github, repository, number);
+  // A throw here stops the caller before decide(), so nothing is written.
+  const spec = await specOf(github, repository, number);
   return {
     issue,
-    comments,
+    // Read for the admission comment's own earlier copy (sayWhy).
+    comments: await paginate(github, `${base}/comments`),
     spec,
-    bodyEditedAt: spec.lastEditedAt,
     parent: rules["types-under-parent"].includes(issue.type?.name) ? await parentOf(github, base) : null,
     blockers,
     trustedCloses,
