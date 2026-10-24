@@ -17,7 +17,7 @@ agent identity.
 `self_logins`, wherever a reader takes it, names only lane or bot self
 identities. Every login in it is non-human, as the Design's "Human" definition
 says, so a caller that passed the operator's own login would make the operator
-non-human for opt-in, class provenance and demotion clears.
+non-human for opt-in, trust-hold removals and demotion clears.
 """
 
 from __future__ import annotations
@@ -84,24 +84,17 @@ LOOP_MERGE_KEY = "babysit_loop_merge"
 PARSER = Path(__file__).resolve().parents[3] / "lib" / "parse-concern-value.sh"
 
 RUNG_RANK = {"off": 0, "C2": 2, "C3": 3}
-CLASS_RANK = {"C1": 1, "C2": 2, "C3": 3}
-# `babysit_loop_merge` values as a rung; C4 and C5 never merge unattended.
+# `babysit_loop_merge` values as a rung.
 LOOP_MERGE_RUNG = {
     "human-only": "off",
     "c2-mechanical": "C2",
     "c3-autonomous": "C3",
     "full-autonomy": "C3",
 }
-WORK_CLASS_LABELS = {
-    "work-class: read-only": "C1",
-    "work-class: mechanical": "C2",
-    "work-class: scoped": "C3",
-    # Structural risk shows in the diff the review lanes read: it merges as
-    # scoped work.
-    "work-class: structural": "C3",
-    "work-class: untrusted-provenance": "C5",
-}
-WORK_CLASS_PREFIX = "work-class:"
+# The trust hold: a pull request whose linked issue carries this label, or
+# had it removed by a non-human, waits for a human merge. No other class
+# label is read.
+UNTRUSTED_PROVENANCE_LABEL = "work-class: untrusted-provenance"
 
 OPT_IN_LABEL = "merge: agent-allowed"
 # The PR author's own hold, written in the body ("Do not merge this draft", or
@@ -176,7 +169,7 @@ class UnattendedPolicy:
     omission. `enabled` (Design T20) means the path is configured and no
     identity, credential, kill-switch or post-merge refusal stands; left None
     it follows `reason`. `promoted` is the promotion-evidence read for the
-    pull request's class, None when not read; a merge needs both.
+    effective rung, None when not read; a merge needs both.
     `agent_identity` is the configured `merge.agent-identity` login, stripped
     of surrounding whitespace, or None when unset or blank. `details` carries
     the readers' answers for the report; `inputs` carries what the later steps
@@ -566,10 +559,11 @@ class PipelineConfig:
     # `review` lets the verdict merge it.
     dependabot_majors: str = "hold"
     # The pr-merge lane's risk switches under `merge.diff-check` (owner
-    # decision Q624): absent, the HIGH path floor and the C2 contradictions
-    # are off and there is no file cap (`max_changed_lines` None: no line
-    # cap); a value other than true or false turns a switch on. The local
-    # babysit lane ignores them.
+    # decision Q624): absent, the HIGH path floor is off and there is no file
+    # cap (`max_changed_lines` None: no line cap); a value other than true or
+    # false turns a switch on. The local babysit lane ignores them.
+    # `c2_contradictions` is still read but scores nothing: the risk score
+    # reads no work class to contradict.
     high_path_floor: bool = False
     c2_contradictions: bool = False
     max_changed_files: int | None = None
@@ -1578,6 +1572,7 @@ ELIGIBILITY = (
 class Eligibility:
     eligible: bool
     reason: str | None
+    # Reported as `workClass` only; nothing decides on it.
     work_class: str | None = None
     issue: int | None = None
     # A Dependabot pull request's tier, in the pr-merge lane only.
@@ -1644,20 +1639,23 @@ def _timeline(
     return timelines[number]
 
 
-def _class_removed_by_non_human(
+def _untrusted(label: Any) -> bool:
+    """`label` is the untrusted-provenance label, in any case or padding."""
+    return str(label or "").strip().casefold() == UNTRUSTED_PROVENANCE_LABEL
+
+
+def _untrusted_removed_by_non_human(
     owner: str,
     name: str,
     number: int,
     human: Callable[[Any], bool],
     timelines: dict[int, list[dict[str, Any]]],
 ) -> bool:
-    """A `work-class:` label was ever removed by a non-human, or through an
-    App: removing a stricter class can leave a lower one standing."""
+    """The untrusted-provenance label was ever removed by a non-human, or
+    through an App: an agent cannot lift the trust hold."""
     return any(
         e.get("event") == "unlabeled"
-        and str(json_object(e.get("label")).get("name") or "").startswith(
-            WORK_CLASS_PREFIX
-        )
+        and _untrusted(json_object(e.get("label")).get("name"))
         and (
             not human(_rest_actor(e.get("actor")))
             or e.get("performed_via_github_app") is not None
@@ -1775,11 +1773,10 @@ def eligibility(
     In order: not a fork; not a dependency manager's; authored by the agent
     identity, or carrying `merge: agent-allowed` from a human; exactly one
     linked issue, in this repository (`_linked_issue`: its closing issue, else
-    its one `Refs:` issue); a work class whose every `work-class:`
-    label a human applied in person (the agent identity never counts, nor an
-    App acting for a human) with no body edit after it, the strictest one
-    counting, and no `work-class:` label ever removed by a non-human; and, for
-    a lane-authored PR, the identity's claim on that issue predating the PR.
+    its one `Refs:` issue); that issue's labels readable, with no
+    untrusted-provenance label and none ever removed by a non-human or
+    through an App (the trust hold; no work class is read); and, for a
+    lane-authored PR, the identity's claim on that issue predating the PR.
     """
     owner, name = _split_repo(repo)
     permission = permission or permission_reader(repo)
@@ -1811,39 +1808,18 @@ def eligibility(
         issue_number = issue["number"]
         labels = _label_names(issue)
         if labels is None:
-            return Eligibility(False, "class-labels-unreadable")
-        class_labels = [
-            label for label in labels if label.startswith(WORK_CLASS_PREFIX)
-        ]
-        if not class_labels:
-            return Eligibility(False, "class-missing")
-        if any(label not in WORK_CLASS_LABELS for label in class_labels):
-            return Eligibility(False, "class-unknown")
-        for label in class_labels:
-            untrusted = _label_provenance(
-                owner,
-                name,
-                issue_number,
-                label,
-                issue.get("lastEditedAt"),
-                human,
-                timelines,
-            )
-            if untrusted:
-                return Eligibility(False, f"class-provenance:{untrusted}")
-        if _class_removed_by_non_human(owner, name, issue_number, human, timelines):
-            return Eligibility(False, "class-label-removed-by-non-human")
-        work_class = max(
-            (WORK_CLASS_LABELS[label] for label in class_labels),
-            key=lambda c: int(c[1]),
-        )
+            return Eligibility(False, "issue-labels-unreadable")
+        if any(_untrusted(label) for label in labels):
+            return Eligibility(False, "untrusted-provenance")
+        if _untrusted_removed_by_non_human(owner, name, issue_number, human, timelines):
+            return Eligibility(False, "untrusted-provenance-removed-by-non-human")
         if lane_authored and not _claimed_before(
             owner, name, issue_number, str(agent_identity), _time(pr.get("createdAt"))
         ):
             return Eligibility(False, "claim-missing")
     except PolicyReadError as exc:
         return Eligibility(False, f"unreadable: {exc}")
-    return Eligibility(True, None, work_class, issue_number)
+    return Eligibility(True, None, issue=issue_number)
 
 
 def no_issue_here(refusal: str | None) -> bool:
@@ -2235,8 +2211,8 @@ def _foreign_refusal(pr: dict[str, Any], owner: str) -> str | None:
 # --- Eligibility in the pr-merge lane -----------------------------------------------------
 
 
-# Every lane pull request's class, as Dependabot's is: no `work-class:` label
-# is read. The diff-derived C2 checks in the risk score still apply.
+# The class every lane pull request reports, as Dependabot's does: report
+# data only, read from no label and deciding nothing.
 LANE_CLASS = "C2"
 
 
@@ -2759,8 +2735,7 @@ def dependabot_eligibility(
     `[dependabot skip]` fixes) and every push Dependabot's (or that commit's
     pusher's), never demoted, always refused; a green `ci-status` on
     the head; and no human blocking comment. A running `ci-status` waits. The
-    class is C2 (mechanical), so the rung and its cap still bind it. No
-    closing issue and no denied-path rule: `ci-status` is the gate. The
+    rung and its cap still bind it. No closing issue and no denied-path rule: `ci-status` is the gate. The
     hold labels and a body hold are the gate's, as for every pull
     request."""
     owner, name = _split_repo(repo)
@@ -3882,10 +3857,10 @@ PROMOTION_RESOLVER = (
     / "resolve-promotion-evidence.mjs"
 )
 PROMOTABLE_CELLS = ("C2-auto-merge", "C3-auto-merge", "C3-ai-review-blocking")
-# The cells a work class needs effective-promoted (promotion-evidence-resolution.md
-# "Promotable cells and rung mapping"); C4 and C5 have none and never merge.
-CLASS_CELLS = {
-    "C1": ("C2-auto-merge",),
+# The cells an effective rung needs effective-promoted
+# (promotion-evidence-resolution.md "Promotable cells and rung mapping");
+# off needs none and merges nothing.
+RUNG_CELLS = {
     "C2": ("C2-auto-merge",),
     "C3": PROMOTABLE_CELLS,
 }
@@ -3954,8 +3929,8 @@ class Promotion:
     cells: Mapping[str, str] | None
     reason: str | None
 
-    def promoted(self, work_class: str | None) -> bool:
-        needed = CLASS_CELLS.get(work_class or "")
+    def promoted(self, rung: str) -> bool:
+        needed = RUNG_CELLS.get(rung)
         return bool(
             self.cells
             and needed
@@ -4296,7 +4271,7 @@ def assess(
     refusal there stops the reads and leaves the path not `enabled`, so no
     later read can lead to a write. Then the rung (demotion and cap), the
     in-flight rule, the promotion evidence and the pull request's
-    eligibility and class: each refuses a merge, and all are reported, but
+    eligibility: each refuses a merge, and all are reported, but
     an in-flight refusal of a pull request not in the merge queue stops the
     reads there.
 
@@ -4622,7 +4597,7 @@ def assess(
             else Promotion(None, "promotion-unread")
         )
         eligible = eligibility(repo, number, **readers)
-        promoted = promo.promoted(eligible.work_class)
+        promoted = promo.promoted(rung.rung)
     details.update(
         promotion={
             "cells": dict(promo.cells) if promo.cells is not None else None,
@@ -4649,12 +4624,7 @@ def assess(
             "verifier-verdict-not-required",
         ),
         (not eligible.eligible, f"ineligible:{eligible.reason}"),
-        # The rung is a work-class ceiling: C4 and C5 never merge unattended.
-        (
-            CLASS_RANK.get(eligible.work_class or "", 99) > RUNG_RANK[rung.rung],
-            f"class-above-rung:{eligible.work_class}>{rung.rung}",
-        ),
-        (not promoted, f"promotion-unqualified:{eligible.work_class}"),
+        (not promoted, f"promotion-unqualified:{rung.rung}"),
     )
     inputs["own_refusal"] = next((text for refused, text in own if refused), None)
     refusals = (
@@ -4788,9 +4758,7 @@ def lane_room(
     - A post-merge refusal stops (`post-merge:<refusal>`).
     - The effective rung off stops (`rung-off:<input>`): `merge.rung`,
       `babysit_loop_merge`, the rung cap (`lane_rung_cap`, as `rung_cap`
-      reads it) and an active demotion, an unreadable record included. A lane
-      pull request's class is `LANE_CLASS`, which no rung above off is below,
-      so no class-above-rung refusal applies.
+      reads it) and an active demotion, an unreadable record included.
     - The merges in flight (`in_flight`, `merge.max-in-flight` at the head)
       are counted, not refused: the caller arms below the cap.
 

@@ -1037,33 +1037,67 @@ def eligibility() -> Any:
 
 
 class Eligibility(unittest.TestCase):
-    def test_a_lane_authored_pr_with_one_classed_issue_and_an_earlier_claim(
+    def test_a_lane_authored_pr_with_one_issue_and_an_earlier_claim(
         self,
     ) -> None:
         eligibility_fake(self)
         result = eligibility()
         self.assertTrue(result.eligible, result.reason)
-        self.assertEqual((result.work_class, result.issue), ("C2", ISSUE))
+        self.assertEqual(result.issue, ISSUE)
 
-    def test_a_structural_issue_scores_as_scoped_and_provenance_stays_c5(
-        self,
-    ) -> None:
-        # Structural risk shows in the diff the review lanes read.
-        for label, work_class in (
-            ("work-class: structural", "C3"),
-            ("work-class: untrusted-provenance", "C5"),
+    def test_a_structural_unknown_or_class_less_issue_is_eligible(self) -> None:
+        # Owner decision (option a): no work class gates the merge, so the
+        # former class-missing and class-unknown refusals are gone.
+        for name, labels in (
+            ("structural", ["work-class: structural"]),
+            ("class-less", []),
+            ("unknown class", ["work-class: bespoke"]),
         ):
-            with self.subTest(label):
-                gh = eligibility_fake(
+            with self.subTest(name):
+                eligibility_fake(
                     self,
-                    issue={"labels": {"totalCount": 1, "nodes": [{"name": label}]}},
+                    issue={
+                        "labels": {
+                            "totalCount": len(labels),
+                            "nodes": [{"name": n} for n in labels],
+                        }
+                    },
                 )
-                gh.rest[f"repos/{REPO}/issues/{ISSUE}/timeline?per_page=100"][0][
-                    "label"
-                ]["name"] = label
                 result = eligibility()
                 self.assertTrue(result.eligible, result.reason)
-                self.assertEqual(result.work_class, work_class)
+                self.assertEqual(result.issue, ISSUE)
+
+    def test_an_untrusted_provenance_issue_is_held(self) -> None:
+        # The trust hold stays (owner decision, option a), in any case or
+        # padding, beside any other label.
+        for label in (
+            "work-class: untrusted-provenance",
+            "Work-Class: Untrusted-Provenance",
+            " work-class: untrusted-provenance ",
+        ):
+            with self.subTest(label):
+                eligibility_fake(
+                    self,
+                    issue={
+                        "labels": {
+                            "totalCount": 2,
+                            "nodes": [
+                                {"name": "work-class: mechanical"},
+                                {"name": label},
+                            ],
+                        }
+                    },
+                )
+                result = eligibility()
+                self.assertFalse(result.eligible)
+                self.assertEqual(result.reason, "untrusted-provenance")
+
+    def test_unreadable_issue_labels_hold(self) -> None:
+        # The trust hold cannot be ruled out, so it fails closed.
+        eligibility_fake(
+            self, issue={"labels": {"totalCount": 101, "nodes": [{"name": "a"}]}}
+        )
+        self.assertEqual(eligibility().reason, "issue-labels-unreadable")
 
     def test_fork_and_dependency_prs_are_ineligible(self) -> None:
         for name, pr, reason in (
@@ -1159,25 +1193,22 @@ class Eligibility(unittest.TestCase):
         eligibility_fake(self, issue={"repository": {"nameWithOwner": "other/repo"}})
         self.assertEqual(eligibility().reason, "linked-issue-other-repository")
 
-    def test_the_class_must_be_provenance_valid(self) -> None:
-        eligibility_fake(self, issue={"labels": {"totalCount": 0, "nodes": []}})
-        self.assertEqual(eligibility().reason, "class-missing")
-
+    def test_a_class_label_s_provenance_no_longer_refuses(self) -> None:
+        # Owner decision (option a): the former class-provenance refusals,
+        # an agent's class label and a body edit after it, are gone.
         gh = eligibility_fake(self)
         gh.rest[f"repos/{REPO}/issues/{ISSUE}/timeline?per_page=100"] = [
             {
                 "event": "labeled",
-                "label": {"name": "work-class: mechanical"},
+                "label": {"name": "work-class: structural"},
                 "actor": {"login": "agent-lanes[bot]", "type": "Bot"},
                 "created_at": "2026-10-11T09:00:00Z",
             },
         ]
-        self.assertEqual(eligibility().reason, "class-provenance:labeler-not-human")
+        self.assertIsNone(eligibility().reason)
 
         eligibility_fake(self, issue={"lastEditedAt": "2026-10-11T10:00:00Z"})
-        self.assertEqual(
-            eligibility().reason, "class-provenance:body-edited-after-label"
-        )
+        self.assertIsNone(eligibility().reason)
 
     def test_the_lane_claim_must_predate_the_pr(self) -> None:
         gh = eligibility_fake(self)
@@ -1213,17 +1244,29 @@ class Eligibility(unittest.TestCase):
 
 
 class EligibilityAgentSignals(unittest.TestCase):
-    """Carried from #7324: an App acting on a human's token is not the human,
-    and a class label removed by a non-human leaves a lower class untrusted."""
+    """An App acting on a human's token is not the human, so only a human in
+    person may lift the untrusted-provenance hold. No other class label's
+    history is read."""
 
     TIMELINE = f"repos/{REPO}/issues/{ISSUE}/timeline?per_page=100"
 
-    def test_a_class_label_applied_through_an_app_is_not_human(self) -> None:
+    def unlabeled(
+        self, label: str, actor: dict[str, str], via: Any = None
+    ) -> dict[str, Any]:
+        return {
+            "event": "unlabeled",
+            "label": {"name": label},
+            "actor": actor,
+            "performed_via_github_app": via,
+            "created_at": "2026-10-11T10:00:00Z",
+        }
+
+    def test_a_class_label_applied_through_an_app_stays_eligible(self) -> None:
         gh = eligibility_fake(self)
         gh.rest[self.TIMELINE][0]["performed_via_github_app"] = {"slug": "agent"}
-        self.assertEqual(eligibility().reason, "class-provenance:labeler-via-app")
+        self.assertTrue(eligibility().eligible)
 
-    def test_a_class_label_removed_by_a_non_human_is_ineligible(self) -> None:
+    def test_the_trust_label_removed_by_a_non_human_is_held(self) -> None:
         for actor, via in (
             ({"login": IDENTITY, "type": "Bot"}, None),
             ({"login": OPERATOR, "type": "User"}, {"slug": "agent"}),
@@ -1231,33 +1274,35 @@ class EligibilityAgentSignals(unittest.TestCase):
             with self.subTest(actor=actor, via=via):
                 gh = eligibility_fake(self)
                 gh.rest[self.TIMELINE].append(
-                    {
-                        "event": "unlabeled",
-                        "label": {"name": "work-class: scoped"},
-                        "actor": actor,
-                        "performed_via_github_app": via,
-                        "created_at": "2026-10-11T10:00:00Z",
-                    }
+                    self.unlabeled("Work-Class: Untrusted-Provenance", actor, via)
                 )
                 self.assertEqual(
-                    eligibility().reason, "class-label-removed-by-non-human"
+                    eligibility().reason, "untrusted-provenance-removed-by-non-human"
                 )
 
-    def test_a_human_removing_a_class_label_stays_eligible(self) -> None:
+    def test_another_class_label_removed_by_a_non_human_stays_eligible(self) -> None:
+        # The former class-label-removed-by-non-human refusal, for a
+        # structural label and a scoped one.
+        for label in ("work-class: structural", "work-class: scoped"):
+            with self.subTest(label):
+                gh = eligibility_fake(self)
+                gh.rest[self.TIMELINE].append(
+                    self.unlabeled(label, {"login": IDENTITY, "type": "Bot"})
+                )
+                self.assertTrue(eligibility().eligible)
+
+    def test_a_human_removing_the_trust_label_lifts_the_hold(self) -> None:
         gh = eligibility_fake(self)
         gh.rest[self.TIMELINE].append(
-            {
-                "event": "unlabeled",
-                "label": {"name": "work-class: scoped"},
-                "actor": {"login": OPERATOR, "type": "User"},
-                "created_at": "2026-10-11T10:00:00Z",
-            }
+            self.unlabeled(
+                "work-class: untrusted-provenance", {"login": OPERATOR, "type": "User"}
+            )
         )
         self.assertTrue(eligibility().eligible)
 
-    def test_a_label_event_without_an_offset_is_ineligible(self) -> None:
+    def test_an_unreadable_timeline_is_ineligible(self) -> None:
         gh = eligibility_fake(self)
-        gh.rest[self.TIMELINE][0]["created_at"] = "2026-10-11T09:00:00"
+        gh.rest[self.TIMELINE] = 502
         result = eligibility()
         self.assertFalse(result.eligible)
         self.assertTrue(result.reason.startswith("unreadable"), result.reason)
@@ -1654,11 +1699,10 @@ class ReadPromotion(unittest.TestCase):
         self.assertEqual(result.reason, "option-unreported:promotion_evidence_binding")
         self.assertFalse(result.promoted("C2"))
 
-    def test_c4_and_c5_are_never_promoted(self) -> None:
+    def test_the_off_rung_is_never_promoted(self) -> None:
         result, _ = self.run_resolver()
         self.assertTrue(result.promoted("C2"))
-        for work_class in ("C4", "C5", None):
-            self.assertFalse(result.promoted(work_class))
+        self.assertFalse(result.promoted("off"))
 
     def test_a_fail_closed_resolver_promotes_nothing(self) -> None:
         payload = {"failClosedReason": "checker exited 1", "cells": {}}
@@ -2483,15 +2527,41 @@ class Assess(unittest.TestCase):
         self.assertEqual(result.reason, "credentials:other-account-listed")
         self.assertFalse(any("variables" in " ".join(c) for c in gh.calls))
 
-    def test_a_work_class_above_the_rung_refuses(self) -> None:
+    def test_no_work_class_is_a_ceiling_on_the_rung(self) -> None:
+        # Owner decision (option a): the former class-above-rung and per-class
+        # promotion refusals are gone. An eligible pull request reporting no
+        # class, or a class above the C2 rung, merges at C2.
         self.readable()
-        for work_class in ("C3", "C4", "C5"):
+        for work_class in (None, "C3", "C5"):
             with self.subTest(work_class=work_class), self.all_clear(work_class):
                 result = self.assess(
                     post_merge=lambda floor, who: gate(), promotion=lambda s: PROMOTED
                 )
-                self.assertEqual(result.reason, f"class-above-rung:{work_class}>C2")
-                self.assertIs(result.enabled, True)
+                self.assertIsNone(result.reason)
+                self.assertIs(result.promoted, True)
+
+    def test_promotion_is_read_for_the_effective_rung(self) -> None:
+        # promotion-evidence-resolution.md "Promotable cells and rung
+        # mapping": the C2 rung needs only C2-auto-merge.
+        self.readable()
+        self.all_clear(None)
+        c2_only = policy.Promotion(
+            {
+                "C2-auto-merge": "promoted",
+                "C3-auto-merge": "unpromoted",
+                "C3-ai-review-blocking": "unpromoted",
+            },
+            None,
+        )
+        result = self.assess(
+            post_merge=lambda floor, who: gate(), promotion=lambda s: c2_only
+        )
+        self.assertIsNone(result.reason)
+        unpromoted = policy.Promotion({"C2-auto-merge": "unpromoted"}, None)
+        result = self.assess(
+            post_merge=lambda floor, who: gate(), promotion=lambda s: unpromoted
+        )
+        self.assertEqual(result.reason, "promotion-unqualified:C2")
 
     def test_unread_promotion_refuses_but_the_path_stays_enabled(self) -> None:
         self.readable()
@@ -3432,23 +3502,33 @@ class RefsIssueEligibility(unittest.TestCase):
             policy.recheck_lane_issue(REPO, 7, issue=41), "linked-issues:0"
         )
 
-    def test_the_worker_tier_reads_class_and_claim_from_the_refs_issue(self) -> None:
-        refs_issue = {
-            "number": ISSUE,
-            "lastEditedAt": None,
-            "repository": {"nameWithOwner": REPO},
-            "labels": {"totalCount": 1, "nodes": [{"name": "work-class: structural"}]},
-        }
+    def test_the_worker_tier_reads_the_trust_hold_and_claim_from_the_refs_issue(
+        self,
+    ) -> None:
+        def refs_issue(label: str) -> dict[str, Any]:
+            return {
+                "number": ISSUE,
+                "lastEditedAt": None,
+                "repository": {"nameWithOwner": REPO},
+                "labels": {"totalCount": 1, "nodes": [{"name": label}]},
+            }
+
         gh = eligibility_fake(self, issues=[], pr={"body": f"Refs: #{ISSUE}"})
-        gh.graphql["PolicyRefsIssue"] = refs_answer(refs_issue)
+        # A structural class an agent applied no longer refuses: no class is
+        # read (owner decision, option a).
+        gh.graphql["PolicyRefsIssue"] = refs_answer(
+            refs_issue("work-class: structural")
+        )
         timeline = gh.rest[f"repos/{REPO}/issues/{ISSUE}/timeline?per_page=100"]
         timeline[0]["label"]["name"] = "work-class: structural"
+        timeline[0]["actor"] = {"login": "agent-lanes[bot]", "type": "Bot"}
         result = eligibility()
         self.assertTrue(result.eligible, result.reason)
-        self.assertEqual((result.work_class, result.issue), ("C3", ISSUE))
-        # An agent's label on the Refs issue is not a human's class.
-        timeline[0]["actor"] = {"login": "agent-lanes[bot]", "type": "Bot"}
-        self.assertEqual(eligibility().reason, "class-provenance:labeler-not-human")
+        self.assertEqual(result.issue, ISSUE)
+        gh.graphql["PolicyRefsIssue"] = refs_answer(
+            refs_issue("work-class: untrusted-provenance")
+        )
+        self.assertEqual(eligibility().reason, "untrusted-provenance")
 
     def test_an_unclaimed_refs_issue_is_refused_claim_missing(self) -> None:
         gh = eligibility_fake(self, issues=[], pr={"body": f"Refs: #{ISSUE}"})

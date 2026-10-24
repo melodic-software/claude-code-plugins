@@ -5,6 +5,14 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [12.5.0] - 2026-10-24
+
+Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.
+
+- **Autonomy ladder.** The unattended merge gate reads no work class: no class caps its rung or
+  selects its promotion cells. Its one class-named check is the trust hold on an issue carrying
+  `work-class: untrusted-provenance` (#9668).
+
 ## [12.4.0] - 2026-10-22
 
 Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.

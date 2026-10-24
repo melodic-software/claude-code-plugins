@@ -58,7 +58,11 @@ The pr-merge lane reads no class: it merges a pull request the lanes App opened 
 issue on the verifier verdict at its head, and refuses fork pull requests, so C5 stays human there
 too ([the pr-merge lane](../pr-pipeline/README.md#the-pr-merge-lane),
 [`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md#merge-authorities-that-read-no-class)).
-Higher rungs are opt-in per repository, up to full autonomy, where frontier-tier subagents resolve
+The unattended merge gate (`/source-control:babysit-prs`, `--unattended`) reads no class either,
+by [owner decision](https://github.com/melodic-software/claude-code-plugins/issues/9668#issuecomment-6386299330):
+no class caps its rung or selects its promotion cells, and its one class-named check is the trust
+hold, which refuses a pull request whose linked issue carries `work-class: untrusted-provenance` or
+had it removed by a non-human. Higher rungs are opt-in per repository, up to full autonomy, where frontier-tier subagents resolve
 conflicts, answer review comments, and drive a PR to merge, and they are bounded by that C4/C5 floor
 regardless of rung name.
 

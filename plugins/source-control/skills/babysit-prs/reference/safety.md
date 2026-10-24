@@ -1049,8 +1049,10 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    - **Pointer**: when the commits list's cap matters, fetch
      [list commits on a pull request](https://docs.github.com/en/rest/pulls/pulls#list-commits-on-a-pull-request)
      live. **As of**: 2026-10-12. **Recheck trigger**: that section changes the cap or its paging.
-   A LOW score merges, and so does a MED one whose every reason is a class, size or reported
-   review-finding reason (`babysit_risk.holds`): an open claude-review finding and an IMPORTANT
+   No work class is read: eligibility holds only an issue carrying `work-class:
+   untrusted-provenance`, or one a non-human removed it from (the trust hold), and the promotion
+   evidence is read for the effective rung's cells. A LOW score merges, and so does a MED one whose
+   every reason is a size or reported review-finding reason (`babysit_risk.holds`): an open claude-review finding and an IMPORTANT
    or SUGGESTION security finding are reported and do not hold; an unbound or missing review
    lane, an unread file listing and every HIGH reason hold. The security lane holds only on a
    CRITICAL finding, and a change adding or widening a trusted-actors entry scores HIGH as
@@ -1060,9 +1062,7 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    `plugin.json` key, or a marketplace plugin added, removed, renamed or re-sourced. A change that could add or
    raise a charge scores HIGH as `cost-review-required` in both lanes, floor or not, until the body
    links an owner `**Decision recorded.** Cost:` comment on the closing issue or the pull request
-   (`cost_decision`); which changes count is in that docstring. A C3 pull request also needs a
-   LOW blast-radius rating, which nothing supplies
-   yet, so it scores at least MED (`blast-radius-missing`) until a C3 rung adds that source.
+   (`cost_decision`); which changes count is in that docstring.
 
 Check-only (no `--merge`) writes nothing and reports the whole decision under `unattended`. With
 `--merge`, under the identity only: a kill-switch, unreadable-default-branch, post-merge or rung
@@ -1070,8 +1070,8 @@ refusal dequeues every entry the identity enqueued; a queued identity entry that
 (`do-not-merge` or the human-gated label, `needs-human` by default, a body hold, a blocking
 comment from an owner, member or collaborator, the opt-in label removed, or put back after the
 enqueue by anyone but a human in person) leaves the queue, as
-does the assessed pull request's own entry when this run finds it ineligible, above the rung,
-unpromoted for its class, on a base that is not the default branch, or scored MED or HIGH
+does the assessed pull request's own entry when this run finds it ineligible, unpromoted for the
+rung, on a base that is not the default branch, or scored MED or HIGH
 (`risk:<score>`); one failed dequeue does not stop the others. An eligible MED or HIGH pull
 request gets one `<!-- babysit-merge-risk -->` comment, rewritten only when the score, reasons or
 head change. When the identity's comment read before this run already says the same (score,
@@ -1139,8 +1139,9 @@ Named residuals:
 - Event times have one-second resolution, so an identity arm in the same second as a gate enqueue
   counts as at or before it, and that gate merge reads as native and skips its read-back. So does
   an arm between the gate's disarm check and its enqueue.
-- The pull request's author can apply the opt-in and `work-class:` labels: label provenance asks
-  only that a human with write permission applied them in person, within write-access trust.
+- The pull request's author can apply the opt-in label, and remove the untrusted-provenance label:
+  provenance asks only that a human with write permission did so in person, within write-access
+  trust.
   Label provenance also cannot tell the operator from an agent driving the operator's own `gh`
   token.
 - The post-enqueue room check reuses the unverified count the gate read. An identity entry that
