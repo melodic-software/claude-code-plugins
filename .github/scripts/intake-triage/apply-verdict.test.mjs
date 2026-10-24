@@ -56,6 +56,7 @@ describe("parseVerdict", () => {
     assert.deepEqual(verdict, {
       escalated: false,
       workClass: "work-class: scoped",
+      untrusted: false,
       dimensions: { size: "small", complexity: "low", uncertainty: "known" },
       flags: [],
       problems: [],
@@ -266,6 +267,23 @@ describe("planWrites", () => {
   test("a verdict proposing work-class: untrusted-provenance applies it and holds the issue", () => {
     const result = plan(laneBody({ cls: "work-class: untrusted-provenance" }));
     assert.equal(result.ready, false);
+    assert.deepEqual(result.add, ["work-class: untrusted-provenance", NEEDS_DECISION]);
+  });
+
+  test("an untrusted-provenance verdict holds even when the repository lacks the label", () => {
+    const verdict = parseVerdict(laneBody({ cls: "work-class: untrusted-provenance" }), DIMS, new Set(["work-class: scoped"]));
+    const result = planWrites(verdict, { labels: [], fields: {}, dimensionsConfig: DIMS, appId: LANES_APP, humans });
+    assert.equal(result.ready, false);
+    assert.ok(result.add.includes(NEEDS_DECISION));
+  });
+
+  test("an untrusted-provenance verdict adds the label beside a class a person set", () => {
+    const result = plan(laneBody({ cls: "work-class: untrusted-provenance" }), {
+      labels: ["work-class: mechanical"],
+      classSetters: { "work-class: mechanical": HUMAN },
+    });
+    assert.equal(result.ready, false);
+    assert.deepEqual(result.remove, []);
     assert.deepEqual(result.add, ["work-class: untrusted-provenance", NEEDS_DECISION]);
   });
 

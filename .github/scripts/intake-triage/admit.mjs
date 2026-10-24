@@ -284,7 +284,11 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   } else if (!rules.types.includes(type)) {
     refuse.push(`type ${type} is not one of ${[...rules.types, ...rules["types-under-parent"]].join(", ")}`);
   }
-  if (verdict.workClass === UNTRUSTED || names(issue.labels).includes(UNTRUSTED)) {
+  // The hold also stands when its newest event is a removal by neither a
+  // listed human nor the lanes App.
+  const untrustedEvent = (events ?? []).filter((event) => ["labeled", "unlabeled"].includes(event?.event) && event.label?.name === UNTRUSTED).at(-1);
+  const removedByOther = untrustedEvent?.event === "unlabeled" && !humans.has(untrustedEvent.actor?.id) && !(appId !== undefined && untrustedEvent.actor?.id === appId);
+  if (verdict.workClass === UNTRUSTED || names(issue.labels).includes(UNTRUSTED) || removedByOther) {
     refuse.push(`${UNTRUSTED} work needs a person`);
   }
   if (!rules.sizes.includes(verdict.dimensions?.size)) {

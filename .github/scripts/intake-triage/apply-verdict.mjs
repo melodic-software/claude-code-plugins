@@ -122,6 +122,8 @@ export function parseVerdict(body, dimensionsConfig, classes) {
   const classMatch = CLASS_LINE.exec(lines[1] ?? "");
   const proposed = classMatch && classMatch[1] !== "none" && !escalated ? classMatch[1] : null;
   const workClass = proposed !== null && classes.has(proposed) ? proposed : null;
+  // The hold reads the proposal itself, so a missing label cannot drop it.
+  const untrusted = proposed === UNTRUSTED;
 
   const lineValue = (prefix) => {
     const found = lines.filter((line) => line.startsWith(`${prefix}: `)).map((line) => line.slice(prefix.length + 2).trim());
@@ -158,7 +160,7 @@ export function parseVerdict(body, dimensionsConfig, classes) {
       problems.push(`\`Flags: ${flagText.slice(0, 40)}\` is not none or a list of ${[...FLAGS].join(", ")}`);
     }
   }
-  return { escalated, workClass, dimensions, flags, problems };
+  return { escalated, workClass, untrusted, dimensions, flags, problems };
 }
 
 // The writes the verdict calls for, given the issue's labels and its current
@@ -174,7 +176,7 @@ export function planWrites(verdict, { labels, fields, dimensionsConfig, appId, h
   if (verdict.escalated) {
     reasons.push("the triage run escalated");
   }
-  if (verdict.workClass === UNTRUSTED || labels.includes(UNTRUSTED)) {
+  if (verdict.untrusted || labels.includes(UNTRUSTED)) {
     reasons.push(`${UNTRUSTED} work needs a person`);
   }
 
@@ -191,6 +193,10 @@ export function planWrites(verdict, { labels, fields, dimensionsConfig, appId, h
       // or one no event names, is kept.
       remove.push(held[0]);
       add.push(verdict.workClass);
+      classApplied = true;
+    } else if (verdict.workClass === UNTRUSTED) {
+      // A hold label is added beside any class already held.
+      add.push(UNTRUSTED);
       classApplied = true;
     }
   }

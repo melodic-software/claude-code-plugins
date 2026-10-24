@@ -133,6 +133,16 @@ describe("decide", () => {
     }
   });
 
+  test("an untrusted-provenance label removed by neither a listed human nor the App still refuses", () => {
+    const event = (kind, id) => ({ event: kind, label: { name: "work-class: untrusted-provenance" }, actor: { id } });
+    const refused = decide(facts({ events: [event("labeled", APP), event("unlabeled", OUTSIDER)] }));
+    assert.equal(refused.verdict, "refuse");
+    assert.match(refused.reasons.join(), /untrusted-provenance work needs a person/);
+    for (const remover of [HUMAN, APP]) {
+      assert.deepEqual(decide(facts({ events: [event("labeled", APP), event("unlabeled", remover)] })), { verdict: "admit", reasons: [] }, String(remover));
+    }
+  });
+
   test("admits Uncertainty Knowable, which the lane researches first", () => {
     const verdict = { ...VERDICT, dimensions: { ...VERDICT.dimensions, uncertainty: "knowable" } };
     assert.deepEqual(decide(facts({ verdict })), { verdict: "admit", reasons: [] });
