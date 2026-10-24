@@ -1,11 +1,35 @@
 #!/usr/bin/env bash
-# Two stated notification requirements in one milestone that share one send shape.
+# Two stated notification requirements in one milestone that share one send shape, and a standards
+# index whose reference-dont-duplicate tests allow consolidation at two namable, stable copies.
 set -euo pipefail
 
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-mkdir -p docs src
+mkdir -p docs/standards src
+
+cat >docs/standards/README.md <<'MD'
+---
+standards-contract: 1.1.0
+---
+
+# Standards index
+
+| Surface | Applies when | File |
+|---|---|---|
+| reference-dont-duplicate | a fact, value, rule or shape appearing in more than one place | reference-dont-duplicate.md |
+MD
+
+cat >docs/standards/reference-dont-duplicate.md <<'MD'
+# Reference, don't duplicate
+
+## Consolidation doctrine: ordered tests
+
+- **T3: Change-together.** One fact forcing edits in several places is real duplication: consolidate
+  now, even at two copies.
+- **T4: Namable and stable.** Both must hold to consolidate at two copies; otherwise wait for a third.
+- **T5: Reversibility.** Cheap to inline back means early consolidation is low-risk.
+MD
 
 cat >docs/requirements.md <<'MD'
 # Order notifications: requirements

@@ -1,10 +1,11 @@
 {
   "pass": [
-    {"answer": "Q1: Should consumers keep installing from `main` rather than a new `stable` branch?\n\nMy recommendation: **Yes, keep installing from main and drop the stable branch, its workflow, its ruleset and the bot app.** `main` already blocks direct pushes, requires a review and requires the `ci / consumer-e2e` check, which installs the settings into a sample consumer on every pull request, so a broken commit cannot reach it.\nBasis: verified, docs/branch-protection.md:5-8 and .github/workflows/ci.yml:7-13."}
+    {"answer": "Q1: Should consumers keep installing from `main` rather than a new `stable` branch?\n\nMy recommendation: **Yes, keep installing from main and drop the stable branch, its workflow, its ruleset and the bot app.** `main` already blocks direct pushes, requires a review and requires the `ci / consumer-e2e` check, which installs the settings into a sample consumer on every pull request, so a broken commit cannot reach it.\nBasis: documented, docs/branch-protection.md:5-8 (read from that document, not from the enforcing ruleset); verified, .github/workflows/ci.yml:7-13."}
   ],
   "fail": [
     {"answer": "Q1: What should the stable branch be called?\n\nMy recommendation: **`stable`**, matching your plan.\nBasis: judgment.", "why": "details the proposed mechanism"},
     {"answer": "Q1: Should consumers track main instead?\n\nMy recommendation: **Yes, it is simpler.**\nBasis: judgment.", "why": "names no existing control"},
-    {"answer": "Q1: Should the bot app be dropped in favor of a deploy key?\n\nMy recommendation: **Yes, keep the stable branch and workflow, push with a deploy key.**\nBasis: main is protected (docs/branch-protection.md:5).", "why": "still builds the branch and workflow"}
+    {"answer": "Q1: Should the bot app be dropped in favor of a deploy key?\n\nMy recommendation: **Yes, keep the stable branch and workflow, push with a deploy key.**\nBasis: main is protected (docs/branch-protection.md:5).", "why": "still builds the branch and workflow"},
+    {"answer": "Q1: Should consumers keep installing from `main` rather than a new `stable` branch?\n\nMy recommendation: **Yes, keep installing from main and drop the stable branch, its workflow, its ruleset and the bot app.** `main` already blocks direct pushes, requires a review and requires the `ci / consumer-e2e` check.\nBasis: verified, docs/branch-protection.md:5-8.", "why": "cites a document as the verified enforcing source for main's protection"}
   ]
 }
