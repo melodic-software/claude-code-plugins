@@ -3,7 +3,8 @@ description: >
   At the end of a job, write the hub collector's api-budget notice for each
   named token, from the rate-limit readings the job's own API responses left
   in $RUNNER_TEMP/api-budget (api-budget.bash): one per refused (403/429)
-  response and one for the last. GET /rate_limit is never read: it reports a
+  response and one for the last, then one for the job's content-creating
+  writes (count and most in one minute). GET /rate_limit is never read: it reports a
   different bucket from the one the job spends. Also writes each line and a
   `<name>-cost=N` line to the step summary. A token with no reading gets no
   line. Never fails the job.
@@ -41,6 +42,11 @@ runs:
           cost=${lines##*cost=}
           costs+=("$name-cost=${cost/na/unknown}")
         done
+        lines=$(api_budget_emit_content)
+        if [[ -n $lines ]]; then
+          printf '%s\n' "$lines"
+          sed 's/^::notice title=api-budget::/api-budget: /' <<<"$lines" >>"$GITHUB_STEP_SUMMARY"
+        fi
         if ((${#costs[@]} > 0)); then
           echo "${costs[*]}" >>"$GITHUB_STEP_SUMMARY"
           echo "costs=${costs[*]}" >>"$GITHUB_OUTPUT"

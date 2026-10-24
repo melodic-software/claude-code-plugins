@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { apiLimits, classify, createRateLimitLatch, entryOf, poolOf, RateLimitStop } from "./rate-guard.mjs";
+import { apiLimits, classify, createRateLimitLatch, entryOf, isContentWrite, poolOf, RateLimitStop } from "./rate-guard.mjs";
 
 const VECTORS = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
 const SCHEMA_PATH = new URL("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json", import.meta.url);
@@ -282,3 +282,47 @@ test("every lane script that calls fetch goes through the rate guard, or is list
   assert.deepEqual(raw.filter((file) => !(file in UNGUARDED)), []);
   assert.deepEqual(Object.keys(UNGUARDED).filter((file) => !raw.includes(file)), [], "a listed file no longer needs its exception");
 });
+
+test("isContentWrite counts the issue, pull request, comment, review and label writes, and GraphQL mutations", () => {
+  const repo = "https://api.github.com/repos/o/r";
+  for (const [url, method] of [
+    [`${repo}/issues`, "POST"],
+    [`${repo}/issues/7`, "PATCH"],
+    [`${repo}/issues/7/comments`, "POST"],
+    [`${repo}/issues/7/labels`, "POST"],
+    [`${repo}/issues/comments/9`, "PATCH"],
+    [`${repo}/pulls`, "POST"],
+    [`${repo}/pulls/7/reviews`, "POST"],
+    [`${repo}/pulls/7/comments/9/replies`, "POST"],
+  ]) {
+    assert.equal(isContentWrite(url, method), true, `${method} ${url}`);
+  }
+  for (const [url, method] of [
+    [`${repo}/issues/7/comments`, "GET"],
+    [`${repo}/issues/7/labels/x`, "DELETE"],
+    [`${repo}/statuses/abc`, "POST"],
+    [`${repo}/actions/workflows/x.yml/dispatches`, "POST"],
+  ]) {
+    assert.equal(isContentWrite(url, method), false, `${method} ${url}`);
+  }
+  const graphql = "https://api.github.com/graphql";
+  assert.equal(isContentWrite(graphql, "POST", JSON.stringify({ query: " mutation($id: ID!) { x }" })), true);
+  assert.equal(isContentWrite(graphql, "POST", JSON.stringify({ query: "query { viewer { login } }" })), false);
+});
+
+test("a guarded content write is counted in the job's content-creation file, a read is not", async () =>
+  withDir(async (dir) => {
+    const saved = process.env.RUNNER_TEMP;
+    process.env.RUNNER_TEMP = dir;
+    try {
+      const gh = fakeGitHub([[201], [200]]);
+      const options = { now: () => NOW, log: () => {}, fail: () => {}, limits: () => ({}), stopFile: null };
+      const fetch = createRateLimitLatch(options).guard(gh.fetch);
+      await fetch("https://api.github.com/repos/o/r/issues/7/comments", { method: "POST", body: "{}" });
+      await fetch("https://api.github.com/repos/o/r/issues/7/comments");
+      assert.equal(readFileSync(join(dir, "api-budget", "content-creation"), "utf8"), `${VECTORS.vector_now}\n`);
+    } finally {
+      if (saved === undefined) delete process.env.RUNNER_TEMP;
+      else process.env.RUNNER_TEMP = saved;
+    }
+  }));

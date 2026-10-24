@@ -17,6 +17,22 @@ export function readingLine(status, headers) {
   return `${status} ${values.join(" ")}\n`;
 }
 
+// Appends one content-creating write, as its epoch second, to
+// $RUNNER_TEMP/api-budget/content-creation, which api-budget.bash's gh wrapper
+// also appends to, for the job-end content-creation notice. Without
+// RUNNER_TEMP nothing is written. Never throws.
+export function recordContentWrite({ dir = process.env.RUNNER_TEMP, at }) {
+  if (!dir || !Number.isSafeInteger(at)) {
+    return;
+  }
+  try {
+    mkdirSync(join(dir, "api-budget"), { recursive: true });
+    appendFileSync(join(dir, "api-budget", "content-creation"), `${at}\n`);
+  } catch {
+    // A count is never worth failing the job.
+  }
+}
+
 export function recordReading({ token = process.env.API_BUDGET_TOKEN, dir = process.env.RUNNER_TEMP, status, headers }) {
   if (!dir || !/^[a-z][a-z0-9-]{0,39}$/.test(token ?? "")) {
     return;

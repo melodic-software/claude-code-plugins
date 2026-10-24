@@ -22,6 +22,8 @@ import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import process from "node:process";
 
+import { recordContentWrite, recordReading } from "./api-budget.mjs";
+
 // GitHub's documented rate-limit signals, same page: a 403 or 429 whose
 // message names a rate limit, retry-after, x-ratelimit-remaining 0, and
 // "wait for at least one minute" when neither header gives the time. GraphQL
@@ -80,6 +82,28 @@ export function poolOf(url) {
     return "code_search";
   }
   return /^(\/api\/v3)?\/search\//.test(path) ? "search" : "core";
+}
+
+// A write that creates or changes content GitHub's content-creation limit
+// counts (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#about-secondary-rate-limits):
+// the issues, pull requests, comments, reviews and labels the lanes write,
+// and a GraphQL mutation. GitHub publishes no list of the endpoints it counts.
+const CONTENT_PATH =
+  /\/repos\/[^/]+\/[^/]+\/(issues|pulls)(\/\d+(\/(comments|labels|reviews|assignees|requested_reviewers))?|\/\d+\/comments\/\d+\/replies|\/comments\/\d+)?\/?(\?|$)/;
+export function isContentWrite(url, method = "GET", body) {
+  if (!["POST", "PATCH", "PUT"].includes(String(method).toUpperCase())) {
+    return false;
+  }
+  if (poolOf(url) === "graphql") {
+    let query = "";
+    try {
+      query = String(JSON.parse(String(body ?? "")).query ?? "");
+    } catch {
+      query = "";
+    }
+    return /^\s*mutation\b/.test(query);
+  }
+  return CONTENT_PATH.test(String(url).replace(/^[a-z]+:\/\/[^/]+/i, ""));
 }
 
 // The limits.api entry a resource's margins come from: graphql its own, any
@@ -265,11 +289,17 @@ export function createRateLimitLatch({
     check,
     observe,
     belowFloor: (url) => low.get(poolOf(url)) === true,
-    // A fetch that checks the latch before each request and reads each answer.
+    // A fetch that checks the latch before each request, counts a
+    // content-creating write, and reads each answer, recording its rate-limit
+    // reading for the job-end api-budget notice.
     guard: (fetchImpl) =>
       async function guarded(url, init = {}) {
         check(url, init.method);
+        if (isContentWrite(url, init.method, init.body)) {
+          recordContentWrite({ at: Math.floor(now() / 1000) });
+        }
         const response = await fetchImpl(url, init);
+        recordReading({ status: response.status, headers: response.headers });
         await observe(url, response, init.method);
         return response;
       },

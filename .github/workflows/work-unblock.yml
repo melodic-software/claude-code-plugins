@@ -87,6 +87,8 @@ jobs:
       contents: read # check out main
       pull-requests: read # count the lanes App's pull requests
       issues: read # count the queued agent-ready issues
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -99,6 +101,14 @@ jobs:
         uses: ./.base/.github/actions/check-wip-cap # zizmor: ignore[self-repository]
         with:
           save-state: "true"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   label-unblocked:
     # A close by any bot (the lanes App, or a PR merge a bot ran) is a clean
@@ -212,6 +222,8 @@ jobs:
         if: steps.lane-token.outputs.token != ''
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          # The readings of both tokens' calls are logged under lanes-app.
+          API_BUDGET_TOKEN: lanes-app
           # The job's own read-only token; the App token has no actions grant.
           ACTIONS_TOKEN: ${{ github.token }}
           SCRIPT: ${{ steps.config.outputs.script }}
@@ -239,3 +251,11 @@ jobs:
           else
             echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
           fi
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: lanes-app

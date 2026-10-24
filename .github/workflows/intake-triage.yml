@@ -119,6 +119,8 @@ jobs:
       - name: Check whether the issue was born triaged
         id: check
         uses: ./.base/.github/actions/check-born-triaged # zizmor: ignore[self-repository]
+        env:
+          API_BUDGET_TOKEN: github-token
         with:
           issue-number: ${{ github.event.issue.number || inputs.issue-number }}
           lanes-app-id: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
@@ -139,6 +141,14 @@ jobs:
             ids="$ids,$LANES_APP_ID"
           fi
           echo "ids=$ids" >> "$GITHUB_OUTPUT"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # The pinned reusable reads no kill switch, so this caller does. Intake has
   # no lane switch of its own; the org and repository switches fail closed
@@ -431,6 +441,7 @@ jobs:
         if: steps.lane-token.outputs.token != ''
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          API_BUDGET_TOKEN: lanes-app
           SCRIPT: ${{ steps.config.outputs.script }}
           ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue-number }}
           STARTED_AT: ${{ needs.born-triaged.outputs.started-at }}
@@ -458,6 +469,14 @@ jobs:
           else
             echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
           fi
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: lanes-app
 
   # Refines a thin issue (#9215): one whose verdict flags intent (no exact
   # outcome) or whose body has no task list (no checkable criteria). It also
@@ -531,6 +550,7 @@ jobs:
         if: steps.who.outputs.proceed == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
           ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue-number }}
           STARTED_AT: ${{ needs.born-triaged.outputs.started-at }}
           KILL_SWITCH: proceed
@@ -554,6 +574,14 @@ jobs:
           path: ${{ runner.temp }}/refine-context/context.json
           retention-days: 1
           if-no-files-found: error
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # The model. Its job's only token is GITHUB_TOKEN with contents: read; it
   # reads the context file and the default branch checkout (its working
@@ -863,6 +891,7 @@ jobs:
         if: steps.lane-token.outputs.token != ''
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          API_BUDGET_TOKEN: lanes-app
           SCRIPT: ${{ steps.config.outputs.script }}
           ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue-number }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
@@ -890,6 +919,14 @@ jobs:
           else
             echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
           fi
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: lanes-app
 
   # An exact refinement lifted the lanes App's needs-decision: triage the
   # issue once more, as intake-reenter.yml does, so apply-verdict and
