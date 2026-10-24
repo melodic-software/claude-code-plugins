@@ -52,8 +52,8 @@ keep going.
    for a bare name, `<prefix>/.claude/skills/control-<app>/` for a prefixed name when that file
    exists), Read it. When its frontmatter holds a key other than `name`, `description` and
    `disable-model-invocation` (such as `allowed-tools`, `hooks`, `context`, `agent` or `shell`), or
-   its body holds a `!` dynamic-context command, stop with `blocked: control skill carries
-   <construct>` and make no Skill call: loading would run or apply it. A plugin match is not
+   its body holds a `!` dynamic-context command, write `blocked: control skill carries
+   <construct>` in the report and stop with no Skill call: loading would run or apply it. A plugin match is not
    pre-checked, since an installed plugin already runs its own hooks and code.
 3. Load the match through the Skill tool and take its base directory from what the tool reports.
    Its source is `plugin` when that directory lies under the plugins root, `project` when it is
