@@ -289,37 +289,35 @@ on:
         value: ${{ jobs.scan.outputs.collect-refused }}
       # Issue mode: the run job's fields that pick the issue's lane branch
       # and the commit its patch applies to. The run job sets them before any
-      # model turn, but its runner could forge them, so the scan job holds
-      # each to its closed set, checks the resume tip against the branch it
-      # names, and re-exposes them; a caller reads only these.
+      # model turn, but its runner could forge them, so the issue-fields job
+      # checks each and re-derives any branch claim; a caller reads only these.
       scan-base-sha:
         description: >-
           Issue mode: the trusted base commit a new run's patch was made on,
-          as the scan job checked it.
-        value: ${{ jobs.scan.outputs.base-sha }}
+          as the issue-fields job checked it.
+        value: ${{ jobs.issue-fields.outputs.base-sha }}
       scan-resume-tip:
         description: >-
           Issue mode: the earlier run's lane branch tip a resumed run's patch
-          was made on, which the scan job read back from that branch; empty
-          otherwise.
-        value: ${{ jobs.scan.outputs.resume-tip }}
+          was made on, as the issue-fields job re-derived it; empty otherwise.
+        value: ${{ jobs.issue-fields.outputs.resume-tip }}
       scan-issue-run-started:
         description: >-
           Issue mode: `true` once the run passed its gates and chose to run
           the skill, so its outcome must be reported even when a later step
           or the scan failed.
-        value: ${{ jobs.scan.outputs.issue-run-started }}
+        value: ${{ jobs.issue-fields.outputs.issue-run-started }}
       scan-reuse-branch:
         description: >-
           Issue mode: the lane branch an earlier run left with commits and no
           report, which this run reused instead of running the model; empty
           otherwise.
-        value: ${{ jobs.scan.outputs.reuse-branch }}
+        value: ${{ jobs.issue-fields.outputs.reuse-branch }}
       scan-resume-branch:
         description: >-
           Issue mode: the earlier run's lane branch this run resumed; empty
           otherwise.
-        value: ${{ jobs.scan.outputs.resume-branch }}
+        value: ${{ jobs.issue-fields.outputs.resume-branch }}
       # PR mode, from run-claude-cli and the credential steps, never from
       # model text: the caller's fallback call reads these alone.
       lane-class:
@@ -1997,6 +1995,148 @@ jobs:
           echo "::error::the skill's launcher run left no result"
           exit 1
 
+  # Issue mode: the run job's pre-model fields, which pick the issue's lane
+  # branch and the commit its patch applies to, checked before any caller
+  # sees them. The run job's runner is hostile and could forge any of them,
+  # so each is held to its closed set and to the combinations the run job's
+  # steps make (a reuse ran no skill and resumed nothing; a resume tip comes
+  # with its branch, a base and a started run), and any branch claim is
+  # re-derived here: report-outcome.mjs --find-prior from the default branch
+  # tip, with this job's read-only token, must choose the same reuse branch,
+  # resume branch and tip. It runs whatever the run job's result, unless the
+  # run job was skipped, and needs no environment, so a run job that was
+  # cancelled, timed out or never reached the scan job still leaves
+  # issue-run-started for the caller's report job. Every check step is
+  # continue-on-error, so the job ends green: a refusal leaves checked empty,
+  # which fails the scan job and publishes nothing, and the report job reads
+  # no outcome.
+  issue-fields:
+    needs: run
+    if: always() && inputs.issue-number != '' && needs.run.result != 'skipped'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # pull-requests: read as the run job's earlier-work check reads closing
+    # pull requests with it.
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      issue-run-started: ${{ steps.issue.outputs.issue-run-started }}
+      checked: ${{ steps.checked.outputs.checked }}
+      reuse-branch: ${{ steps.checked.outputs.reuse-branch }}
+      resume-branch: ${{ steps.checked.outputs.resume-branch }}
+      resume-tip: ${{ steps.checked.outputs.resume-tip }}
+      base-sha: ${{ steps.checked.outputs.base-sha }}
+      start-sha: ${{ steps.checked.outputs.start-sha }}
+    steps:
+      # Each field through env. issue-run-started is set first, alone, so a
+      # refused field still leaves it; claimed says a branch is named.
+      - name: Check the run job's issue fields
+        id: issue
+        continue-on-error: true
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          LANE: ${{ inputs.lane }}
+          ISSUE_NUMBER: ${{ inputs.issue-number }}
+          STARTED: ${{ needs.run.outputs.issue-run-started }}
+          REUSE_BRANCH: ${{ needs.run.outputs.reuse-branch }}
+          RESUME_BRANCH: ${{ needs.run.outputs.resume-branch }}
+          RESUME_TIP: ${{ needs.run.outputs.resume-tip }}
+          BASE_SHA: ${{ needs.run.outputs.base-sha }}
+        with:
+          retries: 0
+          script: |
+            const { LANE, ISSUE_NUMBER, STARTED, REUSE_BRANCH, RESUME_BRANCH, RESUME_TIP, BASE_SHA } = process.env;
+            const SHA = /^[0-9a-f]{40}$/;
+            const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const BRANCH = new RegExp(`^${escape(LANE)}/issue-${escape(ISSUE_NUMBER)}-[1-9][0-9]*-[1-9][0-9]*$`);
+            if (STARTED !== 'true' && STARTED !== 'false') {
+              core.setFailed('bad-output: the run job\'s issue-run-started output is not one the runner sets; nothing is published');
+              return;
+            }
+            core.setOutput('issue-run-started', STARTED);
+            const bad = (name) => core.setFailed(`bad-output: the run job's ${name} output is not one the runner sets; nothing is published`);
+            for (const [name, value] of [['reuse-branch', REUSE_BRANCH], ['resume-branch', RESUME_BRANCH]]) {
+              if (value !== '' && !BRANCH.test(value)) return bad(name);
+            }
+            if (BASE_SHA !== '' && !SHA.test(BASE_SHA)) return bad('base-sha');
+            if (RESUME_TIP !== '' && !SHA.test(RESUME_TIP)) return bad('resume-tip');
+            // The combinations the run job's steps make.
+            if (REUSE_BRANCH !== '' && (STARTED !== 'false' || RESUME_BRANCH !== '' || RESUME_TIP !== '')) return bad('reuse-branch');
+            if ((RESUME_BRANCH === '') !== (RESUME_TIP === '') || (RESUME_TIP !== '' && STARTED !== 'true')) return bad('resume-tip');
+            if (STARTED === 'true' && BASE_SHA === '') return bad('base-sha');
+            core.setOutput('claimed', REUSE_BRANCH !== '' || RESUME_BRANCH !== '' ? 'true' : 'false');
+            core.setOutput('reuse-branch', REUSE_BRANCH);
+            core.setOutput('resume-branch', RESUME_BRANCH);
+            core.setOutput('resume-tip', RESUME_TIP);
+            core.setOutput('base-sha', BASE_SHA);
+
+      - name: Check out the default branch tip
+        id: base
+        if: steps.issue.outcome == 'success' && steps.issue.outputs.claimed == 'true' && github.event.repository.default_branch != ''
+        continue-on-error: true
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        id: node
+        if: steps.base.outcome == 'success'
+        continue-on-error: true
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      # The run job's own earlier-work check, again, into a file of its own.
+      - name: Re-derive the earlier run's work on the issue
+        id: prior
+        if: steps.node.outcome == 'success'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ inputs.issue-number }}
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          PRIOR_OUT: ${{ runner.temp }}/issue-prior
+        run: |
+          : >"$PRIOR_OUT"
+          GITHUB_OUTPUT=$PRIOR_OUT node .base/.github/scripts/work-resolve-issue/report-outcome.mjs --find-prior
+
+      # A branch claim must be what the re-derived check chose, field for
+      # field; with no claim there is nothing to re-derive.
+      - name: Publish the checked issue fields
+        id: checked
+        if: >-
+          steps.issue.outcome == 'success'
+          && (steps.issue.outputs.claimed == 'false' || steps.prior.outcome == 'success')
+        continue-on-error: true
+        env:
+          CLAIMED: ${{ steps.issue.outputs.claimed }}
+          REUSE_BRANCH: ${{ steps.issue.outputs.reuse-branch }}
+          RESUME_BRANCH: ${{ steps.issue.outputs.resume-branch }}
+          RESUME_TIP: ${{ steps.issue.outputs.resume-tip }}
+          BASE_SHA: ${{ steps.issue.outputs.base-sha }}
+          PRIOR_OUT: ${{ runner.temp }}/issue-prior
+        run: |
+          if [ "$CLAIMED" = true ]; then
+            prior() { sed -n "s/^$1=//p" "$PRIOR_OUT" | tail -n 1; }
+            if [ "$(prior reuse-branch)" != "$REUSE_BRANCH" ] || [ "$(prior resume-branch)" != "$RESUME_BRANCH" ] ||
+              [ "$(prior resume-tip)" != "$RESUME_TIP" ]; then
+              echo "::error::bad-output: the run job's lane branch is not the one the earlier-work check chooses; nothing is published"
+              exit 1
+            fi
+          fi
+          {
+            echo "checked=true"
+            echo "reuse-branch=$REUSE_BRANCH"
+            echo "resume-branch=$RESUME_BRANCH"
+            echo "resume-tip=$RESUME_TIP"
+            echo "base-sha=$BASE_SHA"
+            echo "start-sha=${RESUME_TIP:-$BASE_SHA}"
+          } >>"$GITHUB_OUTPUT"
+
   # Everything the run job hands on leaves here, on a fresh VM that ran no
   # model or head code, with no id-token, no cache and nothing from the run
   # job but its outputs: the run-claude-cli contract puts the reporting and
@@ -2027,7 +2167,7 @@ jobs:
   # off main the environment refuses this job, so the run fails closed and
   # publishes nothing.
   scan:
-    needs: run
+    needs: [run, issue-fields]
     if: >-
       !cancelled() && (needs.run.result == 'success' || needs.run.result == 'failure')
       && needs.run.outputs.handed-off != 'true'
@@ -2053,14 +2193,6 @@ jobs:
       # output, held to its closed set, so a forged one can only hand the
       # PR to a person.
       collect-refused: ${{ steps.decode.outputs.collect-refused == 'true' && 'true' || '' }}
-      # Issue mode: the run job's pre-model fields, as the issue step checked
-      # them. Set by the job's first step, so a later failure still leaves
-      # issue-run-started for the caller's report job.
-      issue-run-started: ${{ steps.issue.outputs.issue-run-started }}
-      reuse-branch: ${{ steps.issue.outputs.reuse-branch }}
-      resume-branch: ${{ steps.issue.outputs.resume-branch }}
-      resume-tip: ${{ steps.issue.outputs.resume-tip }}
-      base-sha: ${{ steps.issue.outputs.base-sha }}
       # Set only by this job's own steps: a refused patch over its cap, or
       # any other refusal; a forged run job output can only add one.
       refused: >-
@@ -2068,61 +2200,16 @@ jobs:
         || (steps.open.outcome == 'failure' || steps.decode.outcome == 'failure' || steps.leak-scan.outcome == 'failure') && 'output'
         || '' }}
     steps:
-      # Issue mode, first, so the caller's report job still runs when a later
-      # step fails: the run job's pre-model fields, each through env and held
-      # to its closed set. A lane branch is this issue's; a resume tip must be
-      # the tip of the resume branch now, read with this job's own token, and
-      # needs a base. The start commit, the resume tip or else the base, is
-      # what the patch was made on; the scan applies the patch to it, and the
-      # apply job starts its branch from it. Any other value sets nothing
-      # but issue-run-started and fails, so nothing is published and the
-      # report job reads no outcome.
-      - name: Check the run job's issue fields
-        id: issue
+      # Issue mode: the issue-fields job's check, or nothing is published.
+      - name: Require the checked issue fields
         if: inputs.issue-number != ''
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          LANE: ${{ inputs.lane }}
-          ISSUE_NUMBER: ${{ inputs.issue-number }}
-          STARTED: ${{ needs.run.outputs.issue-run-started }}
-          REUSE_BRANCH: ${{ needs.run.outputs.reuse-branch }}
-          RESUME_BRANCH: ${{ needs.run.outputs.resume-branch }}
-          RESUME_TIP: ${{ needs.run.outputs.resume-tip }}
-          BASE_SHA: ${{ needs.run.outputs.base-sha }}
-        with:
-          retries: 0
-          script: |
-            const { LANE, ISSUE_NUMBER, STARTED, REUSE_BRANCH, RESUME_BRANCH, RESUME_TIP, BASE_SHA } = process.env;
-            const SHA = /^[0-9a-f]{40}$/;
-            const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const BRANCH = new RegExp(`^${escape(LANE)}/issue-${escape(ISSUE_NUMBER)}-[1-9][0-9]*-[1-9][0-9]*$`);
-            if (STARTED !== 'true' && STARTED !== 'false') {
-              core.setFailed('bad-output: the run job\'s issue-run-started output is not one the runner sets; nothing is published');
-              return;
-            }
-            core.setOutput('issue-run-started', STARTED);
-            const bad = (name) => core.setFailed(`bad-output: the run job's ${name} output is not one the runner sets; nothing is published`);
-            for (const [name, value] of [['reuse-branch', REUSE_BRANCH], ['resume-branch', RESUME_BRANCH]]) {
-              if (value !== '' && !BRANCH.test(value)) return bad(name);
-            }
-            if (BASE_SHA !== '' && !SHA.test(BASE_SHA)) return bad('base-sha');
-            if (RESUME_TIP !== '') {
-              if (!SHA.test(RESUME_TIP) || RESUME_BRANCH === '' || BASE_SHA === '') return bad('resume-tip');
-              let tip = '';
-              try {
-                // The branch in the path as written, as report-outcome.mjs
-                // reads it; BRANCH above allows no character it would escape.
-                tip = (await github.request(`GET /repos/{owner}/{repo}/git/ref/heads/${RESUME_BRANCH}`, context.repo)).data?.object?.sha ?? '';
-              } catch {
-                tip = '';
-              }
-              if (tip !== RESUME_TIP) return bad('resume-tip');
-            }
-            core.setOutput('reuse-branch', REUSE_BRANCH);
-            core.setOutput('resume-branch', RESUME_BRANCH);
-            core.setOutput('resume-tip', RESUME_TIP);
-            core.setOutput('base-sha', BASE_SHA);
-            core.setOutput('start-sha', RESUME_TIP || BASE_SHA);
+          CHECKED: ${{ needs.issue-fields.outputs.checked }}
+        run: |
+          if [ "$CHECKED" != true ]; then
+            echo "::error::bad-output: the run job's issue fields did not pass the issue-fields job; nothing is published"
+            exit 1
+          fi
 
       # The opener and the public key, from the default branch's tip, named
       # by the event, never by a run job output: this code runs with the
@@ -2222,6 +2309,9 @@ jobs:
           DEPENDENCY_VERDICT_BYTES: ${{ needs.run.outputs.carry-dependency-verdict-bytes }}
           WORK_OUTCOME_BYTES: ${{ needs.run.outputs.carry-work-outcome-bytes }}
           LANE_BYTES: ${{ needs.run.outputs.carry-lane-bytes }}
+          # Issue mode, as the issue-fields job checked them.
+          ISSUE_STARTED: ${{ needs.issue-fields.outputs.issue-run-started }}
+          ISSUE_RESUME: ${{ needs.issue-fields.outputs.resume-branch }}
           OPEN_DIR: ${{ steps.open.outcome == 'success' && format('{0}/scan-in', runner.temp) || '' }}
         with:
           retries: 0
@@ -2300,6 +2390,20 @@ jobs:
               if (env.ISSUE_NUMBER === '' && (present['work-outcome'] || present.lane)) {
                 refuse('payload-mismatch: a PR-mode run carried an issue outcome; nothing is published');
               }
+              // An issue run that started always carries the runner's lane.json,
+              // which names no branch yet and the branch the run resumed.
+              if (env.ISSUE_NUMBER !== '' && env.ISSUE_STARTED === 'true') {
+                if (!present.lane) refuse('payload-mismatch: an issue run that started carried no lane.json; nothing is published');
+                let lane = null;
+                try {
+                  lane = JSON.parse(fs.readFileSync(path.join(env.OPEN_DIR, 'lane.json'), 'utf8'));
+                } catch {
+                  lane = null;
+                }
+                if (lane?.branch !== '' || lane?.resume !== (env.ISSUE_RESUME ?? '')) {
+                  refuse('payload-mismatch: lane.json names a branch or a resume other than the run\'s; nothing is published');
+                }
+              }
               if (Boolean(present.patch) !== (env.PATCH_COLLECTED === 'written')) {
                 refuse('payload-mismatch: the patch does not match the state its collector reported; nothing is published');
               }
@@ -2323,7 +2427,7 @@ jobs:
         if: steps.decode.outputs.patch == 'true' && inputs.merge-conflict-tree == ''
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.issue-number != '' && steps.issue.outputs.start-sha || needs.run.outputs.head-sha }}
+          ref: ${{ inputs.issue-number != '' && needs.issue-fields.outputs.start-sha || needs.run.outputs.head-sha }}
           persist-credentials: false
 
       # PR mode: the skill ran Bash with the API key in reach, and artifacts
@@ -2355,7 +2459,7 @@ jobs:
         timeout-minutes: 10
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          HEAD_SHA: ${{ inputs.issue-number != '' && steps.issue.outputs.start-sha || needs.run.outputs.head-sha }}
+          HEAD_SHA: ${{ inputs.issue-number != '' && needs.issue-fields.outputs.start-sha || needs.run.outputs.head-sha }}
           REPLY_DIR: ${{ steps.decode.outputs.dir }}
           PATCH_FILE: ${{ steps.decode.outputs.dir }}/patch.diff
           # The caller's input, never a run job output: a merge-base patch is
@@ -2823,24 +2927,29 @@ jobs:
 
   # Issue mode, reuse: the summary pass, in its own job with a read-only
   # GITHUB_TOKEN. It starts only when the run job's issue-prior step named a
-  # reused lane branch, so that job ran no model. Every step is
+  # reused lane branch, as the issue-fields job re-derived it, so that job
+  # ran no model. Every step is
   # continue-on-error and gated on the one before it: a failed pass
   # leaves no summary and turns nothing red, and report-outcome keeps the
   # fixed text.
   summary:
-    needs: run
-    if: ${{ !cancelled() && needs.run.outputs.reuse-branch != '' }}
+    needs: [run, issue-fields]
+    if: >-
+      ${{ !cancelled() && needs.issue-fields.outputs.checked == 'true' && needs.issue-fields.outputs.reuse-branch != ''
+      && github.event.repository.default_branch != '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
     steps:
-      - name: Check out the run job's base
+      # Code from the default branch tip the event names; the checked base
+      # is only data the diff step fetches.
+      - name: Check out the default branch tip
         id: base
         continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.run.outputs.base-sha }}
+          ref: ${{ github.event.repository.default_branch }}
           path: .base
           persist-credentials: false
 
@@ -2865,8 +2974,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ inputs.issue-number }}
-          REUSE_BRANCH: ${{ needs.run.outputs.reuse-branch }}
-          BASE_SHA: ${{ needs.run.outputs.base-sha }}
+          REUSE_BRANCH: ${{ needs.issue-fields.outputs.reuse-branch }}
+          BASE_SHA: ${{ needs.issue-fields.outputs.base-sha }}
           DATA: ${{ runner.temp }}/reuse-summary-data
           SRC: ${{ runner.temp }}/reuse-summary-src
           ISSUE_FILE: ${{ runner.temp }}/reuse-summary-data/issue.json
@@ -3004,7 +3113,7 @@ jobs:
         env:
           STRUCTURED_OUTPUT: ${{ steps.summary-run.outputs.structured_output }}
           ISSUE_NUMBER: ${{ inputs.issue-number }}
-          REUSE_BRANCH: ${{ needs.run.outputs.reuse-branch }}
+          REUSE_BRANCH: ${{ needs.issue-fields.outputs.reuse-branch }}
           TIP: ${{ steps.summary-data.outputs.tip }}
           OUT_DIR: ${{ runner.temp }}/reuse-summary
         run: |

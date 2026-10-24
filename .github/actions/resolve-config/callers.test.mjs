@@ -2066,7 +2066,7 @@ test("pr-run-activity-read.yml: the scan job holds only the scan-carrier key, in
   const { jobs } = workflow("pr-run-activity-read.yml");
   const scan = jobs.scan;
   assert.equal(scan["runs-on"], "ubuntu-24.04");
-  assert.equal(scan.needs, "run");
+  assert.deepEqual(scan.needs, ["run", "issue-fields"]);
   assert.deepEqual(scan.permissions, { contents: "read" });
   assert.equal(scan.environment, "pr-pipeline-scan-carrier");
   assert.deepEqual(stepSecrets(scan), ["scan-carrier-private-key"], "the one secret in the job");
@@ -2108,7 +2108,7 @@ test("pr-run-activity-read.yml: the leak scan runs after the decode and gates ev
   const steps = scanSteps();
   const at = (id) => steps.findIndex((step) => step.id === id);
   const scan = at("leak-scan");
-  assert.deepEqual(steps.slice(0, 2).map((step) => step.id ?? step.name), ["issue", "Assert the default branch is set"]);
+  assert.deepEqual(steps.slice(0, 2).map((step) => step.id ?? step.name), ["Require the checked issue fields", "Assert the default branch is set"]);
   assert.deepEqual(["base", "key", "open", "decode"].map(at), [2, 3, 4, 5]);
   assert.ok(at("decode") < scan);
   const outputs = steps.filter((step) => (isUpload(step) && !String(step.with.name).startsWith("verdict-")) || writesSummary(step));
@@ -3000,12 +3000,17 @@ function openStep(t, runOutputs, { privateText = CARRIER.privateText, runId = CA
 
 // The env the check step reads, built from the run job's outputs as the
 // runner would pass them, and OPEN_DIR from the open step's outcome.
-function decodeEnv(runOutputs, inputs = { "issue-number": "" }, open = { status: 1, ran: false }) {
+function decodeEnv(runOutputs, inputs = { "issue-number": "" }, open = { status: 1, ran: false }, issueFields = {}) {
   const step = scanSteps().find((s) => s.id === "decode");
   const env = {};
   for (const [name, expression] of Object.entries(step.env)) {
     const output = OUTPUT_EXPRESSION.exec(expression);
     const input = /^\$\{\{ inputs\.([\w-]+) \}\}$/.exec(expression);
+    const checked = /^\$\{\{ needs\.issue-fields\.outputs\.([\w-]+) \}\}$/.exec(expression);
+    if (checked) {
+      env[name] = issueFields[checked[1]] ?? "";
+      continue;
+    }
     if (name === "OPEN_DIR") {
       const temp = open.dir ? open.dir.slice(0, -"/scan-in".length) : "/unused";
       env[name] = evaluate(expression.replace("format('{0}/scan-in', runner.temp)", JSON.stringify(`${temp}/scan-in`)), { "steps.open.outcome": open.ran ? (open.status === 0 ? "success" : "failure") : "skipped" });
@@ -3142,76 +3147,181 @@ test("scan job: a credential in the issue outcome blocks every upload", async (t
   assert.equal(upload.with.name, "work-outcome-${{ inputs.issue-number }}");
 });
 
-// The issue step: the run job's issue fields reach the caller only through
-// the scan job, held to their closed sets, and a resume tip only when it is
-// the resume branch's tip now ([h16]: nothing that picks the commit a patch
-// applies to takes a run job output unchecked).
-async function issueStep(env, branchTips = {}) {
-  const step = scanSteps().find((s) => s.id === "issue");
+// The issue-fields job: the run job's issue fields reach the caller only
+// through it, held to their closed sets and the combinations the run job's
+// steps make, with any branch claim re-derived by the earlier-work check
+// ([h16]: nothing that picks the commit a patch applies to takes a run job
+// output unchecked).
+const issueFieldsJob = () => workflow("pr-run-activity-read.yml").jobs["issue-fields"];
+async function issueStep(env) {
+  const step = issueFieldsJob().steps.find((s) => s.id === "issue");
   const outputs = {};
   let failed = null;
   const core = { setOutput: (name, value) => (outputs[name] = value), setFailed: (message) => (failed = message) };
-  const calls = [];
-  // The route as report-outcome.mjs reads a lane branch: the name unescaped in the path.
-  const github = {
-    request: async (route, { owner, repo }) => {
-      assert.deepEqual({ owner, repo }, { owner: "o", repo: "r" });
-      const branch = /^GET \/repos\/\{owner\}\/\{repo\}\/git\/ref\/heads\/(.+)$/.exec(route)?.[1];
-      assert.ok(branch, route);
-      calls.push(branch);
-      if (!Object.hasOwn(branchTips, branch)) throw new Error("Not Found");
-      return { data: { object: { sha: branchTips[branch] } } };
-    },
-  };
   const { createRequire } = await import("node:module");
   const full = { LANE: "work-resolve-issue", ISSUE_NUMBER: "7", STARTED: "true", REUSE_BRANCH: "", RESUME_BRANCH: "", RESUME_TIP: "", BASE_SHA: "b".repeat(40), ...env };
-  await new AsyncFunction("require", "core", "github", "context", "process", step.with.script)(createRequire(import.meta.url), core, github, SCAN_CONTEXT, { env: full });
-  return { outputs, failed, calls };
+  await new AsyncFunction("require", "core", "github", "context", "process", step.with.script)(createRequire(import.meta.url), core, {}, SCAN_CONTEXT, { env: full });
+  return { outputs, failed };
 }
 
-test("scan job: the issue step passes the run job's issue fields on only when each holds and a resume tip is its branch's tip", async () => {
-  const steps = scanSteps();
-  assert.equal(steps[0].id, "issue", "first, so a later failure still leaves issue-run-started");
-  assert.equal(evaluate(steps[0].if, { "inputs.issue-number": "7" }), true);
-  assert.equal(evaluate(steps[0].if, { "inputs.issue-number": "" }), false);
+// Liveness: the job that hands issue-run-started to the caller runs whatever
+// the run job's result but skipped, in issue mode only, and holds no
+// environment, so a cancelled or timed-out run job, or a scan job the
+// environment never admits, still leaves the report job its gate.
+test("pr-run-activity-read.yml: issue-fields runs after any run job result but skipped, with no environment, and every issue output is its", () => {
+  const read = workflow("pr-run-activity-read.yml");
+  const job = read.jobs["issue-fields"];
+  assert.equal(job.needs, "run");
+  assert.equal(job.environment, undefined);
+  assert.deepEqual(job.permissions, { contents: "read", "pull-requests": "read" });
+  assert.match(job.if, /^always\(\)/);
+  for (const result of ["success", "failure", "cancelled"]) {
+    assert.equal(evaluate(job.if.replace(/^always\(\) && /, ""), { "inputs.issue-number": "7", "needs.run.result": result }), true, result);
+  }
+  assert.equal(evaluate(job.if.replace(/^always\(\) && /, ""), { "inputs.issue-number": "7", "needs.run.result": "skipped" }), false);
+  assert.equal(evaluate(job.if.replace(/^always\(\) && /, ""), { "inputs.issue-number": "", "needs.run.result": "success" }), false);
+  // A refusal ends the job green, so its outputs reach the caller.
+  for (const step of job.steps) assert.equal(step["continue-on-error"], true, step.name);
+  const outputs = read.on.workflow_call.outputs;
+  for (const name of ["issue-run-started", "reuse-branch", "resume-branch", "resume-tip", "base-sha"]) {
+    assert.equal(outputs[`scan-${name}`].value, `\${{ jobs.issue-fields.outputs.${name} }}`, name);
+  }
+  assert.equal(job.outputs["issue-run-started"], "${{ steps.issue.outputs.issue-run-started }}");
+  for (const name of ["checked", "reuse-branch", "resume-branch", "resume-tip", "base-sha", "start-sha"]) {
+    assert.equal(job.outputs[name], `\${{ steps.checked.outputs.${name} }}`, name);
+  }
+  // The scan job publishes nothing in issue mode unless the fields were checked.
+  const require = read.jobs.scan.steps[0];
+  assert.equal(require.name, "Require the checked issue fields");
+  assert.equal(spawnSync("bash", ["-c", require.run], { env: { PATH: process.env.PATH, CHECKED: "" } }).status, 1);
+  assert.equal(spawnSync("bash", ["-c", require.run], { env: { PATH: process.env.PATH, CHECKED: "true" } }).status, 0);
+});
+
+test("issue-fields: the issue step holds each field to its closed set and to the combinations the run job makes", async () => {
   const base = "b".repeat(40);
   const tip = "c".repeat(40);
   const branch = "work-resolve-issue/issue-7-123-1";
   const fresh = await issueStep({});
   assert.equal(fresh.failed, null);
-  assert.deepEqual(fresh.outputs, { "issue-run-started": "true", "reuse-branch": "", "resume-branch": "", "resume-tip": "", "base-sha": base, "start-sha": base });
-  const resumed = await issueStep({ RESUME_BRANCH: branch, RESUME_TIP: tip }, { [branch]: tip });
-  assert.equal(resumed.failed, null);
-  assert.deepEqual([resumed.outputs["resume-tip"], resumed.outputs["start-sha"], resumed.calls], [tip, tip, [branch]]);
+  assert.deepEqual(fresh.outputs, { "issue-run-started": "true", claimed: "false", "reuse-branch": "", "resume-branch": "", "resume-tip": "", "base-sha": base });
+  const resumed = await issueStep({ RESUME_BRANCH: branch, RESUME_TIP: tip });
+  assert.deepEqual([resumed.failed, resumed.outputs.claimed, resumed.outputs["resume-tip"]], [null, "true", tip]);
   const reused = await issueStep({ STARTED: "false", REUSE_BRANCH: branch });
-  assert.deepEqual([reused.failed, reused.outputs["issue-run-started"], reused.outputs["reuse-branch"]], [null, "false", branch]);
-  // A forged field sets only issue-run-started, so the report job still runs and finds no outcome.
-  for (const [name, env, tips] of [
-    ["a tip the branch does not hold", { RESUME_BRANCH: branch, RESUME_TIP: tip }, { [branch]: "e".repeat(40) }],
-    ["a branch that is gone", { RESUME_BRANCH: branch, RESUME_TIP: tip }, {}],
-    ["a tip with no branch", { RESUME_TIP: tip }, {}],
-    ["another issue's branch", { RESUME_BRANCH: "work-resolve-issue/issue-8-123-1", RESUME_TIP: tip }, { "work-resolve-issue/issue-8-123-1": tip }],
-    ["another lane's branch", { REUSE_BRANCH: "pr-unblock/issue-7-123-1" }, {}],
-    ["a base that is no commit id", { BASE_SHA: "main" }, {}],
+  assert.deepEqual([reused.failed, reused.outputs.claimed, reused.outputs["reuse-branch"]], [null, "true", branch]);
+  // A refused field sets only issue-run-started.
+  for (const [name, env] of [
+    ["another issue's branch", { RESUME_BRANCH: "work-resolve-issue/issue-8-123-1", RESUME_TIP: tip }],
+    ["another lane's branch", { STARTED: "false", REUSE_BRANCH: "pr-unblock/issue-7-123-1" }],
+    ["a base that is no commit id", { BASE_SHA: "main" }],
+    ["a reuse that started the skill", { REUSE_BRANCH: branch }],
+    ["a reuse beside a resume", { STARTED: "false", REUSE_BRANCH: branch, RESUME_BRANCH: branch, RESUME_TIP: tip }],
+    ["a resume tip with no branch", { RESUME_TIP: tip }],
+    ["a resume branch with no tip", { RESUME_BRANCH: branch }],
+    ["a resume that started no skill", { STARTED: "false", RESUME_BRANCH: branch, RESUME_TIP: tip }],
+    ["a started run with no base", { BASE_SHA: "" }],
   ]) {
-    const result = await issueStep(env, tips);
+    const result = await issueStep(env);
     assert.match(String(result.failed), /^bad-output: /, name);
-    assert.deepEqual(result.outputs, { "issue-run-started": "true" }, name);
+    assert.deepEqual(result.outputs, { "issue-run-started": env.STARTED ?? "true" }, name);
   }
   const unset = await issueStep({ STARTED: "" });
   assert.match(String(unset.failed), /^bad-output: the run job's issue-run-started/);
   assert.deepEqual(unset.outputs, {});
 });
 
-test("work-resolve-issue.yml: every resolve-issue output a job reads is the read runner's scan job's", () => {
+// Branch eligibility: a branch claim is published only when the default-tip
+// earlier-work check, run again, chooses the same reuse branch, resume branch
+// and tip; the check's own rules (App commits, not behind, not rejected)
+// then hold for the branch the caller gets.
+test("issue-fields: a branch claim is published only when the re-derived earlier-work check chooses the same branch and tip", (t) => {
+  const job = issueFieldsJob();
+  const prior = job.steps.find((s) => s.id === "prior");
+  assert.match(prior.run, /node \.base\/\.github\/scripts\/work-resolve-issue\/report-outcome\.mjs --find-prior$/m);
+  assert.equal(job.steps.find((s) => s.id === "base").with.ref, "${{ github.event.repository.default_branch }}");
+  const checked = job.steps.find((s) => s.id === "checked");
+  assert.equal(evaluate(checked.if, { "steps.issue.outcome": "success", "steps.issue.outputs.claimed": "true", "steps.prior.outcome": "failure" }), false, "a claim whose re-derive failed");
+  assert.equal(evaluate(checked.if, { "steps.issue.outcome": "success", "steps.issue.outputs.claimed": "false", "steps.prior.outcome": "skipped" }), true, "no claim needs no re-derive");
+  const root = mkdtempSync(join(tmpdir(), "issue-fields-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const branch = "work-resolve-issue/issue-7-123-1";
+  const tip = "c".repeat(40);
+  const base = "b".repeat(40);
+  const publish = (claim, priorLines) => {
+    const priorOut = join(root, "prior");
+    const output = join(root, "output");
+    writeFileSync(priorOut, priorLines);
+    writeFileSync(output, "");
+    const result = runStep(checked, root, { CLAIMED: "true", REUSE_BRANCH: "", RESUME_BRANCH: "", RESUME_TIP: "", BASE_SHA: base, ...claim, PRIOR_OUT: priorOut, GITHUB_OUTPUT: output });
+    return { status: result.status, stdout: result.stdout, outputs: outputLines(output) };
+  };
+  const resume = { RESUME_BRANCH: branch, RESUME_TIP: tip };
+  const same = publish(resume, `proceed=true\nreuse-branch=\nresume-branch=${branch}\nresume-tip=${tip}\nresume-cause=turn-cap\n`);
+  assert.equal(same.status, 0, same.stdout);
+  assert.deepEqual(same.outputs, { checked: "true", "reuse-branch": "", "resume-branch": branch, "resume-tip": tip, "base-sha": base, "start-sha": tip });
+  for (const [name, lines] of [
+    ["another tip", `proceed=true\nreuse-branch=\nresume-branch=${branch}\nresume-tip=${"e".repeat(40)}\n`],
+    ["no resume now (the branch is behind, rejected or not the App's)", "proceed=true\nreuse-branch=\n"],
+    ["another branch", `proceed=true\nreuse-branch=\nresume-branch=work-resolve-issue/issue-7-124-1\nresume-tip=${tip}\n`],
+  ]) {
+    const result = publish(resume, lines);
+    assert.equal(result.status, 1, name);
+    assert.match(result.stdout, /^::error::bad-output: /m, name);
+    assert.deepEqual(result.outputs, {}, name);
+  }
+  const reuse = publish({ REUSE_BRANCH: branch }, "proceed=false\nskip-reason=not-applicable\nreuse-branch=\n");
+  assert.equal(reuse.status, 1, "a reuse the check does not choose");
+  const fresh = publish({ CLAIMED: "false" }, "");
+  assert.deepEqual([fresh.status, fresh.outputs["start-sha"]], [0, base]);
+});
+
+// lane.json is the runner's record: an issue run that started carries it,
+// naming no branch yet and exactly the branch the run resumed
+// (report-outcome.mjs reads branch and resume from it).
+test("scan job: an issue run that started must carry lane.json, with no branch and the checked resume", async (t) => {
+  const lane = (fields) => JSON.stringify({ branch: "", class: "", resets: "", "max-turns": "50", resume: "", failed: "false", "api-error-status": "", "error-text": "", ...fields });
+  const branch = "work-resolve-issue/issue-7-123-1";
+  const decodeIssue = async (files, issueFields) => {
+    const outputs = runOutputsAfterCarry(t, files, { issue: true });
+    const open = openStep(t, outputs);
+    return decode(t, decodeEnv({ ...outputs, "patch-collected": "" }, { "issue-number": "7" }, open, issueFields));
+  };
+  const started = { "issue-run-started": "true", "resume-branch": "" };
+  assert.equal((await decodeIssue({ "work-outcome/lane.json": lane({}) }, started)).failed, null);
+  assert.equal((await decodeIssue({ "work-outcome/lane.json": lane({ resume: branch }) }, { ...started, "resume-branch": branch })).failed, null);
+  for (const [name, files, fields] of [
+    ["no lane.json", { "skill-reply/reply.txt": "ok\n" }, started],
+    ["a branch already named", { "work-outcome/lane.json": lane({ branch }) }, started],
+    ["a resume the run did not make", { "work-outcome/lane.json": lane({ resume: branch }) }, started],
+    ["no resume on a resumed run", { "work-outcome/lane.json": lane({}) }, { ...started, "resume-branch": branch }],
+    ["lane.json that does not parse", { "work-outcome/lane.json": "{" }, started],
+  ]) {
+    const { failed } = await decodeIssue(files, fields);
+    assert.match(String(failed), /^payload-mismatch: /, name);
+  }
+  // A run that did not start (a reuse or a stale stop) carries nothing.
+  assert.equal((await decodeIssue({ "skill-reply/reply.txt": "ok\n" }, { "issue-run-started": "false" })).failed, null);
+});
+
+// The reuse summary job runs code from the default branch tip only, and
+// takes its branch and base from the issue-fields job's checked outputs.
+test("pr-run-activity-read.yml: the reuse summary job takes code from the default branch tip and its branch and base from issue-fields", () => {
+  const job = workflow("pr-run-activity-read.yml").jobs.summary;
+  assert.deepEqual(job.needs, ["run", "issue-fields"]);
+  assert.equal(job.steps.find((s) => s.id === "base").with.ref, "${{ github.event.repository.default_branch }}");
+  const text = JSON.stringify(job);
+  assert.doesNotMatch(text, /needs\.run\.outputs/);
+  const ctx = (checked, reuse) => ({ "needs.issue-fields.outputs.checked": checked, "needs.issue-fields.outputs.reuse-branch": reuse, "github.event.repository.default_branch": "main" });
+  const runs = (c) => evaluate(job.if.replace(/^\$\{\{ |\s*\}\}$/g, "").replace(/!cancelled\(\) && /, ""), c);
+  assert.equal(runs(ctx("true", "work-resolve-issue/issue-7-1-1")), true);
+  assert.equal(runs(ctx("", "work-resolve-issue/issue-7-1-1")), false, "an unchecked reuse branch runs no summary");
+});
+
+test("work-resolve-issue.yml: every resolve-issue output a job reads is the read runner's scan or issue-fields job's", () => {
   const { jobs } = workflow("work-resolve-issue.yml");
   const outputs = workflow("pr-run-activity-read.yml").on.workflow_call.outputs;
   const names = [...new Set([...JSON.stringify(jobs).matchAll(/needs\.resolve-issue\.outputs\.([\w-]+)/g)].map((m) => m[1]))].sort();
   assert.deepEqual(names, ["scan-base-sha", "scan-issue-run-started", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt", "scan-resume-branch", "scan-resume-tip", "scan-reuse-branch"]);
-  for (const name of names) assert.match(outputs[name].value, /^\$\{\{ jobs\.scan\.outputs\.[\w-]+ \}\}$/, name);
-  for (const name of ["issue-run-started", "reuse-branch", "resume-branch", "resume-tip", "base-sha"]) {
-    assert.equal(workflow("pr-run-activity-read.yml").jobs.scan.outputs[name], `\${{ steps.issue.outputs.${name} }}`, name);
-  }
+  for (const name of names) assert.match(outputs[name].value, /^\$\{\{ jobs\.(scan|issue-fields)\.outputs\.[\w-]+ \}\}$/, name);
 });
 
 test("scan job: a re-run at another attempt of the same run opens; a bundle from another run, or opened with another key, fails closed without rotation", async (t) => {

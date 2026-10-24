@@ -112,11 +112,10 @@ or is cancelled in PR mode, the `scan-refusal` job, which needs the scan job alo
 `scan-refused-<lane>-<activity>-<attempt>` holding `patch` when the scan refused a patch over its
 cap and `output` otherwise. In the write file, `review-replies` and `dependency-verdict` download
 every such marker for the model call's activity in the run, and the reply and verdict scripts
-read a marker, or a failed download, as the refusal. In issue mode no marker is written: the scan
-job sets `scan-issue-run-started` in its first step, so the caller's report job still runs on a
-failed scan, finds no outcome and stops the run. That rests on a failed job's outputs reaching the
-caller, which is not documented either; the first issue run whose scan fails shows it. A forged marker only hands the round to a
-person.
+read a marker, or a failed download, as the refusal. A forged marker only hands the round to a
+person. In issue mode no marker is written: the [issue-fields job](#the-issue-fields-job), which
+ends green, sets `scan-issue-run-started`, so the caller's report job still runs on a failed or
+skipped scan, finds no outcome and stops the run.
 
 Secrets are passed by name, never `inherit`: `claude-code-oauth-token` (skill activities, both
 files) and, in the read file, `claude-api-key` (a PR-mode skill's first call), one of the two
@@ -1304,8 +1303,8 @@ parents, message and trailer, and the row's escalation reasons.
 
 ## The scan job
 
-Read file: runs after the run job when it succeeded or failed, unless the run was cancelled or the
-call handed off, on a fresh `ubuntu-24.04` VM, in the `pr-pipeline-scan-carrier` environment. It
+Read file: runs after the run job (and in issue mode the issue-fields job) when the run job
+succeeded or failed, unless the run was cancelled or the call handed off, on a fresh `ubuntu-24.04` VM, in the `pr-pipeline-scan-carrier` environment. It
 holds `contents: read`, one secret (`SCAN_CARRIER_PRIVATE_KEY`, that environment's, which each
 caller passes by name as `scan-carrier-private-key`, read by its open step alone), no `id-token`, no cache, and nothing from the run job but its outputs. run-claude-cli's
 contract puts the reporting and uploads of a lane that grants unrestricted Bash in a downstream
@@ -1329,13 +1328,9 @@ id and the `run` job, as `carry-sealed-length` and `carry-sealed-<n>` job output
 chunks of 98304 characters, each fitting one environment variable). None is a `workflow_call`
 output, so no caller can echo one.
 
-In issue mode the job's first step, so that a later failure still leaves `issue-run-started` for
-the caller, checks the run job's issue fields from `env`: `issue-run-started` is `true` or
-`false`, a reuse or resume branch has the issue's lane-branch shape, `base-sha` and `resume-tip`
-are commit ids, and a resume tip has a base and is the resume branch's tip now (with
-the scan job's read token, from `git/ref/heads/<branch>`). The start commit, the resume tip or else the base, is what the patch
-was made on. Any other value sets only `issue-run-started` and fails the job, so nothing is
-published and the report job reads no outcome. Then, in order:
+In issue mode its first step fails the job, publishing nothing, unless the issue-fields job
+checked the run job's issue fields; the start commit and the resume branch come from that job.
+Then, in order:
 
 1. Checks out the default branch tip the event names, never a run job output (sparse: the opener
    and the key file), reads the key id, and
@@ -1352,6 +1347,8 @@ published and the report job reads no outcome. Then, in order:
    - `too-large`: a byte count over the cap;
    - `payload-mismatch`: a byte count with no opened payload, an opened payload with none or of
      another size, or a patch that does not match the state its collector reported;
+   - in issue mode, `payload-mismatch` too for a run that started and carried no `lane.json`, or
+     one whose `branch` is not empty or whose `resume` is not the checked resume branch;
    - `bad-output`: a run job output set after head code (`skip-reason`, `dirty-tree`,
      `patch-collected`, `act-outcome`, `lane-class`) or a gate field outside its closed set, or an
      issue outcome a PR-mode run carried.
@@ -1379,8 +1376,32 @@ published and the report job reads no outcome. Then, in order:
    before head code skips the scan and still posts its skip; a scan hit leaves no verdict.
 
 Its `patch-state`, `patch-sha256`, `patch-attempt` and `reply-attempt` outputs are the read
-file's in both modes, and its issue fields are the read file's `scan-*` issue outputs. The run
-job uploads nothing and shows no model text in a step summary, in either mode.
+file's in both modes. The run job's steps upload nothing and show no model text in a step summary,
+in either mode, so in this file the scan job is the only uploader. That holds for the YAML, not
+for a hostile run job: code on its runner holds the job's own artifact credentials and can upload
+under any name the run has not taken. No consumer binds an artifact to the job that uploaded it.
+
+## The issue-fields job
+
+Read file, issue mode only: runs after the run job whatever its result, unless it was skipped, with
+`contents: read` and `pull-requests: read`, no environment and no secret, so a run job that was
+cancelled or timed out, or a scan job the environment never admitted, still leaves the caller its
+report gate. It checks the run job's pre-model issue fields from `env`, each in a
+`continue-on-error` step, so the job ends green and its outputs reach the caller:
+
+1. `issue-run-started` is `true` or `false`, and is the job's output whatever follows. A reuse or
+   resume branch has the issue's lane-branch shape, and `base-sha` and `resume-tip` are commit ids.
+   The combination is one the run job's steps make: a reuse branch comes with `false` and no
+   resume; a resume branch comes with its tip and `true`; a started run has a base.
+2. A branch claim is re-derived: `report-outcome.mjs --find-prior`, from the default branch tip
+   with this job's read-only token, must choose the same reuse branch, resume branch and tip, so the
+   branch also meets that check's rules (its commits the lanes App's, not behind the default
+   branch, not handed back).
+3. Only then does it set `checked` and the read file's `scan-base-sha`, `scan-resume-tip`,
+   `scan-reuse-branch` and `scan-resume-branch` outputs, and the start commit (the resume tip, else
+   the base) the scan job applies the patch to. A refusal leaves them empty: the scan job then
+   publishes nothing, and the report job, with `scan-issue-run-started` `true`, reads no outcome
+   and stops the run.
 
 ### Leak-scan limits
 
@@ -1398,8 +1419,9 @@ Recorded, not fixed:
   skill's verdict`), though no issue lane runs a gate skill, and the summary job's reuse summary
   is uploaded unscanned. Both run on claude-code-action, which 6b replaces.
 - On a resumed issue run the scan covers this run's patch and outcome, not the earlier run's
-  commits on the branch it resumes; those were scanned when that run made them, unless the branch
-  predates issue-mode scanning.
+  commits on the branch it resumes, and a reused branch's commits reach a PR with no scan at
+  reuse. Those commits were scanned when their run made them, against the pattern list of that
+  day, unless the branch predates issue-mode scanning (GAPS X5).
 - A leaked scan-carrier private key also opens the payloads the scan blocked, which stay in the
   run's job outputs as ciphertext. Rotate the key on a block, as the rotation line says.
 - The verdict's step outcomes, `act-outcome` among them, come from the run job, which a hostile
@@ -1410,14 +1432,15 @@ Recorded, not fixed:
 
 ## The summary job
 
-Read file, issue mode only: runs after the run job, unless the run was cancelled, when the run
-job's `reuse-branch` output is not empty. It holds `contents: read` and nothing else, and it
+Read file, issue mode only: runs after the run job and the issue-fields job, unless the run was
+cancelled, when the issue-fields job checked a non-empty reuse branch. It holds `contents: read` and nothing else, and it
 times out after 20 minutes. Every step is
 `continue-on-error` and runs only when the one before it succeeded, so a failed or limit-stopped
 pass turns no job red and leaves no summary. In order:
 
-1. Checks out the run job's `base-sha` to `.base` with `persist-credentials: false`, and sets up
-   Node.
+1. Checks out the default branch tip the event names to `.base` with
+   `persist-credentials: false`, and sets up Node. The checked base commit is only data the diff
+   step fetches; no code runs from it.
 2. Fails unless the issue number, base SHA and `reuse-branch` have their runner shapes (the branch
    is this issue's lane branch). With the job's `GITHUB_TOKEN`, `write-issue.mjs` writes the issue,
    frozen as the skill would get it. A blobless fetch of the base and the branch into a repository
@@ -1831,11 +1854,14 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   limit), so partial work reaches a branch a resumed run continues. A failed skill step fails the
   job unless it is only the turn cap on a successful result. The skill's `work-outcome.json` and
   the runner's `lane.json` (no branch yet, and on a resume the resumed branch) are uploaded as the
-  `work-outcome-<n>` artifact by the scan job, sealed to it like the patch, and the output
+  `work-outcome-<n>` artifact by the scan job, sealed to it like the patch. The runner keeps at
+  most the first 48 KiB of `work-outcome.json`: a longer file is cut, no longer parses, and
+  report-outcome hands the issue back as an invalid outcome, so a skill keeps its outcome under
+  that cap. The output
   `scan-issue-run-started` is `true` once the run chose to run the skill, before any model turn.
   The read file also outputs `scan-base-sha` and `scan-resume-tip`, the commit the patch was made
-  on; every issue output reaches the caller through the scan job's checks
-  ([The scan job](#the-scan-job)).
+  on; every issue output reaches the caller through the
+  [issue-fields job](#the-issue-fields-job)'s checks.
 - `apply-issue-patch` runs when the patch is `written` ([prepare: apply-patch](#prepare-apply-patch),
   issue target): it makes `<lane>/issue-<n>-<run id>-<attempt>` (the attempt the patch's), with one
   commit, at `patch-resume-tip` or else `patch-base-sha`, which must be on the default branch,

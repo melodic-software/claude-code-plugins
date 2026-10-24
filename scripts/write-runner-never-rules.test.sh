@@ -298,8 +298,9 @@ const sById = (id) => ssteps.find((s) => s.id === id) ?? {};
 const summaryIds = ["summary-data", "summary-models", "summary-prompt", "summary-run", "summary-collect"];
 say(!rsteps.some((s) => summaryIds.includes(s.id) || /claude-code-action/.test(s.uses ?? "") && s.id !== "act-skill"),
   "the run job runs no summary step and no model step but the skill");
-say(sjob.needs === "run" && /needs\.run\.outputs\.reuse-branch != ''/.test(String(sjob.if ?? "")) && /!cancelled\(\)/.test(String(sjob.if ?? "")),
-  "the summary job runs after the run job, only on its reuse-branch output");
+say(JSON.stringify(sjob.needs) === '["run","issue-fields"]' && /needs\.issue-fields\.outputs\.reuse-branch != ''/.test(String(sjob.if ?? ""))
+  && /needs\.issue-fields\.outputs\.checked == 'true'/.test(String(sjob.if ?? "")) && /!cancelled\(\)/.test(String(sjob.if ?? "")),
+  "the summary job runs after the run and issue-fields jobs, only on the checked reuse branch");
 say(JSON.stringify(sjob.permissions) === JSON.stringify({ contents: "read" }),
   "the summary job holds contents: read and nothing else, no id-token");
 say(rwf.jobs.run.outputs?.["reuse-branch"] === "${{ steps.issue-prior.outputs.reuse-branch }}",
@@ -309,9 +310,9 @@ say(ssteps.length > 0 && ssteps.every((s) => s["continue-on-error"] === true),
 say(summaryIds.every((id) => sById(id).id === id) && !/lane-token/.test(JSON.stringify(sjob)),
   "the summary job has every summary step and reads no lane token");
 const sBase = ssteps.find((s) => /actions\/checkout/.test(s.uses ?? "")) ?? {};
-say(sBase.with?.ref === "${{ needs.run.outputs.base-sha }}" && sBase.with?.["persist-credentials"] === false
+say(sBase.with?.ref === "${{ github.event.repository.default_branch }}" && sBase.with?.["persist-credentials"] === false
   && ssteps.filter((s) => /actions\/checkout/.test(s.uses ?? "")).length === 1,
-  "the summary job checks out only the run job's trusted base, without persisted credentials");
+  "the summary job takes its code only from the default branch tip, without persisted credentials");
 const summaryData = sById("summary-data");
 say(summaryData.env?.GITHUB_TOKEN === "${{ github.token }}" && /GIT_CONFIG_GLOBAL=\/dev\/null/.test(summaryData.run ?? "")
   && /--filter=blob:none/.test(summaryData.run ?? "")
@@ -331,7 +332,7 @@ say(/--setting-sources user/.test(String(summaryRun.with?.claude_args ?? "")) &&
   && /mcp__github_file_ops/.test(summaryArgs) && /--json-schema/.test(summaryArgs) && /openssl rand -hex/.test(summaryArgs),
   "the summary model reads the data directory and nothing else, under dontAsk, and returns structured output");
 const summaryCollect = sById("summary-collect");
-say(summaryCollect.env?.REUSE_BRANCH === "${{ needs.run.outputs.reuse-branch }}"
+say(summaryCollect.env?.REUSE_BRANCH === "${{ needs.issue-fields.outputs.reuse-branch }}"
   && summaryCollect.env?.TIP === "${{ steps.summary-data.outputs.tip }}" && /try fromjson catch null/.test(summaryCollect.run ?? ""),
   "the summary file binds the model's output to the runner's branch and tip");
 const summaryDownload = steps.find((s) => s.name === "Download the reused branch's summary");
