@@ -76,10 +76,10 @@ for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-
   caller="$ROOT/.github/workflows/$file"
   if grep -qxF "  $job" "$caller" && grep -qxF '      publish: comments' "$caller" &&
     grep -qxF '      hold-label: needs-human' "$caller" &&
-    grep -qE '^    uses: melodic-software/ci-workflows/\.github/workflows/pr-review-cli\.yml@31b44f3ffc7f208fb281dd2b64decce67c53d316 # v0\.65\.4$' "$caller"; then
-    ok "$file calls pr-review-cli v0.65.4 as job ${job%:} with publish: comments and hold-label: needs-human"
+    grep -qE '^    uses: melodic-software/ci-workflows/\.github/workflows/pr-review-cli\.yml@f1096608192c54cfb3dc252e36670e6f86700b9b # v0\.65\.5$' "$caller"; then
+    ok "$file calls pr-review-cli v0.65.5 as job ${job%:} with publish: comments and hold-label: needs-human"
   else
-    fail "$file lost its job id, publish: comments, hold-label or v0.65.4 pin"
+    fail "$file lost its job id, publish: comments, hold-label or v0.65.5 pin"
   fi
   paths="$(awk '/^      hold-paths: \|$/ { on = 1; next } on && /^        / { sub(/^ +/, ""); print; next } on { exit }' "$caller")"
   if [[ "$paths" == $'.github/standards/trusted-actors/**\n.github/actions/check-trusted-trigger/**\n**/CODEOWNERS\n**/.gitmodules' ]]; then
