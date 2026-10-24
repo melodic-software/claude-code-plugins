@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.24.3] - 2026-10-24
+
+### Changed
+
+- The fable-5 orchestration chapter names `/multi-agent:assess` as the owner of the workflow, subagent or single verdict.
+
 ## [0.24.2] - 2026-10-24
 
 ### Added
