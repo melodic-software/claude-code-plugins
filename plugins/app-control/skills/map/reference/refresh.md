@@ -52,6 +52,11 @@ The path argument, when given, is one of:
   `control-<s>` shape), and to the real-path checks; refused, the outcome is **blocked** with the
   rule it breaks. The person passes this path; refresh reads no testing setting to find it.
 
+A feature id in place of a path names the control skill whose `features/<id>/README.md` exists
+(with several, an attended pass asks which; an unattended one is **blocked**, naming them). Steps 4
+and 5 then cover that feature only, and a clean outcome skips the `record` command, since the other
+features went unchecked.
+
 Without an argument, take each `.claude/skills/control-*/` directory; with several, an attended pass
 asks which and an unattended one refreshes each in turn, one branch per skill. With none, and no
 legacy map at `.claude/skills/feature-map/`, the outcome is **blocked**: no control skill exists,
@@ -130,7 +135,7 @@ Sort every difference between the control skill and the app:
 
 | Class | What the passes show | Where it goes |
 |---|---|---|
-| Doc drift | The app works and the files describe it wrongly: a renamed handle, a moved route, a missing or extra entry point, a stale gotcha, a changed step order, a missing prerequisite | A correction to the feature file or hub, in the contract's shape, with the index's entry-point counts and `sources` globs kept true. Ships in the pull request |
+| Doc drift | The app works and the files describe it wrongly: a renamed handle, a moved route, a missing or extra entry point, a stale gotcha, a changed step order, a missing prerequisite, a lesson to place (SKILL.md Lessons) | A correction to the feature file or hub, in the contract's shape, with the index's entry-point counts and `sources` globs kept true. Ships in the pull request |
 | Driver gap | The behavior works but the control skill cannot drive it: a `cli/` command that fails or is missing, a Ready that misses a wedged app | A fix in `cli/` or the hub, documented in `cli/README.md`, then that feature driven again live; it ships only when that re-drive passes, else it goes in the report unwritten. Never a floor loosened |
 | Product regression | A behavior the files list is gone, or fails against a healthy app | The entry stays as written: the control skill never records a lost behavior as current. Written up through `/bugs:write` when it is enabled, else in the report with drive's evidence. Kept out of the pull request |
 | Not mapped | A user-facing feature the control skill does not list | The report |
@@ -206,6 +211,7 @@ A conversion is doc work and rides the same upkeep pull request as the pass's ot
 - the driving tool and the hub line naming it;
 - each edit, by triage class, with the `file:line` or drive evidence behind it;
 - each regression and whether it went to `/bugs:write`;
+- each lesson and the Gotchas it went to, or that it is left for `/corrections:codify`;
 - the features found but not mapped;
 - any `feature-map-upkeep/<slug>` branch found, reported and not adopted;
 - for a conversion, the old and new paths, and the pointer and setting left to change;

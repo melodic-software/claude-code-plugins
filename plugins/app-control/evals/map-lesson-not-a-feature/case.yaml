@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: map-lesson-not-a-feature
+description: Refresh writes nothing into the control skill for a lesson that is not about driving the app and leaves it for /corrections:codify
+tags: [map, refresh, lessons, invented]
+expected_outcome: "The reply says the dist/ staging lesson is not about a feature or a drive step, writes it into no file of .claude/skills/control-clockwork/ (neither a feature's Gotchas nor the hub's), reports it for /corrections:codify to place, says the outcome is clean because nothing else differs, names no instruction-placement or write-for-agents skill, and writes nothing."
+execution:
+  prompt: "/app-control:map refresh .claude/skills/control-clockwork. Do not read the repository, drive the app or write any file. Treat the source wave and the live pass as already run; every feature drove as written and Ready passed. A /verification:confirm report handed in one lesson: agents in this repository keep staging the generated dist/ folder in their commits, and it should never be committed. Say where the lesson goes, what you would write and where, and the outcome, then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 6
+  timeout_seconds: 300
+graders:
+  - name: names-codify
+    type: regex
+    pattern: '/corrections:codify'
+    arm: both
+  - name: hands-off-writes-nothing
+    type: llm
+    criteria: "PASS only if the reply (1) says the lesson is not about a feature or a drive step of the app, (2) writes or plans to write it into no file under .claude/skills/control-clockwork/, including the hub's and every feature's Gotchas, (3) leaves it for /corrections:codify to place, and (4) calls the outcome clean, with no upkeep commit or pull request for this lesson. FAIL if it puts the lesson in any Gotchas section or other control skill file, writes it into an instruction file itself, names /instruction-placement or /docs-hygiene:write-for-agents as where it goes, or opens a pull request for it."

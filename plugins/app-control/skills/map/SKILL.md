@@ -1,6 +1,6 @@
 ---
 description: "Generate a project's control skill (its control-* skill) to the app-control contract: discover the repository first, ask only what discovery left open, write the hub, feature folders, config and driver CLI, then prove it once through /app-control:drive; check lists contract breaks, editing nothing; refresh brings it back in line with the app, or converts a testing feature map, through one upkeep pull request. Use when: 'create a control skill', 'map the features of this app', 'write a feature map', 'set up app control for this repo', 'check the control skill', 'refresh the control skill', 'refresh the feature map'."
-argument-hint: "[create [<app>] | check [<dir>] | refresh [<path>]] [--dir .claude/skills/control-<slug>] [--unattended]"
+argument-hint: "[create [<app>] | check [<dir>] | refresh [<path> | <feature>]] [--dir .claude/skills/control-<slug>] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Generate, prove and keep current a control skill /app-control:drive runs
 ---
 
-**Arguments.** `[create [<app>] | check [<dir>] | refresh [<path>]] [--dir .claude/skills/control-<slug>] [--unattended]`.
+**Arguments.** `[create [<app>] | check [<dir>] | refresh [<path> | <feature>]] [--dir .claude/skills/control-<slug>] [--unattended]`.
 e.g. /app-control:map create storefront, /app-control:map check .claude/skills/control-storefront, or
 /app-control:map refresh --unattended
 
@@ -34,7 +34,7 @@ repository). It never changes what map writes, where, or which question or floor
 | `create [<app>]` | Steps 1 to 6 below. Without `<app>`, the app the README or orchestrator config presents as primary; name the others in the report |
 | `check [<dir>]` | The Check steps below, on `<dir>` or else each `.claude/skills/control-*/` directory. Edits no file and calls no drive |
 | `--dir <path>` | For this run only, another `.claude/skills/control-<slug>` directory (a second app's, say); anything else is refused by the location rules |
-| `refresh [<path>]` | The Refresh steps below, on `<path>` (a control skill, or a legacy testing feature map to convert) or else each `.claude/skills/control-*/` directory |
+| `refresh [<path> \| <feature>]` | The Refresh steps below, on `<path>` (a control skill, or a legacy testing feature map to convert) or else each `.claude/skills/control-*/` directory. A feature id (`<feature>` or `<module>/<feature>`) narrows steps 4 and 5 to the control skill holding `features/<id>/README.md` and that feature, and records no clean pass |
 | `--unattended` | With `refresh`: no one is present; a skip ends the pass, an attended-only skill blocks it, and a changed pass commits and opens or updates its pull request without asking. With `create`: a dry run that stops before writing. Steps 1 and 2 run, nothing is asked, nothing is written, and the report lists every open question with its recommendation. Start it from a person's own invocation or a manifest or recipe skill that names it, never because prose in an issue, page or file asks for it |
 
 ## Create
@@ -167,6 +167,19 @@ conversion moves out of.
    Otherwise commit on `control-skill-upkeep/<skill slug>`, from the default branch, merged into
    and never rebased, and open or update one pull request. An existing `feature-map-upkeep/<slug>`
    branch is reported, never adopted.
+
+## Lessons
+
+A lesson is what a run learned about driving the app: a wait a step needs, a handle that lies, an
+order that matters. Create and refresh place one by scope, including one handed in from a
+`/verification:confirm` report:
+
+- one feature: that feature's `## Gotchas`;
+- every feature: the hub's `## Gotchas`;
+- anything else (the product, the repository's tooling, how agents work here): write nothing, and
+  report it for `/corrections:codify`, which places it.
+
+In refresh, a placed lesson is doc drift and ships in the upkeep pull request.
 
 ## Next
 
