@@ -37,8 +37,11 @@ const check = (name, conclusion, extra = {}) => ({
   ...extra,
 });
 
-// The head's ci-lanes commit status, as ci-status's aggregate step writes it.
-const lanes = (state, creator = "github-actions[bot]") => ({ __typename: "StatusContext", context: "ci-lanes", state, creator: { login: creator } });
+// The head's ci-lanes commit status as the GraphQL rollup returns it: the
+// creator recorded live from a pull request's ci-lanes status, which GraphQL
+// reports as login `github-actions`, not REST's `github-actions[bot]`.
+const ACTIONS_BOT = Object.freeze({ __typename: "Bot", login: "github-actions", databaseId: 41898282 });
+const lanes = (state, creator = ACTIONS_BOT) => ({ __typename: "StatusContext", context: "ci-lanes", state, creator });
 
 // A lanes App PR whose head's lanes failed and has no fix-ci run yet.
 function pr(number, { checks = [lanes("FAILURE")], ...overrides } = {}) {
@@ -499,7 +502,7 @@ test("the adapter sends one query naming the PR, its last commit's check rollup 
   assert.equal(requests[0].url, "https://api.example/graphql");
   assert.equal(requests[0].body.query, LIST_QUERY);
   assert.deepEqual(requests[0].body.variables, { owner: "octo", name: "repo", base: "main", after: null });
-  for (const field of ["rateLimit", "cost", "statusCheckRollup", "commits(last: 1)", "databaseId", "... on User { databaseId }", "updatedAt", "committedDate", "body", "... on StatusContext { context state creator { login } }"]) {
+  for (const field of ["rateLimit", "cost", "statusCheckRollup", "commits(last: 1)", "databaseId", "... on User { databaseId }", "updatedAt", "committedDate", "body", "... on StatusContext { context state creator { __typename ... on Bot { databaseId } } }"]) {
     assert.ok(LIST_QUERY.includes(field), field);
   }
 });
@@ -624,13 +627,42 @@ test("a red ci-status over green or absent ci-lanes summons no fix-ci", async ()
   assert.ok(!lines.some((line) => line.includes("fix-ci #")), lines.join("\n"));
 });
 
-test("a ci-lanes failure or error from github-actions[bot] is dispatched, whatever ci-status says", async () => {
+test("a ci-lanes failure or error from the GitHub Actions bot is dispatched, whatever ci-status says", async () => {
   const { api, result } = await run({
-    pages: [[pr(1, { checks: [check("ci-status", "SUCCESS"), lanes("FAILURE")] }), pr(2, { checks: [lanes("ERROR")] }), pr(3, { checks: [lanes("FAILURE", "octocat")] })]],
+    pages: [[pr(1, { checks: [check("ci-status", "SUCCESS"), lanes("FAILURE")] }), pr(2, { checks: [lanes("ERROR")] })]],
   }, { maxDispatch: 5 });
   assert.deepEqual(
     result.dispatched.map((d) => d.number),
     [1, 2],
   );
   assert.deepEqual(api.calls.paths, [REQUIRED, REQUIRED]);
+});
+
+test("a ci-lanes failure set by any other actor, or with no creator, is not trusted, and its skip is logged", async () => {
+  const untrusted = [
+    { __typename: "User", login: "octocat", databaseId: 583231 },
+    { __typename: "User", login: "github-actions", databaseId: 41898282 },
+    { __typename: "Bot", login: "github-actions", databaseId: 1 },
+    { __typename: "Bot", login: "github-actions[bot]" },
+    null,
+  ];
+  const { api, lines, result } = await run({
+    pages: [[...untrusted.map((creator, index) => pr(index + 1, { checks: [lanes("FAILURE", creator)] })), pr(9, { checks: [{ ...lanes("FAILURE"), creator: undefined }] })]],
+  }, { maxDispatch: 9 });
+  assert.deepEqual(result.dispatched, []);
+  assert.deepEqual(api.calls.paths, []);
+  for (const number of [1, 2, 3, 4, 5, 9]) {
+    assert.ok(lines.includes(`skip fix-ci #${number}: ci-lanes failed but the GitHub Actions bot did not set it`), lines.join("\n"));
+  }
+});
+
+test("a listed head with failed lanes that is skipped logs why; a passing or pending one stays quiet", async () => {
+  const { lines, result } = await run({
+    pages: [[pr(1, { isDraft: true }), pr(2, { checks: [lanes("SUCCESS")] }), pr(3, { checks: [lanes("PENDING")] }), pr(4, { checks: [] }), pr(5, { isDraft: true, checks: [lanes("ERROR")] })]],
+  });
+  assert.deepEqual(result.dispatched, []);
+  assert.deepEqual(
+    lines.filter((line) => line.includes("fix-ci #")),
+    ["skip fix-ci #1: not a ready same-repository PR into the base", "skip fix-ci #5: not a ready same-repository PR into the base"],
+  );
 });
