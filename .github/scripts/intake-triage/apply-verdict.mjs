@@ -22,10 +22,12 @@
 // needs-info or needs-decision status is already there), never
 // `status: ready`, and one lanes App comment, edited in place, that lists why.
 // A status hold the lanes App set on an earlier run gives way to a ready
-// verdict and is taken off, unless the App's earlier verdict comment listed a
-// flag, which the new comment carries forward; needs-human, and a hold the
-// triage run (github-actions[bot], the reusable's escalation), a person, or an
-// unread setter set, holds. The
+// verdict and is taken off only when the App's earlier verdict comment lists
+// no flag. One that listed a flag, or no App verdict comment at all (an issue
+// held before these comments, or a comment write that failed), holds, and the
+// new comment carries the flag or the missing record forward; needs-human, and
+// a hold the triage run (github-actions[bot], the reusable's escalation), a
+// person, or an unread setter set, holds. The
 // `needs-triage` floor label is taken off after the verdict is written.
 // The work class gates nothing (owner Q85, #9668) except
 // `work-class: untrusted-provenance`, which holds the issue and is never taken
@@ -99,6 +101,9 @@ export const DIMENSIONS = Object.freeze({
 });
 const FLAGS = new Set(["intent", "security", "cost"]);
 const EARLIER = "(an earlier verdict)";
+// The reason a hold stays when no App verdict comment says whether an earlier
+// verdict flagged; the comment carries it, so a later run reads it the same.
+export const UNRECORDED = "no lanes App verdict comment shows whether an earlier verdict was flagged";
 const CLASS_LINE = /^Proposed work class: (work-class: [a-z0-9-]+|none)$/;
 // The reusable's wording the verdict makes untrue once the class is applied.
 export const OLD_BASIS = "Basis: automated intake triage; a maintainer confirms or changes it.";
@@ -261,19 +266,26 @@ export function planWrites(
     reasons.push(`flagged: ${verdict.flags.join(", ")}`);
   }
   // A status hold the lanes App set on an earlier run gives way to this
-  // verdict, unless the App's earlier verdict comment listed a flag; one the
-  // triage run (github-actions[bot]), a person, or an unread setter set
-  // holds, and needs-human always holds.
+  // verdict only when the App's earlier verdict comment lists no flag
+  // (earlierFlags []); a listed flag or no readable comment (null) holds, as
+  // does one the triage run (github-actions[bot]), a person, or an unread
+  // setter set, and needs-human always holds.
   const holds = labels.filter((label) => HOLDS.has(label));
   const appHolds =
-    earlierFlags.length > 0 ? [] : holds.filter((label) => label !== NEEDS_HUMAN && isApp(holdSetters[label], appId));
+    earlierFlags === null || earlierFlags.length > 0
+      ? []
+      : holds.filter((label) => label !== NEEDS_HUMAN && isApp(holdSetters[label], appId));
   for (const label of holds.filter((label) => !appHolds.includes(label))) {
     reasons.push(`held by ${label}`);
   }
-  // Carried into the comment, so a later clean verdict still reads the flag.
-  const carried = holds.length > 0 ? earlierFlags.filter((flag) => !verdict.flags?.includes(flag)) : [];
+  // Carried into the comment, so a later clean verdict still reads the flag,
+  // or still reads that no record says.
+  const carried = holds.length > 0 ? (earlierFlags ?? []).filter((flag) => !verdict.flags?.includes(flag)) : [];
   if (carried.length > 0) {
     reasons.push(`flagged: ${carried.join(", ")} ${EARLIER}`);
+  }
+  if (holds.length > 0 && earlierFlags === null) {
+    reasons.push(UNRECORDED);
   }
 
   const ready = reasons.length === 0 && verdict.dimensions !== null && verdict.flags !== null;
@@ -300,9 +312,14 @@ const ownVerdict = (comments, appId) =>
   comments.find((c) => isApp(c.user?.id, appId) && String(c.body ?? "").startsWith(`${VERDICT_MARKER}\n`));
 
 // The flags the lanes App's earlier verdict comment listed: only known flags
-// from a `- flagged: ` reason line.
+// from a `- flagged: ` reason line. null when no App verdict comment exists
+// or it carries UNRECORDED: whether an earlier verdict flagged is unknown.
 export function earlierFlags(comments, appId) {
-  const lines = String(ownVerdict(comments, appId)?.body ?? "").split("\n");
+  const own = ownVerdict(comments, appId);
+  const lines = String(own?.body ?? "").split("\n");
+  if (!own || lines.includes(`- ${UNRECORDED}`)) {
+    return null;
+  }
   return [
     ...new Set(
       lines
@@ -465,7 +482,15 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
       admission = { outcome: "error", reasons: [String(error?.message ?? error)] };
     }
   }
-  await sayReasons(github, repository, base, comments, appId, plan, admission);
+  // A failed reasons comment stops neither the reword nor the summary; the
+  // caller fails the job on it. The hold it leaves has no readable record,
+  // so a later clean verdict keeps it (earlierFlags).
+  let reasonsError = null;
+  try {
+    await sayReasons(github, repository, base, comments, appId, plan, admission);
+  } catch (error) {
+    reasonsError = String(error?.message ?? error);
+  }
   if (plan.classApplied) {
     const reworded = rewordComment(comment.body);
     if (reworded !== null) {
@@ -482,9 +507,10 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     `- Status: ${plan.ready ? (settled(admission) ?? READY) : NEEDS_DECISION}${plan.reasons.length ? ` (${plan.reasons.join("; ")})` : ""}`,
     ...(edges || verdict.blockedByProblem ? [`- Blocked by: ${edgeSummary(edges, verdict.blockedByProblem)}`] : []),
     ...(admission ? [`- Admission: ${admission.outcome}${admission.reasons.length ? ` (${admission.reasons.join("; ")})` : ""}`] : []),
+    ...(reasonsError ? [`- Reasons comment: not written (${reasonsError})`] : []),
   ].join("\n");
   log(summary);
-  return { outcome: plan.ready ? "ready" : "needs-decision", plan, admission, summary };
+  return { outcome: plan.ready ? "ready" : "needs-decision", plan, admission, reasonsError, summary };
 }
 
 async function removeLabels(github, base, names) {
@@ -513,13 +539,14 @@ const settled = (admission) =>
 
 // One lanes App comment, edited in place, says why the verdict holds the
 // issue; a later ready verdict marks it settled, naming the status admission
-// left. None is posted for a ready verdict that never held.
+// left. None is posted for a ready verdict that stays ready and never held;
+// one admission moved or did not finish gets the record a later run reads.
 async function sayReasons(github, repository, base, comments, appId, plan, admission) {
   const own = ownVerdict(comments, appId);
-  if (plan.ready && !own) {
+  const after = settled(admission);
+  if (plan.ready && !own && after === null) {
     return;
   }
-  const after = settled(admission);
   const body = plan.ready
     ? `${VERDICT_MARKER}\nThe latest triage verdict holds nothing: ${
         after === NEEDS_DECISION
@@ -613,6 +640,10 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
       }
       if (result.admission?.outcome === "error") {
         console.log(`::error title=apply-verdict::admission failed: ${result.admission.reasons[0].replaceAll(/[\r\n%]/g, " ")}`);
+        process.exitCode = 1;
+      }
+      if (result.reasonsError) {
+        console.log(`::error title=apply-verdict::the reasons comment was not written: ${result.reasonsError.replaceAll(/[\r\n%]/g, " ")}`);
         process.exitCode = 1;
       }
     } catch (error) {

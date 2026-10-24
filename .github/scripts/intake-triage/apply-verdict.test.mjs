@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import {
   checkActors,
+  earlierFlags,
   MARKER,
   NEEDS_DECISION,
   NEW_BASIS,
@@ -15,6 +16,7 @@ import {
   planWrites,
   READY,
   run,
+  UNRECORDED,
   VERDICT_MARKER,
 } from "./apply-verdict.mjs";
 
@@ -276,6 +278,25 @@ describe("planWrites", () => {
     }
   }
 
+  // Owner decision on #9799's review, fail-closed: with no readable earlier
+  // verdict, the earlier run may have flagged, so the hold stays and says so.
+  for (const hold of ["status: needs-info", NEEDS_DECISION]) {
+    test(`${hold} the lanes App set with no readable earlier verdict stays on a clean verdict`, () => {
+      const result = plan(laneBody(), { labels: [hold], holdSetters: { [hold]: LANES_APP }, earlierFlags: null });
+      assert.equal(result.ready, false);
+      assert.deepEqual(result.remove, []);
+      assert.ok(!result.add.includes(READY));
+      assert.ok(result.reasons.includes(`held by ${hold}`), result.reasons.join("; "));
+      assert.ok(result.reasons.includes(UNRECORDED), result.reasons.join("; "));
+    });
+  }
+
+  test("no readable earlier verdict on an issue with no hold reaches ready", () => {
+    const result = plan(laneBody(), { earlierFlags: null });
+    assert.equal(result.ready, true);
+    assert.deepEqual(result.reasons, []);
+  });
+
   // Owner decision on #9799's review: a clean verdict never lifts needs-human, whoever set it.
   test("needs-human the lanes App set stays on a clean verdict", () => {
     const result = plan(laneBody(), { labels: ["needs-human"], holdSetters: { "needs-human": LANES_APP } });
@@ -502,6 +523,21 @@ describe("planWrites", () => {
   });
 });
 
+describe("earlierFlags", () => {
+  const own = (body) => [{ id: 51, body: `${VERDICT_MARKER}\n${body}`, user: { id: LANES_APP, type: "Bot" } }];
+  test("reads the flags the lanes App's verdict comment listed, an earlier verdict's too", () => {
+    assert.deepEqual(earlierFlags(own("x:\n\n- flagged: security\n- flagged: intent (an earlier verdict)"), LANES_APP), ["security", "intent"]);
+  });
+  test("an unflagged verdict comment lists none", () => {
+    assert.deepEqual(earlierFlags(own("x:\n\n- no `Size:` line"), LANES_APP), []);
+  });
+  test("no lanes App verdict comment, or one carrying the unrecorded line, is unknown", () => {
+    assert.equal(earlierFlags([], LANES_APP), null);
+    assert.equal(earlierFlags([{ id: 50, body: `${VERDICT_MARKER}\n- no \`Size:\` line`, user: { id: HUMAN, type: "User" } }], LANES_APP), null);
+    assert.equal(earlierFlags(own(`x:\n\n- ${UNRECORDED}`), LANES_APP), null);
+  });
+});
+
 describe("checkActors", () => {
   const env = (overrides) => ({
     EVENT_NAME: "issues",
@@ -635,6 +671,13 @@ const go = (fake, env = ENV) =>
     log: () => {},
   });
 const writes = (calls) => calls.filter((call) => call.method !== "GET");
+// The lanes App's earlier verdict comment, listing no flag.
+const unflagged = (text = "The latest triage verdict holds nothing: admission did not finish, so the issue's status is not settled.") => ({
+  id: 51,
+  body: `${VERDICT_MARKER}\n${text}`,
+  user: { id: LANES_APP, type: "Bot" },
+});
+const APP_HOLD = [{ event: "labeled", label: { name: NEEDS_DECISION }, actor: { id: LANES_APP } }];
 
 describe("run", () => {
   test("writes the fields, the class and status: ready, then rewords the comment", async () => {
@@ -979,8 +1022,8 @@ describe("run", () => {
   test("a needs-decision the lanes App set earlier, read from the events, is lifted by a clean verdict", async () => {
     const fake = fakeGitHub({
       issue: { labels: [{ name: NEEDS_DECISION }] },
-      comments: [laneComment()],
-      events: [{ event: "labeled", label: { name: NEEDS_DECISION }, actor: { id: LANES_APP } }],
+      comments: [laneComment(), unflagged()],
+      events: APP_HOLD,
     });
     assert.equal((await go(fake)).outcome, "ready");
     assert.ok(
@@ -1034,10 +1077,68 @@ describe("run", () => {
   test("a flagged look-alike verdict comment from anyone but the lanes App does not keep the hold", async () => {
     const fake = fakeGitHub({
       issue: { labels: [{ name: NEEDS_DECISION }] },
-      comments: [laneComment(), { id: 50, body: `${VERDICT_MARKER}\n- flagged: security`, user: { id: HUMAN, login: "kyle-sexton", type: "User" } }],
-      events: [{ event: "labeled", label: { name: NEEDS_DECISION }, actor: { id: LANES_APP } }],
+      comments: [
+        laneComment(),
+        { id: 50, body: `${VERDICT_MARKER}\n- flagged: security`, user: { id: HUMAN, login: "kyle-sexton", type: "User" } },
+        unflagged(),
+      ],
+      events: APP_HOLD,
     });
     assert.equal((await go(fake)).outcome, "ready");
+  });
+
+  // Issues the App held before verdict comments existed have none to read.
+  test("a needs-decision the lanes App set with no verdict comment stays on two clean verdicts in a row", async () => {
+    const first = fakeGitHub({ issue: { labels: [{ name: NEEDS_DECISION }] }, comments: [laneComment()], events: APP_HOLD });
+    assert.equal((await go(first)).outcome, "needs-decision");
+    assert.ok(!writes(first.calls).some(({ method }) => method === "DELETE"));
+    const posted = writes(first.calls).find(({ method, path }) => method === "POST" && path === "/repos/o/r/issues/7/comments");
+    assert.ok(posted?.body.body.includes(`- ${UNRECORDED}`), posted?.body.body);
+    // The second run reads the comment the first posted, which must not read as unflagged.
+    const second = fakeGitHub({
+      issue: { labels: [{ name: NEEDS_DECISION }] },
+      comments: [laneComment(), { id: 52, body: posted.body.body, user: { id: LANES_APP, type: "Bot" } }],
+      events: APP_HOLD,
+    });
+    assert.equal((await go(second)).outcome, "needs-decision");
+    assert.ok(!writes(second.calls).some(({ method }) => method === "DELETE"));
+  });
+
+  test("a failed reasons comment still rewords the lane comment, reports the failure, and a later clean verdict keeps the hold", async () => {
+    const fake = fakeGitHub({ comments: [laneComment(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: security"] }))] });
+    const github = async (method, path, body) => {
+      if (method === "POST" && path === "/repos/o/r/issues/7/comments") {
+        fake.calls.push({ method, path, body });
+        throw new GitHubError(403, "POST comments");
+      }
+      return fake.github(method, path, body);
+    };
+    const result = await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, log: () => {} });
+    assert.equal(result.outcome, "needs-decision");
+    assert.ok(result.plan.classApplied);
+    assert.ok(writes(fake.calls).some(({ method, path }) => method === "PATCH" && path === "/repos/o/r/issues/comments/99"));
+    assert.ok(result.reasonsError, "the failure is on the result");
+    assert.match(result.summary, /- Reasons comment: not written \(/);
+    // The hold went on with no record of the flag behind it.
+    const added = writes(fake.calls).find(({ method, path }) => method === "POST" && path === "/repos/o/r/issues/7/labels");
+    assert.ok(added.body.labels.includes(NEEDS_DECISION));
+    const later = fakeGitHub({ issue: { labels: [{ name: NEEDS_DECISION }] }, comments: [laneComment()], events: APP_HOLD });
+    assert.equal((await go(later)).outcome, "needs-decision");
+  });
+
+  test("an admission refusal on a ready verdict leaves an unflagged verdict record, so a later clean verdict can lift it", async () => {
+    const fake = fakeGitHub({ comments: [laneComment()] });
+    await run({
+      env: ENV,
+      github: fake.github,
+      dimensionsConfig: DIMS,
+      fieldSetters: noSetters,
+      admitIssue: async () => ({ outcome: "refused", reasons: ["no acceptance criteria"] }),
+      log: () => {},
+    });
+    const posted = writes(fake.calls).find(({ method, path }) => method === "POST" && path === "/repos/o/r/issues/7/comments");
+    assert.ok(posted?.body.body.startsWith(`${VERDICT_MARKER}\n`), posted?.body.body);
+    assert.deepEqual(earlierFlags([{ ...posted.body, id: 53, user: { id: LANES_APP } }], LANES_APP), []);
   });
 
   test("takes needs-triage off after the verdict's labels", async () => {
