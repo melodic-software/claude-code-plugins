@@ -10,4 +10,5 @@ bump: minor
 
 ### Changed
 
+- Intake admission refuses an issue labeled `work-map`: a decision map is planning, not lane work.
 - Intake admission no longer refuses an issue whose done-when asks for a paid eval or a `claude plugin eval` run: model and eval spend holds nothing (owner decision 2026-10-24). Only metered or renewing charges hold, through the COST rule.
