@@ -5,27 +5,13 @@ Monthly machine-health checkup for the Task Scheduler fallback: runs the audit
 in print mode and records whether it really ran.
 
 .DESCRIPTION
-/machine-health:setup writes this file to <StateBase>/scheduler/monthly-run.ps1,
-with its plugin root written in, beside scheduled-settings.json, and creates the
-task that runs it. It refuses to run from any folder not named scheduler, or
-before setup wrote the root in, so the copy in the plugin install never runs.
-<StateBase> is the parent of that folder, and the run starts there.
+/machine-health:setup copies this file to <StateBase>/scheduler/monthly-run.ps1
+and creates the task that runs it. It refuses to run from any folder not named
+scheduler, so the copy in the plugin install never runs. <StateBase> is the
+parent of that folder, and the run starts there.
 
-The audit runs in dontAsk mode. Its allow rules are Read, Write or Edit of
-<StateBase>/TODO.md (the one Edit(/TODO.md) rule covers both tools), and two
-commands through the Bash tool, each matched exactly as audit SKILL.md prints it
-for --scheduled, with the plugin root, state folder and report folder setup wrote
-in (the PowerShell tool approves no pwsh call by rule). pwsh reading a script from stdin (-File -),
-WebFetch and WebSearch are denied, and no MCP server loads.
-scheduled-settings.json adds deny rules for git, gh, download commands and the
-tools that write or act outside TODO.md; a deny beats every allow rule,
-the owner's own included. Anything else is denied instead of prompting, unless
-the owner's own settings allow it.
-
-A plugin update moves the plugin root, and a changed report_dir option moves the
-report folder. The next run's audit commands then no longer match the allow
-rules and are denied, so the run fails; once the old root is gone the wrapper
-refuses to start. Rerunning setup's schedule step rewrites the copy.
+The audit runs in auto mode, so it can research new findings on the web
+(https://code.claude.com/docs/en/permission-modes.md#eliminate-permission-prompts-with-auto-mode).
 
 The run counts as ok only when all of these hold: claude exits 0 within the
 timeout, its JSON result has is_error false, the result's first line is the
@@ -40,7 +26,7 @@ plus whatever the run printed to stdout (.stdout.json) and stderr (.stderr.log,
 which opens with the claude executable the wrapper resolved).
 streams_incomplete is true when a process the run left behind still held its
 output open after the wait below. setup check reports the newest status file.
-Exits 0 when ok, 1 otherwise, 2 when misplaced or not written by setup.
+Exits 0 when ok, 1 otherwise, 2 when misplaced.
 
 .PARAMETER ClaudeCommand
 The claude executable, optionally followed by leading arguments. Tests pass a
@@ -55,7 +41,7 @@ How long to keep reading output after the run exits or is stopped.
 [CmdletBinding()]
 param(
     [ValidateNotNullOrEmpty()] [string[]] $ClaudeCommand = @('claude'),
-    [ValidateRange(1, 86400)] [int] $TimeoutSeconds = 2700,
+    [ValidateRange(1, 86400)] [int] $TimeoutSeconds = 5400,
     [ValidateRange(1, 600)] [int] $StreamWaitSeconds = 30
 )
 
@@ -67,31 +53,10 @@ if ((Split-Path -Leaf $PSScriptRoot) -cne 'scheduler') {
     exit 2
 }
 
-# Setup writes its ${CLAUDE_PLUGIN_ROOT}, ${CLAUDE_PLUGIN_DATA} and report_dir option (empty when
-# unset) over these tokens when it installs the copy, as the scheduled audit will type them.
-$pluginRoot = '__PLUGIN_ROOT__'
-$stateRoot = '__STATE_ROOT__'
-$reportRoot = '__REPORT_ROOT__'
-if ($pluginRoot -ceq ('__PLUGIN' + '_ROOT__')) {
-    Write-Error 'monthly-run.ps1 runs only as written by /machine-health:setup schedule, which fills in the plugin root.' -ErrorAction Continue
-    exit 2
-}
-
 $stateBase = Split-Path -Parent $PSScriptRoot
 $logsDir = Join-Path $stateBase 'logs'
-$settingsPath = Join-Path $PSScriptRoot 'scheduled-settings.json'
 $marker = 'machine-health checkup '
-# Exact commands, no wildcard: any other argument, such as another -StateBase whose catalog
-# overlay names its own check scripts, matches no rule and is denied.
-$scripts = "$pluginRoot/skills/audit/scripts/windows"
-$outputArg = if ($reportRoot) { "-OutputBase '$reportRoot' " } else { '' }
-$shellRules = "Bash(pwsh -NoProfile -File '$scripts/Invoke-MachineHealthCheck.ps1' $outputArg-StateBase '$stateRoot' -RunMode on-demand -SampleSeconds 60 -SkipBanner)",
-    "Bash(pwsh -NoProfile -File '$scripts/Format-ShortReport.ps1' -LatestPath '$stateRoot/state/latest.json')"
-# Each tool list is variadic, so an option follows each one.
-$auditArgs = @('-p', '/machine-health:audit on-demand --scheduled', '--permission-mode', 'dontAsk', '--settings', $settingsPath,
-    '--allowedTools', 'Read', 'Edit(/TODO.md)') + $shellRules +
-    @('--disallowedTools', 'WebFetch', 'WebSearch', 'Bash(pwsh -NoProfile -File - *)', 'PowerShell(pwsh -NoProfile -File - *)',
-    '--strict-mcp-config', '--output-format', 'json')
+$auditArgs = @('-p', '/machine-health:audit on-demand --scheduled', '--permission-mode', 'auto', '--output-format', 'json')
 
 $start = [DateTimeOffset]::Now
 $runStamp = $start.UtcDateTime.ToString('yyyy-MM-ddTHHmmssfffZ', [Globalization.CultureInfo]::InvariantCulture)
@@ -109,14 +74,6 @@ $text = @{ out = [System.Text.StringBuilder]::new(); err = [System.Text.StringBu
 $pending = @{}
 $process = $null
 try {
-    foreach ($path in "$scripts/Invoke-MachineHealthCheck.ps1", "$scripts/Format-ShortReport.ps1") {
-        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
-            throw "$path is gone, so a plugin update moved the plugin root; rerun /machine-health:setup schedule."
-        }
-    }
-    if (-not (Test-Path -LiteralPath $settingsPath -PathType Leaf)) {
-        throw "$settingsPath is missing, so the run would lack its deny rules; rerun /machine-health:setup schedule."
-    }
     $exe = Get-Command -Name $ClaudeCommand[0] -CommandType Application -ErrorAction Stop | Select-Object -First 1
     $allArgs = @($ClaudeCommand | Select-Object -Skip 1) + $auditArgs
     $viaCmd = $exe.Source -match '\.(cmd|bat)$'
