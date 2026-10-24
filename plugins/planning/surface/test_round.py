@@ -3567,15 +3567,46 @@ class TestSupersedeResolve(DirCase):
             superseded.split("|", 4)[4].strip(), exported.read_text(encoding="utf-8")
         )
 
-    def test_a_named_row_with_a_note_is_refused(self):
-        self.named_ledger()
-        before = self.ledger.read_bytes()
-        rc, out, err = self.cmd(
-            "supersede", "Q2", "--proposes", "x", "--ledger", str(self.ledger)
+    def multi_ledger(self):
+        import exporters
+
+        self.ledger.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | answered | round 1 | Which queue? | "
+            + exporters.encode({"answer": "accepted: SQS", "note": "n; m"}, None)
+            + "\n- Q2 | answered | round 1 | Which store? | "
+            + exporters.encode(
+                {"proposal": "SQLite", "was": "accepted: Postgres", "answer": "accepted: SQLite"},
+                None,
+            )
+            + "\n\n## Deferred questions\n\nNone.\n",
+            encoding="utf-8",
         )
-        self.assertEqual(rc, 1, out + err)
-        self.assertIn("refused", err)
+
+    def test_a_row_with_more_than_an_answer_restores_byte_identical(self):
+        self.multi_ledger()
+        before = self.ledger.read_bytes()
+        for q in ("Q1", "Q2"):
+            self.edit("supersede", q, "--proposes", "x; y")
+            self.assertIn("was named::", self.row(int(q[1])))
+            self.edit("resolve", q, "restore")
         self.assertEqual(self.ledger.read_bytes(), before)
+
+    def test_a_row_with_more_than_an_answer_reconfirms_and_imports(self):
+        import exporters
+
+        self.multi_ledger()
+        for q, was in (("Q1", "accepted: SQS"), ("Q2", "accepted: SQLite")):
+            self.edit("supersede", q, "--proposes", "x")
+            out = self.edit("resolve", q, "reconfirm")
+            self.assertIn("superseded=0", out)
+            res = self.row(int(q[1])).split("|", 4)[4].strip()
+            fields = exporters.parse_named(res, "t")[0]
+            self.assertEqual((fields["was"], fields["answer"]), (was, "accepted: x"))
+        fresh = self.tmp / "fresh"
+        fresh.mkdir()
+        rc, out, err = run_round(fresh, "import-ledger", "--ledger", str(self.ledger))
+        self.assertEqual(rc, 0, out + err)
 
     def test_restore_keeps_crlf_endings(self):
         crlf = self.LEDGER.replace("\n", "\r\n").encode("utf-8")
