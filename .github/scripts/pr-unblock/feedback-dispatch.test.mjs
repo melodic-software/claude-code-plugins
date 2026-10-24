@@ -1192,6 +1192,31 @@ test("the sweep leaves a head whose last round answered, one at its no-model-tur
   assert.equal(two.calls.dispatch.length, 1);
 });
 
+// A round that answered every thread but left an adjudicated finding standing,
+// with the head unmoved (publish-feedback.mjs): its reply check skipped
+// finding-stands, and no review run follows to start the round that fixes it.
+const findingStands = (started = "2026-10-17T10:05:00Z") => roundRun("publish-feedback", "neutral", "Skipped: finding-stands", started);
+const answeredRound = roundRun("address-feedback", "success", "Passed", "2026-10-17T10:00:00Z");
+
+test("a scheduled tick re-dispatches a head whose last round left a finding standing, under the per-head cap", async (t) => {
+  const api = sweepApi({ checksAt: { [HEAD]: [answeredRound, findingStands()] } });
+  const { output } = await sweepMain(t, api);
+  assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["42"]);
+  assert.equal(output, "run-id=38779200001\nupstream-run-id=13\n");
+
+  // Releasing skips of either kind count toward SWEEP_HEAD_CAP together.
+  const capped = sweepApi({ checksAt: { [HEAD]: [answeredRound, noModelTurn("2026-10-17T10:05:00Z"), findingStands("2026-10-17T11:05:00Z"), findingStands("2026-10-17T12:05:00Z")] } });
+  assert.equal((await sweepMain(t, capped)).output, "");
+  assert.deepEqual(capped.calls.dispatch, []);
+});
+
+test("a review completion at a head whose last round left a finding standing dispatches again, and is not recorded as handled", async () => {
+  const record = emptyRecord();
+  const { result } = await decideWith(fakeApi({ checkRuns: [answeredRound, findingStands()] }), record);
+  assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" });
+  assert.equal(record.handled.size, 0);
+});
+
 test("a tick dispatches at most one head, and moves past one dispatchFeedback skips", async (t) => {
   const second = pull({ number: 43, head: { sha: SECOND_HEAD, repo: { full_name: REPOSITORY } } })[0];
   const third = pull({ number: 44, head: { sha: "5".repeat(40), repo: { full_name: REPOSITORY } } })[0];

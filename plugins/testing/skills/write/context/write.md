@@ -42,7 +42,7 @@ When invoked from `/implementation:implement` (plan already approved) or as part
 
    You cannot test everything. Focus testing effort on critical paths and complex logic, not every possible edge case.
 
-   When the change has acceptance criteria and a user-visible flow, the tracer bullet is the critical user-flow test, written before the code: see [Outside-in](#outside-in-the-user-flow-test-first).
+   When the change has acceptance criteria and a user-visible flow, the resolved `first_test` setting (SKILL.md, Settings) picks the tracer bullet. `user-flow` (the default): the critical user-flow test, written before the code. `unit`: a unit test of the first behavior on the list, with the user-flow test written later, before the task is done. Both: see [Outside-in](#outside-in-the-user-flow-test-first).
 
 2. **Choose the test type**. Match the behavior to the right level. Location and framework come from the consuming project's testing conventions (or its existing test projects when undocumented); the role of each row is universal:
 
@@ -63,11 +63,13 @@ When invoked from `/implementation:implement` (plan already approved) or as part
 
 4. **Make it pass** (Green). Write minimum code. Don't design, don't abstract, don't optimize. Make the test green
 
-5. **Refactor**. Now make it clean. Both test and production code. **Run tests after each refactor step.** All tests must stay green. **Never refactor while RED.** Get to GREEN first, then refactor. Refactoring on a failing test compounds uncertainty. You cannot distinguish refactor breakage from the original failure. Refactor within the slice you just wrote; if the new code reveals a problem in existing code, note it as a follow-up rather than acting on it in this cycle. Refactor candidates beyond duplication extraction:
+5. **Refactor**, when the resolved `tdd_refactor_step` is `on` (the default); with `off`, go from green straight to the next test and write no checkpoint line. Now make it clean. Both test and production code. **Run tests after each refactor step.** All tests must stay green. **Never refactor while RED.** Get to GREEN first, then refactor. Refactoring on a failing test compounds uncertainty. You cannot distinguish refactor breakage from the original failure. Refactor within the slice you just wrote; if the new code reveals a problem in existing code, note it as a follow-up rather than acting on it in this cycle. Refactor candidates beyond duplication extraction:
    - Deepen shallow modules: combine or push complexity behind a simpler interface (Ousterhout: can I reduce methods? simplify params? hide more complexity?)
    - Feature envy (Fowler): logic that sends more messages to another object than its own → Move Method
    - Primitive obsession (Fowler): raw strings/ints representing domain concepts → introduce Value Object
    - Apply SOLID principles where natural. Don't force; let the shape emerge from the tests
+
+   Close the step with a plain line (no bullet, no bold) that begins `Refactor checkpoint:` and names what you tidied, or why nothing needed it, such as `Refactor checkpoint: extracted _line_total from total_cents; suite still green` or `Refactor checkpoint: nothing to tidy, the new method is one expression`. Repeat every checkpoint line in the final summary, so a skipped step shows.
 
 6. **Repeat**. Next test scenario from the list
 
@@ -85,6 +87,7 @@ After each Red→Green→Refactor cycle, verify:
 - [ ] The test needs no export, flag or injection hook that no production caller uses; if it does, test through the real boundary instead
 - [ ] Code is minimal for this test
 - [ ] No speculative features added
+- [ ] With `tdd_refactor_step: on`, the cycle wrote its `Refactor checkpoint:` line
 - [ ] Hollow-out run, worked through: `const cart = { items: [a, b, c] }; totalCart(cart); expect(cart.items).toHaveLength(3);` asserts only on the `cart` literal, so it is green whatever `totalCart` does. Swap each function the test pulls from the module under test for one that gives back `undefined` (`None` in Python, `null` in C# or Java), run the test once, and expect red. When every assertion can be satisfied by the test's own fixtures or mocks without the subject running, point them at what the subject returns or changes (here, the total `totalCart` returns)
 
 ## Four Pillars Assessment (Khorikov)
@@ -111,11 +114,13 @@ Runner-level switches exist for several of these (a fake clock in Playwright, se
 
 ## Outside-in: the user-flow test first
 
-When the change has acceptance criteria and a user-visible flow (a page, an API call, a CLI command):
+When the change has acceptance criteria and a user-visible flow (a page, an API call, a CLI command), and the resolved `first_test` is `user-flow` (the default):
 
 1. **Write the critical user-flow test before the code**, from the acceptance criteria: the steps a user takes and the outcome the criteria state. It fails (Red). One test per critical journey, not one per criterion
 2. **Keep it as the oracle for the whole task.** Run it after each slice; the task is not done until it passes. Never change its expectation to match what the code does. If the criteria turn out wrong, change them with the user first, then the test
 3. **Work inside it** with unit and integration tests in vertical slices, as above. The pyramid below still decides how many of each
+
+With `first_test: unit`, start with a unit test of the first behavior on the list and build outward in vertical slices. Write the critical user-flow test, from the acceptance criteria and never from the code's output, before the task is done; once written it is the oracle of step 2 above.
 
 Name the costs. E2E tests are slower and flakier, and a failure does not say which component broke (poor fault isolation): the standard criticism, made in Wacker's 2015 Google Testing Blog post. Offset them: keep the flow count small, retain a trace on failure, and use the failure evidence `/testing:run-e2e` captures (failing step, expected against actual, trace, console and network errors) so the failure report becomes the next prompt. Fault isolation comes from the unit tests inside.
 
