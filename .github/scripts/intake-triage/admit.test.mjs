@@ -327,7 +327,7 @@ describe("decide", () => {
     });
 
     test("a rendered refinement a listed human posts as their own is still checked for pages outside the lane's web hosts", () => {
-      const output = { exact: true, outcome: "Match the spec.", criteria: ["The page at https://example.org/spec says nineteen."], dependencies: [], related: [], questions: [], sources: [] };
+      const output = { exact: true, outcome: "Match the spec.", criteria: ["The page at https://example.org/spec says nineteen."], dependencies: [], related: [], questions: [], sources: [], split: [] };
       const body = render(validateOutput(output, new Set()));
       assert.ok(!body.includes("https://"), "the rendered comment breaks the URL");
       const result = decide(facts({ issue: thin, spec: humanSpec(thin, [written(USER(HUMAN), { body })]) }));

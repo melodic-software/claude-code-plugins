@@ -11,7 +11,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { ADMIT_MARKER, loadRules, refusalNote } from "../intake-triage/admit.mjs";
+import { ADMIT_MARKER, loadRules, refusalText } from "../intake-triage/admit.mjs";
 import { refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import {
   checkCloser,
@@ -2353,7 +2353,7 @@ test("a person's mark on an admissible decided issue runs the admission rules an
 test("a person's mark on an inadmissible issue is refused: the admission comment, needs-decision, admission-deferred off", async (t) => {
   t.mock.method(console, "log", () => {});
   const refusedWrites = (reasons) => [
-    `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${refusalNote(reasons)}` })}`,
+    `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\n${refusalText(reasons.join("; "))}` })}`,
     `DELETE /repos/${REPO}/issues/25/labels/status%3A%20ready`,
     `POST /repos/${REPO}/issues/25/labels {"labels":["status: needs-decision"]}`,
     undeferred(25),

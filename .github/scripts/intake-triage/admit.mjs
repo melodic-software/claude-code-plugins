@@ -27,7 +27,8 @@
 //   lane run cannot do (unrunnableCriteria below): a run on a named host or
 //   OS, a paid eval, a run repeated N times, a measurement over time, or a
 //   page on a host outside resolve-issue's web-access domains. The refusal
-//   recommends splitting those items into a needs-human child issue;
+//   recommends splitting those items into a needs-human child issue, which
+//   refine.mjs files when some items are left for the lane;
 // - 10: check-wip-cap's status: over the queued cap, or with the lane paused
 //   over the WIP or held cap (from wip.pause-from), the issue gets
 //   `admission-deferred`, which work-unblock's hourly sweep admits once there
@@ -142,17 +143,39 @@ const excerpt = (text) => {
   return plain.length > 80 ? `${plain.slice(0, 77)}...` : plain;
 };
 
+// [{line, text, more}] for each task-list item, in order: its index among
+// the body's `\n`-split lines, its text after the task-list prefix, and the
+// indexes of the lines after it indented deeper than its marker (a sub-list
+// or wrapped text, part of the item). Item n (1-based) is entry n - 1. Pure.
+export const taskItems = (body, taskList) => {
+  const lines = String(body ?? "").split("\n");
+  const indent = (line) => line.length - line.trimStart().length;
+  const items = [];
+  lines.forEach((line, index) => {
+    const trimmed = line.trimStart();
+    if (!trimmed.startsWith(taskList)) {
+      return;
+    }
+    const more = [];
+    for (let next = index + 1; next < lines.length && lines[next].trim() !== "" && indent(lines[next]) > indent(line); next += 1) {
+      more.push(next);
+    }
+    items.push({ line: index, text: trimmed.slice(taskList.length), more });
+  });
+  return items;
+};
+
+// The admission comment's text for a refusal, after ADMIT_MARKER.
+export const refusalText = (reasons) =>
+  `Not admitted to the issue lane: ${reasons}. A recorded decision does not change these rules (\`.github/actions/resolve-config/admission-rules.json\`); a person who wants it worked adds \`agent-ready\`.`;
+
 // [{n, kind, text}] for each task-list item (1-based n) the lane cannot
 // perform. `webHosts` is resolve-issue's web-access domains: "any" skips the
 // URL check, an absent list allows only GitHub and local hosts, and a `*.`
 // entry allows that domain's subdomains. Pure.
 export function unrunnableCriteria(body, taskList, webHosts) {
   const allowed = webHosts === "any" ? null : allowedBy([...GITHUB_HOSTS, ...(Array.isArray(webHosts) ? webHosts : [])].map((h) => h.toLowerCase()));
-  const items = String(body ?? "")
-    .split("\n")
-    .map((line) => line.trimStart())
-    .filter((line) => line.startsWith(taskList))
-    .map((line) => line.slice(taskList.length));
+  const items = taskItems(body, taskList).map(({ text }) => text);
   const found = [];
   items.forEach((text, index) => {
     let kind = UNRUNNABLE.find(([, pattern]) => pattern.test(text))?.[0];
@@ -368,10 +391,6 @@ export async function noteUnrunnable({ github, repository, issue, rules, webHost
   return { outcome: "noted", reasons: [reason] };
 }
 
-// The refusal comment's text for decide()'s reasons.
-export const refusalNote = (reasons) =>
-  `Not admitted to the issue lane: ${reasons.join("; ")}. A recorded decision does not change these rules (\`.github/actions/resolve-config/admission-rules.json\`); a person who wants it worked adds \`agent-ready\`.`;
-
 // Every fact decide() reads but the verdict, the rules and the caller's own
 // (humans, appId, repository, webHosts), for `issue` as just read.
 // `isTrusted(number)` answers whether a closed blocker's close counts; by
@@ -436,7 +455,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
     await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
     await github("POST", `${base}/labels`, { labels: [NEEDS_DECISION] });
     await undefer();
-    await sayWhy(github, repository, base, comments, refusalNote(decision.reasons));
+    await sayWhy(github, repository, base, comments, refusalText(reasons));
     log(`admit: #${number} refused (${reasons})`);
     return { outcome: "refused", reasons: decision.reasons };
   }

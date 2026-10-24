@@ -132,7 +132,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { admissionFacts, decide, loadRules, NEEDS_DECISION, openPullsNaming, READY, refusalNote, sayWhy } from "../intake-triage/admit.mjs";
+import { admissionFacts, decide, loadRules, NEEDS_DECISION, openPullsNaming, READY, refusalText, sayWhy } from "../intake-triage/admit.mjs";
 
 const LABEL = "agent-ready";
 const HUMAN_LABEL = "needs-human";
@@ -458,7 +458,7 @@ async function admitMarked({ github, repo, number, issue, humans, appId, closes,
   } else if (decision.verdict === "refuse") {
     // The comment first and admission-deferred last: a failed write leaves
     // the mark for the next sweep, which edits the comment in place.
-    await sayWhy(github, repo, base, facts.comments, refusalNote(decision.reasons));
+    await sayWhy(github, repo, base, facts.comments, refusalText(reasons));
     await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
     await github("POST", `${base}/labels`, { labels: [NEEDS_DECISION] });
     await github("DELETE", `${base}/labels/${DEFERRED_LABEL}`);
