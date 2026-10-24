@@ -1849,7 +1849,7 @@ the escalation marker. What changes from the PR flow:
   the minutes the save steps need, so the patch and lane record still upload) is a stop. When the
   stopped job made progress, which report-outcome reads from the API, not from `lane.json`: this
   run's own lane branch exists and its tip is a lanes-App commit, so apply-issue-patch committed
-  new work. Then the comment's outcome marker is
+  new work, and that commit changes a file other than the progress note. Then the comment's outcome marker is
   `<!-- work-resolve-issue outcome=turn-cap cap=<n> run=<run id> -->` or
   `<!-- work-resolve-issue outcome=timeout run=<run id> -->`, it names the branch, keeps
   `agent-ready` and adds no label, and the work-unblock sweep restarts the issue from that branch

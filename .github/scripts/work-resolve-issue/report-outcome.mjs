@@ -921,6 +921,8 @@ function humanLabelFrom(path) {
 
 // The outcomes after which the next run continues the marked run's branch.
 export const RESUMABLE = new Set(["turn-cap", "timeout", "no-progress", "stopped", "limited", "funding"]);
+// The note a run keeps at the checkout root for the next job of a long run.
+export const PROGRESS_NOTE = ".lane-progress.md";
 // The stops of one long run, resumed from a branch behind main too.
 const CONTINUES = new Set(["turn-cap", "timeout"]);
 
@@ -1131,7 +1133,10 @@ export async function madeProgress(github, repo, { branch, issueNumber, runId, b
     return false;
   }
   const tip = await github("GET", `${repo}/commits/${sha}`).catch(() => null);
-  return laneCommit(tip, bot);
+  // The run keeps its progress note in its change, so a commit that changes
+  // only the note is no progress; a listing that cannot be read is none.
+  const work = Array.isArray(tip?.files) && tip.files.some((file) => file?.filename !== PROGRESS_NOTE);
+  return laneCommit(tip, bot) && work;
 }
 
 function api({ fetch, apiUrl, token }) {
@@ -1479,6 +1484,9 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       // Once per run, like the limited marker: a rerun of this report finds
       // its own marker and posts nothing. The marker comes before the label
       // moves, so work-unblock reads the removal as a re-queue, not a stop.
+      // agent-ready comes off before admission-deferred goes on: the deferred
+      // sweep drops a deferral on an issue that still has agent-ready, which
+      // would leave it with neither.
       const posted = comments.some((comment) => {
         const marker = comment.user?.login === bot ? parseOutcomeMarker(comment.body) : null;
         return marker?.outcome === plan.action && runId !== "" && marker.run === runId;
@@ -1486,13 +1494,13 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       if (!posted) {
         await github("POST", `${repo}/issues/${issueNumber}/comments`, { body: plan.comment });
       }
-      if (plan.addLabels.length) {
-        await github("POST", `${repo}/issues/${issueNumber}/labels`, { labels: plan.addLabels });
-      }
       for (const name of plan.removeLabels) {
         await github("DELETE", `${repo}/issues/${issueNumber}/labels/${encodeURIComponent(name)}`).catch((error) =>
           console.log(`report-outcome: could not remove ${name}: ${error.message}`),
         );
+      }
+      if (plan.addLabels.length) {
+        await github("POST", `${repo}/issues/${issueNumber}/labels`, { labels: plan.addLabels });
       }
       console.log(
         plan.action === "no-progress"

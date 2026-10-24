@@ -1481,6 +1481,7 @@ const STOP_TIP = {
   author: { login: "melodic-automation-lanes[bot]", type: "Bot" },
   committer: { login: "web-flow" },
   commit: { verification: { verified: true, reason: "valid" } },
+  files: [{ filename: "plugins/x/skills/y/SKILL.md" }, { filename: ".lane-progress.md" }],
 };
 const stopLane = (cls) => JSON.stringify({ branch: BRANCH, class: cls, resets: "", "max-turns": "75" });
 const STOP_ROUTES = (tip = STOP_TIP, comments = []) => [
@@ -1511,10 +1512,26 @@ test("main on a stop whose branch tip is not the lanes App's re-queues it with n
     assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=no-progress run=123 -->"), comment);
     assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body, { labels: ["admission-deferred"] });
     assert.ok(calls.some((c) => c.method === "DELETE" && c.path.endsWith("/labels/agent-ready")));
-    // The marker comes before the label moves, so work-unblock reads the removal as a re-queue.
+    // The marker comes before the label moves, so work-unblock reads the removal as a re-queue;
+    // agent-ready comes off before admission-deferred goes on, so the deferred sweep never sees
+    // both and drops the deferral as "already agent-ready", leaving the issue with neither.
     const order = calls.filter((c) => c.method !== "GET").map((c) => `${c.method} ${c.path.split("/").pop()}`);
-    assert.deepEqual(order, ["POST comments", "POST labels", "DELETE agent-ready"]);
+    assert.deepEqual(order, ["POST comments", "DELETE agent-ready", "POST labels"]);
   });
+});
+
+// The run keeps its progress note in its change, so a commit that touches
+// only the note is no progress: otherwise a stuck run that rewrites its note
+// would restart without end.
+test("main on a stop whose own commit changes only the progress note re-queues it", async () => {
+  for (const files of [[{ filename: ".lane-progress.md" }], [], undefined]) {
+    await withAsyncDir({ "lane.json": stopLane("timeout") }, async (dir) => {
+      const { fetch, calls } = fakeFetch(STOP_ROUTES({ ...STOP_TIP, files }));
+      assert.equal(await main({ env: env(dir), fetch }), 0);
+      const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+      assert.match(comment, /outcome=no-progress run=123/, JSON.stringify(files));
+    });
+  }
 });
 
 test("main on a stop that names another run's branch, or none, counts no progress", async () => {
