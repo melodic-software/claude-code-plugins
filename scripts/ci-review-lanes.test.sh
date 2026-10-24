@@ -76,10 +76,17 @@ for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-
   caller="$ROOT/.github/workflows/$file"
   if grep -qxF "  $job" "$caller" && grep -qxF '      publish: comments' "$caller" &&
     grep -qxF '      hold-label: needs-human' "$caller" &&
-    grep -qE '^    uses: melodic-software/ci-workflows/\.github/workflows/pr-review-cli\.yml@4c531cea137f5cbb38d4c132dbfa6e38f76fba7d # v0\.65\.7$' "$caller"; then
-    ok "$file calls pr-review-cli v0.65.7 as job ${job%:} with publish: comments and hold-label: needs-human"
+    grep -qE '^    uses: melodic-software/ci-workflows/\.github/workflows/pr-review-cli\.yml@4f79cc9244498ae856504cf74aeeb05dcc9c6b43 # v0\.65\.8$' "$caller"; then
+    ok "$file calls pr-review-cli v0.65.8 as job ${job%:} with publish: comments and hold-label: needs-human"
   else
-    fail "$file lost its job id, publish: comments, hold-label or v0.65.7 pin"
+    fail "$file lost its job id, publish: comments, hold-label or v0.65.8 pin"
+  fi
+  # pr-review-cli's check-key-credit job requests actions: read; a caller that
+  # does not grant it fails at startup.
+  if awk -v job="  $job" '$0 == job { on = 1; next } on && /^  [^ ]/ { exit } on && /^      actions: read( |$)/ { found = 1 } END { exit !found }' "$caller"; then
+    ok "$file grants actions: read to job ${job%:}"
+  else
+    fail "$file does not grant actions: read to job ${job%:}"
   fi
   paths="$(awk '/^      hold-paths: \|$/ { on = 1; next } on && /^        / { sub(/^ +/, ""); print; next } on { exit }' "$caller")"
   if [[ "$paths" == $'.github/standards/trusted-actors/**\n.github/actions/check-trusted-trigger/**\n**/CODEOWNERS\n**/.gitmodules' ]]; then

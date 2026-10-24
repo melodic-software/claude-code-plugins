@@ -3,6 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.98.0] - 2026-10-24
+
+### Added
+
+- `/planning:plan` orders and caps any phase or test step that spends model runs (evals, agent fan-outs, benchmark batches): a graded check that the problem reproduces comes before any baseline or comparison batch, the run count is sized from tokens measured on 1-2 runs, and the phase carries a `**Run budget:**` line whose runner refuses runs past the count and launches nothing after the first usage-limit error. The plan reviewer flags a model-run phase that lacks any of the three.
+
+## [0.97.1] - 2026-10-24
+
+### Fixed
+
+- The interview page header reads `Live` only while a watcher is waiting. While Claude holds the lease or the bridge reports the session reading, with no watcher waiting, it reads `Claude is working on <question>` instead of staying `Live` for the rest of the lease timeout. A delivery unhandled for ten minutes still reads `Not listening: type next`, lease or not. Chips and the receipt line are unchanged.
+
 ## [0.97.0] - 2026-10-24
 
 ### Changed
