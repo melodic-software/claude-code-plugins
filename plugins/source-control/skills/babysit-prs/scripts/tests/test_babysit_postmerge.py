@@ -15,6 +15,7 @@ seam; no real gh process runs.
 
 from __future__ import annotations
 
+import base64
 import contextlib
 import dataclasses
 import io
@@ -235,6 +236,8 @@ class FakeGh:
         self.total_counts: dict[tuple[str, str], int] = {}
         # Commits on main, as the commits API lists them by committer date.
         self.branch_commits: list[dict[str, Any]] = []
+        # File texts by (path, ref) the contents API serves; any other is 404.
+        self.files: dict[tuple[str, str], str] = {}
 
     def add_runs(self, workflow: str, event: str, *runs: dict[str, Any]) -> None:
         self.runs.setdefault((workflow, event), []).extend(runs)
@@ -378,6 +381,14 @@ class FakeGh:
                 return completed(returncode=1, stderr=f"gh: Error (HTTP {value})")
             return completed({"permission": value})
         if endpoint.startswith(f"repos/{REPO}/contents/"):
+            path, _, ref = endpoint.removeprefix(f"repos/{REPO}/contents/").partition(
+                "?ref="
+            )
+            if (path, ref) in self.files:
+                content = base64.b64encode(self.files[(path, ref)].encode()).decode()
+                return completed(
+                    {"type": "file", "encoding": "base64", "content": content}
+                )
             return completed(returncode=1, stderr="gh: Not Found (HTTP 404)")
         if endpoint.startswith(f"repos/{REPO}/contents?ref="):
             # A readable tree without the config: every config key at its default.
@@ -902,6 +913,165 @@ class NativeAutoMerge(CheckCase):
                 verdict = self.check(now=self.LATE)
                 self.assertFalse(verdict.readable)
                 self.assertIn("no auto-merge events", verdict.reason)
+
+
+PARENT_SHA = "6" * 40
+PIPELINE = "docs/conventions/pr-pipeline.yaml"
+
+
+def enqueue(actor: Any, enqueuer: Any, at: str = "2026-10-12T09:50:00Z") -> dict:
+    return {"createdAt": at, "actor": actor, "enqueuer": enqueuer}
+
+
+def immediate_enqueue(
+    *enqueues: dict[str, Any], earlier: bool = False, **overrides: Any
+) -> dict[str, Any]:
+    """The identity's pull request armed while already mergeable, shaped like
+    #9554: GitHub enqueued it at once, so the timeline holds only the
+    identity's `AddedToMergeQueueEvent` and no auto-merge event."""
+    fields: dict[str, Any] = {
+        "timelineItems": {
+            "pageInfo": {"hasPreviousPage": earlier},
+            # #9554's enqueuer: a User typed node with the App's REST login.
+            "nodes": list(enqueues)
+            or [enqueue(APP_ACTOR, {"__typename": "User", "login": IDENTITY})],
+        },
+        "autoMerge": {"nodes": []},
+        "mergeCommit": {"oid": MERGE_SHA, "parents": {"nodes": [{"oid": PARENT_SHA}]}},
+    }
+    fields.update(overrides)
+    return merged_pr(**fields)
+
+
+class ImmediateEnqueueNativeArm(CheckCase):
+    """Under `merge.lane-prs: native` the gate never enqueues the lanes App's
+    pull requests, so an identity enqueue with no auto-merge event is the
+    native arm's immediate enqueue (#9554) and has no pin to read back."""
+
+    LATE = NativeAutoMerge.LATE
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.gh.merged = [immediate_enqueue()]
+        self.lane_prs("native")
+
+    def lane_prs(self, value: str | None, sha: str = PARENT_SHA) -> None:
+        text = "version: 2\nmerge:\n  rung: C2\n"
+        if value is not None:
+            text += f"  lane-prs: {value}\n"
+        self.gh.files[(PIPELINE, sha)] = text
+
+    def check_unpinned(self, now: datetime | None = None) -> pm.PostMergeVerdict:
+        def no_pin_read(merge: Any) -> str | None:
+            raise AssertionError(f"read the pin of #{merge.number}")
+
+        return pm.check(
+            REPO,
+            agent_identity=IDENTITY,
+            is_human=human,
+            merged_since=SINCE,
+            now=now or self.LATE,
+            pinned_sha=no_pin_read,
+        )
+
+    def read_back_failures(self) -> list[str]:
+        return [f.signal for f in self.check(pinned=None, now=self.LATE).failures]
+
+    def test_it_verifies_with_nothing_pending_and_no_pin_read(self) -> None:
+        self.all_green()
+        for now in (datetime(2026, 10, 12, 11, 0, tzinfo=UTC), self.LATE):
+            with self.subTest(now=now):
+                verdict = self.check_unpinned(now)
+                self.assertEqual(verdict.failures, ())
+                self.assertEqual(verdict.merges[0].pending, ())
+                self.assertTrue(verdict.merges[0].verified)
+                self.assertTrue(verdict.ok)
+
+    def test_a_null_enqueuer_and_an_absent_lane_prs_are_native(self) -> None:
+        # resolve-config resolves an absent merge.lane-prs to native.
+        self.gh.merged = [immediate_enqueue(enqueue(APP_ACTOR, None))]
+        self.lane_prs(None)
+        self.all_green()
+        self.assertTrue(self.check_unpinned().ok)
+
+    def test_lane_prs_is_read_at_the_merge_parent_not_the_merge(self) -> None:
+        # The merged pull request's own change to lane-prs does not decide it.
+        self.lane_prs("gate")
+        self.lane_prs("native", sha=MERGE_SHA)
+        self.all_green()
+        self.assertEqual(self.read_back_failures(), ["read-back"])
+
+    def test_the_pin_stays_required_unless_every_condition_holds(self) -> None:
+        cases: dict[str, tuple[str | None, dict[str, Any]]] = {
+            "lane-prs gate": ("gate", {}),
+            "lane-prs neither native nor gate": ("sometimes", {}),
+            "a human actor": ("native", {"enqueues": [enqueue(HUMAN, APP_ACTOR)]}),
+            "a human enqueuer": ("native", {"enqueues": [enqueue(APP_ACTOR, HUMAN)]}),
+            # #9540: a person enqueued and dequeued it before the identity did.
+            "a human enqueue before the identity's": (
+                "native",
+                {
+                    "enqueues": [
+                        enqueue(HUMAN, HUMAN, "2026-10-12T09:00:00Z"),
+                        enqueue(APP_ACTOR, APP_ACTOR),
+                    ]
+                },
+            ),
+            "enqueues older than the read": ("native", {"earlier": True}),
+            "no merge parent": ("native", {"mergeCommit": {"oid": MERGE_SHA}}),
+            "enabled, then disabled": (
+                "native",
+                {"autoMerge": auto_merge_event(APP_ACTOR, "AutoMergeDisabledEvent")},
+            ),
+            "opened by a person": ("native", {"author": HUMAN}),
+        }
+        self.all_green()
+        for name, (value, fields) in cases.items():
+            with self.subTest(name):
+                self.lane_prs(value)
+                enqueues = fields.pop("enqueues", [])
+                self.gh.merged = [immediate_enqueue(*enqueues, **fields)]
+                self.assertEqual(self.read_back_failures(), ["read-back"])
+
+    def test_an_unreadable_config_keeps_the_pin_and_the_verdict_readable(self) -> None:
+        self.gh.fail_reads.add(f"/contents/{PIPELINE}")
+        self.all_green()
+        verdict = self.check(pinned=None)
+        self.assertTrue(verdict.readable)
+        self.assertEqual(verdict.merges[0].pending, ("read-back-unrecorded",))
+
+    def test_one_config_read_per_parent_and_none_for_an_armed_merge(self) -> None:
+        self.gh.merged = [
+            immediate_enqueue(number=7001),
+            immediate_enqueue(number=7002),
+            identity_merge(number=7003, autoMerge=auto_merge_event(APP_ACTOR)),
+        ]
+        self.all_green()
+        self.assertTrue(self.check_unpinned().ok)
+        reads = [
+            c for c in self.gh.calls if any(f"/contents/{PIPELINE}" in a for a in c)
+        ]
+        self.assertEqual(len(reads), 1)
+
+
+class LanePrsConfig(unittest.TestCase):
+    def lane_prs(self, line: str) -> str | None:
+        text = f"version: 2\nmerge:\n  rung: C2\n{line}"
+        return pm.policy.read_config_at(
+            REPO,
+            "a" * 40,
+            file_at=lambda path, sha: text if path == pm.policy.CONFIG_PATH else None,
+        ).lane_prs
+
+    def test_lane_prs_is_native_or_gate_and_absent_is_native(self) -> None:
+        self.assertEqual(self.lane_prs("  lane-prs: native\n"), "native")
+        self.assertEqual(self.lane_prs("  lane-prs: gate\n"), "gate")
+        self.assertEqual(self.lane_prs(""), "native")
+        self.assertIsNone(self.lane_prs("  lane-prs: off\n"))
+
+    def test_no_pipeline_file_has_no_lane_prs(self) -> None:
+        config = pm.policy.read_config_at(REPO, "a" * 40, file_at=lambda p, s: None)
+        self.assertIsNone(config.lane_prs)
 
 
 class RunsOffTheBranch(CheckCase):
