@@ -26,6 +26,21 @@
       "additionalProperties": false,
       "properties": {"text": {"type": "string"}, "at": {"type": "string"}}
     },
+    "glossary": {
+      "description": "Coined session terms, set by the glossary op: the page lists them in its Terms panel and shows each definition on hover in question text.",
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "required": ["term", "definition", "at"],
+        "additionalProperties": false,
+        "properties": {
+          "term": {"type": "string", "maxLength": 60},
+          "definition": {"type": "string"},
+          "at": {"type": "string"}
+        }
+      }
+    },
     "context": {
       "description": "How full the session's context is, set and cleared by the context op.",
       "type": "object",

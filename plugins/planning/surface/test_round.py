@@ -1757,6 +1757,38 @@ class TestClaudeActivity(DirCase):
             with self.subTest(extra=extra):
                 self.refused({"op": "context", **extra})
 
+    def test_glossary_defines_redefines_and_clears_a_term(self):
+        self.assertNotIn("glossary", self.doc())
+        self.apply({"op": "glossary", "term": "the lane", "definition": "One CI job."})
+        (entry,) = self.doc()["glossary"]
+        self.assertEqual((entry["term"], entry["definition"]), ("the lane", "One CI job."))
+        self.assertTrue(entry["at"])
+        self.apply(
+            {"op": "glossary", "term": "the lane", "definition": "One CI job and its checks."},
+            {"op": "glossary", "term": "G12", "definition": "The shorthand gap."},
+        )
+        self.assertEqual(
+            [(t["term"], t["definition"]) for t in self.doc()["glossary"]],
+            [("the lane", "One CI job and its checks."), ("G12", "The shorthand gap.")],
+        )
+        self.apply({"op": "glossary", "term": "the lane", "clear": True})
+        self.assertEqual([t["term"] for t in self.doc()["glossary"]], ["G12"])
+        self.apply({"op": "glossary", "term": "G12", "clear": True})
+        self.assertNotIn("glossary", self.doc())
+
+    def test_glossary_refuses_bad_shapes(self):
+        for extra in (
+            {"term": "x"},
+            {"term": "  ", "definition": "d"},
+            {"term": "x" * 61, "definition": "d"},
+            {"term": "x", "definition": "d" * 501},
+            {"term": "x", "definition": "d", "clear": True},
+            {"term": "never defined", "clear": True},
+        ):
+            with self.subTest(extra=extra):
+                self.refused({"op": "glossary", **extra})
+        self.assertNotIn("glossary", self.doc())
+
     def test_wait_then_clear(self):
         self.apply({"op": "wait", "id": "Q3", "waitsOn": "research on ghq"})
         q = self.q("Q3")

@@ -64,6 +64,8 @@ header.top{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;border-botto
 #reBanner{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px}
 #reBanner[hidden],.ntoast[hidden],.ctx[hidden],.handoff[hidden]{display:none}
 .ctx{font:500 12.5px/1 var(--mono);font-variant-numeric:tabular-nums;padding:6px 10px;border-radius:999px;border:1px solid var(--accent);color:var(--accent);background:var(--accent-soft);white-space:nowrap}
+abbr.term{text-decoration:underline dotted;text-underline-offset:2px;cursor:help}
+dl.terms{margin:8px 0}dl.terms dt{font-weight:600;margin-top:8px}dl.terms dd{margin:2px 0 0}
 .handoff{margin-top:6px;padding:6px 10px;border:1px solid var(--accent);border-radius:6px;color:var(--ink);background:var(--accent-soft);font-size:13.5px;overflow-wrap:anywhere}
 .ntoast{position:fixed;left:16px;bottom:16px;z-index:40;display:flex;gap:8px;align-items:center;flex-wrap:wrap;max-width:min(440px,calc(100vw - 32px));border:1px solid var(--chg);background:var(--panel);border-radius:8px;padding:8px 12px;box-shadow:0 4px 18px rgba(0,0,0,.25);font-size:13.5px;pointer-events:none}
 .ntoast button{pointer-events:auto}
@@ -501,6 +503,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       <button data-panel="visuals" aria-label="Visuals" title="Visuals (v)" aria-pressed="false" aria-keyshortcuts="v"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6"/><circle cx="16" cy="9" r="1.5"/></svg><span class="badge" id="visBadge" hidden></span></button>
       <button data-panel="notes" aria-label="Notes to Claude" title="Notes to Claude (m)" aria-pressed="false" aria-keyshortcuts="m"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg><span class="badge" id="noteBadge" hidden></span></button>
       <button data-panel="activity" aria-label="Activity" title="Activity (l)" aria-pressed="false" aria-keyshortcuts="l"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg><span class="badge" id="actBadge" hidden></span></button>
+      <button data-panel="terms" aria-label="Terms" title="Terms" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M9 8h6M9 12h6"/></svg></button>
       <button data-panel="settings" aria-label="Settings" title="Settings (,)" aria-pressed="false" aria-keyshortcuts=","><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
     </div>
   </div>
@@ -593,6 +596,17 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
 
   // ---------- markdown subset (escape first) ----------
   function refHtml(id){ const q = Q[id]; return '<button type="button" class="ref" data-q="' + esc(id) + '"><b>' + esc(id) + '</b>' + esc(q ? (q.short || q.title) : "unknown") + '</button>'; }
+  let termMemo = {key: null, re: null, defs: {}};
+  function termMemoOf(){ // the glossary's terms as escaped text, longest first, so one pass wraps each defined term; rebuilt only when the glossary changes
+    const g = (S.doc && S.doc.glossary) || [], key = JSON.stringify(g);
+    if (termMemo.key !== key) {
+      const defs = {}; g.forEach(t => { defs[esc(t.term)] = t.definition; });
+      const names = Object.keys(defs).sort((a, b) => b.length - a.length).map(n => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+      termMemo = {key, defs, re: names.length ? new RegExp("(?<![\\w-])(?:" + names.join("|") + ")(?![\\w-])", "g") : null};
+    }
+    return termMemo;
+  }
+  const termRe = () => termMemoOf().re, termDefs = () => termMemoOf().defs;
   function inline(raw){
     return String(raw ?? "").split(/(`[^`\n]+`)/).map((part, i) => {
       if (i % 2) return "<code>" + esc(part.slice(1, -1)) + "</code>";
@@ -610,6 +624,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
         return "\u0000" + (keep.length - 1) + "\u0000";
       });
       e = e.replace(/\b([A-Z]{1,3}\d{1,4})\b/g, (m, id) => Q[id] ? refHtml(id) : m);
+      const tre = termRe();
+      if (tre) e = e.split(/(<[^>]*>|\u0000\d+\u0000)/).map((seg, k) => k % 2 ? seg : seg.replace(tre, m => '<abbr class="term" tabindex="0" title="' + esc(termDefs()[m]) + '">' + m + "</abbr>")).join(""); // outside tags and kept links
       return e.replace(/\u0000(\d+)\u0000/g, (m, n) => keep[+n]);
     }).join("");
   }
@@ -1541,9 +1557,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     $("pinBtn").setAttribute("aria-pressed", String(S.pinned)); $("pinBtn").textContent = S.pinned ? "Unpin" : "Pin";
     if (!open) return;
     const q = S.sel !== SUMMARY ? Q[S.sel] : null, body = $("fbody");
-    $("tabs").innerHTML = [["visuals", "Visuals"], ["notes", "Notes to Claude"], ["activity", "Activity"], ["settings", "Settings"]].map(([k, t]) => '<button role="tab" data-panel="' + k + '" aria-selected="' + (S.fly === k) + '" tabindex="' + (S.fly === k ? 0 : -1) + '">'+ t + "</button>").join("");
+    $("tabs").innerHTML = [["visuals", "Visuals"], ["notes", "Notes to Claude"], ["activity", "Activity"], ["terms", "Terms"], ["settings", "Settings"]].map(([k, t]) => '<button role="tab" data-panel="' + k + '" aria-selected="' + (S.fly === k) + '" tabindex="' + (S.fly === k ? 0 : -1) + '">'+ t + "</button>").join("");
     if (S.fly === "notes") { $("flyTitle").textContent = "Notes to Claude"; renderNotes(body); return; }
     if (S.fly === "activity") { $("flyTitle").textContent = "Activity"; renderActivity(body); return; }
+    if (S.fly === "terms") { $("flyTitle").textContent = "Terms"; renderTerms(body); return; }
     if (S.fly === "settings") { $("flyTitle").textContent = "Settings"; renderSettings(body); return; }
     const vgs = vtabGroups(visualsFor(q)), flat = vgs.flatMap(g => g.tabs), tail = galleries(visualsFor(q)).concat([{id: "map", title: "Map"}]), subs = flat.concat(tail);
     if (!subs.some(t => t.id === S.vtab)) S.vtab = (flat.find(x => x.v.primary) || subs[0]).id;
@@ -1592,6 +1609,11 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       '<div class="arow"><button class="act primary" data-sendnote="1" data-submit="1"' + (S.api >= 2 && !closed() ? "" : " disabled") + '>Send note</button><span class="kbd">' + (S.api < 2 ? RESTART : closed() ? closedWhy() : QuestionShape.keyHint("send")) + '</span></div><div class="toast" id="noteToast"></div>';
     const ta = $("noteText"), nk = noteBox(ta, "send"); ta.nextElementSibling.append(nk.count); Kit.grow(ta);
     const th = body.querySelector(".nthread"); if (th.lastElementChild) th.lastElementChild.scrollIntoView({block: "nearest"});
+  }
+  function renderTerms(body){
+    const g = (S.doc.glossary || []).slice().sort((a, b) => a.term.localeCompare(b.term));
+    body.innerHTML = '<div class="fscope">Shorthand Claude coined in this session. A defined term in a question shows its definition on hover.</div>' +
+      (g.length ? '<dl class="terms">' + g.map(t => "<dt>" + esc(t.term) + "</dt><dd>" + esc(t.definition) + "</dd>").join("") + "</dl>" : '<p class="empty">No terms defined yet.</p>');
   }
   function renderSettings(body){
     const row = (k, label, ctl) => '<div class="setrow" data-key="' + k + '"><label for="set-' + k + '">' + label + "</label>" + ctl + '<div class="src">From ' + esc(settingSrc(k)) + (settingSrc(k) === "this browser" ? ' <button class="tbtn small" data-reset="' + k + '">Reset</button>' : "") + "</div></div>";
@@ -2077,7 +2099,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       S.loaded = true;
       S.view = lsGet("view", "groups"); if (!["groups", "rounds", "tree"].includes(S.view)) S.view = "groups";
       S.filter = lsGet("filter", "all"); if (!["all", "open", "review", "pending", "answered"].includes(S.filter)) S.filter = "all";
-      S.fly = lsGet("fly", null); if (!["visuals", "notes", "activity", "settings"].includes(S.fly)) S.fly = null;
+      S.fly = lsGet("fly", null); if (!["visuals", "notes", "activity", "terms", "settings"].includes(S.fly)) S.fly = null;
       S.pinned = lsGet("pinned", false); S.railHidden = lsGet("railHidden", false); S.noteSeen = lsGet("noteSeen", 0);
       if (lsGet("actSeen", null) === null) markSeen(); // a new browser starts with everything seen
       const saved = lsGet("sel", null), hid = hashId();
