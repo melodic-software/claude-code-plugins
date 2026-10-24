@@ -68,6 +68,7 @@ on:
       - .shellcheckrc
       - REVIEW.md
       - _typos.toml
+      - docs/conventions/source-control/commit-convention.yml
       - docs/standards/README.md
       - docs/standards/bulk-mutation.md
       - docs/standards/concise-prose.md
