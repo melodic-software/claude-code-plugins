@@ -38,10 +38,12 @@
 //
 // It re-fires the same way an open agent-ready issue whose newest
 // work-resolve-issue run (the one its newest agent-ready label started, by a
-// listed human or the App) failed with no lanes-App outcome marker since: a
+// listed human or the App) did no work and left no lanes-App outcome marker since: a
 // crash before the report, a rerun the token broker refused as
-// workflow-modified, or a run cancelled after admit passed and before any
-// resolve-issue job started (pick-slot's timeout, a slot queue past GitHub's limit).
+// workflow-modified, a run cancelled after admit passed and before any
+// resolve-issue job started (pick-slot's timeout, a slot queue past GitHub's limit),
+// or a run that ended green at the read runner's `Stop on stale workflow files`
+// step (it waited in its slot past a lane workflow change, so no model ran).
 // A run a newer agent-ready run replaced while it waited is never re-fired:
 // admit never ran in it. A rerun keeps its first event's workflow files, so only a
 // fresh label event runs on main's. Each issue is re-fired at most once per
@@ -127,6 +129,9 @@ const RUN_ID = /^[1-9][0-9]{0,14}$/;
 const HOUR_MS = 3_600_000;
 // The write runner's step that mints the lane token, which every model run follows.
 const MINT_STEP = "Request the lane token";
+// The read runner's step a run stops at, green, when its lane workflow files
+// differ from main's: no model ran and no outcome marker follows.
+const STALE_STEP = "Stop on stale workflow files";
 const REFIRED = /^<!-- work-unblock refired ([0-9a-f]{40}-[0-9a-f]{40}) -->/;
 const handedMarker = (pr) => `<!-- work-unblock handed triage #${pr} -->`;
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
@@ -430,7 +435,7 @@ export const escalationComment = (stops) =>
 // The re-fire's record, posted before the label moves: one per issue per
 // version of the lane workflow files.
 export const refireComment = (key) =>
-  `<!-- work-unblock refired ${key} -->\nThe work-resolve-issue run that \`${LABEL}\` started failed or was cancelled before it reported, or the token broker refused it because its workflow files differ from main's. work-unblock removed and added \`${LABEL}\` back to start a fresh run on main's workflow files. It does this once per version of those files, so if this run fails the same way, a person looks at it.`;
+  `<!-- work-unblock refired ${key} -->\nThe work-resolve-issue run that \`${LABEL}\` started failed or was cancelled before it reported, or it stopped or the token broker refused it because its workflow files differ from main's. work-unblock removed and added \`${LABEL}\` back to start a fresh run on main's workflow files. It does this once per version of those files, so if this run fails the same way, a person looks at it.`;
 
 // The relabel's record, posted before the label moves: one per recurrence
 // comment.
@@ -476,21 +481,18 @@ async function laneRuns(actions, repo, number, addedAt) {
 // wins) or was skipped by the WIP cap (`capped`: pick-slot ran, resolve-issue
 // did not). A run another gate stopped before its mint (an open closing PR, a
 // reused branch) is neither, so it is never re-fired here.
-async function didNoWork(actions, repo, runs) {
+async function didNoWork(jobsOf, runs) {
   let stalled = null;
   for (const run of runs) {
     if (!RUN_ID.test(String(run.id))) {
       return null;
     }
-    const jobs = (await actions("GET", `/repos/${repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`))?.jobs;
-    if (!Array.isArray(jobs)) {
-      throw new Error(`run ${run.id}'s job listing has an unexpected shape`);
-    }
+    const jobs = await jobsOf(run);
     const mints = jobs.flatMap((job) => (job?.steps ?? []).filter((step) => step?.name === MINT_STEP));
     if (mints.some((step) => step.conclusion === "success")) {
       return null;
     }
-    const named = (name) => jobs.filter((job) => job?.name === name || String(job?.name).startsWith(`${name} /`));
+    const named = (name) => namedJobs(jobs, name);
     const capped =
       named("pick-slot").some((job) => job.conclusion === "success") &&
       named("resolve-issue").length > 0 &&
@@ -504,6 +506,39 @@ async function didNoWork(actions, repo, runs) {
   return stalled;
 }
 
+// Each run's latest-attempt job listing, read once per run id.
+function jobLister(actions, repo) {
+  const listed = new Map();
+  return (run) => {
+    if (!listed.has(run.id)) {
+      listed.set(
+        run.id,
+        (async () => {
+          const jobs = (await actions("GET", `/repos/${repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`))?.jobs;
+          if (!Array.isArray(jobs)) {
+            throw new Error(`run ${run.id}'s job listing has an unexpected shape`);
+          }
+          return jobs;
+        })(),
+      );
+    }
+    return listed.get(run.id);
+  };
+}
+
+const namedJobs = (jobs, name) => jobs.filter((job) => job?.name === name || String(job?.name).startsWith(`${name} /`));
+
+// Whether one of `runs` ended green at the read runner's stale-workflow stop.
+async function stoppedStale(jobsOf, runs) {
+  for (const run of runs.filter((item) => item.conclusion === "success" && RUN_ID.test(String(item.id)))) {
+    const resolve = namedJobs(await jobsOf(run), "resolve-issue");
+    if (resolve.some((job) => (job?.steps ?? []).some((step) => step?.name === STALE_STEP && step.conclusion === "success"))) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // A job that never ran on a runner: skipped, or no step ran and no runner took
 // it. A job listing with no steps for a job a runner took is not one.
 const neverStarted = (job) =>
@@ -515,13 +550,10 @@ const neverStarted = (job) =>
 // while it waited for its slot (GitHub cancels a slot queue past its limit).
 // A run a newer agent-ready run replaced in the workflow's concurrency group
 // was cancelled while it waited, before admit ran, so it never counts.
-async function cancelledBeforeWork(actions, repo, runs) {
+async function cancelledBeforeWork(jobsOf, runs) {
   for (const run of runs.filter((item) => item.conclusion === "cancelled" && RUN_ID.test(String(item.id)))) {
-    const jobs = (await actions("GET", `/repos/${repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`))?.jobs;
-    if (!Array.isArray(jobs)) {
-      throw new Error(`run ${run.id}'s job listing has an unexpected shape`);
-    }
-    const named = (name) => jobs.filter((job) => job?.name === name || String(job?.name).startsWith(`${name} /`));
+    const jobs = await jobsOf(run);
+    const named = (name) => namedJobs(jobs, name);
     const resolve = named("resolve-issue");
     if (
       named("admit").some((job) => job.conclusion === "success") &&
@@ -698,7 +730,8 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
   if (runs.some((run) => run.status !== "completed")) {
     return { reason: "its lane run is still going" };
   }
-  const stalled = await didNoWork(actions, repo, runs);
+  const jobsOf = jobLister(actions, repo);
+  const stalled = await didNoWork(jobsOf, runs);
   if (stalled) {
     const ended = Math.max(...runs.map((run) => Date.parse(run.updated_at)).filter(Number.isFinite), addedAt);
     const due = ended + limits["reset-clamp-min"] * HOUR_MS;
@@ -722,7 +755,7 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
     }
     return { reason: null, resets: due, refire: key, recorded };
   }
-  if (!runs.some((run) => FAILED.has(run.conclusion)) && !(await cancelledBeforeWork(actions, repo, runs))) {
+  if (!runs.some((run) => FAILED.has(run.conclusion)) && !(await cancelledBeforeWork(jobsOf, runs)) && !(await stoppedStale(jobsOf, runs))) {
     return { reason: "its lane run did not fail" };
   }
   const key = await workflowKey();

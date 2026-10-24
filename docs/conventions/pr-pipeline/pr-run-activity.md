@@ -1725,8 +1725,10 @@ in line, holding no runner, instead of spending the lanes App's hourly API quota
 caller or the write file merges while it waits, the broker would refuse the apply job's mint
 as `workflow-modified`. Before any model turn, the read file's `workflow-current` step compares
 the caller's and the write file's blobs at `github.workflow_sha` with the default branch checkout, the broker's
-rule, and on a difference fails red `workflow-stale` with no model turn and no outcome marker;
-work-unblock's hourly sweep re-fires such a failed run on main's files. An issue that
+rule. On a difference it sets `stale=true` and ends green: the `Stop on stale workflow files`
+step runs, `go` is `false`, so no model turn, no outcome marker and no caller job follows, and
+the run counts as no failure. work-unblock's hourly sweep finds that step in the run's job
+listing and re-fires the issue on main's files, once per version of the two files. An issue that
 `pick-slot`'s resolve skips on its dimensions (`split-required`, `research-first` or
 `probe-first`) takes no model turn and leaves no outcome, so the caller's `report-skip` job,
 which needs `admit` and `pick-slot` only, runs `report-outcome` in the write file with
