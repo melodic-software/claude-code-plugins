@@ -18,7 +18,7 @@ import path from "node:path";
 import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { GITHUB_STATUS_URL, main, NPM_STATUS_URL, prefilterSpec } from "./reconcile.mjs";
+import { GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, main, NPM_STATUS_URL, prefilterSpec } from "./reconcile.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const NOW = Date.parse("2026-10-19T20:00:00Z");
@@ -423,6 +423,19 @@ test("at most 3 verify runs are recorded and re-run in one run", async () => {
   assert.deepEqual(records(outputs), [201, 202, 203].map((id) => `reconcile-rerun-${id}-2-${MAIN_TIP}`));
 });
 
+test("pr-verify still names its judge step as the reconciler reads it", () => {
+  const workflow = readFileSync(new URL("../../workflows/pr-verify.yml", import.meta.url), "utf8");
+  const stepAt = (name) => {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return workflow.search(new RegExp(`^[ ]*- name: ${escaped}$`, "m"));
+  };
+  const judge = stepAt(JUDGE_STEP);
+  assert.ok(judge >= 0);
+  assert.ok(judge < stepAt("Upload the verdict"));
+  const names = [...workflow.matchAll(/^[ ]*- name: (.+)$/gm)].map((m) => m[1]);
+  assert.equal(names[names.indexOf(JUDGE_STEP) - 1], JUDGE_PREDECESSOR);
+});
+
 test("a verify run lost after its judge step started is recorded and re-run once", async () => {
   for (const conclusion of ["success", "failure", "cancelled"]) {
     const { code, reruns, outputs } = await reconcile({ pulls: [], runs: [{ ...verifyRun(201), jobs: verifyJob(conclusion) }] });
@@ -535,7 +548,7 @@ test("a verify run whose job's steps did not list is not re-run or recorded, and
 // A runner that dies cuts its job's list at the running step, with no
 // "Complete job"; GitHub's runner-loss annotation on the job's check run tells
 // that cut from one the API made.
-test("a verify run whose job lost its runner is re-run from the job's annotations, before or during its judge step", async () => {
+test("a verify run whose job lost its runner is re-run when its cut list stops before the judge step, from the job's annotations", async () => {
   const lostAt = (running) => ({
     id: 88,
     name: "verify",
@@ -554,14 +567,47 @@ test("a verify run whose job lost its runner is re-run from the job's annotation
   assert.deepEqual(before.reruns, [201]);
   assert.deepEqual(records(before.outputs), [`reconcile-rerun-201-2-${MAIN_TIP}`, "", ""]);
   assert.ok(before.calls.includes(`GET /repos/${REPO}/check-runs/88/annotations?per_page=100`));
-  const during = await reconcile({ pulls: [], runs: [{ ...verifyRun(201), jobs: [lostAt("Judge the pull request")] }] });
+  const during = await reconcile({ pulls: [], runs: [{ ...verifyRun(201), jobs: [lostAt(JUDGE_STEP)] }] });
   assert.equal(during.code, 0);
-  assert.deepEqual(during.reruns, [201]);
-  assert.deepEqual(records(during.outputs), [`reconcile-rerun-201-2-${MAIN_TIP}`, "", ""]);
+  assert.deepEqual(during.reruns, []);
+  assert.deepEqual(records(during.outputs), ["", "", ""]);
   const unnoted = await reconcile({ pulls: [], runs: [{ ...verifyRun(201), jobs: [{ ...lostAt("Read the spec"), notes: [] }] }] });
   assert.equal(unnoted.code, 1);
   assert.deepEqual(unnoted.reruns, []);
   assert.deepEqual(records(unnoted.outputs), ["", "", ""]);
+});
+
+// The judge step's log can echo model or PR text, so a failure annotation that
+// reads as a runner loss proves one only on a cut list that stops before the
+// judge step's predecessor, in a job that failed.
+test("a runner-loss annotation counts only on a failed job whose cut list stops before the judge step's predecessor", async () => {
+  const cutAt = (names, conclusion = "failure") => ({
+    id: 88,
+    name: "verify",
+    status: "completed",
+    conclusion,
+    runner_id: 7,
+    steps: names.map((name, i) => ({ number: i + 1, name, status: i === names.length - 1 ? "in_progress" : "completed", conclusion: i === names.length - 1 ? null : "success" })),
+    notes: [{ annotation_level: "failure", message: "The hosted runner lost communication with the server." }],
+  });
+  const early = ["Set up job", "Check the trigger", "Read the spec"];
+  const run201 = (job) => reconcile({ pulls: [], runs: [{ ...verifyRun(201), jobs: [job] }] });
+  const genuine = await run201(cutAt(early));
+  assert.equal(genuine.code, 0);
+  assert.deepEqual(genuine.reruns, [201]);
+  for (const reached of [JUDGE_PREDECESSOR, JUDGE_STEP]) {
+    const echoed = await run201(cutAt([...early, reached]));
+    assert.equal(echoed.code, 0, reached);
+    assert.deepEqual(echoed.reruns, [], reached);
+    assert.deepEqual(records(echoed.outputs), ["", "", ""], reached);
+  }
+  const notFailed = await run201(cutAt(early, "cancelled"));
+  assert.equal(notFailed.code, 1);
+  assert.deepEqual(notFailed.reruns, []);
+  assert.deepEqual(records(notFailed.outputs), ["", "", ""]);
+  const judgeNotFailed = await run201(cutAt([...early, JUDGE_STEP], "cancelled"));
+  assert.equal(judgeNotFailed.code, 1);
+  assert.deepEqual(judgeNotFailed.reruns, []);
 });
 
 // A judge step that started holds nothing: the first attempt is re-run once.
