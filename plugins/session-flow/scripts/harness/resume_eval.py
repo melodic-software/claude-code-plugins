@@ -579,7 +579,19 @@ def write_stub_gh(bin_dir: Path, fixture_path: Path, log_path: Path, fixture: di
 # Real-setup mechanics: .work/handoff-efficiency/phase1-design.md. Every CLI call goes
 # through `RunConfig.call`, so the flow is testable without a model call.
 
-ARMS = ("before", "after", "free-hand", "compact")
+ARMS = ("before", "after", "after-promoted", "free-hand", "compact")
+# A state of an arm that shares its writer and reader prompts and plugin copy: the
+# restated-preference case's promoted state is `after` plus an instruction fixture.
+ARM_BASE = {"after-promoted": "after"}
+
+
+def arm_base(arm: str) -> str:
+    return ARM_BASE.get(arm, arm)
+
+
+def applies(probe: dict, arm: str) -> bool:
+    arms = probe.get("arms", ARMS)
+    return arm in arms or arm_base(arm) in arms
 EXCLUDE_MARKERS = (
     re.compile(r"Sandbox is required but failed to initialize|Failed to create bridge sockets"),
     re.compile(r"(?i)usage limit|rate limit(ed)? (reached|exceeded)|hit your limit|429 Too Many Requests"),
@@ -712,7 +724,7 @@ def _claude(cfg: RunConfig, run: dict, prompt: str, *, arm: str, resume: str | N
     call = cfg.call or default_call
     cmd = claude_command(
         prompt,
-        plugin_dir=cfg.copies.get(arm),
+        plugin_dir=cfg.copies.get(arm, cfg.copies.get(arm_base(arm))),
         settings=str(run["repo"].parent / "settings.json"),
         mcp_config=str(run["repo"].parent / "mcp.json"),
         resume=resume,
@@ -733,7 +745,7 @@ def write_stage(case: dict, arm: str, run: dict, cfg: RunConfig) -> dict:
     code, out, err, events = _claude(cfg, run, interrupt, arm=arm, resume=run["sid"], extra=extra)
     if reason := exclusion_reason(code, out, err, events):
         return {"excluded": f"interrupt: {reason}"}
-    prompt = case["writer"]["prompts"][arm]
+    prompt = case["writer"]["prompts"][arm_base(arm)]
     tokens = {"m1": 0, "m3": 0}
     out_path = None
     if arm == "compact":
@@ -779,8 +791,8 @@ def _instruction_flags(case: dict, arm: str) -> tuple:
 def read_stage(case: dict, arm: str, reader: str, run: dict, written: dict, cfg: RunConfig) -> dict:
     """Resume the reader once, then ask the follow-up questions in the same session."""
     call = cfg.call or default_call
-    delivery = case["reader"]["delivery"][arm]
-    questions = [p for p in case["probes"] if p.get("grade") == "text" and arm in p.get("arms", ARMS)]
+    delivery = case["reader"]["delivery"][arm_base(arm)]
+    questions = [p for p in case["probes"] if p.get("grade") == "text" and applies(p, arm)]
     followup = "Answer each question from what you know of this work; do not run tools.\n" + "\n".join(
         f"{i}. {p['question']}" for i, p in enumerate(questions, 1)
     )
@@ -828,7 +840,7 @@ def grade_run(case: dict, arm: str, reader: str, run: dict, written: dict, read:
     )
     results = {}
     for probe in sorted(case["probes"], key=lambda p: bool(p.get("requires"))):
-        if arm not in probe.get("arms", ARMS):
+        if not applies(probe, arm):
             continue
         if probe.get("requires") and not results.get(probe["requires"]):
             continue  # graded only when the probe it depends on passed
@@ -1007,7 +1019,7 @@ def cmd_run(args) -> int:
         python=sys.executable,
     )
     for arm in args.arm:
-        cfg.copies.setdefault(arm, None)
+        cfg.copies.setdefault(arm, cfg.copies.get(arm_base(arm)))
     if stops := resource_stops(resource_reading()):
         print("resource guard STOP: " + "; ".join(stops), file=sys.stderr)
         return 3
