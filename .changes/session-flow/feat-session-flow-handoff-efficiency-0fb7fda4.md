@@ -9,5 +9,7 @@ bump: minor
 
 ### Changed
 
+- Readers follow shape 3: `tidy-work` treats each `handoffs/archive/<chain>/` directory as an `archive` item kept while a handoff of its chain is kept and removed with the last one; `find-handoff` rung 1 accepts or rejects a shape-3 candidate by its `repo:` before any transcript scan; `reanchor` checks a shape-3 chain's goal with `validate` instead of opening every link; `continue-in-background` counts the hop files as save-point files in its dirty-tree gate.
+
 - Update session-flow before resuming a shape-3 chain: an older `save_point.py` refuses to validate (exit 3) or build on a shape-3 file.
 - `hop_chain.py --budget` is calibrated to the audited growth of 6.4 KB per hop, projects a shape-3 chain beside the shape-2 one, and fails when a projected hot file passes the cap by hop 20.

@@ -118,16 +118,20 @@ screening site in this skill, prompt-only included.**
 **This rung searches the current repo only.** Step 2's transcript scan already recovers handoffs
 written in other repos, since transcripts are indexed by session, not repo.
 
-**Known limit: this rung cannot correlate a candidate to the repository the work was in.** Run
-from a directory that is not the worked-in repo but has its own handoffs dir, the glob returns
-conforming `type: handoff` files from unrelated sessions and the target is not among them. Nothing
-here can reject a same-cwd, different-repo candidate, because a handoff file records no repository
-identity in shape 1 or 2: their frontmatter carries `type`, `date`, `topic`, `session_id` and
-`previous_handoff`, and none of those names a repo. A shape-3 file adds `chain_root`, `hop`,
-`archive`, `archive_from` and `repo`, the repository identity its `Handoff origin:` line carries.
-So prefer the transcript scan whenever this
-rung's candidates are merely recent rather than clearly this work's, and never present a glob
-candidate as repo-verified. Do not read the repository off the producer transcript as a
+**A shape-3 candidate names its repository; a shape-1 or shape-2 one does not.** Run from a
+directory that is not the worked-in repo but has its own handoffs dir, the glob returns conforming
+`type: handoff` files from unrelated sessions and the target is not among them. A shape-3
+candidate's `repo:` frontmatter is the identity its `Handoff origin:` line carries: the `origin`
+remote's URL with credential userinfo removed (a bare `git@` ssh account is kept;
+`git remote get-url origin`), or the repository
+root's directory name when there is no remote. Compare it with the current repo's value before
+any transcript scan: a match is this repo's candidate; a mismatch drops the candidate from this
+rung and names it in the report as another repository's handoff. Shape-1 and shape-2 files
+record no repository identity: their frontmatter carries `type`, `date`, `topic`, `session_id`
+and `previous_handoff`, and nothing here can reject a same-cwd, different-repo one of those.
+So prefer the transcript scan whenever a
+shape-1 or shape-2 candidate is merely recent rather than clearly this work's, and never present
+one as repo-verified. Do not read the repository off the producer transcript as a
 substitute: that transcript may be absent, which is why transcripts are the reliable index over
 the filesystem, and it returns nothing for a rootless handoff, exactly where a correlation check
 is needed.
