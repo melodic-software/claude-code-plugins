@@ -170,7 +170,8 @@ conversion moves out of.
 
 ## Next
 
-- /app-control:drive <app> <feature> drives a seeded feature and records evidence.
+- /app-control:drive <app> <feature> drives a seeded feature and records evidence. Run it again
+  after `config/defaults.json` is committed to prove the send steps create left unproven.
 - /app-control:map refresh keeps a control skill current after the app changes.
 
 ## Gotchas

@@ -42,9 +42,9 @@ check, say so, and let step 5 be the first launch. Step 5's report must name
   already submitted an attempt in this run. A second failure leaves the skill written but unproven.
 - A send to anyone not on the recipient allowlist is refused by the CLI's send command (exit 4):
   the run stops at the form and never presses send.
-- Create commits nothing, so the CLI reads empty committed defaults and refuses every send
-  and write step. Report those steps as unproven until `config/defaults.json`
-  is committed; never loosen the CLI to prove them.
+- Create commits nothing, so every recipient allowlist is empty at HEAD and the CLI refuses every
+  send. Report send steps as unproven until `config/defaults.json` is committed and a drive run
+  of that feature proves them; never loosen the CLI to prove them.
 - A healthy app that still fails: written but unproven, with drive's evidence. Never call it done.
 - A tool the hub names cannot run on this host: `blocked: driver unavailable`, with drive's report.
   Do not edit the hub or switch tools.
