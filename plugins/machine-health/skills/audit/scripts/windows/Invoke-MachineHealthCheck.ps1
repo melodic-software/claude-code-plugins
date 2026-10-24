@@ -905,8 +905,8 @@ $glanceRows
     }
 
     $discoverySection = Get-DiscoveryMarkdown -Proposals $discoveredChecks
-    if ($Scheduled) {
-        $discoverySection += "`n`nResearch notes on this run's new findings: ``$($discovery.DiscoveryPath)``"
+    if ($Scheduled -and $stateWritable) {
+        $discoverySection +="`n`nResearch notes on this run's new findings: ``$($discovery.DiscoveryPath)``"
     }
     $openQuestions = Get-OpenQuestionsMarkdown -QueuedTitle $queuedTodoTitles.ToArray() -TodoPath $todoPath
 
