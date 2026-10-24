@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: map-triage-doc-drift
+description: Refresh classes a moved route that still works as doc drift and corrects the feature README in the upkeep pull request
+tags: [map, refresh, triage, invented]
+expected_outcome: "The reply classes the moved export route as doc drift, plans to correct .claude/skills/control-clockwork/features/weekly-timesheet-export/README.md to the `/timesheets/export` route, says the correction ships on control-skill-upkeep/control-clockwork in one pull request, plans no product change, and writes nothing."
+execution:
+  prompt: "/app-control:map refresh .claude/skills/control-clockwork. Do not read the repository, drive the app or write any file. Treat both passes as already run. Its features/weekly-timesheet-export/README.md lists the entry point `the /reports/timesheet page`. The source wave cites src/routes.ts:12, where that page now lives at `/timesheets/export`, and the live pass exported a timesheet with a row per entry through `/timesheets/export`; `/reports/timesheet` now returns 404. Ready passed. Nothing else differs. Name the triage class, the files you would change, where the change goes, and the outcome, then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 6
+  timeout_seconds: 300
+graders:
+  - name: names-doc-drift
+    type: regex
+    pattern: 'doc(umentation)?[ -]drift'
+    flags: i
+    arm: both
+  - name: corrects-in-pull-request
+    type: llm
+    criteria: "PASS only if the reply (1) classes the moved route as doc drift (the app works and the control skill describes it wrongly), (2) plans to correct features/weekly-timesheet-export/README.md so the entry point is `/timesheets/export`, (3) says the correction is committed on control-skill-upkeep/control-clockwork and goes out through one pull request, with the outcome changed, and (4) plans no change to src/routes.ts or any other file outside .claude/skills/control-clockwork/. FAIL if it calls the 404 a product regression and leaves the README as written, plans to restore the old route in the product, or names any other branch."

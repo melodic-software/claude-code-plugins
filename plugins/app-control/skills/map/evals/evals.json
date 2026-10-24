@@ -193,6 +193,151 @@
         "Ready still checks that the app answers and uses the expected data",
         "Ready does not claim a build check"
       ]
+    },
+    {
+      "id": 17,
+      "name": "refresh-no-control-skill-blocks",
+      "prompt": "/app-control:map refresh. The repository has no .claude/skills/control-* directory and no .claude/skills/feature-map/.",
+      "expected_output": "The outcome is blocked: no control skill exists. The report names /app-control:map create as the action that writes one. No file is created.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports the outcome as blocked because no control skill exists",
+        "Names /app-control:map create to write one",
+        "Creates no file"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "refresh-skip-when-unchanged",
+      "prompt": "/app-control:map refresh .claude/skills/control-clockwork --unattended. upkeep-skip.sh check printed `skip unchanged since the last clean pass`.",
+      "expected_output": "The unattended pass stops and reports the skip line. It dispatches no subagent, does not invoke /app-control:drive, edits nothing and opens no pull request.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Stops and reports the skip line",
+        "Does not invoke /app-control:drive",
+        "Edits no file and opens no pull request"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "refresh-unattended-attended-only-refused",
+      "prompt": "/app-control:map refresh .claude/skills/control-clockwork --unattended. The hub at .claude/skills/control-clockwork/SKILL.md names Claude in Chrome as its driving tool and carries `Attended runs only.`, and upkeep-skip.sh check printed `run HEAD moved since the last clean pass`.",
+      "expected_output": "The outcome is blocked: an unattended pass never drives the person's own signed-in browser. The report says the hub needs a driving tool that runs inside the run's boundary, which a person changes. It does not switch to another tool on its own and drives nothing.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports the outcome as blocked because the control skill is attended-only and the pass is unattended",
+        "Does not switch to another driving tool on its own",
+        "Does not invoke /app-control:drive"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "refresh-renamed-handle-corrected-in-skill-only",
+      "prompt": "/app-control:map refresh .claude/skills/control-clockwork. The live pass shows the dashboard button .claude/skills/control-clockwork/features/start-a-timer/README.md calls `Start` is now labeled `Begin`, and the timer still works through it. The source wave cites src/components/TimerRow.tsx:41 for the new label.",
+      "expected_output": "The outcome is changed. Only .claude/skills/control-clockwork/features/start-a-timer/README.md is edited to use `Begin`; src/components/TimerRow.tsx is not touched. Because the pass is attended, the skill shows the proposed edit and asks before writing it, committing to control-skill-upkeep/control-clockwork or opening a pull request.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Edits features/start-a-timer/README.md to name the `Begin` button",
+        "Edits no file outside the control skill directory",
+        "Asks the person before committing or opening a pull request",
+        "Names the branch control-skill-upkeep/control-clockwork"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "refresh-lost-behavior-reported-not-mapped",
+      "prompt": "/app-control:map refresh .claude/skills/control-clockwork. Its features/weekly-timesheet-export/README.md lists a `Download CSV` entry point. Against a healthy app (Ready passes), the button exists but the download now returns an empty file. The bugs plugin is enabled.",
+      "expected_output": "The export entry stays as written; the control skill never records the empty download as current behavior. The failure is written up through /bugs:write with drive's evidence and kept out of any pull request. With no other difference the outcome is clean and the pass is recorded.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Leaves the Download CSV entry in features/weekly-timesheet-export/README.md unchanged",
+        "Writes the failure up through /bugs:write",
+        "Does not change any product file"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "refresh-open-pr-updated-not-duplicated",
+      "prompt": "/app-control:map refresh .claude/skills/control-clockwork --unattended. The pass found one stale gotcha. The branch control-skill-upkeep/control-clockwork already exists and has an open pull request.",
+      "expected_output": "The correction is committed to control-skill-upkeep/control-clockwork (staging only the control skill file) and the branch is pushed, which updates the open pull request. No second pull request is opened. The report gives the branch, the commit and the existing pull request.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Commits on control-skill-upkeep/control-clockwork",
+        "Updates the existing pull request by pushing the branch",
+        "Opens no second pull request"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "refresh-clean-pass-records",
+      "prompt": "/app-control:map refresh .claude/skills/control-clockwork. The source wave and the live pass both match every feature file, and Ready passed.",
+      "expected_output": "The outcome is clean. Nothing is edited, no branch is created and no pull request is opened. The pass is recorded with upkeep-skip.sh record so the next pass skips until HEAD moves.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports the outcome as clean",
+        "Runs upkeep-skip.sh record",
+        "Creates no branch and opens no pull request"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "refresh-driver-unavailable-writes-no-candidate",
+      "prompt": "/app-control:map refresh .claude/skills/control-clockwork --unattended. The source wave found that the `Export` button in features/weekly-timesheet-export/README.md is now labeled `Download` (src/timesheet/Toolbar.tsx:42). The app builds and Ready passes, but /app-control:drive reports that the hub's playwright-cli has no browser installed on this host.",
+      "expected_output": "The outcome is blocked: driver unavailable, with drive's report. The Export-to-Download candidate is not written, because no drive confirmed it; the report lists it with src/timesheet/Toolbar.tsx:42. No branch is created, nothing is committed, no pull request is opened, and the driving tool is not switched.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports the outcome as blocked: driver unavailable with drive's report",
+        "Leaves features/weekly-timesheet-export/README.md unchanged",
+        "Lists the candidate with src/timesheet/Toolbar.tsx:42 in the report",
+        "Creates no branch and opens no pull request"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "refresh-working-tree-changed-during-source-wave",
+      "prompt": "/app-control:map refresh .claude/skills/control-clockwork. Before the source wave, git status --porcelain printed nothing. After the subagents returned, it prints ` M src/timesheet/Toolbar.tsx`.",
+      "expected_output": "The working tree changed during the source wave, so the outcome is blocked and the report names src/timesheet/Toolbar.tsx as the changed path. The live pass does not run, no control skill file is edited, nothing is reverted or committed, and no pull request is opened.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports the outcome as blocked",
+        "Names src/timesheet/Toolbar.tsx as the changed path",
+        "Edits no control skill file and opens no pull request"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "refresh-untracked-skill-committed-with-corrections",
+      "prompt": "/app-control:map refresh .claude/skills/control-clockwork --unattended. /app-control:map create wrote the control skill and nobody committed it: `git ls-files -- .claude/skills/control-clockwork` prints nothing, and `git status --porcelain --untracked-files=all` prints only `??` lines for SKILL.md, features/start-a-timer/README.md, features/weekly-timesheet-export/README.md, config/defaults.json and config/.gitignore under .claude/skills/control-clockwork/. The live pass shows the `Start` button in start-a-timer is now labeled `Begin` (src/components/TimerRow.tsx:41). The branch control-skill-upkeep/control-clockwork does not exist.",
+      "expected_output": "The untracked control skill does not block the pass. The skill creates control-skill-upkeep/control-clockwork from the default branch, and the untracked files move with the switch. It writes the `Begin` correction, then stages every file under .claude/skills/control-clockwork by path and commits them in one commit with the correction, so `git status --porcelain -- .claude/skills/control-clockwork` prints nothing. No file outside the control skill directory is staged, and a pull request is opened from the branch.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not stop as blocked over the untracked control skill files",
+        "Commits every control skill file, the untracked weekly-timesheet-export README included, on control-skill-upkeep/control-clockwork in the same commit as the `Begin` correction",
+        "Stages the files by path and stages no file outside the control skill directory"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "refresh-untracked-skill-with-outside-change-blocked",
+      "prompt": "/app-control:map refresh .claude/skills/control-clockwork --unattended. The control skill was never committed: `git ls-files -- .claude/skills/control-clockwork` prints nothing. `git status --porcelain --untracked-files=all` prints `??` lines for the files under .claude/skills/control-clockwork/ and also ` M src/timesheet/Toolbar.tsx`. The live pass found that the `Export` button in weekly-timesheet-export is now labeled `Download`.",
+      "expected_output": "The outcome is blocked before any branch switch. The report names src/timesheet/Toolbar.tsx as the uncommitted change outside the control skill directory that blocks the pass, and says the untracked control skill files alone would not have blocked it. No branch is created or switched to, nothing is staged or committed, the Export-to-Download correction goes in the report unwritten, and no pull request is opened.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Names src/timesheet/Toolbar.tsx as the change outside the control skill directory that blocks the pass",
+        "Says the untracked control skill files are not what blocks the pass",
+        "Creates no branch, commits nothing and opens no pull request"
+      ]
     }
   ]
 }

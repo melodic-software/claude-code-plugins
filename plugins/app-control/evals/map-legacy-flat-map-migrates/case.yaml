@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: map-legacy-flat-map-migrates
+description: Refresh of a legacy testing-format feature map converts it into a control skill with folder features, moves the old files in the same upkeep pull request, and runs even when nothing else changed
+tags: [map, refresh, migration, invented]
+expected_outcome: "The reply reads the legacy map and plans a conversion into .claude/skills/control-clockwork-web/: a hub carrying the app, the run-clockwork launch pointer, the healthz Ready command and an index line for start-a-timer; features/start-a-timer/README.md with the six contract sections, Traps becoming Gotchas; config/defaults.json at safe floors and config/.gitignore. The old files move with git mv in the same commit on control-skill-upkeep/control-clockwork-web, the outcome is changed although the passes found no other difference, the instruction-file pointer and feature_map_dir are reported rather than edited, and nothing is written in this session."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/app-control:map refresh .claude/skills/feature-map. Read the files under that directory, but do not drive the app, write, move or commit anything in this session. Treat the source wave and the live pass as already run: both match every entry point, each driven through playwright. Tell me which files the refresh would write and move, the branch, what goes in the pull request, the outcome, and what you would leave for a person, then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 10
+  timeout_seconds: 400
+graders:
+  - name: reads-legacy-index
+    type: tool_used
+    tool: Read
+    input_match: 'feature-map/SKILL\.md'
+    min: 1
+    arm: both
+  - name: names-folder-feature
+    type: regex
+    pattern: 'features/start-a-timer/README\.md'
+    arm: both
+  - name: names-upkeep-branch
+    type: regex
+    pattern: 'control-skill-upkeep/control-clockwork-web'
+    arm: both
+  - name: converts-in-upkeep-pull-request
+    type: llm
+    criteria: "PASS only if the reply (1) plans the control skill at .claude/skills/control-clockwork-web/ with a hub (Launch naming run-clockwork, Ready using the healthz command, an index line for start-a-timer), (2) plans features/start-a-timer/README.md with the sections Parts, Sub-features, Entry points, Reset, Drive and Gotchas in that order, with the old Traps content under Gotchas and each entry point marked driven, (3) moves the legacy files out of .claude/skills/feature-map in the same commit rather than leaving a copy, on control-skill-upkeep/control-clockwork-web, (4) calls the outcome changed even though the passes found no other difference, and (5) leaves the instruction-file pointer and any feature_map_dir setting for a person, without planning to edit them. FAIL if it keeps the flat start-a-timer.md layout, writes into .claude/skills/feature-map, leaves both copies, calls the outcome clean or skipped, or plans to commit on a feature-map-upkeep branch."
