@@ -30,6 +30,7 @@ area first, then scan it:
   gathers, and run a longer `git log --oneline` when that list is too short to show a pattern. When
   no path changes noticeably more than the rest, history sets no priority and the scan covers the
   whole area.
+- When a spec or plan for upcoming work is given, scan the areas it will change.
 
 The scope chosen here sets each scan subagent's assigned area.
 
@@ -50,6 +51,13 @@ Walk the codebase through the Agent tool (`subagent_type=Explore`, or any read-o
 - Pure functions pulled out to make testing easy, while the defects sit in the code that calls them (no **locality**).
 - Defects that keep appearing *where* several owned subsystems meet (a web client, its API, a worker, its store) and not inside any of them. That points to putting them behind one **deep** interface, so a single integration test covers the whole path instead of each junction being debugged on its own.
 - Modules so tightly coupled that they leak across their **seams**.
+
+Four further hazards mislead an agent that edits the code, and each is judged by the **open-file test**: with only the file being edited open, can an agent see every other place it must change? A "no" confirms the hazard.
+
+- **Split ownership:** more than one module writes the same state or keeps its own copy, so an agent that edits one writer cannot see the others. Remedy: one owner per piece of state; the others read it or ask the owner.
+- **Two ways to do one task:** an agent copies whichever way it finds first, so every way keeps gaining callers. Remedy: keep one way; move callers off the others and delete them in the same change.
+- **Importable internals:** an agent takes the shortest path that compiles and imports internals directly, which makes them part of the interface. Remedy: make internals unreachable from outside, so such an import fails the build.
+- **Hand-synced list:** two or more places list the same items and adding one means editing every list; an agent updates only the list it sees. Remedy: keep one list and derive the others, or fail the build when they disagree.
 
 Put each suspect through the **deletion test** and record one of two results: "concentrates", when removing it would pull logic now spread over its callers into one module (the candidate signal), or "moves", when the same logic would only relocate. The terms are defined in [../research/deepening/vocabulary.md](../research/deepening/vocabulary.md).
 
