@@ -429,7 +429,7 @@ activities:
     # labels such an issue admission-deferred instead, and each hourly sweep
     # admits the deferred ones oldest first within the room. A listed human
     # adding admission-deferred to an issue with `status: ready` marks it
-    # decided (owner decision Q75): the sweep reads its work-class label, its
+    # decided (owner decision Q75): the sweep reads its
     # Size, Complexity and Uncertainty issue fields (each counting only when a
     # listed human or the lanes App set it) and the default branch's
     # .github/actions/resolve-config/admission-rules.json, runs intake's
