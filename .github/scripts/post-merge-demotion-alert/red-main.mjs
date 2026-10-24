@@ -31,14 +31,25 @@ const AGGREGATOR_STEP = "Aggregate hygiene results";
 // The all-branches secret scan fails on any branch, so it counts against no merge.
 const BRANCH_WIDE_GATES = new Set(["gitleaks failed"]);
 
-// The checks a run attempt failed, as post-merge-demotion-alert.yml's
-// failing_checks names them: a job, or `job: gate` for each gate the hygiene
-// aggregator titles in a failure annotation. Only a job that concluded
-// `failure` counts: a cancelled or timed-out job is no evidence of a break.
-// `annotations` maps a job id to its annotations.
-export function failingChecks(jobs, annotations = {}) {
-  const failed = jobs.filter((job) => job.conclusion === "failure");
-  const checks = [];
+// babysit_postmerge.py's FAILED_CONCLUSIONS: the job conclusions the
+// demotion alert counts, as the judge it hands its checks to does.
+export const ALERT_FAILED = Object.freeze(["failure", "timed_out", "cancelled", "startup_failure", "action_required"]);
+
+// The checks a run attempt failed: a job, or `job: gate` for each gate the
+// hygiene aggregator titles in a failure annotation. `annotations` maps a job
+// id to its annotations. The red-main report counts only a job that concluded
+// `failure` (a cancelled or timed-out job is no evidence of a break); the
+// demotion alert passes `failed: ALERT_FAILED` and `noFailedJobs`, which names
+// a red run with no failed job as a check of its own.
+//
+// The jobs API can list a completed job's steps empty or cut short, so a
+// failed job listing no failed step has unknown steps and counts whole. With
+// `baseline`, such a job is left out instead, as babysit_postmerge.py's
+// `_baseline` leaves it: a baseline check excuses the same check later, and
+// unknown steps prove no failure to excuse.
+export function failingChecks(jobs, annotations = {}, { failed: conclusions = ["failure"], baseline = false, noFailedJobs = false } = {}) {
+  const failed = jobs.filter((job) => conclusions.includes(job.conclusion));
+  const checks = noFailedJobs && failed.length === 0 ? ["pr-require-checks.yml: no failed jobs"] : [];
   for (const job of failed) {
     if (job.name === "ci-status" && failed.length > 1) continue;
     const gates = (annotations[job.id] ?? [])
@@ -47,9 +58,8 @@ export function failingChecks(jobs, annotations = {}) {
     const failedSteps = (Array.isArray(job.steps) ? job.steps : []).filter((step) =>
       ["failure", "timed_out", "cancelled"].includes(step.conclusion),
     );
-    // The jobs API can list a completed job's steps empty or cut short. A
-    // failed job listing no failed step has unknown steps, so it counts whole.
-    if (gates.length === 0 || failedSteps.length === 0 || failedSteps.some((step) => step.name !== AGGREGATOR_STEP)) {
+    const unknownSteps = gates.length > 0 && failedSteps.length === 0;
+    if (gates.length === 0 || failedSteps.some((step) => step.name !== AGGREGATOR_STEP) || (unknownSteps && !baseline)) {
       checks.push(job.name);
     }
     for (const gate of gates) {
