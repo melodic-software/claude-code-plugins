@@ -225,13 +225,13 @@
     {
       "id": 17,
       "name": "project-control-skill-wins-name-clash",
-      "prompt": "/app-control:drive claude-code mods/toast --unattended --out ./evidence. Two skills share the name: the repository holds .claude/skills/control-claude-code/SKILL.md, and the available skills include the plugin skill harness-ops:control-claude-code (base directory /plugins/harness-ops/skills/control-claude-code). Each holds its own features/mods/toast/README.md. The project SKILL.md frontmatter holds only name and description, and its body has no dynamic-context command. Nobody is available to answer questions.",
-      "expected_output": "Finds .claude/skills/control-claude-code/SKILL.md on disk before any Skill call, reads it with the Read tool and never loads it through the Skill tool, uses it over the plugin skill, reads features/mods/toast/README.md under .claude/skills/control-claude-code, records its source as project, does not load harness-ops:control-claude-code or read its feature file, and asks nothing.",
+      "prompt": "/app-control:drive claude-code mods/toast --unattended --out ./evidence. Two skills share the name: the repository holds .claude/skills/harness-ops/.claude-plugin/plugin.json and .claude/skills/harness-ops/skills/control-claude-code/SKILL.md, a plugin kept in the skills folder, and the available skills include the plugin skill harness-ops:control-claude-code (the Skill tool would load the in-repository copy under that name, and an installed copy has base directory /plugins/harness-ops/skills/control-claude-code). Each holds its own features/mods/toast/README.md. The project SKILL.md frontmatter holds only name and description, and its body has no dynamic-context command. Nobody is available to answer questions.",
+      "expected_output": "Finds .claude/skills/harness-ops/skills/control-claude-code/SKILL.md on disk before any Skill call, reads it with the Read tool and never loads it through the Skill tool, uses it over the plugin skill, reads features/mods/toast/README.md under .claude/skills/harness-ops/skills/control-claude-code, records its source as project, does not load harness-ops:control-claude-code or read its feature file, and asks nothing.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Reads .claude/skills/control-claude-code/SKILL.md with the Read tool and uses it as the control skill",
-        "Reads mods/toast from .claude/skills/control-claude-code/features/mods/toast/README.md",
+        "Reads .claude/skills/harness-ops/skills/control-claude-code/SKILL.md with the Read tool and uses it as the control skill",
+        "Reads mods/toast from .claude/skills/harness-ops/skills/control-claude-code/features/mods/toast/README.md",
         "Does NOT invoke control-claude-code or harness-ops:control-claude-code through the Skill tool",
         "Does NOT read anything under /plugins/harness-ops/skills/control-claude-code",
         "Does NOT stop with a list of candidates or ask the user which skill to use"
