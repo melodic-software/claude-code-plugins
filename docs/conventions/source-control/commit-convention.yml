@@ -1,0 +1,19 @@
+# SYNC-MANAGED FILE: DO NOT EDIT IN THE CONSUMING REPOSITORY.
+# Source of truth: melodic-software/standards,
+# components/commit-convention/commit-convention.yml (the `commit-convention`
+# component in distribution/sync-manifest.yml). Downstream edits are
+# overwritten by the next sync PR; change the component upstream, or move the
+# component to `locally-owned` in the manifest to customize.
+#
+# The org commit-subject convention, read at this well-known path by the
+# guardrails commit-msg hook and the source-control plugin:
+# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/commit-convention/README.md
+# Flat scalars only, no YAML escape processing: the pattern is single-quoted
+# and contains no single quote.
+#
+# The types are components/pr-convention-policy/policy.json `title.allowedTypes`,
+# the scope is optional (`requireScope: false`), and git's own `Merge ...` and
+# `Revert "..."` subjects pass.
+dialect: posix-ere
+subject_pattern: '^((build|chore|ci|docs|feat|fix|perf|refactor|revert|security|style|test)(\(.+\))?!?: .+|Merge .+|Revert ".+)'
+pr_title_pattern: Same as `subject_pattern`.
