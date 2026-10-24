@@ -119,10 +119,7 @@ flip's snapshot. Skip the wait when the head is unchanged, but still run the `HE
 assignment, which the flip block reads.
 
 `HEAD_SHA` is the local `git rev-parse HEAD`, the commit the verify gate recorded. GitHub's
-`headRefOid` can lag a push by a read: on #9509 the push moved 1a0464b4 to 634aca6c and the next
-read returned 1a0464b4, and melodic-software/ci-workflows#854 showed the same (as of 2026-10-22;
-recheck when a ready run's first head read after a push already matches the pushed commit). So the
-block polls the PR's head until it equals `HEAD_SHA`, up to 60 seconds, instead of trusting the
+`headRefOid` can lag a push by a read, so the block polls the PR's head until it equals `HEAD_SHA`, up to 60 seconds, instead of trusting the
 first read. A head that never matches (a peer push, a push that failed, a session whose HEAD is not
 the PR branch) leaves `HEAD_MATCH=0`, and the flip below refuses.
 
