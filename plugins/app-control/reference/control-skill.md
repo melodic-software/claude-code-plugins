@@ -260,8 +260,9 @@ environments; this control skill never copies them. The hub lists each one above
 - **Include by reference.** A steps-file include names `<app>:<path>`, a steps file inside that
   app's control skill, and expands as any include does.
 - **Checkout.** For an app in another repository, `checkouts.<app>` holds the path of its local
-  checkout, relative to this repository's root. It is one person's value, from any layer; it says
-  where code is, not where an environment is, so the committed-only rule above does not apply.
+  checkout, relative to the project directory the Hub index's `sources` resolve against. It is
+  one person's value, from any layer; it says where code is, not where an environment is, so the
+  committed-only rule above does not apply.
   That app's environments and floors are read from its own committed config, at that checkout's
   HEAD.
 - **Missing checkout.** When the setting is unset, its path does not exist, or the path holds no

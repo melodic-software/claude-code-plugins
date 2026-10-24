@@ -13,7 +13,9 @@ cp "$here/fixtures/defaults.json" "$skill/config/defaults.json"
 cp "$here/fixtures/cli-README.md" "$skill/cli/README.md"
 printf 'local.json\n' >"$skill/config/.gitignore"
 : >shop/billing/refund.py
-git rev-parse --git-dir >/dev/null 2>&1 || git init -q -b main
+if [[ "$(git rev-parse --show-toplevel 2>/dev/null || true)" != "$(pwd -P)" ]]; then
+  git init -q -b main
+fi
 git config user.name eval
 git config user.email eval@example.invalid
 git add -A
