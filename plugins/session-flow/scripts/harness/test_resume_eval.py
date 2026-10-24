@@ -140,7 +140,9 @@ def test_codex_command_pins_the_model_and_stays_ephemeral():
         "resume now", model="gpt-x", workdir="/r", reply="/o/reply.txt"
     )
     assert cmd[:3] == ["codex", "exec", "--json"]
-    assert "--ephemeral" in cmd and "--ignore-user-config" in cmd
+    # Not --ephemeral: the follow-up turn resumes the thread, which needs its rollout on
+    # disk; the harness moves the rollout out of the Codex store after the run.
+    assert "--ephemeral" not in cmd and "--ignore-user-config" in cmd
     assert cmd[cmd.index("-m") + 1] == "gpt-x"
     assert cmd[cmd.index("-C") + 1] == "/r"
     assert cmd[cmd.index("-o") + 1] == "/o/reply.txt"
@@ -387,6 +389,19 @@ def test_exclusion_ignores_limit_words_in_conversation_text():
     hit = [{"type": "result", "result": "You've hit your session limit · resets 4pm", "num_turns": 1, "is_error": True}]
     assert resume_eval.exclusion_reason(1, json.dumps(hit[0]), "", hit) is not None
     assert resume_eval.exclusion_reason(1, "", "Error: rate limit exceeded", []) is not None
+
+
+def test_codex_rollouts_move_out_of_the_store_by_thread_id(tmp_path):
+    store = tmp_path / "sessions" / "2026" / "10" / "24"
+    store.mkdir(parents=True)
+    mine = store / "rollout-2026-10-24T15-00-00-thread-a.jsonl"
+    other = store / "rollout-2026-10-24T15-00-01-thread-b.jsonl"
+    mine.write_text("a\n", encoding="utf-8")
+    other.write_text("b\n", encoding="utf-8")
+    keep = tmp_path / "keep"
+    moved = resume_eval.move_codex_rollouts(["thread-a"], tmp_path / "sessions", keep)
+    assert moved == 1 and not mine.exists() and other.exists()
+    assert (keep / mine.name).read_text(encoding="utf-8") == "a\n"
 
 
 def _assistant(msg_id, usage, *blocks):

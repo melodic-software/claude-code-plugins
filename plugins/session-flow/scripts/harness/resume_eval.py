@@ -120,7 +120,6 @@ def codex_command(prompt: str, *, model: str, workdir: str, reply: str) -> list[
         "codex",
         "exec",
         "--json",
-        "--ephemeral",
         "--ignore-user-config",
         "--skip-git-repo-check",
         "-s",
@@ -207,6 +206,20 @@ def isolated_session(pid: int, read=proc_entry) -> str | None:
         ):
             return " ".join(argv)
     return None
+
+
+def move_codex_rollouts(threads: list[str], store: Path, keep: Path) -> int:
+    """Move this run's Codex rollouts (named `rollout-<time>-<thread>.jsonl`) out of the
+    operator's session store into `keep`; return how many moved."""
+    import shutil
+
+    moved = 0
+    for thread in [t for t in threads if t]:
+        for path in store.rglob(f"rollout-*-{thread}.jsonl"):
+            keep.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(path), keep / path.name)
+            moved += 1
+    return moved
 
 
 def child_env(parent: dict, *, tmpdir: str, stub_bin: str, gh_config: str) -> dict:
@@ -921,6 +934,7 @@ def read_stage(case: dict, arm: str, reader: str, run: dict, written: dict, cfg:
         if reason := exclusion_reason(code, out, err, events):
             return {"excluded": f"reader: {reason}"}
         thread = session_of(events)
+        run.setdefault("codex_threads", []).append(thread)
         follow_cmd = ["codex", "exec", "resume", "--json", "--skip-git-repo-check", "-m", cfg.codex_model, thread, followup]
         code, out, err = call(follow_cmd, str(workdir), run["env"])
         follow_events = stream_events(out)
@@ -1021,6 +1035,7 @@ def run_once(case: dict, arm: str, readers: list[str], index: int, base_repo: Pa
     start = time.monotonic()
     results = []
     run = written = None
+    workspaces: dict = {}
     keep_root = out_dir / case["name"] / arm / str(index)
     keep_root.mkdir(parents=True, exist_ok=True)
     try:
@@ -1034,7 +1049,6 @@ def run_once(case: dict, arm: str, readers: list[str], index: int, base_repo: Pa
         if log.is_file():
             shutil.move(log, keep_root / "writer-gh-calls.log")
             log.write_text("", encoding="utf-8")
-        workspaces = {}
         if not written.get("excluded"):
             for reader in readers[1:]:
                 workspaces[reader] = _reader_workspace(case, run, run_dir, run_dir.with_name(f"{index}-{reader}"), cfg)
@@ -1082,6 +1096,9 @@ def run_once(case: dict, arm: str, readers: list[str], index: int, base_repo: Pa
                     shutil.copy(produced, keep_root / produced.name)
             if written and written.get("delivery"):
                 (keep_root / "delivery.txt").write_text(written["delivery"], encoding="utf-8")
+            threads = [t for space in workspaces.values() for t in space.get("codex_threads", [])]
+            home = Path(run["env"].get("HOME", str(Path.home())))
+            move_codex_rollouts(threads, home / ".codex" / "sessions", keep_root / "codex-rollouts")
             shutil.rmtree(run["keydir"], ignore_errors=True)
             cache = Path(run["env"].get("HOME", str(Path.home()))) / ".cache" / "claude-cli-nodejs" / run["keydir"].name
             shutil.rmtree(cache, ignore_errors=True)
