@@ -327,11 +327,12 @@ on:
         default: ""
       patch-fix-requested:
         description: >-
-          apply-patch with patch-prepare review-threads: the select job's
-          fix-requested output. `true` leaves the human-gated label out of
-          the holds, since that job kept only threads a trusted person with
-          write access asked the lane to fix, or a lane escalation put the
-          label on.
+          apply-patch: a base-code job's verdict on the human-gated label.
+          `true` leaves the label out of the holds: under review-threads the
+          select job kept only threads a trusted person with write access
+          asked the lane to fix, or a lane escalation put the label on; under
+          another row another lane's escalation put it on (lane-hold.mjs,
+          fix-ci-context.mjs).
         required: false
         type: string
         default: ""
@@ -1125,11 +1126,12 @@ jobs:
       # as a JSON array: do-not-merge, the human-gated role label resolved from the base
       # the way report-escalation.sh does, and the activity's labels-absent
       # list, all read before the head checkout replaces .base. The
-      # human-gated label is left out only for apply-patch under the
-      # review-threads row, when the caller's select job kept nothing but
-      # threads a trusted person with write access asked the lane to fix on a
-      # PR carrying it, or a lane escalation put it on, unless labels-absent
-      # lists it.
+      # human-gated label is left out only for apply-patch when the caller's
+      # base-code job says so (patch-fix-requested): under the review-threads
+      # row it kept nothing but threads a trusted person with write access
+      # asked the lane to fix on a PR carrying it, or a lane escalation put it
+      # on; under another row another lane's escalation put it on. Either way
+      # labels-absent may still list it.
       - name: Read the hold labels from the base
         id: hold-label
         if: >-
@@ -1137,7 +1139,7 @@ jobs:
           && (steps.config.outputs.kind == 'skill' || steps.config.outputs.prepare == 'apply-patch')
         env:
           RESOLVED: ${{ runner.temp }}/resolved-config.json
-          FIX_REQUESTED: ${{ inputs.patch-prepare == 'review-threads' && inputs.patch-fix-requested || '' }}
+          FIX_REQUESTED: ${{ inputs.patch-fix-requested }}
         run: |
           hold_label=needs-human
           if [ -f .base/.work-item-tracker.json ]; then

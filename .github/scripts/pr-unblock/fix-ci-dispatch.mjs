@@ -28,6 +28,7 @@
 
 import { reconcilerOwns } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { runTitle } from "./feedback-dispatch.mjs";
+import { commentItems, prHold } from "./gate-source.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -52,6 +53,8 @@ export const DEFAULTS = Object.freeze({
 // The neutral check fix-ci-not-run posts when fix-ci-context found no failing
 // check to fix (report-check-run's `Skipped: <reason>` title).
 const NOT_APPLICABLE = "Skipped: not-applicable";
+// The neutral check a run skipped on a held PR posts.
+const HELD_SKIP = "Skipped: awaiting-human";
 
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
 const MAX_PAGES = 20;
@@ -147,7 +150,19 @@ const advisoryFailed = (node, checks, checkName) =>
 // Why a listed PR is not dispatched, or "" when it is a candidate.
 export function skipReason(
   node,
-  { base, appSenderId, actionsAppId, checkName, holdLabels, restarts, maxRunsPerHead = DEFAULTS.maxRunsPerHead, baseAt = NaN, adoption = DEFAULTS.adoption, now = Date.now() },
+  {
+    base,
+    appSenderId,
+    actionsAppId,
+    checkName,
+    holdLabels,
+    gateLabel = null,
+    restarts,
+    maxRunsPerHead = DEFAULTS.maxRunsPerHead,
+    baseAt = NaN,
+    adoption = DEFAULTS.adoption,
+    now = Date.now(),
+  },
 ) {
   if (node.isDraft !== false || node.isCrossRepository !== false || node.baseRefName !== base) {
     return "not a ready same-repository PR into the base";
@@ -160,8 +175,15 @@ export function skipReason(
   if (owner && adoption.held) {
     return adoption.held;
   }
-  if ((node.labels?.nodes ?? []).some((label) => holdLabels.includes(label?.name))) {
+  // The human-gated gateLabel holds only as node.laneGate says (gate-source.mjs
+  // prHold, attached by dispatchCiFixes just before it would dispatch); every
+  // other hold label holds.
+  const labels = (node.labels?.nodes ?? []).map((label) => label?.name);
+  if (labels.some((name) => holdLabels.includes(name) && name !== gateLabel)) {
     return "held";
+  }
+  if (gateLabel !== null && labels.includes(gateLabel) && node.laneGate !== undefined && node.laneGate !== "") {
+    return node.laneGate;
   }
   // The lanes App's own PRs carry `Hold: a human merges this`, which holds the
   // merge, not a CI fix; an owner's Hold: line holds the lane off entirely.
@@ -192,9 +214,12 @@ export function skipReason(
       return owned;
     }
   }
-  // An untrusted-trigger skip ran nothing, so it does not count.
+  // An untrusted-trigger skip ran nothing, so it does not count, nor does a
+  // skip on a PR held then: a held PR stopped above.
   const runs = checks.filter(
-    (run) => run.name === checkName && !(run.conclusion === "NEUTRAL" && String(run.title ?? "").startsWith("Skipped: untrusted-trigger")),
+    (run) =>
+      run.name === checkName &&
+      !(run.conclusion === "NEUTRAL" && (String(run.title ?? "").startsWith("Skipped: untrusted-trigger") || run.title === HELD_SKIP)),
   );
   if (runs.length === 0) {
     return "";
@@ -231,6 +256,7 @@ export async function dispatchCiFixes({
   checkName = DEFAULTS.checkName,
   actionsAppId = DEFAULTS.actionsAppId,
   holdLabels = DEFAULTS.holdLabels,
+  gateLabel = null,
   adoption = DEFAULTS.adoption,
   now = Date.now(),
 }) {
@@ -247,7 +273,7 @@ export async function dispatchCiFixes({
     log(`fix-ci listing page ${page}: rateLimit.cost=${rateLimit?.cost} remaining=${rateLimit?.remaining}`);
     baseAt ??= Date.parse(baseCommittedAt ?? "");
     for (const node of pullRequests.nodes) {
-      if (skipReason(node, { base, appSenderId, actionsAppId, checkName, holdLabels, restarts, maxRunsPerHead, baseAt, adoption, now }) === "") {
+      if (skipReason(node, { base, appSenderId, actionsAppId, checkName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, now }) === "") {
         candidates.push(node);
       }
     }
@@ -287,6 +313,24 @@ export async function dispatchCiFixes({
       log(`defer fix-ci #${node.number}: ${maxDispatch} fix-ci dispatches this run; left for a later run`);
       continue;
     }
+    // The human-gated label holds unless another lane's escalation put it on.
+    let laneGate;
+    try {
+      const labels = (node.labels?.nodes ?? []).map((label) => label?.name);
+      const hold = await prHold({
+        labels,
+        holdLabels,
+        gateLabel,
+        head: node.headRefOid,
+        activity,
+        appId: appSenderId,
+        readTimeline: async () => [...commentItems(await api.listIssueComments(node.number)), ...(await api.listLabelEvents(node.number))],
+      });
+      laneGate = hold.held ? hold.why : "";
+    } catch (error) {
+      log(`::warning::#${node.number}: could not read where its ${gateLabel} label came from (${error.message}); left for a later run`);
+      continue;
+    }
     // A failure an outside outage explains, or a first failure, is the
     // lost-run reconciler's to re-run before a model run fixes it.
     const path = lanesFailed(node) ? DEFAULTS.requiredWorkflow : DEFAULTS.advisoryWorkflow;
@@ -297,7 +341,7 @@ export async function dispatchCiFixes({
       log(`::warning::#${node.number}: could not read its required run's jobs (${error.message}); left for a later run`);
       continue;
     }
-    const reason = skipReason({ ...node, requiredRun }, { base, appSenderId, actionsAppId, checkName, holdLabels, restarts, maxRunsPerHead, baseAt, adoption, now });
+    const reason = skipReason({ ...node, requiredRun, laneGate }, { base, appSenderId, actionsAppId, checkName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, now });
     if (reason !== "") {
       log(`skip fix-ci #${node.number}: ${reason}`);
       continue;

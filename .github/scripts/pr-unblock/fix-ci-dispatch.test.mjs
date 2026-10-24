@@ -56,10 +56,27 @@ function pr(number, { checks = [lanes("FAILURE")], ...overrides } = {}) {
   };
 }
 
-function fakeApi({ pages = [[]], cost = 1, workflowRuns = [], failDispatch = new Set(), runIds = new Map(), requiredRuns = new Map(), baseCommittedAt } = {}) {
-  const calls = { list: 0, runs: 0, dispatch: [], jobs: [], paths: [] };
+function fakeApi({
+  pages = [[]],
+  cost = 1,
+  workflowRuns = [],
+  failDispatch = new Set(),
+  runIds = new Map(),
+  requiredRuns = new Map(),
+  baseCommittedAt,
+  comments = new Map(),
+  labelEvents = new Map(),
+} = {}) {
+  const calls = { list: 0, runs: 0, dispatch: [], jobs: [], paths: [], timeline: [] };
   return {
     calls,
+    async listIssueComments(number) {
+      calls.timeline.push(number);
+      return comments.get(number) ?? [];
+    },
+    async listLabelEvents(number) {
+      return labelEvents.get(number) ?? [];
+    },
     // The head's tested run of the workflow at path and its latest jobs; a
     // real failure at attempt 2 (its one re-run spent) unless the test names
     // the head, or the head and path.
@@ -230,6 +247,55 @@ test("many base moves on one unchanged head dispatch it at most three times", as
     }
   }
   assert.equal(dispatches, 3);
+});
+
+const APP_USER = { login: "melodic-automation-lanes[bot]", id: APP, type: "Bot" };
+const PERSON = { login: "kyle-sexton", id: 153232337, type: "User" };
+const labeledBy = (actor) => [{ event: "labeled", actor, label: { name: "needs-human" }, created_at: "2026-10-22T10:00:00Z" }];
+// report-escalation.sh's comment, with the reason it names.
+const escalationComment = (reason) => [
+  {
+    user: APP_USER,
+    created_at: "2026-10-22T10:00:05Z",
+    body: `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${"b".repeat(40)} -->\nStopped.\n\n- Reason: \`${reason}\``,
+  },
+];
+const humanGated = { labels: { nodes: [{ name: "needs-human" }] } };
+
+test("needs-human from another lane's escalation does not hold fix-ci; fix-ci's own, a person's or do-not-merge does", async () => {
+  const { api, lines, result } = await run(
+    {
+      pages: [
+        [
+          pr(1, humanGated),
+          pr(2, humanGated),
+          pr(3, humanGated),
+          pr(4, { labels: { nodes: [{ name: "needs-human" }, { name: "do-not-merge" }] } }),
+        ],
+      ],
+      labelEvents: new Map([
+        [1, labeledBy(APP_USER)],
+        [2, labeledBy(APP_USER)],
+        [3, labeledBy(PERSON)],
+        [4, labeledBy(APP_USER)],
+      ]),
+      comments: new Map([
+        [1, escalationComment("feedback-disputed")],
+        [2, escalationComment("ci-fix-escalated")],
+        [4, escalationComment("feedback-disputed")],
+      ]),
+    },
+    { gateLabel: "needs-human", maxDispatch: 10 },
+  );
+  assert.deepEqual(result.dispatched.map((d) => d.number), [1]);
+  assert.ok(lines.includes("skip fix-ci #2: held by needs-human: fix-ci escalated it"), lines.join("\n"));
+  assert.deepEqual(api.calls.timeline, [1, 2, 3], "a do-not-merge PR needs no timeline read");
+});
+
+test("an awaiting-human skip left while the PR was held does not count once the hold is gone", async () => {
+  const held = check("pr-unblock / fix-ci", "NEUTRAL", { title: "Skipped: awaiting-human" });
+  const { result } = await run({ pages: [[pr(1, { checks: [lanes("FAILURE"), held] })]] });
+  assert.deepEqual(result.dispatched.map((d) => d.number), [1]);
 });
 
 test("a restart count of 0 never dispatches a head again", async () => {

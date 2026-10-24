@@ -85,13 +85,18 @@ jobs:
       # an escalation; empty when the job stopped before deciding.
       proceed: >-
         ${{ steps.prepare.outputs.merge-state == 'conflicted' && 'true'
-        || (steps.slot.outputs.applies == 'false' || steps.prepare.outputs.merge-state != '') && 'false' || '' }}
+        || (steps.slot.outputs.applies == 'false' || steps.hold.outputs.held == 'true' || steps.prepare.outputs.merge-state != '') && 'false' || '' }}
       merge-state: ${{ steps.prepare.outputs.merge-state }}
       head-sha: ${{ steps.head.outputs.sha }}
       base-sha: ${{ steps.base-sha.outputs.sha }}
       conflict-tree: ${{ steps.prepare.outputs.conflict-tree }}
       escalation-reason: ${{ steps.prepare.outputs.escalation-reason }}
-      skip-reason: ${{ steps.slot.outputs.applies == 'false' && steps.slot.outputs.skip-reason || '' }}
+      skip-reason: >-
+        ${{ steps.slot.outputs.applies == 'false' && steps.slot.outputs.skip-reason
+        || steps.hold.outputs.held == 'true' && 'awaiting-human' || '' }}
+      # true when another lane's escalation put the human-gated label on, so
+      # apply-conflict-patch pushes past it (lane-hold.mjs).
+      lane-escalated: ${{ steps.hold.outputs.lane-escalated }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -147,12 +152,24 @@ jobs:
           prepare-supported: "true"
           applied-by-supported: patch
 
+      # The human-gated label holds the PR unless another lane's escalation
+      # put it on; do-not-merge stays with the slot's labels-absent.
+      - name: Check the human-gated hold
+        id: hold
+        if: steps.slot.outputs.applies == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr-number }}
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          ACTIVITY: resolve-conflicts
+        run: node .base/.github/scripts/pr-unblock/lane-hold.mjs
+
       # The base every merge of this round uses: the default branch tip now,
       # pinned, so the read runner and the push job merge the same commit
       # however the branch moves.
       - name: Pin the base
         id: base-sha
-        if: steps.slot.outputs.applies == 'true'
+        if: steps.hold.outputs.held == 'false'
         run: |
           sha=$(git -C .base rev-parse HEAD)
           [[ $sha =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the default branch tip is not a commit id"; exit 1; }
@@ -163,7 +180,7 @@ jobs:
       # reads loop.no-progress from the resolved config.
       - name: Copy the merge scripts from the base
         id: merge-bin
-        if: steps.slot.outputs.applies == 'true'
+        if: steps.hold.outputs.held == 'false'
         env:
           BIN: ${{ runner.temp }}/merge-base-bin
           RESOLVED: ${{ runner.temp }}/resolved-config.json
@@ -186,7 +203,7 @@ jobs:
       # Full history: the merge needs the merge base and the pinned base. No
       # credentials stay behind, and no head code runs.
       - name: Check out the PR head
-        if: steps.slot.outputs.applies == 'true'
+        if: steps.hold.outputs.held == 'false'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ steps.head.outputs.sha }}
@@ -201,7 +218,7 @@ jobs:
       # counts commits by that author name.
       - name: Merge the base into the head
         id: prepare
-        if: steps.slot.outputs.applies == 'true'
+        if: steps.hold.outputs.held == 'false'
         working-directory: head
         env:
           GIT_AUTHOR_NAME: melodic-automation-lanes[bot]
@@ -417,6 +434,9 @@ jobs:
       patch-merge-base-sha: ${{ needs.resolve-conflicts-select.outputs.base-sha }}
       patch-merge-state: ${{ needs.resolve-conflicts-select.outputs.merge-state }}
       patch-conflict-tree: ${{ needs.resolve-conflicts-select.outputs.conflict-tree }}
+      # true drops the human-gated label from the holds: another lane's
+      # escalation put it on (lane-hold.mjs).
+      patch-fix-requested: ${{ needs.resolve-conflicts-select.outputs.lane-escalated }}
 
   # A conflicted round whose answering leg handed on no patch state, which a
   # scan that refused the model's output (a leak-scan block, an oversize
@@ -1231,6 +1251,11 @@ jobs:
       head-sha: ${{ steps.context.outputs.head-sha }}
       escalation-reason: ${{ steps.context.outputs.escalation-reason }}
       context-sha256: ${{ steps.context.outputs.context-sha256 }}
+      # awaiting-human when the human-gated label holds fix-ci, which
+      # fix-ci-not-run posts; lane-escalated when another lane's escalation
+      # put the label on, so apply-patch pushes past it.
+      skip-reason: ${{ steps.context.outputs.skip-reason }}
+      lane-escalated: ${{ steps.context.outputs.lane-escalated }}
       # The artifact name's attempt, so a re-run of the model job alone still
       # finds it.
       context-attempt: ${{ steps.upload.outcome == 'success' && github.run_attempt || '' }}
@@ -1284,7 +1309,8 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-  # A fix-ci-context skip (a closed PR or no failing check) runs no fix-ci job,
+  # A fix-ci-context skip (a closed PR, a human-gated hold, or no failing
+  # check) runs no fix-ci job,
   # so no fix-ci check would land on the head and fix-ci-dispatch.mjs would
   # dispatch it again on every run. This job posts fix-ci neutral on that head,
   # as publish-feedback-not-run does; a kill-switch stop leaves the head empty.
@@ -1320,7 +1346,7 @@ jobs:
           lane: pr-unblock
           activity: fix-ci
           run-result: skipped
-          not-run-reason: not-applicable
+          not-run-reason: ${{ needs.fix-ci-context.outputs.skip-reason || 'not-applicable' }}
           head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
           can-commit: "false"
           base-path: .base
@@ -1477,6 +1503,9 @@ jobs:
       # own trigger gate reads at apply time, and its push needs the branch
       # still at that head.
       patch-head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
+      # true drops the human-gated label from the holds: another lane's
+      # escalation put it on (fix-ci-context.mjs).
+      patch-fix-requested: ${{ needs.fix-ci-context.outputs.lane-escalated }}
       reply-attempt: ${{ needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-reply-attempt || needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-reply-attempt || '' }}
 
   # fix-ci's one retry one model rung up, in this same run: when apply-patch
@@ -1610,6 +1639,7 @@ jobs:
       patch-activity: fix-ci
       patch-prepare: ci-context
       patch-head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
+      patch-fix-requested: ${{ needs.fix-ci-context.outputs.lane-escalated }}
       # At rung 1 an escalation goes to a person: there is no rung above.
       patch-model-rung: "1"
       reply-attempt: ${{ needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-reply-attempt || needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-reply-attempt || '' }}

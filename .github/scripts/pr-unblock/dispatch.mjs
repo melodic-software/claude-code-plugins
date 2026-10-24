@@ -534,6 +534,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
       maxRunsPerHead: limits["limit-stops-per-head"] ?? CI_FIX_DEFAULTS.maxRunsPerHead,
       adoption: { ownerIds, idleHours: adoption["idle-hours"], held: ownersHeld },
       holdLabels,
+      gateLabel,
       now,
     });
     fixes.failed += ownersHeld === "" ? 0 : 1;
@@ -546,6 +547,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
     log,
     record,
     maxDispatch: limits["fix-docs-per-run"] ?? 2,
+    ...gate,
   });
   const dispatched = [...conflicts.dispatched, ...reviews.dispatched, ...fixes.dispatched, ...docs.dispatched];
   const failed = conflicts.failed + reviews.failed + fixes.failed + docs.failed;

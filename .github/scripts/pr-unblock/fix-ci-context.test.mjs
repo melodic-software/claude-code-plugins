@@ -240,6 +240,55 @@ test("a closed pull request is skipped", async () => {
   assert.equal(result.decision, "skip");
 });
 
+// The human-gated label holds fix-ci unless another lane's escalation put it
+// on (report-escalation.sh's label then comment, its Reason line).
+const APP_USER = { login: "melodic-automation-lanes[bot]", id: APP, type: "Bot" };
+const gatedApi = (actor, reason) => {
+  const api = fakeApi({
+    pull: { state: "open", head: { sha: HEAD }, labels: [{ name: "needs-human" }] },
+    issueComments: [
+      {
+        user: APP_USER,
+        created_at: "2026-10-22T10:00:05Z",
+        body: `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${"b".repeat(40)} -->\nStopped.\n\n- Reason: \`${reason}\``,
+      },
+    ],
+  });
+  api.listLabelEvents = async () => [{ event: "labeled", actor, label: { name: "needs-human" }, created_at: "2026-10-22T10:00:00Z" }];
+  return api;
+};
+
+test("needs-human from another lane's escalation proceeds and says so; fix-ci's own or a person's skips awaiting-human", async () => {
+  const other = await selectWith(gatedApi(APP_USER, "feedback-disputed"));
+  assert.equal(other.decision, "proceed");
+  assert.equal(other.laneEscalated, true);
+  const own = await selectWith(gatedApi(APP_USER, "ci-fix-escalated"));
+  assert.deepEqual([own.decision, own.skipReason, own.headSha], ["skip", "awaiting-human", HEAD]);
+  const person = await selectWith(gatedApi({ login: "kyle-sexton", id: HUMAN, type: "User" }, "feedback-disputed"));
+  assert.deepEqual([person.decision, person.skipReason], ["skip", "awaiting-human"]);
+  const plain = await selectWith(fakeApi());
+  assert.equal(plain.laneEscalated, false);
+});
+
+test("main writes the hold's skip reason and lane-escalated", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "fix-ci-context-"));
+  try {
+    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", PR_NUMBER: "42", APP_SENDER_ID: String(APP), CONTEXT_FILE: join(dir, "context.json"), FIX_CI_ROUNDS: "3", TRUSTED_ACTORS };
+    await main({ ...env, GITHUB_OUTPUT: join(dir, "held") }, { api: gatedApi(APP_USER, "ci-fix-escalated"), log: () => {} });
+    const held = readFileSync(join(dir, "held"), "utf8");
+    assert.match(held, /^proceed=false$/m);
+    assert.match(held, /^skip-reason=awaiting-human$/m);
+    assert.match(held, /^lane-escalated=false$/m);
+    await main({ ...env, GITHUB_OUTPUT: join(dir, "other") }, { api: gatedApi(APP_USER, "feedback-disputed"), log: () => {} });
+    const other = readFileSync(join(dir, "other"), "utf8");
+    assert.match(other, /^proceed=true$/m);
+    assert.match(other, /^skip-reason=$/m);
+    assert.match(other, /^lane-escalated=true$/m);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("a log excerpt keeps the last lines, drops timestamps and color codes, and is capped", () => {
   assert.equal(logExcerpt("2026-10-18T00:00:01.1234567Z \u001b[31mred\u001b[0m\nplain\n"), "red\nplain");
   const long = Array.from({ length: 500 }, (_, i) => `line ${i} ${"x".repeat(40)}`).join("\n");

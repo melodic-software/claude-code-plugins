@@ -52,10 +52,16 @@ const history = (counts = [], earlier = counts.map(() => 0)) => ({
   },
 });
 
-function fakeApi({ pages = [[]], histories = {}, workflowRuns = [], failHistory = new Set() } = {}) {
+function fakeApi({ pages = [[]], histories = {}, workflowRuns = [], failHistory = new Set(), comments = new Map(), labelEvents = new Map() } = {}) {
   const calls = { history: [], dispatch: [] };
   return {
     calls,
+    async listIssueComments(number) {
+      return comments.get(number) ?? [];
+    },
+    async listLabelEvents(number) {
+      return labelEvents.get(number) ?? [];
+    },
     async listDocsFixCandidates({ after }) {
       const index = after === undefined ? 0 : Number(after);
       return {
@@ -117,6 +123,34 @@ test("a draft, a fork, a PR into another base, or a held PR is not dispatched", 
   const { api } = await run({ pages: [pulls] });
   assert.deepEqual(numbers(api), []);
   assert.deepEqual(api.calls.history, [], "no history read for a PR the listing drops");
+});
+
+// report-escalation.sh's comment and label, by the lanes App, or the label by a person.
+const APP_USER = { login: "melodic-automation-lanes[bot]", id: LANES_APP, type: "Bot" };
+const labeledBy = (actor) => [{ event: "labeled", actor, label: { name: "needs-human" }, created_at: "2026-10-22T10:00:00Z" }];
+const escalation = [
+  {
+    user: APP_USER,
+    created_at: "2026-10-22T10:00:05Z",
+    body: `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${"b".repeat(40)} -->\nStopped.\n\n- Reason: \`ci-fix-escalated\``,
+  },
+];
+
+test("needs-human from a lane escalation does not hold fix-docs, which never escalates; a person's does", async () => {
+  const gated = { labels: { nodes: [{ name: "needs-human" }] } };
+  const { api, record } = await run(
+    {
+      pages: [[pr(15, gated), pr(16, gated)]],
+      comments: new Map([[15, escalation]]),
+      labelEvents: new Map([
+        [15, labeledBy(APP_USER)],
+        [16, labeledBy({ login: "kyle-sexton", id: 153232337, type: "User" })],
+      ]),
+    },
+    { gateLabel: "needs-human", appSenderId: LANES_APP },
+  );
+  assert.deepEqual(numbers(api), ["15"]);
+  assert.equal(isHandled(record, CHECK, pr(16).headRefOid), false, "a held PR is not done");
 });
 
 test("PRs the lanes App or another bot opened are dispatched; Dependabot's, the release App's and the standards-sync App's are not", async () => {
