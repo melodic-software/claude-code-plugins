@@ -218,6 +218,25 @@ test("enable-auto-merge reads the lane's room from this run's post-merge-dispatc
   assert.ok(names.indexOf("Read this run's post-merge report") < names.indexOf("Arm and disarm auto-merge"));
 });
 
+// A room that checks the post-merge answer again reads the lane records the
+// last run kept, as post-merge-dispatch's check does, so the check answers
+// them with no artifact or run read each; without them the check can run
+// past the room's VERIFY_TIMEOUT_MS.
+test("enable-auto-merge hands the room's post-merge check the lane records the last run kept", () => {
+  const arm = job("enable-auto-merge");
+  const records = /- name: Read the lane records the last run kept\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)?.[1];
+  assert.ok(records, "a lane-records read");
+  assert.match(records, /\n {8}continue-on-error: true\n/);
+  assert.match(records, /\n {10}ACTIONS_TOKEN: \$\{\{ github\.token \}\}\n {10}LANE_RECORDS_PATH: \$\{\{ runner\.temp \}\}\/lane-records\.json\n/);
+  assert.match(records, /\n {8}run: node \.base\/\.github\/scripts\/pr-merge\/lane-records\.mjs read\n/);
+  const step = /- name: Arm and disarm auto-merge\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)[1];
+  assert.match(step, /\n {10}BABYSIT_POSTMERGE_LANE_RECORDS: \$\{\{ runner\.temp \}\}\/lane-records\.json\n/);
+  const names = [...arm.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
+  assert.ok(names.indexOf("Read the lane records the last run kept") < names.indexOf("Arm and disarm auto-merge"));
+  // Within the job's own permissions: the read needs actions: read alone.
+  assert.match(arm, /\n {6}actions: read #/);
+});
+
 test("enable-auto-merge's step timeouts fit inside its job's", () => {
   const arm = job("enable-auto-merge");
   const total = Number(/\n {4}timeout-minutes: ([0-9]+)\n/.exec(arm)[1]);
