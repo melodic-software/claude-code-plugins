@@ -2186,6 +2186,20 @@ test("pr-run-activity-read.yml: a PR run that stops before head code still uploa
   for (const id of ["key", "open"]) assert.equal(steps.find((s) => s.id === id).if, "steps.base.outcome == 'success'", id);
 });
 
+// In issue mode the run job's head-sha is forgeable, so an empty checked
+// start commit leaves the scan no commit rather than falling back to it.
+test("pr-run-activity-read.yml: the scan's commit is the checked start commit in issue mode and the run head only in PR mode", () => {
+  const steps = scanSteps();
+  const head = "a".repeat(40);
+  const start = "b".repeat(40);
+  for (const value of [steps.find((s) => s.name === "Check out the gated head").with.ref, steps.find((s) => s.id === "leak-scan").env.HEAD_SHA]) {
+    const at = (issue, startSha) => evaluate(value, { "inputs.issue-number": issue, "needs.run.outputs.head-sha": head, "needs.issue-fields.outputs.start-sha": startSha });
+    assert.equal(at("", ""), head, "PR mode");
+    assert.equal(at("7", start), start, "issue mode");
+    assert.equal(at("7", ""), "", "issue mode with no checked start commit");
+  }
+});
+
 test("pr-run-activity-read.yml: the leak scan resolves the default branch tip itself and loads the publish gate there, never from a run job output, the base SHA or a checkout", () => {
   const step = scanSteps().find((s) => s.id === "leak-scan");
   const script = step.with.script;
@@ -3243,12 +3257,14 @@ test("issue-fields: the issue step holds each field to its closed set and to the
 
 // Branch eligibility: a branch claim is published only when the default-tip
 // earlier-work check, run again, chooses the same reuse branch, resume branch
-// and tip; the check's own rules (App commits, not behind, not rejected)
-// then hold for the branch the caller gets.
+// and tip; the check's own rules (App commits, not rejected) then hold for
+// the branch the caller gets. The run job chose before the model ran, so a
+// resume branch the default branch moved past since still resumes.
 test("issue-fields: a branch claim is published only when the re-derived earlier-work check chooses the same branch and tip", (t) => {
   const job = issueFieldsJob();
   const prior = job.steps.find((s) => s.id === "prior");
   assert.match(prior.run, /node \.base\/\.github\/scripts\/work-resolve-issue\/report-outcome\.mjs --find-prior$/m);
+  assert.equal(prior.env.FIND_PRIOR_KEEP_BEHIND, "true");
   assert.equal(job.steps.find((s) => s.id === "base").with.ref, "${{ github.event.repository.default_branch }}");
   const checked = job.steps.find((s) => s.id === "checked");
   assert.equal(evaluate(checked.if, { "steps.issue.outcome": "success", "steps.issue.outputs.claimed": "true", "steps.prior.outcome": "failure" }), false, "a claim whose re-derive failed");
@@ -3272,7 +3288,7 @@ test("issue-fields: a branch claim is published only when the re-derived earlier
   assert.deepEqual(same.outputs, { checked: "true", "reuse-branch": "", "resume-branch": branch, "resume-tip": tip, "base-sha": base, "start-sha": tip });
   for (const [name, lines] of [
     ["another tip", `proceed=true\nreuse-branch=\nresume-branch=${branch}\nresume-tip=${"e".repeat(40)}\n`],
-    ["no resume now (the branch is behind, rejected or not the App's)", "proceed=true\nreuse-branch=\n"],
+    ["no resume now (the branch is rejected or not the App's)", "proceed=true\nreuse-branch=\n"],
     ["another branch", `proceed=true\nreuse-branch=\nresume-branch=work-resolve-issue/issue-7-124-1\nresume-tip=${tip}\n`],
   ]) {
     const result = publish(resume, lines);

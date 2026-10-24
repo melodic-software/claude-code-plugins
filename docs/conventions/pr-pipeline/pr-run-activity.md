@@ -93,7 +93,7 @@ The read file has five `workflow_call` outputs: `head-sha`, as in the write file
 `skill-reply-<lane>-<activity>-<attempt>` artifact when the skill ran; the last four are the
 [scan job](#the-scan-job)'s in both modes. In issue mode it also outputs `scan-base-sha`,
 `scan-resume-tip`, `scan-issue-run-started`, `scan-reuse-branch` and `scan-resume-branch`, the run
-job's pre-model fields as the scan job checked them ([Issue mode](#issue-mode)). In PR mode it also outputs
+job's pre-model fields as the [issue-fields job](#the-issue-fields-job) checked them ([Issue mode](#issue-mode)). In PR mode it also outputs
 `lane-class`, `credential-present` and `handed-off`, from the launcher and the credential steps,
 never from model text ([Two calls on one credential each](#two-calls-on-one-credential-each)),
 and, set by the scan job alone, `feedback-attempt` and `feedback-sha256`, the attempt naming a
@@ -1376,8 +1376,9 @@ Then, in order:
    before head code skips the scan and still posts its skip; a scan hit leaves no verdict.
 
 Its `patch-state`, `patch-sha256`, `patch-attempt` and `reply-attempt` outputs are the read
-file's in both modes. The run job's steps upload nothing and show no model text in a step summary,
-in either mode, so in this file the scan job is the only uploader. That holds for the YAML, not
+file's in both modes. The run job's steps upload nothing, in either mode, so in this file the scan
+job is the only uploader. They show no model text in a step summary, except an issue-mode gate
+skill's verdict ([Leak-scan limits](#leak-scan-limits)). That holds for the YAML, not
 for a hostile run job: code on its runner holds the job's own artifact credentials and can upload
 under any name the run has not taken. No consumer binds an artifact to the job that uploaded it.
 
@@ -1395,8 +1396,9 @@ report gate. It checks the run job's pre-model issue fields from `env`, each in 
    resume; a resume branch comes with its tip and `true`; a started run has a base.
 2. A branch claim is re-derived: `report-outcome.mjs --find-prior`, from the default branch tip
    with this job's read-only token, must choose the same reuse branch, resume branch and tip, so the
-   branch also meets that check's rules (its commits the lanes App's, not behind the default
-   branch, not handed back).
+   branch also meets that check's rules (its commits the lanes App's, not handed back). The run job
+   chose before the model ran, so the re-derivation sets `FIND_PRIOR_KEEP_BEHIND`: a resume branch
+   the default branch has moved past since then still resumes.
 3. Only then does it set `checked` and the read file's `scan-base-sha`, `scan-resume-tip`,
    `scan-reuse-branch` and `scan-resume-branch` outputs, and the start commit (the resume tip, else
    the base) the scan job applies the patch to. A refusal leaves them empty: the scan job then
