@@ -251,17 +251,20 @@ say(/\.base\/\.work-item-tracker\.json/.test(holdLabel) && /labels-absent/.test(
   "the hold labels are resolved from the base before the head checkout and reach the promote step with the read-only token and the apply-patch script");
 
 // Issue mode runs its skill in the read runner, which holds no lane token:
-// these checks read that file. Only the skill run writes the outcome
-// artifact, so the report-outcome run downloads what it left.
+// these checks read that file. Only the skill run collects the outcome, and
+// only the scan job uploads it, after a clean scan of the sealed copy, so the
+// report-outcome run downloads what the run left.
 const rwf = YAML.parse(readFileSync(".github/workflows/pr-run-activity-read.yml", "utf8"));
 const rsteps = rwf.jobs.run.steps;
 const rat = (pred) => rsteps.findIndex(pred);
 const rById = (id) => rsteps.find((s) => s.id === id) ?? {};
-const outcomeWriters = rsteps.filter((s) => /upload-artifact/.test(s.uses ?? "") && /work-outcome/.test(JSON.stringify(s.with ?? {})));
+const writesOutcome = (s) => /upload-artifact/.test(s.uses ?? "") && /work-outcome/.test(JSON.stringify(s.with ?? {}));
+const outcomeWriters = rwf.jobs.scan.steps.filter(writesOutcome);
 const collect = rsteps.find((s) => s.name === "Collect the issue outcome");
-say(outcomeWriters.length === 1 && collect !== undefined
-  && [...outcomeWriters, collect].every((s) => /steps\.config\.outputs\.kind == 'skill'/.test(String(s.if ?? ""))),
-  "issue mode collects and uploads the outcome artifact only in a skill run");
+say(rsteps.filter(writesOutcome).length === 0 && outcomeWriters.length === 1 && collect !== undefined
+  && /steps\.config\.outputs\.kind == 'skill'/.test(String(collect.if ?? ""))
+  && /steps\.leak-scan\.outputs\.clean == 'true'/.test(String(outcomeWriters[0].if ?? "")),
+  "issue mode collects the outcome only in a skill run, and only the scan job uploads it, after a clean scan");
 
 // Issue mode: the check for an earlier run's work decides before the run
 // decides to start and before any model turn, with the job's read-only
