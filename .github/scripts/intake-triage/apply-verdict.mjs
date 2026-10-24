@@ -24,8 +24,10 @@
 // A status hold the lanes App set on an earlier run gives way to a ready
 // verdict and is taken off only when the App's earlier verdict comment lists
 // no flag. One that listed a flag, or no App verdict comment at all (an issue
-// held before these comments, or a comment write that failed), holds, and the
-// new comment carries the flag or the missing record forward; needs-human, and
+// held before these comments), holds, and the new comment carries the flag or
+// the missing record forward. A held verdict writes that comment before its
+// labels and writes no label when the comment write fails, so no hold lands
+// without its record; needs-human, and
 // a hold the triage run (github-actions[bot], the reusable's escalation), a
 // person, or an unread setter set, holds. The
 // `needs-triage` floor label is taken off after the verdict is written.
@@ -457,10 +459,29 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   // Before any label: a failed edge write leaves the labels as they were,
   // never `status: ready` without admission. A re-run skips edges written.
   const edges = verdict.blockedBy.length > 0 ? await writeEdges({ github, repository, number, blockers: verdict.blockedBy }) : null;
-  const floor = plan.remove.filter((name) => name === NEEDS_TRIAGE);
-  await removeLabels(github, base, plan.remove.filter((name) => name !== NEEDS_TRIAGE));
-  await addLabels(github, base, plan.add);
-  await removeLabels(github, base, floor);
+  // A held verdict's reasons comment goes before its labels, so a hold never
+  // lands without the record of whether it was flagged (earlierFlags): when
+  // the comment write fails, no label changes and the caller fails the job.
+  // A ready verdict's comment names admission's outcome, so it goes after; a
+  // failed one stops neither the reword nor the summary.
+  let reasonsError = null;
+  const say = async (admission) => {
+    try {
+      await sayReasons(github, repository, base, comments, appId, plan, admission);
+    } catch (error) {
+      reasonsError = String(error?.message ?? error);
+    }
+  };
+  if (!plan.ready) {
+    await say(null);
+  }
+  const labeled = reasonsError === null;
+  if (labeled) {
+    const floor = plan.remove.filter((name) => name === NEEDS_TRIAGE);
+    await removeLabels(github, base, plan.remove.filter((name) => name !== NEEDS_TRIAGE));
+    await addLabels(github, base, plan.add);
+    await removeLabels(github, base, floor);
+  }
   // Before the reword: whether the App may edit github-actions[bot]'s
   // comment is unproven, and a refused edit must not stop admission. An
   // admission error stops neither the reword nor the summary; the caller
@@ -475,23 +496,17 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   }
   // A held issue never reaches admission, so its split note, when a done-when
   // item is one the lane cannot perform, is written here.
-  if (!plan.ready && noteSplit) {
+  if (!plan.ready && labeled && noteSplit) {
     try {
       admission = await noteSplit(issue);
     } catch (error) {
       admission = { outcome: "error", reasons: [String(error?.message ?? error)] };
     }
   }
-  // A failed reasons comment stops neither the reword nor the summary; the
-  // caller fails the job on it. The hold it leaves has no readable record,
-  // so a later clean verdict keeps it (earlierFlags).
-  let reasonsError = null;
-  try {
-    await sayReasons(github, repository, base, comments, appId, plan, admission);
-  } catch (error) {
-    reasonsError = String(error?.message ?? error);
+  if (plan.ready) {
+    await say(admission);
   }
-  if (plan.classApplied) {
+  if (plan.classApplied && labeled) {
     const reworded = rewordComment(comment.body);
     if (reworded !== null) {
       await github("PATCH", `/repos/${repository}/issues/comments/${comment.id}`, { body: reworded });
@@ -503,7 +518,9 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     `- Issue: #${number}`,
     `- Work class: ${verdict.workClass ?? "none"}${plan.classApplied ? "" : " (not applied)"}`,
     `- Fields written: ${plan.fieldWrites.map(({ key, name }) => `${DIMENSIONS[key]} ${name}`).join(", ") || "none"}`,
-    `- Labels added: ${plan.add.join(", ") || "none"}; removed: ${plan.remove.join(", ") || "none"}`,
+    labeled
+      ? `- Labels added: ${plan.add.join(", ") || "none"}; removed: ${plan.remove.join(", ") || "none"}`
+      : "- Labels: none written, since the reasons comment was not",
     `- Status: ${plan.ready ? (settled(admission) ?? READY) : NEEDS_DECISION}${plan.reasons.length ? ` (${plan.reasons.join("; ")})` : ""}`,
     ...(edges || verdict.blockedByProblem ? [`- Blocked by: ${edgeSummary(edges, verdict.blockedByProblem)}`] : []),
     ...(admission ? [`- Admission: ${admission.outcome}${admission.reasons.length ? ` (${admission.reasons.join("; ")})` : ""}`] : []),

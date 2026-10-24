@@ -705,9 +705,9 @@ describe("run", () => {
     assert.equal(result.outcome, "needs-decision");
     assert.deepEqual(
       writes(fake.calls).map(({ method, path }) => `${method} ${path}`),
-      ["POST /repos/o/r/issues/7/labels", "POST /repos/o/r/issues/7/comments"],
+      ["POST /repos/o/r/issues/7/comments", "POST /repos/o/r/issues/7/labels"],
     );
-    assert.deepEqual(writes(fake.calls)[0].body, { labels: [NEEDS_DECISION] });
+    assert.deepEqual(writes(fake.calls)[1].body, { labels: [NEEDS_DECISION] });
   });
 
   test("an older lane comment is refused: this run's triage wrote none", async () => {
@@ -1104,26 +1104,45 @@ describe("run", () => {
     assert.ok(!writes(second.calls).some(({ method }) => method === "DELETE"));
   });
 
-  test("a failed reasons comment still rewords the lane comment, reports the failure, and a later clean verdict keeps the hold", async () => {
-    const fake = fakeGitHub({ comments: [laneComment(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: security"] }))] });
+  // The record goes before the hold: a hold never lands without the comment
+  // that says whether it was flagged.
+  for (const [name, comments, failing] of [
+    ["no earlier verdict comment and a failed post", [], "POST /repos/o/r/issues/7/comments"],
+    ["an earlier unflagged verdict comment and a failed edit", [unflagged("The triage verdict left this issue at `status: needs-decision`:\n\n- no `Size:` line")], "PATCH /repos/o/r/issues/comments/51"],
+  ]) {
+    test(`a flagged verdict with ${name} writes no label, reports the failure, and fails the run`, async () => {
+      const fake = fakeGitHub({ comments: [laneComment(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: security"] })), ...comments] });
+      const github = async (method, path, body) => {
+        if (`${method} ${path}` === failing) {
+          fake.calls.push({ method, path, body });
+          throw new GitHubError(403, failing);
+        }
+        return fake.github(method, path, body);
+      };
+      const result = await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, log: () => {} });
+      assert.ok(result.plan.classApplied);
+      assert.ok(result.reasonsError, "the failure is on the result");
+      assert.match(result.summary, /- Reasons comment: not written \(/);
+      const labelWrites = writes(fake.calls).filter(({ path }) => path.startsWith("/repos/o/r/issues/7/labels"));
+      assert.deepEqual(labelWrites, [], "no hold lands without its record");
+      assert.ok(!writes(fake.calls).some(({ path }) => path === "/repos/o/r/issues/comments/99"), "no class, so no reword");
+    });
+  }
+
+  test("a failed edit of the reasons comment on a ready verdict still rewords the lane comment and reports the failure", async () => {
+    const fake = fakeGitHub({ comments: [laneComment(), unflagged()] });
     const github = async (method, path, body) => {
-      if (method === "POST" && path === "/repos/o/r/issues/7/comments") {
+      if (method === "PATCH" && path === "/repos/o/r/issues/comments/51") {
         fake.calls.push({ method, path, body });
-        throw new GitHubError(403, "POST comments");
+        throw new GitHubError(403, "PATCH comments");
       }
       return fake.github(method, path, body);
     };
     const result = await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, log: () => {} });
-    assert.equal(result.outcome, "needs-decision");
-    assert.ok(result.plan.classApplied);
+    assert.equal(result.outcome, "ready");
     assert.ok(writes(fake.calls).some(({ method, path }) => method === "PATCH" && path === "/repos/o/r/issues/comments/99"));
     assert.ok(result.reasonsError, "the failure is on the result");
     assert.match(result.summary, /- Reasons comment: not written \(/);
-    // The hold went on with no record of the flag behind it.
-    const added = writes(fake.calls).find(({ method, path }) => method === "POST" && path === "/repos/o/r/issues/7/labels");
-    assert.ok(added.body.labels.includes(NEEDS_DECISION));
-    const later = fakeGitHub({ issue: { labels: [{ name: NEEDS_DECISION }] }, comments: [laneComment()], events: APP_HOLD });
-    assert.equal((await go(later)).outcome, "needs-decision");
   });
 
   test("an admission refusal on a ready verdict leaves an unflagged verdict record, so a later clean verdict can lift it", async () => {
