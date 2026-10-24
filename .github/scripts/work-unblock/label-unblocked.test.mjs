@@ -1182,8 +1182,8 @@ const refired = (n, key = KEY) => [
   `POST /repos/${REPO}/issues/${n}/comments ${JSON.stringify({ body: refireComment(key) })}`,
   ...restarted(n),
 ];
-function failedRun({ runs = [laneRun()], comments = [note()], events = [added(LABELED_AT, OWNER)], labels = [], blobs = BLOBS } = {}) {
-  const fake = world({ openReady: [ready(30, labels)], comments: { 30: comments }, events: { 30: events }, runs, blobs });
+function failedRun({ runs = [laneRun()], comments = [note()], events = [added(LABELED_AT, OWNER)], labels = [], blobs = BLOBS, blockedBy = {} } = {}) {
+  const fake = world({ openReady: [ready(30, labels)], comments: { 30: comments }, events: { 30: events }, runs, blobs, blockedBy });
   return { ...fake, actions: fake.github };
 }
 
@@ -1357,8 +1357,10 @@ function stalledRun({
   events = [added(LABELED_AT, OWNER)],
   blobs = BLOBS,
   queuedIssues = [],
+  blockedBy = {},
 } = {}) {
   const fake = world({
+    blockedBy,
     queuedIssues,
     openReady: [ready(number)],
     comments: { [number]: comments },
@@ -1489,6 +1491,39 @@ test("a run the WIP cap skipped keeps re-firing past the failed-mint bound", asy
 test("a run another gate stopped before its mint, with no WIP cap skip, is not re-fired", async () => {
   const jobs = [pickSlot, { name: "resolve-issue / run", conclusion: "success", steps: [{ name: "Request the lane token", conclusion: "skipped" }] }];
   const { github, actions, calls } = stalledRun({ jobs, conclusion: "success" });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), []);
+});
+
+// The admit job's blocker gate skipped the run: its `Wait for open blockers`
+// step ran and pick-slot did not. Agent-ready stays on and no marker follows;
+// the sweep re-fires the issue once no blocker is open, past any bound, and
+// never hands it to a person for it.
+const BLOCKER_SKIPPED = [
+  { name: "admit", conclusion: "success", steps: [{ name: "Check the trigger", conclusion: "success" }, { name: "Wait for open blockers", conclusion: "success" }] },
+  { name: "pick-slot", conclusion: "skipped", steps: [] },
+  { name: "resolve-issue", conclusion: "skipped", steps: [] },
+];
+
+test("a run the blocker gate skipped waits, with no write, while a blocker is open", async () => {
+  for (const state of ["open", "closed"]) {
+    const { github, actions, calls } = stalledRun({ jobs: BLOCKER_SKIPPED, conclusion: "success", blockedBy: { 30: [issue(31, { state }), issue(32)] } });
+    assert.equal(await sweep({ github, actions }), 0);
+    assert.deepEqual(writes(calls), [], state);
+  }
+});
+
+test("a run the blocker gate skipped is re-fired once no blocker is open, past the per-version bound, with no needs-human", async () => {
+  for (const pumps of [{}, earlierPumps(3)]) {
+    const { github, actions, calls } = stalledRun({ jobs: BLOCKER_SKIPPED, conclusion: "success", blockedBy: { 30: [issue(31, { state: "closed" })] }, ...pumps });
+    assert.equal(await sweep({ github, actions }), 0);
+    assert.deepEqual(writes(calls), refired(30));
+    assert.ok(!writes(calls).some((call) => call.includes("needs-human")));
+  }
+});
+
+test("a stranded issue with an open blocker is neither re-fired nor handed to a person", async () => {
+  const { github, actions, calls } = failedRun({ runs: [], events: [added("2026-10-16T08:00:00Z", OWNER)], blockedBy: { 30: [issue(31)] } });
   assert.equal(await sweep({ github, actions }), 0);
   assert.deepEqual(writes(calls), []);
 });
@@ -1683,6 +1718,7 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
     assert.ok(caller[id] !== undefined, id);
   }
   assert.ok(steps(caller["pick-slot"]).includes("Check the WIP cap"));
+  assert.ok(steps(caller.admit).includes("Wait for open blockers"));
   assert.match(caller["resolve-issue"], /^ {4}uses: \.\/\.github\/workflows\/pr-run-activity-read\.yml\b/m);
   const read = jobs(workflow("pr-run-activity-read.yml"));
   assert.ok(steps(read["broker-check"]).includes("Ask the broker whether the lane may run"));

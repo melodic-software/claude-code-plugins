@@ -37,6 +37,13 @@
 // those files gets one comment saying why and needs-human instead. Both share
 // limits.restarts-per-run.
 //
+// The lane skips an issue with an open blocker and keeps agent-ready on
+// (check-blockers.mjs), so the close path above, which leaves an agent-ready
+// issue alone, never re-runs it. The sweep does: an agent-ready issue with an
+// open blocker is never re-fired, stranded or handed to a person, and a run
+// the blocker gate skipped is re-fired like a run that did no work once no
+// blocker is open.
+//
 // On `schedule` it sweeps instead: every issue closed in the last
 // LOOKBACK_HOURS goes through the same rules, so an issue a bot closed (a
 // pull request merge), which starts no close run, is still picked up. A
@@ -136,7 +143,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { admissionFacts, decide, loadRules, NEEDS_DECISION, openPullsFor, READY, refusalText, removalStands, sayWhy } from "../intake-triage/admit.mjs";
+import { admissionFacts, blockersOf, decide, loadRules, NEEDS_DECISION, openBlockers, openPullsFor, READY, refusalText, removalStands, sayWhy } from "../intake-triage/admit.mjs";
 
 const LABEL = "agent-ready";
 const HUMAN_LABEL = "needs-human";
@@ -156,6 +163,9 @@ const MINT_STEP = "Request the lane token";
 // The read runner's step a run stops at, green, when its lane workflow files
 // differ from main's: no model ran and no outcome marker follows.
 const STALE_STEP = "Stop on stale workflow files";
+// The admit job's step that skips a run while the issue has an open blocker,
+// or its blockers cannot be read (check-blockers.mjs); pick-slot then skips.
+const BLOCKER_STEP = "Wait for open blockers";
 const REFIRED = /^<!-- work-unblock refired ([0-9a-f]{40}-[0-9a-f]{40}) -->/;
 const handedMarker = (pr) => `<!-- work-unblock handed triage #${pr} -->`;
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
@@ -259,7 +269,7 @@ async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base
   // also needs a trusted close (trustedClose), read fresh from the issue
   // itself. A blocker in another repository cannot be read with this
   // repository's token, so it never counts.
-  const blockers = await paginate(github, `${base}/dependencies/blocked_by`);
+  const blockers = await blockersOf(github, base);
   const closedHere = (blocker) =>
     blocker.state === "closed" && String(blocker.repository_url ?? "").toLowerCase().endsWith(`/repos/${repo}`.toLowerCase());
   const issues = [];
@@ -606,9 +616,11 @@ async function laneRuns(actions, repo, number, addedAt) {
 // How every one of `runs` (completed) did no work in its latest attempt, or
 // null when one did some: no job minted a lane token, and the agent-ready run
 // either had its `Request the lane token` step fail (`mint-failed`, which
-// wins) or was skipped by the WIP cap (`capped`: pick-slot ran, resolve-issue
-// did not). A run another gate stopped before its mint (an open closing PR, a
-// reused branch) is neither, so it is never re-fired here.
+// wins), was skipped by the WIP cap (`capped`: pick-slot ran, resolve-issue
+// did not), or was skipped by the admit job's blocker gate (`blocked`: its
+// BLOCKER_STEP ran and pick-slot did not). A run another gate stopped before
+// its mint (an open closing PR, a reused branch) is none of these, so it is
+// never re-fired here.
 async function didNoWork(jobsOf, runs) {
   let stalled = null;
   for (const run of runs) {
@@ -625,10 +637,15 @@ async function didNoWork(jobsOf, runs) {
       named("pick-slot").some((job) => job.conclusion === "success") &&
       named("resolve-issue").length > 0 &&
       named("resolve-issue").every((job) => job.conclusion === "skipped");
+    const blocked =
+      named("admit").some((job) => (job?.steps ?? []).some((step) => step?.name === BLOCKER_STEP && step.conclusion === "success")) &&
+      named("pick-slot").every((job) => job.conclusion === "skipped");
     if (mints.some((step) => step.conclusion === "failure")) {
       stalled = "mint-failed";
     } else if (capped) {
       stalled ??= "capped";
+    } else if (blocked) {
+      stalled ??= "blocked";
     }
   }
   return stalled;
@@ -842,6 +859,12 @@ async function refireRefusal({ github, actions, repo, number, lastAdd, addedAt, 
   }
   if (held) {
     return { reason: `held by ${HUMAN_LABEL}` };
+  }
+  // The lane skips an issue with an open blocker (check-blockers.mjs), so one
+  // is never re-fired or handed to a person while it has one.
+  const open = openBlockers(await blockersOf(github, `/repos/${repo}/issues/${number}`));
+  if (open.length > 0) {
+    return { reason: `waiting on ${open.length} open blocker(s)` };
   }
   if (!actions) {
     return { reason: "no Actions token to read its lane run" };

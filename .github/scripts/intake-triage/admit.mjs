@@ -83,6 +83,14 @@ export function loadRules(path) {
   return rules;
 }
 
+// The issues and pull requests GitHub lists as blocking the issue at `base`
+// (`/repos/<owner>/<repo>/issues/<n>`). Admission, work-unblock and the issue
+// lane's gate all read blockers here.
+export const blockersOf = (github, base) => paginate(github, `${base}/dependencies/blocked_by`);
+
+// Those of `blockers` not closed, in any repository.
+export const openBlockers = (blockers) => blockers.filter((blocker) => blocker?.state !== "closed");
+
 const here = (url, repository) =>
   String(url ?? "")
     .toLowerCase()
@@ -470,7 +478,7 @@ export async function noteUnrunnable({ github, repository, issue, rules, webHost
 // default it reads the blocker fresh.
 export async function admissionFacts({ github, repository, number, issue, rules, humans, isTrusted }) {
   const base = `/repos/${repository}/issues/${number}`;
-  const blockers = await paginate(github, `${base}/dependencies/blocked_by`);
+  const blockers = await blockersOf(github, base);
   // Anyone may close their own issue as completed, so a blocking issue counts
   // only with a trusted close, read fresh from the issue.
   const trusted =
