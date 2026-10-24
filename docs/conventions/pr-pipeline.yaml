@@ -473,8 +473,10 @@ activities:
     # the body): posts the read-only refine-issue run's output as one marked
     # comment. Exact: the drafted criteria as a task list (admission's
     # criterion 7 counts them only once a listed human posts them as their
-    # own, owner decision Q9), the lanes App's `status: needs-decision`
-    # lifted and one more triage. Not exact: numbered questions with RECOMMENDED
+    # own, owner decision Q9); one more triage, lifting the lanes App's
+    # `status: needs-decision`, only when a listed human's text already holds
+    # a task list, else the labels stay and the comment asks a listed human
+    # to post the criteria as their own decision comment. Not exact: numbered questions with RECOMMENDED
     # answers at `status: needs-decision`. For an issue admission held at the
     # App's needs-decision for some, not all, done-when items a lane run
     # cannot perform, a split the model judges sound files one needs-human

@@ -298,7 +298,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     refuse.push(`it has ${spec.commentCount} comments, more than the ${SPEC_COMMENTS} pr-verify reads, so pr-verify cannot verify a pull request for it`);
   }
   const lines = trustedSpecTexts(spec, humans).flatMap((text) => text.split("\n"));
-  if (!lines.some((line) => line.trimStart().startsWith(rules["task-list"]))) {
+  if (!hasTrustedCriteria(spec, humans, rules["task-list"])) {
     refuse.push(noTrustedSpec(rules["task-list"]));
   }
   // A copied refinement breaks `://` and `www.` with a zero-width space so no
@@ -381,7 +381,7 @@ fragment actor on Actor { __typename ... on User { databaseId } ... on Bot { dat
 // {body, lastEditedAt, author, editor, commentCount, comments: [{body,
 // lastEditedAt, author, editor}]} for the issue, as GraphQL answers them. An
 // unexpected shape throws.
-async function specOf(github, repository, number) {
+export async function specOf(github, repository, number) {
   const [owner, name] = repository.split("/");
   const issue = (await github("POST", "/graphql", { query: SPEC_QUERY, variables: { owner, name, number: Number(number) } }))?.data?.repository?.issue;
   const text = (item) =>
@@ -405,6 +405,10 @@ export function trustedSpecTexts(spec, humans) {
   const written = (item) => trusted(item?.author) && (item.lastEditedAt == null || trusted(item.editor));
   return spec ? [spec, ...(spec.comments ?? [])].filter(written).map((item) => String(item.body ?? "")) : [];
 }
+
+// Whether that text holds a `taskList` line: criterion 7. Pure.
+export const hasTrustedCriteria = (spec, humans, taskList) =>
+  trustedSpecTexts(spec, humans).some((text) => text.split("\n").some((line) => line.trimStart().startsWith(taskList)));
 
 // For an issue apply-verdict held without admission (a flag, an escalation or
 // a hold), the same split note a refusal posts, when a done-when item is one
