@@ -31,7 +31,9 @@ Re-check all check runs for any state changes, then re-check for new comments si
    readiness; do **not** squash-merge a behind head. Two exceptions
    ([GitHub](../../../reference/providers/github/pull-request/merge.md#behind-branch-exceptions)):
    when the base uses a merge queue, skip the update and enqueue; and when a dependency manager (Dependabot, Renovate) authored the PR,
-   never push or merge into its branch: ask the manager to rebase it, then re-run readiness on the
+   never push or merge into its branch: ask the manager to rebase it (for Dependabot, the comment
+   [GitHub](../../../reference/providers/github/pull-request/merge.md#behind-branch-exceptions)
+   names), then re-run readiness on the
    head it pushes. That request is a comment on a PR the session did not open, so the
    consuming repo's stop rules for such comments apply. Under a non-strict ruleset, GitHub can
    still report `CLEAN` while the head is behind, and a stale-base squash can silently revert

@@ -56,6 +56,12 @@ For Dependabot, request the rebase with a comment, never `gh pr update-branch` o
 gh pr comment <pr_number> --body '@dependabot rebase'
 ```
 
+When the only foreign commits are merges of the base, comment `@dependabot recreate` instead;
+any other foreign commit is someone's work that a recreate would discard, so leave the PR to a
+person. Pointer: [Dependabot pull request comment commands](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-pull-request-comment-commands#commands-for-dependabot-pull-requests). As of: 2026-10-24. Recheck
+trigger: that section changes what rebase or recreate does to a branch that carries another
+author's commits.
+
 For another manager, use its own documented rebase trigger.
 
 - **Pointer**: what a queue tests, under

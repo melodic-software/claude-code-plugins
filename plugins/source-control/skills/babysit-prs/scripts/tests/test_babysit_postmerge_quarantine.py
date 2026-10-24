@@ -275,6 +275,29 @@ class AffectedSet(AffectedBase):
         (post,) = self.posts()
         self.assertIn(f"body={pm.QUARANTINE_NOTE}{SIGHTING}", post)
 
+    def test_the_answer_says_when_its_quarantine_excuse_ends(self) -> None:
+        # The lane room keeps an answer only until then: the quarantine
+        # issue's creation plus the default 7 quarantine days.
+        self.quarantine_issue(FLAKY, "2026-10-10T09:00:00Z")
+        self.red_dispatch(bash_log((FLAKY, False)))
+        report = self.check().report()
+        self.assertEqual(report["failures"], [])
+        self.assertEqual(report["excusesExpireAt"], "2026-10-17T09:00:00+00:00")
+        # A baseline failure excused by a live quarantine ends the same way.
+        self.gh.issues.clear()
+        self.quarantine_issue(FLAKY, "2026-10-10T10:00:00Z")
+        self.red_baseline()
+        report = self.check().report()
+        self.assertEqual(report["failures"], [])
+        self.assertEqual(report["excusesExpireAt"], "2026-10-17T10:00:00+00:00")
+
+    def test_an_answer_nothing_excuses_has_no_excuse_end(self) -> None:
+        # A suite with no quarantine issue yet is excused with no end.
+        self.red_dispatch(bash_log((FLAKY, False)))
+        report = self.check().report()
+        self.assertEqual(report["failures"], [])
+        self.assertIsNone(report["excusesExpireAt"])
+
     def test_the_selector_scripts_are_gate_suites(self) -> None:
         for suite in (
             "scripts/plan-test-lanes.test.sh",
