@@ -1140,11 +1140,7 @@ warns of a [classifier gap](README.md#classifier-gaps).
      from the lanes App is the record the pr-merge lane merges a review-tier pull request on,
      at the current head and through its own gate. With `config_unreadable` it posts no merge
      marker and escalates `dependency-config-unreadable`; with `files_truncated` it posts no
-     merge marker and escalates `dependency-files-truncated`; when the pull request's files
-     (re-read here) change a workflow or action file (`.github/workflows/**` or an
-     `action.yml`), either side of a rename, it posts no merge marker and escalates
-     `dependency-workflow-held`, so a person merges it; a listing at its 3,000-file limit
-     escalates `dependency-files-truncated`; unless the pull request's commits are listed whole
+     merge marker and escalates `dependency-files-truncated`; unless the pull request's commits are listed whole
      (fewer than 250, the pull request's count, the last one the head) and each is Dependabot's
      own (author id 49699333, committer `web-flow`, a valid signature, Dependabot's name and
      email), the version-bump commit (only plugins' `plugin.json` `version` and `CHANGELOG.md`

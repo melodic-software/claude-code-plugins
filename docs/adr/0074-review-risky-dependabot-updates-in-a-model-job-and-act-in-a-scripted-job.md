@@ -137,3 +137,14 @@ model job no longer holds `contents: write`.
   `dependency-invalid`.
 
 The verdict job's checks (Decision 3) and the dispatcher (Decision 4) are unchanged.
+
+## Addendum (2026-10-24): a workflow change no longer waits for a person
+
+The owner decided to drop the 2026-10-22 addendum's second limit. A `merge` verdict on a pull
+request that changes a workflow or action file now posts the merge marker like any other, and
+`dependency-workflow-held` is retired. The hold added a person to updates the review lanes already
+gate: a security finding still stops the merge there, and the fix rule still keeps every lane fix
+out of `.github/`. Basis:
+[`apply-dependency-verdict.mjs`](../../.github/scripts/pr-unblock/apply-dependency-verdict.mjs);
+the lanes App merged [#9388](https://github.com/melodic-software/claude-code-plugins/pull/9388),
+which changed three workflow files.

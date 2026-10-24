@@ -388,7 +388,7 @@ on:
           feedback-disputed; for the dependency-verdict script
           dependency-invalid, dependency-fix-not-landed, dependency-config-unreadable,
           dependency-files-truncated, dependency-control-uncited,
-          dependency-workflow-held, dependency-fix-refused,
+          dependency-fix-refused,
           dependency-security-close or dependency-escalate; for apply-patch, before the mint,
           ci-fix-empty, ci-fix-invalid or ci-fix-escalated, and from its
           script ci-fix-invalid, ci-fix-protected-path or ci-fix-not-applied;
@@ -564,7 +564,7 @@ jobs:
             feedback-partial | feedback-incomplete | feedback-disputed) ;;
             dependency-round-cap | dependency-invalid | dependency-fix-not-landed) ;;
             dependency-security-close | dependency-escalate | dependency-config-unreadable) ;;
-            dependency-files-truncated | dependency-control-uncited | dependency-workflow-held) ;;
+            dependency-files-truncated | dependency-control-uncited) ;;
             dependency-fix-refused) ;;
             ci-fix-round-cap | ci-fix-empty | ci-fix-invalid | ci-fix-escalated) ;;
             ci-fix-protected-path | ci-fix-not-applied) ;;
@@ -1913,7 +1913,7 @@ jobs:
                 case "$FEEDBACK_REPLIES_DIR:$DEPENDENCY_VERDICT_DIR:$escalation" in
                   :?*:dependency-invalid | :?*:dependency-fix-not-landed) ;;
                   :?*:dependency-security-close | :?*:dependency-escalate | :?*:dependency-config-unreadable) ;;
-                  :?*:dependency-files-truncated | :?*:dependency-control-uncited | :?*:dependency-workflow-held) ;;
+                  :?*:dependency-files-truncated | :?*:dependency-control-uncited) ;;
                   :?*:dependency-fix-refused) ;;
                   *) echo "::error::the escalation reason file holds no reason this script may give"; exit 1 ;;
                 esac

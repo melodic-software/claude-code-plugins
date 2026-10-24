@@ -380,25 +380,16 @@ test("a fix that landed only manifests and lock files is recorded", async () => 
   assert.equal((await go(widened, fix({ config: [["npm", "/plugins/unlisted"]] }))).escalationReason, "dependency-fix-refused", "run.json's pairs widen nothing");
 });
 
-test("a merge verdict on a pull request that changes a workflow or action file escalates and posts no merge marker", async () => {
+test("a merge verdict on a pull request that changes a workflow or action file posts the merge marker like any other", async () => {
   for (const file of [
     { filename: ".github/workflows/ci.yml" },
     { filename: ".github/actions/check-wip-cap/action.yml" },
     { filename: "x.yml", previous_filename: ".github/workflows/old.yml" },
   ]) {
     const api = fakeApi({ files: [{ filename: "package.json" }, file] });
-    const result = await go(api, runOf());
-    assert.equal(result.escalationReason, "dependency-workflow-held", JSON.stringify(file));
-    assert.doesNotMatch(api.calls.comments.join("\n"), /verdict=merge/);
-    assert.match(api.calls.comments[0], /verdict=escalate/);
+    assert.deepEqual(await go(api, runOf()), { escalationReason: "", skipReason: "" }, JSON.stringify(file));
+    assert.match(api.calls.comments[0], /verdict=merge/, JSON.stringify(file));
   }
-  // A manifest under .github/ is not a workflow file.
-  assert.equal((await go(fakeApi({ files: [{ filename: ".github/actions/resolve-config/package.json" }] }), runOf())).escalationReason, "");
-});
-
-test("a merge verdict whose files listing reads at its limit escalates as truncated", async () => {
-  const files = Array.from({ length: 3000 }, (_, i) => ({ filename: `p${i}/package.json` }));
-  assert.equal((await go(fakeApi({ files }), runOf())).escalationReason, "dependency-files-truncated");
 });
 
 test("a merge verdict on an unreadable Dependabot config escalates and posts no merge marker", async () => {

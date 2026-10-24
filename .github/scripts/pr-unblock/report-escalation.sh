@@ -23,7 +23,6 @@
 #                       | dependency-config-unreadable
 #                       | dependency-files-truncated
 #                       | dependency-control-uncited
-#                       | dependency-workflow-held
 #                       | dependency-fix-refused | ci-fix-round-cap
 #                       | ci-fix-empty | ci-fix-invalid
 #                       | ci-fix-protected-path | ci-fix-not-applied
@@ -81,7 +80,6 @@ case ${ESCALATION_REASON:-} in
   dependency-escalate) why='the dependency review found a risk the lane does not decide alone' ;;
   dependency-config-unreadable) why='the lane could not read the base .github/dependabot.yml, so it does not mark this dependency update for merge' ;;
   dependency-files-truncated) why='the dependency review chose merge, but the files listing it read was cut short, so the lane does not mark this dependency update for merge' ;;
-  dependency-workflow-held) why='the dependency review chose merge, but the update changes a workflow or action file, which a person merges' ;;
   dependency-fix-refused) why='a commit on the dependency update other than Dependabot'"'"'s changes more than a version of an npm or pip manifest or lock file, as a regular file outside .github/, so the lane does not act on the review' ;;
   dependency-control-uncited) why='the dependency review chose merge for a review-only dependency without quoting its control, so the lane does not mark it for merge' ;;
   ci-fix-round-cap) why='the lane has pushed as many CI fixes to this pull request as its cap allows, and CI still fails' ;;

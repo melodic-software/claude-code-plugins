@@ -193,10 +193,6 @@ export const MANIFESTS = Object.freeze({
 });
 const WORKFLOW = /^\.github\/workflows\/[^/]+\.ya?ml$/;
 const ACTION = /^(.+\/)?action\.ya?ml$/;
-// A workflow or action file. A reviewed Dependabot pull request that changes
-// one waits for a person, whatever the verdict says. pr-unblock only, like
-// inFixScope below.
-export const isWorkflowFile = (path) => /^\.github\/workflows\//i.test(String(path ?? "")) || ACTION.test(String(path ?? ""));
 const USES_LINE = /^[+-]\s*(-\s+)?uses:\s*[^\s#]+(\s+#.*)?\s*$/;
 const CONFIG_ENTRY = /^\s*-\s+package-ecosystem:\s*["']?([A-Za-z0-9_-]+)/;
 const CONFIG_DIR = /^\s+directory:\s*["']?([^"'#\s]+)/;
