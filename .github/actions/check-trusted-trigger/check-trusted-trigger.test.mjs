@@ -1843,6 +1843,17 @@ test("the CLI exits 0 with proceed=false when its inputs are missing", () => {
 
 // GitHub client
 
+test("createGitHub forwards a caller's headers to fetch", async () => {
+  let headers;
+  const fetchImpl = async (url, init) => {
+    headers = init.headers;
+    return new Response("{}", { status: 200 });
+  };
+  await createGitHub({ token: "t0ken", fetchImpl })("POST", "/graphql", {}, { Connection: "close" });
+  assert.equal(headers.Connection, "close");
+  assert.equal(headers.Authorization, "Bearer t0ken");
+});
+
 test("createGitHub sends the token and raises GitHubError with the status on failure", async () => {
   const seen = [];
   const fetchImpl = async (url, init) => {

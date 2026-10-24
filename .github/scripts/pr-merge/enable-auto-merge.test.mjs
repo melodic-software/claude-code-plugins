@@ -93,12 +93,16 @@ const room = (answer = ROOM) => async () => answer;
 const labels = (...names) => ({ totalCount: names.length, nodes: names.map((name) => ({ name })) });
 
 // armErrors: per pull request id, the errors its arm sends throw, in order.
-function world(pulls, { failArm = false, armErrors = {} } = {}) {
+// filesError: what every changed-files GET throws.
+function world(pulls, { failArm = false, armErrors = {}, filesError = null } = {}) {
   const armThrows = Object.fromEntries(Object.entries(armErrors).map(([id, errors]) => [id, [...errors]]));
   const calls = [];
   const github = async (method, path, body, headers) => {
     calls.push({ method, path, body, headers });
     const listing = /^\/repos\/melodic-software\/claude-code-plugins\/pulls\/([0-9]+)\/files\?per_page=100&page=([0-9]+)$/.exec(path);
+    if (method === "GET" && listing && filesError) {
+      throw filesError;
+    }
     if (method === "GET" && listing) {
       const files = pulls.find((candidate) => candidate.number === Number(listing[1]))?.files ?? [{ filename: "plugins/work-items/README.md" }];
       return files.slice((Number(listing[2]) - 1) * 100, Number(listing[2]) * 100);
@@ -158,7 +162,7 @@ async function run(pulls, env = {}, options = {}, lane = ROOM) {
   const log = console.log;
   console.log = (line) => lines.push(line);
   try {
-    const code = await main({ env: { ...ENV, ...env }, github, verify, room: room(lane), sleep: async (ms) => slept.push(ms) });
+    const code = await main({ env: { ...ENV, ...env }, github, verify, room: room(lane), sleep: async (ms) => slept.push(ms), random: options.random });
     return { code, writes: writes(), lines, verified, slept, calls };
   } finally {
     console.log = log;
@@ -259,6 +263,19 @@ test("an arm that fails on the network is sent again after a capped wait and arm
   assert.ok(lines.includes(`enable-auto-merge: #1 armed at ${HEAD}`));
 });
 
+test("the resend waits are full jitter under caps of 4 s, then 8 s", async () => {
+  const errors = () => ({ PR_1: [reset(), reset()] });
+  assert.deepEqual((await run([pull(1)], {}, { armErrors: errors(), random: () => 1 })).slept, [4000, 8000]);
+  assert.deepEqual((await run([pull(1)], {}, { armErrors: errors(), random: () => 0 })).slept, [0, 0]);
+});
+
+test("a GET that fails on the network is left to the client's own retry, not sent again here", async () => {
+  const { calls, slept, writes } = await run([pull(1)], {}, { filesError: reset() });
+  assert.equal(calls.filter(({ method }) => method === "GET").length, 1);
+  assert.deepEqual(slept, []);
+  assert.deepEqual(writes, []);
+});
+
 test("an arm that fails three times on the network fails the run, naming the cause", async () => {
   const { code, writes, lines } = await run([pull(1)], {}, { armErrors: { PR_1: [reset(), reset(), reset(), reset()] } });
   assert.equal(code, 1);
@@ -308,10 +325,10 @@ test("an arm GitHub answers 4xx, or with GraphQL errors, is not sent again", asy
 });
 
 test("a logged cause has any token in it scrubbed", async () => {
-  const leak = new TypeError("fetch failed", { cause: Object.assign(new Error("bad header Bearer ghs_abc123 sent"), { code: "UND_ERR_SOCKET" }) });
+  const leak = new TypeError("fetch failed", { cause: Object.assign(new Error("bad header Bearer ghs_abc123 sent github_pat_11AB_cd"), { code: "UND_ERR_SOCKET" }) });
   const { lines } = await run([pull(1)], {}, { armErrors: { PR_1: [leak, leak, leak] } });
-  assert.ok(lines.includes("::error title=enable-auto-merge::#1 arm: fetch failed (cause: UND_ERR_SOCKET bad header *** sent)"));
-  assert.ok(!lines.some((line) => line.includes("ghs_abc123")));
+  assert.ok(lines.includes("::error title=enable-auto-merge::#1 arm: fetch failed (cause: UND_ERR_SOCKET bad header *** sent ***)"));
+  assert.ok(!lines.some((line) => line.includes("ghs_abc123") || line.includes("github_pat_")));
 });
 
 test("a bad bot login or repository fails red", async () => {
