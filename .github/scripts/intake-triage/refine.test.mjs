@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
+import { ADMIT_MARKER, refusalText, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
 import { MARKER } from "./apply-verdict.mjs";
-import { REFINE_MARKER, applyRefinement, isThin, render, searchTerms, selectRefinement, validateOutput } from "./refine.mjs";
+import { REFINE_MARKER, SPLIT_MARKER, applyRefinement, childBody, isThin, movedTexts, render, searchTerms, selectRefinement, splitBody, splitOf, validateOutput } from "./refine.mjs";
 
 const HUMAN = 153232337;
 const OUTSIDER = 4242;
 const APP = 337595936;
 const humans = new Set([HUMAN]);
+const rules = { "task-list": "- [ ] " };
+const webHosts = ["code.claude.com"];
 const NEEDS_DECISION = "status: needs-decision";
 const STARTED = "2026-10-23T10:00:00Z";
 const AFTER = "2026-10-23T10:05:00Z";
@@ -51,13 +54,19 @@ describe("searchTerms", () => {
 });
 
 // A fake GitHub recording every call.
-function fakeGitHub({ issue, comments = [], events = [], search = { items: [] } } = {}) {
+function fakeGitHub({ issue, comments = [], events = [], timeline = [], search = { items: [] } } = {}) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
     const base = "/repos/o/r/issues/7";
+    if (method === "POST" && path === "/graphql" && body.query.includes("issueTypes")) {
+      return { data: { repository: { issueTypes: { nodes: [{ id: "IT_bug", name: "Bug", isEnabled: true }, { id: "IT_task", name: "Task", isEnabled: true }] } } } };
+    }
     if (method === "POST" && path === "/graphql") {
       return { data: { nodes: (body.variables.ids ?? []).map((id) => ({ id, lastEditedAt: null })) } };
+    }
+    if (method === "POST" && path === "/repos/o/r/issues") {
+      return { number: 70, node_id: "I_70" };
     }
     if (method !== "GET") {
       return null;
@@ -70,6 +79,9 @@ function fakeGitHub({ issue, comments = [], events = [], search = { items: [] } 
     }
     if (path.startsWith(`${base}/events`)) {
       return events;
+    }
+    if (path.startsWith(`${base}/timeline`)) {
+      return timeline;
     }
     if (path.startsWith("/search/issues")) {
       return search;
@@ -91,7 +103,7 @@ const issueOf = (overrides = {}) => ({
 });
 
 describe("selectRefinement", () => {
-  const select = (fake) => selectRefinement({ github: fake.github, repository: "o/r", number: 7, humans, appId: APP, startedAt: Date.parse(STARTED) });
+  const select = (fake) => selectRefinement({ github: fake.github, repository: "o/r", number: 7, humans, appId: APP, startedAt: Date.parse(STARTED), splitConfig: () => ({ rules, webHosts }) });
 
   test("selects a thin issue and writes the context the model reads", async () => {
     const fake = fakeGitHub({
@@ -150,6 +162,7 @@ const EXACT = {
   related: [],
   questions: [],
   sources: ["plugins/session-flow/README.md:3: says eighteen"],
+  split: [],
 };
 const INEXACT = {
   exact: false,
@@ -159,6 +172,7 @@ const INEXACT = {
   related: [{ number: 3, relation: "duplicate", note: "same count fix" }],
   questions: [{ question: "Is this a duplicate of #3?", recommended: "Close it as a duplicate.", basis: "#3 fixed the same line." }],
   sources: [],
+  split: [],
 };
 
 describe("validateOutput", () => {
@@ -236,7 +250,7 @@ describe("render", () => {
 describe("applyRefinement", () => {
   const labeledBy = (actor) => [{ event: "labeled", label: { name: NEEDS_DECISION }, actor: { id: actor } }];
   const apply = (fake, output) =>
-    applyRefinement({ github: fake.github, repository: "o/r", number: 7, appId: APP, humans, output: validateOutput(output, new Set([3])), context, log: () => {} });
+    applyRefinement({ github: fake.github, repository: "o/r", number: 7, appId: APP, rules, output: validateOutput(output, new Set([3])), context, log: () => {} });
   const context = { issue: { title: issueOf().title, body: issueOf().body } };
 
   test("an exact refinement posts the comment, lifts the App's needs-decision, and asks for re-triage", async () => {
@@ -333,4 +347,277 @@ describe("applyRefinement", () => {
       assert.equal(writes(fake.calls).length, 0);
     });
   }
+});
+
+describe("split", () => {
+  const BODY = [
+    "## Done when",
+    "",
+    "- [ ] With exactly one row the line reads one question.",
+    "- [ ] Open the exported brief on a Windows 11 host and confirm it renders for @owner.",
+    "- [ ] `scripts/check-affected.sh --uncommitted` passes.",
+  ].join("\n");
+  const held = (overrides = {}) => issueOf({ title: "Brief prints 1 questions", body: BODY, ...overrides });
+  // The admission comment admit.mjs posts when it refuses an issue only for its unrunnable items.
+  const refusal = (body = BODY) => `${ADMIT_MARKER}\n${refusalText(unrunnableReason(unrunnableCriteria(body, "- [ ] ", webHosts)))}`;
+  const admitted = appComment(refusal());
+  const heldComments = [laneComment("none"), admitted];
+  const labeledBy = (actor) => [{ event: "labeled", label: { name: NEEDS_DECISION }, actor: { id: actor } }];
+  const SPLIT = {
+    exact: true,
+    outcome: "The TLDR line reads one question for one row.",
+    criteria: [],
+    dependencies: [],
+    related: [],
+    questions: [],
+    sources: ["plugins/planning/surface/exporters.py:944: builds the line"],
+    split: [2],
+  };
+  const select = (fake) => selectRefinement({ github: fake.github, repository: "o/r", number: 7, humans, appId: APP, startedAt: Date.parse(STARTED), splitConfig: () => ({ rules, webHosts }) });
+
+  test("splitOf names the held items and leaves an issue with no unrunnable item, or only unrunnable ones, alone", () => {
+    const laneBody = laneComment("none").body;
+    const split = splitOf({ body: BODY, laneBody, labels: [NEEDS_DECISION], admission: refusal(), rules, webHosts });
+    assert.equal(split.count, 3);
+    assert.deepEqual(
+      split.items.map(({ n }) => n),
+      [2],
+    );
+    assert.match(split.items[0].text, /Windows 11 host and confirm it renders for @owner\.$/, "the whole item, not an excerpt");
+    assert.equal(splitOf({ body: "- [ ] Line 3 says nineteen.", laneBody, labels: [NEEDS_DECISION], rules, webHosts }), null);
+    const all = "- [ ] Run it on a Windows 11 host.";
+    assert.equal(splitOf({ body: all, laneBody, labels: [NEEDS_DECISION], admission: refusal(all), rules, webHosts }), null, "nothing would be left for the lane");
+    assert.equal(splitOf({ body: BODY, laneBody, labels: ["status: ready"], rules, webHosts }), null, "not held");
+    assert.equal(splitOf({ body: BODY, laneBody: laneComment("security").body, labels: [NEEDS_DECISION], admission: refusal(), rules, webHosts }), null, "a flagged verdict is not split");
+    const reason = unrunnableReason(unrunnableCriteria(BODY, "- [ ] ", webHosts));
+    assert.equal(
+      splitOf({ body: BODY, laneBody, labels: [NEEDS_DECISION], admission: `${ADMIT_MARKER}\n${refusalText(`Size Large is not one of Small, Medium; ${reason}`)}`, rules, webHosts }),
+      null,
+      "admission also refused it for another reason, which a person settles first",
+    );
+    assert.equal(splitOf({ body: BODY, laneBody, labels: [NEEDS_DECISION], admission: undefined, rules, webHosts }), null, "no admission refusal");
+  });
+
+  test("selects an issue the lanes App held for an unrunnable item, with the split in the context", async () => {
+    const fake = fakeGitHub({ issue: held(), comments: heldComments, events: labeledBy(APP) });
+    const result = await select(fake);
+    assert.equal(result.refine, true);
+    assert.deepEqual(
+      result.context.split.items.map(({ n }) => n),
+      [2],
+    );
+    assert.equal(writes(fake.calls).length, 0, "selection writes nothing");
+  });
+
+  test("does not split an issue whose needs-decision a person set", async () => {
+    const result = await select(fakeGitHub({ issue: held(), comments: heldComments, events: labeledBy(HUMAN) }));
+    assert.equal(result.refine, false);
+    assert.match(result.reason, /person set/);
+  });
+
+  test("leaves an issue with no unrunnable item untouched", async () => {
+    const fake = fakeGitHub({ issue: held({ body: "- [ ] Line 3 says nineteen.\n- [ ] Tests pass." }), comments: heldComments, events: labeledBy(APP) });
+    const result = await select(fake);
+    assert.equal(result.refine, false);
+    assert.match(result.reason, /not thin, and no done-when items to split off/);
+    assert.equal(writes(fake.calls).length, 0);
+  });
+
+  describe("validateOutput", () => {
+    const context = { count: 3, items: [{ n: 2, kind: "a run on a host the lane is not", text: "x" }] };
+    test("accepts a split that moves exactly the held items", () => {
+      assert.deepEqual(validateOutput(SPLIT, new Set(), context).split, [2]);
+    });
+    test("a held issue may still come back not exact, with questions and no split", () => {
+      assert.equal(validateOutput({ ...INEXACT, related: [] }, new Set(), context).exact, false);
+    });
+    const bad = [
+      ["a malformed split", { ...SPLIT, split: "2" }],
+      ["a split with a non-integer item", { ...SPLIT, split: [2.5] }],
+      ["no split key", Object.fromEntries(Object.entries(SPLIT).filter(([key]) => key !== "split"))],
+      ["a split moving a runnable item too", { ...SPLIT, split: [1, 2] }],
+      ["a split moving another item", { ...SPLIT, split: [3] }],
+      ["a split moving no item", { ...SPLIT, split: [] }],
+      ["a split that drafts criteria", { ...SPLIT, criteria: ["- [ ] admit me"] }],
+      ["a split with no outcome", { ...SPLIT, outcome: " " }],
+      ["a split that asks questions", { ...SPLIT, questions: INEXACT.questions }],
+      ["a not-exact output that moves items", { ...INEXACT, related: [], split: [2] }],
+    ];
+    for (const [name, output] of bad) {
+      test(`refuses ${name}`, () => {
+        assert.throws(() => validateOutput(output, new Set(), context));
+      });
+    }
+    test("refuses a split for an issue that was not held", () => {
+      assert.throws(() => validateOutput(SPLIT, new Set(), null));
+    });
+  });
+
+  test("childBody and splitBody move the items as written and link both ways", () => {
+    const child = childBody(7, ["- [ ] Run it on a Windows 11 host for @owner."]);
+    assert.ok(child.startsWith(`${SPLIT_MARKER}\nSplit from #7:`));
+    assert.ok(child.includes("\n- [ ] Run it on a Windows 11 host for @​owner.\n"), "the item, its mention broken");
+    assert.ok(child.trimEnd().endsWith("<!-- work-items:born-triaged -->"), "intake skips it as born triaged");
+    const parent = splitBody(BODY, "- [ ] ", [2], 70);
+    assert.equal(parent.split("\n").filter((line) => line.startsWith("- [ ] ")).length, 2);
+    assert.ok(!parent.includes("Windows 11"));
+    assert.ok(parent.includes("\n- Done-when item 2 needs a person, so it moved to #70.\n"));
+  });
+
+  const context = { issue: { title: held().title, body: BODY } };
+  const apply = (fake, output = SPLIT) =>
+    applyRefinement({
+      github: fake.github,
+      repository: "o/r",
+      number: 7,
+      appId: APP,
+      rules,
+      output: validateOutput(output, new Set(), { count: 3, items: [{ n: 2 }] }),
+      context,
+      log: () => {},
+    });
+
+  test("files exactly one needs-human child, rewrites the done-when, lifts needs-decision and asks for re-triage", async () => {
+    const fake = fakeGitHub({ issue: held(), comments: heldComments, events: labeledBy(APP) });
+    const result = await apply(fake);
+    assert.deepEqual(result, { outcome: "split", redispatch: true, child: 70 });
+    const done = writes(fake.calls);
+    const filed = done.filter(({ method, path }) => method === "POST" && path === "/repos/o/r/issues");
+    assert.equal(filed.length, 1, "one child");
+    assert.deepEqual(filed[0].body.labels, ["needs-human"]);
+    const typed = fake.calls.find(({ path, body }) => path === "/graphql" && body.query.includes("updateIssue"));
+    assert.deepEqual(typed.body.variables, { id: "I_70", type: "IT_task" }, "typed Task, as intake's reusable sets a type");
+    assert.ok(filed[0].body.body.includes("- [ ] Open the exported brief on a Windows 11 host"));
+    assert.ok(!filed[0].body.body.includes("check-affected"), "only the unrunnable item");
+    assert.deepEqual(
+      done.slice(1).map(({ method, path }) => `${method} ${path}`),
+      [
+        "POST /repos/o/r/issues/7/labels",
+        "DELETE /repos/o/r/issues/7/labels/status%3A%20needs-decision",
+        "PATCH /repos/o/r/issues/7",
+        "POST /repos/o/r/issues/7/comments",
+      ],
+      "the marker comment goes last",
+    );
+    assert.deepEqual(done[1].body, { labels: ["needs-triage"] });
+    const body = done[3].body.body;
+    assert.ok(!body.includes("Windows 11") && body.includes("With exactly one row") && body.includes("check-affected"));
+    assert.ok(body.includes("moved to #70"));
+    const comment = done[4].body.body;
+    assert.ok(comment.startsWith(`${REFINE_MARKER}\n`));
+    assert.ok(!comment.split("\n").some((line) => line.trimStart().startsWith("- [ ] ")), "the comment adds no criteria for admission to count");
+    for (const call of done) {
+      assert.ok(!JSON.stringify(call.body ?? "").includes("agent-ready"), "never agent-ready");
+    }
+  });
+
+  test("a second run does nothing: the marker settles the issue", async () => {
+    const marked = [...heldComments, { ...appComment(`${REFINE_MARKER}\nfirst`), id: 12 }];
+    const fake = fakeGitHub({ issue: held(), comments: marked, events: labeledBy(APP) });
+    assert.deepEqual(await apply(fake), { outcome: "skipped", redispatch: false });
+    assert.equal(writes(fake.calls).length, 0);
+    const again = await select(fakeGitHub({ issue: held(), comments: marked, events: labeledBy(APP) }));
+    assert.equal(again.refine, false);
+    assert.match(again.reason, /already refined/);
+  });
+
+  test("a retry after a failed body edit reuses the child it filed", async () => {
+    const filed = {
+      event: "cross-referenced",
+      source: { issue: { number: 70, user: { id: APP }, repository_url: "https://api.github.com/repos/o/r", body: childBody(7, movedTexts(BODY, "- [ ] ", [2])) } },
+    };
+    const lookalike = { event: "cross-referenced", source: { issue: { number: 71, user: { id: OUTSIDER }, repository_url: "https://api.github.com/repos/o/r", body: childBody(7, movedTexts(BODY, "- [ ] ", [2])) } } };
+    const fake = fakeGitHub({ issue: held(), comments: heldComments, events: labeledBy(APP), timeline: [lookalike, filed] });
+    const result = await apply(fake);
+    assert.equal(result.child, 70);
+    assert.ok(!writes(fake.calls).some(({ method, path }) => method === "POST" && path === "/repos/o/r/issues"), "no second child");
+  });
+
+  test("writes nothing when the App no longer holds the issue", async () => {
+    for (const setup of [
+      { issue: held(), comments: heldComments, events: labeledBy(HUMAN) },
+      { issue: held({ labels: [] }), comments: heldComments, events: labeledBy(APP) },
+    ]) {
+      const fake = fakeGitHub(setup);
+      assert.equal((await apply(fake)).outcome, "skipped");
+      assert.equal(writes(fake.calls).length, 0);
+    }
+  });
+
+  test("a malformed model proposal never reaches the issue", async () => {
+    const fake = fakeGitHub({ issue: held(), comments: heldComments, events: labeledBy(APP) });
+    await assert.rejects(async () => apply(fake, { ...SPLIT, split: [1, 2, 3] }));
+    assert.equal(writes(fake.calls).length, 0);
+  });
+
+  test("an item's deeper-indented lines move with it, and only its lines", async () => {
+    const body = [
+      "- [ ] With exactly one row the line reads one question.",
+      "- [ ] Open the brief on a Windows 11 host and confirm:",
+      "  - the title renders",
+      "  - the table has 3 rows",
+      "- [ ] Tests pass.",
+      "  - including the exporter suite",
+    ].join("\n");
+    assert.deepEqual(movedTexts(body, "- [ ] ", [2]), ["- [ ] Open the brief on a Windows 11 host and confirm:\n  - the title renders\n  - the table has 3 rows"]);
+    const fake = fakeGitHub({ issue: held({ body }), comments: [laneComment("none"), appComment(refusal(body))], events: labeledBy(APP) });
+    await applyRefinement({ github: fake.github, repository: "o/r", number: 7, appId: APP, rules, output: validateOutput(SPLIT, new Set(), { count: 3, items: [{ n: 2 }] }), context: { issue: { title: held().title, body } }, log: () => {} });
+    const child = writes(fake.calls).find(({ path }) => path === "/repos/o/r/issues").body.body;
+    assert.ok(child.includes("- [ ] Open the brief on a Windows 11 host and confirm:\n  - the title renders\n  - the table has 3 rows\n"));
+    const parent = writes(fake.calls).find(({ method }) => method === "PATCH").body.body;
+    assert.equal(parent, "- [ ] With exactly one row the line reads one question.\n- Done-when item 2 needs a person, so it moved to #70.\n- [ ] Tests pass.\n  - including the exporter suite");
+  });
+
+  test("task-list lines nested under a moved item leave the parent with it", () => {
+    const body = ["- [ ] Tests pass.", "- [ ] Open the brief on a Windows 11 host:", "  - [ ] title renders", "  - [ ] table has 3 rows", "- [ ] Lint passes."].join("\n");
+    assert.deepEqual(movedTexts(body, "- [ ] ", [2]), ["- [ ] Open the brief on a Windows 11 host:\n  - [ ] title renders\n  - [ ] table has 3 rows"]);
+    assert.equal(splitBody(body, "- [ ] ", [2], 70), "- [ ] Tests pass.\n- Done-when item 2 needs a person, so it moved to #70.\n- [ ] Lint passes.");
+  });
+
+  test("a nested task list splits when all but one top-level item moves, each nested line moving once", () => {
+    const laneBody = laneComment("none").body;
+    const body = ["- [ ] Open it on a Windows 11 host:", "  - [ ] title renders on a Windows 11 host", "- [ ] Run it on a Windows 11 host.", "- [ ] Tests pass."].join("\n");
+    const split = splitOf({ body, laneBody, labels: [NEEDS_DECISION], admission: refusal(body), rules, webHosts });
+    assert.equal(split.count, 4);
+    assert.deepEqual(
+      split.items.map(({ n }) => n),
+      [1, 2, 3],
+    );
+    assert.deepEqual(validateOutput({ ...SPLIT, split: [3, 1, 2] }, new Set(), split).split, [3, 1, 2]);
+    assert.deepEqual(movedTexts(body, "- [ ] ", [1, 2, 3]), ["- [ ] Open it on a Windows 11 host:\n  - [ ] title renders on a Windows 11 host", "- [ ] Run it on a Windows 11 host."]);
+    assert.equal(splitBody(body, "- [ ] ", [1, 2, 3], 70), "- Done-when items 1, 2, 3 need a person, so they moved to #70.\n- [ ] Tests pass.");
+  });
+
+  test("no split moves a nested task-list line the lane can perform", () => {
+    const laneBody = laneComment("none").body;
+    const only = ["- [ ] Open it on a Windows 11 host:", "  - [ ] title renders"].join("\n");
+    assert.equal(splitOf({ body: only, laneBody, labels: [NEEDS_DECISION], admission: refusal(only), rules, webHosts }), null, "nothing would be left for the lane");
+    const runnable = ["- [ ] Tests pass.", "- [ ] Open the brief on a Windows 11 host:", "  - [ ] title renders", "- [ ] Lint passes."].join("\n");
+    assert.equal(splitOf({ body: runnable, laneBody, labels: [NEEDS_DECISION], admission: refusal(runnable), rules, webHosts }), null, "item 3 would move unasked");
+  });
+
+  test("a body edited while the child was filed keeps the edit and the hold", async () => {
+    const fake = fakeGitHub({ issue: held(), comments: heldComments, events: labeledBy(APP) });
+    let reads = 0;
+    const github = async (method, path, body) => {
+      if (method === "GET" && path === "/repos/o/r/issues/7" && ++reads > 1) {
+        fake.calls.push({ method, path, body });
+        return held({ body: `${BODY}\n- [ ] Added by a person.` });
+      }
+      return fake.github(method, path, body);
+    };
+    const result = await apply({ github, calls: fake.calls });
+    assert.deepEqual(result, { outcome: "skipped", redispatch: false, child: 70 });
+    assert.deepEqual(
+      writes(fake.calls).map(({ method, path }) => `${method} ${path}`),
+      ["POST /repos/o/r/issues"],
+      "no label change, body edit or marker",
+    );
+  });
+
+  test("a retry does not reuse a child whose items differ", async () => {
+    const stale = { event: "cross-referenced", source: { issue: { number: 69, user: { id: APP }, repository_url: "https://api.github.com/repos/o/r", body: childBody(7, ["- [ ] an older item"]) } } };
+    const fake = fakeGitHub({ issue: held(), comments: heldComments, events: labeledBy(APP), timeline: [stale] });
+    assert.equal((await apply(fake)).child, 70);
+  });
 });
