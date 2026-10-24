@@ -22,8 +22,9 @@
 //   issue with more comments than the 100 pr-verify reads is refused, since
 //   pr-verify stops on it;
 // - 8: no `refuse-labels` label, every blocker a merged pull request or an
-//   issue closed as completed by a listed human or a merge here (the close
-//   work-unblock counts), and no open pull request in this repository is for
+//   issue closed, for any reason, by a listed human or a merge in its own
+//   repository (read there when it is another repository's), and no open
+//   pull request in this repository is for
 //   the issue: one GitHub says closes it, or whose body has the issue lane's
 //   `Refs: #<issue>` line (report-outcome.mjs). A passing mention is not one;
 // - 9: the author is a listed human or the lanes App;
@@ -36,7 +37,8 @@
 // - 10: check-wip-cap's status: over the queued cap, or with the lane paused
 //   over the WIP or held cap (from wip.pause-from), the issue gets
 //   `admission-deferred`, which work-unblock's hourly sweep admits once there
-//   is room.
+//   is room. With room, an issue still waits behind an older open issue in
+//   `admission-deferred`, so admission takes the oldest first (owner Q95).
 //
 // A refusal a person must settle swaps `status: ready` for
 // `status: needs-decision`; a blocker or an open pull request keeps
@@ -199,9 +201,10 @@ export const taskItems = (body, taskList) => {
   return items;
 };
 
-// The admission comment's text for a refusal, after ADMIT_MARKER.
+// The admission comment's text for a refusal, after ADMIT_MARKER: each reason
+// names what admission needs; only a security or intent reason asks a person.
 export const refusalText = (reasons) =>
-  `Not admitted to the issue lane: ${reasons}. A recorded decision does not change these rules (\`.github/actions/resolve-config/admission-rules.json\`); a person who wants it worked adds \`agent-ready\`.`;
+  `Not admitted to the issue lane: ${reasons}. Admission takes the issue once each of those is met, when intake triages it again (\`.github/actions/resolve-config/admission-rules.json\`).`;
 
 // [{n, kind, text}] for each task-list item (1-based n) the lane cannot
 // perform. `webHosts` is resolve-issue's web-access domains: "any" skips the
@@ -326,13 +329,10 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   const wait = [];
   for (const blocker of blockers) {
     const done =
-      blocker.state === "closed" &&
-      here(blocker.repository_url, repository) &&
-      (blocker.pull_request
-        ? Boolean(blocker.pull_request.merged_at)
-        : blocker.state_reason === "completed" && trustedCloses.has(blocker.number));
+      blocker.state === "closed" && (blocker.pull_request ? Boolean(blocker.pull_request.merged_at) : trustedCloses.has(blockerKey(blocker, repository)));
     if (!done) {
-      wait.push(`blocker #${blocker.number} is not closed as completed by a listed human or a merge`);
+      const name = here(blocker.repository_url, repository) ? `#${blocker.number}` : blockerKey(blocker, repository);
+      wait.push(`blocker ${name} is not closed as completed by a listed human or a merge`);
     }
   }
   for (const pull of pulls) {
@@ -342,6 +342,29 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     return { verdict: "wait", reasons: wait, pulls };
   }
   return { verdict: "admit", reasons: [] };
+}
+
+// A blocker's repository, `owner/name`, from its API URL, or null.
+const repoOf = (url) => /\/repos\/([\w.-]+\/[\w.-]+)$/.exec(String(url ?? ""))?.[1]?.toLowerCase() ?? null;
+
+// trustedCloses' key for a blocker: its number here, `owner/name#number` in
+// another repository.
+export const blockerKey = (blocker, repository) =>
+  here(blocker.repository_url, repository) ? blocker.number : `${repoOf(blocker.repository_url)}#${blocker.number}`;
+
+// Whether another repository's closed blocker issue was closed by a listed
+// human or a merge there, read fresh from that repository. A read that fails
+// leaves it blocking.
+async function trustedElsewhere(github, blocker, humans) {
+  const repo = repoOf(blocker.repository_url);
+  if (repo === null || !/^[1-9][0-9]{0,9}$/.test(String(blocker.number))) {
+    return false;
+  }
+  try {
+    return await isTrustedClose(github, repo, await github("GET", `/repos/${repo}/issues/${blocker.number}`), humans);
+  } catch {
+    return false;
+  }
 }
 
 async function parentOf(github, base) {
@@ -445,15 +468,18 @@ export async function noteUnrunnable({ github, repository, issue, rules, webHost
 export async function admissionFacts({ github, repository, number, issue, rules, humans, isTrusted }) {
   const base = `/repos/${repository}/issues/${number}`;
   const blockers = await paginate(github, `${base}/dependencies/blocked_by`);
-  // Anyone may close their own issue as completed, so a blocking issue counts
-  // only with a trusted close, read fresh from the issue.
+  // Anyone may close their own issue, so a blocking issue counts only with a
+  // trusted close, read fresh from the issue; one closed as not planned or a
+  // duplicate counts too, since nothing is left to wait for. `isTrusted`
+  // answers for this repository's blockers only.
   const trusted =
     isTrusted ?? (async (blocker) => isTrustedClose(github, repository, await github("GET", `/repos/${repository}/issues/${blocker}`), humans));
   const trustedCloses = new Set();
   for (const blocker of blockers) {
-    if (!blocker.pull_request && blocker.state === "closed" && blocker.state_reason === "completed" && here(blocker.repository_url, repository)) {
-      if (await trusted(blocker.number)) {
-        trustedCloses.add(blocker.number);
+    if (!blocker.pull_request && blocker.state === "closed") {
+      const ok = here(blocker.repository_url, repository) ? await trusted(blocker.number) : await trustedElsewhere(github, blocker, humans);
+      if (ok) {
+        trustedCloses.add(blockerKey(blocker, repository));
       }
     }
   }
@@ -470,6 +496,24 @@ export async function admissionFacts({ github, repository, number, issue, rules,
     pulls: await openPullsFor(github, repository, number),
     events: await paginate(github, `${base}/events`),
   };
+}
+
+// Whether an open issue created before `issue` carries admission-deferred:
+// one search. An unreadable or incomplete answer counts as one, since the
+// sweep admits deferred issues oldest first anyway.
+async function deferredAhead(github, repository, issue) {
+  const created = Date.parse(issue.created_at);
+  if (!Number.isFinite(created)) {
+    return true;
+  }
+  const before = new Date(created).toISOString().replace(/\.\d{3}Z$/, "+00:00");
+  const q = `repo:${repository} is:issue is:open label:${DEFERRED} created:<${before}`;
+  try {
+    const answer = await github("GET", `/search/issues?q=${encodeURIComponent(q)}&per_page=1`);
+    return answer?.incomplete_results !== false || answer.total_count !== 0;
+  } catch {
+    return true;
+  }
 }
 
 // Reads the issue fresh, decides, and writes. `status` answers check-wip-cap's
@@ -519,9 +563,14 @@ export async function admit({ github, repository, number, verdict, rules, humans
     return { outcome: "waiting", reasons: decision.reasons };
   }
   const s = await status();
-  if (s.paused || !s.admission_open || (s.admission_room ?? 1) <= 0) {
+  const full = s.paused || !s.admission_open || (s.admission_room ?? 1) <= 0;
+  if (full || (await deferredAhead(github, repository, issue))) {
     await github("POST", `${base}/labels`, { labels: [DEFERRED] });
-    const why = s.paused ? `the lane is paused (${s.pause_reason})` : `admissions are closed (${s.admission_reason})`;
+    const why = !full
+      ? `an older ${DEFERRED} issue is ahead of it`
+      : s.paused
+        ? `the lane is paused (${s.pause_reason})`
+        : `admissions are closed (${s.admission_reason})`;
     log(`admit: #${number} deferred: ${why}`);
     return { outcome: "deferred", reasons: [why] };
   }

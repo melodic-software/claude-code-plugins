@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, admit, decide, loadRules, noteUnrunnable, openPullsNaming, unrunnableCriteria } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, admissionFacts, admit, decide, loadRules, noteUnrunnable, openPullsNaming, refusalText, unrunnableCriteria } from "./admit.mjs";
 import { REFINE_MARKER, render, validateOutput } from "./refine.mjs";
 
 const RULES = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)));
@@ -28,6 +28,7 @@ const HOSTS = ["code.claude.com", "docs.github.com"];
 const issueOf = (overrides = {}) => ({
   number: 7,
   state: "open",
+  created_at: "2026-10-20T08:00:00Z",
   title: "docs(session-flow): README skill count",
   body: BODY,
   user: { id: HUMAN },
@@ -295,6 +296,30 @@ describe("decide", () => {
     assert.match(result.reasons.join(), /#5 is not closed as completed by a listed human or a merge/);
   });
 
+  // A blocker closed as not planned or a duplicate leaves nothing to wait
+  // for; the close still has to be a listed human's or a merge's.
+  for (const reason of ["not_planned", "duplicate"]) {
+    test(`a blocker closed as ${reason} with a trusted close does not hold it; without one it does`, () => {
+      const blocker = { ...completed, state_reason: reason };
+      assert.equal(decide(facts({ blockers: [blocker], trustedCloses: new Set([5]) })).verdict, "admit");
+      assert.equal(decide(facts({ blockers: [blocker] })).verdict, "wait");
+    });
+  }
+
+  test("another repository's blocker counts only on its own trusted close, never this repository's same number", () => {
+    const other = { ...completed, repository_url: "https://api.github.com/repos/o/other" };
+    assert.equal(decide(facts({ blockers: [other], trustedCloses: new Set(["o/other#5"]) })).verdict, "admit");
+    const result = decide(facts({ blockers: [other], trustedCloses: new Set([5]) }));
+    assert.equal(result.verdict, "wait");
+    assert.match(result.reasons.join(), /blocker o\/other#5 is not closed/);
+  });
+
+  test("the refusal comment names the reasons and asks no one to add agent-ready by hand", () => {
+    const text = refusalText("Size large is not one of small, medium");
+    assert.match(text, /^Not admitted to the issue lane: Size large is not one of small, medium\. /);
+    assert.doesNotMatch(text, /agent-ready/);
+  });
+
   test("skips an issue already agent-ready, or without status: ready", () => {
     assert.equal(
       decide(
@@ -381,7 +406,9 @@ describe("decide", () => {
 // `spec` is what SPEC_QUERY answers (by default the issue's body as a listed
 // human wrote it); "no-issue" and "no-body" answer an unexpected shape.
 // `closing` is what closedByPullRequestsReferences answers.
-function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, timeline = [], closing = [], events = [], comments = [], spec, failOn } = {}) {
+// `elsewhere` answers another repository's issue reads by path; `older` is
+// the count the older-deferred search answers, or "incomplete".
+function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, elsewhere = {}, older = 0, timeline = [], closing = [], events = [], comments = [], spec, failOn } = {}) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
@@ -420,6 +447,12 @@ function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = 
     const blocker = path.match(/^\/repos\/o\/r\/issues\/(\d+)$/);
     if (blocker && closed[blocker[1]]) {
       return closed[blocker[1]];
+    }
+    if (Object.hasOwn(elsewhere, path)) {
+      return elsewhere[path];
+    }
+    if (path.startsWith("/search/issues?")) {
+      return older === "incomplete" ? { total_count: 0, incomplete_results: true, items: [] } : { total_count: older, incomplete_results: false, items: [] };
     }
     if (path.startsWith(`${base}/timeline`)) {
       return timeline;
@@ -589,6 +622,50 @@ describe("admit", () => {
     assert.match(outsider.reasons.join(), /#5/);
     const human = await go(fakeGitHub({ blockers: [blocker], closed: closedBy(HUMAN) }));
     assert.equal(human.outcome, "admitted");
+  });
+
+  test("a blocker closed as not planned admits it on a listed human's close and keeps it waiting on an outsider's", async () => {
+    const blocker = { number: 5, state: "closed", state_reason: "not_planned", repository_url: "https://api.github.com/repos/o/r" };
+    const closedBy = (id) => ({ 5: { ...blocker, closed_by: { id } } });
+    assert.equal((await go(fakeGitHub({ blockers: [blocker], closed: closedBy(HUMAN) }))).outcome, "admitted");
+    assert.equal((await go(fakeGitHub({ blockers: [blocker], closed: closedBy(OUTSIDER) }))).outcome, "waiting");
+  });
+
+  test("another repository's closed blocker is read there: a listed human's close admits it, an outsider's or an unreadable one keeps it waiting", async () => {
+    const blocker = { number: 5, state: "closed", state_reason: "completed", repository_url: "https://api.github.com/repos/o/other" };
+    const there = (id) => ({ "/repos/o/other/issues/5": { ...blocker, closed_by: { id } } });
+    const human = fakeGitHub({ blockers: [blocker], elsewhere: there(HUMAN) });
+    assert.equal((await go(human)).outcome, "admitted");
+    assert.ok(human.calls.some((call) => call.method === "GET" && call.path === "/repos/o/other/issues/5"));
+    assert.equal((await go(fakeGitHub({ blockers: [blocker], elsewhere: there(OUTSIDER) }))).outcome, "waiting");
+    const unreadable = await go(fakeGitHub({ blockers: [blocker] }));
+    assert.equal(unreadable.outcome, "waiting");
+    assert.match(unreadable.reasons.join(), /o\/other#5/);
+  });
+
+  test("a caller's isTrusted answers only this repository's blockers", async () => {
+    const blocker = { number: 5, state: "closed", state_reason: "completed", repository_url: "https://api.github.com/repos/o/other" };
+    const fake = fakeGitHub({ blockers: [blocker], elsewhere: { "/repos/o/other/issues/5": { ...blocker, closed_by: { id: OUTSIDER } } } });
+    const read = await admissionFacts({ github: fake.github, repository: "o/r", number: 7, issue: issueOf(), rules: RULES, humans, isTrusted: async () => true });
+    assert.deepEqual([...read.trustedCloses], []);
+  });
+
+  // Owner Q95: admission takes the unblocked frontier oldest first, so a new
+  // issue with room still queues behind an older deferred one.
+  test("with room, an issue waits behind an older admission-deferred issue, never agent-ready", async () => {
+    const fake = fakeGitHub({ older: 1 });
+    const result = await go(fake);
+    assert.equal(result.outcome, "deferred");
+    assert.deepEqual(writes(fake.calls), [`POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [DEFERRED] })}`]);
+    const search = fake.calls.find((call) => call.path.startsWith("/search/issues?"));
+    const q = new URLSearchParams(search.path.split("?")[1]).get("q");
+    assert.equal(q, "repo:o/r is:issue is:open label:admission-deferred created:<2026-10-20T08:00:00+00:00");
+  });
+
+  test("an incomplete or failed older-deferred search defers rather than admits", async () => {
+    assert.equal((await go(fakeGitHub({ older: "incomplete" }))).outcome, "deferred");
+    const failed = fakeGitHub({ failOn: (method, path) => path.startsWith("/search/issues?") });
+    assert.equal((await go(failed)).outcome, "deferred");
   });
 
   test("an issue already agent-ready is left alone", async () => {
