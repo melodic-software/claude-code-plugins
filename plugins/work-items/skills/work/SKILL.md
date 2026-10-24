@@ -95,8 +95,9 @@ dispatch, PR or babysit step. It works in place:
    `exit` is `done` (committed), `pushback` (nothing started; `reason` is the question a person
    must answer) or `stopped` (stopped partway; `reason` says why). `title` is a Conventional
    Commits title for the PR. `remaining` lists each part of the issue this PR leaves for later
-   work, one string per part: with any entry the PR links the issue without closing it and lists
-   them, and empty, the PR closes the issue. The issue's own `Refs:` or `Depends on:` lines are
+   work, one string per part, at most 20: with any entry the PR links the issue without closing it
+   and lists them, and empty or malformed (a blank entry, a non-string, more than 20), the PR
+   closes the issue. The issue's own `Refs:` or `Depends on:` lines are
    not remaining work, and a check left to CI goes in `not_done`, not here. `changes` lists each changed file and what changed in it;
    `verification` lists each check you ran and its result; `not_done` lists everything you skipped,
    could not check or left unverified, so a reviewer sees the gaps first. Put nothing in

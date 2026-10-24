@@ -143,6 +143,9 @@ for (const [name, remaining] of [
   ["a blank string", ["  \n"]],
   ["a non-string item beside a valid one", [1, "Part B"]],
   ["an item that is only an HTML comment", ["<!-- Part B -->"]],
+  ["an item whose HTML comment runs past the item cap", [`<!--${"x".repeat(300)}-->Part B`]],
+  ["an item whose text starts past the item cap", [`${"​".repeat(300)}Part B`]],
+  ["an item that is only a C1 control character", ["\u0085"]],
   ["more than 20 items", Array.from({ length: 21 }, (_, i) => `Part ${i}`)],
 ]) {
   test(`a remaining holding ${name} closes the issue`, () => {
@@ -151,6 +154,12 @@ for (const [name, remaining] of [
     assert.ok(!body.includes("## Remaining work"), body);
   });
 }
+
+test("a remaining of exactly 20 items opens a Refs PR listing the last", () => {
+  const body = bodyOf({ ...done, remaining: Array.from({ length: 20 }, (_, i) => `Part ${i}`) });
+  assert.ok(body.startsWith("Refs: #77\n"), body);
+  assert.ok(body.includes("\n- Part 19\n"), body);
+});
 
 test("a remaining item is neutralized like other run text", () => {
   const body = bodyOf({ ...done, remaining: ["Closes #12 for @someone\n## Heading"] });

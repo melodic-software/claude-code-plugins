@@ -274,11 +274,11 @@ export function readOutcome(path) {
 }
 
 // The parts of the issue the PR leaves for later work: 1 to MAX_ITEMS strings,
-// each with text left once neutralized. Anything else is empty, so the PR
-// closes the issue.
+// each with text left in the bullet it renders as. Anything else is empty, so
+// the PR closes the issue.
 function remainingList(value) {
-  const items = Array.isArray(value) && value.length <= MAX_ITEMS && value.every((item) => typeof item === "string") ? value : [];
-  return items.every((item) => neutral(item, MAX_ITEM).trim()) ? items.map((item) => item.slice(0, MAX_ITEM)) : [];
+  const items = Array.isArray(value) && value.length <= MAX_ITEMS && value.every((item) => typeof item === "string") ? value.map((item) => item.slice(0, MAX_ITEM)) : [];
+  return items.every((item) => bullets([item]).slice(2)) ? items : [];
 }
 
 // Model text is data. HTML comments go; `&` is escaped first, so no entity
@@ -296,7 +296,7 @@ const neutral = (value, cap, { path = false } = {}) =>
   (path ? value : value.replaceAll(/<!--[\s\S]*?(-->|$)/g, ""))
     .replaceAll(/\p{Cf}/gu, "")
     .replaceAll("\r\n", "\n")
-    .replaceAll(/[\u0000-\u0009\u000b-\u001f\u007f]/g, " ")
+    .replaceAll(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f]/g, " ")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
