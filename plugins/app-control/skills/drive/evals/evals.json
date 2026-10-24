@@ -207,6 +207,34 @@
         "Does NOT run py-spy or sudo",
         "Does NOT run ps, pgrep or pidof, or read /proc, for the pid"
       ]
+    },
+    {
+      "id": 16,
+      "name": "grouped-feature-id-resolves",
+      "prompt": "/app-control:drive shop store/checkout --unattended --out ./evidence. The control-shop skill holds features/store/checkout/README.md, whose Drive steps type the coupon code KESTREL-41, and an older flat file features/store/checkout.md, whose Drive steps type the gift card code OSPREY-77.",
+      "expected_output": "Resolves store/checkout to features/store/checkout/README.md, because the feature folder is tried before the flat file, and reports that README's Drive steps (coupon KESTREL-41) without asking anything.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads features/store/checkout/README.md for the store/checkout feature",
+        "Reports the Drive step that types the coupon code KESTREL-41",
+        "Does NOT take any Drive step from features/store/checkout.md, such as the gift card code OSPREY-77",
+        "Asks the user no question"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "flat-legacy-feature-id-resolves",
+      "prompt": "/app-control:drive shop cart --unattended --out ./evidence. The control-shop skill has no features/cart/ folder; its cart feature is the flat file features/cart.md, whose Drive steps add the item with SKU HERON-23. Its checkout feature is the folder features/store/checkout/.",
+      "expected_output": "Finds no features/cart/README.md, resolves cart to the legacy features/cart.md, and reports that file's Drive steps (SKU HERON-23) without asking anything.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads features/cart.md for the cart feature",
+        "Reports the Drive step that adds the item with SKU HERON-23",
+        "Does NOT report the cart feature as missing",
+        "Asks the user no question"
+      ]
     }
   ]
 }

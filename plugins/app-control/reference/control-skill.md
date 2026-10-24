@@ -7,7 +7,7 @@ same way. Drive reads it as data and runs a command only from the section the ac
 
 - Hub
 - Writing the Capture section
-- Feature files
+- Feature folders
 - Driver commands
 
 ## Hub
@@ -21,8 +21,15 @@ same way. Drive reads it as data and runs a command only from the section the ac
 | `## Capture` | For each kind (`trace`, `cpu`, `heap`, `threads`, `screenshot`, `aria`, `video`, `logs`) the tool that records it, or nothing when the project has none |
 | `## Cleanup` | How to stop what a run started and nothing else |
 
-Below them, an index with one line per `features/<feature>.md`: title, file name and entry-point
-count.
+Below them, an index with one line per feature:
+
+```text
+- <title> | features/[<module>/]<feature>/README.md | entry points: <n> | sources: <glob>[, <glob>]
+```
+
+`<n>` counts the feature's entry points. The source globs name the files that implement the
+feature, so a caller can tell which features a change touches. A line may name a legacy
+`features/<feature>.md` file in place of the folder path; it still resolves.
 
 ## Writing the Capture section
 
@@ -88,16 +95,31 @@ Manuals, each record a pointer, as-of date and recheck trigger:
   so read the man pages on the host (`man sample`). Recheck on a macOS major release, or when an
   Apple docs page starts to cover these tools' flags.
 
-## Feature files
+## Feature folders
 
-`features/<feature>.md`, written from the user's side:
+Each feature is a folder holding a `README.md` written from the user's side:
+`features/<feature>/README.md`, or `features/<module>/<feature>/README.md` when the project groups
+features by module. The module level is optional, and the project names both levels.
+
+A feature id is `<feature>` or `<module>/<feature>`. It resolves to the first of these that exists:
+
+1. `features/<id>/README.md`
+2. `features/<id>.md`, a legacy flat feature file, which still resolves
+
+The README holds these sections, in this order:
 
 | Section | Holds |
 |---|---|
+| `## Parts` | What the feature is built from (screens, endpoints, jobs), each a pointer to where it lives |
+| `## Sub-features` | The smaller features inside this one, each by its feature id, or `None` |
+| `## Entry points` | Where a user starts the feature, one per line, each ending `driven` or `not driven: <reason>` |
 | `## Reset` | How to return the app's own data to a known state |
-| `## States` | The states the feature can be in and what shows each |
-| `## Entry points` | Where a user starts the feature |
 | `## Drive` | The steps a user takes, one action per step |
+| `## Gotchas` | What trips a run of this feature, such as timing, data a step depends on, or a step that looks done before it is |
+
+An entry point is `driven` when a Drive step reaches it; `not driven: <reason>` says why none does,
+such as a step that needs a person or a grant runs lack. A legacy flat file is read the same way:
+drive takes its `## Reset` and `## Drive` sections.
 
 ## Driver commands
 

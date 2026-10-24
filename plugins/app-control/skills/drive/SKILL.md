@@ -45,8 +45,11 @@ keep going.
 2. None: use the bundled `run` skill when it resolves in this session, else the project-type recipe
    in [reference/project-types.md](reference/project-types.md), found from the repository's own docs
    and manifests. The report then carries the line `No control skill: drive used <fallback>.`
-3. Read no settings file. The shape a control skill follows is
-   [reference/control-skill.md](reference/control-skill.md).
+3. Resolve the `<feature>` argument, `<feature>` or `<module>/<feature>`, inside the control skill's
+   directory: `features/<id>/README.md` first, then the legacy `features/<id>.md`. Neither exists:
+   report the id as not found, list the index's feature paths, and drive nothing.
+4. Read no settings file. The shape a control skill follows is
+   [`${CLAUDE_PLUGIN_ROOT}/reference/control-skill.md`](../../reference/control-skill.md).
 
 The bundled `run` skill and its deferral to a project skill are upstream specifics. Read them live
 at <https://code.claude.com/docs/en/skills#run-and-verify-your-app> (as of 2026-10-21; recheck when

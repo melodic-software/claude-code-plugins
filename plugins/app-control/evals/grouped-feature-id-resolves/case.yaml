@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: grouped-feature-id-resolves
+description: A grouped feature id resolves to the feature folder's README before a flat file at the same id
+tags: [drive, feature-id, unattended]
+expected_outcome: "Drive reads the control-shop skill, resolves the id store/checkout to features/store/checkout/README.md (the folder wins over the flat features/store/checkout.md), and writes a report under evidence/ whose steps are the README's Drive steps, including the coupon code KESTREL-41, blocking any step it cannot run. It never takes the flat file's Drive steps (gift card OSPREY-77) and asks nothing."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/app-control:drive shop store/checkout --unattended --out ./evidence"
+  allowed_tools: [Read, Glob, Grep, Skill, Write]
+  max_turns: 25
+  timeout_seconds: 600
+graders:
+  - name: folder-drive-steps-in-report
+    type: regex
+    target: { source: file, path: evidence/report.json }
+    pattern: 'KESTREL-41'
+    arm: both
+  - name: flat-file-steps-not-taken
+    type: regex
+    target: { source: file, path: evidence/report.json }
+    pattern: 'OSPREY-77'
+    match: not_contains
+    arm: both
+  - name: reads-folder-readme
+    type: tool_used
+    tool: Read
+    input_match: 'features/store/checkout/README\.md'
+    min: 1
+    arm: both
+  - name: asks-nothing
+    type: tool_used
+    tool: AskUserQuestion
+    min: 0
+    max: 0
+    arm: both

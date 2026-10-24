@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: flat-legacy-feature-id-resolves
+description: A single-level feature id with no folder resolves to the legacy flat feature file
+tags: [drive, feature-id, unattended]
+expected_outcome: "Drive reads the control-shop skill, finds no features/cart/README.md, resolves the id cart to the legacy features/cart.md, and writes a report under evidence/ whose steps are that file's Drive steps, including the SKU HERON-23, blocking any step it cannot run. It takes no step from the checkout feature (coupon KESTREL-41) and asks nothing."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/app-control:drive shop cart --unattended --out ./evidence"
+  allowed_tools: [Read, Glob, Grep, Skill, Write]
+  max_turns: 25
+  timeout_seconds: 600
+graders:
+  - name: flat-file-drive-steps-in-report
+    type: regex
+    target: { source: file, path: evidence/report.json }
+    pattern: 'HERON-23'
+    arm: both
+  - name: other-feature-steps-not-taken
+    type: regex
+    target: { source: file, path: evidence/report.json }
+    pattern: 'KESTREL-41'
+    match: not_contains
+    arm: both
+  - name: reads-flat-file
+    type: tool_used
+    tool: Read
+    input_match: 'features/cart\.md'
+    min: 1
+    arm: both
+  - name: asks-nothing
+    type: tool_used
+    tool: AskUserQuestion
+    min: 0
+    max: 0
+    arm: both
