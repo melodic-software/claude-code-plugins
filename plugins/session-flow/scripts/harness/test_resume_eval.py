@@ -751,6 +751,9 @@ def test_one_before_run_flows_from_seed_to_graded_probes(tmp_path):
                 text=True,
             )
             return done.returncode, done.stdout, done.stderr
+        if "--no-session-persistence" in cmd:
+            # A text-probe judge vote: the CLI's `--output-format json` reply.
+            return 0, json.dumps({"result": "FAIL: fake judge", "is_error": False}), ""
         prompt = cmd[-1]
         calls.append(prompt)
         if prompt.startswith("/session-flow:handoff"):
@@ -1012,3 +1015,43 @@ def test_writer_tokens_count_the_whole_writer_run_past_its_writes():
     assert resume_eval.reader_tokens(events)["m1"] == 10 * per_call
     assert resume_eval.writer_tokens(events)["m1"] == 16 * per_call
     assert resume_eval.writer_tokens(events)["calls"] == 3
+
+
+def _judge_with(tmp_path, *replies):
+    calls = iter(replies)
+    cfg = resume_eval.RunConfig(
+        root=tmp_path,
+        tmpdir=str(tmp_path),
+        copies={},
+        codex_model="",
+        call=lambda cmd, cwd, env, stdin_text=None: next(calls),
+    )
+    return resume_eval.make_judge(cfg, tmp_path)
+
+
+def test_a_judge_usage_limit_excludes_the_run_instead_of_voting_fail(tmp_path):
+    limit = (1, "", "You've hit your usage limit · resets 5pm")
+    judge = _judge_with(tmp_path, limit, limit, limit)
+    try:
+        judge("q", "c", "a")
+    except resume_eval.JudgeError as exc:
+        assert resume_eval.EXCLUDE_MARKERS[1].search(str(exc)), str(exc)
+    else:
+        raise AssertionError("a usage limit was counted as a vote")
+
+
+def test_a_judge_reply_with_no_verdict_excludes_the_run(tmp_path):
+    judge = _judge_with(tmp_path, (0, "not json", ""))
+    try:
+        judge("q", "c", "a")
+    except resume_eval.JudgeError:
+        pass
+    else:
+        raise AssertionError("an unparsable judge reply was counted as a vote")
+
+
+def test_judge_votes_count_only_verdicts(tmp_path):
+    passed = (0, json.dumps({"result": "PASS"}), "")
+    failed = (0, json.dumps({"result": "FAIL: missing"}), "")
+    assert _judge_with(tmp_path, passed, failed, passed)("q", "c", "a") is True
+    assert _judge_with(tmp_path, failed, failed, passed)("q", "c", "a") is False
