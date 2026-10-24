@@ -119,6 +119,31 @@ OUT=$(run_fake 'echo hi && faketool sub --real | cat')
 RC=$?
 assert_exit "subcmd flag after && / before | → exit 0" 0 "$RC"
 
+# A quoted argument is one argument, never flags or a subcommand chain: the
+# prompt of `claude -p "/plugin:skill args --flag"` once bound `on-demand` as a
+# subcommand and `--scheduled` as its flag (machine-health setup SKILL.md).
+OUT=$(run_fake 'faketool -p "/machine-health:audit on-demand --scheduled"')
+assert_absent "double-quoted -p prompt → its words are not flags" "$OUT" "unknown flag(s)"
+OUT=$(run_fake "faketool -p '/machine-health:audit on-demand --scheduled' --toplevel")
+assert_absent "single-quoted -p prompt → its words are not flags" "$OUT" "unknown flag(s)"
+OUT=$(run_fake 'Run `faketool "summarize the --bogus flag"` once.' md)
+assert_absent "quoted positional prompt in markdown → no flag" "$OUT" "unknown flag(s)"
+OUT=$(run_fake 'faketool --toplevel="a --bogus value"')
+assert_absent "quoted flag value → its words are not flags" "$OUT" "unknown flag(s)"
+OUT=$(run_fake 'faketool -p "say \"hi --bogus\" now" --toplevel')
+assert_absent "escaped quote stays inside the prompt → no flag" "$OUT" "unknown flag(s)"
+# …while a flag after the closing quote is still the command's own.
+OUT=$(run_fake 'faketool --bogus-flag')
+ctx_contains "unquoted unknown flag still fires" "$OUT" "  faketool --bogus-flag"
+OUT=$(run_fake 'faketool -p "a multi word prompt" --bogus-flag')
+ctx_contains "unknown flag after a quoted prompt still fires" "$OUT" "  faketool --bogus-flag"
+OUT=$(run_fake 'faketool --toplevel="C:\\Temp\\" --bogus-flag')
+ctx_contains "an escaped backslash before the closing quote still closes it" "$OUT" "  faketool --bogus-flag"
+OUT=$(run_fake 'faketool -p "say \\\"hi --bogus\" now" --toplevel')
+assert_absent "a quote after an odd backslash run stays escaped → no flag" "$OUT" "unknown flag(s)"
+OUT=$(run_fake "faketool -p 'one' sub --fake")
+ctx_contains "chain after a quoted prompt still resolves" "$OUT" "  faketool sub --fake"
+
 OUT=$(run_fake 'faketool -x sub --real')
 RC=$?
 assert_exit "short opt before subcmd → chain preserved → exit 0" 0 "$RC"
