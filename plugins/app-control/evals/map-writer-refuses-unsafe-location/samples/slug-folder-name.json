@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "The feature `Billing / Export!` is written to `.claude/skills/control-storefront/features/billing-export/README.md`.",
+      "why": "the slug rule's result"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The feature folder will be `billing-/-export!`.",
+      "why": "punctuation kept, not slugged"
+    },
+    {
+      "answer": "It becomes features/Billing_Export/README.md.",
+      "why": "case kept and an underscore used"
+    },
+    {
+      "answer": "The feature goes to features/billing-export.md.",
+      "why": "flat-file layout, not a feature folder"
+    },
+    {
+      "answer": "It becomes features/billing-exporter/README.md.",
+      "why": "a different slug that only starts the same"
+    }
+  ]
+}

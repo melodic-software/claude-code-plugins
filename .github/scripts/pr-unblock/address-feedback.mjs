@@ -66,14 +66,15 @@ const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "")
 // github-actions[bot] (MARKER_AUTHOR_ID), its last non-blank line the lane's
 // `claude-lane: <lane>` footer. Any other github-actions[bot] comment is not a
 // finding.
-const LANE_FOOTER = /^`?claude-lane: (?:claude-review|claude-security-review)`?$/;
-const CODE_LANE_FOOTER = /^`?claude-lane: claude-review`?$/;
+const LANE_FOOTER = /^`?claude-lane: (claude-review|claude-security-review)`?$/;
 const lastLine = (body) =>
   String(body ?? "")
     .split("\n")
     .map((line) => line.trim())
     .findLast((line) => line !== "") ?? "";
-export const isLaneComment = (comment) => comment.authorId === MARKER_AUTHOR_ID && LANE_FOOTER.test(lastLine(comment.body));
+// The lane a comment body's footer names, or null.
+export const laneOf = (body) => LANE_FOOTER.exec(lastLine(body))?.[1] ?? null;
+export const isLaneComment = (comment) => comment.authorId === MARKER_AUTHOR_ID && laneOf(comment.body) !== null;
 
 // Past the round cap, the threads only a person may still decide: a security
 // lane finding, a verifier note (pr-verify judges the PR against its linked
@@ -84,7 +85,7 @@ export const isLaneComment = (comment) => comment.authorId === MARKER_AUTHOR_ID 
 export const needsPerson = (thread, rootAuthorId) =>
   rootAuthorId !== MARKER_AUTHOR_ID ||
   thread.comments[0]?.author !== "reviewer" ||
-  !CODE_LANE_FOOTER.test(lastLine(thread.comments[0].body));
+  laneOf(thread.comments[0].body) !== "claude-review";
 
 // Round markers the lanes App posted; any other author's copy is ignored.
 export const isRoundMarker = (comment, appId) => comment.user?.id === appId && firstLine(comment.body) === ROUND_MARKER;
@@ -136,6 +137,10 @@ export function reviewedHeads(issueComments) {
 // leaves open for a person: every disposition but VALID.
 const ESCALATION_REPLY =
   /^\*\*pr-unblock \/ address-feedback: (INCORRECT, left open|UNCERTAIN, left open for a person|VALID \(defer\), left open for a person)\*\*$/;
+// The first line of the reply publish-feedback.mjs posts when an adjudicator
+// finds a disputed finding stands (adjudicate-feedback.mjs): the next round
+// works that thread again and accepts no second INCORRECT on it.
+export const FINDING_STANDS = "<!-- pr-unblock adjudicate-feedback: finding-stands -->";
 export const isEscalationReply = (comment, appId) => comment?.user?.id === appId && ESCALATION_REPLY.test(firstLine(comment.body));
 
 // On a PR carrying the human-gated label, a thread is worked only when a
@@ -304,7 +309,10 @@ export function humanGatedLabelFrom(path) {
 //   fixRequesters); the trusted people's comments from the first such
 //   request on are direction;
 // - the lanes App's last comment escalated the thread and every comment after
-//   it is a trusted person's reply, which is direction.
+//   it is a trusted person's reply, which is direction;
+// - the lanes App's last comment is an adjudication that let the finding
+//   stand (FINDING_STANDS), and every comment after it, if any, is a trusted
+//   person's reply, which is direction.
 // A comment by anyone else, a trusted person's comment last edited by anyone
 // but a trusted person, or a reply not after the escalation leaves the thread
 // alone. The select step and the reply job (keepThreads) and the dispatcher
@@ -344,7 +352,10 @@ export function threadAuthors(comments, { reviewerId, appId, trustedHumans = new
     }
     return authors;
   }
-  if (last < 1 || !ESCALATION_REPLY.test(firstLine(comments[last].body)) || last === comments.length - 1) {
+  // An adjudication that let the finding stand (adjudicate-feedback.mjs)
+  // hands the thread back to the lane with no reply needed.
+  const stands = last >= 1 && firstLine(comments[last].body) === FINDING_STANDS;
+  if (last < 1 || !(stands || ESCALATION_REPLY.test(firstLine(comments[last].body))) || (last === comments.length - 1 && !stands)) {
     return null;
   }
   if (requesters && !comments.slice(last + 1).some((comment) => asks(requesters, comment))) {
@@ -416,7 +427,12 @@ export function keepThreads({ threads, reviewComments, reviews, heads, reviewerI
       line: rows[0].line ?? rows[0].original_line ?? null,
       review_commit: review.commit_id,
       root_comment_id: rows[0].id,
-      comments: rows.map((row, i) => ({ id: row.id, ...authors[i], body: row.body ?? "" })),
+      // A lane only from the github-actions[bot] author whose footer the
+      // review lanes write; claude[bot] writes its own body.
+      comments: rows.map((row, i) => {
+        const lane = isLaneComment({ authorId: row.user?.id, body: row.body }) ? laneOf(row.body) : null;
+        return { id: row.id, ...authors[i], ...(lane ? { lane } : {}), body: row.body ?? "" };
+      }),
     });
   }
   return kept;
