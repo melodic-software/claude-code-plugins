@@ -23,7 +23,7 @@ git_init_test_repo "$repo" || exit 2
 cp "$SELF_DIR/check-affected.sh" "$repo/scripts/"
 # Each stub exits with STUB_<NAME> (default 0), so a case picks which check fails.
 for s in check-shell-portability check-changelog-fragments check-stale-base-overlap affected-tests \
-  check-spoke-plugin-root check-changelog-parity check-changed-skills; do
+  check-spoke-plugin-root check-changelog-parity check-changed-skills setup-env; do
   var="STUB_$(printf '%s' "$s" | tr 'a-z-' 'A-Z_')"
   printf '#!/usr/bin/env bash\necho "%s ran" >&2\nexit "${%s:-0}"\n' "$s" "$var" >"$repo/scripts/$s.sh"
 done
@@ -158,9 +158,15 @@ check "--tests passes when only another ecosystem's suites went unrun" '[[ $RC =
 run STUB_AFFECTED_TESTS=1 -- --base base --tests
 check "--tests fails on a failing suite" '[[ $RC == 1 && $ERR == *"FAIL tests"* ]]'
 
-# A fresh worktree has package.json files but no node_modules: --tests installs
-# each first. The npm stand-in logs its arguments and creates the node_modules
-# its --prefix (else the working directory) names, or exits STUB_NPM.
+run STUB_SETUP_ENV=1 -- --base base --tests
+check "--tests fails, naming the command, when setup-env --node fails, and runs no suites" \
+  '[[ $RC == 1 && $ERR == *"FAIL npm-deps (exit 1). Reproduce: bash scripts/setup-env.sh --node"* && $ERR == *"SKIP tests (npm dependencies did not install)"* ]]'
+
+# A fresh worktree has lockfiles but no node_modules: --tests installs each
+# through the real setup-env.sh --node. The npm stand-in logs its arguments and
+# creates the node_modules its --prefix names, or exits STUB_NPM.
+cp "$repo/scripts/setup-env.sh" "$tmp/setup-env.stub"
+cp "$SELF_DIR/setup-env.sh" "$repo/scripts/setup-env.sh"
 mkdir -p "$tmp/npmbin" "$repo/.github/standards/runner-policy"
 cat >"$tmp/npmbin/npm" <<'NPM'
 #!/usr/bin/env bash
@@ -174,25 +180,30 @@ done
 mkdir -p "$dir/node_modules"
 NPM
 chmod +x "$tmp/npmbin/npm"
-echo '{}' >"$repo/package.json"
-echo '{}' >"$repo/.github/standards/runner-policy/package.json"
+echo '{"v":1}' >"$repo/package-lock.json"
+echo '{"v":2}' >"$repo/.github/standards/runner-policy/package-lock.json"
 npm_env=(PATH="$tmp/npmbin:$PATH" NPM_LOG="$tmp/npm.log")
 : >"$tmp/npm.log"
 # shellcheck disable=SC2034 # read by the eval in check
-npm_want="$(printf '%s\n' "ci --no-audit --no-fund" "ci --no-audit --no-fund --prefix .github/standards/runner-policy")"
+npm_want="$(printf '%s\n' "ci --no-audit --no-fund --prefix ." "ci --no-audit --no-fund --prefix .github/standards/runner-policy")"
 run "${npm_env[@]}" -- --base base --tests
 check "--tests runs npm ci in each tree missing node_modules, then the suites" \
   '[[ $RC == 0 && $(cat "$tmp/npm.log") == "$npm_want" && $ERR != *"SKIP tests"* ]]'
 check "each install is named on stderr" \
-  '[[ $ERR == *"installed ./node_modules (npm ci --no-audit --no-fund)"* && $ERR == *"installed .github/standards/runner-policy/node_modules (npm ci --no-audit --no-fund --prefix .github/standards/runner-policy)"* ]]'
+  '[[ $ERR == *"setup-env: installed ./package-lock.json into ./node_modules"* && $ERR == *"setup-env: installed .github/standards/runner-policy/package-lock.json into .github/standards/runner-policy/node_modules"* ]]'
 : >"$tmp/npm.log"
 run "${npm_env[@]}" -- --base base --tests
-check "--tests installs nothing where node_modules exists" '[[ $RC == 0 && ! -s "$tmp/npm.log" ]]'
-rm -rf "$repo/node_modules" "$repo/.github/standards/runner-policy/node_modules"
+check "--tests installs nothing where node_modules is current" '[[ $RC == 0 && ! -s "$tmp/npm.log" ]]'
+echo '{"v":3}' >"$repo/package-lock.json"
+run "${npm_env[@]}" -- --base base --tests
+check "--tests reinstalls the tree whose lockfile changed" \
+  '[[ $RC == 0 && $(cat "$tmp/npm.log") == "ci --no-audit --no-fund --prefix ." ]]'
+rm -rf "$repo/node_modules"
 run "${npm_env[@]}" STUB_NPM=1 -- --base base --tests
-check "a failed install fails the run, names the command and runs no suites" \
-  '[[ $RC == 1 && $ERR == *"FAIL npm-deps (exit 1). Reproduce: npm ci --no-audit --no-fund"* && $ERR == *"SKIP tests (npm dependencies did not install)"* ]]'
-rm -rf "$repo/package.json" "$repo/.github" "$tmp/npmbin"
+check "a failed npm ci fails the run and runs no suites" \
+  '[[ $RC == 1 && $ERR == *"FAIL npm-deps"* && $ERR == *"SKIP tests (npm dependencies did not install)"* ]]'
+rm -rf "$repo/package-lock.json" "$repo/node_modules" "$repo/.github" "$tmp/npmbin"
+cp "$tmp/setup-env.stub" "$repo/scripts/setup-env.sh"
 
 printf '#!/usr/bin/env bash\necho hi\n' >"$repo/tool"
 git_test_config "$repo" add tool
