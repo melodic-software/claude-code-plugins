@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "index-dead | SKILL.md | features/refunds/README.md does not exist",
+      "why": "names the finding"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The index matches the feature folders.",
+      "why": "misses the finding"
+    }
+  ]
+}
