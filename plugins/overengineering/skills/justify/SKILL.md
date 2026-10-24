@@ -1,15 +1,15 @@
 ---
-description: "Judges whether one named artifact (a file, a doc section, a dependency, a component) had a reason to exist when it was built and whether that reason still holds, on evidence. Read-only. Use when the user points at one thing and asks whether it needs to exist, why it is here, or whether it still earns its keep. Not for the enforcement surface (overengineering:audit)."
-argument-hint: "[path|path#heading|kind:identifier]"
+description: "Judges, on evidence, whether one named artifact (a file, doc section, dependency, component) had and still has a reason to exist, or whether a proposal (a plan step, design option, or mechanism to add) is needed at all. Read-only. Use when the user asks whether a thing needs to exist or still earns its keep, or of a proposal whether it is overengineered, whether we need X, or whether there is a simpler way. Not for the enforcement surface (overengineering:audit)."
+argument-hint: "[path|path#heading|kind:identifier|proposal]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
 metadata:
   workflow-stage: anytime
-  summary: Make one artifact you point at justify its own existence, on evidence
+  summary: Make one artifact, or one proposal before it is built, justify its existence on evidence
 ---
 
-**Arguments.** `[path|path#heading|kind:identifier]`. none: conversation context, then offered git-age discovery, then ask
+**Arguments.** `[path|path#heading|kind:identifier|proposal]`. A proposal runs planned mode. none: conversation context, then offered git-age discovery, then ask
 
 ## Repository context. Gather first
 
@@ -29,6 +29,8 @@ its sections; every bare `§N` here is one of them. Read
 `${CLAUDE_PLUGIN_ROOT}/context/justification-lane.md` before the first target: it holds this lane's
 item inventory, its five layers and probes, its evidence sources, protected classes, routing
 precedence and known limits, cited here as "lane section N".
+
+A proposal, something not yet built, takes planned mode instead (section "Planned mode").
 
 Report the verdict first, then discuss. The operator decides refactor or remove; the owner the
 finding names carries it out, never this skill.
@@ -74,6 +76,11 @@ Parse `$ARGUMENTS` as one target:
 | `path#heading` | one section of a file, identified by its full heading ancestry |
 | A kind-prefixed identifier | an item with no path, such as a package |
 | `path:line`, or a comment | accepted, then widened per the rule below |
+| A proposal: a plan step, a design option, or text describing what to add | planned mode |
+
+**A proposal is text that describes something to add rather than naming an existing artifact.** A
+free-text proposal is never parsed as a path or a `kind:identifier`; where an argument could be
+either, confirm the reading in one line before judging.
 
 **An ambiguous heading is declined, never disambiguated.** Where the full ancestry of a
 `path#heading` target is not unique in the file, decline the target, name the collision, and ask for
@@ -88,8 +95,8 @@ it. For a comment, name `code-tidying:dissolve-comments` as the owner of comment
 
 **No target: the ladder in lane section 10. It never sweeps.** State which rung was used.
 
-1. **Conversation context.** Where the session has been discussing an artifact, infer it and confirm
-   the inference in one line before walking.
+1. **Conversation context.** Where the session has been discussing an artifact, or a proposal not yet
+   built, infer it and confirm the inference in one line before walking or judging.
 2. **Offer git-age discovery, and wait.** Describe what it would rank; run it only on an answer:
 
    ```bash
@@ -102,6 +109,16 @@ it. For a comment, name `code-tidying:dissolve-comments` as the owner of comment
    repository including the path's own directory, and drop any that have one. Present the survivors
    with both counts, ranked and surviving.
 3. **Ask** what to point at.
+
+## Planned mode
+
+A proposal has nothing built to judge, so the artifact contract below does not apply to it. Planned
+mode resolves no home, runs no preflight or routing test, emits no §6 token and writes no findings
+artifact: a finding id derives from an artifact's identity (`findings-artifact.md` "Finding ids"),
+and a proposal has none. It stays read-only. Read
+`${CLAUDE_PLUGIN_ROOT}/skills/justify/context/planned-mode.md` and run its test, then report inline:
+each mechanism's verdict first, then the option with the fewest moving parts, then discussion. The
+closing line says nothing was persisted.
 
 ## Before the walk
 
@@ -182,7 +199,8 @@ summary states whether anything was persisted.
 
 ## Next
 
-`/overengineering:realign`. It presents this lane's findings for the operator's decision.
+- Findings filed on an artifact: /overengineering:realign.
+- A proposal judged: /planning:plan.
 
 ## Gotchas
 

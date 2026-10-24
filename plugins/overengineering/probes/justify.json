@@ -9,7 +9,8 @@
     "overengineering:realign",
     "discovery:trace-intent",
     "docs-hygiene:audit-derivability",
-    "code-tidying:audit-dead-code"
+    "code-tidying:audit-dead-code",
+    "planning:devils-advocate"
   ],
   "competitor_dirs": {
     "overengineering:audit": "plugins/overengineering/skills/audit",
@@ -17,7 +18,8 @@
     "overengineering:realign": "plugins/overengineering/skills/realign",
     "discovery:trace-intent": "plugins/discovery/skills/trace-intent",
     "docs-hygiene:audit-derivability": "plugins/docs-hygiene/skills/audit-derivability",
-    "code-tidying:audit-dead-code": "plugins/code-tidying/skills/audit-dead-code"
+    "code-tidying:audit-dead-code": "plugins/code-tidying/skills/audit-dead-code",
+    "planning:devils-advocate": "plugins/planning/skills/devils-advocate"
   },
   "queries": [
     {
@@ -127,6 +129,36 @@
       "split": "validation",
       "expect_trigger": false,
       "request": "What new automation should we add to catch this class of bug?"
+    },
+    {
+      "id": "pos-train-07",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We plan to add a release branch, a workflow to sync it and a ruleset to guard it. Is that overengineered?"
+    },
+    {
+      "id": "pos-train-08",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before I build it: do we need a dedicated service account for this deploy step, or does something we already have cover it?"
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Step 3 of the plan adds a cache layer in front of the config loader. Is there a simpler way?"
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Poke holes in this migration plan and tell me what could go wrong in production."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write an implementation plan for adding SMS notifications."
     }
   ]
 }
