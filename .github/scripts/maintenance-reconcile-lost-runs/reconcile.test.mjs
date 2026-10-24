@@ -737,13 +737,18 @@ const PASS_RUN = 701;
 const PASS_STARTED = "2026-10-19T19:30:00Z";
 // The first 16 hex digits of `printf %s fix/1 | sha256sum`, pr(1)'s head ref.
 const FIX_1_DIGEST = "fe65f143bd3d5845";
-// `updated` is the issue's updatedAt, which a body edit or new comment moves:
-// the edit time by default, else a time before the pass.
-function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attempt = 1, pass = true, digest = false } = {}) {
-  const head = sha(1);
+// The pre-filter's batched answer holds the issues' comment pages only when its
+// query asks for them, as GitHub answers only the fields a query names.
+const COMMENT_PAGE = "comments(first: 100)";
+const prefilterIssue = (query, { comments = [], ...issue }) => (query.includes(COMMENT_PAGE) ? { ...issue, comments: { totalCount: comments.length, nodes: comments } } : issue);
+
+// `updated` is the issue's updatedAt: the edit time by default, else a time
+// before the pass. PR `number` is the head under check.
+function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attempt = 1, pass = true, digest = false, number = 1 } = {}) {
+  const head = sha(number);
   const checks = { ...run(601, head, { conclusion: "success", attempt }), repository: { full_name: REPO } };
   const judged = { ...verifyRun(PASS_RUN, { conclusion: "success" }), repository: { full_name: REPO }, run_started_at: PASS_STARTED, jobs: [] };
-  const name = `pr-verify-1-${head}-pass${digest ? `-${FIX_1_DIGEST}` : ""}`;
+  const name = `pr-verify-${number}-${head}-pass${digest ? `-${FIX_1_DIGEST}` : ""}`;
   const issue = {
     number: 7,
     repository: { nameWithOwner: REPO },
@@ -753,7 +758,7 @@ function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attem
     editor: edited ? { __typename: "User", login: "maintainer", databaseId: 100 } : null,
     comments: { totalCount: 0, nodes: [] },
   };
-  const pull = { ...pr(1), user: { id: 9, login: LANE, type: "Bot" }, base: { ref: "main", sha: "b".repeat(40) } };
+  const pull = { ...pr(number), user: { id: 9, login: LANE, type: "Bot" }, base: { ref: "main", sha: "b".repeat(40) } };
   // The pull requests whose spec was read.
   const specReads = [];
   const prefilterReads = [];
@@ -765,7 +770,8 @@ function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attem
     if (apiPath === "/graphql" && !body.variables) {
       // The pre-filter's batched read: one alias per candidate.
       prefilterReads.push(body.query);
-      return { data: { repository: { p0: { body: "", lastEditedAt: null, closingIssuesReferences: { totalCount: 1, nodes: [{ updatedAt: updated, repository: { nameWithOwner: REPO } }] } } } } };
+      const node = prefilterIssue(body.query, { updatedAt: updated, lastEditedAt: edited ?? null, repository: { nameWithOwner: REPO } });
+      return { data: { repository: { p0: { body: "", lastEditedAt: null, closingIssuesReferences: { totalCount: 1, nodes: [node] } } } } };
     }
     if (apiPath === "/graphql") {
       specReads.push(body.variables.number);
@@ -773,7 +779,7 @@ function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attem
     }
     return github(method, apiPath, body);
   };
-  return { setup: { pulls: [pr(1)], runs: [checks, judged], github: wrap }, specReads, prefilterReads };
+  return { setup: { pulls: [pr(number)], runs: [checks, judged], github: wrap }, specReads, prefilterReads };
 }
 
 async function withTrustedList(fn) {
@@ -805,8 +811,9 @@ test("a pass judged after the spec's last change, a second attempt, or no pass r
       // An issue not updated since the pass: the pre-filter skips the full read.
       "edited before the pass": [{ edited: "2026-10-19T19:15:00Z" }, [], 1],
       "never edited": [{ edited: null }, [], 1],
-      // Updated after the pass by something the spec leaves out (a bot's
-      // comment): the full read runs, and specChanged still says no.
+      // An issue updatedAt after the pass with no spec time after it (as a
+      // label change might leave it): the full read runs, and specChanged
+      // still says no.
       "updated, but no spec change": [{ edited: "2026-10-19T19:15:00Z", updated: "2026-10-19T19:45:00Z" }, [1], 1],
       "already at attempt 2": [{ edited: "2026-10-19T19:45:00Z", attempt: 2 }, [], 0],
       "no pass at the head": [{ edited: "2026-10-19T19:45:00Z", pass: false }, [], 0],
@@ -826,27 +833,53 @@ test("the pre-filter reads every candidate in one GraphQL query and keeps only a
   const PASS = "2026-10-19T19:30:00Z";
   const before = "2026-10-19T19:00:00Z";
   const after = "2026-10-19T20:00:00Z";
-  const closes = (updatedAt, repo = REPO) => ({ body: "", lastEditedAt: null, closingIssuesReferences: { totalCount: 1, nodes: [{ updatedAt, repository: { nameWithOwner: repo } }] } });
-  const answers = {
-    p0: closes(before),
-    p1: closes(after),
-    p2: { body: "Refs: #9", lastEditedAt: null, closingIssuesReferences: { totalCount: 0, nodes: [] } },
-    p3: { body: "", lastEditedAt: after, closingIssuesReferences: { totalCount: 0, nodes: [] } },
-    p4: closes(before),
+  const answers = (query) => {
+    const closes = (updatedAt, comments) => ({
+      body: "",
+      lastEditedAt: null,
+      closingIssuesReferences: { totalCount: 1, nodes: [prefilterIssue(query, { updatedAt, lastEditedAt: null, comments, repository: { nameWithOwner: REPO } })] },
+    });
+    return {
+      p0: closes(before),
+      p1: closes(after),
+      p2: { body: "Refs: #9", lastEditedAt: null, closingIssuesReferences: { totalCount: 0, nodes: [] } },
+      p3: { body: "", lastEditedAt: after, closingIssuesReferences: { totalCount: 0, nodes: [] } },
+      p4: closes(before),
+      p5: closes(before, [{ updatedAt: before }, { updatedAt: after }]),
+      p6: { body: "Refs: #8", lastEditedAt: null, closingIssuesReferences: { totalCount: 0, nodes: [] } },
+    };
   };
   const queries = [];
   const call = async (method, apiPath, body) => {
     assert.equal(`${method} ${apiPath}`, "POST /graphql");
     queries.push(body.query);
-    return body.query.includes("r0: issue(number: 9)") ? { data: { repository: { r0: { updatedAt: after } } } } : { data: { repository: answers } };
+    if (body.query.includes("r0: issue(number: 9)")) {
+      return { data: { repository: { r0: prefilterIssue(body.query, { updatedAt: after, lastEditedAt: null }), r1: prefilterIssue(body.query, { updatedAt: before, lastEditedAt: null, comments: [{ updatedAt: after }] }) } } };
+    }
+    return { data: { repository: answers(body.query) } };
   };
-  const candidates = [10, 11, 12, 13, 14].map((number, i) => ({ pull: { number }, starts: i === 4 ? [null] : [PASS] }));
+  const candidates = [10, 11, 12, 13, 14, 15, 16].map((number, i) => ({ pull: { number }, starts: i === 4 ? [null] : [PASS] }));
   const kept = (await prefilterSpec(call, REPO, candidates)).map((c) => c.pull.number);
   // 10: issue unchanged. 11: issue updated after the pass. 12: its Refs issue
   // updated after. 13: its own body edited after. 14: a pass start unreadable.
-  assert.deepEqual(kept, [11, 12, 13, 14]);
+  // 15: issue updatedAt before the pass, a comment edited after. 16: its Refs
+  // issue the same.
+  assert.deepEqual(kept, [11, 12, 13, 14, 15, 16]);
   assert.equal(queries.length, 2, "one batched query, plus one for the Refs issues");
   assert.deepEqual(await prefilterSpec(call, REPO, []), []);
+});
+
+test("the pre-filter keeps a candidate whose issue has more comments than the page read", async () => {
+  const before = "2026-10-19T19:00:00Z";
+  // GitHub's totalCount counts every comment; the page holds the first 100.
+  const page = Array.from({ length: 100 }, () => ({ updatedAt: before }));
+  const call = async (_method, _apiPath, body) => {
+    const issue = prefilterIssue(body.query, { updatedAt: before, lastEditedAt: null, comments: page, repository: { nameWithOwner: REPO } });
+    if (issue.comments) issue.comments = { ...issue.comments, totalCount: 101 };
+    return { data: { repository: { p0: { body: "", lastEditedAt: null, closingIssuesReferences: { totalCount: 1, nodes: [issue] } } } } };
+  };
+  const kept = await prefilterSpec(call, REPO, [{ pull: { number: 10 }, starts: ["2026-10-19T19:30:00Z"] }]);
+  assert.deepEqual(kept.map((c) => c.pull.number), [10]);
 });
 
 test("a spec read that fails re-runs nothing and leaves the run green", async (t) => {

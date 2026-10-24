@@ -32,9 +32,9 @@
 //   new spec comment after the pass: resolve-pr's `spec-changed`, the same
 //   read pr-verify makes). The gate refuses that pass `verify:spec-changed`;
 //   the recorded re-run starts pr-verify, which judges the head against the
-//   spec as it is now. One batched GraphQL read of the linked issues'
-//   `updatedAt` (`prefilterSpec`) keeps that full read off heads whose spec
-//   nobody touched since the pass. Once per passed checks run, as attempt 2 is never
+//   spec as it is now. One batched GraphQL read of the linked issues' and
+//   their comments' times (`prefilterSpec`) keeps that full read off heads
+//   whose spec nobody touched since the pass. Once per passed checks run, as attempt 2 is never
 //   touched again; an edit or label later starts a new attempt-1 run.
 // Other lost lane runs (the review lanes, refine) are listed in the summary for
 // a person: their gates or the lanes token broker refuse a re-run
@@ -256,17 +256,33 @@ async function passStarts(call, repo, number, head, ref) {
   return starts;
 }
 
-const PREFILTER_PULL = "body lastEditedAt closingIssuesReferences(first: 10) { totalCount nodes { updatedAt repository { nameWithOwner } } }";
+// The times resolve-pr's `specChanged` weighs, read with the same comment page
+// as its ISSUE_FIELDS, plus the issue's own `updatedAt`.
+const PREFILTER_ISSUE = "updatedAt lastEditedAt comments(first: 100) { totalCount nodes { updatedAt } }";
+const PREFILTER_PULL = `body lastEditedAt closingIssuesReferences(first: 10) { totalCount nodes { ${PREFILTER_ISSUE} repository { nameWithOwner } } }`;
+
+// Whether an issue may have changed after its pass: its `updatedAt`, a body
+// edit or any comment's `updatedAt` is after it, or its comments do not fit
+// the page read.
+const issueMoved = (issue, after) => {
+  const comments = issue?.comments;
+  if (!Array.isArray(comments?.nodes) || comments.totalCount !== comments.nodes.length) {
+    return true;
+  }
+  return after(issue.updatedAt) || (issue.lastEditedAt != null && after(issue.lastEditedAt)) || comments.nodes.some((c) => after(c?.updatedAt));
+};
 
 // The candidates whose spec may have changed after their newest pass: the
 // pre-filter that keeps resolve-pr's full read (about a dozen REST calls and
 // one GraphQL query) off a PR whose spec nobody touched. One GraphQL query
-// reads every candidate's closing issues' `updatedAt` (which moves on a body
-// edit or a new comment) and, for one that is its own spec, its body's
-// `lastEditedAt`; a second reads the `Refs:` issue of each PR that closes
-// none. A candidate is kept when any of those times is after its newest pass
-// started, or when anything it needs cannot be read. It decides nothing:
-// resolve-pr's `specChanged` still decides skip or re-run.
+// reads every candidate's closing issues' `updatedAt`, body `lastEditedAt`
+// and each comment's `updatedAt` (the comment times `specChanged` reads, so
+// no claim about what moves an issue's `updatedAt` is relied on), and, for a
+// PR that is its own spec, its body's `lastEditedAt`; a second reads the same
+// for the `Refs:` issue of each PR that closes none. A candidate is kept when
+// any of those times is after its newest pass started, or when anything it
+// needs cannot be read in full. It decides nothing: resolve-pr's
+// `specChanged` still decides skip or re-run.
 export async function prefilterSpec(call, repo, candidates) {
   if (candidates.length === 0) {
     return [];
@@ -296,7 +312,7 @@ export async function prefilterSpec(call, repo, candidates) {
     }
     const own = closing.nodes.filter((n) => n?.repository?.nameWithOwner === repo);
     if (own.length > 0) {
-      if (own.some((n) => after(n.updatedAt))) keep.add(i);
+      if (own.some((n) => issueMoved(n, after))) keep.add(i);
       return;
     }
     if (pr.lastEditedAt != null && after(pr.lastEditedAt)) {
@@ -304,13 +320,13 @@ export async function prefilterSpec(call, repo, candidates) {
       return;
     }
     const named = refsIssue(pr.body);
-    if (named !== null) refs.push({ i, named, latest });
+    if (named !== null) refs.push({ i, named, after });
   });
   if (refs.length > 0) {
     try {
-      const answer = await call("POST", "/graphql", { query: query(refs.map((r, j) => `r${j}: issue(number: ${r.named}) { updatedAt }`).join(" ")) });
+      const answer = await call("POST", "/graphql", { query: query(refs.map((r, j) => `r${j}: issue(number: ${r.named}) { ${PREFILTER_ISSUE} }`).join(" ")) });
       refs.forEach((r, j) => {
-        if (!(Date.parse(answer?.data?.repository?.[`r${j}`]?.updatedAt ?? "") <= r.latest)) keep.add(r.i);
+        if (issueMoved(answer?.data?.repository?.[`r${j}`], r.after)) keep.add(r.i);
       });
     } catch (error) {
       if (error instanceof RateLimited) {
