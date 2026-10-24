@@ -165,9 +165,9 @@ conversion moves out of.
 6. **Triage** each difference as doc drift, driver gap or product regression. Regressions go to the
    report or `/bugs:write`, never into the pull request. Nothing to ship: clean, recorded with
    `bash "${CLAUDE_SKILL_DIR}/scripts/upkeep-skip.sh" record --repo . --map "<dir>" --state-dir "${CLAUDE_PLUGIN_DATA}"`.
-   Otherwise commit on `control-skill-upkeep/<skill slug>`, from the default branch, merged into
-   and never rebased, and open or update one pull request. An existing `feature-map-upkeep/<slug>`
-   branch is reported, never adopted.
+   Otherwise commit on `control-skill-upkeep/control-<slug>`, named for the control skill's
+   directory, from the default branch, merged into and never rebased; open or update one pull
+   request. An existing `feature-map-upkeep/<slug>` branch is reported, never adopted.
 
 ## Lessons
 
