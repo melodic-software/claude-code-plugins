@@ -92,7 +92,7 @@ HERE = Path(__file__).resolve().parent
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(HERE))
 import exporters  # noqa: E402
-from question_shape import restates  # noqa: E402
+from question_shape import restates, withheld  # noqa: E402
 import schema  # noqa: E402
 import session_bridge as bridge  # noqa: E402
 from server import (  # noqa: E402
@@ -604,6 +604,40 @@ def warn_rec_asks(qid, rec):
         )
 
 
+BASIS_LABEL = re.compile(
+    r"^\s*(?:basis\s*:\s*)?\**(verified|judgment)\b"
+    r"|(?:^|[.!?;(\n]|\s-)\s*\**(?:basis\s*:\s*)?(verified|judgment)\**(?:\s*:[^\n]*)?[.)]*\s*$",
+    re.IGNORECASE,
+)
+LOCAL_FILE_REF = re.compile(
+    r"(?<![\w/:.@-])(?:[\w.-]+/)*[\w.-]+\.(?:md|py|json|html|sh|ts|js|yml|yaml|toml|txt|csv)\b"
+    r"|\bsee\s+(?:also\s+)?(?:the\s+)?(?:block|section|list|table|appendix|file|item)\b",
+    re.IGNORECASE,
+)
+FIELD_LINK = re.compile(r"https?://|\]\(")
+FIELD_INLINE_CONTENT = re.compile(r"^\s*(?:>|[-*+]\s|\d+[.)]\s)", re.MULTILINE)
+
+
+def basis_label(basis):
+    """The outcome label (verified or judgment) leading or trailing a basis, lowercased, or None."""
+    m = BASIS_LABEL.search(basis or "")
+    return (m.group(1) or m.group(2)).lower() if m else None
+
+
+def warn_bare_file_ref(qid, field, text):
+    """Warn when a field names a local file or says "see X" with no quote, list or link in the same field."""
+    text = text or ""
+    if (
+        LOCAL_FILE_REF.search(text)
+        and not FIELD_LINK.search(text)
+        and not FIELD_INLINE_CONTENT.search(text)
+    ):
+        warn(
+            f"{qid} {field} names a local file or says 'see X' with no inline content or link; "
+            "put the quote or list in the field in full, or link the source"
+        )
+
+
 def lint_questions(doc, qs):
     """Warnings, never refusals: R12 length budget, a recommendation that asks the user something, bare Q<N> and C<N> ids that name no question here, and bare #N with no meta.repo. Other tokens (project keys, severity codes, standard names) are never flagged."""
     ids = {x.get("id") for x in doc["questions"]}
@@ -623,6 +657,17 @@ def lint_questions(doc, qs):
         n = len([s for s in re.split(r"(?<=[.!?])\s+", basis) if s]) if basis else 0
         if n > BASIS_SENTENCES:
             warn(f"{q['id']} basis has {n} sentences (budget {BASIS_SENTENCES}, R12)")
+        if rec.strip() and not withheld(rec) and not basis_label(basis):
+            warn(
+                f"{q['id']} basis carries no outcome label; end it with Verified: <source> "
+                "or Judgment (recommendation-basis.md)"
+            )
+        for field, text in (
+            ("facts", q.get("facts")),
+            ("basis", basis),
+            ("recommendation", rec),
+        ):
+            warn_bare_file_ref(q["id"], field, text)
         for field in ("title", "recommendation", "basis"):
             seen = set()
             for tok in ID_TOKEN.findall(q.get(field) or ""):
