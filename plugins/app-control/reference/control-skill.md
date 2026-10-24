@@ -136,7 +136,8 @@ CLI through it. Otherwise write a script in the language the repository already 
 - rejects an unknown flag, a repeated step id, or an app, environment or feature id that does not
   exist, before it starts anything;
 - records the app's own pid, not a wrapper shell's;
-- reads its settings through the Config layers below and reports each value's layer;
+- reads its settings through the Config layers below and reports each value's layer, and has a
+  `config` command that changes nothing and prints each value with its layer;
 - enforces the Safety floors below, all but the per-run sign-in count, which the caller keeps.
 
 A feature whose `## Drive` has a step that sends to anyone, signs in, or writes to an environment
@@ -180,8 +181,8 @@ attestations below, `--attended` and `--yes`, are the only flags that lift one.
 
 Before each command that sends, signs in or writes, the CLI applies the floors. A loosening from
 the local, environment or flag layer, or a step a floor forbids, makes the command do nothing and
-exit 4, printing the floor, the layer and the value it refused. A caller reads exit 4 as refused by
-a floor, never as a failure to retry.
+exit 4, printing the floor, the layer and the value it refused; `config` exits 4 the same way. A
+caller reads exit 4 as refused by a floor, never as a failure to retry.
 
 - **Recipients.** Each side-effect channel (mail, SMS, chat, webhook) has an allowlist, empty by
   default. A send command refuses any recipient not on it, so the run stops at the form and never

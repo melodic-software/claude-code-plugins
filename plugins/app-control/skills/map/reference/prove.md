@@ -18,8 +18,9 @@ This rule overrides every other rule on this page, "fix the files and run again"
 ## The drive calls
 
 Each drive run gets its own new temporary directory outside the checkout, and every call in that
-run passes the app slug and that same `--out <dir>`, and under `--unattended` every call also
-carries `--unattended`:
+run passes `<slug>` and that same `--out <dir>`, and under `--unattended` every call also carries
+`--unattended`. `<slug>` is the slug of the resolved directory, `control-<slug>`, which differs
+from the app argument when `--dir` names another directory:
 
 1. Step 2, the start check: `/app-control:drive <slug> --out <dir>` with no feature (launch and
    ready), then `/app-control:drive cleanup <slug> --out <dir>`.
@@ -29,7 +30,9 @@ carries `--unattended`:
 
 Step 2's report must carry `No control skill: drive used <fallback>.` or name
 `.claude/skills/control-<slug>` as its control skill. Any other control skill means drive ran
-another app's skill: stop, write nothing, and name that skill. Step 5's report must name
+another app's skill: stop, write nothing, and name that skill. When `.claude/skills/` already holds
+exactly one other app's control skill, drive uses it whatever the argument, so skip step 2's start
+check, say so, and let step 5 be the first launch. Step 5's report must name
 `.claude/skills/control-<slug>`.
 
 ## Proving
@@ -48,10 +51,10 @@ another app's skill: stop, write nothing, and name that skill. Step 5's report m
 
 ## Checks after the proof
 
-- **Floors.** Run the CLI's config report three times, with a loosened floor in
-  `config/local.json`, in an environment variable and in a flag; each must exit 4 or report the safe
-  value with that layer refused. Remove the `config/local.json` loosening afterwards. Until all three
-  pass, report the floor-enforcement line unverified.
+- **Floors.** Run `cli/ config` three times, with a loosened floor in `config/local.json`, in an
+  environment variable and in a flag that sets that floor (never `--attended` or `--yes`); each must
+  exit 4. Remove the `config/local.json` loosening afterwards. Until all three exit 4, the
+  floor-enforcement line is unverified, for a resumed `cli/` as for a new one.
 
 - **Evidence.** Every path in drive's step 5 report, each step's `artifacts` and the
   `cleanup` evidence list alike, exists in its run directory and is not
