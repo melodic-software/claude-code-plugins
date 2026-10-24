@@ -125,8 +125,10 @@ severity (CRITICAL / IMPORTANT / SUGGESTION). Only a CRITICAL finding holds the 
 owner; the others flag it.
 
 **Trusted paths.** A changed file matching a glob the wrapper lists under `TRUSTED PATHS:` gets
-extra scrutiny: read its whole change and what it gates. The match alone is not a finding and
-holds nothing.
+extra scrutiny: read its whole change and what it gates. With no such line (seat-run mode or an
+older wrapper), the globs are `.github/standards/trusted-actors/**`,
+`.github/actions/check-trusted-trigger/**`, `**/CODEOWNERS` and `**/.gitmodules`. The match alone
+is not a finding and holds nothing.
 
 GitHub Actions hardening is zizmor's advisory lane: dangerous triggers such as
 `pull_request_target` or `workflow_run` running untrusted code with secrets,
@@ -234,13 +236,17 @@ findings or files. A `critical-security` hold leaves each CRITICAL finding its
 `severity: CRITICAL` line and its place in `critical-findings: <n>`; the hold adds to neither
 count. Never return `trust-gate`: a trusted-path match alone holds nothing. Spend that draws
 only on prepaid credit or a subscription is never a hold and never a counted finding: name it in
-one summary line.
+one summary line. When the prompt defines no classes, hold only for `critical-security` (a
+CRITICAL finding) or `cost` (a change that can start a real charge: a paid plan or billing
+setting, or a billed resource).
 
 An IMPORTANT or SUGGESTION finding, a `manifest <field>: flag` line short of CRITICAL, and every
 other finding is a normal finding and never sets `hold`. With no `hold` field in the schema,
 seat-run mode included, return none. Pointer: the classes are the compose step's prompt in
 [ci-workflows `pr-review-cli.yml`](https://github.com/melodic-software/ci-workflows/blob/v0.65.8/.github/workflows/pr-review-cli.yml#L1088-L1098),
+the `TRUSTED PATHS:` line at
+[L1065-L1070](https://github.com/melodic-software/ci-workflows/blob/v0.65.8/.github/workflows/pr-review-cli.yml#L1065-L1070),
 and the field's shape is its output schema at
 [L1035-L1048](https://github.com/melodic-software/ci-workflows/blob/v0.65.8/.github/workflows/pr-review-cli.yml#L1035-L1048).
 As of: 2026-10-24. Recheck trigger: a ci-workflows release changes the compose prompt's hold
-classes or the `hold` schema.
+classes, its `TRUSTED PATHS:` line, or the `hold` schema.

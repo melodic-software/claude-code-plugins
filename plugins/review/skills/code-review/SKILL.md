@@ -221,7 +221,8 @@ classes the wrapper's prompt defines, each named by its criterion, with a reason
 and what they change. A `critical-security` hold applies only where no security lane runs
 ("Gotchas"). Never return `trust-gate`: a trusted-path match alone holds nothing. Spend that draws
 only on prepaid credit or a subscription is never a hold and never a counted finding: name it in
-one summary line.
+one summary line. When the prompt defines no classes, hold only for `cost` (a change that can
+start a real charge: a paid plan or billing setting, or a billed resource) or `critical-security`.
 
 A hold is not a finding. A `cost` hold belongs to the change, so return it with zero findings too,
 and no hold adds to the findings count. Every other flag, a `manifest <field>: flag` line and
