@@ -310,6 +310,21 @@ test("select counts the round marker at a current commit and not the one at a re
   assert.equal(result.rounds, 1);
 });
 
+test("select counts every round marker when the commits listing is not the whole pull request", async () => {
+  // The listing stops at 250 commits, so a head missing from it proves nothing.
+  const result = await select({
+    api: fakeApi({ pull: { commits: 251 }, comments: [marker(HEAD, "fix"), marker(HEAD, "fix")], commits: [dependabotCommit(OTHER)] }),
+    pr: 7,
+    headSha: HEAD,
+    appId: APP,
+    dependabotId: DEPENDABOT,
+    config: [],
+    maxRounds: 2,
+  });
+  assert.equal(result.decision, "escalate");
+  assert.equal(result.rounds, 2);
+});
+
 test("select counts a round marker that names no head toward the cap", async () => {
   const headless = { user: { id: APP }, body: "<!-- pr-unblock:review-dependency-round verdict=merge run=1-1 -->\nbody" };
   const result = await select({
