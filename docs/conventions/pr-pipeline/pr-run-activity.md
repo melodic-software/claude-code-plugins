@@ -645,10 +645,10 @@ Read file, PR mode: a skill runs on ci-workflows'
 [`run-claude-cli`](https://github.com/melodic-software/ci-workflows/blob/7b362428c76085a160e28656cd2c75c3147a69ff/README.md)
 (v0.54.0), which takes exactly one credential and falls back to the subscription only as a second
 job. The caller calls the read file twice, each call with one secret, named for its `role`:
-`pr-unblock.yml`'s `fix-ci` passes only `claude-api-key` (`AUTOMATIONS_CLAUDE_API_KEY`), and
+`pr-unblock.yml`'s `fix-ci` passes only `claude-api-key` (`PR_UNBLOCK_CLAUDE_API_KEY`), and
 `fix-ci-subscription` passes only `claude-code-oauth-token`
-(`AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN`); its `fix-docs`, `address-feedback` and
-`review-dependency` calls and their `-subscription` calls do the same. Both queue in
+(`PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN`); its `address-feedback` and `review-dependency` calls,
+`pr-refine.yml`'s `fix-docs`, and their `-subscription` calls do the same. Both queue in
 `pr-pipeline-write-<pr>`. Each fallback call starts on no first-call output: a handoff job
 (`fix-ci-handoff`, `fix-ci-rung-up-handoff`, `address-feedback-handoff`,
 `review-dependency-handoff`, and `pr-refine.yml`'s `fix-docs-handoff`) with only `actions: read`
@@ -1165,7 +1165,7 @@ warns of a [classifier gap](README.md#classifier-gaps).
 
 pr-unblock's `fix-ci` fixes a lanes App or [adopted](README.md#adoption) owner pull request's
 failing checks in separate jobs, so no model
-holds a write token: a base job, a read model job in this mode on the automations role's API key,
+holds a write token: a base job, a read model job in this mode on the pr-unblock role's API key,
 its fallback call on the role's OAuth token after a credit stop or with the key empty
 ([Two calls on one credential each](#two-calls-on-one-credential-each)), and an
 [`apply-patch`](#prepare-apply-patch) script job.
@@ -1530,8 +1530,8 @@ form, any case) and down through every reusable workflow those runs call. It fai
 such a run names `AUTOMATION_LANES_APP_PRIVATE_KEY` or `app-private-key` in a key or value, has a
 `private-key` key, passes `secrets: inherit`, or has a `${{ }}` expression, in a key, a value or a `#` line of
 a `run:` block, whose `secrets` reference is not `secrets.<name>` with `<name>` on the allowlist
-`claude_code_oauth_token`, `automations_claude_code_oauth_token` (the lanes' Claude Code OAuth
-token), `github_token` (case-insensitive, `-` read as `_`); `toJSON(secrets)`,
+`claude_code_oauth_token`, `pr_unblock_claude_code_oauth_token`,
+`issue_lane_claude_code_oauth_token`, `claude_api_key`, `pr_unblock_claude_api_key`, `github_token` (case-insensitive, `-` read as `_`); `toJSON(secrets)`,
 `secrets[...]` and bare `secrets` fail. It also fails when any file of such a run sets
 `permissions: write-all`, and, in the read file, when the top level is not `permissions: {}`, a
 job has no permissions map, `id-token` is named anywhere outside the `broker-check` job, that job
@@ -1733,7 +1733,7 @@ listing and re-fires the issue on main's files, once per version of the two file
 `probe-first`) takes no model turn and leaves no outcome, so the caller's `report-skip` job,
 which needs `admit` and `pick-slot` only, runs `report-outcome` in the write file with
 `dimension-skip`: it labels the issue `needs-human`, removes `agent-ready`, and comments the next
-step under an `outcome=<reason>` marker. What changes from the PR flow:
+step under the escalation marker and an `outcome=<reason>` marker. What changes from the PR flow:
 
 - Step 1 also fails red unless the event is `issues`, `issue-number` is the event's issue,
   `trusted-base` is `default-tip`, and `pr-number` and `dispatcher-run-id` are empty; in the read
@@ -1820,12 +1820,15 @@ step under an `outcome=<reason>` marker. What changes from the PR flow:
   for the compare listing to show whole. It adds the same line when the issue carries `merge: human` whose newest `labeled`
   event is a listed human's or the lanes App's, or cannot be read, and never for anyone else's.
   The run's own summary is quoted with issue references broken, so squash-merging the PR closes only `#<n>`. On `pushback` or `stopped`, and when the outcome file is missing
-  or invalid, it labels the issue with the human-gated role label and comments why; pushback also
-  removes `agent-ready`. Each comment opens with the marker
+  or invalid, it labels the issue with the human-gated role label, removes `agent-ready`, and
+  comments why. Every comment that adds the human-gated label opens with the attended
+  queue's escalation marker `<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->`,
+  so `/work-items:attend-queue` lists the issue, and then the outcome marker
   `<!-- work-resolve-issue outcome=<exit> run=<run id> -->`, which `issue-prior` matches to the
   branches of that run (a marker naming no run covers every branch whose tip is older than it).
+  Comments that keep `agent-ready` open with the outcome marker alone.
   A run that wrote no readable outcome file and whose lane record has class `max-turns` is a
-  turn-cap stop: the comment opens with `<!-- work-resolve-issue outcome=turn-cap cap=<n> run=<run id> -->`
+  turn-cap stop: the comment's outcome marker is `<!-- work-resolve-issue outcome=turn-cap cap=<n> run=<run id> -->`
   and says "turn cap <n> reached" and names the branch. While the turn-cap markers since a person
   listed human last added `agent-ready` are fewer than `limits.turn-cap-restarts`, it keeps `agent-ready` and
   adds no label, and the work-unblock sweep restarts the issue as it does after a limit stop;

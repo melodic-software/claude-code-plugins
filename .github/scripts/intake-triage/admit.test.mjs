@@ -60,6 +60,11 @@ describe("decide", () => {
     assert.deepEqual(decide(facts()), { verdict: "admit", reasons: [] });
   });
 
+  test("admits Uncertainty Knowable, which the lane researches first", () => {
+    const verdict = { ...VERDICT, dimensions: { ...VERDICT.dimensions, uncertainty: "knowable" } };
+    assert.deepEqual(decide(facts({ verdict })), { verdict: "admit", reasons: [] });
+  });
+
   const refusals = [
     ["criterion 2: a type the rules do not list", { issue: issueOf({ type: { name: "Epic" } }) }, /type Epic/],
     ["criterion 2: an issue with no type", { issue: issueOf({ type: null }) }, /type none/],
@@ -85,14 +90,14 @@ describe("decide", () => {
       /parent/,
     ],
     [
-      "criterion 3: Uncertainty Knowable",
+      "criterion 3: Uncertainty Unknown",
       {
         verdict: {
           ...VERDICT,
-          dimensions: { ...VERDICT.dimensions, uncertainty: "knowable" },
+          dimensions: { ...VERDICT.dimensions, uncertainty: "unknown" },
         },
       },
-      /Uncertainty knowable/,
+      /Uncertainty unknown/,
     ],
     [
       "criterion 3: Size Large",
@@ -247,7 +252,7 @@ describe("decide", () => {
     });
 
     test("a rendered refinement criterion that reads a page outside the lane's web hosts is still refused", () => {
-      const output = { exact: true, outcome: "Match the spec.", criteria: ["The page at https://example.org/spec says nineteen."], dependencies: [], related: [], questions: [], sources: [] };
+      const output = { exact: true, outcome: "Match the spec.", criteria: ["The page at https://example.org/spec says nineteen."], dependencies: [], related: [], questions: [], sources: [], split: [] };
       const body = render(validateOutput(output, new Set()));
       assert.ok(!body.includes("https://"), "the rendered comment breaks the URL");
       const result = decide(facts({ issue: thin, comments: [refinement(app, body)] }));
