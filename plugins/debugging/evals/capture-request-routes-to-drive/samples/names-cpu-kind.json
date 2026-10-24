@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "Run `/app-control:drive capture --kind cpu` against the export worker, then come back with the file."
+    },
+    {
+      "answer": "Run /app-control:drive capture --kind=cpu and send me the profile."
+    },
+    {
+      "answer": "Run `/app-control:drive capture export-worker --out ./profiles --kind cpu`, then share the file.",
+      "why": "flags reordered"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Run /app-control:drive capture --kind heap and share the snapshot.",
+      "why": "heap kind"
+    },
+    {
+      "answer": "Run /app-control:drive capture --kind <trace|cpu|heap>.",
+      "why": "the template, no kind chosen"
+    },
+    {
+      "answer": "Run /app-control:drive capture and share the profile.",
+      "why": "no kind"
+    },
+    {
+      "answer": "Use --kind cpu with your profiler.\n/app-control:drive capture is the command.",
+      "why": "kind not on the capture line"
+    }
+  ]
+}
