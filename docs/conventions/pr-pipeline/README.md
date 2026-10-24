@@ -500,15 +500,12 @@ Each leaf declares:
   [`resolve.mjs`](../../../.github/actions/resolve-config/resolve.mjs)). When nothing is left, the
   activity skips with `not-applicable-paths`: `pr-refine / fix-docs` does not run on a PR whose
   only changed Markdown is instruction surfaces or CODEOWNERS paths, such as this directory.
-- `scope` (`diff`, `tree`, `target`) and `applies-when` (paths, labels, `labels-absent`, work
-  classes, events, `mergeable`, `draft`, `admission`). `mergeable` is `conflicting` or `clean`,
-  read from the PR at the gated head SHA only; unknown mergeability never matches. `labels-absent`
-  matches only when none of its labels is on the PR. `admission` is an issues lane's
-  work-class rule: an issue carrying a `work-class:` label outside `classes` is refused, even
-  beside a listed one; otherwise a listed class admits it. With no `admission`, the triggering
-  label alone admits the issue; this repository's resolve-issue sets none, so `agent-ready`
-  added by a listed human or the lanes App admits, and its `labels-absent` holds keep an issue a
-  person must decide.
+- `scope` (`diff`, `tree`, `target`) and `applies-when` (paths, labels, `labels-absent`, events,
+  `mergeable`, `draft`). `mergeable` is `conflicting` or `clean`, read from the PR at the gated
+  head SHA only; unknown mergeability never matches. `labels-absent` matches only when none of its
+  labels is on the PR. No predicate reads a work class: on an issues lane the triggering label
+  alone admits the issue, so `agent-ready` added by a listed human or the lanes App admits, and
+  resolve-issue's `labels-absent` holds keep an issue a person must decide.
 
 An activity is idempotent: a rerun on the same commit gives the same verdict or reuses it, a
 mutating activity with nothing to change makes no commit, and each commit it makes names the
@@ -1220,8 +1217,10 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   when the newest round marker the lanes App posted on it
   (`<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<id>-<attempt> -->`)
   names the current head with `verdict=merge`. A marker from any other author is ignored. The
-  review's verdict job posts no merge marker on a pull request that changes a workflow or action
-  file (`dependency-workflow-held`), so a person merges those. A `fix` verdict lands only when
+  review's verdict job posts no merge marker on a pull request whose change to a workflow or
+  action file is anything but a full-SHA pin swap (each `uses:` line keeps its action path and
+  moves from one full SHA to another, with only the trailing comment otherwise changing), and
+  escalates `dependency-workflow-unpinned`. A `fix` verdict lands only when
   its commits change nothing but npm or pip manifest and lock files outside `.github/`, in a
   directory `.github/dependabot.yml` lists for that ecosystem, each modified in place as a regular
   `100644` file and changed only by a version (the **fix rule**: in `package.json` only an
@@ -1971,9 +1970,13 @@ its role as the `role` input, and the lane record names that role's token as the
 
 One counter per PR, in the findings store, is shared by every lane. After `loop.review-rounds`
 full review rounds, one more high-severity-only pass runs; if it still has findings, the PR
-escalates. The address-feedback activity hands a PR to a person once `loop.review-rounds` of its
-rounds have run, unless a write-access trusted person asked for a fix on a thread after the
-newest round: that runs one more round, on the requested threads only. The default is 2; this
+escalates. Once `loop.review-rounds` of the address-feedback activity's rounds have run, a
+write-access trusted person's fix request on a thread after the newest round runs one more round,
+on the requested threads only. With no such request, a security lane finding, a pr-verify note (an
+intent mismatch), a `claude[bot]` finding, whose lane no footer proves, or a person's `needs-human` hold
+hands the PR to a person; any other
+finding goes to one fresh fixer round, a new session like every round, and after it the PR skips
+`cost-gated` with no label until the next fix request. The default is 2; this
 repository's value is in `docs/conventions/pr-pipeline.yaml` `loop`. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR
 escalates. `loop.fix-ci-rounds` (default 3, at most 10) is the number of fix-ci commits the lanes
 App may push to one PR; the next fix-ci run hands it to a person before any model turn.

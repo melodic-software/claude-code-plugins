@@ -181,7 +181,7 @@ say(/\?\*:feedback-uncertain \| \?\*:feedback-not-landed \| \?\*:feedback-invali
   "a script escalates only with the reply script's own reasons, and only in review-replies mode");
 say(/:\?\*:dependency-invalid \| :\?\*:dependency-fix-not-landed\)/.test(byId("act-script").run ?? "")
   && /:\?\*:dependency-security-close \| :\?\*:dependency-escalate \| :\?\*:dependency-config-unreadable\)/.test(byId("act-script").run ?? "")
-  && /:\?\*:dependency-files-truncated \| :\?\*:dependency-control-uncited \| :\?\*:dependency-workflow-held\)/.test(byId("act-script").run ?? "")
+  && /:\?\*:dependency-files-truncated \| :\?\*:dependency-control-uncited \| :\?\*:dependency-workflow-unpinned\)/.test(byId("act-script").run ?? "")
   && /:\?\*:dependency-fix-refused\)/.test(byId("act-script").run ?? ""),
   "a script escalates with the verdict script's reasons only in dependency-verdict mode");
 // dependency-review runs on the read runner, after its caller's select job:
@@ -251,17 +251,20 @@ say(/\.base\/\.work-item-tracker\.json/.test(holdLabel) && /labels-absent/.test(
   "the hold labels are resolved from the base before the head checkout and reach the promote step with the read-only token and the apply-patch script");
 
 // Issue mode runs its skill in the read runner, which holds no lane token:
-// these checks read that file. Only the skill run writes the outcome
-// artifact, so the report-outcome run downloads what it left.
+// these checks read that file. Only the skill run collects the outcome, and
+// only the scan job uploads it, after a clean scan of the sealed copy, so the
+// report-outcome run downloads what the run left.
 const rwf = YAML.parse(readFileSync(".github/workflows/pr-run-activity-read.yml", "utf8"));
 const rsteps = rwf.jobs.run.steps;
 const rat = (pred) => rsteps.findIndex(pred);
 const rById = (id) => rsteps.find((s) => s.id === id) ?? {};
-const outcomeWriters = rsteps.filter((s) => /upload-artifact/.test(s.uses ?? "") && /work-outcome/.test(JSON.stringify(s.with ?? {})));
+const writesOutcome = (s) => /upload-artifact/.test(s.uses ?? "") && /work-outcome/.test(JSON.stringify(s.with ?? {}));
+const outcomeWriters = rwf.jobs.scan.steps.filter(writesOutcome);
 const collect = rsteps.find((s) => s.name === "Collect the issue outcome");
-say(outcomeWriters.length === 1 && collect !== undefined
-  && [...outcomeWriters, collect].every((s) => /steps\.config\.outputs\.kind == 'skill'/.test(String(s.if ?? ""))),
-  "issue mode collects and uploads the outcome artifact only in a skill run");
+say(rsteps.filter(writesOutcome).length === 0 && outcomeWriters.length === 1 && collect !== undefined
+  && /steps\.config\.outputs\.kind == 'skill'/.test(String(collect.if ?? ""))
+  && /steps\.leak-scan\.outputs\.clean == 'true'/.test(String(outcomeWriters[0].if ?? "")),
+  "issue mode collects the outcome only in a skill run, and only the scan job uploads it, after a clean scan");
 
 // Issue mode: the check for an earlier run's work decides before the run
 // decides to start and before any model turn, with the job's read-only
@@ -295,8 +298,9 @@ const sById = (id) => ssteps.find((s) => s.id === id) ?? {};
 const summaryIds = ["summary-data", "summary-models", "summary-prompt", "summary-run", "summary-collect"];
 say(!rsteps.some((s) => summaryIds.includes(s.id) || /claude-code-action/.test(s.uses ?? "") && s.id !== "act-skill"),
   "the run job runs no summary step and no model step but the skill");
-say(sjob.needs === "run" && /needs\.run\.outputs\.reuse-branch != ''/.test(String(sjob.if ?? "")) && /!cancelled\(\)/.test(String(sjob.if ?? "")),
-  "the summary job runs after the run job, only on its reuse-branch output");
+say(JSON.stringify(sjob.needs) === '["run","issue-fields"]' && /needs\.issue-fields\.outputs\.reuse-branch != ''/.test(String(sjob.if ?? ""))
+  && /needs\.issue-fields\.outputs\.checked == 'true'/.test(String(sjob.if ?? "")) && /!cancelled\(\)/.test(String(sjob.if ?? "")),
+  "the summary job runs after the run and issue-fields jobs, only on the checked reuse branch");
 say(JSON.stringify(sjob.permissions) === JSON.stringify({ contents: "read" }),
   "the summary job holds contents: read and nothing else, no id-token");
 say(rwf.jobs.run.outputs?.["reuse-branch"] === "${{ steps.issue-prior.outputs.reuse-branch }}",
@@ -306,9 +310,9 @@ say(ssteps.length > 0 && ssteps.every((s) => s["continue-on-error"] === true),
 say(summaryIds.every((id) => sById(id).id === id) && !/lane-token/.test(JSON.stringify(sjob)),
   "the summary job has every summary step and reads no lane token");
 const sBase = ssteps.find((s) => /actions\/checkout/.test(s.uses ?? "")) ?? {};
-say(sBase.with?.ref === "${{ needs.run.outputs.base-sha }}" && sBase.with?.["persist-credentials"] === false
+say(sBase.with?.ref === "${{ github.event.repository.default_branch }}" && sBase.with?.["persist-credentials"] === false
   && ssteps.filter((s) => /actions\/checkout/.test(s.uses ?? "")).length === 1,
-  "the summary job checks out only the run job's trusted base, without persisted credentials");
+  "the summary job takes its code only from the default branch tip, without persisted credentials");
 const summaryData = sById("summary-data");
 say(summaryData.env?.GITHUB_TOKEN === "${{ github.token }}" && /GIT_CONFIG_GLOBAL=\/dev\/null/.test(summaryData.run ?? "")
   && /--filter=blob:none/.test(summaryData.run ?? "")
@@ -328,7 +332,7 @@ say(/--setting-sources user/.test(String(summaryRun.with?.claude_args ?? "")) &&
   && /mcp__github_file_ops/.test(summaryArgs) && /--json-schema/.test(summaryArgs) && /openssl rand -hex/.test(summaryArgs),
   "the summary model reads the data directory and nothing else, under dontAsk, and returns structured output");
 const summaryCollect = sById("summary-collect");
-say(summaryCollect.env?.REUSE_BRANCH === "${{ needs.run.outputs.reuse-branch }}"
+say(summaryCollect.env?.REUSE_BRANCH === "${{ needs.issue-fields.outputs.reuse-branch }}"
   && summaryCollect.env?.TIP === "${{ steps.summary-data.outputs.tip }}" && /try fromjson catch null/.test(summaryCollect.run ?? ""),
   "the summary file binds the model's output to the runner's branch and tip");
 const summaryDownload = steps.find((s) => s.name === "Download the reused branch's summary");
