@@ -67,6 +67,12 @@ def commit(
     }
 
 
+def security(subject: str, name: str, version: str) -> dict[str, Any]:
+    """A security update's commit: its metadata carries no update-type."""
+    body = metadata((name, None, version)).split("\n", 1)[1]
+    return commit(f"{subject}\n{body}")
+
+
 def no_files(sha: str) -> list[str] | None:
     raise AssertionError(f"files read for a Dependabot commit {sha}")
 
@@ -174,52 +180,74 @@ class Classify(unittest.TestCase):
             tier("bump x", commits=[unknown]).reasons, ("unparsed-version:x",)
         )
 
-    def test_security_metadata_without_update_type_reads_the_title(self) -> None:
+    def test_security_metadata_without_update_type_reads_the_commit_subject(
+        self,
+    ) -> None:
         # A security update's metadata names the package and version but no
-        # update-type (#9511): the single-package title's versions decide.
-        patch = commit(metadata(("fast-uri", None, "3.1.9")))
+        # update-type (#9511): its own verified commit subject gives the jump.
         title = "build: Bump fast-uri from 3.1.8 to 3.1.9 in /plugins/miro/server"
+        result = tier(title, commits=[security(title, "fast-uri", "3.1.9")])
+        self.assertEqual((result.tier, result.reasons), ("auto", ()))
+        major = "bump x from 1.9.0 to 2.0.0"
+        result = tier(major, commits=[security(major, "x", "2.0.0")])
+        self.assertEqual(result.reasons, ("major:x",))
+
+    def test_an_edited_title_cannot_hide_a_major_jump(self) -> None:
+        # The subject is signed with the commit; the title is not.
+        signed = security("bump x from 1.9.0 to 2.0.0", "x", "2.0.0")
+        for title in (
+            "bump x from 2.0.0 to 2.0.0",
+            "chore: please do not bump x from 2.0.0 to 2.0.0",
+        ):
+            with self.subTest(title=title):
+                result = tier(title, commits=[signed])
+                self.assertEqual(result.tier, "review")
+                self.assertIn("major:x", result.reasons)
+
+    def test_the_subject_fallback_keeps_the_0x_rule(self) -> None:
+        zero = "bump x from 0.3.1 to 0.4.0"
         self.assertEqual(
-            (tier(title, commits=[patch]).tier, tier(title, commits=[patch]).reasons),
-            ("auto", ()),
+            tier(zero, commits=[security(zero, "x", "0.4.0")]).reasons, ("major:x",)
         )
-        major = commit(metadata(("x", None, "2.0.0")))
+        patch = "bump x from 0.3.1 to 0.3.2"
         self.assertEqual(
-            tier("bump x from 1.9.0 to 2.0.0", commits=[major]).reasons, ("major:x",)
+            tier(patch, commits=[security(patch, "x", "0.3.2")]).tier, "auto"
         )
 
-    def test_the_title_fallback_keeps_the_0x_rule(self) -> None:
-        zero = commit(metadata(("x", None, "0.4.0")))
-        self.assertEqual(
-            tier("bump x from 0.3.1 to 0.4.0", commits=[zero]).reasons, ("major:x",)
-        )
-        zero_patch = commit(metadata(("x", None, "0.3.2")))
-        self.assertEqual(
-            tier("bump x from 0.3.1 to 0.3.2", commits=[zero_patch]).tier, "auto"
-        )
-
-    def test_the_title_fallback_needs_the_same_package_and_version(self) -> None:
-        other = commit(metadata(("y", None, "1.0.1")))
-        result = tier("bump x from 1.0.0 to 1.0.1", commits=[other])
+    def test_the_subject_fallback_needs_the_same_package_and_version(self) -> None:
+        subject = "bump x from 1.0.0 to 1.0.1"
+        result = tier(subject, commits=[security(subject, "y", "1.0.1")])
         self.assertIn("unparsed-version:y", result.reasons)
         self.assertIn("sources-disagree", result.reasons)
-        moved = commit(metadata(("x", None, "1.0.2")))
-        result = tier("bump x from 1.0.0 to 1.0.1", commits=[moved])
+        result = tier(subject, commits=[security(subject, "x", "1.0.2")])
         self.assertEqual(result.tier, "review")
         self.assertIn("unparsed-version:x", result.reasons)
-        self.assertIn("sources-disagree", result.reasons)
 
-    def test_a_group_title_never_fills_a_missing_update_type(self) -> None:
-        message = metadata(("a", None, "1.0.1"))
-        body = "Updates `a` from 1.0.0 to 1.0.1\n"
+    def test_metadata_with_no_version_holds(self) -> None:
+        message = (
+            "bump x from 9.0.0 to 9.0.1\n\n---\nupdated-dependencies:\n"
+            "- dependency-name: x\n  dependency-type: indirect\n...\n"
+        )
+        result = tier("bump x from 9.0.0 to 9.0.1", commits=[commit(message)])
+        self.assertIn("unparsed-version:x", result.reasons)
+
+    def test_a_subject_not_opening_with_bump_holds(self) -> None:
+        subject = "chore: please do not bump x from 1.0.0 to 1.0.1"
+        result = tier(subject, commits=[security(subject, "x", "1.0.1")])
+        self.assertIn("unparsed-version:x", result.reasons)
+
+    def test_a_group_subject_never_fills_a_missing_update_type(self) -> None:
+        group = "bump the g group with 1 update"
         result = tier(
-            "bump the g group with 1 update", body=body, commits=[commit(message)]
+            group,
+            body="Updates `a` from 1.0.0 to 1.0.1\n",
+            commits=[security(group, "a", "1.0.1")],
         )
         self.assertIn("unparsed-version:a", result.reasons)
 
-    def test_an_unreadable_title_version_still_holds(self) -> None:
-        unknown = commit(metadata(("x", None, "9f8e7d6c5b4a")))
-        result = tier("bump x from 0a1b2c3d4e5f to 9f8e7d6c5b4a", commits=[unknown])
+    def test_an_unreadable_subject_version_still_holds(self) -> None:
+        subject = "bump x from 0a1b2c3d4e5f to 9f8e7d6c5b4a"
+        result = tier(subject, commits=[security(subject, "x", "9f8e7d6c5b4a")])
         self.assertIn("unparsed-version:x", result.reasons)
 
     def test_real_group_metadata_and_body_agree(self) -> None:

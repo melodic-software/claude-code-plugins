@@ -107,6 +107,23 @@ export function parseMetadata(message) {
   });
 }
 
+// The jump a metadata entry with no `update-type` (a security update writes
+// none) reads from its own Dependabot commit's subject, never the editable PR
+// title: only when the subject opens with `Bump <pkg> from <a> to <b>` for the
+// same package and the entry's version is `<b>`; null otherwise, a group
+// subject included.
+export function subjectMajor(message, update) {
+  const subject = String(message ?? "").split("\n", 1)[0].replace(PREFIX, "");
+  if (update.version === null || update.version === undefined || GROUP.test(subject)) {
+    return null;
+  }
+  const single = SINGLE.exec(subject);
+  if (!single || single.index !== 0 || single[1] !== update.name || single[3] !== update.version) {
+    return null;
+  }
+  return isMajor(single[2], single[3]);
+}
+
 // The updates the title names, or a group's body `Updates` lines when they add
 // up to its count; null when neither reads.
 export function parseTitle(title, body) {
@@ -658,9 +675,10 @@ export function classify(pr) {
   let metadata = null;
   for (const item of pr.commits ?? []) {
     if (isDependabotCommit(item)) {
-      const entries = parseMetadata(String(item.commit?.message ?? ""));
+      const message = String(item.commit?.message ?? "");
+      const entries = parseMetadata(message);
       if (entries !== null) {
-        metadata = [...(metadata ?? []), ...entries];
+        metadata = [...(metadata ?? []), ...entries.map((u) => (u.major === null ? { ...u, major: subjectMajor(message, u) } : u))];
       }
     }
   }

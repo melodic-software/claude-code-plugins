@@ -20,8 +20,10 @@ pull requests"):
 
 The updates come from the `updated-dependencies` metadata in Dependabot's
 verified commit message when it is there, and from the title (`bump <name>
-from <a> to <b>`) or a group's body `Updates` lines otherwise. When both read,
-they must name the same dependencies and agree on which are major.
+from <a> to <b>`) or a group's body `Updates` lines otherwise. An entry with no
+`update-type` (a security update writes none) takes its jump from the same
+verified commit's subject, never the PR title. When both read, they must name
+the same dependencies and agree on which are major.
 
 The lane merges a tier `auto` pull request, and a tier `review` one only when
 the newest review-dependency round marker the lanes App posted names the
@@ -242,17 +244,21 @@ def parse_title(title: str, body: str) -> list[Update] | None:
     return None
 
 
-def title_major(title: str, update: Update) -> bool | None:
-    """The jump a single-package title reads for a metadata entry with no
-    `update-type` (a security update writes none): only when the title names
-    the same package and its `to` version is the entry's version; None
-    otherwise, a group title included."""
-    subject = _PREFIX.sub("", str(title), count=1)
-    if _GROUP.search(subject) or not (single := _SINGLE.search(subject)):
+def subject_major(message: str, update: Update) -> bool | None:
+    """The jump a metadata entry with no `update-type` (a security update
+    writes none) reads from its own Dependabot commit's subject, never the
+    editable PR title: only when the subject opens with `Bump <pkg> from <a>
+    to <b>` for the same package and the entry's version is `<b>`; None
+    otherwise, a group subject included."""
+    subject = _PREFIX.sub("", str(message).split("\n", 1)[0], count=1)
+    if update.version is None or _GROUP.search(subject):
         return None
-    if single.group(1) != update.name:
-        return None
-    if update.version is not None and single.group(3) != update.version:
+    single = _SINGLE.match(subject)
+    if (
+        not single
+        or single.group(1) != update.name
+        or single.group(3) != update.version
+    ):
         return None
     return is_major(single.group(2), single.group(3))
 
@@ -274,16 +280,15 @@ def classify(
         commit = json_object(json_object(item).get("commit"))
         author = json_object(commit.get("author"))
         if (author.get("name"), author.get("email")) == DEPENDABOT_AUTHOR:
-            entries = parse_metadata(str(commit.get("message") or ""))
+            message = str(commit.get("message") or "")
+            entries = parse_metadata(message)
             if entries is not None:
-                metadata = (metadata or []) + entries
-    if metadata:
-        metadata = [
-            u
-            if u.major is not None
-            else Update(u.name, title_major(title, u), u.version)
-            for u in metadata
-        ]
+                metadata = (metadata or []) + [
+                    u
+                    if u.major is not None
+                    else Update(u.name, subject_major(message, u), u.version)
+                    for u in entries
+                ]
     titled = parse_title(title, body)
     reasons: list[str] = []
     updates = metadata if metadata else titled

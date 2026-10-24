@@ -131,6 +131,64 @@ test("a 0.x minor in the metadata is major", () => {
   assert.deepEqual(tier("bump x", { commits: [commit(metadata(["x", null, "1.3.0"]))] }).reasons, ["unparsed-version:x"]);
 });
 
+// A security update's commit: its metadata carries no update-type.
+const security = (subject, name, version) => commit(`${subject}\n${metadata([name, null, version]).split("\n").slice(1).join("\n")}`);
+
+test("security metadata without update type reads the commit subject", () => {
+  const title = "build: Bump fast-uri from 3.1.8 to 3.1.9 in /plugins/miro/server";
+  const result = tier(title, { commits: [security(title, "fast-uri", "3.1.9")] });
+  assert.deepEqual([result.tier, result.reasons], ["auto", []]);
+  const major = "bump x from 1.9.0 to 2.0.0";
+  assert.deepEqual(tier(major, { commits: [security(major, "x", "2.0.0")] }).reasons, ["major:x"]);
+});
+
+test("an edited title cannot hide a major jump", () => {
+  const signed = security("bump x from 1.9.0 to 2.0.0", "x", "2.0.0");
+  for (const title of ["bump x from 2.0.0 to 2.0.0", "chore: please do not bump x from 2.0.0 to 2.0.0"]) {
+    const result = tier(title, { commits: [signed] });
+    assert.equal(result.tier, "review", title);
+    assert.ok(result.reasons.includes("major:x"), title);
+  }
+});
+
+test("the subject fallback keeps the 0x rule", () => {
+  const zero = "bump x from 0.3.1 to 0.4.0";
+  assert.deepEqual(tier(zero, { commits: [security(zero, "x", "0.4.0")] }).reasons, ["major:x"]);
+  const patch = "bump x from 0.3.1 to 0.3.2";
+  assert.equal(tier(patch, { commits: [security(patch, "x", "0.3.2")] }).tier, "auto");
+});
+
+test("the subject fallback needs the same package and version", () => {
+  const subject = "bump x from 1.0.0 to 1.0.1";
+  let result = tier(subject, { commits: [security(subject, "y", "1.0.1")] });
+  assert.ok(result.reasons.includes("unparsed-version:y"));
+  assert.ok(result.reasons.includes("sources-disagree"));
+  result = tier(subject, { commits: [security(subject, "x", "1.0.2")] });
+  assert.equal(result.tier, "review");
+  assert.ok(result.reasons.includes("unparsed-version:x"));
+});
+
+test("metadata with no version holds", () => {
+  const message = "bump x from 9.0.0 to 9.0.1\n\n---\nupdated-dependencies:\n- dependency-name: x\n  dependency-type: indirect\n...\n";
+  assert.ok(tier("bump x from 9.0.0 to 9.0.1", { commits: [commit(message)] }).reasons.includes("unparsed-version:x"));
+});
+
+test("a subject not opening with bump holds", () => {
+  const subject = "chore: please do not bump x from 1.0.0 to 1.0.1";
+  assert.ok(tier(subject, { commits: [security(subject, "x", "1.0.1")] }).reasons.includes("unparsed-version:x"));
+});
+
+test("a group subject never fills a missing update type", () => {
+  const group = "bump the g group with 1 update";
+  const result = tier(group, { body: "Updates `a` from 1.0.0 to 1.0.1\n", commits: [security(group, "a", "1.0.1")] });
+  assert.ok(result.reasons.includes("unparsed-version:a"));
+});
+
+test("an unreadable subject version still holds", () => {
+  const subject = "bump x from 0a1b2c3d4e5f to 9f8e7d6c5b4a";
+  assert.ok(tier(subject, { commits: [security(subject, "x", "9f8e7d6c5b4a")] }).reasons.includes("unparsed-version:x"));
+});
+
 test("real group metadata and body agree", () => {
   const message = metadata(
     ["actions/create-github-app-token", "semver-minor", "3.3.0"],

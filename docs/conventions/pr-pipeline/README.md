@@ -1166,7 +1166,8 @@ verdict, and a pull request event makes no verdict read. FAILs and the repeated-
 No Dependabot pull request waits on a human
 ([ADR 0073](../../adr/0073-merge-dependabot-pull-requests-in-the-pr-merge-lane.md)), except a major
 update, an unreadable version or disagreeing sources under `merge.dependabot.majors: hold`
-(below). The pr-merge
+(below). This repository sets `review`, so the review verdict decides those too (owner
+direction 2026-10-24). The pr-merge
 lane is the one merge authority for both tiers. It lists Dependabot's open pull requests beside
 its own and judges each as its own class, in place of the eligibility above. Both lanes sort by
 the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-unblock):
@@ -1177,8 +1178,10 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   on the head is not red (`failure`, `cancelled`, `timed_out`, `action_required`,
   `startup_failure`). The updates come from the `updated-dependencies` metadata in Dependabot's
   verified commit when it is there, and from the title (`bump <name> from <a> to <b>`) or a
-  group's body `Updates` lines otherwise; when both read, they must name the same dependencies and
-  agree on which are major.
+  group's body `Updates` lines otherwise. A metadata entry with no `update-type` (a security
+  update writes none) takes its jump from the same verified commit's subject when that subject
+  opens with `Bump <name> from <a> to <b>` for that entry's name and version, never from the PR
+  title. When both read, they must name the same dependencies and agree on which are major.
 - **Tier `review`.** Anything else, including anything unreadable (a SHA version, an unparsed
   title), every update to a [review-only dependency](#review-only-dependencies), and an npm or
   pip update whose [registry provenance](#registry-provenance) changed. The pr-unblock lane's review activity reviews it, and the pr-merge lane merges it only
@@ -1247,7 +1250,9 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   `<!-- babysit-merge-dependabot-major -->` comment, whose first line is the attended queue's
   `<!-- work-items:escalation lane=pr-merge kind=escalated -->` marker so
   `/work-items:attend-queue` lists it, then the tracker's human-gated role label, so
-  a person merges it. `review` leaves it tier `review`, merged on the verdict above.
+  a person merges it. `review` leaves it tier `review`, merged on the verdict above. When the
+  head moves, `clear-escalations.mjs` removes that label like pr-merge's other escalations, so
+  the new head is judged afresh.
 
 The class is `babysit_dependabot.py` beside the wrapper. Auto-merge armed with `GITHUB_TOKEN` is not used: GitHub's
 [`GITHUB_TOKEN` page](https://docs.github.com/en/actions/concepts/security/github_token) says
