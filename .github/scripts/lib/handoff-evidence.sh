@@ -25,7 +25,8 @@
 #
 # Usage: handoff-evidence.sh FACT... (allowed, posted)
 # Environment: GH_TOKEN, GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_OUTPUT, CALLS.
-# Outputs: one FACT=true|false line per requested fact. Exit 1, with one
+# Outputs: one FACT=true|false line per requested fact, and one log line
+# naming them with the read count. Exit 1, with one
 # ::error line naming what stayed missing and no output, when a fact is still
 # unsettled after the last read; callers read an empty output as a failed read.
 set -euo pipefail
@@ -92,6 +93,7 @@ for delay in "${delays[@]}" ""; do
   fi
   if [[ -z $missing ]]; then
     printf '%s\n' "${answers//$'\t'/=}" >>"${GITHUB_OUTPUT}"
+    echo "handoff evidence: $(paste -sd ' ' - <<<"${answers//$'\t'/=}") ($reads read$([[ $reads -eq 1 ]] || echo s))"
     exit 0
   fi
   [[ -n $delay ]] || break

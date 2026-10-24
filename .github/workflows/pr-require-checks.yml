@@ -3977,15 +3977,21 @@ jobs:
       # BOTH REVIEW LANES REVIEW THE HEAD. Neither review check is required by a
       # ruleset (github-iac ADR 0017); this step makes ci-status need them. For
       # each lane it takes the newest pull_request run of the lane's caller
-      # workflow on the head and that run's latest jobs, which are the GitHub
+      # workflow on the head, from this repository's head (a fork's run on the
+      # same commit never counts), and that run's latest jobs, which are the GitHub
       # Actions check runs. The lane passes when its status job succeeded and
       # its `Apply the hold` step succeeded, so a summary-mode run or one
       # without a hold label never counts. A pending, failed or cancelled
       # review fails, as does a skipped one (a fork, or a bot outside the
       # caller's allowed-bot-sender-ids), with the cause named. A lane the
-      # kill switch stopped passes: its kill-switch job succeeded and ran its
-      # `Report the kill switch` step. A kill-switch job that failed stopped
-      # the review too, and fails. Dependabot, the release App and the
+      # kill switch stopped (its kill-switch job succeeded and ran its
+      # `Report the kill switch` step, so a switch was on when the run
+      # started) fails too: the kill switch pauses review, it never waives it.
+      # Once it is off, a trusted person re-runs the review run, whose
+      # completion re-runs ci-status (pr-feedback-dispatch.yml rerun-ci-status);
+      # the admin bypass stays the break-glass. A
+      # kill-switch job that failed stopped the review too, and fails.
+      # Dependabot, the release App and the
       # standards-sync App, by numeric author id, are exempt: no review lane
       # reviews them. An exempt author's PR still fails when a changed file
       # (or a renamed file's old path) matches the callers' hold-paths, since
@@ -4012,6 +4018,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           AUTHOR_ID: ${{ github.event.pull_request.user.id }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
         run: |
           . "$RUNNER_TEMP/gh-read.sh"
           # dependabot[bot], melodic-plugin-release[bot] and
@@ -4074,12 +4081,21 @@ jobs:
             echo "The author ($AUTHOR_ID) is one no review lane reviews, and no trust-gate path changed; the review lanes are not required."
             exit 0
           fi
+          # A fork's head gets no review run here, and the lookup below reads
+          # only runs from this repository's head, so name the fork up front.
+          if [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
+            while read -r _ _ check; do
+              echo "::error::'$check' did not run on $HEAD_SHA (head repository: ${HEAD_REPO:-unknown}): a fork, or a bot outside the caller's allowed-bot-sender-ids, gets no review, and a kill-switch job that did not succeed stops it. A push by a person on the trusted-actor list starts a review."
+            done <<<"$lanes"
+            exit 1
+          fi
           failed=0
           while read -r file lane check; do
             runs=$(read_api "the $file runs on $HEAD_SHA" \
               "repos/$GITHUB_REPOSITORY/actions/workflows/$file/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=100") || exit 1
-            run=$(jq -c --arg path ".github/workflows/$file" --arg sha "$HEAD_SHA" \
-              '[.workflow_runs[] | select(.path == $path and .head_sha == $sha and .event == "pull_request")] | max_by(.id) // empty' <<<"$runs")
+            run=$(jq -c --arg path ".github/workflows/$file" --arg sha "$HEAD_SHA" --arg repo "$GITHUB_REPOSITORY" \
+              '[.workflow_runs[] | select(.path == $path and .head_sha == $sha and .event == "pull_request"
+                and .head_repository.full_name == $repo)] | max_by(.id) // empty' <<<"$runs")
             if [ -z "$run" ]; then
               echo "::error::'$check' is missing: no $file run on $HEAD_SHA yet. ci-status re-runs when the review finishes."
               failed=1
@@ -4121,7 +4137,10 @@ jobs:
               echo "::error::'$check' passed in $url, but GitHub listed no 'Apply the hold' step with a conclusion and the job records no review-complete notice for $lane on $HEAD_SHA, so it is not a review that counts. Re-run this run."
               failed=1
               ;;
-            stopped) echo "::notice::a kill switch stopped '$check' on $HEAD_SHA ($url); the lane is not required." ;;
+            stopped)
+              echo "::error::'$check' did not run on $HEAD_SHA ($url): a kill switch was on when it started. Once it is off, re-run all jobs of $url; ci-status re-runs when it finishes."
+              failed=1
+              ;;
             pending)
               echo "::error::'$check' has not finished on $HEAD_SHA ($url). ci-status re-runs when the review finishes."
               failed=1
