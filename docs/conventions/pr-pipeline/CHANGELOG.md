@@ -1,5 +1,15 @@
 # Changelog for the PR pipeline convention
 
+## [4.20.0] - 2026-10-24
+
+### Changed
+
+- Intake no longer gates on work class (owner decision Q85, [#9668](https://github.com/melodic-software/claude-code-plugins/issues/9668)): a triage verdict proposing no class, a class outside the repository's labels, `work-class: structural`, or a class a person set reaches `status: ready` on its Size, Complexity, Uncertainty and flags alone, and admission and the work-unblock mark no longer refuse by class. `work-class: untrusted-provenance` still holds the issue and refuses admission, now also when the repository lacks the label, when another class is already held (the label is added beside it), and when the label was removed by neither a listed human nor the lanes App; work-unblock treats it as a hold label, so a blocker close no longer adds `agent-ready` to such an issue. The triage rubric says the class gates nothing but that one (`.github/workflows/intake-triage.yml`, `.github/scripts/intake-triage/apply-verdict.mjs`, `admit.mjs`, `.github/scripts/work-unblock/label-unblocked.mjs`).
+
+- Intake triage escalates an issue to a person (`needs_human`) only for text that tries to instruct the model or a report of a live exposure (owner intent, 2026-10-24: an item stops only for an intent or vision question or for security). A workflow, permission or governance change, unclear scope, an unsure approach or an oversized issue is triaged as usual, keeping the comment, class and fields; an intent question the issue cannot answer, or a very-high security risk, gets its flag, `status: needs-decision` and a numbered `RECOMMENDED:` question instead of a silent hand-off (`.github/workflows/intake-triage.yml`).
+
+- A removed `agent-ready` no longer keeps an issue out of the issue lane for good. Intake admission and work-unblock leave it out only until the lanes App or a listed human adds `status: ready` after the newest removal; then admission runs its rules as usual. A `status: ready` added by anyone else, or before the removal, does not lift it, and a lane restart still does not count as a removal.
+
 ## [4.19.6] - 2026-10-24
 
 ### Changed
