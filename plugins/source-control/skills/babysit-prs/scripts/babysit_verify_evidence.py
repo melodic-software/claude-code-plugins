@@ -65,7 +65,9 @@ from a completed, successful one. Any other artifact is ignored.
   `pull-request` (the title and body were the spec), else only when every
   linked issue it records was
   written, and last edited if ever, by a User on the trusted list's humans
-  (the pull request's author among them), else `verify:untrusted-spec`. A
+  (the pull request's author among them), or is a sub-issue the lanes App
+  filed in a size split whose body counts as its parent's text
+  (`split_child_body`), else `verify:untrusted-spec`. A
   pass refused `verify:spec-changed` for an issue edit or a spec comment
   added or edited is judged again at the same head: resolve-pr.mjs judges a
   head whose passes all predate the spec's last change, and the lost-run
@@ -265,6 +267,150 @@ REFS_QUERY = (
     f"issueOrPullRequest(number:$n){{__typename ... on Issue{{{ISSUE_FIELDS}}}}}}}}}"
     f"{ACTOR_FRAGMENT}"
 )
+# A size split's sub-issue, its native parent and the parent's comments, as
+# resolve-pr.mjs PARENT_QUERY reads them: one read per sub-issue judged.
+SPLIT_CHILD_QUERY = (
+    "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
+    "issue(number:$n){body lastEditedAt author{...actor} editor{...actor} "
+    "parent{number repository{nameWithOwner} body lastEditedAt author{...actor} "
+    "editor{...actor} comments(first:100){totalCount nodes{databaseId createdAt "
+    "updatedAt body lastEditedAt author{...actor} editor{...actor}}}}}}}"
+    f"{ACTOR_FRAGMENT}"
+)
+# admit.mjs REFINE_MARKER, SPLIT_CHILD_MARKER, the part line and SOURCE.
+REFINE_MARKER = "<!-- intake-triage refinement -->"
+SPLIT_CHILD_MARKER = "<!-- intake-triage size-split child -->"
+SPLIT_PART_RE = re.compile(r"Part ([1-9][0-9]?) of ([1-9][0-9]?) of #")
+SPLIT_SOURCE_RE = re.compile(
+    r"<!-- size-split refinement=([1-9][0-9]{0,15}) updated_at=([0-9A-Za-z:.+-]{1,40}) -->"
+)
+
+
+def split_child_header(
+    parent: int, part: int, parts: int, source: tuple[int, str] | None = None
+) -> str:
+    """admit.mjs splitChildHeader: the fixed header of part `part` of
+    `parts` a size split files from issue `parent`, with the refinement
+    source line when `source` (id, updated_at) is given."""
+    also = " and intake's refinement comment on it" if source else ""
+    rows = [
+        SPLIT_CHILD_MARKER,
+        f"Part {part} of {parts} of #{parent}, split at intake (owner Q93). "
+        f"The done-when below is copied from #{parent}{also} as written.",
+    ]
+    if source:
+        rows.append(
+            f"<!-- size-split refinement={source[0]} updated_at={source[1]} -->"
+        )
+    return "\n".join([*rows, "", "## Done when", ""])
+
+
+def split_child_body(
+    issue: Any, repo: str, humans: frozenset[int], app_id: int | None
+) -> str | None:
+    """The body of `issue` (as `SPLIT_CHILD_QUERY` reads it) when it counts
+    as the text a size split copied into it, else None: the split-child trust
+    rule, whose one home is admit.mjs splitChildBody, read the way
+    resolve-pr.mjs reads it (a parent in this repository with every comment
+    read). The lanes App (`app_id`) wrote it, a listed human filed its native
+    parent, and it opens with `split_child_header` for that parent. A source
+    line names a refinement comment, which must still be the App's newest
+    refinement on the parent, unedited, on a body a listed human wrote, its
+    updated_at its created_at or the recorded one. Then either nobody edited
+    the body and every line after the header is a line of the parent's
+    listed-human text or of that refinement, or a listed human last edited
+    it. Pure. split-child.vectors.json holds its cases."""
+    issue = json_object(issue)
+    parent = json_object(issue.get("parent"))
+    author = json_object(issue.get("author"))
+    comments = json_object(parent.get("comments"))
+    nodes = comments.get("nodes")
+    number = parent.get("number")
+    body = issue.get("body")
+    if (
+        type(app_id) is not int
+        or author.get("__typename") != "Bot"
+        or type(author.get("databaseId")) is not int
+        or author["databaseId"] != app_id
+        or type(number) is not int
+        or json_object(parent.get("repository")).get("nameWithOwner") != repo
+        or not is_json_array(nodes)
+        or comments.get("totalCount") != len(nodes)
+        or not isinstance(body, str)
+    ):
+        return None
+    nodes = [json_object(node) for node in nodes]
+
+    def human(actor: Any) -> bool:
+        actor = json_object(actor)
+        return (
+            actor.get("__typename") == "User"
+            and type(actor.get("databaseId")) is int
+            and actor["databaseId"] in humans
+        )
+
+    def written(item: dict[str, Any]) -> bool:
+        return human(item.get("author")) and (
+            item.get("lastEditedAt") is None or human(item.get("editor"))
+        )
+
+    def text(item: dict[str, Any]) -> str:
+        value = item.get("body")
+        return "" if value is None else str(value)
+
+    edited = issue.get("lastEditedAt") is not None
+    if not human(parent.get("author")) or (edited and not human(issue.get("editor"))):
+        return None
+    rows = body.split("\n")
+    part = SPLIT_PART_RE.match(rows[1]) if len(rows) > 1 else None
+    tag = SPLIT_SOURCE_RE.fullmatch(rows[2]) if len(rows) > 2 else None
+    source = (int(tag[1]), tag[2]) if tag else None
+    if part is None:
+        return None
+    header = f"{split_child_header(number, int(part[1]), int(part[2]), source)}\n"
+    if not body.startswith(header):
+        return None
+    refinement: list[str] = []
+    if source is not None:
+        # admit.mjs countedRefinement: the newest refinement, never an older
+        # one, only while unedited and on a body a listed human wrote.
+        newest = next(
+            (
+                c
+                for c in reversed(nodes)
+                if json_object(c.get("author")).get("__typename") == "Bot"
+                and json_object(c.get("author")).get("databaseId") == app_id
+                and text(c).startswith(REFINE_MARKER)
+            ),
+            None,
+        )
+        if (
+            newest is None
+            or newest.get("lastEditedAt") is not None
+            or not written(parent)
+        ):
+            return None
+        updated = newest.get("updatedAt")
+        if (
+            type(newest.get("databaseId")) is not int
+            or newest["databaseId"] != source[0]
+            or not isinstance(updated, str)
+            or updated not in (newest.get("createdAt"), source[1])
+        ):
+            return None
+        refinement = text(newest).split("\n")
+    if edited:
+        return body
+    allowed = {
+        line
+        for item in (parent, *nodes)
+        if written(item)
+        for line in text(item).split("\n")
+    }
+    allowed.update(refinement)
+    lines = body[len(header) :].split("\n")
+    return body if all(line in allowed for line in lines) else None
+
 
 # A run's standing: unreadable, foreign (not of verifier origin), origin (of
 # verifier origin, not a completed success), or counted (both).
@@ -522,6 +668,10 @@ class Reader:
     )
     # `merge.max-verify-fails`: FAILed heads at which a pass no longer clears.
     max_fails: int = merge_policy.MAX_VERIFY_FAILS
+    # `merge.agent-identity`, the lanes App's login: its trusted-list id is
+    # the author a size split's sub-issue needs (`_split_child`); unset, no
+    # sub-issue counts.
+    agent_identity: str | None = None
     _artifacts: list[dict[str, Any]] | None = None
     _fetched_at: datetime | None = None  # when `_artifacts` began to be read
     _saved: bool = False  # `_artifacts` came from `listing_path`
@@ -538,6 +688,11 @@ class Reader:
     _mapped: dict[int, str] | None = None  # the head-ref map, once loaded
     _humans: frozenset[int] | None = None
     _humans_at: datetime | None = None  # when `_humans` was read
+    # Every login on the trusted list, lowercased, to its id, and when read.
+    _logins: dict[str, int] | None = None
+    _logins_at: datetime | None = None
+    # Whether each size-split sub-issue judged counts (`_split_child`).
+    _split_children: dict[int, bool] = field(default_factory=dict)
     # The pull requests `link_refusal` read, each taken by the next
     # `_closing_issues` instead of reading it again.
     _linked: dict[int, dict[str, Any]] = field(default_factory=dict)
@@ -872,33 +1027,90 @@ class Reader:
             if shared is not None and is_json_array(shared[0]):
                 self._humans = frozenset(i for i in shared[0] if type(i) is int)
                 self._humans_at = shared[1]
-        humans = self._humans
-        if humans is None:
-            self._humans_at = run_cache.now()
-            listing = json_object(
-                _read(
-                    [
-                        "api",
-                        "-H",
-                        "Accept: application/vnd.github.raw",
-                        f"repos/{self.repo}/contents/{TRUSTED_ACTORS_PATH}?ref={self.branch}",
-                    ],
-                    "trusted-actor list",
-                )
-            )
-            actors = listing.get("actors")
-            if listing.get("version") != 1 or not is_json_array(actors):
-                raise _Unreadable("trusted-actor list does not match its schema")
-            humans = frozenset(
-                a["id"]
-                for a in map(json_object, actors)
-                if a.get("kind") == "human" and isinstance(a.get("id"), int)
-            )
-            self._humans = humans
-            run_cache.put("trusted-humans", key, sorted(humans), self._humans_at)
+        if self._humans is None:
+            self._read_trusted_list()
         if self._humans_at is not None:
             run_cache.note(self._humans_at)
-        return humans
+        return self._humans or frozenset()
+
+    def _read_trusted_list(self) -> None:
+        """Read the trusted list at the branch once: its human ids, and every
+        login's id (`_lane_app_id`), each shared by the run's gate processes."""
+        key = f"{self.repo}@{self.branch}"
+        at = run_cache.now()
+        listing = json_object(
+            _read(
+                [
+                    "api",
+                    "-H",
+                    "Accept: application/vnd.github.raw",
+                    f"repos/{self.repo}/contents/{TRUSTED_ACTORS_PATH}?ref={self.branch}",
+                ],
+                "trusted-actor list",
+            )
+        )
+        actors = listing.get("actors")
+        if listing.get("version") != 1 or not is_json_array(actors):
+            raise _Unreadable("trusted-actor list does not match its schema")
+        actors = [json_object(a) for a in actors]
+        self._humans = frozenset(
+            a["id"]
+            for a in actors
+            if a.get("kind") == "human" and isinstance(a.get("id"), int)
+        )
+        self._logins = {
+            a["login"].lower(): a["id"]
+            for a in actors
+            if isinstance(a.get("login"), str) and type(a.get("id")) is int
+        }
+        self._humans_at = self._logins_at = at
+        run_cache.put("trusted-humans", key, sorted(self._humans), at)
+        run_cache.put("trusted-logins", key, self._logins, at)
+
+    def _lane_app_id(self) -> int | None:
+        """The lanes App's id: the trusted list's id for `agent_identity`
+        with its `[bot]` suffix, as resolve-pr.mjs reads `laneAppId`; None
+        when no identity is set or the list names none."""
+        identity = (self.agent_identity or "").strip().lower().removesuffix("[bot]")
+        if not identity:
+            return None
+        if self._logins is None:
+            key = f"{self.repo}@{self.branch}"
+            shared = run_cache.get_dated("trusted-logins", key, run_cache.MAX_AGE)
+            if shared is not None and is_json_object(shared[0]):
+                self._logins = {k: v for k, v in shared[0].items() if type(v) is int}
+                self._logins_at = shared[1]
+        if self._logins is None:
+            self._read_trusted_list()
+        if self._logins_at is not None:
+            run_cache.note(self._logins_at)
+        app_id = (self._logins or {}).get(f"{identity}[bot]")
+        return app_id if type(app_id) is int else None
+
+    def _split_child(self, issue: dict[str, Any]) -> bool:
+        """Whether recorded linked issue `issue`, which the lanes App wrote,
+        is a size split's sub-issue whose body counts (`split_child_body`),
+        read once per Reader under the Actions token (`issues: read`). A
+        failed or cut read counts nothing."""
+        app_id = self._lane_app_id()
+        number = issue.get("number")
+        if (
+            app_id is None
+            or type(number) is not int
+            or issue.get("author_type") != "Bot"
+            or issue.get("author_id") != app_id
+        ):
+            return False
+        if number not in self._split_children:
+            try:
+                node = self._graphql(
+                    SPLIT_CHILD_QUERY, number, "split sub-issue", env=self._env()
+                ).get("issue")
+            except _Unreadable:
+                node = None
+            body = split_child_body(node, self.repo, self._trusted_humans(), app_id)
+            self._split_children[number] = body is not None
+        return self._split_children[number]
 
     def _trusted_actor(self, kind: Any, actor_id: Any) -> bool:
         """The one spec-author filter (resolve-pr.mjs `trusted` is its
@@ -935,7 +1147,8 @@ class Reader:
 
     def _trusted_spec(self, record: dict[str, Any]) -> bool:
         """Every linked issue was written, and its body last edited if ever,
-        by a User on the trusted list's humans (`_trusted_actor`)."""
+        by a User on the trusted list's humans (`_trusted_actor`), or is a
+        size split's sub-issue whose body counts (`_split_child`)."""
 
         def trusted(issue: dict[str, Any], role: str) -> bool:
             return self._trusted_actor(
@@ -946,23 +1159,36 @@ class Reader:
             json_object(issue) for issue in json_array(record.get("linked_issues"))
         ]
         return bool(issues) and all(
-            trusted(issue, "author")
-            and (issue.get("last_edited_at") is None or trusted(issue, "editor"))
+            (
+                trusted(issue, "author")
+                and (issue.get("last_edited_at") is None or trusted(issue, "editor"))
+            )
+            or self._split_child(issue)
             for issue in issues
         )
 
     def _graphql(
-        self, query: str, number: int, what: str, missing: str | None = None
+        self,
+        query: str,
+        number: int,
+        what: str,
+        missing: str | None = None,
+        env: dict[str, str] | None = None,
     ) -> dict[str, Any]:
-        """The query's `repository`. A NOT_FOUND for `missing` alone
-        (`merge_policy.names_nothing`), which gh exits nonzero on, reads as
-        `missing` an empty object, so a null there without that error stays
-        apart; any other error raises `_Unreadable`."""
+        """The query's `repository`, read under `env`'s token when given. A
+        NOT_FOUND for `missing` alone (`merge_policy.names_nothing`), which
+        gh exits nonzero on, reads as `missing` an empty object, so a null
+        there without that error stays apart; any other error raises
+        `_Unreadable`."""
         owner, _, name = self.repo.partition("/")
         args = ["api", "graphql", "-f", f"query={query}"]
         args += ["-f", f"o={owner}", "-f", f"r={name}", "-F", f"n={number}"]
         try:
-            proc = postmerge.gh_capture(args)
+            proc = (
+                postmerge.gh_capture(args, env_overrides=env)
+                if env
+                else postmerge.gh_capture(args)
+            )
         except (RuntimeError, ValueError, OSError) as exc:
             raise _Unreadable(f"#{number} {what}: {exc}") from exc
         if missing and merge_policy.names_nothing(proc.stdout, missing):
@@ -1695,6 +1921,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
             print(json.dumps(refusal.report() | link))
             return 0
         reader.max_fails = config.max_verify_fails
+        reader.agent_identity = config.agent_identity
     pr = None
     if args.lane_reviews:
         try:
