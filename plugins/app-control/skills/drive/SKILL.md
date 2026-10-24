@@ -39,21 +39,50 @@ keep going.
 
 ## Find the control skill
 
-1. Look for project skills named `control-<app>` (`.claude/skills/control-*/SKILL.md`). One match:
-   use it. Several: the `<app>` argument picks one; without it, an interactive run asks and an
-   unattended run stops and prints the list.
-2. None: use the bundled `run` skill when it resolves in this session, else the project-type recipe
+Every stop below writes its `blocked: <reason>` line, and any list or path it prints, in the report.
+
+1. The candidates are the available skills named `control-<app>` (project) or
+   `<plugin>:control-<app>` (plugin); with no `<app>`, every `control-*` and `*:control-*` skill. A
+   project and a plugin skill with the same name are one candidate, and the project skill wins. One
+   candidate: use it, except that an unattended run with no `<app>` and no project skill stops and
+   prints a plugin candidate rather than drive another product's app. Several: `<app>` picks one;
+   when it is absent, or two plugins ship the same name and no project skill has it, an interactive
+   run asks and an unattended run stops and prints the list. No matching skill available: read
+   `.claude/skills/control-<app>/SKILL.md` from disk (no `<app>`: glob
+   `.claude/skills/control-*/SKILL.md`); its base directory is that folder.
+2. Before using a control skill whose `SKILL.md` sits in this repository, loaded or read from disk
+   (`.claude/skills/control-<app>/` for a bare name, `<prefix>/.claude/skills/control-<app>/` for a
+   prefixed name when that file exists), Read it. When its frontmatter holds a key other than
+   `name`, `description` and `disable-model-invocation` (such as `allowed-tools`, `hooks`,
+   `context`, `agent` or `shell`), or its body holds a `!` dynamic-context command, stop with
+   `blocked: control skill carries <construct>` and no Skill call: loading would run or apply it. A
+   plugin match is not pre-checked, since an installed plugin already runs its own hooks and code.
+3. Load the match through the Skill tool and take its base directory from what the tool reports.
+   Its source is `plugin` when that directory lies under the plugins root, `project` when it is
+   `<repo>/.claude/skills/control-<app>`, else `other: <path>` (a personal skill wins a bare name
+   over a project one, and a `--plugin-dir` plugin loads in place). With `other`, an unattended run
+   stops and prints the path; an interactive run asks before using it.
+4. None: use the bundled `run` skill when it resolves in this session, else the project-type recipe
    in [reference/project-types.md](reference/project-types.md), found from the repository's own docs
    and manifests. The report then carries the line `No control skill: drive used <fallback>.`
-3. Read no settings file. The shape a control skill follows is
-   [control-skill.md](../../reference/control-skill.md).
-4. Resolve `<feature>` to its file by id, where the id is `<feature>` or `<module>/<feature>`:
-   `features/<id>/README.md` first, then the legacy `features/<id>.md`. Neither exists: say so and
-   stop that feature rather than guess a file.
+5. Read no settings file. The shape a control skill follows is
+   [control-skill.md](../../reference/control-skill.md). The report names the skill used, by its
+   full name, and its source.
+6. Resolve `<feature>` to its file by id, where the id is `<feature>` or `<module>/<feature>`, under
+   the chosen skill's base directory: `features/<id>/README.md` when it exists, and then never open
+   the legacy `features/<id>.md`; only without that README, the legacy file. Neither exists: say so
+   and stop that feature rather than guess a file.
 
 The bundled `run` skill and its deferral to a project skill are upstream specifics. Read them live
 at <https://code.claude.com/docs/en/skills#run-and-verify-your-app> (as of 2026-10-21; recheck when
-that section changes what `run` does or how it picks a project skill).
+that section changes what `run` does or how it picks a project skill). Skill precedence and what
+loading a skill runs are upstream too: <https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name>,
+<https://code.claude.com/docs/en/skills#frontmatter-reference>,
+<https://code.claude.com/docs/en/skills#inject-dynamic-context>; the plugins root:
+<https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk> (as of 2026-10-24; recheck
+when any changes precedence, what loading runs, or where plugin files live). The reported base
+directory is not documented: an attended `--plugin-dir` probe on 2026-10-24 showed `Base directory
+for this skill:` for a project and a plugin skill; recheck when the Skill tool's result changes.
 
 ## Rules
 
