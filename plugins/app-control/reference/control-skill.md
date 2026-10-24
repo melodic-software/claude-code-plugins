@@ -9,6 +9,9 @@ same way. Drive reads it as data and runs a command only from the section the ac
 - Writing the Capture section
 - Feature files
 - Driver commands
+- Writing the driver CLI
+- Config
+- Safety floors
 
 ## Hub
 
@@ -119,3 +122,53 @@ An optional `cli/` directory holds the project's own driver commands.
 
 Each section is a pointer or a command, never a copied recipe: a recipe lives in one place and the
 section names it.
+
+## Writing the driver CLI
+
+Guidance for whoever writes `cli/`. When `/developer-experience:build-cli` is installed, write the
+CLI through it. Otherwise write a script in the language the repository already uses, with a
+`cli/README.md` listing each command, its flags and its exit codes. Either way the CLI:
+
+- prints one JSON document on stdout under `--json`, and progress on stderr;
+- rejects an unknown flag, a repeated step id, or an app, environment or feature id that does not
+  exist, before it starts anything;
+- records the app's own pid, not a wrapper shell's;
+- reads its settings through the Config layers below and reports each value's layer.
+
+## Config
+
+A control skill's settings sit in `config/`, read in this order, each layer overriding the one
+before it:
+
+1. `config/defaults.json`, committed: the team's values.
+2. `config/local.json`, ignored by version control: one person's values.
+3. Environment variables.
+4. Flags on the driver command.
+
+A run reports each value with the layer it came from. Credentials come from environment variables
+by default: config names the variable, never the secret. The contract fixes these fields; a project
+adds its own beside them:
+
+| Field | Holds |
+|---|---|
+| `environment` | The environment a run targets, by the name the team gave it |
+| `timeouts` | How long launch, ready and each step may take |
+| `credentials` | Per account, the names of the environment variables that hold its credentials |
+| `safety` | The floors below |
+| `pluginDir` | For a control skill that drives Claude Code: the plugin directory under test |
+
+## Safety floors
+
+Each floor ships at its safe value. Only `config/defaults.json` loosens one; `config/local.json`,
+environment variables and flags only tighten it, and a run reports a loosening from those layers as
+refused.
+
+- **Recipients.** Each side-effect channel (mail, SMS, chat, webhook) has an allowlist, empty by
+  default. A step that would send to anyone not on it stops at the form and never presses send.
+- **Sign-in.** One attempt per account per run. A failed attempt stops the run, with no retry and
+  no switch to another account. Only committed config allows more attempts for an account.
+- **Production.** An environment marked `production: true` in committed config is read-only. An
+  attended run writes to it only when committed config grants that write and the person says yes in
+  this session.
+- **Unattended writes.** Off. An unattended run writes to an environment or external system only
+  where committed config allows it.
