@@ -662,10 +662,20 @@ def exclusion_reason(returncode: int, stdout: str, stderr: str, events: list[dic
     """Why a run cannot count (PLAN.md run rule d), or None."""
     if returncode != 0 and not events:
         return f"CLI exited {returncode}: {stderr.strip()[:200]}"
-    for marker in EXCLUDE_MARKERS:
-        if marker.search(stdout) or marker.search(stderr):
-            return f"marker: {marker.pattern[:40]}"
     result = next((e for e in reversed(events) if e.get("type") == "result"), None)
+    # Only the CLI's own words count: stderr, an error result, or a tool error. Conversation
+    # text (a seeded lane history, a case prompt) may mention limits without hitting one.
+    own = [stderr]
+    if result is not None and result.get("is_error"):
+        own.append(str(result.get("result") or ""))
+    for event in events:
+        if event.get("type") == "user":
+            for block in (event.get("message") or {}).get("content") or []:
+                if isinstance(block, dict) and block.get("type") == "tool_result" and block.get("is_error"):
+                    own.append(str(block.get("content") or ""))
+    for marker in EXCLUDE_MARKERS:
+        if any(marker.search(text) for text in own):
+            return f"marker: {marker.pattern[:40]}"
     if result is not None:
         if result.get("is_error"):
             return f"result error: {str(result.get('result'))[:200]}"

@@ -375,6 +375,20 @@ def test_history_can_continue_an_existing_chain():
     assert more[0]["uuid"] != first[0]["uuid"]
 
 
+def test_exclusion_ignores_limit_words_in_conversation_text():
+    """A seeded lane history or a case prompt may mention usage limits; only the CLI's
+    own error result or stderr marks a run as limit-hit."""
+    talk = [
+        {"type": "user", "message": {"content": "the lane hit its usage limit yesterday; rate limit reached twice"}},
+        {"type": "result", "result": "Noted the usage limit history.", "num_turns": 1, "is_error": False},
+    ]
+    stdout = "\n".join(json.dumps(e) for e in talk)
+    assert resume_eval.exclusion_reason(0, stdout, "", talk) is None
+    hit = [{"type": "result", "result": "You've hit your session limit · resets 4pm", "num_turns": 1, "is_error": True}]
+    assert resume_eval.exclusion_reason(1, json.dumps(hit[0]), "", hit) is not None
+    assert resume_eval.exclusion_reason(1, "", "Error: rate limit exceeded", []) is not None
+
+
 def _assistant(msg_id, usage, *blocks):
     return {
         "type": "assistant",
