@@ -3692,6 +3692,8 @@ test("leak scan: the split-line pass leaves out the R2 key pair pattern, so adja
 const MODEL_CALL_READS = {
   "apply-feedback-patch": ["feedback-attempt", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt"],
   "publish-feedback": ["feedback-attempt", "feedback-sha256", "scan-patch-state"],
+  // The scanned replies' attempt and SHA-256, never a run job output.
+  "adjudicate-feedback": ["feedback-attempt", "feedback-sha256"],
 };
 
 // One leg answers the round: the fallback call when it ran, else the first.
@@ -3956,7 +3958,13 @@ test("pr-unblock.yml: no job takes a gate, head or reply input from an address-f
   assert.equal(apply["patch-threads-attempt"], "${{ needs.address-feedback-select.outputs.context-attempt }}");
   assert.equal(apply["patch-threads-sha256"], "${{ needs.address-feedback-select.outputs.threads-sha256 }}");
   assert.equal(apply["patch-fix-requested"], "${{ needs.address-feedback-select.outputs.fix-requested }}");
+  // The adjudicator stages the select job's threads at the select job's head.
+  const prepare = jobs["adjudicate-feedback"].steps.find((step) => step.id === "prepare").env;
+  assert.equal(prepare.HEAD_SHA, SELECT_HEAD);
+  assert.equal(prepare.THREADS_SHA256, "${{ needs.address-feedback-select.outputs.threads-sha256 }}");
+  assert.deepEqual(Object.keys(jobs["adjudicate-feedback"].permissions), ["contents"]);
   const publish = jobs["publish-feedback"].with;
+  assert.equal(publish["review-adjudication-sha256"], "${{ needs.adjudicate-feedback.outputs.sha256 }}");
   assert.equal(publish["review-run-sha256"], "${{ needs.address-feedback-select.outputs.run-sha256 }}");
   assert.equal(publish["review-run-attempt"], "${{ needs.address-feedback-select.outputs.context-attempt }}");
   const upstream = (dispatcher) =>

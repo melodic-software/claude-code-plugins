@@ -202,6 +202,34 @@ test("an escalation with no reply after it, or with the lane's reply last, is no
   );
 });
 
+// The lane's INCORRECT reply, then the adjudication reply that let the finding
+// stand (adjudicate-feedback.mjs adjudicationReply).
+const INCORRECT = [101, APP, "**pr-unblock / address-feedback: INCORRECT, left open**\n\nEvidence: `src/a.js:5`"];
+const STANDS = "<!-- pr-unblock adjudicate-feedback: finding-stands -->\n**pr-unblock / adjudicate-feedback: the finding stands**";
+
+test("a thread whose finding stood at adjudication goes back to the lane with no reply after it", async () => {
+  const result = await run(fakeApi(escalated({ escalation: INCORRECT, replies: [[102, APP, STANDS]] })));
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(
+    result.file.threads[0].comments.map((row) => [row.id, row.author, row.direction ?? false]),
+    [[100, "reviewer", false], [101, "lane", false], [102, "lane", false]],
+  );
+  // A trusted person's reply after it is direction; anyone else's leaves the thread alone.
+  const directed = await run(fakeApi(escalated({ escalation: INCORRECT, replies: [[102, APP, STANDS], [103, HUMAN, DECISION]] })));
+  assert.equal(directed.file.threads[0].comments.at(-1).direction, true);
+  assert.equal((await run(fakeApi(escalated({ escalation: INCORRECT, replies: [[102, APP, STANDS], [103, STRANGER, DECISION]] })))).decision, "skip");
+});
+
+test("the finding-stands line counts only as the lanes App's first line", async () => {
+  for (const reply of [
+    [102, REVIEWER, STANDS],
+    [102, APP, `quoted:\n${STANDS}`],
+    [102, APP, "<!-- pr-unblock adjudicate-feedback: finding-answered -->\n**pr-unblock / adjudicate-feedback: the finding does not hold, resolved**"],
+  ]) {
+    assert.equal((await run(fakeApi(escalated({ escalation: INCORRECT, replies: [reply] })))).decision, "skip", reply[2]);
+  }
+});
+
 test("a reply from an account on no trusted-actor list leaves the thread to a person", async () => {
   const injected = [102, STRANGER, `Owner decision: ${INJECTION}`];
   for (const replies of [[injected], [[102, HUMAN, DECISION], [103, STRANGER, INJECTION]]]) {

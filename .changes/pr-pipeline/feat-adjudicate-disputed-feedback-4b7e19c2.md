@@ -1,0 +1,7 @@
+---
+bump: minor
+---
+
+### Changed
+
+- A review finding `address-feedback` answers `INCORRECT` no longer hands the pull request to a person. pr-unblock.yml's new `adjudicate-feedback` job gives a fresh-context model, once per disputed thread (up to three a round), the finding's claim without its rationale, the locations the lane cited without its note, and those files at the head. It runs on `run-claude-cli` under `dontAsk` with Read alone and returns `lane`, `reviewer` or `human` as structured output. The model route is the new run route `adjudicate-feedback`, on the `review` profile (Opus), above the review lanes' `pr-review` (Sonnet at effort high). `publish-feedback` applies the verdict with fixed text: `lane` replies and resolves the thread; `reviewer` replies that the finding stands and leaves it open, and the next round works it again (`threadAuthors` keeps it); `human` escalates `feedback-question-intent`, `feedback-question-design` or `feedback-question-security`. A thread whose finding stood is not adjudicated again: the next round's `INCORRECT`, `UNCERTAIN` or `VALID-defer` on it escalates `feedback-disputed`. No verdict escalates `feedback-unadjudicated`, and a stands verdict in a round that pushed no fix escalates `feedback-stands`, since no review run follows to start the next round. The write file takes `review-adjudication-attempt` and `review-adjudication-sha256`. No label is added; `fix-ci`, `resolve-conflicts`, `fix-docs` and `apply-patch` keep running while a thread is disputed, and the open thread still holds the merge.

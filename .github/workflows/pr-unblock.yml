@@ -802,13 +802,322 @@ jobs:
       patch-fix-requested: ${{ needs.address-feedback-select.outputs.fix-requested }}
       reply-attempt: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-reply-attempt || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-reply-attempt || '' }}
 
+  # The adjudicator, after the model job and before the reply job. For each
+  # INCORRECT reply on a thread no adjudication stood before, up to three
+  # (adjudicate-feedback.mjs MAX_THREADS), a fresh-context model reads the
+  # finding's claim, the locations the lane cited and those files at the head
+  # the select job read, never the reviewer's rationale or the lane's note, and
+  # returns lane, reviewer or human as structured output. The job runs only
+  # base code, holds a read-only token and no OIDC token, and runs each model
+  # call on run-claude-cli under dontAsk with Read alone, as the lane model
+  # jobs do; the model route is adjudicate-feedback (pr-pipeline.yaml
+  # models.routes). Its verdicts leave as one artifact whose SHA-256 the reply
+  # job checks, so an artifact the model job's head code uploaded under that
+  # name fails this upload and reads as none. No verdict for a thread, a
+  # skipped job or an empty key escalates it as feedback-unadjudicated.
+  adjudicate-feedback:
+    needs: [address-feedback-select, address-feedback, address-feedback-subscription]
+    if: >-
+      ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true'
+      && (needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '') != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    permissions:
+      contents: read # the base checkout and the disputed files at the head
+    outputs:
+      attempt: ${{ steps.upload.outcome == 'success' && github.run_attempt || '' }}
+      sha256: ${{ steps.upload.outcome == 'success' && steps.collect.outputs.sha256 || '' }}
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      # The select job's thread file and the scan job's replies, from the one
+      # leg the reply job reads; prepare checks each against its writer's SHA-256.
+      - name: Download the feedback context
+        if: steps.kill.outputs.proceed == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: feedback-context-${{ needs.address-feedback-select.outputs.context-attempt }}
+          path: ${{ runner.temp }}/adjudicate-input
+
+      - name: Download the review-thread replies
+        if: steps.kill.outputs.proceed == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: feedback-replies-pr-unblock-address-feedback-${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '' }}
+          path: ${{ runner.temp }}/adjudicate-input
+
+      - name: Stage the disputed threads
+        id: prepare
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ needs.address-feedback-select.outputs.head-sha }}
+          THREADS_FILE: ${{ runner.temp }}/adjudicate-input/threads.json
+          THREADS_SHA256: ${{ needs.address-feedback-select.outputs.threads-sha256 }}
+          REPLIES_FILE: ${{ runner.temp }}/adjudicate-input/replies.jsonl
+          REPLIES_SHA256: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-sha256 || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-sha256 || '' }}
+          OUT_DIR: ${{ runner.temp }}/adjudicate
+        run: node .base/.github/scripts/pr-unblock/adjudicate-feedback.mjs prepare
+
+      - name: Resolve the adjudicator's model
+        id: models
+        if: fromJSON(steps.prepare.outputs.count || '0') > 0
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          model-route: adjudicate-feedback
+          base-path: .base
+          output-path: ${{ runner.temp }}/adjudicate-models.json
+
+      # Only whether the secret is set leaves this step, never its value.
+      - name: Check the API key
+        id: key
+        if: steps.models.outcome == 'success'
+        env:
+          PRESENT: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY != '' }}
+        run: |
+          if [ "$PRESENT" != true ]; then
+            echo "::warning::AUTOMATIONS_CLAUDE_API_KEY is empty; no disputed thread is adjudicated"
+          fi
+          echo "present=$PRESENT" >>"$GITHUB_OUTPUT"
+
+      # run-claude-cli refuses to run without these root-owned settings, which
+      # need sudo, so they are written before the runner is isolated.
+      - name: Apply the Claude managed settings
+        if: steps.key.outputs.present == 'true'
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
+
+      # Nothing after this step needs sudo or docker.
+      - name: Isolate the runner
+        if: steps.key.outputs.present == 'true'
+        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
+        with:
+          install-subprocess-isolation: "true"
+
+      # One fresh model call per thread: each sees only its own slot, copied
+      # into the workspace, the one tree run-claude-cli reads.
+
+      - name: Stage disputed thread 0
+        if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0
+        env:
+          SLOT_DIR: ${{ runner.temp }}/adjudicate/0
+        run: |
+          rm -rf "${GITHUB_WORKSPACE:?}/adjudicate"
+          cp -R "$SLOT_DIR" "$GITHUB_WORKSPACE/adjudicate"
+
+      - name: Adjudicate disputed thread 0
+        id: judge-0
+        if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 0
+        continue-on-error: true
+        timeout-minutes: 20
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+          LD_LIBRARY_PATH: ""
+        with:
+          lane: adjudicate-feedback
+          role: automations
+          prompt-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.prompt.md
+          preamble: You are running unattended in GitHub Actions. No person can answer a question during this run, and you change nothing.
+          api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: |
+            Read
+            Glob
+            Grep
+          allowed-tools: Read(./adjudicate/**)
+          disallowed-tools: |
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            Skill
+          json-schema-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.schema.json
+          leg-timeout-minutes: "15"
+
+      # A leg in another permission mode, or with no init message, keeps no
+      # verdict (check-permission-mode.sh); its thread reads as unadjudicated.
+      - name: Keep disputed thread 0's verdict
+        if: always() && steps.judge-0.outputs.structured-output-file != ''
+        continue-on-error: true
+        env:
+          EXECUTION_FILE: ${{ steps.judge-0.outputs.execution-file }}
+          MODE: dontAsk
+          OUTPUT_FILE: ${{ steps.judge-0.outputs.structured-output-file }}
+          SLOT_DIR: ${{ runner.temp }}/adjudicate/0
+        run: |
+          bash .base/.github/scripts/read-patch/check-permission-mode.sh
+          cp "$OUTPUT_FILE" "$SLOT_DIR/verdict.json"
+
+      - name: Stage disputed thread 1
+        if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1
+        env:
+          SLOT_DIR: ${{ runner.temp }}/adjudicate/1
+        run: |
+          rm -rf "${GITHUB_WORKSPACE:?}/adjudicate"
+          cp -R "$SLOT_DIR" "$GITHUB_WORKSPACE/adjudicate"
+
+      - name: Adjudicate disputed thread 1
+        id: judge-1
+        if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 1
+        continue-on-error: true
+        timeout-minutes: 20
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+          LD_LIBRARY_PATH: ""
+        with:
+          lane: adjudicate-feedback
+          role: automations
+          prompt-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.prompt.md
+          preamble: You are running unattended in GitHub Actions. No person can answer a question during this run, and you change nothing.
+          api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: |
+            Read
+            Glob
+            Grep
+          allowed-tools: Read(./adjudicate/**)
+          disallowed-tools: |
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            Skill
+          json-schema-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.schema.json
+          leg-timeout-minutes: "15"
+
+      # A leg in another permission mode, or with no init message, keeps no
+      # verdict (check-permission-mode.sh); its thread reads as unadjudicated.
+      - name: Keep disputed thread 1's verdict
+        if: always() && steps.judge-1.outputs.structured-output-file != ''
+        continue-on-error: true
+        env:
+          EXECUTION_FILE: ${{ steps.judge-1.outputs.execution-file }}
+          MODE: dontAsk
+          OUTPUT_FILE: ${{ steps.judge-1.outputs.structured-output-file }}
+          SLOT_DIR: ${{ runner.temp }}/adjudicate/1
+        run: |
+          bash .base/.github/scripts/read-patch/check-permission-mode.sh
+          cp "$OUTPUT_FILE" "$SLOT_DIR/verdict.json"
+
+      - name: Stage disputed thread 2
+        if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2
+        env:
+          SLOT_DIR: ${{ runner.temp }}/adjudicate/2
+        run: |
+          rm -rf "${GITHUB_WORKSPACE:?}/adjudicate"
+          cp -R "$SLOT_DIR" "$GITHUB_WORKSPACE/adjudicate"
+
+      - name: Adjudicate disputed thread 2
+        id: judge-2
+        if: steps.key.outputs.present == 'true' && fromJSON(steps.prepare.outputs.count || '0') > 2
+        continue-on-error: true
+        timeout-minutes: 20
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+          LD_LIBRARY_PATH: ""
+        with:
+          lane: adjudicate-feedback
+          role: automations
+          prompt-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.prompt.md
+          preamble: You are running unattended in GitHub Actions. No person can answer a question during this run, and you change nothing.
+          api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: |
+            Read
+            Glob
+            Grep
+          allowed-tools: Read(./adjudicate/**)
+          disallowed-tools: |
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            Skill
+          json-schema-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.schema.json
+          leg-timeout-minutes: "15"
+
+      # A leg in another permission mode, or with no init message, keeps no
+      # verdict (check-permission-mode.sh); its thread reads as unadjudicated.
+      - name: Keep disputed thread 2's verdict
+        if: always() && steps.judge-2.outputs.structured-output-file != ''
+        continue-on-error: true
+        env:
+          EXECUTION_FILE: ${{ steps.judge-2.outputs.execution-file }}
+          MODE: dontAsk
+          OUTPUT_FILE: ${{ steps.judge-2.outputs.structured-output-file }}
+          SLOT_DIR: ${{ runner.temp }}/adjudicate/2
+        run: |
+          bash .base/.github/scripts/read-patch/check-permission-mode.sh
+          cp "$OUTPUT_FILE" "$SLOT_DIR/verdict.json"
+
+      - name: Collect the verdicts
+        id: collect
+        if: always() && fromJSON(steps.prepare.outputs.count || '0') > 0
+        env:
+          OUT_DIR: ${{ runner.temp }}/adjudicate
+          VERDICTS_FILE: ${{ runner.temp }}/adjudication/verdicts.json
+        run: |
+          mkdir -p "$(dirname "$VERDICTS_FILE")"
+          node .base/.github/scripts/pr-unblock/adjudicate-feedback.mjs collect
+
+      # overwrite: false, so a copy the model job's head code uploaded first
+      # fails this upload, and the reply job reads no verdicts.
+      - name: Upload the verdicts
+        id: upload
+        if: always() && steps.collect.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: feedback-adjudication-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/adjudication/verdicts.json
+          retention-days: 1
+          if-no-files-found: error
+          overwrite: false
+
   # The reply job, a script with no model: it holds pull-requests: write and
   # posts the replies the model job recorded, exactly as written or not at
   # all, naming the commit the push job made, then the round marker. It runs
   # whenever the select job proceeded, whatever the model and push jobs did,
   # so every round is counted; a hostile model job cannot skip it.
   publish-feedback:
-    needs: [address-feedback-select, address-feedback, address-feedback-subscription, apply-feedback-patch]
+    needs: [address-feedback-select, address-feedback, address-feedback-subscription, apply-feedback-patch, adjudicate-feedback]
     if: ${{ !cancelled() && needs.address-feedback-select.outputs.proceed == 'true' }}
     permissions:
       contents: read
@@ -838,6 +1147,10 @@ jobs:
       review-replies-attempt: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '' }}
       review-replies-sha256: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-sha256 || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-sha256 || '' }}
       review-patch-state: ${{ needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-patch-state || needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-patch-state || '' }}
+      # The adjudicator's verdicts on the INCORRECT replies, and their SHA-256,
+      # set only once its upload succeeded.
+      review-adjudication-attempt: ${{ needs.adjudicate-feedback.outputs.attempt }}
+      review-adjudication-sha256: ${{ needs.adjudicate-feedback.outputs.sha256 }}
       # The push job moved the PR head off the reviewed one; the gate and the
       # broker accept the review of the head the select job read when only
       # commits GitHub signed for the lanes App during this run follow it. A

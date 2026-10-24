@@ -191,6 +191,7 @@ const JOBS = [
   "address-feedback-handoff",
   "address-feedback-subscription",
   "apply-feedback-patch",
+  "adjudicate-feedback",
   "publish-feedback",
 ];
 
@@ -199,7 +200,7 @@ const JOBS = [
 // too, so the push and the reply would never run.
 test("pr-unblock.yml: every address-feedback job after a model call starts its if: with !cancelled()", () => {
   const after = JOBS.filter((job) => jobGate(UNBLOCK, job).needs.some((need) => need === "address-feedback" || need === "address-feedback-subscription"));
-  assert.deepEqual(after, ["address-feedback-handoff", "address-feedback-subscription", "apply-feedback-patch", "publish-feedback"]);
+  assert.deepEqual(after, ["address-feedback-handoff", "address-feedback-subscription", "apply-feedback-patch", "adjudicate-feedback", "publish-feedback"]);
   for (const job of [...after, "address-feedback", "address-feedback-not-run"]) {
     assert.match(jobGate(UNBLOCK, job).gate, /^\$\{\{ !cancelled\(\) && /, job);
   }
@@ -210,11 +211,26 @@ test("pr-unblock.yml: every address-feedback job after a model call starts its i
 // round still posts its marker, so the round cap holds.
 test("pr-unblock.yml: publish-feedback runs exactly when the select job proceeded, whatever a model call reports", () => {
   const { gate, needs } = jobGate(UNBLOCK, "publish-feedback");
-  assert.deepEqual(needs, ["address-feedback-select", "address-feedback", "address-feedback-subscription", "apply-feedback-patch"]);
+  assert.deepEqual(needs, ["address-feedback-select", "address-feedback", "address-feedback-subscription", "apply-feedback-patch", "adjudicate-feedback"]);
   // The evaluator refuses any reference left unset: the gate reads nothing else.
   for (const [proceed, runs] of [["true", true], ["false", false], ["", false]]) {
     assert.equal(evaluate(gate, { "needs.address-feedback-select.outputs.proceed": proceed }), runs, JSON.stringify(proceed));
   }
+});
+
+test("pr-unblock.yml: adjudicate-feedback runs on replies from the leg that answered, whatever its patch", () => {
+  const { gate } = jobGate(UNBLOCK, "adjudicate-feedback");
+  const runs = (proceed, subResult, replies) =>
+    evaluate(gate, {
+      "needs.address-feedback-select.outputs.proceed": proceed,
+      "needs.address-feedback-subscription.result": subResult,
+      "needs.address-feedback-subscription.outputs.feedback-attempt": subResult === "skipped" ? "" : replies,
+      "needs.address-feedback.outputs.feedback-attempt": subResult === "skipped" ? replies : "",
+    });
+  assert.equal(runs("true", "skipped", "1"), true, "the key call's replies");
+  assert.equal(runs("true", "success", "1"), true, "the subscription call's replies after a handoff");
+  assert.equal(runs("true", "skipped", ""), false, "no replies");
+  assert.equal(runs("false", "skipped", "1"), false, "a select job that did not proceed");
 });
 
 test("pr-unblock.yml: apply-feedback-patch runs only on a written patch with replies from the leg that answered, not after a skip or an empty patch", () => {

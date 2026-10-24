@@ -119,6 +119,10 @@ export function reviewedHeads(issueComments) {
 // leaves open for a person: every disposition but VALID.
 const ESCALATION_REPLY =
   /^\*\*pr-unblock \/ address-feedback: (INCORRECT, left open|UNCERTAIN, left open for a person|VALID \(defer\), left open for a person)\*\*$/;
+// The first line of the reply publish-feedback.mjs posts when an adjudicator
+// finds a disputed finding stands (adjudicate-feedback.mjs): the next round
+// works that thread again and accepts no second INCORRECT on it.
+export const FINDING_STANDS = "<!-- pr-unblock adjudicate-feedback: finding-stands -->";
 export const isEscalationReply = (comment, appId) => comment?.user?.id === appId && ESCALATION_REPLY.test(firstLine(comment.body));
 
 // On a PR carrying the human-gated label, a thread is worked only when a
@@ -287,7 +291,10 @@ export function humanGatedLabelFrom(path) {
 //   fixRequesters); the trusted people's comments from the first such
 //   request on are direction;
 // - the lanes App's last comment escalated the thread and every comment after
-//   it is a trusted person's reply, which is direction.
+//   it is a trusted person's reply, which is direction;
+// - the lanes App's last comment is an adjudication that let the finding
+//   stand (FINDING_STANDS), and every comment after it, if any, is a trusted
+//   person's reply, which is direction.
 // A comment by anyone else, a trusted person's comment last edited by anyone
 // but a trusted person, or a reply not after the escalation leaves the thread
 // alone. The select step and the reply job (keepThreads) and the dispatcher
@@ -327,7 +334,10 @@ export function threadAuthors(comments, { reviewerId, appId, trustedHumans = new
     }
     return authors;
   }
-  if (last < 1 || !ESCALATION_REPLY.test(firstLine(comments[last].body)) || last === comments.length - 1) {
+  // An adjudication that let the finding stand (adjudicate-feedback.mjs)
+  // hands the thread back to the lane with no reply needed.
+  const stands = last >= 1 && firstLine(comments[last].body) === FINDING_STANDS;
+  if (last < 1 || !(stands || ESCALATION_REPLY.test(firstLine(comments[last].body))) || (last === comments.length - 1 && !stands)) {
     return null;
   }
   if (requesters && !comments.slice(last + 1).some((comment) => asks(requesters, comment))) {

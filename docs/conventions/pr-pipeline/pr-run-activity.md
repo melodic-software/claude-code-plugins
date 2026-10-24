@@ -987,11 +987,48 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
      job alone finds a lanes App marker with that line and posts none, so one round counts once,
      while a re-run of the model job counts another. A round with no replies attempt names none,
      and its marker is always posted. It escalates
-     `feedback-uncertain` for an `UNCERTAIN` or `VALID-defer` reply, or `feedback-disputed` when an
-     `INCORRECT` evidence reply was posted: that thread stays open for a person to decide.
+     `feedback-uncertain` for an `UNCERTAIN` or `VALID-defer` reply;
+   - after the replies, settles each posted `INCORRECT` reply by the adjudicator's verdict
+     ([below](#the-adjudicator)): `lane` posts the fixed finding-answered reply and resolves the
+     thread; `reviewer` posts the fixed finding-stands reply and leaves the thread open for the
+     next round, escalating `feedback-stands` when this round pushed no fix commit, since then no
+     review run follows to start that round; `human` posts nothing and escalates
+     `feedback-question-intent`, `feedback-question-design` or `feedback-question-security`; no
+     verdict escalates `feedback-unadjudicated`. A thread whose finding stood at an earlier
+     adjudication is not adjudicated again: any reply but `VALID` on it escalates
+     `feedback-disputed`. A thread or head that changed after the lane's reply, or a failed write,
+     escalates `feedback-partial`. One round records one reason, the most urgent in that order.
 
-   The script writes its reason to `ESCALATION_REASON_FILE`; the runner accepts only those six
+   The script writes its reason to `ESCALATION_REASON_FILE`; the runner accepts only those
    reasons, and only with `review-replies`, as the run's `escalation-reason` output.
+
+#### The adjudicator
+
+pr-unblock.yml's `adjudicate-feedback` job runs between the model job and the reply job whenever
+the leg the reply job reads uploaded replies. It runs only base code with a read-only token and
+no OIDC token. `adjudicate-feedback.mjs prepare` checks the select job's thread file and the
+scan job's replies against the SHA-256 each writer recorded, then stages each `INCORRECT` reply on
+a thread no adjudication stood before, up to three: the finding's path, line and claim (the
+review comment's first paragraph and its `severity:` line, never the later rationale or the
+lane's footer), the locations the lane cited (never its note), and those files at the select
+job's head, read through the contents API, each up to 200 KiB. Each thread gets one fresh
+`run-claude-cli` call, after `apply-claude-managed-settings` and runner isolation, on the
+automations API key, under `dontAsk` with Read, Glob and Grep, `Read(./adjudicate/**)` allowed,
+and only that thread's files in the workspace. The prompt
+(`.github/scripts/pr-unblock/adjudicate-feedback.prompt.md`) frames every staged file as
+untrusted data. The model route is `adjudicate-feedback` ([README.md, Models](README.md#models)).
+The call returns `verdict` (`lane`, `reviewer` or `human`) and `question` (`none`, or for `human`
+`intent`, `design` or `security`) to `adjudicate-feedback.schema.json`, and a leg whose init
+message reports another permission mode keeps no verdict. `collect` writes `verdicts.json`, and
+the job uploads it as `feedback-adjudication-<attempt>` with `overwrite: false`, passing its
+attempt and SHA-256 out only once the upload succeeded. The reply job downloads it through the
+write file's `review-adjudication-attempt` and `review-adjudication-sha256` inputs and reads
+verdicts only for its gated head with that SHA-256. The posted replies are fixed text and the
+lane's validated evidence; no model text reaches the pull request.
+
+The next round reads the finding-stands reply: `threadAuthors` keeps a thread whose last lanes
+App comment is that reply, so `pr-feedback-dispatch.yml` dispatches it once the review lanes
+review the next head.
 
 The skill's limits to kept-thread scope and away from `.github/workflows/` are instructions and the tool's
 checks at record time; the push job's `kept-threads` rule is what holds the push, and the reply

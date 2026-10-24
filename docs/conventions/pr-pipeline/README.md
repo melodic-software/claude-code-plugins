@@ -1836,7 +1836,10 @@ only when the selected activity sets `applied-by.patch`.
 activity by its run route: `verify-pr` for the [verifier](#verifier-verdict), `review-code` and
 `review-security` for the code and security review lanes, `triage-issue` for intake triage, and
 `summarize-reuse` for the read-only pass that describes a lane branch work-resolve-issue reuses
-([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)). A run no route names takes `models.default-profile`. The config reader rejects a route or default
+([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)), and `adjudicate-feedback` for
+pr-unblock's read-only judge of a review finding address-feedback disputed
+([pr-run-activity.md](pr-run-activity.md)), whose profile is never weaker than the review
+lanes'. A run no route names takes `models.default-profile`. The config reader rejects a route or default
 naming an undefined profile, and a route that is neither a skill activity nor a run route. A config with no `models` block gives every run the built-in `standard`
 profile: model `default` and 75 turns. `resolve-config` turns the run's profile into its
 `claude-args` and `settings-json` outputs, which the runners on claude-code-action pass as
