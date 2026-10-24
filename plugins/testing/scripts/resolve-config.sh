@@ -212,7 +212,8 @@ LOADER="$PLUGIN/../skills/audit/scripts/adapter-load.awk"
 PCV="$PLUGIN/parse-concern-value.sh"
 PLUGIN="$PLUGIN/.."
 
-warn() { printf 'resolve-config: warning: %s\n' "$1" >&2; }
+# A warning can quote a layer's text: strip non-printing bytes, keeping \t and \n.
+warn() { printf 'resolve-config: warning: %s\n' "$1" | LC_ALL=C tr -d '\000-\010\013-\037\177' >&2; }
 
 # under_link <file>: true when <file>, or a directory above it inside <root>,
 # is a symlink. A repository could point such a layer at any file.

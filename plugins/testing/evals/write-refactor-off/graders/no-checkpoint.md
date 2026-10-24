@@ -1,10 +1,11 @@
 ---
 type: regex
-pattern: '^Refactor checkpoint:'
+pattern: '(?<![\s\S])(?![\s\S]*^Refactor checkpoint:)[\s\S]*?tdd_refactor_step`?\s*[=:]\s*`?off`?\s*\(`?[^)\n]*docs/conventions/testing\.yaml`?\)'
 flags: m
-match: not_contains
 ---
 
-Passes when no line of the final reply begins `Refactor checkpoint:`: with `tdd_refactor_step`
-set to `off` the skill skips the Refactor step and its report. The skill-fired, resolver-ran and
-settings-line graders keep an empty or off-task reply from passing on this grader alone.
+Passes when the final reply carries the Settings line naming `tdd_refactor_step` as `off` from
+`docs/conventions/testing.yaml`, and no line anywhere in it begins `Refactor checkpoint:`: with the
+step off the skill writes no checkpoint. The lookbehind anchors the match at the start of the
+reply, so the lookahead scans the whole reply, a checkpoint line before the Settings line
+included. An empty or off-task reply fails, since the Settings line is required.

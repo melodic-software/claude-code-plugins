@@ -655,6 +655,22 @@ assert_eq "a YAML boolean is not on or off" "tdd_refactor_step	on	default" "$(he
 assert_contains "and is named" "$err" "$TY: tdd_refactor_step: unknown value 'true'"
 wrun --user tdd_refactor_step=off
 assert_eq "write has no userConfig level" 2 "$rc"
+printf 'tdd_refactor_step: "on\033[2Jx"\n' >"$TY"
+wrun
+assert_contains "a warning keeps the value's printable text" "$err" "unknown value 'on[2Jx'"
+assert_eq "and drops its escape byte" "" "$(tr -d -c '\033' <<<"$err")"
+rm -f "$TY"
+printf 'tdd_refactor_step: off\nfirst_test: unit\n' >"$HOME/.claude/testing.yaml"
+rc=0
+err="$(mktemp "$T/err.XXXXXX")"
+out="$(cd "$T" && bash "$RESOLVE" write 2>"$err")" || rc=$?
+err="$(cat "$err")"
+assert_eq "write outside a repository with no --root: both defaults" \
+  "0:tdd_refactor_step	on	default
+first_test	user-flow	default" "$rc:$out"
+assert_contains "and the user-global file is still not read" "$err" \
+  "$HOME/.claude/testing.yaml: tdd_refactor_step is a repository setting; the user-global layer is not read for it"
+rm -f "$HOME/.claude/testing.yaml"
 printf 'tdd_refactor_step: off\nfirst_test: unit\npaths:\n  exclude: [write-file/**]\n' >"$TY"
 run
 assert_eq "write keys in testing.yaml do not stop the scan config" "0:write-file/**" "$rc:$(records paths.exclude)"

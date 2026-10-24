@@ -2,7 +2,7 @@
   "pass": [
     {
       "answer": "Settings: tdd_refactor_step=off (docs/conventions/testing.yaml), first_test=user-flow (default)\n\nAll 7 tests pass.",
-      "why": "no checkpoint line"
+      "why": "the off Settings line and no checkpoint line"
     },
     {
       "answer": "Settings: tdd_refactor_step=off (docs/conventions/testing.yaml). The Refactor step is off, so there is no Refactor checkpoint: each slice went from green to the next test.",
@@ -11,12 +11,24 @@
   ],
   "fail": [
     {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
       "answer": "Settings: tdd_refactor_step=off (docs/conventions/testing.yaml)\n\nRefactor checkpoint: extracted _line_total from total_cents; suite still green",
-      "why": "a checkpoint line despite off"
+      "why": "a checkpoint line after the Settings line, despite off"
+    },
+    {
+      "answer": "Refactor checkpoint: nothing to tidy.\n\nSettings: tdd_refactor_step=off (docs/conventions/testing.yaml)",
+      "why": "a checkpoint line before the Settings line"
     },
     {
       "answer": "Refactor checkpoint: nothing to tidy.",
-      "why": "a checkpoint line at the start of the reply"
+      "why": "a checkpoint line and no Settings line"
+    },
+    {
+      "answer": "I added total_cents and apply_coupon; all tests pass.",
+      "why": "no Settings line"
     }
   ]
 }
