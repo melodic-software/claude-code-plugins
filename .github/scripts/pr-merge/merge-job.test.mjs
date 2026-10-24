@@ -1088,7 +1088,7 @@ const runMergeCheck = ({ kept, code = "0", records } = {}) => {
     const result = spawnSync("bash", ["-c", runScript("Check earlier lane merges")], {
       cwd: dir,
       encoding: "utf8",
-      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_OUTPUT: output, REPO: "o/r", REUSE_MINUTES: "10" },
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_OUTPUT: output, REPO: "o/r", REUSE_MINUTES: /\n {10}REUSE_MINUTES: (\d+)\n/.exec(step("Check earlier lane merges"))[1] },
     });
     return {
       status: result.status,
@@ -1127,7 +1127,7 @@ test("the merge job runs the check itself for no report, another main, an old re
   for (const [why, options] of [
     ["none", {}],
     ["another main", { kept: keptReport({ main: "f".repeat(40) }) }],
-    ["11 minutes old", { kept: keptReport({ minutesAgo: 11 }) }],
+    ["7 minutes old", { kept: keptReport({ minutesAgo: 7 }) }],
     ["from the future", { kept: keptReport({ minutesAgo: -5 }) }],
     ["no time", { kept: { ...keptReport(), shared: { mainSha: MAIN } } }],
     ["exit 3", { kept: keptReport(), code: "3" }],

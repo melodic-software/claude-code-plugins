@@ -811,7 +811,7 @@ jobs:
           API_BUDGET_TOKEN: github-token
           BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
           REPO: ${{ github.repository }}
-          REUSE_MINUTES: 10
+          REUSE_MINUTES: 6
         run: |
           set -euo pipefail
           kept=$RUNNER_TEMP/post-merge-kept
