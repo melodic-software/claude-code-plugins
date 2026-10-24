@@ -177,7 +177,10 @@ person adds `do-not-merge`, since re-adding a label already on records no event)
 `pr-unblock / address-feedback` check run (one that started before the head's newest
 `pr-unblock / publish-feedback` check run stops counting when that run skipped `no-model-turn`:
 the round handled nothing, and the round cap still bounds the retries; a limit stop keeps its
-reset hold and counts toward `limit-stops-per-head`), and no `pr-unblock.yml` run titled
+reset hold and counts toward `limit-stops-per-head`; since such a head may see no later review,
+each scheduled `pr-unblock-dispatch.yml` run's completion also starts a sweep that decides one
+such head per tick as for its newest completed review run, under three `no-model-turn` skips at
+that head), and no `pr-unblock.yml` run titled
 `pr-unblock address-feedback #<n>` is still queued or going (both lanes finishing at once). Then it
 runs the base's resolve-config for that PR and head with `address-feedback` selected, so only that
 slot's `applies-when` is decided, and dispatches only when the `pr-unblock` lane and its

@@ -132,7 +132,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { admissionFacts, decide, loadRules, NEEDS_DECISION, openPullsNaming, READY, refusalText, sayWhy } from "../intake-triage/admit.mjs";
+import { admissionFacts, decide, loadRules, NEEDS_DECISION, openPullsFor, READY, refusalText, sayWhy } from "../intake-triage/admit.mjs";
 
 const LABEL = "agent-ready";
 const HUMAN_LABEL = "needs-human";
@@ -389,11 +389,11 @@ async function admitDeferred({ github, repo, humans, bot, gate, appId, admission
         await admitMarked({ github, repo, number, issue: current, humans, appId, closes, gate, admission });
         continue;
       }
-      // Intake defers an issue an open pull request names; it waits here
+      // Intake defers an issue an open pull request is for; it waits here
       // until no such pull request is open.
-      const pulls = reason === null ? openPullsNaming(await paginate(github, `/repos/${repo}/issues/${number}/timeline`), repo) : [];
+      const pulls = reason === null ? await openPullsFor(github, repo, number) : [];
       if (pulls.length > 0) {
-        console.log(`label-unblocked: #${number} stays deferred: open pull request #${pulls[0]} names it`);
+        console.log(`label-unblocked: #${number} stays deferred: open pull request #${pulls[0]} is for it`);
       } else if (reason === null) {
         await admit({ github, repo, number, gate, deferred });
       } else if (held) {

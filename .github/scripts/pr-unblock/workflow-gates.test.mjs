@@ -80,7 +80,9 @@ test("pr-feedback-dispatch.yml starts no runner for a skipped or cancelled revie
     evaluate(gate, {
       "github.ref": "refs/heads/main",
       "github.repository": "melodic-software/claude-code-plugins",
+      "github.event.workflow_run.path": ".github/workflows/pr-review-hosted.yml",
       "github.event.workflow_run.event": event,
+      "github.event.workflow_run.repository.full_name": "melodic-software/claude-code-plugins",
       "github.event.workflow_run.head_repository.full_name": "melodic-software/claude-code-plugins",
       "github.event.workflow_run.head_branch": branch,
       "github.event.workflow_run.conclusion": conclusion,
@@ -106,7 +108,9 @@ test("pr-feedback-dispatch.yml starts no runner for a review run off a lane bran
     evaluate(gate, {
       "github.ref": "refs/heads/main",
       "github.repository": "melodic-software/claude-code-plugins",
+      "github.event.workflow_run.path": ".github/workflows/pr-review-hosted.yml",
       "github.event.workflow_run.event": "pull_request",
+      "github.event.workflow_run.repository.full_name": "melodic-software/claude-code-plugins",
       "github.event.workflow_run.head_repository.full_name": "melodic-software/claude-code-plugins",
       "github.event.workflow_run.head_branch": branch,
       "github.event.workflow_run.conclusion": "success",
@@ -121,6 +125,35 @@ test("pr-feedback-dispatch.yml starts no runner for a review run off a lane bran
   for (const branch of ["feat/x", "release/plugins", "dependabot/npm/x", "work-resolve-issue"]) {
     assert.equal(laneBranchIssue(branch), null, branch);
     assert.equal(runs(branch), false, branch);
+  }
+});
+
+test("pr-feedback-dispatch.yml sweeps only after a scheduled pr-unblock-dispatch.yml run on main of this repository", () => {
+  const gate = jobIf("pr-feedback-dispatch.yml", "dispatch");
+  const repo = "melodic-software/claude-code-plugins";
+  const runs = (overrides = {}) =>
+    evaluate(gate, {
+      "github.ref": "refs/heads/main",
+      "github.repository": repo,
+      "github.event.workflow_run.path": ".github/workflows/pr-unblock-dispatch.yml",
+      "github.event.workflow_run.event": "schedule",
+      "github.event.workflow_run.repository.full_name": repo,
+      "github.event.workflow_run.head_repository.full_name": repo,
+      "github.event.workflow_run.head_branch": "main",
+      "github.event.workflow_run.conclusion": "success",
+      "needs.post-verify-notes.outputs.head-sha": "",
+      ...overrides,
+    });
+  assert.equal(runs(), true);
+  assert.equal(runs({ "github.event.workflow_run.conclusion": "failure" }), true, "a failed tick still sweeps");
+  for (const [label, overrides] of [
+    ["a push to main", { "github.event.workflow_run.event": "push" }],
+    ["a hand-started tick", { "github.event.workflow_run.event": "workflow_dispatch" }],
+    ["another branch", { "github.event.workflow_run.head_branch": "feat/x" }],
+    ["another repository", { "github.event.workflow_run.repository.full_name": "fork/claude-code-plugins" }],
+    ["another workflow's schedule", { "github.event.workflow_run.path": ".github/workflows/maintenance-reconcile-lost-runs.yml" }],
+  ]) {
+    assert.equal(runs(overrides), false, label);
   }
 });
 

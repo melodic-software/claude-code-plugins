@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, admit, decide, loadRules, noteUnrunnable, unrunnableCriteria } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, admit, decide, loadRules, noteUnrunnable, openPullsNaming, unrunnableCriteria } from "./admit.mjs";
 import { REFINE_MARKER, render, validateOutput } from "./refine.mjs";
 
 const RULES = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)));
@@ -53,7 +53,7 @@ const facts = (overrides = {}) => ({
   parent: null,
   blockers: [],
   trustedCloses: new Set(),
-  timeline: [],
+  pulls: [],
   events: [],
   humans,
   appId: APP,
@@ -229,39 +229,36 @@ describe("decide", () => {
     assert.match(result.reasons.join(), /#5/);
   });
 
-  test("waits on criterion 8: an open pull request in this repository names it", () => {
-    const result = decide(
-      facts({
-        timeline: [
-          {
-            event: "cross-referenced",
-            source: {
-              issue: {
-                number: 12,
-                state: "open",
-                pull_request: {},
-                repository_url: "https://api.github.com/repos/o/r",
-              },
-            },
-          },
-        ],
-      }),
-    );
+  test("waits on criterion 8: an open pull request for it", () => {
+    const result = decide(facts({ pulls: [12] }));
     assert.equal(result.verdict, "wait");
+    assert.deepEqual(result.pulls, [12]);
     assert.match(result.reasons.join(), /#12/);
   });
 
-  test("ignores a closed pull request and a mention from an issue", () => {
-    const ref = (issue) => ({
-      event: "cross-referenced",
-      source: { issue: { repository_url: "https://api.github.com/repos/o/r", ...issue } },
-    });
-    const result = decide(
-      facts({
-        timeline: [ref({ number: 12, state: "closed", pull_request: {} }), ref({ number: 13, state: "open" })],
-      }),
-    );
-    assert.equal(result.verdict, "admit");
+  // The fixture repository's issue; a cross-reference as the REST timeline reports it.
+  const ref = (issue) => ({
+    event: "cross-referenced",
+    source: { issue: { number: 12, state: "open", pull_request: {}, repository_url: "https://api.github.com/repos/o/r", body: "", ...issue } },
+  });
+  const closer = (number, nameWithOwner = "o/r") => ({ number, repository: { nameWithOwner } });
+
+  test("an open pull request is for the issue when GitHub says it closes it or its body has a Refs line", () => {
+    assert.deepEqual(openPullsNaming([], "o/r", 7, [closer(12)]), [12]);
+    assert.deepEqual(openPullsNaming([ref({ body: "No related issue.\r\nRefs: #7\r\n" })], "o/r", 7), [12]);
+    assert.deepEqual(openPullsNaming([ref({ number: 13, body: "Refs: #7" })], "o/r", 7, [closer(12), closer(13)]), [12, 13]);
+  });
+
+  test("a passing mention, another issue's Refs line, a closed or another repository's pull request is not for the issue", () => {
+    const timeline = [
+      ref({ body: "Follows the approach in #7." }),
+      ref({ number: 13, body: "Refs: #70" }),
+      ref({ number: 14, body: "Refs: #7, see the thread" }),
+      ref({ number: 15, state: "closed", body: "Refs: #7" }),
+      ref({ number: 16, body: "Refs: #7", repository_url: "https://api.github.com/repos/o/other" }),
+      ref({ number: 17, pull_request: undefined, body: "Refs: #7" }),
+    ];
+    assert.deepEqual(openPullsNaming(timeline, "o/r", 7, [closer(18, "o/other")]), []);
   });
 
   const completed = { number: 5, state: "closed", state_reason: "completed", repository_url: "https://api.github.com/repos/o/r" };
@@ -353,12 +350,17 @@ describe("decide", () => {
 // events and comments, recording every call.
 // `spec` is what SPEC_QUERY answers (by default the issue's body as a listed
 // human wrote it); "no-issue" and "no-body" answer an unexpected shape.
-function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, timeline = [], events = [], comments = [], spec } = {}) {
+// `closing` is what closedByPullRequestsReferences answers.
+function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, timeline = [], closing = [], events = [], comments = [], spec } = {}) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
     const base = "/repos/o/r/issues/7";
     if (method === "POST" && path === "/graphql") {
+      if (body.query.includes("closedByPullRequestsReferences")) {
+        const refs = { nodes: closing, pageInfo: { hasNextPage: false, endCursor: null } };
+        return { data: { repository: { issue: { closedByPullRequestsReferences: refs } } } };
+      }
       if (spec === "no-issue") {
         return { data: { repository: { issue: null } } };
       }
@@ -418,7 +420,7 @@ const go = (fake, { status = open } = {}) =>
     status: async () => status,
     log: () => {},
   });
-// The GraphQL author read is a POST but writes nothing.
+// The GraphQL reads are POSTs but write nothing.
 const writes = (calls) => calls.filter((call) => call.method !== "GET" && call.path !== "/graphql").map(({ method, path, body }) => `${method} ${path} ${JSON.stringify(body)}`);
 
 describe("admit", () => {
@@ -518,20 +520,19 @@ describe("admit", () => {
     assert.match(done[0], /^POST \/repos\/o\/r\/issues\/7\/comments /);
   });
 
-  test("an open pull request that names it adds admission-deferred, so the sweep revisits it", async () => {
-    const fake = fakeGitHub({
-      timeline: [
-        {
-          event: "cross-referenced",
-          source: { issue: { number: 12, state: "open", pull_request: {}, repository_url: "https://api.github.com/repos/o/r" } },
-        },
-      ],
-    });
+  test("an open pull request that closes it adds admission-deferred, so the sweep revisits it", async () => {
+    const fake = fakeGitHub({ closing: [{ number: 12, repository: { nameWithOwner: "o/r" } }] });
     const result = await go(fake);
     assert.equal(result.outcome, "waiting");
     const done = writes(fake.calls);
     assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [DEFERRED] })}`);
     assert.match(done[1], /^POST \/repos\/o\/r\/issues\/7\/comments .*open pull request #12/);
+  });
+
+  test("an open pull request that only mentions it does not defer it", async () => {
+    const mention = { event: "cross-referenced", source: { issue: { number: 12, state: "open", pull_request: {}, repository_url: "https://api.github.com/repos/o/r", body: "Like #7." } } };
+    const result = await go(fakeGitHub({ timeline: [mention] }));
+    assert.equal(result.outcome, "admitted");
   });
 
   test("a blocker its own outside author closed as completed keeps it waiting; a listed human's close admits it", async () => {
