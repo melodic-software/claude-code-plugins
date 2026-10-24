@@ -193,6 +193,13 @@ test("the newest digest decides: same entries skip, new ones update, a not-plann
   assert.equal(planDigest({ items: [], existing: [], openNumbers: new Set() }).action, null);
 });
 
+test("a finding covered by the digest itself stays in the digest", () => {
+  const open = digest([entry("00000000000000a1")]);
+  const plan = planDigest({ items: [item("00000000000000a1", { covered_by: 50 })], existing: [open], openNumbers: new Set([50]) });
+  assert.deepEqual(plan.skip, []);
+  assert.equal(plan.action, null);
+});
+
 test("an incomplete sweep keeps every earlier entry it did not see", () => {
   const open = digest([entry("00000000000000a1"), entry("00000000000000b1")]);
   const plan = planDigest({ items: [item("00000000000000c1")], existing: [open], openNumbers: new Set(), complete: false });

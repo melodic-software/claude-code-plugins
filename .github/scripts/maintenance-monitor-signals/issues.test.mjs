@@ -167,13 +167,24 @@ test("every open per-key issue is closed, pointing at its family's rolling issue
   assert.match(renderSupersede("1 main red", null), /next fires/);
 });
 
-test("every detector's signal is a rolling family or logged only", () => {
-  const all = [
-    detect({ now, windowStart, failedRuns: [denied(1)] }),
-    detect({ now, windowStart, mainRun: { id: 1, url: "u", sha: "a", event: "schedule", conclusion: "failure", failedJobs: [{ name: "j", annotations: [{ level: "failure", message: "m" }] }] } }),
-    detect({ now, windowStart, mergeGroupFailures: [1, 2, 3].map((id) => ({ id, url: "u", workflow: "w", createdAt: "t" })) }),
-  ].flat();
-  for (const f of all) assert.ok(SIGNALS.includes(f.signal) || LOG_ONLY.has(f.signal), f.signal);
+test("every detector's signal is a rolling family or logged only, and an unknown one is named in the plan", () => {
+  const all = detect({
+    now,
+    windowStart,
+    failedRuns: [denied(1)],
+    mainRun: { id: 1, url: "u", sha: "a", event: "schedule", conclusion: "failure", failedJobs: [{ name: "j", annotations: [{ level: "failure", message: "m" }] }] },
+    budgetReadings: [{ phase: "end", name: "lane", used: 99, limit: 100, remaining: 1 }],
+    mergeGroupFailures: [1, 2, 3].map((id) => ({ id, url: "u", workflow: "w", createdAt: "t" })),
+    sweep: { url: "u", live: true, startedAt: "2026-10-19T16:30:00Z", candidates: 3, results: [{ pr: 1, updatedAt: "2026-10-17T00:00:00Z" }] },
+    laneMerges: { lastMergedAt: null },
+    audits: [{ workflow: "w", run: { id: 1, url: "u", conclusion: "failure", createdAt: "t" } }],
+    status: { components: [{ name: "Actions", status: "major_outage" }], incidents: [] },
+    laneStops: [{ id: 1, outcome: "funding", issue: 3, createdAt: "t", url: "u" }],
+  });
+  assert.deepEqual(new Set(all.map((f) => f.signal)), new Set([...SIGNALS, ...LOG_ONLY]));
+  const plan = planIssues({ findings: [{ ...findingFor([1]), signal: "10 renamed" }], existing: [] });
+  assert.deepEqual(plan.file, []);
+  assert.deepEqual(plan.skip, [{ family: "renamed", number: null, reason: "unknown signal" }]);
 });
 
 test("the body carries each finding's evidence inside a text fence; the comment names the change", () => {

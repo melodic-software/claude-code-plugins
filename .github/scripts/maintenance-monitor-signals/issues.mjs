@@ -105,9 +105,11 @@ export function renderSupersede(signal, number) {
 export function planIssues({ findings, existing, complete = true }) {
   const bySignal = new Map(SIGNALS.map((s) => [s, []]));
   const logged = [];
+  const unknown = [];
   for (const f of findings) {
     if (LOG_ONLY.has(f.signal)) logged.push(f);
-    else bySignal.get(f.signal)?.push(f);
+    else if (bySignal.has(f.signal)) bySignal.get(f.signal).push(f);
+    else unknown.push({ family: familyOf(f.signal), number: null, reason: "unknown signal" });
   }
   const rolling = new Map();
   const legacy = [];
@@ -122,7 +124,7 @@ export function planIssues({ findings, existing, complete = true }) {
     if (!seen || issue.number > seen.issue.number) rolling.set(marker.key, { issue, marker });
   }
 
-  const plan = { file: [], update: [], reopen: [], close: [], skip: [], logged };
+  const plan = { file: [], update: [], reopen: [], close: [], skip: unknown, logged };
   for (const [signal, list] of bySignal) {
     const family = { signal, findings: [...list].sort((a, b) => a.key.localeCompare(b.key)) };
     const fp = stateFingerprint(family.findings);

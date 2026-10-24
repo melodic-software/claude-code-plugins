@@ -246,7 +246,8 @@ export function planDigest({ items, existing, openNumbers, complete = true }) {
       skip.push({ fingerprint: fp, reason: "muted" });
       continue;
     }
-    if (finding.covered_by !== null && openNumbers.has(finding.covered_by)) {
+    // The digest never covers its own entries.
+    if (finding.covered_by !== null && finding.covered_by !== digest?.number && openNumbers.has(finding.covered_by)) {
       skip.push({ fingerprint: fp, reason: "covered" });
       continue;
     }
