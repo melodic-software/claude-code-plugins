@@ -74,13 +74,18 @@ export function reconcilerOwns({ run, jobs }, now) {
 // True when the job's step list shows what ran: empty for a job no runner
 // took, else opening with "Set up job" and, where steps carry numbers, numbered
 // 1, 2, 3... up to the post steps ("Post ...", "Complete job"), which follow
-// after a gap.
+// after a gap. A finished job's list must also end with "Complete job" and
+// show every step completed, so a list cut at its tail, or read before it
+// caught up with the job, is not whole.
 export function stepsKnown(job) {
   const steps = job?.steps;
   if (!Array.isArray(steps) || steps.length === 0) {
     return Array.isArray(steps) && !job.runner_id;
   }
   if (steps[0]?.name !== "Set up job") {
+    return false;
+  }
+  if (job.status === "completed" && (steps.at(-1)?.name !== "Complete job" || steps.some((step) => step?.status !== "completed"))) {
     return false;
   }
   const gap = steps.findIndex((step, i) => step?.number != null && step.number !== i + 1);

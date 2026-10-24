@@ -3996,9 +3996,10 @@ jobs:
       # step it lists with no conclusion, or not at all, proves nothing either
       # way. Then the job's own check-run annotations decide. The review
       # counts only with its publish step's `claude-lane-review-complete`
-      # notice naming this lane and this head: only a comments-mode publish
-      # writes it, and the hold step runs after it in that mode, so a
-      # successful job with it ran the hold step as the step rule requires.
+      # notice naming this lane and this head, which proves a comments-mode
+      # publish for that lane and head. The notice itself does not prove the
+      # hold step ran: that step runs alongside the publish in comments mode
+      # because both callers set hold-label.
       # A kill-switch stop counts only with the notice its report step
       # writes. A pull_request run takes its workflow from the pull request,
       # so a head that rewrites a review caller can forge these notices as it

@@ -220,10 +220,10 @@ async function holdReason(call, repo, runId) {
   if (!listing.jobs.every(stepsKnown)) {
     throw new Error("a job's steps did not list in full, so which steps ran is unknown");
   }
-  const started = listing.jobs
-    .flatMap((job) => (Array.isArray(job?.steps) ? job.steps : []))
-    .filter((s) => s?.conclusion != null && s.conclusion !== "skipped");
-  if (started.some((s) => s.name === JUDGE_STEP)) {
+  const steps = listing.jobs.flatMap((job) => (Array.isArray(job?.steps) ? job.steps : []));
+  const started = steps.filter((s) => s?.conclusion != null && s.conclusion !== "skipped");
+  // A listed judge step counts as started in any state but a finished skip.
+  if (steps.some((s) => s?.name === JUDGE_STEP && !(s.status === "completed" && s.conclusion === "skipped"))) {
     return "after its judge step started";
   }
   return started.length === 0 ? "before any of its jobs started" : undefined;

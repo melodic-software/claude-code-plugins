@@ -172,14 +172,18 @@ async function reconcile({ pulls, runs, status = STATUS, upstream = UPSTREAM_OK,
 
 // A first-attempt job of pr-verify, lost before (null) or after its judge step
 // started; by default it was lost in the trigger check, before the judge step.
+// A finished job lists every step completed, the ones it never reached as
+// skipped, and ends with "Complete job".
 const verifyJob = (judgeConclusion = null) => [
   {
     name: "verify",
+    status: "completed",
     steps: [
       { name: "Set up job", status: "completed", conclusion: "success" },
       { name: "Check the trigger", status: "completed", conclusion: judgeConclusion === null ? "cancelled" : "success" },
-      { name: "Judge the pull request", status: judgeConclusion === null ? "pending" : "completed", conclusion: judgeConclusion },
-      { name: "Upload the verdict", status: "pending", conclusion: null },
+      { name: "Judge the pull request", status: "completed", conclusion: judgeConclusion ?? "skipped" },
+      { name: "Upload the verdict", status: "completed", conclusion: "skipped" },
+      { name: "Complete job", status: "completed", conclusion: "success" },
     ],
   },
 ];
@@ -467,12 +471,38 @@ test("a verify run whose job's steps did not list is not re-run or recorded, and
     { number: 2, name: "Check the trigger", status: "completed", conclusion: "success" },
     { number: 4, name: "Upload the verdict", status: "pending", conclusion: null },
   ];
-  for (const steps of [[], cut, midCut]) {
-    const { code, reruns, outputs } = await reconcile({ pulls: [], runs: [{ ...verifyRun(201), jobs: [{ name: "verify", conclusion: "cancelled", runner_id: 7, steps }] }] });
-    assert.equal(code, 1);
-    assert.deepEqual(reruns, []);
-    assert.deepEqual(records(outputs), ["", "", ""]);
+  // Opens with "Set up job", every listed step done, the rest cut off.
+  const tailCut = [
+    { number: 1, name: "Set up job", status: "completed", conclusion: "success" },
+    { number: 2, name: "Check the trigger", status: "completed", conclusion: "success" },
+  ];
+  // Whole, but stale: the judge step still in progress in a finished job.
+  const stale = [
+    { number: 1, name: "Set up job", status: "completed", conclusion: "success" },
+    { number: 2, name: "Check the trigger", status: "completed", conclusion: "success" },
+    { number: 3, name: "Judge the pull request", status: "in_progress", conclusion: null },
+    { number: 4, name: "Upload the verdict", status: "pending", conclusion: null },
+    { number: 9, name: "Complete job", status: "completed", conclusion: "success" },
+  ];
+  for (const [label, steps] of Object.entries({ empty: [], cut, midCut, tailCut, stale })) {
+    const { code, reruns, outputs } = await reconcile({
+      pulls: [],
+      runs: [{ ...verifyRun(201), jobs: [{ name: "verify", status: "completed", conclusion: "cancelled", runner_id: 7, steps }] }],
+    });
+    assert.equal(code, 1, label);
+    assert.deepEqual(reruns, [], label);
+    assert.deepEqual(records(outputs), ["", "", ""], label);
   }
+});
+
+// Whatever the list looks like, a judge step listed with any state but a
+// finished skip counts as started.
+test("a verify run whose judge step is listed with no conclusion is held", async () => {
+  const [job] = verifyJob(null);
+  const steps = job.steps.map((s) => (s.name === JUDGE_STEP ? { ...s, status: "completed", conclusion: null } : s));
+  const { reruns, outputs } = await reconcile({ pulls: [], runs: [{ ...verifyRun(201), jobs: [{ ...job, steps }] }] });
+  assert.deepEqual(reruns, []);
+  assert.deepEqual(records(outputs), ["", "", ""]);
 });
 
 test("a verify run whose jobs cannot be read is not re-run", async () => {

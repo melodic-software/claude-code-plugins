@@ -119,6 +119,17 @@ test("a numbered list is whole only when its steps run 1..n before the post step
   assert.equal(stepsKnown(numbered([1, "Set up job"], [2, "Check out"], [5, "Upload the verdict"])), false);
 });
 
+test("a finished job's list is whole only when every step is done and it ends with Complete job", () => {
+  const done = { ...numbered([1, "Set up job"], [2, "Check out"], [3, "Test", "failure"], [38, "Post Check out"], [39, "Complete job"]), status: "completed" };
+  assert.equal(stepsKnown(done), true);
+  const tailCut = { ...numbered([1, "Set up job"], [2, "Check out"]), status: "completed" };
+  assert.equal(stepsKnown(tailCut), false);
+  assert.equal(infraCause(tailCut), "", "a tail-cut list with no failed step is not a lost runner");
+  const stale = { ...done, steps: done.steps.map((s) => (s.name === "Test" ? { ...s, status: "in_progress", conclusion: null } : s)) };
+  assert.equal(stepsKnown(stale), false);
+  assert.equal(infraCause(stale), "");
+});
+
 test("the reconciler keeps a run whose failed jobs' steps did not list, inside its re-run window", () => {
   const now = Date.parse("2026-10-19T20:00:00Z");
   const run = (attempt, created = "2026-10-19T19:00:00Z") => ({ status: "completed", conclusion: "failure", run_attempt: attempt, created_at: created });
