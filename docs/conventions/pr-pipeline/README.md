@@ -1799,10 +1799,11 @@ labels an issue `agent-ready`, so nothing it files starts work. Its scripts and 
   checkout and no shell. It takes the `triage-issue` route's profile. CI logs and titles reach it
   as data. It returns at most three findings, each citing at least one `path`, `line` and exact
   `quote` from main.
-- **file**, a script with no model and `issues: write`, drops a finding whose slice, workflow or job
-  is not one its unit's data shows, or when any quote is not on its line in the run's main commit, then de-duplicates it by fingerprint: a hash of the slice, workflow,
-  job and the error signature with numbers, SHAs and times removed, kept as the last line of the
-  issue body. An open match gets a "seen again" comment; a match closed as not planned or duplicate
+- **file**, a script with no model and `issues: write`, drops a finding whose slice is not its
+  unit's, whose workflow is not its A or D unit's, or whose job is not among the jobs its unit's data
+  lists (when it lists any), or when any quote is not on its line in the run's main commit, then
+  de-duplicates it by fingerprint: a hash of the slice, workflow, job and the error signature with
+  numbers, SHAs and times removed, kept as the last line of the issue body. An open match gets a "seen again" comment; a match closed as not planned or duplicate
   is skipped; any other closed match, whatever its age, is reopened with a comment carrying the
   checked claims. A finding whose
   `covered_by` names an open item is skipped. It files at most 5 issues a run, labeled

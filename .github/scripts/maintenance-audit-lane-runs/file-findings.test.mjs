@@ -138,6 +138,22 @@ test("a finding that matches its unit's workflow and job passes", (t) => {
   assert.deepEqual(a.dropped, []);
 });
 
+test("a unit whose data lists no jobs binds the workflow but not the job", (t) => {
+  const noGreen = { ...dUnit(), sampled_success_runs: [] };
+  const d = prepareOne(t, noGreen, { job: "anything" });
+  assert.equal(d.items.length, 1);
+  assert.deepEqual(d.dropped, []);
+  const other = prepareOne(t, noGreen, { workflow: ".github/workflows/pr-other.yml" });
+  assert.deepEqual(other.dropped, [{ unit: "d1", title: finding().title, reason: "workflow-not-unit" }]);
+  const a = prepareOne(t, { ...aUnit(), runs: [{ id: 9, failed_jobs: [] }] }, {
+    slice: "A",
+    workflow: ".github/workflows/pr-ci.yml",
+    job: "build",
+  });
+  assert.equal(a.items.length, 1);
+  assert.deepEqual(a.dropped, []);
+});
+
 test("a finding whose unit file is missing is dropped", (t) => {
   const base = mkdtempSync(join(tmpdir(), "lane-sweep-file-"));
   writeFileSync(join(base, "a.yml"), "if: true\n");

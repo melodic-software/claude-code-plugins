@@ -33,14 +33,15 @@ export function unitJobs(unit) {
 }
 
 // Why a finding does not belong to the unit it came from, else null. The
-// judge reads CI text that can steer it, and slice, workflow and job set the
-// fingerprint, so each must be what collect wrote for the unit.
+// judge reads CI text that can steer it, so slice, and the workflow of A and
+// D, must be what collect wrote for the unit, and so must the job when the
+// unit's data lists any (a D unit with no green run, or an A run whose jobs
+// did not end in failure, lists none).
 export function unitMismatch(finding, unit) {
   if (finding.slice !== unit.slice) return "slice-not-unit";
+  if (unit.slice !== "C" && finding.workflow !== unit.workflow) return "workflow-not-unit";
   const jobs = unitJobs(unit);
-  if (jobs === null) return null;
-  if (finding.workflow !== unit.workflow) return "workflow-not-unit";
-  if (!jobs.includes(finding.job)) return "job-not-in-unit";
+  if (jobs?.length && !jobs.includes(finding.job)) return "job-not-in-unit";
   return null;
 }
 
