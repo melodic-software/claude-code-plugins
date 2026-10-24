@@ -242,6 +242,21 @@ def parse_title(title: str, body: str) -> list[Update] | None:
     return None
 
 
+def title_major(title: str, update: Update) -> bool | None:
+    """The jump a single-package title reads for a metadata entry with no
+    `update-type` (a security update writes none): only when the title names
+    the same package and its `to` version is the entry's version; None
+    otherwise, a group title included."""
+    subject = _PREFIX.sub("", str(title), count=1)
+    if _GROUP.search(subject) or not (single := _SINGLE.search(subject)):
+        return None
+    if single.group(1) != update.name:
+        return None
+    if update.version is not None and single.group(3) != update.version:
+        return None
+    return is_major(single.group(2), single.group(3))
+
+
 def classify(
     title: str,
     body: str,
@@ -262,6 +277,13 @@ def classify(
             entries = parse_metadata(str(commit.get("message") or ""))
             if entries is not None:
                 metadata = (metadata or []) + entries
+    if metadata:
+        metadata = [
+            u
+            if u.major is not None
+            else Update(u.name, title_major(title, u), u.version)
+            for u in metadata
+        ]
     titled = parse_title(title, body)
     reasons: list[str] = []
     updates = metadata if metadata else titled

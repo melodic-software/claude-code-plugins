@@ -174,6 +174,54 @@ class Classify(unittest.TestCase):
             tier("bump x", commits=[unknown]).reasons, ("unparsed-version:x",)
         )
 
+    def test_security_metadata_without_update_type_reads_the_title(self) -> None:
+        # A security update's metadata names the package and version but no
+        # update-type (#9511): the single-package title's versions decide.
+        patch = commit(metadata(("fast-uri", None, "3.1.9")))
+        title = "build: Bump fast-uri from 3.1.8 to 3.1.9 in /plugins/miro/server"
+        self.assertEqual(
+            (tier(title, commits=[patch]).tier, tier(title, commits=[patch]).reasons),
+            ("auto", ()),
+        )
+        major = commit(metadata(("x", None, "2.0.0")))
+        self.assertEqual(
+            tier("bump x from 1.9.0 to 2.0.0", commits=[major]).reasons, ("major:x",)
+        )
+
+    def test_the_title_fallback_keeps_the_0x_rule(self) -> None:
+        zero = commit(metadata(("x", None, "0.4.0")))
+        self.assertEqual(
+            tier("bump x from 0.3.1 to 0.4.0", commits=[zero]).reasons, ("major:x",)
+        )
+        zero_patch = commit(metadata(("x", None, "0.3.2")))
+        self.assertEqual(
+            tier("bump x from 0.3.1 to 0.3.2", commits=[zero_patch]).tier, "auto"
+        )
+
+    def test_the_title_fallback_needs_the_same_package_and_version(self) -> None:
+        other = commit(metadata(("y", None, "1.0.1")))
+        result = tier("bump x from 1.0.0 to 1.0.1", commits=[other])
+        self.assertIn("unparsed-version:y", result.reasons)
+        self.assertIn("sources-disagree", result.reasons)
+        moved = commit(metadata(("x", None, "1.0.2")))
+        result = tier("bump x from 1.0.0 to 1.0.1", commits=[moved])
+        self.assertEqual(result.tier, "review")
+        self.assertIn("unparsed-version:x", result.reasons)
+        self.assertIn("sources-disagree", result.reasons)
+
+    def test_a_group_title_never_fills_a_missing_update_type(self) -> None:
+        message = metadata(("a", None, "1.0.1"))
+        body = "Updates `a` from 1.0.0 to 1.0.1\n"
+        result = tier(
+            "bump the g group with 1 update", body=body, commits=[commit(message)]
+        )
+        self.assertIn("unparsed-version:a", result.reasons)
+
+    def test_an_unreadable_title_version_still_holds(self) -> None:
+        unknown = commit(metadata(("x", None, "9f8e7d6c5b4a")))
+        result = tier("bump x from 0a1b2c3d4e5f to 9f8e7d6c5b4a", commits=[unknown])
+        self.assertIn("unparsed-version:x", result.reasons)
+
     def test_real_group_metadata_and_body_agree(self) -> None:
         message = metadata(
             ("actions/create-github-app-token", "semver-minor", "3.3.0"),
