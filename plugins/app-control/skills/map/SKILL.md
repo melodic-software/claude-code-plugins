@@ -1,6 +1,6 @@
 ---
 description: "Generate a project's control skill (its control-* skill) to the app-control contract: discover the repository first, ask only what discovery left open, write the hub, feature folders, config and driver CLI, then prove it once through /app-control:drive; check lists contract breaks, editing nothing. Use when: 'create a control skill', 'map the features of this app', 'write a feature map', 'set up app control for this repo', 'check the control skill'."
-argument-hint: "[create [<app>] | check [<dir>]] [--dir .claude/skills/control-<slug>] [--unattended]"
+argument-hint: "[create [<app>]|check [<dir>]] [--dir .claude/skills/control-<slug>] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Generate and prove a control skill that /app-control:drive runs
 ---
 
-**Arguments.** `[create [<app>] | check [<dir>]] [--dir .claude/skills/control-<slug>] [--unattended]`.
+**Arguments.** `[create [<app>]|check [<dir>]] [--dir .claude/skills/control-<slug>] [--unattended]`.
 e.g. /app-control:map create storefront, or /app-control:map check .claude/skills/control-storefront
 
 ## Purpose
