@@ -11,9 +11,9 @@ execution:
   max_turns: 20
   timeout_seconds: 600
 graders:
-  - name: names-export-file
+  - name: reports-entry-reason-line
     type: regex
-    pattern: 'features/billing/export/README\.md'
+    pattern: 'entry-reason \| features/billing/export/README\.md \|'
     arm: both
   - name: writes-nothing
     type: tool_used
