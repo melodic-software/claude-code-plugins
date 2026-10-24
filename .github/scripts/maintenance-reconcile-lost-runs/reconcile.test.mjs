@@ -18,7 +18,7 @@ import path from "node:path";
 import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { GITHUB_STATUS_URL, JUDGE_STEP, main, NPM_STATUS_URL } from "./reconcile.mjs";
+import { GITHUB_STATUS_URL, JUDGE_STEP, main, NPM_STATUS_URL, prefilterSpec } from "./reconcile.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const NOW = Date.parse("2026-10-19T20:00:00Z");
@@ -737,7 +737,9 @@ const PASS_RUN = 701;
 const PASS_STARTED = "2026-10-19T19:30:00Z";
 // The first 16 hex digits of `printf %s fix/1 | sha256sum`, pr(1)'s head ref.
 const FIX_1_DIGEST = "fe65f143bd3d5845";
-function specChanged({ edited, attempt = 1, pass = true, digest = false } = {}) {
+// `updated` is the issue's updatedAt, which a body edit or new comment moves:
+// the edit time by default, else a time before the pass.
+function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attempt = 1, pass = true, digest = false } = {}) {
   const head = sha(1);
   const checks = { ...run(601, head, { conclusion: "success", attempt }), repository: { full_name: REPO } };
   const judged = { ...verifyRun(PASS_RUN, { conclusion: "success" }), repository: { full_name: REPO }, run_started_at: PASS_STARTED, jobs: [] };
@@ -754,18 +756,24 @@ function specChanged({ edited, attempt = 1, pass = true, digest = false } = {}) 
   const pull = { ...pr(1), user: { id: 9, login: LANE, type: "Bot" }, base: { ref: "main", sha: "b".repeat(40) } };
   // The pull requests whose spec was read.
   const specReads = [];
+  const prefilterReads = [];
   const wrap = (github) => async (method, apiPath, body) => {
     if (apiPath === `/repos/${REPO}/commits/${head}/pulls?per_page=100&page=1`) return [pull];
     const named = /\/actions\/artifacts\?name=([^&]+)&per_page=100(?:&page=1)?$/.exec(apiPath);
     if (named) return { artifacts: pass && decodeURIComponent(named[1]) === name ? [{ name, expired: false, workflow_run: { id: PASS_RUN } }] : [] };
     if (apiPath === `/repos/${REPO}/compare/${MAIN_TIP}...main`) return { status: "ahead" };
+    if (apiPath === "/graphql" && !body.variables) {
+      // The pre-filter's batched read: one alias per candidate.
+      prefilterReads.push(body.query);
+      return { data: { repository: { p0: { body: "", lastEditedAt: null, closingIssuesReferences: { totalCount: 1, nodes: [{ updatedAt: updated, repository: { nameWithOwner: REPO } }] } } } } };
+    }
     if (apiPath === "/graphql") {
       specReads.push(body.variables.number);
       return { data: { repository: { pullRequest: { body: "", createdAt: "2026-10-19T00:00:00Z", lastEditedAt: null, editor: null, closingIssuesReferences: { totalCount: 1, nodes: [issue] } } } } };
     }
     return github(method, apiPath, body);
   };
-  return { setup: { pulls: [pr(1)], runs: [checks, judged], github: wrap }, specReads };
+  return { setup: { pulls: [pr(1)], runs: [checks, judged], github: wrap }, specReads, prefilterReads };
 }
 
 async function withTrustedList(fn) {
@@ -794,19 +802,51 @@ test("a pass the spec changed under re-runs the head's passed checks once, with 
 test("a pass judged after the spec's last change, a second attempt, or no pass re-runs nothing", async () => {
   await withTrustedList(async (env) => {
     const cases = {
-      "edited before the pass": [{ edited: "2026-10-19T19:15:00Z" }, [1]],
-      "never edited": [{ edited: null }, [1]],
-      "already at attempt 2": [{ edited: "2026-10-19T19:45:00Z", attempt: 2 }, []],
-      "no pass at the head": [{ edited: "2026-10-19T19:45:00Z", pass: false }, []],
+      // An issue not updated since the pass: the pre-filter skips the full read.
+      "edited before the pass": [{ edited: "2026-10-19T19:15:00Z" }, [], 1],
+      "never edited": [{ edited: null }, [], 1],
+      // Updated after the pass by something the spec leaves out (a bot's
+      // comment): the full read runs, and specChanged still says no.
+      "updated, but no spec change": [{ edited: "2026-10-19T19:15:00Z", updated: "2026-10-19T19:45:00Z" }, [1], 1],
+      "already at attempt 2": [{ edited: "2026-10-19T19:45:00Z", attempt: 2 }, [], 0],
+      "no pass at the head": [{ edited: "2026-10-19T19:45:00Z", pass: false }, [], 0],
     };
-    for (const [label, [options, read]] of Object.entries(cases)) {
-      const { setup, specReads } = specChanged(options);
+    for (const [label, [options, read, prefiltered]] of Object.entries(cases)) {
+      const { setup, specReads, prefilterReads } = specChanged(options);
       const { code, reruns } = await reconcile({ ...setup, env });
       assert.equal(code, 0, label);
       assert.deepEqual(reruns, [], label);
       assert.deepEqual(specReads, read, label);
+      assert.equal(prefilterReads.length, prefiltered, label);
     }
   });
+});
+
+test("the pre-filter reads every candidate in one GraphQL query and keeps only a spec that moved", async () => {
+  const PASS = "2026-10-19T19:30:00Z";
+  const before = "2026-10-19T19:00:00Z";
+  const after = "2026-10-19T20:00:00Z";
+  const closes = (updatedAt, repo = REPO) => ({ body: "", lastEditedAt: null, closingIssuesReferences: { totalCount: 1, nodes: [{ updatedAt, repository: { nameWithOwner: repo } }] } });
+  const answers = {
+    p0: closes(before),
+    p1: closes(after),
+    p2: { body: "Refs: #9", lastEditedAt: null, closingIssuesReferences: { totalCount: 0, nodes: [] } },
+    p3: { body: "", lastEditedAt: after, closingIssuesReferences: { totalCount: 0, nodes: [] } },
+    p4: closes(before),
+  };
+  const queries = [];
+  const call = async (method, apiPath, body) => {
+    assert.equal(`${method} ${apiPath}`, "POST /graphql");
+    queries.push(body.query);
+    return body.query.includes("r0: issue(number: 9)") ? { data: { repository: { r0: { updatedAt: after } } } } : { data: { repository: answers } };
+  };
+  const candidates = [10, 11, 12, 13, 14].map((number, i) => ({ pull: { number }, starts: i === 4 ? [null] : [PASS] }));
+  const kept = (await prefilterSpec(call, REPO, candidates)).map((c) => c.pull.number);
+  // 10: issue unchanged. 11: issue updated after the pass. 12: its Refs issue
+  // updated after. 13: its own body edited after. 14: a pass start unreadable.
+  assert.deepEqual(kept, [11, 12, 13, 14]);
+  assert.equal(queries.length, 2, "one batched query, plus one for the Refs issues");
+  assert.deepEqual(await prefilterSpec(call, REPO, []), []);
 });
 
 test("a spec read that fails re-runs nothing and leaves the run green", async (t) => {

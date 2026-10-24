@@ -32,7 +32,9 @@
 //   new spec comment after the pass: resolve-pr's `spec-changed`, the same
 //   read pr-verify makes). The gate refuses that pass `verify:spec-changed`;
 //   the recorded re-run starts pr-verify, which judges the head against the
-//   spec as it is now. Once per passed checks run, as attempt 2 is never
+//   spec as it is now. One batched GraphQL read of the linked issues'
+//   `updatedAt` (`prefilterSpec`) keeps that full read off heads whose spec
+//   nobody touched since the pass. Once per passed checks run, as attempt 2 is never
 //   touched again; an edit or label later starts a new attempt-1 run.
 // Other lost lane runs (the review lanes, refine) are listed in the summary for
 // a person: their gates or the lanes token broker refuse a re-run
@@ -68,7 +70,7 @@ import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, loadTrustedList, paginate, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { resolvePull, specFromBodyApps } from "../pr-verify/resolve-pr.mjs";
+import { refsIssue, resolvePull, specFromBodyApps } from "../pr-verify/resolve-pr.mjs";
 import { headRefDigest } from "../pr-verify/write-verdict.mjs";
 import { firstFailure, INFRA_BACKOFF_MINUTES, infraOnly, LOOKBACK_HOURS, reconcilerRetries, testedRun } from "./infra-failure.mjs";
 
@@ -222,22 +224,102 @@ async function holdReason(call, repo, runId) {
   return started.length === 0 ? "before any of its jobs started" : undefined;
 }
 
-// Whether the PR has an unexpired pr-verify PASS or PASS-NOTES at the head,
-// by exact name with and without the head-ref digest (write-verdict.mjs
-// artifactName, headRefDigest), so resolve-pr's full read runs only for a
-// head that has one.
-async function passedAt(call, repo, number, head, ref) {
+// The start times of the runs that uploaded the PR's unexpired pr-verify
+// PASS or PASS-NOTES at the head, by exact name with and without the head-ref
+// digest (write-verdict.mjs artifactName, headRefDigest); empty when it has
+// none. A run that cannot be read gives null. resolve-pr's full read checks
+// each pass's origin; these feed only the pre-filter.
+async function passStarts(call, repo, number, head, ref) {
   const digest = ref ? `-${headRefDigest(ref)}` : "";
+  const ids = new Set();
   for (const name of ["pass", "pass-notes"].flatMap((verdict) => {
     const plain = `pr-verify-${number}-${head}-${verdict}`;
     return digest ? [plain, plain + digest] : [plain];
   })) {
     const page = await call("GET", `/repos/${repo}/actions/artifacts?name=${name}&per_page=100`);
-    if ((page?.artifacts ?? []).some((a) => a?.name === name && a.expired === false)) {
-      return true;
+    for (const a of page?.artifacts ?? []) {
+      if (a?.name === name && a.expired === false && Number.isSafeInteger(a.workflow_run?.id)) {
+        ids.add(a.workflow_run.id);
+      }
     }
   }
-  return false;
+  const starts = [];
+  for (const id of ids) {
+    const run = await call("GET", `/repos/${repo}/actions/runs/${id}`).catch((error) => {
+      if (error instanceof RateLimited) {
+        throw error;
+      }
+      return null;
+    });
+    starts.push(run?.run_started_at ?? null);
+  }
+  return starts;
+}
+
+const PREFILTER_PULL = "body lastEditedAt closingIssuesReferences(first: 10) { totalCount nodes { updatedAt repository { nameWithOwner } } }";
+
+// The candidates whose spec may have changed after their newest pass: the
+// pre-filter that keeps resolve-pr's full read (about a dozen REST calls and
+// one GraphQL query) off a PR whose spec nobody touched. One GraphQL query
+// reads every candidate's closing issues' `updatedAt` (which moves on a body
+// edit or a new comment) and, for one that is its own spec, its body's
+// `lastEditedAt`; a second reads the `Refs:` issue of each PR that closes
+// none. A candidate is kept when any of those times is after its newest pass
+// started, or when anything it needs cannot be read. It decides nothing:
+// resolve-pr's `specChanged` still decides skip or re-run.
+export async function prefilterSpec(call, repo, candidates) {
+  if (candidates.length === 0) {
+    return [];
+  }
+  const [owner, name] = repo.split("/");
+  const query = (fields) => `query { repository(owner: ${JSON.stringify(owner)}, name: ${JSON.stringify(name)}) { ${fields} } }`;
+  const keep = new Set();
+  let pulls;
+  try {
+    const answer = await call("POST", "/graphql", { query: query(candidates.map((c, i) => `p${i}: pullRequest(number: ${c.pull.number}) { ${PREFILTER_PULL} }`).join(" ")) });
+    pulls = answer?.data?.repository;
+  } catch (error) {
+    if (error instanceof RateLimited) {
+      throw error;
+    }
+    return candidates;
+  }
+  const refs = [];
+  candidates.forEach((c, i) => {
+    const latest = Math.max(...c.starts.map((s) => Date.parse(s ?? "")));
+    const pr = pulls?.[`p${i}`];
+    const closing = pr?.closingIssuesReferences;
+    const after = (time) => !(Date.parse(time ?? "") <= latest);
+    if (c.starts.some((s) => Number.isNaN(Date.parse(s ?? ""))) || !pr || !Array.isArray(closing?.nodes) || closing.totalCount !== closing.nodes.length) {
+      keep.add(i);
+      return;
+    }
+    const own = closing.nodes.filter((n) => n?.repository?.nameWithOwner === repo);
+    if (own.length > 0) {
+      if (own.some((n) => after(n.updatedAt))) keep.add(i);
+      return;
+    }
+    if (pr.lastEditedAt != null && after(pr.lastEditedAt)) {
+      keep.add(i);
+      return;
+    }
+    const named = refsIssue(pr.body);
+    if (named !== null) refs.push({ i, named, latest });
+  });
+  if (refs.length > 0) {
+    try {
+      const answer = await call("POST", "/graphql", { query: query(refs.map((r, j) => `r${j}: issue(number: ${r.named}) { updatedAt }`).join(" ")) });
+      refs.forEach((r, j) => {
+        if (!(Date.parse(answer?.data?.repository?.[`r${j}`]?.updatedAt ?? "") <= r.latest)) keep.add(r.i);
+      });
+    } catch (error) {
+      if (error instanceof RateLimited) {
+        throw error;
+      }
+      refs.forEach((r) => keep.add(r.i));
+    }
+  }
+  return candidates.filter((_, i) => keep.has(i));
 }
 
 // Reads every open PR's head and the recorded lanes' runs, and returns the
@@ -250,6 +332,8 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec }) {
   let failed = 0;
   let inFlight = 0;
   const ready = [];
+  // Heads with a pass whose spec may have changed since (`prefilterSpec`).
+  const specCandidates = [];
   // Read once, on the first infra-only run: why its re-run waits, or "" when npm and GitHub are clear.
   let upstream;
   const upstreamHold = async () =>
@@ -334,8 +418,9 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec }) {
       // next tick asks again. A rate limit still stops the run.
       if (set.length === 0 && judgeSpec && isPassedChecks(checks)) {
         try {
-          if ((await passedAt(call, repo, pull.number, pull.head.sha, pull.head.ref)) && (await judgeSpec(checks.id)).reason === "spec-changed") {
-            set.push({ kind: "spec", pr: pull.number, id: checks.id, path: checks.path, conclusion: "success", attempt: 1, head: pull.head.sha });
+          const starts = await passStarts(call, repo, pull.number, pull.head.sha, pull.head.ref);
+          if (starts.length > 0) {
+            specCandidates.push({ pull, checks, starts });
           }
         } catch (error) {
           if (error instanceof RateLimited) {
@@ -349,6 +434,19 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec }) {
       }
     } catch (error) {
       noteFailure(`#${pull.number}`, error);
+    }
+  }
+  // Only a candidate whose spec moved after its pass gets resolve-pr's full read.
+  for (const { pull, checks } of await prefilterSpec(call, repo, specCandidates)) {
+    try {
+      if ((await judgeSpec(checks.id)).reason === "spec-changed") {
+        ready.push([withRecord({ kind: "spec", pr: pull.number, id: checks.id, path: checks.path, conclusion: "success", attempt: 1, head: pull.head.sha })]);
+      }
+    } catch (error) {
+      if (error instanceof RateLimited) {
+        throw error;
+      }
+      say(`#${pull.number}: its spec could not be checked (${escapeCommand(error?.message ?? error)}); the next run checks again`);
     }
   }
   const created = encodeURIComponent(`>=${new Date(since).toISOString().replace(/\.\d{3}Z$/, "Z")}`);
