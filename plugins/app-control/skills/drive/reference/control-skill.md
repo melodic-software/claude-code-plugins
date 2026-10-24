@@ -41,9 +41,8 @@ in its manual before writing the command.
 Prefer a command that launches the app as a child of the profiler where the tool supports it: it
 records only what the run started.
 
-A `threads` recorder cannot launch the app: it attaches to a pid. Write its command with a `<pid>`
-placeholder and no elevation prefix; drive fills in the launched pid only after its pid check, and
-takes the elevated route for it.
+Write a `threads` command with a `<pid>` placeholder and no elevation prefix. Drive fills in the
+launched pid only after its pid check, and always takes the elevated route for it.
 
 A `## Capture` command never carries an elevation prefix (such as `sudo`, `doas` or `runas`). When
 a capture needs root or administrator rights, elevate only the recorder against the app's pid, never

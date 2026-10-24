@@ -20,9 +20,17 @@ graders:
     arm: both
   - name: names-both-wait-sites
     type: regex
+    target: last_message
     pattern: 'sync\.py:16[\s\S]*sync\.py:27|sync\.py:27[\s\S]*sync\.py:16'
+    arm: both
+  - name: names-a-second-dump
+    type: regex
+    target: last_message
+    pattern: '(second|another|later|repeat)[^.\n]{0,40}dump'
+    flags: 'i'
     arm: both
   - name: names-the-cycle
     type: llm
+    focus: last_message
     arm: both
-    criteria: "PASS only if the answer says the stock-writer thread waits for ledger_lock at sync.py:16 (post_ledger_entry) while holding stock_lock from reserve_stock, and the ledger-reconciler thread waits for stock_lock at sync.py:27 (adjust_stock) while holding ledger_lock from reconcile_ledger, so each holds what the other waits for. FAIL if it misses either thread's held lock or waited lock, names a different cause, or edits or proposes an applied edit to a file."
+    criteria: "PASS only if the answer says the stock-writer thread waits for ledger_lock at sync.py:16 (post_ledger_entry) while holding stock_lock from reserve_stock, and the ledger-reconciler thread waits for stock_lock at sync.py:27 (adjust_stock) while holding ledger_lock from reconcile_ledger, so each holds what the other waits for. FAIL if it misses either thread's held lock or waited lock, or names a different cause. Proposing a fix without applying it is fine."

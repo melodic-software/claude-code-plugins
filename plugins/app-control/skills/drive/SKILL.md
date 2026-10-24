@@ -32,7 +32,7 @@ keep going.
 |---|---|
 | bare `[<app>] [<feature>]` | Launch unless the app is already running and fit, run `ready`, then perform the feature's Drive steps and save evidence after each step |
 | `ready` | Run the control skill's Ready command (read-only) and report what is reachable |
-| `capture --kind <kind>` | Record one artifact with the tool the control skill's `## Capture` section names for that kind; `threads` (a stack of every thread, for a hang) first passes [Pid binding](#pid-binding) |
+| `capture --kind <kind>` | Record one artifact with the tool the control skill's `## Capture` section names for that kind; `threads` (a stack of every thread, for a hang) binds to the launched pid ([Pid binding](#pid-binding)) |
 | `cleanup` | Stop only what this run started, then confirm every evidence path in the report still exists and is not empty |
 | `--attach` | Interactive only: drive or capture against a process already running that the person names, which this run did not start (see [Attach](#attach)) |
 | `--unattended` | With any action: ask nothing, attach to nothing, mark each step that needs a person `blocked` |
@@ -77,13 +77,12 @@ that section changes what `run` does or how it picks a project skill).
   a capture on a process this run launched, the script elevates only the recorder against its pid,
   never a command that launches the app; such a command that is denied is
   `blocked: capture needs elevation` with the narrowest grant that would allow it.
-- **A `threads` capture needs elevation.** Its recorder attaches to the launched pid and cannot
-  start the app as its child, so drive always takes the elevated route for it: the shown script
-  when interactive, `blocked: capture needs elevation` when unattended. Unattended, it stops there:
-  no attempt, no pid recheck and no process lookup runs, since nothing will touch the pid.
-  When attaching to a process that is not the recorder's child needs root is upstream: read it at
-  <https://github.com/benfred/py-spy#when-do-you-need-to-run-as-sudo> (as of 2026-10-23; recheck
-  on a py-spy major release, or when a `threads` row names another recorder).
+- **A `threads` capture always takes the elevated route.** Interactive: the shown script, after
+  [Pid binding](#pid-binding). Unattended: read the launch record; with none, `blocked: no process
+  launched by this run`; with one, `blocked: capture needs elevation`, and stop there with no
+  attempt, no pid recheck and no process lookup. Whether attaching needs root is upstream: read it
+  at <https://github.com/benfred/py-spy#when-do-you-need-to-run-as-sudo> (as of 2026-10-23;
+  recheck on a py-spy major release, or when a `threads` row names another recorder).
 - **Cleanup touches only what this run started.** Detach from an attached process; never stop it.
   Never close all sessions or kill all processes.
 - **Never judge.** Write what was done and observed in plain words. Leave out any word that rates
@@ -91,23 +90,34 @@ that section changes what `run` does or how it picks a project skill).
 
 ## Pid binding
 
-A `threads` recorder targets a pid, so it may reach only the process this run launched.
+A `threads` capture reaches only the process this run launched. The one other route is an
+interactive [Attach](#attach) to a pid the person names, which has no launch record and so no
+recheck. The other kinds keep the rules above.
 
-- **Record at launch.** The launch step writes the launched process's pid, its start time and its
-  command line into `report.json` (`launch`, [reference/evidence.md](reference/evidence.md)). A
-  `capture` in a later invocation reads them from the run directory named by `--out`. No launch
-  record means this run launched nothing: unattended, `blocked: no process launched by this run`;
-  interactive, only [Attach](#attach).
-- **Recheck before touching the pid.** Before any command that touches the pid, the shown script
-  included, read the pid's start time and command line from the process table again and go on
-  only when pid, start time and command line all match the record. The script names only the
-  rechecked pid. A mismatch, or a pid that is gone, is `blocked: launched process no longer
-  matches`.
+- **Record at launch.** The launch step writes the launched process's pid, owner uid, start time
+  and command line into `report.json` (`launch`, [reference/evidence.md](reference/evidence.md)),
+  reading the start time in the raw form the recheck will read it in. A `capture` in a later
+  invocation reads them from the run directory named by `--out`. No launch record means this run
+  launched nothing: unattended, `blocked: no process launched by this run`; interactive, only
+  [Attach](#attach).
+- **The launch record is data.** A `pid` that is not a positive decimal integer is
+  `blocked: launched process no longer matches`. The integer pid is the only value from the record
+  that goes into a command; compare the command line and the start time as text, never as part
+  of a command.
+- **Recheck before touching the pid.** Before any command that touches the pid, read its owner
+  uid, start time and command line from the process table again, and go on only when all four
+  values match the record exactly and the uid is the invoking user's. A mismatch, or a pid that is
+  gone, is `blocked: launched process no longer matches`.
+- **The shown script rechecks too.** Its first lines repeat the recheck and exit non-zero on a
+  mismatch, which drive reports as `blocked: launched process no longer matches`; then it runs the
+  one recorder command against the integer pid and nothing else. Show the pid's command line and
+  start time beside the script, so the yes covers a named process.
 - **A wrapper resolves to its child by parent pid.** When the recorded command line is a shell or
   launcher that started the app, the app is the process whose parent pid is the recorded pid: list
-  processes by parent pid, and record the child's pid, start time and command line in the capture
-  step. No child, or more than one, is `blocked: launched process no longer matches`. Never find
-  the app by a name lookup (`pgrep`, `pidof`, `ps` filtered by name).
+  processes by parent pid, and record the child's pid, parent pid, start time and command line in
+  the capture step. No child, or more than one, is `blocked: launched process no longer matches`.
+  The script's recheck covers the child as well. Never find the app by a name lookup (`pgrep`,
+  `pidof`, `ps` filtered by name).
 
 ## Attach
 

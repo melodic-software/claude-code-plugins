@@ -1,11 +1,9 @@
 # Thread dump
 
 Load this page when the artifact is a text stack of every thread in one process at one moment, as
-`/app-control:drive capture --kind threads` records for a hang. The first format with a page here
-is `py-spy dump` text: a `Process <pid>: <command line>` line, a `Python v<version>` line, then one
-block per thread headed `Thread <id> (<state>): "<name>"`, its frames listed innermost first as
-`function (file:line)`. The text layout is py-spy's: read it at
-<https://github.com/benfred/py-spy#dump> (as of 2026-10-23; recheck on a py-spy major release).
+`/app-control:drive capture --kind threads` records for a hang. The format this page covers is
+`py-spy dump` text; read its layout at <https://github.com/benfred/py-spy#dump> (as of
+2026-10-23; recheck on a py-spy major release).
 
 ## Read it directly
 
@@ -25,9 +23,9 @@ carry the finding.
 3. **The main thread.** Where it sits says what the program as a whole is waiting for (often a
    `join` on a worker).
 
-py-spy's `(idle)` and `(active)` labels are its own guess from the frame, not proof a thread is
-stuck or free: how it decides is at <https://github.com/benfred/py-spy#how-do-you-detect-if-a-thread-is-idle-or-not>
-(as of 2026-10-23; recheck on a py-spy major release). Judge a thread by its frames.
+Judge a thread by its frames, not by py-spy's idle or active label; how py-spy sets that label is
+at <https://github.com/benfred/py-spy#how-do-you-detect-if-a-thread-is-idle-or-not> (as of
+2026-10-23; recheck on a py-spy major release).
 
 ## Done when
 
@@ -37,9 +35,10 @@ lock-order cycle: name both acquire sites and the order each thread takes them i
 
 ## Status from one dump
 
-One dump is one moment; a thread passing through a lock looks the same as one stuck there. The
-capture that settles it is a second dump taken some seconds later: the same threads in the same
-frames show they are stuck.
+One dump is one moment; a thread passing through a lock looks the same as one stuck there. A
+second dump taken some seconds later with the same threads in the same frames shows they are
+stuck. Confirming the cause still needs a capture taken after the suspected code changed, as the
+skill's "Before you answer" table says.
 
 ## Data
 
