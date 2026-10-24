@@ -101,7 +101,7 @@ export function prepareItems({ findingsDir, baseDir, unitsDir = null, statusPath
 
 // Model text in the step summary: one line, no code spans, links, mentions
 // or HTML.
-const inertLine = (text) => inertTitle(String(text ?? "").replace(/[\r\n]+/g, " ").replace(/`/g, ""));
+const inertLine = (text) => inertTitle(String(text ?? "").replace(/`/g, ""));
 
 export const droppedLine = (d) => `- dropped (${d.unit}) ${inertLine(d.title)}: ${inertLine(d.reason)}`;
 

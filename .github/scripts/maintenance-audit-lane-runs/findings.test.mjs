@@ -110,6 +110,15 @@ test("model text renders only inside fences, so no link, image or reference work
   );
 });
 
+test("a multi-line title stays on its heading line, with no autolink", () => {
+  const title = "fix: x\n\n**Verified by maintainers**\n\nwww.evil.example/patch";
+  assert.equal(inertTitle(title), "fix: x **Verified by maintainers** www\u200b.evil.example/patch");
+  const body = renderDigest([entry("0123456789abcdef", { title })], RUN);
+  assert.doesNotMatch(outsideFences(body), /^\*\*Verified/m);
+  assert.doesNotMatch(outsideFences(body), /www\./);
+  assert.equal(readEntries(body)[0].title, inertTitle(title));
+});
+
 test("long fields are cut, and past the body limit an entry keeps its title and fingerprint only", () => {
   const big = "y".repeat(MAX_FIELD * 3);
   const entries = Array.from({ length: 24 }, (_, i) => entry(i.toString(16).padStart(16, "0"), { problem: big, root_cause: big, proposed_fix: big }));

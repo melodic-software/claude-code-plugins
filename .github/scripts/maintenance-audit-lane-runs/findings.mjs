@@ -78,13 +78,14 @@ const fenced = (text) => {
   return `${fence}text\n${body}\n${fence}`;
 };
 
-// The issue title, which renders outside any fence: no mention, link,
-// reference or HTML.
+// The entry title, which renders outside any fence: one line, no mention,
+// link, autolink, reference or HTML.
 export const inertTitle = (text) =>
-  String(text)
+  squash(text)
     .replace(/</g, "&lt;")
     .replace(/[[\]]/g, (c) => `\\${c}`)
     .replace(/:\/\//g, "\u200b://")
+    .replace(/www\./gi, (w) => `${w.slice(0, 3)}\u200b.`)
     .replace(/@(?=[A-Za-z0-9])/g, "@\u200b")
     .replace(/#(?=\d)/g, "#\u200b");
 
