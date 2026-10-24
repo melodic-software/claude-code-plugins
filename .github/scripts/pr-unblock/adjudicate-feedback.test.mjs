@@ -207,6 +207,15 @@ test("prepare writes one slot per dispute with the files at the head, and refuse
   await assert.rejects(prepare({ threadsText: JSON.stringify({ ...fileOf(), head_sha: "b".repeat(40) }), repliesText: "", headSha: HEAD, outDir: dir, getText }), /head/);
 });
 
+test("prepare writes an empty index into an output directory that does not exist yet, as the workflow passes it", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "adjudicate-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const outDir = join(dir, "adjudicate");
+  const result = await prepare({ threadsText: JSON.stringify(fileOf(thread("PRRT_a"))), repliesText: "", headSha: HEAD, outDir, getText: async () => null });
+  assert.equal(result.count, 0);
+  assert.deepEqual(JSON.parse(readFileSync(join(outDir, "index.json"), "utf8")), { version: 1, head_sha: HEAD, slots: [], over: [] });
+});
+
 test("prepare stages a cited CLAUDE.md under the suffix, and a path that cannot be staged is absent, not a failed round", async (t) => {
   const dir = mkdtempSync(join(tmpdir(), "adjudicate-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));

@@ -170,6 +170,7 @@ export async function prepare({ threadsText, repliesText, headSha, outDir, getTe
     throw new Error("threads.json is not the select job's thread file for this head");
   }
   const { slots, over } = disputes(threadFile, repliesText);
+  mkdirSync(outDir, { recursive: true });
   const index = [];
   for (const [slot, entry] of slots.entries()) {
     const dir = join(outDir, String(slot));
