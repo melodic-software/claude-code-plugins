@@ -238,6 +238,11 @@ test("structural work on ordinary files carries no hold line", () => {
   assert.ok(!plan.body.includes("Hold: a human merges this"), plan.body);
 });
 
+test("an issue with no work class, on ordinary files, carries no hold line", () => {
+  const plan = decideDone({ issueLabels: ["agent-ready"] });
+  assert.ok(!plan.body.includes("Hold: a human merges this"), plan.body);
+});
+
 test("scoped work on ordinary files carries no hold line", () => {
   const plan = decideDone({ issueLabels: ["work-class: scoped"] });
   assert.ok(!plan.body.includes("Hold: a human merges this"), plan.body);
