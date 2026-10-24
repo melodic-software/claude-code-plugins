@@ -18,7 +18,8 @@ This rule overrides every other rule on this page, "fix the files and run again"
 ## The drive calls
 
 Each drive run gets its own new temporary directory outside the checkout, and every call in that
-run passes the app slug and that same `--out <dir>`:
+run passes the app slug and that same `--out <dir>`, and under `--unattended` every call also
+carries `--unattended`:
 
 1. Step 2, the start check: `/app-control:drive <slug> --out <dir>` with no feature (launch and
    ready), then `/app-control:drive cleanup <slug> --out <dir>`.
@@ -38,8 +39,8 @@ another app's skill: stop, write nothing, and name that skill. Step 5's report m
   already submitted an attempt in this run. A second failure leaves the skill written but unproven.
 - A send to anyone not on the recipient allowlist is refused by the CLI's send command (exit 4):
   the run stops at the form and never presses send.
-- Create commits nothing, so the CLI reads empty committed defaults and refuses every send,
-  extra sign-in attempt and write step. Report those steps as unproven until `config/defaults.json`
+- Create commits nothing, so the CLI reads empty committed defaults and refuses every send
+  and write step. Report those steps as unproven until `config/defaults.json`
   is committed; never loosen the CLI to prove them.
 - A healthy app that still fails: written but unproven, with drive's evidence. Never call it done.
 - A tool the hub names cannot run on this host: `blocked: driver unavailable`, with drive's report.
@@ -47,7 +48,13 @@ another app's skill: stop, write nothing, and name that skill. Step 5's report m
 
 ## Checks after the proof
 
-- **Evidence.** Every evidence path in drive's step 5 report exists in its run directory and is not
+- **Floors.** Run the CLI's config report three times, with a loosened floor in
+  `config/local.json`, in an environment variable and in a flag; each must exit 4 or report the safe
+  value with that layer refused. Remove the `config/local.json` loosening afterwards. Until all three
+  pass, report the floor-enforcement line unverified.
+
+- **Evidence.** Every path in drive's step 5 report, each step's `artifacts` and the
+  `cleanup` evidence list alike, exists in its run directory and is not
   empty. A missing or empty one means unproven.
 - **No orphan.** For each launch record drive wrote (step 2 and step 5), read the pid's start time
   and command line bytes from the process table and hash the bytes as drive's launch record does. A
