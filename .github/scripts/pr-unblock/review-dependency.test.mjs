@@ -296,6 +296,20 @@ test("select counts no round marker at a head the pull request no longer has", a
   assert.equal(result.rounds, 0);
 });
 
+test("select counts the round marker at a current commit and not the one at a replaced head", async () => {
+  const result = await select({
+    api: fakeApi({ comments: [marker(OTHER, "merge"), marker(HEAD, "fix")] }),
+    pr: 7,
+    headSha: HEAD,
+    appId: APP,
+    dependabotId: DEPENDABOT,
+    config: [],
+    maxRounds: 2,
+  });
+  assert.equal(result.decision, "proceed");
+  assert.equal(result.rounds, 1);
+});
+
 test("select counts a round marker that names no head toward the cap", async () => {
   const headless = { user: { id: APP }, body: "<!-- pr-unblock:review-dependency-round verdict=merge run=1-1 -->\nbody" };
   const result = await select({
