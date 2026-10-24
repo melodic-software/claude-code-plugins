@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.21] - 2026-10-24
+
+### Fixed
+
+- `skills/clean/reference/safety-model.md`: the headless citation behind the no-Python launcher posture now names the `turn-off-permission-prompts-in-unattended-runs` anchor with a 2026-10-24 re-read date and its own recheck trigger, in place of the bare page URL.
+
 ## [0.43.20] - 2026-10-22
 
 ### Changed

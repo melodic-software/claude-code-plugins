@@ -1,6 +1,6 @@
 {
   "name": "dometrain",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Dometrain course-content grounding skills for a Dometrain MCP server: search lessons, pull curated lesson documents with on-screen code, and cite timestamped deep links. Requires an active Dometrain Pro subscription. Ships no server: configure a user-scope dometrain server. Includes a setup check and a grounding usage skill kept in sync with Dometrain's own official Claude Code plugin.",
   "author": {
     "name": "Melodic Software",

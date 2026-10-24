@@ -1,5 +1,32 @@
 # Changelog for the PR pipeline convention
 
+## [4.19.5] - 2026-10-24
+
+### Fixed
+
+- `enable-auto-merge` checks out the default branch with full history, as the post-merge check and the merge job do, so the room's post-merge recompute decides containment locally instead of making a compare API call per lane record. The lane-room read also has its own 8 minute timeout, apart from the verifier reads' 4 minutes, and a timeout still holds the lane. The arm step's timeout is now 18 minutes and the job's 30.
+
+- `fix-ci` dispatch trusts a `ci-lanes` commit status by its creator's type and id (the GitHub Actions bot, `Bot` 41898282) instead of the login `github-actions[bot]`, which GraphQL never returns (it reports `github-actions`); no pull request was dispatched while the login check stood. A status set by any other actor, or with no creator, is still ignored.
+- The dispatcher logs why it skips a listed pull request whose `ci-lanes` status failed or errored, so a skip of that kind is no longer silent; a failed status the GitHub Actions bot did not set is named as such.
+
+## [4.19.4] - 2026-10-24
+
+### Fixed
+
+- The work-resolve-issue lane no longer opens a `Refs:` PR for an issue its run delivered whole. `report-outcome` derives the link line from the outcome's `remaining` list and ignores the run's `link` field: a non-empty list opens a `Refs:` PR with a `## Remaining work` section naming each part, which is the remaining work pr-verify's Refs rule asks the body to name. A `remaining` that is not 1 to 20 strings, each with text in the bullet it renders as, counts as empty, so the PR closes the issue. The run text the lane quotes in a PR body or comment also drops C1 control characters now.
+
+## [4.19.3] - 2026-10-24
+
+### Fixed
+
+- A pending lane merge no longer makes `enable-auto-merge` disarm every armed lanes App pull request. The post-merge step takes about as long as the gate's two-minute reuse age, so the lane's room read the report as too old. It now keeps the report while nothing it was read from has moved, and otherwise checks again as the gate does, with the lane records the last run kept, so that check reads them without an artifact or run read each. When the room is held, by a refusal or because it cannot be read, the run raises one warning annotation and step-summary line naming the reason and each lanes App pull request it left unarmed or, in report-only mode, that a disarm would have turned off. A pull request still armed because its disarm failed gets an error annotation and summary line instead. It posts no comment on the pull requests.
+
+## [4.19.2] - 2026-10-24
+
+### Fixed
+
+- The pr-unblock dispatcher no longer sends resolve-conflicts to a Dependabot head (a `dependabot/` branch Dependabot opened): its merge commit stopped Dependabot's own rebases, which resolve the conflict.
+
 ## [4.19.1] - 2026-10-24
 
 ### Fixed

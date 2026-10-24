@@ -1620,7 +1620,7 @@ def evaluate(
     if owner not in allowed:
         blockers.append(f"owner {owner!r} out of scope")
     if pr.get("state") != "OPEN":
-        blockers.append(f"state={pr.get('state')} (not OPEN)")
+        blockers.append(merge_policy.not_open_refusal(pr.get("state")))
     if pr.get("isDraft"):
         blockers.append("PR is a draft -- mark ready first")
     if BODY_MERGE_HOLD_RE.search(str(pr.get("body") or "")):
@@ -3278,6 +3278,7 @@ def assess_unattended(
     lane_rung_cap: str | None = None,
     shared: merge_policy.SharedPostMerge | None = None,
     share: Callable[[merge_policy.SharedPostMerge], object] | None = None,
+    stop_when_closed: bool = False,
 ) -> merge_policy.UnattendedPolicy:
     """The unattended decision for one pull request, in the wiring order:
     identity, the credential chokepoint, the kill switch, a default-branch
@@ -3285,16 +3286,9 @@ def assess_unattended(
     the review evidence and the score. Raises `PolicyReadError` when the
     pull request or its pipeline config cannot be read."""
 
-    def post_merge(floor: datetime, identity: str) -> merge_policy.PostMergeGate:
-        verdict = postmerge.check(
-            repo,
-            agent_identity=identity,
-            is_human=postmerge._default_is_human(repo, identity, self_logins),
-            merged_since=floor,
-            pinned_sha=postmerge.pin_reader(repo, identity),
-            lane_merges_only=authority == merge_policy.PR_MERGE,
-        )
-        return postmerge.gate_from_report(verdict.report())
+    post_merge = postmerge.gate_reader(
+        repo, self_logins, lane_merges_only=authority == merge_policy.PR_MERGE
+    )
 
     def promotion(window_start: datetime | None) -> merge_policy.Promotion:
         return merge_policy.read_promotion(
@@ -3321,6 +3315,7 @@ def assess_unattended(
         lane_rung_cap=lane_rung_cap,
         shared=shared,
         share=share,
+        stop_when_closed=stop_when_closed,
     )
     return score_unattended(repo, number, policy, self_logins)
 
@@ -4945,6 +4940,10 @@ def _main() -> int:
                     lane_kill_switch=args.lane_kill_switch,
                     lane_rung_cap=args.lane_rung_cap,
                     shared=shared,
+                    # With no state directory there is no recorded merge
+                    # request whose read-back needs the policy of a merged
+                    # pull request, so a merged one skips the post-merge check.
+                    stop_when_closed=pending_path is None,
                     # Each recompute goes back to the file for the next candidate.
                     share=(
                         None

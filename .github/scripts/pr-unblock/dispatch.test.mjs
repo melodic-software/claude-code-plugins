@@ -725,7 +725,7 @@ const ciFixPull = (number) => {
               contexts: {
                 nodes: [
                   { __typename: "CheckRun", name: "ci-status", status: "COMPLETED", conclusion: "FAILURE", checkSuite: { app: { databaseId: 15368 } } },
-                  { __typename: "StatusContext", context: "ci-lanes", state: "FAILURE", creator: { login: "github-actions[bot]" } },
+                  { __typename: "StatusContext", context: "ci-lanes", state: "FAILURE", creator: { __typename: "Bot", login: "github-actions", databaseId: 41898282 } },
                 ],
               },
             },

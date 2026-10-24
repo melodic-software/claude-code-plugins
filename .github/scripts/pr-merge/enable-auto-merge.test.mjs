@@ -8,7 +8,7 @@
 // the parity tests read their verdicts from Python.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import process from "node:process";
@@ -28,6 +28,8 @@ import {
   READER_EVENTS,
   main,
   pythonRoom,
+  LANE_ROOM_TIMEOUT_MS,
+  VERIFY_TIMEOUT_MS,
   readRoom,
   verifyHold,
 } from "./enable-auto-merge.mjs";
@@ -615,7 +617,9 @@ test("report-outcome's own Closes and Refs pull request bodies arm, and its hold
   assert.deepEqual(verdict({}), { action: "arm", reason: "no hold" });
   assert.equal(verdict({ humanMerge: true }).action, "none");
   assert.equal(verdict({ changedFiles: [".github/workflows/x.yml"] }).action, "none");
-  assert.deepEqual(verdict({ outcome: { exit: "done", reason: "", title: "t", summary: "s", link: "refs" } }), { action: "arm", reason: "no hold" });
+  const refs = { outcome: { exit: "done", reason: "", title: "t", summary: "s", remaining: ["Part B"] } };
+  assert.ok(plan(refs).body.startsWith("Refs: #77\n"));
+  assert.deepEqual(verdict(refs), { action: "arm", reason: "no hold" });
 });
 
 // The gate's human veto (babysit_merge.human_veto_logins): each member's
@@ -1114,6 +1118,71 @@ test("a room that cannot be read arms nothing and disarms every armed lane pull 
   assert.deepEqual(writes(), [{ mutation: "disarm", id: "PR_2" }]);
 });
 
+// A held room that logs only to the console leaves nothing on the run
+// saying why nothing armed. One annotation and one summary
+// line per run, naming the reason and every lane pull request left unarmed.
+test("a held room raises one warning and one step-summary line naming why and each pull request left unarmed", async () => {
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  const pulls = [pull(1), pull(2, { autoMergeRequest: armed }), pull(3, { author: { __typename: "User", login: "kyle-sexton" } }), pull(4, { isDraft: true })];
+  const cases = [
+    [{ ...ROOM, unreadable: "post-merge answer unverified-stale" }, "the lane's room could not be read (post-merge answer unverified-stale); left unarmed: #1, #2"],
+    [{ ...ROOM, refusal: "rung-off:demotion" }, "pr-merge's gate holds its lane off (rung-off:demotion); left unarmed: #1, #2"],
+  ];
+  for (const [lane, expected] of cases) {
+    const summary = join(mkdtempSync(join(tmpdir(), "enable-auto-merge-summary-")), "summary.md");
+    writeFileSync(summary, "");
+    const { lines } = await run(pulls, { GITHUB_STEP_SUMMARY: summary }, {}, lane);
+    assert.deepEqual(
+      lines.filter((line) => line.startsWith("::warning")),
+      [`::warning title=enable-auto-merge::${expected}`],
+    );
+    assert.equal(readFileSync(summary, "utf8"), `enable-auto-merge: ${expected}\n`);
+  }
+  // A lane with room raises neither.
+  const summary = join(mkdtempSync(join(tmpdir(), "enable-auto-merge-summary-")), "summary.md");
+  writeFileSync(summary, "");
+  const { lines, writes } = await run(pulls, { GITHUB_STEP_SUMMARY: summary });
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+  assert.deepEqual(
+    lines.filter((line) => line.startsWith("::warning")),
+    [],
+  );
+  assert.equal(readFileSync(summary, "utf8"), "");
+});
+
+// A pull request whose disarm failed, or that report-only left armed, is
+// still armed: naming it "left unarmed" would say the hold was enforced when
+// it was not.
+test("a held room names a pull request whose disarm failed as still armed, at error level", async () => {
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  const summary = join(mkdtempSync(join(tmpdir(), "enable-auto-merge-summary-")), "summary.md");
+  writeFileSync(summary, "");
+  const lane = { ...ROOM, refusal: "rung-off:demotion" };
+  const { lines, code } = await run([pull(1), pull(2, { autoMergeRequest: armed })], { GITHUB_STEP_SUMMARY: summary }, { disarmError: new Error("POST /graphql failed with status 502") }, lane);
+  assert.equal(code, 1);
+  const why = "pr-merge's gate holds its lane off (rung-off:demotion)";
+  assert.deepEqual(
+    lines.filter((line) => /^::(warning|error) title=enable-auto-merge::pr-merge/.test(line)),
+    [`::warning title=enable-auto-merge::${why}; left unarmed: #1`, `::error title=enable-auto-merge::${why}; still armed, its disarm failed, so the hold is not enforced: #2`],
+  );
+  assert.equal(readFileSync(summary, "utf8"), `enable-auto-merge: ${why}; left unarmed: #1\nenable-auto-merge: ${why}; still armed, its disarm failed, so the hold is not enforced: #2\n`);
+});
+
+test("a held room in report-only names the armed pull request a disarm would have turned off, not as unarmed", async () => {
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  const summary = join(mkdtempSync(join(tmpdir(), "enable-auto-merge-summary-")), "summary.md");
+  writeFileSync(summary, "");
+  const lane = { ...ROOM, unreadable: "post-merge answer missing or unreadable" };
+  const { lines, writes } = await run([pull(1), pull(2, { autoMergeRequest: armed })], { GITHUB_STEP_SUMMARY: summary, REPORT_ONLY: "true" }, {}, lane);
+  assert.deepEqual(writes, []);
+  const expected = "the lane's room could not be read (post-merge answer missing or unreadable); left unarmed: #1; report-only, a disarm would have run: #2";
+  assert.deepEqual(
+    lines.filter((line) => line.startsWith("::warning") || line.startsWith("::error")),
+    [`::warning title=enable-auto-merge::${expected}`],
+  );
+  assert.equal(readFileSync(summary, "utf8"), `enable-auto-merge: ${expected}\n`);
+});
+
 // An event run reads no room, so it never disarms on one.
 test("an event run leaves an armed lane pull request armed whatever the room", async () => {
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
@@ -1165,6 +1234,18 @@ print(json.dumps({"argv": sys.argv[1:], "token": os.environ.get("GH_TOKEN"), "bu
     budget: "github-token",
   });
   assert.deepEqual((await pythonRoom(env)()).argv, ["lane-room", "--repo", REPO, "--postmerge-result", "/tmp/post-merge.json"]);
+});
+
+test("pythonRoom gives the lane-room read its own 8 minute timeout and reads a kill as unreadable", async () => {
+  const seen = [];
+  const killed = (_cmd, _args, options) => {
+    seen.push(options.timeout);
+    return { status: null, signal: "SIGTERM", stdout: "", stderr: "" };
+  };
+  await assert.rejects(pythonRoom({ GITHUB_REPOSITORY: REPO }, killed)(), /lane-room exited SIGTERM/);
+  assert.deepEqual(seen, [8 * 60_000]);
+  assert.equal(LANE_ROOM_TIMEOUT_MS, 8 * 60_000);
+  assert.equal(VERIFY_TIMEOUT_MS, 4 * 60_000);
 });
 
 // The gate holds on the security lane's open CRITICAL findings
