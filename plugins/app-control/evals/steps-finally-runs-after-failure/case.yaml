@@ -1,12 +1,12 @@
 schema_version: "1.1"
 name: steps-finally-runs-after-failure
-description: When a drive step fails, drive skips the remaining ordinary steps but still runs the finally steps that reset the write, and keeps the first failure in the report
+description: When a drive step fails, drive skips the remaining ordinary steps, still runs every finally step even after one of them fails, and keeps the first failure as the run's failure
 tags: [drive, steps-files, invented]
-expected_outcome: "The reply says that after press-export fails, check-download is not performed, the finally steps delete-test-invoice and then reload-billing still run, and the report keeps press-export's failure (button disabled) as the failure rather than replacing it with the reset's outcome."
+expected_outcome: "The reply's report.json steps list records press-export as failed, performs no check-download, and records both finally steps with finally true: delete-test-invoice as failed and reload-billing as done, because every finally step runs even when an earlier one fails. It names press-export's failure as the run's failure and reports the reset failure beside it, never in its place."
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: "/app-control:drive billing/export --unattended --out ./evidence. Launch nothing and run nothing. Read the control skill and the feature's steps files. Committed config allows unattended writes to the local environment, so every step clears the safety floors. Treat open-billing and add-test-invoice as done, and press-export as failed with the observed text 'Export button is disabled'. Say, by step id and in order, which steps run after that failure and which do not, and what the report records as the failure. Then stop."
+  prompt: "/app-control:drive billing/export --unattended --out ./evidence. Launch nothing and run nothing. Read the control skill and the feature's steps files. Committed config allows unattended writes to the local environment, so every step clears the safety floors. Treat open-billing and add-test-invoice as done; press-export as failed with the observed text 'Export button is disabled'; delete-test-invoice, if it runs, as failed with 'no invoice with amount 1.00'; and any other step that runs as acting as written. Reply with the `steps` list this run's report.json would hold, as one fenced JSON block, one object per step that runs, in order, then one sentence naming the run's failure. Then stop."
   allowed_tools: [Read, Glob, Grep]
   max_turns: 20
   timeout_seconds: 600
@@ -17,10 +17,14 @@ graders:
     input_match: 'billing/export/reset\.yaml'
     min: 1
     arm: both
-  - name: names-finally-step
+  - name: runs-finally-after-finally-failure
     type: regex
-    pattern: 'delete-test-invoice[\s\S]*reload-billing'
+    pattern: '\{(?=[^{}]*"id"\s*:\s*"reload-billing")(?=[^{}]*"finally"\s*:\s*true)(?=[^{}]*"outcome"\s*:\s*"done")[^{}]*\}'
+    arm: both
+  - name: records-reset-failure
+    type: regex
+    pattern: '\{(?=[^{}]*"id"\s*:\s*"delete-test-invoice")(?=[^{}]*"finally"\s*:\s*true)(?=[^{}]*"outcome"\s*:\s*"failed)[^{}]*\}'
     arm: both
   - name: finally-after-failure
     type: llm
-    criteria: "PASS only if the reply (1) says check-download is not performed after press-export fails, (2) says delete-test-invoice and then reload-billing still run, as finally steps, (3) keeps press-export's failure ('Export button is disabled') as the failure the report records, with any reset outcome reported beside it, and (4) does not claim it launched or drove the app. FAIL if it says the run stops with no reset, runs check-download after the failure, skips either finally step, or reports the reset's outcome in place of the press-export failure."
+    criteria: "PASS only if the reply (1) records press-export as failed and has no entry for check-download, (2) records delete-test-invoice as failed and reload-billing as done, both marked as finally steps, so reload-billing runs although the finally step before it failed, and (3) names press-export's failure ('Export button is disabled') as the run's failure, with the reset failure reported beside it. FAIL if it stops after delete-test-invoice fails, runs check-download, skips a finally step, names the reset failure as the run's failure in place of press-export's, or says it launched the app."

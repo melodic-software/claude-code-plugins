@@ -2,11 +2,11 @@ schema_version: "1.1"
 name: steps-include-kind-write-blocked
 description: An include marked kind write makes every included step a write, so an unattended run with no committed grant performs none of them and records each as blocked
 tags: [drive, steps-files, safety, invented]
-expected_outcome: "The reply records open-billing, press-export and check-download as performed, and records open-history and save-note, both from the include marked kind write, as blocked and not performed, because the run is unattended and no committed config allows an unattended write. It names the grant that would allow them and does not treat open-history as a read just because its own action only clicks a link."
+expected_outcome: "The reply's report.json steps list records open-billing, press-export and check-download as performed, and records open-history and save-note, both from the include marked kind write, as blocked and not performed, because the run is unattended and no committed config allows an unattended write. It names the grant that would allow them and does not treat open-history as a read just because its own action only clicks a link."
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: "/app-control:drive billing/export --unattended --out ./evidence. Launch nothing and run nothing. Read the control skill and the feature's steps files. The control skill has no config/defaults.json committed. Treat every step's target as present and every step that is performed as acting as written. Say, by step id and in order, which steps the run performs and what the report records for any it does not. Then stop."
+  prompt: "/app-control:drive billing/export --unattended --out ./evidence. Launch nothing and run nothing. Read the control skill and the feature's steps files. The control skill has no config/defaults.json committed. Treat every step's target as present and every step that is performed as acting as written. Reply with the `steps` list this run's report.json would hold, as one fenced JSON block, one object per step in order, performed or not. Then stop."
   allowed_tools: [Read, Glob, Grep]
   max_turns: 20
   timeout_seconds: 600
@@ -17,10 +17,9 @@ graders:
     input_match: 'billing/export/add-note\.yaml'
     min: 1
     arm: both
-  - name: names-blocked-step
+  - name: records-included-blocked
     type: regex
-    flags: i
-    pattern: 'open-history[^\n]*blocked|blocked[^\n]*open-history'
+    pattern: '\{(?=[^{}]*"id"\s*:\s*"open-history")(?=[^{}]*"outcome"\s*:\s*"blocked)[^{}]*\}'
     arm: both
   - name: kind-write-blocks-included
     type: llm
