@@ -1016,6 +1016,8 @@ def run_once(case: dict, arm: str, readers: list[str], index: int, base_repo: Pa
                 continue
             graded["probes"] = grade_run(case, arm, reader, space, mine, read, make_judge(cfg, space["repo"].parent))
             graded["writer_tokens"] = written["writer_tokens"]
+            if written.get("hop_bytes"):
+                graded["hop_bytes"] = written["hop_bytes"]
             graded["reader_tokens"] = read["main"]["tokens"]
             graded["m1"] = written["writer_tokens"]["m1"] + read["main"]["tokens"]["m1"]
             keep = keep_root / reader
