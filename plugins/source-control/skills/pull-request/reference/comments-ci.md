@@ -26,7 +26,8 @@ The preamble names the tool's path. It is the only shell command this mode runs:
 - `check-paths <path>...` prints `allowed` only when every path is plain ASCII letters, digits
   and `_@+.-` in `/`-separated segments, with no empty, `.` or `..` segment. Which files a fix
   touches is otherwise yours to judge, and the code and security review lanes judge it after the
-  push. The push job withholds a change to `.github/workflows/`, a `settings*.json`, a symbolic
+  push. The push job withholds a change to `.github/workflows/`, a `settings*.json`, `CLAUDE.md`,
+  `CLAUDE.local.md`, `AGENTS.md`, `.claude/`, `.mcp.json`, `.lsp.json`, `.gitattributes`, a symbolic
   link or a gitlink from its commit and posts it on the pull request as a proposed diff for an
   automated apply; the rest of the fix still lands.
 - `record <thread-id> <file>` reads a disposition file from the scratch directory, checks it

@@ -19,7 +19,7 @@
 #    model and the three runs of a round sort alike.
 # 3. Snapshot the index (stage 0 and unmerged entries) to <out-dir>, list the
 #    unmerged paths, and escalate when one is a protected path (a workflow or
-#    a settings file), or when one is a conflict a model
+#    another path apply-patch.mjs refuses), or when one is a conflict a model
 #    cannot resolve from markers: a side missing (modify or rename against
 #    delete) or no markers in the file (binary).
 # 4. For a clean or conflicted merge, write the conflict tree, T0: the
@@ -56,9 +56,11 @@ die() {
 TRAILER_VALUE=pr-unblock/resolve-conflicts
 OID_RE='^([0-9a-f]{40}|[0-9a-f]{64})$'
 # Conflicts the lane does not resolve, matched on the lower-cased path: a
-# workflow, which the lane token cannot push, and a settings file, which a
-# review job could load before review.
-PROTECTED_RE='^\.github/workflows/|(^|/)settings[^/]*\.json$'
+# workflow, which the lane token cannot push, and the rest of apply-patch.mjs's
+# path refusals, which a merge row refuses: a settings file, an agent
+# instruction file, .claude/ entry, MCP or LSP config the review CLI would
+# load from the head, and a .gitattributes file.
+PROTECTED_RE='^\.github/workflows/|(^|/)(settings[^/]*\.json|claude\.md|claude\.local\.md|agents\.md|\.mcp\.json|\.lsp\.json|\.gitattributes)$|(^|/)\.claude/'
 # Marker lines in order, any length from seven (conflict-marker-size): a run of
 # <, then a run of =, then a run of >, the outer two followed by a space or the
 # line end. apply-patch.mjs's hasConflictMarkers holds the same rule.

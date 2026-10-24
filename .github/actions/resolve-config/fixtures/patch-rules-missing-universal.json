@@ -3,6 +3,8 @@
     "refuse": [
       "github-workflows",
       "settings",
+      "agent-instructions",
+      "gitattributes",
       "symlink",
       "gitlink",
       "rename-into-refused"
@@ -30,6 +32,8 @@
   "issue": {
     "refuse": [
       "github-workflows",
+      "agent-instructions",
+      "gitattributes",
       "symlink",
       "gitlink",
       "rename-into-refused"

@@ -1,6 +1,6 @@
 {
   "ci-context": {
-    "refuse": ["github-workflows", "settings", "symlink", "gitlink", "rename-into-refused"],
+    "refuse": ["github-workflows", "settings", "agent-instructions", "gitattributes", "symlink", "gitlink", "rename-into-refused"],
     "allow": ["any"],
     "max-files": 300,
     "requires": [],
@@ -11,7 +11,7 @@
     "escalations": ["ci-fix-empty", "ci-fix-escalated", "ci-fix-invalid", "ci-fix-not-applied", "ci-fix-protected-path"]
   },
   "review-threads": {
-    "refuse": ["github-workflows", "settings", "symlink", "gitlink", "rename-into-refused"],
+    "refuse": ["github-workflows", "settings", "agent-instructions", "gitattributes", "symlink", "gitlink", "rename-into-refused"],
     "allow": ["kept-threads"],
     "max-files": 300,
     "requires": [],
@@ -21,7 +21,7 @@
     "escalations": ["feedback-not-landed", "patch-invalid", "patch-not-applied", "patch-protected-path"]
   },
   "dependency-review": {
-    "refuse": ["github-workflows", "settings", "symlink", "gitlink", "rename-into-refused"],
+    "refuse": ["github-workflows", "settings", "agent-instructions", "gitattributes", "symlink", "gitlink", "rename-into-refused"],
     "allow": ["dependency-manifests"],
     "max-files": 300,
     "requires": ["dependency-verdict: fix"],
@@ -32,7 +32,7 @@
     "escalations": ["dependency-fix-not-landed", "patch-invalid", "patch-not-applied", "patch-protected-path"]
   },
   "merge-base": {
-    "refuse": ["github-workflows", "settings", "symlink", "gitlink", "rename-into-refused"],
+    "refuse": ["github-workflows", "settings", "agent-instructions", "gitattributes", "symlink", "gitlink", "rename-into-refused"],
     "allow": ["merge-result"],
     "max-files": 300,
     "max-blobs": 300,
@@ -51,7 +51,7 @@
     ]
   },
   "default": {
-    "refuse": ["github-workflows", "settings", "symlink", "gitlink", "rename-into-refused"],
+    "refuse": ["github-workflows", "settings", "agent-instructions", "gitattributes", "symlink", "gitlink", "rename-into-refused"],
     "allow": ["any"],
     "max-files": 300,
     "requires": [],
@@ -61,7 +61,7 @@
     "escalations": ["patch-empty", "patch-invalid", "patch-not-applied", "patch-protected-path"]
   },
   "issue": {
-    "refuse": ["github-workflows", "settings", "symlink", "gitlink", "rename-into-refused"],
+    "refuse": ["github-workflows", "settings", "agent-instructions", "gitattributes", "symlink", "gitlink", "rename-into-refused"],
     "allow": ["any"],
     "max-files": 300,
     "requires": [],

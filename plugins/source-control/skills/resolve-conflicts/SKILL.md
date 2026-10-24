@@ -118,7 +118,8 @@ changed. Steps 1 to 3 hold with these changes:
 - **Version bumps.** A `plugin.json` or `CHANGELOG.md` still conflicted is one the runner's script
   left; resolve it by hand under step 3. When that plugin is in changelog-fragment mode, step 3's
   abort-and-convert route is closed here: escalate both paths.
-- **Leave `.github/workflows/` and `settings*.json` to the runner.** A conflict on one of them
+- **Leave `.github/workflows/`, `settings*.json`, `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`,
+  `.claude/`, `.mcp.json`, `.lsp.json` and `.gitattributes` to the runner.** A conflict on one of them
   never reaches this mode, and the runner does not push a change to one inside a merge. When a
   resolution or the sweep calls for a workflow change, resolve the conflicted paths as their
   evidence says and name the workflow file and the change it needs in the reply.

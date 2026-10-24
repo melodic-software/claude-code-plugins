@@ -103,6 +103,11 @@ const PATH_RULES = {
   // The lane token has no workflows permission, so GitHub refuses the push.
   "github-workflows": (s) => s[0] === ".github" && s[1] === "workflows",
   settings: (s) => /^settings[^/]*\.json$/.test(s.at(-1) ?? ""),
+  // The review CLI runs in the head's checkout, so a lane-written instruction
+  // file, .claude/ entry, or MCP or LSP config could steer the review judging it.
+  "agent-instructions": (s) => /^(claude|claude\.local|agents)\.md$|^\.(mcp|lsp)\.json$/.test(s.at(-1) ?? "") || s.slice(0, -1).includes(".claude"),
+  // A path -diff or binary attribute hides a file's text from the review's git diff.
+  gitattributes: (s) => s.at(-1) === ".gitattributes",
 };
 const pathRule = (name) => (entry) => PATH_RULES[name](segments(entry.path));
 const pathRefused = (path) => Object.values(PATH_RULES).some((rule) => rule(segments(path))) || path.includes("\\");
@@ -116,6 +121,8 @@ export const REFUSALS = {
   backslash: { kind: "protected-path", test: (entry) => entry.path.includes("\\") },
   "github-workflows": { kind: "protected-path", test: pathRule("github-workflows") },
   settings: { kind: "protected-path", test: pathRule("settings") },
+  "agent-instructions": { kind: "protected-path", test: pathRule("agent-instructions") },
+  gitattributes: { kind: "protected-path", test: pathRule("gitattributes") },
   symlink: { kind: "invalid", test: (entry) => entry.oldMode === SYMLINK || entry.newMode === SYMLINK },
   gitlink: { kind: "invalid", test: (entry) => entry.oldMode === GITLINK || entry.newMode === GITLINK },
   "rename-into-refused": { kind: "protected-path", test: (entry) => entry.renamedFrom !== undefined && pathRefused(entry.path) },
@@ -856,6 +863,20 @@ export async function push({
   if (leaked) {
     return escalate("invalid", `the patched ${leaked.path} carries a credential shape`);
   }
+  // The row's max-files, allow and content rules see every change, kept ones
+  // included, so a narrow row never hands on a withheld change it would not
+  // admit.
+  if (row["max-files"] !== null && entries.length > row["max-files"]) {
+    return escalate("invalid", `the patch changes ${entries.length} paths; the row allows ${row["max-files"]}`);
+  }
+  const outside = entries.find((entry) => !allow.every((admits) => admits(entry.path, entry)));
+  if (outside) {
+    return escalate("protected-path", `not allowed by ${row.allow.join(", ")}: ${outside.path}`);
+  }
+  const contentRefusal = row["content-rule"] === undefined ? null : await CONTENT_RULES[row["content-rule"]]({ entries, git, context });
+  if (contentRefusal) {
+    return escalate("protected-path", `refused by the ${row["content-rule"]} rule (${String(contentRefusal).slice(0, 200)})`);
+  }
   let keptPart;
   if (kept.size > 0) {
     const paths = [...kept].sort();
@@ -873,20 +894,7 @@ export async function push({
       return row.target === "issue" ? { ...escalate("protected-path", "nothing but withheld paths"), kept: keptPart } : { outcome: "withheld", kept: keptPart };
     }
   }
-  if (row["max-files"] !== null && entries.length > row["max-files"]) {
-    return escalate("invalid", `the patch changes ${entries.length} paths; the row allows ${row["max-files"]}`);
-  }
-  const outside = entries.find((entry) => !allow.every((admits) => admits(entry.path, entry)));
-  if (outside) {
-    return escalate("protected-path", `not allowed by ${row.allow.join(", ")}: ${outside.path}`);
-  }
   const blobs = entries.filter((entry) => !ZERO.test(entry.newSha)).map((entry) => ({ entry, bytes: git(["cat-file", "blob", entry.newSha]) }));
-  // Before any tree or commit is built: each file's change must also meet the
-  // row's content rule.
-  const contentRefusal = row["content-rule"] === undefined ? null : await CONTENT_RULES[row["content-rule"]]({ entries, git, context });
-  if (contentRefusal) {
-    return escalate("protected-path", `refused by the ${row["content-rule"]} rule (${String(contentRefusal).slice(0, 200)})`);
-  }
   // The model's tools set no file mode, so under script-exec-bit each new or
   // changed script, a .sh file or one starting with #!, is made executable
   // here, in the index the patch was applied to.

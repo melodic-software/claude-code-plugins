@@ -574,8 +574,13 @@ each row to these keys:
 
 Every row keeps `.github/workflows/**` in any case and through any `..` segment (the lane
 token has no `workflows` permission), `**/settings*.json` (a Claude settings file can carry hooks
-a job that loads the head would run), a symbolic link, a gitlink, a backslash path, and a rename
-into any of those, with its source. A kept path is never a stop: on a `[head]` row
+a job that loads the head would run), `agent-instructions` (`**/CLAUDE.md`, `**/CLAUDE.local.md`,
+`**/AGENTS.md`, `**/.mcp.json`, `**/.lsp.json` and anything under a `.claude/` directory, which the
+review CLI loads from the head's checkout, so a lane could steer the review judging it),
+`**/.gitattributes` (a `-diff` or `binary` attribute hides a file's text from the review's diff),
+a symbolic link, a gitlink, a backslash path, and a rename into any of those, with its source. The
+row's `max-files`, `allow` and `content-rule` see every change, kept ones included, so a narrow row
+never hands on a withheld change it would not admit. A kept path is never a stop: on a `[head]` row
 `apply-patch.mjs` withholds each kept change, pushes the rest, and writes the withheld part as
 `kept.diff` (`KEPT_PATCH_DIR`, its SHA-256 the step's `kept-sha256` output) beside `kept.json`,
 a manifest naming the commit it applies to (the one pushed, else the gated head), the SHA-256,
@@ -589,9 +594,8 @@ request; on an issue it escalates `patch-protected-path`, which report-outcome a
 comment and no label. Every withheld blob still meets the size and credential checks, since the
 comment publishes it. A merge row cannot withhold part of a merge, so a kept path a merge
 resolution changes still escalates `conflict-patch-protected-path`.
-The rest of `.github/`, `CODEOWNERS`, `.gitmodules`, `.claude/`, `.mcp.json`, plugin hooks,
-`.claude-plugin/`, `lib/`, `scripts/`, `CLAUDE.md`, `AGENTS.md` and an executable bit reach
-review, where the security review lane reads each control surface with extra scrutiny, and merge
+The rest of `.github/`, `CODEOWNERS`, `.gitmodules`, plugin hooks, `.claude-plugin/`, `lib/`,
+`scripts/` and an executable bit reach review, where the security review lane reads each control surface with extra scrutiny, and merge
 on it: the
 [HIGH path floor](#merge-authority) holds for a human merge only the takeover set: the
 trusted-actor list, the trusted-trigger check, `CODEOWNERS`, `.gitmodules`, and `resolve-config`,

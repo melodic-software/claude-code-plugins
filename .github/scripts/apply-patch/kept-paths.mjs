@@ -1,9 +1,10 @@
 // The kept-path hand-off. apply-patch.mjs withholds a patch's changes to a
 // path the lane token may not push or the review job would load (a workflow,
-// a settings file, a symbolic link, a gitlink, a backslash path, a rename into
-// one), pushes the rest, and writes the withheld part as its own patch file,
-// KEPT_PATCH_FILE, beside KEPT_MANIFEST_FILE: the commit it applies to, its
-// SHA-256, its paths, the run, lane, activity and PR or issue. The run job
+// a settings file, an agent instruction file, a .gitattributes, a symbolic
+// link, a gitlink, a backslash path, a rename into one), pushes the rest, and
+// writes the withheld part as its own patch file, KEPT_PATCH_FILE, beside
+// KEPT_MANIFEST_FILE: the commit it applies to, its SHA-256, its paths, the
+// run, lane, activity and PR or issue. The run job
 // uploads both as the keptArtifactName artifact; the kept-paths job posts the
 // patch for people in one comment that KEPT_MARKER finds and edits in place.
 // A job that applies the kept part trusts the artifact, its manifest and the

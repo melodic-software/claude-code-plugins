@@ -197,15 +197,19 @@ Recheck trigger: any of those sections changes.
 review is their check. Read every change to one with extra scrutiny, and name in the summary each
 one the diff touches with what the change lets run, load or merge:
 
-- the trusted-actor list (`.github/standards/trusted-actors/**`) and the trusted-trigger check
-  (`.github/actions/check-trusted-trigger/**`)
+- the trusted-actor list (`.github/standards/trusted-actors/**`), the rest of
+  `.github/standards/**`, and the trusted-trigger check (`.github/actions/check-trusted-trigger/**`)
 - a `CODEOWNERS` file and a `.gitmodules` file
-- a plugin's `hooks/` and `bin/`, a `.mcp.json`, and a `plugin.json` key that runs or loads code, such as
-  (`hooks`, `mcpServers`, `lspServers`, `monitors`, `commands`, `agents`)
-- an agent instruction file: `AGENTS.md`, `CLAUDE.md`, a `.claude/` rules file
+- a plugin's `hooks/`, `monitors/` and `bin/`, and a `plugin.json` key that runs or loads code,
+  such as `hooks`, `mcpServers`, `lspServers`, `monitors`, `commands` or `agents`
+- the lanes' own apply and collect code (`.github/scripts/apply-patch/**`,
+  `.github/scripts/read-patch/collect-patch.sh`) and their settings
+  (`docs/conventions/pr-pipeline.yaml`)
 
-A workflow or a `settings*.json` change reaches the head only through a person or a later apply
-job, never a lane's own push; review it with the same scrutiny.
+A workflow, a `settings*.json`, an agent instruction file (`AGENTS.md`, `CLAUDE.md`,
+`CLAUDE.local.md`, anything under `.claude/`), a `.mcp.json` or `.lsp.json`, and a
+`.gitattributes` reach the head only through a person or a later apply job, never a lane's own
+push; review them with the same scrutiny.
 
 ## High-signal bar
 

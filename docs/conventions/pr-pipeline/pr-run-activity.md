@@ -750,7 +750,7 @@ the repeat cap counts by), `loop.no-progress` as `LOOP_NO_PROGRESS` and
    `prepare.sh`: it escalates `repeat-cap` before merging, runs
    `git merge --no-commit --no-ff <pinned base>` and the version-bump script (under `LC_ALL=C`),
    snapshots the index, and escalates `protected-path-conflict` (a conflicted path under
-   `.github/workflows/` or a `settings*.json`) or `unresolved-conflict` (a
+   `.github/workflows/` or another path `apply-patch.mjs` refuses) or `unresolved-conflict` (a
    conflict with no markers to resolve). Its `merge-state` output is `clean`, `conflicted` or
    `escalate`; for `clean` and `conflicted` it also prints `conflict-tree`, T0: the merge's stage-0
    entries plus each conflicted path's file as git left it, markers and all, hashed with
@@ -1299,7 +1299,8 @@ refusal posts nothing.
 3. The script, from its base copy, with the lane token and `/usr/bin/git` under an allowlisted
    environment (no hooks, fsmonitor, global or system config), applies the patch to the gated
    head's index (escalating `ci-fix-not-applied` on failure) and withholds each change to a kept
-   path (`.github/workflows/**`, `**/settings*.json`, a symbolic link or gitlink, a rename into a
+   path (`.github/workflows/**`, `**/settings*.json`, an agent instruction file, `.claude/` entry,
+   `.mcp.json` or `.lsp.json`, a `.gitattributes`, a symbolic link or gitlink, a rename into a
    kept path with its source, a backslash), posting it as a proposed diff
    ([Patch rules](README.md#patch-rules)); a patch of kept paths alone pushes nothing and skips
    `prerequisite-missing`. More than the row's `max-files`

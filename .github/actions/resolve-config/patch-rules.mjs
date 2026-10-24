@@ -10,6 +10,8 @@ import { Rejection } from "./resolve.mjs";
 const UNIVERSAL_REFUSE = Object.freeze([
   "github-workflows",
   "settings",
+  "agent-instructions",
+  "gitattributes",
   "symlink",
   "gitlink",
   "rename-into-refused",

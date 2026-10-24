@@ -7,7 +7,8 @@
 // The rule is path hygiene only. What a fix touches beyond the thread's own
 // path is a code-review finding, and a control or instruction surface it
 // touches is a security-review finding; apply-patch.mjs withholds the paths it
-// keeps (a workflow, a settings file) and posts them as a proposed diff.
+// keeps (a workflow, a settings file, an agent instruction file) and posts
+// them as a proposed diff.
 
 // Under .github/workflows/.
 export function isProtectedPath(path) {
