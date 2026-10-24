@@ -647,8 +647,8 @@ Read file, PR mode: a skill runs on ci-workflows'
 job. The caller calls the read file twice, each call with one secret, named for its `role`:
 `pr-unblock.yml`'s `fix-ci` passes only `claude-api-key` (`PR_UNBLOCK_CLAUDE_API_KEY`), and
 `fix-ci-subscription` passes only `claude-code-oauth-token`
-(`PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN`); its `fix-docs`, `address-feedback` and
-`review-dependency` calls and their `-subscription` calls do the same. Both queue in
+(`PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN`); its `address-feedback` and `review-dependency` calls,
+`pr-refine.yml`'s `fix-docs`, and their `-subscription` calls do the same. Both queue in
 `pr-pipeline-write-<pr>`. Each fallback call starts on no first-call output: a handoff job
 (`fix-ci-handoff`, `fix-ci-rung-up-handoff`, `address-feedback-handoff`,
 `review-dependency-handoff`, and `pr-refine.yml`'s `fix-docs-handoff`) with only `actions: read`

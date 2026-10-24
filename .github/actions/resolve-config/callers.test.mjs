@@ -1262,6 +1262,16 @@ test("every catalog lane reads only its role's secrets, and every role: it passe
     const roles = [job.with?.role, ...(job.steps ?? []).map((step) => step.with?.role)].filter((value) => value !== undefined);
     for (const value of roles) assert.equal(value, role.id, key);
   }
+  // A runner caller that reads no Claude secret still names the credential
+  // the lane record reports, so it passes its workflow's role.
+  const workflowRoles = new Map();
+  for (const { role, lane } of catalogLanes()) workflowRoles.set(lane.workflow, [...new Set([...(workflowRoles.get(lane.workflow) ?? []), role.id])]);
+  for (const [file, ids] of workflowRoles) {
+    if (ids.length !== 1) continue;
+    for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
+      if (job?.uses === READ_RUNNER || job?.uses === "./.github/workflows/pr-run-activity-write.yml") assert.equal(job.with?.role, ids[0], `${file} ${id}`);
+    }
+  }
 });
 
 test("a job reads a Claude API key only when its catalog lane runs on run-claude-cli", () => {

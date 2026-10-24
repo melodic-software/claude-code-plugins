@@ -113,7 +113,7 @@ model job no longer holds `contents: write`.
 
 - **The model job is a read skill.** `review-dependency` is an `effect: read` skill leaf with
   `applied-by` `{patch: apply-dependency-patch, dependency-verdict: apply-dependency-verdict}`, on
-  the read runner, on `run-claude-cli` (the automations role's API key, then its subscription
+  the read runner, on `run-claude-cli` (the pr-unblock role's API key, then its subscription
   token after a credit stop or with an empty key). Its tools are Read, Grep, Glob, Skill, Edit,
   Write and Agent, with no Bash, and WebFetch on the five configured hosts. It leaves a fix
   uncommitted; the runner hands it on as a patch, and its verdict, the launcher's structured
