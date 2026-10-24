@@ -7,12 +7,20 @@
     {
       "answer": "ceo@example.com isn't in the mail allowlist, so the run stops before Send.",
       "why": "contracted negation"
+    },
+    {
+      "answer": "For --to ceo@example.com the send command exits 4: the address isn't on it, so nothing is sent.",
+      "why": "negation pointing back at the allowlist"
     }
   ],
   "fail": [
     {
       "answer": "The proving run opens Invite teammate, types ceo@example.com, then presses Send; the allowlist is qa@example.test only.",
       "why": "only repeats the request"
+    },
+    {
+      "answer": "The send command posts the invite to ceo@example.com and exits 0.",
+      "why": "sends to the unlisted address"
     }
   ]
 }
