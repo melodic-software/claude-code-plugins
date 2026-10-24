@@ -3152,15 +3152,15 @@ async function issueStep(env, branchTips = {}) {
   let failed = null;
   const core = { setOutput: (name, value) => (outputs[name] = value), setFailed: (message) => (failed = message) };
   const calls = [];
+  // The route as report-outcome.mjs reads a lane branch: the name unescaped in the path.
   const github = {
-    rest: {
-      repos: {
-        getBranch: async ({ branch }) => {
-          calls.push(branch);
-          if (!Object.hasOwn(branchTips, branch)) throw new Error("Not Found");
-          return { data: { commit: { sha: branchTips[branch] } } };
-        },
-      },
+    request: async (route, { owner, repo }) => {
+      assert.deepEqual({ owner, repo }, { owner: "o", repo: "r" });
+      const branch = /^GET \/repos\/\{owner\}\/\{repo\}\/git\/ref\/heads\/(.+)$/.exec(route)?.[1];
+      assert.ok(branch, route);
+      calls.push(branch);
+      if (!Object.hasOwn(branchTips, branch)) throw new Error("Not Found");
+      return { data: { object: { sha: branchTips[branch] } } };
     },
   };
   const { createRequire } = await import("node:module");

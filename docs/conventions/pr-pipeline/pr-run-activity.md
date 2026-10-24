@@ -1332,8 +1332,8 @@ output, so no caller can echo one.
 In issue mode the job's first step, so that a later failure still leaves `issue-run-started` for
 the caller, checks the run job's issue fields from `env`: `issue-run-started` is `true` or
 `false`, a reuse or resume branch has the issue's lane-branch shape, `base-sha` and `resume-tip`
-are commit ids, and a resume tip has a base and is the resume branch's tip now (`getBranch`, with
-the scan job's read token). The start commit, the resume tip or else the base, is what the patch
+are commit ids, and a resume tip has a base and is the resume branch's tip now (with
+the scan job's read token, from `git/ref/heads/<branch>`). The start commit, the resume tip or else the base, is what the patch
 was made on. Any other value sets only `issue-run-started` and fails the job, so nothing is
 published and the report job reads no outcome. Then, in order:
 

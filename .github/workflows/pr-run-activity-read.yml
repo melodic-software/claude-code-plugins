@@ -2110,7 +2110,9 @@ jobs:
               if (!SHA.test(RESUME_TIP) || RESUME_BRANCH === '' || BASE_SHA === '') return bad('resume-tip');
               let tip = '';
               try {
-                tip = (await github.rest.repos.getBranch({ ...context.repo, branch: RESUME_BRANCH })).data?.commit?.sha ?? '';
+                // The branch in the path as written, as report-outcome.mjs
+                // reads it; BRANCH above allows no character it would escape.
+                tip = (await github.request(`GET /repos/{owner}/{repo}/git/ref/heads/${RESUME_BRANCH}`, context.repo)).data?.object?.sha ?? '';
               } catch {
                 tip = '';
               }
