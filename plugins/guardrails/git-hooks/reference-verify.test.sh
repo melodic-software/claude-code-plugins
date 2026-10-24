@@ -3,7 +3,8 @@
 # an unknown CLI flag or a cited path the repository deleted, on a line the
 # pushed commits add, blocks with "<path>:<line>: <message>"; the same text on an
 # unchanged line, or in a file type the verifiers do not read, does not; a new
-# branch ranges from its merge-base with the remote's default branch and a
+# branch ranges from its merge-base with the remote's default branch, a pushed
+# branch that merged main is judged only on its own lines, and a
 # deletion checks nothing; the failure names the way out (decline the entry;
 # the skip key covers only a missing jq); --worktree covers uncommitted files;
 # and the plugin's vendored installer wires the entry as a pre-push hook, so
@@ -253,6 +254,29 @@ commit_all topic
 expect "a new branch ranges from its merge-base with origin's default branch" "1|run.sh:3: $FLAG_FINDING" \
   "$(push_check refs/heads/topic "$(git -C "$REPO" rev-parse HEAD)" "$ZERO")"
 expect "a branch deletion checks nothing" "0|" "$(push_check refs/heads/topic "$ZERO" "$BASE")"
+
+# A pushed branch that merged main: only the lines the branch itself adds are
+# judged, never the ones the merge brought in from the default branch.
+new_repo
+git -C "$REPO" checkout -q -b topic
+printf '#!/usr/bin/env bash\nfaketool --real\n' >"$REPO/topic.sh"
+commit_all topic
+git -C "$REPO" push -q --no-verify origin topic 2>/dev/null
+pushed="$(git -C "$REPO" rev-parse HEAD)"
+git -C "$REPO" checkout -q main
+printf '#!/usr/bin/env bash\nfaketool --real\nfaketool --bogus\n' >"$REPO/run.sh"
+printf '#!/usr/bin/env bash\nfaketool --bogus\n' >"$REPO/main-new.sh"
+commit_all main-bogus
+git -C "$REPO" push -q --no-verify origin main 2>/dev/null
+git -C "$REPO" checkout -q topic
+git -C "$REPO" merge -q --no-edit --no-verify main >/dev/null
+expect "a branch that merged main is not judged on the lines main added" "0|" \
+  "$(push_check refs/heads/topic "$(git -C "$REPO" rev-parse HEAD)" "$pushed")"
+printf '#!/usr/bin/env bash\nfaketool --real\nfaketool --bogus\n' >"$REPO/topic.sh"
+commit_all topic-bogus
+expect "after merging main, a line the branch adds is still judged" "1|topic.sh:3: ${FLAG_FINDING/in run.sh/in topic.sh}" \
+  "$(push_check refs/heads/topic "$(git -C "$REPO" rev-parse HEAD)" "$pushed")"
+git -C "$REPO" checkout -q main
 
 new_repo
 printf '#!/usr/bin/env bash\nfaketool --real\nfaketool --bogus\n' >"$REPO/run.sh"

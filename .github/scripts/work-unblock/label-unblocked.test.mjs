@@ -1885,7 +1885,14 @@ test("a Refs PR merging lifts the needs-human report-outcome set for it: needs-t
   assert.deepEqual(writes(calls), [comment, triage, `DELETE /repos/${REPO}/issues/30/labels/needs-human`, agentReady]);
 });
 
-test("a needs-human that report-outcome did not set for the merged PR, or a PR that has not merged, keeps the hold", async () => {
+test("a Refs PR closed unmerged lifts the needs-human report-outcome set for it and hands the issue to triage", async () => {
+  const { github, calls } = refsHeld({ pulls: [lanePull({ merged: false })] });
+  assert.equal(await sweep({ github }), 0);
+  const [comment, triage, agentReady] = triaged(30, 7805, refsClosedComment(7805));
+  assert.deepEqual(writes(calls), [comment, triage, `DELETE /repos/${REPO}/issues/30/labels/needs-human`, agentReady]);
+});
+
+test("a needs-human that report-outcome did not set for the ended PR, or a PR still open, keeps the hold", async () => {
   for (const [name, fake] of [
     ["the marker by a person", refsHeld({ comments: [note(), holdNote(7805, OWNER)] })],
     ["the marker names another PR", refsHeld({ comments: [note(), holdNote(7804)] })],
@@ -1903,7 +1910,6 @@ test("a needs-human that report-outcome did not set for the merged PR, or a PR t
       }),
     ],
     ["the PR is open", refsHeld({ pulls: [lanePull({ state: "open" })] })],
-    ["the PR closed unmerged", refsHeld({ pulls: [lanePull({ merged: false })] })],
     ["another hold beside it", refsHeld({ labels: ["needs-human", "needs-owner-decision"] })],
   ]) {
     assert.equal(await sweep({ github: fake.github }), 0, name);
@@ -2421,9 +2427,13 @@ test("a person's mark on an inadmissible issue is refused: the admission comment
     `DELETE /repos/${REPO}/issues/25/labels/status%3A%20ready`,
     undeferred(25),
   ];
+  // Size Large parks for the intake split (owner Q93): a wait comment, the mark off, status: ready kept.
   const large = markedWorld({ fields: LARGE_LOW_KNOWN });
   assert.equal(await sweep({ github: large.github, admission: admissionFor() }, PAUSING), 0);
-  assert.deepEqual(writes(large.calls), refusedWrites(["Size large is not one of small, medium"]));
+  assert.deepEqual(writes(large.calls), [
+    `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\nNot admitted to the issue lane yet: Size large: the split into sub-issues at intake is pending (owner Q93).` })}`,
+    undeferred(25),
+  ]);
   // A value no listed human or App set counts as unset, never as a default.
   const stranger = markedWorld();
   assert.equal(await sweep({ github: stranger.github, admission: admissionFor(4242) }, PAUSING), 0);
@@ -2495,12 +2505,13 @@ const labelsAfter = (labels, calls, failed) =>
 test("a refusal whose needs-decision write fails keeps status: ready, so the next sweep admits nothing", async (t) => {
   t.mock.method(console, "log", () => {});
   const failOn = (method, path, body) => method === "POST" && path.endsWith("/issues/25/labels") && body?.labels?.includes("status: needs-decision");
-  const first = markedWorld({ fields: LARGE_LOW_KNOWN, failOn });
-  assert.equal(await sweep({ github: first.github, admission: admissionFor() }, PAUSING), 1);
+  // Fields no listed human or App set read as unset, which refuses.
+  const first = markedWorld({ failOn });
+  assert.equal(await sweep({ github: first.github, admission: admissionFor(4242) }, PAUSING), 1);
   assert.ok(!writes(first.calls).includes(`DELETE /repos/${REPO}/issues/25/labels/status%3A%20ready`), writes(first.calls).join("\n"));
   const left = labelsAfter(MARKED, first.calls, NEEDS_DECISION_WRITE);
-  const second = markedWorld({ labels: left, fields: LARGE_LOW_KNOWN });
-  assert.equal(await sweep({ github: second.github, admission: admissionFor() }, PAUSING), 0);
+  const second = markedWorld({ labels: left });
+  assert.equal(await sweep({ github: second.github, admission: admissionFor(4242) }, PAUSING), 0);
   assert.ok(!writes(second.calls).includes(labeled(25)), `${left}\n${writes(second.calls).join("\n")}`);
 });
 
@@ -2557,7 +2568,7 @@ test("a person's mark waiting on an open blocker loses admission-deferred with t
   const log = t.mock.method(console, "log", () => {});
   const { github, calls } = markedWorld({ blockers: [issue(10)] });
   assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
-  const why = "blocker #10 is not closed as completed by a listed human or a merge";
+  const why = "blocker #10 is not closed by a listed human or a merge";
   assert.deepEqual(writes(calls), [
     `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\nNot admitted to the issue lane yet: ${why}.` })}`,
     undeferred(25),

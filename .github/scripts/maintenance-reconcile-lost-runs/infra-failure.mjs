@@ -19,6 +19,9 @@
 // - it failed with no failed step: the runner was lost mid-step.
 // Anything else is a real failure. The ci-status aggregate fails whenever a
 // lane does, so it is set aside when another job failed; alone, it is real.
+// The jobs API can list a job that ran with no steps, or with steps cut out,
+// so a failed job whose list is not whole (stepsKnown) is neither infra nor
+// real: the reconciler leaves its run for a later pass.
 
 export const AGGREGATE_JOBS = new Set(["ci-status"]);
 export const INSTALL_STEP = /^(Install |Set up (job|Node|Python)$)/;
@@ -62,10 +65,47 @@ export function reconcilerOwns({ run, jobs }, now) {
   if (infraOnly(jobs)) {
     return reconcilerRetries(run, now) ? "infra failure, re-run job owns it" : "";
   }
+  if (stepsUnread(jobs) && reconcilerRetries(run, now)) {
+    return "its failed jobs' steps did not list, re-run job reads them again";
+  }
   return firstFailure(run, jobs, now) ? "first failure, re-run job re-runs it once" : "";
 }
 
-// Why the failed job is infra ("time limit", "install", "lost runner"), or "" when it is real.
+// True when the job's step list shows what ran: empty for a job no runner
+// took, else opening with "Set up job" and, where steps carry numbers, numbered
+// 1, 2, 3... up to the post steps ("Post ...", "Complete job"), which follow
+// after a gap. A finished job's list must also end with "Complete job" and
+// show every step completed, so a list cut at its tail, or read before it
+// caught up with the job, is not whole.
+export function stepsKnown(job) {
+  const steps = job?.steps;
+  if (!Array.isArray(steps) || steps.length === 0) {
+    return Array.isArray(steps) && !job.runner_id;
+  }
+  if (steps[0]?.name !== "Set up job") {
+    return false;
+  }
+  if (job.status === "completed" && (steps.at(-1)?.name !== "Complete job" || steps.some((step) => step?.status !== "completed"))) {
+    return false;
+  }
+  const gap = steps.findIndex((step, i) => step?.number != null && step.number !== i + 1);
+  return gap === -1 || steps.slice(gap).every((step) => /^(Post |Complete job$)/.test(String(step?.name ?? "")));
+}
+
+// A runner that dies cuts its job's list as the API can, so it is told apart
+// by the job's check-run annotations (job.annotations, read by the caller):
+// GitHub's own failure message, as maintenance-monitor-signals matches it.
+const LOST_RUNNER = /lost communication with the server|runner has received a shutdown signal/i;
+export const lostRunnerNoted = (job) =>
+  Array.isArray(job?.annotations) && job.annotations.some((a) => a?.annotation_level === "failure" && LOST_RUNNER.test(String(a.message ?? "")));
+
+// True when a failed lane job's steps cannot be read, so whether the run's
+// failures are infra is unknown.
+const stepsUnread = (jobs) =>
+  Array.isArray(jobs) && jobs.some((job) => job?.conclusion === "failure" && !AGGREGATE_JOBS.has(job.name) && !stepsKnown(job));
+
+// Why the failed job is infra ("time limit", "install", "lost runner"), or ""
+// when it is real or its steps did not list.
 export function infraCause(job) {
   if (job?.conclusion === "cancelled" || job?.conclusion === "timed_out") {
     return "time limit";
@@ -73,7 +113,13 @@ export function infraCause(job) {
   if (job?.conclusion !== "failure") {
     return "";
   }
-  const steps = Array.isArray(job.steps) ? job.steps : [];
+  if (lostRunnerNoted(job)) {
+    return "lost runner";
+  }
+  if (!stepsKnown(job)) {
+    return "";
+  }
+  const { steps } = job;
   const first = steps.find((step) => step?.conclusion === "failure" || STOPPED.has(step?.conclusion));
   if (first === undefined) {
     return "lost runner";

@@ -7,6 +7,7 @@ import { test } from "node:test";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, markHandled, parseRecord, serializeRecord } from "./dispatch-record.mjs";
 import { createGitHubApi, dispatchConflicting, main } from "./dispatch.mjs";
+import { budgetedFetch } from "./request-budget.mjs";
 
 const CHECK_NAME = "pr-unblock / resolve-conflicts";
 // The lanes App bot's user id (.github/standards/trusted-actors/trusted-actors.json).
@@ -483,6 +484,19 @@ test("an unreadable run listing dispatches nothing and counts as a failure", asy
   assert.ok(lines.some((line) => line.startsWith("::error::") && line.includes("runs read failed")));
 });
 
+// The error the adapter throws when budgetedFetch gave up on a rate limit.
+const rateLimitedListing = () =>
+  Object.assign(new Error("GET https://api.example/repos/o/r/actions/workflows/pr-unblock.yml/runs returned 403"), { rateLimited: true });
+
+test("a rate-limited run listing defers: nothing dispatched, a warning, and no failure", async () => {
+  const { api, lines, run } = harness({ pages: [[pr(29)]], workflowRuns: rateLimitedListing() });
+  const result = await run();
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.deepEqual(result, { dispatched: [], failed: 0 });
+  assert.ok(lines.some((line) => line.startsWith("::warning::") && line.includes("rate limited") && line.includes("returned 403")));
+  assert.ok(!lines.some((line) => line.startsWith("::error::")));
+});
+
 test("maxDispatch defaults to 3, in ascending PR number, logging the PRs left for a later run", async () => {
   const { api, lines, run } = harness({ pages: [[pr(25), pr(23), pr(21), pr(24), pr(22)]] });
   await run();
@@ -766,6 +780,52 @@ test("main records fix-docs dispatches beside the others, capped by limits.fix-d
   assert.deepEqual(capped, { code: 0, output: "run-ids=9170 9171\n" });
   const fallback = await runMain({ pages: [[]], docsPulls });
   assert.deepEqual(fallback, { code: 0, output: "run-ids=9171 9172\n" }, "with no fix-docs limit the default of 2 holds");
+});
+
+// main against a fake API whose run listing fails with `error`, holding one
+// candidate for resolve-conflicts, fix-ci and fix-docs each.
+async function mainWithFailedListing(error) {
+  const api = fakeApi({ pages: [[pr(181)]], ciFixPulls: [ciFixPull(182)], docsPulls: [docsPull(183)], workflowRuns: error });
+  const lines = [];
+  const dir = mkdtempSync(join(tmpdir(), "pr-unblock-dispatch-"));
+  try {
+    const code = await main(
+      { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
+      { api, sleep: async () => {}, log: (line) => lines.push(line), loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}) },
+    );
+    return { api, code, lines };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("main lists each workflow's runs once, and a rate-limited listing ends the run green with nothing dispatched", async () => {
+  const { api, code, lines } = await mainWithFailedListing(rateLimitedListing());
+  assert.equal(code, 0);
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.deepEqual(api.calls.runs, ["pr-unblock.yml", "pr-refine.yml"], "resolve-conflicts and fix-ci share one pr-unblock.yml listing");
+  assert.ok(lines.includes("dispatched 0 run(s), 0 failure(s)"));
+});
+
+test("main still exits 1 on a run listing that fails for any other reason", async () => {
+  const { api, code } = await mainWithFailedListing(new Error("GET runs returned 404"));
+  assert.equal(code, 1);
+  assert.deepEqual(api.calls.dispatch, []);
+});
+
+test("the adapter marks a run listing budgetedFetch gave up on as rate limited, and a refusal as not", async () => {
+  const reset = Math.floor(Date.now() / 1000) + 19 * 60;
+  const answers = [
+    new Response('{"message":"API rate limit exceeded for installation."}', {
+      status: 403,
+      headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": String(reset) },
+    }),
+    new Response('{"message":"Resource not accessible by integration"}', { status: 403, headers: { "x-ratelimit-remaining": "4000" } }),
+  ];
+  const budget = budgetedFetch({ fetch: async () => answers.shift(), log: () => {}, sleep: async () => assert.fail("no wait fits") });
+  const api = createGitHubApi({ token: "t", repository: "o/r", apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch: budget.fetch });
+  await assert.rejects(api.listWorkflowRuns("pr-unblock.yml"), (error) => error.rateLimited === true && /returned 403/.test(error.message));
+  await assert.rejects(api.listWorkflowRuns("pr-refine.yml"), (error) => error.rateLimited !== true && /returned 403/.test(error.message));
 });
 
 test("without the lanes App sender id main still dispatches conflicts, dispatches no fix-ci, and exits 1", async () => {

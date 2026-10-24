@@ -72,7 +72,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, loadTrustedList, paginate, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { refsIssue, resolvePull, specFromBodyApps } from "../pr-verify/resolve-pr.mjs";
 import { headRefDigest } from "../pr-verify/write-verdict.mjs";
-import { firstFailure, INFRA_BACKOFF_MINUTES, infraOnly, LOOKBACK_HOURS, reconcilerRetries, testedRun } from "./infra-failure.mjs";
+import { firstFailure, INFRA_BACKOFF_MINUTES, infraOnly, LOOKBACK_HOURS, lostRunnerNoted, reconcilerRetries, stepsKnown, testedRun } from "./infra-failure.mjs";
 
 const STATUS_URL = "https://www.githubstatus.com/api/v2/components.json";
 // A failed run's failed jobs are re-run only while both pages show indicator none.
@@ -109,6 +109,10 @@ export const INTAKE_LABEL = ".github/workflows/intake-label-needs-triage.yml";
 // pending run when a newer one for the same PR head queues behind it, and that
 // newer run judges the head.
 export const JUDGE_STEP = "Judge the pull request";
+// The step before JUDGE_STEP. A cut list that reaches it or the judge step
+// cannot show a runner loss from an annotation: the judge step's log may echo
+// model or PR text that reads as one.
+export const JUDGE_PREDECESSOR = "Write the prompt and schema";
 export const MAX_IN_FLIGHT = 3;
 export const WRITE_GAP_MS = 1000;
 // Pages of 100 read per status query of a lane's run listing; a listing that
@@ -207,6 +211,18 @@ const recorded = (item) => item.kind === "lane" || item.record !== undefined;
 const byMergeCriticality = (a, b) => Number(b.auto_merge != null) - Number(a.auto_merge != null) || a.number - b.number;
 const byAge = (a, b) => Date.parse(a.created_at) - Date.parse(b.created_at) || a.id - b.id;
 
+// A job whose steps did not list in full may have lost its runner, which cuts
+// the list at the running step; its check-run annotations tell
+// (infra-failure.mjs lostRunnerNoted). Reads them for each such job `wanted` picks.
+const withAnnotations = (call, repo, jobs, wanted = () => true) =>
+  Promise.all(
+    jobs.map(async (job) =>
+      wanted(job) && !stepsKnown(job) && Number.isSafeInteger(job?.id)
+        ? { ...job, annotations: await call("GET", `/repos/${repo}/check-runs/${job.id}/annotations?per_page=100`) }
+        : job,
+    ),
+  );
+
 // Why the run's first attempt must not be re-run, or undefined when it may be:
 // a job started JUDGE_STEP, or no job started any step. Step data, unlike an
 // artifact, cannot be deleted. An unreadable listing throws.
@@ -215,11 +231,24 @@ async function holdReason(call, repo, runId) {
   if (!Array.isArray(listing?.jobs) || listing.total_count > 100) {
     throw new Error("its job listing is not one complete page");
   }
-  const started = listing.jobs
-    .flatMap((job) => (Array.isArray(job?.steps) ? job.steps : []))
-    .filter((s) => s?.conclusion != null && s.conclusion !== "skipped");
-  if (started.some((s) => s.name === JUDGE_STEP)) {
+  const jobs = await withAnnotations(call, repo, listing.jobs);
+  // A job whose steps did not list in full (stepsKnown) throws too, so the
+  // next pass reads it again, unless it lost its runner: then its list ends at
+  // the step that was running. Only a failed job's annotation counts.
+  const cut = jobs.filter((job) => !stepsKnown(job));
+  if (!cut.every((job) => job?.conclusion === "failure" && lostRunnerNoted(job))) {
+    throw new Error("a job's steps did not list in full, so which steps ran is unknown");
+  }
+  const steps = jobs.flatMap((job) => (Array.isArray(job?.steps) ? job.steps : []));
+  const started = steps.filter((s) => s?.conclusion != null && s.conclusion !== "skipped");
+  // A listed judge step counts as started in any state but a finished skip.
+  if (steps.some((s) => s?.name === JUDGE_STEP && !(s.status === "completed" && s.conclusion === "skipped"))) {
     return "after its judge step started";
+  }
+  // An annotation can be echoed text, so a cut list that reaches the judge
+  // step's predecessor stays held rather than read as a lost runner.
+  if (cut.some((job) => job.steps?.some((s) => s?.name === JUDGE_PREDECESSOR))) {
+    return "after its judge step may have started";
   }
   return started.length === 0 ? "before any of its jobs started" : undefined;
 }
@@ -395,7 +424,8 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec }) {
             if (!Array.isArray(listed?.jobs) || listed.total_count > 100) {
               throw new Error(`run ${r.id}'s job listing is not one complete page`);
             }
-            return listed.jobs;
+            // infraCause reads a failed job's annotations.
+            return withAnnotations(call, repo, listed.jobs, (job) => job?.conclusion === "failure");
           }),
         );
       }
