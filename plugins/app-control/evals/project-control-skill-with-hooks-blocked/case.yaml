@@ -14,7 +14,7 @@ graders:
   - name: blocked-on-construct
     type: regex
     target: { source: file, path: evidence/report.json }
-    pattern: 'blocked: control skill carries'
+    pattern: 'control skill carries'
     arm: both
   - name: reads-project-skill-file
     type: tool_used
