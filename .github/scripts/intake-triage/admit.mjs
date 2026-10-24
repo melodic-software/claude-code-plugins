@@ -295,7 +295,12 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (verdict.workClass === UNTRUSTED || names(issue.labels).includes(UNTRUSTED) || removedByOther) {
     refuse.push(`${UNTRUSTED} work needs a person`);
   }
-  if (!rules.sizes.includes(verdict.dimensions?.size)) {
+  // Reasons the owner already settled without a person: they park the issue
+  // at status: ready (a wait with no pull request), never needs-decision.
+  const parked = [];
+  if (verdict.dimensions?.size === "large" && !rules.sizes.includes("large")) {
+    parked.push(`Size large: the split into sub-issues at intake is pending (owner Q93)`);
+  } else if (!rules.sizes.includes(verdict.dimensions?.size)) {
     refuse.push(`Size ${verdict.dimensions?.size} is not one of ${rules.sizes.join(", ")}`);
   }
   if (!rules.uncertainty.includes(verdict.dimensions?.uncertainty)) {
@@ -309,7 +314,15 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   }
   const lines = trustedSpecTexts(spec, humans).flatMap((text) => text.split("\n"));
   if (!hasTrustedCriteria(spec, humans, rules["task-list"])) {
-    refuse.push(noTrustedSpec(rules["task-list"]));
+    // The App's refinement criteria count once owner Q78 lands; an issue with
+    // a criteria list only the App wrote waits for that instead of a person.
+    const byApp = (actor) => actor?.__typename === "Bot" && appId !== undefined && actor.databaseId === appId;
+    const appCriteria = humans.has(issue.user?.id) && (spec?.comments ?? []).some((comment) => byApp(comment.author) && hasTaskLine(comment.body, rules["task-list"]));
+    if (appCriteria) {
+      parked.push("its acceptance criteria are in the lanes App's refinement, which counts once owner Q78 lands");
+    } else {
+      refuse.push(noTrustedSpec(rules["task-list"]));
+    }
   }
   // A copied refinement breaks `://` and `www.` with a zero-width space so no
   // link renders; the check reads the URL as written.
@@ -323,7 +336,10 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     }
   }
   if (refuse.length > 0) {
-    return { verdict: "refuse", reasons: refuse };
+    return { verdict: "refuse", reasons: [...refuse, ...parked] };
+  }
+  if (parked.length > 0) {
+    return { verdict: "wait", reasons: parked, pulls: [] };
   }
 
   const wait = [];
@@ -436,9 +452,13 @@ export function trustedSpecTexts(spec, humans) {
   return spec ? [spec, ...(spec.comments ?? [])].filter(written).map((item) => String(item.body ?? "")) : [];
 }
 
+const hasTaskLine = (text, taskList) =>
+  String(text ?? "")
+    .split("\n")
+    .some((line) => line.trimStart().startsWith(taskList));
+
 // Whether that text holds a `taskList` line: criterion 7. Pure.
-export const hasTrustedCriteria = (spec, humans, taskList) =>
-  trustedSpecTexts(spec, humans).some((text) => text.split("\n").some((line) => line.trimStart().startsWith(taskList)));
+export const hasTrustedCriteria = (spec, humans, taskList) => trustedSpecTexts(spec, humans).some((text) => hasTaskLine(text, taskList));
 
 // For an issue apply-verdict held without admission (a flag, an escalation or
 // a hold), the same split note a refusal posts, when a done-when item is one

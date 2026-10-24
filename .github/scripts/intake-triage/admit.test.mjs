@@ -183,16 +183,6 @@ describe("decide", () => {
       },
       /Uncertainty unknown/,
     ],
-    [
-      "criterion 3: Size Large",
-      {
-        verdict: {
-          ...VERDICT,
-          dimensions: { ...VERDICT.dimensions, size: "large" },
-        },
-      },
-      /Size large/,
-    ],
     ["criterion 3: untrusted-provenance work", { verdict: { ...VERDICT, workClass: "work-class: untrusted-provenance" } }, /untrusted-provenance work needs a person/],
     [
       "criterion 3: an untrusted-provenance label on the issue",
@@ -223,6 +213,19 @@ describe("decide", () => {
       assert.match(result.reasons.join("; "), reason);
     });
   }
+
+  // Owner Q93 settled Size Large without a person: the split happens at intake,
+  // so the issue parks at status: ready (a wait with no pull request).
+  test("Size Large parks the issue for the intake split instead of refusing it", () => {
+    const result = decide(facts({ verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } } }));
+    assert.deepEqual(result, { verdict: "wait", reasons: ["Size large: the split into sub-issues at intake is pending (owner Q93)"], pulls: [] });
+  });
+
+  test("Size Large beside a real refusal reason still refuses, and names both", () => {
+    const result = decide(facts({ issue: issueOf({ user: { id: OUTSIDER } }), verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } } }));
+    assert.equal(result.verdict, "refuse");
+    assert.match(result.reasons.join("; "), /author.*Size large/);
+  });
 
   test("admits an issue whose title and body name a path under .github/ or docs/conventions/", () => {
     const result = decide(
@@ -352,15 +355,23 @@ describe("decide", () => {
     assert.equal(result.verdict, "refuse");
   });
 
-  // The App's refinement comment is model text pr-verify never reads, so its
-  // task list admits nothing; a listed human who confirms it posts it as their own.
+  // The App's refinement comment is model text pr-verify does not read yet, so
+  // its task list admits nothing; on a human-filed issue it parks the issue for
+  // owner Q78 (the refinement counts as spec) instead of asking a person.
   describe("criterion 7 and the lanes App's refinement comment", () => {
     const thin = issueOf({ body: "Make the README skill count right." });
     const refinement = (body = `${REFINE_MARKER}\n**Refinement.**\n\n- [ ] Line 3 says nineteen.`) => written(APP_ACTOR, { body });
     const NO_SPEC = /^no trusted-human acceptance criteria: /;
 
-    test("a thin issue whose only task list is the App's refinement comment is refused", () => {
+    test("a thin human-filed issue whose only task list is the App's refinement waits for Q78, not admitted", () => {
       const result = decide(facts({ issue: thin, spec: humanSpec(thin, [refinement()]) }));
+      assert.equal(result.verdict, "wait");
+      assert.deepEqual(result.pulls, []);
+      assert.match(result.reasons.join(), /lanes App's refinement, which counts once owner Q78 lands/);
+    });
+
+    test("the same issue with no task list anywhere is refused", () => {
+      const result = decide(facts({ issue: thin, spec: humanSpec(thin, [refinement(`${REFINE_MARKER}\n**Refinement.**\n\nNo criteria.`)]) }));
       assert.equal(result.verdict, "refuse");
       assert.match(result.reasons.join(), NO_SPEC);
     });
@@ -390,7 +401,6 @@ describe("decide", () => {
     for (const [name, author] of [
       ["github-actions[bot]", { __typename: "Bot", databaseId: 41898282 }],
       ["an outsider", USER(OUTSIDER)],
-      ["the App", APP_ACTOR],
     ]) {
       test(`a task list from ${name} does not count`, () => {
         const result = decide(facts({ issue: thin, spec: humanSpec(thin, [written(author)]) }));
@@ -398,6 +408,12 @@ describe("decide", () => {
         assert.match(result.reasons.join(), NO_SPEC);
       });
     }
+
+    test("a task list from the App does not admit; it parks the issue for Q78", () => {
+      const result = decide(facts({ issue: thin, spec: humanSpec(thin, [written(APP_ACTOR)]) }));
+      assert.equal(result.verdict, "wait");
+      assert.doesNotMatch(result.reasons.join(), NO_SPEC);
+    });
   });
 });
 
@@ -581,11 +597,13 @@ describe("admit", () => {
     assert.match(writes(fake.calls).at(-1), /^PATCH \/repos\/o\/r\/issues\/comments\/31 /);
   });
 
-  test("a thin issue is refused on the App's refinement alone and admitted on a listed human's confirmed criteria", async () => {
+  test("a thin issue waits on the App's refinement alone, keeping status: ready, and is admitted on a listed human's confirmed criteria", async () => {
     const thin = issueOf({ body: "Make the README skill count right." });
     const refinement = written(APP_ACTOR, { body: `${REFINE_MARKER}\n- [ ] Line 3 says nineteen.` });
-    const refined = await go(fakeGitHub({ issue: thin, spec: humanSpec(thin, [refinement]) }));
-    assert.equal(refined.outcome, "refused");
+    const fake = fakeGitHub({ issue: thin, spec: humanSpec(thin, [refinement]) });
+    const refined = await go(fake);
+    assert.equal(refined.outcome, "waiting");
+    assert.ok(!writes(fake.calls).some((call) => call.includes(NEEDS_DECISION) || call.includes("status%3A%20ready")), writes(fake.calls).join("\n"));
     const confirmed = await go(fakeGitHub({ issue: thin, spec: humanSpec(thin, [refinement, written(USER(HUMAN), { body: "- [ ] Line 3 says nineteen." })]) }));
     assert.equal(confirmed.outcome, "admitted");
   });
