@@ -20,6 +20,10 @@
 //   list lifts it by approving the head: their newest review of the head that
 //   approves, requests changes or was dismissed must approve. No path is held
 //   for being trusted alone: the review lanes judge it.
+// - A trusted-actor list widening (actorsHold, the rule of
+//   babysit_risk._actors_widened): TRUSTED_ACTORS_PATH read at the base commit
+//   (BASE_SHA) and the head and compared; only removing entries passes. No
+//   approval lifts it: the owner merges it.
 // - A cost path (COST_PATHS): a changed file the gate holds for the owner's
 //   cost decision. An approval does not lift it; only the decision the gate
 //   reads does (costDecision), linked from the body: on the pull request, or
@@ -51,8 +55,9 @@
 // path and status (changeOf); the denied-paths file the config's
 // merge.diff-check.denied-paths as JSON; the trusted-actors file
 // trusted-actors.json. Each hold prints as an ::error:: and exits 1; no hold
-// exits 0. Who wrote a body that holds, and a cost path with a decision link
-// in the body, are read with GH_TOKEN.
+// exits 0. Who wrote a body that holds, a changed trusted-actor list, and a
+// cost path with a decision link in the body, are read with GH_TOKEN.
+import { Buffer } from "node:buffer";
 import { readFileSync } from "node:fs";
 import { posix } from "node:path";
 import process from "node:process";
@@ -232,6 +237,170 @@ export function costHold(files, decision) {
     return COST_PATHS.some((glob) => [glob, `${glob}/**`].some((each) => posix.matchesGlob(folded, each.toLowerCase())));
   });
   return held === undefined || decision ? null : `it changes ${held}, a cost path`;
+}
+
+// babysit_risk._manifest: the parsed object as a node tree, or null when the
+// text is not a string, not JSON, not an object, or repeats a key. A node is
+// { object: Map }, { array: [] } or { text }, a scalar's text telling values
+// apart as Python's json.loads does: an integer and a float differ (1 and
+// 1.0), so canonical (json.dumps with sort_keys) compares them as the gate.
+function parseStrict(text) {
+  if (typeof text !== "string") {
+    return null;
+  }
+  try {
+    JSON.parse(text);
+  } catch {
+    return null;
+  }
+  // The text is valid JSON, so the walk below needs no error handling.
+  let at = 0;
+  const space = () => {
+    while (" \t\n\r".includes(text[at] ?? "x")) at += 1;
+  };
+  const string = () => {
+    const start = at;
+    for (at += 1; text[at] !== '"'; at += 1) {
+      if (text[at] === "\\") at += 1;
+    }
+    at += 1;
+    return JSON.parse(text.slice(start, at));
+  };
+  const items = (close, read) => {
+    at += 1;
+    for (space(); text[at] !== close; space()) {
+      read();
+      space();
+      if (text[at] === ",") at += 1;
+    }
+    at += 1;
+  };
+  const value = () => {
+    space();
+    if (text[at] === "{") {
+      const object = new Map();
+      items("}", () => {
+        const key = string();
+        if (object.has(key)) throw new Error("duplicate key");
+        space();
+        at += 1;
+        object.set(key, value());
+      });
+      return { object };
+    }
+    if (text[at] === "[") {
+      const array = [];
+      items("]", () => array.push(value()));
+      return { array };
+    }
+    if (text[at] === '"') return { text: JSON.stringify(string()), string: true };
+    const token = /^(?:true|false|null|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/.exec(text.slice(at))[0];
+    at += token.length;
+    if (!/^-?\d/.test(token)) return { text: token };
+    if (!/[.eE]/.test(token)) {
+      // json.loads refuses an integer past int_max_str_digits (4300), so the
+      // gate reads that side as malformed.
+      if (token.replace("-", "").length > 4300) throw new Error("integer too long");
+      return { text: `${BigInt(token)}` };
+    }
+    const number = Number(token);
+    return { text: `${Object.is(number, -0) ? "-0" : String(number)}.f` };
+  };
+  try {
+    const root = value();
+    return root.object ? root : null;
+  } catch {
+    return null;
+  }
+}
+
+const canonical = (node) =>
+  node.object
+    ? `{${[...node.object]
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([key, child]) => `${JSON.stringify(key)}:${canonical(child)}`)
+        .join(",")}}`
+    : node.array
+      ? `[${node.array.map(canonical).join(",")}]`
+      : node.text;
+// babysit_risk.TRUSTED_ACTORS_PATH, matched case-folded as glob_match does.
+export const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
+
+// babysit_risk._actors_widened: why one change of the trusted-actor list
+// widens trust, or null when it only removes entries; test_merge_holds_sync.py
+// checks the two agree. `change` is { status, previous, contents }, contents
+// [base text, head text]. Anything but a file modified in place, a side that
+// does not read or parse or repeats a key, an `actors` that is no list, or a
+// change to any other key holds, and so does an entry added or changed.
+export function actorsWidened({ status, previous = null, contents } = {}) {
+  if (status !== "modified" || previous !== null) {
+    return `${status ?? "unknown"} trusted-actor list`;
+  }
+  if (!Array.isArray(contents) || contents.length !== 2) {
+    return "contents unreadable";
+  }
+  const [base, head] = contents.map(parseStrict);
+  if (base === null || head === null) {
+    return "unreadable, malformed or a repeated key";
+  }
+  const [old, now] = [base, head].map((node) => node.object.get("actors"));
+  if (!old?.array || !now?.array) {
+    return "actors is not a list";
+  }
+  const rest = (node) => canonical({ object: new Map([...node.object].filter(([key]) => key !== "actors")) });
+  if (rest(base) !== rest(head)) {
+    return "a key other than actors changed";
+  }
+  const gained = new Map();
+  for (const [entries, step] of [[now.array, 1], [old.array, -1]]) {
+    for (const entry of entries) {
+      const key = canonical(entry);
+      gained.set(key, (gained.get(key) ?? 0) + step);
+    }
+  }
+  const added = [...gained].filter(([, n]) => n > 0).map(([key]) => key).sort();
+  return added.length ? `entries added or changed: ${added.join(", ")}` : null;
+}
+
+// Why the changes (changeOf's, with withActorContents's contents) widen the
+// trusted-actor list, or null. A change whose path or renamed-from path is the
+// list counts.
+export function actorsHold(changes) {
+  if (!Array.isArray(changes)) {
+    return "its changed files could not all be read";
+  }
+  const found = changes
+    .filter(({ path, previous }) => [path, previous].some((each) => each != null && matchesHoldPath(each, TRUSTED_ACTORS_PATH)))
+    .map((change) => [change.path, actorsWidened(change)])
+    .filter(([, why]) => why);
+  return found.length ? `it widens the trusted-actor list (${found.map(([path, why]) => `${path}: ${why}`).join("; ")})` : null;
+}
+
+// `changes` with the trusted-actor list's [base text at `base`, head text at
+// `head`] on a change that modifies it in place; a read that fails, or a base
+// that is not a commit SHA, leaves its contents out, so it holds.
+export async function withActorContents(github, repo, changes, base, head) {
+  const text = async (path, ref) => {
+    const file = await github("GET", `/repos/${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${ref}`);
+    if (file?.type !== "file" || file.encoding !== "base64" || typeof file.content !== "string") {
+      throw new Error(`${path} at ${ref} did not read`);
+    }
+    // Strict, as the gate's decode("utf-8"): invalid UTF-8 throws, so it
+    // holds, and a BOM stays, so the parse refuses it as json.loads does.
+    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(Buffer.from(file.content, "base64"));
+  };
+  return Promise.all(
+    changes.map(async (change) => {
+      if (!matchesHoldPath(change.path, TRUSTED_ACTORS_PATH) || change.status !== "modified" || change.previous !== null || !/^[0-9a-f]{40}$/.test(String(base))) {
+        return change;
+      }
+      try {
+        return { ...change, contents: [await text(change.path, base), await text(change.path, head)] };
+      } catch {
+        return change;
+      }
+    }),
+  );
 }
 
 // babysit_merge_policy COST_DECISION_LINK, DECISION_LINE and HTML_COMMENT.
@@ -511,10 +680,14 @@ export function pathLifters(items, humans, head) {
 // Why the pull request's `body`, discussion `items` and changed `files` hold
 // it; empty when nothing does. `lifters` approved the head, which lifts a
 // hold path but not an unreadable file list or hold-path list, nor a cost
-// path, which only the owner's `decision` lifts. `byPerson` (personWrote)
-// says whether the body can hold.
-export function holds(body, items, files, holdPaths, lifters = [], decision = null, byPerson = true) {
+// path, which only the owner's `decision` lifts, nor `widened` (actorsHold's
+// reason), which the owner merges. `byPerson` (personWrote) says whether the
+// body can hold.
+export function holds(body, items, files, holdPaths, lifters = [], decision = null, byPerson = true, widened = null) {
   const reasons = [];
+  if (widened) {
+    reasons.push(`${widened}; an approval does not lift it: the owner merges it`);
+  }
   const pathReason = pathHold(files, holdPaths);
   const readable = Array.isArray(files) && Array.isArray(holdPaths);
   if (pathReason && !(readable && lifters.length)) {
@@ -660,7 +833,8 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     if (!byPerson) {
       console.log(`#${number}: its body's hold text is the lanes App's own, which holds nothing.`);
     }
-    const reasons = holds(body, items, files, holdPaths, lifters, decision, byPerson);
+    const widened = actorsHold(await withActorContents(github, repo, changes, env.BASE_SHA, head));
+    const reasons = holds(body, items, files, holdPaths, lifters, decision, byPerson, widened);
     const held = pathHold(files, holdPaths);
     if (held && lifters.length && Array.isArray(holdPaths)) {
       console.log(`#${number}: ${lifters.join(", ")} approved this head, which lifts its hold path (${escape(held)}).`);

@@ -134,6 +134,76 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         self.assertIn(False, answer["configured"])
 
 
+NODE_ACTORS = """
+import { actorsWidened } from %s;
+const cases = JSON.parse(process.argv[1]);
+console.log(JSON.stringify(cases.map(([status, previous, contents]) => actorsWidened({ status, previous, contents }))));
+"""
+_KYLE = {"id": 1, "login": "kyle", "kind": "human"}
+_BOT = {"id": 2, "login": "lanes[bot]", "kind": "bot"}
+
+
+def _list(*actors: Any, version: Any = 1) -> str:
+    return json.dumps({"version": version, "actors": list(actors)}, indent=2)
+
+
+_BASE_LIST = _list(_KYLE, _BOT)
+# Each case: status, renamed-from path, then [base text, head text] or None.
+ACTOR_CASES = {
+    "an entry added": ("modified", None, [_BASE_LIST, _list(_KYLE, _BOT, {"id": 3})]),
+    "an entry's kind changed": ("modified", None, [_BASE_LIST, _list(_KYLE, _BOT | {"kind": "human"})]),
+    "a removal beside an addition": ("modified", None, [_BASE_LIST, _list(_KYLE, {"id": 5})]),
+    "an entry repeated": ("modified", None, [_BASE_LIST, _list(_KYLE, _BOT, _BOT)]),
+    "another key changed": ("modified", None, [_BASE_LIST, _list(_KYLE, _BOT, version=2)]),
+    "unparsable head": ("modified", None, [_BASE_LIST, "{"]),
+    "a repeated key": ("modified", None, [_BASE_LIST, _BASE_LIST.replace('"version": 1', '"version": 1, "version": 1')]),
+    "actors not a list": ("modified", None, [_BASE_LIST, '{"version": 1, "actors": {}}']),
+    "an array at the root": ("modified", None, [_BASE_LIST, "[]"]),
+    "contents unread": ("modified", None, None),
+    "added": ("added", None, [None, _BASE_LIST]),
+    "removed": ("removed", None, [_BASE_LIST, None]),
+    "renamed": ("renamed", "a.json", [_BASE_LIST, _BASE_LIST]),
+    "an entry removed": ("modified", None, [_BASE_LIST, _list(_KYLE)]),
+    "every entry removed": ("modified", None, [_BASE_LIST, _list()]),
+    "reformatted and reordered": ("modified", None, [_BASE_LIST, json.dumps({"actors": [_BOT, _KYLE], "version": 1})]),
+    "keys reordered in an entry": ("modified", None, [_BASE_LIST, _list({"kind": "human", "login": "kyle", "id": 1}, _BOT)]),
+}  # fmt: skip
+
+
+@unittest.skipUnless(shutil.which("node"), "node not installed")
+class TheWideningHoldIsTheGates(unittest.TestCase):
+    def test_both_hold_the_same_trusted_actor_list_changes(self) -> None:
+        cases = list(ACTOR_CASES.values())
+        script = NODE_ACTORS % json.dumps(MODULE.as_uri())
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", script, json.dumps(cases)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        answers = json.loads(proc.stdout)
+        for (name, (status, previous, contents)), js in zip(
+            ACTOR_CASES.items(), answers, strict=True
+        ):
+            changed = risk.ChangedFile(
+                path=risk.TRUSTED_ACTORS_PATH,
+                previous_path=previous,
+                status=status,
+                additions=1,
+                deletions=1,
+                has_patch=True,
+                mode="100644",
+                previous_mode=None if status == "added" else "100644",
+                contents=None if contents is None else tuple(contents),
+            )
+            py = risk._actors_widened(risk._check_file(changed), changed)
+            with self.subTest(name):
+                self.assertEqual(js is None, py is None, (js, py))
+        held = [js is not None for js in answers]
+        self.assertIn(True, held)
+        self.assertIn(False, held)
+
+
 REPO = "o/r"
 HEAD = "0123456789abcdef0123456789abcdef01234567"
 BASE = "89abcdef0123456789abcdef0123456789abcdef"

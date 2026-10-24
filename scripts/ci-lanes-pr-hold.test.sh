@@ -6,8 +6,9 @@
 # Native auto-merge (pr-merge.yml's enable-auto-merge job) merges a lanes App
 # pull request without pr-merge's gate, so ci-status holds it on the holds
 # that gate honors: a body hold (a `Hold:` line or "do not merge"), a member's
-# newest comment saying not to merge, and a changed or renamed-from path
-# matching the merge lane's denied paths. It reads them live, on a pull
+# newest comment saying not to merge, a changed or renamed-from path
+# matching the merge lane's denied paths, and a trusted-actor list change that
+# adds or widens an entry. It reads them live, on a pull
 # request event and in the merge queue, runs the base commit's
 # merge-holds.mjs, and fails closed when it cannot tell.
 # test-scope: .github/workflows/pr-require-checks.yml .github/scripts/pr-merge/merge-holds.mjs docs/conventions/pr-pipeline.yaml
@@ -21,7 +22,8 @@ MODULE="$ROOT/.github/scripts/pr-merge/merge-holds.mjs"
 . "$ROOT/scripts/lib/test-harness.sh"
 
 TMP_ROOT="$(mktemp -d)"
-trap 'rm -rf "$TMP_ROOT"' EXIT
+API_PID=
+trap '[[ -z "$API_PID" ]] || kill "$API_PID" 2>/dev/null; rm -rf "$TMP_ROOT"' EXIT
 
 # shellcheck source=lib/ci-gh-read.sh
 . "$ROOT/scripts/lib/ci-gh-read.sh"
@@ -192,7 +194,7 @@ expect() {
   : >"$TMP_ROOT/log"
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_MODULE="${STUB_MODULE:-$MODULE}" \
     GITHUB_EVENT_NAME="${EVENT:-pull_request}" EVENT_ACTION="${ACTION-synchronize}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" \
-    GITHUB_REPOSITORY=o/r GITHUB_API_URL=http://127.0.0.1:9 RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" \
+    GITHUB_REPOSITORY=o/r GITHUB_API_URL="${STUB_API:-http://127.0.0.1:9}" RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" \
     LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   calls=$(grep -cE '/(comments|reviews)\?' "$TMP_ROOT/log")
   if [[ "$rc" -ne "$want_rc" ]]; then
@@ -300,6 +302,45 @@ for path in CODEOWNERS docs/CODEOWNERS .gitmodules .github/standards/trusted-act
 done
 STUB_FILES='[[".claude-plugin/marketplace.json",null,"removed"]]' STUB_PULL="$(pull 'Closes #1')"
 expect "a removed manifest is no hold" 0 3 "no hold path"
+# The trust gate: merge-holds.mjs reads the trusted-actor list at the base and
+# the head itself, through GITHUB_API_URL, and holds a change that adds or
+# widens an entry; one that only removes entries passes. A local server
+# answers those reads from $TMP_ROOT/list-<ref>, and 404 for anything else.
+cat >"$TMP_ROOT/api.mjs" <<'API'
+import { createServer } from "node:http";
+import { readFileSync, writeFileSync } from "node:fs";
+const [dir] = process.argv.slice(2);
+const server = createServer((request, response) => {
+  const ref = /^\/repos\/o\/r\/contents\/\.github\/standards\/trusted-actors\/trusted-actors\.json\?ref=([0-9a-f]{40})$/.exec(request.url)?.[1];
+  let content;
+  try {
+    content = ref && readFileSync(`${dir}/list-${ref}`).toString("base64");
+  } catch {}
+  response.writeHead(content ? 200 : 404, { "content-type": "application/json" });
+  response.end(JSON.stringify(content ? { type: "file", encoding: "base64", content } : { message: "Not Found" }));
+});
+server.listen(0, "127.0.0.1", () => writeFileSync(`${dir}/port`, String(server.address().port)));
+API
+node "$TMP_ROOT/api.mjs" "$TMP_ROOT" &
+API_PID=$!
+for _ in $(seq 50); do
+  [[ ! -s "$TMP_ROOT/port" ]] || break
+  sleep 0.1
+done
+if [[ -s "$TMP_ROOT/port" ]]; then
+  api="http://127.0.0.1:$(cat "$TMP_ROOT/port")"
+  list() { jq -n --argjson actors "$1" '{version: 1, actors: $actors}'; }
+  list '[{"id":1,"login":"kyle","kind":"human"},{"id":2,"login":"lanes[bot]","kind":"bot"}]' >"$TMP_ROOT/list-$BASE"
+  STUB_FILES='[[".github/standards/trusted-actors/trusted-actors.json",null,"modified"]]' STUB_PULL="$(pull 'Closes #1')"
+  list '[{"id":1,"login":"kyle","kind":"human"},{"id":2,"login":"lanes[bot]","kind":"bot"},{"id":3,"login":"new","kind":"human"}]' >"$TMP_ROOT/list-$SHA"
+  STUB_API=$api expect "a trusted-actor list widening fails" 1 3 "it widens the trusted-actor list"
+  list '[{"id":1,"login":"kyle","kind":"human"}]' >"$TMP_ROOT/list-$SHA"
+  STUB_API=$api expect "a trusted-actor list removal passes" 0 3 "no hold path"
+  rm "$TMP_ROOT/list-$SHA"
+  STUB_API=$api expect "a trusted-actor list whose head does not read fails" 1 3 "contents unreadable"
+else
+  fail "the local API server for the trusted-actor list reads did not start"
+fi
 if grep -qF "[.filename, .previous_filename, .status]" <<<"$step"; then
   ok "the step hands merge-holds.mjs each file's status"
 else

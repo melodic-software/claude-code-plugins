@@ -12,6 +12,7 @@
 // (owner decisions Q17 c and Q18 d on #9436, as ci-workflows v0.65.4's hold
 // step reads them).
 import assert from "node:assert/strict";
+import { Buffer } from "node:buffer";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -243,8 +244,9 @@ test("costHold holds a cost path, case-folded, until a decision", () => {
 // ci-status: merge-holds.mjs's command line on the live files, as the
 // workflow step runs it, with a GitHub for the decision reads.
 // A `files` entry is a path, or a files API row; `denied` is the config's
-// denied paths; `writers` answers BODY_WRITERS_QUERY, or "fail".
-function ci(files, { reviews = [], body = "Closes #40", options, denied = [], writers = "fail", head = HEAD } = {}) {
+// denied paths; `writers` answers BODY_WRITERS_QUERY, or "fail"; `list`
+// maps a ref (BASE, HEAD) to the trusted-actor list's text there.
+function ci(files, { reviews = [], body = "Closes #40", options, denied = [], writers = "fail", head = HEAD, list = {} } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "merge-holds-"));
   writeFileSync(join(dir, "body"), body);
   writeFileSync(join(dir, "discussion"), reviews.map((row) => JSON.stringify(row)).join("\n"));
@@ -254,6 +256,14 @@ function ci(files, { reviews = [], body = "Closes #40", options, denied = [], wr
   const argv = ["99", ...["body", "discussion", "files", "denied", "actors"].map((name) => join(dir, name)), head];
   const { github: decisions } = world(options);
   const github = async (method, path, data) => {
+    const listed = /^\/repos\/owner\/repo\/contents\/\.github\/standards\/trusted-actors\/trusted-actors\.json\?ref=([0-9a-f]{40})$/.exec(path);
+    if (listed) {
+      assert.equal(method, "GET");
+      if (!(listed[1] in list)) {
+        throw new Error("not found");
+      }
+      return { type: "file", encoding: "base64", content: Buffer.from(list[listed[1]]).toString("base64") };
+    }
     if (data?.query !== BODY_WRITERS_QUERY) {
       return decisions(method, path, data);
     }
@@ -287,7 +297,8 @@ test("ci-status holds no trusted path or manifest change, only a configured deni
     "plugins/foo/.claude-plugin/plugin.json",
     ".claude-plugin/marketplace.json",
     "docs/conventions/pr-pipeline.yaml",
-    ".github/standards/trusted-actors/trusted-actors.json",
+    ".github/standards/trusted-actors/README.md",
+    ".github/standards/trusted-actors/trusted-actors.schema.json",
     ".github/actions/resolve-config/resolve.mjs",
     ".github/actions/request-lane-token/action.yml",
     ".github/CODEOWNERS",
@@ -300,6 +311,29 @@ test("ci-status holds no trusted path or manifest change, only a configured deni
   const held = await ci([{ filename: ".gitmodules", status: "modified" }], { denied: ["**/.gitmodules"] });
   assert.equal(held.code, 1);
   assert.match(held.out, /it changes \.gitmodules, a hold path/);
+});
+
+// The trust gate (babysit_risk._actors_widened, owner direction 2026-10-24):
+// a change that adds or widens an entry of the trusted-actor list waits for
+// the owner, and one that only removes entries does not.
+const ACTORS = ".github/standards/trusted-actors/trusted-actors.json";
+const KYLE = { id: 1, login: "kyle", kind: "human" };
+const LANES = { id: 2, login: "lanes[bot]", kind: "bot" };
+const listOf = (...actors) => `${JSON.stringify({ version: 1, actors }, null, 2)}\n`;
+test("ci-status holds a trusted-actor list widening that an approval does not lift, and passes a removal", async () => {
+  const modified = [{ filename: ACTORS, status: "modified" }];
+  const widened = await ci(modified, { list: { [BASE]: listOf(KYLE), [HEAD]: listOf(KYLE, LANES) }, reviews: [approve] });
+  assert.equal(widened.code, 1, widened.out);
+  assert.match(widened.out, /it widens the trusted-actor list \(\.github\/standards\/trusted-actors\/trusted-actors\.json: entries added or changed: .*lanes\[bot\].*\); an approval does not lift it/);
+  const changed = await ci(modified, { list: { [BASE]: listOf(KYLE, LANES), [HEAD]: listOf(KYLE, { ...LANES, kind: "human" }) } });
+  assert.equal(changed.code, 1, changed.out);
+  const removed = await ci(modified, { list: { [BASE]: listOf(KYLE, LANES), [HEAD]: listOf(KYLE) } });
+  assert.equal(removed.code, 0, removed.out);
+  assert.match(removed.out, /no body hold, no member veto and no hold path\./);
+  // A side that does not read, a repeated key, or a rename holds.
+  assert.equal((await ci(modified, { list: { [BASE]: listOf(KYLE, LANES) } })).code, 1);
+  assert.equal((await ci(modified, { list: { [BASE]: listOf(KYLE, LANES), [HEAD]: listOf(KYLE).replace('"version": 1', '"version": 1, "version": 1') } })).code, 1);
+  assert.equal((await ci([[ACTORS, ".github/standards/trusted-actors/old.json", "renamed"]], { list: { [BASE]: listOf(KYLE), [HEAD]: listOf(KYLE) } })).code, 1);
 });
 
 // A body's hold text counts only when a person wrote some of it.
