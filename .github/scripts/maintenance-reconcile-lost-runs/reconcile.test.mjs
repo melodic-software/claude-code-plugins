@@ -735,11 +735,13 @@ test("a PR's CI set carries one record, so the cap of 3 bounds the records at 3"
 const LANE = "melodic-automation-lanes[bot]";
 const PASS_RUN = 701;
 const PASS_STARTED = "2026-10-19T19:30:00Z";
-function specChanged({ edited, attempt = 1, pass = true } = {}) {
+// The first 16 hex digits of `printf %s fix/1 | sha256sum`, pr(1)'s head ref.
+const FIX_1_DIGEST = "fe65f143bd3d5845";
+function specChanged({ edited, attempt = 1, pass = true, digest = false } = {}) {
   const head = sha(1);
   const checks = { ...run(601, head, { conclusion: "success", attempt }), repository: { full_name: REPO } };
   const judged = { ...verifyRun(PASS_RUN, { conclusion: "success" }), repository: { full_name: REPO }, run_started_at: PASS_STARTED, jobs: [] };
-  const name = `pr-verify-1-${head}-pass`;
+  const name = `pr-verify-1-${head}-pass${digest ? `-${FIX_1_DIGEST}` : ""}`;
   const issue = {
     number: 7,
     repository: { nameWithOwner: REPO },
@@ -783,6 +785,9 @@ test("a pass the spec changed under re-runs the head's passed checks once, with 
     assert.equal(code, 0);
     assert.deepEqual(reruns, [601]);
     assert.equal(outputs["record-1"], `reconcile-rerun-601-2-${sha(1)}`);
+    // A pass named with the head-ref digest is found the same way.
+    const digested = await reconcile({ ...specChanged({ edited: "2026-10-19T19:45:00Z", digest: true }).setup, env });
+    assert.deepEqual(digested.reruns, [601]);
   });
 });
 

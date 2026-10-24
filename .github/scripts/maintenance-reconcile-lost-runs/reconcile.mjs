@@ -32,7 +32,8 @@
 //   new spec comment after the pass: resolve-pr's `spec-changed`, the same
 //   read pr-verify makes). The gate refuses that pass `verify:spec-changed`;
 //   the recorded re-run starts pr-verify, which judges the head against the
-//   spec as it is now. Once per head, as attempt 2 is never touched again.
+//   spec as it is now. Once per passed checks run, as attempt 2 is never
+//   touched again; an edit or label later starts a new attempt-1 run.
 // Other lost lane runs (the review lanes, refine) are listed in the summary for
 // a person: their gates or the lanes token broker refuse a re-run
 // github-actions[bot] starts. A merge-group run is not covered: a re-run puts
@@ -68,6 +69,7 @@ import { pathToFileURL } from "node:url";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, loadTrustedList, paginate, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { resolvePull, specFromBodyApps } from "../pr-verify/resolve-pr.mjs";
+import { headRefDigest } from "../pr-verify/write-verdict.mjs";
 import { firstFailure, INFRA_BACKOFF_MINUTES, infraOnly, LOOKBACK_HOURS, reconcilerRetries, testedRun } from "./infra-failure.mjs";
 
 const STATUS_URL = "https://www.githubstatus.com/api/v2/components.json";
@@ -221,11 +223,15 @@ async function holdReason(call, repo, runId) {
 }
 
 // Whether the PR has an unexpired pr-verify PASS or PASS-NOTES at the head,
-// by exact name (write-verdict.mjs artifactName): two lookups, so resolve-pr's
-// full read runs only for a head that has one.
-async function passedAt(call, repo, number, head) {
-  for (const verdict of ["pass", "pass-notes"]) {
-    const name = `pr-verify-${number}-${head}-${verdict}`;
+// by exact name with and without the head-ref digest (write-verdict.mjs
+// artifactName, headRefDigest), so resolve-pr's full read runs only for a
+// head that has one.
+async function passedAt(call, repo, number, head, ref) {
+  const digest = ref ? `-${headRefDigest(ref)}` : "";
+  for (const name of ["pass", "pass-notes"].flatMap((verdict) => {
+    const plain = `pr-verify-${number}-${head}-${verdict}`;
+    return digest ? [plain, plain + digest] : [plain];
+  })) {
     const page = await call("GET", `/repos/${repo}/actions/artifacts?name=${name}&per_page=100`);
     if ((page?.artifacts ?? []).some((a) => a?.name === name && a.expired === false)) {
       return true;
@@ -321,13 +327,14 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec }) {
       }
       // A pass the spec has since changed under: re-running the head's
       // passed checks starts pr-verify, which judges it again (resolve-pr's
-      // `spec-changed`). Attempt 1 only, so a head is judged again once.
+      // `spec-changed`). Attempt 1 only, so each passed checks run is re-run
+      // at most once; a later edit or label starts a new attempt-1 run.
       const checks = newestByWorkflow(listing.workflow_runs).find((r) => RECORDED_UPSTREAMS.has(r.path));
       // A read that fails here re-runs nothing and is no listing failure: the
       // next tick asks again. A rate limit still stops the run.
       if (set.length === 0 && judgeSpec && isPassedChecks(checks)) {
         try {
-          if ((await passedAt(call, repo, pull.number, pull.head.sha)) && (await judgeSpec(checks.id)).reason === "spec-changed") {
+          if ((await passedAt(call, repo, pull.number, pull.head.sha, pull.head.ref)) && (await judgeSpec(checks.id)).reason === "spec-changed") {
             set.push({ kind: "spec", pr: pull.number, id: checks.id, path: checks.path, conclusion: "success", attempt: 1, head: pull.head.sha });
           }
         } catch (error) {

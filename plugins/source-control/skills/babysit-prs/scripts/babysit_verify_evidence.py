@@ -46,7 +46,7 @@ from a completed, successful one. Any other artifact is ignored.
   `verify:unreadable`, so one such artifact blocks every pull request until it
   is readable, expires or is deleted;
 - counted PASS or PASS-NOTES verdicts at the head of this pull request, those
-  of the run created last (`_newest`; every one when a creation time is
+  of the run that started last (`_newest`; every one when a start time is
   missing), each checked, so any one that refuses refuses
   (`verify:spec-changed` before `verify:untrusted-spec`, whatever the listing
   order): each is refused `verify:spec-changed` unless the pull request's
@@ -55,12 +55,14 @@ from a completed, successful one. Any other artifact is ignored.
   recorded ones by id and update time; then allowed when it records no issue
   and `intent` `pull-request` (the title and body were the spec), else only
   when every linked issue it records was written, and last edited if ever, by
-  a User on the trusted list's humans (the pull request's author among them)
-  or by the lanes App before the pull request existed (`_trusted_spec`), else
-  `verify:untrusted-spec`. A pass refused `verify:spec-changed` is judged
-  again at the same head: resolve-pr.mjs judges a head whose passes all
-  predate the spec's last change, and the lost-run reconciler re-runs the
-  head's checks to start that judgment;
+  a User on the trusted list's humans (the pull request's author among them),
+  or filed by the lanes App before the pull request and edited, if ever, by
+  such a User (`_trusted_spec`), else `verify:untrusted-spec`. A pass refused
+  `verify:spec-changed` for an issue edit or a spec comment added or edited
+  is judged again at the same head: resolve-pr.mjs judges a head whose passes
+  all predate the spec's last change, and the lost-run reconciler re-runs the
+  head's checks to start that judgment. A changed closing set or a removed
+  spec comment leaves no time to compare, and waits for a person;
 - otherwise `verify:missing`.
 
 `verify:too-old`, `verify:repeated-fail`, `verify:spec-changed` and
@@ -1227,7 +1229,7 @@ class Reader:
         elif unreadable:
             refusal = UNREADABLE
         elif passes:
-            # Every pass of the newest run at the head must allow
+            # Every pass of the run that started last must allow
             # (`_newest`), so listing order decides nothing; any unreadable
             # one refuses (`_Unreadable`).
             live, elsewhere = self._elsewhere(
@@ -1328,15 +1330,18 @@ class Reader:
     def _newest(
         self, passes: list[tuple[int, str, Any]]
     ) -> list[tuple[int, str, Any]]:
-        """The passes whose runs were created last: a pr-verify run that
-        judged the head again after the spec changed supersedes the passes
-        before it, which judged a spec that is gone. When any creation time is
-        missing, every pass decides."""
-        created = [self._fresh_created(run_id) for run_id, _, _ in passes]
-        if None in created:
+        """The passes whose runs started last (`run_started_at`, which a
+        re-attempt moves, and which a re-attempt's judgment read the spec
+        at): a pr-verify run that judged the head again after the spec
+        changed supersedes the passes before it, which judged a spec that is
+        gone. resolve-pr.mjs `specChanged` weighs the same start times. When
+        any start time is missing or unreadable, every pass decides."""
+        try:
+            started = [postmerge._time(self._started.get(r)) for r, _, _ in passes]
+        except postmerge.PostMergeReadError:
             return passes
-        last = max(c for c in created if c)
-        return [p for p, c in zip(passes, created, strict=True) if c == last]
+        last = max(started)
+        return [p for p, s in zip(passes, started, strict=True) if s == last]
 
     def _passes_follow(
         self, fails: list[Verdict], passes: list[tuple[int, str, Any]]

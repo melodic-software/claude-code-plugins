@@ -556,12 +556,16 @@ class EveryPassAtTheHeadIsChecked(unittest.TestCase):
     def test_two_allowing_passes_allow(self) -> None:
         self.assertEqual(self.each_order({}), {None})
 
-    def test_one_judged_before_a_spec_edit_refuses_either_way(self) -> None:
-        # Run 2 started before the issue's edit; run 1 after it.
+    def test_one_judged_before_a_spec_edit_is_superseded_either_way(self) -> None:
+        # Run 2 started before the issue's edit; run 1, started after it,
+        # judged the live spec and decides (`_newest`).
         second = {
             "run": {"run_started_at": "2026-10-13T00:00:00Z"},
             "edited": {7: "2026-10-14T00:00:00Z"},
         }
+        self.assertEqual(self.each_order(second), {None})
+        # The stale one alone refuses.
+        second["edited"] = {7: "2026-10-15T00:00:01Z"}
         self.assertEqual(self.each_order(second), {"verify:spec-changed"})
 
     def test_one_recording_an_untrusted_spec_refuses_either_way(self) -> None:
@@ -571,12 +575,11 @@ class EveryPassAtTheHeadIsChecked(unittest.TestCase):
 
     def test_a_changed_spec_is_reported_before_an_untrusted_one(self) -> None:
         # The README's order: the spec must be the judged one before its
-        # authors are weighed. Run 2 records an untrusted spec and run 1
-        # (started first) predates the issue's edit.
+        # authors are weighed. Both runs start together (so both decide):
+        # run 2 records an untrusted spec, and both predate the issue's edit.
         bot = {**TRUSTED_ISSUE, "author_type": "Bot", "author_id": 200}
         second = {
             "record": {"linked_issues": [bot]},
-            "run": {"run_started_at": "2026-10-15T12:00:00Z"},
             "edited": {7: "2026-10-15T06:00:00Z"},
         }
         self.assertEqual(self.each_order(second), {"verify:spec-changed"})
@@ -1837,10 +1840,20 @@ class TheNewestPassDecides(unittest.TestCase):
     def test_a_later_pass_after_the_change_allows(self) -> None:
         self.assertIsNone(read(self.fake(second=True)).refusal)
 
-    def test_every_pass_decides_when_a_creation_time_is_missing(self) -> None:
+    def test_a_re_attempt_after_the_change_decides_by_its_start(self) -> None:
+        # Run 1 created first but re-attempted after the edit; run 2 created
+        # later but started before it. The later start judged the live spec.
         fake = self.fake(second=True)
-        fake.runs[1] = run(1, created_at=None)
-        self.assertEqual(read(fake).refusal, "verify:spec-changed")
+        fake.runs[1] = run(1, created_at=RUN_STARTED, run_started_at="2026-10-15T14:00:00Z")
+        fake.runs[2] = run(2, created_at="2026-10-15T01:00:00Z", run_started_at="2026-10-15T11:00:00Z")
+        self.assertIsNone(read(fake).refusal)
+
+    def test_every_pass_decides_when_a_start_time_is_missing(self) -> None:
+        fake = self.fake(second=True)
+        fake.runs[2] = run(2, created_at="2026-10-15T13:00:00Z", run_started_at=None)
+        # Run 2 then decides too, and a pass with no start refuses as an
+        # unreadable time does in `_pass_refusal`: never allowed.
+        self.assertEqual(read(fake).refusal, "verify:unreadable")
 
 
 class TheSpecMustBeTheJudgedOne(unittest.TestCase):

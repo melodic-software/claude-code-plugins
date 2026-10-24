@@ -1437,10 +1437,11 @@ when every counted pass at the head started before the spec's last change, it pr
 reason `spec-changed` instead of skipping. Nothing re-runs pr-verify on an issue event, so the
 lost-run reconciler does it: for an open pull request whose head's `pr-require-checks` run passed
 at attempt 1 and holds such a pass, it re-runs that run with a record, and pr-verify judges the
-head against the spec as it is now. The gate decides on the passes of the newest run at the head,
-so the new verdict replaces the old one. A head is judged again this way once (attempt 2 is never
-re-run), and a changed closing set or a removed spec comment leaves no time to compare, so those
-heads still wait for a person.
+head against the spec as it is now. The gate and the resolver both weigh the passes of the
+pr-verify run that started last, so the new verdict replaces the old one. Each passed checks run
+is re-run this way once (attempt 2 is never re-run; a later edit or label starts a new attempt-1
+run), and a changed closing set or a removed spec comment leaves no time to
+compare, so those heads still wait for a person.
 
 With `merge.require-verifier-verdict: true` the pr-merge lane reads the artifacts through their
 run records, since only steps of a run can upload its artifacts. A run is of verifier origin when
