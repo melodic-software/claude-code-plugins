@@ -128,6 +128,22 @@
         "If the human insists, the record is written into the discovered convention without further argument, because the human's call wins",
         "Does not substitute a different suggestion (a code comment, a changelog entry) for answering the ask"
       ]
+    },
+    {
+      "id": 8,
+      "name": "no-convention-offers-one-paragraph-shape",
+      "prompt": "/architecture:record-decision Record that we chose a managed message queue over running our own broker for the notification service: the team has no one on call for broker upgrades, and the self-hosted option would have saved little at our volume. Treat evals/fixtures/no-convention/ as the repository root.",
+      "expected_output": "Reports that no ADR convention was found and offers two or three shapes, one of them the one-paragraph ADR: a short title and 1-3 sentences giving the context, the decision and why, with status, considered options and consequences only when they add something. Writes nothing and stops for the human's choice.",
+      "files": [
+        "evals/fixtures/no-convention/docs/README.md",
+        "evals/fixtures/no-convention/src/notes.md"
+      ],
+      "expectations": [
+        "Lists the one-paragraph shape among the offered shapes: a short title and 1-3 sentences giving the context, the decision and why",
+        "States that status, considered options and consequences are optional in that shape, included only when they add something",
+        "Offers two or three shapes in total, each with a directory, a numbering scheme, and a section set",
+        "Creates nothing and waits for the human's choice"
+      ]
     }
   ]
 }

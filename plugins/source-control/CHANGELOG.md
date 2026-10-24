@@ -3,6 +3,24 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.0] - 2026-10-24
+
+### Changed
+
+- The bundled default of `pr_open_state` is now `ready` (was `draft`). A consumer who sets nothing gets `/source-control:pull-request create` opening the PR as a draft and then running `ready` on it, which flips it after its gates; a consumer opts into `draft` with the `userConfig` value or the repository's `docs/conventions/source-control.yaml`, and a request for a draft still wins over every level. An unattended run (a loop lane, a CI lane, a dispatched worker or orchestrator, any `create --pushed` run) now follows the resolved value like an attended run instead of always leaving a draft, and runs `ready --unattended`, so its holds (a `Draft:` body line, a superseded item, a failed gate) still leave the PR a draft. `create` and `create --pushed` take `--draft '<reason>'` (a requested draft whose `Draft:` line names the reason), and `create --pushed` takes `--hold '<line>'`, which body assembly places directly below the closing line before the pre-create gates, so the PR opens with it before any flip. The `pull-request` skill, its create reference, `config-resolution.md`, the README option row and the evals are updated to match.
+
+- The HIGH path floor (`babysit_risk.HIGH_FLOOR`) also holds `.github/actions/check-kill-switch/**`: check-trusted-trigger and resolve-config write their verdicts through its `writeOutputs`, so a change there could rewrite the trust check's result.
+
+### Fixed
+
+- `/source-control:pull-request ready` takes the head it waits on and flips from local `git rev-parse HEAD`, and polls GitHub until the PR's head equals it, instead of trusting the first read right after the review-fix push. GitHub could still return the pre-push head, so the wait for the push's CI run was skipped and the guarded `verify-gate.sh check` refused the flip for a commit with no verify record. The flip now also refuses when GitHub's head never matches the local head, such as after a peer push. A new `ready-flip.test.sh` runs the wait, flip and confirmation blocks against a forge that lags one read behind, and against one whose head is a peer commit.
+
+- `babysit_postmerge.py --remediate` now turns off native auto-merge on every open pull request into the judged branch that the agent identity both opened and armed, before it dequeues the identity's merge-queue entries, so GitHub cannot enqueue an armed lane pull request after a demotion. A pull request a person armed, or one the identity did not open, stays armed. Its report lists them as `disarmed`, and a failed read or disarm is a `disarm:` error that does not stop the dequeue or the demotion issue.
+
+- `feedback-thread.sh record` no longer refuses a VALID reply because the lane's sandbox masks a dotfile in the checkout (such as `.bash_profile`) with `/dev/null`. It skips a character device that is not a symlink, as `check-affected.sh` does. An untracked symlink to `/dev/null` is still refused. This was why address-feedback stopped with `feedback-invalid` or `feedback-incomplete` on lane PRs whose findings it had fixed.
+
+- `feedback-thread.sh check-paths` and `record` no longer let a lane review-fix edit a plugin's control or instruction files (`.claude-plugin/`, `hooks/`, `monitors/`, `bin/`, `.mcp.json`, `.lsp.json`, `AGENTS.md`, `CLAUDE.md`, `.claude/`) through the plugin-wide scope of a thread on another file in that plugin. The thread's own path and named paths are unchanged.
+
 ## [2.15.0] - 2026-10-24
 
 ### Added

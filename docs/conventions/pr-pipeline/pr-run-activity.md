@@ -1733,7 +1733,7 @@ listing and re-fires the issue on main's files, once per version of the two file
 `probe-first`) takes no model turn and leaves no outcome, so the caller's `report-skip` job,
 which needs `admit` and `pick-slot` only, runs `report-outcome` in the write file with
 `dimension-skip`: it labels the issue `needs-human`, removes `agent-ready`, and comments the next
-step under an `outcome=<reason>` marker. What changes from the PR flow:
+step under the escalation marker and an `outcome=<reason>` marker. What changes from the PR flow:
 
 - Step 1 also fails red unless the event is `issues`, `issue-number` is the event's issue,
   `trusted-base` is `default-tip`, and `pr-number` and `dispatcher-run-id` are empty; in the read
@@ -1820,12 +1820,15 @@ step under an `outcome=<reason>` marker. What changes from the PR flow:
   for the compare listing to show whole. It adds the same line when the issue carries `merge: human` whose newest `labeled`
   event is a listed human's or the lanes App's, or cannot be read, and never for anyone else's.
   The run's own summary is quoted with issue references broken, so squash-merging the PR closes only `#<n>`. On `pushback` or `stopped`, and when the outcome file is missing
-  or invalid, it labels the issue with the human-gated role label and comments why; pushback also
-  removes `agent-ready`. Each comment opens with the marker
+  or invalid, it labels the issue with the human-gated role label, removes `agent-ready`, and
+  comments why. Every comment that adds the human-gated label opens with the attended
+  queue's escalation marker `<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->`,
+  so `/work-items:attend-queue` lists the issue, and then the outcome marker
   `<!-- work-resolve-issue outcome=<exit> run=<run id> -->`, which `issue-prior` matches to the
   branches of that run (a marker naming no run covers every branch whose tip is older than it).
+  Comments that keep `agent-ready` open with the outcome marker alone.
   A run that wrote no readable outcome file and whose lane record has class `max-turns` is a
-  turn-cap stop: the comment opens with `<!-- work-resolve-issue outcome=turn-cap cap=<n> run=<run id> -->`
+  turn-cap stop: the comment's outcome marker is `<!-- work-resolve-issue outcome=turn-cap cap=<n> run=<run id> -->`
   and says "turn cap <n> reached" and names the branch. While the turn-cap markers since a person
   listed human last added `agent-ready` are fewer than `limits.turn-cap-restarts`, it keeps `agent-ready` and
   adds no label, and the work-unblock sweep restarts the issue as it does after a limit stop;
