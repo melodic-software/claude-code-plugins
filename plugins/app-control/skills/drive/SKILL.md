@@ -76,11 +76,11 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    repository match, a lone plugin match is not used blindly: an interactive run asks first, and an
    unattended run records `blocked: plugin control skill <name> needs <app> named` and stops.
 6. **None:** use the bundled `run` skill when it resolves in this session, else the project-type
-   recipe in [reference/project-types.md](reference/project-types.md), found from the repository's
+   recipe in [`${CLAUDE_SKILL_DIR}/reference/project-types.md`](reference/project-types.md), found from the repository's
    own docs and manifests. The report then carries the line `No control skill: drive used
    <fallback>.`
 7. Read no settings file. The shape a control skill follows is
-   [control-skill.md](../../reference/control-skill.md). The report names the skill used, by its
+   [`${CLAUDE_PLUGIN_ROOT}/reference/control-skill.md`](../../reference/control-skill.md). The report names the skill used, by its
    full name, and its source (`project` or `plugin`) with its path.
 8. Resolve `<feature>` to its file by id, where the id is `<feature>` or `<module>/<feature>`, under
    the chosen skill's base directory: `features/<id>/README.md` when it exists, and then never open
@@ -154,7 +154,7 @@ recheck. The other kinds keep the rules above.
 
 - **Record at launch.** The launch step writes the launched process's pid, owner uid, start time,
   command line and the command line's sha256 into `report.json` (`launch`,
-  [reference/evidence.md](reference/evidence.md)). The uid is the one every uid field of the
+  [`${CLAUDE_SKILL_DIR}/reference/evidence.md`](reference/evidence.md)). The uid is the one every uid field of the
   process holds (real, effective, saved and filesystem must all be equal). The start time is the
   integer the process table gives (on Linux, the `starttime` field of
   <https://man7.org/linux/man-pages/man5/proc_pid_stat.5.html#DESCRIPTION>). The hash is taken
@@ -224,7 +224,7 @@ One run directory, from `--out <dir>` or else a new temporary directory whose pa
 prints. It holds `report.md`, `report.json` and the artifacts; each artifact name carries the
 feature and entry point it came from. Raw captures stay in the run directory as evidence; cleanup
 never deletes them. The layout and the `report.json` fields are in
-[reference/evidence.md](reference/evidence.md); read it before writing the report.
+[`${CLAUDE_SKILL_DIR}/reference/evidence.md`](reference/evidence.md); read it before writing the report.
 
 ## Next
 
