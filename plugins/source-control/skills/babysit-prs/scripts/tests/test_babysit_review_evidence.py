@@ -348,6 +348,11 @@ class LaneSourceTests(Base):
             "docs/conventions/instruction-exception-register/README.md",
             "docs/conventions/untrusted-content/README.md",
             ".claude-lane/pr-context.md",
+            ".github/workflows/other.yml",
+            ".github/workflows/pr-review-hosted.yml.bak",
+            ".claude",
+            ".claude-lane",
+            "plugins/x/.claude",
         ):
             with self.subTest(path):
                 result = self.bound(path)
@@ -374,7 +379,6 @@ class LaneSourceTests(Base):
             ".github/actions/check-kill-switch/action.yml",
             ".github/scripts/pr-unblock/feedback-dispatch.mjs",
             ".github/scripts/x.mjs",
-            ".github/workflows/other.yml",
             "docs/conventions/pr-pipeline.yaml",
         ):
             with self.subTest(path):
@@ -391,6 +395,9 @@ class LaneSourceTests(Base):
             "plugins/foo/CLAUDE.md.bak",
             "docs/REVIEW.md.txt",
             "plugins/foo/.claude-lane-notes/x.md",
+            "plugins/foo/.claude-lane/x.md",
+            ".mcp.json.bak",
+            ".claude-lane-notes",
         )
         for lane in LANES:
             self.assertTrue(result[lane].bound, lane)
