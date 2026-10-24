@@ -348,7 +348,7 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   assert.match(prompt, /denied="Bash,Edit,Write,NotebookEdit,WebSearch,Agent,Skill"/);
   assert.match(prompt, /mcp__github,mcp__github_comment,mcp__github_file_ops,mcp__github_ci,mcp__github_inline_comment/);
   assert.match(prompt, /WebFetch\(domain:\$domain\)/);
-  assert.deepEqual(stepSecrets(model), ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN"]);
+  assert.deepEqual(stepSecrets(model), ["INTAKE_CLAUDE_CODE_OAUTH_TOKEN"]);
   for (const job of [select, apply, again]) {
     assert.deepEqual(stepSecrets(job), []);
   }
@@ -1259,6 +1259,28 @@ test("every job that reads a Claude secret is a catalog lane, and every catalog 
   }
 });
 
+// run-claude-cli names the lane record's credential from `role:`, never from
+// the secret passed, so the role and the secret are checked together.
+test("every catalog lane reads only its role's secrets, and every role: it passes is its role", () => {
+  const jobs = claudeSecretJobs();
+  for (const { role, lane, key } of catalogLanes()) {
+    for (const name of lane.currentSecrets) assert.ok([role.keySecret, role.tokenSecret].includes(name), `${key} reads ${name}`);
+    const { job } = jobs.get(key);
+    const roles = [job.with?.role, ...(job.steps ?? []).map((step) => step.with?.role)].filter((value) => value !== undefined);
+    for (const value of roles) assert.equal(value, role.id, key);
+  }
+  // A runner caller that reads no Claude secret still names the credential
+  // the lane record reports, so it passes its workflow's role.
+  const workflowRoles = new Map();
+  for (const { role, lane } of catalogLanes()) workflowRoles.set(lane.workflow, [...new Set([...(workflowRoles.get(lane.workflow) ?? []), role.id])]);
+  for (const [file, ids] of workflowRoles) {
+    if (ids.length !== 1) continue;
+    for (const [id, job] of Object.entries(workflow(file).jobs ?? {})) {
+      if (job?.uses === READ_RUNNER || job?.uses === "./.github/workflows/pr-run-activity-write.yml") assert.equal(job.with?.role, ids[0], `${file} ${id}`);
+    }
+  }
+});
+
 test("a job reads a Claude API key only when its catalog lane runs on run-claude-cli", () => {
   const lanes = new Map(catalogLanes().map(({ lane, key }) => [key, lane]));
   const keyed = [...claudeSecretJobs()].filter(([, { names }]) => names.some(isApiKey));
@@ -1629,14 +1651,14 @@ test("pr-run-activity-read.yml: the fallback call's lane record names why it ran
   const lane = (fallback) =>
     atStep(
       record.with.lane.replace(/format\('([^']*)', inputs\.lane, inputs\.activity(?:, steps\.launch\.outputs\.key-name)?\)/g, (_, text) =>
-        JSON.stringify(text.replace("{0}", "pr-unblock").replace("{1}", "fix-ci").replace("{2}", "AUTOMATIONS_CLAUDE_API_KEY")),
+        JSON.stringify(text.replace("{0}", "pr-unblock").replace("{1}", "fix-ci").replace("{2}", "PR_UNBLOCK_CLAUDE_API_KEY")),
       ),
       { "inputs.fallback": fallback },
     );
   assert.equal(lane(""), "pr-unblock/fix-ci");
-  assert.equal(lane("credit-stop"), "pr-unblock/fix-ci (key AUTOMATIONS_CLAUDE_API_KEY hit a credit stop)");
-  assert.equal(lane("no-key"), "pr-unblock/fix-ci (key AUTOMATIONS_CLAUDE_API_KEY is empty)");
-  assert.equal(lane("handoff"), "pr-unblock/fix-ci (key AUTOMATIONS_CLAUDE_API_KEY posted no check)");
+  assert.equal(lane("credit-stop"), "pr-unblock/fix-ci (key PR_UNBLOCK_CLAUDE_API_KEY hit a credit stop)");
+  assert.equal(lane("no-key"), "pr-unblock/fix-ci (key PR_UNBLOCK_CLAUDE_API_KEY is empty)");
+  assert.equal(lane("handoff"), "pr-unblock/fix-ci (key PR_UNBLOCK_CLAUDE_API_KEY posted no check)");
   assert.equal(record.with["step-timeout-minutes"], 50, "the launcher step's timeout");
 });
 
@@ -1750,11 +1772,11 @@ for (const [file, firstId, subId, extraNeeds, extraProceed, applyId] of PATCH_LA
     assert.equal(first.uses, READ_RUNNER);
     assert.equal(sub.uses, READ_RUNNER);
     assert.deepEqual([sub.needs].flat(), [...extraNeeds, firstId, ...(HANDOFF[firstId] ? [HANDOFF[firstId]] : [])]);
-    assert.deepEqual(first.secrets, { "claude-api-key": "${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}", ...CARRIER_SECRETS });
-    assert.deepEqual(sub.secrets, { "claude-code-oauth-token": "${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}", ...CARRIER_SECRETS });
+    assert.deepEqual(first.secrets, { "claude-api-key": "${{ secrets.PR_UNBLOCK_CLAUDE_API_KEY }}", ...CARRIER_SECRETS });
+    assert.deepEqual(sub.secrets, { "claude-code-oauth-token": "${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}", ...CARRIER_SECRETS });
     // The report job posts and labels through the caller's grant.
     for (const job of [first, sub]) assert.equal(job.permissions.issues, "write");
-    assert.equal(first.with.role, "automations");
+    assert.equal(first.with.role, "pr-unblock");
     assert.equal(first.with.fallback, undefined);
     const { fallback, ...same } = sub.with;
     assert.deepEqual(same, first.with, "the fallback call runs the same activity on the same inputs");

@@ -105,7 +105,7 @@ jobs:
   # fix-docs is four jobs, so no model ever holds a write token. The model
   # job: a read activity with no write token and no OIDC token in the job that
   # runs head code. The skill fixes the changed Markdown files; the runner
-  # uploads its uncommitted edits as a patch. It runs on the automations
+  # uploads its uncommitted edits as a patch. It runs on the pr-unblock
   # role's API key alone. Drafts and do-not-merge PRs skip in the config's
   # applies-when, a human-gated hold in fix-docs-head, before any model turn.
   fix-docs:
@@ -125,7 +125,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
-      role: automations
+      role: pr-unblock
       lane: pr-refine
       activity: fix-docs
       pr-number: ${{ inputs.pr-number }}
@@ -135,7 +135,7 @@ jobs:
       post-decline: false
       timeout-minutes: 60
     secrets:
-      claude-api-key: ${{ secrets.AUTOMATIONS_CLAUDE_API_KEY }}
+      claude-api-key: ${{ secrets.PR_UNBLOCK_CLAUDE_API_KEY }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # Whether fix-docs's report job posted its check, and whether the broker
@@ -199,7 +199,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
-      role: automations
+      role: pr-unblock
       lane: pr-refine
       activity: fix-docs
       fallback: handoff
@@ -210,7 +210,7 @@ jobs:
       post-decline: false
       timeout-minutes: 60
     secrets:
-      claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
+      claude-code-oauth-token: ${{ secrets.PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # fix-docs's push job: the apply-patch activity under patch-rules.json's
@@ -238,7 +238,7 @@ jobs:
       queue: max
     uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
     with:
-      role: automations
+      role: pr-unblock
       lane: pr-refine
       activity: apply-patch
       pr-number: ${{ inputs.pr-number }}

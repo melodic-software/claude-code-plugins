@@ -73,8 +73,8 @@ export function namedInScope(path, threadPath) {
 }
 
 // A kept thread's own path, a file in the plugins/<p>/ directory a kept
-// thread's path sits in that is no instruction path and no script or code
-// file, a test file in the same directory as a kept thread's path,
+// thread's path sits in that is no instruction path, no control-plane or
+// agent-instruction surface and no script or code file, a test file in the same directory as a kept thread's path,
 // a path in a kept thread's named_paths (in `threads`, each { path,
 // named_paths }) that namedInScope allows for that thread, or a path the pull
 // request already changes (`prPaths`, prPathsOf's) that the fix does not add
@@ -96,7 +96,13 @@ export function inThreadScope(path, threadPaths, threads = [], { prPaths = new S
   }
   const kept = [...threadPaths];
   const plugin = pluginOf(path);
-  if (plugin !== undefined && !CODE_FILE.test(path) && !isInstructionPath(path) && kept.some((p) => p.startsWith(plugin))) {
+  if (
+    plugin !== undefined &&
+    !CODE_FILE.test(path) &&
+    !isInstructionPath(path) &&
+    !CONTROL_PATH.test(path) &&
+    kept.some((p) => p.startsWith(plugin))
+  ) {
     return true;
   }
   const dir = dirOf(path);
