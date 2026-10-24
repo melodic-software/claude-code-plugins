@@ -966,7 +966,8 @@ except six:
   leaves the rest off (owner decision,
   2026-10-17). The local babysit lane ignores these switches and keeps the fixed floor and both
   caps. `c2-contradictions` is deprecated and has no effect: the risk score reads no work class.
-  The schema still accepts it so existing configs validate. The review evidence, the security lane's CRITICAL findings, the
+  The schema still accepts it so existing configs validate, and a gate report whose config sets it
+  carries a `configNotes` entry saying so. The review evidence, the security lane's CRITICAL findings, the
   cost hold and the trusted-actor widening hold still count.
 
   What is left with every switch off: a lane pull request may change the merge gate, the

@@ -2198,6 +2198,22 @@ class Assess(unittest.TestCase):
         self.assertIsNone(result.reason)
         self.assertIs(result.enabled, True)
         self.assertEqual(result.report()["credentials"], "identity-only")
+        self.assertNotIn("configNotes", result.report())
+
+    def test_the_config_notes_reach_the_report(self) -> None:
+        # A retired key's note (read_config_at) is what tells the operator
+        # the setting does nothing.
+        self.readable()
+        self.all_clear()
+        note = "merge.diff-check.c2-contradictions is retired and has no effect"
+        tighten = policy.with_default_branch
+        with mock.patch.object(
+            policy,
+            "with_default_branch",
+            lambda *a, **k: dataclasses.replace(tighten(*a, **k), notes=(note,)),
+        ):
+            result = self.assess(post_merge=lambda floor, who: gate())
+        self.assertEqual(result.report()["configNotes"], [note])
 
     def test_a_merged_pull_request_stops_before_the_post_merge_reads(self) -> None:
         gh = self.readable()
@@ -2983,11 +2999,20 @@ class LaneConfig(unittest.TestCase):
             (True, 8, 400),
         )
 
-    def test_the_deprecated_c2_contradictions_key_is_ignored(self) -> None:
-        # Kept valid in the schema for existing configs; it has no effect.
+    def test_the_retired_c2_contradictions_key_only_leaves_a_note(self) -> None:
+        # Kept valid in the schema for existing configs; it has no effect, and
+        # an operator who set it is told so.
         config = self.diff_check(["c2-contradictions: true"])
-        self.assertEqual((config.rung, config.notes), ("C2", ()))
+        self.assertEqual(config.rung, "C2")
+        self.assertEqual(
+            config.notes,
+            (
+                "merge.diff-check.c2-contradictions is retired and has no effect:"
+                " no work class is read",
+            ),
+        )
         self.assertFalse(hasattr(config, "c2_contradictions"))
+        self.assertEqual(self.diff_check(["c2-contradictions: false"]).notes, ())
 
     def test_an_unreadable_switch_is_on_and_a_bad_cap_is_off(self) -> None:
         config = self.diff_check(["high-path-floor: maybe"])

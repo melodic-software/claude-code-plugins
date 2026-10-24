@@ -741,6 +741,7 @@ def read_config_at(
             ("merge.diff-check.max-changed-lines", False),
             ("merge.diff-check.max-changed-files", False),
             ("merge.diff-check.high-path-floor", False),
+            ("merge.diff-check.c2-contradictions", False),
             ("merge.diff-check.denied-paths", True),
             ("merge.report-only", False),
             ("merge.require-verifier-verdict", False),
@@ -787,6 +788,11 @@ def read_config_at(
         return value not in (None, "false")
 
     high_path_floor = switch("merge.diff-check.high-path-floor")
+    if scalar("merge.diff-check.c2-contradictions") not in (None, "false"):
+        notes.append(
+            "merge.diff-check.c2-contradictions is retired and has no effect:"
+            " no work class is read"
+        )
 
     report_only = scalar("merge.report-only")
     if report_only not in (None, "true", "false"):
@@ -4352,6 +4358,8 @@ def assess(
         config.dependabot_mode != "enforce" if dependabot_pr else config.report_only
     )
     details["reportOnly"] = report_only
+    if config.notes:
+        details["configNotes"] = list(config.notes)
     if enabled_authority(config) != authority:
         return replace(stopped, reason=AUTHORITY_DIFFERS)
 
