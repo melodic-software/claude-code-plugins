@@ -107,7 +107,8 @@ moves to its topic reference.
 - `hover`: every `:hover` rule sits inside `@media (hover: hover) and (pointer: fine)`.
 - `logical`: inline and block properties and start and end values, never left, right, top, bottom.
 - `outline`: focus is styled with `:focus-visible` and `outline`; never `outline: none` or `0`.
-- `ease-in`: never `ease-in` on UI; ease-out to enter or leave, ease-in-out to move on screen.
+- `ease-in`: never `ease-in` on UI; ease-out to enter or leave, ease-in-out to move on screen. An explicit
+  request for an exit that accelerates away wins: use `ease-in` there and say it starts slow.
 - `color`: colors in `oklch()`, with `none` as the hue of grays; variants via `color-mix(in oklch, …)`.
 - `transition-all`: a transition names its properties, never `all`.
 - `motion`: a transition that moves or scales sits inside `@media (prefers-reduced-motion: no-preference)`.
