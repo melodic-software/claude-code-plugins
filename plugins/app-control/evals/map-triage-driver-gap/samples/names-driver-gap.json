@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Driver gap: the form sends once a subject is filled, so I would add a --subject value to cli/clockwork send-invoice, document it in cli/README.md, and drive the invoice feature again before it ships.",
+      "why": "names the driver gap class"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Product regression: sending an invoice fails, so the entry stays and it goes to the report.",
+      "why": "calls a CLI gap a regression"
+    }
+  ]
+}

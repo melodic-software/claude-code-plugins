@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Product regression: the README stays as written, the failure goes to /bugs:write, and the pass is clean.",
+      "why": "names the regression class"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Doc drift: I would update approve-timesheet/README.md to say the page shows an error.",
+      "why": "records a lost behavior as current"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: check-missing-not-driven-reason
+description: Check reports an entry point marked not driven with no reason, edits nothing, and gives no verdict word
+tags: [map, check]
+expected_outcome: "The reply reports that the GET /api/invoices.csv entry point in features/billing/export/README.md is marked not driven without a reason, in the <rule> | <path> | <detail> form, and reports no finding for the cart feature or the index. No file is written or edited, and the reply gives no overall verdict word."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/app-control:map check .claude/skills/control-shop. Bash is not available in this session. Report what you find."
+  allowed_tools: [Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: names-export-file
+    type: regex
+    pattern: 'features/billing/export/README\.md'
+    arm: both
+  - name: writes-nothing
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: edits-nothing
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: reports-finding
+    type: llm
+    criteria: "PASS only if the reply reports that the GET /api/invoices.csv entry point in the export feature is marked not driven with no reason given, does not report the cart feature or the index as having a problem, and does not say it changed any file. It gives no overall verdict word such as pass, fail, clean, healthy or valid. FAIL if it misses the missing reason, treats the bare not driven marker as acceptable, says it added a reason or edited a file, or ends with a verdict such as clean, pass or fail."
