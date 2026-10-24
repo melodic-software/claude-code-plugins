@@ -33,7 +33,6 @@ import {
   realpathSync,
   renameSync,
   rmSync,
-  unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import net from 'node:net';
@@ -330,6 +329,7 @@ function reserve(session) {
       if (err.code !== 'EEXIST') throw err;
     }
     const owner = lockOwner(lock);
+    if (owner === undefined) continue; // released since the create failed
     if (!owner || alive(owner)) throw taken;
     // Re-read before removing, so a lock another launch just reclaimed is left alone.
     if (lockOwner(lock) === owner) rmSync(lock, { force: true });
@@ -412,17 +412,16 @@ async function serve(opts) {
   const { sock, nameFile } = endpoint(opts.session);
   const lock = lockFile(opts.session);
   const launch = buildLaunch({ pluginDir: opts['plugin-dir'] }, process.env);
+  // The launch reserved the session, so a socket left here belongs to a holder that is gone;
+  // one that still answers is refused, before claude starts, rather than unlinked.
+  const stale = process.platform !== 'win32' && existsSync(sock);
+  if (stale && (await listening(sock))) throw new Error(`another process is serving ${sock}`);
   for (const name of UNSET_VARS) delete process.env[name]; // the engine merges onto this env
   const { TuiTest } = await import(pathToFileURL(join(opts.install, 'node_modules', ENGINE, 'dist', 'index.js')).href);
   const terminal = TuiTest.ephemeral(COMPONENT);
   await terminal.run(launch.argv[0], launch.argv.slice(1), { env: launch.env, cols: 120, rows: 40 });
   if (await childExited(terminal)) throw new Error('claude exited as soon as it started');
-  // The launch reserved the session, so a socket left here belongs to a holder that is gone;
-  // one that still answers is refused rather than unlinked.
-  if (process.platform !== 'win32' && existsSync(sock)) {
-    if (await listening(sock)) throw new Error(`another process is serving ${sock}`);
-    unlinkSync(sock);
-  }
+  if (stale) rmSync(sock, { force: true });
   // Half-open: the client ends its side after the request, and the reply may take seconds.
   const server = net.createServer({ allowHalfOpen: true }, (conn) => {
     let buf = '';
