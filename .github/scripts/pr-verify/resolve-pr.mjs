@@ -41,6 +41,9 @@ import {
   loadTrustedList,
 } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { headRefDigest, issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
+import { refsIssue } from "../pr-merge/merge-holds.mjs";
+
+export { refsIssue };
 
 // The name grammar lives with its writer; the resolver checks names against it.
 export { isVerdictName, NAME, NAME_MAX } from "./write-verdict.mjs";
@@ -80,42 +83,6 @@ const REFS_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   }
 }
 ${ACTOR}`;
-
-// babysit_merge_policy.refs_issue, which test_verify_rules_sync.py keeps equal:
-// the one issue the visible `Refs: #<n>` lines of a pull request body name,
-// else null. A line counts only from its first column, outside an HTML comment
-// and a fenced code block; a `Refs:` line in any other form, or two numbers,
-// name none.
-const HTML_COMMENT = /<!--[\s\S]*?(?:-->|$)/g;
-const FENCE = /^ {0,3}(`{3,}|~{3,})/;
-const REFS_LINE = /^[Rr][Ee][Ff][Ss]:/;
-const REFS_PLAIN = /^Refs:[ \t]*#([1-9][0-9]{0,8})[ \t]*$/;
-export function refsIssue(body) {
-  const numbers = new Set();
-  let fence = "";
-  for (const line of String(body ?? "").replace(HTML_COMMENT, "").split(/\r\n|\r|\n/)) {
-    const marker = FENCE.exec(line);
-    if (fence) {
-      if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && line.slice(marker[0].length).replace(/[ \t]/g, "") === "") {
-        fence = "";
-      }
-      continue;
-    }
-    if (marker) {
-      fence = marker[1];
-      continue;
-    }
-    if (!REFS_LINE.test(line)) {
-      continue;
-    }
-    const plain = REFS_PLAIN.exec(line);
-    if (!plain) {
-      return null;
-    }
-    numbers.add(Number(plain[1]));
-  }
-  return numbers.size === 1 ? [...numbers][0] : null;
-}
 
 // babysit_merge_policy.names_nothing: whether a GraphQL answer says only that
 // `repository.<field>` names nothing, null there with every error a NOT_FOUND

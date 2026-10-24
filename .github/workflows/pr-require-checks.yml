@@ -4100,6 +4100,11 @@ jobs:
       # it); every other pull request merges through pr-merge's gate or a
       # person. An unreadable pull request, module, config, file list or
       # discussion fails closed.
+      # WHILE THE LANES KILL SWITCH IS ON A LANES APP PULL REQUEST FAILS, so
+      # one armed before it was turned on stops in the merge queue, as the
+      # gate stops: CLAUDE_LANES_DISABLED and CLAUDE_LANES_REPO_DISABLED from
+      # the vars context, no API read, and only the exact value `false` on
+      # both proceeds. Every other author's pull request is not affected.
       # IN THE MERGE QUEUE A LANES APP PULL REQUEST ALSO NEEDS A VERIFIER PASS
       # AT ITS HEAD: a PASS or PASS-NOTES artifact of a completed, successful
       # pr-verify.yml run on main (merge-holds.mjs verdictHold), looked up by
@@ -4114,6 +4119,12 @@ jobs:
       # new head before it is armed again; the queue still checks the head
       # it merges.
       # FAILs and the repeated-FAIL cap are enable-auto-merge.mjs's.
+      # THE PASS MUST STILL BIND THE LIVE LINK: the counted pass's verdict.json
+      # (one artifact download) and the closing issues (one GraphQL read) go
+      # to merge-holds.mjs linkHold, which holds when the body now closes or
+      # names another issue than the one pr-verify judged, as pr-merge's
+      # reader holds it (verify:spec-changed). A record or link that does not
+      # read holds.
       # Pinned by scripts/ci-lanes-pr-hold.test.sh, which runs this body.
       - name: Fail a lanes App pull request its body or a member holds
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
@@ -4122,6 +4133,10 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           EVENT_ACTION: ${{ github.event.action }}
           GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+          # The lanes kill switches, as check-kill-switch reads them: only the
+          # exact value `false` lets a lanes App pull request merge.
+          LANES_DISABLED: ${{ vars.CLAUDE_LANES_DISABLED }}
+          LANES_REPO_DISABLED: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
         run: |
           . "$RUNNER_TEMP/gh-read.sh"
           lanes_app_id=337595936
@@ -4156,6 +4171,10 @@ jobs:
           if ! jq -e --argjson id "$lanes_app_id" '.user.id == $id and .user.type == "Bot"' <<<"$pull" >/dev/null; then
             echo "#$pr is not the lanes App's; pr-merge's gate or a person reads its holds."
             exit 0
+          fi
+          if [ "${LANES_DISABLED:-}" != false ] || [ "${LANES_REPO_DISABLED:-}" != false ]; then
+            echo "::error::#$pr: the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false'), so no lanes App pull request merges; it merges once both read 'false' and ci-status is re-run."
+            exit 1
           fi
           BASE_SHA=$GROUP_BASE_SHA
           if [ "$GITHUB_EVENT_NAME" != merge_group ]; then
@@ -4232,18 +4251,41 @@ jobs:
               verdict=${name#"pr-verify-$pr-$head-"}
               verdict=${verdict%"-$digest"}
               runs=$(read_api "the $name artifacts" "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$name&per_page=100" \
-                --jq ".artifacts[] | select(.name == \"$name\" and .expired == false) | .workflow_run.id") || exit 1
-              for run in $runs; do
-                [[ $run =~ ^[1-9][0-9]*$ ]] || continue
+                --jq ".artifacts[] | select(.name == \"$name\" and .expired == false) | \"\(.workflow_run.id) \(.id)\"") || exit 1
+              while read -r run artifact; do
+                [[ $run =~ ^[1-9][0-9]*$ && $artifact =~ ^[1-9][0-9]*$ ]] || continue
                 record=$(read_api "run $run" "repos/$GITHUB_REPOSITORY/actions/runs/$run") || exit 1
-                jq -c --arg name "$name" --arg verdict "$verdict" --argjson id "$run" '{name: $name, verdict: $verdict, runId: $id, run: .}' <<<"$record" >>"$RUNNER_TEMP/verdicts.jsonl" || exit 1
-              done
+                jq -c --arg name "$name" --arg verdict "$verdict" --argjson id "$run" --argjson artifact "$artifact" '{name: $name, verdict: $verdict, runId: $id, artifact: $artifact, run: .}' <<<"$record" >>"$RUNNER_TEMP/verdicts.jsonl" || exit 1
+              done <<<"$runs"
               # A pass merge-holds.mjs verdictHold would count ends the lookup.
               ! jq -se --arg repo "$GITHUB_REPOSITORY" 'any(.runId as $id | .run | .id == $id and .status == "completed" and .conclusion == "success"
                 and .path == ".github/workflows/pr-verify.yml" and .event == "workflow_run" and .head_branch == "main"
                 and .repository.full_name == $repo and .head_repository.full_name == $repo)' "$RUNNER_TEMP/verdicts.jsonl" >/dev/null || break
             done
-            verdicts=("$RUNNER_TEMP/verdicts.jsonl")
+            # The counted pass's record and the closing issues, for linkHold.
+            artifact=$(jq -sr --arg repo "$GITHUB_REPOSITORY" '[.[] | select(.runId as $id | .run | .id == $id and .status == "completed" and .conclusion == "success"
+              and .path == ".github/workflows/pr-verify.yml" and .event == "workflow_run" and .head_branch == "main"
+              and .repository.full_name == $repo and .head_repository.full_name == $repo)] | first | .artifact // empty' "$RUNNER_TEMP/verdicts.jsonl") || exit 1
+            record=null
+            if [[ $artifact =~ ^[1-9][0-9]*$ ]]; then
+              for attempt in 1 2 3; do
+                # gh-read-exempt: a binary archive, which gh_read's text capture would corrupt.
+                if gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact/zip" >"$RUNNER_TEMP/verdict.zip"; then
+                  record=$(unzip -p "$RUNNER_TEMP/verdict.zip" verdict.json | jq -c .) || record=null
+                  break
+                fi
+                [ "$attempt" -lt 3 ] || { echo "::error::could not read the verdict of artifact $artifact; re-run this run."; exit 1; }
+                sleep $((attempt * 5))
+              done
+            fi
+            # shellcheck disable=SC2016 # GraphQL variables, not shell
+            closing=$(read_api "the closing issues of #$pr" graphql -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){closingIssuesReferences(first:10){totalCount nodes{number repository{nameWithOwner}}}}}}' \
+              -F owner="${GITHUB_REPOSITORY%%/*}" -F name="${GITHUB_REPOSITORY#*/}" -F number="$pr" --jq '.data.repository.pullRequest.closingIssuesReferences') || exit 1
+            jq -cn --argjson record "${record:-null}" --argjson closing "${closing:-null}" '{record: $record, closing: $closing}' >"$RUNNER_TEMP/link.json" || {
+              echo "::error::the verdict record or closing issues of #$pr do not parse."
+              exit 1
+            }
+            verdicts=("$RUNNER_TEMP/verdicts.jsonl" "$RUNNER_TEMP/link.json")
           fi
           out=$(node "$RUNNER_TEMP/merge-holds.mjs" "$pr" "$RUNNER_TEMP/pr-body.txt" "$RUNNER_TEMP/discussion.jsonl" \
             "$RUNNER_TEMP/files.jsonl" "$RUNNER_TEMP/denied-paths.json" "$RUNNER_TEMP/trusted-actors.json" "$head" "${verdicts[@]}") || {

@@ -2870,12 +2870,14 @@ def derive_auto_merge(
 class InFlight:
     """`queued` holds every merge-queue entry's pull request number, or None
     when the queue was not read whole; `unverified` counts the unverified
-    auto-merges read, all of them when clear."""
+    auto-merges read, all of them when clear; `count` the merges in flight
+    when clear (`max_in_flight` or more when not)."""
 
     clear: bool
     reason: str | None
     queued: frozenset[int] | None = field(default=None, compare=False)
     unverified: int = field(default=0, compare=False)
+    count: int = field(default=0, compare=False)
 
 
 def in_flight(
@@ -2952,7 +2954,7 @@ def in_flight(
                     return InFlight(False, reason, queued, unverified)
     except PolicyReadError as exc:
         return InFlight(False, f"unreadable: {exc}", queued, unverified)
-    return InFlight(True, None, queued, unverified)
+    return InFlight(True, None, queued, unverified, count)
 
 
 # --- Holds on a queued entry -------------------------------------------------------------------
@@ -3930,6 +3932,26 @@ def _demotion_changed(
     return False
 
 
+def _shared_age_refusal(shared: SharedPostMerge, age: timedelta) -> str | None:
+    """`stale` past `SHARED_MAX_AGE` (or from the future), `unverified-stale`
+    past `SHARED_UNVERIFIED_MAX_AGE` while it passes with a merge unverified,
+    else None."""
+    if not timedelta(0) <= age <= SHARED_MAX_AGE:
+        return "stale"
+    # A refusing answer refuses whatever was verified since, so only a
+    # passing one with a merge still unverified is read again.
+    if (
+        age > SHARED_UNVERIFIED_MAX_AGE
+        and shared.gate.refusal is None
+        and any(
+            json_object(m).get("verified") is not True
+            for m in json_array(shared.gate.report.get("autoMerges"))
+        )
+    ):
+        return "unverified-stale"
+    return None
+
+
 def shared_refusal(
     repo: str,
     shared: SharedPostMerge,
@@ -3986,21 +4008,7 @@ def shared_refusal(
             return "floor-differs"
     except PolicyReadError:
         return "config-unreadable"
-    checks = (
-        (not timedelta(0) <= age <= SHARED_MAX_AGE, "stale"),
-        # A refusing answer refuses whatever was verified since, so only a
-        # passing one with a merge still unverified is read again.
-        (
-            age > SHARED_UNVERIFIED_MAX_AGE
-            and shared.gate.refusal is None
-            and any(
-                json_object(m).get("verified") is not True
-                for m in json_array(shared.gate.report.get("autoMerges"))
-            ),
-            "unverified-stale",
-        ),
-    )
-    refusal = next((text for refused, text in checks if refused), None)
+    refusal = _shared_age_refusal(shared, age)
     if refusal:
         return refusal
     if not shared.demotion.active and _demotion_changed(owner, name, shared, identity):
@@ -4437,3 +4445,127 @@ def assess(
     return UnattendedPolicy(
         reason, identity, details, enabled=True, promoted=promoted, inputs=inputs
     )
+
+
+# --- Room for a native lane merge -------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class LaneRoom:
+    """`lane_room`'s answer. `refusal`: the gate holds the lane off, so
+    nothing is armed and armed lane pull requests are disarmed. `unreadable`:
+    a read failed, which the caller holds on as on a refusal. Otherwise
+    `count` merges are in flight of `cap`, `queued` holds the merge queue's
+    pull request numbers, and `rung` is the effective rung the gate scores
+    each candidate at ("off" unless the lane has room)."""
+
+    refusal: str | None = None
+    unreadable: str | None = None
+    count: int = 0
+    cap: int = 1
+    queued: frozenset[int] = frozenset()
+    rung: str = "off"
+
+    def report(self) -> dict[str, Any]:
+        return {
+            "refusal": self.refusal,
+            "unreadable": self.unreadable,
+            "count": self.count,
+            "cap": self.cap,
+            "queued": sorted(self.queued),
+            "rung": self.rung,
+        }
+
+
+def lane_room(
+    repo: str,
+    shared: SharedPostMerge | None,
+    *,
+    lane_rung_cap: str | None,
+    now: datetime | None = None,
+) -> LaneRoom:
+    """Whether the pr-merge lane may merge one more of its own pull requests
+    now, for native auto-merge, which skips `assess`: the run-level refusals
+    `assess` applies to every lane candidate, read once at the default branch
+    head, in its order. `shared` is this run's `babysit_postmerge.py` answer
+    (`babysit_postmerge.read_shared`), as the gate's `--postmerge-result`.
+
+    - A config naming another authority stops (`enabled_authority`).
+    - A post-merge refusal stops (`post-merge:<refusal>`).
+    - The effective rung off stops (`rung-off:<input>`): `merge.rung`,
+      `babysit_loop_merge`, the rung cap (`lane_rung_cap`, as `rung_cap`
+      reads it) and an active demotion, an unreadable record included. A lane
+      pull request's class is `LANE_CLASS`, which no rung above off is below,
+      so no class-above-rung refusal applies.
+    - The merges in flight (`in_flight`, `merge.max-in-flight` at the head)
+      are counted, not refused: the caller arms below the cap.
+
+    Any read failure, a missing `shared` and an in-flight count that could
+    not be read included, is `unreadable`. So is a `shared` the gate would
+    not reuse (`shared_refusal`): too old (a re-run job downloads the run's
+    first report, up to a day old), a demotion record filed or changed
+    since, or a lane merge landed since that it does not count."""
+    if shared is None:
+        return LaneRoom(unreadable="post-merge answer missing or unreadable")
+    try:
+        default = _default_branch(repo, shared=True)
+        config = _default_branch_config(repo, default)
+    except PolicyReadError as exc:
+        return LaneRoom(unreadable=f"config: {exc}")
+    if enabled_authority(config) != PR_MERGE:
+        return LaneRoom(refusal=AUTHORITY_UNCONFIGURED)
+    identity = config.agent_identity
+    if not identity:
+        return LaneRoom(unreadable="no agent identity")
+    # The gate's own reuse rule, as a candidate at the default branch head
+    # with the gate's self logins (none): the same identity and lane, its
+    # age, no demotion record filed or changed since, and every lane merge
+    # the check would judge now counted (`new-merge:#<n>` otherwise).
+    unusable = shared_refusal(
+        repo,
+        shared,
+        branch=default,
+        base_sha=config.base_sha,
+        identity=identity,
+        self_logins=frozenset(),
+        lane=True,
+        authority=PR_MERGE,
+        now=now,
+    )
+    if unusable:
+        return LaneRoom(unreadable=f"post-merge answer {unusable}")
+    if shared.gate.refusal:
+        return LaneRoom(refusal=f"post-merge:{shared.gate.refusal}")
+    cap = rung_cap(repo, authority=PR_MERGE, lane_value=lane_rung_cap)
+    rung = effective_rung(
+        config_rung=config.rung,
+        loop_merge=config.loop_merge,
+        cap=cap.value,
+        demoted=shared.demotion.active,
+    )
+    if rung.rung == "off":
+        return LaneRoom(refusal=f"rung-off:{rung.limited_by}")
+    flight_cap, _ = _run_max_in_flight(repo, default, config.base_sha, config)
+    flight = in_flight(
+        repo,
+        agent_identity=identity,
+        self_logins=shared.self_logins,
+        verified=shared.gate.verified,
+        branch=default,
+        merged_since=shared.floor,
+        lane_merges_only=True,
+        max_in_flight=flight_cap,
+    )
+    counted = str(flight.reason).startswith(FLIGHT_COUNTED)
+    if flight.queued is None or not (flight.clear or counted):
+        return LaneRoom(unreadable=f"in-flight:{flight.reason}", cap=flight_cap)
+    return LaneRoom(
+        count=flight.count if flight.clear else flight_cap,
+        cap=flight_cap,
+        queued=flight.queued,
+        rung=rung.rung,
+    )
+
+
+# The `in_flight` reasons that are a count reaching the cap, not a read failure.
+FLIGHT_COUNTED = ("identity-entry-queued:", "unverified-auto-merge:")
