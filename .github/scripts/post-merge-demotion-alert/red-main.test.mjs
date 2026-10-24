@@ -62,6 +62,19 @@ test("a hygiene gate is its own check, and the all-branches gitleaks gate counts
   ]);
 });
 
+test("a failed job listing no failed step is a check of its own; the full list keeps the gitleaks excuse", () => {
+  // The jobs API can answer a completed job with no steps or a cut list.
+  const gitleaks = { 7: [{ annotation_level: "failure", title: "gitleaks failed" }] };
+  const withSteps = (steps) => ({ id: 7, name: "lint-repo", conclusion: "failure", steps });
+  assert.deepEqual(failingChecks([withSteps([])], gitleaks), ["lint-repo"]);
+  assert.deepEqual(failingChecks([{ id: 7, name: "lint-repo", conclusion: "failure" }], gitleaks), ["lint-repo"]);
+  assert.deepEqual(failingChecks([withSteps([{ name: "Set up job", conclusion: "success" }])], gitleaks), ["lint-repo"]);
+  assert.deepEqual(
+    failingChecks([withSteps([{ name: "Set up job", conclusion: "success" }, { name: "Aggregate hygiene results", conclusion: "failure" }])], gitleaks),
+    [],
+  );
+});
+
 const attempt = (n, conclusion, checks) => ({ attempt: n, conclusion, checks });
 
 test("confirmed red: the run fails and its one re-run fails again in the same job", () => {

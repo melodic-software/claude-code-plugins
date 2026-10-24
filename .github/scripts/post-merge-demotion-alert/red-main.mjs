@@ -44,10 +44,14 @@ export function failingChecks(jobs, annotations = {}) {
     const gates = (annotations[job.id] ?? [])
       .filter((a) => a.annotation_level === "failure" && (a.title ?? "").length > 0)
       .map((a) => a.title);
-    const otherSteps = (job.steps ?? []).filter(
-      (step) => ["failure", "timed_out", "cancelled"].includes(step.conclusion) && step.name !== AGGREGATOR_STEP,
-    ).length;
-    if (gates.length === 0 || otherSteps > 0) checks.push(job.name);
+    const failedSteps = (Array.isArray(job.steps) ? job.steps : []).filter((step) =>
+      ["failure", "timed_out", "cancelled"].includes(step.conclusion),
+    );
+    // The jobs API can list a completed job's steps empty or cut short. A
+    // failed job listing no failed step has unknown steps, so it counts whole.
+    if (gates.length === 0 || failedSteps.length === 0 || failedSteps.some((step) => step.name !== AGGREGATOR_STEP)) {
+      checks.push(job.name);
+    }
     for (const gate of gates) {
       if (!BRANCH_WIDE_GATES.has(gate)) checks.push(`${job.name}: ${gate}`);
     }

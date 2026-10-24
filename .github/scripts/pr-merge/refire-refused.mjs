@@ -175,10 +175,10 @@ async function refusedFile({ actions, repo, run, lane }) {
     throw new Error(`run ${run.id}'s jobs have an unexpected shape`);
   }
   for (const job of jobs) {
-    const failedAtToken =
-      job.conclusion === "failure" &&
-      Array.isArray(job.steps) &&
-      job.steps.some((step) => step.name === STEP && step.conclusion === "failure");
+    // The jobs API can list a completed job's steps empty or cut short: a
+    // failed job whose list lacks the token step is judged by its annotations.
+    const token = (Array.isArray(job.steps) ? job.steps : []).find((step) => step.name === STEP);
+    const failedAtToken = job.conclusion === "failure" && (token === undefined || token.conclusion === "failure");
     if (!failedAtToken || !Number.isSafeInteger(job.id)) {
       continue;
     }

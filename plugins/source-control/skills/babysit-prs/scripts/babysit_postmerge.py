@@ -1244,7 +1244,9 @@ class _Context:
     ) -> frozenset[str] | None:
         """The suites failing check `check` names, or None: the check is not
         a test leg whose one failed step is its suite step, or its log cannot
-        be read or name them (`suite_failures`)."""
+        be read or name them (`suite_failures`). A job listing no failed step
+        (the jobs API can list steps empty or cut short) is None too: a log
+        cannot show that the suite step was the only one that failed."""
         self.failing_checks(run_id, attempt)
         job = self.check_jobs.get((run_id, attempt), {}).get(check)
         if job is None:
@@ -1434,7 +1436,10 @@ class _Context:
                     for s in map(json_object, json_array(job.get("steps")))
                     if s.get("conclusion") in FAILED_CONCLUSIONS
                 }
-                if not gates or steps - {HYGIENE_AGGREGATE_STEP}:
+                # The jobs API can list a completed job's steps empty or cut
+                # short. A failed job listing no failed step has unknown
+                # steps, so the job counts whole.
+                if not gates or not steps or steps - {HYGIENE_AGGREGATE_STEP}:
                     checks.add(name)
                 checks |= {f"{name}: {g}" for g in gates - UNATTRIBUTABLE_GATES}
             self.check_jobs[key] = by_name
