@@ -349,24 +349,6 @@
           "items": { "type": "boolean" },
           "description": "Whether the PR is a draft."
         },
-        "work-classes": {
-          "type": "array",
-          "minItems": 1,
-          "items": { "$ref": "#/$defs/work-class" }
-        },
-        "admission": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["classes"],
-          "description": "Which `work-class:` labels an issues lane admits: an issue carrying a `work-class:` label outside `classes` is refused, even beside a listed one; otherwise it is admitted by a listed class label. Work-class labels match in any casing or spacing, and labels are read when the run starts. With no `admission`, no work-class label is read.",
-          "properties": {
-            "classes": {
-              "type": "array",
-              "minItems": 1,
-              "items": { "type": "string", "pattern": "^work-class: [a-z-]+$" }
-            }
-          }
-        },
         "events": {
           "type": "array",
           "minItems": 1,
@@ -386,7 +368,6 @@
         }
       }
     },
-    "work-class": { "enum": ["C1", "C2", "C3", "C4", "C5"] },
     "skip-reason": {
       "enum": [
         "not-applicable-paths",

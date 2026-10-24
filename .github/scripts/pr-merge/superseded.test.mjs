@@ -1,9 +1,13 @@
-// Expected values come from pr-merge.yml: a run that is pending in the
-// `pr-merge` concurrency group starts after the running one, and it sweeps
-// every candidate when it is scheduled or a listed human started it (the
-// "Check who started the run" step). Only schedule runs re-fire refused lane
-// runs, and pull_request_target runs start no full CI run, so a run is
-// superseded only by one that does at least what it does.
+// Expected values come from pr-merge.yml: a job waiting in its concurrency
+// group starts after the running one, and it sweeps every candidate when its
+// run is scheduled or a listed human started it (the "Check who started the
+// run" step). Only schedule runs re-fire refused lane runs, and
+// pull_request_target runs start no full CI run, so a merge job is superseded
+// only by one that does at least what it does. Every enable-auto-merge run
+// disarms on a hold, and only a scheduled or hand-started one arms. GitHub
+// lists a run as pending while any one of its jobs waits on a group: run
+// 40113925144 (schedule) read pending at 17:19Z on 2026-10-24 with its merge
+// job completed at 17:14:54Z and its enable-auto-merge job pending.
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -34,8 +38,13 @@ const pending = (id, event, actor = OWNER, { rerunner = actor, branch = "main" }
   triggering_actor: rerunner,
 });
 
+const jobsOf = (id) => `/repos/${REPO}/actions/runs/${id}/jobs?filter=latest&per_page=100`;
+const waiting = (name = "merge", status = "pending") => [{ name, status }];
+
 let n = 0;
-async function check({ event = "schedule", runs = [], fail, body } = {}) {
+// `jobs` maps a run id to its jobs read; a run missing from it has `job`
+// waiting. `jobsFail` is thrown by every jobs read.
+async function check({ event = "schedule", runs = [], fail, body, job, jobs = {}, jobsFail } = {}) {
   n += 1;
   const output = join(dir, `output-${n}`);
   const calls = [];
@@ -43,6 +52,11 @@ async function check({ event = "schedule", runs = [], fail, body } = {}) {
     calls.push(`${method} ${path}`);
     if (fail) {
       throw fail;
+    }
+    const id = /\/actions\/runs\/(\d+)\/jobs\?/.exec(path)?.[1];
+    if (id !== undefined) {
+      if (jobsFail) throw jobsFail;
+      return { jobs: jobs[id] ?? waiting(job ?? "merge") };
     }
     return body ?? { total_count: runs.length, workflow_runs: runs };
   };
@@ -56,6 +70,7 @@ async function check({ event = "schedule", runs = [], fail, body } = {}) {
         GITHUB_REPOSITORY: REPO,
         GITHUB_RUN_ID: THIS_RUN,
         GITHUB_EVENT_NAME: event,
+        ...(job === undefined ? {} : { SUPERSEDED_JOB: job }),
         GITHUB_OUTPUT: output,
         TRUSTED_ACTORS_PATH: join(HERE, "fixtures/trusted-actors.json"),
       },
@@ -71,11 +86,11 @@ async function check({ event = "schedule", runs = [], fail, body } = {}) {
   return { status, calls, stdout: lines.join("\n"), superseded: /^superseded=true$/m.test(written), written };
 }
 
-test("a pending scheduled run supersedes a scheduled run, with one listing call and a notice", async () => {
+test("a pending scheduled run whose merge job waits supersedes a scheduled run, with a listing, one jobs read and a notice", async () => {
   const run = await check({ runs: [pending(600, "schedule", QUEUE_BOT)] });
   assert.equal(run.status, 0);
   assert.equal(run.superseded, true);
-  assert.deepEqual(run.calls, [`GET ${LISTING}`]);
+  assert.deepEqual(run.calls, [`GET ${LISTING}`, `GET ${jobsOf(600)}`]);
   assert.match(run.stdout, /^::notice::.*run 600 \(schedule\)/m);
 });
 
@@ -146,7 +161,7 @@ test("a failed listing runs the gate, with a warning", async () => {
   const run = await check({ fail: new GitHubError(503, `GET ${LISTING}`) });
   assert.equal(run.status, 0);
   assert.equal(run.superseded, false);
-  assert.match(run.stdout, /^::warning title=superseded::.*status 503.*the gate runs$/m);
+  assert.match(run.stdout, /^::warning title=superseded::.*status 503.*the job does its work$/m);
 });
 
 test("an unreadable listing runs the gate, with a warning", async () => {
@@ -155,8 +170,97 @@ test("an unreadable listing runs the gate, with a warning", async () => {
   assert.match(run.stdout, /^::warning title=superseded::.*unexpected shape/m);
 });
 
-test("an unknown current event runs the gate without a listing call", async () => {
+test("an unknown current event, or an unknown job, does its work without a listing call", async () => {
+  const unknown = await check({ job: "gate-check", runs: [pending(600, "schedule")] });
+  assert.equal(unknown.superseded, false);
+  assert.deepEqual(unknown.calls, []);
   const run = await check({ event: "push", runs: [pending(600, "schedule")] });
   assert.equal(run.superseded, false);
   assert.deepEqual(run.calls, []);
+});
+
+// Run 40113925144 above: pending only because another of its jobs waits.
+test("a pending run whose merge job already ran supersedes nothing", async () => {
+  const run = await check({
+    runs: [pending(600, "schedule", QUEUE_BOT)],
+    jobs: { 600: [{ name: "merge", status: "completed" }, { name: "enable-auto-merge", status: "pending" }] },
+  });
+  assert.equal(run.superseded, false);
+});
+
+test("the first pending run whose job still waits supersedes, and later runs are not read", async () => {
+  const run = await check({
+    runs: [pending(700, "schedule"), pending(600, "schedule"), pending(550, "schedule")],
+    jobs: { 700: [{ name: "merge", status: "completed" }] },
+  });
+  assert.equal(run.superseded, true);
+  assert.match(run.stdout, /run 600 \(schedule\)/);
+  assert.deepEqual(run.calls, [`GET ${LISTING}`, `GET ${jobsOf(700)}`, `GET ${jobsOf(600)}`]);
+});
+
+test("a queued or waiting job counts as waiting; one missing from the run does not", async () => {
+  for (const status of ["queued", "waiting"]) {
+    assert.equal((await check({ runs: [pending(600, "schedule")], jobs: { 600: waiting("merge", status) } })).superseded, true, status);
+  }
+  assert.equal((await check({ runs: [pending(600, "schedule")], jobs: { 600: [] } })).superseded, false);
+});
+
+test("at most five pending runs have their jobs read", async () => {
+  const runs = Array.from({ length: 7 }, (_, i) => pending(600 + i, "schedule"));
+  const jobs = Object.fromEntries(runs.map((r) => [r.id, [{ name: "merge", status: "completed" }]]));
+  const run = await check({ runs, jobs });
+  assert.equal(run.superseded, false);
+  assert.equal(run.calls.length, 1 + 5);
+});
+
+test("a failed jobs read does the work, with a warning", async () => {
+  const run = await check({ runs: [pending(600, "schedule")], jobsFail: new GitHubError(502, `GET ${jobsOf(600)}`) });
+  assert.equal(run.superseded, false);
+  assert.match(run.stdout, /^::warning title=superseded::.*status 502/m);
+});
+
+test("enable-auto-merge: a pending issue-lane or edit run a listed human started supersedes either", async () => {
+  for (const [event, next] of [
+    ["pull_request_target", "workflow_run"],
+    ["workflow_run", "pull_request_target"],
+    ["workflow_run", "workflow_run"],
+  ]) {
+    const run = await check({ job: "enable-auto-merge", event, runs: [pending(600, next)] });
+    assert.equal(run.superseded, true, `${event} by ${next}`);
+  }
+});
+
+test("enable-auto-merge: a scheduled and a hand-started run, which both arm, supersede each other and every event run", async () => {
+  for (const event of ["schedule", "workflow_dispatch", "pull_request_target", "workflow_run"]) {
+    for (const next of ["schedule", "workflow_dispatch"]) {
+      const run = await check({ job: "enable-auto-merge", event, runs: [pending(600, next)] });
+      assert.equal(run.superseded, true, `${event} by ${next}`);
+    }
+  }
+});
+
+test("enable-auto-merge: an event run, which never arms, supersedes no scheduled or hand-started run", async () => {
+  for (const event of ["schedule", "workflow_dispatch"]) {
+    for (const next of ["pull_request_target", "workflow_run"]) {
+      const run = await check({ job: "enable-auto-merge", event, runs: [pending(600, next)] });
+      assert.equal(run.superseded, false, `${event} by ${next}`);
+    }
+  }
+});
+
+test("enable-auto-merge: a waiting merge job, or an enable-auto-merge job a condition skipped, supersedes nothing", async () => {
+  for (const jobs of [waiting("merge"), [{ name: "enable-auto-merge", status: "completed", conclusion: "skipped" }]]) {
+    const run = await check({ job: "enable-auto-merge", runs: [pending(600, "schedule")], jobs: { 600: jobs } });
+    assert.equal(run.superseded, false);
+  }
+});
+
+test("enable-auto-merge: an issue-lane run the lanes App started stops at the who step, so it supersedes nothing", async () => {
+  const run = await check({ job: "enable-auto-merge", event: "workflow_run", runs: [pending(600, "workflow_run", LANES_BOT)] });
+  assert.equal(run.superseded, false);
+});
+
+test("a merge job is never superseded by an issue-lane run, whose merge job never runs", async () => {
+  const run = await check({ event: "pull_request_target", runs: [pending(600, "workflow_run")] });
+  assert.equal(run.superseded, false);
 });
