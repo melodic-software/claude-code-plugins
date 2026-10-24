@@ -136,9 +136,8 @@ static analysis cannot reach, so report an Actions finding only when it needs
 that reasoning. If you find no security issues, say so plainly.
 
 **Trust controls.** No path holds the merge for being trusted alone, so this lane is what stops a
-change to the controls that decide who and what the automation trusts. Each of these is CRITICAL
-unless the diff shows it keeps or narrows what the control allows, and the finding says which
-control and what now gets through:
+change to the controls that decide who and what the automation trusts. Each of these is CRITICAL,
+and the finding says which control and what now gets through:
 
 - it widens who passes the trusted-trigger check (in this repository
   `.github/actions/check-trusted-trigger/`, which reads the trusted-actor list);
@@ -147,9 +146,10 @@ control and what now gets through:
 - it leaves the lanes kill switch unable to stop a lane: a read that no longer fails closed, a
   lane that no longer consults it, or an output a lane no longer honors (in this repository
   `.github/actions/check-kill-switch/`);
-- it changes code the token broker runs in its signer process (in this repository
-  `.github/actions/resolve-config/`) and does not show the change narrows what that process
-  signs or grants.
+- it changes code or rules the token broker loads into its signer process, unless the diff shows
+  the change narrows what that process grants (in this repository resolve-config's `resolve.mjs`,
+  the sibling modules it imports, and `effect-grants.json`, `lane-rules.json` and
+  `activity-rules.json`; its tests, fixtures and docs are not this control).
 
 This repository's review callers pass those paths in `hold-paths`, beside the trusted-actor
 list, `CODEOWNERS` and `.gitmodules`: read each such file's whole change and what it gates.
@@ -257,6 +257,8 @@ An IMPORTANT or SUGGESTION finding, a `manifest <field>: flag` line short of CRI
 other finding is a normal finding and never sets `hold`. With no `hold` field in the schema,
 seat-run mode included, return none. Pointer: the field's shape is the output schema in the
 compose step of
-[ci-workflows `pr-review-cli.yml`](https://github.com/melodic-software/ci-workflows/blob/v0.64.0/.github/workflows/pr-review-cli.yml#L861-L884).
-As of: 2026-10-23. Recheck trigger: a ci-workflows release changes the `hold` schema or its
+[ci-workflows `pr-review-cli.yml`](https://github.com/melodic-software/ci-workflows/blob/v0.65.7/.github/workflows/pr-review-cli.yml#L958-L971),
+and its hold classes in the prompt below it
+([L1011-L1021](https://github.com/melodic-software/ci-workflows/blob/v0.65.7/.github/workflows/pr-review-cli.yml#L1011-L1021)).
+As of: 2026-10-24. Recheck trigger: a ci-workflows release changes the `hold` schema or its
 criteria.
