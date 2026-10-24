@@ -39,11 +39,11 @@ keep going.
 
 ## Find the control skill
 
-1. List the candidates in this order, keyed by `control-<app>`:
-   - **Project:** a skill named `control-<app>` among the available skills, or a
-     `.claude/skills/control-<app>/SKILL.md` file. Its base directory is that skill's folder.
-   - **Plugin:** a skill named `<plugin>:control-<app>` among the available skills. Load it through
-     the Skill tool and take its base directory from what the tool reports.
+1. List the candidates among the available skills in this order: the **project** skill named
+   `control-<app>`, then a **plugin** skill named `<plugin>:control-<app>`. Load the chosen one,
+   project or plugin, through the Skill tool and take its base directory from what the tool
+   reports. Only when no matching skill is available, read `.claude/skills/control-<app>/SKILL.md`
+   from disk; its base directory is that folder.
 
    A project and a plugin skill with the same `control-<app>` name are one candidate: the project
    skill wins and the plugin one is not loaded. One candidate: use it. Several: the `<app>`
