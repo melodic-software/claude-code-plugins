@@ -1814,8 +1814,8 @@ issue. It never labels an issue `agent-ready`, so nothing it writes starts work.
   job) leaves the job unbound. The signature is free text in every slice, so binding does not stop a
   steered judge minting fresh fingerprints; they land only as entries in the one digest, at most 3
   per unit. A finding whose fingerprint matches an issue an earlier sweep filed and a person closed
-  as not planned or duplicate is skipped, as is one whose `covered_by` names an open item; one matching such an issue still open is listed as
-  tracked there. The rest become the entries of one digest issue, `Lane sweep: open findings`,
+  as not planned or duplicate is skipped, as is one whose `covered_by` names an open item; one
+  matching such an issue still open is listed as  tracked there. The rest become the entries of one digest issue, `Lane sweep: open findings`,
   found by its first line `<!-- lane-sweep-digest -->`; each entry opens with
   `<!-- lane-sweep-entry fp=<fingerprint>[ tracked=<issue>] -->`, and the last line,
   `<!-- lane-sweep:fp=<fingerprint> -->`, holds the fingerprint of the entry set and each entry's
