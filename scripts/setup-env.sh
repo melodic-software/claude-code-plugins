@@ -10,7 +10,9 @@
 #   - Playwright's Chromium, only with --playwright or SETUP_ENV_PLAYWRIGHT=1
 #     (https://playwright.dev/docs/ci: install browsers on each run, no cache).
 #
-#   bash scripts/setup-env.sh [--playwright] [--root DIR]
+#   bash scripts/setup-env.sh [--playwright] [--node] [--root DIR]
+#
+# --node runs only the Node step (scripts/check-affected.sh --tests uses it).
 #
 # Re-running is cheap: each step records the hash of the file it installed
 # from and skips while that hash matches. The venv goes to SETUP_ENV_VENV, else
@@ -19,16 +21,18 @@
 set -euo pipefail
 
 playwright=${SETUP_ENV_PLAYWRIGHT:-0}
+node_only=0
 root=""
 while [[ $# -gt 0 ]]; do
   case $1 in
     --playwright) playwright=1 ;;
+    --node) node_only=1 ;;
     --root)
       root=${2:?setup-env: --root needs a directory}
       shift
       ;;
     -h | --help)
-      sed -n '2,18p' "$0"
+      sed -n '2,20p' "$0"
       exit 0
       ;;
     *)
@@ -45,6 +49,26 @@ cd "$root"
 hash_of() {
   if command -v sha256sum >/dev/null; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1
 }
+
+node_packages() {
+  local dir key stamp
+  for dir in . .github/standards/runner-policy; do
+    key=$(hash_of "$dir/package-lock.json")
+    stamp=$dir/node_modules/.setup-env
+    if [[ -f "$stamp" ]] && [[ "$(cat "$stamp")" = "$key" ]]; then
+      echo "setup-env: $dir/node_modules is current"
+    else
+      nice npm ci --no-audit --no-fund --prefix "$dir"
+      printf '%s\n' "$key" >"$stamp"
+      echo "setup-env: installed $dir/package-lock.json into $dir/node_modules"
+    fi
+  done
+}
+
+if [[ "$node_only" = 1 ]]; then
+  node_packages
+  exit 0
+fi
 
 # Python.
 want=$(tr -d '[:space:]' <.python-version)
@@ -110,17 +134,7 @@ else
   echo "setup-env: installed shellcheck $shellcheck_version into $bin"
 fi
 
-# Node.
-for dir in . .github/standards/runner-policy; do
-  key=$(hash_of "$dir/package-lock.json")
-  stamp=$dir/node_modules/.setup-env
-  if [[ -f "$stamp" ]] && [[ "$(cat "$stamp")" = "$key" ]]; then
-    echo "setup-env: $dir/node_modules is current"
-  else
-    npm ci --prefix "$dir"
-    printf '%s\n' "$key" >"$stamp"
-  fi
-done
+node_packages
 
 # Playwright: --with-deps installs the browser's system libraries and needs sudo.
 if [[ "$playwright" = 1 ]]; then

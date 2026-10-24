@@ -148,11 +148,14 @@ config (`"assets": ["config/default-typos.toml"]`).
 | Rewrites | in place, rewritten paths on stdout; a partly staged file is left alone and fails with `<path>: partly staged; format it or stage it fully, then commit` |
 | Header | line 2: `# <plugin> <name> sha256:<hex>`, hash of the source script plus check lib and any assets (defined under Drift) |
 
-A `pre-push` check that shares the hook with another job under lefthook may get no refs: lefthook
-hands stdin to only one `use_stdin: true` job. The check lib then falls back to the current branch
-against its upstream, and checks nothing on a branch with no upstream. Pointer: lefthook's
-[`use_stdin`](https://lefthook.dev/configuration/use_stdin) page. As of 2026-10-16, lefthook 2.2.1.
-Recheck when that page drops its one-job note.
+Under lefthook, a `pre-push` check gets the refs only with `use_stdin: true` in a hook whose jobs run
+sequentially: lefthook caches stdin and replays it to each such job in turn, while parallel jobs
+read one shared stream. A check that gets no refs falls back to the current branch against its
+upstream, and checks nothing on a branch with no upstream. Pointer: lefthook's
+[`cached_reader.go`](https://github.com/evilmartians/lefthook/blob/v2.2.2/internal/run/controller/utils/cached_reader.go);
+its [`use_stdin`](https://lefthook.dev/configuration/use_stdin) page still says only one job receives
+stdin. As of 2026-10-24, lefthook 2.2.2. Recheck when a lefthook release changes that file or the
+page's note.
 
 ### The skip key: `checks.skipmissing`
 

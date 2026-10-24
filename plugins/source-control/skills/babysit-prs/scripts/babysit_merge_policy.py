@@ -1975,11 +1975,165 @@ DECISION_LINE = re.compile(r"^\*\*Decision recorded\.\*\*[ \t]+Cost:")
 # one is hidden from a reader, so it cites nothing.
 HTML_COMMENT = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)
 COMMENT_EDITED = "query PolicyCommentEdited($id:ID!){node(id:$id){... on IssueComment{lastEditedAt}}}"
+COMMENT_DELETED = (
+    "query PolicyCommentDeleted($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name)"
+    "{pullRequest(number:$number){timelineItems(itemTypes:[COMMENT_DELETED_EVENT],last:100)"
+    "{filteredCount nodes{... on CommentDeletedEvent{createdAt}}}}}}"
+)
+
+
+def names_pull(text: Any, number: Any) -> bool:
+    """Whether `text` names pull request `number` as `#<number>`: not part of
+    a longer number, and not after a letter, digit, `_`, `#`, `&`, `/`, `.`
+    or `-`, so neither `owner/repo#<number>` (another repository's) nor an
+    `&#<number>` entity counts. ASCII classes only, as merge-holds.mjs
+    `namesPull` and ci-status read it."""
+    if not isinstance(number, int) or isinstance(number, bool):
+        return False
+    return (
+        re.search(
+            rf"(?:^|[^A-Za-z0-9_#&/.-])#{number}(?:[^0-9]|$)", str(text or "")
+        )
+        is not None
+    )
 
 
 def _after(value: Any, opened: datetime | None) -> bool:
     made = parse_timestamp(value)
     return made is not None and opened is not None and made > opened
+
+
+# A review lane's cost hold marker, as ci-workflows apply-review-hold writes
+# it on the first line of its hold comment: the head it held and its
+# criteria. The base branch name a compare takes, as the hold step reads it.
+COST_MARKER = re.compile(
+    r"<!-- claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) "
+    r"criteria=([a-z,-]+) -->(?:\n|\Z)"
+)
+BASE_BRANCH = re.compile(r"(?!-)(?!.*\.\.)[A-Za-z0-9._/-]{1,255}")
+_NEVER = datetime.min.replace(tzinfo=UTC)
+
+
+def cost_marker(comments: Any, at: Any) -> tuple[str, str, Any] | None:
+    """The newest cost hold marker github-actions[bot] posted among the pull
+    request's `comments` before a decision made at `at`, as (the head it
+    held, its comment's node id, its created_at), else None (merge-holds.mjs
+    `costMarker`; the first of two at one time wins, as in the review lanes'
+    hold step). It decides a head only while never edited and while no
+    comment was deleted since it was posted, which the caller reads."""
+    when = parse_timestamp(at)
+    found: tuple[datetime, str, str] | None = None
+    for row in json_array(comments):
+        row = json_object(row)
+        made = parse_timestamp(row.get("created_at"))
+        marker = (
+            COST_MARKER.match(str(row.get("body") or ""))
+            if json_object(row.get("user")).get("login") == "github-actions[bot]"
+            else None
+        )
+        if (
+            marker
+            and "cost" in marker[2].split(",")
+            and made is not None
+            and when is not None
+            and made < when
+            and (found is None or made > found[0])
+        ):
+            found = (made, marker[1], str(row.get("node_id") or ""), row.get("created_at"))
+    return (found[1], found[2], found[3]) if found else None
+
+
+def deleted_since(answer: Any, at: Any) -> bool:
+    """Whether a `COMMENT_DELETED` answer (its `data`) shows a comment on the
+    pull request deleted at or after `at`, or cannot show that none was: no
+    readable list, more deletions than it lists, or a time that does not
+    parse (merge-holds.mjs `deletedSince`). A deleted newer marker would
+    otherwise make an older one the decided head."""
+    when = parse_timestamp(at)
+    items = json_object(
+        json_object(json_object(json_object(answer).get("repository")).get("pullRequest")).get(
+            "timelineItems"
+        )
+    )
+    nodes, count = items.get("nodes"), items.get("filteredCount")
+    if when is None or not is_json_array(nodes) or not isinstance(count, int) or isinstance(count, bool) or count > len(nodes):
+        return True
+    for node in nodes:
+        made = parse_timestamp(json_object(node).get("createdAt"))
+        if made is None or made >= when:
+            return True
+    return False
+
+
+def same_net_change(decided: Any, current: Any) -> bool:
+    """Whether two compare answers (base...head) show the same net change of
+    the pull request: the same filenames, each with the same status,
+    previous_filename and patch. A list of 300 files or more (the compare
+    API's cap), a file with no patch, a filename listed twice, or an answer
+    with no file list is not the same (merge-holds.mjs `sameNetChange`)."""
+
+    def net(compare: Any) -> dict[str, tuple[Any, Any, str]] | None:
+        files = json_object(compare).get("files")
+        if not is_json_array(files) or len(files) >= 300:
+            return None
+        by_name: dict[str, tuple[Any, Any, str]] = {}
+        for f in files:
+            f = json_object(f)
+            name, patch = f.get("filename"), f.get("patch")
+            if not isinstance(name, str) or not isinstance(patch, str) or name in by_name:
+                return None
+            by_name[name] = (f.get("status"), f.get("previous_filename"), patch)
+        return by_name
+
+    then, now = net(decided), net(current)
+    return then is not None and now is not None and then == now
+
+
+def _carries(repo: str, pr: Mapping[str, Any], comment: Mapping[str, Any]) -> bool:
+    """Whether the decision `comment` covers the pull request at its head
+    (owner decisions Q17 c and Q18 d on #9436): its decided head
+    (`cost_marker`, never edited, so no one with write access moved its sha)
+    is the head, with no compare read, or every change since is a merge of the
+    base branch, so the net change against it is the same at both
+    (`same_net_change`). No marker, an edited or unreadable newest marker (no
+    older one stands in), a comment deleted since that marker was posted
+    (`deleted_since`, read before the head check, so deleting a newer marker
+    cannot promote an older head), an unusable base name or a read that fails
+    carries nothing."""
+    sha = str(json_object(pr.get("head")).get("sha") or "")
+    base = json_object(pr.get("base")).get("ref")
+    owner, name = _split_repo(repo)
+    try:
+        marker = cost_marker(
+            _paginated(
+                f"repos/{owner}/{name}/issues/{pr.get('number')}/comments?per_page=100",
+                "cost hold markers",
+            ),
+            comment.get("created_at"),
+        )
+        if marker is None:
+            return False
+        node = _graphql(COMMENT_EDITED, "cost hold marker", id=marker[1]).get("node")
+        if not (is_json_object(node) and "lastEditedAt" in node and node["lastEditedAt"] is None):
+            return False
+        deleted = _graphql(
+            COMMENT_DELETED, "deleted comments", owner=owner, name=name, number=pr.get("number")
+        )
+    except PolicyReadError:
+        return False
+    if deleted_since(deleted, marker[2]):
+        return False
+    decided = marker[0]
+    if decided == sha:
+        return True
+    if not isinstance(base, str) or not BASE_BRANCH.fullmatch(base):
+        return False
+    reads = [
+        _get(f"repos/{owner}/{name}/compare/{base}...{each}") for each in (decided, sha)
+    ]
+    if any(status != 200 for status, _ in reads):
+        return False
+    return same_net_change(reads[0][1], reads[1][1])
 
 
 def cost_decision(
@@ -1991,21 +2145,28 @@ def cost_decision(
     agent_identity: str | None,
     self_logins: Collection[str] = frozenset(),
 ) -> str | None:
-    """The first comment link in the body that is an owner decision covering
-    this pull request, else None: a comment on its closing issue or on the
-    pull request itself in `repo`, by a User with admin permission who is not
-    the agent identity, not posted through an App, never edited, and whose
-    first line starts `**Decision recorded.** Cost:`. One on the closing issue
-    counts only when created after the pull request was, so an older decision
-    on the issue cannot cover new work (an author can forge commit dates, not
-    these); one on the pull request postdates it already. A link inside an HTML
-    comment, and a comment by a `self_logins` account, count for nothing. A
-    read that fails clears nothing."""
+    """The comment link in the body that is an owner decision covering this
+    pull request at its head, else None: a comment on the pull request itself
+    or on `issue` (its linked issue, `_linked_issue`) in `repo`, by a User
+    with admin permission who is not the agent identity, not posted through
+    an App, never edited, and whose first line starts `**Decision recorded.**
+    Cost:`. One on the pull request counts as it is; one on the issue counts
+    only when its text names this pull request (`names_pull`) and it was
+    created after the pull request was, so a decision recorded on the issue
+    for another change does not cover a pull request that links the issue
+    later (an author can forge commit dates, not these). Of those, the
+    decision is the newest on the pull request, else the newest on the issue,
+    as the review lanes' hold step picks it; it covers the head it decided and
+    a later head only when every change since is a base merge (`_carries`,
+    owner decisions Q17 c and Q18 d on #9436). A link inside an HTML comment,
+    and a comment by a `self_logins` account, count for nothing. A read that
+    fails clears nothing."""
     owner, name = _split_repo(repo)
     covered = {pr.get("number"), issue} - {None}
     opened = parse_timestamp(pr.get("created_at"))
     excluded = {_login_key(agent_identity)} | {_login_key(x) for x in self_logins}
     body = HTML_COMMENT.sub("", str(pr.get("body") or ""))
+    decisions: list[tuple[bool, str, dict[str, Any]]] = []
     for link in COST_DECISION_LINK.finditer(body):
         if f"{link[1]}/{link[2]}".casefold() != repo.casefold():
             continue
@@ -2025,7 +2186,10 @@ def cost_decision(
             or not DECISION_LINE.match(str(comment.get("body") or "").lstrip())
             or (
                 int(link[3]) != pr.get("number")
-                and not _after(comment.get("created_at"), opened)
+                and not (
+                    _after(comment.get("created_at"), opened)
+                    and names_pull(comment.get("body"), pr.get("number"))
+                )
             )
         ):
             continue
@@ -2042,7 +2206,15 @@ def cost_decision(
             and "lastEditedAt" in node
             and node["lastEditedAt"] is None
         ):
-            return link[0]
+            decisions.append((int(link[3]) == pr.get("number"), link[0], comment))
+    for own in (True, False):
+        mine = [d for d in decisions if d[0] is own]
+        if mine:
+            _, link, comment = max(
+                mine,
+                key=lambda d: parse_timestamp(d[2].get("created_at")) or _NEVER,
+            )
+            return link if _carries(repo, pr, comment) else None
     return None
 
 

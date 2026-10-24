@@ -34,7 +34,7 @@ import {
   verifyHold,
 } from "./enable-auto-merge.mjs";
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { COMMENT_EDITED_QUERY, PULL_OPENED_QUERY, VERIFY_PATH, verdictHold } from "./merge-holds.mjs";
+import { COMMENT_DELETED_QUERY, COMMENT_EDITED_QUERY, PULL_OPENED_QUERY, VERIFY_PATH, verdictHold } from "./merge-holds.mjs";
 import { VERIFY_PATH as RESOLVER_VERIFY_PATH } from "../pr-verify/resolve-pr.mjs";
 import { decide as decideOutcome } from "../work-resolve-issue/report-outcome.mjs";
 
@@ -87,7 +87,7 @@ const COST_COMMENT = {
   issue_url: `https://api.github.com/repos/${REPO}/issues/1040`,
   user: { login: "kyle-sexton", id: 5, type: "User" },
   performed_via_github_app: null,
-  body: "**Decision recorded.** Cost: approve it.",
+  body: "**Decision recorded.** Cost: approve it for #40.",
   node_id: "IC_7",
   created_at: "2026-10-22T12:00:00Z",
 };
@@ -120,6 +120,10 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
     if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/issues/comments/7") {
       return COST_COMMENT;
     }
+    // Its decided head: a review lane's cost hold marker at the head, before it.
+    if (method === "GET" && /^\/repos\/melodic-software\/claude-code-plugins\/issues\/[0-9]+\/comments\?per_page=100&page=1$/.test(path)) {
+      return [{ user: { login: "github-actions[bot]", type: "Bot" }, created_at: "2026-10-22T11:00:00Z", body: `<!-- claude-lane-hold lane=claude-review sha=${HEAD} criteria=cost -->` }];
+    }
     // The read-back pin, posted before an arm.
     if (method === "POST" && String(body?.body ?? "").startsWith("<!-- babysit-merge-pin ")) {
       pins.push({ path, body: body.body });
@@ -144,6 +148,9 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
     }
     if (body.query === COMMENT_EDITED_QUERY) {
       return { data: { node: { lastEditedAt: null } } };
+    }
+    if (body.query === COMMENT_DELETED_QUERY) {
+      return { data: { repository: { pullRequest: { timelineItems: { filteredCount: 0, nodes: [] } } } } };
     }
     if (body.query === PULLS_QUERY) {
       assert.deepEqual(body.variables, { owner: "melodic-software", name: "claude-code-plugins", after: null });
@@ -181,7 +188,7 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
   };
   const writes = () =>
     calls
-      .filter(({ method, path, body }) => method === "POST" && path === "/graphql" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY, UNLABELED_QUERY].includes(body.query))
+      .filter(({ method, path, body }) => method === "POST" && path === "/graphql" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY, COMMENT_DELETED_QUERY, UNLABELED_QUERY].includes(body.query))
       .map(({ body }) => ({ mutation: body.query === ARM_MUTATION ? "arm" : body.query === DISARM_MUTATION ? "disarm" : "?", ...body.variables }));
   return { github, writes, verify, verified, calls, notes, pins };
 }

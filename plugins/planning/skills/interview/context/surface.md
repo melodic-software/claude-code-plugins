@@ -136,7 +136,7 @@ A decision event names the content revision it answered: the `contentRev` the pa
 
 | `kind` | `id` | Records a decision | Handling |
 |---|---|---|---|
-| `accept` | question | yes | Record in the ledger. No `text`, or the note already recorded for that question: `handle`, no reply. New non-empty `text`: `reply` with its `seq`, answering the note |
+| `accept` | question | yes | Record in the ledger. No `text`, or the note already recorded for that question: `handle`, no reply (a plain accept the server auto-handled never reaches you, see [Auto-handled events](#auto-handled-events)). New non-empty `text`: `reply` with its `seq`, answering the note |
 | `alt` | question | yes (`alt` is the key) | Record; reply only when the choice changes other questions |
 | `own` | question | yes (`text` required) | Record; read back a dictated answer in one line (R-D) |
 | `defer` | question | yes | Record as deferred |
@@ -148,9 +148,13 @@ A decision event names the content revision it answered: the `contentRev` the pa
 | `note` | none | no | `note-reply` with its `seq`, or `reply` on a question |
 | `undo` | question, `undoSeq` | withdraws `undoSeq` | Drop that decision from the ledger; `handle` both seqs |
 | `wrapup` | none; a forced one carries `text` | no | Run [Wrap-up](#wrap-up), then `handle`. A `text` starting `Skipped before wrap-up:` lists, one line each, starting with a dash, what the user left outstanding when they pressed Wrap up anyway (an unconfirmed understanding, unticked commitments by question, an unanswered Notes post, open questions); `round.sh status` prints it. When running Wrap-up, name each skipped item to the user |
-| `confirm` | question, `alt` is the commitment index | no; ticks one commitment | `handle` |
+| `confirm` | question, `alt` is the commitment index | no; ticks one commitment | None: the server auto-handles it, see [Auto-handled events](#auto-handled-events) |
 | `accept-audit` | none; `alt` is the round id, `items` lists the accepted questions | yes, once per listed question (each has its own `accept` event carrying `auditSeq`) | Record each accepted question, `handle` the `accept-audit` seq and every fanned-out accept seq with no reply, then run `/planning:audit-answers` on the event's `items` only, so questions outside the round stay open. The audit returns only the doubtful ones as human questions |
 | `confirm-understanding` | none; `alt` is `confirm` or `off`, `contentRev` is the restatement `rev` | no | `confirm`: the gate passed, `handle`. `off`: `note-reply` to its `text` with its `seq`, see [Confirmation gate](#confirmation-gate) |
+
+### Auto-handled events
+
+The server marks a plain `accept` (no `text`) and a plain `confirm` handled when it saves them (the event carries `autoHandled: true`), so the watcher wakes only for events that need a reply. They are recorded in `responses.json` as usual, so `sync-ledger` and `export-brief` count them like any other. Every other kind stays unhandled until you `handle` or reply to it: `ask`, `own`, `rephrase`, `note`, `research`, `cancel-research`, `undo`, `wrapup`, `confirm-understanding`, `accept-audit`, and an `accept` with `text`. The accept that leaves no open question in its round is not auto-handled, so it wakes you and you learn the round is complete. An auto-handled accept stays undoable until you handle a later event; after that, the undo is refused with `Claude already handled it`, as for an event you handled yourself.
 
 "Accept all and have agents check them" arrives as one `accept-audit` event plus its accepts; the page holds no validation logic, so the skill routes the round to `/planning:audit-answers`. The page leaves a question that carries a note out of that event, so every fanned-out accept is plain.
 
