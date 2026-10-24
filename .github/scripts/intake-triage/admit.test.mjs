@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
 
 import { ADMIT_MARKER, AGENT_READY, DEFERRED, admissionFacts, admit, decide, loadRules, noteUnrunnable, openPullsNaming, refusalText, unrunnableCriteria } from "./admit.mjs";
-import { REFINE_MARKER, render, validateOutput } from "./refine.mjs";
+import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 
 const VECTORS = JSON.parse(readFileSync(new URL("./split-child.vectors.json", import.meta.url), "utf8"));
 const RULES = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)));
@@ -557,19 +557,19 @@ const open = {
   admission_room: 3,
   admission_reason: null,
 };
-const go = (fake, { status = open } = {}) =>
-  admit({
-    github: fake.github,
-    repository: "o/r",
-    number: 7,
-    verdict: VERDICT,
-    rules: RULES,
-    humans,
-    appId: APP,
-    webHosts: HOSTS,
-    status: async () => status,
-    log: () => {},
-  });
+const goArgs = (fake, { status = open } = {}) => ({
+  github: fake.github,
+  repository: "o/r",
+  number: 7,
+  verdict: VERDICT,
+  rules: RULES,
+  humans,
+  appId: APP,
+  webHosts: HOSTS,
+  status: async () => status,
+  log: () => {},
+});
+const go = (fake, options) => admit(goArgs(fake, options));
 // The GraphQL reads are POSTs but write nothing.
 const writes = (calls) => calls.filter((call) => call.method !== "GET" && call.path !== "/graphql").map(({ method, path, body }) => `${method} ${path} ${JSON.stringify(body)}`);
 
@@ -579,6 +579,16 @@ describe("admit", () => {
     const result = await go(fake);
     assert.equal(result.outcome, "admitted");
     assert.deepEqual(writes(fake.calls), [`POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_READY] })}`]);
+  });
+
+  // refine.mjs starts the size split only from this exact wait comment.
+  test("the Size Large wait comment admit() posts is the one refine.mjs splits on", async () => {
+    const fake = fakeGitHub();
+    const result = await admit({ ...goArgs(fake), verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } } });
+    assert.equal(result.outcome, "waiting");
+    const posted = fake.calls.filter((call) => call.method !== "GET" && /\/comments(\/\d+)?$/.test(call.path)).map((call) => call.body.body);
+    assert.equal(posted.length, 1);
+    assert.equal(sizeSplitPending([{ user: { id: APP }, body: posted[0] }], APP), true);
   });
 
   const feature = issueOf({ type: { name: "Feature" } });
