@@ -184,7 +184,7 @@ describe("parseVerdict", () => {
 });
 
 describe("planWrites", () => {
-  const plan = (body, { labels = [], fields = {}, classSetters = {}, holdSetters = {} } = {}) =>
+  const plan = (body, { labels = [], fields = {}, classSetters = {}, holdSetters = {}, earlierFlags = [] } = {}) =>
     planWrites(parseVerdict(body, DIMS, CLASSES), {
       labels,
       fields,
@@ -193,6 +193,7 @@ describe("planWrites", () => {
       humans,
       classSetters,
       holdSetters,
+      earlierFlags,
     });
 
   test("a clean verdict adds the class and status: ready and writes the three fields", () => {
@@ -240,12 +241,25 @@ describe("planWrites", () => {
       assert.equal(result.add.includes(NEEDS_DECISION), hold === "needs-human");
     });
 
-    test(`${hold} the lanes App set gives way to a clean verdict and is taken off`, () => {
-      const result = plan(laneBody(), { labels: [hold], holdSetters: { [hold]: LANES_APP } });
-      assert.equal(result.ready, true);
-      assert.deepEqual(result.add, ["work-class: scoped", READY]);
-      assert.deepEqual(result.remove, [hold]);
-    });
+    if (hold !== "needs-human") {
+      test(`${hold} the lanes App set gives way to a clean verdict and is taken off`, () => {
+        const result = plan(laneBody(), { labels: [hold], holdSetters: { [hold]: LANES_APP } });
+        assert.equal(result.ready, true);
+        assert.deepEqual(result.add, ["work-class: scoped", READY]);
+        assert.deepEqual(result.remove, [hold]);
+      });
+
+      // Owner decision on #9799's review: a flagged hold is not lifted by a later clean verdict.
+      test(`${hold} the lanes App set after an earlier flagged verdict stays on a clean verdict`, () => {
+        const result = plan(laneBody(), { labels: [hold], holdSetters: { [hold]: LANES_APP }, earlierFlags: ["security"] });
+        assert.equal(result.ready, false);
+        assert.deepEqual(result.remove, []);
+        assert.ok(!result.add.includes(READY));
+        assert.ok(result.reasons.includes(`held by ${hold}`), result.reasons.join("; "));
+        // Carried forward, so the next clean verdict still reads the flag.
+        assert.ok(result.reasons.includes("flagged: security (an earlier verdict)"), result.reasons.join("; "));
+      });
+    }
 
     for (const [name, setter] of [
       ["the triage run (github-actions[bot])", ACTIONS_BOT],
@@ -261,6 +275,24 @@ describe("planWrites", () => {
       });
     }
   }
+
+  // Owner decision on #9799's review: a clean verdict never lifts needs-human, whoever set it.
+  test("needs-human the lanes App set stays on a clean verdict", () => {
+    const result = plan(laneBody(), { labels: ["needs-human"], holdSetters: { "needs-human": LANES_APP } });
+    assert.equal(result.ready, false);
+    assert.deepEqual(result.remove, []);
+    assert.ok(!result.add.includes(READY));
+    assert.ok(result.reasons.includes("held by needs-human"), result.reasons.join("; "));
+  });
+
+  test("an earlier flag the current verdict repeats is not listed twice", () => {
+    const result = plan(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: security"] }), {
+      labels: [NEEDS_DECISION],
+      holdSetters: { [NEEDS_DECISION]: LANES_APP },
+      earlierFlags: ["security", "intent"],
+    });
+    assert.deepEqual(result.reasons, ["flagged: security", `held by ${NEEDS_DECISION}`, "flagged: intent (an earlier verdict)"]);
+  });
 
   test("a lanes App hold stays on a verdict that is not ready", () => {
     const result = plan(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: intent"] }), {
@@ -969,6 +1001,43 @@ describe("run", () => {
     });
     assert.equal((await go(fake)).outcome, "needs-decision");
     assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
+  });
+
+  test("a hold the lanes App set after its earlier verdict comment listed a flag stays on a clean verdict", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: NEEDS_DECISION }] },
+      comments: [
+        laneComment(),
+        { id: 51, body: `${VERDICT_MARKER}\nThe triage verdict left this issue at \`${NEEDS_DECISION}\`:\n\n- flagged: security`, user: { id: LANES_APP, type: "Bot" } },
+      ],
+      events: [{ event: "labeled", label: { name: NEEDS_DECISION }, actor: { id: LANES_APP } }],
+    });
+    assert.equal((await go(fake)).outcome, "needs-decision");
+    assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
+    const patch = writes(fake.calls).find(({ path }) => path === "/repos/o/r/issues/comments/51");
+    assert.match(patch.body.body, /- flagged: security \(an earlier verdict\)/);
+  });
+
+  test("a hold the lanes App set after an earlier verdict with no flag is lifted on a clean verdict", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: NEEDS_DECISION }] },
+      comments: [
+        laneComment(),
+        { id: 51, body: `${VERDICT_MARKER}\nThe triage verdict left this issue at \`${NEEDS_DECISION}\`:\n\n- no \`Size:\` line`, user: { id: LANES_APP, type: "Bot" } },
+      ],
+      events: [{ event: "labeled", label: { name: NEEDS_DECISION }, actor: { id: LANES_APP } }],
+    });
+    assert.equal((await go(fake)).outcome, "ready");
+    assert.ok(writes(fake.calls).some(({ method, path }) => method === "DELETE" && path === `/repos/o/r/issues/7/labels/${encodeURIComponent(NEEDS_DECISION)}`));
+  });
+
+  test("a flagged look-alike verdict comment from anyone but the lanes App does not keep the hold", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: NEEDS_DECISION }] },
+      comments: [laneComment(), { id: 50, body: `${VERDICT_MARKER}\n- flagged: security`, user: { id: HUMAN, login: "kyle-sexton", type: "User" } }],
+      events: [{ event: "labeled", label: { name: NEEDS_DECISION }, actor: { id: LANES_APP } }],
+    });
+    assert.equal((await go(fake)).outcome, "ready");
   });
 
   test("takes needs-triage off after the verdict's labels", async () => {

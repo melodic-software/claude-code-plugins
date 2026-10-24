@@ -21,9 +21,11 @@
 // and nothing it found conflicts; otherwise `status: needs-decision` (unless a
 // needs-info or needs-decision status is already there), never
 // `status: ready`, and one lanes App comment, edited in place, that lists why.
-// A hold label the lanes App set on an earlier run gives way to a ready
-// verdict and is taken off; one the triage run (github-actions[bot], the
-// reusable's escalation), a person, or an unread setter set holds. The
+// A status hold the lanes App set on an earlier run gives way to a ready
+// verdict and is taken off, unless the App's earlier verdict comment listed a
+// flag, which the new comment carries forward; needs-human, and a hold the
+// triage run (github-actions[bot], the reusable's escalation), a person, or an
+// unread setter set, holds. The
 // `needs-triage` floor label is taken off after the verdict is written.
 // The work class gates nothing (owner Q85, #9668) except
 // `work-class: untrusted-provenance`, which holds the issue and is never taken
@@ -96,6 +98,7 @@ export const DIMENSIONS = Object.freeze({
   uncertainty: "Uncertainty",
 });
 const FLAGS = new Set(["intent", "security", "cost"]);
+const EARLIER = "(an earlier verdict)";
 const CLASS_LINE = /^Proposed work class: (work-class: [a-z0-9-]+|none)$/;
 // The reusable's wording the verdict makes untrue once the class is applied.
 export const OLD_BASIS = "Basis: automated intake triage; a maintainer confirms or changes it.";
@@ -190,7 +193,10 @@ export function parseVerdict(body, dimensionsConfig, classes) {
 // either way) is the lanes App's; never for an unknown id or App.
 const isApp = (id, appId) => appId !== undefined && id !== undefined && id !== null && String(id) === String(appId);
 
-export function planWrites(verdict, { labels, fields, dimensionsConfig, appId, humans = new Set(), classSetters = {}, holdSetters = {} }) {
+export function planWrites(
+  verdict,
+  { labels, fields, dimensionsConfig, appId, humans = new Set(), classSetters = {}, holdSetters = {}, earlierFlags = [] },
+) {
   const reasons = [...verdict.problems];
   const add = [];
   const remove = [];
@@ -254,13 +260,20 @@ export function planWrites(verdict, { labels, fields, dimensionsConfig, appId, h
   if (verdict.flags?.length) {
     reasons.push(`flagged: ${verdict.flags.join(", ")}`);
   }
-  // A hold the lanes App set on an earlier run gives way to this verdict; one
-  // the triage run (github-actions[bot]), a person, or an unread setter set
-  // holds.
+  // A status hold the lanes App set on an earlier run gives way to this
+  // verdict, unless the App's earlier verdict comment listed a flag; one the
+  // triage run (github-actions[bot]), a person, or an unread setter set
+  // holds, and needs-human always holds.
   const holds = labels.filter((label) => HOLDS.has(label));
-  const appHolds = holds.filter((label) => isApp(holdSetters[label], appId));
+  const appHolds =
+    earlierFlags.length > 0 ? [] : holds.filter((label) => label !== NEEDS_HUMAN && isApp(holdSetters[label], appId));
   for (const label of holds.filter((label) => !appHolds.includes(label))) {
     reasons.push(`held by ${label}`);
+  }
+  // Carried into the comment, so a later clean verdict still reads the flag.
+  const carried = holds.length > 0 ? earlierFlags.filter((flag) => !verdict.flags?.includes(flag)) : [];
+  if (carried.length > 0) {
+    reasons.push(`flagged: ${carried.join(", ")} ${EARLIER}`);
   }
 
   const ready = reasons.length === 0 && verdict.dimensions !== null && verdict.flags !== null;
@@ -280,6 +293,25 @@ export function planWrites(verdict, { labels, fields, dimensionsConfig, appId, h
   // The verdict is the triage, so the floor label goes after it.
   const after = labels.includes(NEEDS_TRIAGE) ? [NEEDS_TRIAGE] : [];
   return { add, remove: [...remove, ...after], fieldWrites, classApplied, ready, reasons, dimensions };
+}
+
+// The lanes App's own earlier verdict comment, if any.
+const ownVerdict = (comments, appId) =>
+  comments.find((c) => isApp(c.user?.id, appId) && String(c.body ?? "").startsWith(`${VERDICT_MARKER}\n`));
+
+// The flags the lanes App's earlier verdict comment listed: only known flags
+// from a `- flagged: ` reason line.
+export function earlierFlags(comments, appId) {
+  const lines = String(ownVerdict(comments, appId)?.body ?? "").split("\n");
+  return [
+    ...new Set(
+      lines
+        .filter((line) => line.startsWith("- flagged: "))
+        .flatMap((line) => line.slice("- flagged: ".length).replace(` ${EARLIER}`, "").split(","))
+        .map((flag) => flag.trim())
+        .filter((flag) => FLAGS.has(flag)),
+    ),
+  ];
 }
 
 // The lane comment with the maintainer-confirms wording replaced, or null when
@@ -380,6 +412,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     humans,
     classSetters: setters,
     holdSetters: setters,
+    earlierFlags: earlierFlags(comments, appId),
   });
 
   if (plan.fieldWrites.length > 0) {
@@ -482,7 +515,7 @@ const settled = (admission) =>
 // issue; a later ready verdict marks it settled, naming the status admission
 // left. None is posted for a ready verdict that never held.
 async function sayReasons(github, repository, base, comments, appId, plan, admission) {
-  const own = comments.find((c) => isApp(c.user?.id, appId) && String(c.body ?? "").startsWith(`${VERDICT_MARKER}\n`));
+  const own = ownVerdict(comments, appId);
   if (plan.ready && !own) {
     return;
   }

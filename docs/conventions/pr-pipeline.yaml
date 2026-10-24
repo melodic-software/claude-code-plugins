@@ -461,9 +461,10 @@ activities:
     # label, the Size, Complexity and Uncertainty issue fields, and
     # `status: ready` or `status: needs-decision`, read from the lane comment
     # the triage run posted, with a blocked-by edge for each open issue its
-    # `Blocked by:` line names. Only a person's hold, the triage run's own
-    # escalation, an untrusted setter or the verdict itself holds the issue,
-    # and the reasons go on the issue in one comment it edits in place. On
+    # `Blocked by:` line names. Only needs-human, a person's hold, the triage
+    # run's own escalation, an untrusted setter, a hold set after an earlier
+    # flagged verdict, or the verdict itself holds the issue, and the reasons
+    # go on the issue in one comment it edits in place. On
     # `status: ready` it adds agent-ready when
     # .github/actions/resolve-config/admission-rules.json holds and the caps
     # have room, else admission-deferred (owner decision Q51, #9212). A
