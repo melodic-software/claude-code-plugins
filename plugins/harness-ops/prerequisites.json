@@ -109,6 +109,30 @@
       "check": "/harness-ops:prerequisites"
     },
     {
+      "id": "noto-sans-symbols-2",
+      "kind": "system-lib",
+      "need": "optional",
+      "for": [
+        "skill:control-claude-code"
+      ],
+      "detect": {
+        "probe": {
+          "args": [
+            "fc-list",
+            ":",
+            "family"
+          ],
+          "pattern": "Noto Sans Symbols 2"
+        }
+      },
+      "degrade": "Without the Noto Sans Symbols 2 font, some Claude Code status glyphs draw as boxes in control-claude-code screenshots and recordings; capture still runs. macOS and Windows have no fc-list, so the driver's doctor verb reports the font as unverified and capture proceeds.",
+      "install": {
+        "docs": "https://fonts.google.com/noto/specimen/Noto+Sans+Symbols+2",
+        "apt": "fonts-noto-core"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
       "id": "claude",
       "kind": "cli",
       "need": "required",
