@@ -1,5 +1,16 @@
 # Changelog for the PR pipeline convention
 
+## [5.4.0] - 2026-10-24
+
+### Changed
+
+- Intake refinement no longer stops an issue for a person on its own: a split of done-when items an unattended lane run cannot perform files no `needs-human` child issue, and lists those items in the refinement comment as checks a person runs, leaving the rest of the done-when in the body for admission; the lanes App refines each version of an issue body once instead of each issue once; an exact refinement that finds a duplicate or fixing change asks whether to close the issue instead of failing the run; and an issue edited while the model ran is triaged again instead of left waiting (`.github/scripts/intake-triage/refine.mjs`, `.github/workflows/intake-triage.yml`).
+- work-unblock lifts the `needs-human` hold report-outcome put on an issue for a lanes App `Refs:` pull request when that pull request closes unmerged, not only when it merges, and hands the issue to triage (`.github/scripts/work-unblock/label-unblocked.mjs`).
+
+### Fixed
+
+- The lane sweep's file step drops a finding whose slice is not its unit's, whose workflow is not its slice A or D unit's, or whose job is not among the jobs its unit's data lists, so a judge steered by CI log text cannot put a finding in the digest against a workflow or job its unit does not show. A unit that lists no jobs leaves the job unbound; the free-text signature still lets a steered judge mint fresh fingerprints, which land only as digest entries, at most 3 per unit.
+
 ## [5.3.0] - 2026-10-24
 
 ### Changed
