@@ -1471,13 +1471,20 @@ def cmd_run(args) -> int:
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
     return run_jobs(
-        jobs, lambda *job: run_once(*job[:4], base, cfg, job[4]), out_dir, args.jobs
+        jobs,
+        lambda *job: run_once(*job[:4], base, cfg, job[4]),
+        out_dir,
+        args.jobs,
+        max_new=args.max_writer_runs,
     )
 
 
-def run_jobs(jobs: list, runner, out_dir: Path, workers: int) -> int:
+def run_jobs(
+    jobs: list, runner, out_dir: Path, workers: int, max_new: int | None = None
+) -> int:
     """Run each job not already graded without error, appending its rows to graded.jsonl as it
-    finishes; after the first usage-limit exclusion submit nothing more and return 4."""
+    finishes; start at most `max_new` writer runs; after the first usage-limit exclusion submit
+    nothing more and return 4."""
     from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
     def done_before(job) -> bool:
@@ -1493,6 +1500,12 @@ def run_jobs(jobs: list, runner, out_dir: Path, workers: int) -> int:
         print(
             f"skipping {skipped} writer runs already graded without error", flush=True
         )
+    if max_new is not None and len(pending) > max_new:
+        print(
+            f"budget: starting {max_new} of {len(pending)} pending writer runs",
+            flush=True,
+        )
+        pending = pending[:max_new]
     limit_hit = False
     with ThreadPoolExecutor(max_workers=workers) as pool:
         running = set()
@@ -1621,6 +1634,12 @@ def main(argv=None) -> int:
     run.add_argument("--codex-model", default="")
     run.add_argument("--runs", type=int, default=3)
     run.add_argument("-j", "--jobs", type=int, default=4)
+    run.add_argument(
+        "--max-writer-runs",
+        type=int,
+        default=None,
+        help="start at most this many new writer runs in this call",
+    )
     run.add_argument("--out", required=True)
     report = sub.add_parser("report")
     report.add_argument("--graded", required=True)

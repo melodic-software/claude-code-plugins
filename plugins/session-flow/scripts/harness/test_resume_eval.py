@@ -629,6 +629,17 @@ def test_run_jobs_skips_runs_already_graded_without_error(tmp_path):
     assert code == 0 and ran == [1]
 
 
+def test_run_jobs_starts_no_more_than_the_writer_run_budget(tmp_path):
+    case = {"name": "re-a"}
+    jobs = [(case, "before", ["codex"], i) for i in range(5)]
+    ran = []
+    code = resume_eval.run_jobs(jobs, _job_runner({}, ran), tmp_path, 2, max_new=2)
+    assert code == 0 and sorted(ran) == [0, 1]
+    ran.clear()
+    resume_eval.run_jobs(jobs, _job_runner({}, ran), tmp_path, 2, max_new=2)
+    assert sorted(ran) == [2, 3]
+
+
 def test_report_keeps_the_last_row_per_run_and_counts_every_exclusion(tmp_path, capsys):
     import argparse
 
