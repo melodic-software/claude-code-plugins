@@ -869,7 +869,7 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    a write-access human's fix request created after the newest counted round (its latest marker,
    or the completion of a model check run that ended `success`, `failure`, `cancelled` or
    `timed_out`) still runs one more round, on those threads only; a round with no readable time
-   grants none. With no such thread, a kept thread whose first comment is not a `github-actions[bot]`
+   grants none. With no such thread, a PR a person gated with the human-gated label, or a kept thread whose first comment is not a `github-actions[bot]`
    finding ending in the `claude-lane: claude-review` footer (a security lane finding, a verifier
    note, or a `claude[bot]` finding, whose footer would be model text) escalates `feedback-round-cap`; otherwise one more round runs on every kept
    thread (the fresh fixer), and once it has run the select job skips `cost-gated`. Both

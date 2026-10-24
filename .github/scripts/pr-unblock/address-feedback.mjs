@@ -12,8 +12,8 @@
 //           skip (no such thread, or the fresh fixer's round past the cap
 //           already ran), escalate (the PR changes .github/workflows/**, or
 //           the configured number of rounds already ran, no write-access fix
-//           request came after the newest one, and a kept thread is a
-//           security or intent finding, needsPerson) or proceed, writing the thread file
+//           request came after the newest one, and a person gated the PR or
+//           a kept thread is a security or intent finding, needsPerson) or proceed, writing the thread file
 //           the skill's review-thread tool reads, with the same-plugin files
 //           a write-access fix request names (namedPaths) and the files the
 //           PR already changes (pr_paths, prPathsOf), and run.json, the
@@ -502,8 +502,9 @@ export async function select({
       // Otherwise a security or intent thread still goes to a person; every
       // other finding goes to a fresh fixer: one more round, a new session
       // like every round, reading only the thread file and the PR head. Past
-      // that the PR waits for the next fix request with no label.
-      if (kept.some((thread) => needsPerson(thread, rows.get(thread.root_comment_id)?.user?.id))) {
+      // that the PR waits for the next fix request with no label. A PR a person
+      // gated also goes to a person: only a fresh fix request lifts their hold.
+      if (gated || kept.some((thread) => needsPerson(thread, rows.get(thread.root_comment_id)?.user?.id))) {
         return { decision: "escalate", escalationReason: "feedback-round-cap", rounds, threads: kept };
       }
       if (rounds >= maxRounds + FRESH_FIXER_ROUNDS) {

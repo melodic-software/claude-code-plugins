@@ -90,7 +90,8 @@ activities:
     # opened on a reviewed head, left by it alone or answered by a trusted
     # person after the lane escalated them, hands the pull request to a person
     # when it changes .github/workflows/ or, once `loop.review-rounds` rounds
-    # ran, a kept thread is a security or intent finding (a write-access fix
+    # ran, a person gated it or a kept thread is a security or intent
+    # finding (a write-access fix
     # request newer than the last round still runs one more round on its
     # threads; other findings get one fresh fixer round, then wait), and
     # writes the thread file; the read runner

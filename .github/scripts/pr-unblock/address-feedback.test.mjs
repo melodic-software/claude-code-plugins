@@ -684,11 +684,11 @@ for (const [label, overrides] of [
 // Past the cap of 3 with `rounds` round markers: one finding per lane, each a
 // github-actions[bot] comment ending in its lane's footer, or a verifier note.
 const CODE_FINDING = "The loop skips the last item.\n\nclaude-lane: claude-review";
-function capped({ rounds = 3, roots = [CODE_FINDING], fixRequest = false } = {}) {
+function capped({ rounds = 3, roots = [CODE_FINDING], fixRequest = false, requestAt = at(20), labels } = {}) {
   const reviewComments = roots.map((body, i) => comment(100 + i, ACTIONS_BOT, { body, created_at: at(0) }));
   const threads = roots.map((_, i) => thread(`PRRT_${i + 1}`, [100 + i]));
   if (fixRequest) {
-    reviewComments.push(comment(199, HUMAN, { body: REQUEST, created_at: at(20) }));
+    reviewComments.push(comment(199, HUMAN, { body: REQUEST, created_at: requestAt }));
     threads[0] = thread("PRRT_1", [100, 199]);
   }
   const issueComments = [
@@ -696,9 +696,21 @@ function capped({ rounds = 3, roots = [CODE_FINDING], fixRequest = false } = {})
     ...Array.from({ length: rounds }, (_, i) => ({ id: 10 + i, user: { id: APP }, body: `${ROUND}\nround ${i + 1}`, created_at: at(10) })),
   ];
   const reviews = [{ id: 10, user: { id: ACTIONS_BOT }, commit_id: HEAD }];
-  const api = fakeApi({ reviewComments, threads, issueComments, reviews });
+  const api = fakeApi({ reviewComments, threads, issueComments, reviews, labels });
   return select({ api, pr: 42, headSha: HEAD, repository: "o/r", appId: APP, reviewerId: REVIEWER, trustedHumans: new Set([HUMAN]), maxRounds: 3 });
 }
+
+test("at the cap, on a PR a person gated with needs-human, a fix request older than the last round escalates: the fresh fixer never lifts the hold", async () => {
+  const stale = { fixRequest: true, requestAt: at(5) };
+  const result = await capped({ ...stale, labels: ["needs-human"] });
+  assert.equal(result.decision, "escalate");
+  assert.equal(result.escalationReason, "feedback-round-cap");
+  assert.equal(result.fixRequested, undefined);
+  assert.equal(result.file, undefined);
+  const ungated = await capped(stale);
+  assert.equal(ungated.decision, "proceed");
+  assert.equal(ungated.fixRequested, false);
+});
 
 test("at the cap, the code lane's findings go to a fresh fixer: every thread runs and nothing escalates", async () => {
   const result = await capped({ roots: [CODE_FINDING, `${CODE_FINDING}\n`] });
