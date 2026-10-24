@@ -588,6 +588,12 @@ async page => {
     await live;
     const gone = await page.waitForFunction(() => !/Sent to Claude|No session is listening/.test(document.querySelector('.qbtn[data-q="D1"]').textContent), null, {timeout: 20000}).then(() => true).catch(() => false);
     ok("a handle-only apply clears the chip on the open page, no reload", gone && await page.evaluate(() => window.__marker === "same page"), await chip());
+    // Lease released, no waiter, D1 handled: once the 10 s listen grace ends the bridge reports the session reading (D1 was delivered under 180 s ago), and the header still shows the working state.
+    const rel = await page.request.post(base + "api/lease", {headers: {"Content-Type": "application/json", "X-Interview-Token": await token()}, data: {action: "release"}});
+    const reading = await page.waitForFunction(() => document.getElementById("pill").className === "pill working", null, {timeout: 20000, polling: 200}).then(() => true).catch(() => false);
+    const pr = await page.evaluate(() => ({text: document.getElementById("pill").textContent, title: document.getElementById("pill").title}));
+    const st = await state();
+    ok("reading with no lease and no waiter: the header reads Claude is working, not Live or Not listening", rel.ok() && reading && st.listener.state === "reading" && !st.listener.lease && st.listener.waiters === 0 && pr.text === "Claude is working" && /no watcher is waiting/.test(pr.title), JSON.stringify(pr) + " " + JSON.stringify(st.listener));
   }
   const real = errors.filter(e => !/status of 409 \(Conflict\)/.test(e) && !/status of 404 \(Not Found\) at \S*\/api\/visual-file\?id=vx$/.test(e));
   ok("AC37: zero console errors in phase " + PHASE + " (besides the network lines for an intended 409 and the missing file visual's 404)", real.length === 0, errors.join(" | "));
