@@ -5,7 +5,8 @@
 # failure when any deciding run failed, else another deciding run's
 # non-success conclusion. Only GitHub Actions' runs are read: it is the app the
 # ruleset requires ci-status from, so another app's run of that name, with any
-# start time it chooses, never decides. filter=latest keeps the latest run of
+# start time it chooses, never decides. Any GITHUB_TOKEN with checks: write
+# posts as that app too, as the ruleset's own check does. filter=latest keeps the latest run of
 # each check suite, so a re-triggered workflow leaves an older run beside a
 # newer one: the runs that started last decide, and all runs do when one has
 # no readable start time. No run, or one not completed, is pending. Exit

@@ -183,6 +183,7 @@ check 'ci-status: only another app ran, pending' pending "$(ci_status "[$(run "$
 check 'ci-status: a running run is pending' pending "$(ci_status "[$(run "$t1" success),{\"started_at\":$t2,\"status\":\"in_progress\",\"conclusion\":null,\"app\":{\"id\":15368}}]")"
 check 'ci-status: a later success passes' success "$(ci_status "[$(run "$t1" failure),$(run "$t2" success)]")"
 check 'ci-status: a tied cancel and failure is failure' failure "$(ci_status "[$(run "$t1" cancelled),$(run "$t1" failure)]")"
+check 'ci-status: a tied failure and cancel is failure' failure "$(ci_status "[$(run "$t1" failure),$(run "$t1" cancelled)]")"
 check 'ci-status: a lone cancel is cancelled' cancelled "$(ci_status "[$(run "$t1" cancelled)]")"
 
 echo '# gate error'
