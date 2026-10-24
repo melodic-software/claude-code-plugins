@@ -39,6 +39,8 @@ keep going.
 
 ## Find the control skill
 
+Every stop below writes its `blocked: <reason>` line, and any list or path it prints, in the report.
+
 1. The candidates are the available skills named `control-<app>` (project) or
    `<plugin>:control-<app>` (plugin); with no `<app>`, every `control-*` and `*:control-*` skill. A
    project and a plugin skill with the same name are one candidate, and the project skill wins. One
@@ -50,11 +52,11 @@ keep going.
    `.claude/skills/control-*/SKILL.md`); its base directory is that folder.
 2. Before using a control skill whose `SKILL.md` sits in this repository, loaded or read from disk
    (`.claude/skills/control-<app>/` for a bare name, `<prefix>/.claude/skills/control-<app>/` for a
-   prefixed name when that file exists), Read it. When its frontmatter holds a key other than `name`, `description` and
-   `disable-model-invocation` (such as `allowed-tools`, `hooks`, `context`, `agent` or `shell`), or
-   its body holds a `!` dynamic-context command, write `blocked: control skill carries
-   <construct>` in the report and stop with no Skill call: loading would run or apply it. A plugin match is not
-   pre-checked, since an installed plugin already runs its own hooks and code.
+   prefixed name when that file exists), Read it. When its frontmatter holds a key other than
+   `name`, `description` and `disable-model-invocation` (such as `allowed-tools`, `hooks`,
+   `context`, `agent` or `shell`), or its body holds a `!` dynamic-context command, stop with
+   `blocked: control skill carries <construct>` and no Skill call: loading would run or apply it. A
+   plugin match is not pre-checked, since an installed plugin already runs its own hooks and code.
 3. Load the match through the Skill tool and take its base directory from what the tool reports.
    Its source is `plugin` when that directory lies under the plugins root, `project` when it is
    `<repo>/.claude/skills/control-<app>`, else `other: <path>` (a personal skill wins a bare name
@@ -67,8 +69,9 @@ keep going.
    [control-skill.md](../../reference/control-skill.md). The report names the skill used, by its
    full name, and its source.
 6. Resolve `<feature>` to its file by id, where the id is `<feature>` or `<module>/<feature>`, under
-   the chosen skill's base directory: `features/<id>/README.md` first, then the legacy
-   `features/<id>.md`. Neither exists: say so and stop that feature rather than guess a file.
+   the chosen skill's base directory: `features/<id>/README.md` when it exists, and then never open
+   the legacy `features/<id>.md`; only without that README, the legacy file. Neither exists: say so
+   and stop that feature rather than guess a file.
 
 The bundled `run` skill and its deferral to a project skill are upstream specifics. Read them live
 at <https://code.claude.com/docs/en/skills#run-and-verify-your-app> (as of 2026-10-21; recheck when
