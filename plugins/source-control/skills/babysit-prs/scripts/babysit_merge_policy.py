@@ -3935,11 +3935,13 @@ def _demotion_changed(
 ) -> bool:
     """Whether anything `read_demotion` reads may differ from the shared
     answer, in one REST call: an issue updated since the answer was computed
-    (which precedes its demotion read), less `SINCE_CLOCK_MARGIN`, that a
-    record filer opened, or that is a known record. Creating, editing,
-    closing or reopening an issue updates it, so no new or changed record
-    escapes. A full page or an unreadable
-    one counts as changed."""
+    (which precedes its demotion read), less `SINCE_CLOCK_MARGIN`, that is a
+    known record, or that a record filer opened and `read_demotion` could
+    count as one: its body carries the marker now, or it may have been edited
+    since it was opened (`updated_at` differs from `created_at`, or either is
+    unreadable), so an earlier revision could. Creating, editing, closing or
+    reopening an issue updates it, so no new or changed record escapes. A
+    full page or an unreadable one counts as changed."""
     since = (
         (shared.computed_at - SINCE_CLOCK_MARGIN)
         .astimezone(UTC)
@@ -3954,8 +3956,16 @@ def _demotion_changed(
     for issue in map(json_object, issues):
         if "pull_request" in issue:
             continue
-        author = _login_key(json_object(issue.get("user")).get("login"))
-        if author in filers or issue.get("number") in shared.demotion.records:
+        if issue.get("number") in shared.demotion.records:
+            return True
+        if _login_key(json_object(issue.get("user")).get("login")) not in filers:
+            continue
+        if DEMOTION_MARKER in str(issue.get("body") or ""):
+            return True
+        try:
+            if _time(issue.get("updated_at")) != _time(issue.get("created_at")):
+                return True
+        except PolicyReadError:
             return True
     return False
 
