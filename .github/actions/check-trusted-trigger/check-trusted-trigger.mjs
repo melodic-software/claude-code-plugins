@@ -860,9 +860,10 @@ async function verifyRecordedRerun({ github, repository, event, list, deniedIds,
   const isListedHuman = (user) =>
     Number.isInteger(user?.id) && list.humans.has(user.id) && !deniedIds.has(user.id);
   // Anyone's run can upload an artifact of this name, so each candidate's run
-  // is read and judged, at most RECORD_MAX_CANDIDATES of them; one that cannot
-  // be read does not vouch.
-  let candidates = 0;
+  // is read and judged, at most RECORD_MAX_CANDIDATES of them per record name;
+  // one that cannot be read does not vouch. A name past its cap returns null:
+  // the next recorder's name is still read, and past the last one it refuses.
+  const candidates = new Map();
   const vouches = async (artifact, recorder, name) => {
     const recorded = timeOf(artifact?.created_at);
     if (
@@ -874,11 +875,12 @@ async function verifyRecordedRerun({ github, repository, event, list, deniedIds,
     ) {
       return false;
     }
-    if (candidates >= RECORD_MAX_CANDIDATES) {
-      console.log(`check-trusted-trigger: re-run record: over ${RECORD_MAX_CANDIDATES} candidate runs, refusing (run ${runId})`);
-      throw new Stop(refuse);
+    const count = candidates.get(name) ?? 0;
+    if (count >= RECORD_MAX_CANDIDATES) {
+      console.log(`check-trusted-trigger: re-run record ${name}: over ${RECORD_MAX_CANDIDATES} candidate runs (run ${runId})`);
+      return null;
     }
-    candidates += 1;
+    candidates.set(name, count + 1);
     let run;
     try {
       run = await readOrRefuse(github, `/repos/${repository}/actions/runs/${artifact.workflow_run.id}`, refuse);
@@ -909,17 +911,24 @@ async function verifyRecordedRerun({ github, repository, event, list, deniedIds,
       console.log(`check-trusted-trigger: re-run record: absent, re-read (run ${runId})`);
       await sleep(RECORD_WAIT_MS);
     }
-    for (const recorder of usable) {
+    for (const [index, recorder] of usable.entries()) {
       const name = recorder.name(runId, attempt, own.head_sha);
       const listingPath = `/repos/${repository}/actions/artifacts?name=${name}&per_page=100`;
-      for (let page = 1; page <= RECORD_MAX_PAGES; page += 1) {
+      pages: for (let page = 1; page <= RECORD_MAX_PAGES; page += 1) {
         const body = await readOrRefuse(github, `${listingPath}&page=${page}`, refuse);
         if (!Array.isArray(body.artifacts)) {
           throw new Stop(refuse);
         }
         for (const artifact of body.artifacts) {
-          if (await vouches(artifact, recorder, name)) {
+          const verdict = await vouches(artifact, recorder, name);
+          if (verdict === true) {
             return;
+          }
+          if (verdict === null) {
+            if (index === usable.length - 1) {
+              throw new Stop(refuse);
+            }
+            break pages;
           }
         }
         if (body.artifacts.length < 100) {

@@ -160,7 +160,8 @@ condition 1 and the actor and author parts of condition 2).
 
   Any run can upload an artifact with that name, so each listed artifact's run is read and
   judged, and one that passes is enough; one whose run cannot be read does not vouch. At most 20
-  candidate runs are read per check; a 21st candidate stops it with `untrusted-rerunner`. The run id and the attempt bind the record to one run
+  candidate runs are read per record name in a check; a 21st candidate under the last name read
+  stops it with `untrusted-rerunner`, and one under an earlier name moves on to the next name. The run id and the attempt bind the record to one run
   attempt, which starts once, so a record cannot vouch for another run or a later attempt. The
   reconciler uploads the record before it calls the re-run, so an absent record is read once more
   after 5 s and then refused.
@@ -189,8 +190,10 @@ condition 1 and the actor and author parts of condition 2).
   Residuals: the record names an attempt, not who starts it. A github-actions[bot] re-run of the
   same run that another workflow of this repository starts between the upload and the job's own
   re-run, or within ten minutes of an upload whose re-run then failed, takes that attempt and is
-  vouched for. It re-runs only that run at that head, and `sender`, `workflow_run.actor` and the
-  PR author must still be listed.
+  vouched for; that includes a same-repository PR branch's workflow granted `actions: write`. The
+  recorder does not check who caused its run either: anyone with write access who re-runs a
+  review-lane run starts a recorded re-run. In both cases it re-runs only that run at that head,
+  and `sender`, `workflow_run.actor` and the PR author must still be listed.
 
   Residuals: whether one run can write another run's artifacts is unverified, as for the
   dispatcher record. A re-run that waits in a queue past the ten-minute window is refused, red;

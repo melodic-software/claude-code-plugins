@@ -499,6 +499,8 @@ jobs:
           path: ${{ runner.temp }}/rerun-ci-status-record.json
           retention-days: 1
           if-no-files-found: error
+          # A re-run of this job after a failed POST records the same name.
+          overwrite: true
 
       - name: Re-run ci-status
         if: steps.find.outputs.job-id != ''

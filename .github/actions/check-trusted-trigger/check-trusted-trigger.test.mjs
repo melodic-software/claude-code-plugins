@@ -2715,6 +2715,16 @@ test("ci-status re-run: at attempt 2 the reconciler's record is read first and s
   assert.ok(!github.calls.includes(artifactsByName(ciStatusRecord(2))));
 });
 
+test("ci-status re-run: at attempt 2, 21 forged reconciler candidates do not use up rerun-ci-status's cap", async () => {
+  const forged = Array.from({ length: 21 }, (_, i) =>
+    rerunRecord({ id: 11900000000 + i, name: CI_RERUN_RECORD, created_at: "2026-10-19T19:00:00Z", workflow_run: { id: 39340000000 + i } }),
+  );
+  const github = fakeGitHub(ciStatusRoutes({ attempt: 2, extra: { [reconcilerListing]: listing(...forged) } }));
+  assert.deepEqual(await ciStatusRerun({ github, attempt: 2 }), PROCEED);
+  assert.equal(github.calls.filter((call) => /\/actions\/runs\/39340[0-9]+$/.test(call)).length, 20);
+  assert.ok(github.calls.includes(dispatchRoute));
+});
+
 test("ci-status re-run: with no record the bot stays an untrusted actor after one re-read", async () => {
   const sleep = fakeSleep();
   const github = fakeGitHub(ciStatusRoutes({ artifacts: listing() }));
@@ -2784,7 +2794,6 @@ test("ci-status re-run: a recording run not on the default branch's history does
 
 for (const [label, record] of [
   ["uploaded after the attempt started", { created_at: "2026-10-19T19:00:46Z" }],
-  ["uploaded before its run started", { created_at: "2026-10-19T18:49:59Z" }],
   ["uploaded more than ten minutes before the attempt", { created_at: "2026-10-19T18:50:44Z" }],
   ["expired", { expired: true }],
 ]) {
@@ -2793,6 +2802,12 @@ for (const [label, record] of [
     assert.deepEqual(await ciStatusRerun({ github }), STOPPED("untrusted-actor"));
   });
 }
+
+// Inside the ten-minute window, so only the run-start bound refuses it.
+test("ci-status re-run: a record uploaded before its run started does not vouch", async () => {
+  const github = fakeGitHub(ciStatusRoutes({ dispatch: { run_started_at: "2026-10-19T19:00:31Z" } }));
+  assert.deepEqual(await ciStatusRerun({ github }), STOPPED("untrusted-actor"));
+});
 
 test("ci-status re-run: a record ten minutes before the attempt still vouches", async () => {
   const github = fakeGitHub(ciStatusRoutes({ artifacts: listing(ciStatusArtifact(3, { created_at: "2026-10-19T18:50:45Z" })) }));

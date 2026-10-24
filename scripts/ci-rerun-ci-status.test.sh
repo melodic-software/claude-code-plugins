@@ -77,7 +77,7 @@ for want in "        id: find" "RECORD_FILE: \${{ runner.temp }}/rerun-ci-status
 done
 # shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell
 for want in "if: steps.find.outputs.record != ''" 'uses: actions/upload-artifact@' 'name: ${{ steps.find.outputs.record }}' \
-  'path: ${{ runner.temp }}/rerun-ci-status-record.json' 'if-no-files-found: error'; do
+  'path: ${{ runner.temp }}/rerun-ci-status-record.json' 'if-no-files-found: error' 'overwrite: true'; do
   if [[ "$record_step" == *"$want"* ]]; then ok "the record step carries '$want'"; else fail "the record step lacks '$want'"; fi
 done
 # shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell
