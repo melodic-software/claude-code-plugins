@@ -1046,7 +1046,8 @@ jobs:
           if-no-files-found: ignore
 
       # The next run's head-ref map: the one read above and this run's
-      # downloads, for ids the run's last listing still lists. Only a
+      # downloads, for ids the run's last listing still lists, or the map
+      # read above alone when the run saved no listing. Only a
       # scheduled or hand-started run's map is read back, so only one uploads
       # it; also after a timeout, since each download is in the run cache as
       # it is read. Rules: .github/scripts/pr-merge/head-ref-map.mjs.
