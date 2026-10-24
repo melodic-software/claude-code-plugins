@@ -403,7 +403,9 @@ def derive_states(doc, r):
     revising = {
         e["id"]
         for e in events
-        if e.get("deliveredAt") and not is_handled(doc, e.get("seq", 0))
+        if e.get("deliveredAt")
+        and not e.get("autoHandled")
+        and not is_handled(doc, e.get("seq", 0))
     }
     out, up = {}, {}
     for qid in deps:
@@ -544,6 +546,20 @@ def mtime(path):
 def is_handled(doc, seq):
     """Legacy handledSeq covers every seq up to it; `handled` lists single seqs."""
     return seq <= (doc.get("handledSeq") or 0) or seq in set(doc.get("handled") or [])
+
+
+def round_complete(doc, r, qid):
+    """True when every live question in qid's round has a decision in r (this accept included)."""
+    qs = [q for q in doc.get("questions") or [] if isinstance(q, dict)]
+    rnd = next((q.get("round") for q in qs if q.get("id") == qid), None)
+    return not any(
+        q.get("round") == rnd
+        and not q.get("archived")
+        and not q.get("supersededBy")
+        and not (r["responses"].get(q.get("id")) or {}).get("decision")
+        and not (q.get("terminal") or {}).get("decision")
+        for q in qs
+    )
 
 
 def release_user_holds(doc, r):
@@ -1037,6 +1053,13 @@ class Hub(LoopbackWatcher):
                     "updatedAt": now,
                     "seq": seq,
                 }
+            # A plain accept or confirm needs no reply, so it wakes no agent; the accept that
+            # settles its round's last question stays unhandled, so the agent learns the round is done.
+            if not text.strip() and (
+                kind == "confirm"
+                or (kind == "accept" and not round_complete(doc, r, qid))
+            ):
+                event["autoHandled"] = True
             r["events"].append(event)
             if qid:
                 line = {
@@ -1090,7 +1113,13 @@ class Hub(LoopbackWatcher):
             raise ValueError("undoSeq is not a decision")
         if target.get("withdrawn"):
             raise Conflict({"error": "already undone"})
-        if is_handled(doc, target_seq):
+        if is_handled(doc, target_seq) or (
+            target.get("autoHandled")
+            and any(
+                e.get("seq", 0) > target_seq and is_handled(doc, e.get("seq", 0))
+                for e in r["events"]
+            )
+        ):
             raise Conflict({"error": "Claude already handled it"})
         qid = target["id"]
         live = [
@@ -1117,7 +1146,9 @@ class Hub(LoopbackWatcher):
         return [
             e
             for e in r.get("events", [])
-            if not e.get("withdrawn") and not is_handled(doc, e.get("seq", 0))
+            if not e.get("withdrawn")
+            and not e.get("autoHandled")
+            and not is_handled(doc, e.get("seq", 0))
         ]
 
 
