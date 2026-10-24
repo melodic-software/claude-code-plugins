@@ -280,7 +280,10 @@ extract_candidates() {
     local chain_done=0 k tk fl ct q="" bare dq sq
     for ((k = idx + 1; k < ${#toks[@]}; k++)); do
       tk="${toks[k]}"
-      bare="${tk//\\\"/}"
+      # Drop escaped backslashes first so only a quote after an odd run of
+      # backslashes counts as escaped (`"C:\\Temp\\"` still closes).
+      bare="${tk//\\\\/}"
+      bare="${bare//\\\"/}"
       if [[ -n "$q" ]]; then
         [[ "$bare" == *"$q"* ]] && q=""
         continue

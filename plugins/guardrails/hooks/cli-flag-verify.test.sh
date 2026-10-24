@@ -137,6 +137,10 @@ OUT=$(run_fake 'faketool --bogus-flag')
 ctx_contains "unquoted unknown flag still fires" "$OUT" "  faketool --bogus-flag"
 OUT=$(run_fake 'faketool -p "a multi word prompt" --bogus-flag')
 ctx_contains "unknown flag after a quoted prompt still fires" "$OUT" "  faketool --bogus-flag"
+OUT=$(run_fake 'faketool --toplevel="C:\\Temp\\" --bogus-flag')
+ctx_contains "an escaped backslash before the closing quote still closes it" "$OUT" "  faketool --bogus-flag"
+OUT=$(run_fake 'faketool -p "say \\\"hi --bogus\" now" --toplevel')
+assert_absent "a quote after an odd backslash run stays escaped → no flag" "$OUT" "unknown flag(s)"
 OUT=$(run_fake "faketool -p 'one' sub --fake")
 ctx_contains "chain after a quoted prompt still resolves" "$OUT" "  faketool sub --fake"
 
