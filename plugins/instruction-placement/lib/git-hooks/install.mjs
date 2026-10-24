@@ -583,14 +583,16 @@ function lefthookRemotes(file, text) {
   return block
     .split(new RegExp(`^${indent}-[ \\t]+`, "m"))
     .slice(1)
-    .map((item) => {
-      const lines = item.split("\n");
+    .map((raw) => {
+      // Block and flow forms alike: `key: value` lines, `{key: value, ...}`, `configs: [a, b]`.
+      const item = raw.replace(/^[ \t]*#.*$/gm, "");
       const val = (key) => {
-        const line = lines.find((l) => new RegExp(`^[ \\t]*${key}:`).test(l));
-        return line === undefined ? undefined : unquote(line.slice(line.indexOf(":") + 1));
+        const v = new RegExp(`(?:^|[\\s{,])${key}:[ \\t]*([^\\n,}]*)`).exec(item)?.[1];
+        return v === undefined ? undefined : unquote(v);
       };
-      const configs = lines.map((l) => /^[ \t]*-[ \t]+(.*)$/.exec(l)?.[1]).filter((v) => v !== undefined);
-      return { git_url: val("git_url"), ref: val("ref"), configs: configs.map(unquote) };
+      const flow = /(?:^|[\s{,])configs:[ \t]*\[([^\]]*)\]/.exec(item)?.[1].split(",") ?? [];
+      const listed = item.split("\n").map((l) => /^[ \t]*-[ \t]+(.*)$/.exec(l)?.[1]).filter((v) => v !== undefined);
+      return { git_url: val("git_url"), ref: val("ref"), configs: [...flow, ...listed].map(unquote).filter(Boolean) };
     });
 }
 
