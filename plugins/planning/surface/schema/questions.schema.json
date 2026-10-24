@@ -88,6 +88,20 @@
       "description": "Every restatement the restate op wrote, oldest first; the last is mirrored as `restatement`. A file written before this list existed has only `restatement`.",
       "type": "array",
       "items": {"$ref": "#/$defs/restatement"}
+    },
+    "constraints": {
+      "description": "The constraints the constraint op recorded, oldest first; the page header lists them and `export-brief --ledger` falls back to them. A file written before this list existed has none.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "text", "at"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string"},
+          "text": {"type": "string"},
+          "at": {"type": "string"}
+        }
+      }
     }
   },
   "$defs": {
