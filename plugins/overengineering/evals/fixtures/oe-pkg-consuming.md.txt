@@ -1,0 +1,4 @@
+# Consuming style-kit
+
+Point the consumer's install step at this repository's `main` branch. Every change reaches `main`
+only through a pull request, so consumers never see an unreviewed or untested commit.
