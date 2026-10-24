@@ -1673,11 +1673,9 @@ Both review callers (`pr-review-hosted.yml`, `pr-review-security-hosted.yml`) pa
 `hold-label: needs-human` and the same `hold-paths` to ci-workflows' `pr-review-cli.yml`. Their
 status job adds the label and a `<!-- claude-lane-hold lane=<lane> sha=<head> criteria=<list> -->`
 comment when the review returns a hold: `cost` (only for a real charge, as the wrapper's prompt
-defines it) or `critical-security`. `hold-paths` only sends the files it names to extra security
-scrutiny: a changed path alone holds nothing. The security lane reads the takeover paths (the trusted-actor list, the
-`check-trusted-trigger`, `check-kill-switch`, `request-lane-token` and `resolve-config` actions,
-`CODEOWNERS`, `.gitmodules`) with extra scrutiny, and a change there that lets someone outside the
-trusted set gain trust is a CRITICAL finding, which holds.
+defines it) or `critical-security`. `hold-paths` only flags the files it names for extra security
+scrutiny; a match never holds by itself. The security lane reads such a file's whole change and
+what it gates, and only a CRITICAL finding there holds.
 
 No ruleset requires a review check (github-iac ADR 0017); ci-status, the one required check, enforces
 them on every `pull_request` run, contract-only runs included:
@@ -1809,12 +1807,16 @@ issue. It never labels an issue `agent-ready`, so nothing it writes starts work.
   checkout and no shell. It takes the `triage-issue` route's profile. CI logs and titles reach it
   as data. It returns at most three findings, each citing at least one `path`, `line` and exact
   `quote` from main.
-- **file**, a script with no model and `issues: write`, drops a finding when any quote is not on its
-  line in the run's main commit, then fingerprints it: a hash of the slice, workflow, job and the
-  error signature with numbers, SHAs and times removed. A finding whose fingerprint matches an
-  issue an earlier sweep filed and a person closed as not planned or duplicate is skipped, as is
-  one whose `covered_by` names an open item; one matching such an issue still open is listed as
-  tracked there. The rest become the entries of one digest issue, `Lane sweep: open findings`,
+- **file**, a script with no model and `issues: write`, drops a finding whose slice is not its
+  unit's, whose workflow is not its A or D unit's, or whose job is not among the jobs its unit's data
+  lists, or when any quote is not on its line in the run's main commit, then fingerprints it: a hash
+  of the slice, workflow, job and the error signature with numbers, SHAs and times removed. A unit
+  whose data lists no jobs (a C unit, a D unit with no green run, an A unit whose runs list no failed
+  job) leaves the job unbound. The signature is free text in every slice, so binding does not stop a
+  steered judge minting fresh fingerprints; they land only as entries in the one digest, at most 3
+  per unit. A finding whose fingerprint matches an issue an earlier sweep filed and a person closed
+  as not planned or duplicate is skipped, as is one whose `covered_by` names an open item; one
+  matching such an issue still open is listed as  tracked there. The rest become the entries of one digest issue, `Lane sweep: open findings`,
   found by its first line `<!-- lane-sweep-digest -->`; each entry opens with
   `<!-- lane-sweep-entry fp=<fingerprint>[ tracked=<issue>] -->`, and the last line,
   `<!-- lane-sweep:fp=<fingerprint> -->`, holds the fingerprint of the entry set and each entry's

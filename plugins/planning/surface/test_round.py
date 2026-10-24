@@ -2294,6 +2294,43 @@ class TestClaudeActivity(DirCase):
                     op["sections"] = sections
                 self.refused(op)
 
+    def test_constraint_records_each_constraint_in_the_page_state(self):
+        self.apply(
+            {"op": "constraint", "text": "Builds stop at ten minutes."},
+            {"op": "constraint", "text": "Stdlib only."},
+        )
+        found = self.doc()["constraints"]
+        self.assertEqual(
+            [(c["id"], c["text"]) for c in found],
+            [("C1", "Builds stop at ten minutes."), ("C2", "Stdlib only.")],
+        )
+        self.assertTrue(all(c["at"] for c in found))
+        self.assertEqual(
+            self.entries()[-1]["text"],
+            "Recorded constraint C1; recorded constraint C2",
+        )
+
+    def test_constraint_with_a_recorded_id_replaces_its_text(self):
+        self.apply({"op": "constraint", "text": "One."})
+        self.apply({"op": "constraint", "id": "C1", "text": "One, revised."})
+        self.apply({"op": "constraint", "id": "C7", "text": "Seven."})
+        self.apply({"op": "constraint", "text": "Next."})
+        self.assertEqual(
+            [(c["id"], c["text"]) for c in self.doc()["constraints"]],
+            [("C1", "One, revised."), ("C7", "Seven."), ("C8", "Next.")],
+        )
+
+    def test_constraint_refusals(self):
+        for op in (
+            {"text": "  "},
+            {"text": "two\nlines"},
+            {"text": "x", "id": "Q1"},
+            {"text": "x" * 501},
+            {},
+        ):
+            with self.subTest(op=op):
+                self.refused({"op": "constraint", **op})
+
     def test_activity_refusals(self):
         self.refused({"op": "activity", "text": "x", "ids": ["Q9"]})
         self.refused({"op": "activity", "text": " "})
