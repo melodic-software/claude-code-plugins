@@ -72,7 +72,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, loadTrustedList, paginate, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { refsIssue, resolvePull, specFromBodyApps } from "../pr-verify/resolve-pr.mjs";
 import { headRefDigest } from "../pr-verify/write-verdict.mjs";
-import { firstFailure, INFRA_BACKOFF_MINUTES, infraOnly, LOOKBACK_HOURS, reconcilerRetries, testedRun } from "./infra-failure.mjs";
+import { firstFailure, INFRA_BACKOFF_MINUTES, infraOnly, LOOKBACK_HOURS, reconcilerRetries, stepsKnown, testedRun } from "./infra-failure.mjs";
 
 const STATUS_URL = "https://www.githubstatus.com/api/v2/components.json";
 // A failed run's failed jobs are re-run only while both pages show indicator none.
@@ -214,6 +214,11 @@ async function holdReason(call, repo, runId) {
   const listing = await call("GET", `/repos/${repo}/actions/runs/${runId}/attempts/1/jobs?per_page=100`);
   if (!Array.isArray(listing?.jobs) || listing.total_count > 100) {
     throw new Error("its job listing is not one complete page");
+  }
+  // A job whose steps did not list in full (stepsKnown) throws too, so the
+  // next pass reads it again.
+  if (!listing.jobs.every(stepsKnown)) {
+    throw new Error("a job's steps did not list in full, so which steps ran is unknown");
   }
   const started = listing.jobs
     .flatMap((job) => (Array.isArray(job?.steps) ? job.steps : []))

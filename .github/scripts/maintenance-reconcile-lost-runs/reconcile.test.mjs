@@ -457,6 +457,24 @@ test("a verify run none of whose first-attempt jobs started is never re-run or r
   }
 });
 
+// The jobs API can list a job that ran with no steps, or cut short before its
+// judge step; neither shows whether the judge step started.
+test("a verify run whose job's steps did not list is not re-run or recorded, and is read again next pass", async () => {
+  const cut = [{ name: "Check the trigger", status: "completed", conclusion: "cancelled" }];
+  // Opens with "Set up job" but skips the judge step's number.
+  const midCut = [
+    { number: 1, name: "Set up job", status: "completed", conclusion: "success" },
+    { number: 2, name: "Check the trigger", status: "completed", conclusion: "success" },
+    { number: 4, name: "Upload the verdict", status: "pending", conclusion: null },
+  ];
+  for (const steps of [[], cut, midCut]) {
+    const { code, reruns, outputs } = await reconcile({ pulls: [], runs: [{ ...verifyRun(201), jobs: [{ name: "verify", conclusion: "cancelled", runner_id: 7, steps }] }] });
+    assert.equal(code, 1);
+    assert.deepEqual(reruns, []);
+    assert.deepEqual(records(outputs), ["", "", ""]);
+  }
+});
+
 test("a verify run whose jobs cannot be read is not re-run", async () => {
   const { code, reruns, outputs } = await reconcile({
     pulls: [],
@@ -583,6 +601,16 @@ test("a run with a real failure at attempt 2, or older than the lookback, is not
   const { code, calls } = await reconcile({ pulls: [pr(1), pr(2)], runs });
   assert.equal(code, 0);
   assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
+});
+
+test("a failed run at attempt 2 whose failed job's steps did not list is not re-run as infra", async () => {
+  const cut = [{ name: "Check out", status: "completed", conclusion: "success" }];
+  for (const steps of [[], cut]) {
+    const jobs = [{ name: "lint-repo", conclusion: "failure", runner_id: 7, steps }];
+    const { code, calls } = await reconcile({ pulls: [pr(1)], runs: [failed(101, sha(1), { jobs, attempt: 2 })] });
+    assert.equal(code, 0);
+    assert.deepEqual(calls.filter((c) => c.startsWith("POST ")), []);
+  }
 });
 
 test("a run where only ci-status failed is not re-run", async () => {

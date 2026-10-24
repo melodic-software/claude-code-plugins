@@ -3123,7 +3123,7 @@ jobs:
     # of own-gate retries, 7 s of status-write retries and the 90 s
     # `rerun-wait-seconds` wait, about four and a half minutes, plus up to
     # 15 s of retry sleeps for each of the hold-lift step's two reads, the
-    # review-lane step's four and the lanes-hold step's eight (in the merge
+    # review-lane step's six and the lanes-hold step's eight (in the merge
     # queue up to four verdict lookups and their run reads more), about four
     # minutes, plus the cost-hold step's reads: one for most pull requests,
     # which stop at the label events; for a lane-labeled one whose body cites a
@@ -3992,6 +3992,17 @@ jobs:
       # no lane is there to hold it as trust-gate; a person merges it. A draft is exempt
       # (see `Note a draft`). pr-feedback-dispatch.yml re-runs this job when a
       # review run completes. An unreadable run or job list fails closed.
+      # The jobs API can list a finished job's steps empty or cut short, so a
+      # step it lists with no conclusion, or not at all, proves nothing either
+      # way. Then the job's own check-run annotations decide. The review
+      # counts only with its publish step's `claude-lane-review-complete`
+      # notice naming this lane and this head: only a comments-mode publish
+      # writes it, and the hold step runs after it in that mode, so a
+      # successful job with it ran the hold step as the step rule requires.
+      # A kill-switch stop counts only with the notice its report step
+      # writes. A pull_request run takes its workflow from the pull request,
+      # so a head that rewrites a review caller can forge these notices as it
+      # can forge the step list. An unreadable annotation list fails closed.
       # Pinned by scripts/ci-review-lanes.test.sh, which runs this body.
       - name: Require both review lanes on this head
         if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft == false }}
@@ -4006,8 +4017,8 @@ jobs:
           # melodic-standards-sync[bot], as
           # .github/standards/trusted-actors/trusted-actors.json lists them.
           exempt_author_ids='49699333 337859524 300666570'
-          lanes='pr-review-hosted.yml pr-review / claude-review-status
-          pr-review-security-hosted.yml pr-review-security / security-review'
+          lanes='pr-review-hosted.yml claude-review pr-review / claude-review-status
+          pr-review-security-hosted.yml claude-security-review pr-review-security / security-review'
           if [[ ! $HEAD_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the head '$HEAD_SHA' is not a commit SHA."
             exit 1
@@ -4063,7 +4074,7 @@ jobs:
             exit 0
           fi
           failed=0
-          while read -r file check; do
+          while read -r file lane check; do
             runs=$(read_api "the $file runs on $HEAD_SHA" \
               "repos/$GITHUB_REPOSITORY/actions/workflows/$file/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=100") || exit 1
             run=$(jq -c --arg path ".github/workflows/$file" --arg sha "$HEAD_SHA" \
@@ -4081,13 +4092,34 @@ jobs:
               | (.jobs | map(select(.name == "kill-switch")) | max_by(.id)) as $k
               | if $s != null and $s.status != "completed" then "pending"
                 elif $s.conclusion == "success" then
-                  if any($s.steps[]?; .name == "Apply the hold" and .conclusion == "success") then "pass" else "uncounted" end
+                  if any($s.steps[]?; .name == "Apply the hold" and .conclusion != null) | not then "unlisted \($s.id)"
+                  elif any($s.steps[]?; .name == "Apply the hold" and .conclusion == "success") then "pass" else "uncounted" end
                 elif $s != null and $s.conclusion != "skipped" then "red \($s.conclusion)"
                 elif $k.conclusion == "success" and any($k.steps[]?; .name == "Report the kill switch" and .conclusion == "success") then "stopped"
                 elif $run_status != "completed" then "pending"
+                elif $k.conclusion == "success" and (any($k.steps[]?; .name == "Report the kill switch" and .conclusion != null) | not) then "killunlisted \($k.id)"
                 else "missing \($k.conclusion // "absent")" end' <<<"$jobs")
+            if [[ $verdict =~ ^killunlisted\ ([1-9][0-9]*)$ ]]; then
+              job=${BASH_REMATCH[1]}
+              notes=$(read_api "the annotations of job $job" "repos/$GITHUB_REPOSITORY/check-runs/$job/annotations?per_page=100") || exit 1
+              verdict=$(jq -r 'if any(.[]?; .annotation_level == "notice" and ((.message // "") | test("^a kill switch stops this (security )?review \\(")))
+                then "stopped" else "missing success" end' <<<"$notes")
+            fi
+            if [[ $verdict =~ ^unlisted\ ([1-9][0-9]*)$ ]]; then
+              job=${BASH_REMATCH[1]}
+              notes=$(read_api "the annotations of job $job" "repos/$GITHUB_REPOSITORY/check-runs/$job/annotations?per_page=100") || exit 1
+              verdict=$(jq -r --arg want "claude-lane-review-complete lane=$lane sha=$HEAD_SHA" '
+                if any(.[]?; .annotation_level == "notice" and .title == "claude-lane-review-complete"
+                  and ((.message // "") as $m | $m == $want or ($m | startswith($want + " "))))
+                then "pass-notice" else "unproven" end' <<<"$notes")
+            fi
             case $verdict in
             pass) echo "'$check' passed on $HEAD_SHA ($url)." ;;
+            pass-notice) echo "'$check' passed on $HEAD_SHA ($url): GitHub listed no 'Apply the hold' step with a conclusion, and the job's review-complete notice names $lane and this head." ;;
+            unproven)
+              echo "::error::'$check' passed in $url, but GitHub listed no 'Apply the hold' step with a conclusion and the job records no review-complete notice for $lane on $HEAD_SHA, so it is not a review that counts. Re-run this run."
+              failed=1
+              ;;
             stopped) echo "::notice::a kill switch stopped '$check' on $HEAD_SHA ($url); the lane is not required." ;;
             pending)
               echo "::error::'$check' has not finished on $HEAD_SHA ($url). ci-status re-runs when the review finishes."
