@@ -31,7 +31,7 @@ const run = (fixDocs) => {
   return resolveDoc(doc, {
     lane: "pr-refine",
     activity: "fix-prose",
-    facts: { event: "synchronize", changedPaths: ["README.md"], labels: [], workClasses: [] },
+    facts: { event: "synchronize", changedPaths: ["README.md"], labels: [] },
   });
 };
 const rejected = (thunk) =>
@@ -77,7 +77,7 @@ test("self-checks on a script activity fail the schema", () => {
   rejected(() =>
     resolveDoc(doc, {
       lane: "pr-run-checks",
-      facts: { event: "synchronize", changedPaths: ["src/app.js"], labels: [], workClasses: [] },
+      facts: { event: "synchronize", changedPaths: ["src/app.js"], labels: [] },
     }),
   );
 });
