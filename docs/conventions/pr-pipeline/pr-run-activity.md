@@ -877,15 +877,18 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    those replies is such a fix request by a write-access human, and
    reports `fix-requested=true`, which lifts only the human-gated hold of the push job. No kept
    thread skips `not-applicable`, or `awaiting-human` on such a PR. A PR diff touching
-   `.github/workflows/**` escalates `feedback-protected-path`, and `loop.review-rounds` earlier rounds
-   escalate `feedback-round-cap`: the larger of the round markers the lanes App posted and the PR
-   commits carrying a `github-actions` `pr-unblock / address-feedback` check run that ended
-   `success` or `failure` (a round whose reply job was refused still counts). At the cap, a kept
-   thread with a write-access human's fix request created after the newest counted round (its
-   latest marker, or the completion of a model check run that ended `success`, `failure`,
-   `cancelled` or `timed_out`) still runs one more round, on those threads only; a
-   round with no readable time grants none. Both escalations skip `awaiting-human`, and no model
-   job runs. Otherwise it writes `threads.json` and `run.json` (the gated head and the kept
+   `.github/workflows/**` escalates `feedback-protected-path`. Rounds count as the larger of the
+   round markers the lanes App posted and the PR commits carrying a `github-actions`
+   `pr-unblock / address-feedback` check run that ended `success` or `failure` (a round whose
+   reply job was refused still counts). At `loop.review-rounds` earlier rounds, a kept thread with
+   a write-access human's fix request created after the newest counted round (its latest marker,
+   or the completion of a model check run that ended `success`, `failure`, `cancelled` or
+   `timed_out`) still runs one more round, on those threads only; a round with no readable time
+   grants none. With no such thread, a PR a person gated with the human-gated label, or a kept thread whose first comment is not a `github-actions[bot]`
+   finding ending in the `claude-lane: claude-review` footer (a security lane finding, a verifier
+   note, or a `claude[bot]` finding, whose footer would be model text) escalates `feedback-round-cap`; otherwise one more round runs on every kept
+   thread (the fresh fixer), and once it has run the select job skips `cost-gated`. Both
+   escalations skip `awaiting-human`; no escalation or skip runs a model job. Otherwise it writes `threads.json` and `run.json` (the gated head and the kept
    threads' ids, paths, comment ids and named paths, and `pr_paths`, from the thread file) and uploads both as
    `feedback-context-<run attempt>`. Its outputs are `proceed`, the head it read, the
    escalation, `fix-requested`, both files' SHA-256 and that attempt; every later job takes its

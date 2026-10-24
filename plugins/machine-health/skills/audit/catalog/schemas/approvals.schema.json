@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:claude-code-plugin:machine-health:approvals",
   "title": "Approvals",
-  "description": "Per-user approval state for machine-health remediations and check overrides. Lives at $OutputBase/state/approvals.json. Not checked into source control. Written by /machine-health:setup (Set-ApprovalState) and by the one-time migration on first run; do not edit it by hand, except check_overrides.services.service_exclusions, which setup cannot write yet.",
+  "description": "Per-user approval state for machine-health remediations and check overrides. Lives at $OutputBase/state/approvals.json. Not checked into source control. Written by /machine-health:setup (Set-ApprovalState); do not edit it by hand, except check_overrides.services.service_exclusions, which setup cannot write yet.",
   "type": "object",
   "additionalProperties": false,
   "required": ["remediations", "schema_version"],
@@ -70,7 +70,7 @@
     },
     "migration": {
       "type": "object",
-      "description": "Populated on first migration from TODO.md. Removed in next major version.",
+      "description": "Left by an older build's one-time migration from TODO.md checkboxes; accepted so such a file validates, and never read.",
       "additionalProperties": false,
       "properties": {
         "migrated_from_todo_md": { "type": "boolean" },
