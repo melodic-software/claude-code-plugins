@@ -287,28 +287,20 @@ class HighReasonTests(unittest.TestCase):
         self.assertEqual(result.score, Risk.HIGH)
         self.assertEqual(_codes(result), ("security-finding",))
 
-    def test_floor_paths_are_high(self):
+    def test_trusted_paths_hold_only_when_configured(self):
+        # Owner direction 2026-10-24: a trusted-path match alone holds nothing.
         cases = [
-            (".gitmodules", "high-path:**/.gitmodules"),
-            (".github/CODEOWNERS", "high-path:**/CODEOWNERS"),
-            (
-                ".github/standards/trusted-actors/trusted-actors.json",
-                "high-path:.github/standards/trusted-actors/**",
-            ),
-            (
-                ".github/actions/check-trusted-trigger/action.yml",
-                "high-path:.github/actions/check-trusted-trigger/**",
-            ),
-            (
-                ".github/actions/resolve-config/resolve.mjs",
-                "high-path:.github/actions/resolve-config/**",
-            ),
+            (".gitmodules", "**/.gitmodules"),
+            (".github/CODEOWNERS", "**/CODEOWNERS"),
+            (".github/actions/check-trusted-trigger/action.yml", ".github/actions/**"),
+            (".github/actions/resolve-config/resolve.mjs", ".github/actions/**"),
         ]
-        for path, code in cases:
+        self.assertEqual(babysit_risk.HIGH_FLOOR, ())
+        for path, glob in cases:
             with self.subTest(path):
-                result = score(_input(files=(_file(path),)))
-                self.assertEqual(result.score, Risk.HIGH)
-                self.assertIn(code, _codes(result))
+                self.assertEqual(score(_input(files=(_file(path),))).score, Risk.LOW)
+                result = score(_input(files=(_file(path),), high_paths=(glob,)))
+                self.assertEqual(_codes(result), (f"high-path:{glob}",))
 
     def test_paths_off_the_floor_take_no_path_code(self):
         # Owner direction 2026-10-23: only a takeover path waits for the owner.
@@ -343,7 +335,8 @@ class HighReasonTests(unittest.TestCase):
         ]
         for path, code in cases:
             with self.subTest(path):
-                result = score(_input(files=(_file(path),)))
+                configured = (code.removeprefix("high-path:"),)
+                result = score(_input(files=(_file(path),), high_paths=configured))
                 self.assertEqual(result.score, Risk.HIGH)
                 self.assertEqual(_codes(result), (code,))
 
@@ -355,10 +348,6 @@ class HighReasonTests(unittest.TestCase):
             )
         )
         self.assertEqual(_codes(result), ("high-path:plugins/foo/special.md",))
-
-    def test_empty_configured_set_does_not_weaken_the_floor(self):
-        result = score(_input(files=(_file(".gitmodules"),), high_paths=()))
-        self.assertEqual(result.score, Risk.HIGH)
 
     def test_near_miss_paths_are_not_high(self):
         for path in (
@@ -380,7 +369,7 @@ class RenameTests(unittest.TestCase):
                 previous_path="plugins/foo/CODEOWNERS",
             ),
         )
-        result = score(_input(files=files))
+        result = score(_input(files=files, high_paths=("**/CODEOWNERS",)))
         self.assertEqual(result.score, Risk.HIGH)
         self.assertEqual(
             _codes(result), ("high-path:**/CODEOWNERS", "class-contradicted")
@@ -418,6 +407,7 @@ class OrderingTests(unittest.TestCase):
                 work_class=None,
                 files=(_file(".gitmodules", has_patch=False),),
                 files_complete=False,
+                high_paths=("**/.gitmodules",),
             )
         )
         self.assertEqual(result.score, Risk.HIGH)
@@ -434,7 +424,13 @@ class OrderingTests(unittest.TestCase):
             _file("plugins/foo/c.md", additions=500),
         )
         result = score(
-            _input(work_class="C3", files=files, files_complete=False, lanes=lanes)
+            _input(
+                work_class="C3",
+                files=files,
+                files_complete=False,
+                lanes=lanes,
+                high_paths=("**/.gitmodules", "**/CODEOWNERS"),
+            )
         )
         self.assertEqual(
             _codes(result),
@@ -939,7 +935,9 @@ class MalformedInputTests(unittest.TestCase):
                 self.assertIn("high-path:**", _codes(result))
 
     def test_dot_slash_prefix_matches_the_floor_glob(self):
-        result = score(_input(files=(_file("./.gitmodules"),)))
+        result = score(
+            _input(files=(_file("./.gitmodules"),), high_paths=("**/.gitmodules",))
+        )
         self.assertIn("high-path:**/.gitmodules", _codes(result))
 
     def test_caller_globs_are_read_exactly_as_written(self):
@@ -981,7 +979,8 @@ class MalformedInputTests(unittest.TestCase):
             ),
         ):
             with self.subTest(path):
-                result = score(_input(files=(_file(path),)))
+                configured = (code.removeprefix("high-path:"),)
+                result = score(_input(files=(_file(path),), high_paths=configured))
                 self.assertEqual(result.score, Risk.HIGH)
                 self.assertIn(code, _codes(result))
 
@@ -998,11 +997,12 @@ class LaneSwitchTests(unittest.TestCase):
     file and line caps and the C2 contradictions are each a setting the
     caller turns off. Off, the same diff that scored above LOW is LOW."""
 
-    def test_the_floor_off_leaves_floor_paths_low(self):
+    def test_the_floor_leaves_trusted_paths_low_either_way(self):
         files = (_file(".gitmodules"),)
-        self.assertEqual(score(_input(files=files)).score, Risk.HIGH)
-        result = score(_input(files=files, high_floor=False))
-        self.assertEqual(result.score, Risk.LOW, _codes(result))
+        for on in (True, False):
+            with self.subTest(high_floor=on):
+                result = score(_input(files=files, high_floor=on))
+                self.assertEqual(result.score, Risk.LOW, _codes(result))
 
     def test_the_floor_off_still_honors_configured_paths(self):
         files = (_file(".github/workflows/x.yml"),)
@@ -1216,30 +1216,29 @@ def _lane_input(files):
 
 
 class LanePathFloorTests(unittest.TestCase):
-    """The live pr-merge config holds only the takeover set."""
+    """The live pr-merge config holds no path for being trusted (owner
+    direction 2026-10-24); the trust gate still holds the trusted-actor
+    list."""
 
-    def test_the_live_config_has_the_floor_on(self):
-        self.assertIs(_lane_config().high_path_floor, True)
+    def test_the_live_config_has_the_floor_off(self):
+        self.assertIs(_lane_config().high_path_floor, False)
 
-    def test_the_keep_set_holds(self):
+    def test_trusted_paths_merge(self):
         for path in (
             ".gitmodules",
             ".github/CODEOWNERS",
-            ".github/standards/trusted-actors/trusted-actors.json",
             ".github/actions/check-trusted-trigger/action.yml",
             ".github/actions/resolve-config/lane-rules.json",
+            ".github/actions/resolve-config/resolve.mjs",
         ):
             with self.subTest(path):
                 result = score(_lane_input((_file(path),)))
-                self.assertEqual(result.score, Risk.HIGH, result.reasons)
+                self.assertEqual(result.score, Risk.LOW, result.reasons)
 
-    def test_resolve_config_waits_for_the_owner(self):
-        # Owner decision Q51: the token broker runs this code from main.
-        result = score(
-            _lane_input((_file(".github/actions/resolve-config/resolve.mjs"),))
-        )
-        self.assertEqual(result.score, Risk.HIGH, result.reasons)
-        self.assertIn("high-path:.github/actions/resolve-config/**", _codes(result))
+    def test_the_trusted_actor_list_still_holds(self):
+        path = ".github/standards/trusted-actors/trusted-actors.json"
+        result = score(_lane_input((_file(path),)))
+        self.assertEqual(_codes(result), ("trust-gate:trusted-actors",))
 
     def test_instructions_hooks_and_scripts_merge(self):
         # Owner direction 2026-10-22: the review lanes are the gate for these.
@@ -1478,7 +1477,9 @@ class HoldsTests(unittest.TestCase):
                 files=(_file("docs/conventions/pr-pipeline.yaml", patch=patch),)
             )
         )
-        self.assertTrue(self._holds(files=(_file(".gitmodules"),)))
+        self.assertTrue(
+            self._holds(files=(_file(".gitmodules"),), high_paths=("**/.gitmodules",))
+        )
 
     def test_the_rung_and_an_unread_listing_hold(self):
         for changes in (
@@ -1582,14 +1583,11 @@ class TrustGateTests(unittest.TestCase):
                 result = self._score(after)
                 self.assertEqual(result.score, Risk.LOW, result.reasons)
 
-    def test_a_pure_removal_holds_on_the_floor(self):
-        # The trusted-actor directory is on the floor: with the floor on, even
-        # a removal waits for the owner.
+    def test_a_pure_removal_merges_with_the_floor_on(self):
+        # No floor holds the trusted-actor directory (owner direction
+        # 2026-10-24): only a widening waits for the owner.
         result = score(_input(files=(_edit(ACTORS, BASE_ACTORS, _actors(_KYLE)),)))
-        self.assertEqual(result.score, Risk.HIGH)
-        self.assertEqual(
-            _codes(result), ("high-path:.github/standards/trusted-actors/**",)
-        )
+        self.assertEqual(result.score, Risk.LOW, result.reasons)
 
     def test_an_unread_or_structural_change_holds(self):
         cases = (
@@ -1679,6 +1677,7 @@ class ReviewFlagClassTests(unittest.TestCase):
             _input(
                 files=(_file(".gitmodules"),),
                 lanes=self._lanes(review=1),
+                high_paths=("**/.gitmodules",),
             )
         )
         self.assertIn("findings:claude-review", _codes(result))

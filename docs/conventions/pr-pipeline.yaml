@@ -903,14 +903,12 @@ merge:
   dependabot:
     mode: enforce
     majors: review
-  # The HIGH path floor is on in both lanes. It holds only the takeover set
-  # (owner direction 2026-10-23): the trusted-actor list, the trusted-trigger
-  # check, code owners, submodules and resolve-config (babysit_risk.py
-  # HIGH_FLOOR). A lane PR touching one
-  # scores HIGH and waits for a human, who merges it in person; a denied path
-  # would instead make the PR ineligible. The verifier verdict, both AI
-  # review lanes, ci-status and the post-merge revert breaker still gate every
-  # lane PR.
+  # No path is held for being trusted (owner direction 2026-10-24): the HIGH
+  # path floor (babysit_risk.py HIGH_FLOOR) is empty, and `high-path-floor:
+  # false` also turns off the manifest review, which the security lane flags
+  # instead. The trusted-actor widening and cost holds stay on either way. The
+  # verifier verdict, both AI review lanes, ci-status and the post-merge
+  # revert breaker still gate every lane PR.
   # Owner decision Q624 still holds for the rest: no denied path, size cap or
   # C2 contradiction check. Each comes back by setting it here: list
   # denied-paths, set `c2-contradictions: true`, or set `max-changed-files`
@@ -920,4 +918,4 @@ merge:
   # verifier verdict.
   diff-check:
     denied-paths: []
-    high-path-floor: true
+    high-path-floor: false

@@ -5,13 +5,11 @@ import { test } from "node:test";
 import { parse, stringify } from "yaml";
 
 import { Rejection, resolve } from "./resolve.mjs";
-import { FORCED_DENIED_PATHS } from "../../scripts/pr-merge/merge-holds.mjs";
 
 const read = (relative) =>
   readFileSync(new URL(relative, import.meta.url), "utf8");
 const json = (relative) => JSON.parse(read(relative));
 const CONFIG_PATH = "docs/conventions/pr-pipeline.yaml";
-const TRUSTED_ACTORS = ".github/standards/trusted-actors/trusted-actors.json";
 const IDENTITY = "example-lanes[bot]";
 
 const run = (config) =>
@@ -53,11 +51,11 @@ const rejectedFor = (config, pattern) =>
   );
 
 // The merge section valid.yaml resolves to: no merge section, so rung off,
-// manual landing, lane pull requests on native auto-merge, and only the
-// forced denied paths.
+// manual landing, lane pull requests on native auto-merge, and no denied
+// path.
 const VALID_MERGE = {
   rung: "off",
-  "diff-check": { "denied-paths": [CONFIG_PATH, TRUSTED_ACTORS] },
+  "diff-check": { "denied-paths": [] },
   "stack-landing": "manual",
   "lane-prs": "native",
 };
@@ -214,14 +212,6 @@ test("a GitHub App [bot] login validates as agent-identity", () => {
 
 test("resolveMerge output for valid.yaml is unchanged", () => {
   assert.deepEqual(run(read("./fixtures/valid.yaml")).merge, VALID_MERGE);
-});
-
-// ci-status adds this floor to the base config's denied paths itself.
-test("merge-holds.mjs's FORCED_DENIED_PATHS are the denied paths resolveMerge forces", () => {
-  assert.deepEqual(
-    [...run(read("./fixtures/valid.yaml")).merge["diff-check"]["denied-paths"]].sort(),
-    [...FORCED_DENIED_PATHS].sort(),
-  );
 });
 
 test("resolveMerge does not carry authority or agent-identity into the output", () => {

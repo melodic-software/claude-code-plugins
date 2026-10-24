@@ -972,9 +972,7 @@ class AWholeSpecPassClearsASliceFailOnTheSameChange(unittest.TestCase):
     def test_a_closes_pass_of_another_issue_keeps_the_fail(self) -> None:
         # Failed as a slice of one issue, then relinked to close a different
         # issue on the same diff.
-        self.assertEqual(
-            read(self.closing_another(8)).refusal, "verify:earlier-fail"
-        )
+        self.assertEqual(read(self.closing_another(8)).refusal, "verify:earlier-fail")
 
     def test_a_closes_pass_of_more_issues_keeps_the_fail(self) -> None:
         self.assertEqual(
@@ -1887,8 +1885,12 @@ class TheNewestPassDecides(unittest.TestCase):
         # Run 1 created first but re-attempted after the edit; run 2 created
         # later but started before it. The later start judged the live spec.
         fake = self.fake(second=True)
-        fake.runs[1] = run(1, created_at=RUN_STARTED, run_started_at="2026-10-15T14:00:00Z")
-        fake.runs[2] = run(2, created_at="2026-10-15T01:00:00Z", run_started_at="2026-10-15T11:00:00Z")
+        fake.runs[1] = run(
+            1, created_at=RUN_STARTED, run_started_at="2026-10-15T14:00:00Z"
+        )
+        fake.runs[2] = run(
+            2, created_at="2026-10-15T01:00:00Z", run_started_at="2026-10-15T11:00:00Z"
+        )
         self.assertIsNone(read(fake).refusal)
 
     def test_every_pass_decides_when_a_start_time_is_missing(self) -> None:
@@ -2750,6 +2752,11 @@ def evidence(
     )
 
 
+# A manifest the floor switch's manifest review holds; the floor itself holds
+# no path.
+MANIFEST = "plugins/foo/.claude-plugin/plugin.json"
+
+
 def changed(path: str, additions: int = 1) -> unattended.ChangedFile:
     """A modified regular file in the diff."""
     return unattended.ChangedFile(
@@ -3293,17 +3300,17 @@ class LaneRequiresAVerdict(unattended.Unattended):
             self.config, high_path_floor=True, max_changed_files=8,
             c2_contradictions=True,
         )  # fmt: skip
-        self.files = ((changed(".gitmodules"),), True)
+        self.files = ((changed(MANIFEST),), True)
         _, out = self.lane()
         self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
 
-    def test_the_lane_scores_a_floor_path_from_the_config_high(self) -> None:
+    def test_the_lane_scores_a_manifest_from_the_config_high(self) -> None:
         self.config = dataclasses.replace(self.config, high_path_floor=True)
-        self.files = ((changed(".gitmodules"),), True)
+        self.files = ((changed(MANIFEST),), True)
         _, out = self.lane()
         self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
         codes = [r["code"] for r in out["unattended"]["risk"]["reasons"]]
-        self.assertEqual(codes, ["high-path:**/.gitmodules"])
+        self.assertEqual(codes, ["manifest-review-required"])
 
     def unlabeled_lane_pr(self, real_denied_paths: bool = False) -> None:
         """The real lane eligibility over a lanes-App pull request whose one
@@ -3362,13 +3369,13 @@ class LocalBabysitReadsNoVerdict(unattended.Unattended):
             self.config, high_path_floor=False, max_changed_files=None,
             c2_contradictions=False,
         )  # fmt: skip
-        self.files = ((changed(".gitmodules"),), True)
+        self.files = ((changed(MANIFEST),), True)
         code, out = self.run_main()
         self.assert_no_merge(code)
         self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
 
     def test_the_local_floor_holds_whatever_the_switch_says(self) -> None:
-        self.files = ((changed(".gitmodules"),), True)
+        self.files = ((changed(MANIFEST),), True)
         for on in (False, True):
             with self.subTest(high_path_floor=on):
                 self.config = dataclasses.replace(self.config, high_path_floor=on)

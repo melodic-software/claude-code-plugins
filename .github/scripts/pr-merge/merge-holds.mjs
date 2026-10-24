@@ -5,21 +5,19 @@
 // every lanes App pull request, so it imports no other file of the repository.
 //
 // - A body hold (babysit_merge_policy.BODY_MERGE_HOLD_RE): a line opening with
-//   `Hold:`, or "do not merge" anywhere. Removing that text lifts it.
+//   `Hold:`, or "do not merge" anywhere, in a body a person wrote
+//   (personWrote): the lanes App's own text holds nothing. Removing that text
+//   lifts it.
 // - A member veto (babysit_merge.human_veto_logins): each OWNER, MEMBER or
 //   COLLABORATOR person's newest comment, review or inline comment with text
 //   decides, and holds when it says "do not merge"
 //   (babysit_merge.HUMAN_MERGE_VETO_RE). A later one by the same person
 //   lifts it; an item with no text lifts nothing.
 // - A hold path: a changed file, or a renamed file's old path, matching the
-//   merge lane's denied paths, which resolve-config resolves as the config's
-//   merge.diff-check.denied-paths plus HOLD_PATH_FLOOR. A person on the
-//   trusted-actor list lifts it by approving the head: their newest review of
-//   the head that approves, requests changes or was dismissed must approve.
-// - A manifest change the merge gate reviews (manifestChanges, the rule of
-//   babysit_risk._manifest_changes): a plugin manifest or the marketplace
-//   manifest, read at the base commit (BASE_SHA) and the head and compared
-//   key by key. The same approval lifts it.
+//   config's merge.diff-check.denied-paths. A person on the trusted-actor
+//   list lifts it by approving the head: their newest review of the head that
+//   approves, requests changes or was dismissed must approve. No path is held
+//   for being trusted alone: the review lanes judge it.
 // - A cost path (COST_PATHS): a changed file the gate holds for the owner's
 //   cost decision. An approval does not lift it; only the decision the gate
 //   reads does (costDecision), linked from the body: on the pull request, or
@@ -51,9 +49,8 @@
 // path and status (changeOf); the denied-paths file the config's
 // merge.diff-check.denied-paths as JSON; the trusted-actors file
 // trusted-actors.json. Each hold prints as an ::error:: and exits 1; no hold
-// exits 0. A changed manifest, and a cost path with a decision link in the
-// body, are read with GH_TOKEN.
-import { Buffer } from "node:buffer";
+// exits 0. Who wrote a body that holds, and a cost path with a decision link
+// in the body, are read with GH_TOKEN.
 import { readFileSync } from "node:fs";
 import { posix } from "node:path";
 import process from "node:process";
@@ -101,12 +98,13 @@ export function refsIssue(body) {
 }
 
 // Why the pass `record` (its verdict.json) does not bind the pull request's
-// live link, or null when it does. The live link is the gate's
-// (babysit_merge_policy._linked_issue): its one closing issue in `repo`, or,
-// with no closing issue at all, the one issue its plain `Refs:` lines name
-// (refsIssue). The pass binds when it judged that one issue, linked the same
-// way (its `spec_kind`, `closes` when absent, as the reader reads an older
-// record).
+// live link, or null when it does. The live link is its closing issues in
+// `repo`, or, with no closing issue at all, the one issue its plain `Refs:`
+// lines name (refsIssue). The pass binds unless the live link names an issue
+// and drops the one it judged, or names only that issue linked another way
+// (its `spec_kind`, `closes` when absent, as the reader reads an older
+// record). A link of no issue, or of more than one, holds nothing here: the
+// fix loop rewrites it.
 export function linkHold(record, body, closing, repo) {
   if (record === null || typeof record !== "object" || !Array.isArray(record.linked_issues)) {
     return "its verifier pass's record could not be read";
@@ -118,232 +116,43 @@ export function linkHold(record, body, closing, repo) {
   if (!Array.isArray(closing?.nodes) || !Number.isSafeInteger(closing.totalCount) || closing.totalCount !== closing.nodes.length) {
     return "its closing issues could not be read";
   }
-  let live = null;
-  let linked = "refs";
-  if (closing.totalCount > 0) {
-    const [issue] = closing.nodes;
-    if (closing.totalCount !== 1 || String(issue?.repository?.nameWithOwner).toLowerCase() !== String(repo).toLowerCase()) {
-      return "it does not close exactly one issue in this repository, which pr-merge's lane takes";
-    }
-    live = issue.number;
-    linked = "closes";
-  } else {
-    live = refsIssue(body);
-  }
-  if (!Number.isSafeInteger(live)) {
-    return "it names no issue pr-merge's lane takes";
-  }
+  const own = (issue) => String(issue?.repository?.nameWithOwner).toLowerCase() === String(repo).toLowerCase();
+  const linked = closing.totalCount > 0 ? "closes" : "refs";
+  const refs = linked === "refs" ? refsIssue(body) : null;
+  const live = linked === "closes" ? closing.nodes.filter(own).map((issue) => issue.number) : refs === null ? [] : [refs];
   const judged = record.linked_issues.map((issue) => issue?.number);
-  if (judged.length !== 1 || judged[0] !== live || kind !== linked) {
-    return `its link changed since pr-verify passed it: it ${linked === "closes" ? "closes" : "refs"} #${live}, and the pass judged ${judged.map((n) => `#${n}`).join(", ") || "no issue"} (${kind})`;
+  const [only] = judged;
+  if (judged.length !== 1 || (live.length > 0 && !live.includes(only)) || (live.length === 1 && kind !== linked)) {
+    return `its link changed since pr-verify passed it: it ${linked} ${live.map((n) => `#${n}`).join(", ") || "no issue"}, and the pass judged ${judged.map((n) => `#${n}`).join(", ") || "no issue"} (${kind})`;
   }
   return null;
 }
 // babysit_merge_policy.BLOCKER_ASSOCIATIONS.
 const MEMBERS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
-// The denied paths resolve-config adds to every config's (resolveMerge);
-// merge-authority.test.mjs checks the two agree.
-export const FORCED_DENIED_PATHS = Object.freeze([
-  "docs/conventions/pr-pipeline.yaml",
-  ".github/standards/trusted-actors/trusted-actors.json",
-]);
-// Every hold path check adds these: the forced paths and the merge gate's
-// HIGH floor (babysit_risk.HIGH_FLOOR), which test_merge_holds_sync.py checks
-// this covers. A manifest is compared base against head instead
-// (manifestChanges).
-export const HOLD_PATH_FLOOR = Object.freeze([
-  ...FORCED_DENIED_PATHS,
-  ".github/standards/trusted-actors/**",
-  ".github/actions/check-trusted-trigger/**",
-  "**/CODEOWNERS",
-  "**/.gitmodules",
-  ".github/actions/resolve-config/**",
-  ".github/actions/check-kill-switch/**",
-  ".github/actions/request-lane-token/**",
-]);
 
-// babysit_risk.is_manifest_path: a plugin manifest or the marketplace
-// manifest, matched case-sensitively.
-export function isManifestPath(path) {
-  const parts = String(path).split("/");
-  return (
-    (parts.length === 2 && parts[0] === ".claude-plugin" && parts[1] === "marketplace.json") ||
-    (parts.length === 4 && parts[0] === "plugins" && parts[2] === ".claude-plugin" && parts[3] === "plugin.json")
-  );
-}
+// The pull request's author and the editors of its body, for personWrote.
+export const BODY_WRITERS_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) { author { __typename } userContentEdits(first: 100) { totalCount nodes { editor { __typename } } } }
+  }
+}`;
 
-// babysit_risk._manifest: the parsed object as a node tree, or null when the
-// text is not a string, not JSON, not an object, or repeats a key. A node is
-// { object: Map }, { array: [] } or { text }, a scalar's text telling values
-// apart as Python's json.loads does: an integer and a float differ (1 and
-// 1.0), so canonical (json.dumps with sort_keys) compares them as the gate.
-function parseManifest(text) {
-  if (typeof text !== "string") {
-    return null;
+// Whether a person wrote any of the body of `pull` (BODY_WRITERS_QUERY's
+// pullRequest, or a listing's with the same fields): its author or an editor
+// of its body is not a Bot account. A deleted account, an edit list not read
+// whole or a pull request that did not read counts as a person, so a hold an
+// unknown hand wrote still holds.
+export function personWrote(pull) {
+  const edits = pull?.userContentEdits;
+  if (!pull?.author || !Array.isArray(edits?.nodes) || !(edits.totalCount <= edits.nodes.length)) {
+    return true;
   }
-  try {
-    JSON.parse(text);
-  } catch {
-    return null;
-  }
-  // The text is valid JSON, so the walk below needs no error handling.
-  let at = 0;
-  const space = () => {
-    while (" \t\n\r".includes(text[at] ?? "x")) at += 1;
-  };
-  const string = () => {
-    const start = at;
-    for (at += 1; text[at] !== '"'; at += 1) {
-      if (text[at] === "\\") at += 1;
-    }
-    at += 1;
-    return JSON.parse(text.slice(start, at));
-  };
-  const items = (close, read) => {
-    at += 1;
-    for (space(); text[at] !== close; space()) {
-      read();
-      space();
-      if (text[at] === ",") at += 1;
-    }
-    at += 1;
-  };
-  const value = () => {
-    space();
-    if (text[at] === "{") {
-      const object = new Map();
-      items("}", () => {
-        const key = string();
-        if (object.has(key)) throw new Error("duplicate key");
-        space();
-        at += 1;
-        object.set(key, value());
-      });
-      return { object };
-    }
-    if (text[at] === "[") {
-      const array = [];
-      items("]", () => array.push(value()));
-      return { array };
-    }
-    if (text[at] === '"') return { text: JSON.stringify(string()), string: true };
-    const token = /^(?:true|false|null|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/.exec(text.slice(at))[0];
-    at += token.length;
-    if (!/^-?\d/.test(token)) return { text: token };
-    if (!/[.eE]/.test(token)) {
-      // json.loads refuses an integer past int_max_str_digits (4300), so the
-      // gate reads that side as malformed.
-      if (token.replace("-", "").length > 4300) throw new Error("integer too long");
-      return { text: `${BigInt(token)}` };
-    }
-    const number = Number(token);
-    return { text: `${Object.is(number, -0) ? "-0" : String(number)}.f` };
-  };
-  try {
-    const root = value();
-    return root.object ? root : null;
-  } catch {
-    return null;
-  }
-}
-
-const canonical = (node) =>
-  node.object
-    ? `{${[...node.object]
-        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-        .map(([key, child]) => `${JSON.stringify(key)}:${canonical(child)}`)
-        .join(",")}}`
-    : node.array
-      ? `[${node.array.map(canonical).join(",")}]`
-      : node.text;
-// babysit_risk._canonical: a key's canonical value, null when absent or
-// `node` is no object.
-const canonicalOf = (node, key) => (node?.object?.has(key) ? canonical(node.object.get(key)) : null);
-// babysit_risk._EXECUTABLE_KEYS.
-const EXECUTABLE_KEYS = Object.freeze(["hooks", "mcpServers", "lspServers", "monitors"]);
-
-function pluginChanges(base, head) {
-  const found = EXECUTABLE_KEYS.filter((key) => canonicalOf(base, key) !== canonicalOf(head, key));
-  const monitors = (node) => canonicalOf(node.object.get("experimental"), "monitors");
-  return monitors(base) === monitors(head) ? found : [...found, "experimental.monitors"];
-}
-
-// `plugins` by name, null unless a list of uniquely named objects.
-function entries(node) {
-  const plugins = node.object.get("plugins") ?? { array: [] };
-  if (!plugins.array) {
-    return null;
-  }
-  const named = new Map();
-  for (const entry of plugins.array) {
-    const name = entry.object?.get("name");
-    if (name?.string) {
-      named.set(JSON.parse(name.text), entry);
-    }
-  }
-  return named.size === plugins.array.length ? named : null;
-}
-
-function marketplaceChanges(base, head) {
-  const found = canonicalOf(base, "name") === canonicalOf(head, "name") ? [] : ["name"];
-  const old = entries(base);
-  const now = entries(head);
-  if (old === null || now === null) {
-    return [...found, "plugins is not a list of uniquely named entries"];
-  }
-  for (const name of [...new Set([...old.keys(), ...now.keys()])].sort()) {
-    if (!now.has(name)) {
-      found.push(`plugins[${name}] removed`);
-    } else if (!old.has(name)) {
-      found.push(`plugins[${name}] added`);
-    } else if (canonicalOf(old.get(name), "source") !== canonicalOf(now.get(name), "source")) {
-      found.push(`plugins[${name}].source`);
-    }
-  }
-  return found;
-}
-
-// babysit_risk._manifest_changes: what in one changed manifest needs a
-// person's review, empty when nothing does; test_merge_holds_sync.py checks
-// the two agree. `change` is { path, previous, status, contents }, contents
-// [base text, head text] with null for an absent side. In plugin.json an
-// executable key or experimental.monitors that differs, in marketplace.json
-// a plugin added, removed or renamed, a changed entry source or marketplace
-// name; a manifest removed, renamed or copied, of any other status, or with a
-// side that does not read, parse or repeats a key holds. An added plugin.json
-// is compared with {}.
-export function manifestChanges({ path, previous = null, status, contents } = {}) {
-  if (!["modified", "added"].includes(status) || previous !== null) {
-    return [`${status ?? "unknown"} manifest`];
-  }
-  if (!Array.isArray(contents) || contents.length !== 2) {
-    return ["contents unreadable"];
-  }
-  const base = parseManifest(status === "added" ? "{}" : contents[0]);
-  const head = parseManifest(contents[1]);
-  if (base === null || head === null) {
-    return ["unreadable, malformed or a repeated key"];
-  }
-  return path.endsWith("marketplace.json") ? marketplaceChanges(base, head) : pluginChanges(base, head);
-}
-
-// Why the changed manifests in `changes` (manifestChanges's entries) hold
-// the head, or null. A manifest renamed away holds too.
-export function manifestHold(changes) {
-  if (!Array.isArray(changes)) {
-    return "its changed manifests could not be read";
-  }
-  const held = changes
-    .filter(({ path, previous }) => isManifestPath(path) || (previous != null && isManifestPath(previous)))
-    .map((change) => [change.path, manifestChanges(change)])
-    .filter(([, found]) => found.length);
-  return held.length ? `it changes ${held.map(([path, found]) => `${path} (${found.join(", ")})`).join("; ")}, a manifest change that needs review` : null;
+  return [pull.author, ...edits.nodes.map((edit) => edit?.editor)].some((who) => who?.__typename !== "Bot");
 }
 
 // babysit_risk.COST_PATHS, matched case-folded as its glob_match does;
-// test_merge_holds_sync.py checks the two agree.
+// test_merge_holds_sync.py checks the two agree. Each one is a real charge.
 export const COST_PATHS = Object.freeze([
-  "plugins/multi-agent/reference/defaults.yaml",
   "**/Pulumi.yaml",
   "**/Pulumi.*.yaml",
   "**/*.tf",
@@ -402,8 +211,7 @@ export function pathHold(files, holdPaths) {
   if (typeof posix.matchesGlob !== "function") {
     return "this Node has no path.matchesGlob, so its hold paths cannot be checked";
   }
-  const globs = [...holdPaths, ...HOLD_PATH_FLOOR];
-  const held = files.find((path) => globs.some((glob) => matchesHoldPath(path, glob)));
+  const held = files.find((path) => holdPaths.some((glob) => matchesHoldPath(path, glob)));
   return held === undefined ? null : `it changes ${held}, a hold path`;
 }
 
@@ -667,8 +475,7 @@ const fetchGitHub = (env) => async (method, path, body) => {
   return json;
 };
 
-// The config's denied paths, or null unless a list of strings; pathHold adds
-// the floor.
+// The config's denied paths, or null unless a list of strings.
 export function holdPathsOf(denied) {
   return Array.isArray(denied) && denied.every((glob) => typeof glob === "string") ? denied : null;
 }
@@ -695,13 +502,13 @@ export function pathLifters(items, humans, head) {
 }
 
 // Why the pull request's `body`, discussion `items` and changed `files` hold
-// it; empty when nothing does. `manifest` is manifestHold's reason. `lifters`
-// approved the head, which lifts a hold path or a manifest change but not an
-// unreadable file list or hold-path list, nor a cost path, which only the
-// owner's `decision` lifts.
-export function holds(body, items, files, holdPaths, lifters = [], decision = null, manifest = null) {
+// it; empty when nothing does. `lifters` approved the head, which lifts a
+// hold path but not an unreadable file list or hold-path list, nor a cost
+// path, which only the owner's `decision` lifts. `byPerson` (personWrote)
+// says whether the body can hold.
+export function holds(body, items, files, holdPaths, lifters = [], decision = null, byPerson = true) {
   const reasons = [];
-  const pathReason = [pathHold(files, holdPaths), manifest].filter(Boolean).join("; ") || null;
+  const pathReason = pathHold(files, holdPaths);
   const readable = Array.isArray(files) && Array.isArray(holdPaths);
   if (pathReason && !(readable && lifters.length)) {
     reasons.push(
@@ -716,7 +523,7 @@ export function holds(body, items, files, holdPaths, lifters = [], decision = nu
       `${cost}; the owner's unedited comment opening '**Decision recorded.** Cost:' on this pull request, or on its linked issue naming this pull request, linked from the body, lifts it for the head it decided and a later head that only merges the base`,
     );
   }
-  if (BODY_HOLD.test(String(body ?? ""))) {
+  if (byPerson && BODY_HOLD.test(String(body ?? ""))) {
     reasons.push("its body holds it (a line opening with 'Hold:', or 'do not merge'); removing that text lifts it");
   }
   const vetoes = vetoers(items);
@@ -776,12 +583,11 @@ function linkOf(file, body, repo) {
   }
 }
 
-// One files-file line as a manifestChanges entry: [filename,
+// One files-file line as { path, previous, status }: [filename,
 // previous_filename or null, status] from the pull request files API, or an
 // object of those keys. An older line of one path and any renamed-from path
-// has no status, so a manifest on it holds. A module older than this one
-// reads every entry of a line as a path, null and the status matching no
-// hold path.
+// has no status. A module older than this one reads every entry of a line as
+// a path, null and the status matching no hold path.
 export function changeOf(line) {
   if (Array.isArray(line)) {
     const [path, previous = null, status = null] = line;
@@ -798,31 +604,15 @@ export function changeOf(line) {
   return { path: line.filename, previous: typeof previous === "string" && previous ? previous : null, status: typeof line.status === "string" ? line.status : null };
 }
 
-// `changes` with each modified or added manifest's [base text at `base`,
-// head text at `head`], base null for an added one; a read that fails, or a
-// base that is not a commit SHA, leaves its contents out, so it holds.
-export async function withContents(github, repo, changes, base, head) {
-  const text = async (path, ref) => {
-    const file = await github("GET", `/repos/${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${ref}`);
-    if (file?.type !== "file" || file.encoding !== "base64" || typeof file.content !== "string") {
-      throw new Error(`${path} at ${ref} did not read`);
-    }
-    // Strict, as the gate's decode("utf-8"): invalid UTF-8 throws, so it
-    // holds, and a BOM stays, so JSON.parse refuses it as json.loads does.
-    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(Buffer.from(file.content, "base64"));
-  };
-  return Promise.all(
-    changes.map(async (change) => {
-      if (!isManifestPath(change.path) || !["modified", "added"].includes(change.status) || change.previous !== null || !/^[0-9a-f]{40}$/.test(String(base))) {
-        return change;
-      }
-      try {
-        return { ...change, contents: [change.status === "added" ? null : await text(change.path, base), await text(change.path, head)] };
-      } catch {
-        return change;
-      }
-    }),
-  );
+// Whether a person wrote the body of pull request `number` (personWrote); a
+// read that fails counts as a person.
+async function bodyByPerson(github, repo, number) {
+  const [owner, name] = repo.split("/");
+  try {
+    return personWrote((await github("POST", "/graphql", { query: BODY_WRITERS_QUERY, variables: { owner, name, number } }))?.data?.repository?.pullRequest);
+  } catch {
+    return true;
+  }
 }
 
 export async function main(argv = process.argv.slice(2), { env = process.env, github = fetchGitHub(env) } = {}) {
@@ -859,11 +649,14 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     if (decision) {
       console.log(`#${number}: ${decision} records the owner's cost decision, which lifts its cost hold.`);
     }
-    const manifest = manifestHold(await withContents(github, repo, changes, env.BASE_SHA, head));
-    const reasons = holds(body, items, files, holdPaths, lifters, decision, manifest);
-    const held = [pathHold(files, holdPaths), manifest].filter(Boolean).join("; ") || null;
+    const byPerson = BODY_HOLD.test(body) && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo) ? await bodyByPerson(github, repo, Number(number)) : true;
+    if (!byPerson) {
+      console.log(`#${number}: its body's hold text is the lanes App's own, which holds nothing.`);
+    }
+    const reasons = holds(body, items, files, holdPaths, lifters, decision, byPerson);
+    const held = pathHold(files, holdPaths);
     if (held && lifters.length && Array.isArray(holdPaths)) {
-      console.log(`#${number}: ${lifters.join(", ")} approved this head, which lifts its hold path or manifest hold (${escape(held)}).`);
+      console.log(`#${number}: ${lifters.join(", ")} approved this head, which lifts its hold path (${escape(held)}).`);
     }
     if (verdictsFile) {
       const unverified = verdictHold(lines(verdictsFile).map((line) => JSON.parse(line)), env.GITHUB_REPOSITORY);

@@ -752,7 +752,7 @@ test("a cost path holds until the body links the owner's cost decision", async (
 
   const dir = mkdtempSync(join(tmpdir(), "enable-auto-merge-"));
   writeFileSync(join(dir, "actors.json"), JSON.stringify({ actors: [{ kind: "human", login: "kyle-sexton", id: 5 }] }));
-  const cost = [{ filename: "plugins/multi-agent/reference/defaults.yaml" }];
+  const cost = [{ filename: "infra/main.tf" }];
   const decided = `Closes #1040\n\nCost decision: ${COST_LINK}`;
   const { writes } = await run(
     [pull(40, { files: cost, body: decided }), pull(41, { files: cost }), pull(42, { files: cost, body: decided })],
@@ -784,13 +784,15 @@ test("merge-holds.mjs holds a changed or renamed-from hold path from the command
     return spawnSync(process.execPath, [fileURLToPath(new URL("./merge-holds.mjs", import.meta.url)), ...args], { encoding: "utf8" });
   };
   assert.equal(cli([["docs/a.md"]], ["docs/held.md"]).status, 0);
-  assert.match(cli([[".github/actions/resolve-config/.x.mjs"]], []).stdout, /it changes \.github\/actions\/resolve-config\/\.x\.mjs, a hold path/);
+  // No trusted path or manifest holds unless the config lists it.
+  assert.equal(cli([[".github/actions/resolve-config/.x.mjs"]], []).status, 0);
+  assert.match(cli([[".github/actions/resolve-config/.x.mjs"]], [".github/actions/**"]).stdout, /it changes \.github\/actions\/resolve-config\/\.x\.mjs, a hold path/);
   assert.equal(cli([[".github/workflows/x.yml"]], []).status, 0);
-  // A manifest's sides are read at BASE_SHA and the head, none given here.
-  assert.match(cli([{ filename: "plugins/a/.claude-plugin/plugin.json", status: "modified" }], []).stdout, /plugin\.json \(contents unreadable\), a manifest change/);
+  assert.equal(cli([{ filename: "plugins/a/.claude-plugin/plugin.json", status: "modified" }], []).status, 0);
   assert.match(cli([["plugins/a/.hidden"]], ["plugins/**"]).stdout, /it changes plugins\/a\/\.hidden, a hold path/);
   assert.equal(cli([["plugins/a/x.md"]], ["plugins/*.md"]).status, 0);
-  const renamed = cli([["docs/a.md", ".github/actions/check-trusted-trigger/a.md"]], []);
+  assert.equal(cli([["docs/a.md", ".github/actions/check-trusted-trigger/a.md"]], []).status, 0);
+  const renamed = cli([["docs/a.md", ".github/actions/check-trusted-trigger/a.md"]], [".github/actions/check-trusted-trigger/**"]);
   assert.equal(renamed.status, 1);
   assert.match(renamed.stdout, /it changes \.github\/actions\/check-trusted-trigger\/a\.md, a hold path/);
   assert.match(cli([["docs/held.md"]], ["docs/held.md"]).stdout, /it changes docs\/held\.md, a hold path/);

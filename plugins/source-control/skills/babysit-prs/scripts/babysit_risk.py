@@ -200,22 +200,9 @@ class RiskResult:
     reasons: tuple[Reason, ...]  # sorted by severity desc, then code
 
 
-# What would hand the repository to someone outside the org: who is trusted
-# (the trusted-actor list and the check that enforces it), who owns review
-# (code owners), what code is pulled in from elsewhere (submodules), and the
-# code the token broker runs from main in its signer process (resolve-config,
-# owner decision Q51), with check-kill-switch, whose writeOutputs both of those
-# actions write their verdicts through, and request-lane-token, which mints and
-# hands out the lanes App token in every privileged workflow.
-HIGH_FLOOR: tuple[str, ...] = (
-    ".github/standards/trusted-actors/**",
-    ".github/actions/check-trusted-trigger/**",
-    "**/CODEOWNERS",
-    "**/.gitmodules",
-    ".github/actions/resolve-config/**",
-    ".github/actions/check-kill-switch/**",
-    ".github/actions/request-lane-token/**",
-)
+# No path holds for being trusted alone (owner direction 2026-10-24): the
+# review lanes judge it, and the trust gate holds a trusted-actor widening.
+HIGH_FLOOR: tuple[str, ...] = ()
 
 # plugin.json keys whose values Claude Code runs or reads as run config.
 _EXECUTABLE_KEYS = ("hooks", "mcpServers", "lspServers", "monitors")
@@ -636,8 +623,6 @@ def _trust_gate_reasons(files: list[_File], raw_files: list[Any]) -> list[Reason
 COST_CODE = "cost-review-required"
 # Infrastructure as code: any change can add or resize a billed resource.
 COST_PATHS: tuple[str, ...] = (
-    # The multi-agent role map: model and effort per role for every fan-out.
-    "plugins/multi-agent/reference/defaults.yaml",
     "**/Pulumi.yaml",
     "**/Pulumi.*.yaml",
     "**/*.tf",

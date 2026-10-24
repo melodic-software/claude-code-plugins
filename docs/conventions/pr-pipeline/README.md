@@ -777,20 +777,14 @@ and its queued entries leave; two different identities, or an unreadable head co
 - **Opt-in label.** `merge: agent-allowed` makes a pull request eligible; it does not make it safe,
   and the diff risk score still decides. It counts only when a human added it last and the pull
   request body was not edited afterwards.
-- **HIGH path floor.** A fixed set of paths in the wrapper's code, joined with
-  `merge.diff-check.denied-paths` and matched case-insensitively. It holds only the takeover set
-  (owner direction 2026-10-23): `.github/standards/trusted-actors/**`,
-  `.github/actions/check-trusted-trigger/**`, `CODEOWNERS`, `.gitmodules`,
-  `.github/actions/resolve-config/**`, whose code the token broker runs from main in its signer
-  process, and `.github/actions/check-kill-switch/**`, whose output writer both actions use, and
-  `.github/actions/request-lane-token/**`, which mints the lanes App token. Agent permission config, package manifests and workflows merge on the review lanes. A
-  diff that touches a floor path scores HIGH and is never merged unattended. A
-  `plugins/<plugin>/.claude-plugin/plugin.json` or the top-level
-  `.claude-plugin/marketplace.json` change scores HIGH as `manifest-review-required` when it
-  installs or runs something new: a differing `hooks`, `mcpServers`, `lspServers`, `monitors` or
-  `experimental.monitors` value, or a marketplace plugin added, removed, renamed or re-sourced, or
-  the marketplace renamed. A removed, renamed or copied manifest, and a side that cannot be read,
-  does not parse or repeats a key, holds. That reason waits for a human like any other HIGH one.
+- **No path floor.** A path is never held for being trusted (owner direction 2026-10-24): the
+  trusted-actor list, the trusted-trigger check, code owners, submodules, resolve-config, the
+  pipeline config and every other path merge on the review lanes, which judge them. Only
+  `merge.diff-check.denied-paths`, empty here, holds a path, matched case-insensitively. A
+  `plugins/<plugin>/.claude-plugin/plugin.json` or `.claude-plugin/marketplace.json` change that
+  installs or runs something new is a security-review finding, not a hold; where
+  `high-path-floor` is on, the gate still scores it HIGH as `manifest-review-required`, and this
+  repository sets it off.
 - **Trusted-actor widening.** A change that adds or widens an entry in
   `.github/standards/trusted-actors/trusted-actors.json` scores HIGH as
   `trust-gate:trusted-actors` in both lanes and waits for the owner, whatever `high-path-floor`
@@ -807,8 +801,7 @@ and its queued entries leave; two different identities, or an unreadable head co
   says and whatever an adopted author's own paths leave off the floor, and waits for a human like
   any other HIGH reason. It catches:
   - any changed `Pulumi.yaml`, `Pulumi.*.yaml`, `*.tf`, `*.tfvars`, `*.bicep` or `*.bicepparam`
-    file, `plugins/multi-agent/reference/defaults.yaml` (the model and effort per role), and any
-    file under a directory that holds a `Pulumi.yaml` at the base. A base tree the gate cannot
+    file, and any file under a directory that holds a `Pulumi.yaml` at the base. A base tree the gate cannot
     list whole holds every file;
   - a file renamed or copied into `.github/workflows/` or a `pr-pipeline.yaml` path from outside;
   - a workflow patch that adds a `cron:` key in any YAML or JSON spelling (a schedule can spend
@@ -959,12 +952,12 @@ except six:
   reports and sets `false` to let it merge.
 - **Risk switches.** Each check below is a `merge.diff-check` setting that is off when absent:
   `denied-paths` (an empty list denies no path; a listed path makes the pull request ineligible),
-  `high-path-floor` (true scores the scorer's fixed HIGH path set and the manifest review HIGH),
+  `high-path-floor` (true scores the scorer's fixed HIGH path set, now empty, and the manifest
+  review HIGH),
   `c2-contradictions` (true
   scores a removed, renamed or copied file, a schema change or more than one plugin MED),
   `max-changed-files` and `max-changed-lines` (absent is no cap). This repository sets
-  `high-path-floor: true`, so a lane pull request on the floor waits for a human; the non-author verifier
-  verdict, both AI review lanes, `ci-status` and the post-merge revert breaker gate the rest. It
+  `high-path-floor: false` (owner direction 2026-10-24); the non-author verifier verdict, both AI review lanes, `ci-status` and the post-merge revert breaker gate the rest. It
   leaves the rest off (owner decision,
   2026-10-17). The local babysit lane ignores these switches and keeps the fixed floor, both
   caps and the C2 contradictions. The review evidence, the security lane's CRITICAL findings, the
