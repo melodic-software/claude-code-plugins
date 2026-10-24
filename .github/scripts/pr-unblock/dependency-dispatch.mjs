@@ -149,7 +149,7 @@ export async function dispatchDependencyReviews({
       const newestCheck = Math.max(...existing.map(startOf));
       const last = existing.find((run) => startOf(run) === newestCheck);
       const terminal = last?.status === "completed" && last.conclusion === "neutral" && TERMINAL_SKIPS.has(last.output?.title);
-      if (permanentlyHandles(existing) && (terminal || verdicts.some((run) => startOf(run) > newestCheck))) {
+      if (permanentlyHandles(existing, { limits }) && (terminal || verdicts.some((run) => startOf(run) > newestCheck))) {
         markHandled(record, checkName, node.headRefOid);
       }
     } catch (error) {

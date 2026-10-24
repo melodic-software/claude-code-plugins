@@ -1105,8 +1105,18 @@ Named residuals:
   its own and files a new record.
 - After a dispatch deadline with no unedited pin comment, an identity merge fails the read-back and
   a demotion record is filed. A native auto-merge the identity armed on its own same-repository
-  pull request no later than its enqueue, and did not disarm since, posts no pin and needs no
-  read-back: it verifies on the dispatch and canary runs alone.
+  pull request no later than its enqueue, and did not disarm since, needs no read-back: it
+  verifies on the dispatch and canary runs alone.
+- Arming a pull request that is already mergeable enqueues it at once, and GitHub records only
+  the identity's `AddedToMergeQueueEvent`, no auto-merge event. `enable-auto-merge.mjs` therefore
+  posts the gate's pin for the head before it arms, and arms nothing when the pin fails to post,
+  so such a merge reads back against its pin, and a push after the arm fails the read-back. A
+  merge of that shape with no pin is still native when every enqueue on the pull request is the
+  identity's, the read holds the whole enqueue history, and `merge.lane-prs` is `native` at the
+  merge commit's first parent; a config that cannot be read there keeps the read-back. Even then,
+  an unedited identity pin that stands is read back: a match verifies and a mismatch fails. Only
+  a merge of that shape with no unedited pin skips the read-back, and since pin-before-arm that
+  means one armed before it shipped, or one whose pin was edited or deleted after the enqueue.
 - A native merge's head is compared with no vetted head: a writer's push after the arm (the
   pr-unblock writers above) leaves auto-merge armed, and that head merges natively with no
   read-back. `ci-status` still runs the hold rules on the merge-group head. The pending

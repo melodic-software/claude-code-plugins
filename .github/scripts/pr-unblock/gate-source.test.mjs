@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { gateSource, listLabelEvents } from "./gate-source.mjs";
+import { gateSource, laneEscalationAllows, listLabelEvents, prHold } from "./gate-source.mjs";
 
 const APP = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" };
 const ACTIONS = { login: "github-actions[bot]", id: 41898282, type: "Bot" };
@@ -63,6 +63,83 @@ test("address-feedback's own round records since the escalation leave it workabl
 
 test("an escalation more than a minute after the label is unknown", () => {
   assert.equal(source([label("labeled", APP, "2026-10-18T10:00:00Z"), escalation("2026-10-18T10:05:00Z")]), "unknown");
+});
+
+// An escalation comment as report-escalation.sh writes it, with its Reason line.
+const escalated = (reason, at = "2026-10-18T10:00:05Z") =>
+  commented(APP, `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${OLD} -->\nThe pr-unblock lane stopped.\n\n- Reason: \`${reason}\`\n- Resume key: \`${OLD}\``, at);
+const allows = (timeline, activity) => laneEscalationAllows({ timeline, label: "needs-human", head: HEAD, isLanesApp, activity }).allowed;
+
+// report-escalation.sh maps each reason to the activity that resumes it:
+// feedback-* address-feedback, dependency-* review-dependency, ci-fix-* fix-ci,
+// any other resolve-conflicts.
+test("a lane escalation holds only the activity it belongs to", () => {
+  const by = (reason) => [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated(reason)];
+  for (const activity of ["fix-ci", "resolve-conflicts", "fix-docs"]) {
+    assert.equal(allows(by("feedback-disputed"), activity), true, activity);
+  }
+  assert.equal(allows(by("ci-fix-escalated"), "fix-ci"), false);
+  assert.equal(allows(by("ci-fix-escalated"), "resolve-conflicts"), true);
+  assert.equal(allows(by("unresolved-conflict"), "resolve-conflicts"), false);
+  assert.equal(allows(by("conflict-patch-invalid"), "resolve-conflicts"), false);
+  assert.equal(allows(by("unresolved-conflict"), "fix-ci"), true);
+});
+
+test("an escalation of the activity's own, among others since the label, holds it", () => {
+  const timeline = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("feedback-disputed"), escalated("ci-fix-round-cap", "2026-10-18T12:00:00Z")];
+  assert.equal(allows(timeline, "fix-ci"), false);
+  assert.equal(allows(timeline, "resolve-conflicts"), true);
+});
+
+test("a person's comment since the label went on holds every activity; one before it does not", () => {
+  const base = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("feedback-disputed")];
+  const after = [...base, commented(OWNER, "Please wait, I am looking at this.", "2026-10-18T11:00:00Z")];
+  const before = [commented(OWNER, "Looks fine.", "2026-10-18T09:00:00Z"), ...base];
+  const bot = [...base, commented(ACTIONS, "A review lane's note.", "2026-10-18T11:00:00Z")];
+  assert.equal(allows(after, "fix-ci"), false);
+  assert.equal(allows(after, "resolve-conflicts"), false);
+  assert.equal(allows(before, "fix-ci"), true);
+  assert.equal(allows(bot, "fix-ci"), true, "a bot's comment is no one asking to wait");
+  // GitHub's REST timeline: a review carries submitted_at, an inline comment sits under line-commented.
+  const review = [...base, { event: "reviewed", user: OWNER, submitted_at: "2026-10-18T11:00:00Z", state: "changes_requested" }];
+  const inline = [...base, { event: "line-commented", comments: [{ user: OWNER, created_at: "2026-10-18T11:00:00Z" }] }];
+  assert.equal(allows(review, "fix-ci"), false, "a person's review");
+  assert.equal(allows(inline, "resolve-conflicts"), false, "a person's inline comment");
+});
+
+test("an escalation reason report-escalation.sh does not list holds every activity", () => {
+  const timeline = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("some-new-reason")];
+  assert.equal(allows(timeline, "fix-ci"), false);
+  assert.equal(allows(timeline, "resolve-conflicts"), false);
+});
+
+test("a person's label, a review-lane hold or an escalation with no reason holds every activity", () => {
+  const person = [label("labeled", OWNER, "2026-10-18T10:00:00Z"), escalated("feedback-disputed")];
+  const review = [hold(HEAD, "2026-10-18T09:00:00Z"), label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("feedback-disputed")];
+  const noReason = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalation()];
+  for (const timeline of [person, review, noReason]) {
+    assert.equal(allows(timeline, "fix-ci"), false);
+    assert.equal(allows(timeline, "resolve-conflicts"), false);
+  }
+});
+
+test("prHold reads the timeline only for the human-gated label, and holds on any other hold label", async () => {
+  let reads = 0;
+  const readTimeline = async () => {
+    reads += 1;
+    return [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("feedback-disputed")];
+  };
+  const hold_ = (labels, extra = {}) =>
+    prHold({ labels, holdLabels: ["do-not-merge", "needs-human"], gateLabel: "needs-human", head: HEAD, activity: "fix-ci", appId: APP.id, readTimeline, ...extra });
+  assert.deepEqual(await hold_([]), { held: false, laneEscalated: false, why: "" });
+  assert.equal(reads, 0);
+  assert.equal((await hold_(["do-not-merge", "needs-human"])).held, true);
+  assert.equal(reads, 0, "a do-not-merge hold needs no timeline read");
+  assert.deepEqual(await hold_(["needs-human"]), { held: false, laneEscalated: true, why: "" });
+  assert.equal(reads, 1);
+  assert.equal((await hold_(["needs-human"], { activity: "address-feedback" })).held, true, "its own escalation");
+  assert.equal((await hold_(["needs-human"], { appId: undefined })).held, true, "with no lanes App id the label holds");
+  assert.equal((await hold_(["needs-human"], { gateLabel: null })).held, true, "with no readable human-gated label it holds");
 });
 
 test("listLabelEvents maps GraphQL label events to timeline items across pages", async () => {

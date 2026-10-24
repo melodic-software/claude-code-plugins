@@ -81,6 +81,7 @@ import {
   PAIRED_MS,
   RESUME_KEY,
   same,
+  spoken,
 } from "../pr-unblock/gate-source.mjs";
 import { isProtectedPath } from "../pr-unblock/thread-scope.mjs";
 
@@ -174,20 +175,6 @@ function pairedWithPrMerge(appComments, since) {
     newest = at;
   }
   return ours && since - newest <= PAIRED_MS;
-}
-
-// When a timeline item was written, and by whom, for a comment or review.
-function spoken(item) {
-  if (item.event === "commented") {
-    return [{ user: item.user ?? item.actor, at: Date.parse(item.created_at) }];
-  }
-  if (item.event === "reviewed") {
-    return [{ user: item.user, at: Date.parse(item.submitted_at) }];
-  }
-  if (item.event === "line-commented" || item.event === "commit-commented") {
-    return (item.comments ?? []).map((comment) => ({ user: comment.user, at: Date.parse(comment.created_at) }));
-  }
-  return [];
 }
 
 // What to clear on `number`, or { reason } saying why nothing is.
