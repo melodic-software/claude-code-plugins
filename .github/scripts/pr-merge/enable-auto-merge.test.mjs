@@ -8,7 +8,7 @@
 // the parity tests read their verdicts from Python.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import process from "node:process";
@@ -1112,6 +1112,38 @@ test("a room that cannot be read arms nothing and disarms every armed lane pull 
     console.log = log;
   }
   assert.deepEqual(writes(), [{ mutation: "disarm", id: "PR_2" }]);
+});
+
+// Issue #9577's scope addition: a held room logged only to the console, so
+// nothing on the run said why nothing armed. One annotation and one summary
+// line per run, naming the reason and every lane pull request left unarmed.
+test("a held room raises one warning and one step-summary line naming why and each pull request left unarmed", async () => {
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  const pulls = [pull(1), pull(2, { autoMergeRequest: armed }), pull(3, { author: { __typename: "User", login: "kyle-sexton" } }), pull(4, { isDraft: true })];
+  const cases = [
+    [{ ...ROOM, unreadable: "post-merge answer unverified-stale" }, "the lane's room could not be read (post-merge answer unverified-stale); left unarmed: #1, #2"],
+    [{ ...ROOM, refusal: "rung-off:demotion" }, "pr-merge's gate holds its lane off (rung-off:demotion); left unarmed: #1, #2"],
+  ];
+  for (const [lane, expected] of cases) {
+    const summary = join(mkdtempSync(join(tmpdir(), "enable-auto-merge-summary-")), "summary.md");
+    writeFileSync(summary, "");
+    const { lines } = await run(pulls, { GITHUB_STEP_SUMMARY: summary }, {}, lane);
+    assert.deepEqual(
+      lines.filter((line) => line.startsWith("::warning")),
+      [`::warning title=enable-auto-merge::${expected}`],
+    );
+    assert.equal(readFileSync(summary, "utf8"), `enable-auto-merge: ${expected}\n`);
+  }
+  // A lane with room raises neither.
+  const summary = join(mkdtempSync(join(tmpdir(), "enable-auto-merge-summary-")), "summary.md");
+  writeFileSync(summary, "");
+  const { lines, writes } = await run(pulls, { GITHUB_STEP_SUMMARY: summary });
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+  assert.deepEqual(
+    lines.filter((line) => line.startsWith("::warning")),
+    [],
+  );
+  assert.equal(readFileSync(summary, "utf8"), "");
 });
 
 // An event run reads no room, so it never disarms on one.

@@ -53,7 +53,11 @@
 //   lane's unverified merges and the armed pull requests not yet queued, it
 //   arms; at the cap it arms nothing more. A room that cannot be read (no
 //   post-merge report, a failed read) holds as a refusal does: nothing is
-//   armed and every armed lanes App pull request is disarmed.
+//   armed and every armed lanes App pull request is disarmed. A report past
+//   its reuse age only for a lane merge still unverified is checked again
+//   first, as the gate does. A held room raises one warning annotation and
+//   one step-summary line naming why and each lane pull request it left
+//   unarmed.
 // - pr-merge's gate would not hold it on its risk score: `evidence
 //   --lane-reviews --rung <the room's rung>` runs the gate's scorer
 //   (babysit_risk.score, holding) over the inputs the gate builds, the
@@ -108,7 +112,7 @@
 //                        run cache, as the gate's
 //   GITHUB_API_URL
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -619,22 +623,23 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     let inFlight = lane === null ? 0 : lane.count + pulls.filter((pull) => lanes(pull) && pull.autoMergeRequest != null && !lane.queued.includes(pull.number)).length;
     // Why the room keeps `pull` from arming, with `disarm` when it also turns
     // an armed one off; null when it has room.
+    // An unknown room holds as a refusal does: unknown holds.
+    const laneHeld =
+      lane?.refusal != null ? `pr-merge's gate holds its lane off (${lane.refusal})` : lane?.unreadable != null ? `the lane's room could not be read (${lane.unreadable})` : null;
     const roomHold = (pull) => {
       if (lane === null || !lanes(pull)) {
         return null;
       }
-      if (lane.refusal !== null) {
-        return { disarm: true, reason: `pr-merge's gate holds its lane off (${lane.refusal})` };
-      }
-      // An unknown room holds as a refusal does: unknown holds.
-      if (lane.unreadable !== null) {
-        return { disarm: true, reason: `the lane's room could not be read (${lane.unreadable})` };
+      if (laneHeld !== null) {
+        return { disarm: true, reason: laneHeld };
       }
       if (pull.autoMergeRequest != null) {
         return null;
       }
       return inFlight >= lane.cap ? { disarm: false, reason: `merge.max-in-flight is ${lane.cap} and ${inFlight} merges are in flight` } : null;
     };
+    // The lane pull requests the room's refusal or unread room left unarmed.
+    const roomHeld = [];
     let failed = 0;
     const minutes = riskEscalationMinutes(env.RESOLVED_CONFIG ?? "");
     // A reader run's per pull request refusal (a hold path or cost hold, or
@@ -684,6 +689,9 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
       let detail = null;
       // Checked before the reads, so a held lane spends none.
       const held = ["read", "verify", "arm"].includes(action) ? roomHold(pull) : null;
+      if (held?.disarm) {
+        roomHeld.push(pull.number);
+      }
       if (held !== null) {
         ({ action, reason } = { action: held.disarm && pull.autoMergeRequest != null ? "disarm" : "none", reason: held.reason });
       }
@@ -767,6 +775,19 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
       }
       if (action === "disarm") {
         await note(pull, detail, { clears, reason });
+      }
+    }
+    // One annotation and one summary line per run, not a comment per pull
+    // request: the room is read again every scheduled run.
+    if (roomHeld.length > 0) {
+      const text = escapeCommand(`${laneHeld}; left unarmed: ${roomHeld.map((number) => `#${number}`).join(", ")}`);
+      console.log(`::warning title=enable-auto-merge::${text}`);
+      if (env.GITHUB_STEP_SUMMARY) {
+        try {
+          appendFileSync(env.GITHUB_STEP_SUMMARY, `enable-auto-merge: ${text}\n`);
+        } catch (error) {
+          console.log(`enable-auto-merge: the step summary was not written: ${describe(error)}`);
+        }
       }
     }
     return failed === 0 ? 0 : 1;

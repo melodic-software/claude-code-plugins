@@ -1113,12 +1113,15 @@ review, the trust gate and the cost review all hold. Each such run also
 waits for the same run's `post-merge-dispatch` job and reads the lane's room from the post-merge
 report that job keeps as an artifact (`babysit_verify_evidence.py lane-room`; with no report, or
 one the gate would not reuse (`shared_refusal`: too old, a demotion record changed since, or a lane
-merge landed since that it does not count), it holds as a refusal does): while the gate holds its lane off (a demotion record,
+merge landed since that it does not count), it holds as a refusal does; one past the gate's
+two-minute reuse age only because a lane merge is still unverified is checked again and written
+back, as the gate does, and holds only when that check cannot be read): while the gate holds its lane off (a demotion record,
 `merge.rung`, the loop setting or the rung cap off, a lane merge that failed its post-merge check)
 nothing is armed and every armed lanes App pull request is disarmed; at `merge.max-in-flight`,
 counting the queue's lane entries, the lane's unverified merges and armed pull requests the queue
 has not taken, nothing more is armed; a room that cannot be read (no report, a failed read) holds
-as a refusal does.
+as a refusal does. A held room raises one warning annotation and one step-summary line naming why
+and each lanes App pull request it left unarmed, and no comment on the pull requests.
 Only the scheduled run and a hand-started one read
 them and arm, last, for a pull request every other rule would arm or keep armed, with the gate's
 saved listing, head-ref map and run cache; an event run reads no link or verdict, never arms, and

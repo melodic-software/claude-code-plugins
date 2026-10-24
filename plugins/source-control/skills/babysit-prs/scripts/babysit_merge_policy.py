@@ -4490,18 +4490,62 @@ class LaneRoom:
         }
 
 
+def _recompute_shared(
+    repo: str,
+    default: str,
+    identity: str,
+    self_logins: frozenset[str],
+    post_merge: Callable[[datetime, str], PostMergeGate],
+    now: datetime | None,
+) -> SharedPostMerge | None:
+    """The run's shared answer read afresh at the default branch head, as
+    `assess` reads it for a pr-merge candidate: the head, its config commit,
+    the demotion, the floor, then the post-merge check, bound at a
+    `computed_at` taken before them. None when the check is not readable.
+    Raises `PolicyReadError`."""
+    computed_at = now or datetime.now(UTC)
+    _, head = _default_branch_head(repo, default)
+    config_sha = newest_config_commit(repo, head)
+    demotion = read_demotion(
+        repo,
+        agent_identity=identity,
+        self_logins=self_logins,
+        permission=permission_reader(repo),
+    )
+    floor = merged_since_floor(repo, head, demotion, PR_MERGE)
+    gate = post_merge(floor, identity)
+    if gate.report.get("readable") is not True:
+        return None
+    return SharedPostMerge(
+        main_sha=head,
+        config_sha=config_sha,
+        identity=identity,
+        self_logins=self_logins,
+        lane_merges_only=True,
+        computed_at=computed_at,
+        demotion=demotion,
+        floor=floor,
+        gate=gate,
+    )
+
+
 def lane_room(
     repo: str,
     shared: SharedPostMerge | None,
     *,
     lane_rung_cap: str | None,
     now: datetime | None = None,
+    post_merge: Callable[[datetime, str], PostMergeGate] | None = None,
+    share: Callable[[SharedPostMerge], object] | None = None,
 ) -> LaneRoom:
     """Whether the pr-merge lane may merge one more of its own pull requests
     now, for native auto-merge, which skips `assess`: the run-level refusals
     `assess` applies to every lane candidate, read once at the default branch
     head, in its order. `shared` is this run's `babysit_postmerge.py` answer
     (`babysit_postmerge.read_shared`), as the gate's `--postmerge-result`.
+    `post_merge` and `share` are `assess`'s: an answer refused only as
+    `unverified-stale` is read again as the gate reads it (`_recompute_shared`),
+    and a readable one goes to `share` and stands in for `shared`.
 
     - A config naming another authority stops (`enabled_authority`).
     - A post-merge refusal stops (`post-merge:<refusal>`).
@@ -4517,7 +4561,10 @@ def lane_room(
     not be read included, is `unreadable`. So is a `shared` the gate would
     not reuse (`shared_refusal`): too old (a re-run job downloads the run's
     first report, up to a day old), a demotion record filed or changed
-    since, or a lane merge landed since that it does not count."""
+    since, or a lane merge landed since that it does not count. An
+    `unverified-stale` one is read again instead, since a lane merge's
+    verifying run may have passed or failed since; a read that fails or is
+    not readable leaves it `unreadable`."""
     if shared is None:
         return LaneRoom(unreadable="post-merge answer missing or unreadable")
     try:
@@ -4545,6 +4592,18 @@ def lane_room(
         authority=PR_MERGE,
         now=now,
     )
+    if unusable == "unverified-stale" and post_merge is not None:
+        try:
+            fresh = _recompute_shared(
+                repo, default, identity, shared.self_logins, post_merge, now
+            )
+        except (RuntimeError, ValueError, OSError) as exc:
+            return LaneRoom(unreadable=f"post-merge answer {unusable}: {exc}")
+        if fresh is None:
+            return LaneRoom(unreadable=f"post-merge answer {unusable}: unreadable")
+        if share is not None:
+            share(fresh)
+        shared, unusable = fresh, None
     if unusable:
         return LaneRoom(unreadable=f"post-merge answer {unusable}")
     if shared.gate.refusal:

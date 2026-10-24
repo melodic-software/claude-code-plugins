@@ -3097,6 +3097,26 @@ def gate_from_report(report: dict[str, Any]) -> policy.PostMergeGate:
     )
 
 
+def gate_reader(
+    repo: str, self_logins: Collection[str], *, lane_merges_only: bool
+) -> Callable[[datetime, str], policy.PostMergeGate]:
+    """The merge gate's `post_merge(floor, identity)`: this check from
+    `floor`, as `gate_from_report` reads it."""
+
+    def post_merge(floor: datetime, identity: str) -> policy.PostMergeGate:
+        verdict = check(
+            repo,
+            agent_identity=identity,
+            is_human=_default_is_human(repo, identity, self_logins),
+            merged_since=floor,
+            pinned_sha=pin_reader(repo, identity),
+            lane_merges_only=lane_merges_only,
+        )
+        return gate_from_report(verdict.report())
+
+    return post_merge
+
+
 def read_shared(path: str) -> policy.SharedPostMerge | None:
     """The run's shared answer from this script's own report at `path`, or
     None when it is missing, malformed, unreadable as a verdict, or has no
