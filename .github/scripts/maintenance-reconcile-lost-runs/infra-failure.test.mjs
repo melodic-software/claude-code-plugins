@@ -195,3 +195,12 @@ test("the tested run steps past failed contract-only runs, and stops at any othe
   assert.deepEqual(await testedRun([green, failedRun(2)], readJobs), { run: green, jobs: null });
   assert.equal(await testedRun(Array.from({ length: 6 }, () => failedRun(3)), readJobs), undefined);
 });
+
+// A run stuck queued or waiting holds fix-ci off only inside the lookback.
+test("an in-flight tested run holds fix-ci only while it was created inside the lookback", () => {
+  const now = Date.parse("2026-10-19T20:00:00Z");
+  const going = (created) => ({ id: 1, status: "queued", run_attempt: 2, created_at: created });
+  assert.match(reconcilerOwns({ run: going("2026-10-19T19:00:00Z"), jobs: null }, now), /its result decides/);
+  assert.equal(reconcilerOwns({ run: going("2026-10-18T19:00:00Z"), jobs: null }, now), "");
+  assert.equal(reconcilerOwns({ run: going("not a date"), jobs: null }, now), "");
+});

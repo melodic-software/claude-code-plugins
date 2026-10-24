@@ -75,7 +75,8 @@ export const RERUN_DUE_MINUTES = INFRA_BACKOFF_MINUTES[0] + 2 * 30;
 // step) waits on nothing else, and neither does a run or field that cannot be
 // read.
 export function reconcilerOwns({ run, jobs }, now) {
-  if (IN_FLIGHT.has(run?.status)) {
+  // A run stuck in flight holds fix-ci off only inside the lookback.
+  if (IN_FLIGHT.has(run?.status) && Date.parse(run.created_at) >= now - LOOKBACK_HOURS * 3_600_000) {
     return `run ${run.id} attempt ${run.run_attempt} is ${run.status}; its result decides`;
   }
   // Both waits end at RERUN_DUE_MINUTES: an unreadable time or attempt waits on nothing.
@@ -119,7 +120,7 @@ export const lostRunnerNoted = (job) =>
 
 // True when a failed lane job's steps cannot be read, so whether the run's
 // failures are infra is unknown.
-const stepsUnread = (jobs) =>
+export const stepsUnread = (jobs) =>
   Array.isArray(jobs) && jobs.some((job) => job?.conclusion === "failure" && !AGGREGATE_JOBS.has(job.name) && !stepsKnown(job));
 
 // Why the failed job is infra ("time limit", "install", "lost runner"), or ""

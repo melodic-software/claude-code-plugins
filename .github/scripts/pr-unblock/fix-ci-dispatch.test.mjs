@@ -779,3 +779,47 @@ test("a listed head with failed lanes that is skipped logs why; a passing or pen
     ["skip fix-ci #1: not a ready same-repository PR into the base", "skip fix-ci #5: not a ready same-repository PR into the base"],
   );
 });
+
+// A rate-limited read is no reason to spend a model run: the head waits for a
+// later dispatcher run, as a rate-limited workflow listing does.
+test("a rate-limited required-run read dispatches nothing and says so", async () => {
+  const head = "5".padStart(40, "a");
+  const limited = Object.assign(new Error("GET https://api.example/runs returned 403"), { rateLimited: true });
+  const { api, lines, result } = await run({ pages: [[pr(5)]], requiredRuns: new Map([[head, limited]]) });
+  assert.deepEqual(result, { dispatched: [], failed: 0 });
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.ok(lines.some((line) => line.startsWith("::warning::#5: its required run read is rate limited")), lines.join("\n"));
+});
+
+// Job and step names come from the PR head's workflow file, so the log line
+// that carries them can hold no workflow command.
+test("a failed job or step name with a newline or control character cannot start a workflow command in the log", async () => {
+  const head = "5".padStart(40, "a");
+  const evil = [
+    { name: "lint\n::error::x", conclusion: "failure", steps: [{ name: "Set up job", conclusion: "success" }, { name: `run\r\n::add-mask::y\u0007${"z".repeat(300)}`, conclusion: "failure" }] },
+  ];
+  const { lines, result } = await run({ pages: [[pr(5)]], requiredRuns: new Map([[head, { run: tested(1), jobs: evil }]]) });
+  assert.deepEqual(
+    result.dispatched.map((d) => d.number),
+    [5],
+  );
+  const line = lines.find((l) => l.startsWith("dispatched fix-ci #5 "));
+  assert.ok(line, lines.join("\n"));
+  assert.ok(!/[\r\n\x00-\x1f]/.test(line), JSON.stringify(line));
+  assert.ok(line.length < 400, String(line.length));
+  assert.ok(line.includes("(cause: code failure in lint ::error::x / run ::add-mask::y"), line);
+});
+
+// A job whose steps never listed is not shown as a code failure once the
+// re-read window has passed.
+test("a failed job whose steps never listed is logged as such past the deadline", async () => {
+  const head = "5".padStart(40, "a");
+  const old = new Date(NOW - (RERUN_DUE_MINUTES + 5) * 60_000).toISOString();
+  const unlisted = [{ name: "lint-repo", status: "completed", conclusion: "failure", runner_id: 7, steps: [] }];
+  const { lines, result } = await run({ pages: [[pr(5)]], requiredRuns: new Map([[head, { run: { ...tested(2), updated_at: old }, jobs: unlisted }]]) });
+  assert.deepEqual(
+    result.dispatched.map((d) => d.number),
+    [5],
+  );
+  assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #5 ") && line.endsWith(`(cause: steps unlisted past ${RERUN_DUE_MINUTES} min in lint-repo)`)), lines.join("\n"));
+});
