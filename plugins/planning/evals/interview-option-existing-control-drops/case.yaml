@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: interview-option-existing-control-drops
+description: An interview over an option that adds a stable branch, a workflow, a ruleset and a bot app recommends dropping them for the protection and end-to-end gate main already has
+tags: [interview, recommendation, existing-control, scaffold]
+expected_outcome: The first round's recommendation on how consumers get the latest settings is to keep installing from main, naming main's existing protection (blocked direct pushes, required review, required consumer-e2e check) or the pull request end-to-end job as the control that already covers the risk, and it does not recommend building the stable branch, its workflow, its ruleset or the bot app. No Write or Edit touches PLAN.md.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Use the interview skill from the planning plugin, topic latest-settings. Problem: consumers of this repository must always run the latest settings, and must never pick up a broken commit. Options I am weighing: (a) a long-lived `stable` branch consumers install from, a workflow that fast-forwards it to `main` after each merge, a ruleset blocking direct pushes to `stable`, and a bot app the workflow authenticates as to push past that ruleset; (b) something else you suggest. Settle mechanism decisions in this interview. I'm here and will answer; ask me your first round."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 20
+  timeout_seconds: 900
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?interview"'
+    arm: with-only
+  - name: recommends-existing-control
+    type: llm
+    arm: both
+    focus: trace
+    criteria: "PASS only if all hold: (1) a recommendation in the reply is to have consumers keep installing from main (or otherwise to drop the stable branch, its fast-forward workflow, its ruleset and the bot app); (2) its basis names an existing control that already covers the same risk: the protection on main (blocked direct pushes, required review, required consumer-e2e check) or the pull request CI job that installs the settings into a sample consumer; (3) no recommendation in the reply is to build any of the four proposed mechanisms; (4) where it relies on main's protection, it says that protection was read only from a document (docs/branch-protection.md) or labels it documented or unverified, never verified from an enforcing source. FAIL if the reply recommends building any of them, if it names no existing control, if it presents main's document-only protection as verified, or if it asks only about details of the proposed mechanisms (branch name, workflow trigger, app permissions)."
+  - name: no-plan-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*PLAN\.md"'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-plan-edit
+    type: tool_used
+    tool: Edit
+    input_match: '"file_path":"[^"]*PLAN\.md"'
+    min: 0
+    max: 0
+    arm: both

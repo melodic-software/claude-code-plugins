@@ -123,6 +123,8 @@ Step 5, the approval gate, is placed with the gates above so a compaction re-att
 
 ### Step 1: Prerequisite Check
 
+Before a step adds a mechanism (a branch, workflow, ruleset, app, service, dependency or check), name the existing control that already covers the same risk, saying whether you read its enforcing source or only a document, and drop the step if one does, listing each drop at Step 5: in the "Displaced answers and new external effects" block when it overturns a Brief answer, under "Decisions made" otherwise. A security control (`/overengineering:justify`'s protected classes; when that list cannot be read or a mechanism's status is uncertain, any security, access-control or destructive-operation guard) is never dropped without the user's decision: an unattended run keeps it and reports the would-be drop as **USER-RESERVED**. An abstraction for a stated, known repetition stays when it passes the standards index's `reference-dont-duplicate` tests, or, with no such entry, when its second consumer is stated and its shape is namable and stable. For a non-trivial new mechanism, run `/overengineering:justify` on the proposal if enabled.
+
 Prefer the simplest plan that works and keep each step's changes surgical. Before planning, verify:
 
 - **Is the effort coherent enough to plan?** If the work is too big to hold at once AND still too foggy to phrase as sharp decisions (questions you can't yet state, not just unanswered ones), `/planning:plan` is premature. Guide the user to `/planning:wayfind` when an interview of the effort already outgrew one session, else to `/planning:interview` first; recommend, never auto-switch. Skip when the effort is scoped and the open items are answerable questions
