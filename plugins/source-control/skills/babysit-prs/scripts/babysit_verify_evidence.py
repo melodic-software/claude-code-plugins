@@ -36,7 +36,15 @@ from a completed, successful one. Any other artifact is ignored.
   pull request's own change at the head differs from its change at every
   FAILed head (`change_digest`: a head that only merges the branch or adds
   an empty commit carries the FAIL forward, and a diff that holds no change
-  or answers 404 keeps the refusal), and those passes decide, as below. Any
+  or answers 404 keeps the refusal), and those passes decide, as below. A
+  FAILed head of the same change is cleared too when every counted pass at
+  the head records `spec_kind` `closes` and every counted FAIL at that head
+  records `spec_kind` `refs` for this pull request (`_wider_pass`): a
+  `closes` pass is judged against the whole spec, which the `refs` slice
+  that failed is part of. The reverse, a key that is missing or holds
+  anything else, and a FAIL record that cannot be read, records no linked
+  issue, or records another pull request, head or verdict keep
+  `verify:earlier-fail`. Any
   other failed read of a run time or a diff refuses as the next item does;
 - a FAIL-named artifact tied to this pull request by number or SHA whose run
   cannot be read: `verify:unreadable`. An untied FAIL whose run cannot be read
@@ -117,6 +125,7 @@ import sys
 import tempfile
 import time
 import zipfile
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -1077,6 +1086,8 @@ class Reader:
         verdicts: list[Verdict] = []
         passes: list[tuple[int, str, Any]] = []
         head_fails: list[tuple[int, str]] = []
+        # Counted FAILs by head: run id, artifact name and id (`_wider_pass`).
+        fail_artifacts: dict[str, list[tuple[int, str, Any]]] = {}
         ignored = 0
         unreadable: str | None = None
         # FAILs of verifier origin by pull request number, and the numbers
@@ -1152,6 +1163,7 @@ class Reader:
                 if not head_ref or recorded != head_ref:
                     continue
             verdicts.append(Verdict(sha, verdict, run_id))
+            fail_artifacts.setdefault(sha, []).append((run_id, name, item.get("id")))
             if sha == head and verdict == "fail":
                 head_fails.append((run_id, name))
         fails = [v for v in verdicts if v.verdict == "fail"]
@@ -1176,7 +1188,11 @@ class Reader:
                 )
         elif fails and (
             not self._passes_follow(fails, passes)
-            or not self._change_differs(head, failed)
+            or not self._change_differs(
+                head,
+                failed,
+                lambda sha: self._wider_pass(number, sha, fail_artifacts, passes),
+            )
         ):
             refusal = EARLIER_FAIL
         elif unreadable:
@@ -1343,17 +1359,65 @@ class Reader:
                 )
         return self._digests[sha]
 
-    def _change_differs(self, head: str, failed: set[str]) -> bool:
+    def _change_differs(
+        self,
+        head: str,
+        failed: set[str],
+        same_change_clears: Callable[[str], bool] | None = None,
+    ) -> bool:
         """The pull request's change at the head differs from its change at
-        every FAILed head, so its pass judged a change no FAIL did. A diff
-        that holds no change differs from nothing; a failed read raises
-        `_Unreadable`. Heads are read in sorted order, so which of a FAIL
-        that carries and an unreadable one decides never varies by run."""
+        every FAILed head, so its pass judged a change no FAIL did, or, at a
+        head of the same change, `same_change_clears` says the pass judged
+        more than its FAIL did. A diff that holds no change differs from
+        nothing; a failed read raises `_Unreadable`. Heads are read in sorted
+        order, so which of a FAIL that carries and an unreadable one decides
+        never varies by run."""
         own = self._digest(head)
         return own is not None and all(
-            (other := self._digest(sha)) is not None and other != own
+            (other := self._digest(sha)) is not None
+            and (
+                other != own
+                or (same_change_clears is not None and same_change_clears(sha))
+            )
             for sha in sorted(failed)
         )
+
+    def _wider_pass(
+        self,
+        number: int,
+        sha: str,
+        fail_artifacts: dict[str, list[tuple[int, str, Any]]],
+        passes: list[tuple[int, str, Any]],
+    ) -> bool:
+        """Every counted pass at the head records `spec_kind` `closes` and
+        every counted FAIL at `sha` records `spec_kind` `refs` for pull
+        request `number` at `sha` with at least one linked issue: the passes
+        judged the whole spec where the FAILs judged a slice of it. Only
+        those exact values count, never the default `_pass_refusal` gives an
+        older record; a record that cannot be read is False."""
+        fails = fail_artifacts.get(sha, [])
+        if not passes or not fails:
+            return False
+        try:
+            if any(
+                self._record(run_id, name, artifact).get("spec_kind") != "closes"
+                for run_id, name, artifact in passes
+            ):
+                return False
+            for run_id, name, artifact in fails:
+                record = self._record(run_id, name, artifact)
+                if (
+                    record.get("pr") != number
+                    or record.get("head_sha") != sha
+                    or record.get("verdict") != "fail"
+                    or record.get("spec_kind") != "refs"
+                    or not is_json_array(record.get("linked_issues"))
+                    or not record["linked_issues"]
+                ):
+                    return False
+        except _Unreadable:
+            return False
+        return True
 
     def _listed_id(self, run_id: int, name: str) -> Any:
         """The id the listing this Reader judged on gives the artifact named
