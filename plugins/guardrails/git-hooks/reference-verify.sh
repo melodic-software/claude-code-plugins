@@ -20,11 +20,10 @@
 #
 # The ranges come from the check lib: one per pushed ref, a new branch from its
 # merge-base with the remote's default branch, a deletion skipped. A hook
-# manager that keeps stdin from this script (lefthook passes it to only one
-# use_stdin job) leaves the lib's fallback: the current branch against its
-# upstream. Each range is checked on its own, in that range's tip: the
-# checkout when HEAD is the tip and the tree is clean, else a temporary
-# detached worktree of the tip, removed afterwards.
+# manager that keeps stdin from this script leaves the lib's fallback: the
+# current branch against its upstream. Each range is checked on its own, in
+# that range's tip: the checkout when HEAD is the tip and the tree is clean,
+# else a temporary detached worktree of the tip, removed afterwards.
 #
 # A finding prints as "<path>:<line>: <message>" on stderr, the line being the
 # file's first added line, and exits 1. Missing jq follows the check-placement
