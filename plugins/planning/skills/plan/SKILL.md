@@ -123,7 +123,7 @@ Step 5, the approval gate, is placed with the gates above so a compaction re-att
 
 ### Step 1: Prerequisite Check
 
-Before a step adds a mechanism (a branch, workflow, ruleset, app, service, file, dependency or check), name the existing control that already covers the same risk (a CI check or test, branch protection, a hook, a workflow) and drop the mechanism if one does; an abstraction for a stated, known repetition with a namable shape is not overengineering (the standards index's `simpler-code` and `reference-dont-duplicate` entries draw that line). For a non-trivial new mechanism, run `/overengineering:justify` on the proposal if enabled.
+Before a step adds a mechanism (a branch, workflow, ruleset, app, service, file, dependency or check), name the existing control that already covers the same risk (a CI check or test, branch protection, a hook, a workflow) and drop the mechanism if one does; an abstraction for a stated, known repetition is not overengineering when the standards index's `reference-dont-duplicate` tests T3 to T5 say that repetition is enough (`simpler-code` names the failure modes on the other side). For a non-trivial new mechanism, run `/overengineering:justify` on the proposal if enabled.
 
 Prefer the simplest plan that works and keep each step's changes surgical. Before planning, verify:
 

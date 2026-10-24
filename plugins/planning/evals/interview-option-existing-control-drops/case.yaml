@@ -6,7 +6,7 @@ expected_outcome: The first round's recommendation on how consumers get the late
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: "/planning:interview topic latest-settings. Problem: consumers of this repository must always run the latest settings, and must never pick up a broken commit. My plan: add a long-lived `stable` branch consumers install from, a workflow that fast-forwards it to `main` after each merge, a ruleset blocking direct pushes to `stable`, and a bot app the workflow authenticates as to push past that ruleset. Ask me your first round."
+  prompt: "Use the interview skill from the planning plugin, topic latest-settings. Problem: consumers of this repository must always run the latest settings, and must never pick up a broken commit. My plan: add a long-lived `stable` branch consumers install from, a workflow that fast-forwards it to `main` after each merge, a ruleset blocking direct pushes to `stable`, and a bot app the workflow authenticates as to push past that ruleset. I'm here and will answer; ask me your first round."
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
   max_turns: 20
   timeout_seconds: 900
@@ -19,7 +19,7 @@ graders:
   - name: recommends-existing-control
     type: llm
     arm: both
-    focus: last_message
+    focus: trace
     criteria: "PASS only if all hold: (1) a recommendation in the reply is to have consumers keep installing from main (or otherwise to drop the stable branch, its fast-forward workflow, its ruleset and the bot app); (2) its basis names an existing control that already covers the same risk: the protection on main (blocked direct pushes, required review, required consumer-e2e check) or the pull request CI job that installs the settings into a sample consumer; (3) no recommendation in the reply is to build any of the four proposed mechanisms. FAIL if the reply recommends building any of them, if it names no existing control, or if it asks only about details of the proposed mechanisms (branch name, workflow trigger, app permissions)."
   - name: no-plan-write
     type: tool_used

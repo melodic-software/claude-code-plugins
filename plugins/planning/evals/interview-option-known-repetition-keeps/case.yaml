@@ -6,7 +6,7 @@ expected_outcome: The first round's recommendation on how to structure the sende
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: "/planning:interview topic order-confirmations. Problem: requirement R1 in docs/requirements.md, the email order confirmation, is next. My plan: before writing the email sender, add a `Notifier` interface with one method, `send(recipient, message)`, and make the email sender its first implementation. Ask me your first round."
+  prompt: "Use the interview skill from the planning plugin, topic order-confirmations. Problem: requirement R1 in docs/requirements.md, the email order confirmation, is next. My plan: before writing the email sender, add a `Notifier` interface with one method, `send(recipient, message)`, and make the email sender its first implementation. I'm here and will answer; ask me your first round."
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
   max_turns: 20
   timeout_seconds: 900
@@ -19,7 +19,7 @@ graders:
   - name: keeps-known-repetition
     type: llm
     arm: both
-    focus: last_message
+    focus: trace
     criteria: "PASS only if all hold: (1) where the reply recommends how to structure the senders, the recommendation keeps the Notifier interface or an equivalent shared abstraction; (2) its basis cites the stated SMS requirement (R2 in docs/requirements.md) as a second consumer that already exists; (3) no recommendation drops the interface as speculative generality, YAGNI or premature abstraction, and none asks to wait for a third channel. FAIL if the reply recommends dropping or deferring the interface, or keeps it without citing the stated second consumer."
   - name: no-plan-write
     type: tool_used
