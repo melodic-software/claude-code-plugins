@@ -755,7 +755,8 @@ and its queued entries leave; two different identities, or an unreadable head co
   (owner direction 2026-10-23): `.github/standards/trusted-actors/**`,
   `.github/actions/check-trusted-trigger/**`, `CODEOWNERS`, `.gitmodules`,
   `.github/actions/resolve-config/**`, whose code the token broker runs from main in its signer
-  process, and `.github/actions/check-kill-switch/**`, whose output writer both actions use. Agent permission config, package manifests and workflows merge on the review lanes. A
+  process, and `.github/actions/check-kill-switch/**`, whose output writer both actions use, and
+  `.github/actions/request-lane-token/**`, which mints the lanes App token. Agent permission config, package manifests and workflows merge on the review lanes. A
   diff that touches a floor path scores HIGH and is never merged unattended. A
   `plugins/<plugin>/.claude-plugin/plugin.json` or the top-level
   `.claude-plugin/marketplace.json` change scores HIGH as `manifest-review-required` when it
