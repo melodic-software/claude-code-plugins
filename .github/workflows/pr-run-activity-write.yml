@@ -990,7 +990,7 @@ jobs:
       # .base.
       - name: Set up Python for the test-file runner
         if: contains(steps.stage.outputs.claude-args, '/lane-verify/bin/run-test-file ')
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: .base/.python-version
       - name: Install the pinned pytest for the test-file runner
@@ -1340,7 +1340,7 @@ jobs:
       - name: Set up Python for the skill
         if: >-
           steps.setup-env.outputs.ready == 'true'
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version-file: ${{ runner.temp }}/setup-env/.python-version
 
@@ -1369,7 +1369,7 @@ jobs:
         if: >-
           steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'skill'
         continue-on-error: true
-        uses: anthropics/claude-code-action@ae68417a745a5df4b2124873632bd73a2255e6f6 # v1.0.259
+        uses: anthropics/claude-code-action@16f9f71ab9c490faf367f94dd294897edc25be33 # v1.0.261
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
           # MCP subprocesses and gives Bash its own PID namespace, so /proc
