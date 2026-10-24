@@ -674,7 +674,7 @@ FILE=$("$PY" -X utf8 "$SAVE_POINT" new --topic "$TOPIC" --memory-dir "$MEMORY_RO
 #    so a remembered template hits fill's unknown-key refusal. Write ONE JSON
 #    object keyed by those names, every value a string; a multi-line value is one
 #    string with escaped newlines ("First headline\nSecond headline"), which the
-#    next slot and the cumulative slots need. Leave an optional slot out
+#    next slot and the rules and trail slots need. Leave an optional slot out
 #    (goal-first, goal-after, below-rail, goal-new, <section>-new) and fill deletes its line. For a
 #    closing handoff the next value is exactly "Next: none (closed)", which fill
 #    puts on the line above before deleting the slot line.
@@ -828,19 +828,24 @@ absent field.
 
 **Carrying the goal forward: read it off disk, never out of memory.** With `--previous`, `new`
 opens that file and reproduces its `Original goal` verbatim quote and every recorded amendment
-into this handoff unchanged, then the five cumulative sections and the `## Prior sessions` rows.
+into this handoff unchanged; after a shape-3 predecessor it also carries the current rules,
+standing preferences, direction trail and last `## Prior sessions` rows, and writes the rest of
+the predecessor into this hop's file (a `--shape 2` successor carries the five cumulative sections
+and every row instead).
 Rebuilding the goal from the conversation is how the drift starts: the conversation is what
 already lost it, and each rebuild is individually plausible, which is why the loss is invisible
 until many hops later. The prior file is on disk and one read away. A writer that did not open it
 has not carried the goal forward, whatever its text ends up saying. Same rule as the live
 `TaskList` call in a session that has the task tools: the check is that the read happened, not that the result looks right. The
-validator checks the copy: the predecessor's `chain:`, its `## Prior sessions` rows, and every
-cumulative entry must survive in the successor (in place or under `Superseded:`).
+validator checks the copy: whatever the predecessor held must survive in the hot file or this
+hop's file (shape 3), or in the successor in place or under `Superseded:` (shape 2); its FAIL
+lines name what went missing.
 
 ### Legacy predecessors and unfinished skeletons
 
 **Shape-1 predecessors are read, never rewritten.** `--previous` accepts a shape-1 file. `new`
-maps it: an absent cumulative section becomes `None. (shape-1 predecessor had no <section>)`; the
+moves the sections it has into the hop file verbatim (a `--shape 2` successor instead maps it: an
+absent cumulative section becomes `None. (shape-1 predecessor had no <section>)`); the
 older 7-section body (`## Task`, `## Progress`, `## Decisions made`, …) is NOT aliased onto the
 14-section names; an absent `Original goal` becomes a
 `<!-- FILL: goal — RECONSTRUCTED … -->` slot that the validator refuses to pass while empty or
@@ -849,11 +854,11 @@ placeholder-shaped (settle the goal with the user, then fill it); the `Opening a
 `UNVERIFIED (shape-1 predecessor; brief: …)` cell.
 
 **A predecessor that fails shape-2 validation** (or a hand-written Python-absent file) is still
-copied forward: every carried entry is prefixed `UNVERIFIED (predecessor failed validation):`,
-and `validate` on the successor downgrades the predecessor-derived checks (chain prefix, Prior
+copied forward: in a shape-2 successor every carried entry is prefixed
+`UNVERIFIED (predecessor failed validation):`, and `validate` on the successor downgrades the predecessor-derived checks (chain prefix, Prior
 sessions prefix) to WARN naming the predecessor's failure, so one bad hop never blocks every later
-hop. The predecessor is never rewritten. Validation looks one level back only; it does not walk the
-chain.
+hop. The predecessor is never rewritten. Validation looks one level back only, except that a shape-3 file walks its shape-3
+predecessors' frontmatter to find their hop files.
 
 **Unfinished skeletons stay on disk and are never a save-point.** A `new` run that was never
 filled (compaction mid-write, a fix loop that ended `UNVALIDATED`) leaves a `type: handoff` file
