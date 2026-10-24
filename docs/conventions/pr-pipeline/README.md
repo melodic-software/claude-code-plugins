@@ -1582,7 +1582,8 @@ name carries no head-ref digest has its recorded head ref shared for the run und
 never change (an overwrite uploads a new id). Those head refs, by artifact id, also carry to the
 next run as the `pr-merge-head-refs` artifact (`.github/scripts/pr-merge/head-ref-map.mjs`): each
 scheduled or hand-started run uploads the map it read plus its own downloads, kept while the
-artifact listing still lists the id, and the next run reads it from the newest such run, found the
+artifact listing still lists the id; with no listing file it carries the map it read as it is,
+without its own downloads, and with a listing that cannot be parsed it uploads nothing. The next run reads it from the newest such run, found the
 way the gate cursor is. Only a run's own steps can upload its artifacts, so the map was written by
 the default branch's `pr-merge.yml`; it never passes through `actions/cache`. An id the map holds
 ties or unties its FAIL as its downloaded record would, with no download; any other id is
