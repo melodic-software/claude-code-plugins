@@ -14,6 +14,7 @@
 - [Phase Review tags (optional per phase)](#phase-review-tags-optional-per-phase)
 - [Planned breakage (optional per phase)](#planned-breakage-optional-per-phase)
 - [Visual parity (optional per phase)](#visual-parity-optional-per-phase)
+- [Model-run phases](#model-run-phases)
 - [Phase-entry checks for tracker writes](#phase-entry-checks-for-tracker-writes)
 - [Checkbox inventory pattern](#checkbox-inventory-pattern)
 - [Domain-specialist skills during planning](#domain-specialist-skills-during-planning)
@@ -119,6 +120,7 @@ Without pre-flight, migrations break consumers silently. Example: a frontmatter 
 - <Bug fixes: name the regression test that fails pre-fix, or document an explicit carve-out with rationale>
 - <Edge cases to cover>
 - <Existing tests that need updating>
+- <Verification that spends model runs (evals, agent fan-outs, benchmark batches): follow "Model-run phases">
 
 ### Risks and Mitigations
 
@@ -435,6 +437,25 @@ Implementation's refactor mode captures those states before the phase's first ed
 them at each green checkpoint through `/testing:check-visual-parity`, when it is among the
 available skills. Name states a capture can reach, such as `order list (empty)` or
 `checkout (card declined)`. Omit the line when the phase may change how the UI looks.
+
+## Model-run phases
+
+A phase or test step that spends model runs (evals, agent fan-outs, benchmark batches) is ordered
+and capped before approval, so one bad assumption cannot burn a whole batch:
+
+1. **Reproduce first.** The first work item is the cheapest check that the problem being fixed
+   reproduces. Its result is graded and read before any baseline or comparison batch starts; a
+   problem that does not reproduce stops the phase.
+2. **Measure, then size.** Run 1-2 runs, record the tokens each used, and derive the run count
+   from that measurement, never from an estimate.
+3. **Budget the runner.** The phase carries a run count the runner enforces:
+
+```markdown
+### Phase N: <name> [TODO]
+**Run budget:** <N> runs, sized from <tokens per run> measured on <1-2> runs; the runner refuses run <N+1> and launches nothing after the first usage-limit error
+```
+
+Raising the budget is a plan change that goes back to the user.
 
 ## Phase-entry checks for tracker writes
 

@@ -107,7 +107,11 @@ const specOf = (body = "The README is wrong.", comments = []) => ({
   comments: { totalCount: comments.length, nodes: comments.map(([id, text]) => ({ body: text, lastEditedAt: null, author: actor(id), editor: null })) },
 });
 const CONFIRMED = specOf("The README is wrong.", [[HUMAN, "**Decision recorded.**\n\n- [ ] The README count matches the plugin count"]]);
-const APP_ONLY = specOf("The README is wrong.", [[APP, `${REFINE_MARKER}\n- [ ] The README count matches the plugin count`]]);
+const REFINED = `${REFINE_MARKER}\n- [ ] The README count matches the plugin count`;
+// The App filed the issue, so its refinement is no one's spec (owner Q78).
+const APP_ONLY = { ...specOf("The README is wrong.", [[APP, REFINED]]), author: actor(APP) };
+// A listed human filed it, so the App's unedited refinement is spec (owner Q78).
+const HUMAN_REFINED = specOf("The README is wrong.", [[APP, REFINED]]);
 const writes = (calls) => calls.filter((call) => call.method !== "GET" && call.path !== "/graphql");
 
 const issueOf = (overrides = {}) => ({
@@ -395,6 +399,12 @@ describe("applyRefinement", () => {
       assert.equal(done.length, 1, "the comment only: no needs-triage, needs-decision kept");
       assert.match(done[0].body.body, /post them as your own comment whose first line is `\*\*Decision recorded\.\*\*`/);
       assert.doesNotMatch(done[0].body.body, /triages the issue again/);
+    });
+
+    test(`an exact refinement of ${branch} re-triages when a listed human filed it and the App's unedited refinement holds the task list`, async () => {
+      const fake = fakeGitHub({ ...setup, comments: [laneComment()], spec: HUMAN_REFINED });
+      assert.deepEqual(await apply(fake, EXACT), { outcome: "exact", redispatch: true });
+      assert.match(writes(fake.calls).at(-1).body.body, /triages the issue again/);
     });
 
     test(`an exact refinement of ${branch} reads the spec before its first label write and re-triages on a listed human's task list`, async () => {

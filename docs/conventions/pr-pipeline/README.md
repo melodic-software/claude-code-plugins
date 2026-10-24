@@ -500,15 +500,12 @@ Each leaf declares:
   [`resolve.mjs`](../../../.github/actions/resolve-config/resolve.mjs)). When nothing is left, the
   activity skips with `not-applicable-paths`: `pr-refine / fix-docs` does not run on a PR whose
   only changed Markdown is instruction surfaces or CODEOWNERS paths, such as this directory.
-- `scope` (`diff`, `tree`, `target`) and `applies-when` (paths, labels, `labels-absent`, work
-  classes, events, `mergeable`, `draft`, `admission`). `mergeable` is `conflicting` or `clean`,
-  read from the PR at the gated head SHA only; unknown mergeability never matches. `labels-absent`
-  matches only when none of its labels is on the PR. `admission` is an issues lane's
-  work-class rule: an issue carrying a `work-class:` label outside `classes` is refused, even
-  beside a listed one; otherwise a listed class admits it. With no `admission`, the triggering
-  label alone admits the issue; this repository's resolve-issue sets none, so `agent-ready`
-  added by a listed human or the lanes App admits, and its `labels-absent` holds keep an issue a
-  person must decide.
+- `scope` (`diff`, `tree`, `target`) and `applies-when` (paths, labels, `labels-absent`, events,
+  `mergeable`, `draft`). `mergeable` is `conflicting` or `clean`, read from the PR at the gated
+  head SHA only; unknown mergeability never matches. `labels-absent` matches only when none of its
+  labels is on the PR. No predicate reads a work class: on an issues lane the triggering label
+  alone admits the issue, so `agent-ready` added by a listed human or the lanes App admits, and
+  resolve-issue's `labels-absent` holds keep an issue a person must decide.
 
 An activity is idempotent: a rerun on the same commit gives the same verdict or reuses it, a
 mutating activity with nothing to change makes no commit, and each commit it makes names the
@@ -1559,8 +1556,13 @@ head:
   comment read refuses `verify:unreadable`. It then allows the merge only when every linked
   issue it records was written, and its body last edited if ever, by a `User` on the trusted-actor
   list's humans, the pull request's author included (otherwise `verify:untrusted-spec`); a Bot or
-  App, the lanes App among them, never counts. The model's spec text holds only what such
-  accounts wrote;
+  App, the lanes App among them, never counts. The model's spec text holds what such
+  accounts wrote and, on an issue whose body such an account wrote, intake triage's newest
+  refinement comment (opening `<!-- intake-triage refinement -->`, by the lanes App's id from
+  `merge.agent-identity` on the trusted-actor list) while unedited and posted before the pull
+  request opened. That comment stays out of the recorded spec comments, so the gate does not see
+  it edited, hidden or replaced after a pass: an edit only takes it out of spec, and a person's
+  correction made after a pass waits for the next head;
 - no counted verdict refuses (`verify:missing`).
 
 The trusted-spec rule trusts an account, not a person. An agent session that uses an owner's `gh`

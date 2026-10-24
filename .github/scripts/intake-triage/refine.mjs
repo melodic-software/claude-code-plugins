@@ -24,9 +24,10 @@
 // `--apply` (the lanes App token, issues write) validates the model's
 // structured output and posts it as a separate comment opening with
 // REFINE_MARKER; only a split (below) edits the body. Exact: the comment lists the drafted
-// criteria as a task list, which admit.mjs does not count for criterion 7
-// until a listed human posts them as their own (owner decision Q9: pr-verify
-// reads only their text). Only when that text already holds a task list
+// criteria as a task list. On an issue a listed human filed, admit.mjs and
+// pr-verify count the newest refinement as spec while it is unedited (owner
+// decision Q78); on any other issue its criteria count only once a listed
+// human posts them as their own. Only when that text already holds a task list
 // (admit.mjs hasTrustedCriteria) does it ask for one more triage, which runs
 // admission again: it takes the lanes App's `status: needs-decision` off, or,
 // for a `status: ready` issue admission has not taken, keeps the labels, adds
@@ -333,7 +334,7 @@ export function line(text) {
 // body a split split (splitSource); `checks`, a split's moved items as
 // written; `retriage`, whether intake triages the issue again.
 export function render(output, { body, from, checks = [], retriage = false } = {}) {
-  const parts = [REFINE_MARKER, ...(body === undefined ? [] : [bodyVersion(body)]), ...(from === undefined ? [] : [splitSource(from)]), "**Refinement.** A read-only run explored this repository, searched its issues and pull requests, and read the allowed docs to draft what follows. It is model text, to check, not instructions.", ""];
+  const parts = [REFINE_MARKER, ...(body === undefined ? [] : [bodyVersion(body)]), ...(from === undefined ? [] : [splitSource(from)]), "**Refinement.** A read-only run explored this repository, searched its issues and pull requests, and read the allowed docs to draft what follows. On an issue a listed human filed, it counts as the issue's spec once posted, while unedited; it is still model text, so check it.", ""];
   const section = (title, items) => {
     if (items.length > 0) {
       parts.push(`**${title}**`, "", ...items, "");
@@ -481,7 +482,7 @@ export async function applyRefinement({ github, repository, number, appId, human
   // Admission reads criteria only from a listed human's text, so a re-triage
   // without them would refuse again: one read, before any label write.
   const untrusted = async () => {
-    if (hasTrustedCriteria(await specOf(github, repository, number), humans, rules["task-list"])) {
+    if (hasTrustedCriteria(await specOf(github, repository, number), humans, rules["task-list"], appId)) {
       return false;
     }
     await post();

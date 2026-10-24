@@ -163,6 +163,20 @@ export async function reviewRunAt({ api, head, settings = DEFAULTS }) {
 // pr-unblock.yml's run-name, which names the activity and the PR.
 export const runTitle = (activity, number) => `pr-unblock ${activity} #${number}`;
 
+// Each workflow's run listing is read at most once a run, when a pass first
+// asks; a failed read is shared too, so a rate-limited endpoint is not asked
+// again.
+export function shareWorkflowRuns(base) {
+  const seen = new Map();
+  const listWorkflowRuns = (workflow) => {
+    if (!seen.has(workflow)) {
+      seen.set(workflow, base.listWorkflowRuns(workflow));
+    }
+    return seen.get(workflow);
+  };
+  return { ...base, listWorkflowRuns };
+}
+
 export async function dispatchFeedback({
   api,
   repository,
@@ -283,7 +297,17 @@ export async function dispatchFeedback({
   // the second skips while a run of this activity for this PR, created after
   // this review started, is not done. An older run (the round whose push made
   // this head) does not hold the dispatch, or the next round would never start.
-  const active = (await api.listWorkflowRuns(settings.workflow)).filter((run) => holds(run, number));
+  let runs;
+  try {
+    runs = await api.listWorkflowRuns(settings.workflow);
+  } catch (error) {
+    if (!error.rateLimited) {
+      throw error;
+    }
+    log(`::warning::${settings.workflow} run listing is rate limited (${error.message}); #${number} not dispatched; re-run this job once the limit resets`);
+    return null;
+  }
+  const active = runs.filter((run) => holds(run, number));
   if (active.length > 0) {
     return skip(`#${number}: ${settings.workflow} run ${active[0].id} for ${settings.activity} is not done yet`);
   }
@@ -426,7 +450,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch =
       signal,
     });
     if (!response.ok) {
-      throw new Error(`${method} ${url} returned ${response.status}`);
+      throw Object.assign(new Error(`${method} ${url} returned ${response.status}`), { rateLimited: response.rateLimited === true });
     }
     return response.status === 204 ? {} : response.json();
   }
@@ -571,7 +595,7 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
   }
   const budget = api ? null : budgetedFetch({ log });
   const { record, text } = readRecord(env.DISPATCH_RECORD);
-  const client =
+  const client = shareWorkflowRuns(
     api ??
     createGitHubApi({
       token: env.GITHUB_TOKEN,
@@ -579,7 +603,8 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
       apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
       graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
       fetch: budget.fetch,
-    });
+    }),
+  );
   let upstream = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8")).workflow_run;
   const common = {
     api: client,

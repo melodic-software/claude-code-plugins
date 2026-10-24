@@ -412,6 +412,21 @@ jobs:
           lane: ${{ inputs.lane }}
           activity: ${{ inputs.activity }}
 
+  # Job-level evidence of the broker's allow for a caller's handoff read
+  # (.github/scripts/lib/handoff-evidence.sh): this job succeeds only on
+  # broker-check's allowed output and is skipped otherwise, and the Actions
+  # API returns a job's conclusion as it ends, where a step's can stay empty
+  # for minutes. It needs broker-check alone, so no run job output reaches it.
+  broker-allowed:
+    needs: broker-check
+    if: needs.broker-check.outputs.allowed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Record the broker's allow
+        run: echo "The broker allowed this lane."
+
   run:
     needs: broker-check
     # The lanes App's own pull_request events never start a lane.

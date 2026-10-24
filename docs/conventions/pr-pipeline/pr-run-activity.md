@@ -175,6 +175,11 @@ so in the read file, right after its own kill-switch step proceeds, the run job 
 a run whose broker-check job skipped the broker on a kill-switch stop its run job no longer sees.
 Re-running all jobs asks the broker again.
 
+The read file's `broker-allowed` job `needs` broker-check alone, runs only when `allowed` is
+`true`, holds no permission (`permissions: {}`) and runs one `echo` step. Its conclusion (`success`, else `skipped`) is
+the caller's job-level record of the allow: the Actions API returns a job's conclusion as the job
+ends, where a step's can stay empty for minutes, and no run job output reaches it.
+
 Residual: `scripts/check-read-caller-keys.sh` checks the job's permissions, its shape and its
 `actions/checkout` steps, not what its `run:` steps do. A `run:` step that fetched
 `refs/pull/<n>/head` with git would put head content in the job; review catches that, the lint
@@ -656,12 +661,17 @@ job. The caller calls the read file twice, each call with one secret, named for 
 (`PR_UNBLOCK_CLAUDE_CODE_OAUTH_TOKEN`); its `address-feedback` and `review-dependency` calls,
 `pr-refine.yml`'s `fix-docs`, and their `-subscription` calls do the same. Both queue in
 `pr-pipeline-write-<pr>`. Each fallback call starts on no first-call output: a handoff job
-(`fix-ci-handoff`, `fix-ci-rung-up-handoff`, `address-feedback-handoff`,
-`review-dependency-handoff`, and `pr-refine.yml`'s `fix-docs-handoff`) with only `actions: read`
-that checks out nothing reads this run's jobs through the Actions API once, and the fallback runs
-unless the first call's `<call> / report` job has a `Post the check run` step that succeeded. A
-failed read runs the fallback too, except for `fix-docs`. `fix-docs-subscription` also needs the
-first call's `<call> / broker-check` job to show the broker's allow: `fix-docs` posts nothing on a
+(`resolve-conflicts-handoff`, `fix-ci-handoff`, `fix-ci-rung-up-handoff`,
+`address-feedback-handoff`, `review-dependency-handoff`, and `pr-refine.yml`'s
+`fix-docs-handoff`) with `actions: read` and `contents: read` sparse-checks out the default branch
+tip's [`handoff-evidence.sh`](../../../.github/scripts/lib/handoff-evidence.sh) and runs it, and the
+fallback runs unless the first call's `<call> / report` job has a `Post the check run` step that
+succeeded. A skipped or absent report job, which every handoff leaves, decides that at once from
+the job's own conclusion; a report that ran answers through its step, which the script reads again
+with backoff for about five minutes while the jobs listing returns it empty, then fails the job with
+one error line. A failed read runs the fallback too, except for `fix-docs`.
+`fix-docs-subscription` also needs the first call's `<call> / broker-allowed` job to show the
+broker's allow (the broker step, when that job is absent): `fix-docs` posts nothing on a
 decline, so a kill switch or a refusal starts no second leg, and a failed read starts none either,
 since with no check posted `fix-docs-dispatch.mjs` dispatches the PR again. These fallback calls
 pass `fallback: handoff`, so the lane record says the key posted no check, not why: only the run
@@ -1232,8 +1242,9 @@ and the rest), the fallback call's when it ran and the first's otherwise, never 
 mode as `patch-prepare` (`ci-context`). The job runs on a `written` or `empty` patch, or on that
 call's `scan-collect-refused`, which reaches `select` with no `patch-state` and so escalates
 `ci-fix-invalid`.
-`fix-ci-unreported`, after every fix-ci call, reads this run's jobs as `fix-ci-handoff` does and,
-when a call's broker-check job allowed the lane and no call's report posted, posts fix-ci
+`fix-ci-unreported`, after every fix-ci call, reads this run's jobs with `handoff-evidence.sh` as
+`fix-ci-handoff` does and, when a call's broker-allowed job shows the allow and no call's report
+posted, posts fix-ci
 failure on `fix-ci-context`'s head, so fix-ci-dispatch counts the round toward
 `fix-ci-restarts` whatever the calls reported. As in the report job, a kill switch or a broker
 refusal posts nothing.
