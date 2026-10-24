@@ -5,11 +5,12 @@
       "why": "heap snapshot named as an artifact type"
     },
     {
-      "answer": "Run this yourself:\n\n```\n/app-control:drive capture --kind cpu\n```\n\nIf memory also climbs during the run, record with `--kind heap` as well and bring both files.",
-      "why": "heap as a conditional extra, not the capture command"
+      "answer": "Run `/app-control:drive capture --kind cpu`.\n\nIf memory also climbs during the run, record with `--kind heap` as well.",
+      "why": "heap as a conditional extra, not a capture command"
     },
     {
-      "answer": "Run /app-control:drive capture --kind=cpu."
+      "answer": "/app-control:drive capture --kind cpu (not --kind heap: memory is flat)",
+      "why": "heap only in a note after the command"
     },
     {
       "answer": "",
@@ -25,6 +26,10 @@
     },
     {
       "answer": "Run `/app-control:drive capture export-worker --out x --kind heap`."
+    },
+    {
+      "answer": "Run `/app-control:drive capture --kind cpu`, and run `/app-control:drive capture --kind heap` too.",
+      "why": "a second capture command with the heap kind"
     }
   ]
 }

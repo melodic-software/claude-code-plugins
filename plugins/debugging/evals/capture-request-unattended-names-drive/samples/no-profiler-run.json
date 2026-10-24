@@ -159,6 +159,90 @@
         }
       ],
       "why": "reads the worker"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v py-spy perf node clinic 0x",
+            "description": "Check which profilers are installed"
+          }
+        }
+      ],
+      "why": "install check naming clinic and 0x"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "which clinic perf",
+            "description": "Check for clinic and perf"
+          }
+        }
+      ],
+      "why": "install check"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm ls -g clinic 0x",
+            "description": "List global profiler packages"
+          }
+        }
+      ],
+      "why": "package listing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "0x --version",
+            "description": "Show the 0x version"
+          }
+        }
+      ],
+      "why": "version check"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gdb --version",
+            "description": "Show the gdb version"
+          }
+        }
+      ],
+      "why": "version check"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v node",
+            "description": "Check whether clinic or 0x is installed"
+          }
+        }
+      ],
+      "why": "trigger words only in the description"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls",
+            "description": "See if --inspect or node workers/export.js was used under gdb"
+          }
+        }
+      ],
+      "why": "trigger words only in the description"
     }
   ],
   "fail": [
@@ -400,6 +484,154 @@
         }
       ],
       "why": "second call runs the worker"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"workers/export.js\" orders.json",
+            "description": "Run the worker"
+          }
+        }
+      ],
+      "why": "double-quoted worker path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node 'workers/export.js' orders.json",
+            "description": "Run the worker"
+          }
+        }
+      ],
+      "why": "single-quoted worker path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd workers && node export.js orders.json",
+            "description": "Run the worker from its directory"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node inspect workers/export.js orders.json",
+            "description": "Start the built-in debugger"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node -e \"const run = require('./workers/export.js')\"",
+            "description": "Load the worker"
+          }
+        }
+      ],
+      "why": "require with spaces in the script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -c \"gdb -p 1\"",
+            "description": "Attach a debugger"
+          }
+        }
+      ],
+      "why": "gdb inside a quoted shell script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "kill -USR1 4242",
+            "description": "Turn on the inspector in the running worker"
+          }
+        }
+      ],
+      "why": "attach by signal"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "perf top -p 1",
+            "description": "Watch hot functions"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "perf stat -p 1",
+            "description": "Count CPU events"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "strace -p 1",
+            "description": "Trace system calls"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "lldb -p 1",
+            "description": "Attach a debugger"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "env sudo perf top",
+            "description": "Watch hot functions"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node --x==1 workers/export.js",
+            "description": "Run the worker with a flag"
+          }
+        }
+      ]
     }
   ]
 }

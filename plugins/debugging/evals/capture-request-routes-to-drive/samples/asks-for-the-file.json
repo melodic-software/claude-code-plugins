@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "This skill reads an existing profile and does not record one. Run `/app-control:drive capture --kind cpu` against the worker while the core is pinned, then come back with the `.cpuprofile` and I will rank the hot frames."
+    },
+    {
+      "answer": "No profile yet, so I stopped. Run `/app-control:drive capture --kind cpu`; a CPU profile fits a pinned core. Come back with the file. Nothing to clean up.",
+      "why": "general reason for the CPU kind, closing line after the ask"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run `/app-control:drive capture --kind cpu` and come back with the file. The likely cause is the `csv = csv + ...` concatenation on line 6 of workers/export.js.",
+      "why": "names a suspected cause"
+    },
+    {
+      "answer": "Run `/app-control:drive capture --kind cpu`. That should show where the time goes.",
+      "why": "does not ask for the file"
+    },
+    {
+      "answer": "Replace the string concatenation in workers/export.js with an array join; that is the hot loop.",
+      "why": "names a cause and a fix"
+    }
+  ]
+}

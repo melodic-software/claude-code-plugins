@@ -9,6 +9,9 @@
     {
       "answer": "Run `/app-control:drive capture export-worker --out ./profiles --kind cpu`, then share the file.",
       "why": "flags reordered"
+    },
+    {
+      "answer": "/app-control:drive capture --kind cpu (not --kind heap: memory is flat)"
     }
   ],
   "fail": [
@@ -20,6 +23,10 @@
       "why": "heap kind"
     },
     {
+      "answer": "/app-control:drive capture --kind heap (not --kind cpu)",
+      "why": "cpu only in a note after the command"
+    },
+    {
       "answer": "Run /app-control:drive capture --kind <trace|cpu|heap>.",
       "why": "the template, no kind chosen"
     },
@@ -29,7 +36,7 @@
     },
     {
       "answer": "Use --kind cpu with your profiler.\n/app-control:drive capture is the command.",
-      "why": "kind not on the capture line"
+      "why": "kind not on the capture command"
     }
   ]
 }
