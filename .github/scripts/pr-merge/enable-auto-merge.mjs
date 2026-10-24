@@ -470,7 +470,7 @@ export function pythonVerify(env) {
 // `lane-room`), read with the reader's Actions token when it has one, as the
 // merge job reads the post-merge check, so the reads stay off the lane App's
 // quota.
-export function pythonRoom(env) {
+export function pythonRoom(env, spawn = spawnSync) {
   return async () => {
     const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "lane-room", "--repo", env.GITHUB_REPOSITORY, "--postmerge-result", env.POSTMERGE_RESULT ?? ""];
     if (env.RUNG_CAP !== undefined) {
@@ -478,7 +478,7 @@ export function pythonRoom(env) {
     }
     const token = env.BABYSIT_VERIFY_GH_TOKEN;
     const roomEnv = token ? { ...env, GH_TOKEN: token, API_BUDGET_TOKEN: "github-token" } : env;
-    const done = spawnSync("python3", args, { encoding: "utf8", env: roomEnv, timeout: VERIFY_TIMEOUT_MS });
+    const done = spawn("python3", args, { encoding: "utf8", env: roomEnv, timeout: LANE_ROOM_TIMEOUT_MS });
     if (done.status !== 0) {
       throw new Error(`babysit_verify_evidence.py lane-room exited ${done.status ?? done.signal}: ${String(done.stderr ?? "").trim().split("\n").at(-1)}`);
     }
@@ -512,11 +512,14 @@ export function readRoom(answer) {
 // stuck.
 export const READER_EVENTS = Object.freeze(["schedule", "workflow_dispatch"]);
 // The reader's per pull request limit, and when the run stops starting one:
-// the room read (at most VERIFY_TIMEOUT_MS) comes first, then a read started
-// at the budget ends by VERIFY_BUDGET_MS + VERIFY_TIMEOUT_MS, 13 minutes in
-// all, inside the step's 14 (pr-merge.yml), so no read is cut off and the
-// rest of the pull requests are left for the next run.
+// the room read (at most LANE_ROOM_TIMEOUT_MS) comes first, then a read
+// started at the budget ends by VERIFY_BUDGET_MS + VERIFY_TIMEOUT_MS, 17
+// minutes in all, inside the step's 18 (pr-merge.yml), so no read is cut off
+// and the rest of the pull requests are left for the next run.
 export const VERIFY_TIMEOUT_MS = 4 * 60_000;
+// Longer than a verifier read: the room may run a full post-merge check. A
+// timeout still reads as unreadable, which holds the lane.
+export const LANE_ROOM_TIMEOUT_MS = 8 * 60_000;
 export const VERIFY_BUDGET_MS = 5 * 60_000;
 
 // What to do with one listed pull request: { action: arm | disarm | none, reason }.
