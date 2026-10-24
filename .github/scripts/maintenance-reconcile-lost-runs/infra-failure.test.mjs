@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { contractOnly, infraCause, infraOnly, testedRun } from "./infra-failure.mjs";
+import { contractOnly, infraCause, infraOnly, reconcilerOwns, stepsKnown, testedRun } from "./infra-failure.mjs";
 
 const recorded = (id) => JSON.parse(readFileSync(new URL(`./fixtures/jobs-${id}.json`, import.meta.url), "utf8")).jobs;
 const MIXED = recorded(39710654665);
@@ -72,6 +72,101 @@ test("a run with no failed job, or no job listing, is not infra-only", () => {
   assert.equal(infraOnly([{ name: "lint-repo", conclusion: "success", steps: [] }]), false);
   assert.equal(infraOnly([]), false);
   assert.equal(infraOnly(undefined), false);
+});
+
+// The jobs API can list a finished job's steps empty, or cut short with its
+// first steps missing and later ones still pending.
+const unlisted = { name: "lint-repo", conclusion: "failure", runner_id: 7, steps: [] };
+const cut = {
+  name: "lint-repo",
+  conclusion: "failure",
+  runner_id: 7,
+  steps: [
+    { name: "Check out", status: "completed", conclusion: "success" },
+    { name: "Lint markdown", status: "in_progress", conclusion: null },
+  ],
+};
+
+test("a failed job whose steps did not list is neither a lost runner nor infra", () => {
+  for (const job of [unlisted, cut, { ...unlisted, steps: undefined }]) {
+    assert.equal(stepsKnown(job), false);
+    assert.equal(infraCause(job), "");
+    assert.equal(infraOnly([job]), false);
+  }
+  assert.equal(infraCause({ ...cut, conclusion: "cancelled" }), "time limit");
+});
+
+test("a job no runner took lists no steps, and that list is whole", () => {
+  assert.equal(stepsKnown({ name: "verify", conclusion: "cancelled", steps: [] }), true);
+  assert.equal(stepsKnown(job("failure")), true);
+});
+
+// Numbered as a cancelled lane job lists them: 1..n, then post steps after a gap.
+const numbered = (...entries) => ({
+  name: "lint-repo",
+  conclusion: "failure",
+  runner_id: 7,
+  steps: entries.map(([number, name, conclusion = "success"]) => ({ number, name, status: "completed", conclusion })),
+});
+
+test("a numbered list is whole only when its steps run 1..n before the post steps", () => {
+  const whole = numbered([1, "Set up job"], [2, "Check out"], [3, "Test", "failure"], [38, "Post Check out"], [39, "Complete job"]);
+  assert.equal(stepsKnown(whole), true);
+  assert.equal(infraCause(whole), "");
+  const midCut = numbered([1, "Set up job"], [3, "Lint"], [38, "Post Check out"], [39, "Complete job"]);
+  assert.equal(stepsKnown(midCut), false);
+  assert.equal(infraCause(midCut), "", "a cut list with no failed step is not a lost runner");
+  assert.equal(stepsKnown(numbered([1, "Set up job"], [2, "Check out"], [5, "Upload the verdict"])), false);
+});
+
+test("a finished job's list is whole only when every step is done and it ends with Complete job", () => {
+  const done = { ...numbered([1, "Set up job"], [2, "Check out"], [3, "Test", "failure"], [38, "Post Check out"], [39, "Complete job"]), status: "completed" };
+  assert.equal(stepsKnown(done), true);
+  const tailCut = { ...numbered([1, "Set up job"], [2, "Check out"]), status: "completed" };
+  assert.equal(stepsKnown(tailCut), false);
+  assert.equal(infraCause(tailCut), "", "a tail-cut list with no failed step is not a lost runner");
+  const stale = { ...done, steps: done.steps.map((s) => (s.name === "Test" ? { ...s, status: "in_progress", conclusion: null } : s)) };
+  assert.equal(stepsKnown(stale), false);
+  assert.equal(infraCause(stale), "");
+});
+
+// A runner that dies leaves its job's list cut at the running step, with no
+// "Complete job"; GitHub records why on the job's check run, as
+// maintenance-monitor-signals reads it.
+const died = (message, level = "failure") => ({
+  ...cut,
+  status: "completed",
+  annotations: [{ annotation_level: level, message }],
+});
+
+test("a lost-runner job with a cut list and no Complete job is still a lost runner, from its annotations", () => {
+  for (const message of [
+    "The hosted runner: GitHub Actions 7 lost communication with the server. Anything in your workflow that terminates the runner process can cause this error.",
+    "The runner has received a shutdown signal. This can happen when the runner service is stopped.",
+  ]) {
+    assert.equal(stepsKnown(died(message)), false);
+    assert.equal(infraCause(died(message)), "lost runner");
+    assert.equal(infraOnly([died(message)]), true);
+  }
+});
+
+test("a tail-cut job with no runner-loss annotation stays unknown", () => {
+  assert.equal(infraCause({ ...cut, status: "completed" }), "");
+  assert.equal(infraCause(died("Process completed with exit code 1.")), "");
+  assert.equal(infraCause(died("The runner has received a shutdown signal.", "warning")), "");
+  assert.equal(infraOnly([{ ...cut, status: "completed", annotations: [] }]), false);
+});
+
+test("the reconciler keeps a run whose failed jobs' steps did not list, inside its re-run window", () => {
+  const now = Date.parse("2026-10-19T20:00:00Z");
+  const run = (attempt, created = "2026-10-19T19:00:00Z") => ({ status: "completed", conclusion: "failure", run_attempt: attempt, created_at: created });
+  for (const job of [unlisted, cut]) {
+    assert.match(reconcilerOwns({ run: run(2), jobs: [job] }, now), /steps did not list/);
+    assert.match(reconcilerOwns({ run: run(1), jobs: [job] }, now), /./);
+    assert.equal(reconcilerOwns({ run: run(3), jobs: [job] }, now), "");
+    assert.equal(reconcilerOwns({ run: run(2, "2026-10-18T19:00:00Z"), jobs: [job] }, now), "");
+  }
+  assert.equal(reconcilerOwns({ run: run(2), jobs: [job("failure", "Lint markdown")] }, now), "");
 });
 
 test("a run where only ci-status ran is contract-only; a tested run is not", () => {
