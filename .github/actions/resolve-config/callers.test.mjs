@@ -1706,6 +1706,9 @@ const PATCH_HEAD = {
   "review-dependency": { needs: ["review-dependency-select"], value: "${{ needs.review-dependency-select.outputs.head-sha }}" },
   "resolve-conflicts": { needs: ["resolve-conflicts-select"], value: "${{ needs.resolve-conflicts-select.outputs.head-sha }}" },
 };
+// A job a push job also waits for: address-feedback's push lands after the
+// adjudicator, right before the reply job.
+const APPLY_AFTER = { "address-feedback": ["adjudicate-feedback"] };
 // What else a push job's gate reads, set so a conflicted round's patch decides it.
 const APPLY_GATE = {
   "resolve-conflicts": { "needs.resolve-conflicts-select.outputs.merge-state": "conflicted", "needs.resolve-conflicts-select.outputs.proceed": "true" },
@@ -1802,7 +1805,7 @@ for (const [file, firstId, subId, extraNeeds, extraProceed, applyId] of PATCH_LA
   test(`${file}: ${applyId} takes the patch from whichever ${firstId} call ran the activity, under ${firstId}'s prepare-mode row`, () => {
     const { jobs } = workflow(file);
     const apply = jobs[applyId];
-    assert.deepEqual(apply.needs, [...PATCH_HEAD[firstId].needs, firstId, subId]);
+    assert.deepEqual(apply.needs, [...PATCH_HEAD[firstId].needs, firstId, subId, ...(APPLY_AFTER[firstId] ?? [])]);
     assert.equal(apply.permissions.issues, "write");
     assert.equal(apply.uses, WRITE_RUNNER);
     assert.equal(apply.with.activity, APPLY_ACTIVITY[firstId]);

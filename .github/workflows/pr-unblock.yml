@@ -760,7 +760,10 @@ jobs:
   # a patch that does not land leaves no fix commit, and publish-feedback
   # hands the PR to a person as feedback-not-landed.
   apply-feedback-patch:
-    needs: [address-feedback-select, address-feedback, address-feedback-subscription]
+    # After adjudicate-feedback too, so the push lands right before the reply
+    # job: a review run on the pushed head that finishes while this run still
+    # goes would find it in progress, skip, and start no next round.
+    needs: [address-feedback-select, address-feedback, address-feedback-subscription, adjudicate-feedback]
     # One leg answers the round: the fallback call when it ran, else the
     # first, and every model-call input below is that leg's, so one leg's
     # patch never pairs with the other's replies and an empty field never
@@ -945,7 +948,10 @@ jobs:
             Read
             Glob
             Grep
-          allowed-tools: Read(./adjudicate/**)
+          allowed-tools: |
+            Read(./adjudicate/**)
+            Glob
+            Grep
           disallowed-tools: |
             Bash
             Edit
@@ -1003,7 +1009,10 @@ jobs:
             Read
             Glob
             Grep
-          allowed-tools: Read(./adjudicate/**)
+          allowed-tools: |
+            Read(./adjudicate/**)
+            Glob
+            Grep
           disallowed-tools: |
             Bash
             Edit
@@ -1061,7 +1070,10 @@ jobs:
             Read
             Glob
             Grep
-          allowed-tools: Read(./adjudicate/**)
+          allowed-tools: |
+            Read(./adjudicate/**)
+            Glob
+            Grep
           disallowed-tools: |
             Bash
             Edit

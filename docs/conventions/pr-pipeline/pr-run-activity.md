@@ -1002,9 +1002,23 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    The script writes its reason to `ESCALATION_REASON_FILE`; the runner accepts only those
    reasons, and only with `review-replies`, as the run's `escalation-reason` output.
 
+The skill's limits to kept-thread scope and away from `.github/workflows/` are instructions and the tool's
+checks at record time; the push job's `kept-threads` rule is what holds the push, and the reply
+job's compare withholds the replies when the branch changed anything else. A diff at the files
+listing's limit escalates as `feedback-protected-path`, since it could hide a `.github/workflows/`
+path.
+Residuals: a reviewed-head marker confirms a head, not one review run, so any reviewer-bot review
+on that head is kept; and the replies file is the model's to write, so the tool's checks are
+advisory and `publish-feedback.mjs` is what holds the template. The write file fails red on a
+`review-threads` activity: it keeps no threads and collects no replies.
+
+The write file's head re-read (run job step 5) applies to every `mutate-branch` activity: a
+pr-unblock run whose PR branch moved before the mint posts neutral `superseded-sha` without a
+model turn.
+
 #### The adjudicator
 
-pr-unblock.yml's `adjudicate-feedback` job runs between the model job and the reply job whenever
+pr-unblock.yml's `adjudicate-feedback` job runs after the model job, before the push and reply jobs, whenever
 the leg the reply job reads uploaded replies. It runs only base code with a read-only token and
 no OIDC token. `adjudicate-feedback.mjs prepare` checks the select job's thread file and the
 scan job's replies against the SHA-256 each writer recorded, then stages each `INCORRECT` reply on
@@ -1028,21 +1042,9 @@ lane's validated evidence; no model text reaches the pull request.
 
 The next round reads the finding-stands reply: `threadAuthors` keeps a thread whose last lanes
 App comment is that reply, so `pr-feedback-dispatch.yml` dispatches it once the review lanes
-review the next head.
-
-The skill's limits to kept-thread scope and away from `.github/workflows/` are instructions and the tool's
-checks at record time; the push job's `kept-threads` rule is what holds the push, and the reply
-job's compare withholds the replies when the branch changed anything else. A diff at the files
-listing's limit escalates as `feedback-protected-path`, since it could hide a `.github/workflows/`
-path.
-Residuals: a reviewed-head marker confirms a head, not one review run, so any reviewer-bot review
-on that head is kept; and the replies file is the model's to write, so the tool's checks are
-advisory and `publish-feedback.mjs` is what holds the template. The write file fails red on a
-`review-threads` activity: it keeps no threads and collects no replies.
-
-The write file's head re-read (run job step 5) applies to every `mutate-branch` activity: a
-pr-unblock run whose PR branch moved before the mint posts neutral `superseded-sha` without a
-model turn.
+review the next head. The push job waits for this job, so it lands right before the reply job,
+as it did without one: a review run on that head that finished while this run still went would
+find it in progress and dispatch nothing.
 
 ### prepare: dependency-review
 
