@@ -24,24 +24,27 @@ from any workflow in the repository holding `actions: write`.
 
 1. **A scripted dispatcher.**
    [`pr-unblock-dispatch.yml`](../../.github/workflows/pr-unblock-dispatch.yml) runs on a push to
-   `main` and on a listed human's `workflow_dispatch`, only on `refs/heads/main`, with no model and
-   no App token: its `GITHUB_TOKEN` holds `actions: write` and three reads. It checks the kill
-   switch, checks a hand run or any re-run with `check-trusted-trigger` (`require-pr: false`,
-   `require-kind: human`), then runs
+   `main`, on a half-hourly schedule five minutes after each lost-run reconciler tick, and on a
+   listed human's `workflow_dispatch`, only on `refs/heads/main`, with no model and no App token:
+   its `GITHUB_TOKEN` holds `actions: write` and three reads. It checks the kill switch, checks a
+   hand run or any re-run with `check-trusted-trigger` (`require-pr: false`,
+   `require-kind: human`; that mode handles no `schedule` event, so a scheduled run's re-run stops
+   and the next tick replaces it), then runs
    [`dispatch.mjs`](../../.github/scripts/pr-unblock/dispatch.mjs): open, non-draft,
    same-repository PRs into `main` that GitHub reports `CONFLICTING`, re-querying `UNKNOWN` up to 5
    times 10 s apart, skipping a PR whose head already has a `pr-unblock / resolve-conflicts` check
    from the GitHub Actions app, and dispatching `pr-unblock.yml` for at most 3 per run with
    `pr-number` and `dispatcher-run-id`. It filters no labels or authors; the lane decides those
    once, from its own config and gate. Basis:
-   [`pr-unblock-dispatch.yml:14-101`](../../.github/workflows/pr-unblock-dispatch.yml);
+   [`pr-unblock-dispatch.yml:14-113`](../../.github/workflows/pr-unblock-dispatch.yml);
    [`dispatch.mjs:1-110`](../../.github/scripts/pr-unblock/dispatch.mjs). The retry count and
    delay and the cap of 3 are judgment, as `dispatch.mjs:23-28` says.
 2. **The lane runs on `workflow_dispatch` only**, from the dispatcher or a listed human. Basis:
    [`pr-unblock.yml:14-25`](../../.github/workflows/pr-unblock.yml).
 3. **The gate checks the dispatcher run.** A `workflow_dispatch` sent by `github-actions[bot]`
    proceeds only when the `dispatcher-run-id` it carries names a run of the dispatcher on the
-   default branch, started by a push or a listed human, with a listed human on any re-run attempt,
+   default branch, started by a push, a schedule or a listed human, with a listed human on any
+   re-run attempt,
    its head an ancestor of the tip and no tag named like the branch, and this run is
    `pr-unblock.yml` created inside the dispatcher run's window: from its `run_started_at` to the
    earlier of its `updated_at` and ten minutes later. The PR author check still applies. Basis:
@@ -70,8 +73,12 @@ from any workflow in the repository holding `actions: write`.
   that waited in the per-PR queue would fail it, while the window still binds the dispatched run
   to one dispatcher run. Basis: `pr-unblock.yml:48-50` (job-level queue); check-trusted-trigger
   README, window paragraph.
-- **A schedule sweep** was left out of this scope; a hand run of the dispatcher recovers a missed
-  push. Basis: judgment; `pr-unblock-dispatch.yml:17`.
+- **The reconciler dispatches the dispatcher, or the dispatcher starts on `workflow_run`.**
+  Rejected for the schedule in point 1: either sends a dispatcher run the gate and the broker
+  refuse (a `github-actions[bot]` `workflow_dispatch`, or a `workflow_run` dispatcher with no
+  review upstream), so both would need a new trust path. A schedule they already accept. Basis:
+  `check-trusted-trigger.mjs:27,684-696`; `melodic-software/azure-iac`
+  `src/lanes-token-broker/src/dispatcher.mjs:32,141`; owner decision on #9496.
 
 ## Consequences
 
@@ -85,9 +92,16 @@ from any workflow in the repository holding `actions: write`.
   case S2, where a forged dispatch inside the window passed before the change and was refused
   after it (pr-pipeline-sandbox run 38268688883); live run 38287004007, which passed the gate and
   the broker.
+- A PR whose reconciler re-run failed gets `fix-ci` at the first tick after that failure, within
+  30 minutes of it plus GitHub's schedule delay; a re-run still going at the tick five minutes
+  after the reconciler waits for the one after. Each tick costs one dispatcher run and its listing
+  queries even when nothing is red; a head in the dispatch record is not read again, while a red
+  lanes App PR, an `UNKNOWN` PR and a fix-docs candidate are still read per tick. Basis:
+  `dispatch.mjs:118-130,449-509`; `fix-ci-dispatch.mjs:262-264`;
+  `fix-docs-dispatch.mjs:207`.
 - One runner per conflicting PR per push, capped at 3 per dispatcher run. The cap is judgment
   until the lane's per-run cost is measured. Basis: `dispatch.mjs:23-24`.
 - A merge-queue merge raises one push for a batch, so the dispatcher lists PRs against `main` as
-  it is when it runs, not against the pushed commit. Basis: `pr-unblock-dispatch.yml:6-7,38-43`.
+  it is when it runs, not against the pushed commit. Basis: `pr-unblock-dispatch.yml:6-7,45-54`.
 - The lane went live with the dispatcher. Basis: dispatcher run 38201493950 dispatched pr-unblock
   run 38201565861, which minted through the broker and escalated as expected.

@@ -61,13 +61,14 @@ const WRITE_RUNNER = ".github/workflows/pr-run-activity-write.yml";
 // what the marker comment says starts after the empty commit.
 const LANES = Object.freeze({
   // GitHub runs no pull_request workflow on a conflicting PR, and
-  // pr-unblock-dispatch runs only on a push to main or a listed person's
-  // dispatch, so the empty commit starts no conflict-resolution run itself.
+  // pr-unblock-dispatch runs only on a push to main, its half-hourly tick or a
+  // listed person's dispatch, so the empty commit starts no conflict-resolution
+  // run itself.
   "pr-unblock.yml": {
     events: ["workflow_dispatch"],
     after: "pr-merge pushes an empty commit so the next pr-unblock run uses main's files.",
     starts:
-      " The push starts no run itself: the conflict-resolution run starts at the next push to main, or when a listed person runs `pr-unblock-dispatch` by hand, and an address-feedback run can start after both review lanes review the new head, if an unresolved thread is left for it.",
+      " The push starts no run itself: the conflict-resolution run starts at the next push to main or half-hourly `pr-unblock-dispatch` tick, or when a listed person runs it by hand, and an address-feedback run can start after both review lanes review the new head, if an unresolved thread is left for it.",
     files: [
       ".github/workflows/pr-unblock.yml",
       WRITE_RUNNER,

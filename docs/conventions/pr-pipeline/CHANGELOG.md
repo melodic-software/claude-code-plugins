@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [4.13.3] - 2026-10-23
+
+### Changed
+
+- `pr-unblock-dispatch.yml` also runs half-hourly, at minutes 9 and 39, five minutes after each `maintenance-reconcile-lost-runs` tick. A lanes App pull request whose reconciler re-run failed now gets `fix-ci` at the first tick after that failure instead of waiting for the next push to `main`, and a conflicting or Markdown-changing pull request is picked up the same way. A tick runs the same listings as a push run, and heads the dispatch record holds are not read again. The gate and the token broker already accept a dispatcher run started by a schedule. A re-run of a scheduled run fails at the trigger check, which handles no `schedule` event; the next tick replaces it. Only a push cancels a dispatcher run in progress; a tick or a hand run waits behind it, so a tick never cuts short a push run's dispatches.
+
+## [4.13.2] - 2026-10-23
+
+### Fixed
+
+- The pr-merge lane no longer adds `needs-human` back to a pull request after a person removed it (a User of kind `human` on the trusted-actor list at the default branch, with write access), while the escalation it explains is unchanged (same head and reasons). A removal by a bot, by an account off that list, or through a GitHub App lifts nothing, and a new head or new reasons escalate again ([README.md, The pr-merge lane](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#the-pr-merge-lane)).
+
 ## [4.13.1] - 2026-10-23
 
 ### Fixed

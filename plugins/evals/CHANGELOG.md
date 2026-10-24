@@ -1,5 +1,19 @@
 # Changelog: evals
 
+## [0.10.3] - 2026-10-23
+
+### Changed
+
+- The suite's judge samples now cover the answer shapes two judges wrongly failed: `noise-report-before-posting/gate-before-numbers` (absolute script path, a second noise gate, a trailing `partial` check) and `noise-before-gain/not-established` (an opening "the numbers point the right way").
+- Three must-fail samples that the reply-only agent paraphrased now use wording it repeats (`measurable-criterion` four-properties sample 3, `worktree-guard-stop` no-way-around sample 4, `zeros-after-usage-limit` check-and-rerun sample 3), and each misses one rubric property.
+- `measurable-criterion` must-fail sample 2 again misses only the trial set: its invented baseline is now a target relative to the current bot's rate.
+
+## [0.10.2] - 2026-10-23
+
+### Fixed
+
+- `plugin-eval`'s `run-validity.py` now reads a denied Bash call's target from the absolute paths in its command, so a with-arm Bash denial on a path outside the plugin, such as `cat /proc/sys/kernel/yama/ptrace_scope`, is a warning when the run scores the same as its case's denial-free runs. A Bash denial stays a FAIL when any of its paths is under or above the plugin, or when its command does not parse, has no absolute path, or holds anything the check cannot resolve: a word the shell expands (`$`, a backtick, a glob, a leading `~`), any relative word after the command word other than a flag (so `cat SKILL.md /proc/version` and `grep foo /proc/x` both stay a FAIL), a path packed after another character (`/a:/b`, `/a,/b`), or a `/proc/self`, `/proc/thread-self` or `/dev/fd` path, in any spelling that normalizes to one. A denied path holding a NUL byte is now a FAIL with a verdict instead of a traceback.
+
 ## [0.10.1] - 2026-10-22
 
 ### Fixed
