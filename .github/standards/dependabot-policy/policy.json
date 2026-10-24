@@ -39,7 +39,7 @@
         "directory": "/",
         "dependency": "@anthropic-ai/claude-code",
         "reviewed": "2026-10-17",
-        "basis": "The only root package with an install script; .github/workflows/eval-browser-dispatch.yml:153 installs the root lockfile and :251 runs its claude CLI with the AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN secret in the step env (:203), and .github/dependabot.yml:65-66 exempts it from the cooldown, so a hijacked release reaches that secret the day it publishes.",
+        "basis": "The only root package with an install script; .github/workflows/eval-browser-dispatch.yml installs the root lockfile and runs its claude CLI with the lane's OAuth token in the step env, and .github/dependabot.yml exempts it from the cooldown, so a hijacked release reaches that token the day it publishes.",
         "control": "docs/conventions/pr-pipeline/README.md#review-only-dependencies"
       },
       {
@@ -48,7 +48,7 @@
         "directory": "/",
         "dependency": "@playwright/cli",
         "reviewed": "2026-10-17",
-        "basis": ".github/workflows/eval-browser-dispatch.yml:153 installs the root lockfile in the job that holds AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN (:203); :163 runs the playwright it pulls in, :189 runs playwright-cli, and :45 makes Bash(playwright-cli *) the eval's default tool, so it runs beside the claude process holding that secret.",
+        "basis": ".github/workflows/eval-browser-dispatch.yml installs the root lockfile in the job that holds the lane's OAuth token, runs the playwright it pulls in and playwright-cli, and makes Bash(playwright-cli *) the eval's default tool, so it runs beside the claude process holding that token.",
         "control": "docs/conventions/pr-pipeline/README.md#review-only-dependencies"
       },
       {
