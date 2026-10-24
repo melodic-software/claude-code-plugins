@@ -5,6 +5,6 @@
   "classes": ["work-class: read-only", "work-class: mechanical", "work-class: scoped"],
   "sizes": ["small", "medium"],
   "uncertainty": ["known", "knowable"],
-  "refuse-labels": ["duplicate", "needs-owner-decision", "do-not-merge", "wontfix"],
+  "refuse-labels": ["duplicate", "needs-owner-decision", "do-not-merge", "wontfix", "work-map"],
   "task-list": "- [ ] "
 }
