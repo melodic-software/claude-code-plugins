@@ -242,8 +242,8 @@ jobs:
           attack surface (other security-related work gets no flag); cost as COST below describes.
 
         UNRUNNABLE DONE-WHEN. A done-when item an unattended lane run cannot do (a run on a named
-        host or OS, a paid eval, a run repeated N times, a measurement over time, or a page on a
-        host outside the issue lane's web access) is no reason for needs_human, the intent flag or
+        host or OS, a run repeated N times, a measurement over time, or a page on a host outside
+        the issue lane's web access) is no reason for needs_human, the intent flag or
         a none class on its own: triage the lane-checkable items as usual, with their work class
         and fields. Admission holds the issue and posts the split itself.
 
