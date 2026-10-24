@@ -958,9 +958,9 @@ with the operator's signature on them.
 >    population only when all three hold: its first comment line starts
 >    `<!-- work-items:escalation`, it carries a recognized kind
 >    (`escalated`, `routed-advisory`, `ratify-c3`), and it was authored by a
->    trusted escalation author: this session's own login, the
+>    trusted escalation author, compared case-insensitively: this session's own login, the
 >    `merge.agent-identity` login in `docs/conventions/pr-pipeline.yaml` read
->    from the default branch, or `<lane_app_slug>[bot]` when the work-items
+>    from the default branch through the forge (never a local checkout), or `<lane_app_slug>[bot]` when the work-items
 >    `lane_app_slug` option is set (the work-items plugin's
 >    `reference/escalation-marker.md`, "Trusted escalation authors"). When the
 >    pr-pipeline read fails, tell me and trust the other two. Match on the

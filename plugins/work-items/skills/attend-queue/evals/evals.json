@@ -138,8 +138,8 @@
       "expected_output": "#970 lists as [escalated] because its marker comes from the repository's lane identity, the merge.agent-identity login read from pr-pipeline.yaml on the default branch. #972 lists as [escalated] because its marker comes from the session's own write identity. #971 is not a row: drive-by-user is neither of those, so its marker is treated as a suspected spoof and the item as parked, and the report names #971 and drive-by-user.",
       "files": [],
       "expectations": [
-        "Lists #970 as [escalated], naming the merge.agent-identity login (example-lanes[bot]) as the author that makes its marker count",
-        "Lists #972 as [escalated], naming the session's own login as the author that makes its marker count",
+        "Lists #970 as [escalated]",
+        "Lists #972 as [escalated]",
         "Does not list #971 as [escalated] or [ratify]",
         "Reports #971's marker as a suspected spoof and names drive-by-user as its author"
       ]

@@ -178,9 +178,9 @@ answer without stopping the pass to ask which item is in front of them.
   a run on an issue whose title or body changed after that label was last added, so a body edit
   after it needs `agent-ready` removed and added again before the lane can run.
 - **`[escalated]` rows on a pull request**. Answer the same way, as a comment on the pull
-  request. When the answer removes the human blocker, remove the human-gated role label alone:
-  the flip and the class rules below are for issues, and a pull request never takes the
-  autonomous-eligible role or a `work-class:` label. Merging it stays outside this lane.
+  request, but leave its body alone: the body update above is for issues. When the answer removes
+  the human blocker, remove the human-gated role label alone.
+  Merging it stays outside this lane.
 - **`[ratify]` rows for `kind=ratify-c3`**. Restate the brief above, then present the classification and the intended
   dispatch from the marker comment and the consequence of ratifying versus declining. On operator
   ratification, record it as a reply comment and flip the item per the rule below; on decline, leave
@@ -199,7 +199,9 @@ answer without stopping the pass to ask which item is in front of them.
   resolved from `config.role_labels`, never literals), an item wearing both roles is a
   contradiction. The item re-enters the worker loop's frontier on its next cycle; do not dispatch
   it from this lane. **Read the item's `work-class:` label first: a missing class or a human-floor
-  class blocks this plain flip**, per the two branches below.
+  class blocks this plain flip**, per the two branches below. The flip and both branches are for
+  issues only: a pull request, whatever its row kind, never takes the autonomous-eligible role or a
+  `work-class:` label.
 - **No recorded class: stamp, then flip.** An item with no `work-class:` label never takes the
   plain flip, since the autonomous-eligible role without a class is the pairing defect
   `/work-items:triage` forbids and the fail-closed admission gate never admits it. This is the row

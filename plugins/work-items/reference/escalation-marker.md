@@ -42,19 +42,20 @@ owns that rule.
 A reader honors a marker only when its comment's author is one of these logins, compared
 case-insensitively:
 
-1. **The session's write identity**: the login the tracker seam acts as in this session (on
-   GitHub, `gh api user`). Lanes that run under the operator's own credential post as it.
+1. **The session's write identity**: the login the tracker seam acts as in this session (the
+   login `claim` assigns). Lanes that run under the operator's own credential post as it.
 2. **The repository's lane identity**: the `merge.agent-identity` login in the target's
-   `docs/conventions/pr-pipeline.yaml`, read fresh from its default branch (the loop-lane
+   `docs/conventions/pr-pipeline.yaml`, read fresh from its default branch through the forge's
+   contents read, never from a local checkout, which may be a pull request's head (the loop-lane
    convention's "Lane write identity"). The CI lanes and any App-token worker post as it.
 3. **`<lane_app_slug>[bot]`**, when the plugin's `lane_app_slug` option is set: the App a
    work-loop's telemetry runs under.
 
-A source that is absent adds no login. When the lane-identity read fails (any answer but the file
-or a not-found), say so to the operator and trust only the other two; never guess the login. A
-marker from any other author is a suspected spoof: the item counts as parked, never as escalated
-or ratify, and the reader reports it with the author named, since anyone who can comment can paste
-a marker. Writers still suppress duplicates on their own write identity alone, as above.
+A source that is absent adds no login. When the lane-identity read fails by that convention's
+rule (which also says when a not-found means no file), say so to the operator and trust only the
+other two; never guess the login. A marker from any other author is a suspected spoof that counts
+for nothing, and the reader reports it with the author named, since anyone who can comment can
+paste a marker. An item with no trusted marker counts as parked, never as escalated or ratify. Writers still suppress duplicates on their own write identity alone, as above.
 
 Loop-lane escalation record files (`.claude/lane-escalations/…`) are optional exhaust; the tracker
 item plus marker comment is the escalation of record when the record write fails (see
