@@ -44,6 +44,17 @@ test('launch without a plugin dir is a usage error raised before any install', a
   await assert.rejects(main(['launch']), { code: 2, message: 'launch needs --plugin-dir <dir>' });
 });
 
+test('a key typed as a second positional is refused, not dropped', async () => {
+  await assert.rejects(main(['type', 'hello', 'Enter']), { code: 2, message: 'type got extra arguments: hello Enter' });
+});
+
+test('a ttl that is not a whole number of seconds is refused before any install', async () => {
+  await assert.rejects(main(['launch', '--plugin-dir', '/p', '--ttl', 'soon']), {
+    code: 2,
+    message: '--ttl takes a whole number of seconds',
+  });
+});
+
 test('an unknown verb is a usage error naming the verbs', async () => {
   await assert.rejects(main(['dance']), {
     code: 2,

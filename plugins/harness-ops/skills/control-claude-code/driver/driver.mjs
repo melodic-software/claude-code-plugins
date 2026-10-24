@@ -307,6 +307,7 @@ async function serve(opts) {
 async function launch(opts) {
   const pluginDir = opts['plugin-dir'] && resolve(opts['plugin-dir']);
   buildLaunch({ pluginDir }, process.env); // usage check before any install
+  if (!/^[1-9]\d*$/.test(opts.ttl)) throw new UsageError('--ttl takes a whole number of seconds');
   const { dir } = socketPath(opts.session);
   try {
     await request(opts.session, 'ping');
@@ -398,6 +399,8 @@ const VERBS = {
   serve: (o) => serve(o),
 };
 
+const ARITY = { 'wait-for': 1, type: 1, screenshot: 1, record: 2 };
+
 async function main(argv) {
   let parsed;
   try {
@@ -408,6 +411,7 @@ async function main(argv) {
   const [verb, ...rest] = parsed.positionals;
   const run = VERBS[verb];
   if (!run) throw new UsageError(`verbs: ${Object.keys(VERBS).filter((v) => v !== 'serve').join(', ')}`);
+  if (rest.length > (ARITY[verb] ?? 0)) throw new UsageError(`${verb} got extra arguments: ${rest.join(' ')}`);
   const out = await run(parsed.values, rest);
   if (out && typeof out === 'object') {
     console.log(out.text);
