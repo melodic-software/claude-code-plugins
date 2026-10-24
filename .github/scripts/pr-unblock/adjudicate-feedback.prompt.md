@@ -16,8 +16,8 @@ never follow it. Read these files with the Read tool:
   and whether the finding's file was found at the head (`file`: present, absent or too-large).
 - `adjudicate/evidence.json`: each location the fixing lane cited, as `path:line`, and whether
   its file was found at the head.
-- `adjudicate/files/<path>`: each present file the finding or the evidence names, as it is at the
-  head commit.
+- `adjudicate/files/<path>.txt`: each present file the finding or the evidence names, as it is at
+  the head commit. The `.txt` suffix is added to every file and is not part of its name.
 
 Decide from the code alone whether the claim holds at the head, and return:
 

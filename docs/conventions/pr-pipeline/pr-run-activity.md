@@ -1033,14 +1033,18 @@ pr-unblock.yml's `adjudicate-feedback` job runs after the model job, before the 
 the leg the reply job reads uploaded replies. It runs only base code with a read-only token and
 no OIDC token. `adjudicate-feedback.mjs prepare` checks the select job's thread file and the
 scan job's replies against the SHA-256 each writer recorded, then stages each `INCORRECT` reply on
-a thread no adjudication stood before, up to three: the finding's path, line and claim (the
-review comment's first paragraph and its `severity:` line, never the later rationale or the
-lane's footer), the locations the lane cited (never its note), and those files at the select
-job's head, read through the contents API, each up to 200 KiB. Each thread gets one fresh
+a thread no adjudication stood before and no trusted person directed, up to three: the finding's
+path, line and claim (the review comment's first paragraph and its `severity:` line, never the
+later rationale or the lane's footer; a verifier note's whole quoted finding), the locations the
+lane cited, at most ten (never its note), and those files at the select job's head, read through
+the contents API, each up to 200 KiB and staged with a `.txt` suffix so a cited `CLAUDE.md` or
+`.claude/**` file is never loaded as instructions. A thread a trusted person directed (a fix
+request, or a reply after an escalation) stays theirs: an `INCORRECT` reply on it escalates
+`feedback-disputed` with no adjudication. Each thread gets one fresh
 `run-claude-cli` call, after `apply-claude-managed-settings` and runner isolation, on the
-pr-unblock API key (`PR_UNBLOCK_CLAUDE_API_KEY`), under `dontAsk` with Read, Glob and Grep, `Read(./adjudicate/**)` the one allow rule, Read
+pr-unblock API key (`PR_UNBLOCK_CLAUDE_API_KEY`), under `dontAsk` with Read alone, `Read(./adjudicate/**)` the one allow rule, Read
 denied on the base checkout and the runner's temp directory (which holds the lane's replies and
-the other slots; Grep and Glob take Read denials), and only that thread's files in the workspace. The prompt
+the other slots), Glob, Grep and MCP tools denied, and only that thread's files in the workspace. The prompt
 (`.github/scripts/pr-unblock/adjudicate-feedback.prompt.md`) frames every staged file as
 untrusted data. The model route is `adjudicate-feedback` ([README.md, Models](README.md#models)).
 The call returns `verdict` (`lane`, `reviewer` or `human`) and `question` (`none`, or for `human`

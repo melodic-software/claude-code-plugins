@@ -832,8 +832,8 @@ jobs:
   # the select job read, never the reviewer's rationale or the lane's note, and
   # returns lane, reviewer or human as structured output. The job runs only
   # base code, holds a read-only token and no OIDC token, and runs each model
-  # call on run-claude-cli under dontAsk with Read, Grep and Glob confined to
-  # its slot, as the lane model jobs are; the model route is adjudicate-feedback (pr-pipeline.yaml
+  # call on run-claude-cli under dontAsk with Read alone, confined to its
+  # slot; the model route is adjudicate-feedback (pr-pipeline.yaml
   # models.routes). Its verdicts leave as one artifact whose SHA-256 the reply
   # job checks, so an artifact the model job's head code uploaded under that
   # name fails this upload and reads as none. No verdict for a thread, a
@@ -935,13 +935,14 @@ jobs:
           install-subprocess-isolation: "true"
 
       # One fresh model call per thread: each sees only its own slot, copied
-      # into the workspace, the one tree run-claude-cli reads. Under dontAsk,
-      # Read, Grep and Glob need no allow rule in the working directory, and
-      # a path rule binds Read alone; a bare Grep or Glob allow would reach
-      # every path. The Read denials, which Grep and Glob also take, keep the
-      # base checkout and the runner's temp files (the lane's replies.jsonl,
-      # the other slots) out (code.claude.com/docs/en/permissions, "Read and
-      # Edit"). The steps repeat once per slot up to MAX_THREADS
+      # into the workspace, the one tree run-claude-cli reads. The judge has
+      # Read alone, as pr-verify's verifier does: evidence.json names every
+      # file it needs, so Glob and Grep are denied rather than trusted to
+      # honor Read denials. The Read denials keep the base checkout and the
+      # runner's temp files (the lane's replies.jsonl, the other slots) out
+      # (code.claude.com/docs/en/permissions, "Read and Edit"). Each staged
+      # file carries a .txt suffix, so a cited CLAUDE.md or .claude/** file
+      # is never loaded as instructions. The steps repeat once per slot up to MAX_THREADS
       # (workflow-gates.test.mjs pins the count and their grants).
 
       - name: Stage disputed thread 0
@@ -971,14 +972,15 @@ jobs:
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           permission-mode: dontAsk
-          tools: |
-            Read
-            Glob
-            Grep
+          tools: Read
           allowed-tools: Read(./adjudicate/**)
           disallowed-tools: |
             Read(./.base/**)
             Read(/${{ runner.temp }}/**)
+            Read(//proc/**)
+            Glob
+            Grep
+            mcp__*
             Bash
             Edit
             Write
@@ -1031,14 +1033,15 @@ jobs:
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           permission-mode: dontAsk
-          tools: |
-            Read
-            Glob
-            Grep
+          tools: Read
           allowed-tools: Read(./adjudicate/**)
           disallowed-tools: |
             Read(./.base/**)
             Read(/${{ runner.temp }}/**)
+            Read(//proc/**)
+            Glob
+            Grep
+            mcp__*
             Bash
             Edit
             Write
@@ -1091,14 +1094,15 @@ jobs:
           effort: ${{ steps.models.outputs.effort }}
           max-turns: ${{ steps.models.outputs.max-turns }}
           permission-mode: dontAsk
-          tools: |
-            Read
-            Glob
-            Grep
+          tools: Read
           allowed-tools: Read(./adjudicate/**)
           disallowed-tools: |
             Read(./.base/**)
             Read(/${{ runner.temp }}/**)
+            Read(//proc/**)
+            Glob
+            Grep
+            mcp__*
             Bash
             Edit
             Write

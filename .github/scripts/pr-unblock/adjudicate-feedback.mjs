@@ -10,11 +10,12 @@
 //            with the job's read-only token, before any model turn: reads the
 //            select job's threads.json and the scan job's replies.jsonl, each
 //            checked against the SHA-256 its writer recorded, and for each
-//            INCORRECT reply on a thread no adjudication has stood before (up
-//            to MAX_THREADS) writes <OUT_DIR>/<slot>/: finding.json (path,
-//            line, head, and the claim: the review comment's first paragraph,
-//            with its severity line), evidence.json (the cited path:line list,
-//            never the lane's note) and files/<path>, the cited files and the
+//            INCORRECT reply on a thread no adjudication has stood before and
+//            no trusted person directed (up to MAX_THREADS) writes
+//            <OUT_DIR>/<slot>/: finding.json (path, line, head, and the
+//            claim: the review comment's first paragraph, with its severity
+//            line), evidence.json (the cited path:line list, never the
+//            lane's note) and files/<path>.txt, the cited files and the
 //            finding's own at the head. <OUT_DIR>/index.json names each slot's
 //            thread. Outputs `count`.
 //   collect  run after the model steps: reads each slot's verdict.json (the
@@ -31,7 +32,7 @@ import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, writeFi
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { createGitHubApi, FINDING_STANDS, need, SHA } from "./address-feedback.mjs";
+import { createGitHubApi, FINDING_STANDS, need, SHA, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 
 // The most disputed threads one round adjudicates: pr-unblock.yml runs one
 // model step per slot. A thread past it is not adjudicated, and the round
@@ -44,6 +45,12 @@ export const QUESTIONS = ["intent", "design", "security"];
 export const FINDING_ANSWERED = "<!-- pr-unblock adjudicate-feedback: finding-answered -->";
 const FILE_BYTES = 204800;
 const CLAIM_CHARS = 2000;
+// The most cited locations one slot stages: publish-feedback.mjs's
+// LIMITS.evidence, which rejects a reply citing more.
+const EVIDENCE_CAP = 10;
+// Each staged file's suffix, so a cited CLAUDE.md, AGENTS.md or .claude/**
+// file is never at a path Claude Code reads as instructions.
+export const STAGED_SUFFIX = ".txt";
 const PATH = /^[A-Za-z0-9_@+.-]+(\/[A-Za-z0-9_@+.-]+)*$/;
 const PATH_LINE = /^([A-Za-z0-9_@+.-]+(?:\/[A-Za-z0-9_@+.-]+)*):([1-9][0-9]{0,6})$/;
 const DOT_SEGMENT = /(^|\/)\.\.?(\/|$)/;
@@ -57,13 +64,26 @@ const safePath = (path) => typeof path === "string" && PATH.test(path) && !DOT_S
 // comment whose first line is FINDING_STANDS.
 export const stood = (comments) => (comments ?? []).some((comment) => comment.author === "lane" && firstLine(comment.body) === FINDING_STANDS);
 
+// Whether a trusted person's direction is on the thread (threadAuthors tags
+// it): their call outranks an adjudicator's, so such a thread is never
+// adjudicated.
+export const directed = (comments) => (comments ?? []).some((comment) => comment.direction === true);
+
 // The review comment's claim, without its rationale: a leading `severity:`
 // line, then the first paragraph after it, cut at CLAIM_CHARS. The repro,
 // the reasoning and the suggested fix in later paragraphs, and the review
-// lane's footer, are left out.
+// lane's footer, are left out. Leading `<!-- -->` marker lines are dropped;
+// a verifier note (verify-notes.mjs) is its introduction line and the quoted
+// block that holds the finding, so the claim is the whole note.
 export function claimOf(body) {
-  const paragraphs = String(body ?? "")
-    .replace(/\r\n/g, "\n")
+  const text = String(body ?? "").replace(/\r\n/g, "\n");
+  const note = firstLine(text) === VERIFY_NOTE_MARKER;
+  const lines = text.split("\n");
+  while (lines.length > 0 && /^<!--.*-->\s*$/.test(lines[0])) {
+    lines.shift();
+  }
+  const paragraphs = lines
+    .join("\n")
     .split(/\n[ \t]*\n/)
     .map((paragraph) => paragraph.trim())
     .filter((paragraph) => paragraph !== "" && !/^`?claude-lane: /.test(paragraph));
@@ -77,7 +97,8 @@ export function claimOf(body) {
       paragraphs[0] = rest.join("\n").trim();
     }
   }
-  return { severity, claim: (paragraphs[0] ?? "").slice(0, CLAIM_CHARS) };
+  const claim = note ? lines.join("\n").trim() : (paragraphs[0] ?? "");
+  return { severity, claim: claim.slice(0, CLAIM_CHARS) };
 }
 
 const sha256 = (text) => createHash("sha256").update(text).digest("hex");
@@ -95,23 +116,27 @@ function readChecked(path, expected, what) {
 }
 
 // The slots to adjudicate: each INCORRECT reply whose thread the select job
-// kept and no adjudication has stood, in reply order. Returns [{thread, finding,
-// evidence, paths}] and the threads past MAX_THREADS.
+// kept, no adjudication has stood and no trusted person directed, in reply
+// order, one slot per thread. Returns [{thread, finding, evidence, paths}] and
+// the threads past MAX_THREADS.
 export function disputes(threadFile, repliesText) {
   const kept = new Map((threadFile.threads ?? []).map((thread) => [thread.id, thread]));
   const slots = [];
   const over = [];
+  const seen = new Set();
   for (const line of repliesText.split("\n").filter((row) => row.trim() !== "")) {
     const reply = JSON.parse(line);
     const thread = kept.get(reply?.thread);
-    if (reply?.disposition !== "INCORRECT" || !thread || !THREAD_ID.test(thread.id) || stood(thread.comments)) {
+    if (reply?.disposition !== "INCORRECT" || !thread || !THREAD_ID.test(thread.id) || seen.has(thread.id) || stood(thread.comments) || directed(thread.comments)) {
       continue;
     }
+    seen.add(thread.id);
     if (slots.length >= MAX_THREADS) {
       over.push(thread.id);
       continue;
     }
     const evidence = (Array.isArray(reply.evidence) ? reply.evidence : [])
+      .slice(0, EVIDENCE_CAP)
       .filter((ev) => typeof ev === "string")
       .map((ev) => PATH_LINE.exec(ev))
       .filter((match) => match && !DOT_SEGMENT.test(match[1]))
@@ -141,12 +166,20 @@ export async function prepare({ threadsText, repliesText, headSha, outDir, getTe
     const found = new Map();
     for (const path of entry.paths) {
       const text = await getText(path, headSha);
-      const fits = text !== null && Buffer.byteLength(text) <= FILE_BYTES;
-      found.set(path, text === null ? "absent" : fits ? "present" : "too-large");
+      const fits = typeof text === "string" && Buffer.byteLength(text) <= FILE_BYTES;
+      let state = typeof text !== "string" ? "absent" : fits ? "present" : "too-large";
       if (fits) {
-        mkdirSync(dirname(join(dir, "files", path)), { recursive: true });
-        writeFileSync(join(dir, "files", path), text);
+        // A path that collides with another staged one (`a` beside `a/b`)
+        // is absent for this slot rather than failing the round.
+        try {
+          const staged = join(dir, "files", `${path}${STAGED_SUFFIX}`);
+          mkdirSync(dirname(staged), { recursive: true });
+          writeFileSync(staged, text);
+        } catch {
+          state = "absent";
+        }
       }
+      found.set(path, state);
     }
     writeFileSync(join(dir, "finding.json"), `${JSON.stringify({ head_sha: headSha, ...entry.finding, file: found.get(entry.finding.path) ?? "absent" }, null, 2)}\n`);
     writeFileSync(
@@ -251,6 +284,8 @@ export const FINDING_STANDS_SKIP = "finding-stands";
 // publish-feedback.mjs's INCORRECT branch, after the lane's replies posted:
 // - a thread an adjudication stood before (stood) that this round left open
 //   is the cap: feedback-disputed, and no second adjudication;
+// - an INCORRECT thread a trusted person directed (directed) is theirs:
+//   feedback-disputed, and no adjudication;
 // - an INCORRECT thread with no verdict escalates feedback-unadjudicated;
 // - human: no reply, feedback-question-<intent|design|security>; a question
 //   only the owner answers stays the owner's;
@@ -278,6 +313,11 @@ export async function settleDisputes({ api, pr, adjudicatedSha, posted, replies,
       continue;
     }
     if (disposition !== "INCORRECT") {
+      continue;
+    }
+    if (directed(now.get(thread)?.comments)) {
+      log(`${thread}: a trusted person directed this thread; it goes back to them, not to an adjudicator`);
+      raise("feedback-disputed");
       continue;
     }
     const verdict = verdicts.get(thread);

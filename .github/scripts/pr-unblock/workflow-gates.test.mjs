@@ -299,6 +299,11 @@ test("pr-unblock.yml: adjudicate-feedback judges every slot prepare stages, each
     assert.equal(withOf(judge), withOf(judges[0]), "every slot's model call has the same inputs and grants");
   }
   assert.match(withOf(judges[0]), /\n {10}allowed-tools: Read\(\.\/adjudicate\/\*\*\)\n/, "Read is allowed in the slot alone");
+  assert.match(withOf(judges[0]), /\n {10}tools: Read\n/, "the judge's one tool is Read");
+  const denied = withOf(judges[0]).match(/\n {10}disallowed-tools: \|\n((?: {12}.*\n)+)/)?.[1].trim().split(/\n\s*/) ?? [];
+  for (const rule of ["Read(./.base/**)", "Read(/${{ runner.temp }}/**)", "Glob", "Grep", "mcp__*", "Bash", "WebFetch"]) {
+    assert.ok(denied.includes(rule), `the judge denies ${rule}`);
+  }
 });
 
 test("pr-unblock.yml: apply-feedback-patch runs only on a written patch with replies from the leg that answered, not after a skip or an empty patch", () => {

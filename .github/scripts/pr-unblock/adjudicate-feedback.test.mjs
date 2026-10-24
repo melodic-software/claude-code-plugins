@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { claimOf, collect, disputes, MAX_THREADS, main, parseVerdicts, prepare, verdictOf } from "./adjudicate-feedback.mjs";
+import { claimOf, collect, disputes, MAX_THREADS, main, parseVerdicts, prepare, settleDisputes, verdictOf } from "./adjudicate-feedback.mjs";
+import { noteComments } from "./verify-notes.mjs";
 
 const HEAD = "a".repeat(40);
 const STANDS = "<!-- pr-unblock adjudicate-feedback: finding-stands -->\n**pr-unblock / adjudicate-feedback: the finding stands**";
@@ -40,6 +41,16 @@ test("claimOf keeps the first paragraph and the severity line, never the rationa
   assert.deepEqual(claimOf("severity: HIGH\nThe guard is missing.\n\nWhy: x"), { severity: "severity: HIGH", claim: "The guard is missing." });
   assert.equal(claimOf("x".repeat(3000)).claim.length, 2000);
   assert.deepEqual(claimOf(""), { severity: null, claim: "" });
+  assert.deepEqual(claimOf("<!-- some marker -->\nThe guard is missing.\n\nWhy: x"), { severity: null, claim: "The guard is missing." });
+});
+
+test("claimOf keeps a verifier note's quoted finding, not just its introduction", () => {
+  const [note] = noteComments({ head: HEAD, summary: "the install step skips the lockfile", notes: ["lib/install.mjs:4 reads no lockfile"], files: ["lib/install.mjs"] });
+  const { claim } = claimOf(note.body);
+  assert.doesNotMatch(claim, /<!--/);
+  assert.match(claim, /^The pr-verify verifier failed head/);
+  assert.match(claim, /Summary: the install step skips the lockfile/);
+  assert.match(claim, /lib\/install\.mjs:4 reads no lockfile/);
 });
 
 const thread = (id, comments = [{ id: 1, author: "reviewer", body: REVIEW }], path = "lib/install.mjs") => ({ id, path, line: 579, comments });
@@ -82,6 +93,46 @@ test("disputes skips a thread whose finding already stood, a thread the select j
   assert.equal(disputes(fileOf(quoted), incorrect("PRRT_a")).slots.length, 1);
 });
 
+// A trusted person's fix request (threadAuthors tags it direction) outranks
+// the adjudicator: the thread is not adjudicated, and an INCORRECT reply on
+// it goes back to that person as feedback-disputed.
+const directedThread = (id) =>
+  thread(id, [
+    { id: 1, author: "reviewer", body: REVIEW },
+    { id: 2, author: "trusted-human", direction: true, body: "PR-fix lane: please fix this finding" },
+  ]);
+
+test("disputes skips a thread a trusted person directed, and gives one thread one slot", () => {
+  assert.deepEqual(disputes(fileOf(directedThread("PRRT_a"), thread("PRRT_b")), [incorrect("PRRT_a"), incorrect("PRRT_b"), incorrect("PRRT_b")].join("\n")).slots.map((slot) => slot.thread), ["PRRT_b"]);
+});
+
+test("disputes stages at most 10 cited locations, the limit publish-feedback accepts", () => {
+  const evidence = Array.from({ length: 5000 }, (_, i) => `lib/f${i}.mjs:1`);
+  const [slot] = disputes(fileOf(thread("PRRT_a")), incorrect("PRRT_a", { evidence })).slots;
+  assert.equal(slot.evidence.length, 10);
+  assert.equal(slot.paths.length, 11, "the finding's file and ten cited files");
+});
+
+test("settleDisputes hands an INCORRECT reply on a directed thread back as feedback-disputed, with no adjudication", async () => {
+  const api = new Proxy({}, { get: (_, name) => () => assert.fail(`no API call expected, got ${String(name)}`) });
+  const result = await settleDisputes({
+    api,
+    pr: 42,
+    adjudicatedSha: HEAD,
+    posted: [{ thread: "PRRT_a", disposition: "INCORRECT" }],
+    replies: [],
+    shown: new Map([["PRRT_a", { comment_ids: [1, 2] }]]),
+    now: new Map([["PRRT_a", directedThread("PRRT_a")]]),
+    verdicts: new Map([["PRRT_a", { verdict: "lane", question: "none" }]]),
+    pushed: false,
+    headMoved: async () => false,
+    resolveAfterReply: async () => assert.fail("not resolved"),
+    escalationReason: "",
+    log: () => {},
+  });
+  assert.deepEqual(result, { escalationReason: "feedback-disputed", skipReason: "" });
+});
+
 test(`disputes adjudicates at most ${MAX_THREADS} threads and names the rest`, () => {
   const ids = ["PRRT_a", "PRRT_b", "PRRT_c", "PRRT_d"];
   const { slots, over } = disputes(fileOf(...ids.map((id) => thread(id))), ids.map((id) => incorrect(id)).join("\n"));
@@ -101,8 +152,9 @@ test("prepare writes one slot per dispute with the files at the head, and refuse
   const result = await prepare({ threadsText, repliesText: incorrect("PRRT_a", { evidence: ["lib/install.mjs:1", "lib/other.mjs:3", "gone.js:9"] }), headSha: HEAD, outDir: dir, getText });
   assert.equal(result.count, 1);
   assert.deepEqual(reads, [["lib/install.mjs", HEAD], ["lib/other.mjs", HEAD], ["gone.js", HEAD]]);
-  assert.equal(readFileSync(join(dir, "0", "files", "lib", "install.mjs"), "utf8"), "const x = 1;\n");
-  assert.equal(existsSync(join(dir, "0", "files", "lib", "other.mjs")), false, "a file over 200 KiB is not staged");
+  assert.equal(readFileSync(join(dir, "0", "files", "lib", "install.mjs.txt"), "utf8"), "const x = 1;\n");
+  assert.equal(existsSync(join(dir, "0", "files", "lib", "install.mjs")), false, "every staged file carries the suffix");
+  assert.equal(existsSync(join(dir, "0", "files", "lib", "other.mjs.txt")), false, "a file over 200 KiB is not staged");
   assert.deepEqual(JSON.parse(readFileSync(join(dir, "0", "evidence.json"), "utf8")), [
     { location: "lib/install.mjs:1", file: "present" },
     { location: "lib/other.mjs:3", file: "too-large" },
@@ -114,6 +166,27 @@ test("prepare writes one slot per dispute with the files at the head, and refuse
   assert.deepEqual(JSON.parse(readFileSync(join(dir, "index.json"), "utf8")), { version: 1, head_sha: HEAD, slots: [{ slot: 0, thread: "PRRT_a" }], over: [] });
 
   await assert.rejects(prepare({ threadsText: JSON.stringify({ ...fileOf(), head_sha: "b".repeat(40) }), repliesText: "", headSha: HEAD, outDir: dir, getText }), /head/);
+});
+
+test("prepare stages a cited CLAUDE.md under the suffix, and a path that cannot be staged is absent, not a failed round", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "adjudicate-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  // `lib` is a file in this staging, so `lib/install.mjs.txt` cannot be written beside it.
+  const getText = async () => "text\n";
+  mkdirSync(join(dir, "0", "files"), { recursive: true });
+  writeFileSync(join(dir, "0", "files", "lib"), "a file where a directory goes\n");
+  const result = await prepare({
+    threadsText: JSON.stringify(fileOf(thread("PRRT_a"))),
+    repliesText: incorrect("PRRT_a", { evidence: ["CLAUDE.md:1"] }),
+    headSha: HEAD,
+    outDir: dir,
+    getText,
+  });
+  assert.equal(result.count, 1);
+  assert.equal(existsSync(join(dir, "0", "files", "CLAUDE.md")), false);
+  assert.equal(readFileSync(join(dir, "0", "files", "CLAUDE.md.txt"), "utf8"), "text\n");
+  assert.equal(JSON.parse(readFileSync(join(dir, "0", "finding.json"), "utf8")).file, "absent");
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, "0", "evidence.json"), "utf8")), [{ location: "CLAUDE.md:1", file: "present" }]);
 });
 
 test("verdictOf takes only the schema's closed sets", () => {
