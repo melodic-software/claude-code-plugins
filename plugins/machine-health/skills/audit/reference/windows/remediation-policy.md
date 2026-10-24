@@ -76,8 +76,7 @@ These remediations are proposed periodically in online discussions but are **not
 4. If the remediation causes trouble, the human runs `/machine-health:setup apply revoke=<id>`; the skill respects the revocation immediately on next run.
 
 `approvals.json` is the single source of truth. The `TODO.md` shipped with the plugin is policy
-documentation only; no checkbox in it drives behavior. One-time carry-forward of checkbox-era
-approvals is specified in [`../shared/approvals.md`](../shared/approvals.md).
+documentation only; no checkbox in it, or in `<StateBase>/TODO.md`, drives behavior.
 
 ---
 

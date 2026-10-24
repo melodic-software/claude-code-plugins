@@ -23,7 +23,7 @@ bad() { echo "FAIL: $1"; fail=$((fail + 1)); }
 
 # The browser groups of each part, and each group's check count for the SKIP line.
 declare -A PARTS=([main]="ab e live page" [ui-c]="c" [journey]="journey")
-declare -A CHECKS=([ab]=97 [c]=182 [e]=15 [journey]=235 [live]=11 [page]=60)
+declare -A CHECKS=([ab]=97 [c]=186 [e]=15 [journey]=235 [live]=11 [page]=83)
 part=main
 case "$#:${1:-}" in
   0:) ;;
@@ -437,7 +437,7 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     bash "$here/round.sh" --dir "$pg" add-round --file tests/fixtures/ui_page/round.json --round 1 >/dev/null || bad "page: add-round refused"
     bash "$here/round.sh" --dir "$pg" ensure-running --port 0 >/dev/null
     gport=$(sed -n 's/^PORT=//p' "$pg/.interview-session.env" | tr -d '\r')
-    gphases=11
+    gphases=14
     for n in $(seq 1 "$gphases"); do
       sed "s/__PORT__/$gport/; s/__PHASE__/$n/" tests/ui_page.js >"$tmp/up$n.js"
     done
@@ -468,6 +468,17 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     bash "$here/round.sh" --dir "$pg" note-reply --text "Asking note: should support sign off?" --needs-answer >/dev/null || bad "page: note-reply --needs-answer refused"
     grun 10
     grun 11
+    printf '%s' '{"ops": [{"op": "constraint", "text": "Builds stop at ten minutes."}, {"op": "constraint", "text": "Stdlib only."}]}' >"$pg/ops/k.json"
+    bash "$here/round.sh" --dir "$pg" apply --file "$pg/ops/k.json" >/dev/null || bad "page: constraint ops refused"
+    grun 12
+    # Phases 13 and 14, the frontier lock: Q11 is open in round 2 and Q12 in round 3 depends on it.
+    # Phase 13 runs the default confirm; the shell then sets the data dir's lock to hard.
+    printf '%s' '{"ops": [{"op": "add", "question": {"id": "Q11", "group": "g1", "stage": "interview", "round": 2, "short": "Rollout", "title": "How wide is the first rollout?", "recommendation": "One region.", "dependsOn": [], "commits": [], "alternatives": [{"key": "a", "text": "Every region"}, {"key": "b", "text": "Staff only"}]}},
+    {"op": "add", "question": {"id": "Q12", "group": "g1", "stage": "interview", "round": 3, "short": "Rollout gate", "title": "What gates the second region?", "recommendation": "A clean week of error logs.", "dependsOn": ["Q11"], "commits": [], "alternatives": [{"key": "a", "text": "A fixed date"}, {"key": "b", "text": "Nothing"}]}}]}' >"$pg/ops/lock.json"
+    bash "$here/round.sh" --dir "$pg" apply --file "$pg/ops/lock.json" >/dev/null || bad "page: the frontier-lock questions were refused"
+    grun 13
+    printf '%s' '{"frontierLock": "hard"}' >"$pg/settings.json"
+    grun 14
     bash "$here/round.sh" --dir "$pg" stop >/dev/null 2>&1
     for n in $(seq 1 "$gphases"); do grade "ui_page.$n" "$tmp/up$n.out"; done
   }

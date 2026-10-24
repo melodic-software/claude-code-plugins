@@ -19,7 +19,7 @@
 
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildView, ViewBuildError } from "../../../lib/view-builder.mjs";
 
@@ -111,16 +111,19 @@ export function toCheckupData(latest, remediations, report) {
   });
 
   const counts = SEVERITIES.map((s) => `${checks.filter((c) => severity(c.severity) === s).length} ${s.toUpperCase()}`).join(", ");
+  const run = {
+    host: text(latest.hostname),
+    "ran-at": text(latest.run_id),
+    elevated: latest.elevated === true ? "elevated" : "not elevated",
+    report: text(report),
+  };
+  // A scheduled run's research notes, named by file only; win32 basename splits on / and \.
+  if (typeof latest.discovery_path === "string" && latest.discovery_path) {
+    run.notes = text(win32.basename(latest.discovery_path));
+  }
   return {
     data: {
-      run: [
-        {
-          host: text(latest.hostname),
-          "ran-at": text(latest.run_id),
-          elevated: latest.elevated === true ? "elevated" : "not elevated",
-          report: text(report),
-        },
-      ],
+      run: [run],
       counts,
       areas,
       remediations: offered.map((id) => ({ title: id })),

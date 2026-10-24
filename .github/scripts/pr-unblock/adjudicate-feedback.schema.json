@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "properties": {
+    "verdict": { "type": "string", "enum": ["lane", "reviewer", "human"] },
+    "question": { "type": "string", "enum": ["none", "intent", "design", "security"] }
+  },
+  "required": ["verdict", "question"],
+  "additionalProperties": false
+}
