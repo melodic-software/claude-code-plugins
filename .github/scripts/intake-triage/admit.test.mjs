@@ -170,7 +170,7 @@ describe("decide", () => {
     assert.match(result.reasons.join(), /#12/);
   });
 
-  // Issue 7 in o/r; a cross-reference as the REST timeline reports it.
+  // The fixture repository's issue; a cross-reference as the REST timeline reports it.
   const ref = (issue) => ({
     event: "cross-referenced",
     source: { issue: { number: 12, state: "open", pull_request: {}, repository_url: "https://api.github.com/repos/o/r", body: "", ...issue } },
