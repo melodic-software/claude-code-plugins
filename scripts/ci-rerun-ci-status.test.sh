@@ -9,7 +9,8 @@
 # pr-require-checks pull_request run on the reviewed head, after that run
 # finishes, polling at most POLL_LIMIT_SECONDS; the find step names the job
 # and the rerun-ci-status record of the attempt the re-run starts, which the
-# record step uploads before the re-run step re-runs it. The other lane still going, a
+# record step uploads before the re-run step re-runs it, unless the review run
+# was re-run by anyone but a listed human. The other lane still going, a
 # closed PR, a moved head, no run yet, a ci-status not started or one started
 # after both lanes finished is left alone. A rate limit waits for its reset
 # within the cap, or fails past it. Unreadable reads fail. Each
@@ -54,15 +55,25 @@ if [[ ! -s "$TMP_ROOT/body.sh" || ! -s "$TMP_ROOT/rerun.sh" ]]; then
 fi
 # shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell
 for env in 'HEAD_SHA: ${{ github.event.workflow_run.head_sha }}' 'PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}' \
-  'LANE_PATH: ${{ github.event.workflow_run.path }}' 'LANE_DONE_AT: ${{ github.event.workflow_run.updated_at }}' "POLL_LIMIT_SECONDS: '600'"; do
+  'LANE_PATH: ${{ github.event.workflow_run.path }}' 'LANE_DONE_AT: ${{ github.event.workflow_run.updated_at }}' "POLL_LIMIT_SECONDS: '600'" \
+  'REVIEW_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}' 'REVIEW_RERUNNER_ID: ${{ github.event.workflow_run.triggering_actor.id }}' \
+  'TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json'; do
   if [[ "$step" == *"$env"* ]]; then ok "step env carries $env"; else fail "step env lacks $env"; fi
 done
 job="$(awk '/^  rerun-ci-status:$/ { on = 1; next } on && /^  [a-z]/ { exit } on { print }' "$WORKFLOW")"
-if [[ "$job" == *$'    permissions:\n      actions: write # '*$'\n      pull-requests: read # '* && "$job" != *"contents:"* ]]; then
-  ok "the job holds actions: write and pull-requests: read only"
+if [[ "$job" == *$'    permissions:\n      contents: read # '*$'\n      actions: write # '*$'\n      pull-requests: read # '*$'\n    steps:'* ]]; then
+  ok "the job holds contents: read, actions: write and pull-requests: read only"
 else
   fail "the job's permissions changed"
 fi
+# The trusted-actors list comes from the default branch, never the PR head,
+# and a failed checkout leaves no list rather than failing the re-run.
+list_step="$(step_of 'Check out the trusted-actors list')"
+# shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell
+for want in 'continue-on-error: true' 'uses: actions/checkout@' 'ref: refs/heads/main' 'path: .base' 'persist-credentials: false' \
+  '/.github/standards/trusted-actors/' 'sparse-checkout-cone-mode: false'; do
+  if [[ "$list_step" == *"$want"* ]]; then ok "the list checkout carries '$want'"; else fail "the list checkout lacks '$want'"; fi
+done
 # The record goes up between the find and the re-run, and each later step
 # runs only on the find step's outputs.
 order="$(grep -nE '^      - name: (Find the ci-status to re-run|Record the re-run|Re-run ci-status)$' <<<"$job" | cut -d: -f3- | paste -sd'|')"
@@ -149,10 +160,11 @@ SEC=.github/workflows/pr-review-security-hosted.yml
 # EARLY unless a case says otherwise. AFTER is just past the 60 s margin.
 EARLY=2026-10-23T09:50:00Z DONE=2026-10-23T10:00:00Z LATER=2026-10-23T10:05:00Z AFTER=2026-10-23T10:06:01Z
 pr() { jq -cn --arg st "${1:-open}" --arg sha "${2:-$HEAD}" '{state: $st, head: {sha: $sha}}'; }
-# run <id> [status] [sha] [path] [event] [updated_at] [run_attempt]
+# run <id> [status] [sha] [path] [event] [updated_at] [run_attempt] [head repository]
 run() {
   jq -cn --argjson id "$1" --arg st "${2:-completed}" --arg sha "${3:-$HEAD}" --arg p "${4:-$RCF}" --arg ev "${5:-pull_request}" --arg at "${6:-$LATER}" \
-    --argjson n "${7:-1}" '{id: $id, status: $st, head_sha: $sha, path: $p, event: $ev, updated_at: $at, run_attempt: $n}'
+    --argjson n "${7:-1}" --arg repo "${8:-o/r}" \
+    '{id: $id, status: $st, head_sha: $sha, path: $p, event: $ev, updated_at: $at, run_attempt: $n, head_repository: {full_name: $repo}}'
 }
 runs() {
   local IFS=,
@@ -161,6 +173,10 @@ runs() {
 # cijob <status> [started_at]
 cijob() { jq -cn --arg st "$1" --arg at "${2:-$EARLY}" '{jobs: [{id: 7, name: "lint-repo", status: "completed"}, {id: 77, name: "ci-status", status: $st, started_at: $at}]}'; }
 
+# The list names one human and one bot; KYLE is the human.
+KYLE=153232337 LANES_APP=337595936 STRANGER=9999001
+jq -n --argjson h "$KYLE" --argjson b "$LANES_APP" '{version: 1, actors: [{id: $h, login: "kyle-sexton", kind: "human"},
+  {id: $b, login: "melodic-automation-lanes[bot]", kind: "bot"}]}' >"$TMP_ROOT/trusted-actors.json"
 export STUB_PR STUB_LANE_RUNS STUB_RUNS STUB_JOBS STUB_RUN_SEQ
 expect() {
   local label="$1" want_rc="$2" out rc
@@ -170,7 +186,8 @@ expect() {
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REPOSITORY=o/r HEAD_SHA="${HEAD_SHA-$HEAD}" \
     PR_NUMBER="${PR_NUMBER-42}" LANE_PATH="${LANE_PATH-$CODE}" LANE_DONE_AT="${LANE_DONE_AT-$DONE}" \
     GITHUB_OUTPUT="$TMP_ROOT/out" RECORD_FILE="$TMP_ROOT/record.json" GITHUB_RUN_ID=555 \
-    POLL_SECONDS=60 POLL_LIMIT_SECONDS=600 bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    REVIEW_ATTEMPT="${REVIEW_ATTEMPT-1}" REVIEW_RERUNNER_ID="${REVIEW_RERUNNER_ID-$KYLE}" \
+    TRUSTED_ACTORS="${TRUSTED_ACTORS-$TMP_ROOT/trusted-actors.json}" POLL_SECONDS=60 POLL_LIMIT_SECONDS=600 bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
   elif [[ -n "${3:-}" && "$out" != *"$3"* ]]; then
@@ -220,6 +237,11 @@ LANE_PATH=$SEC expect "the security lane finishing last reads the code lane" 0 "
 if grep -q '/actions/workflows/pr-review-hosted.yml/runs?' "$TMP_ROOT/log"; then ok "the security lane's run reads the code lane's runs"; else fail "reads: $(paste -sd'|' "$TMP_ROOT/log")"; fi
 STUB_RUNS="$(runs "$(run 5)" "$(run 9 completed "${HEAD//0/f}")" "$(run 10 completed "$HEAD" .github/workflows/other.yml)" "$(run 11 completed "$HEAD" "$RCF" merge_group)")"
 expect "runs on another head, of another file or event are not the newest" 0 "of run 5 on $HEAD"
+STUB_RUNS="$(runs "$(run 9)" "$(run 12 completed "$HEAD" "$RCF" pull_request "$LATER" 1 someone/fork)")"
+expect "a fork's run at the same head is not the newest" 0 "of run 9 on $HEAD"
+STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC")" "$(run 6 in_progress "$HEAD" "$SEC" pull_request "$LATER" 1 someone/fork)")"
+expect "a fork's other-lane run still going does not hold the re-run" 0 "Re-running ci-status (job 77) of run 9"
+STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC")")"
 STUB_RUNS="$(runs "$(run 9)")"
 
 # The other lane still going: no re-run, one API call; its completion re-runs ci-status.
@@ -360,6 +382,37 @@ STUB_RUNS="$(runs "$(jq -c 'del(.run_attempt)' <<<"$(run 9)")")" STUB_JOBS="$(ci
 expect "a run with no attempt number fails" 1 "::error::run 9 on $HEAD reports no attempt number."
 check_reran 0 "nothing is handed on without an attempt number"
 STUB_RUNS="$(runs "$(run 9)")"
+
+# A review run re-run by someone not listed as a human leaves no record, so
+# pr-verify's gate refuses the ci-status attempt it causes; ci-status is
+# still re-run. A first attempt, or a listed human's re-run, is recorded. An
+# unreadable list, or an attempt or re-runner that is not a number, records
+# nothing.
+# check_unrecorded <label>: the re-run step gets the job and no record.
+check_unrecorded() {
+  if [[ "$(cat "$TMP_ROOT/out")" == "job-id=77" && ! -e "$TMP_ROOT/record.json" ]]; then
+    ok "$1"
+  else
+    fail "$1: outputs: $(paste -sd'|' "$TMP_ROOT/out"), record file: $([[ -e "$TMP_ROOT/record.json" ]] && echo yes || echo no)"
+  fi
+}
+REVIEW_ATTEMPT=2 REVIEW_RERUNNER_ID=$KYLE expect "a review run a listed human re-ran is recorded" 0 "Re-running ci-status (job 77) of run 9 on $HEAD as attempt 2."
+check_reran 1 "a listed human's review re-run hands on the record"
+REVIEW_ATTEMPT=2 REVIEW_RERUNNER_ID=$STRANGER expect "a review run an unlisted user re-ran is not recorded" 0 "::notice::review attempt 2 was started by $STRANGER"
+check_unrecorded "an unlisted re-runner's review re-run hands on the job and no record"
+REVIEW_ATTEMPT=3 REVIEW_RERUNNER_ID=$LANES_APP expect "a review run a listed bot re-ran is not recorded" 0 "is not a listed human"
+check_unrecorded "a bot re-runner's review re-run hands on no record"
+REVIEW_ATTEMPT=2 REVIEW_RERUNNER_ID=$KYLE TRUSTED_ACTORS="$TMP_ROOT/absent.json" expect "an unreadable list records nothing" 0 "is not a listed human"
+check_unrecorded "an unreadable list hands on no record"
+printf '{"actors": [' >"$TMP_ROOT/broken.json"
+REVIEW_ATTEMPT=2 REVIEW_RERUNNER_ID=$KYLE TRUSTED_ACTORS="$TMP_ROOT/broken.json" expect "a list that does not parse records nothing" 0 "is not a listed human"
+check_unrecorded "a broken list hands on no record"
+REVIEW_ATTEMPT=2 REVIEW_RERUNNER_ID='' expect "a re-run with no re-runner id records nothing" 0 "is not a listed human"
+check_unrecorded "a missing re-runner id hands on no record"
+REVIEW_ATTEMPT='' REVIEW_RERUNNER_ID=$KYLE expect "a review run with no attempt number records nothing" 0 "is not a listed human"
+check_unrecorded "a missing review attempt hands on no record"
+REVIEW_ATTEMPT=1 REVIEW_RERUNNER_ID=$STRANGER TRUSTED_ACTORS="$TMP_ROOT/absent.json" expect "a first review attempt is recorded without the list" 0 "as attempt 2."
+check_reran 1 "a first attempt hands on the record"
 
 # The re-run step re-runs only a job id, once.
 rerun_expect() {

@@ -2725,6 +2725,19 @@ test("ci-status re-run: at attempt 2, 21 forged reconciler candidates do not use
   assert.ok(github.calls.includes(dispatchRoute));
 });
 
+test("ci-status re-run: 21 forged candidates under the last name refuse at once, before the real record", async () => {
+  const sleep = fakeSleep();
+  const forged = Array.from({ length: 21 }, (_, i) =>
+    rerunRecord({ id: 11900000000 + i, name: ciStatusRecord(3), created_at: "2026-10-19T19:00:00Z", workflow_run: { id: 39340000000 + i } }),
+  );
+  const github = fakeGitHub(ciStatusRoutes({ artifacts: listing(...forged, ciStatusArtifact(3)) }));
+  assert.deepEqual(await ciStatusRerun({ github, sleep }), STOPPED("untrusted-actor"));
+  assert.equal(github.calls.filter((call) => /\/actions\/runs\/39340[0-9]+$/.test(call)).length, 20);
+  assert.equal(github.calls.filter((call) => call === artifactsByName(ciStatusRecord(3))).length, 1);
+  assert.deepEqual(sleep.waits, []);
+  assert.ok(!github.calls.includes(dispatchRoute));
+});
+
 test("ci-status re-run: with no record the bot stays an untrusted actor after one re-read", async () => {
   const sleep = fakeSleep();
   const github = fakeGitHub(ciStatusRoutes({ artifacts: listing() }));
