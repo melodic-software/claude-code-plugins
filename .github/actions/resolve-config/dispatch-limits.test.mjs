@@ -47,7 +47,7 @@ const LANES_APP = 337595936;
 const ciFixPull = (number) => {
   const head = String(number).padStart(40, "c");
   const ciStatus = { __typename: "CheckRun", name: "ci-status", status: "COMPLETED", conclusion: "FAILURE", checkSuite: { app: { databaseId: 15368 } } };
-  const ciLanes = { __typename: "StatusContext", context: "ci-lanes", state: "FAILURE", creator: { login: "github-actions[bot]" } };
+  const ciLanes = { __typename: "StatusContext", context: "ci-lanes", state: "FAILURE", creator: { __typename: "Bot", login: "github-actions", databaseId: 41898282 } };
   return {
     number,
     isDraft: false,

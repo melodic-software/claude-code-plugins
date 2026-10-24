@@ -92,7 +92,7 @@ export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!
                   nodes {
                     __typename
                     ... on CheckRun { name status conclusion title completedAt checkSuite { app { databaseId } } }
-                    ... on StatusContext { context state creator { login } }
+                    ... on StatusContext { context state creator { __typename ... on Bot { databaseId } } }
                   }
                   pageInfo { hasNextPage }
                 }
@@ -130,14 +130,22 @@ function ownerIdle(node, idleHours, now) {
   return commit?.oid === node.headRefOid && Date.parse(node.updatedAt) <= since && Date.parse(commit.committedDate) <= since;
 }
 
-// The head's `ci-lanes` commit status when github-actions[bot] wrote it, as
-// ci-status's aggregate step does: the lanes' verdict alone. ci-status itself
-// also fails on a hold label, a pending or missing review and the PR
-// contract, none of which a CI fix mends.
-function lanesState(node) {
+// The GitHub Actions bot's user id. GraphQL reports its login as
+// `github-actions`, REST as `github-actions[bot]`; the id is the same in both.
+const ACTIONS_BOT_ID = 41898282;
+
+// The head's `ci-lanes` commit status, whoever set it.
+function lanesStatus(node) {
   const contexts = node.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts?.nodes ?? [];
-  const status = contexts.find((context) => context?.__typename === "StatusContext" && context.context === "ci-lanes");
-  return status?.creator?.login === "github-actions[bot]" ? status.state : null;
+  return contexts.find((context) => context?.__typename === "StatusContext" && context.context === "ci-lanes");
+}
+
+// The ci-lanes state when the GitHub Actions bot set it, else null: the
+// lanes' verdict alone. ci-status itself also fails on a hold label, a
+// pending or missing review and the PR contract, none of which a CI fix mends.
+function lanesState(node) {
+  const status = lanesStatus(node);
+  return status?.creator?.__typename === "Bot" && status.creator.databaseId === ACTIONS_BOT_ID ? status.state : null;
 }
 
 const lanesFailed = (node) => ["FAILURE", "ERROR"].includes(lanesState(node));
@@ -274,8 +282,13 @@ export async function dispatchCiFixes({
     log(`fix-ci listing page ${page}: rateLimit.cost=${rateLimit?.cost} remaining=${rateLimit?.remaining}`);
     baseAt ??= Date.parse(baseCommittedAt ?? "");
     for (const node of pullRequests.nodes) {
-      if (skipReason(node, { base, appSenderId, actionsAppId, checkName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, now }) === "") {
+      const reason = skipReason(node, { base, appSenderId, actionsAppId, checkName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, now });
+      if (reason === "") {
         candidates.push(node);
+      } else if (["FAILURE", "ERROR"].includes(lanesStatus(node)?.state)) {
+        // A head whose lanes failed, whoever set the status, is the one a
+        // silent skip would hide.
+        log(`skip fix-ci #${node.number}: ${reason}`);
       }
     }
     if (!pullRequests.pageInfo.hasNextPage) {
