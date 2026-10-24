@@ -112,8 +112,8 @@ test("done opens a PR whose body starts with Closes #N", () => {
 const bodyOf = (outcome) =>
   withDir({ "work-outcome.json": JSON.stringify(outcome) }, (dir) => decideDone({ outcome: readOutcome(join(dir, "work-outcome.json")) }).body);
 
-// PR #9621: the run set `link: refs` for the issue's own parent `Refs:` line
-// and named no remaining work, so the PR closes the issue.
+// A run that sets `link: refs` for the issue's own parent `Refs:` line and
+// names no remaining work opens a PR that closes the issue.
 test('"link": "refs" with no remaining work closes the issue', () => {
   for (const remaining of [undefined, []]) {
     const body = bodyOf({ ...done, link: "refs", remaining });
