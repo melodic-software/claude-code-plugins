@@ -96,7 +96,7 @@ export function stepsKnown(job) {
 // by the job's check-run annotations (job.annotations, read by the caller):
 // GitHub's own failure message, as maintenance-monitor-signals matches it.
 const LOST_RUNNER = /lost communication with the server|runner has received a shutdown signal/i;
-const lostRunnerNoted = (job) =>
+export const lostRunnerNoted = (job) =>
   Array.isArray(job?.annotations) && job.annotations.some((a) => a?.annotation_level === "failure" && LOST_RUNNER.test(String(a.message ?? "")));
 
 // True when a failed lane job's steps cannot be read, so whether the run's

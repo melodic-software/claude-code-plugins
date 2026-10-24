@@ -499,6 +499,38 @@ test("a verify run whose job's steps did not list is not re-run or recorded, and
   }
 });
 
+// A runner that dies cuts its job's list at the running step, with no
+// "Complete job"; GitHub's runner-loss annotation on the job's check run tells
+// that cut from one the API made.
+test("a verify run whose job lost its runner is re-run when its cut list stops before the judge step, from the job's annotations", async () => {
+  const lostAt = (running) => ({
+    id: 88,
+    name: "verify",
+    status: "completed",
+    conclusion: "failure",
+    runner_id: 7,
+    steps: [
+      { number: 1, name: "Set up job", status: "completed", conclusion: "success" },
+      { number: 2, name: "Check the trigger", status: "completed", conclusion: "success" },
+      { number: 3, name: running, status: "in_progress", conclusion: null },
+    ],
+    notes: [{ annotation_level: "failure", message: "The hosted runner: GitHub Actions 7 lost communication with the server." }],
+  });
+  const before = await reconcile({ pulls: [], runs: [{ ...verifyRun(201), jobs: [lostAt("Read the spec")] }] });
+  assert.equal(before.code, 0);
+  assert.deepEqual(before.reruns, [201]);
+  assert.deepEqual(records(before.outputs), [`reconcile-rerun-201-2-${MAIN_TIP}`, "", ""]);
+  assert.ok(before.calls.includes(`GET /repos/${REPO}/check-runs/88/annotations?per_page=100`));
+  const during = await reconcile({ pulls: [], runs: [{ ...verifyRun(201), jobs: [lostAt(JUDGE_STEP)] }] });
+  assert.equal(during.code, 0);
+  assert.deepEqual(during.reruns, []);
+  assert.deepEqual(records(during.outputs), ["", "", ""]);
+  const unnoted = await reconcile({ pulls: [], runs: [{ ...verifyRun(201), jobs: [{ ...lostAt("Read the spec"), notes: [] }] }] });
+  assert.equal(unnoted.code, 1);
+  assert.deepEqual(unnoted.reruns, []);
+  assert.deepEqual(records(unnoted.outputs), ["", "", ""]);
+});
+
 // Whatever the list looks like, a judge step listed with any state but a
 // finished skip counts as started.
 test("a verify run whose judge step is listed with no conclusion is held", async () => {
