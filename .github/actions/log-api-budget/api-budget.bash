@@ -19,9 +19,10 @@
 #
 # The rate guard, rate-guard.mjs's shell port: once a response shows a pool
 # exhausted, no gh call goes to that pool before its reset for the rest of the
-# job; each refusal returns 1 with an error naming the reset, and so does the
-# call that hit the limit. Its stops are lines `<pool> <reset epoch>` in
-# $RUNNER_TEMP/api-budget/stop; a stop whose time is a guess (no header gave
+# job; each refusal returns 1 with an error naming the reset, and so does a
+# call GitHub refused. A call GitHub answered with a 2xx keeps its answer and
+# gh's status, so no caller resends a write GitHub accepted. Its stops are
+# lines `<pool> <reset epoch>` in $RUNNER_TEMP/api-budget/stop; a stop whose time is a guess (no header gave
 # it) goes in $RUNNER_TEMP/api-budget/guessed too.
 #   api_budget_classify         jq filter: rate-guard.mjs's classify over
 #                               {status, headers, body, now (ms), pool, floor}
@@ -33,9 +34,11 @@
 #   api_budget_guessed <epoch>  whether a stop until <epoch> is a guess
 #   api_budget_observe <file> <pool> <what>
 #                               reads gh api -i output and stops its pool when
-#                               it is exhausted, returning 1; under
+#                               it is exhausted, returning 1 unless the
+#                               answer is a 2xx; under
 #                               API_BUDGET_READ_FLOOR of the limit left, warns
-#                               once
+#                               once (unset: no floor; ci-status sets it to
+#                               the schema's read-floor default)
 #   api_budget_emit <token>...  the hub collector's notice for each refused
 #                               (403/429) reading and for the last reading of
 #                               each resource, core last; cost is
@@ -180,7 +183,7 @@ api_budget_stop() {
     echo "$1 $2" >>"$dir/stop"
     [[ $3 != fallback ]] || echo "$1 $2" >>"$dir/guessed"
   fi
-  echo "::error::'$4' hit GitHub's $(api_budget_label "$1") rate limit: no call to it before $(api_budget_when "$2") ($3); the call returns 1" >&2
+  echo "::error::'$4' hit GitHub's $(api_budget_label "$1") rate limit: no call to it before $(api_budget_when "$2") ($3); ${5:-the call returns 1}" >&2
   return 1
 }
 
@@ -210,11 +213,11 @@ API_BUDGET_CLASSIFY='def num: if type == "string" and test("^[0-9]{1,12}$") then
        else [$n + (if $best != null or $secondary then 60 else 3600 end), "fallback"] end) as $at
     | (($h["x-ratelimit-resource"] // "") | tostring) as $res
     | {latched: true, low: $low, reset_source: $at[1], reset: $at[0],
-       pool: (if $ra != null or (($msg or $many) and $rem != 0) then "*" elif ($res | test("^[a-z_]+$")) then $res else $in.pool end)}
+       pool: (if $ra != null or $secondary or (($msg or $many) and $rem != 0) then "*" elif ($res | test("^[a-z_]+$")) then $res else $in.pool end)}
     end'
 
 api_budget_observe() {
-  local file=$1 pool=$2 what=$3 start verdict latched low source reset stop dir=${RUNNER_TEMP:-/tmp}/api-budget
+  local file=$1 pool=$2 what=$3 start verdict latched low source reset stop status dir=${RUNNER_TEMP:-/tmp}/api-budget
   start=$(awk 'NR == 1 && !/^HTTP\/[0-9.]+ [0-9][0-9][0-9]/ { exit } { sub(/\r$/, "") } NR > 1 && $0 == "" { print NR; exit }' "$file")
   [[ -n $start ]] || return 0
   verdict=$(jq -rn --rawfile raw "$file" --argjson start "$start" --arg pool "$pool" --argjson now "$(($(date +%s) * 1000))" \
@@ -226,6 +229,11 @@ api_budget_observe() {
     | '"$API_BUDGET_CLASSIFY"' | "\(.latched) \(.low) \(.reset_source) \(.reset) \(.pool)"' 2>/dev/null) || return 0
   read -r latched low source reset stop <<<"$verdict"
   if [[ $latched == true ]]; then
+    read -r _ status _ <"$file"
+    if [[ $status == 2[0-9][0-9] ]]; then
+      api_budget_stop "$stop" "$reset" "$source" "$what" "its answer stands, and later calls to it are refused" || :
+      return 0
+    fi
     api_budget_stop "$stop" "$reset" "$source" "$what" || return 1
   elif [[ $low == true ]] && mkdir -p "$dir" 2>/dev/null && [[ ! -e $dir/low-$pool ]]; then
     : >"$dir/low-$pool"

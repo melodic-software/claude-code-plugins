@@ -93,6 +93,7 @@ fi
 #   limit <remaining> <reset> <retry-after or -> <message>
 #                                   403 with those headers and that message;
 #                                   graphql's resource on a graphql call
+#   last <reset> <body>             200 that spends the last request
 #   fail <status> <message>         that status, no rate-limit headers
 # Without -i only the body, or the error text on stderr, is printed. sleep
 # logs its seconds, and date +%s answers STUB_NOW plus the seconds slept.
@@ -108,6 +109,10 @@ case $kind in
 ok)
   [[ -z $include ]] || printf 'HTTP/2.0 200 OK\r\nX-Ratelimit-Limit: 5000\r\nX-Ratelimit-Remaining: 4000\r\nX-Ratelimit-Resource: %s\r\n\r\n' "$resource"
   printf '%s\n' "$a${b:+ $b}${c:+ $c}${rest:+ $rest}"
+  ;;
+last)
+  [[ -z $include ]] || printf 'HTTP/2.0 200 OK\r\nX-Ratelimit-Limit: 5000\r\nX-Ratelimit-Remaining: 0\r\nX-Ratelimit-Reset: %s\r\nX-Ratelimit-Resource: %s\r\n\r\n' "$a" "$resource"
+  printf '%s\n' "$b"
   ;;
 limit)
   if [[ -n $include ]]; then
@@ -175,6 +180,12 @@ if [[ "$(cat "$TMP_ROOT/log")" == "api -i repos/o/r/pulls/1" ]]; then
 else
   fail "gh_read called '$(cat "$TMP_ROOT/log")'"
 fi
+
+fresh
+STUB_SCRIPT="last $((NOW + 3000)) spent" run 'x=$(gh_read repos/o/r/pulls/1); echo "got $x"'
+check "a 200 that spends the last request returns its body and 0, with no wait" 0 1 "" "got spent" "waiting"
+STUB_SCRIPT='ok never' run 'gh_read repos/o/r/pulls/2 || echo "rc=$?"'
+check "the next read of that pool before its reset is refused without a call" 0 0 "" "rc=1"
 
 fresh
 STUB_SCRIPT="$LIMITED
