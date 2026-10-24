@@ -438,6 +438,21 @@ function wrapRunIds(base, env) {
   };
 }
 
+// A held PR's comments and label events are read at most once a run, however
+// many dispatchers ask.
+export function shareTimeline(base) {
+  const memo = (read) => {
+    const seen = new Map();
+    return (number) => {
+      if (!seen.has(number)) {
+        seen.set(number, read(number));
+      }
+      return seen.get(number);
+    };
+  };
+  return { ...base, listIssueComments: memo(base.listIssueComments), listLabelEvents: memo(base.listLabelEvents) };
+}
+
 // Writes the dispatched run ids, lowest PR first, as the step output run-ids,
 // which the workflow records as an artifact on this run.
 export async function main(
@@ -467,7 +482,7 @@ export async function main(
       fetch: budget.fetch,
     });
   try {
-    return await dispatchAll(env, { client: wrapRunIds(base, env), sleep, log, loadLimits, loadAdoption, now });
+    return await dispatchAll(env, { client: shareTimeline(wrapRunIds(base, env)), sleep, log, loadLimits, loadAdoption, now });
   } finally {
     if (budget) {
       log(budget.summary());

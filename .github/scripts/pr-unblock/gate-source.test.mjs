@@ -91,6 +91,17 @@ test("an escalation of the activity's own, among others since the label, holds i
   assert.equal(allows(timeline, "resolve-conflicts"), true);
 });
 
+test("a person's comment since the label went on holds every activity; one before it does not", () => {
+  const base = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("feedback-disputed")];
+  const after = [...base, commented(OWNER, "Please wait, I am looking at this.", "2026-10-18T11:00:00Z")];
+  const before = [commented(OWNER, "Looks fine.", "2026-10-18T09:00:00Z"), ...base];
+  const bot = [...base, commented(ACTIONS, "A review lane's note.", "2026-10-18T11:00:00Z")];
+  assert.equal(allows(after, "fix-ci"), false);
+  assert.equal(allows(after, "resolve-conflicts"), false);
+  assert.equal(allows(before, "fix-ci"), true);
+  assert.equal(allows(bot, "fix-ci"), true, "a bot's comment is no one asking to wait");
+});
+
 test("a person's label, a review-lane hold or an escalation with no reason holds every activity", () => {
   const person = [label("labeled", OWNER, "2026-10-18T10:00:00Z"), escalated("feedback-disputed")];
   const review = [hold(HEAD, "2026-10-18T09:00:00Z"), label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("feedback-disputed")];

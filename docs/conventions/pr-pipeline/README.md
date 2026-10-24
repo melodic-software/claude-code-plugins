@@ -235,8 +235,9 @@ step judges the threads as above.
 
 A lane escalation's human-gated label does not stop the other fixers that could clear its cause.
 `resolve-conflicts`, `fix-ci` and `fix-docs` work a PR carrying the label when `gate-source.mjs`
-reads it as a lane escalation (the conditions below) and no escalation since the label went on
-names a reason of the activity's own, read from the `- Reason:` line `report-escalation.sh`
+reads it as a lane escalation (the conditions below), no person has commented since the label went
+on (they may want the lanes to wait, as `clear-escalations.mjs` reads it), and no escalation since
+then names a reason of the activity's own, read from the `- Reason:` line `report-escalation.sh`
 writes (`ci-fix-*` is `fix-ci`'s, `feedback-*` `address-feedback`'s, `dependency-*`
 `review-dependency`'s, any other `resolve-conflicts`'s). Their dispatchers and base-code jobs
 (`resolve-conflicts-select` and `pr-refine.yml`'s `fix-docs-head` through `lane-hold.mjs`,

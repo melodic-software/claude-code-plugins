@@ -412,6 +412,24 @@ test("another lane's escalation does not hold resolve-conflicts; its own does", 
   assert.deepEqual(dispatchedNumbers(noApp.api), [], "with no lanes App id the label holds");
 });
 
+test("main reads a held PR's timeline once, however many dispatchers ask", async () => {
+  const held = pr(61, LABELS("needs-human"));
+  const ci = { ...ciFixPull(61), labels: { nodes: [{ name: "needs-human" }] } };
+  const docs = { ...docsPull(61), labels: { nodes: [{ name: "needs-human" }] } };
+  const api = fakeApi({ pages: [[held]], ciFixPulls: [ci], docsPulls: [docs], labelEvents: new Map([[61, labeledBy(OWNER)]]) });
+  const dir = mkdtempSync(join(tmpdir(), "pr-unblock-dispatch-"));
+  try {
+    await main(
+      { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
+      { api, sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}) },
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  assert.deepEqual(api.calls.dispatch, [], "a person's label holds all three");
+  assert.deepEqual(api.calls.timeline, [61]);
+});
+
 test("skips a PR while a resolve-conflicts run for it is queued or going", async () => {
   for (const status of ["queued", "in_progress", "waiting", "pending"]) {
     const { api, lines, run } = harness({

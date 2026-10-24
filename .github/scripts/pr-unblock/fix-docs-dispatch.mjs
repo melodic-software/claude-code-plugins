@@ -209,8 +209,15 @@ export async function dispatchDocsFixes({
       continue;
     }
     try {
-      // The human-gated label holds unless a lane escalation put it on; a
-      // held PR is not done, so it is not recorded.
+      const { rateLimit, pullRequest } = await api.readDocsFixHistory({ number: node.number, appId: actionsAppId, checkName, earlierCheckName });
+      log(`fix-docs history #${node.number}: rateLimit.cost=${rateLimit?.cost} remaining=${rateLimit?.remaining}`);
+      if (historyHasRun(pullRequest)) {
+        markHandled(record, checkName, node.headRefOid);
+        log(`skip fix-docs #${node.number}: an earlier commit already has a ${checkName} check run`);
+        continue;
+      }
+      // Then the human-gated label holds unless a lane escalation put it on;
+      // a held PR is not done, so it is not recorded.
       const { held, why } = await prHold({
         labels: (node.labels?.nodes ?? []).map((label) => label?.name),
         holdLabels,
@@ -222,13 +229,6 @@ export async function dispatchDocsFixes({
       });
       if (held) {
         log(`skip fix-docs #${node.number}: ${why}`);
-        continue;
-      }
-      const { rateLimit, pullRequest } = await api.readDocsFixHistory({ number: node.number, appId: actionsAppId, checkName, earlierCheckName });
-      log(`fix-docs history #${node.number}: rateLimit.cost=${rateLimit?.cost} remaining=${rateLimit?.remaining}`);
-      if (historyHasRun(pullRequest)) {
-        markHandled(record, checkName, node.headRefOid);
-        log(`skip fix-docs #${node.number}: an earlier commit already has a ${checkName} check run`);
         continue;
       }
     } catch (error) {

@@ -155,15 +155,21 @@ export const escalationActivity = (reason) =>
         : "resolve-conflicts";
 
 // Whether `activity` may work a PR while its human-gated `label` stays on: only
-// when gateSource reads a lane escalation and no escalation since the label
-// went on is `activity`'s own, so one lane's escalation does not stop the
-// others. `why` is a fixed phrase, safe to log.
+// when gateSource reads a lane escalation, no person has commented since the
+// label went on, and no escalation since then is `activity`'s own, so one
+// lane's escalation does not stop the others. `why` is a fixed phrase, safe to
+// log.
 export function laneEscalationAllows({ timeline, label, head, isLanesApp, activity }) {
   const gate = gateSource({ timeline, label, head, isLanesApp });
   if (gate.source !== "lane-escalation") {
     return { allowed: false, why: `${label} is not a lane escalation (${gate.source})` };
   }
   const { since } = labelHistory(timeline, label);
+  // As clear-escalations.mjs keeps the label: a person who commented since it
+  // went on may want the lanes to wait.
+  if (timeline.some((item) => item.event === "commented" && item.user?.type !== "Bot" && writtenSince(item, since))) {
+    return { allowed: false, why: `a person commented since ${label} went on` };
+  }
   const appComments = timeline.filter((item) => item.event === "commented" && isLanesApp(item.user));
   const reasons = escalationsSince(appComments, since).map(({ body }) => body.map((line) => REASON_LINE.exec(line.trim())?.[1]).find(Boolean));
   if (reasons.some((reason) => reason === undefined)) {
