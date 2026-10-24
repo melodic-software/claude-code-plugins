@@ -961,9 +961,16 @@ class ImmediateEnqueueNativeArm(CheckCase):
             text += f"  lane-prs: {value}\n"
         self.gh.files[(PIPELINE, sha)] = text
 
-    def check_unpinned(self, now: datetime | None = None) -> pm.PostMergeVerdict:
-        def no_pin_read(merge: Any) -> str | None:
-            raise AssertionError(f"read the pin of #{merge.number}")
+    def check_unpinned(
+        self, now: datetime | None = None, pin: str | None = None
+    ) -> pm.PostMergeVerdict:
+        """The check with `pin` as every pin read's answer (None: no pin),
+        recording which merges' pins it read in `self.pin_reads`."""
+        self.pin_reads: list[int] = []
+
+        def pin_read(merge: Any) -> str | None:
+            self.pin_reads.append(merge.number)
+            return pin
 
         return pm.check(
             REPO,
@@ -971,13 +978,14 @@ class ImmediateEnqueueNativeArm(CheckCase):
             is_human=human,
             merged_since=SINCE,
             now=now or self.LATE,
-            pinned_sha=no_pin_read,
+            pinned_sha=pin_read,
         )
 
     def read_back_failures(self) -> list[str]:
         return [f.signal for f in self.check(pinned=None, now=self.LATE).failures]
 
-    def test_it_verifies_with_nothing_pending_and_no_pin_read(self) -> None:
+    def test_with_no_pin_it_verifies_with_nothing_pending(self) -> None:
+        # #9554: armed before pin-before-arm, so no pin stands.
         self.all_green()
         for now in (datetime(2026, 10, 12, 11, 0, tzinfo=UTC), self.LATE):
             with self.subTest(now=now):
@@ -986,6 +994,22 @@ class ImmediateEnqueueNativeArm(CheckCase):
                 self.assertEqual(verdict.merges[0].pending, ())
                 self.assertTrue(verdict.merges[0].verified)
                 self.assertTrue(verdict.ok)
+                self.assertEqual(self.pin_reads, [7001])
+
+    def test_a_pin_at_the_merged_head_verifies(self) -> None:
+        self.all_green()
+        verdict = self.check_unpinned(pin=HEAD_SHA)
+        self.assertEqual(verdict.failures, ())
+        self.assertEqual(verdict.merges[0].pending, ())
+        self.assertTrue(verdict.merges[0].verified)
+
+    def test_a_pin_at_another_head_fails_the_read_back(self) -> None:
+        # A push after the arm: the merged head is not the one pinned.
+        self.all_green()
+        verdict = self.check_unpinned(pin=OTHER_SHA)
+        self.assertEqual([f.signal for f in verdict.failures], ["read-back"])
+        self.assertIn(f"is not the pinned {OTHER_SHA}", verdict.failures[0].detail)
+        self.assertFalse(verdict.ok)
 
     def test_a_null_enqueuer_and_an_absent_lane_prs_are_native(self) -> None:
         # resolve-config resolves an absent merge.lane-prs to native.
@@ -1041,7 +1065,9 @@ class ImmediateEnqueueNativeArm(CheckCase):
         self.assert_pin_required("native", earlier=True)
 
     def test_no_merge_parent_needs_the_pin(self) -> None:
+        # Read as the parent "", which read_config_at refuses: no read is sent.
         self.assert_pin_required("native", mergeCommit={"oid": MERGE_SHA})
+        self.assertFalse(any("/contents/" in a for c in self.gh.calls for a in c))
 
     def test_lane_prs_gate_at_the_parent_needs_the_pin(self) -> None:
         self.assert_pin_required("gate")
@@ -1085,6 +1111,8 @@ class ImmediateEnqueueNativeArm(CheckCase):
         ]
         self.all_green()
         self.assertTrue(self.check_unpinned().ok)
+        # The enable-event merge's pin is never read.
+        self.assertEqual(sorted(self.pin_reads), [7001, 7002])
         reads = [
             c for c in self.gh.calls if any(f"/contents/{PIPELINE}" in a for a in c)
         ]

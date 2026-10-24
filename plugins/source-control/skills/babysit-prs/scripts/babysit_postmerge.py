@@ -551,7 +551,8 @@ def native_auto_merge(
     pin read-back. The gate disarms an armed auto-merge before it pins and
     enqueues, and an arm after its enqueue is not what queued the head, so
     either keeps the pin read-back. Any human enqueue, a longer enqueue
-    history than the read returns, an unknown merge parent, and a config that
+    history than the read returns, an unknown merge parent (read as "",
+    which `read_config_at` refuses), and a config that
     cannot be read keep it too.
 
     Residuals: nothing compares a native merge's head with any vetted head.
@@ -561,12 +562,13 @@ def native_auto_merge(
     disarm check and its enqueue also reads as native and skips that merge's
     read-back, and so does an arm in the same second as the enqueue: event
     times have one-second resolution, so the comparison is at or before.
-    Under native, a gate enqueue of the identity's pull request with no
-    auto-merge event reads as native whether its pin stands, was edited or
-    was deleted, so its read-back is skipped. The gate makes one only when it
-    read `merge.lane-prs: gate` at the default branch head and the setting
-    flipped to native before the merge, and the merge still verifies only on
-    a green dispatch run and a green canary run."""
+    In the case with no auto-merge event, `check` still reads an unedited
+    identity pin back when one stands (`enable-auto-merge.mjs` pins the head
+    before it arms): a match verifies and a mismatch is a read-back failure.
+    Only a merge with no unedited pin skips the read-back, which pin-before-
+    arm leaves to merges armed before it shipped, such as #9554, and to a
+    pin edited or deleted after the enqueue. Such a merge still verifies only
+    on a green dispatch run and a green canary run."""
     if not merge.by_identity:
         return False
     if (
@@ -617,10 +619,9 @@ def _immediate_enqueue(
     parents = json_array(
         json_object(json_object(pr.get("mergeCommit")).get("parents")).get("nodes")
     )
+    # No parent reads as "", which `read_config_at` refuses, so it is not native.
     parent = json_object(parents[0]).get("oid") if parents else None
-    if not isinstance(parent, str):
-        return False
-    return lane_prs_at(parent) == "native"
+    return lane_prs_at(parent if isinstance(parent, str) else "") == "native"
 
 
 def _default_branch(owner: str, name: str) -> str:
@@ -1839,7 +1840,7 @@ def _judge(
             )
         else:
             pending.append("read-back-unrecorded")
-    elif pin_required and pinned != merge.head_ref_oid:
+    elif pinned is not None and pinned != merge.head_ref_oid:
         failures.append(
             Failure(
                 SIGNAL_READ_BACK,
@@ -2056,6 +2057,9 @@ def check(
         # The identity's merges with a pin to read back: not its native
         # auto-merges, which verify on the dispatch and canary runs alone.
         pinned_merges: set[int] = set()
+        # Its immediate-enqueue native merges: a pin, when one stands, is read
+        # back; with none the read-back is excused.
+        optional_pins: set[int] = set()
         warnings: list[str] = []
         identity = _login_key(agent_identity)
         lane_prs: dict[str, str | None] = {}
@@ -2078,10 +2082,11 @@ def check(
                 warnings.append(derived)
             elif derived is not None:
                 merges.append(derived)
-                if derived.by_identity and not native_auto_merge(
-                    pr, derived, identity, lane_prs_at
-                ):
-                    pinned_merges.add(derived.number)
+                if derived.by_identity:
+                    if not native_auto_merge(pr, derived, identity, lane_prs_at):
+                        pinned_merges.add(derived.number)
+                    elif not json_object(pr.get("autoMerge")).get("nodes"):
+                        optional_pins.add(derived.number)
         merges.sort(key=lambda m: (str(m.merged_at), m.number))
         ctx = _Context(
             owner,
@@ -2141,7 +2146,7 @@ def check(
                 full_runs=full_runs,
                 canary_runs=canary_runs,
                 pinned=pinned_sha(merge)
-                if pinned_sha and merge.number in pinned_merges
+                if pinned_sha and merge.number in pinned_merges | optional_pins
                 else None,
                 pin_required=merge.number in pinned_merges,
                 now=now,
