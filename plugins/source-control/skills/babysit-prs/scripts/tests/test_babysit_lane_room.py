@@ -42,6 +42,7 @@ PENDING = {
     "autoMerges": [
         {"number": 5, "verified": False, "mergedAt": "2026-10-01T00:00:00Z"}
     ],
+    "excusesExpireAt": None,
 }
 STALE_NOW = FLOOR + timedelta(minutes=3)
 
@@ -449,6 +450,24 @@ class LaneRoom(unittest.TestCase):
                 self.assertEqual(len(recheck.asked), 1, "one full post-merge check")
                 self.assertEqual((room.refusal, room.unreadable), (None, None))
 
+    def test_a_quarantine_that_expired_since_reads_the_answer_again(self) -> None:
+        # (e): the answer excused a failing suite under a quarantine that
+        # expired a minute after it was read, so the same red run now demotes.
+        report = {
+            **PENDING,
+            "excusesExpireAt": (FLOOR + timedelta(minutes=1)).isoformat(),
+        }
+        listing = {"total_count": 0, "workflow_runs": []}
+        with mock.patch.object(pm, "_read", return_value=listing):
+            room, recheck, _ = self.current(
+                answer=shared(report=report),
+                runs=lambda answer, branch: pm.pending_runs_unchanged(
+                    REPO, answer, branch, now=STALE_NOW
+                ),
+            )
+        self.assertEqual(len(recheck.asked), 1, "one full post-merge check")
+        self.assertEqual((room.refusal, room.unreadable), (None, None))
+
     def test_a_pending_dispatch_run_that_completed_red_refuses(self) -> None:
         # The case the two-minute rule exists for: main's head has not moved,
         # but merge #5's dispatch run finished red after the answer was read.
@@ -515,7 +534,12 @@ class PendingRunsUnchanged(unittest.TestCase):
     run fails."""
 
     def unchanged(
-        self, rows: list[dict[str, object]], *, total: int | None = None, now=STALE_NOW
+        self,
+        rows: list[dict[str, object]],
+        *,
+        total: int | None = None,
+        now=STALE_NOW,
+        report: dict[str, object] = PENDING,
     ) -> tuple[bool, list[list[str]]]:
         calls: list[list[str]] = []
 
@@ -528,7 +552,7 @@ class PendingRunsUnchanged(unittest.TestCase):
 
         with mock.patch.object(pm, "_read", side_effect=read):
             answer = pm.pending_runs_unchanged(
-                REPO, shared(report=PENDING), "main", now=now
+                REPO, shared(report=report), "main", now=now
             )
         return answer, calls
 
@@ -566,6 +590,22 @@ class PendingRunsUnchanged(unittest.TestCase):
         self.assertFalse(self.unchanged([done])[0])
         self.assertFalse(self.unchanged([canary])[0])
         self.assertFalse(self.unchanged([], total=101)[0])
+        # A quarantine excuse that ended since, and an answer that does not
+        # say when its excuses end.
+        self.assertFalse(
+            self.unchanged(
+                [], report={**PENDING, "excusesExpireAt": FLOOR.isoformat()}
+            )[0]
+        )
+        self.assertFalse(
+            self.unchanged(
+                [], report={k: v for k, v in PENDING.items() if k != "excusesExpireAt"}
+            )[0]
+        )
+        later = (STALE_NOW + timedelta(days=1)).isoformat()
+        self.assertTrue(
+            self.unchanged([], report={**PENDING, "excusesExpireAt": later})[0]
+        )
         self.assertFalse(
             self.unchanged([], now=FLOOR + pm.DISPATCH_DEADLINE + timedelta(seconds=1))[
                 0
