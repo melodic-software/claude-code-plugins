@@ -229,7 +229,7 @@ class RemappedHumanGatedLabel(unittest.TestCase):
         ]
         self.assertEqual(added, [f"labels[]={self.LABEL}"])
 
-        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True)
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
         held = _evaluate(
             fixtures._pr(labels=[{"name": "Human-Review"}]), HEAD, None, permits
         )
@@ -269,7 +269,7 @@ class UnreadableHumanGatedLabel(unittest.TestCase):
             self.addCleanup(patcher.stop)
 
     def test_the_gate_refuses_and_caches_nothing(self) -> None:
-        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True)
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
         result = _evaluate(
             fixtures._pr(labels=[{"name": "human-review"}]), HEAD, None, permits
         )
@@ -322,7 +322,7 @@ class HumanGatedLabelReadIsStrict(unittest.TestCase):
             self.addCleanup(patcher.stop)
 
     def test_a_server_error_refuses_and_caches_nothing(self) -> None:
-        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True)
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
         result = _evaluate(
             fixtures._pr(labels=[{"name": "human-review"}]), HEAD, None, permits
         )
@@ -342,7 +342,7 @@ class NeedsHumanHoldsOnlyAutonomous(unittest.TestCase):
     holds both."""
 
     def test_needs_human_holds_the_unattended_gate_not_an_attended_one(self) -> None:
-        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True)
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
         pr = fixtures._pr(labels=[{"name": "Needs-Human"}])
         attended = _evaluate(pr, HEAD, None)
         unattended = _evaluate(pr, HEAD, None, unattended=permits)
@@ -368,7 +368,7 @@ class NeedsHumanHoldsOnlyAutonomous(unittest.TestCase):
         )
 
     def test_do_not_merge_holds_both(self) -> None:
-        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True)
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
         pr = fixtures._pr(labels=[{"name": "do-not-merge"}])
         for run in (None, permits):
             with self.subTest(unattended=run is not None):
@@ -405,12 +405,14 @@ class PrMergeHoldsOnAHumanVeto(unittest.TestCase):
         None,
         IDENTITY,
         enabled=True,
+        promoted=True,
         inputs={"authority": policy.PR_MERGE},
     )
     LOCAL = policy.UnattendedPolicy(
         None,
         IDENTITY,
         enabled=True,
+        promoted=True,
         inputs={"authority": policy.LOCAL_BABYSIT},
     )
 
@@ -628,7 +630,7 @@ class EvaluateWithARefusingPolicyHolds(unittest.TestCase):
                 )
 
     def test_a_permitting_policy_adds_no_blocker(self) -> None:
-        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True)
+        permits = policy.UnattendedPolicy(None, IDENTITY, enabled=True, promoted=True)
         result = _evaluate(fixtures._pr(), HEAD, None, unattended=permits)
         self.assertEqual(result["blockers"], [])
         self.assertIs(result["unattended"]["enabled"], True)
@@ -687,7 +689,7 @@ class ResolveWithoutMergeBlockIsInert(unittest.TestCase):
         self.assertIsNone(resolved.agent_identity)
         self.assertEqual(
             resolved.report(),
-            {"enabled": False, "reason": "authority-unconfigured"},
+            {"enabled": False, "promoted": None, "reason": "authority-unconfigured"},
         )
 
     def test_a_policy_without_a_refusal_is_enabled(self) -> None:
@@ -708,6 +710,7 @@ UNBOUND = tuple(
     LaneEvidence(lane, False, "no-marker", None)
     for lane in ("claude-review", "claude-security-review")
 )
+PROMOTED = policy.Promotion(dict.fromkeys(policy.PROMOTABLE_CELLS, "promoted"), None)
 PROCEED = policy.KillSwitch(True, "proceed")
 REAL_ASYNC_MERGE = merge.async_merge
 
@@ -764,6 +767,7 @@ class Unattended(unittest.TestCase):
         self.demotion = policy.Demotion(False, None, ())
         self.cap = policy.RungCap(None, "no-cap")
         self.flight = policy.InFlight(True, None)
+        self.promotion = PROMOTED
         self.eligible = policy.Eligibility(True, None, "C2", 40)
         self.lanes = BOUND
         self.comments: list[dict[str, Any]] = []
@@ -995,6 +999,7 @@ class Unattended(unittest.TestCase):
             mock.patch.object(postmerge, "check", self.post_check),
             mock.patch.object(policy, "read_rung_cap", self.read_cap),
             mock.patch.object(policy, "in_flight", self.in_flight),
+            mock.patch.object(policy, "read_promotion", return_value=self.promotion),
             mock.patch.object(policy, "eligibility", return_value=self.eligible),
             # None runs the real lane eligibility over the stubbed reads.
             *(
@@ -1056,6 +1061,9 @@ class Unattended(unittest.TestCase):
                 policy,
                 "recheck_opt_in",
                 side_effect=lambda *a, **k: self.opt_in_recheck,
+            ),
+            mock.patch.object(
+                merge, "_checkout", return_value=pathlib.Path("/checkout")
             ),
             mock.patch.object(
                 postmerge, "identity_queue", return_value=(self.queued, 0)
@@ -1149,6 +1157,8 @@ class LaneMode(Unattended):
         self.addCleanup(patcher.stop)
         # The local opt-in re-read is not a lane rule: reaching it would hold.
         self.opt_in_recheck = "not-lane-authored-or-opted-in"
+        # D16 replaces the local promotion read: an unpromoted cell must not hold.
+        self.promotion = policy.Promotion(None, "resolver-failed")
         # The lane never reads the variables kill switch: a read would pop
         # from an empty list and fail the test.
         self.kill = []
@@ -1618,6 +1628,7 @@ class DependabotLane(Unattended):
             report_only=True, dependabot_mode="enforce",
         )  # fmt: skip
         self.opt_in_recheck = "not-lane-authored-or-opted-in"
+        self.promotion = policy.Promotion(None, "resolver-failed")
         self.kill = []
         self.pr_user = {"login": "dependabot[bot]", "type": "Bot"}
         self.pr_view = fixtures._pr(author={"login": "app/dependabot"})
@@ -1796,9 +1807,10 @@ class AllInputsGood(Unattended):
         self.assertEqual(code, 0, out["blockers"])
         self.assertEqual(out["unattended"]["risk"]["score"], "LOW")
         self.assertIs(out["unattended"]["enabled"], True)
+        self.assertIs(out["unattended"]["promoted"], True)
         self.assertIsNone(out["unattended"]["reason"])
-        self.assertIs(out["enqueued"], True)
         self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+        self.assertIs(out["enqueued"], True)
 
     def test_a_cached_head_config_is_read_again_before_the_enqueue(self) -> None:
         # The gate took main's config from the run cache, read at head B.
@@ -2116,6 +2128,11 @@ class EachRefusalMakesNoMergeCall(Unattended):
                 "flight",
                 policy.InFlight(False, "identity-entry-queued:#5"),
                 "in-flight:identity-entry-queued:#5",
+            ),
+            "promotion unqualified": (
+                "promotion",
+                policy.Promotion(None, "options-unset:promotion_evidence_checker"),
+                "promotion-unqualified:options-unset:promotion_evidence_checker",
             ),
             "ineligible": (
                 "eligible",

@@ -66,7 +66,7 @@
       }
     },
     "promotion_state": {
-      "description": "Keyed by PROMOTABLE cell id only (C2-auto-merge, C3-auto-merge, C3-ai-review-blocking); an entry for a non-promotable cell (C4/C5 merge never promotes) makes the binding invalid. The bound state is a CEILING: a consumer that reads promotion resolves the effective state against live promotion-evidence telemetry, reading unpromoted when evidence is unavailable. The babysit unattended merge gate reads no promotion state and gates no merge on it.",
+      "description": "Keyed by PROMOTABLE cell id only (C2-auto-merge, C3-auto-merge, C3-ai-review-blocking); an entry for a non-promotable cell (C4/C5 merge never promotes) makes the binding invalid. The bound state is a CEILING: consumers must resolve the effective state against live promotion-evidence telemetry before every autonomous dispatch/merge decision, fail-closing to unpromoted when evidence is unavailable.",
       "type": "object",
       "additionalProperties": { "$ref": "#/$defs/PromotionEntry" }
     },

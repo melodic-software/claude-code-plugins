@@ -60,7 +60,7 @@ too ([the pr-merge lane](../pr-pipeline/README.md#the-pr-merge-lane),
 [`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md#merge-authorities-that-read-no-class)).
 The unattended merge gate (`/source-control:babysit-prs`, `--unattended`) reads no class either,
 by [owner decision](https://github.com/melodic-software/claude-code-plugins/issues/9668#issuecomment-6386299330):
-no class caps its rung, it reads no promotion evidence, and its one class-named
+no class caps its rung, its promotion evidence is keyed by the effective rung's cells, and its one class-named
 check is the trust hold, which refuses a pull request whose linked issue carries `work-class:
 untrusted-provenance` or had it removed by a non-human. Its rung and rung cap remain pacing caps.
 Higher rungs are opt-in per repository, up to full autonomy, where frontier-tier subagents resolve
