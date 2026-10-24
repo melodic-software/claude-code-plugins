@@ -88,6 +88,8 @@ try {
     $psi.UseShellExecute = $false
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
+    # claude writes UTF-8; the default would decode it with the console code page.
+    $psi.StandardOutputEncoding = $psi.StandardErrorEncoding = [System.Text.UTF8Encoding]::new($false)
     $process = [System.Diagnostics.Process]::Start($psi)
 
     # Chunked reads on this thread: whatever arrived is kept even when a process the run left

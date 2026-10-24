@@ -100,4 +100,23 @@ Describe 'Get-ResearchCandidate' -Tag 'lib' {
         $r.ExitCode | Should -Be 0
         $r.Json | ConvertFrom-Json | ConvertTo-Json -Compress | Should -Be '{"candidates":[],"not_researched":[]}'
     }
+
+    It 'prints a non-ASCII title as UTF-8 whatever the console code page' {
+        $title = "Keeper$([char]0xAE) Vault"
+        $latest = [ordered]@{ run_id = '2026-10-01T09:00:00.0000000+00:00'; new_finding_keys = @($script:Keys.E1)
+            checks = @([ordered]@{ id = 'browser-extensions'; severity = 'INFO'; detail = @{ items = @(
+                            [ordered]@{ key = $script:Keys.E1; severity = 'INFO'; muted = $false; title = $title }) } }) }
+        $path = Join-Path $TestDrive 'utf8.json'
+        $latest | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $path -Encoding utf8
+        $psi = [System.Diagnostics.ProcessStartInfo]::new((Get-Process -Id $PID).Path)
+        foreach ($a in '-NoProfile', '-NonInteractive', '-File', $script:Script, '-LatestPath', $path) { $psi.ArgumentList.Add($a) }
+        $psi.RedirectStandardOutput = $true
+        $psi.StandardOutputEncoding = [System.Text.UTF8Encoding]::new($false)
+        $p = [System.Diagnostics.Process]::Start($psi)
+        $out = $p.StandardOutput.ReadToEnd()
+        $p.WaitForExit()
+
+        $p.ExitCode | Should -Be 0
+        ($out | ConvertFrom-Json).candidates[0].title | Should -BeExactly $title
+    }
 }

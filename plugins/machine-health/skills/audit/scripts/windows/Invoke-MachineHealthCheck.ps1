@@ -84,6 +84,8 @@ param(
 
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Continue'
+# The console code page (often 437) mangles characters such as ® (into "r"); the reader expects UTF-8.
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
 $libRoot = Join-Path $PSScriptRoot 'lib'
 . (Join-Path $libRoot 'Resolve-SkillRoot.ps1')

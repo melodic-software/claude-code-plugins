@@ -32,6 +32,8 @@ param(
 
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
+# The console code page (often 437) mangles characters such as ® (into "r"); the reader expects UTF-8.
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
 . (Join-Path $PSScriptRoot 'lib/New-RunSnapshot.ps1')
 Set-Alias -Name Get-Field -Value Get-SnapshotField
