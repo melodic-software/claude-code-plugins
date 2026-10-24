@@ -10,30 +10,41 @@
 //   `Size: `, `Complexity: ` or `Uncertainty: `, each once, the value an option
 //   name of models.issue-dimensions (its key, capitalized: Small, Knowable);
 // - the flags from one `Flags: ` line, `none` or a comma list of intent,
-//   security and cost.
+//   security and cost;
+// - the issues it depends on from one `Blocked by: ` line, `none` or a comma
+//   list of `#<number>` (edges.mjs); a missing or unreadable line names none.
 //
 // It then adds the class label, sets the three issue fields (their ids from
 // models.issue-dimensions, checked against the ids GitHub answers) and adds
 // `status: ready` when all three fields and no flag parsed, no hold label
-// (needs-human, status: needs-info, status: needs-decision) is on the issue,
+// (needs-human, status: needs-info, status: needs-decision) holds the issue,
 // and nothing it found conflicts; otherwise `status: needs-decision` (unless a
-// needs-info or needs-decision status is already there) and never
-// `status: ready`; a `needs-triage` the triage left also keeps it from ready.
+// needs-info or needs-decision status is already there), never
+// `status: ready`, and one lanes App comment, edited in place, that lists why.
+// A hold label the lanes App set on an earlier run gives way to a ready
+// verdict and is taken off; one the triage run (github-actions[bot], the
+// reusable's escalation), a person, or an unread setter set holds. The
+// `needs-triage` floor label is taken off after the verdict is written.
 // The work class gates nothing (owner Q85, #9668) except
 // `work-class: untrusted-provenance`, which holds the issue and is never taken
-// off. Only the lanes App's own earlier class and field values give way to the
-// new verdict; a field value anyone else set, or one whose setter cannot be
-// read, is kept and sends the issue to needs-decision, and a class anyone else
-// set is kept. A class that is not one of the repository's work-class labels
-// is not applied. When it applied a class it rewrites the comment's
-// "a maintainer confirms" lines. On `status: ready` it hands the verdict to
-// admit.mjs, which adds `agent-ready` when the admission rules and the caps
+// off. The lanes App's own earlier class and field values give way to the new
+// verdict; a field value a listed human set is kept and is the value admission
+// reads; one anyone else set, or one whose setter cannot be read, is kept and
+// sends the issue to needs-decision; a class anyone else set is kept. A class
+// that is not one of the repository's work-class labels is not applied. When
+// it applied a class it rewrites the comment's "a maintainer confirms" lines.
+// It writes a native blocked-by edge for each open issue of this repository
+// the verdict names, then on `status: ready` hands the verdict to admit.mjs,
+// which adds `agent-ready` when the admission rules, the blockers and the caps
 // allow. Otherwise, when a done-when item is one the lane cannot perform,
-// admit.mjs's noteUnrunnable posts the split it recommends.
+// admit.mjs's noteUnrunnable posts the split it recommends. An option GitHub
+// keeps under another id than models.issue-dimensions maps fails the run and
+// leaves the issue's labels as they are.
 //
 // Issue text can only refuse: a line the model quotes is prefixed `> ` and
 // matches nothing, a duplicated, missing or unknown value writes no fields, and
-// an escalated run writes only needs-decision. It writes only on an open issue
+// an escalated run writes only needs-decision and its reasons; model text
+// reaches a reason only as letters, digits and plain punctuation. It writes only on an open issue
 // whose author is a listed human or the lanes App, and only from a lane
 // comment updated at or after STARTED_AT (this run's), so a run whose triage
 // wrote nothing never applies an older verdict.
@@ -63,8 +74,11 @@ import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../acti
 import { checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { admit, loadRules, noteUnrunnable, UNTRUSTED } from "./admit.mjs";
+import { parseBlockedBy, writeEdges } from "./edges.mjs";
 
 export const MARKER = "<!-- claude-lane intake-triage -->";
+// The lanes App's one comment saying why the verdict holds the issue.
+export const VERDICT_MARKER = "<!-- intake-triage verdict -->";
 const LANE_BOT = "github-actions[bot]";
 const ACTIONS_BOT_ID = 41898282;
 export const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
@@ -74,6 +88,7 @@ const NEEDS_INFO = "status: needs-info";
 const NEEDS_HUMAN = "needs-human";
 // The reusable removes this floor label only from a triage it routed.
 const NEEDS_TRIAGE = "needs-triage";
+const HOLDS = new Set([NEEDS_HUMAN, NEEDS_INFO, NEEDS_DECISION]);
 const ESCALATED = "Automated triage handed this issue to a maintainer.";
 export const DIMENSIONS = Object.freeze({
   size: "Size",
@@ -116,6 +131,7 @@ export function checkActors(env, humans, logins) {
 export function parseVerdict(body, dimensionsConfig, classes) {
   const lines = String(body ?? "").split("\n");
   const problems = [];
+  const shown = {};
   const escalated = String(body ?? "").includes(ESCALATED);
   const classMatch = CLASS_LINE.exec(lines[1] ?? "");
   const proposed = classMatch && classMatch[1] !== "none" && !escalated ? classMatch[1] : null;
@@ -125,6 +141,10 @@ export function parseVerdict(body, dimensionsConfig, classes) {
 
   const lineValue = (prefix) => {
     const found = lines.filter((line) => line.startsWith(`${prefix}: `)).map((line) => line.slice(prefix.length + 2).trim());
+    if (found.length === 1) {
+      // Model text: only letters, digits and plain punctuation reach a reason.
+      shown[prefix] = found[0].slice(0, 40).replaceAll(/[^A-Za-z0-9 ,.:-]/g, "?");
+    }
     if (found.length !== 1) {
       problems.push(`${found.length === 0 ? "no" : "more than one"} \`${prefix}:\` line`);
       return null;
@@ -138,7 +158,7 @@ export function parseVerdict(body, dimensionsConfig, classes) {
     const options = Object.values(dimensionsConfig?.fields?.[key]?.options ?? {});
     const option = options.find((name) => capitalize(name) === value);
     if (value !== null && option === undefined) {
-      problems.push(`\`${prefix}: ${value.slice(0, 40)}\` is not one of ${options.map(capitalize).join(", ")}`);
+      problems.push(`\`${prefix}: ${shown[prefix]}\` is not one of ${options.map(capitalize).join(", ")}`);
     }
     dimensions[key] = option ?? null;
   }
@@ -155,10 +175,13 @@ export function parseVerdict(body, dimensionsConfig, classes) {
     if (list.every((flag) => FLAGS.has(flag)) && new Set(list).size === list.length) {
       flags = list;
     } else {
-      problems.push(`\`Flags: ${flagText.slice(0, 40)}\` is not none or a list of ${[...FLAGS].join(", ")}`);
+      problems.push(`\`Flags: ${shown.Flags}\` is not none or a list of ${[...FLAGS].join(", ")}`);
     }
   }
-  return { escalated, workClass, untrusted, dimensions, flags, problems };
+  // An unreadable line names no blocker and holds nothing: a missed edge is a
+  // finding for review, not a stop.
+  const { numbers, problem } = escalated || untrusted ? { numbers: [], problem: null } : parseBlockedBy(lines);
+  return { escalated, workClass, untrusted, dimensions, flags, blockedBy: numbers, blockedByProblem: problem, problems };
 }
 
 // The writes the verdict calls for, given the issue's labels and its current
@@ -167,7 +190,7 @@ export function parseVerdict(body, dimensionsConfig, classes) {
 // either way) is the lanes App's; never for an unknown id or App.
 const isApp = (id, appId) => appId !== undefined && id !== undefined && id !== null && String(id) === String(appId);
 
-export function planWrites(verdict, { labels, fields, dimensionsConfig, appId, humans = new Set(), classSetters = {} }) {
+export function planWrites(verdict, { labels, fields, dimensionsConfig, appId, humans = new Set(), classSetters = {}, holdSetters = {} }) {
   const reasons = [...verdict.problems];
   const add = [];
   const remove = [];
@@ -200,13 +223,20 @@ export function planWrites(verdict, { labels, fields, dimensionsConfig, appId, h
   }
 
   const fieldWrites = [];
+  // The values admission reads: the verdict's, or a listed human's kept one.
+  const dimensions = verdict.dimensions === null ? null : { ...verdict.dimensions };
   if (verdict.dimensions !== null) {
     for (const key of Object.keys(DIMENSIONS)) {
       const { "field-id": fieldId, options } = dimensionsConfig.fields[key];
       const optionId = Object.keys(options).find((id) => options[id] === verdict.dimensions[key]);
       const current = fields[String(fieldId)];
-      if (current && String(current.option) !== optionId && !isApp(current.setter, appId)) {
-        reasons.push(`${DIMENSIONS[key]} was set to another value by someone other than the lanes App`);
+      if (current && String(current.option) !== optionId && humans.has(Number(current.setter))) {
+        dimensions[key] = options[String(current.option)] ?? null;
+        if (dimensions[key] === null) {
+          reasons.push(`${DIMENSIONS[key]} holds an option models.issue-dimensions does not map`);
+        }
+      } else if (current && String(current.option) !== optionId && !isApp(current.setter, appId)) {
+        reasons.push(`${DIMENSIONS[key]} was set to another value by someone other than a listed human or the lanes App`);
       } else if (current && !isApp(current.setter, appId) && !humans.has(Number(current.setter))) {
         // The value matches, but the work lanes count it only when a listed
         // human or the lanes App set it (resolve-config dimensions.mjs).
@@ -224,16 +254,18 @@ export function planWrites(verdict, { labels, fields, dimensionsConfig, appId, h
   if (verdict.flags?.length) {
     reasons.push(`flagged: ${verdict.flags.join(", ")}`);
   }
-  const holds = labels.filter((label) => label === NEEDS_HUMAN || label === NEEDS_INFO || label === NEEDS_DECISION);
-  if (holds.length > 0) {
-    reasons.push(`held by ${holds.join(", ")}`);
-  }
-  if (labels.includes(NEEDS_TRIAGE)) {
-    reasons.push(`the issue carries ${NEEDS_TRIAGE}`);
+  // A hold the lanes App set on an earlier run gives way to this verdict; one
+  // the triage run (github-actions[bot]), a person, or an unread setter set
+  // holds.
+  const holds = labels.filter((label) => HOLDS.has(label));
+  const appHolds = holds.filter((label) => isApp(holdSetters[label], appId));
+  for (const label of holds.filter((label) => !appHolds.includes(label))) {
+    reasons.push(`held by ${label}`);
   }
 
   const ready = reasons.length === 0 && verdict.dimensions !== null && verdict.flags !== null;
   if (ready) {
+    remove.push(...appHolds);
     if (!labels.includes(READY)) {
       add.push(READY);
     }
@@ -245,7 +277,9 @@ export function planWrites(verdict, { labels, fields, dimensionsConfig, appId, h
       add.push(NEEDS_DECISION);
     }
   }
-  return { add, remove, fieldWrites, classApplied, ready, reasons };
+  // The verdict is the triage, so the floor label goes after it.
+  const after = labels.includes(NEEDS_TRIAGE) ? [NEEDS_TRIAGE] : [];
+  return { add, remove: [...remove, ...after], fieldWrites, classApplied, ready, reasons, dimensions };
 }
 
 // The lane comment with the maintainer-confirms wording replaced, or null when
@@ -255,10 +289,10 @@ export function rewordComment(body) {
   return next === body ? null : next;
 }
 
-// {label: account id} for each work-class label on the issue: who added it
-// last, from the issue's events; none when no event names it.
-async function classSetters(github, base, labels) {
-  const held = new Set(labels.filter((label) => label.startsWith("work-class:")));
+// {label: account id} for each work-class and hold label on the issue: who
+// added it last, from the issue's events; none when no event names it.
+async function labelSetters(github, base, labels) {
+  const held = new Set(labels.filter((label) => label.startsWith("work-class:") || HOLDS.has(label)));
   const setters = {};
   if (held.size === 0) {
     return setters;
@@ -317,7 +351,8 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     log(`apply-verdict: #${number}'s author is neither a listed human nor the lanes App; nothing written`);
     return { outcome: "skipped" };
   }
-  const lane = (await paginate(github, `${base}/comments`)).filter(
+  const comments = await paginate(github, `${base}/comments`);
+  const lane = comments.filter(
     (comment) => comment.user?.login === LANE_BOT && comment.user?.type === "Bot" && String(comment.body ?? "").startsWith(MARKER),
   );
   if (lane.length !== 1) {
@@ -336,13 +371,15 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   const verdict = parseVerdict(comment.body, dimensionsConfig, classes);
   const labels = (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label?.name));
   const fields = await readFields(github, repository, number, fieldSetters);
+  const setters = await labelSetters(github, base, labels);
   const plan = planWrites(verdict, {
     labels,
     fields,
     dimensionsConfig,
     appId,
     humans,
-    classSetters: await classSetters(github, base, labels),
+    classSetters: setters,
+    holdSetters: setters,
   });
 
   if (plan.fieldWrites.length > 0) {
@@ -360,22 +397,18 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     const answered = new Map((Array.isArray(written) ? written : []).map((row) => [row?.issue_field_id, row?.single_select_option?.id]));
     const wrong = plan.fieldWrites.filter(({ fieldId, optionId }) => answered.get(fieldId) !== optionId);
     if (wrong.length > 0) {
-      await addLabels(github, base, labels.includes(NEEDS_DECISION) ? [] : [NEEDS_DECISION]);
+      // Config drift, not the issue's: the run fails and the issue keeps
+      // its labels.
       throw new Error(
-        `GitHub kept other options than models.issue-dimensions maps for ${wrong.map(({ key }) => DIMENSIONS[key]).join(", ")}; the issue is set to ${NEEDS_DECISION}`,
+        `GitHub kept other options than models.issue-dimensions maps for ${wrong.map(({ key }) => DIMENSIONS[key]).join(", ")}; fix models.issue-dimensions and triage again`,
       );
     }
   }
-  for (const name of plan.remove) {
-    try {
-      await github("DELETE", `${base}/labels/${encodeURIComponent(name)}`);
-    } catch (error) {
-      if (!(error instanceof GitHubError && error.status === 404)) {
-        throw error;
-      }
-    }
-  }
+  const floor = plan.remove.filter((name) => name === NEEDS_TRIAGE);
+  await removeLabels(github, base, plan.remove.filter((name) => name !== NEEDS_TRIAGE));
   await addLabels(github, base, plan.add);
+  await removeLabels(github, base, floor);
+  const edges = verdict.blockedBy.length > 0 ? await writeEdges({ github, repository, number, blockers: verdict.blockedBy }) : null;
   // Before the reword: whether the App may edit github-actions[bot]'s
   // comment is unproven, and a refused edit must not stop admission. An
   // admission error stops neither the reword nor the summary; the caller
@@ -383,7 +416,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
   let admission = null;
   if (plan.ready && admitIssue) {
     try {
-      admission = await admitIssue(verdict);
+      admission = await admitIssue({ ...verdict, dimensions: plan.dimensions });
     } catch (error) {
       admission = { outcome: "error", reasons: [String(error?.message ?? error)] };
     }
@@ -397,6 +430,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
       admission = { outcome: "error", reasons: [String(error?.message ?? error)] };
     }
   }
+  await sayReasons(github, repository, base, comments, appId, plan);
   if (plan.classApplied) {
     const reworded = rewordComment(comment.body);
     if (reworded !== null) {
@@ -411,10 +445,56 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     `- Fields written: ${plan.fieldWrites.map(({ key, name }) => `${DIMENSIONS[key]} ${name}`).join(", ") || "none"}`,
     `- Labels added: ${plan.add.join(", ") || "none"}; removed: ${plan.remove.join(", ") || "none"}`,
     `- Status: ${plan.ready ? READY : NEEDS_DECISION}${plan.reasons.length ? ` (${plan.reasons.join("; ")})` : ""}`,
+    ...(edges || verdict.blockedByProblem ? [`- Blocked by: ${edgeSummary(edges, verdict.blockedByProblem)}`] : []),
     ...(admission ? [`- Admission: ${admission.outcome}${admission.reasons.length ? ` (${admission.reasons.join("; ")})` : ""}`] : []),
   ].join("\n");
   log(summary);
   return { outcome: plan.ready ? "ready" : "needs-decision", plan, admission, summary };
+}
+
+async function removeLabels(github, base, names) {
+  for (const name of names) {
+    try {
+      await github("DELETE", `${base}/labels/${encodeURIComponent(name)}`);
+    } catch (error) {
+      if (!(error instanceof GitHubError && error.status === 404)) {
+        throw error;
+      }
+    }
+  }
+}
+
+const edgeSummary = (edges, problem) =>
+  [
+    ...(edges?.written.length ? [`${edges.written.map((n) => `#${n}`).join(", ")} written`] : []),
+    ...(edges?.skipped ?? []).map(({ number, why }) => `#${number} skipped (${why})`),
+    ...(problem ? [problem] : []),
+  ].join("; ");
+
+// One lanes App comment, edited in place, says why the verdict holds the
+// issue; a later ready verdict marks it settled. None is posted for a ready
+// verdict that never held.
+async function sayReasons(github, repository, base, comments, appId, plan) {
+  const own = comments.find((c) => isApp(c.user?.id, appId) && String(c.body ?? "").startsWith(`${VERDICT_MARKER}\n`));
+  if (plan.ready && !own) {
+    return;
+  }
+  const body = plan.ready
+    ? `${VERDICT_MARKER}\nThe latest triage verdict holds nothing: the issue is at \`${READY}\`.`
+    : [
+        VERDICT_MARKER,
+        `The triage verdict left this issue at \`${NEEDS_DECISION}\`:`,
+        "",
+        ...plan.reasons.map((reason) => `- ${reason}`),
+      ].join("\n");
+  if (own?.body === body) {
+    return;
+  }
+  if (own) {
+    await github("PATCH", `/repos/${repository}/issues/comments/${own.id}`, { body });
+  } else {
+    await github("POST", `${base}/comments`, { body });
+  }
 }
 
 async function addLabels(github, base, names) {

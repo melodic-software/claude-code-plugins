@@ -247,15 +247,18 @@ jobs:
         a none class on its own: triage the lane-checkable items as usual, with their work class
         and fields. Admission holds the issue and posts the split itself.
 
-        VERDICT LINES. Begin your comment with these four lines, each at the start of its own line,
+        VERDICT LINES. Begin your comment with these five lines, each at the start of its own line,
         exactly in this form, one value each (the Flags line lists every flag that applies, comma
         separated, or none), before any quote or other text:
         Size: Small|Medium|Large
         Complexity: Low|Medium|High
         Uncertainty: Known|Knowable|Unknown
         Flags: none|intent|security|cost
-        A step with no model reads only those four lines and the proposed class, and sets the
-        issue's class label, fields and status from them.
+        Blocked by: none|#N[, #M]
+        The Blocked by line lists, as `#` and the number, each open issue in this repository that
+        must be done before this one, or none.
+        A step with no model reads only those five lines and the proposed class, and sets the
+        issue's class label, fields, status and blocked-by edges from them.
 
         COST. When the work an issue asks for would add or raise a charge that no diff shows (a new
         paid service or subscription, a plan upgrade, or an account, organization or repository
