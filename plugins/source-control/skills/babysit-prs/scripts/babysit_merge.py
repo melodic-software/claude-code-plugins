@@ -4941,8 +4941,8 @@ def _main() -> int:
                     lane_rung_cap=args.lane_rung_cap,
                     shared=shared,
                     # With no state directory there is no recorded merge
-                    # request whose read-back needs the policy of a closed
-                    # pull request, so a closed one stops at its first read.
+                    # request whose read-back needs the policy of a merged
+                    # pull request, so a merged one skips the post-merge check.
                     stop_when_closed=pending_path is None,
                     # Each recompute goes back to the file for the next candidate.
                     share=(

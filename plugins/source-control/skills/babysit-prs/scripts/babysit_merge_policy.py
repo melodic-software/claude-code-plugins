@@ -4128,20 +4128,15 @@ def assess(
     `promotion(window_start)` reads the promotion evidence with the newest
     demotion record's creation as the window restart; without it nothing is
     promoted. With `stop_when_closed`, a pull request the REST record reads
-    as closed refuses right after that read (`not_open_refusal`), before any
-    config or post-merge read: the gate holds it on the same blocker.
+    as merged refuses (`not_open_refusal`) once the identity and the readers
+    the queue sweep needs are read, before the demotion and post-merge
+    reads: the gate holds it on the same blocker.
     `self_logins` names only lane or bot self identities (see `is_human`). Raises `PolicyReadError` when the pull request or either
     pipeline config cannot be read, because the agent identity is then
     unknown. A default branch head config that cannot be parsed, or names
     another identity, is a stop (`StopReadError`).
     """
     pr = pull_request(repo, number)
-    if stop_when_closed and pr.get("state") == "closed":
-        return UnattendedPolicy(
-            not_open_refusal("MERGED" if pr.get("merged") is True else "CLOSED"),
-            enabled=False,
-            inputs={"pr": pr, "authority": authority},
-        )
     base_ref = str(json_object(pr.get("base")).get("ref"))
     base_sha = str(json_object(pr.get("base")).get("sha"))
     config = read_config_at(repo, base_sha)
@@ -4250,6 +4245,10 @@ def assess(
         "permission": permission,
     }
     inputs.update(permission=permission, self_logins=self_logins)
+    if stop_when_closed and pr.get("state") == "closed" and pr.get("merged") is True:
+        # The queue sweep still runs on what is read so far: this may be the
+        # run's last candidate. A merge is final; a closed one can reopen.
+        return replace(stopped, reason=not_open_refusal("MERGED"))
     # The run's shared answer stands in for the demotion, floor and post-merge
     # reads when it is bound to this run; otherwise they are read here.
     reuse = None

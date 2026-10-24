@@ -1744,7 +1744,8 @@ class _Context:
                 ),
                 None,
             )
-            if local is not None:
+            # A local tip leaves only the record's commit missing: no bridge.
+            if local is not None and local != tip:
                 try:
                     bridge = local if self._compare(local, tip) else None
                 except PostMergeReadError:

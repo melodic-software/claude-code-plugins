@@ -1911,6 +1911,19 @@ class AllInputsGood(Unattended):
         self.post_check.assert_called_once()
         self.assertEqual(code, 10)
 
+    def test_a_merged_pr_with_no_state_dir_still_sweeps_the_queue(self) -> None:
+        # The run's last candidate may be the merged one: its gate is then the
+        # only one left to dequeue a held entry the identity queued.
+        self.pr_view = fixtures._pr(state="MERGED")
+        self.pr_rest_state = ("closed", True)
+        self.queued = [5]
+        self.holds = {5: "do-not-merge"}
+        code, out = self.run_main()
+        self.post_check.assert_not_called()
+        self.assertEqual(code, 10)
+        self.assertEqual(self.log, ["dequeue:[5]"])
+        self.assertEqual(out["unattended"]["writes"]["holds"], {"5": "do-not-merge"})
+
     def test_a_merged_pr_with_no_state_dir_skips_the_post_merge_check(self) -> None:
         self.pr_view = fixtures._pr(state="MERGED")
         self.pr_rest_state = ("closed", True)

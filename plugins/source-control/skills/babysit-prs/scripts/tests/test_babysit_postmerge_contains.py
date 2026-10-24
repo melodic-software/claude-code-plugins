@@ -448,6 +448,38 @@ class TipMoved(unittest.TestCase):
         with self.assertRaises(pm.PostMergeReadError):
             self.judge([self.mains[0]], [self.clone], api)
 
+    def test_a_record_off_the_old_tip_but_on_the_live_tip_is_true(self) -> None:
+        # Live main merges side after the clone was made: s1 is off the
+        # clone's copy of main, so only its own compare can answer True.
+        git(self.live, "merge", "-q", "--no-ff", "-m", "merge side", "side")
+        shas = [self.mains[0], self.s1, self.n1]
+        api = LiveRepo(self.live)
+        verdicts = self.judge(shas, [self.clone], api)
+        self.assertEqual(verdicts, self.compare_only(shas))
+        self.assertEqual(verdicts, [True, True, True])
+
+    def test_a_tip_the_clone_holds_spends_no_bridge_compare(self) -> None:
+        # The tip is local; only the record's commit is missing from the clone.
+        tmp = pathlib.Path(self.tmp.name) / "older"
+        subprocess.run(
+            ["git", "clone", "-q", self.live.as_uri(), str(tmp)],
+            check=True,
+            env=GIT_ENV,
+        )
+        api = LiveRepo(self.live)
+        with (
+            mock.patch.object(pm, "gh_capture", api),
+            mock.patch.object(pm.policy, "_history_checkouts", return_value=[tmp]),
+        ):
+            ctx = pm._Context(
+                owner="example-org", name="example-repo", identity="x", branch="main"
+            )
+            tip = ctx._branch_tip()
+            with self.assertRaises(pm.PostMergeReadError):
+                ctx.contains(UNKNOWN, tip)
+        # One compare for the unknown record (a 404), none for a bridge.
+        self.assertEqual(len(api.compares()), 1, api.compares())
+
     def test_no_clone_asks_every_record(self) -> None:
         shas = [*self.mains, self.n1, self.s1]
         api = LiveRepo(self.live)
