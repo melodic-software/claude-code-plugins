@@ -124,7 +124,10 @@
       "additionalProperties": false,
       "properties": {
         "op": {"enum": ["add"]},
-        "question": {"type": "object"},
+        "question": {
+          "description": "The new question. It declares `dependsOn` (an empty list when it has no prerequisite) and names no question still open in its own round; either miss is a warning, and a refusal under the requireDepends setting.",
+          "type": "object"
+        },
         "repoint": {
           "description": "With `question.supersedes`: move every live question whose `dependsOn` names the superseded one to the new one. Without it the output only names them.",
           "type": "boolean"

@@ -46,9 +46,9 @@ async page => {
     ok("AC17: Q1 renders before Q3 though Q3 was inserted first", order.indexOf("Q1") >= 0 && order.indexOf("Q1") < order.indexOf("Q3"), order.join(","));
 
     const chipOf = async id => (await page.textContent('.qbtn[data-q="' + id + '"] .qmeta')).replace(/\s+/g, " ").trim();
-    ok("a question whose prerequisite is unanswered wears Blocked, not Open", /Blocked/.test(await chipOf("P2")) && !/Open/.test(await chipOf("P2")) && /Open/.test(await chipOf("P1")), await chipOf("P2") + " | " + await chipOf("P1"));
+    ok("#9709: a question whose prerequisite is unanswered wears the padlock Locked chip (frontierLock confirm), not Blocked or Open", /Locked/.test(await chipOf("P2")) && !/Blocked|Open/.test(await chipOf("P2")) && !!(await page.$('.qbtn[data-q="P2"] .qmeta .lockchip svg.padlock')) && /Open/.test(await chipOf("P1")), await chipOf("P2") + " | " + await chipOf("P1"));
 
-    ok("a question whose only prerequisite is archived is Open, not Blocked, and names it", /Open/.test(await chipOf("X2")) && !/Blocked/.test(await chipOf("X2")) && /needs X1 \(archived\)/.test(await page.textContent('.qbtn[data-q="X2"]')), await page.textContent('.qbtn[data-q="X2"]'));
+    ok("a question whose only prerequisite is archived is Open, not Locked, and names it", /Open/.test(await chipOf("X2")) && !/Blocked|Locked/.test(await chipOf("X2")) && /needs X1 \(archived\)/.test(await page.textContent('.qbtn[data-q="X2"]')), await page.textContent('.qbtn[data-q="X2"]'));
 
     // R-J: emoji anchors on
     await pick("Q1");
