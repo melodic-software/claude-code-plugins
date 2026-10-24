@@ -85,7 +85,7 @@ const COST_COMMENT = {
   issue_url: `https://api.github.com/repos/${REPO}/issues/1040`,
   user: { login: "kyle-sexton", id: 5, type: "User" },
   performed_via_github_app: null,
-  body: "**Decision recorded.** Cost: approve it.",
+  body: "**Decision recorded.** Cost: approve it for #40.",
   node_id: "IC_7",
   created_at: "2026-10-22T12:00:00Z",
 };

@@ -6,9 +6,11 @@
 # A review lane's `cost` hold is cleared when every lane hold since a trusted
 # person last removed the human-gated label is cost-only, and the pull request
 # body cites the owner's unedited `**Decision recorded.** Cost:` comment on the
-# pull request itself, or (newer than the pull request) on the one issue GitHub
-# records it as closing; a `Refs:` line or a second closing issue counts for
-# nothing. The holds are read from the lanes' check-run notices.
+# pull request itself, or, newer than the pull request and naming it as
+# `#<number>`, on its linked issue: the one issue GitHub records it as closing,
+# else, when it closes none, the one plain `Refs:` issue (the base's
+# merge-holds.mjs refsIssue). A second closing issue counts for nothing. The
+# holds are read from the lanes' check-run notices.
 # The step then outputs cleared=true and the decision, and takes the label off
 # with one comment citing it. Anything else, an unreadable read included,
 # clears nothing and leaves the hold to the steps after it.
@@ -59,6 +61,12 @@ if [[ -n "${lift_line:-}" && "$job_line" -lt "$cost_line" && "$cost_line" -lt "$
   ok "step sits in ci-status before the human-gated and hold-lift steps"
 else
   fail "step is not inside ci-status before the human-gated step (lines: $order)"
+fi
+node_line="$(awk -v job="$job_line" 'NR > job && $0 == "      - name: Set up Node" { print NR; exit }' "$WORKFLOW")"
+if [[ -n "$node_line" && "$job_line" -lt "$node_line" && "$node_line" -lt "$cost_line" ]] && grep -qxF '            /.github/scripts/pr-merge/merge-holds.mjs' "$WORKFLOW"; then
+  ok "ci-status sets up the pinned Node and checks out the base merge-holds.mjs before the step runs refsIssue"
+else
+  fail "the step runs node with no pinned Node before it, or the base checkout lacks merge-holds.mjs (Set up Node line ${node_line:-none})"
 fi
 lift="$(awk '$0 == "      - name: Fail a review-lane hold an untrusted account lifted" { on = 1; next } on && /^        if: / { print; exit }' "$WORKFLOW")"
 if [[ "$lift" == *"steps.cost_hold.outputs.cleared != 'true'"* ]]; then
@@ -144,7 +152,7 @@ reset() {
   export STUB_ACTORS="{\"actors\":[{\"kind\":\"human\",\"id\":$OWNER_ID},{\"kind\":\"bot\",\"id\":5}]}"
   export STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\"},\"body\":\"Closes #9306\\n\\n- Cost decision: [Q50]($LINK)\"}"
   export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"totalCount":1,"nodes":[{"number":9306,"repository":{"nameWithOwner":"o/r"}}]}}}}}'
-  STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T13:14:57Z '**Decision recorded.** Cost: accepted.')" '{"111": $c}')"
+  STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T13:14:57Z '**Decision recorded.** Cost: accepted for #6419.')" '{"111": $c}')"
   export STUB_DECISIONS
   export STUB_EDITED='{"data":{"node":{"lastEditedAt":null}}}'
   export STUB_DELETED='{"data":{"repository":{"pullRequest":{"timelineItems":{"filteredCount":0,"nodes":[]}}}}}'
@@ -170,6 +178,8 @@ expect() {
   mkdir -p "$config/.github/standards/trusted-actors"
   [[ -z "${STUB_TRACKER+set}" ]] || printf '%s\n' "$STUB_TRACKER" >"$config/.work-item-tracker.json"
   [[ " $STUB_FAIL " == *" actors "* ]] || printf '%s\n' "$STUB_ACTORS" >"$config/.github/standards/trusted-actors/trusted-actors.json"
+  mkdir -p "$config/.github/scripts/pr-merge"
+  [[ " $STUB_FAIL " == *" module "* ]] || cp "$ROOT/.github/scripts/pr-merge/merge-holds.mjs" "$config/.github/scripts/pr-merge/"
   [[ " $STUB_FAIL " != *" tracker "* ]] || config=
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" PR_NUMBER=6419 GITHUB_REPOSITORY=o/r \
     RUNNER_TEMP="$TMP_ROOT" GITHUB_OUTPUT="$TMP_ROOT/output" BASE_SHA="$BASE" HEAD_SHA="$HEAD" \
@@ -240,17 +250,17 @@ STUB_PR='{"number":6419,"created_at":"2026-10-23T05:00:00Z","head":{"ref":"fix/c
 expect "a link to an issue that does not close the pull request clears nothing" no no no
 
 reset
-STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T04:00:00Z '**Decision recorded.** Cost: accepted.')" '{"111": $c}')"
+STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T04:00:00Z '**Decision recorded.** Cost: accepted for #6419.')" '{"111": $c}')"
 expect "an issue decision older than the pull request clears nothing" no no no
 STUB_DECISIONS="$(jq -cn --argjson c "$(decision 6419 "$OWNER" 2026-10-23T04:00:00Z '**Decision recorded.** Cost: accepted.')" '{"111": $c}')"
 STUB_PR='{"number":6419,"created_at":"2026-10-23T05:00:00Z","head":{"ref":"fix/cost"},"body":"https://github.com/o/r/pull/6419#issuecomment-111"}'
 WANT_LINK=https://github.com/o/r/pull/6419#issuecomment-111 expect "a decision on the pull request itself clears the hold" yes yes yes
 reset
-STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$STRANGER" 2026-10-23T13:14:57Z '**Decision recorded.** Cost: accepted.')" '{"111": $c}')"
+STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$STRANGER" 2026-10-23T13:14:57Z '**Decision recorded.** Cost: accepted for #6419.')" '{"111": $c}')"
 expect "a decision by someone off the trusted-actor list clears nothing" no no no
-STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T13:14:57Z '**Decision recorded.** Trust: accepted.')" '{"111": $c}')"
+STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T13:14:57Z '**Decision recorded.** Trust: accepted for #6419.')" '{"111": $c}')"
 expect "a decision recorded for something other than cost clears nothing" no no no
-STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T13:14:57Z '**Decision recorded.** Cost: accepted.')" '{"111": ($c | .performed_via_github_app = {slug: "x"})}')"
+STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T13:14:57Z '**Decision recorded.** Cost: accepted for #6419.')" '{"111": ($c | .performed_via_github_app = {slug: "x"})}')"
 expect "a decision posted through an App clears nothing" no no no
 reset
 export STUB_EDITED='{"data":{"node":{"lastEditedAt":"2026-10-23T13:30:00Z"}}}'
@@ -268,6 +278,50 @@ expect "a decision on an unrelated issue the body names on a Refs line clears no
 export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"totalCount":0,"nodes":[]}}}}}'
 STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\"},\"body\":\"Closes #9306\\n\\n- Cost decision: [Q50]($LINK)\"}"
 expect "a Closes line GitHub does not record as closing clears nothing" no no no
+
+# A decision binds to one pull request: one on the linked issue counts only
+# when it names the pull request, and with no closing issue the linked issue is the one
+# plain Refs: issue.
+with_body() {
+  STUB_PR="$(jq -cn --arg body "$1" '{number: 6419, created_at: "2026-10-23T05:00:00Z", head: {ref: "fix/cost"}, body: $body}')"
+  export STUB_PR
+}
+says() {
+  STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "${2:-$OWNER}" 2026-10-23T13:14:57Z "**Decision recorded.** Cost: $1")" '{"111": $c}')"
+  export STUB_DECISIONS
+}
+reset
+says 'accepted for another change.'
+expect "a closing-issue decision that names no pull request clears nothing" no no no
+for text in 'accepted for #64190.' 'accepted for #641.' 'accepted for x/r#6419.' 'accepted for pull 6419.'; do
+  says "$text"
+  expect "a closing-issue decision reading '$text' clears nothing" no no no
+done
+says 'accepted (#6419)'
+expect "a closing-issue decision naming (#6419) clears the hold" yes yes yes
+reset
+export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"totalCount":0,"nodes":[]}}}}}'
+with_body "Refs: #9306
+
+- Cost decision: [Q50]($LINK)"
+expect "a Refs-issue decision naming the pull request clears the hold" yes yes yes
+says 'accepted.'
+expect "a Refs-issue decision that names no pull request clears nothing" no no no
+says 'accepted for #6419.' "$STRANGER"
+expect "a Refs-issue decision naming the pull request by someone off the list clears nothing" no no no
+says 'accepted for #6419.'
+export STUB_FAIL=module
+expect "an unreadable base merge-holds.mjs clears nothing" no no no "the Refs line could not be read"
+export STUB_FAIL=''
+for body in "Refs: #9306
+Refs: #9307" "Refs: #9306, #9307" '```
+Refs: #9306
+```' '<!-- Refs: #9306 -->' 'refs #9306'; do
+  with_body "$body
+
+- Cost decision: [Q50]($LINK)"
+  expect "a body whose Refs lines read '${body//$'\n'/ }' names no linked issue and clears nothing" no no no
+done
 
 reset
 lanes "[$(hold_note cost,trust-gate)]" '[]'

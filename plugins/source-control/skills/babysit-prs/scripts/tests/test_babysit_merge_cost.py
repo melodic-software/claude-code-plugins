@@ -1,5 +1,7 @@
 """`cost_decision`: only an owner `**Decision recorded.**` comment on the
-closing issue or the pull request, linked from the body, clears a cost hold."""
+pull request, or on its linked issue naming it as `#<number>`, linked from
+the body, clears a cost hold (owner decision Q17, option b: a decision binds
+to one pull request and covers every head of it)."""
 
 from __future__ import annotations
 
@@ -24,7 +26,7 @@ def _comment(**changes: Any) -> dict[str, Any]:
         "issue_url": "https://api.github.com/repos/owner/repo/issues/40",
         "user": {"login": "owner-person", "type": "User"},
         "performed_via_github_app": None,
-        "body": "**Decision recorded.** Cost: approve the larger runner.",
+        "body": "**Decision recorded.** Cost: approve the larger runner for #99.",
         "node_id": "IC_7",
         "created_at": "2026-10-22T12:00:00Z",
     } | changes
@@ -72,9 +74,33 @@ class CostDecision(unittest.TestCase):
     def test_a_decision_on_the_pull_request_itself_clears(self) -> None:
         link = "https://github.com/owner/repo/pull/99#issuecomment-7"
         comment = _comment(
-            issue_url="https://api.github.com/repos/owner/repo/issues/99"
+            issue_url="https://api.github.com/repos/owner/repo/issues/99",
+            body="**Decision recorded.** Cost: approve it.",
         )
         self.assertEqual(self.decide(body=link, comment=comment), link)
+
+    def test_an_issue_decision_counts_only_when_it_names_the_pull_request(
+        self,
+    ) -> None:
+        for text in ("for #99.", "(#99)", "#99", "see #99, then"):
+            with self.subTest(text):
+                comment = _comment(body=f"**Decision recorded.** Cost: ok {text}")
+                self.assertEqual(self.decide(comment=comment), LINK)
+        for text in (
+            "for another change.",
+            "for #98.",
+            "for #990.",
+            "for owner/repo#99.",
+            "for x#99.",
+            "for pull 99.",
+        ):
+            with self.subTest(text):
+                comment = _comment(body=f"**Decision recorded.** Cost: ok {text}")
+                self.assertIsNone(self.decide(comment=comment))
+
+    def test_a_refs_issue_decision_naming_the_pull_request_clears(self) -> None:
+        # The caller passes `_linked_issue`'s number: here the Refs issue.
+        self.assertEqual(self.decide(body=f"Refs: #40\n\n{LINK}\n"), LINK)
 
     def test_a_decision_on_the_pull_request_needs_no_time_check(self) -> None:
         link = "https://github.com/owner/repo/pull/99#issuecomment-7"
@@ -107,6 +133,13 @@ class CostDecision(unittest.TestCase):
             ),
             "posted through an App": dict(
                 comment=_comment(performed_via_github_app={"slug": "cursor"})
+            ),
+            "a non-admin naming the pull request": dict(
+                permission="write",
+                comment=_comment(
+                    user={"login": "someone", "type": "User"},
+                    body="**Decision recorded.** Cost: approve #99.",
+                ),
             ),
             "a bot": dict(
                 comment=_comment(user={"login": "agent-lanes[bot]", "type": "Bot"})

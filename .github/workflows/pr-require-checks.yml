@@ -3491,16 +3491,34 @@ jobs:
           msg="draft: lanes not run; the ready_for_review run lints and tests this SHA"
           echo "::notice::$msg"
           echo "$msg" >>"$GITHUB_STEP_SUMMARY"
+      # The cost-hold and lanes-hold steps below run node; pin it to main's
+      # .node-version, as every other Node job is, rather than the runner
+      # image's default.
+      - name: Check out main's Node pin
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+          sparse-checkout: .node-version
+          sparse-checkout-cone-mode: false
+      - name: Set up Node
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
       # THE HOLD STEPS READ THEIR CONFIG FROM THE BASE COMMIT, ONCE. The tracker
       # config names the human-gated label and the trusted-actor list names who
       # may lift a hold; both are read at the base so the pull request cannot
-      # rewrite its own hold. A sparse checkout of the two files at the base SHA
+      # rewrite its own hold, as is merge-holds.mjs, whose refsIssue the cost
+      # step runs. A sparse checkout of the three files at the base SHA
       # is a git fetch, not a REST request: as of actions/checkout v7.0.1 its
       # API calls (default branch, object format, the stale-merge tracepoint, the
       # no-git archive download) all return early for a 40-hex `ref` on a runner
       # with git; recheck on a checkout bump. It checks out no pull request
-      # code: the ref is the base commit, nothing here is executed, and no
-      # credential is persisted.
+      # code: the ref is the base commit, the only code run from it is that
+      # base module, and no credential is persisted.
       # The steps below read BASE_CONFIG: empty when this step did not succeed,
       # which each of them treats as an unreadable config; a file missing from
       # a checkout that succeeded is a file the base commit does not have.
@@ -3516,6 +3534,7 @@ jobs:
           sparse-checkout: |
             /.work-item-tracker.json
             /.github/standards/trusted-actors/trusted-actors.json
+            /.github/scripts/pr-merge/merge-holds.mjs
           sparse-checkout-cone-mode: false
       # A COST HOLD THE OWNER ALREADY DECIDED COMES OFF. A review lane re-holds
       # every new head, so its `cost` hold went back on after the owner had
@@ -3539,11 +3558,15 @@ jobs:
       # - The pull request body, outside HTML comments, links a decision comment
       #   as babysit_merge_policy.py's cost_decision reads one: by a User on the
       #   trusted-actor list, not through an App, never edited, first line
-      #   `**Decision recorded.** Cost:`, on the pull request itself or (written
-      #   after the pull request) on the one issue in this repository that
-      #   GitHub records it as closing. A body `Refs:` line or a second closing
-      #   issue counts for nothing, so an owner decision on an unrelated issue
-      #   cannot clear this hold.
+      #   `**Decision recorded.** Cost:`. A decision binds to one pull request
+      #   and covers every head of it: one on the pull request itself counts as
+      #   it is; one on its linked issue counts only when written after the
+      #   pull request and naming it as `#<number>` (merge-holds.mjs
+      #   namesPull). The linked issue is the one issue in this repository that
+      #   GitHub records it as closing, else, when it closes none, the one issue
+      #   its plain `Refs:` lines name (the base's merge-holds.mjs refsIssue).
+      #   A second closing issue counts for nothing, and an owner decision on
+      #   the issue for another change cannot clear this hold.
       # It then outputs cleared=true and the decision link, and, with the label
       # on, posts one comment citing the decision and removes the label. A
       # GITHUB_TOKEN removal starts no run, so the steps below read the label
@@ -3616,11 +3639,22 @@ jobs:
           # shellcheck disable=SC2016 # GraphQL variables, not shell
           closing=$(read_api graphql -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){closingIssuesReferences(first:2){totalCount nodes{number repository{nameWithOwner}}}}}}' \
             -F owner="${repo%%/*}" -F name="${repo#*/}" -F number="$PR_NUMBER") || keep "the closing issues are unreadable"
-          # The one issue in this repository the pull request closes, as babysit's
-          # cost_decision reads it: none when it closes more than one.
+          # The linked issue, as babysit's _linked_issue reads it: the one issue
+          # in this repository the pull request closes, none when it closes more
+          # than one, and its one plain `Refs:` issue when it closes none.
           issues=" $(jq -r --arg repo "$repo" '.data.repository.pullRequest.closingIssuesReferences
             | select(.totalCount == 1) | .nodes[]
             | select((.repository.nameWithOwner | ascii_downcase) == ($repo | ascii_downcase)) | .number | tostring' <<<"$closing" 2>/dev/null) "
+          if [ "$(jq -r '.data.repository.pullRequest.closingIssuesReferences.totalCount' <<<"$closing" 2>/dev/null)" = 0 ]; then
+            jq -r '.body // ""' <<<"$pr" >"$RUNNER_TEMP/cost-hold-body.txt" || keep "the pull request body is unreadable"
+            # shellcheck disable=SC2016 # JavaScript, not shell
+            refs=$(node --input-type=module -e 'import { readFileSync } from "node:fs";
+              import { pathToFileURL } from "node:url";
+              const { refsIssue } = await import(pathToFileURL(process.argv[2]).href);
+              console.log(refsIssue(readFileSync(process.argv[1], "utf8")) ?? "");' \
+              "$RUNNER_TEMP/cost-hold-body.txt" "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs") || keep "the Refs line could not be read"
+            issues=" $refs "
+          fi
           opened=$(jq -r '.created_at | fromdateiso8601' <<<"$pr") || keep "the pull request has no creation time"
           decision='' decision_id=''
           while IFS=$'\t' read -r link owner name number id; do
@@ -3633,7 +3667,8 @@ jobs:
               and .user.type == "User" and .performed_via_github_app == null
               and (.user.id as $id | $humans | index($id) != null)
               and (.body // "" | sub("\\A\\s+"; "") | test("\\A\\*\\*Decision recorded\\.\\*\\*[ \\t]+Cost:"))
-              and ($number == $pr or (.created_at | fromdateiso8601) > $opened)' <<<"$comment" >/dev/null 2>&1 || continue
+              and ($number == $pr or ((.created_at | fromdateiso8601) > $opened
+                and (.body // "" | test("(?:^|[^A-Za-z0-9_/.-])#\($pr)(?:[^0-9]|$)"))))' <<<"$comment" >/dev/null 2>&1 || continue
             node=$(jq -r .node_id <<<"$comment")
             # shellcheck disable=SC2016 # GraphQL variables, not shell
             edited=$(read_api graphql -f query='query($id:ID!){node(id:$id){... on IssueComment{lastEditedAt}}}' -F id="$node") || continue
@@ -4067,22 +4102,6 @@ jobs:
           fi
           [ "$held" -eq 0 ] || exit 1
           echo "#$pr carries neither 'do-not-merge' nor '$human_gated'."
-      # The lanes-hold step below runs node; pin it to main's .node-version,
-      # as every other Node job is, rather than the runner image's default.
-      - name: Check out main's Node pin
-        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.repository.default_branch }}
-          path: .base
-          persist-credentials: false
-          sparse-checkout: .node-version
-          sparse-checkout-cone-mode: false
-      - name: Set up Node
-        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .base/.node-version
       # A LANES APP PULL REQUEST IS HELD BY ITS TEXT TOO. pr-merge.yml's
       # enable-auto-merge job arms native auto-merge on lanes App pull
       # requests, which then merge without pr-merge's gate, so this step fails

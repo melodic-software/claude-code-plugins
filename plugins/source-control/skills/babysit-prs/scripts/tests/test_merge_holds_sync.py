@@ -20,7 +20,8 @@ The repository's pipeline config is a hold path.
   holds and passes what it passes.
 - The cost decision: `costDecision` accepts the same comments as
   `babysit_merge_policy.cost_decision`, with the owner a trusted person in
-  place of an admin.
+  place of an admin, a linked-issue comment counting only when it names the
+  pull request as `#<number>` (`namesPull`, `names_pull`).
 """
 
 from __future__ import annotations
@@ -334,13 +335,33 @@ def _link(target: int, kind: str = "pull", repo: str = REPO) -> str:
 # Each case: the body, then the comment its link names.
 DECISIONS = {
     "on the pull request": (_link(7), _comment(7)),
-    "on the closing issue after the pull request": (
+    "on the closing issue after the pull request, naming it": (
+        _link(ISSUE, "issues"),
+        _comment(ISSUE, body=f"{DECISION} for #7."),
+    ),
+    "on the closing issue, naming it in parentheses": (
+        _link(ISSUE, "issues"),
+        _comment(ISSUE, body=f"{DECISION} (#7)"),
+    ),
+    "on the closing issue, naming no pull request": (
         _link(ISSUE, "issues"),
         _comment(ISSUE),
     ),
+    "on the closing issue, naming another pull request": (
+        _link(ISSUE, "issues"),
+        _comment(ISSUE, body=f"{DECISION} for #70."),
+    ),
+    "on the closing issue, naming another repository's": (
+        _link(ISSUE, "issues"),
+        _comment(ISSUE, body=f"{DECISION} for x/r#7."),
+    ),
+    "on the closing issue, naming it, by someone else": (
+        _link(ISSUE, "issues"),
+        _comment(ISSUE, body=f"{DECISION} for #7.", user=OTHER),
+    ),
     "on the closing issue before the pull request": (
         _link(ISSUE, "issues"),
-        _comment(ISSUE, created_at="2026-01-01T00:00:00Z"),
+        _comment(ISSUE, body=f"{DECISION} for #7.", created_at="2026-01-01T00:00:00Z"),
     ),
     "on another issue": (_link(9, "issues"), _comment(9)),
     "in another repository": (_link(7, repo="x/r"), _comment(7)),
@@ -412,6 +433,10 @@ class TheCostDecisionIsTheGates(unittest.TestCase):
                 answers[case] = py_decision(body, comment)
                 self.assertEqual(js_decision(body, comment), answers[case])
         self.assertIsNotNone(answers["on the pull request"])
+        self.assertIsNotNone(
+            answers["on the closing issue after the pull request, naming it"]
+        )
+        self.assertIsNone(answers["on the closing issue, naming no pull request"])
         self.assertIsNone(answers["edited"])
 
 

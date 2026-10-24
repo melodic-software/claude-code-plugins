@@ -22,7 +22,8 @@
 //   key by key. The same approval lifts it.
 // - A cost path (COST_PATHS): a changed file the gate holds for the owner's
 //   cost decision. An approval does not lift it; only the decision the gate
-//   reads does (costDecision), linked from the body.
+//   reads does (costDecision), linked from the body: on the pull request, or
+//   on its linked issue naming it.
 // - No verifier pass, when a verdicts file is given (ci-status gives one in
 //   the merge queue only): the head merges on a PASS or PASS-NOTES that
 //   pr-verify.yml uploaded from a completed, successful run on main
@@ -427,12 +428,21 @@ export const PULL_OPENED_QUERY = `query($owner: String!, $name: String!, $number
 }`;
 export const COMMENT_EDITED_QUERY = "query($id: ID!) { node(id: $id) { ... on IssueComment { lastEditedAt } } }";
 
+// Whether `text` names pull request `number` as `#<number>`: not part of a
+// longer number, and not after a letter, digit, `_`, `/`, `.` or `-`, so
+// `owner/repo#<number>` does not count (babysit_merge_policy.names_pull).
+export function namesPull(text, number) {
+  return Number.isSafeInteger(number) && new RegExp(`(?:^|[^A-Za-z0-9_/.-])#${number}(?:[^0-9]|$)`).test(String(text ?? ""));
+}
+
 // The first comment link in `body`, outside HTML comments, that records the
 // owner's cost decision for pull request `number` of `repo`, else null: the
 // rule of babysit_merge_policy.cost_decision, with the owner a person whose
 // id is in `humans` (trusted-actors.json), as ci-status's cost-only review
-// hold step names one. The comment is on the pull request, or on its one
-// closing issue in `repo` and newer than the pull request; by a User, not
+// hold step names one. A decision binds to one pull request and covers every
+// head of it: the comment is on the pull request, or on its linked issue in
+// `repo` (the one closing issue, else with none the one refsIssue names),
+// newer than the pull request and naming it (namesPull); by a User, not
 // through an App; never edited; its first line `**Decision recorded.** Cost:`.
 // `github(method, path, body)` reads; a read that fails clears nothing.
 export async function costDecision(github, repo, number, body, humans) {
@@ -452,9 +462,11 @@ export async function costDecision(github, repo, number, body, humans) {
   const opened = Date.parse(pull?.createdAt);
   const closing = pull?.closingIssuesReferences;
   const issue =
-    closing?.totalCount === 1 && closing.nodes?.length === 1 && String(closing.nodes[0]?.repository?.nameWithOwner).toLowerCase() === repo.toLowerCase()
-      ? closing.nodes[0].number
-      : null;
+    closing?.totalCount === 0
+      ? refsIssue(body)
+      : closing?.totalCount === 1 && closing.nodes?.length === 1 && String(closing.nodes[0]?.repository?.nameWithOwner).toLowerCase() === repo.toLowerCase()
+        ? closing.nodes[0].number
+        : null;
   for (const link of links) {
     const target = Number(link[3]);
     if (target !== number && target !== issue) {
@@ -468,7 +480,7 @@ export async function costDecision(github, repo, number, body, humans) {
         comment.performed_via_github_app != null ||
         !humans.has(comment.user.id) ||
         !DECISION_LINE.test(String(comment.body ?? "").trimStart()) ||
-        (target !== number && !(Date.parse(comment.created_at) > opened))
+        (target !== number && !(Date.parse(comment.created_at) > opened && namesPull(comment.body, number)))
       ) {
         continue;
       }
@@ -543,7 +555,7 @@ export function holds(body, items, files, holdPaths, lifters = [], decision = nu
   const cost = costHold(files, decision);
   if (cost) {
     reasons.push(
-      `${cost}; the owner's unedited comment opening '**Decision recorded.** Cost:' on this pull request or its closing issue, linked from the body, lifts it`,
+      `${cost}; the owner's unedited comment opening '**Decision recorded.** Cost:' on this pull request, or on its linked issue naming this pull request, linked from the body, lifts it`,
     );
   }
   if (BODY_HOLD.test(String(body ?? ""))) {

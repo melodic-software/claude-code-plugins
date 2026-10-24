@@ -9,7 +9,10 @@
 // babysit_merge_policy.cost_decision reads and test_babysit_merge_cost.py
 // pins case by case. ci-status names its owner by the trusted-actor list, as
 // its cost-only review hold step does, so a review approval lifts a hold path
-// but never a cost hold.
+// but never a cost hold. A decision binds to one pull request and covers every
+// head of it (owner decision Q17, option b): one on the pull request counts as
+// it is, one on its linked issue (closing, else `Refs:`) only when it names
+// `#<number>`.
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
 import { mkdtempSync, writeFileSync } from "node:fs";
@@ -30,7 +33,7 @@ const comment = (changes = {}) => ({
   issue_url: "https://api.github.com/repos/owner/repo/issues/40",
   user: { login: "owner-person", id: 5, type: "User" },
   performed_via_github_app: null,
-  body: "**Decision recorded.** Cost: approve the larger runner.",
+  body: "**Decision recorded.** Cost: approve the larger runner for #99.",
   node_id: "IC_7",
   created_at: "2026-10-22T12:00:00Z",
   ...changes,
@@ -72,10 +75,31 @@ test("an owner decision on the closing issue, linked from the body, clears the c
   assert.deepEqual(reads, ["pull", "GET /repos/owner/repo/issues/comments/7", "edited"]);
 });
 
-test("one on the pull request itself clears with no time check", async () => {
+test("one on the pull request itself clears with no time check and no #number", async () => {
   const own = "https://github.com/owner/repo/pull/99#issuecomment-7";
-  const row = comment({ issue_url: "https://api.github.com/repos/owner/repo/issues/99", created_at: null });
+  const row = comment({ issue_url: "https://api.github.com/repos/owner/repo/issues/99", created_at: null, body: "**Decision recorded.** Cost: approve it." });
   assert.equal((await decide(own, { row, closing: [] })).link, own);
+});
+
+test("one on the linked issue clears only when its text names the pull request", async () => {
+  for (const text of ["for #99.", "(#99)", "#99", "see #99, then"]) {
+    assert.equal((await decide(undefined, { row: comment({ body: `**Decision recorded.** Cost: approve ${text}` }) })).link, LINK, text);
+  }
+  for (const text of ["for another change.", "for #98.", "for #990.", "for owner/repo#99.", "for x#99.", "for pull 99."]) {
+    assert.equal((await decide(undefined, { row: comment({ body: `**Decision recorded.** Cost: approve ${text}` }) })).link, null, text);
+  }
+});
+
+test("with no closing issue, one on the issue the Refs line names counts the same way", async () => {
+  const refs = `Refs: #40\n\nCost decision: ${LINK}\n`;
+  assert.equal((await decide(refs, { closing: [] })).link, LINK);
+  const unnamed = comment({ body: "**Decision recorded.** Cost: approve the larger runner." });
+  assert.equal((await decide(refs, { closing: [], row: unnamed })).link, null);
+  for (const body of [`Refs: #41\n\n${LINK}`, `Refs: #40\nRefs: #41\n\n${LINK}`, `Refs: #40, #41\n\n${LINK}`, `\`\`\`\nRefs: #40\n\`\`\`\n\n${LINK}`, `<!-- Refs: #40 -->\n\n${LINK}`]) {
+    assert.equal((await decide(body, { closing: [] })).link, null, body);
+  }
+  // A closing issue wins over the Refs line, as babysit's _linked_issue reads it.
+  assert.equal((await decide(refs, { closing: [{ number: 12, repository: { nameWithOwner: REPO } }] })).link, null);
 });
 
 test("a body with no covering link reads nothing", async () => {
@@ -121,7 +145,7 @@ test("each failing condition of the gate's rule clears nothing", async () => {
 });
 
 test("a decision line after leading blank lines still counts", async () => {
-  assert.equal((await decide(undefined, { row: comment({ body: "\n  **Decision recorded.**\tCost: yes" }) })).link, LINK);
+  assert.equal((await decide(undefined, { row: comment({ body: "\n  **Decision recorded.**\tCost: yes for #99" }) })).link, LINK);
 });
 
 test("costHold holds a cost path, case-folded, until a decision", () => {
@@ -137,14 +161,14 @@ test("costHold holds a cost path, case-folded, until a decision", () => {
 // workflow step runs it, with a GitHub for the decision reads.
 // A `files` entry is a path, or a files API row; `texts` maps
 // `<path>@<sha>` to a manifest's text, which the contents API answers.
-function ci(files, { reviews = [], body = "Closes #40", options, texts = {} } = {}) {
+function ci(files, { reviews = [], body = "Closes #40", options, texts = {}, head = HEAD } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "merge-holds-"));
   writeFileSync(join(dir, "body"), body);
   writeFileSync(join(dir, "discussion"), reviews.map((row) => JSON.stringify(row)).join("\n"));
   writeFileSync(join(dir, "actors"), JSON.stringify({ actors: [{ kind: "human", login: "owner-person", id: 5 }] }));
   writeFileSync(join(dir, "files"), files.map((row) => JSON.stringify(typeof row === "string" ? [row] : row)).join("\n"));
   writeFileSync(join(dir, "denied"), "[]");
-  const argv = ["99", ...["body", "discussion", "files", "denied", "actors"].map((name) => join(dir, name)), HEAD];
+  const argv = ["99", ...["body", "discussion", "files", "denied", "actors"].map((name) => join(dir, name)), head];
   const { github: decisions } = world(options);
   const github = async (method, path, data) => {
     const read = /^\/repos\/owner\/repo\/contents\/(.+)\?ref=([0-9a-f]{40})$/.exec(path);
@@ -258,6 +282,19 @@ test("ci-status holds a cost path that an approval does not lift, and the owner'
   assert.equal(decided.code, 0, decided.out);
   assert.match(decided.out, /no body hold, no member veto and no hold path\./);
   assert.equal((await ci(["infra/main.tf"], { body: `Closes #40\n\n${LINK}`, options: { node: { lastEditedAt: "2026-10-22T13:00:00Z" } } })).code, 1);
+});
+
+test("ci-status lets the owner's decision on the pull request cover every head pushed after it", async () => {
+  const own = "https://github.com/owner/repo/pull/99#issuecomment-7";
+  const row = comment({ issue_url: "https://api.github.com/repos/owner/repo/issues/99", body: "**Decision recorded.** Cost: approve it." });
+  for (const head of [HEAD, BASE.replace(/^8/, "7")]) {
+    const decided = await ci(["infra/main.tf"], { body: `Closes #40\n\n${own}`, head, options: { row } });
+    assert.equal(decided.code, 0, `${head}: ${decided.out}`);
+  }
+  // The same decision on the closing issue, which names no pull request, holds.
+  const unnamed = await ci(["infra/main.tf"], { body: `Closes #40\n\n${LINK}`, options: { row: comment({ body: "**Decision recorded.** Cost: approve it." }) } });
+  assert.equal(unnamed.code, 1);
+  assert.match(unnamed.out, /on its linked issue naming this pull request/);
 });
 
 // The live link a pass binds, by the gate's rule (README "Eligibility"): one

@@ -1964,6 +1964,19 @@ HTML_COMMENT = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)
 COMMENT_EDITED = "query PolicyCommentEdited($id:ID!){node(id:$id){... on IssueComment{lastEditedAt}}}"
 
 
+def names_pull(text: Any, number: Any) -> bool:
+    """Whether `text` names pull request `number` as `#<number>`: not part of
+    a longer number, and not after a letter, digit, `_`, `/`, `.` or `-`, so
+    `owner/repo#<number>` (another repository's) does not count. ASCII
+    classes only, as merge-holds.mjs `namesPull` and ci-status read it."""
+    if not isinstance(number, int) or isinstance(number, bool):
+        return False
+    return (
+        re.search(rf"(?:^|[^A-Za-z0-9_/.-])#{number}(?:[^0-9]|$)", str(text or ""))
+        is not None
+    )
+
+
 def _after(value: Any, opened: datetime | None) -> bool:
     made = parse_timestamp(value)
     return made is not None and opened is not None and made > opened
@@ -1979,15 +1992,19 @@ def cost_decision(
     self_logins: Collection[str] = frozenset(),
 ) -> str | None:
     """The first comment link in the body that is an owner decision covering
-    this pull request, else None: a comment on its closing issue or on the
-    pull request itself in `repo`, by a User with admin permission who is not
-    the agent identity, not posted through an App, never edited, and whose
-    first line starts `**Decision recorded.** Cost:`. One on the closing issue
-    counts only when created after the pull request was, so an older decision
-    on the issue cannot cover new work (an author can forge commit dates, not
-    these); one on the pull request postdates it already. A link inside an HTML
-    comment, and a comment by a `self_logins` account, count for nothing. A
-    read that fails clears nothing."""
+    this pull request, else None: a comment on the pull request itself or on
+    `issue` (its linked issue, `_linked_issue`) in `repo`, by a User with
+    admin permission who is not the agent identity, not posted through an
+    App, never edited, and whose first line starts `**Decision recorded.**
+    Cost:`. A decision binds to one pull request and covers every head of it
+    (owner decision Q17, option b): one on the pull request counts as it is;
+    one on the issue counts only when its text names this pull request
+    (`names_pull`) and it was created after the pull request was, so a
+    decision recorded on the issue for another change does not cover a pull
+    request that links the issue later (an author can forge commit dates,
+    not these). A link inside an HTML comment, and a comment by a
+    `self_logins` account, count for nothing. A read that fails clears
+    nothing."""
     owner, name = _split_repo(repo)
     covered = {pr.get("number"), issue} - {None}
     opened = parse_timestamp(pr.get("created_at"))
@@ -2012,7 +2029,10 @@ def cost_decision(
             or not DECISION_LINE.match(str(comment.get("body") or "").lstrip())
             or (
                 int(link[3]) != pr.get("number")
-                and not _after(comment.get("created_at"), opened)
+                and not (
+                    _after(comment.get("created_at"), opened)
+                    and names_pull(comment.get("body"), pr.get("number"))
+                )
             )
         ):
             continue
