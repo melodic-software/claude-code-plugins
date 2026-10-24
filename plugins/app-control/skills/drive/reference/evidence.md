@@ -24,8 +24,8 @@ the run directory sits in a git working tree and is not ignored.
 
 For a person. It lists, in order: the mode and the control skill (or the line
 `No control skill: drive used <fallback>.`), what `ready` found, each step with its action, entry
-point, observed text and artifact paths (a capture step also names the process, by pid and name,
-and the exact command run), then capability gaps, `blocked:` lines and cleanup. It
+point, observed text and artifact paths (a capture step also names the process, by pid, name and
+start time, and the exact command run), then capability gaps, `blocked:` lines and cleanup. It
 records what was done and seen. It rates nothing and says nothing about whether a change works.
 
 ## report.json
@@ -38,8 +38,9 @@ For a job. One object with these fields:
 | `control_skill` | The control skill used, or `null` |
 | `fallback` | What drive used when `control_skill` is `null`, else `null` |
 | `mode` | `interactive` or `unattended` |
+| `launch` | The process this run launched: `pid`, `start_time` and `command_line`, or `null` when the run launched nothing |
 | `ready` | `surfaces` (URL, port or command), `build`, `data`, `telemetry` |
-| `steps` | A list; each has `action`, `entry_point`, `observed` (text) and `artifacts` (paths); a capture step also has `process` (pid and name) and `command` (the exact command run) |
+| `steps` | A list; each has `action`, `entry_point`, `observed` (text) and `artifacts` (paths); a capture step also has `process` (pid, name and start time) and `command` (the exact command run) |
 | `capability_gaps` | Signals and capture kinds the app or project does not provide |
 | `blocked` | Each step that needed a person or a grant, with its reason and the narrowest grant |
 | `cleanup` | What was stopped, and each evidence path with whether it exists and is not empty |

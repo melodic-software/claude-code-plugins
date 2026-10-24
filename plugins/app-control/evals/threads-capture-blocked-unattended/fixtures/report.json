@@ -1,0 +1,21 @@
+{
+  "app": "shop",
+  "control_skill": "control-shop",
+  "fallback": null,
+  "mode": "unattended",
+  "launch": {
+    "pid": 5120,
+    "start_time": "2026-10-23T21:04:11Z",
+    "command_line": "python3 shop/server.py"
+  },
+  "ready": {
+    "surfaces": ["http://127.0.0.1:8080"],
+    "build": null,
+    "data": null,
+    "telemetry": []
+  },
+  "steps": [],
+  "capability_gaps": [],
+  "blocked": [],
+  "cleanup": null
+}

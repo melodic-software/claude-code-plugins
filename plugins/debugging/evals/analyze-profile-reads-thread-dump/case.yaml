@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: analyze-profile-reads-thread-dump
+description: A real py-spy dump of a deadlocked script is read as text, with no SQLite step, down to each blocked thread and its frame at file:line
+tags: [analyze-profile, threads]
+expected_outcome: The answer reads dumps/inventory-sync.txt directly and names the lock-order cycle. stock-writer waits on ledger_lock at sync.py:16 in post_ledger_entry while holding stock_lock taken in reserve_stock; ledger-reconciler waits on stock_lock at sync.py:27 in adjust_stock while holding ledger_lock taken in reconcile_ledger. No converter runs and no file is edited.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/debugging:analyze-profile dumps/inventory-sync.txt. Our inventory sync (inventory/sync.py) stopped responding and never exits. Someone captured this py-spy dump while it hung. Why is it stuck?"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: no-sqlite-step
+    type: tool_used
+    tool: Bash
+    input_match: 'trace_to_sqlite|query_profile|sqlite3'
+    min: 0
+    max: 0
+    arm: both
+  - name: names-both-wait-sites
+    type: regex
+    pattern: 'sync\.py:16[\s\S]*sync\.py:27|sync\.py:27[\s\S]*sync\.py:16'
+    arm: both
+  - name: names-the-cycle
+    type: llm
+    arm: both
+    criteria: "PASS only if the answer says the stock-writer thread waits for ledger_lock at sync.py:16 (post_ledger_entry) while holding stock_lock from reserve_stock, and the ledger-reconciler thread waits for stock_lock at sync.py:27 (adjust_stock) while holding ledger_lock from reconcile_ledger, so each holds what the other waits for. FAIL if it misses either thread's held lock or waited lock, names a different cause, or edits or proposes an applied edit to a file."
