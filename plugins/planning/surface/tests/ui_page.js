@@ -286,9 +286,18 @@ async page => { // the question page itself: choices, chips, banners, header and
     ok("each question keeps its own note draft across a switch and a reload", kept === "draft on Q1" && await page.inputValue("#note") === "draft on Q1", kept);
     await page.fill("#note", ""); await page.setViewportSize({width: 1440, height: 900});
   }
+  if (PHASE === 12) { // gap G8: the shell recorded two constraints with the constraint op; the header lists them
+    await page.setViewportSize({width: 1440, height: 900});
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
+    const sum = await text("#consSum");
+    ok("the header shows \"Constraints (2)\" for two recorded constraints", sum === "Constraints (2)" && await page.$eval("#consPanel", el => !el.hidden), sum);
+    await page.click("#consSum"); await page.waitForTimeout(150);
+    const items = await page.$$eval("#consList li", els => els.map(li => li.textContent));
+    ok("the open panel lists each constraint with its id", items.length === 2 && items[0] === "C1Builds stop at ten minutes." && items[1] === "C2Stdlib only.", JSON.stringify(items));
+  }
   const events = async () => (await (await page.request.get(base + "api/state")).json()).responses.events;
   const dialog = () => page.evaluate(() => { const a = document.getElementById("dlgAlt"); return {open: document.getElementById("dlg").open, title: document.getElementById("dlgTitle").textContent, ok: document.getElementById("dlgOk").textContent, alt: a.hidden ? null : a.textContent}; });
-  if (PHASE === 12) { // #9709: frontierLock confirm, the default; the shell added Q11 (round 2, open) and Q12 (round 3, needs Q11)
+  if (PHASE === 13) { // #9709: frontierLock confirm, the default; the shell added Q11 (round 2, open) and Q12 (round 3, needs Q11)
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
     await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
     const chip = await page.$eval('.qbtn[data-q="Q12"] .qmeta', el => ({text: el.textContent, lock: !!el.querySelector(".lockchip svg.padlock")})).catch(e => ({error: String(e)}));
@@ -305,7 +314,7 @@ async page => { // the question page itself: choices, chips, banners, header and
     const ev = await events(), last = ev[ev.length - 1] || {};
     ok("#9709: Answer anyway saves the decision with outOfOrder naming the open prerequisite", ev.length === n0 + 1 && last.id === "Q12" && last.kind === "accept" && JSON.stringify(last.outOfOrder) === '["Q11"]', JSON.stringify(last));
   }
-  if (PHASE === 13) { // #9709: the shell set frontierLock hard in the data dir's settings.json; Q11 is still open
+  if (PHASE === 14) { // #9709: the shell set frontierLock hard in the data dir's settings.json; Q11 is still open
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
     await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
     await pick("Q12"); await page.click("#choices .choice.rec"); await page.fill("#note", "Why does this wait on the rollout?"); await page.waitForTimeout(150);

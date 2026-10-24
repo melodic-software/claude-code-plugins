@@ -42,8 +42,8 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
 
 status, lease, doctor and validate take --json: one JSON object on stdout in place of the text lines
 (the text output is unchanged without it; exit codes are the same).
-  status --json    {groups: [{id, title, total, closed, open[], archived[], waiting[{id, short,
-                   hold, waitsOn}]}], meta: {setInRound, newestRound}|null, roundDrift[], rev, pageSeq,
+  status --json    {groups: [{id, title, total, closed, live, answered, toConfirm[{id, short,
+                   commitments[]}], open[], archived[], superseded[], waiting[{id, short, hold, waitsOn}]}], meta: {setInRound, newestRound}|null, roundDrift[], rev, pageSeq,
                    handledSeq, unhandled[]}; with --latency: {latency: {saveToDelivered|saveToReply:
                    {n, p50, p95}}}
   lease --json     {lease: {watcher, since, lastWaitAt, waiting, ...}|null}
@@ -155,6 +155,7 @@ LOGGED_OPS = {
     "wait",
     "confirm-commitments",
     "restate",
+    "constraint",
     "finish",
 }
 BASIS_SENTENCES = 3
@@ -1489,6 +1490,26 @@ def op_restate(d, doc, a):
     return [], "restated the shared understanding"
 
 
+def op_constraint(d, doc, a):
+    """Record one constraint on the page's ledger: a new `C<N>`, or the text of an existing `id`."""
+    text = capped("constraint text", (a.text or "").strip(), LINE_CAP)
+    if not text or "\n" in text:
+        sys.exit("refused: constraint needs one line of text")
+    kept = doc.get("constraints") or []
+    cid = a.id
+    if cid is None:
+        nums = [int(c["id"][1:]) for c in kept if re.fullmatch(r"C[0-9]+", c["id"])]
+        cid = f"C{max(nums, default=0) + 1}"
+    elif not re.fullmatch(r"C[0-9]+", str(cid)):
+        sys.exit(f"refused: constraint id {cid!r} is not C<N>")
+    entry = {"id": cid, "text": text, "at": now()}
+    if any(c["id"] == cid for c in kept):
+        doc["constraints"] = [entry if c["id"] == cid else c for c in kept]
+        return [], f"revised constraint {cid}"
+    doc["constraints"] = [*kept, entry]
+    return [], f"recorded constraint {cid}"
+
+
 def op_activity(d, doc, a):
     text = capped("activity text", (a.text or "").strip(), LINE_CAP)
     if not text:
@@ -1724,6 +1745,7 @@ OP_ARGS = {
         {"id": None, "indices": None, "reason": None},
     ),
     "restate": (op_restate, {"sections": None}),
+    "constraint": (op_constraint, {"id": None, "text": None}),
 }
 
 
@@ -1856,6 +1878,10 @@ def cmd_status(d, a):
         q["id"]: (exporters.hold_label(q), q.get("waitsOn", ""))
         for q in doc["questions"]
     }
+    pending_commits = {
+        q["id"]: exporters.commitments(q, r.get("events") or [])[1]
+        for q in doc["questions"]
+    }
     for q in doc["questions"]:
         dec = effective(q, resp)
         state = (
@@ -1880,22 +1906,38 @@ def cmd_status(d, a):
         items = rows[gid]
         opened = [f"{i} {s}" for i, s, st, _ in items if st == "open"]
         archived = [i for i, _, st, _ in items if st == "archived"]
+        superseded = [i for i, _, st, _ in items if st == "superseded"]
         waits = [f"  {i} {s} {w}" for i, s, st, w in items if st == "waiting"]
         title = groups.get(gid, {}).get("title", "Ungrouped")
+        live = len(items) - len(archived) - len(superseded)
+        answered = live - len(opened) - len(waits)
+        confirm = [
+            (i, s, pending_commits[i])
+            for i, s, st, _ in items
+            if st == "accept" and pending_commits.get(i)
+        ]
         lines.append(
-            f"{title}: {len(items) - len(opened) - len(waits)} of {len(items)} closed"
+            f"{title}: {answered} of {live} live answered"
+            + (f"; {len(archived)} archived" if archived else "")
+            + (f"; {len(superseded)} superseded" if superseded else "")
             + (f"; open: {', '.join(opened)}" if opened else "")
-            + (f"; archived: {', '.join(archived)}" if archived else "")
         )
         lines.extend(waits)
+        lines.extend(
+            f"  {i} {s} accepted, to confirm: {json.dumps(cs)}" for i, s, cs in confirm
+        )
         data["groups"].append(
             {
                 "id": gid,
                 "title": title,
                 "total": len(items),
                 "closed": len(items) - len(opened) - len(waits),
+                "live": live,
+                "answered": answered,
+                "toConfirm": [{"id": i, "short": s, "commitments": cs} for i, s, cs in confirm],
                 "open": [i for i, _, st, _ in items if st == "open"],
                 "archived": archived,
+                "superseded": superseded,
                 "waiting": [
                     {"id": i, "short": s, "hold": hold[i][0], "waitsOn": hold[i][1]}
                     for i, s, st, _ in items

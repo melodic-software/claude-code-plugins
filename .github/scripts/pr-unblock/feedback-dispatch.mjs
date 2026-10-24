@@ -29,7 +29,8 @@
 // - that head has no pr-unblock / address-feedback check run yet (one the
 //   usage limit stopped stops counting once its limit resets, and one that
 //   started before the head's newest pr-unblock / publish-feedback check run
-//   when that run skipped no-model-turn: that round handled nothing), and no
+//   when that run skipped no-model-turn or finding-stands: that round left
+//   the head for another round), and no
 //   pr-unblock.yml address-feedback run for the PR is still queued or going;
 // - the base config's pr-unblock lane is enabled, holds enabled
 //   address-feedback and publish-feedback slots, and address-feedback applies
@@ -48,12 +49,14 @@
 // counts only check runs started after the pr-verify run was created
 // (notesSince, read back from the API) and skips the head's handled record.
 //
-// A round whose reply job skipped no-model-turn releases its head only for
-// the next review or pr-verify completion there, which may never come. So a
-// completed scheduled pr-unblock-dispatch.yml run, the half-hourly tick, also
-// starts the file, and main() sweeps (sweepNoModelTurn): each open lanes App
-// PR into main whose head's newest reply check skipped no-model-turn, fewer
-// than SWEEP_HEAD_CAP times at that head, is decided as above with the
+// A round whose reply job skipped no-model-turn, or finding-stands (an
+// adjudicator let a disputed finding stand and the head did not move, so no
+// review run follows), releases its head only for the next review or
+// pr-verify completion there, which may never come. So a completed
+// scheduled pr-unblock-dispatch.yml run, the half-hourly tick, also starts
+// the file, and main() sweeps (sweepReleased): each open lanes App PR into
+// main whose head's newest reply check took one of those skips, fewer than
+// SWEEP_HEAD_CAP times at that head, is decided as above with the
 // newest completed review run at that head as the upstream (reviewRunAt),
 // which the record names. A sweep dispatches at most once, since the
 // dispatched-run record names one upstream and one run, and keeps no record.
@@ -84,8 +87,8 @@ export const DEFAULTS = Object.freeze({
   activity: "address-feedback",
   replyActivity: "publish-feedback",
   checkName: "pr-unblock / address-feedback",
-  // The reply job's check: its no-model-turn skip releases the round's
-  // address-feedback check runs.
+  // The reply job's check: its no-model-turn or finding-stands skip
+  // releases the round's address-feedback check runs.
   replyCheckName: "pr-unblock / publish-feedback",
   reviewWorkflows: Object.freeze([
     ".github/workflows/pr-review-hosted.yml",
@@ -111,13 +114,16 @@ const RUN_ID = /^[1-9][0-9]{0,14}$/;
 
 // The tick whose completion starts the sweep.
 export const SWEEP_WORKFLOW = ".github/workflows/pr-unblock-dispatch.yml";
-// No-model-turn rounds at one head after which the sweep stops sending it
+// Releasing rounds at one head after which the sweep stops sending it
 // (judgment: a third round with no model turn points at a cause a retry does
-// not clear; the select job's round cap may end it sooner).
+// not clear; the select job's round cap, address-feedback.mjs
+// DEFAULT_MAX_ROUNDS, may end it sooner).
 export const SWEEP_HEAD_CAP = 3;
 
 const startOf = (run) => Date.parse(run.started_at ?? "");
-const isNoModelTurn = (run) => run?.status === "completed" && run.conclusion === "neutral" && run.output?.title === "Skipped: no-model-turn";
+// The reply check skips that leave the head for another round.
+const RELEASES = new Set(["Skipped: no-model-turn", "Skipped: finding-stands"]);
+const releases = (run) => run?.status === "completed" && run.conclusion === "neutral" && RELEASES.has(run.output?.title);
 
 // The SHA the newest marker of `lane` written by the marker author names, or "".
 export function markedHead(comments, lane, markerAuthorId = DEFAULTS.markerAuthorId) {
@@ -323,9 +329,10 @@ export async function dispatchFeedback({
   const sinceNotes = (run) => notesSince === null || !(Date.parse(run.started_at ?? "") <= notesSince);
   let existing = (await api.listCheckRuns({ sha: head, checkName: settings.checkName, appId: settings.appId })).filter(sinceNotes);
   // A round whose reply job skipped no-model-turn (decided from the scan
-  // job's outputs and the select job's head) handled nothing: the
-  // address-feedback check runs that started before that reply job stop
-  // counting, so the next trigger dispatches the head again. Each such
+  // job's outputs and the select job's head) handled nothing, and one that
+  // skipped finding-stands left a thread for the next round at this head:
+  // the address-feedback check runs that started before that reply job
+  // stop counting, so the next trigger dispatches the head again. Each such
   // round posted its round marker, so the select job's round cap ends it. A
   // limit stop is never released: limit-stop.mjs still holds the head until
   // its reset and counts it toward limits.limit-stops-per-head.
@@ -333,14 +340,14 @@ export async function dispatchFeedback({
   if (anyHandles(existing, { now, limits: resolved.limits })) {
     replies = (await api.listCheckRuns({ sha: head, checkName: settings.replyCheckName, appId: settings.appId })).filter(sinceNotes);
     const newest = replies.reduce((a, b) => (startOf(b) > startOf(a) ? b : a), replies[0]);
-    if (isNoModelTurn(newest)) {
+    if (releases(newest)) {
       const cut = startOf(newest);
       existing = existing.filter((run) => limitResetsAt(run, resolved.limits) !== null || !(startOf(run) < cut));
     }
   }
   // The round's reply job posts its check after the round's address-feedback
   // check, so until a reply check started after the newest address-feedback
-  // check, a no-model-turn skip may still release the head: it is not
+  // check, a releasing skip may still release the head: it is not
   // recorded as handled yet (#9362). An unreadable start records nothing.
   const newestCheck = Math.max(...existing.map(startOf));
   if (permanentlyHandles(existing, { limits: resolved.limits }) && replies.some((run) => startOf(run) > newestCheck)) {
@@ -368,10 +375,10 @@ export async function dispatchFeedback({
 }
 
 // The sweep: the first open lanes App PR into main whose head's newest
-// reply check skipped no-model-turn, under SWEEP_HEAD_CAP such checks, that
+// reply check took a releasing skip, under SWEEP_HEAD_CAP such checks, that
 // dispatchFeedback dispatches for the head's newest completed review run.
 // Returns dispatchFeedback's result with that run's id, or null.
-export async function sweepNoModelTurn({ api, repository, appSenderId, log, settings = DEFAULTS, ...rest }) {
+export async function sweepReleased({ api, repository, appSenderId, log, settings = DEFAULTS, ...rest }) {
   const pulls = (await api.listOpenPulls(settings.base)).filter(
     (pull) => pull.user?.id === appSenderId && pull.draft === false && pull.head?.repo?.full_name === repository && SHA.test(pull.head?.sha ?? ""),
   );
@@ -388,19 +395,19 @@ export async function sweepNoModelTurn({ api, repository, appSenderId, log, sett
       return dispatched;
     }
   }
-  log("sweep: no head whose last round had no model turn to dispatch");
+  log("sweep: no head whose last round left it for another round to dispatch");
   return null;
 }
 
 async function sweepOne({ api, pull, head, repository, appSenderId, log, settings, rest }) {
   const replies = await api.listCheckRuns({ sha: head, checkName: settings.replyCheckName, appId: settings.appId });
   const newest = replies.reduce((a, b) => (startOf(b) > startOf(a) ? b : a), replies[0]);
-  if (!isNoModelTurn(newest)) {
+  if (!releases(newest)) {
     return null;
   }
-  const skips = replies.filter(isNoModelTurn).length;
+  const skips = replies.filter(releases).length;
   if (skips >= SWEEP_HEAD_CAP) {
-    log(`skip: #${pull.number}: head ${head} skipped no-model-turn ${skips} times, the sweep's cap`);
+    log(`skip: #${pull.number}: head ${head} was released ${skips} times, the sweep's cap`);
     return null;
   }
   const upstream = await reviewRunAt({ api, head, settings });
@@ -627,7 +634,7 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
       log(`skip: run ${upstream.id} is not a scheduled tick`);
       return 0;
     }
-    const swept = await sweepNoModelTurn(common).finally(summary);
+    const swept = await sweepReleased(common).finally(summary);
     if (swept !== null) {
       appendFileSync(env.GITHUB_OUTPUT, `run-id=${swept.workflowRunId}\nupstream-run-id=${swept.upstreamRunId}\n`);
     }
