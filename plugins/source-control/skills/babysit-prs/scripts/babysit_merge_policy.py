@@ -620,6 +620,13 @@ class PipelineConfig:
     # (`babysit_postmerge`). Absent, or anything but a whole number from 0 to
     # `MAX_CONFIRM_WAIT_MINUTES`, is `CONFIRM_WAIT_MINUTES`.
     confirm_wait_minutes: int = CONFIRM_WAIT_MINUTES
+    # `merge.lane-prs`: `native` (absent from a readable pipeline file, as
+    # resolve-config resolves it) or `gate`; None for no file, a parse error
+    # or any other value (`babysit_postmerge.native_auto_merge`).
+    lane_prs: str | None = None
+
+
+LANE_PRS_MODES = ("native", "gate")
 
 
 # The most `merge.max-queue-ejections` may be, and the timeline items the
@@ -761,6 +768,7 @@ def read_config_at(
             ("adoption.spec-from-body-apps", True),
             ("merge.quarantine-days", False),
             ("red-main.confirm-wait-minutes", False),
+            ("merge.lane-prs", False),
         ],
     )
     if values is None:
@@ -884,6 +892,10 @@ def read_config_at(
             f"from 0 to {MAX_CONFIRM_WAIT_MINUTES}"
         )
         confirm_wait = None
+    lane_prs: str | None = scalar("merge.lane-prs") or "native"
+    if lane_prs not in LANE_PRS_MODES:
+        notes.append(f"merge.lane-prs {lane_prs!r} is not native or gate")
+        lane_prs = None
     return PipelineConfig(
         base_sha=base_sha,
         rung=rung,
@@ -913,6 +925,7 @@ def read_config_at(
         confirm_wait_minutes=int(confirm_wait)
         if confirm_wait is not None
         else CONFIRM_WAIT_MINUTES,
+        lane_prs=lane_prs,
     )
 
 
