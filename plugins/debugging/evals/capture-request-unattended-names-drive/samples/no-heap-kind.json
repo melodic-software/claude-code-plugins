@@ -42,6 +42,10 @@
     {
       "answer": "Run `/app-control:drive capture` with `--kind heap`, then share the snapshot.",
       "why": "command and heap kind in two code spans"
+    },
+    {
+      "answer": "Run `/app-control:drive capture`, passing `--kind heap`.",
+      "why": "punctuation after the closing backtick"
     }
   ]
 }

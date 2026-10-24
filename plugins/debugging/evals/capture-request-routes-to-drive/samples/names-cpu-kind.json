@@ -16,6 +16,10 @@
     {
       "answer": "Run `/app-control:drive capture` with `--kind cpu`, then come back with the file.",
       "why": "command and kind in two code spans"
+    },
+    {
+      "answer": "Run `/app-control:drive capture`, passing `--kind cpu`.",
+      "why": "punctuation after the closing backtick"
     }
   ],
   "fail": [
