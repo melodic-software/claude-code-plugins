@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
+import { linesDigest, renderSplitRecord, SIZE_SPLIT_MARKER, SPLIT_CHILD_MARKER, splitRecord } from "./admit.mjs";
+import { applySizeSplit, partitionProblem, sizeSplitPending } from "./refine.mjs";
 
-import { ADMIT_MARKER, linesDigest, refusalText, renderSplitRecord, SIZE_SPLIT_MARKER, SPLIT_CHILD_MARKER, splitRecord, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
+import { ADMIT_MARKER, refusalText, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
 import { MARKER } from "./apply-verdict.mjs";
-import { REFINE_MARKER, SPLIT_MARKER, applyRefinement, applySizeSplit, partitionProblem, sizeSplitPending, childBody, isThin, movedTexts, render, searchTerms, selectRefinement, splitBody, splitOf, validateOutput } from "./refine.mjs";
+import { REFINE_MARKER, SPLIT_MARKER, applyRefinement, childBody, isThin, movedTexts, render, searchTerms, selectRefinement, splitBody, splitOf, validateOutput } from "./refine.mjs";
 
 const HUMAN = 153232337;
 const OUTSIDER = 4242;
