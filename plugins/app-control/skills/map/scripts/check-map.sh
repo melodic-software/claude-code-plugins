@@ -19,8 +19,8 @@
 #   shared-why         a `shared/<item>` README has no `Why shared: <reason>` line
 #
 # A legacy `features/<f>.md` gets the index and link rules only: the contract keeps it working as
-# written. A shared item is a direct child of `shared/`; a feature file uses it when its text
-# names `shared/<item>`; a directory item's README.md (a file item itself) holds the why line.
+# written. What a shared item is, what counts as a use and where its why line goes: the contract's
+# "Shared items" section.
 set -euo pipefail
 
 usage() {
