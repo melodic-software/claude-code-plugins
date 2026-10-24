@@ -11,7 +11,9 @@
 #            A failed or skipped broker-check is false at once.
 #   posted   the call's report job posted its check. A skipped or absent
 #            report job (a handoff, forged or not) is false at once; a report
-#            that ran answers through its "Post the check run" step.
+#            that ran answers through its "Post the check run" step, and one
+#            whose steps are listed without it (it ended before that step)
+#            is false.
 #
 # GitHub's jobs listing can return a job's steps empty, or a step's conclusion
 # null, for minutes after the job ends. Job-level fields come at once, so they
@@ -52,6 +54,8 @@ settle='
   def by_step($j; $s): step($j; $s) as $st
     | if $st.conclusion == "success" then "true"
       elif ($st.conclusion // "") != "" then "false"
+      elif $st == null and (($j.steps // []) | length) > 0 then "false"
+      elif $st == null then "missing: \($j.name) has no steps listed"
       else "missing: \($j.name) step \"\($s)\" has no conclusion" end;
   def allowed($c): job("\($c) / broker-check") as $b | job("\($c) / broker-allowed") as $m
     | if $m.conclusion == "success" then "true"

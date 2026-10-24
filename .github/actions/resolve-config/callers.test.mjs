@@ -5103,6 +5103,8 @@ function assertHandoffEvidenceJob(job) {
   assert.equal(checkout.with.path, ".base");
   assert.equal(checkout.with["persist-credentials"], false);
   assert.equal(checkout.with["sparse-checkout"], ".github/scripts/lib/handoff-evidence.sh");
+  // A file path, not a cone directory: cone mode would check out no file.
+  assert.equal(checkout.with["sparse-checkout-cone-mode"], false);
   const read = job.steps.find((step) => step.id === "posted");
   assert.equal(read.uses, undefined);
   assert.match(read.run, /^bash \.base\/\.github\/scripts\/lib\/handoff-evidence\.sh( posted| allowed)+$/);
@@ -5177,13 +5179,24 @@ test("handoff-evidence.sh: job-level evidence decides through a lagging listing,
   const legacy = jobListing([], { reportSkipped: FIX_CI_CALLS });
   const stepRetry = readPosted(t, read, [lagging(legacy, null), legacy]);
   assert.deepEqual(stepRetry.outputs, { posted: "false", allowed: "true" });
+  // A report job that ended before its post step (a setup failure) lists its
+  // steps without it: settled as no post on one read, not waited on.
+  const setupFailed = withMarkers(jobListing([]), FIX_CI_CALLS);
+  for (const job of setupFailed.jobs.filter((j) => j.name.endsWith(" / report"))) {
+    job.conclusion = "failure";
+    job.steps = [{ name: "Set up job", conclusion: "failure" }];
+  }
+  const ended = readPosted(t, read, setupFailed);
+  assert.equal(ended.status, 0);
+  assert.deepEqual(ended.outputs, { posted: "false", allowed: "true" });
+  assert.equal(ended.calls.trim().split("\n").length, 1);
   // Never filled: fails closed after every read, one error line, no output.
   const never = readPosted(t, read, lagging(ran));
   assert.notEqual(never.status, 0);
   assert.deepEqual(never.outputs, {});
   assert.equal(never.calls.trim().split("\n").length, 6, "one read and five retries");
   assert.equal(never.stdout.split("\n").filter((line) => line.startsWith("::error::")).length, 1);
-  assert.match(never.stdout, /::error::handoff evidence for fix-ci fix-ci-subscription fix-ci-rung-up fix-ci-rung-up-subscription still missing after 6 reads: missing: fix-ci \/ report step "Post the check run" has no conclusion/);
+  assert.match(never.stdout, /::error::handoff evidence for fix-ci fix-ci-subscription fix-ci-rung-up fix-ci-rung-up-subscription still missing after 6 reads: missing: fix-ci \/ report has no steps listed/);
   // A failed read is retried the same way, then fails closed.
   const failed = readPosted(t, read, ran, { fail: true });
   assert.notEqual(failed.status, 0);
@@ -5206,10 +5219,15 @@ test("handoff-evidence.sh: a run job's forged steps and outputs are never eviden
   const forged = readPosted(t, read, listing);
   assert.equal(forged.status, 0);
   assert.deepEqual(forged.outputs, { posted: "false", allowed: "false" });
-  // A broker step the run job could not have written still loses to a
-  // skipped broker-allowed job, the job-level record of no allow.
-  const disagree = withMarkers(jobListing([], { reportSkipped: FIX_CI_CALLS }), []);
-  assert.deepEqual(readPosted(t, read, disagree).outputs, { posted: "false", allowed: "false" });
+  // With no broker-allowed job the broker step decides, and only
+  // broker-check's: a run job's successful step of that name is not read.
+  const legacy = jobListing([], { reportSkipped: FIX_CI_CALLS, unallowed: FIX_CI_CALLS });
+  for (const job of legacy.jobs.filter((j) => j.name.endsWith(" / run"))) {
+    job.steps = [{ name: "Ask the broker whether the lane may run", conclusion: "success" }];
+  }
+  const legacyRead = readPosted(t, read, legacy);
+  assert.equal(legacyRead.calls.trim().split("\n").length, 1);
+  assert.deepEqual(legacyRead.outputs, { posted: "false", allowed: "false" });
 });
 
 // The retry delays are the script's own: no workflow shortens or stretches them.
