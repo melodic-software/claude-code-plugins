@@ -76,10 +76,17 @@ for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-
   caller="$ROOT/.github/workflows/$file"
   if grep -qxF "  $job" "$caller" && grep -qxF '      publish: comments' "$caller" &&
     grep -qxF '      hold-label: needs-human' "$caller" &&
-    grep -qE '^    uses: melodic-software/ci-workflows/\.github/workflows/pr-review-cli\.yml@f1096608192c54cfb3dc252e36670e6f86700b9b # v0\.65\.5$' "$caller"; then
-    ok "$file calls pr-review-cli v0.65.5 as job ${job%:} with publish: comments and hold-label: needs-human"
+    grep -qE '^    uses: melodic-software/ci-workflows/\.github/workflows/pr-review-cli\.yml@4f79cc9244498ae856504cf74aeeb05dcc9c6b43 # v0\.65\.8$' "$caller"; then
+    ok "$file calls pr-review-cli v0.65.8 as job ${job%:} with publish: comments and hold-label: needs-human"
   else
-    fail "$file lost its job id, publish: comments, hold-label or v0.65.5 pin"
+    fail "$file lost its job id, publish: comments, hold-label or v0.65.8 pin"
+  fi
+  # pr-review-cli's check-key-credit job requests actions: read; a caller that
+  # does not grant it fails at startup.
+  if awk -v job="  $job" '$0 == job { on = 1; next } on && /^  [^ ]/ { exit } on && /^      actions: read( |$)/ { found = 1 } END { exit !found }' "$caller"; then
+    ok "$file grants actions: read to job ${job%:}"
+  else
+    fail "$file does not grant actions: read to job ${job%:}"
   fi
   paths="$(awk '/^      hold-paths: \|$/ { on = 1; next } on && /^        / { sub(/^ +/, ""); print; next } on { exit }' "$caller")"
   if [[ "$paths" == $'.github/standards/trusted-actors/**\n.github/actions/check-trusted-trigger/**\n**/CODEOWNERS\n**/.gitmodules' ]]; then
@@ -129,6 +136,14 @@ case "$*" in
   jq -r "$2" <<<"${STUB_FILES:-[]}"
   ;;
 */pulls/*) jq -cn --argjson n "${STUB_CHANGED:-0}" '{changed_files: $n}' ;;
+*/check-runs/*/annotations*)
+  [[ -z "${STUB_NOTES_FAIL:-}" ]] || exit 1
+  id="$*"
+  id="${id#*check-runs/}"
+  id="${id%%/*}"
+  var="NOTES_$id"
+  printf '%s\n' "${!var:-[]}"
+  ;;
 *) exit 1 ;;
 esac
 EOF
@@ -205,6 +220,82 @@ done
 JOBS_10="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed success skipped)")"
 expect "a green status job whose hold step did not run (summary mode) does not count" 1 \
   "::error::'$CODE_CHECK' passed in https://github.com/o/r/actions/runs/10, but its 'Apply the hold' step did not run"
+if grep -q '/annotations' "$TMP_ROOT/log"; then fail "a listed hold step still read the annotations"; else ok "a listed hold step decides without reading annotations"; fi
+
+# The jobs API can list a finished job's steps empty or cut short; then the
+# status job's review-complete notice for this lane and head decides.
+# listed <name> <id> <steps json>: a green status job with the given steps.
+listed() { jq -cn --arg n "$1" --argjson id "$2" --argjson steps "$3" '{id: $id, name: $n, status: "completed", conclusion: "success", steps: $steps}'; }
+# note <level> <title> <message>
+note() { jq -cn --arg l "$1" --arg t "$2" --arg m "$3" '{annotation_level: $l, title: $t, message: $m}'; }
+notes() { local IFS=,; printf '[%s]'"\n" "$*"; }
+COMPLETE="claude-lane-review-complete lane=claude-review sha=$HEAD"
+GOOD_NOTES="$(notes "$(note notice api-budget 'token=github-token job=status')" "$(note notice claude-lane-review-complete "$COMPLETE findings=0 inline=0 scope=whole")")"
+CUT='[{"number":3,"name":"Fetch the publish gate","status":"completed","conclusion":"success"},{"number":5,"name":"Publish the review","status":"in_progress","conclusion":null},{"number":6,"name":"Apply the hold","status":"pending","conclusion":null}]'
+export NOTES_31 NOTES_32
+for steps in '[]' "$CUT"; do
+  JOBS_10="$(jobs "$(kill_job success skipped)" "$(listed "$CODE_CHECK" 31 "$steps")")" NOTES_31="$GOOD_NOTES"
+  expect "a status job listed with steps $(cut -c1-20 <<<"$steps") counts on its review-complete notice" 0 \
+    "'$CODE_CHECK' passed on $HEAD (https://github.com/o/r/actions/runs/10): GitHub listed no 'Apply the hold' step with a conclusion" "::error::"
+  if grep -qxF "api repos/o/r/check-runs/31/annotations?per_page=100" "$TMP_ROOT/log"; then
+    ok "the status job's own check-run annotations are read"
+  else
+    fail "unexpected reads: '$(sort -u "$TMP_ROOT/log")'"
+  fi
+done
+JOBS_10="$(jobs "$(kill_job success skipped)" "$(listed "$CODE_CHECK" 31 '[]')")"
+for case in \
+  "no notice|$(notes "$(note notice api-budget 'token=github-token')")" \
+  "a notice for another head|$(notes "$(note notice claude-lane-review-complete "claude-lane-review-complete lane=claude-review sha=${HEAD//0/f} findings=0")")" \
+  "a notice whose head only starts with this one|$(notes "$(note notice claude-lane-review-complete "${COMPLETE}ab findings=0")")" \
+  "a notice for the other lane|$(notes "$(note notice claude-lane-review-complete "claude-lane-review-complete lane=claude-security-review sha=$HEAD findings=0")")" \
+  "a hold notice alone|$(notes "$(note notice '' "claude-lane-hold lane=claude-review sha=$HEAD criteria=cost label=needs-human")")" \
+  "a summary-mode notice|$(notes "$(note notice '' "shadow claude-review: failure-class=incomplete")")" \
+  "a warning that copies the notice|$(notes "$(note warning claude-lane-review-complete "$COMPLETE findings=0")")" \
+  "a notice without the record title|$(notes "$(note notice '' "$COMPLETE findings=0")")"; do
+  NOTES_31="${case#*|}"
+  expect "an unlisted hold step with ${case%%|*} stays uncounted" 1 \
+    "::error::'$CODE_CHECK' passed in https://github.com/o/r/actions/runs/10, but GitHub listed no 'Apply the hold' step with a conclusion and the job records no review-complete notice for claude-review on $HEAD"
+done
+NOTES_31="$GOOD_NOTES" STUB_NOTES_FAIL=1 expect "an unreadable annotation list fails closed" 1 "::error::could not read the annotations of job 31; re-run this run."
+# The security lane's notice names its own lane.
+JOBS_10="$PASS_CODE" JOBS_20="$(jobs "$(kill_job success skipped)" "$(listed "$SEC_CHECK" 32 '[]')")"
+NOTES_32="$(notes "$(note notice claude-lane-review-complete "claude-lane-review-complete lane=claude-security-review sha=$HEAD findings=0 inline=0 scope=whole")")"
+expect "the security lane counts on its own lane's notice" 0 "'$SEC_CHECK' passed on $HEAD (https://github.com/o/r/actions/runs/20): GitHub listed no" "::error::"
+NOTES_32="$GOOD_NOTES"
+expect "the security lane does not count on the code lane's notice" 1 "no review-complete notice for claude-security-review on $HEAD"
+JOBS_20="$PASS_SEC"
+# A listed hold step keeps the step rule, whatever the notices say.
+JOBS_10="$(jobs "$(kill_job success skipped)" "$(listed "$CODE_CHECK" 31 '[{"name":"Publish the review","status":"completed","conclusion":"success"},{"name":"Apply the hold","status":"completed","conclusion":"skipped"}]')")" NOTES_31="$GOOD_NOTES"
+expect "a listed skipped hold step stays uncounted despite a notice" 1 "but its 'Apply the hold' step did not run"
+if grep -q '/annotations' "$TMP_ROOT/log"; then fail "a listed hold step read the annotations"; else ok "a listed hold step reads no annotations"; fi
+
+
+# A kill-switch job listed without its report step counts as a stop only on
+# the notice that step writes, as both callers write it.
+for caller in pr-review-hosted.yml pr-review-security-hosted.yml; do
+  if grep -qE '^ +echo "::notice::a kill switch stops this (security )?review \(' "$ROOT/.github/workflows/$caller"; then
+    ok "$caller's kill-switch report writes the notice ci-status reads"
+  else
+    fail "$caller's kill-switch report no longer writes 'a kill switch stops this [security ]review ('"
+  fi
+done
+export NOTES_41
+KILL_UNLISTED='{"id":41,"name":"kill-switch","status":"completed","conclusion":"success","steps":[]}'
+JOBS_10="$(jobs "$KILL_UNLISTED")"
+NOTES_41="$(notes "$(note notice '' 'a kill switch stops this review (lanes: disabled, CLAUDE_REVIEW_DISABLED: unset)')")"
+expect "a kill-switch job listed with no steps counts as a stop on its report notice" 0 "::notice::a kill switch stopped '$CODE_CHECK' on $HEAD" "::error::"
+NOTES_41="$(notes "$(note notice '' 'a kill switch stops this security review (lanes: disabled)')")"
+expect "the security lane's kill-switch notice counts too" 0 "::notice::a kill switch stopped '$CODE_CHECK' on $HEAD" "::error::"
+NOTES_41="$(notes "$(note notice api-budget 'token=github-token')")"
+expect "a kill-switch job listed with no steps and no report notice fails" 1 "did not run on $HEAD (https://github.com/o/r/actions/runs/10; kill-switch job: success)"
+NOTES_41="$(notes "$(note warning '' 'a kill switch stops this review (lanes: disabled)')")"
+expect "a warning copying the kill-switch notice is no stop" 1 "kill-switch job: success"
+RUNS_CODE="$(runs "$(run 10 $CODE in_progress)")"
+expect "a running run whose kill-switch steps are unlisted is pending" 1 "'$CODE_CHECK' has not finished"
+if grep -q '/annotations' "$TMP_ROOT/log"; then fail "a running run read the annotations"; else ok "a running run reads no annotations"; fi
+RUNS_CODE="$(runs "$(run 10 $CODE)")"
+
 JOBS_10="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed skipped skipped)")"
 expect "a skipped review (fork or unlisted bot) fails" 1 "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10; kill-switch job: success)"
 JOBS_10="$(jobs "$(kill_job success success)")"

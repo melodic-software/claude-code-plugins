@@ -20,11 +20,12 @@
 #
 # The ranges come from the check lib: one per pushed ref, a new branch from its
 # merge-base with the remote's default branch, a deletion skipped. A hook
-# manager that keeps stdin from this script (lefthook passes it to only one
-# use_stdin job) leaves the lib's fallback: the current branch against its
-# upstream. Each range is checked on its own, in that range's tip: the
-# checkout when HEAD is the tip and the tree is clean, else a temporary
-# detached worktree of the tip, removed afterwards.
+# manager that keeps stdin from this script leaves the lib's fallback: the
+# current branch against its upstream. A range whose tip merged the default
+# branch is narrowed to the lines the branch itself adds (narrow_to_branch).
+# Each range is checked on its own, in
+# that range's tip: the checkout when HEAD is the tip and the tree is clean,
+# else a temporary detached worktree of the tip, removed afterwards.
 #
 # A finding prints as "<path>:<line>: <message>" on stderr, the line being the
 # file's first added line, and exits 1. Missing jq follows the check-placement
@@ -61,8 +62,11 @@ fi
 [[ -f "$run_guards" ]] || exit 0
 
 # The tip and base of the range being checked; both empty for --worktree.
+# MAIN_BASE is the tip's merge-base with the remote's default branch when the
+# range carries commits merged in from it (see narrow_to_branch), else empty.
 TIP=""
 BASE=""
+MAIN_BASE=""
 
 # is_new <path>: the range adds the file rather than changing it.
 is_new() {
@@ -71,7 +75,41 @@ is_new() {
       ! git cat-file -e "HEAD:$1" 2>/dev/null
     return
   fi
-  ! git cat-file -e "$BASE:$1" 2>/dev/null
+  ! git cat-file -e "$BASE:$1" 2>/dev/null &&
+    { [[ -z "$MAIN_BASE" ]] || ! git cat-file -e "$MAIN_BASE:$1" 2>/dev/null; }
+}
+
+# narrow_to_branch: a range whose tip merged the default branch since the last
+# push holds the lines that merge brought in, which the branch did not write.
+# Keep only the lines added both since the last push and against the tip's
+# merge-base with the default branch, so a check never judges more than the
+# plain range.
+narrow_to_branch() {
+  [[ -n "$MAIN_BASE" ]] || return 0
+  mv "$CHECKS_TMP/ranges" "$CHECKS_TMP/ranges.push"
+  printf '%s %s\n' "$MAIN_BASE" "$TIP" >"$CHECKS_TMP/push-ranges"
+  checks_changed_lines
+  mv "$CHECKS_TMP/ranges" "$CHECKS_TMP/ranges.main"
+  printf '%s %s\n' "$BASE" "$TIP" >"$CHECKS_TMP/push-ranges"
+  awk -F '\t' -v OFS='\t' '
+    NR == FNR { n++; p[n] = $1; s[n] = $2 + 0; e[n] = $3 + 0; next }
+    { for (i = 1; i <= n; i++) if (p[i] == $1) {
+        lo = ($2 + 0 > s[i]) ? $2 + 0 : s[i]; hi = ($3 + 0 < e[i]) ? $3 + 0 : e[i]
+        if (lo <= hi) print $1, lo, hi } }' \
+    "$CHECKS_TMP/ranges.main" "$CHECKS_TMP/ranges.push" >"$CHECKS_TMP/ranges"
+}
+
+# main_base_for_range: sets MAIN_BASE for the current BASE..TIP, empty unless
+# the default branch's merge-base is not already behind BASE.
+main_base_for_range() {
+  local head m
+  MAIN_BASE=""
+  head="$(checks_remote_head "$remote")"
+  [[ -n "$head" ]] || return 0
+  m="$(git merge-base "$TIP" "$head" 2>/dev/null)" || return 0
+  [[ -n "$m" && "$m" != "$BASE" ]] || return 0
+  git merge-base --is-ancestor "$m" "$BASE" 2>/dev/null && return 0
+  MAIN_BASE="$m"
 }
 
 # added_lines <path>: the lines the range adds, in order.
@@ -103,6 +141,7 @@ check_range() {
   local f text payload ctx line msg _
   local renamed=$'\n'
   checks_changed_lines
+  narrow_to_branch
   # A rename's destination is missing from the base but is no new text: only
   # the lines the range adds to it are judged.
   while IFS= read -r -d '' _ && IFS= read -r -d '' _ && IFS= read -r -d '' f; do
@@ -160,8 +199,11 @@ else
   # shellcheck disable=SC2064 # expand now: both paths are fixed here
   trap "rm -rf '$CHECKS_TMP'; git -C '$top' worktree prune 2>/dev/null" EXIT
   mv "$CHECKS_TMP/push-ranges" "$CHECKS_TMP/all-ranges"
+  remote="${CHECKS_ARGS%% *}"
+  [[ -n "$remote" ]] || remote=origin
   while read -r BASE TIP <&3; do
     printf '%s %s\n' "$BASE" "$TIP" >"$CHECKS_TMP/push-ranges"
+    main_base_for_range
     if tip_is_checkout; then
       check_range
       continue

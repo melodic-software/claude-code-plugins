@@ -15,6 +15,14 @@
     {
       "answer": "",
       "why": "absence check: an empty reply holds no heap capture; the other graders fail it"
+    },
+    {
+      "answer": "Run /app-control:drive capture --kind cpu and not --kind heap.",
+      "why": "heap negated after the cpu kind"
+    },
+    {
+      "answer": "/app-control:drive capture is the command; use --kind cpu, never --kind heap.",
+      "why": "heap negated in prose after the cpu kind"
     }
   ],
   "fail": [
@@ -30,6 +38,14 @@
     {
       "answer": "Run `/app-control:drive capture --kind cpu`, and run `/app-control:drive capture --kind heap` too.",
       "why": "a second capture command with the heap kind"
+    },
+    {
+      "answer": "Run `/app-control:drive capture` with `--kind heap`, then share the snapshot.",
+      "why": "command and heap kind in two code spans"
+    },
+    {
+      "answer": "Run `/app-control:drive capture`, passing `--kind heap`.",
+      "why": "punctuation after the closing backtick"
     }
   ]
 }

@@ -506,6 +506,66 @@ class TestBriefIds(SessionCase):
         self.assertIn("- Q2 Short Q2: alt a:", constraints)
         self.assertNotIn("Q3 Short Q2", constraints)
 
+    def constraint_ledger(self):
+        ledger = self.tmp / "constraint-ledger.md"
+        ledger.write_text(
+            "## Constraint ledger\n\n"
+            "- C1 | confirmed | internal tool only | user, round 1\n"
+            "- C2 | inherited | floor scanners run a browser | PRD Assumptions\n"
+            "```\n- C9 | confirmed | fenced, not a row\n```\n\n"
+            "## Open-question register\n\n"
+            "- Q1 | open | round 1 | Question Q1? | \n",
+            encoding="utf-8",
+        )
+        return ledger
+
+    def test_the_ledger_constraint_section_fills_constraints_without_a_restatement(self):
+        self.session([question("Q1")], [])
+        text = self.brief_with(self.constraint_ledger())
+        constraints = text.split("### Constraints")[1].split("###")[0]
+        self.assertIn(
+            "- C1 (confirmed): internal tool only (user, round 1)", constraints
+        )
+        self.assertIn(
+            "- C2 (inherited): floor scanners run a browser (PRD Assumptions)",
+            constraints,
+        )
+        self.assertNotIn("C9", constraints)
+        self.assertNotIn("none recorded", constraints)
+
+    def test_a_confirmed_restatement_outranks_the_ledger_constraint_section(self):
+        rev = {
+            "rev": 1,
+            "at": AT,
+            "sections": {"constraints": "- stdlib only"},
+        }
+        self.session(
+            [question("Q1")],
+            [
+                {
+                    **event(1, None, "confirm-understanding", "confirm"),
+                    "contentRev": 1,
+                }
+            ],
+            restatements=[rev],
+        )
+        text = self.brief_with(self.constraint_ledger())
+        constraints = text.split("### Constraints")[1].split("###")[0]
+        self.assertIn("- stdlib only", constraints)
+        self.assertNotIn("C1", constraints)
+
+    def test_the_page_constraints_lead_and_the_ledger_adds_only_other_ids(self):
+        self.session([question("Q1")], [])
+        path = self.dir / "questions.json"
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        doc["constraints"] = [{"id": "C1", "text": "Page wording.", "at": AT}]
+        path.write_text(json.dumps(doc), encoding="utf-8")
+        text = self.brief_with(self.constraint_ledger())
+        constraints = text.split("### Constraints")[1].split("###")[0]
+        self.assertIn("- C1: Page wording.", constraints)
+        self.assertNotIn("internal tool only", constraints)
+        self.assertIn("- C2 (inherited):", constraints)
+
     def test_without_a_ledger_a_gap_keeps_the_register_number_and_adds_the_id(self):
         self.session(
             [question("Q1"), question("Q3"), question("Q4")],
@@ -890,6 +950,39 @@ class TestCommitmentsCarriedByAnswerKind(SessionCase):
         risks = report.split("<h2>Named risks</h2>", 1)[1]
         self.assertIn("Part of Q1", risks)
         self.assertNotIn("Part of Q2", risks)
+
+
+class TestAutoHandledAccepts(SessionCase):
+    """A plain accept the server handled at save time exports the same as one the agent handled."""
+
+    def outputs(self, auto):
+        qs = [question("Q1", commits=["One writer only"]), question("Q2")]
+        plain = [event(1, "Q1", "accept"), event(3, "Q2", "accept")]
+        events = [
+            *[{**e, "autoHandled": True} if auto else e for e in plain],
+            event(2, "Q1", "confirm", alt="0"),
+        ]
+        self.session(qs, sorted(events, key=lambda e: e["seq"]))
+        if not auto:
+            doc = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
+            doc["handledSeq"] = 3
+            (self.dir / "questions.json").write_text(json.dumps(doc), encoding="utf-8")
+        ledger = self.export("ledger")
+        synced = self.tmp / f"synced-{auto}.md"
+        synced.write_text(ledger.read_text(encoding="utf-8"), encoding="utf-8")
+        rc, out = self.rp("sync-ledger", "--ledger", str(synced))
+        self.assertEqual(rc, 0, out)
+        return (
+            ledger.read_text(encoding="utf-8"),
+            self.export("brief").read_text(encoding="utf-8"),
+            synced.read_text(encoding="utf-8"),
+        )
+
+    def test_ledger_brief_and_sync_ledger_match_either_way(self):
+        by_agent = self.outputs(auto=False)
+        by_server = self.outputs(auto=True)
+        self.assertEqual(by_server, by_agent)
+        self.assertIn("answer:: accepted: ", by_server[0])
 
 
 class TestExportReport(SessionCase):

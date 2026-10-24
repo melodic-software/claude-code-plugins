@@ -56,6 +56,7 @@ describe("parseVerdict", () => {
     assert.deepEqual(verdict, {
       escalated: false,
       workClass: "work-class: scoped",
+      untrusted: false,
       dimensions: { size: "small", complexity: "low", uncertainty: "known" },
       flags: [],
       problems: [],
@@ -134,11 +135,11 @@ describe("parseVerdict", () => {
     });
   }
 
-  test("takes the class only from the second line", () => {
+  test("takes the class only from the second line, and a missing one is no problem", () => {
     const body = `${MARKER}\nThanks.\nProposed work class: work-class: scoped\nSize: Small`;
     const verdict = parseVerdict(body, DIMS, CLASSES);
     assert.equal(verdict.workClass, null);
-    assert.match(verdict.problems.join(), /second line/);
+    assert.doesNotMatch(verdict.problems.join(), /class/);
   });
 
   test("an escalated run carries no class", () => {
@@ -205,15 +206,26 @@ describe("planWrites", () => {
     });
   }
 
-  test("another work class a listed human added is kept and holds the issue", () => {
+  // Owner decision Q85 (#9668): the work class gates nothing.
+  test("another work class a listed human added is kept and does not hold the issue", () => {
     const result = plan(laneBody(), {
       labels: ["work-class: structural"],
       classSetters: { "work-class: structural": HUMAN },
     });
     assert.equal(result.classApplied, false);
-    assert.deepEqual(result.add, [NEEDS_DECISION]);
+    assert.equal(result.ready, true);
+    assert.deepEqual(result.add, [READY]);
     assert.deepEqual(result.remove, []);
   });
+
+  for (const cls of ["none", "work-class: structural"]) {
+    test(`a verdict proposing ${cls} reaches ready`, () => {
+      const result = plan(laneBody({ cls }));
+      assert.equal(result.ready, true);
+      assert.ok(result.add.includes(READY));
+      assert.ok(!result.add.includes(NEEDS_DECISION));
+    });
+  }
 
   test("another work class the lanes App added gives way to the new verdict", () => {
     const result = plan(laneBody(), {
@@ -237,21 +249,53 @@ describe("planWrites", () => {
       });
       assert.equal(result.classApplied, false);
       assert.deepEqual(result.remove, []);
-      assert.deepEqual(result.add, [NEEDS_DECISION]);
+      assert.deepEqual(result.add, [READY]);
     });
   }
 
-  for (const hold of ["work-class: structural", "work-class: untrusted-provenance"]) {
-    test(`${hold} is never taken off, even when the lanes App added it`, () => {
-      const result = plan(laneBody(), {
-        labels: [hold],
-        classSetters: { [hold]: LANES_APP },
-      });
-      assert.equal(result.classApplied, false);
-      assert.deepEqual(result.remove, []);
-      assert.deepEqual(result.add, [NEEDS_DECISION]);
+  test("work-class: untrusted-provenance is never taken off and holds the issue, even when the lanes App added it", () => {
+    const hold = "work-class: untrusted-provenance";
+    const result = plan(laneBody(), {
+      labels: [hold],
+      classSetters: { [hold]: LANES_APP },
     });
-  }
+    assert.equal(result.classApplied, false);
+    assert.deepEqual(result.remove, []);
+    assert.deepEqual(result.add, [NEEDS_DECISION]);
+  });
+
+  test("a verdict proposing work-class: untrusted-provenance applies it and holds the issue", () => {
+    const result = plan(laneBody({ cls: "work-class: untrusted-provenance" }));
+    assert.equal(result.ready, false);
+    assert.deepEqual(result.add, ["work-class: untrusted-provenance", NEEDS_DECISION]);
+  });
+
+  test("an untrusted-provenance verdict holds even when the repository lacks the label", () => {
+    const verdict = parseVerdict(laneBody({ cls: "work-class: untrusted-provenance" }), DIMS, new Set(["work-class: scoped"]));
+    const result = planWrites(verdict, { labels: [], fields: {}, dimensionsConfig: DIMS, appId: LANES_APP, humans });
+    assert.equal(result.ready, false);
+    assert.ok(result.add.includes(NEEDS_DECISION));
+  });
+
+  test("an untrusted-provenance verdict adds the label beside a class a person set", () => {
+    const result = plan(laneBody({ cls: "work-class: untrusted-provenance" }), {
+      labels: ["work-class: mechanical"],
+      classSetters: { "work-class: mechanical": HUMAN },
+    });
+    assert.equal(result.ready, false);
+    assert.deepEqual(result.remove, []);
+    assert.deepEqual(result.add, ["work-class: untrusted-provenance", NEEDS_DECISION]);
+  });
+
+  test("work-class: structural the lanes App added gives way to the new verdict", () => {
+    const result = plan(laneBody(), {
+      labels: ["work-class: structural"],
+      classSetters: { "work-class: structural": LANES_APP },
+    });
+    assert.equal(result.ready, true);
+    assert.deepEqual(result.remove, ["work-class: structural"]);
+    assert.deepEqual(result.add, ["work-class: scoped", READY]);
+  });
 
   for (const [name, setter] of [
     ["an unlisted account", OUTSIDER],
@@ -282,21 +326,21 @@ describe("planWrites", () => {
     });
   }
 
-  test("a class that is not one of the repository's work-class labels is not applied", () => {
+  test("a class that is not one of the repository's work-class labels is not applied and does not hold", () => {
     const verdict = parseVerdict(laneBody({ cls: "work-class: anything-goes" }), DIMS, CLASSES);
     assert.equal(verdict.workClass, null);
+    assert.deepEqual(verdict.problems, []);
     const result = plan(laneBody({ cls: "work-class: anything-goes" }));
-    assert.equal(result.ready, false);
-    assert.ok(!result.add.includes("work-class: anything-goes"));
-    assert.ok(result.add.includes(NEEDS_DECISION));
+    assert.equal(result.ready, true);
+    assert.deepEqual(result.add, [READY]);
   });
 
-  test("two work classes on the issue hold it", () => {
+  test("two work classes on the issue are kept and do not hold it", () => {
     const result = plan(laneBody(), {
       labels: ["work-class: structural", "work-class: mechanical"],
     });
     assert.equal(result.classApplied, false);
-    assert.deepEqual(result.add, [NEEDS_DECISION]);
+    assert.deepEqual(result.add, [READY]);
   });
 
   test("needs-triage keeps a clean verdict from ready and adds needs-decision", () => {
@@ -654,7 +698,8 @@ describe("run", () => {
         },
       ],
     });
-    assert.equal((await go(fake)).outcome, "needs-decision");
+    // Owner decision Q85 (#9668): the kept class no longer holds the issue.
+    assert.equal((await go(fake)).outcome, "ready");
     assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
   });
 

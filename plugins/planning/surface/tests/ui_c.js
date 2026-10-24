@@ -309,8 +309,8 @@ async page => {
     ok("Reconfirm sends the note typed over the kept one", /^Reconfirm/.test(r6) && ev6.id === "P2" && ev6.kind === "alt" && ev6.alt === "b" && ev6.text === "Weekdays too", r6 + " " + JSON.stringify(ev6));
     await pick("P2");
 
-    // SPEC 5.2: revising while an upstream decision is delivered and unhandled
-    const r5 = await (await post({id: "P1", kind: "accept", alt: null, text: ""})).json();
+    // SPEC 5.2: revising while an upstream decision is delivered and unhandled (an accept with a note: the server auto-handles a plain one)
+    const r5 = await (await post({id: "P1", kind: "accept", alt: null, text: "Fine for now"})).json();
     await page.request.get(base + "api/wait?after=" + (r5.seq - 1) + "&timeout=2", {headers: {"X-Interview-Token": await token()}});
     await page.waitForTimeout(900);
     ok("revising chip on the answered question, not its dependent", /Answer not handled yet/.test(await page.textContent('.qbtn[data-q="P1"]')) && !/Answer not handled yet/.test(await page.textContent('.qbtn[data-q="P2"]')));
@@ -577,8 +577,37 @@ async page => {
     const r = await page.request.get(base + "api/wait?after=handled&timeout=1&watcher=w1", {headers: {"X-Interview-Token": await token()}});
     const back = await page.waitForFunction(() => /Sent to Claude/.test(document.querySelector('.qbtn[data-q="D1"]').textContent), null, {timeout: 12000}).then(() => true).catch(() => false);
     ok("once a watcher holds the lease the chip goes back to Sent to Claude", r.ok() && back, r.status() + " " + await chip());
+    // Lease held, no waiter (the 1 s wait ended): the header shows the working state, never Live or Not listening.
+    const hdr = await page.waitForFunction(() => document.getElementById("pill").className === "pill working", null, {timeout: 5000}).then(() => true).catch(() => false);
+    const pw = await page.evaluate(() => ({cls: document.getElementById("pill").className, text: document.getElementById("pill").textContent}));
+    ok("lease held with no waiter: the header reads Claude is working, not Live or Not listening", hdr && /^Claude is working/.test(pw.text) && !/Live|Not listening/.test(pw.text), JSON.stringify(pw));
+    // A waiter arrives: Live.
+    const live = page.request.get(base + "api/wait?after=handled&timeout=6&watcher=w1", {headers: {"X-Interview-Token": await token()}}).catch(() => null);
+    const isLive = await page.waitForFunction(() => document.getElementById("pill").textContent === "Live", null, {timeout: 5000}).then(() => true).catch(() => false);
+    ok("a waiter present: the header reads Live", isLive, await page.textContent("#pill"));
+    await live;
     const gone = await page.waitForFunction(() => !/Sent to Claude|No session is listening/.test(document.querySelector('.qbtn[data-q="D1"]').textContent), null, {timeout: 20000}).then(() => true).catch(() => false);
     ok("a handle-only apply clears the chip on the open page, no reload", gone && await page.evaluate(() => window.__marker === "same page"), await chip());
+    // Lease released, no waiter, D1 handled: once the 10 s listen grace ends the bridge reports the session reading (D1 was delivered under 180 s ago), and the header still shows the working state.
+    const rel = await page.request.post(base + "api/lease", {headers: {"Content-Type": "application/json", "X-Interview-Token": await token()}, data: {action: "release"}});
+    const reading = await page.waitForFunction(() => document.getElementById("pill").className === "pill working", null, {timeout: 20000, polling: 200}).then(() => true).catch(() => false);
+    const pr = await page.evaluate(() => ({text: document.getElementById("pill").textContent, title: document.getElementById("pill").title}));
+    const st = await state();
+    ok("reading with no lease and no waiter: the header reads Claude is working, not Live or Not listening", rel.ok() && reading && st.listener.state === "reading" && !st.listener.lease && st.listener.waiters === 0 && pr.text === "Claude is working" && /no watcher is waiting/.test(pr.title), JSON.stringify(pr) + " " + JSON.stringify(st.listener));
+    // A delivery unhandled for 11 minutes while the lease is still held (refreshed by polls) and no watcher waits: the header and the work line agree it stalled.
+    const tab = await page.context().newPage();
+    await tab.addInitScript(() => { window.EventSource = undefined; });
+    await tab.route(base + "api/state", async route => {
+      const res = await route.fetch(), s = await res.json(), ev = s.responses.events || [], n = Math.max(0, ...ev.map(e => e.seq)), ago = ms => new Date(Date.now() - ms).toISOString();
+      s.responses.events = [...ev, {seq: n + 1, id: "D1", kind: "ask", text: "Which one?", at: ago(670000), deliveredAt: ago(660000)}];
+      s.listener = {...s.listener, waiters: 0, lease: {watcher: "w1"}};
+      await route.fulfill({response: res, json: s});
+    });
+    await tab.goto(base);
+    await tab.waitForFunction(() => /not handled/.test(document.getElementById("workLine").textContent), null, {timeout: 8000}).catch(() => {});
+    const sh = await tab.evaluate(() => ({cls: document.getElementById("pill").className, text: document.getElementById("pill").textContent, line: document.getElementById("workLine").textContent}));
+    ok("lease held, no waiter, a delivery unhandled for 10 minutes: the header reads Not listening: type next beside Claude has not handled D1 yet", sh.cls === "pill idle" && sh.text === "Not listening: type next" && sh.line === "Claude has not handled D1 yet", JSON.stringify(sh));
+    await tab.close();
   }
   const real = errors.filter(e => !/status of 409 \(Conflict\)/.test(e) && !/status of 404 \(Not Found\) at \S*\/api\/visual-file\?id=vx$/.test(e));
   ok("AC37: zero console errors in phase " + PHASE + " (besides the network lines for an intended 409 and the missing file visual's 404)", real.length === 0, errors.join(" | "));

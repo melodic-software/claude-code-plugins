@@ -3,6 +3,37 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.99.0] - 2026-10-24
+
+### Added
+
+- **The interview page shows a chip for a question's basis outcome.** A `basis` that leads or ends with `Verified` or `Judgment` now renders a differently styled chip beside the recommendation, so a judgment call no longer reads like a verified one.
+- **`round.py` warns on a basis with no outcome label and on a bare local-file reference.** `add`, `add-round` and `--check` warn, never refuse, when `basis` carries no `Verified`/`Judgment` label (a `Withheld:` recommendation is exempt), and when `facts`, `basis` or a recommendation names a local file or says "see X" with no quote, list or link in the same field.
+
+### Changed
+
+- **The interview Source rule covers any referenced scope.** Lists, item numbers and file sections a decision rests on go in full into the question box, and an external source gets a clickable link.
+
+## [0.98.0] - 2026-10-24
+
+### Added
+
+- `/planning:plan` orders and caps any phase or test step that spends model runs (evals, agent fan-outs, benchmark batches): a graded check that the problem reproduces comes before any baseline or comparison batch, the run count is sized from tokens measured on 1-2 runs, and the phase carries a `**Run budget:**` line whose runner refuses runs past the count and launches nothing after the first usage-limit error. The plan reviewer flags a model-run phase that lacks any of the three.
+
+## [0.97.1] - 2026-10-24
+
+### Fixed
+
+- The interview page header reads `Live` only while a watcher is waiting. While Claude holds the lease or the bridge reports the session reading, with no watcher waiting, it reads `Claude is working on <question>` instead of staying `Live` for the rest of the lease timeout. A delivery unhandled for ten minutes still reads `Not listening: type next`, lease or not. Chips and the receipt line are unchanged.
+
+## [0.97.0] - 2026-10-24
+
+### Changed
+
+- `round.sh supersede` and `resolve ... restore` now handle an answered register row with more than an answer (`answer:: ...; note:: ...`, or a row an earlier reconfirm wrote). The superseded row holds the displaced resolution whole in `was named::`, `restore` gives it back byte for byte, and `reconfirm` keeps the displaced answer as `was`, with its note (unless `--note` gives a new one) and its commitments. An earlier reconfirm's proposal and `was` are dropped: the reconfirmed row has room for one of each. Before, such a row was refused and had to be edited by hand.
+
+- The interview server marks a plain accept (no text) and a plain confirm handled when it saves them, so the watcher wakes only for events that need a reply. The responses document, `sync-ledger` and `export-brief` record them as before. The accept that settles the last open question of a round stays unhandled, so the agent learns the round is complete. Undo of an auto-handled accept still works until the agent handles a later event; the "Claude already handled it" refusal applies to agent-handled events. The interview surface reference lists which events are auto-handled.
+
 ## [0.96.1] - 2026-10-24
 
 ### Fixed

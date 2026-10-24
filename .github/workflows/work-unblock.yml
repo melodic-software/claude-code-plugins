@@ -7,7 +7,8 @@ name: work-unblock
 # blocker closed as completed by a listed human or a merge (a pull request
 # blocker: merged), carries no hold label (needs-owner-decision,
 # status: needs-decision, status: needs-info, needs-human), and whose agent-ready label was never
-# removed. That label starts work-resolve-issue.yml. The rules are in
+# removed, or was marked `status: ready` by the lanes App or a listed human
+# after its newest removal. That label starts work-resolve-issue.yml. The rules are in
 # .github/scripts/work-unblock/label-unblocked.mjs; the lane and its
 # effect (mutate-tracker) are in docs/conventions/pr-pipeline.yaml.
 #
@@ -37,7 +38,9 @@ name: work-unblock
 # When that run opened a lanes-App PR instead, and the PR merged with `Refs:`
 # or was closed unmerged, the App adds needs-triage and takes agent-ready off,
 # after a comment; a person adding agent-ready again re-runs it. A Refs PR
-# merging also lifts the needs-human report-outcome put on the issue for it.
+# merging or closing unmerged also lifts a needs-human refs-hold already on
+# the issue for it.
+# report-outcome no longer sets that hold, so only an existing one is lifted.
 # It also relabels a red-main fix issue post-merge-demotion-alert.yml reopened
 # on a repeat failure: that reopen keeps agent-ready but, made with the
 # workflow's GITHUB_TOKEN, starts no run. Matched by the issue's
@@ -53,7 +56,8 @@ name: work-unblock
 # a time, so two runs cannot each admit the whole room.
 #
 # To stop the lane on one issue, remove its agent-ready label or add a hold
-# label: no later run labels an issue whose agent-ready label a person removed.
+# label: no later run labels an issue whose agent-ready label a person removed
+# until it is marked `status: ready` again.
 
 on:
   issues:

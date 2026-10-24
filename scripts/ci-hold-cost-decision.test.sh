@@ -6,9 +6,16 @@
 # A review lane's `cost` hold is cleared when every lane hold since a trusted
 # person last removed the human-gated label is cost-only, and the pull request
 # body cites the owner's unedited `**Decision recorded.** Cost:` comment on the
-# pull request itself, or (newer than the pull request) on the one issue GitHub
-# records it as closing; a `Refs:` line or a second closing issue counts for
-# nothing. The holds are read from the lanes' check-run notices.
+# pull request itself, or, newer than the pull request and naming it as
+# `#<number>`, on its linked issue: the one issue GitHub records it as closing,
+# else, when it closes none, the one plain `Refs:` issue (the base's
+# merge-holds.mjs refsIssue). A second closing issue counts for nothing. The
+# decision, the newest on the pull request else the newest on the issue,
+# covers the head it decided (the newest github-actions[bot] cost hold marker
+# before it; with none, no head) and a later head only when the net change
+# against the base branch is the same at both (owner decisions Q17 c and Q18 d
+# on #9436, as ci-workflows v0.65.4's hold step reads them). The holds are
+# read from the lanes' check-run notices.
 # The step then outputs cleared=true and the decision, and takes the label off
 # with one comment citing it. Anything else, an unreadable read included,
 # clears nothing and leaves the hold to the steps after it.
@@ -60,6 +67,12 @@ if [[ -n "${lift_line:-}" && "$job_line" -lt "$cost_line" && "$cost_line" -lt "$
 else
   fail "step is not inside ci-status before the human-gated step (lines: $order)"
 fi
+node_line="$(awk -v job="$job_line" 'NR > job && $0 == "      - name: Set up Node" { print NR; exit }' "$WORKFLOW")"
+if [[ -n "$node_line" && "$job_line" -lt "$node_line" && "$node_line" -lt "$cost_line" ]] && grep -qxF '            /.github/scripts/pr-merge/merge-holds.mjs' "$WORKFLOW"; then
+  ok "ci-status sets up the pinned Node and checks out the base merge-holds.mjs before the step runs refsIssue"
+else
+  fail "the step runs node with no pinned Node before it, or the base checkout lacks merge-holds.mjs (Set up Node line ${node_line:-none})"
+fi
 lift="$(awk '$0 == "      - name: Fail a review-lane hold an untrusted account lifted" { on = 1; next } on && /^        if: / { print; exit }' "$WORKFLOW")"
 if [[ "$lift" == *"steps.cost_hold.outputs.cleared != 'true'"* ]]; then
   ok "the hold-lift step does not run once a recorded decision clears the hold"
@@ -88,17 +101,20 @@ case "$*" in
 *'-X POST'*/issues/6419/comments*) failing post ;;
 */issues/6419/comments*) failing comments; printf '%s\n' "$STUB_COMMENTS" ;;
 */issues/comments/*) failing decision; from "$STUB_DECISIONS" "$(key comments "$@")" ;;
+*/issues/[0-9]*) failing issue; from "$STUB_ISSUES" "$(key issues "$@")" ;;
 */actions/workflows/*/runs*)
   failing runs
   [[ "$*" == *'branch=fix%2Fcost&'* ]] || exit 1
   from "$STUB_RUNS" "$(key workflows "$@")"
   ;;
 */compare/"$BASE_SHA..."*) failing compare; args="$*"; from "$STUB_COMPARE" "${args##*...}" ;;
+*/compare/"${STUB_BASE_REF:-main}..."*) failing compare; args="$*"; from "$STUB_COMPARE" "${args##*...}" ;;
 */actions/runs/*/jobs*) failing jobs; from "$STUB_JOBS" "$(key runs "$@")" ;;
 */check-runs/*/annotations*) failing notes; from "$STUB_NOTES" "$(key check-runs "$@")" ;;
 */pulls/6419*) failing pull; printf '%s\n' "$STUB_PR" ;;
 *graphql*COMMENT_DELETED_EVENT*) failing deleted; printf '%s\n' "$STUB_DELETED" ;;
 *graphql*closingIssuesReferences*) failing closing; printf '%s\n' "$STUB_CLOSING" ;;
+*graphql*lastEditedAt*'id=IC_M'*) failing marker-edited; printf '%s\n' "$STUB_MARKER_EDITED" ;;
 *graphql*lastEditedAt*) failing edited; printf '%s\n' "$STUB_EDITED" ;;
 *) exit 1 ;;
 esac
@@ -127,6 +143,17 @@ decision() {
 }
 note() { jq -cn --arg m "$1" '{annotation_level: "notice", message: $m}'; }
 hold_note() { note "claude-lane-hold lane=${2:-claude-review} sha=$HEAD criteria=$1 label=needs-human"; }
+# marker <sha> [at] [criteria]: a review lane's hold comment on the pull
+# request, node IC_M, whose edit read answers STUB_MARKER_EDITED.
+marker() {
+  jq -c '.node_id = "IC_M"' <<<"$(comment "$LANE" "${2:-2026-10-23T13:10:00Z}" "<!-- claude-lane-hold lane=claude-review sha=$1 criteria=${3:-cost} -->
+Held for a person.")"
+}
+MARKER="$(marker "$HEAD")"
+TF='{"filename":"infra/main.tf","status":"modified","patch":"@@ -1 +1 @@\n-a\n+b"}'
+MORE='{"filename":"scripts/run.sh","status":"modified","patch":"+y"}'
+# nets <old-files> <head-files>: the compare answers at OLD and HEAD.
+nets() { STUB_COMPARE="$(jq -cn --arg h "$HEAD" --arg o "$OLD" --argjson a "$1" --argjson b "$2" '{($o): {files: $a}, ($h): {files: $b}}')"; export STUB_COMPARE; }
 # job <id> <name> <completed_at>
 job() { jq -cn --argjson id "$1" --arg name "$2" --arg at "$3" '{id: $id, name: $name, completed_at: $at}'; }
 # lanes <code-notes> <security-notes>: one run per lane, its status job done at 13:20:30 and 13:21:00.
@@ -142,14 +169,16 @@ lanes() {
 reset() {
   export STUB_FAIL='' STUB_LABELS='needs-human' LANES_APP_ID="$APP_ID"
   export STUB_ACTORS="{\"actors\":[{\"kind\":\"human\",\"id\":$OWNER_ID},{\"kind\":\"bot\",\"id\":5}]}"
-  export STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\"},\"body\":\"Closes #9306\\n\\n- Cost decision: [Q50]($LINK)\"}"
+  export STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\",\"sha\":\"0123456789abcdef0123456789abcdef01234567\"},\"base\":{\"ref\":\"main\"},\"body\":\"Closes #9306\\n\\n- Cost decision: [Q50]($LINK)\"}"
   export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"totalCount":1,"nodes":[{"number":9306,"repository":{"nameWithOwner":"o/r"}}]}}}}}'
-  STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T13:14:57Z '**Decision recorded.** Cost: accepted.')" '{"111": $c}')"
+  STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T13:14:57Z '**Decision recorded.** Cost: accepted for #6419.')" '{"111": $c}')"
   export STUB_DECISIONS
   export STUB_EDITED='{"data":{"node":{"lastEditedAt":null}}}'
+  export STUB_MARKER_EDITED='{"data":{"node":{"lastEditedAt":null}}}'
+  export STUB_ISSUES='{"9306":{"number":9306}}'
   export STUB_DELETED='{"data":{"repository":{"pullRequest":{"timelineItems":{"filteredCount":0,"nodes":[]}}}}}'
   STUB_EVENTS="[$(event labeled "$LANE" 2026-10-23T13:20:20Z)]"
-  STUB_COMMENTS="[$(comment "$OWNER" 2026-10-23T05:40:00Z 'A comment.')]"
+  STUB_COMMENTS="[$MARKER,$(comment "$OWNER" 2026-10-23T05:40:00Z 'A comment.')]"
   export STUB_EVENTS STUB_COMMENTS
   lanes "[$(hold_note cost),$(note "claude-lane-review-complete lane=claude-review sha=$HEAD findings=0")]" '[]'
   unset STUB_TRACKER
@@ -157,7 +186,7 @@ reset() {
 # The owner lifted an earlier hold at 13:15, so the 05:39 escalation is outside the window.
 lifted() {
   STUB_EVENTS="[$(event labeled "$APP" 2026-10-23T05:39:30Z),$(event unlabeled "$OWNER" 2026-10-23T13:15:00Z),$(event labeled "$LANE" 2026-10-23T13:20:20Z)]"
-  STUB_COMMENTS="[$(comment "$APP" 2026-10-23T05:39:35Z '<!-- work-items:escalation lane=pr-unblock kind=escalated -->')]"
+  STUB_COMMENTS="[$MARKER,$(comment "$APP" 2026-10-23T05:39:35Z '<!-- work-items:escalation lane=pr-unblock kind=escalated -->')]"
   export STUB_EVENTS STUB_COMMENTS
 }
 
@@ -170,6 +199,8 @@ expect() {
   mkdir -p "$config/.github/standards/trusted-actors"
   [[ -z "${STUB_TRACKER+set}" ]] || printf '%s\n' "$STUB_TRACKER" >"$config/.work-item-tracker.json"
   [[ " $STUB_FAIL " == *" actors "* ]] || printf '%s\n' "$STUB_ACTORS" >"$config/.github/standards/trusted-actors/trusted-actors.json"
+  mkdir -p "$config/.github/scripts/pr-merge"
+  [[ " $STUB_FAIL " == *" module "* ]] || cp "$ROOT/.github/scripts/pr-merge/merge-holds.mjs" "$config/.github/scripts/pr-merge/"
   [[ " $STUB_FAIL " != *" tracker "* ]] || config=
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" PR_NUMBER=6419 GITHUB_REPOSITORY=o/r \
     RUNNER_TEMP="$TMP_ROOT" GITHUB_OUTPUT="$TMP_ROOT/output" BASE_SHA="$BASE" HEAD_SHA="$HEAD" \
@@ -213,44 +244,47 @@ else
 fi
 
 reset
-STUB_COMMENTS="[$(comment "$LANE" 2026-10-23T13:21:00Z '<!-- ci-status cost-hold-cleared decision=111 -->
+STUB_COMMENTS="[$MARKER,$(comment "$LANE" 2026-10-23T13:21:00Z '<!-- ci-status cost-hold-cleared decision=111 -->
 ci-status took it off.')]"
 expect "a decision already cited in a removal comment is not cited again" yes yes no
-STUB_COMMENTS="[$(comment "$STRANGER" 2026-10-23T13:21:00Z '<!-- ci-status cost-hold-cleared decision=111 -->')]"
+STUB_COMMENTS="[$MARKER,$(comment "$STRANGER" 2026-10-23T13:21:00Z '<!-- ci-status cost-hold-cleared decision=111 -->')]"
 expect "a removal comment by a person does not count as posted" yes yes yes
 reset
 export STUB_LABELS=''
 expect "with the label already off the hold reads cleared and nothing is written" yes no no
 
 reset
-STUB_PR='{"number":6419,"created_at":"2026-10-23T05:00:00Z","head":{"ref":"fix/cost"},"body":"Closes #9306"}'
+STUB_PR='{"number":6419,"created_at":"2026-10-23T05:00:00Z","head":{"ref":"fix/cost","sha":"0123456789abcdef0123456789abcdef01234567"},"body":"Closes #9306"}'
 expect "no decision cited in the body clears nothing" no no no
 if grep -qE 'actions/workflows|check-runs|graphql' "$TMP_ROOT/log"; then
   fail "with no link in the body the step read runs or GraphQL"
 else
   ok "with no link in the body the step stops before the run and GraphQL reads"
 fi
-STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\"},\"body\":\"<!-- $LINK -->\"}"
+STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\",\"sha\":\"0123456789abcdef0123456789abcdef01234567\"},\"body\":\"<!-- $LINK -->\"}"
 expect "a decision cited only inside an HTML comment clears nothing" no no no
-STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\"},\"body\":\"<!-- unclosed $LINK\"}"
+STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\",\"sha\":\"0123456789abcdef0123456789abcdef01234567\"},\"body\":\"<!-- unclosed $LINK\"}"
 expect "a decision cited inside an unclosed HTML comment clears nothing" no no no
-STUB_PR='{"number":6419,"created_at":"2026-10-23T05:00:00Z","head":{"ref":"fix/cost"},"body":"https://github.com/x/r/issues/9306#issuecomment-111"}'
+STUB_PR='{"number":6419,"created_at":"2026-10-23T05:00:00Z","head":{"ref":"fix/cost","sha":"0123456789abcdef0123456789abcdef01234567"},"body":"https://github.com/x/r/issues/9306#issuecomment-111"}'
 expect "a link to another repository clears nothing" no no no
-STUB_PR='{"number":6419,"created_at":"2026-10-23T05:00:00Z","head":{"ref":"fix/cost"},"body":"https://github.com/o/r/issues/77#issuecomment-111"}'
+STUB_PR='{"number":6419,"created_at":"2026-10-23T05:00:00Z","head":{"ref":"fix/cost","sha":"0123456789abcdef0123456789abcdef01234567"},"body":"https://github.com/o/r/issues/77#issuecomment-111"}'
 expect "a link to an issue that does not close the pull request clears nothing" no no no
 
 reset
-STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T04:00:00Z '**Decision recorded.** Cost: accepted.')" '{"111": $c}')"
+STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T04:00:00Z '**Decision recorded.** Cost: accepted for #6419.')" '{"111": $c}')"
 expect "an issue decision older than the pull request clears nothing" no no no
 STUB_DECISIONS="$(jq -cn --argjson c "$(decision 6419 "$OWNER" 2026-10-23T04:00:00Z '**Decision recorded.** Cost: accepted.')" '{"111": $c}')"
-STUB_PR='{"number":6419,"created_at":"2026-10-23T05:00:00Z","head":{"ref":"fix/cost"},"body":"https://github.com/o/r/pull/6419#issuecomment-111"}'
+STUB_PR='{"number":6419,"created_at":"2026-10-23T05:00:00Z","head":{"ref":"fix/cost","sha":"0123456789abcdef0123456789abcdef01234567"},"base":{"ref":"main"},"body":"https://github.com/o/r/pull/6419#issuecomment-111"}'
+STUB_COMMENTS="[$(marker "$HEAD" 2026-10-23T03:00:00Z)]"
 WANT_LINK=https://github.com/o/r/pull/6419#issuecomment-111 expect "a decision on the pull request itself clears the hold" yes yes yes
+STUB_COMMENTS="[$MARKER]"
+expect "with no cost hold marker before the decision nothing carries, even at the same head" no no no "covering this head"
 reset
-STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$STRANGER" 2026-10-23T13:14:57Z '**Decision recorded.** Cost: accepted.')" '{"111": $c}')"
+STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$STRANGER" 2026-10-23T13:14:57Z '**Decision recorded.** Cost: accepted for #6419.')" '{"111": $c}')"
 expect "a decision by someone off the trusted-actor list clears nothing" no no no
-STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T13:14:57Z '**Decision recorded.** Trust: accepted.')" '{"111": $c}')"
+STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T13:14:57Z '**Decision recorded.** Trust: accepted for #6419.')" '{"111": $c}')"
 expect "a decision recorded for something other than cost clears nothing" no no no
-STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T13:14:57Z '**Decision recorded.** Cost: accepted.')" '{"111": ($c | .performed_via_github_app = {slug: "x"})}')"
+STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T13:14:57Z '**Decision recorded.** Cost: accepted for #6419.')" '{"111": ($c | .performed_via_github_app = {slug: "x"})}')"
 expect "a decision posted through an App clears nothing" no no no
 reset
 export STUB_EDITED='{"data":{"node":{"lastEditedAt":"2026-10-23T13:30:00Z"}}}'
@@ -263,18 +297,159 @@ expect "a closing issue in another repository clears nothing" no no no
 # The exploit: the owner records a cost decision on an unrelated issue, and the
 # author points the body at it. Only GitHub's closing references count.
 export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"totalCount":1,"nodes":[{"number":8890,"repository":{"nameWithOwner":"o/r"}}]}}}}}'
-STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\"},\"body\":\"Closes #8890\\nRefs: #9306\\n\\n- Cost decision: [Q50]($LINK)\"}"
+STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\",\"sha\":\"0123456789abcdef0123456789abcdef01234567\"},\"body\":\"Closes #8890\\nRefs: #9306\\n\\n- Cost decision: [Q50]($LINK)\"}"
 expect "a decision on an unrelated issue the body names on a Refs line clears nothing" no no no
 export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"totalCount":0,"nodes":[]}}}}}'
-STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\"},\"body\":\"Closes #9306\\n\\n- Cost decision: [Q50]($LINK)\"}"
+STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\",\"sha\":\"0123456789abcdef0123456789abcdef01234567\"},\"body\":\"Closes #9306\\n\\n- Cost decision: [Q50]($LINK)\"}"
 expect "a Closes line GitHub does not record as closing clears nothing" no no no
+
+# A decision binds to one pull request: one on the linked issue counts only
+# when it names the pull request, and with no closing issue the linked issue is the one
+# plain Refs: issue.
+with_body() {
+  STUB_PR="$(jq -cn --arg body "$1" '{number: 6419, created_at: "2026-10-23T05:00:00Z", head: {ref: "fix/cost", sha: "0123456789abcdef0123456789abcdef01234567"}, body: $body}')"
+  export STUB_PR
+}
+says() {
+  STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "${2:-$OWNER}" 2026-10-23T13:14:57Z "**Decision recorded.** Cost: $1")" '{"111": $c}')"
+  export STUB_DECISIONS
+}
+reset
+says 'accepted for another change.'
+expect "a closing-issue decision that names no pull request clears nothing" no no no
+for text in 'accepted for #64190.' 'accepted for #641.' 'accepted for x/r#6419.' 'accepted for pull 6419.' 'accepted for &#6419;' 'accepted for ##6419.'; do
+  says "$text"
+  expect "a closing-issue decision reading '$text' clears nothing" no no no
+done
+says 'accepted (#6419)'
+expect "a closing-issue decision naming (#6419) clears the hold" yes yes yes
+reset
+export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"totalCount":0,"nodes":[]}}}}}'
+with_body "Refs: #9306
+
+- Cost decision: [Q50]($LINK)"
+expect "a Refs-issue decision naming the pull request clears the hold" yes yes yes
+says 'accepted.'
+expect "a Refs-issue decision that names no pull request clears nothing" no no no
+says 'accepted for #6419.' "$STRANGER"
+expect "a Refs-issue decision naming the pull request by someone off the list clears nothing" no no no
+says 'accepted for #6419.'
+export STUB_FAIL=module
+expect "an unreadable base merge-holds.mjs clears nothing" no no no "the Refs line could not be read"
+export STUB_FAIL=issue
+expect "an unreadable Refs issue clears nothing" no no no "the Refs issue is unreadable"
+export STUB_FAIL=''
+export STUB_ISSUES='{"9306":{"number":9306,"pull_request":{"url":"x"}}}'
+expect "a Refs number that names a pull request consults no issue and clears nothing" no no no
+export STUB_ISSUES='{"9306":{"number":9306}}'
+for body in "Refs: #9306
+Refs: #9307" "Refs: #9306, #9307" '```
+Refs: #9306
+```' '<!-- Refs: #9306 -->' 'refs #9306'; do
+  with_body "$body
+
+- Cost decision: [Q50]($LINK)"
+  expect "a body whose Refs lines read '${body//$'\n'/ }' names no linked issue and clears nothing" no no no
+done
+
+# The carry rule (#9436 Q18 d): the decided head is OLD, the current HEAD.
+reset
+STUB_COMMENTS="[$(marker "$OLD")]"
+nets "[$TF]" "[$TF]"
+expect "a base merge after the decided head carries the decision" yes yes yes
+if grep -q "compare/main...$OLD" "$TMP_ROOT/log"; then ok "the decided head's net change is read against the base branch"; else fail "no compare at the decided head"; fi
+nets "[$TF]" "[$TF,$MORE]"
+expect "a pull request commit after the decided head clears nothing" no no no "covering this head"
+nets "[$TF,$MORE]" "[$MORE,$TF]"
+expect "a rebase with the same net change, in another file order, carries the decision" yes yes yes
+nets "[$TF,$MORE]" "[$TF]"
+expect "a rebase that drops one of its files clears nothing" no no no "covering this head"
+nets "[$TF]" "[$(jq -c '.patch = "@@ -1 +1 @@\n-a\n+c"' <<<"$TF")]"
+expect "a conflict resolution that changes the net change clears nothing" no no no "covering this head"
+nets "[$TF]" "[$(jq -c '.status = "renamed" | .previous_filename = "infra/old.tf"' <<<"$TF")]"
+expect "a rename since the decided head clears nothing" no no no "covering this head"
+nets "$(jq -cn '[range(299) | {filename: "f\(.)", status: "added", patch: "+x"}]')" "$(jq -cn '[range(299) | {filename: "f\(.)", status: "added", patch: "+x"}]')"
+expect "a net change of 299 files carries the decision" yes yes yes
+nets "$(jq -cn '[range(300) | {filename: "f\(.)", status: "added", patch: "+x"}]')" "$(jq -cn '[range(300) | {filename: "f\(.)", status: "added", patch: "+x"}]')"
+expect "a compare of 300 files carries nothing" no no no
+nets '[{"filename":"a.png","status":"modified"}]' '[{"filename":"a.png","status":"modified"}]'
+expect "a file with no patch carries nothing" no no no "covering this head"
+nets "[$TF]" "[$TF]"
+export STUB_FAIL=compare
+expect "a failed compare read carries nothing" no no no "covering this head"
+export STUB_FAIL=''
+STUB_COMMENTS="[$(marker "$HEAD" 2026-10-23T13:00:00Z),$(marker "$OLD" 2026-10-23T13:12:00Z)]"
+nets "[$TF]" "[$TF,$MORE]"
+expect "the latest marker before the decision decides its head, not an older one at the head" no no no "covering this head"
+STUB_COMMENTS="[$(marker "$OLD" 2026-10-23T13:00:00Z),$(marker "$HEAD" 2026-10-23T13:12:00Z cost,trust-gate)]"
+expect "a later marker before the decision whose criteria include cost decides its head" yes yes yes
+STUB_COMMENTS="[$(marker "$OLD"),$(marker "$HEAD" 2026-10-23T13:16:00Z)]"
+expect "a marker after the decision decides nothing" no no no "covering this head"
+STUB_COMMENTS="[$(marker "$OLD"),$(comment "$OWNER" 2026-10-23T13:12:00Z "<!-- claude-lane-hold lane=claude-review sha=$HEAD criteria=cost -->")]"
+expect "a marker a person wrote decides nothing" no no no "covering this head"
+STUB_COMMENTS='[]'
+expect "an issue decision with no marker before it clears nothing" no no no "covering this head"
+reset
+export STUB_FAIL=module
+expect "an unreadable base merge-holds.mjs carries no closing-issue decision" no no no "covering this head"
+reset
+export STUB_MARKER_EDITED='{"data":{"node":{"lastEditedAt":"2026-10-23T13:11:00Z"}}}'
+expect "an edited newest cost hold marker carries nothing at its own head" no no no "covering this head"
+STUB_COMMENTS="[$(marker "$OLD")]"
+nets "[$TF]" "[$TF]"
+expect "an edited newest cost hold marker carries nothing after a base merge" no no no "covering this head"
+STUB_COMMENTS="[$(marker "$HEAD" 2026-10-23T12:00:00Z),$(marker "$OLD")]"
+expect "an older unedited marker does not stand in for an edited newest one" no no no "covering this head"
+for answer in '{"data":{"node":null}}' '{"data":{"node":{}}}'; do
+  export STUB_MARKER_EDITED="$answer"
+  STUB_COMMENTS="[$MARKER]"
+  expect "a marker edit state reading '$answer' carries nothing" no no no "covering this head"
+done
+export STUB_MARKER_EDITED='{"data":{"node":{"lastEditedAt":null}}}' STUB_FAIL=marker-edited
+expect "an unreadable marker edit state carries nothing" no no no "covering this head"
+reset
+expect "at the decided head the decision carries" yes yes yes
+if grep -q 'compare/main\.\.\.' "$TMP_ROOT/log"; then fail "a decision at its own head read a compare"; else ok "a decision at its own head reads no compare"; fi
+STUB_COMMENTS="[$(marker "$OLD")]"
+nets "[$TF,$TF]" "[$TF,$TF]"
+expect "a filename listed twice carries nothing" no no no "covering this head"
+nets '[{"filename":"b.tf","status":"renamed","previous_filename":"a.tf"}]' '[{"filename":"b.tf","status":"renamed","previous_filename":"a.tf"}]'
+expect "a patchless pure rename carries nothing" no no no "covering this head"
+nets "[$TF]" "[$TF]"
+for base in '-main' 'a..b' 'a b' ''; do
+  STUB_PR="$(jq -c --arg b "$base" '.base.ref = $b' <<<"$STUB_PR")"
+  expect "a base branch named '$base' carries nothing" no no no "covering this head"
+  if grep -q '/compare/[^0-9]' "$TMP_ROOT/log"; then fail "an unusable base name '$base' was compared"; else ok "an unusable base name '$base' is never compared"; fi
+done
+STUB_PR="$(jq -c '.base.ref = "release/2.x"' <<<"$STUB_PR")"
+STUB_BASE_REF=release/2.x expect "a base merge on a base branch with a slash carries" yes yes yes
+reset
+STUB_COMMENTS="[$(marker "$OLD"),$(comment '{"login":"claude[bot]","id":9,"type":"Bot"}' 2026-10-23T13:12:00Z "<!-- claude-lane-hold lane=claude-review sha=$HEAD criteria=cost -->")]"
+nets "[$TF]" "[$TF,$MORE]"
+expect "a marker another bot wrote decides nothing" no no no "covering this head"
+# The decision is the newest on the pull request, else the newest on the issue.
+reset
+PULL_LINK=https://github.com/o/r/pull/6419#issuecomment
+STUB_PR="$(jq -c --arg body "Closes #9306
+$LINK
+$PULL_LINK-112
+$PULL_LINK-113" '.body = $body' <<<"$STUB_PR")"
+STUB_DECISIONS="$(jq -cn --argjson a "$(decision 9306 "$OWNER" 2026-10-23T13:14:57Z '**Decision recorded.** Cost: accepted for #6419.')" \
+  --argjson b "$(decision 6419 "$OWNER" 2026-10-23T13:00:00Z '**Decision recorded.** Cost: accepted.')" \
+  --argjson c "$(decision 6419 "$OWNER" 2026-10-23T13:12:00Z '**Decision recorded.** Cost: accepted.')" '{"111": $a, "112": $b, "113": $c}')"
+export STUB_DECISIONS
+STUB_COMMENTS="[$(marker "$HEAD" 2026-10-23T13:11:00Z)]"
+WANT_LINK=$PULL_LINK-113 expect "the newest decision on the pull request is judged over a newer one on the issue" yes yes yes
+STUB_COMMENTS="[$(marker "$HEAD" 2026-10-23T12:00:00Z),$(marker "$OLD" 2026-10-23T13:11:00Z)]"
+nets "[$TF]" "[$TF,$MORE]"
+expect "only the chosen decision may carry, so an older one at this head does not" no no no "covering this head"
 
 reset
 lanes "[$(hold_note cost,trust-gate)]" '[]'
 expect "a hold with cost and trust-gate clears nothing" no no no "is not cost-only"
 lanes "[$(hold_note cost)]" "[$(hold_note critical-security claude-security-review)]"
 expect "a critical-security hold from the other lane clears nothing" no no no "is not cost-only"
-STUB_COMMENTS="[$(comment "$LANE" 2026-10-23T13:21:01Z "<!-- claude-lane-hold lane=claude-security-review sha=$HEAD criteria=cost -->
+STUB_COMMENTS="[$MARKER,$(comment "$LANE" 2026-10-23T13:21:01Z "<!-- claude-lane-hold lane=claude-security-review sha=$HEAD criteria=cost -->
 claude-lane: claude-security-review")]"
 expect "a hold comment edited to read cost does not outweigh the lane's notice" no no no "is not cost-only"
 reset
@@ -299,22 +474,48 @@ STUB_EVENTS="[$(event labeled "$LANE" 2026-10-23T13:09:58Z),$(event unlabeled "$
 expect "a trusted person's removal of the trust-gate hold opens a new window" yes yes yes
 
 reset
-STUB_COMMENTS="[$(comment "$APP" 2026-10-23T05:39:35Z '<!-- work-items:escalation lane=pr-unblock kind=escalated -->')]"
+STUB_COMMENTS="[$MARKER,$(comment "$APP" 2026-10-23T05:39:35Z '<!-- work-items:escalation lane=pr-unblock kind=escalated -->')]"
 expect "a lanes App escalation with no trusted removal since keeps the label" no no no "lanes App commented"
 lifted
 expect "a lanes App escalation before the window does not keep the label" yes yes yes
-STUB_COMMENTS="[$(comment "$APP" 2026-10-23T13:22:00Z '<!-- work-items:escalation lane=pr-unblock kind=escalated -->')]"
+STUB_COMMENTS="[$MARKER,$(comment "$APP" 2026-10-23T13:22:00Z '<!-- work-items:escalation lane=pr-unblock kind=escalated -->')]"
 expect "a lanes App comment in the window keeps the label" no no no "lanes App commented"
-STUB_COMMENTS="[$(jq -c '.updated_at = "2026-10-23T13:22:00Z"' <<<"$(comment "$APP" 2026-10-23T05:39:35Z 'Edited.')")]"
+STUB_COMMENTS="[$MARKER,$(jq -c '.updated_at = "2026-10-23T13:22:00Z"' <<<"$(comment "$APP" 2026-10-23T05:39:35Z 'Edited.')")]"
 expect "a lanes App comment edited in the window keeps the label" no no no "lanes App commented"
 reset
 lifted
 export STUB_DELETED='{"data":{"repository":{"pullRequest":{"timelineItems":{"filteredCount":1,"nodes":[{"createdAt":"2026-10-23T13:21:30Z"}]}}}}}'
-expect "a comment deleted in the window keeps the label" no no no "was deleted"
+expect "a comment deleted in the window keeps the label" no no no "covering this head"
 export STUB_DELETED='{"data":{"repository":{"pullRequest":{"timelineItems":{"filteredCount":1,"nodes":[{"createdAt":"2026-10-23T10:00:00Z"}]}}}}}'
 expect "a comment deleted before the window does not keep the label" yes yes yes
 export STUB_DELETED='{"data":{"repository":{"pullRequest":{"timelineItems":{"filteredCount":101,"nodes":[]}}}}}'
-expect "more deletions than one page shows keeps the label" no no no "was deleted"
+expect "more deletions than one page shows keeps the label" no no no "covering this head"
+# A deleted newer marker must not make an older head the decided head.
+reset
+STUB_COMMENTS="[$(marker "$HEAD" 2026-10-23T12:00:00Z)]"
+export STUB_DELETED='{"data":{"repository":{"pullRequest":{"timelineItems":{"filteredCount":1,"nodes":[{"createdAt":"2026-10-23T13:10:00Z"}]}}}}}'
+expect "a comment deleted since the newest marker carries nothing at its head" no no no "covering this head"
+if grep -q 'compare/main\.\.\.' "$TMP_ROOT/log"; then fail "a deletion since the marker still read a compare"; else ok "a deletion since the marker stops before any compare"; fi
+STUB_COMMENTS="[$(marker "$OLD")]"
+nets "[$TF]" "[$TF]"
+export STUB_DELETED='{"data":{"repository":{"pullRequest":{"timelineItems":{"filteredCount":1,"nodes":[{"createdAt":"2026-10-23T13:12:00Z"}]}}}}}'
+expect "a comment deleted since the newest marker carries nothing after a base merge" no no no "covering this head"
+reset
+lifted
+export STUB_DELETED='{"data":{"repository":{"pullRequest":{"timelineItems":{"filteredCount":1,"nodes":[{"createdAt":"2026-10-23T13:09:00Z"}]}}}}}'
+expect "a comment deleted before the newest marker does not stop the carry" yes yes yes
+# A deletion in the window but before the marker passes the carry and is still caught by the window.
+reset
+lifted
+STUB_COMMENTS="[$(marker "$HEAD" 2026-10-23T13:17:00Z)]"
+STUB_DECISIONS="$(jq -cn --argjson c "$(decision 9306 "$OWNER" 2026-10-23T13:18:00Z '**Decision recorded.** Cost: accepted for #6419.')" '{"111": $c}')"
+export STUB_COMMENTS STUB_DECISIONS
+export STUB_DELETED='{"data":{"repository":{"pullRequest":{"timelineItems":{"filteredCount":1,"nodes":[{"createdAt":"2026-10-23T13:16:00Z"}]}}}}}'
+expect "a comment deleted in the window before the newest marker keeps the label" no no no "was deleted"
+# A late event for an older head lifts nothing off the live one.
+reset
+STUB_PR="$(jq -c --arg o "$OLD" '.head.sha = $o' <<<"$STUB_PR")"
+expect "a pull request whose head moved since the event clears nothing" no no no "the head moved since this event"
 
 reset
 STUB_EVENTS="[$(event labeled "$OWNER" 2026-10-23T13:20:20Z)]"
@@ -351,7 +552,7 @@ reset
 export LANES_APP_ID=''
 expect "an unset lanes App id clears nothing" no no no
 
-for read in tracker actors events pull runs compare jobs notes comments deleted closing decision edited; do
+for read in tracker actors events pull runs compare jobs notes comments deleted closing decision edited module; do
   reset
   export STUB_FAIL="$read"
   expect "an unreadable $read read clears nothing" no no no

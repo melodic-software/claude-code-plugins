@@ -243,6 +243,234 @@
         }
       ],
       "why": "trigger words only in the description"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v gdb || echo \"gdb not installed\"",
+            "description": "Check whether gdb is installed"
+          }
+        }
+      ],
+      "why": "quoted message after a separator"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "which 0x || echo \"0x missing\"",
+            "description": "Check whether 0x is installed"
+          }
+        }
+      ],
+      "why": "quoted message after a separator"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn \"sudo\" README.md",
+            "description": "Search the README for sudo"
+          }
+        }
+      ],
+      "why": "quoted search pattern"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx 0x --version",
+            "description": "Show the 0x version"
+          }
+        }
+      ],
+      "why": "version check through npx"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n \"require(./workers/export\" -r src",
+            "description": "Find imports of the worker"
+          }
+        }
+      ],
+      "why": "require text in a search pattern"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn \"require('./workers/export\" src",
+            "description": "Find imports of the worker"
+          }
+        }
+      ],
+      "why": "quoted require text in a search pattern"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n \"require(\" src",
+            "description": "Find workers/export imports"
+          }
+        }
+      ],
+      "why": "require without a closing paren; the path is only in the description"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node -p 1",
+            "description": "Load workers/export.js"
+          }
+        }
+      ],
+      "why": "the worker path is only in the description"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "timeout 5",
+            "description": "Bound gdb by time"
+          }
+        }
+      ],
+      "why": "gdb is only in the description"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ssh prod \"echo gdb\"",
+            "description": "Run a remote echo"
+          }
+        }
+      ],
+      "why": "quoted remote command that is not a debugger"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ssh -V",
+            "description": "Show the ssh version"
+          }
+        }
+      ],
+      "why": "ssh with no remote command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git commit -m \"eval gdb\"",
+            "description": "Commit"
+          }
+        }
+      ],
+      "why": "eval inside a quoted message"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo \"su -c is a flag\"",
+            "description": "Print a note"
+          }
+        }
+      ],
+      "why": "su -c inside a quoted message"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "rg \"require('./workers/export')\" src || node --version",
+            "description": "Find imports, else show the node version"
+          }
+        }
+      ],
+      "why": "require text in a search, then || node"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -c \"require('./workers/export')\" src/a.js | node -e \"process.stdin.pipe(process.stdout)\"",
+            "description": "Count imports"
+          }
+        }
+      ],
+      "why": "require text piped into node -e, which runs its own script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n eval \"sudo.txt\"",
+            "description": "Search a file for eval"
+          }
+        }
+      ],
+      "why": "wrapper word as a search pattern"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn ssh docs \"sudo\"",
+            "description": "Search docs for ssh"
+          }
+        }
+      ],
+      "why": "wrapper word earlier in the command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"gdb\" --version",
+            "description": "Show the gdb version"
+          }
+        }
+      ],
+      "why": "quoted tool name with --version"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf \"a\\nperf record\\n\"",
+            "description": "Print text"
+          }
+        }
+      ],
+      "why": "a shell-level backslash-n, not a JSON newline"
     }
   ],
   "fail": [
@@ -632,6 +860,318 @@
           }
         }
       ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx 0x workers/export.js",
+            "description": "Record a flame graph with 0x"
+          }
+        }
+      ],
+      "why": "0x through npx"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx 0x -o workers/export.js orders.json",
+            "description": "Record a flame graph with 0x"
+          }
+        }
+      ],
+      "why": "0x through npx with a flag"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx -y 0x workers/export.js",
+            "description": "Record a flame graph with 0x"
+          }
+        }
+      ],
+      "why": "0x through npx -y"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pnpm dlx 0x workers/export.js",
+            "description": "Record a flame graph with 0x"
+          }
+        }
+      ],
+      "why": "0x through pnpm dlx"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -c 'gdb -p 1'",
+            "description": "Attach a debugger"
+          }
+        }
+      ],
+      "why": "single-quoted shell -c"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ssh prod \"gdb -p 1234\"",
+            "description": "Attach a debugger on the host"
+          }
+        }
+      ],
+      "why": "debugger through ssh"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "su -c \"gdb -p 1\"",
+            "description": "Attach a debugger as root"
+          }
+        }
+      ],
+      "why": "debugger through su -c"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "eval \"gdb -p 1\"",
+            "description": "Attach a debugger"
+          }
+        }
+      ],
+      "why": "debugger through eval"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ksh -c \"gdb -p 1\"",
+            "description": "Attach a debugger"
+          }
+        }
+      ],
+      "why": "debugger through ksh -c"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -l -c \"gdb -p 1\"",
+            "description": "Attach a debugger"
+          }
+        }
+      ],
+      "why": "shell flags before -c"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -c -- \"gdb -p 1\"",
+            "description": "Attach a debugger"
+          }
+        }
+      ],
+      "why": "-- after -c"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "watch -n1 \"strace -c -p 1\"",
+            "description": "Trace system calls"
+          }
+        }
+      ],
+      "why": "tracer through watch"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"gdb\" -p 1",
+            "description": "Attach a debugger"
+          }
+        }
+      ],
+      "why": "quoted tool name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "timeout 5 \"gdb\" -p 1",
+            "description": "Attach a debugger briefly"
+          }
+        }
+      ],
+      "why": "quoted tool name after a prefix"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node -e \"require(require.resolve('./workers/export'))\"",
+            "description": "Load the worker"
+          }
+        }
+      ],
+      "why": "require of a resolved path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf \"require('./workers/export')\" | node",
+            "description": "Load the worker"
+          }
+        }
+      ],
+      "why": "require piped into node"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /w\nnode -e \"require('./workers/export')\"",
+            "description": "Load the worker"
+          }
+        }
+      ],
+      "why": "require after a newline"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /w\nperf record -g -p 1",
+            "description": "Record with perf"
+          }
+        }
+      ],
+      "why": "profiler after a newline"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx --package=0x 0x workers/export.js",
+            "description": "Record a flame graph with 0x"
+          }
+        }
+      ],
+      "why": "npx option with a value"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pnpm --silent dlx 0x workers/export.js",
+            "description": "Record a flame graph with 0x"
+          }
+        }
+      ],
+      "why": "pnpm option before dlx"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "yarn dlx 0x workers/export.js",
+            "description": "Record a flame graph with 0x"
+          }
+        }
+      ],
+      "why": "0x through yarn dlx"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "script -qc \"gdb -p 1\" /dev/null",
+            "description": "Attach a debugger under script"
+          }
+        }
+      ],
+      "why": "debugger through script -c"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /w\n\tgdb -p 1",
+            "description": "Attach a debugger"
+          }
+        }
+      ],
+      "why": "debugger after a newline and a tab"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "watch -n 1 \"strace -c -p 1\"",
+            "description": "Trace system calls"
+          }
+        }
+      ],
+      "why": "watch with a spaced interval"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash --login -c \"gdb -p 1\"",
+            "description": "Attach a debugger"
+          }
+        }
+      ],
+      "why": "long shell flag before -c"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node -e \"const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; require('./workers/export').run()\"",
+            "description": "Run the worker"
+          }
+        }
+      ],
+      "why": "require late in a long one-liner"
     }
   ]
 }
