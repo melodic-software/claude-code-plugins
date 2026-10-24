@@ -59,7 +59,7 @@ class SharedVectors(unittest.TestCase):
     def test_every_vector_in_the_shared_file(self) -> None:
         table = json.loads(VECTORS.read_text(encoding="utf-8"))
         floor = schema_default("read-floor")
-        self.assertTrue(table["vectors"])
+        self.assertGreaterEqual(len(table["vectors"]), 22)
         for vector in table["vectors"]:
             with self.subTest(vector["name"]):
                 given = vector["input"]

@@ -263,8 +263,10 @@ RESOURCE_RE = re.compile(r"^[a-z_]+$")
 # The pool a URL spends when the response names none; else `core`.
 URL_POOLS = (
     (re.compile(r"(^|/)graphql(\?|$)"), "graphql"),
+    (re.compile(r"(^|/)search/code([/?]|$)"), "code_search"),
     (re.compile(r"(^|/)search/"), "search"),
 )
+_INT_HEADER = re.compile(r"\d{1,12}")
 ALL_POOLS = "*"
 # The pools a non-`api` subcommand (`gh pr view`, `gh repo list`) may spend:
 # gh picks GraphQL or REST per command.
@@ -277,7 +279,7 @@ LIMITS_SCHEMA = (
 LIMITS_FIELDS = ("writer-pause", "read-floor")
 # The shares with no repo config: no margin, so only a signal stops a call.
 NO_MARGINS = dict.fromkeys(LIMITS_FIELDS, 0.0)
-TOKEN_POOLS = frozenset({"github-token", "lanes-app"})
+TOKEN_POOLS = frozenset({"github-token", "lanes-app", "owner-token"})
 # The YAML reader's runner, bound at import: a test that fakes `gh` through
 # `run_command` still reads the real limits.
 _reader_run = run_command
@@ -336,12 +338,8 @@ def reset_rate_guard() -> None:
 
 def _int_header(headers: Mapping[str, Any], name: str) -> int | None:
     value = headers.get(name)
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, int):
-        return value if value >= 0 else None
-    text = str(value or "").strip()
-    return int(text) if text.isdigit() else None
+    text = "" if value is None or isinstance(value, bool) else str(value)
+    return int(text) if _INT_HEADER.fullmatch(text) else None
 
 
 def evaluate_rate_response(
@@ -359,17 +357,24 @@ def evaluate_rate_response(
     limit = _int_header(headers, "x-ratelimit-limit")
     reset_header = _int_header(headers, "x-ratelimit-reset")
     ra = _int_header(headers, "retry-after")
+    if isinstance(body, str):
+        try:
+            body = json.loads(body)
+        except ValueError:
+            body = None
     body = json_object(body)
-    message = body.get("message")
-    msg = (
-        status in RATE_LIMIT_STATUSES
-        and isinstance(message, str)
-        and RATE_LIMIT_MESSAGE.search(message) is not None
+    errors = [json_object(error) for error in json_array(body.get("errors"))]
+    # GraphQL answers a secondary limit with a 200 or a 403 and an error
+    # message, so for a GraphQL call any status counts, and so do its errors'.
+    graphql = any(r.search(url) for r, p in URL_POOLS if p == "graphql")
+    messages = [body.get("message")]
+    if graphql:
+        messages += [error.get("message") for error in errors]
+    msg = (status in RATE_LIMIT_STATUSES or graphql) and any(
+        RATE_LIMIT_MESSAGE.search(str(text if text is not None else ""))
+        for text in messages
     )
-    gql = any(
-        json_object(error).get("type") == GRAPHQL_RATE_LIMITED
-        for error in json_array(body.get("errors"))
-    )
+    gql = any(error.get("type") == GRAPHQL_RATE_LIMITED for error in errors)
     latched = remaining == 0 or ra is not None or msg or gql
     low = bool(limit and remaining is not None and remaining < read_floor * limit)
     result: dict[str, Any] = {
@@ -388,10 +393,11 @@ def evaluate_rate_response(
         pool = resource if RESOURCE_RE.fullmatch(resource) else None
         pool = pool or next((p for r, p in URL_POOLS if r.search(url)), "core")
     candidates = []
+    now = math.floor(now)
     if ra is not None:
         candidates.append((now + ra, 1, "retry-after"))
     if remaining == 0 and reset_header is not None:
-        candidates.append((float(reset_header), 0, "x-ratelimit-reset"))
+        candidates.append((reset_header, 0, "x-ratelimit-reset"))
     reset, _, source = max(
         candidates or [(now + FALLBACK_RESET_SECONDS, 0, "fallback")]
     )
