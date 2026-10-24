@@ -18,8 +18,9 @@ name: maintenance-reconcile-lost-runs
 # twice per run, 15 then 30 minutes after the attempt ended, and only while
 # status.npmjs.org and githubstatus.com both show indicator none. A run with
 # any other failure has its failed jobs re-run once, at attempt 1 only, so a
-# flaky test the diff did not cause spends no model run; a second failure is
-# pr-unblock's fix-ci's.
+# flaky test the diff did not cause can pass. pr-unblock's fix-ci waits only on
+# a re-run already queued or going, or on an infra-only first failure's re-run
+# while it is due (infra-failure.mjs RERUN_DUE_MINUTES).
 #
 # A pr-require-checks run that passed on its first attempt is re-run once,
 # recorded, when the head's pr-verify pass predates a change to its spec (an

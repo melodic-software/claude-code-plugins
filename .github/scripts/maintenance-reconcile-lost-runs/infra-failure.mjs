@@ -1,8 +1,9 @@
 // infra-failure.mjs: whether a failed CI run's failures are all ones an outside
 // outage (npm, GitHub, a runner) explains, so a re-run, not a code change, is
 // the fix. reconcile.mjs re-runs such a run's failed jobs, and any other failed
-// run's once (firstFailure); pr-unblock's fix-ci dispatcher spends no model run
-// on a run the reconciler still re-runs (reconcilerOwns). Deterministic, no model.
+// run's once (firstFailure); pr-unblock's fix-ci dispatcher waits only on a
+// re-run that is going, or due for an infra-only first failure (reconcilerOwns).
+// Deterministic, no model.
 //
 // A job is a REST job record of the run's latest attempt
 // (GET /repos/{owner}/{repo}/actions/runs/{id}/jobs?filter=latest): its name,
@@ -22,7 +23,7 @@
 
 export const AGGREGATE_JOBS = new Set(["ci-status"]);
 export const INSTALL_STEP = /^(Install |Set up (job|Node|Python)$)/;
-const FAILED = new Set(["failure", "cancelled", "timed_out", "startup_failure"]);
+export const FAILED = new Set(["failure", "cancelled", "timed_out", "startup_failure"]);
 const STOPPED = new Set(["cancelled", "timed_out"]);
 // Minutes after attempt N of an infra-only run ended before the reconciler
 // re-runs its failed jobs; past the last entry it is left red, and fix-ci takes
@@ -56,13 +57,25 @@ export const firstFailure = (run, jobs, now) =>
   Array.isArray(jobs) &&
   jobs.some((job) => FAILED.has(job?.conclusion) && !AGGREGATE_JOBS.has(job.name));
 
-// Why the reconciler still owns a tested run ({ run, jobs } from testedRun),
-// or "" when it re-runs it no more and fix-ci may take it.
+// Run statuses that mean a run, or a re-run of it, is queued or going.
+const IN_FLIGHT = new Set(["queued", "in_progress", "waiting", "requested", "pending"]);
+// Minutes after an infra-only run's first attempt ended that fix-ci waits for
+// the reconciler's re-run: its first backoff plus two of its half-hourly ticks,
+// since a scheduled run starts late and can defer a head at MAX_IN_FLIGHT
+// (judgment). Past it, fix-ci takes the head instead of waiting in silence.
+export const RERUN_DUE_MINUTES = INFRA_BACKOFF_MINUTES[0] + 2 * 30;
+
+// Why fix-ci waits on a tested run ({ run, jobs } from testedRun), or "" when
+// it may take the head: a re-run of the run is queued or going, or an
+// infra-only first failure's one re-run is still due. A real failure (a test,
+// lint or typecheck step) waits on nothing else, and neither does a run or
+// field that cannot be read.
 export function reconcilerOwns({ run, jobs }, now) {
-  if (infraOnly(jobs)) {
-    return reconcilerRetries(run, now) ? "infra failure, re-run job owns it" : "";
+  if (IN_FLIGHT.has(run?.status)) {
+    return `run ${run.id} attempt ${run.run_attempt} is ${run.status}; its result decides`;
   }
-  return firstFailure(run, jobs, now) ? "first failure, re-run job re-runs it once" : "";
+  const due = Date.parse(run?.updated_at) + RERUN_DUE_MINUTES * 60_000;
+  return run?.run_attempt === 1 && infraOnly(jobs) && reconcilerRetries(run, now) && now < due ? "infra failure, re-run job re-runs it once" : "";
 }
 
 // Why the failed job is infra ("time limit", "install", "lost runner"), or "" when it is real.

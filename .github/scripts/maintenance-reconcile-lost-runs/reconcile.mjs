@@ -18,9 +18,9 @@
 //   GitHub's status pages show indicator none.
 // - Flake: the same run when it ended failure on anything else, at attempt 1
 //   only: its failed jobs are re-run once, at the next half-hourly run, so a
-//   flaky test the diff did not cause spends no model run. Which failure the
-//   diff caused is not decidable here, so every first failure gets the one
-//   re-run; a real one fails again and pr-unblock's fix-ci takes it.
+//   flaky test the diff did not cause can pass. pr-unblock's fix-ci does not
+//   wait for this re-run unless it is already queued or going, so it may run
+//   beside a fix-ci run (CI minutes, no model).
 // - Lane: a pr-verify run. Its trigger check trusts a re-run github-actions[bot]
 //   starts only through this workflow's record of it, the artifact
 //   rerunRecordName(run id, head SHA) (check-trusted-trigger's README). The
