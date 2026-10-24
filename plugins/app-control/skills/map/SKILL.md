@@ -1,6 +1,6 @@
 ---
 description: "Generate a project's control skill (its control-* skill) to the app-control contract: discover the repository first, ask only what discovery left open, write the hub, feature folders, config and driver CLI, then prove it once through /app-control:drive; check lists contract breaks, editing nothing; refresh brings it back in line with the app, or converts a testing feature map, through one upkeep pull request. Use when: 'create a control skill', 'map the features of this app', 'write a feature map', 'set up app control for this repo', 'check the control skill', 'refresh the control skill', 'refresh the feature map'."
-argument-hint: "[create [<app>] | check [<dir>] | refresh [<path> | <feature>]] [--dir .claude/skills/control-<slug>] [--unattended]"
+argument-hint: "[create [<app>]|check [<dir>]|refresh [<path>|<feature>]] [--dir <path>] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Generate, prove and keep current a control skill /app-control:drive runs
 ---
 
-**Arguments.** `[create [<app>] | check [<dir>] | refresh [<path> | <feature>]] [--dir .claude/skills/control-<slug>] [--unattended]`.
+**Arguments.** `[create [<app>]|check [<dir>]|refresh [<path>|<feature>]] [--dir <path>] [--unattended]`.
 e.g. /app-control:map create storefront, /app-control:map check .claude/skills/control-storefront, or
 /app-control:map refresh --unattended
 
@@ -165,9 +165,9 @@ conversion moves out of.
 6. **Triage** each difference as doc drift, driver gap or product regression. Regressions go to the
    report or `/bugs:write`, never into the pull request. Nothing to ship: clean, recorded with
    `bash "${CLAUDE_SKILL_DIR}/scripts/upkeep-skip.sh" record --repo . --map "<dir>" --state-dir "${CLAUDE_PLUGIN_DATA}"`.
-   Otherwise commit on `control-skill-upkeep/<skill slug>`, from the default branch, merged into
-   and never rebased, and open or update one pull request. An existing `feature-map-upkeep/<slug>`
-   branch is reported, never adopted.
+   Otherwise commit on `control-skill-upkeep/control-<slug>`, named for the control skill's
+   directory, from the default branch, merged into and never rebased; open or update one pull
+   request. An existing `feature-map-upkeep/<slug>` branch is reported, never adopted.
 
 ## Lessons
 
