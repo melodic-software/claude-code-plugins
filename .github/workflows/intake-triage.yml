@@ -481,6 +481,12 @@ jobs:
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/intake-triage/apply-verdict.mjs --check
 
+      # refine.mjs --select imports resolve-config.mjs, whose packages (ajv)
+      # only the resolve-config action installs; this job does not run it.
+      - name: Install resolve-config's packages
+        if: steps.who.outputs.proceed == 'true'
+        run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund --prefix .base/.github/actions/resolve-config
+
       - name: Decide whether the issue is thin
         id: select
         if: steps.who.outputs.proceed == 'true'
