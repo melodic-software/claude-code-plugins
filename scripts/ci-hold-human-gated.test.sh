@@ -211,27 +211,22 @@ unset STUB_COMMENTS STUB_COMMENTS_FAIL
 
 expect "a transient label read failure is retried" 1 2 "needs-human" 1
 
-# A paginated read's rate limit stops every pool for the documented minute
-# (the api-budget rate guard); gh_read waits a second past it and reads
-# again. A stop that ends past the deadline fails closed naming it, and the
-# caller's retries before it make no call; any other error keeps the caller's
-# retries and is never waited on.
+# A paginated read's rate limit stops every pool (the api-budget rate guard):
+# for an hour on a primary limit, for the documented minute on a secondary
+# one. Its headers are unseen, so the stop is a guess and gh_read takes no
+# wait: the read fails closed, and the caller's retries make no call. Any
+# other error keeps the caller's retries and is never waited on.
 sleeps() { paste -sd' ' "$TMP_ROOT/sleeps"; }
-export STUB_FAIL_TEXT='gh: API rate limit exceeded for installation. (HTTP 403)'
-expect "a rate-limited label read recovers after the reset" 0 2 "enhancement" 1 \
-  "is rate limited (core); waiting 61s for the reset, then reading again."
-if [[ "$(sleeps)" == 61 ]]; then
-  ok "the rate-limited read slept until a second past the stop"
-else
-  fail "the rate-limited read slept '$(sleeps)', not 61"
-fi
-STUB_NOW_AT=1792800560 expect "a stop past the deadline fails closed naming its end" 1 1 "enhancement" 3 \
-  "::error::GitHub's core API rate limit blocks 'gh api repos/o/r/issues/6419/labels?per_page=100 --paginate --jq .[].name' until 2026-10-24T00:10:20Z, past the 2026-10-24T00:10:00Z ci-status can wait to inside its timeout; a re-run after 2026-10-24T00:10:20Z is needed."
-if [[ "$(sleeps)" == "5 10" ]]; then
-  ok "a stop past the deadline is not waited for, and the retries make no call"
-else
-  fail "a stop past the deadline slept '$(sleeps)', not the caller's '5 10'"
-fi
+for STUB_FAIL_TEXT in 'gh: API rate limit exceeded for installation. (HTTP 403)' 'gh: You have exceeded a secondary rate limit. (HTTP 403)'; do
+  export STUB_FAIL_TEXT
+  expect "a rate-limited label read fails closed after one call ($STUB_FAIL_TEXT)" 1 1 "enhancement" 1 \
+    "::error::could not read the labels of #6419" "waiting"
+  if [[ "$(sleeps)" == "5 10" ]]; then
+    ok "a guessed stop is not waited for, and the retries make no call"
+  else
+    fail "a guessed stop slept '$(sleeps)', not the caller's '5 10'"
+  fi
+done
 export STUB_FAIL_TEXT='gh: Resource not accessible by integration (HTTP 403)'
 expect "a 403 that is not a rate limit fails closed without a wait" 1 3 "" 3 "::error::could not read the labels of #6419" "rate limited"
 if [[ "$(sleeps)" == "5 10" ]]; then

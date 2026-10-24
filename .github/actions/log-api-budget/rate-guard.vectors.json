@@ -62,9 +62,9 @@
       "expect": { "latched": true, "low": false, "reset_source": "fallback", "reset": 1792748060, "pool": "*" }
     },
     {
-      "name": "rate-limit 403 with no headers at all waits the minute, every pool",
+      "name": "primary rate-limit 403 with no headers stops every pool for an hour, past any primary reset",
       "input": { "url": "https://api.github.com/repos/o/r", "status": 403, "headers": {}, "body": "{\"message\":\"API rate limit exceeded for installation ID 1.\"}" },
-      "expect": { "latched": true, "low": false, "reset_source": "fallback", "reset": 1792748060, "pool": "*" }
+      "expect": { "latched": true, "low": false, "reset_source": "fallback", "reset": 1792751600, "pool": "*" }
     },
     {
       "name": "both retry-after and an exhausted window: the later time wins",
@@ -87,9 +87,9 @@
       "expect": { "latched": true, "low": true, "reset_source": "x-ratelimit-reset", "reset": 1792750000, "pool": "graphql" }
     },
     {
-      "name": "graphql RATE_LIMITED with no headers: graphql pool from the url, the minute",
+      "name": "graphql RATE_LIMITED with no headers: graphql pool from the url, for an hour",
       "input": { "url": "https://api.github.com/graphql", "status": 200, "headers": {}, "body": { "errors": [{ "type": "RATE_LIMITED" }] } },
-      "expect": { "latched": true, "low": false, "reset_source": "fallback", "reset": 1792748060, "pool": "graphql" }
+      "expect": { "latched": true, "low": false, "reset_source": "fallback", "reset": 1792751600, "pool": "graphql" }
     },
     {
       "name": "graphql 200 with a secondary-limit message and no type stops every pool for the minute",
@@ -180,6 +180,41 @@
       "name": "200 with no rate-limit headers is neither latched nor low",
       "input": { "url": "https://api.github.com/repos/o/r", "status": 200, "headers": {}, "body": {} },
       "expect": { "latched": false, "low": false, "reset_source": null, "reset": null, "pool": null }
+    },
+    {
+      "name": "a 429 with no headers and no message stops every pool for an hour",
+      "input": { "url": "https://api.github.com/repos/o/r", "status": 429, "headers": {}, "body": "" },
+      "expect": { "latched": true, "low": false, "reset_source": "fallback", "reset": 1792751600, "pool": "*" }
+    },
+    {
+      "name": "a 429 with headroom left and an unrelated message still stops every pool",
+      "input": {
+        "url": "https://api.github.com/repos/o/r",
+        "status": 429,
+        "headers": { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4000", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" },
+        "body": { "message": "Too many requests" }
+      },
+      "expect": { "latched": true, "low": false, "reset_source": "fallback", "reset": 1792751600, "pool": "*" }
+    },
+    {
+      "name": "abuse detection 403 is a secondary limit: every pool for the documented minute",
+      "input": {
+        "url": "https://api.github.com/repos/o/r/issues",
+        "status": 403,
+        "headers": { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4000", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" },
+        "body": { "message": "You have triggered an abuse detection mechanism. Please wait a few minutes before you try again." }
+      },
+      "expect": { "latched": true, "low": false, "reset_source": "fallback", "reset": 1792748060, "pool": "*" }
+    },
+    {
+      "name": "remaining 0 with a reset already past stops the resource for the documented minute",
+      "input": {
+        "url": "https://api.github.com/repos/o/r/pulls/1",
+        "status": 403,
+        "headers": { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1792747990", "x-ratelimit-resource": "core" },
+        "body": { "message": "API rate limit exceeded for installation ID 1." }
+      },
+      "expect": { "latched": true, "low": true, "reset_source": "fallback", "reset": 1792748060, "pool": "core" }
     },
     {
       "name": "search remaining 0 stops only the search pool",

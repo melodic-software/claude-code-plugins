@@ -738,7 +738,9 @@ limits:
   # GitHub API margins per pool (`api:` with github-token, lanes-app,
   # graphql, owner-token, content-creation), as shares of the limit each
   # response's x-ratelimit-limit header reports: plan, writer-pause, breaker
-  # and read-floor; content-creation adds per-minute and per-hour. Their
+  # and read-floor; content-creation adds per-minute and per-hour. The rate
+  # guard reads only read-floor, to warn; the others are thresholds meant for
+  # the hub's limits sampler, which nothing here enforces. Their
   # defaults live in pr-pipeline.schema.json ($defs/api-pool,
   # $defs/api-content-pool); add an `api:` entry here only to override one.
 

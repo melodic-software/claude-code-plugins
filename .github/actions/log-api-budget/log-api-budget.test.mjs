@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -253,12 +253,60 @@ test("gh guard: retry-after stops every pool until it ends, and an ended stop le
     assert.equal(guarded(dir, ["200 4000 - {}"], "gh api repos/o/r").calls.length, 1);
   }));
 
-test("gh guard: a paginated call that fails on a rate limit stops every pool for the minute", () =>
+// The epoch second of the one stop a case wrote, less now.
+const stopFor = (dir) => {
+  const [pool, until] = readFileSync(join(dir, "api-budget", "stop"), "utf8").trim().split(" ");
+  return [pool, Number(until) - Math.floor(Date.now() / 1000)];
+};
+
+test("gh guard: a paginated call that fails on a primary limit stops every pool for an hour, not a minute", () =>
   withDir((dir) => {
     const out = guarded(dir, ["fail gh: API rate limit exceeded for installation. (HTTP 403)"], 'gh api repos/o/r/pulls --paginate || true\ngh api repos/o/r || echo "refused=$?"');
     assert.equal(out.stdout, "refused=1\n");
     assert.equal(out.calls.length, 1);
-    assert.match(out.stderr, /\(fallback\); this step fails/);
+    assert.match(out.stderr, /\(fallback\); the call returns 1/);
+    const [pool, left] = stopFor(dir);
+    assert.equal(pool, "*");
+    assert.ok(left >= 3595 && left <= 3600, `stopped for ${left}s`);
+    // Still stopped well past the minute: two minutes on, nothing is sent.
+    const later = Math.floor(Date.now() / 1000) + 120;
+    const shifted = guarded(dir, ["ok never"], `date() { echo ${later}; }\ngh api repos/o/r/pulls --paginate || echo "refused=$?"`);
+    assert.equal(shifted.stdout, "refused=1\n");
+    assert.equal(shifted.calls.length, 0);
+  }));
+
+test("gh guard: a paginated secondary or abuse-detection limit waits the minute; a 429 an hour", () =>
+  withDir((dir) => {
+    for (const [text, seconds] of [
+      ["gh: You have exceeded a secondary rate limit. (HTTP 403)", 60],
+      ["gh: You have triggered an abuse detection mechanism. (HTTP 403)", 60],
+      ["gh: Too Many Requests (HTTP 429)", 3600],
+    ]) {
+      rmSync(join(dir, "api-budget"), { recursive: true, force: true });
+      const out = guarded(dir, [`fail ${text}`], "gh api repos/o/r/pulls --paginate || true");
+      const [pool, left] = stopFor(dir);
+      assert.equal(pool, "*", text);
+      assert.ok(left >= seconds - 5 && left <= seconds, `${text}: stopped for ${left}s`);
+      assert.match(out.stderr, /::error::/, text);
+    }
+  }));
+
+test("gh guard: a 200 that spends the last request prints its body, records its reading and returns 1", () =>
+  withDir((dir) => {
+    const out = guarded(dir, ['200 0 - {"ok":1}'], 'body=$(gh api repos/o/r) || echo "rc=$?"\necho "$body"');
+    assert.equal(out.stdout, 'rc=1\n{"ok":1}\n');
+    assert.match(state(dir, "github-token"), /^200 5000 0 /);
+    assert.match(out.stderr, /; the call returns 1$/m);
+    assert.doesNotMatch(out.stderr, /this step fails/);
+  }));
+
+test("gh guard: a stop-file line whose reset is not a number stops nothing", () =>
+  withDir((dir) => {
+    mkdirSync(join(dir, "api-budget"), { recursive: true });
+    writeFileSync(join(dir, "api-budget", "stop"), "core 99999999999x\n* abc\ncore 1e12\n");
+    const out = guarded(dir, ["200 4000 - {}"], 'until=$(api_budget_stop_until core); echo "until=$until"\ngh api repos/o/r >/dev/null && echo sent');
+    assert.equal(out.stdout, "until=\nsent\n");
+    assert.equal(out.calls.length, 1);
   }));
 
 test("gh guard: a 403 Resource not accessible is passed on as before, with no stop", () =>
@@ -275,6 +323,7 @@ test("gh guard: under the read floor it warns once and keeps sending", () =>
     const out = guarded(dir, ["200 450 - {}", "200 449 - {}"], "gh api repos/o/r >/dev/null; gh api repos/o/r >/dev/null", { API_BUDGET_READ_FLOOR: "0.1" });
     assert.equal(out.calls.length, 2);
     assert.equal(out.stderr.match(/::warning::/g)?.length, 1);
+    assert.match(out.stderr, /reads continue\n/);
     assert.equal(out.status, 0);
   }));
 

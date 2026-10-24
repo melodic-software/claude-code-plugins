@@ -9,7 +9,7 @@ import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
-import { rateLimitLatch } from "../log-api-budget/rate-guard.mjs";
+import { createRateLimitLatch } from "../log-api-budget/rate-guard.mjs";
 
 export const BORN_TRIAGED_MARKER = "<!-- work-items:born-triaged -->";
 
@@ -108,11 +108,15 @@ async function main() {
   } catch {
     // checkBornTriaged reports list-unreadable.
   }
-  // Through the rate guard (rate-guard.mjs): a rate-limited answer fails the
-  // step naming the reset, and any later read is refused without a request.
-  const send = rateLimitLatch.guard(fetch);
+  // Through the rate guard (rate-guard.mjs): a rate-limited answer logs an
+  // error naming the reset and stops the job's later calls to that pool, and
+  // a read while a stop holds is refused without a request. The step still
+  // exits 0, and rate-limited=true stops the callers' API jobs.
+  const latch = createRateLimitLatch({ fail: () => {} });
+  const send = latch.guard(fetch);
+  const issueUrl = `${GITHUB_API_URL}/repos/${REPOSITORY}/issues/${ISSUE_NUMBER}`;
   const fetchIssue = async () => {
-    const response = await send(`${GITHUB_API_URL}/repos/${REPOSITORY}/issues/${ISSUE_NUMBER}`, {
+    const response = await send(issueUrl, {
       headers: {
         accept: "application/vnd.github+json",
         authorization: `Bearer ${GITHUB_TOKEN}`,
@@ -127,8 +131,9 @@ async function main() {
   const result = /^[1-9][0-9]*$/.test(ISSUE_NUMBER ?? "")
     ? await run({ fetchIssue, list, lanesAppId: LANES_APP_ID })
     : triage("issue-unreadable");
-  writeOutputs({ ...result, "human-ids": humanIds(list) });
-  console.log(`check-born-triaged: skip=${result.skip} reason=${result.reason}`);
+  const rateLimited = latch.until(issueUrl) !== null ? "true" : "false";
+  writeOutputs({ ...result, "human-ids": humanIds(list), "rate-limited": rateLimited });
+  console.log(`check-born-triaged: skip=${result.skip} reason=${result.reason} rate-limited=${rateLimited}`);
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {

@@ -194,11 +194,12 @@ test("intake-triage.yml: intake runs only with claude-args resolved from triage-
 
   const intake = jobs["intake-triage"];
   assert.match(intake.if, /&& needs\.born-triaged\.outputs\.claude-args != '' \}\}$/);
-  const runs = (skip, claudeArgs, event = "issues", proceed = "true") =>
+  const runs = (skip, claudeArgs, event = "issues", proceed = "true", limited = "false") =>
     evaluate(intake.if, {
       "github.event_name": event,
       "needs.born-triaged.outputs.skip": skip,
       "needs.born-triaged.outputs.claude-args": claudeArgs,
+      "needs.born-triaged.outputs.rate-limited": limited,
       "needs.kill-switch.outputs.proceed": proceed,
     });
   const args = "--model sonnet --max-turns 30 --effort medium";
@@ -211,6 +212,10 @@ test("intake-triage.yml: intake runs only with claude-args resolved from triage-
   assert.equal(runs("true", "", "workflow_dispatch"), false, "a dispatch never runs without resolved claude-args");
   assert.equal(runs("false", args, "issues", "false"), false, "the kill switch stops intake");
   assert.equal(runs("false", args, "workflow_dispatch", ""), false, "a failed kill-switch job stops intake");
+  assert.equal(runs("false", args, "issues", "true", "true"), false, "a rate limit on the gate's read stops intake");
+  assert.equal(runs("true", args, "workflow_dispatch", "true", "true"), false, "and a dispatch too");
+  assert.equal(runs("false", args, "issues", "true", ""), true, "a gate job that wrote no output still falls through");
+  assert.equal(gate.outputs["rate-limited"], "${{ steps.check.outputs.rate-limited }}");
   assert.equal(intake.with["claude-args"], "${{ needs.born-triaged.outputs.claude-args }}");
   assert.deepEqual(intake.needs, ["born-triaged", "kill-switch"]);
   const killSwitch = jobs["kill-switch"];
@@ -233,13 +238,20 @@ test("intake-label-needs-triage.yml: the kill switch stops the born-triaged chec
   assert.equal(checks("reopened", "true"), false);
   const label = jobs["intake-label-needs-triage"];
   assert.deepEqual(label.needs, ["kill-switch", "born-triaged"]);
-  const labels = (proceed, skip) =>
-    evaluate(label.if, { "needs.kill-switch.outputs.proceed": proceed, "needs.born-triaged.outputs.skip": skip });
+  const labels = (proceed, skip, limited = "false") =>
+    evaluate(label.if, {
+      "needs.kill-switch.outputs.proceed": proceed,
+      "needs.born-triaged.outputs.skip": skip,
+      "needs.born-triaged.outputs.rate-limited": limited,
+    });
   assert.equal(labels("true", ""), true, "a skipped or failed born-triaged check still labels");
   assert.equal(labels("true", "false"), true);
   assert.equal(labels("true", "true"), false, "a born-triaged issue keeps no floor label");
   assert.equal(labels("false", ""), false, "the kill switch stops the label");
   assert.equal(labels("", ""), false, "a failed kill-switch job stops the label");
+  assert.equal(labels("true", "false", "true"), false, "a rate limit on the gate's read stops the label's calls");
+  assert.equal(labels("true", "", ""), true, "a gate job that wrote no output still labels");
+  assert.equal(gate.outputs["rate-limited"], "${{ steps.check.outputs.rate-limited }}");
 });
 
 test("intake-triage.yml: a dispatch runs only from main and passes the gate's ids", () => {

@@ -5,9 +5,11 @@
 #
 # gh_read runs `gh api` through the api-budget wrapper, whose rate guard stops
 # a pool until its reset on a rate-limited response: retry-after seconds, else
-# x-ratelimit-reset while remaining is 0, else the documented minute. gh_read
-# then waits once, one second past the reset, and reads again; nothing is sent
-# while the pool is stopped, a probe included. A wait that would end past the
+# x-ratelimit-reset while remaining is 0, else a guess: the documented minute
+# for a secondary limit, an hour for any other. gh_read then waits once, one
+# second past a reset a header gave, and reads again; a guessed stop gets no
+# wait, so it fails the read at once. Nothing is sent while the pool is
+# stopped, a probe included. A wait that would end past the
 # deadline the step sets (the job's timeout less a margin, from when the step
 # runs) fails the read at once naming the reset. Any other failure returns at
 # once.
@@ -206,13 +208,25 @@ check "a graphql stop leaves core reads going and refuses graphql without a call
 
 fresh
 STUB_SCRIPT='limit 4999 0 - You have exceeded a secondary rate limit.
-ok fine' run 'gh_read repos/o/r/pulls/1 >/dev/null'
-check "a secondary rate limit with no retry-after waits the minute" 0 2 "61"
+ok fine' run 'gh_read repos/o/r/pulls/1 >/dev/null || echo "rc=$?"'
+check "a secondary rate limit with no retry-after, a guessed minute, fails the read without a wait" 0 1 "" "rc=1" "waiting"
 
 fresh
 STUB_SCRIPT="$LIMITED
-ok fine" run 'gh_read repos/o/r/pulls --paginate >/dev/null'
-check "a paginated read whose headers are unseen waits the minute on a rate-limit error" 0 2 "61"
+ok never" run 'gh_read repos/o/r/pulls --paginate >/dev/null || echo "rc=$?"'
+check "a paginated read whose headers are unseen fails at once on a primary limit, without a wait" 0 1 "" "rc=1" "waiting"
+STUB_NOW=$((NOW + 120)) STUB_SCRIPT='ok never' run 'gh_read repos/o/r/pulls --paginate || echo "rc=$?"'
+check "two minutes later that pool is still stopped and nothing is sent" 0 0 "" "rc=1"
+
+fresh
+STUB_SCRIPT="$LIMITED
+ok never
+ok never" run 'for attempt in 1 2 3; do gh_read repos/o/r/pulls --paginate >/dev/null && break; sleep 5; done; echo "attempts=$attempt"'
+check "a caller's three-attempt loop sends the paginated read once" 0 1 "5 5 5" "attempts=3"
+
+fresh
+STUB_SCRIPT='fail 502 Bad Gateway' run 'api_budget_stop_until() { echo 12x; }; gh_read repos/o/r/pulls/1 || echo "rc=$?"'
+check "a stop time that is not a number is not waited on" 0 0 "" "rc=1" "too great"
 
 fresh
 STUB_SCRIPT="$LIMITED
@@ -237,7 +251,7 @@ fresh
 STUB_SCRIPT="limit 0 $((NOW + 400)) - API rate limit exceeded for installation.
 ok one" run 'gh_read repos/o/r/pulls/1 >/dev/null'
 check "a 401 s wait inside the deadline is taken" 0 2 "401"
-STUB_NOW=$((NOW + 560)) STUB_SCRIPT='limit 4999 0 - You have exceeded a secondary rate limit.' \
+STUB_NOW=$((NOW + 560)) STUB_SCRIPT='limit 4999 0 61 You have exceeded a secondary rate limit.' \
   run 'gh_read repos/o/r/pulls/2 || echo "rc=$?"'
 check "a later step's wait that would end past the deadline is not taken" 0 1 "" "past the 2026-10-24T00:10:00Z ci-status can wait to"
 

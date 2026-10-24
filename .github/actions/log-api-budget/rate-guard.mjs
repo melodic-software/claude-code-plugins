@@ -25,12 +25,19 @@ import process from "node:process";
 // GitHub's documented rate-limit signals, same page: a 403 or 429 whose
 // message names a rate limit, retry-after, x-ratelimit-remaining 0, and
 // "wait for at least one minute" when neither header gives the time. GraphQL
-// answers its primary limit with a 200 whose errors carry this type.
+// answers its primary limit with a 200 whose errors carry this type. Any 429
+// counts, whatever its headers and message. "abuse detection" is the older
+// wording of a secondary limit. A secondary limit with no time waits the
+// minute; any other limit with no time, or with a reset already past, could
+// hold to its window's end, so it stops for primaryFallbackSeconds, past any
+// primary reset (a primary window is one hour).
 export const SIGNALS = Object.freeze({
   statuses: Object.freeze([403, 429]),
-  message: /rate limit/i,
+  message: /rate limit|abuse detection/i,
+  secondary: /secondary rate limit|abuse detection/i,
   graphqlErrorType: "RATE_LIMITED",
   fallbackSeconds: 60,
+  primaryFallbackSeconds: 3600,
 });
 
 export const API_POOLS = Object.freeze(["github-token", "lanes-app", "graphql", "owner-token", "content-creation"]);
@@ -108,11 +115,13 @@ export function classify({ url, status, headers, body }, { now = Date.now(), rea
   // GraphQL answers a secondary limit with a 200 or a 403 and an error
   // message (https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api#exceeding-the-rate-limit),
   // so for a GraphQL call any status counts.
-  const messages = [parsed?.message, ...(poolOf(url) === "graphql" ? errors.map((error) => error?.message) : [])];
-  const message =
-    (SIGNALS.statuses.includes(status) || poolOf(url) === "graphql") && messages.some((text) => SIGNALS.message.test(String(text ?? "")));
+  const messages = [parsed?.message, ...(poolOf(url) === "graphql" ? errors.map((error) => error?.message) : [])].map((text) => String(text ?? ""));
+  const signalled = SIGNALS.statuses.includes(status) || poolOf(url) === "graphql";
+  const message = signalled && messages.some((text) => SIGNALS.message.test(text));
+  const secondary = signalled && messages.some((text) => SIGNALS.secondary.test(text));
   const graphql = errors.some((error) => error?.type === SIGNALS.graphqlErrorType);
-  const latched = remaining === 0 || retryAfter !== null || message || graphql;
+  const tooMany = status === 429;
+  const latched = remaining === 0 || retryAfter !== null || message || graphql || tooMany;
   const low = readFloor !== null && limit > 0 && remaining !== null && remaining < readFloor * limit;
   if (!latched) {
     return { latched, low, reset_source: null, reset: null, pool: null };
@@ -122,11 +131,14 @@ export function classify({ url, status, headers, body }, { now = Date.now(), rea
     retryAfter !== null ? [nowSeconds + retryAfter, "retry-after"] : null,
     remaining === 0 && reset !== null ? [reset, "x-ratelimit-reset"] : null,
   ].filter(Boolean);
-  const [at, source] = candidates.length
-    ? candidates.reduce((best, next) => (next[0] > best[0] ? next : best))
-    : [nowSeconds + SIGNALS.fallbackSeconds, "fallback"];
+  const best = candidates.length ? candidates.reduce((top, next) => (next[0] > top[0] ? next : top)) : null;
+  // A header time already past would write a stop that lets the next call go.
+  const [at, source] =
+    best && best[0] > nowSeconds
+      ? best
+      : [nowSeconds + (best || secondary ? SIGNALS.fallbackSeconds : SIGNALS.primaryFallbackSeconds), "fallback"];
   const resource = String(get("x-ratelimit-resource") ?? "");
-  const every = retryAfter !== null || (message && remaining !== 0);
+  const every = retryAfter !== null || ((message || tooMany) && remaining !== 0);
   const pool = every ? "*" : /^[a-z_]+$/.test(resource) ? resource : poolOf(url);
   return { latched, low, reset_source: source, reset: at, pool };
 }
@@ -240,7 +252,7 @@ export function createRateLimitLatch({
       fail();
     } else if (verdict.low && !warned.has(pool)) {
       warned.add(pool);
-      log(`::warning::GitHub's ${pool} API has under its read floor left (remaining ${response.headers?.get?.("x-ratelimit-remaining")} of ${response.headers?.get?.("x-ratelimit-limit")}); non-essential reads stop`);
+      log(`::warning::GitHub's ${pool} API has under its read floor left (remaining ${response.headers?.get?.("x-ratelimit-remaining")} of ${response.headers?.get?.("x-ratelimit-limit")}); reads continue`);
     }
     return verdict;
   }

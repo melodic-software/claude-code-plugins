@@ -158,6 +158,9 @@ test("under the read floor: one warning, no failure, calls still go, belowFloor 
   await fetch(URL_B);
   assert.equal(gh.sent.length, 2);
   assert.equal(lines.filter((line) => line.startsWith("::warning::")).length, 1);
+  // The warning says what happens: nothing stops.
+  assert.match(lines.find((line) => line.startsWith("::warning::")), /reads continue$/);
+  assert.doesNotMatch(lines.join("\n"), /reads stop/);
   assert.equal(failed(), 0);
   assert.equal(latch.belowFloor(URL_A), true);
   assert.equal(latch.belowFloor("https://api.github.com/graphql"), false);

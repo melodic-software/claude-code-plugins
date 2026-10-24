@@ -312,28 +312,28 @@
           "exclusiveMinimum": 0,
           "maximum": 1,
           "default": 0.7,
-          "description": "Share of the pool's limit the lanes plan to spend."
+          "description": "Share of the pool's limit the lanes plan to spend. A threshold meant for the hub's limits sampler; the rate guard does not enforce it."
         },
         "writer-pause": {
           "type": "number",
           "minimum": 0,
           "maximum": 1,
           "default": 0.4,
-          "description": "Share of the limit left at which writers pause."
+          "description": "Share of the limit left at which writers should pause. A threshold meant for the hub's limits sampler; the rate guard does not enforce it."
         },
         "breaker": {
           "type": "number",
           "minimum": 0,
           "maximum": 1,
           "default": 0.2,
-          "description": "Share of the limit left at which the hub sets the repository kill switch."
+          "description": "Share of the limit left at which the repository kill switch should be set. A threshold meant for the hub's limits sampler; the rate guard does not enforce it."
         },
         "read-floor": {
           "type": "number",
           "minimum": 0,
           "maximum": 1,
           "default": 0.1,
-          "description": "Share of the limit left below which a job stops its non-essential reads."
+          "description": "Share of the limit left below which the rate guard warns once per pool; calls continue."
         }
       }
     },
@@ -350,13 +350,13 @@
           "type": "integer",
           "minimum": 1,
           "default": 80,
-          "description": "Content-creating requests GitHub allows per minute."
+          "description": "Content-creating requests GitHub allows per minute. A threshold meant for the hub's limits sampler; the rate guard does not enforce it."
         },
         "per-hour": {
           "type": "integer",
           "minimum": 1,
           "default": 500,
-          "description": "Content-creating requests GitHub allows per hour."
+          "description": "Content-creating requests GitHub allows per hour. A threshold meant for the hub's limits sampler; the rate guard does not enforce it."
         }
       }
     },

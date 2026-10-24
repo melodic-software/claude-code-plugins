@@ -19,8 +19,10 @@
 #
 # The rate guard, rate-guard.mjs's shell port: once a response shows a pool
 # exhausted, no gh call goes to that pool before its reset for the rest of the
-# job; each refusal returns 1 with an error naming the reset. Its stops are
-# lines `<pool> <reset epoch>` in $RUNNER_TEMP/api-budget/stop.
+# job; each refusal returns 1 with an error naming the reset, and so does the
+# call that hit the limit. Its stops are lines `<pool> <reset epoch>` in
+# $RUNNER_TEMP/api-budget/stop; a stop whose time is a guess (no header gave
+# it) goes in $RUNNER_TEMP/api-budget/guessed too.
 #   api_budget_classify         jq filter: rate-guard.mjs's classify over
 #                               {status, headers, body, now (ms), pool, floor}
 #   api_budget_pool <gh args>   the pool a gh call spends: graphql, search,
@@ -28,10 +30,12 @@
 #   api_budget_stop_until <pool>
 #                               the epoch second <pool> is stopped until, if
 #                               it is
+#   api_budget_guessed <epoch>  whether a stop until <epoch> is a guess
 #   api_budget_observe <file> <pool> <what>
 #                               reads gh api -i output and stops its pool when
-#                               it is exhausted; under API_BUDGET_READ_FLOOR of
-#                               the limit left, warns once
+#                               it is exhausted, returning 1; under
+#                               API_BUDGET_READ_FLOOR of the limit left, warns
+#                               once
 #   api_budget_emit <token>...  the hub collector's notice for each refused
 #                               (403/429) reading and for the last reading of
 #                               each resource, core last; cost is
@@ -98,7 +102,7 @@ api_budget_wrap_gh() {
         -i | --include)
           out=$(mktemp 2>/dev/null) || { api_budget_pass "$@"; return; }
           command gh "$@" >"$out" || rc=$?
-          api_budget_observe "$out" "$pool" "gh $*"
+          api_budget_observe "$out" "$pool" "gh $*" || rc=1
           cat "$out"
           rm -f "$out"
           return "$rc"
@@ -109,7 +113,7 @@ api_budget_wrap_gh() {
     out=$(mktemp 2>/dev/null) || { api_budget_pass "$@"; return; }
     # gh-read-exempt: the wrapper under every call, gh_read included: the same call with -i.
     command gh api -i "${@:2}" >"$out" || rc=$?
-    api_budget_observe "$out" "$pool" "gh $*"
+    api_budget_observe "$out" "$pool" "gh $*" || rc=1
     api_budget_read "$API_BUDGET_GH_TOKEN" "$out"
     rm -f "$out"
     return "$rc"
@@ -117,14 +121,17 @@ api_budget_wrap_gh() {
 }
 
 # A call whose headers the wrapper cannot read: a failure whose text names a
-# rate limit stops every pool for the documented minute.
+# rate limit, or a 429, stops every pool, for the documented minute on a
+# secondary limit and otherwise for an hour, past any primary reset
+# (rate-guard.mjs's SIGNALS).
 api_budget_pass() {
-  local err rc=0
+  local err rc=0 seconds=3600
   err=$(mktemp 2>/dev/null) || { command gh "$@"; return; }
   command gh "$@" 2>"$err" || rc=$?
   cat "$err" >&2
-  if ((rc != 0)) && grep -qiE 'rate limit|RATE_LIMITED' "$err"; then
-    api_budget_stop '*' $(($(date +%s) + 60)) fallback "gh $*"
+  if ((rc != 0)) && grep -qiE 'rate limit|RATE_LIMITED|abuse detection|\(HTTP 429\)' "$err"; then
+    ! grep -qiE 'secondary rate limit|abuse detection' "$err" || seconds=60
+    api_budget_stop '*' $(($(date +%s) + seconds)) fallback "gh $*" || :
   fi
   rm -f "$err"
   return "$rc"
@@ -147,8 +154,13 @@ api_budget_pool() {
 api_budget_stop_until() {
   local file=${RUNNER_TEMP:-/tmp}/api-budget/stop
   [[ -s $file ]] || return 0
-  awk -v pool="$1" -v now="$(date +%s)" '($1 == pool || $1 == "*" || pool == "any") && $2 > now && $2 > max { max = $2 }
+  awk -v pool="$1" -v now="$(date +%s)" '($1 == pool || $1 == "*" || pool == "any") && $2 ~ /^[0-9]+$/ && $2 + 0 > now + 0 && $2 + 0 > max { max = $2 + 0 }
     END { if (max) print max }' "$file"
+}
+
+api_budget_guessed() {
+  local file=${RUNNER_TEMP:-/tmp}/api-budget/guessed
+  [[ -s $file ]] && awk -v t="$1" '$2 == t { found = 1 } END { exit !found }' "$file"
 }
 
 api_budget_label() { [[ $1 == '*' || $1 == any ]] && echo API || echo "$1 API"; }
@@ -164,8 +176,12 @@ api_budget_refuse() {
 
 api_budget_stop() {
   local dir=${RUNNER_TEMP:-/tmp}/api-budget
-  mkdir -p "$dir" 2>/dev/null && echo "$1 $2" >>"$dir/stop"
-  echo "::error::'$4' hit GitHub's $(api_budget_label "$1") rate limit: no call to it before $(api_budget_when "$2") ($3); this step fails" >&2
+  if mkdir -p "$dir" 2>/dev/null; then
+    echo "$1 $2" >>"$dir/stop"
+    [[ $3 != fallback ]] || echo "$1 $2" >>"$dir/guessed"
+  fi
+  echo "::error::'$4' hit GitHub's $(api_budget_label "$1") rate limit: no call to it before $(api_budget_when "$2") ($3); the call returns 1" >&2
+  return 1
 }
 
 # shellcheck disable=SC2016 # a jq program
@@ -177,20 +193,24 @@ API_BUDGET_CLASSIFY='def num: if type == "string" and test("^[0-9]{1,12}$") then
   | ($in.pool == "graphql") as $gq
   | ((if ($b | type) == "object" then [$b.message] + (if $gq and (($b.errors // null) | type) == "array" then [$b.errors[] | if type == "object" then .message else null end] else [] end) else [] end)
       | map(. // "" | tostring)) as $texts
-  | (($in.status == 403 or $in.status == 429 or $gq) and any($texts[]; test("rate limit"; "i"))) as $msg
+  | ($in.status == 403 or $in.status == 429 or $gq) as $signalled
+  | ($signalled and any($texts[]; test("rate limit|abuse detection"; "i"))) as $msg
+  | ($signalled and any($texts[]; test("secondary rate limit|abuse detection"; "i"))) as $secondary
+  | ($in.status == 429) as $many
   | ((if ($b | type) == "object" then ($b.errors // []) else [] end)
       | if type == "array" then any(.[]; type == "object" and .type == "RATE_LIMITED") else false end) as $gql
-  | ($rem == 0 or $ra != null or $msg or $gql) as $latched
+  | ($rem == 0 or $ra != null or $msg or $gql or $many) as $latched
   | ($in.floor != null and $lim != null and $lim > 0 and $rem != null and $rem < $in.floor * $lim) as $low
   | if ($latched | not) then {latched: false, low: $low, reset_source: null, reset: null, pool: null}
     else (($in.now / 1000) | floor) as $n
     | [(if $ra != null then [$n + $ra, "retry-after"] else empty end),
        (if $rem == 0 and $reset != null then [$reset, "x-ratelimit-reset"] else empty end)] as $c
-    | (if ($c | length) > 0 then ($c | reduce .[1:][] as $x (.[0]; if $x[0] > .[0] then $x else . end))
-       else [$n + 60, "fallback"] end) as $at
+    | (if ($c | length) > 0 then ($c | reduce .[1:][] as $x (.[0]; if $x[0] > .[0] then $x else . end)) else null end) as $best
+    | (if $best != null and $best[0] > $n then $best
+       else [$n + (if $best != null or $secondary then 60 else 3600 end), "fallback"] end) as $at
     | (($h["x-ratelimit-resource"] // "") | tostring) as $res
     | {latched: true, low: $low, reset_source: $at[1], reset: $at[0],
-       pool: (if $ra != null or ($msg and $rem != 0) then "*" elif ($res | test("^[a-z_]+$")) then $res else $in.pool end)}
+       pool: (if $ra != null or (($msg or $many) and $rem != 0) then "*" elif ($res | test("^[a-z_]+$")) then $res else $in.pool end)}
     end'
 
 api_budget_observe() {
@@ -206,10 +226,10 @@ api_budget_observe() {
     | '"$API_BUDGET_CLASSIFY"' | "\(.latched) \(.low) \(.reset_source) \(.reset) \(.pool)"' 2>/dev/null) || return 0
   read -r latched low source reset stop <<<"$verdict"
   if [[ $latched == true ]]; then
-    api_budget_stop "$stop" "$reset" "$source" "$what"
+    api_budget_stop "$stop" "$reset" "$source" "$what" || return 1
   elif [[ $low == true ]] && mkdir -p "$dir" 2>/dev/null && [[ ! -e $dir/low-$pool ]]; then
     : >"$dir/low-$pool"
-    echo "::warning::GitHub's $pool API has under its read floor left; non-essential reads stop" >&2
+    echo "::warning::GitHub's $pool API has under its read floor left; reads continue" >&2
   fi
 }
 
