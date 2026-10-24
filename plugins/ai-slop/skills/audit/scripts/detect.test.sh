@@ -912,6 +912,11 @@ assert_contains "yaml: the overlay supplies its own scalar" "$out" "threshold_co
 assert_contains "yaml: the team YAML still supplies the key the overlay left" "$out" "threshold_ai_vocabulary=2.5 (rule rule-ai-vocabulary) [layer: $YREPO/docs/conventions/ai-slop.yaml]"
 assert_contains "yaml: an explicit empty list in the overlay clears the team list" "$out" "disabled_rules= [layer: $YREPO/docs/conventions/ai-slop.local.yaml]"
 
+# phrase_remove alone names its own layer on the model_phrases line, not only phrase_add's.
+printf '%s\n' 'phrase_remove:' '  - "(the|my) honest take"' >"$YREPO/docs/conventions/ai-slop.local.yaml"
+out="$(CLAUDE_PROJECT_DIR="$YREPO" bash "$DETECT" --show-config 2>&1)"
+assert_contains "yaml: phrase_remove alone names its layer" "$out" "model_phrases=(the part most people skip|that.s the unlock) [layer: add default, remove $YREPO/docs/conventions/ai-slop.local.yaml]"
+
 # A YAML layer outside the parser's subset is skipped whole, like a malformed JSON layer.
 BADY="$TEST_TMPDIR/yaml-bad-repo"
 mkdir -p "$BADY/docs/conventions"

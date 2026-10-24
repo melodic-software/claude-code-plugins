@@ -246,6 +246,7 @@ VOCAB="$DEFAULT_VOCAB"
 PHRASE_ADD=()
 PHRASE_REMOVE=()
 PHRASE_ADD_LAYER=""
+PHRASE_REMOVE_LAYER=""
 EXCLUDED_GLOBS=()
 EM_DASH_ALLOWED_GLOBS=()
 DISABLED_RULES=""
@@ -291,6 +292,7 @@ if [[ "${#CFG_LAYERS[@]}" -gt 0 ]]; then
   cascade::list PHRASE_ADD phrase_add "${CFG_LAYERS[@]}"
   PHRASE_ADD_LAYER="$cascade_list_layer"
   cascade::list PHRASE_REMOVE phrase_remove "${CFG_LAYERS[@]}"
+  PHRASE_REMOVE_LAYER="$cascade_list_layer"
 fi
 if [[ "$HAVE_JQ" -eq 0 && "$HAVE_JSON_LAYER" -eq 1 ]]; then
   echo "Note: jq not found; JSON config layers present but unread, using defaults" >&2
@@ -384,7 +386,7 @@ if [[ "$SHOW_CONFIG" -eq 1 ]]; then
   cascade::list _scratch vocab_remove ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}
   _vocab_remove_layer="$cascade_list_layer"
   echo "Effective: vocab=$VOCAB [layer: add ${_vocab_add_layer:-default}, remove ${_vocab_remove_layer:-default}]"
-  echo "Effective: model_phrases=${PHRASES_ERE:-"(empty roster; rule inert)"} [layer: ${PHRASE_ADD_LAYER:-default}]"
+  echo "Effective: model_phrases=${PHRASES_ERE:-"(empty roster; rule inert)"} [layer: add ${PHRASE_ADD_LAYER:-default}, remove ${PHRASE_REMOVE_LAYER:-default}]"
   cascade::list _scratch excluded_paths ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}
   echo "Effective: excluded_paths=${EXCLUDED_GLOBS[*]:-} [layer: ${cascade_list_layer:-default}]"
   cascade::list _scratch em_dash_allowed_paths ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}
