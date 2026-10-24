@@ -1075,3 +1075,109 @@ test("a recorded run that finished, started before this review, or cannot be rea
     assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" });
   }
 });
+
+// The sweep: a completed scheduled pr-unblock-dispatch.yml run on main, and
+// the open PRs into main with their heads' check runs.
+const TICK = { id: 500, path: ".github/workflows/pr-unblock-dispatch.yml", event: "schedule", status: "completed", head_sha: "3".repeat(40), repository: { full_name: REPOSITORY } };
+const SECOND_HEAD = "4".repeat(40);
+const failedRound = roundRun("address-feedback", "failure", "Failed", "2026-10-17T10:00:00Z");
+function sweepApi({ openPulls = pull(), checksAt = { [HEAD]: [failedRound, noModelTurn()] }, reviewRuns = { [HEAD]: [upstreamRun({ id: 13 })] } } = {}) {
+  const api = fakeApi();
+  api.listOpenPulls = async () => openPulls;
+  api.pullsForCommit = async (sha) => openPulls.filter((p) => p.head.sha === sha);
+  // Both review lanes marked each PR's head reviewed.
+  const headOf = (number) => openPulls.find((p) => p.number === number).head.sha;
+  api.listIssueComments = async (number) => [marker("claude-review", headOf(number)), marker("claude-security-review", headOf(number))];
+  api.listCheckRuns = async ({ sha, checkName }) => (checksAt[sha] ?? []).filter((run) => (run.name ?? "pr-unblock / address-feedback") === checkName);
+  api.listCompletedRuns = async (path, head) => (path.endsWith("pr-review-hosted.yml") ? (reviewRuns[head] ?? []) : []);
+  return api;
+}
+
+async function sweepMain(t, api, tick = TICK) {
+  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const output = join(dir, "output");
+  writeFileSync(output, "");
+  const lines = [];
+  await main(
+    {
+      GITHUB_TOKEN: "t",
+      GITHUB_REPOSITORY: REPOSITORY,
+      GITHUB_RUN_ID: RUN_ID,
+      GITHUB_OUTPUT: output,
+      GITHUB_EVENT_PATH: eventFile(dir, tick),
+      APP_SENDER_ID: String(APP_ID),
+      TRUSTED_ACTORS: noActors(dir),
+      DISPATCH_RECORD: join(dir, "record.json"),
+    },
+    { api, resolveSlot: async () => resolvedLane(), log: (line) => lines.push(line) },
+  );
+  return { output: readFileSync(output, "utf8"), lines };
+}
+
+test("a scheduled tick re-dispatches a head whose last round had no model turn, through its newest review run", async (t) => {
+  const api = sweepApi();
+  const { output } = await sweepMain(t, api);
+  assert.deepEqual(api.calls.dispatch, [
+    { workflow: "pr-unblock.yml", ref: "refs/heads/main", inputs: { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID } },
+  ]);
+  // The record names the review run, and the sweep keeps no dispatch record.
+  assert.equal(output, "run-id=38779200001\nupstream-run-id=13\n");
+});
+
+test("the sweep leaves a head whose last round answered, one at its no-model-turn cap, one with no review run, and another author's PR", async (t) => {
+  for (const [label, options] of [
+    ["the last round answered", { checksAt: { [HEAD]: [noModelTurn(), roundRun("publish-feedback", "success", "Passed", "2026-10-17T11:05:00Z")] } }],
+    ["no reply job ran", { checksAt: { [HEAD]: [failedRound] } }],
+    ["three no-model-turn rounds", { checksAt: { [HEAD]: [failedRound, noModelTurn("2026-10-17T10:05:00Z"), noModelTurn("2026-10-17T11:05:00Z"), noModelTurn("2026-10-17T12:05:00Z")] } }],
+    ["no completed review run", { reviewRuns: {} }],
+    ["a person opened it", { openPulls: pull({ user: { id: KYLE.databaseId } }) }],
+    ["a draft", { openPulls: pull({ draft: true }) }],
+  ]) {
+    const api = sweepApi(options);
+    const { output } = await sweepMain(t, api);
+    assert.deepEqual(api.calls.dispatch, [], label);
+    assert.equal(output, "", label);
+  }
+  // Two no-model-turn rounds are under the cap.
+  const two = sweepApi({ checksAt: { [HEAD]: [failedRound, noModelTurn("2026-10-17T10:05:00Z"), noModelTurn("2026-10-17T11:05:00Z")] } });
+  await sweepMain(t, two);
+  assert.equal(two.calls.dispatch.length, 1);
+});
+
+test("a tick dispatches at most one head, and moves past one dispatchFeedback skips", async (t) => {
+  const second = pull({ number: 43, head: { sha: SECOND_HEAD, repo: { full_name: REPOSITORY } } })[0];
+  const third = pull({ number: 44, head: { sha: "5".repeat(40), repo: { full_name: REPOSITORY } } })[0];
+  const api = sweepApi({
+    // PR 42 is labeled do-not-merge, so dispatchFeedback skips it.
+    openPulls: [...pull({ labels: [{ name: "do-not-merge" }] }), second, third],
+    checksAt: { [HEAD]: [failedRound, noModelTurn()], [SECOND_HEAD]: [failedRound, noModelTurn()], ["5".repeat(40)]: [failedRound, noModelTurn()] },
+    reviewRuns: { [HEAD]: [upstreamRun({ id: 13 })], [SECOND_HEAD]: [upstreamRun({ id: 14, head_sha: SECOND_HEAD })], ["5".repeat(40)]: [upstreamRun({ id: 15, head_sha: "5".repeat(40) })] },
+  });
+  const { output } = await sweepMain(t, api);
+  assert.deepEqual(api.calls.dispatch.map((request) => request.inputs["pr-number"]), ["43"]);
+  assert.equal(output, "run-id=38779200001\nupstream-run-id=14\n");
+});
+
+test("a pr-unblock-dispatch.yml run its schedule did not start sweeps nothing", async (t) => {
+  const api = sweepApi();
+  api.listOpenPulls = async () => assert.fail("a push tick reads no PR");
+  const { output, lines } = await sweepMain(t, api, { ...TICK, event: "push" });
+  assert.equal(output, "");
+  assert.match(lines.join("\n"), /not a scheduled tick/);
+});
+
+test("a PR the sweep cannot read is logged and the next PR is still swept", async (t) => {
+  const second = pull({ number: 43, head: { sha: SECOND_HEAD, repo: { full_name: REPOSITORY } } })[0];
+  const api = sweepApi({
+    openPulls: [...pull(), second],
+    checksAt: { [SECOND_HEAD]: [failedRound, noModelTurn()] },
+    reviewRuns: { [SECOND_HEAD]: [upstreamRun({ id: 14, head_sha: SECOND_HEAD })] },
+  });
+  const read = api.listCheckRuns;
+  api.listCheckRuns = async (request) => (request.sha === HEAD ? Promise.reject(new Error("GET check-runs returned 502")) : read(request));
+  const { output, lines } = await sweepMain(t, api);
+  assert.deepEqual(api.calls.dispatch.map((request) => request.inputs["pr-number"]), ["43"]);
+  assert.equal(output, "run-id=38779200001\nupstream-run-id=14\n");
+  assert.ok(lines.some((line) => line.startsWith("::warning::#42:") && line.includes("502")), lines.join("\n"));
+});

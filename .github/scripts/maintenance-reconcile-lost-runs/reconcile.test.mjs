@@ -18,7 +18,7 @@ import path from "node:path";
 import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { GITHUB_STATUS_URL, JUDGE_STEP, main, NPM_STATUS_URL } from "./reconcile.mjs";
+import { GITHUB_STATUS_URL, JUDGE_STEP, main, NPM_STATUS_URL, prefilterSpec } from "./reconcile.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const NOW = Date.parse("2026-10-19T20:00:00Z");
@@ -725,6 +725,196 @@ test("a PR's CI set carries one record, so the cap of 3 bounds the records at 3"
   assert.equal(code, 0);
   assert.deepEqual(records(outputs), [1, 2, 3].map((n) => `reconcile-rerun-${100 + n}-2-${sha(n)}`));
   assert.deepEqual(reruns.sort(), [101, 102, 103, 201, 202, 203]);
+});
+
+// A head whose pr-verify pass the spec changed under after the pass: resolve-pr
+// (pr-verify's own resolver) answers `spec-changed`, and the head's passed
+// checks run is re-run once, recorded, so pr-verify judges the head again.
+// Shapes follow resolve-pr.test.mjs: GET /commits/{sha}/pulls,
+// /actions/artifacts?name=, and the closingIssuesReferences GraphQL field.
+const LANE = "melodic-automation-lanes[bot]";
+const PASS_RUN = 701;
+const PASS_STARTED = "2026-10-19T19:30:00Z";
+// The first 16 hex digits of `printf %s fix/1 | sha256sum`, pr(1)'s head ref.
+const FIX_1_DIGEST = "fe65f143bd3d5845";
+// The pre-filter's batched answer holds the issues' comment pages only when its
+// query asks for them, as GitHub answers only the fields a query names.
+const COMMENT_PAGE = "comments(first: 100)";
+const prefilterIssue = (query, { comments = [], ...issue }) => (query.includes(COMMENT_PAGE) ? { ...issue, comments: { totalCount: comments.length, nodes: comments } } : issue);
+
+// `updated` is the issue's updatedAt: the edit time by default, else a time
+// before the pass. PR `number` is the head under check.
+function specChanged({ edited, updated = edited ?? "2026-10-19T00:00:00Z", attempt = 1, pass = true, digest = false, number = 1 } = {}) {
+  const head = sha(number);
+  const checks = { ...run(601, head, { conclusion: "success", attempt }), repository: { full_name: REPO } };
+  const judged = { ...verifyRun(PASS_RUN, { conclusion: "success" }), repository: { full_name: REPO }, run_started_at: PASS_STARTED, jobs: [] };
+  const name = `pr-verify-${number}-${head}-pass${digest ? `-${FIX_1_DIGEST}` : ""}`;
+  const issue = {
+    number: 7,
+    repository: { nameWithOwner: REPO },
+    body: "the spec",
+    lastEditedAt: edited,
+    author: { __typename: "User", login: "maintainer", databaseId: 100 },
+    editor: edited ? { __typename: "User", login: "maintainer", databaseId: 100 } : null,
+    comments: { totalCount: 0, nodes: [] },
+  };
+  const pull = { ...pr(number), user: { id: 9, login: LANE, type: "Bot" }, base: { ref: "main", sha: "b".repeat(40) } };
+  // The pull requests whose spec was read.
+  const specReads = [];
+  const prefilterReads = [];
+  const wrap = (github) => async (method, apiPath, body) => {
+    if (apiPath === `/repos/${REPO}/commits/${head}/pulls?per_page=100&page=1`) return [pull];
+    const named = /\/actions\/artifacts\?name=([^&]+)&per_page=100(?:&page=1)?$/.exec(apiPath);
+    if (named) return { artifacts: pass && decodeURIComponent(named[1]) === name ? [{ name, expired: false, workflow_run: { id: PASS_RUN } }] : [] };
+    if (apiPath === `/repos/${REPO}/compare/${MAIN_TIP}...main`) return { status: "ahead" };
+    if (apiPath === "/graphql" && !body.variables) {
+      // The pre-filter's batched read: one alias per candidate.
+      prefilterReads.push(body.query);
+      const node = prefilterIssue(body.query, { updatedAt: updated, lastEditedAt: edited ?? null, repository: { nameWithOwner: REPO } });
+      return { data: { repository: { p0: { body: "", lastEditedAt: null, closingIssuesReferences: { totalCount: 1, nodes: [node] } } } } };
+    }
+    if (apiPath === "/graphql") {
+      specReads.push(body.variables.number);
+      return { data: { repository: { pullRequest: { body: "", createdAt: "2026-10-19T00:00:00Z", lastEditedAt: null, editor: null, closingIssuesReferences: { totalCount: 1, nodes: [issue] } } } } };
+    }
+    return github(method, apiPath, body);
+  };
+  return { setup: { pulls: [pr(number)], runs: [checks, judged], github: wrap }, specReads, prefilterReads };
+}
+
+async function withTrustedList(fn) {
+  const dir = mkdtempSync(path.join(tmpdir(), "reconcile-actors-"));
+  try {
+    const actors = path.join(dir, "trusted-actors.json");
+    writeFileSync(actors, JSON.stringify({ version: 1, actors: [{ id: 100, login: "maintainer", kind: "human" }] }));
+    return await fn({ TRUSTED_ACTORS_PATH: actors, LANE_IDENTITY: LANE });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("a pass the spec changed under re-runs the head's passed checks once, with a record", async () => {
+  await withTrustedList(async (env) => {
+    const { code, outputs, reruns } = await reconcile({ ...specChanged({ edited: "2026-10-19T19:45:00Z" }).setup, env });
+    assert.equal(code, 0);
+    assert.deepEqual(reruns, [601]);
+    assert.equal(outputs["record-1"], `reconcile-rerun-601-2-${sha(1)}`);
+    // A pass named with the head-ref digest is found the same way.
+    const digested = await reconcile({ ...specChanged({ edited: "2026-10-19T19:45:00Z", digest: true }).setup, env });
+    assert.deepEqual(digested.reruns, [601]);
+  });
+});
+
+test("a pass judged after the spec's last change, a second attempt, or no pass re-runs nothing", async () => {
+  await withTrustedList(async (env) => {
+    const cases = {
+      // An issue not updated since the pass: the pre-filter skips the full read.
+      "edited before the pass": [{ edited: "2026-10-19T19:15:00Z" }, [], 1],
+      "never edited": [{ edited: null }, [], 1],
+      // An issue updatedAt after the pass with no spec time after it (as a
+      // label change might leave it): the full read runs, and specChanged
+      // still says no.
+      "updated, but no spec change": [{ edited: "2026-10-19T19:15:00Z", updated: "2026-10-19T19:45:00Z" }, [1], 1],
+      "already at attempt 2": [{ edited: "2026-10-19T19:45:00Z", attempt: 2 }, [], 0],
+      "no pass at the head": [{ edited: "2026-10-19T19:45:00Z", pass: false }, [], 0],
+    };
+    for (const [label, [options, read, prefiltered]] of Object.entries(cases)) {
+      const { setup, specReads, prefilterReads } = specChanged(options);
+      const { code, reruns } = await reconcile({ ...setup, env });
+      assert.equal(code, 0, label);
+      assert.deepEqual(reruns, [], label);
+      assert.deepEqual(specReads, read, label);
+      assert.equal(prefilterReads.length, prefiltered, label);
+    }
+  });
+});
+
+test("the pre-filter reads every candidate in one GraphQL query and keeps only a spec that moved", async () => {
+  const PASS = "2026-10-19T19:30:00Z";
+  const before = "2026-10-19T19:00:00Z";
+  const after = "2026-10-19T20:00:00Z";
+  const answers = (query) => {
+    const closes = (updatedAt, comments) => ({
+      body: "",
+      lastEditedAt: null,
+      closingIssuesReferences: { totalCount: 1, nodes: [prefilterIssue(query, { updatedAt, lastEditedAt: null, comments, repository: { nameWithOwner: REPO } })] },
+    });
+    return {
+      p0: closes(before),
+      p1: closes(after),
+      p2: { body: "Refs: #9", lastEditedAt: null, closingIssuesReferences: { totalCount: 0, nodes: [] } },
+      p3: { body: "", lastEditedAt: after, closingIssuesReferences: { totalCount: 0, nodes: [] } },
+      p4: closes(before),
+      p5: closes(before, [{ updatedAt: before }, { updatedAt: after }]),
+      p6: { body: "Refs: #8", lastEditedAt: null, closingIssuesReferences: { totalCount: 0, nodes: [] } },
+    };
+  };
+  const queries = [];
+  const call = async (method, apiPath, body) => {
+    assert.equal(`${method} ${apiPath}`, "POST /graphql");
+    queries.push(body.query);
+    if (body.query.includes("r0: issue(number: 9)")) {
+      return { data: { repository: { r0: prefilterIssue(body.query, { updatedAt: after, lastEditedAt: null }), r1: prefilterIssue(body.query, { updatedAt: before, lastEditedAt: null, comments: [{ updatedAt: after }] }) } } };
+    }
+    return { data: { repository: answers(body.query) } };
+  };
+  const candidates = [10, 11, 12, 13, 14, 15, 16].map((number, i) => ({ pull: { number }, starts: i === 4 ? [null] : [PASS] }));
+  const kept = (await prefilterSpec(call, REPO, candidates)).map((c) => c.pull.number);
+  // 10: issue unchanged. 11: issue updated after the pass. 12: its Refs issue
+  // updated after. 13: its own body edited after. 14: a pass start unreadable.
+  // 15: issue updatedAt before the pass, a comment edited after. 16: its Refs
+  // issue the same.
+  assert.deepEqual(kept, [11, 12, 13, 14, 15, 16]);
+  assert.equal(queries.length, 2, "one batched query, plus one for the Refs issues");
+  assert.deepEqual(await prefilterSpec(call, REPO, []), []);
+});
+
+test("the pre-filter keeps a candidate whose issue has more comments than the page read", async () => {
+  const before = "2026-10-19T19:00:00Z";
+  // GitHub's totalCount counts every comment; the page holds the first 100.
+  const page = Array.from({ length: 100 }, () => ({ updatedAt: before }));
+  const call = async (_method, _apiPath, body) => {
+    const issue = prefilterIssue(body.query, { updatedAt: before, lastEditedAt: null, comments: page, repository: { nameWithOwner: REPO } });
+    if (issue.comments) issue.comments = { ...issue.comments, totalCount: 101 };
+    return { data: { repository: { p0: { body: "", lastEditedAt: null, closingIssuesReferences: { totalCount: 1, nodes: [issue] } } } } };
+  };
+  const kept = await prefilterSpec(call, REPO, [{ pull: { number: 10 }, starts: ["2026-10-19T19:30:00Z"] }]);
+  assert.deepEqual(kept.map((c) => c.pull.number), [10]);
+});
+
+test("an auto-merge PR's spec re-run wins the last place under the cap over another PR's CI set", async () => {
+  await withTrustedList(async (env) => {
+    // PRs 3 and 4 have re-runs in flight, so one place is left. PR 2 has a
+    // lost CI run and a lower number; PR 5 waits for auto-merge and its pass
+    // the spec changed under.
+    const { setup } = specChanged({ edited: "2026-10-19T19:45:00Z", number: 5 });
+    const pulls = [pr(2), pr(3), pr(4), pr(5, { autoMerge: { merge_method: "squash" } })];
+    const runs = [...setup.runs, run(102, sha(2)), run(103, sha(3), { status: "in_progress", attempt: 2 }), run(104, sha(4), { status: "in_progress", attempt: 2 })];
+    const { code, reruns } = await reconcile({ ...setup, pulls, runs, env });
+    assert.equal(code, 0);
+    assert.deepEqual(reruns, [601]);
+  });
+});
+
+test("a spec read that fails re-runs nothing and leaves the run green", async (t) => {
+  t.mock.method(console, "log", () => {});
+  await withTrustedList(async (env) => {
+    const { setup } = specChanged({ edited: "2026-10-19T19:45:00Z" });
+    const inner = setup.github;
+    const failing = (github) => async (method, apiPath, body) => {
+      if (apiPath === "/graphql") throw new Error("GraphQL failed with status 502");
+      return inner(github)(method, apiPath, body);
+    };
+    const { code, reruns } = await reconcile({ ...setup, github: failing, env });
+    assert.equal(code, 0);
+    assert.deepEqual(reruns, []);
+  });
+});
+
+test("without the trusted list no spec is checked", async () => {
+  const { code, reruns } = await reconcile(specChanged({ edited: "2026-10-19T19:45:00Z" }).setup);
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, []);
 });
 
 test("act re-runs no CI run whose plan names another record", async (t) => {
