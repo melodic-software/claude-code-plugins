@@ -254,11 +254,13 @@ def _run_gh(
 #   Recheck trigger: either page changes the headers, statuses or messages
 #   that signal a primary or secondary limit.
 RATE_LIMIT_STATUSES = frozenset({403, 429})
-RATE_LIMIT_MESSAGE = re.compile(r"rate limit", re.IGNORECASE)
+RATE_LIMIT_MESSAGE = re.compile(r"rate limit|abuse detection", re.IGNORECASE)
+SECONDARY_MESSAGE = re.compile(r"secondary rate limit|abuse detection", re.IGNORECASE)
 GRAPHQL_RATE_LIMITED = "RATE_LIMITED"
-# Neither retry-after nor a spent pool's reset: the pages say wait at least a
-# minute.
+# No header gives a reset still ahead: a secondary limit waits the pages'
+# minute, as does a header time already past; any other stop waits the hour.
 FALLBACK_RESET_SECONDS = 60
+PRIMARY_FALLBACK_SECONDS = 3600
 RESOURCE_RE = re.compile(r"^[a-z_]+$")
 # The pool a URL spends when the response names none; else `core`.
 URL_POOLS = (
@@ -370,12 +372,13 @@ def evaluate_rate_response(
     messages = [body.get("message")]
     if graphql:
         messages += [error.get("message") for error in errors]
-    msg = (status in RATE_LIMIT_STATUSES or graphql) and any(
-        RATE_LIMIT_MESSAGE.search(str(text if text is not None else ""))
-        for text in messages
-    )
+    texts = [str(text if text is not None else "") for text in messages]
+    signaled = status in RATE_LIMIT_STATUSES or graphql
+    msg = signaled and any(RATE_LIMIT_MESSAGE.search(text) for text in texts)
+    secondary = signaled and any(SECONDARY_MESSAGE.search(text) for text in texts)
     gql = any(error.get("type") == GRAPHQL_RATE_LIMITED for error in errors)
-    latched = remaining == 0 or ra is not None or msg or gql
+    too_many = status == 429
+    latched = remaining == 0 or ra is not None or msg or gql or too_many
     low = bool(limit and remaining is not None and remaining < read_floor * limit)
     result: dict[str, Any] = {
         "latched": latched,
@@ -386,7 +389,7 @@ def evaluate_rate_response(
     }
     if not latched:
         return result
-    if ra is not None or (msg and remaining != 0):
+    if ra is not None or ((msg or too_many) and remaining != 0):
         pool = ALL_POOLS
     else:
         resource = str(headers.get("x-ratelimit-resource") or "")
@@ -398,9 +401,12 @@ def evaluate_rate_response(
         candidates.append((now + ra, 1, "retry-after"))
     if remaining == 0 and reset_header is not None:
         candidates.append((reset_header, 0, "x-ratelimit-reset"))
-    reset, _, source = max(
-        candidates or [(now + FALLBACK_RESET_SECONDS, 0, "fallback")]
-    )
+    best = max(candidates, default=None)
+    if best is not None and best[0] > now:
+        reset, _, source = best
+    else:
+        wait = FALLBACK_RESET_SECONDS if best or secondary else PRIMARY_FALLBACK_SECONDS
+        reset, source = now + wait, "fallback"
     result.update(pool=pool, reset=reset, reset_source=source)
     return result
 
