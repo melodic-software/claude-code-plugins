@@ -42,6 +42,17 @@ Three further signals belong to this scan alone; record them in the same way:
 | Hops that add little | Answering one question about a request walks the reader through a chain of files or layers, each contributing little beyond passing the call on. How long is too long depends on how deep this codebase's other paths run; there is no threshold number | Tax for one line passes the controller, then `TaxService`, `TaxFacade` and `TaxRateLookup`, before it reaches the rates client |
 | One caller's rule in shared code | Code every caller uses carries a branch that serves a single caller, and each caller added later carries it too. Leave the shared work where it is and hand that one decision back to the caller that wants it | `TaxCalculator.quote()` picks a date only after asking whether the refund job is calling; the refund job could supply its own date |
 
+Four more signals are hazards that mislead an agent editing the code. Judge each by the
+**open-file test**: with only the file being edited open, can an agent see every other place it
+must change? A "no" confirms the hazard, and the candidate cites the test in `shallow-signal`.
+
+| Signal | What the agent sees | Tax example |
+|---|---|---|
+| Split ownership | More than one module writes the same state or keeps its own copy, so an agent that edits one writer cannot see the others. Remedy: one owner per piece of state; the others read it or ask the owner | Checkout and the refund job both write `order.taxRegion`, and the invoice export keeps its own copy |
+| Two ways to do one task | An agent copies whichever way it finds first, so every way keeps gaining callers. Remedy: keep one way; move callers off the others and delete them in the same change | Rounding is done by `roundHalfEven` in one caller and by `RoundingPolicy` in another, and each gains callers |
+| Importable internals | An agent takes the shortest path that compiles and imports internals directly, which makes them part of the interface. Remedy: make internals unreachable from outside, so such an import fails the build | The invoice export imports `RatesCache` from inside the rates client's package |
+| Hand-synced list | Two or more places list the same items and adding one means editing every list; an agent updates only the list it sees. Remedy: keep one list and derive the others, or fail the build when they disagree | Supported regions are listed in the rate table, the validator and the region picker |
+
 Run the **deletion test** on anything that looks shallow, and record the result in the schema's
 `deletion-verdict` field: `concentrates` is the candidate signal and `moves` marks a pass-through,
 with both results defined in [vocabulary.md](vocabulary.md) and Phase 1.
