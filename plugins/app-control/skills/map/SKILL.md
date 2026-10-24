@@ -132,6 +132,8 @@ the evidence and no-orphan checks.
 ## Next
 
 /app-control:drive <app> <feature> drives a seeded feature and records evidence.
+/app-control:map refresh <slug>, after `config/defaults.json` is committed, proves the send steps
+create left unproven.
 
 ## Gotchas
 
