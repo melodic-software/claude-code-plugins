@@ -3,6 +3,14 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.15] - 2026-10-24
+
+### Changed
+
+- **build: Bump body-parser from 2.3.0 to 2.4.0 in /plugins/miro/server** (#9502).
+
+- **build: Bump fast-uri from 3.1.8 to 3.1.9 in /plugins/miro/server** (#9511).
+
 ## [0.6.14] - 2026-10-20
 
 ### Changed
