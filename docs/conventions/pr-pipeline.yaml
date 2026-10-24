@@ -19,7 +19,10 @@ activities:
     inputs: [changed-paths]
     applies-when:
       paths: ["**/*.md"]
-      labels-absent: [do-not-merge, needs-human]
+      # The human-gated label holds it in pr-refine.yml's fix-docs-head job
+      # unless a lane escalation put it on (lane-hold.mjs), so one lane's
+      # escalation does not stop this fixer.
+      labels-absent: [do-not-merge]
       # Skips a draft PR before any model turn: pipeline lanes leave drafts
       # alone.
       draft: [false]
@@ -47,7 +50,9 @@ activities:
     applies-when:
       # A PR that is only behind stays with the merge queue.
       mergeable: [conflicting]
-      labels-absent: [do-not-merge, needs-human]
+      # The human-gated label holds it in the select job unless another
+      # lane's escalation put it on (lane-hold.mjs).
+      labels-absent: [do-not-merge]
       draft: [false]
   apply-conflict-patch:
     # Merges the base tip resolve-conflicts-select pinned into the head it
@@ -65,7 +70,9 @@ activities:
     reads-untrusted: true
     inputs: [pr, head-sha, base-sha]
     applies-when:
-      labels-absent: [do-not-merge, needs-human]
+      # As resolve-conflicts: the write runner keeps the human-gated label a
+      # hold unless the select job read another lane's escalation.
+      labels-absent: [do-not-merge]
       draft: [false]
   address-feedback:
     # Fixes the review lanes' open findings on a pull request and records a
@@ -231,7 +238,9 @@ activities:
     reads-untrusted: true
     inputs: [pr, head-sha]
     applies-when:
-      labels-absent: [do-not-merge, needs-human]
+      # The human-gated label holds it in fix-ci-context unless another
+      # lane's escalation put it on.
+      labels-absent: [do-not-merge]
       draft: [false]
   apply-patch:
     # Applies a producer's patch (fix-ci's, fix-docs's) to the head the
@@ -249,7 +258,9 @@ activities:
     reads-untrusted: true
     inputs: [pr, head-sha]
     applies-when:
-      labels-absent: [do-not-merge, needs-human]
+      # The write runner keeps the human-gated label a hold unless the
+      # producer's base-code job read a lane escalation that lets it pass.
+      labels-absent: [do-not-merge]
       draft: [false]
   resolve-issue:
     # Works one issue labeled agent-ready: either leaves the change in the

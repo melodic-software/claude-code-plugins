@@ -129,8 +129,12 @@ a trusted human's `workflow_dispatch`:
 
 - It lists open, non-draft, same-repository PRs into `main` that GitHub reports as `CONFLICTING`,
   re-querying an `UNKNOWN` PR up to 5 times, 10 s apart.
+- It skips a held PR without recording it: `do-not-merge`, or the human-gated label unless
+  another lane's escalation put it on (below). The next run after the hold comes off picks it up.
 - It skips a PR whose head already has a `pr-unblock / resolve-conflicts` check run from the
-  GitHub Actions app, unless that run is a neutral `Skipped: untrusted-trigger`.
+  GitHub Actions app, unless that run is a neutral `Skipped: untrusted-trigger`, or a
+  `Skipped: awaiting-human` (a skip while held), a limit stop past its reset or a failure, until
+  `limits.limit-stops-per-head` of those last three stand on the head.
 - It dispatches `pr-unblock.yml` on `refs/heads/main` for at most 3 PRs per run, lowest number
   first, passing `pr-number` and `dispatcher-run-id`.
 - A hand run or a re-run must be started by a listed human (`check-trusted-trigger` with
@@ -232,6 +236,21 @@ gh workflow run pr-unblock.yml -R melodic-software/claude-code-plugins -f pr-num
 That run names no dispatcher run, so the gate checks that account as the actor, and the select
 step judges the threads as above.
 
+A lane escalation's human-gated label does not stop the other fixers that could clear its cause.
+`resolve-conflicts`, `fix-ci` and `fix-docs` work a PR carrying the label when `gate-source.mjs`
+reads it as a lane escalation (the conditions below), no person has commented since the label went
+on (they may want the lanes to wait, as `clear-escalations.mjs` reads it), and no escalation since
+then names a reason of the activity's own, read from the `- Reason:` line `report-escalation.sh`
+writes (`ci-fix-*` is `fix-ci`'s, `feedback-*` `address-feedback`'s, `dependency-*`
+`review-dependency`'s, any other `resolve-conflicts`'s). Their dispatchers and base-code jobs
+(`resolve-conflicts-select` and `pr-refine.yml`'s `fix-docs-head` through `lane-hold.mjs`,
+`fix-ci-context`) read it; anything else, a person's label included, holds the PR as
+`awaiting-human`, and `do-not-merge` holds it in their `labels-absent`. When they work past the
+label, the write runner lifts only the human-gated hold for that push. That verdict is read once,
+before the model turn: a person who comments, or a hold that lands, while the run works does not
+stop that run's push (the next dispatch reads it), and `do-not-merge` still does. The label stays on, and
+`pr-merge` refuses the PR until it comes off.
+
 On a PR carrying the human-gated role label (`needs-human` unless the base's
 `.work-item-tracker.json` names another), `address-feedback` works a thread only when it carries
 a fix request, after the lane's escalation when there is one. Without such a
@@ -289,12 +308,15 @@ without a retry. The same
 GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, lists the non-draft,
 same-repository ones into `main` that the lanes App opened (by bot id), or that a trusted actor
 opened ([`adoption`](#adoption); a person's once idle), with no `do-not-merge`, `needs-human` or tracker
-human-gated label,
+human-gated label (one another lane's escalation put on aside, as above),
 whose head's `ci-lanes` commit status from `github-actions[bot]` is `failure` or `error`: the lanes'
 verdict ci-status records, not ci-status itself, which also fails on a hold, a pending review or the
 PR contract, none of which a CI fix mends. It dispatches those whose head has no `pr-unblock / fix-ci` run yet (an
-untrusted-trigger skip aside), or only failed ones, at most `limits.fix-ci-restarts` of them,
-and no `fix-ci` run for the PR still queued or going, at most `limits.fix-ci-per-run` per run,
+untrusted-trigger skip or a skip while held aside), or only failed ones and `Skipped: not-applicable`
+ones (no failing check found), fewer than `limits.limit-stops-per-head` of them, and since the base
+tip was committed (the same query reads it) no `not-applicable` one and at most
+`limits.fix-ci-restarts` failed ones; a new head starts with none. No `fix-ci` run for the PR may
+still be queued or going, and it sends at most `limits.fix-ci-per-run` per run,
 lowest number first. Their run ids join the dispatched-runs record. The dispatcher job's
 concurrency group cancels a run in progress, so a burst of pushes ends in one listing.
 
@@ -317,7 +339,7 @@ the non-draft, same-repository ones into `main`, whoever opened them, lanes App 
 except Dependabot (account 49699333, whose own rebases a lane commit stops), the release App
 (337859524) and the standards-sync App (300666570), whose files are generated or synced; an
 author with no account id is skipped. It keeps those with no `do-not-merge` or `needs-human`
-label, that change at least one `.md` file, and whose head has no `pr-refine / fix-docs` or
+label (a lane escalation's aside, as above; a held PR is not recorded), that change at least one `.md` file, and whose head has no `pr-refine / fix-docs` or
 `pr-unblock / fix-docs` (the lane `fix-docs` ran in before) check run from the GitHub Actions
 app. For each, lowest number first, one
 more query reads the check runs on its last 50 commits, and a PR with a `fix-docs` run on any of
@@ -494,7 +516,9 @@ activity in a trailer. A verdict is bound to the commit it judged and is not reu
 
 When an activity needs a human, it escalates with a resume key and exits instead of blocking. An
 activity whose `labels-absent` lists `needs-human` or `do-not-merge` skips with `awaiting-human`
-while that label is on the PR; a human removes the label, then dispatches the lane, to resume it.
+while that label is on the PR; a human removes the label, then dispatches the lane, to resume it
+(the `pr-unblock-dispatch.yml` dispatchers pick a held `resolve-conflicts`, `fix-ci` or `fix-docs`
+PR up themselves once the label is off).
 `labels-absent` reads only whether a label is present, not who set or removed it: it is a hold, not
 a trust gate. An expedite label from a human with write access skips
 `refine`. A label counts only when the actor on its label event is a trusted human: a label the App
@@ -1951,7 +1975,7 @@ with defaults.
 | `reset-clamp-min` | 1 | Fewest hours after a stop before a restart, whatever reset the stop names. |
 | `reset-clamp-max` | 168 | Most hours after a stop before a restart, whatever reset the stop names. |
 | `restarts-per-run` | 5 | Issues one work-unblock sweep restarts or re-fires. |
-| `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again. |
+| `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again; also the failed `resolve-conflicts` runs, and the failed or `not-applicable` `fix-ci` runs across base moves, one head gets. |
 | `limit-stops-per-issue` | 3 | Limit and funding stops since a person last added `agent-ready` before work-unblock hands the issue to a person. |
 | `wip-cap` | 60 | The issue lane's WIP cap when the lane merge rate cannot be read ([WIP cap](#wip-cap)); at most 500. |
 | `turn-cap-restarts` | 0 | Restarts after a run reaches its turn cap, since a listed human last added `agent-ready`, before report-outcome hands the issue to a person; at most 5, and 0 never restarts. |

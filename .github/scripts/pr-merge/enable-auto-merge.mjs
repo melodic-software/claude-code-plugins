@@ -75,7 +75,12 @@
 // so the person removes it after fixing the reason. Holds a person already
 // set (labels, a body hold, a veto), the room and failed reads write nothing.
 // Arming passes the head just read as expectedHeadOid, so a push in between
-// fails the arm rather than arming a head nobody read. An armed pull request
+// fails the arm rather than arming a head nobody read. Before it arms, the run
+// posts the gate's pin comment for that head (pinBody) unless the lanes App's
+// newest pin already names it unedited, and a pin that fails to post leaves
+// the pull request unarmed: an arm GitHub enqueues at once records no
+// auto-merge event, so the post-merge check reads that head back against the
+// pin. An armed pull request
 // that fails any rule is disarmed. Each request opens its own connection, and
 // a read or write that fails on the network is sent up to twice more
 // (withRetry). One whose arm or disarm still fails is left as it was, named
@@ -147,7 +152,7 @@ export const PULLS_QUERY = `query($owner: String!, $name: String!, $after: Strin
 export const DETAIL_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      comments(last: 100) { totalCount nodes { databaseId author { __typename login } body createdAt updatedAt authorAssociation } }
+      comments(last: 100) { totalCount nodes { databaseId author { __typename login } body createdAt updatedAt lastEditedAt authorAssociation } }
       reviews(last: 100) { totalCount nodes { author { __typename login } body submittedAt authorAssociation } }
       reviewThreads(last: 100) {
         totalCount
@@ -347,6 +352,23 @@ export function refusalBody(person, reason, head, label) {
     String(reason).replaceAll(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "?").replaceAll("```", "'''"),
     "```",
   ].join("\n");
+}
+
+// The pin the post-merge read-back checks the merged head against
+// (babysit_postmerge.pin_comment and PIN_RE): arming a pull request that is
+// already mergeable enqueues it at once with no auto-merge event, which the
+// read-back judges as an identity enqueue, so the head is pinned first.
+export const PIN_RE = /^<!-- babysit-merge-pin sha=([0-9a-f]{40}) -->$/;
+export const pinBody = (sha) => `<!-- babysit-merge-pin sha=${sha} -->\nThe unattended merge path armed native auto-merge at head \`${sha}\`.`;
+
+// Whether the read-back would already read `head` from `comments`
+// (DETAIL_QUERY's): the lanes App's newest pin names it and is unedited.
+export function pinned(comments, bot, head) {
+  const pin = (comments ?? [])
+    .filter((c) => c?.author?.__typename === "Bot" && c.author.login === bot && PIN_RE.test(String(c.body ?? "").split("\n", 1)[0].replace(/\r$/, "")))
+    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
+    .at(-1);
+  return pin !== undefined && !pin.lastEditedAt && PIN_RE.exec(String(pin.body).split("\n", 1)[0].replace(/\r$/, ""))[1] === head;
 }
 
 // The lanes App's newest refusal comment in `comments` (DETAIL_QUERY's).
@@ -717,6 +739,17 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
         console.log(`enable-auto-merge: #${pull.number} would ${action} (report-only): ${escapeCommand(reason)}`);
         await note(pull, detail, { clears, reason });
         continue;
+      }
+      if (action === "arm" && !pinned(detail?.comments?.nodes, slug, pull.headRefOid)) {
+        try {
+          await github("POST", `/repos/${repo[0]}/issues/${pull.number}/comments`, { body: pinBody(pull.headRefOid) });
+          console.log(`enable-auto-merge: #${pull.number} pinned at ${pull.headRefOid}`);
+        } catch (error) {
+          // No pin, no arm: an immediate enqueue would have no read-back.
+          failed += 1;
+          console.log(`::error title=enable-auto-merge::#${pull.number} pin, so not armed: ${describe(error)}`);
+          continue;
+        }
       }
       try {
         if (action === "arm") {

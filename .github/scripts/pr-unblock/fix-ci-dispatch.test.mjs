@@ -56,10 +56,25 @@ function pr(number, { checks = [lanes("FAILURE")], ...overrides } = {}) {
   };
 }
 
-function fakeApi({ pages = [[]], cost = 1, workflowRuns = [], failDispatch = new Set(), runIds = new Map(), requiredRuns = new Map() } = {}) {
-  const calls = { list: 0, runs: 0, dispatch: [], jobs: [], paths: [] };
+function fakeApi({
+  pages = [[]],
+  cost = 1,
+  workflowRuns = [],
+  failDispatch = new Set(),
+  runIds = new Map(),
+  requiredRuns = new Map(),
+  baseCommittedAt,
+  comments = new Map(),
+  labelEvents = new Map(),
+} = {}) {
+  const calls = { list: 0, runs: 0, dispatch: [], jobs: [], paths: [], timeline: [] };
   return {
     calls,
+    // The REST issue timeline: its comments, then its label events.
+    async listTimeline(number) {
+      calls.timeline.push(number);
+      return [...(comments.get(number) ?? []).map((comment) => ({ event: "commented", ...comment })), ...(labelEvents.get(number) ?? [])];
+    },
     // The head's tested run of the workflow at path and its latest jobs; a
     // real failure at attempt 2 (its one re-run spent) unless the test names
     // the head, or the head and path.
@@ -78,6 +93,7 @@ function fakeApi({ pages = [[]], cost = 1, workflowRuns = [], failDispatch = new
       return {
         rateLimit: { cost, remaining: 4990 },
         pullRequests: { nodes: pages[index], pageInfo: { hasNextPage: index + 1 < pages.length, endCursor: String(index + 1) } },
+        baseCommittedAt,
       };
     },
     async listWorkflowRuns() {
@@ -182,6 +198,111 @@ test("a head that already has a fix-ci run is skipped, unless every run failed w
     result.dispatched.map((d) => d.number),
     [4, 6, 7],
   );
+});
+
+// A head's fix-ci runs that failed or found nothing to fix count toward
+// fix-ci-restarts only on the base they ran against: once the base tip moves
+// past them the head is dispatched again, until limit-stops-per-head (3) such
+// runs stand on it. A new head carries none of the old head's runs.
+test("a new base dispatches a failed or not-applicable head again, within the per-head cap", async () => {
+  const BASE_AT = "2026-10-22T11:00:00Z";
+  const before = { completedAt: "2026-10-22T10:00:00Z" };
+  const after = { completedAt: "2026-10-22T11:30:00Z" };
+  const fix = (conclusion, extra) => check("pr-unblock / fix-ci", conclusion, extra);
+  const notApplicable = (extra) => fix("NEUTRAL", { title: "Skipped: not-applicable", ...extra });
+  const failed = lanes("FAILURE");
+  const { api, result } = await run(
+    {
+      pages: [
+        [
+          pr(1, { checks: [failed, notApplicable(before)] }),
+          pr(2, { checks: [failed, notApplicable(after)] }),
+          pr(3, { checks: [failed, fix("FAILURE", before), fix("FAILURE", before)] }),
+          pr(4, { checks: [failed, fix("FAILURE", after), fix("FAILURE", after)] }),
+          pr(5, { checks: [failed, fix("FAILURE", before), fix("FAILURE", before), notApplicable(before)] }),
+          pr(6, { checks: [failed, fix("SUCCESS", before)] }),
+          pr(7, { checks: [failed] }),
+        ],
+      ],
+      baseCommittedAt: BASE_AT,
+    },
+    { maxDispatch: 10 },
+  );
+  assert.deepEqual(result.dispatched.map((d) => d.number), [1, 3, 7]);
+  assert.equal(api.calls.list, 1, "the base tip comes with the listing");
+});
+
+test("many base moves on one unchanged head dispatch it at most three times", async () => {
+  const fix = (completedAt) => check("pr-unblock / fix-ci", "NEUTRAL", { title: "Skipped: not-applicable", completedAt });
+  const runs = [];
+  let dispatches = 0;
+  for (let hour = 1; hour <= 10; hour += 1) {
+    const base = `2026-10-22T${String(hour).padStart(2, "0")}:00:00Z`;
+    const { result } = await run({ pages: [[pr(9, { checks: [lanes("FAILURE"), ...runs] })]], baseCommittedAt: base });
+    if (result.dispatched.length > 0) {
+      dispatches += 1;
+      runs.push(fix(`2026-10-22T${String(hour).padStart(2, "0")}:30:00Z`));
+    }
+  }
+  assert.equal(dispatches, 3);
+});
+
+const APP_USER = { login: "melodic-automation-lanes[bot]", id: APP, type: "Bot" };
+const PERSON = { login: "kyle-sexton", id: 153232337, type: "User" };
+const labeledBy = (actor) => [{ event: "labeled", actor, label: { name: "needs-human" }, created_at: "2026-10-22T10:00:00Z" }];
+// report-escalation.sh's comment, with the reason it names.
+const escalationComment = (reason) => [
+  {
+    user: APP_USER,
+    created_at: "2026-10-22T10:00:05Z",
+    body: `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${"b".repeat(40)} -->\nStopped.\n\n- Reason: \`${reason}\``,
+  },
+];
+const humanGated = { labels: { nodes: [{ name: "needs-human" }] } };
+
+test("needs-human from another lane's escalation does not hold fix-ci; fix-ci's own, a person's or do-not-merge does", async () => {
+  const { api, lines, result } = await run(
+    {
+      pages: [
+        [
+          pr(1, humanGated),
+          pr(2, humanGated),
+          pr(3, humanGated),
+          pr(4, { labels: { nodes: [{ name: "needs-human" }, { name: "do-not-merge" }] } }),
+        ],
+      ],
+      labelEvents: new Map([
+        [1, labeledBy(APP_USER)],
+        [2, labeledBy(APP_USER)],
+        [3, labeledBy(PERSON)],
+        [4, labeledBy(APP_USER)],
+      ]),
+      comments: new Map([
+        [1, escalationComment("feedback-disputed")],
+        [2, escalationComment("ci-fix-escalated")],
+        [4, escalationComment("feedback-disputed")],
+      ]),
+    },
+    { gateLabel: "needs-human", maxDispatch: 10 },
+  );
+  assert.deepEqual(result.dispatched.map((d) => d.number), [1]);
+  assert.ok(lines.includes("skip fix-ci #2: held by needs-human: fix-ci escalated it"), lines.join("\n"));
+  assert.deepEqual(api.calls.timeline, [1, 2, 3], "a do-not-merge PR needs no timeline read");
+});
+
+test("an awaiting-human skip left while the PR was held does not hold it once the hold is gone, but counts toward the per-head cap", async () => {
+  const held = check("pr-unblock / fix-ci", "NEUTRAL", { title: "Skipped: awaiting-human" });
+  const { result } = await run({ pages: [[pr(1, { checks: [lanes("FAILURE"), held] }), pr(2, { checks: [lanes("FAILURE"), held, held, held] })]] });
+  assert.deepEqual(result.dispatched.map((d) => d.number), [1], "three held skips reach the cap of three");
+});
+
+test("a hold that cannot be read counts as a failed dispatch", async () => {
+  const api = fakeApi({ pages: [[pr(1, humanGated)]] });
+  api.listTimeline = async () => {
+    throw new Error("GET timeline returned 502");
+  };
+  const result = await dispatchCiFixes({ api, runId: "1", log: () => {}, appSenderId: APP, maxDispatch: 2, restarts: 1, gateLabel: "needs-human", now: NOW });
+  assert.deepEqual(result, { dispatched: [], failed: 1 });
 });
 
 test("a restart count of 0 never dispatches a head again", async () => {
@@ -359,13 +480,21 @@ test("the adapter sends one query naming the PR, its last commit's check rollup 
     fetch: async (url, init) => {
       requests.push({ url, body: JSON.parse(init.body) });
       return new Response(
-        JSON.stringify({ data: { rateLimit: { cost: 4, remaining: 9 }, repository: { pullRequests: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } } } }),
+        JSON.stringify({
+          data: {
+            rateLimit: { cost: 4, remaining: 9 },
+            repository: { ref: { target: { committedDate: "2026-10-22T11:00:00Z" } }, pullRequests: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } },
+          },
+        }),
         { status: 200 },
       );
     },
   });
   const page = await api.listCiFixCandidates({ base: "main" });
   assert.equal(page.rateLimit.cost, 4);
+  assert.equal(page.baseCommittedAt, "2026-10-22T11:00:00Z");
+  assert.ok(LIST_QUERY.includes("ref(qualifiedName: $base) { target { ... on Commit { committedDate } } }"));
+  assert.ok(LIST_QUERY.includes("title completedAt checkSuite"));
   assert.equal(requests.length, 1);
   assert.equal(requests[0].url, "https://api.example/graphql");
   assert.equal(requests[0].body.query, LIST_QUERY);
