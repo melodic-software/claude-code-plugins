@@ -671,6 +671,76 @@ test("the spec text keeps only what trusted humans wrote and last edited", async
   );
 });
 
+test("on an issue a listed human wrote, intake's newest unedited refinement comment by the lanes App is spec", async () => {
+  const human = { __typename: "User", login: "maintainer", databaseId: 100 };
+  const lanes = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };
+  const actions = { __typename: "Bot", login: "github-actions", databaseId: 41898282 };
+  const impostor = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 4242 };
+  const MARKER = "<!-- intake-triage refinement -->";
+  let next = 0;
+  const comment = (body, author, extra = {}) => {
+    next += 1;
+    return { databaseId: next, updatedAt: `2026-10-1${next}T00:00:00Z`, body, author, lastEditedAt: null, editor: null, ...extra };
+  };
+  const on = (nodes, overrides = {}) => ({ ...ISSUE, ...overrides, comments: { totalCount: nodes.length, nodes } });
+  const comments = async (issue) => (await resolve({ issues: [issue] }, { laneAppId: 337595936 })).specText[0].comments;
+
+  const refinement = comment(`${MARKER}\n- [ ] Line 3 says nineteen.`, lanes);
+  const kept = comment("kept", human);
+  const issue = on([kept, refinement]);
+  assert.deepEqual(await comments(issue), ["kept", refinement.body]);
+  // The gate's filter is human-only, so the record it compares holds no App comment.
+  assert.deepEqual((await resolve({ issues: [issue] }, { laneAppId: 337595936 })).linkedIssues[0].spec_comments, [
+    { id: kept.databaseId, updated_at: kept.updatedAt },
+  ]);
+  // Without the lanes App's id nothing the App wrote counts.
+  assert.deepEqual((await resolve({ issues: [issue] })).specText[0].comments, ["kept"]);
+
+  const edited = comment(`${MARKER}\nedited`, lanes, { lastEditedAt: "2026-10-20T00:00:00Z", editor: lanes });
+  assert.deepEqual(await comments(on([edited])), [], "an edited refinement");
+
+  const older = comment(`${MARKER}\nolder`, lanes);
+  const newer = comment(`${MARKER}\nnewer`, lanes);
+  assert.deepEqual(await comments(on([older, kept, newer])), ["kept", newer.body], "the newest supersedes an older one");
+  assert.deepEqual(await comments(on([older, edited])), [], "an edited newest one leaves no older one in its place");
+
+  assert.deepEqual(await comments(on([refinement], { author: lanes })), [], "an issue the lanes App filed");
+  const otherEdit = { lastEditedAt: "2026-10-14T00:00:00Z", editor: lanes };
+  assert.deepEqual(await comments(on([refinement], otherEdit)), [], "a body the lanes App last edited");
+
+  for (const body of [`${MARKER.toUpperCase()}\nx`, ` ${MARKER}\nx`, `<!-- intake-triage refinements -->\nx`, `note\n${MARKER}`, "<!-- intake-triage admission -->\nx"]) {
+    assert.deepEqual(await comments(on([comment(body, lanes)])), [], `marker mismatch: ${JSON.stringify(body)}`);
+  }
+  for (const [who, author] of [["github-actions", actions], ["a Bot with the App's login and another id", impostor], ["the App as a User", { ...lanes, __typename: "User" }]]) {
+    assert.deepEqual(await comments(on([comment(`${MARKER}\nx`, author)])), [], who);
+  }
+});
+
+test("main identifies the lanes App by merge.agent-identity's id on the trusted list", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-"));
+  const actors = path.join(dir, "trusted-actors.json");
+  writeFileSync(
+    actors,
+    JSON.stringify({ version: 1, actors: [{ id: 100, login: "maintainer", kind: "human" }, { id: 337595936, login: "melodic-automation-lanes[bot]", kind: "bot" }] }),
+  );
+  const lanes = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };
+  const body = "<!-- intake-triage refinement -->\n- [ ] Line 3 says nineteen.";
+  const issue = { ...ISSUE, comments: { totalCount: 1, nodes: [{ databaseId: 1, updatedAt: "2026-10-11T00:00:00Z", body, author: lanes, lastEditedAt: null, editor: null }] } };
+  const run = async (identity) => {
+    const files = { out: path.join(dir, `out-${identity}`), spec: path.join(dir, "spec.json"), text: path.join(dir, `text-${identity}.json`) };
+    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: REPO, GITHUB_OUTPUT: files.out, UPSTREAM_RUN_ID: String(RUN), SPEC_FILE: files.spec, SPEC_TEXT_FILE: files.text, TRUSTED_ACTORS_PATH: actors, LANE_IDENTITY: identity };
+    const log = console.log;
+    console.log = () => {};
+    try {
+      await main(env, { github: fake({ issues: [issue] }) });
+    } finally {
+      console.log = log;
+    }
+    return JSON.parse(readFileSync(files.text, "utf8"))[0].comments;
+  };
+  assert.deepEqual(await run(LANE), [body]);
+});
+
 test("a pass judged before the spec last changed is judged again at the same head", async () => {
   const name = `pr-verify-41-${HEAD}-pass`;
   const passed = (start) => ({ artifacts: [artifact(name, 77)], runs: { 77: verifyRun(77, { run_started_at: start }) } });

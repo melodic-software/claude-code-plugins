@@ -1552,8 +1552,11 @@ head:
   comment read refuses `verify:unreadable`. It then allows the merge only when every linked
   issue it records was written, and its body last edited if ever, by a `User` on the trusted-actor
   list's humans, the pull request's author included (otherwise `verify:untrusted-spec`); a Bot or
-  App, the lanes App among them, never counts. The model's spec text holds only what such
-  accounts wrote;
+  App, the lanes App among them, never counts. The model's spec text holds what such
+  accounts wrote and, on an issue whose body such an account wrote, intake triage's newest
+  refinement comment (opening `<!-- intake-triage refinement -->`, by the lanes App's id from
+  `merge.agent-identity` on the trusted-actor list) while unedited. That comment stays out of the
+  recorded spec comments, so the gate does not see it change;
 - no counted verdict refuses (`verify:missing`).
 
 The trusted-spec rule trusts an account, not a person. An agent session that uses an owner's `gh`
