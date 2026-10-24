@@ -188,12 +188,13 @@ export function describe(error) {
   const text = cause ? `${error?.message ?? error} (cause: ${[cause.code, cause.message].filter(Boolean).join(" ")})` : String(error?.message ?? error);
   return escapeCommand(text.replaceAll(/Bearer\s+\S+|gh[pousr]_\w+|github_pat_\w+/g, "***"));
 }
-// `github` with every request on a connection of its own, and a POST that
-// fails on the network sent again (RETRY_CAPS_MS). `Connection: close` closes
+// `github` with every request on a connection of its own, and a GraphQL
+// POST that fails on the network sent again (RETRY_CAPS_MS). `Connection: close` closes
 // each socket after its answer, so no request goes out on a pooled one that
 // sat idle through a verifier read and that GitHub has since closed. A GET is
 // left to createGitHub's own retry (retryServerErrors), which resends only
-// GETs. A resent arm is pinned to the same expectedHeadOid, so it can arm
+// GETs; a REST write such as the refusal comment is never resent, since a
+// lost answer would post it twice. A resent arm is pinned to the same expectedHeadOid, so it can arm
 // only the head the run read. When the lost answer was a success, the resend
 // may arm or disarm a pull request already in that state; should GitHub
 // answer that with an error, the run reports it and exits 1 with the state
@@ -205,7 +206,7 @@ export function withRetry(github, { sleep, random = Math.random }) {
         return await github(method, path, body, { Connection: "close", ...headers }, options);
       } catch (error) {
         const cap = RETRY_CAPS_MS[attempt];
-        if (method === "GET" || cap === undefined || !transient(error)) {
+        if (path !== "/graphql" || cap === undefined || !transient(error)) {
           throw error;
         }
         const wait = Math.round(random() * cap);
@@ -728,6 +729,8 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
       } catch (error) {
         failed += 1;
         console.log(`::error title=enable-auto-merge::#${pull.number} ${action}: ${describe(error)}`);
+        // Still armed: a note saying it is unarmed would be false.
+        continue;
       }
       if (action === "disarm") {
         await note(pull, detail, { clears, reason });

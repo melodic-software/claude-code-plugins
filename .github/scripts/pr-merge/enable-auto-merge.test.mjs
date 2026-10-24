@@ -96,7 +96,8 @@ const labels = (...names) => ({ totalCount: names.length, nodes: names.map((name
 
 // armErrors: per pull request id, the errors its arm sends throw, in order.
 // filesError: what every changed-files GET throws.
-function world(pulls, { failArm = false, armErrors = {}, filesError = null } = {}) {
+function world(pulls, { failArm = false, armErrors = {}, filesError = null, noteErrors = [], disarmError = null } = {}) {
+  const noteThrows = [...noteErrors];
   const armThrows = Object.fromEntries(Object.entries(armErrors).map(([id, errors]) => [id, [...errors]]));
   const calls = [];
   const notes = [];
@@ -120,6 +121,9 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null } = {
     const note = /^\/repos\/melodic-software\/claude-code-plugins\/issues\/(?:([0-9]+)\/(comments|labels)|comments\/([0-9]+))$/.exec(path);
     if (note && (method === "POST" || method === "PATCH")) {
       notes.push({ method, path, body });
+      if (noteThrows.length > 0) {
+        throw noteThrows.shift();
+      }
       return {};
     }
     assert.equal(`${method} ${path}`, "POST /graphql");
@@ -144,6 +148,9 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null } = {
     }
     if (body.query === ARM_MUTATION && armThrows[body.variables.id]?.length > 0) {
       throw armThrows[body.variables.id].shift();
+    }
+    if (body.query === DISARM_MUTATION && disarmError) {
+      throw disarmError;
     }
     if (body.query === ARM_MUTATION && failArm) {
       throw new Error("POST /graphql (GraphQL errors) failed with status 200");
@@ -309,6 +316,22 @@ test("a disarmed pull request gets the note after the disarm", async () => {
   const { writes, notes } = await run([armed]);
   assert.deepEqual(writes, [{ mutation: "disarm", id: "PR_1" }]);
   assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(MISSING_REASON) } }]);
+});
+
+test("a failed disarm writes no note, since the pull request is still armed", async () => {
+  const armed = pull(1, { autoMergeRequest: {}, files: [{ filename: "docs/held.md" }] });
+  const { code, writes, notes, lines } = await run([armed], {}, { disarmError: new GitHubError(200, "POST /graphql (GraphQL errors)") });
+  assert.equal(code, 1);
+  assert.deepEqual(writes, [{ mutation: "disarm", id: "PR_1" }]);
+  assert.deepEqual(notes, []);
+  assert.ok(lines.some((line) => line.startsWith("::error title=enable-auto-merge::#1 disarm")));
+});
+
+test("a refusal comment that fails on the network is not sent again", async () => {
+  const { code, notes, slept } = await run([pull(1, { verdict: MISSING })], {}, { noteErrors: [closed()] });
+  assert.equal(code, 1);
+  assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(MISSING_REASON) } }]);
+  assert.deepEqual(slept, []);
 });
 
 test("a lanes App pull request with no hold is armed, squash, at the head it read", async () => {
