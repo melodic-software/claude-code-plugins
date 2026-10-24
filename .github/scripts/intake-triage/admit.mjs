@@ -22,6 +22,9 @@
 //   work-unblock counts), and no open pull request in this repository names
 //   the issue;
 // - 9: the author is a listed human or the lanes App;
+// - trusted spec (owner decision Q9, #8999): the body or a comment is
+//   written, and last edited if ever, by a listed human, the only text
+//   pr-verify judges a lane PR against; App-written criteria alone fail it;
 // - lane-runnable done-when: no task-list item asks for what an unattended
 //   lane run cannot do (unrunnableCriteria below): a run on a named host or
 //   OS, a paid eval, a run repeated N times, a measurement over time, or a
@@ -39,7 +42,8 @@
 // skips the issue while such a pull request is open and admits it once none
 // is. An issue that waits only on a blocker loses `admission-deferred`, and
 // work-unblock admits it when its blocker closes. A refused issue loses it
-// too, so the sweep, which does not read these rules, cannot admit it. An
+// too. The sweep runs these rules itself only on an issue a listed human
+// marked (added admission-deferred to an issue with `status: ready`). An
 // issue already agent-ready, or whose agent-ready was ever removed, is left
 // alone. Issue text can only
 // refuse: it never satisfies a criterion the fields, labels or API decide.
@@ -52,8 +56,8 @@ export const DEFERRED = "admission-deferred";
 export const ADMIT_MARKER = "<!-- intake-triage admission -->";
 // Opens the lanes App's refinement comment (refine.mjs).
 export const REFINE_MARKER = "<!-- intake-triage refinement -->";
-const READY = "status: ready";
-const NEEDS_DECISION = "status: needs-decision";
+export const READY = "status: ready";
+export const NEEDS_DECISION = "status: needs-decision";
 const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
 const PARENT_HOLDS = new Set(["needs-human", "needs-owner-decision", NEEDS_DECISION]);
 const LISTS = ["types", "types-under-parent", "classes", "sizes", "uncertainty", "refuse-labels"];
@@ -201,7 +205,7 @@ export function admissionSettled(labels, events) {
 }
 
 // {verdict: admit | refuse | wait | skip, reasons}. Pure.
-export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, timeline, events, comments = [], bodyEditedAt = null, humans, appId, repository, webHosts }) {
+export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, timeline, events, comments = [], bodyEditedAt = null, spec, humans, appId, repository, webHosts }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
@@ -242,6 +246,10 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   const lines = [String(issue.body ?? ""), ...refinements].flatMap((text) => text.split("\n"));
   if (!lines.some((line) => line.trimStart().startsWith(rules["task-list"]))) {
     refuse.push(`it has no \`${rules["task-list"]}\` task list to check`);
+  }
+  // pr-verify judges a lane PR only against text a listed human wrote.
+  if (!hasTrustedSpec(spec, humans)) {
+    refuse.push(NO_TRUSTED_SPEC);
   }
   // A refinement breaks `://` and `www.` with a zero-width space so no link
   // renders; the check reads the URL as written.
@@ -292,7 +300,7 @@ async function parentOf(github, base) {
 }
 
 // One App comment carrying ADMIT_MARKER, edited in place on a later run.
-async function sayWhy(github, repository, base, comments, text) {
+export async function sayWhy(github, repository, base, comments, text) {
   const body = `${ADMIT_MARKER}\n${text}`;
   const own = comments.find(
     (comment) => comment.user?.login === LANES_APP_LOGIN && String(comment.body ?? "").startsWith(ADMIT_MARKER),
@@ -312,18 +320,39 @@ async function sayWhy(github, repository, base, comments, text) {
 const refinementsOf = (comments, appId) =>
   comments.filter((comment) => appId !== undefined && comment?.user?.id === appId && String(comment.body ?? "").startsWith(REFINE_MARKER));
 
-const BODY_EDIT_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
-  repository(owner: $owner, name: $name) { issue(number: $number) { lastEditedAt } }
-}`;
+// The body's and the first 100 comments' authors, last editors and edit
+// times: the first 100 comments are what pr-verify reads.
+const SPEC_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) { issue(number: $number) {
+    lastEditedAt author { ...actor } editor { ...actor }
+    comments(first: 100) { nodes { lastEditedAt author { ...actor } editor { ...actor } } }
+  } }
+}
+fragment actor on Actor { __typename ... on User { databaseId } ... on Bot { databaseId } }`;
 
-// When the issue's body was last edited, or null when never. An unexpected shape throws.
-async function bodyEditedAtOf(github, repository, number) {
+// {lastEditedAt, author, editor, comments: [{lastEditedAt, author, editor}]}
+// for the issue, as GraphQL answers them. An unexpected shape throws.
+async function specAuthorsOf(github, repository, number) {
   const [owner, name] = repository.split("/");
-  const issue = (await github("POST", "/graphql", { query: BODY_EDIT_QUERY, variables: { owner, name, number: Number(number) } }))?.data?.repository?.issue;
-  if (issue === null || typeof issue !== "object" || (issue.lastEditedAt !== null && typeof issue.lastEditedAt !== "string")) {
-    throw new Error("the issue's body edit time has an unexpected shape");
+  const issue = (await github("POST", "/graphql", { query: SPEC_QUERY, variables: { owner, name, number: Number(number) } }))?.data?.repository?.issue;
+  const edited = (item) => item !== null && typeof item === "object" && (item.lastEditedAt === null || typeof item.lastEditedAt === "string");
+  if (!edited(issue) || !Array.isArray(issue.comments?.nodes) || !issue.comments.nodes.every(edited)) {
+    throw new Error("the issue's authors and edit times have an unexpected shape");
   }
-  return issue.lastEditedAt;
+  return { lastEditedAt: issue.lastEditedAt, author: issue.author, editor: issue.editor, comments: issue.comments.nodes };
+}
+
+export const NO_TRUSTED_SPEC =
+  "no trusted-human acceptance criteria: a listed human must put the confirmed criteria in the body or post them as their own comment (owner Q9, #8999)";
+
+// Whether pr-verify will find spec text on the issue: the body or a comment
+// written, and last edited if ever, by a User among `humans`
+// (.github/scripts/pr-verify/resolve-pr.mjs linkedIssues). Bots and Apps, the
+// lanes App among them, never count. Pure.
+export function hasTrustedSpec(spec, humans) {
+  const trusted = (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
+  const written = (item) => trusted(item?.author) && (item.lastEditedAt == null || trusted(item.editor));
+  return spec !== undefined && spec !== null && (written(spec) || (spec.comments ?? []).some(written));
 }
 
 // For an issue apply-verdict held without admission (a flag, an escalation or
@@ -347,34 +376,55 @@ export async function noteUnrunnable({ github, repository, issue, rules, webHost
   return { outcome: "noted", reasons: [reason] };
 }
 
-// Reads the issue fresh, decides, and writes. `status` answers check-wip-cap's
-// status for the issue lane. Returns {outcome, reasons}.
-export async function admit({ github, repository, number, verdict, rules, humans, appId, status, webHosts, log = console.log }) {
+// The refusal comment's text for decide()'s reasons.
+export const refusalNote = (reasons) =>
+  `Not admitted to the issue lane: ${reasons.join("; ")}. A recorded decision does not change these rules (\`.github/actions/resolve-config/admission-rules.json\`); a person who wants it worked adds \`agent-ready\`.`;
+
+// Every fact decide() reads but the verdict, the rules and the caller's own
+// (humans, appId, repository, webHosts), for `issue` as just read.
+// `isTrusted(number)` answers whether a closed blocker's close counts; by
+// default it reads the blocker fresh.
+export async function admissionFacts({ github, repository, number, issue, rules, humans, appId, isTrusted }) {
   const base = `/repos/${repository}/issues/${number}`;
-  const issue = await github("GET", base);
   const blockers = await paginate(github, `${base}/dependencies/blocked_by`);
   // Anyone may close their own issue as completed, so a blocking issue counts
   // only with a trusted close, read fresh from the issue.
+  const trusted =
+    isTrusted ?? (async (blocker) => isTrustedClose(github, repository, await github("GET", `/repos/${repository}/issues/${blocker}`), humans));
   const trustedCloses = new Set();
   for (const blocker of blockers) {
     if (!blocker.pull_request && blocker.state === "closed" && blocker.state_reason === "completed" && here(blocker.repository_url, repository)) {
-      if (await isTrustedClose(github, repository, await github("GET", `/repos/${repository}/issues/${blocker.number}`), humans)) {
+      if (await trusted(blocker.number)) {
         trustedCloses.add(blocker.number);
       }
     }
   }
   const comments = await paginate(github, `${base}/comments`);
-  const decision = decide({
+  const spec = await specAuthorsOf(github, repository, number);
+  return {
     issue,
     comments,
-    bodyEditedAt: refinementsOf(comments, appId).length > 0 ? await bodyEditedAtOf(github, repository, number) : null,
-    verdict,
-    rules,
+    spec,
+    bodyEditedAt: spec.lastEditedAt,
     parent: rules["types-under-parent"].includes(issue.type?.name) ? await parentOf(github, base) : null,
     blockers,
     trustedCloses,
     timeline: await paginate(github, `${base}/timeline`),
     events: await paginate(github, `${base}/events`),
+  };
+}
+
+// Reads the issue fresh, decides, and writes. `status` answers check-wip-cap's
+// status for the issue lane. Returns {outcome, reasons}.
+export async function admit({ github, repository, number, verdict, rules, humans, appId, status, webHosts, log = console.log }) {
+  const base = `/repos/${repository}/issues/${number}`;
+  const issue = await github("GET", base);
+  const facts = await admissionFacts({ github, repository, number, issue, rules, humans, appId });
+  const { comments } = facts;
+  const decision = decide({
+    ...facts,
+    verdict,
+    rules,
     humans,
     appId,
     repository,
@@ -394,13 +444,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
     await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
     await github("POST", `${base}/labels`, { labels: [NEEDS_DECISION] });
     await undefer();
-    await sayWhy(
-      github,
-      repository,
-      base,
-      comments,
-      `Not admitted to the issue lane: ${reasons}. A recorded decision does not change these rules (\`.github/actions/resolve-config/admission-rules.json\`); a person who wants it worked adds \`agent-ready\`.`,
-    );
+    await sayWhy(github, repository, base, comments, refusalNote(decision.reasons));
     log(`admit: #${number} refused (${reasons})`);
     return { outcome: "refused", reasons: decision.reasons };
   }

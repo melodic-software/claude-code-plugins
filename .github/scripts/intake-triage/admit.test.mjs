@@ -35,6 +35,11 @@ const issueOf = (overrides = {}) => ({
   labels: [{ name: READY }, { name: "work-class: mechanical" }],
   ...overrides,
 });
+// Authors and editors as GraphQL answers them, for the trusted-spec criterion.
+const USER = (databaseId) => ({ __typename: "User", databaseId });
+const APP_ACTOR = { __typename: "Bot", databaseId: APP };
+const written = (author, { editor = null, lastEditedAt = editor ? "2026-10-20T00:00:00Z" : null } = {}) => ({ author, editor, lastEditedAt });
+const humanSpec = (comments = []) => ({ ...written(USER(HUMAN)), comments });
 const VERDICT = {
   workClass: "work-class: mechanical",
   dimensions: { size: "small", complexity: "low", uncertainty: "known" },
@@ -52,10 +57,52 @@ const facts = (overrides = {}) => ({
   appId: APP,
   webHosts: HOSTS,
   repository: "o/r",
+  spec: humanSpec(),
   ...overrides,
 });
 
 describe("decide", () => {
+  // Owner decision Q9 (#8999): pr-verify judges a lane PR only against text a
+  // listed human wrote and last edited (resolve-pr.mjs linkedIssues), so an
+  // issue with no such body or comment fails verify at every head.
+  describe("trusted-human acceptance criteria", () => {
+    const appIssue = issueOf({ user: { id: APP } });
+    const NO_SPEC =
+      "no trusted-human acceptance criteria: a listed human must put the confirmed criteria in the body or post them as their own comment (owner Q9, #8999)";
+
+    test("an App-authored issue with criteria only in its body is refused", () => {
+      for (const spec of [{ ...written(APP_ACTOR), comments: [] }, { ...written(APP_ACTOR), comments: [written(APP_ACTOR), written(USER(OUTSIDER))] }]) {
+        assert.deepEqual(decide(facts({ issue: appIssue, spec })), { verdict: "refuse", reasons: [NO_SPEC] });
+      }
+    });
+
+    test("the same issue with a listed human's comment is admitted", () => {
+      for (const comment of [written(USER(HUMAN)), written(USER(HUMAN), { editor: USER(HUMAN) })]) {
+        assert.deepEqual(decide(facts({ issue: appIssue, spec: { ...written(APP_ACTOR), comments: [comment] } })), { verdict: "admit", reasons: [] });
+      }
+      // A human's comment the App last edited is no longer theirs.
+      const edited = decide(facts({ issue: appIssue, spec: { ...written(APP_ACTOR), comments: [written(USER(HUMAN), { editor: APP_ACTOR })] } }));
+      assert.deepEqual(edited.reasons, [NO_SPEC]);
+    });
+
+    test("a human-authored body last edited by the App is refused unless a human comment exists", () => {
+      const body = written(USER(HUMAN), { editor: APP_ACTOR });
+      assert.deepEqual(decide(facts({ spec: { ...body, comments: [] } })), { verdict: "refuse", reasons: [NO_SPEC] });
+      assert.deepEqual(decide(facts({ spec: { ...body, comments: [written(USER(HUMAN))] } })), { verdict: "admit", reasons: [] });
+      // No spec read at all fails closed.
+      assert.deepEqual(decide(facts({ spec: undefined })).reasons, [NO_SPEC]);
+    });
+
+    test("admit() reads the authors and refuses an App-only spec to status: needs-decision", async () => {
+      const { github, calls } = fakeGitHub({ issue: appIssue, spec: { ...written(APP_ACTOR), comments: [] } });
+      const result = await admit({ github, repository: "o/r", number: 7, verdict: VERDICT, rules: RULES, humans, appId: APP, webHosts: HOSTS, status: async () => assert.fail("a refusal reads no status"), log: () => {} });
+      assert.deepEqual(result, { outcome: "refused", reasons: [NO_SPEC] });
+      const writes = calls.filter((call) => call.method !== "GET" && call.path !== "/graphql").map((call) => `${call.method} ${call.path}`);
+      assert.deepEqual(writes, ["DELETE /repos/o/r/issues/7/labels/status%3A%20ready", "POST /repos/o/r/issues/7/labels", "POST /repos/o/r/issues/7/comments"]);
+      assert.deepEqual(calls.find((call) => call.method === "POST" && call.path.endsWith("/labels")).body, { labels: [NEEDS_DECISION] });
+    });
+  });
+
   test("admits a clear Task that meets every criterion", () => {
     assert.deepEqual(decide(facts()), { verdict: "admit", reasons: [] });
   });
@@ -288,13 +335,14 @@ describe("decide", () => {
 
 // A fake GitHub for admit(): the issue, its parent, blockers, timeline,
 // events and comments, recording every call.
-function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, timeline = [], events = [], comments = [], bodyEditedAt = null } = {}) {
+function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, timeline = [], events = [], comments = [], bodyEditedAt = null, spec } = {}) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
     const base = "/repos/o/r/issues/7";
     if (method === "POST" && path === "/graphql") {
-      return { data: { repository: { issue: { lastEditedAt: bodyEditedAt } } } };
+      const answer = spec ?? { ...written(USER(HUMAN), { editor: bodyEditedAt ? USER(HUMAN) : null, lastEditedAt: bodyEditedAt }), comments: [] };
+      return { data: { repository: { issue: { ...answer, comments: { nodes: answer.comments } } } } };
     }
     if (method !== "GET") {
       return null;
@@ -349,7 +397,8 @@ const go = (fake, { status = open } = {}) =>
     status: async () => status,
     log: () => {},
   });
-const writes = (calls) => calls.filter((call) => call.method !== "GET").map(({ method, path, body }) => `${method} ${path} ${JSON.stringify(body)}`);
+// The GraphQL author read is a POST but writes nothing.
+const writes = (calls) => calls.filter((call) => call.method !== "GET" && call.path !== "/graphql").map(({ method, path, body }) => `${method} ${path} ${JSON.stringify(body)}`);
 
 describe("admit", () => {
   test("adds agent-ready when every criterion holds and the caps have room", async () => {
