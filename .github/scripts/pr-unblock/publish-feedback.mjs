@@ -37,8 +37,14 @@
 //      refusal or a named upload feedback-invalid. Otherwise escalates
 //      feedback-invalid, feedback-incomplete (a kept thread has no
 //      disposition), feedback-not-landed, feedback-partial (posting stopped
-//      after a reply), feedback-uncertain (an UNCERTAIN or VALID-defer reply)
-//      or feedback-disputed (an INCORRECT reply, left open for a person).
+//      after a reply), feedback-uncertain (an UNCERTAIN or VALID-defer reply),
+//      or a reason adjudicate-feedback.mjs settleDisputes gives for an
+//      INCORRECT reply: feedback-unadjudicated, feedback-question-intent,
+//      feedback-question-design, feedback-question-security, or
+//      feedback-disputed (the finding stood at an earlier adjudication and
+//      this round left it open). A finding that stands with the head unmoved
+//      skips finding-stands instead, which feedback-dispatch.mjs's sweep
+//      dispatches again.
 //
 // Environment:
 //   GH_TOKEN              the lane token (pull-requests: write, contents: read)
@@ -57,6 +63,8 @@
 //   SCAN_REFUSED_DIR, SCAN_REFUSED_READ  the scan-refusal job's markers for
 //                         the model call and their download's outcome
 //                         (address-feedback.mjs scanRefusal)
+//   ADJUDICATION_DIR, ADJUDICATION_SHA256  the adjudicate-feedback job's
+//                         verdicts.json and the SHA-256 that job recorded
 //   GITHUB_WORKSPACE      the PR head checkout evidence paths are checked in
 //   SKIP_REASON_FILE, ESCALATION_REASON_FILE  where the runner reads them
 
@@ -80,6 +88,7 @@ import {
   SHA,
   trustedHumansFrom,
 } from "./address-feedback.mjs";
+import { parseVerdicts, settleDisputes } from "./adjudicate-feedback.mjs";
 import { inThreadScope } from "./thread-scope.mjs";
 
 // bytes: replies.jsonl's cap, the read runner's carry, seal and scan cap too;
@@ -460,7 +469,7 @@ export async function publish(args) {
   return result;
 }
 
-async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", scanRefused = "", repliesExpected = false, reviewerId, trustedHumans, readArtifact, fileExists, log }) {
+async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", scanRefused = "", repliesExpected = false, reviewerId, trustedHumans, readArtifact, readAdjudication = () => null, fileExists, log }) {
   let escalationReason = "";
   // fixesLanded judged the range up to headSha; a push after it is unjudged.
   const headMoved = async () => (await api.readBranch(headRef)) !== headSha;
@@ -586,13 +595,31 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       }
       log(`replied on ${reply.thread} (${reply.disposition})${reply.disposition === "VALID" ? "; resolved" : ""}`);
     }
-    // An INCORRECT thread stays open for a person to decide (owner decision):
-    // its evidence reply is posted, and the PR goes to a person, since no
-    // later round selects it until that person replies in the thread.
-    if (escalationReason === "" && posted.some((entry) => entry.disposition === "INCORRECT")) {
-      escalationReason = "feedback-disputed";
-    }
-    return { escalationReason, posted };
+    // An INCORRECT thread goes to the adjudicator's verdict, not straight to
+    // a person (owner decision): it is resolved, handed back to the next round,
+    // or escalated with the question the verdict names; a thread whose finding
+    // stood at an earlier adjudication and is still open escalates
+    // feedback-disputed (adjudicate-feedback.mjs settleDisputes). The
+    // adjudicator read the select job's head, which this round's fix push
+    // may have moved past headSha.
+    // A head that moved this round gets a review run, which starts the next
+    // round; an earlier fix (#9560's fallback) moves nothing.
+    const settled = await settleDisputes({
+      api,
+      pr,
+      adjudicatedSha: run.head_sha,
+      posted,
+      replies,
+      shown,
+      now,
+      verdicts: posted.some((entry) => entry.disposition === "INCORRECT") ? parseVerdicts(readAdjudication(), run.head_sha) : new Map(),
+      pushed: run.head_sha !== headSha,
+      headMoved,
+      resolveAfterReply,
+      escalationReason,
+      log,
+    });
+    return { ...settled, posted };
   }
 }
 
@@ -667,6 +694,18 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     }
     return text;
   };
+  // The adjudicator's verdicts (adjudicate-feedback.mjs collect), when its
+  // job uploaded them; anything else reads as none, which escalates every
+  // INCORRECT thread as feedback-unadjudicated.
+  const readAdjudication = () => {
+    const path = join(env.ADJUDICATION_DIR ?? "", "verdicts.json");
+    if (!env.ADJUDICATION_DIR || !existsSync(path) || !lstatSync(path).isFile() || lstatSync(path).size > LIMITS.bytes) {
+      return null;
+    }
+    const text = readFileSync(path, "utf8");
+    const recorded = /^[0-9a-f]{64}$/.test(env.ADJUDICATION_SHA256 ?? "") && createHash("sha256").update(text).digest("hex") === env.ADJUDICATION_SHA256;
+    return recorded ? text : null;
+  };
   const { escalationReason, skipReason } = await publish({
     api:
       api ??
@@ -688,6 +727,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     reviewerId: reviewerIdFrom(env.TRUSTED_ACTORS),
     trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS),
     readArtifact: () => ({ runText: readRun(), repliesText: readReplies() }),
+    readAdjudication,
     fileExists: (path) => existsSync(join(env.GITHUB_WORKSPACE, path)),
     log,
   });
