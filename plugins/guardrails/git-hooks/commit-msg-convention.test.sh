@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Contract tests for the guardrails commit-msg entry (git-hooks/commit-msg-convention.sh):
 # a subject off the team's tracked subject_pattern fails, a matching one and
-# the autosquash forms pass, no tracked pattern (or a non-ERE one) enforces
+# the autosquash forms and git's own Merge and Revert subjects pass, no tracked pattern (or a non-ERE one) enforces
 # nothing, a missing resolver never blocks blind, and the plugin's vendored
 # installer wires the entry so `git commit` runs it from the installed copy.
 # test-scope: plugins/guardrails/git-hooks/entries.json plugins/guardrails/hooks/resolve-convention-pattern.sh plugins/guardrails/lib/git-hooks/install.mjs
@@ -86,6 +86,11 @@ expect "core.commentChar: a # line is the subject" 1 "$(msg "$REPO" $'# not a co
 new_repo "$CC"
 expect "Conventional Commits keyword: feat: passes" 0 "$(msg "$REPO" "feat: add thing")"
 expect "Conventional Commits keyword: a plain subject fails" 1 "$(msg "$REPO" "junk subject")"
+expect "Conventional Commits keyword: a git-written Merge subject passes" 0 "$(msg "$REPO" "Merge branch 'x'")"
+expect "Conventional Commits keyword: a git-written Revert subject passes" 0 "$(msg "$REPO" 'Revert "feat: y"')"
+expect "Conventional Commits keyword: update stuff still fails" 1 "$(msg "$REPO" "update stuff")"
+expect "Conventional Commits keyword: Merging without the git form still fails" 1 "$(msg "$REPO" "Mergers and acquisitions")"
+expect "Conventional Commits keyword: Revert without a quote still fails" 1 "$(msg "$REPO" "Revert the thing")"
 err="$( (cd "$REPO" && printf 'junk subject\n' >"$WORK/msg" && bash "$CHECK" "$WORK/msg") 2>&1 >/dev/null)"
 expect "the failure names the subject and how to fix it, never a skip" "yes|no" \
   "$(grep -q 'subject: junk subject' <<<"$err" && echo yes || echo no)|$(grep -qi 'no-verify' <<<"$err" && echo yes || echo no)"
