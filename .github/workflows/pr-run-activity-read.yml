@@ -773,11 +773,12 @@ jobs:
       # workflow-modified when the caller's or the write file's blob at the
       # run's commit differs from main's tip (the files work-unblock's re-fire
       # sweep compares too), so this checks the same rule against the default branch
-      # checkout first and fails red before any model turn. The failed run
-      # leaves no outcome marker, so work-unblock's hourly sweep re-fires the
-      # issue on main's files. A commit the checkout cannot read is left to
-      # the broker. This file is called by a local path, so it runs from the
-      # caller's commit.
+      # checkout first. On a difference it sets stale=true and ends green: no
+      # model turn, no outcome marker, and go=false skips every later step and
+      # caller job. The stop step below marks the run for work-unblock's hourly
+      # sweep, which re-fires the issue on main's files. A commit the checkout
+      # cannot read is left to the broker. This file is called by a local path,
+      # so it runs from the caller's commit.
       - name: Check the run's workflow files against main
         id: workflow-current
         if: >-
@@ -796,10 +797,17 @@ jobs:
           fi
           for path in "$caller" .github/workflows/pr-run-activity-write.yml; do
             if [ "$(git -C .base rev-parse -q --verify "$WORKFLOW_SHA:$path")" != "$(git -C .base rev-parse -q --verify "HEAD:$path")" ]; then
-              echo "::error::workflow-stale: $path differs from main's tip, so the broker would refuse this run's apply job; no model ran, and work-unblock's sweep re-fires the issue on main's files"
-              exit 1
+              echo "::warning::workflow-stale: $path differs from main's tip, so the broker would refuse this run's apply job; no model ran, and work-unblock's sweep re-fires the issue on main's files"
+              echo "stale=true" >>"$GITHUB_OUTPUT"
+              exit 0
             fi
           done
+
+      # work-unblock's sweep matches this step's name, run, in the job listing:
+      # a green run that stopped here did no work and is re-fired.
+      - name: Stop on stale workflow files
+        if: steps.workflow-current.outputs.stale == 'true'
+        run: echo "workflow-stale; the run stops before any model turn"
 
       # Issue mode, before any model turn, with the job's read-only token:
       # skips the model when an earlier run already did the work: a
@@ -816,22 +824,24 @@ jobs:
         if: >-
           inputs.issue-number != '' && steps.config.outputs.applies == 'true'
           && steps.config.outputs.kind == 'skill'
+          && steps.workflow-current.outputs.stale != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ inputs.issue-number }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/work-resolve-issue/report-outcome.mjs --find-prior
 
-      # Whether the activity runs: it applies, and in issue mode no earlier
-      # run's work stops it. Every step below that touches the activity keys
-      # on this.
+      # Whether the activity runs: it applies, and in issue mode neither stale
+      # workflow files nor an earlier run's work stops it. Every step below
+      # that touches the activity keys on this.
       - name: Decide whether the activity runs
         id: go
         if: steps.config.outputs.applies == 'true'
         env:
           PRIOR: ${{ steps.issue-prior.outputs.proceed }}
+          STALE: ${{ steps.workflow-current.outputs.stale }}
         run: |
-          if [ "$PRIOR" = false ]; then
+          if [ "$PRIOR" = false ] || [ "$STALE" = true ]; then
             echo "run=false" >>"$GITHUB_OUTPUT"
           else
             echo "run=true" >>"$GITHUB_OUTPUT"
