@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, admit, decide, loadRules, noteUnrunnable, openPullsNaming, unrunnableCriteria } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, admissionFacts, admit, decide, loadRules, noteUnrunnable, openPullsNaming, refusalText, unrunnableCriteria } from "./admit.mjs";
 import { REFINE_MARKER, render, validateOutput } from "./refine.mjs";
 
 const RULES = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)));
@@ -28,6 +28,7 @@ const HOSTS = ["code.claude.com", "docs.github.com"];
 const issueOf = (overrides = {}) => ({
   number: 7,
   state: "open",
+  created_at: "2026-10-20T08:00:00Z",
   title: "docs(session-flow): README skill count",
   body: BODY,
   user: { id: HUMAN },
@@ -64,13 +65,13 @@ const facts = (overrides = {}) => ({
 });
 
 describe("decide", () => {
-  // Owner decision Q9 (#8999): pr-verify judges a lane PR only against text a
-  // listed human wrote and last edited (resolve-pr.mjs linkedIssues), so an
-  // issue with no such body or comment fails verify at every head.
+  // pr-verify judges a lane PR only against text a listed human wrote and
+  // last edited, and the refinement on their issue (resolve-pr.mjs
+  // linkedIssues), so an issue with no such text fails verify at every head.
   describe("trusted-human acceptance criteria", () => {
     const appIssue = issueOf({ user: { id: APP } });
     const NO_SPEC =
-      "no trusted-human acceptance criteria: a listed human must put the confirmed `- [ ]` criteria in the body or post them as their own comment (owner Q9, #8999)";
+      "no trusted-human acceptance criteria: a listed human must put the confirmed `- [ ]` criteria in the body or post them as their own comment, or, on an issue a listed human filed, intake's newest refinement comment must hold them unedited";
     const goAhead = written(USER(HUMAN), { body: "Go ahead." });
 
     test("an App-authored issue with criteria only in its body is refused", () => {
@@ -151,7 +152,6 @@ describe("decide", () => {
   const refusals = [
     ["criterion 2: a type the rules do not list", { issue: issueOf({ type: { name: "Epic" } }) }, /type Epic/],
     ["criterion 2: an issue with no type", { issue: issueOf({ type: null }) }, /type none/],
-    ["criterion 2: a Feature with no parent", { issue: issueOf({ type: { name: "Feature" } }) }, /Feature.*parent/],
     [
       "criterion 2: a Feature under a parent no listed human filed",
       {
@@ -181,16 +181,6 @@ describe("decide", () => {
         },
       },
       /Uncertainty unknown/,
-    ],
-    [
-      "criterion 3: Size Large",
-      {
-        verdict: {
-          ...VERDICT,
-          dimensions: { ...VERDICT.dimensions, size: "large" },
-        },
-      },
-      /Size large/,
     ],
     ["criterion 3: untrusted-provenance work", { verdict: { ...VERDICT, workClass: "work-class: untrusted-provenance" } }, /untrusted-provenance work needs a person/],
     [
@@ -223,6 +213,19 @@ describe("decide", () => {
     });
   }
 
+  // Owner Q93 settled Size Large without a person: the split happens at intake,
+  // so the issue parks at status: ready (a wait with no pull request).
+  test("Size Large parks the issue for the intake split instead of refusing it", () => {
+    const result = decide(facts({ verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } } }));
+    assert.deepEqual(result, { verdict: "wait", reasons: ["Size large: the split into sub-issues at intake is pending (owner Q93)"], pulls: [] });
+  });
+
+  test("Size Large beside a real refusal reason still refuses, and names both", () => {
+    const result = decide(facts({ issue: issueOf({ user: { id: OUTSIDER } }), verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } } }));
+    assert.equal(result.verdict, "refuse");
+    assert.match(result.reasons.join("; "), /author.*Size large/);
+  });
+
   test("admits an issue whose title and body name a path under .github/ or docs/conventions/", () => {
     const result = decide(
       facts({
@@ -233,6 +236,21 @@ describe("decide", () => {
       }),
     );
     assert.deepEqual(result, { verdict: "admit", reasons: [] });
+  });
+
+  test("admits a Feature with no parent", () => {
+    const result = decide(facts({ issue: issueOf({ type: { name: "Feature" } }), parent: null }));
+    assert.deepEqual(result, { verdict: "admit", reasons: [] });
+  });
+
+  test("refuses a Feature, parent or not, once the rules no longer list it", () => {
+    const rules = { ...RULES, "types-parent-if-present": [] };
+    const issue = issueOf({ type: { name: "Feature" } });
+    for (const parent of [null, { state: "open", user: { id: HUMAN }, labels: [] }]) {
+      const result = decide(facts({ issue, rules, parent }));
+      assert.equal(result.verdict, "refuse");
+      assert.match(result.reasons.join(), /type Feature is not one of/);
+    }
   });
 
   test("admits a Feature under an open parent a listed human filed", () => {
@@ -292,7 +310,31 @@ describe("decide", () => {
   test("a blocker closed as completed without a trusted close holds it", () => {
     const result = decide(facts({ blockers: [completed] }));
     assert.equal(result.verdict, "wait");
-    assert.match(result.reasons.join(), /#5 is not closed as completed by a listed human or a merge/);
+    assert.match(result.reasons.join(), /#5 is not closed by a listed human or a merge/);
+  });
+
+  // A blocker closed as not planned or a duplicate leaves nothing to wait
+  // for; the close still has to be a listed human's or a merge's.
+  for (const reason of ["not_planned", "duplicate"]) {
+    test(`a blocker closed as ${reason} with a trusted close does not hold it; without one it does`, () => {
+      const blocker = { ...completed, state_reason: reason };
+      assert.equal(decide(facts({ blockers: [blocker], trustedCloses: new Set([5]) })).verdict, "admit");
+      assert.equal(decide(facts({ blockers: [blocker] })).verdict, "wait");
+    });
+  }
+
+  test("another repository's blocker counts only on its own trusted close, never this repository's same number", () => {
+    const other = { ...completed, repository_url: "https://api.github.com/repos/o/other" };
+    assert.equal(decide(facts({ blockers: [other], trustedCloses: new Set(["o/other#5"]) })).verdict, "admit");
+    const result = decide(facts({ blockers: [other], trustedCloses: new Set([5]) }));
+    assert.equal(result.verdict, "wait");
+    assert.match(result.reasons.join(), /blocker o\/other#5 is not closed/);
+  });
+
+  test("the refusal comment names the reasons and asks no one to add agent-ready by hand", () => {
+    const text = refusalText("Size large is not one of small, medium");
+    assert.match(text, /^Not admitted to the issue lane: Size large is not one of small, medium\. /);
+    assert.doesNotMatch(text, /agent-ready/);
   });
 
   test("skips an issue already agent-ready, or without status: ready", () => {
@@ -355,16 +397,48 @@ describe("decide", () => {
     assert.equal(result.verdict, "refuse");
   });
 
-  // The App's refinement comment is model text pr-verify never reads, so its
-  // task list admits nothing; a listed human who confirms it posts it as their own.
+  // On an issue a listed human wrote, pr-verify reads intake's newest
+  // refinement comment while the lanes App's text is unedited, so its task
+  // list counts; nothing else the App wrote does.
   describe("criterion 7 and the lanes App's refinement comment", () => {
     const thin = issueOf({ body: "Make the README skill count right." });
-    const refinement = (body = `${REFINE_MARKER}\n**Refinement.**\n\n- [ ] Line 3 says nineteen.`) => written(APP_ACTOR, { body });
+    const refinement = (body = `${REFINE_MARKER}\n**Refinement.**\n\n- [ ] Line 3 says nineteen.`, extra = {}) => written(APP_ACTOR, { body, ...extra });
     const NO_SPEC = /^no trusted-human acceptance criteria: /;
-
-    test("a thin issue whose only task list is the App's refinement comment is refused", () => {
-      const result = decide(facts({ issue: thin, spec: humanSpec(thin, [refinement()]) }));
+    const refused = (spec, issue = thin) => {
+      const result = decide(facts({ issue, spec }));
       assert.equal(result.verdict, "refuse");
+      assert.match(result.reasons.join(), NO_SPEC);
+    };
+
+    test("a thin issue a listed human filed is admitted on the App's newest unedited refinement comment", () => {
+      assert.deepEqual(decide(facts({ issue: thin, spec: humanSpec(thin, [refinement()]) })), { verdict: "admit", reasons: [] });
+      // The newest one is read: an older one holding the only task list does not count.
+      refused(humanSpec(thin, [refinement(), refinement(`${REFINE_MARKER}\nNo criteria here.`)]));
+      assert.equal(decide(facts({ issue: thin, spec: humanSpec(thin, [refinement(`${REFINE_MARKER}\nNone.`), refinement()]) })).verdict, "admit");
+    });
+
+    test("an edited refinement, or one that is not the newest unedited, does not count", () => {
+      refused(humanSpec(thin, [refinement(undefined, { editor: APP_ACTOR })]));
+      refused(humanSpec(thin, [refinement(), refinement(undefined, { editor: APP_ACTOR })]));
+    });
+
+    test("a refinement on an issue the App filed, or whose body someone else last edited, does not count", () => {
+      refused({ ...written(APP_ACTOR, { body: thin.body }), comments: [refinement()] }, issueOf({ body: thin.body, user: { id: APP } }));
+      refused({ ...written(USER(HUMAN), { body: thin.body, editor: APP_ACTOR }), comments: [refinement()] });
+    });
+
+    test("a refinement whose marker is not exactly the first text does not count", () => {
+      for (const body of [` ${REFINE_MARKER}\n- [ ] x`, `${REFINE_MARKER.toUpperCase()}\n- [ ] x`, `- [ ] x\n${REFINE_MARKER}`, `${ADMIT_MARKER}\n- [ ] x`]) {
+        refused(humanSpec(thin, [refinement(body)]));
+      }
+    });
+
+    test("a marked comment by anyone but the lanes App does not count as a refinement", () => {
+      for (const author of [{ __typename: "Bot", databaseId: 41898282 }, USER(OUTSIDER), { __typename: "User", databaseId: APP }]) {
+        refused(humanSpec(thin, [written(author, { body: `${REFINE_MARKER}\n- [ ] Line 3 says nineteen.` })]));
+      }
+      // Without the App's id nothing it wrote counts.
+      const result = decide(facts({ issue: thin, appId: undefined, spec: humanSpec(thin, [refinement()]) }));
       assert.match(result.reasons.join(), NO_SPEC);
     });
 
@@ -409,7 +483,10 @@ describe("decide", () => {
 // `spec` is what SPEC_QUERY answers (by default the issue's body as a listed
 // human wrote it); "no-issue" and "no-body" answer an unexpected shape.
 // `closing` is what closedByPullRequestsReferences answers.
-function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, timeline = [], closing = [], events = [], comments = [], spec, failOn } = {}) {
+// `elsewhere` answers another repository's issue reads by path; `older` is
+// the count the older-deferred search answers, or "incomplete". `closer` is
+// what the closing-event query answers.
+function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = {}, elsewhere = {}, older = 0, timeline = [], closing = [], events = [], comments = [], spec, closer, failOn } = {}) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
@@ -421,6 +498,9 @@ function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = 
       if (body.query.includes("closedByPullRequestsReferences")) {
         const refs = { nodes: closing, pageInfo: { hasNextPage: false, endCursor: null } };
         return { data: { repository: { issue: { closedByPullRequestsReferences: refs } } } };
+      }
+      if (body.query.includes("ClosedEvent")) {
+        return { data: { repository: { issue: { timelineItems: { nodes: closer ? [{ closer }] : [] } } } } };
       }
       if (spec === "no-issue") {
         return { data: { repository: { issue: null } } };
@@ -448,6 +528,12 @@ function fakeGitHub({ issue = issueOf(), parent = null, blockers = [], closed = 
     const blocker = path.match(/^\/repos\/o\/r\/issues\/(\d+)$/);
     if (blocker && closed[blocker[1]]) {
       return closed[blocker[1]];
+    }
+    if (Object.hasOwn(elsewhere, path)) {
+      return elsewhere[path];
+    }
+    if (path.startsWith("/search/issues?")) {
+      return older === "incomplete" ? { total_count: 0, incomplete_results: true, items: [] } : { total_count: older, incomplete_results: false, items: [] };
     }
     if (path.startsWith(`${base}/timeline`)) {
       return timeline;
@@ -491,6 +577,28 @@ describe("admit", () => {
     assert.equal(result.outcome, "admitted");
     assert.deepEqual(writes(fake.calls), [`POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_READY] })}`]);
   });
+
+  const feature = issueOf({ type: { name: "Feature" } });
+
+  test("a Feature with no parent is admitted through the real fetch path", async () => {
+    const fake = fakeGitHub({ issue: feature });
+    assert.equal((await go(fake)).outcome, "admitted");
+    assert.ok(fake.calls.some((call) => call.path === "/repos/o/r/issues/7/parent"), "the parent was looked up");
+  });
+
+  for (const [name, parent] of [
+    ["an outsider filed", { state: "open", user: { id: OUTSIDER }, labels: [] }],
+    ["awaits a decision", { state: "open", user: { id: HUMAN }, labels: [{ name: NEEDS_DECISION }] }],
+    ["is closed", { state: "closed", user: { id: HUMAN }, labels: [] }],
+  ]) {
+    test(`a Feature whose parent ${name} is refused through the real fetch path`, async () => {
+      const fake = fakeGitHub({ issue: feature, parent });
+      const result = await go(fake);
+      assert.equal(result.outcome, "refused");
+      assert.ok(fake.calls.some((call) => call.path === "/repos/o/r/issues/7/parent"), "the parent was looked up");
+      assert.ok(!writes(fake.calls).some((line) => line.startsWith("POST /repos/o/r/issues/7/labels") && line.includes(AGENT_READY)), "no agent-ready label");
+    });
+  }
 
   const full = [
     [
@@ -576,11 +684,13 @@ describe("admit", () => {
     assert.match(writes(fake.calls).at(-1), /^PATCH \/repos\/o\/r\/issues\/comments\/31 /);
   });
 
-  test("a thin issue is refused on the App's refinement alone and admitted on a listed human's confirmed criteria", async () => {
+  test("a thin issue a listed human filed is admitted on the App's refinement alone or on a listed human's confirmed criteria", async () => {
     const thin = issueOf({ body: "Make the README skill count right." });
     const refinement = written(APP_ACTOR, { body: `${REFINE_MARKER}\n- [ ] Line 3 says nineteen.` });
     const refined = await go(fakeGitHub({ issue: thin, spec: humanSpec(thin, [refinement]) }));
-    assert.equal(refined.outcome, "refused");
+    assert.equal(refined.outcome, "admitted");
+    const edited = await go(fakeGitHub({ issue: thin, spec: humanSpec(thin, [{ ...refinement, editor: APP_ACTOR, lastEditedAt: "2026-10-20T00:00:00Z" }]) }));
+    assert.equal(edited.outcome, "refused");
     const confirmed = await go(fakeGitHub({ issue: thin, spec: humanSpec(thin, [refinement, written(USER(HUMAN), { body: "- [ ] Line 3 says nineteen." })]) }));
     assert.equal(confirmed.outcome, "admitted");
   });
@@ -617,6 +727,103 @@ describe("admit", () => {
     assert.match(outsider.reasons.join(), /#5/);
     const human = await go(fakeGitHub({ blockers: [blocker], closed: closedBy(HUMAN) }));
     assert.equal(human.outcome, "admitted");
+  });
+
+  test("a blocker closed as not planned admits it on a listed human's close and keeps it waiting on an outsider's", async () => {
+    const blocker = { number: 5, state: "closed", state_reason: "not_planned", repository_url: "https://api.github.com/repos/o/r" };
+    const closedBy = (id) => ({ 5: { ...blocker, closed_by: { id } } });
+    assert.equal((await go(fakeGitHub({ blockers: [blocker], closed: closedBy(HUMAN) }))).outcome, "admitted");
+    assert.equal((await go(fakeGitHub({ blockers: [blocker], closed: closedBy(OUTSIDER) }))).outcome, "waiting");
+  });
+
+  test("another repository's closed blocker is read there: a listed human's close admits it, an outsider's or an unreadable one keeps it waiting", async () => {
+    const blocker = { number: 5, state: "closed", state_reason: "completed", repository_url: "https://api.github.com/repos/o/other" };
+    const there = (id) => ({ "/repos/o/other/issues/5": { ...blocker, closed_by: { id } } });
+    const human = fakeGitHub({ blockers: [blocker], elsewhere: there(HUMAN) });
+    assert.equal((await go(human)).outcome, "admitted");
+    assert.ok(human.calls.some((call) => call.method === "GET" && call.path === "/repos/o/other/issues/5"));
+    assert.equal((await go(fakeGitHub({ blockers: [blocker], elsewhere: there(OUTSIDER) }))).outcome, "waiting");
+    const unreadable = await go(fakeGitHub({ blockers: [blocker] }));
+    assert.equal(unreadable.outcome, "waiting");
+    assert.match(unreadable.reasons.join(), /o\/other#5/);
+  });
+
+  test("another repository's blocker closed by a commit or merge there keeps it waiting; here the same close admits it", async () => {
+    const blocker = (repo) => ({ number: 5, state: "closed", state_reason: "completed", repository_url: `https://api.github.com/repos/${repo}` });
+    const commit = (repo) => ({ __typename: "Commit", repository: { nameWithOwner: repo } });
+    const merge = (repo) => ({ __typename: "PullRequest", merged: true, repository: { nameWithOwner: repo } });
+    for (const by of [commit, merge]) {
+      const there = { "/repos/o/other/issues/5": { ...blocker("o/other"), closed_by: { id: OUTSIDER } } };
+      const elsewhere = await go(fakeGitHub({ blockers: [blocker("o/other")], elsewhere: there, closer: by("o/other") }));
+      assert.equal(elsewhere.outcome, "waiting");
+      assert.match(elsewhere.reasons.join(), /o\/other#5/);
+      const own = { 5: { ...blocker("o/r"), closed_by: { id: OUTSIDER } } };
+      assert.equal((await go(fakeGitHub({ blockers: [blocker("o/r")], closed: own, closer: by("o/r") }))).outcome, "admitted");
+    }
+  });
+
+  test("a merged pull request blocker counts only in this repository", () => {
+    const merged = (repo) => ({ number: 5, state: "closed", pull_request: { merged_at: "2026-10-24T00:00:00Z" }, repository_url: `https://api.github.com/repos/${repo}` });
+    assert.deepEqual(decide(facts({ blockers: [merged("o/r")] })), { verdict: "admit", reasons: [] });
+    const elsewhere = decide(facts({ blockers: [merged("o/other")] }));
+    assert.equal(elsewhere.verdict, "wait");
+    assert.match(elsewhere.reasons.join(), /o\/other#5 is not closed by a listed human or a merge/);
+  });
+
+  test("a caller's isTrusted answers only this repository's blockers", async () => {
+    const blocker = { number: 5, state: "closed", state_reason: "completed", repository_url: "https://api.github.com/repos/o/other" };
+    const fake = fakeGitHub({ blockers: [blocker], elsewhere: { "/repos/o/other/issues/5": { ...blocker, closed_by: { id: OUTSIDER } } } });
+    const read = await admissionFacts({ github: fake.github, repository: "o/r", number: 7, issue: issueOf(), rules: RULES, humans, isTrusted: async () => true });
+    assert.deepEqual([...read.trustedCloses], []);
+  });
+
+  // Owner Q95: admission takes the unblocked frontier oldest first, so a new
+  // issue with room still queues behind an older deferred one.
+  test("with room, an issue waits behind an older admission-deferred issue, never agent-ready", async () => {
+    const fake = fakeGitHub({ older: 1 });
+    const result = await go(fake);
+    assert.equal(result.outcome, "deferred");
+    assert.deepEqual(writes(fake.calls), [`POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [DEFERRED] })}`]);
+    const search = fake.calls.find((call) => call.path.startsWith("/search/issues?"));
+    const q = new URLSearchParams(search.path.split("?")[1]).get("q");
+    assert.equal(q, "repo:o/r is:issue is:open label:admission-deferred created:<2026-10-20T08:00:00+00:00");
+  });
+
+  // Until work-unblock's sweep counts these blockers, it would drop the
+  // deferral without admitting the issue, leaving it with neither label.
+  test("an issue resting on a not planned, duplicate or other repository's blocker is admitted, not deferred behind an older one", async () => {
+    const here = (reason) => ({ number: 5, state: "closed", state_reason: reason, repository_url: "https://api.github.com/repos/o/r" });
+    for (const reason of ["not_planned", "duplicate"]) {
+      const fake = fakeGitHub({ blockers: [here(reason)], closed: { 5: { ...here(reason), closed_by: { id: HUMAN } } }, older: 1 });
+      assert.equal((await go(fake)).outcome, "admitted", reason);
+      assert.ok(!fake.calls.some((call) => call.path.startsWith("/search/issues?")));
+    }
+    const other = { ...here("completed"), repository_url: "https://api.github.com/repos/o/other" };
+    const elsewhere = fakeGitHub({ blockers: [other], elsewhere: { "/repos/o/other/issues/5": { ...other, closed_by: { id: HUMAN } } }, older: 1 });
+    assert.equal((await go(elsewhere)).outcome, "admitted");
+    const completed = fakeGitHub({ blockers: [here("completed")], closed: { 5: { ...here("completed"), closed_by: { id: HUMAN } } }, older: 1 });
+    assert.equal((await go(completed)).outcome, "deferred");
+  });
+
+  test("with the lane full, an issue resting on a blocker the sweep does not count waits with a comment, never admission-deferred", async () => {
+    const blocker = { number: 5, state: "closed", state_reason: "not_planned", repository_url: "https://api.github.com/repos/o/r" };
+    const fake = fakeGitHub({
+      issue: issueOf({ labels: [{ name: READY }, { name: DEFERRED }] }),
+      blockers: [blocker],
+      closed: { 5: { ...blocker, closed_by: { id: HUMAN } } },
+    });
+    const result = await go(fake, { status: { ...open, paused: true, pause_reason: "held-cap" } });
+    assert.equal(result.outcome, "waiting");
+    const done = writes(fake.calls);
+    assert.equal(done.length, 2, done.join("\n"));
+    assert.match(done[0], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/admission-deferred/);
+    assert.match(done[1], /^POST \/repos\/o\/r\/issues\/7\/comments .*the lane is paused \(held-cap\), and the hourly sweep cannot admit it/);
+  });
+
+  test("an incomplete or failed older-deferred search defers rather than admits", async () => {
+    assert.equal((await go(fakeGitHub({ older: "incomplete" }))).outcome, "deferred");
+    const failed = fakeGitHub({ failOn: (method, path) => path.startsWith("/search/issues?") });
+    assert.equal((await go(failed)).outcome, "deferred");
   });
 
   test("an issue already agent-ready is left alone", async () => {

@@ -165,7 +165,12 @@ def armed_pull(
     """An open pull request as the armed read returns it; `armer` None is one
     with auto-merge off."""
     request = None if armer is None else {"enabledBy": armer}
-    return {"id": pr_id, "number": number, "author": author, "autoMergeRequest": request}
+    return {
+        "id": pr_id,
+        "number": number,
+        "author": author,
+        "autoMergeRequest": request,
+    }
 
 
 def completed(
@@ -2290,6 +2295,48 @@ class Baseline(CheckCase):
         )
 
     def test_a_lint_repo_step_outside_the_aggregator_is_still_charged(self) -> None:
+        jobs = self.gitleaks_red(312)
+        jobs[0] = failed_job(
+            312,
+            "lint-repo",
+            "Aggregate hygiene results",
+            "Test hygiene result aggregation",
+        )
+        self.red_after_merge(*jobs)
+        self.assertEqual([f.signal for f in self.check().failures], ["schedule"])
+
+    def test_a_failed_job_listing_no_failed_step_is_charged_whole(self) -> None:
+        # The jobs API can answer a completed job with no steps or a cut
+        # list. A failed job whose list shows no failed step has unknown
+        # steps: the job is a check of its own, as for a non-hygiene step.
+        cases = {
+            "no steps": ([], ["schedule"]),
+            "a list cut before the failed step": (
+                [
+                    {"name": "Set up job", "conclusion": "success"},
+                    {"name": "Check out", "conclusion": "success"},
+                ],
+                ["schedule"],
+            ),
+            # The full list keeps the gitleaks-only excuse.
+            "the full list": (None, []),
+        }
+        for label, (steps, expected) in cases.items():
+            with self.subTest(label):
+                self.setUp()
+                jobs = self.gitleaks_red(312)
+                if steps is not None:
+                    jobs[0]["steps"] = steps
+                self.red_after_merge(*jobs)
+                self.assertEqual([f.signal for f in self.check().failures], expected)
+
+    def test_a_baseline_job_with_unknown_steps_excuses_nothing(self) -> None:
+        # Before the merge, lint-repo failed only on gitleaks, but its steps
+        # read empty, so it counted whole. After the merge a real lint-repo
+        # step fails; that baseline entry must not excuse it.
+        base = self.gitleaks_red(301)
+        base[0]["steps"] = []
+        self.before_merge("failure", *base)
         jobs = self.gitleaks_red(312)
         jobs[0] = failed_job(
             312,
