@@ -50,8 +50,8 @@
 // only when admission's comment refused the issue for those items alone; an
 // item's deeper-indented lines move with it, so every task-list line nested
 // under a moved item must be one the lane cannot perform too. The comment
-// names the body the split leaves, so a retry after a failed body edit reuses
-// it.
+// names the body the split leaves and the body it split, so a retry after a
+// failed body edit reuses it while the moved items read as they did.
 //
 // Model text is data: each field is rendered on one line, with `<`, `[`, `]`,
 // `(` and `)` escaped, and mentions, `#N` and `GH-N` references, `://` and
@@ -103,6 +103,10 @@ export const isRefinement = (comment, appId) =>
 
 // The refinement comment's second line: the issue body it is for.
 export const bodyVersion = (body) => `<!-- refined body sha256:${createHash("sha256").update(String(body ?? "")).digest("hex")} -->`;
+
+// A split comment's third line: the body it split, so a retry reuses the
+// comment only while the moved items read as they did.
+export const splitSource = (body) => `<!-- split from body sha256:${createHash("sha256").update(String(body ?? "")).digest("hex")} -->`;
 
 // Whether the lanes App already refined `body`.
 const refinedBody = (comments, appId, body) => comments.some((comment) => isRefinement(comment, appId) && String(comment.body).split("\n")[1] === bodyVersion(body));
@@ -325,11 +329,11 @@ export function line(text) {
   return out;
 }
 
-// `body` is the issue body the refinement is for (bodyVersion); `checks`, a
-// split's moved items as written; `retriage`, whether intake triages the
-// issue again.
-export function render(output, { body, checks = [], retriage = false } = {}) {
-  const parts = [REFINE_MARKER, ...(body === undefined ? [] : [bodyVersion(body)]), "**Refinement.** A read-only run explored this repository, searched its issues and pull requests, and read the allowed docs to draft what follows. It is model text, to check, not instructions.", ""];
+// `body` is the issue body the refinement is for (bodyVersion); `from`, the
+// body a split split (splitSource); `checks`, a split's moved items as
+// written; `retriage`, whether intake triages the issue again.
+export function render(output, { body, from, checks = [], retriage = false } = {}) {
+  const parts = [REFINE_MARKER, ...(body === undefined ? [] : [bodyVersion(body)]), ...(from === undefined ? [] : [splitSource(from)]), "**Refinement.** A read-only run explored this repository, searched its issues and pull requests, and read the allowed docs to draft what follows. It is model text, to check, not instructions.", ""];
   const section = (title, items) => {
     if (items.length > 0) {
       parts.push(`**${title}**`, "", ...items, "");
@@ -457,8 +461,9 @@ export async function applyRefinement({ github, repository, number, appId, human
       return skip(`is no longer held by the lanes App's ${NEEDS_DECISION}`);
     }
     const after = splitBody(issue.body, rules["task-list"], output.split);
-    if (!refinedBody(comments, appId, after)) {
-      await github("POST", `${base}/comments`, { body: render(output, { body: after, checks: movedTexts(issue.body, rules["task-list"], output.split), retriage: true }) });
+    const posted = comments.some((comment) => refinedBody([comment], appId, after) && String(comment.body).split("\n")[2] === splitSource(issue.body));
+    if (!posted) {
+      await github("POST", `${base}/comments`, { body: render(output, { body: after, from: issue.body, checks: movedTexts(issue.body, rules["task-list"], output.split), retriage: true }) });
     }
     // Read again before the labels and the body edit, so a person's edit
     // since is kept: the issue stays held, and its next triage reads the edit.

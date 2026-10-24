@@ -3,7 +3,7 @@ import { describe, test } from "node:test";
 
 import { ADMIT_MARKER, refusalText, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
 import { MARKER } from "./apply-verdict.mjs";
-import { REFINE_MARKER, applyRefinement, bodyVersion, isThin, movedTexts, render, searchTerms, selectRefinement, splitBody, splitOf, validateOutput } from "./refine.mjs";
+import { REFINE_MARKER, applyRefinement, bodyVersion, isThin, movedTexts, render, searchTerms, selectRefinement, splitBody, splitOf, splitSource, validateOutput } from "./refine.mjs";
 
 const HUMAN = 153232337;
 const OUTSIDER = 4242;
@@ -25,6 +25,7 @@ const laneComment = (flags = "intent", updated_at = AFTER) => ({
 const appComment = (body) => ({ id: 11, user: { login: "melodic-automation-lanes[bot]", type: "Bot", id: APP }, body });
 // The lanes App's refinement of the issue body `body`.
 const refined = (body, text = "old") => ({ ...appComment(`${REFINE_MARKER}\n${bodyVersion(body)}\n${text}`), id: 12 });
+const splitComment = (body, from) => refined(body, `${splitSource(from)}\nold`);
 
 describe("isThin", () => {
   test("an intent flag is thin", () => {
@@ -581,7 +582,7 @@ describe("split", () => {
       "the comment holds the items before the body loses them; no issue is filed",
     );
     const comment = done[0].body.body;
-    assert.ok(comment.startsWith(`${REFINE_MARKER}\n${bodyVersion(after)}\n`), "it names the body the split leaves");
+    assert.ok(comment.startsWith(`${REFINE_MARKER}\n${bodyVersion(after)}\n${splitSource(BODY)}\n`), "it names the body the split leaves and the body it split");
     assert.ok(comment.includes("\n> - [ ] Open the exported brief on a Windows 11 host and confirm it renders for @​owner.\n"), "the item as written, quoted, its mention broken");
     assert.ok(!comment.includes("check-affected"), "only the unrunnable item");
     assert.ok(!comment.split("\n").some((line) => line.trimStart().startsWith("- [ ] ")), "the comment adds no criteria for admission to count");
@@ -605,14 +606,24 @@ describe("split", () => {
   });
 
   test("a retry after a failed body edit reuses the comment it posted", async () => {
-    const lookalike = { ...refined(after), id: 13, user: { id: OUTSIDER, login: "melodic-automation-lanes[bot]", type: "User" } };
-    const fake = fakeGitHub({ issue: held(), comments: [...heldComments, lookalike, refined(after)], events: labeledBy(APP) });
+    const lookalike = { ...splitComment(after, BODY), id: 13, user: { id: OUTSIDER, login: "melodic-automation-lanes[bot]", type: "User" } };
+    const fake = fakeGitHub({ issue: held(), comments: [...heldComments, lookalike, splitComment(after, BODY)], events: labeledBy(APP) });
     assert.deepEqual(await apply(fake), { outcome: "split", redispatch: true });
     assert.deepEqual(
       writes(fake.calls).map(({ method, path }) => `${method} ${path}`),
       ["POST /repos/o/r/issues/7/labels", "DELETE /repos/o/r/issues/7/labels/status%3A%20needs-decision", "PATCH /repos/o/r/issues/7"],
       "no second comment",
     );
+  });
+
+  test("a retry does not reuse a comment whose moved checks were since revised", async () => {
+    const revised = BODY.replace("Windows 11 host", "Windows 11 or 10 host");
+    assert.equal(splitBody(revised, "- [ ] ", [2]), after, "the revision is only in the moved item");
+    const fake = fakeGitHub({ issue: held({ body: revised }), comments: [...heldComments, splitComment(after, BODY)], events: labeledBy(APP) });
+    assert.deepEqual(await apply(fake, SPLIT, revised), { outcome: "split", redispatch: true });
+    const posted = writes(fake.calls).filter(({ path }) => path.endsWith("/comments"));
+    assert.equal(posted.length, 1, "a new comment holds the revised check");
+    assert.ok(posted[0].body.body.includes("Windows 11 or 10 host"));
   });
 
   test("a retry does not reuse a refinement of another body", async () => {
