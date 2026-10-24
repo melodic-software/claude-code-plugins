@@ -38,7 +38,7 @@
 //
 // It re-fires the same way an open agent-ready issue whose newest
 // work-resolve-issue run (the one its newest agent-ready label started, by a
-// listed human or the App) failed with no lanes-App outcome marker since: a
+// listed human or the App) did no work and left no lanes-App outcome marker since: a
 // crash before the report, a rerun the token broker refused as
 // workflow-modified, a run cancelled after admit passed and before any
 // resolve-issue job started (pick-slot's timeout, a slot queue past GitHub's limit),

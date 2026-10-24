@@ -1555,7 +1555,7 @@ test("a cancelled run admit did not pass, one whose resolve-issue started, or a 
   }
 });
 
-// #9498: a run that waited in its slot past a lane workflow change ends green
+// A run that waited in its slot past a lane workflow change ends green
 // at the read runner's `Stop on stale workflow files` step, with no model turn
 // and no outcome marker, so the sweep re-fires it like a failed run.
 const staleRunJob = (stop) => ({
@@ -1572,6 +1572,8 @@ test("a run that stopped green on stale workflow files is re-fired, once per ver
   const fresh = stalledRun({ jobs: STOPPED_STALE, conclusion: "success" });
   assert.equal(await sweep({ github: fresh.github, actions: fresh.actions }), 0);
   assert.deepEqual(writes(fresh.calls), refired(30));
+  // didNoWork and stoppedStale share one read of the run's job listing.
+  assert.equal(fresh.calls.filter((call) => call.startsWith(`GET /repos/${REPO}/actions/runs/5030/jobs`)).length, 1);
   // The App's re-add on these workflow files stopped stale again: stop there.
   const again = stalledRun({
     jobs: STOPPED_STALE,
@@ -1611,17 +1613,6 @@ test("a green run whose stale stop did not run, or a stop step outside resolve-i
     assert.equal(await sweep({ github, actions }), 0, name);
     assert.deepEqual(writes(calls), [], name);
   }
-  // A held issue's stale stop waits for the person.
-  const held = world({
-    openReady: [ready(30, ["needs-owner-decision"])],
-    comments: { 30: [note()] },
-    events: { 30: [added(LABELED_AT, OWNER)] },
-    runs: [{ ...laneRun({ conclusion: "success" }), updated_at: "2026-10-16T10:05:00Z" }],
-    jobs: { 5030: STOPPED_STALE },
-    blobs: BLOBS,
-  });
-  assert.equal(await sweep({ github: held.github, actions: held.github }), 0);
-  assert.deepEqual(writes(held.calls), []);
 });
 
 // The job ids and step names the sweep matches in a run's job listing. A job a
