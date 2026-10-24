@@ -9,9 +9,11 @@
 //           review lane's marker confirms, when every comment is the bot's,
 //           a trusted person with write access asked the lane to fix it, or
 //           a trusted person answered the lane's escalation, then decides
-//           skip (no such thread), escalate (the PR changes .github/workflows/**, or
-//           the configured number of rounds already ran and no write-access
-//           fix request came after the newest one) or proceed, writing the thread file
+//           skip (no such thread, or the fresh fixer's round past the cap
+//           already ran), escalate (the PR changes .github/workflows/**, or
+//           the configured number of rounds already ran, no write-access fix
+//           request came after the newest one, and a kept thread is a
+//           security or intent finding, needsPerson) or proceed, writing the thread file
 //           the skill's review-thread tool reads, with the same-plugin files
 //           a write-access fix request names (namedPaths) and the files the
 //           PR already changes (pr_paths, prPathsOf), and run.json, the
@@ -37,6 +39,11 @@ import { isProtectedPath, namedInScope, prPathsOf } from "./thread-scope.mjs";
 // The round cap is the config's `loop.review-rounds`, passed in as
 // REVIEW_ROUNDS; the resolver's default is the fallback.
 export const DEFAULT_MAX_ROUNDS = 2;
+// Rounds past the cap that go to a fresh fixer instead of a person
+// (judgment: one more new session on the findings the capped rounds left; a
+// PR still drawing findings after it is not converging, and more rounds only
+// spend usage).
+export const FRESH_FIXER_ROUNDS = 1;
 export { ROUND_MARKER };
 // github-actions[bot], the author of the review lanes' reviewed-head markers.
 export const MARKER_AUTHOR_ID = 41898282;
@@ -60,14 +67,20 @@ const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "")
 // `claude-lane: <lane>` footer. Any other github-actions[bot] comment is not a
 // finding.
 const LANE_FOOTER = /^`?claude-lane: (?:claude-review|claude-security-review)`?$/;
-export const isLaneComment = (comment) =>
-  comment.authorId === MARKER_AUTHOR_ID &&
-  LANE_FOOTER.test(
-    String(comment.body ?? "")
-      .split("\n")
-      .map((line) => line.trim())
-      .findLast((line) => line !== "") ?? "",
-  );
+const CODE_LANE_FOOTER = /^`?claude-lane: claude-review`?$/;
+const lastLine = (body) =>
+  String(body ?? "")
+    .split("\n")
+    .map((line) => line.trim())
+    .findLast((line) => line !== "") ?? "";
+export const isLaneComment = (comment) => comment.authorId === MARKER_AUTHOR_ID && LANE_FOOTER.test(lastLine(comment.body));
+
+// Past the round cap, the threads only a person may still decide: a security
+// lane finding, a verifier note (pr-verify judges the PR against its linked
+// issue, so a FAIL is an intent mismatch), and a finding whose lane its footer
+// does not name. Only the code lane's finding goes to a fresh fixer.
+export const needsPerson = (thread) =>
+  thread.comments[0]?.author !== "reviewer" || !CODE_LANE_FOOTER.test(lastLine(thread.comments[0].body));
 
 // Round markers the lanes App posted; any other author's copy is ignored.
 export const isRoundMarker = (comment, appId) => comment.user?.id === appId && firstLine(comment.body) === ROUND_MARKER;
@@ -482,7 +495,17 @@ export async function select({
       }),
     );
     if (worked.length === 0) {
-      return { decision: "escalate", escalationReason: "feedback-round-cap", rounds, threads: kept };
+      // Otherwise a security or intent thread still goes to a person; every
+      // other finding goes to a fresh fixer: one more round, a new session
+      // like every round, reading only the thread file and the PR head. Past
+      // that the PR waits for the next fix request with no label.
+      if (kept.some(needsPerson)) {
+        return { decision: "escalate", escalationReason: "feedback-round-cap", rounds, threads: kept };
+      }
+      if (rounds >= maxRounds + FRESH_FIXER_ROUNDS) {
+        return { decision: "skip", skipReason: "cost-gated", rounds, threads: kept };
+      }
+      worked = kept;
     }
   }
   for (const thread of worked) {

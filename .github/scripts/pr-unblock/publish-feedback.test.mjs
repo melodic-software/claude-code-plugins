@@ -284,6 +284,14 @@ test("the round marker names the configured cap", async () => {
   assert.match(api.markers()[0][2], /finished round 1 of 3 on/);
 });
 
+test("a round past the cap is marked as the fresh fixer's", async () => {
+  const api = fakeApi({
+    issueComments: [1, 2].map((n) => ({ id: n + 1, user: { id: APP }, body: `${ROUND}\nround ${n}` })),
+  });
+  await run(api, lines(reply()));
+  assert.match(api.markers()[0][2], /finished round 3, a fresh fixer's past the cap of 2, on /);
+});
+
 // #7545: a re-run of the reply job alone reuses the model run's artifact, so
 // it must not count that model turn as a second round.
 test("a re-run for a model run whose round the App already recorded posts no second marker", async () => {
