@@ -82,7 +82,7 @@ const note = () => ({ id: 9, body: "Looks good.", user: OWNER, created_at: STAMP
 // `queuedIssues` are the numbers the open agent-ready issue search lists, and
 // `deferred` what the open admission-deferred listing answers.
 // `blobs` maps a path to its blob SHA on main.
-// `timeline` and `pulls` are per issue and per pull request number.
+// `timeline` and `closing` are per issue, `pulls` per pull request number.
 function world({
   blocking,
   blockingOf = {},
@@ -98,6 +98,7 @@ function world({
   mergedLanePrs = 24,
   blobs = {},
   timeline = {},
+  closing = {},
   pulls = {},
   queuedIssues = [],
   deferred = [],
@@ -198,6 +199,10 @@ function world({
         .flat()
         .find((item) => String(item.number) === number && item.repository_url === `${API}/repos/${REPO}`);
     // The closer read: the last ClosedEvent of one issue in this repository.
+    if (method === "POST" && route === "/graphql" && body.query.includes("closedByPullRequestsReferences")) {
+      const refs = { nodes: closing[body.variables.number] ?? [], pageInfo: { hasNextPage: false, endCursor: null } };
+      return { data: { repository: { issue: { closedByPullRequestsReferences: refs } } } };
+    }
     if (method === "POST" && route === "/graphql") {
       const { owner, name, number } = body.variables;
       assert.equal(`${owner}/${name}`, REPO);
@@ -2193,10 +2198,11 @@ test("an issue already deferred is not labeled admission-deferred again", async 
 // A deferred issue, number 25, whose one blocker is closed; `deferredBy`
 // added its admission-deferred label (the lanes App by default).
 const deferredAdd = (actor, at = "2026-10-16T08:00:00Z") => ({ event: "labeled", label: { name: "admission-deferred" }, actor, created_at: at });
-const deferredWorld = ({ labels = ["admission-deferred"], sibling = "closed", queuedIssues = [], events = [deferredAdd(LANES_BOT)], openLanePrs = 0, timeline = [] } = {}) =>
+const deferredWorld = ({ labels = ["admission-deferred"], sibling = "closed", queuedIssues = [], events = [deferredAdd(LANES_BOT)], openLanePrs = 0, timeline = [], closing = [] } = {}) =>
   world({
     openLanePrs,
     timeline: { 25: timeline },
+    closing: { 25: closing },
     deferred: [issue(25, { labels })],
     issues: { 25: issue(25, { labels }) },
     blockedBy: { 25: [issue(10, { state: "closed" }), issue(11, { state: sibling })] },
@@ -2239,22 +2245,32 @@ test("the sweep admits a deferred issue once under the queued cap, and keeps it 
 });
 
 // A pull request in this repository that references the deferred issue, as the REST
-// timeline reports it.
-const namingPull = (state) => ({
+// timeline reports it, with the issue lane's Refs line unless `body` says otherwise.
+const namingPull = (state, body = "Refs: #25") => ({
   event: "cross-referenced",
-  source: { issue: { number: 40, state, pull_request: {}, repository_url: `${API}/repos/${REPO}` } },
+  source: { issue: { number: 40, state, pull_request: {}, repository_url: `${API}/repos/${REPO}`, body } },
 });
 
-test("the sweep keeps a deferred issue deferred while an open pull request names it, and admits it once that closes", async (t) => {
+test("the sweep keeps a deferred issue deferred while an open pull request is for it, and admits it once that closes", async (t) => {
   const log = t.mock.method(console, "log", () => {});
-  const open = deferredWorld({ timeline: [namingPull("open")] });
-  assert.equal(await sweep({ github: open.github }, PAUSING), 0);
-  assert.deepEqual(writes(open.calls), []);
-  const lines = log.mock.calls.map((call) => String(call.arguments[0]));
-  assert.ok(lines.includes("label-unblocked: #25 stays deferred: open pull request #40 names it"), lines.join("\n"));
+  for (const facts of [{ timeline: [namingPull("open")] }, { closing: [{ number: 40, repository: { nameWithOwner: REPO } }] }]) {
+    log.mock.resetCalls();
+    const open = deferredWorld(facts);
+    assert.equal(await sweep({ github: open.github }, PAUSING), 0);
+    assert.deepEqual(writes(open.calls), []);
+    const lines = log.mock.calls.map((call) => String(call.arguments[0]));
+    assert.ok(lines.includes("label-unblocked: #25 stays deferred: open pull request #40 names it"), lines.join("\n"));
+  }
   const closed = deferredWorld({ timeline: [namingPull("closed")] });
   assert.equal(await sweep({ github: closed.github }, PAUSING), 0);
   assert.deepEqual(writes(closed.calls), [labeled(25), undeferred(25)]);
+});
+
+test("the sweep admits a deferred issue an open pull request only mentions", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const mention = deferredWorld({ timeline: [namingPull("open", "Same shape as #25.")] });
+  assert.equal(await sweep({ github: mention.github }, PAUSING), 0);
+  assert.deepEqual(writes(mention.calls), [labeled(25), undeferred(25)]);
 });
 
 test("while the issue lane is paused over its WIP cap the sweep keeps a deferred issue deferred, with queued room", async (t) => {

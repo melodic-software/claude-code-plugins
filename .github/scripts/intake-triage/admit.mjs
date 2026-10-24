@@ -19,8 +19,9 @@
 //   criteria the lane checks;
 // - 8: no `refuse-labels` label, every blocker a merged pull request or an
 //   issue closed as completed by a listed human or a merge here (the close
-//   work-unblock counts), and no open pull request in this repository names
-//   the issue;
+//   work-unblock counts), and no open pull request in this repository is for
+//   the issue: one GitHub says closes it, or whose body has the issue lane's
+//   `Refs: #<issue>` line (report-outcome.mjs). A passing mention is not one;
 // - 9: the author is a listed human or the lanes App;
 // - lane-runnable done-when: no task-list item asks for what an unattended
 //   lane run cannot do (unrunnableCriteria below): a run on a named host or
@@ -46,6 +47,7 @@
 import { readFileSync } from "node:fs";
 
 import { isTrustedClose, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { closingPulls } from "../work-resolve-issue/report-outcome.mjs";
 
 export const AGENT_READY = "agent-ready";
 export const DEFERRED = "admission-deferred";
@@ -77,12 +79,39 @@ const here = (url, repository) =>
     .toLowerCase()
     .endsWith(`/repos/${repository}`.toLowerCase());
 
-// The open pull requests in `repository` an issue's timeline says reference it.
-export const openPullsNaming = (timeline, repository) =>
-  timeline
+// The open pull requests in `repository` for issue `number`: those `closing`
+// (closedByPullRequestsReferences nodes) lists in this repository, and those
+// the timeline says reference it whose body has a `Refs: #<number>` line.
+export function openPullsNaming(timeline, repository, number, closing = []) {
+  const refs = `Refs: #${number}`;
+  const linked = timeline
     .map((event) => (event?.event === "cross-referenced" ? event.source?.issue : null))
-    .filter((source) => source?.pull_request && source.state === "open" && here(source.repository_url, repository))
+    .filter(
+      (source) =>
+        source?.pull_request &&
+        source.state === "open" &&
+        here(source.repository_url, repository) &&
+        String(source.body ?? "")
+          .split("\n")
+          .some((line) => line.trim() === refs),
+    )
     .map((source) => source.number);
+  const closes = closing
+    .filter((node) => String(node?.repository?.nameWithOwner ?? "").toLowerCase() === repository.toLowerCase())
+    .map((node) => node.number);
+  return [...new Set([...closes, ...linked])];
+}
+
+// The open pull requests for an issue, read fresh (openPullsNaming).
+export async function openPullsFor(github, repository, number) {
+  const [owner, name] = repository.split("/");
+  return openPullsNaming(
+    await paginate(github, `/repos/${repository}/issues/${number}/timeline`),
+    repository,
+    Number(number),
+    await closingPulls(github, { owner, name, number: Number(number) }),
+  );
+}
 
 // Done-when items an unattended lane run cannot perform. Each pattern needs
 // an action or a place within one clause of its subject, so an item that only
@@ -201,7 +230,7 @@ export function admissionSettled(labels, events) {
 }
 
 // {verdict: admit | refuse | wait | skip, reasons}. Pure.
-export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, timeline, events, comments = [], bodyEditedAt = null, humans, appId, repository, webHosts }) {
+export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, pulls = [], events, comments = [], bodyEditedAt = null, humans, appId, repository, webHosts }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
@@ -270,7 +299,6 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
       wait.push(`blocker #${blocker.number} is not closed as completed by a listed human or a merge`);
     }
   }
-  const pulls = openPullsNaming(timeline, repository);
   for (const pull of pulls) {
     wait.push(`open pull request #${pull} names it`);
   }
@@ -373,7 +401,7 @@ export async function admit({ github, repository, number, verdict, rules, humans
     parent: rules["types-under-parent"].includes(issue.type?.name) ? await parentOf(github, base) : null,
     blockers,
     trustedCloses,
-    timeline: await paginate(github, `${base}/timeline`),
+    pulls: await openPullsFor(github, repository, number),
     events: await paginate(github, `${base}/events`),
     humans,
     appId,
