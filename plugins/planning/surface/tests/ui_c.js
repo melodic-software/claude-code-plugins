@@ -309,8 +309,8 @@ async page => {
     ok("Reconfirm sends the note typed over the kept one", /^Reconfirm/.test(r6) && ev6.id === "P2" && ev6.kind === "alt" && ev6.alt === "b" && ev6.text === "Weekdays too", r6 + " " + JSON.stringify(ev6));
     await pick("P2");
 
-    // SPEC 5.2: revising while an upstream decision is delivered and unhandled
-    const r5 = await (await post({id: "P1", kind: "accept", alt: null, text: ""})).json();
+    // SPEC 5.2: revising while an upstream decision is delivered and unhandled (an accept with a note: the server auto-handles a plain one)
+    const r5 = await (await post({id: "P1", kind: "accept", alt: null, text: "Fine for now"})).json();
     await page.request.get(base + "api/wait?after=" + (r5.seq - 1) + "&timeout=2", {headers: {"X-Interview-Token": await token()}});
     await page.waitForTimeout(900);
     ok("revising chip on the answered question, not its dependent", /Answer not handled yet/.test(await page.textContent('.qbtn[data-q="P1"]')) && !/Answer not handled yet/.test(await page.textContent('.qbtn[data-q="P2"]')));

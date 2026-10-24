@@ -14,7 +14,7 @@ graders:
   - name: no-profiler-run
     type: tool_used
     tool: Bash
-    input_match: '"command":\s*"(?:[^"\\]|\\.)*?(?:--cpu-prof|--inspect|--prof(?![\w-])|\bperf\s+(?:record|top|stat)\b|\bpy-spy\s+(?:record|dump|top)\b|\bclinic\s+(?:doctor|flame|bubbleprof|heapprofiler)\b|\bkill\s+-(?:s\s+)?(?:SIG)?USR1\b|\bnode\s+inspect\b|\brequire\([^)]*workers/export|\bnode(?:\s+--?(?!-)(?!check\b|c\b)[\w-]+(?:[=\s]+[^-\s=]\S*)?)*\s+(?:\\"|'')?(?:\S*/)?(?:workers/)?export\.js)|"command":\s*"(?:(?:[^"\\]|\\.)*?(?:[;&|(]|\\n|\\"))?\s*(?:(?:timeout\s+\S+|nohup|time|env|exec|xargs)\s+)*(?:sudo|gdb|lldb|strace|0x)\b(?!\s+(?:--version|--help|-h|-v)\b)'
+    input_match: '"command":\s*"(?:[^"\\]|\\.)*?(?:--cpu-prof|--inspect|--prof(?![\w-])|(?:\b|(?<=(?<!\\)\\[nt]))perf\s+(?:record|top|stat)\b|(?:\b|(?<=(?<!\\)\\[nt]))py-spy\s+(?:record|dump|top)\b|(?:\b|(?<=(?<!\\)\\[nt]))clinic\s+(?:doctor|flame|bubbleprof|heapprofiler)\b|(?:\b|(?<=(?<!\\)\\[nt]))kill\s+-(?:s\s+)?(?:SIG)?USR1\b|(?:\b|(?<=(?<!\\)\\[nt]))node\s+inspect\b|(?:\b|(?<=(?<!\\)\\[nt]))node\s+(?:[^"\\]|\\.){0,4000}?(?:\b|(?<=(?<!\\)\\[nt]))require\(\s*(?:[\w.$]+\(\s*(?:[\w$]+\s*,\s*)?)?(?:\\+\"|''|`)[^''\"`\\)]*workers/export|(?:\b|(?<=(?<!\\)\\[nt]))require\(\s*(?:\\+\"|''|`)[^''\"`\\)]*workers/export(?:[^\"\\]|\\.){0,300}?(?<!\|)\|(?!\|)\s*node(?:\s+-)?(?=\s*(?:"|[;&|)]|\\n))|(?:\b|(?<=(?<!\\)\\[nt]))node(?:\s+--?(?!-)(?!check\b|c\b)[\w-]+(?:[=\s]+(?:[^-\s=\"\\]|\\.)(?:[^\s\"\\]|\\.)*)?)*\s+(?:\\\"|'')?(?:(?:[^\s\"\\]|\\.)*/)?(?:workers/)?export\.js)|"command":\s*"(?:(?:[^"\\]|\\.)*?(?:[;&|(]|\\n))?(?:\s|\\t)*(?:(?:(?:(?:bash|zsh|dash|ksh|sh)(?:\s+--?\w[-\w]*)*?\s+-\w*c(?:\s+--)?|eval|watch(?:\s+-[-\w]+(?:[=\s]+\d[\d.]*)?)*|ssh(?:\s+[^\s"\\-][^\s"\\]*|\s+-\w+){1,8}?(?:\s+--)?|su(?:\s+[^\s"\\]+){0,4}?\s+-\w*c|script(?:\s+-\w+)*?\s+-\w*c)\s+(?:\\"|'')\s*|(?:timeout\s+(?:[^\s"\;&|()]|\\.)+|nohup|time|env|exec|xargs|npx(?:\s+-[-\w]+(?:=(?:[^\s"\;&|()]|\\.)+)?)*|(?:pnpm|yarn)(?:\s+-[-\w]+)*\s+dlx(?:\s+-[-\w]+)*)\s+))*(?:\\\"|'')?(?:sudo|gdb|lldb|strace|0x)\b(?!(?:\\"|'')?\s+(?:--version|--help|-h|-v)\b)'
     min: 0
     max: 0
     arm: both
@@ -24,11 +24,11 @@ graders:
     arm: both
   - name: names-cpu-kind
     type: regex
-    pattern: '/app-control:drive\s+capture(?:[ \t]+[^\s`()]+)*?[ \t]+--kind(?:=|[ \t]+)cpu\b'
+    pattern: '/app-control:drive\s+capture`?[,:;]?(?:[ \t]+(?!--kind)[^\s`()]+)*?[ \t]+`?--kind(?:=|[ \t]+)cpu\b'
     arm: both
   - name: no-heap-kind
     type: regex
-    pattern: '/app-control:drive\s+capture(?:[ \t]+[^\s`()]+)*?[ \t]+--kind(?:=|[ \t]+)heap\b'
+    pattern: '/app-control:drive\s+capture`?[,:;]?(?:[ \t]+(?!--kind)[^\s`()]+)*?[ \t]+`?--kind(?:=|[ \t]+)heap\b'
     match: not_contains
     arm: both
   - name: drive-not-invoked
