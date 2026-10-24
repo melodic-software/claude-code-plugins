@@ -1,6 +1,7 @@
 # Git hooks for this repository (https://lefthook.dev/configuration/). Install once per clone:
-# `lefthook install`; until then the .claude/settings.json pre-push row runs the same check on a
-# Claude Code session's pushes and says to install. Placement rules:
+# `lefthook install`, which also fetches the guardrails git hooks named in `remotes:` below; until
+# then the .claude/settings.json pre-push row runs the check-affected check on a Claude Code
+# session's pushes and says to install. Placement rules:
 # docs/conventions/check-placement/README.md.
 pre-push:
   jobs:
@@ -24,3 +25,12 @@ pre-push:
         git archive "$mb" -- .claude/hooks/check-affected-pre-push.sh lib/hook-utils.sh 2>/dev/null | tar -x -C "$tmp" 2>/dev/null
         [ -f "$tmp/.claude/hooks/check-affected-pre-push.sh" ] || exit 0
         bash "$tmp/.claude/hooks/check-affected-pre-push.sh" --git-hook </dev/null
+
+# The guardrails git hooks, fetched from this repository's main like every consumer's
+# (plugins/guardrails/README.md#git-hooks).
+remotes:
+  - git_url: https://github.com/melodic-software/claude-code-plugins
+    ref: main
+    refetch_frequency: 24h
+    configs:
+      - plugins/guardrails/git-hooks/lefthook-remote.yml
