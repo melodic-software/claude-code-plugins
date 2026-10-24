@@ -200,6 +200,10 @@ jobs:
         .github/actions/resolve-config/**
         .github/actions/request-lane-token/**
         .github/actions/check-kill-switch/**
+        .github/scripts/pr-merge/merge-holds.mjs
+        .github/scripts/pr-merge/enable-auto-merge.mjs
+        .github/workflows/pr-require-checks.yml
+        plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py
         **/CODEOWNERS
         **/.gitmodules
     # The reviews role's key runs first; its subscription token only after the

@@ -82,8 +82,8 @@ for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-
     fail "$file lost its job id, publish: comments, hold-label or v0.65.7 pin"
   fi
   paths="$(awk '/^      hold-paths: \|$/ { on = 1; next } on && /^        / { sub(/^ +/, ""); print; next } on { exit }' "$caller")"
-  if [[ "$paths" == $'.github/standards/trusted-actors/**\n.github/actions/check-trusted-trigger/**\n.github/actions/resolve-config/**\n.github/actions/request-lane-token/**\n.github/actions/check-kill-switch/**\n**/CODEOWNERS\n**/.gitmodules' ]]; then
-    ok "$file names the seven trusted paths"
+  if [[ "$paths" == $'.github/standards/trusted-actors/**\n.github/actions/check-trusted-trigger/**\n.github/actions/resolve-config/**\n.github/actions/request-lane-token/**\n.github/actions/check-kill-switch/**\n.github/scripts/pr-merge/merge-holds.mjs\n.github/scripts/pr-merge/enable-auto-merge.mjs\n.github/workflows/pr-require-checks.yml\nplugins/source-control/skills/babysit-prs/scripts/babysit_risk.py\n**/CODEOWNERS\n**/.gitmodules' ]]; then
+    ok "$file names the eleven trusted paths"
   else
     fail "$file hold-paths are '$paths'"
   fi
@@ -239,11 +239,12 @@ fi
 # Every hold path the callers list holds an exempt author's PR, nested and renamed ones too.
 for changed in .github/standards/trusted-actors/trusted-actors.json .github/actions/check-trusted-trigger/lib/x.mjs CODEOWNERS .github/CODEOWNERS \
   .github/actions/resolve-config/package-lock.json .github/actions/request-lane-token/action.yml .github/actions/check-kill-switch/check-kill-switch.mjs \
+  .github/scripts/pr-merge/merge-holds.mjs plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py \
   .gitmodules vendor/sub/.gitmodules 'docs/new.md<.github/CODEOWNERS'; do
   STUB_FILES="$(files README.md "$changed")"
   AUTHOR_ID=300666570 expect "an exempt author changing $changed fails" 1 "::error::#77 is by an author no review lane reviews and changes trust-gate paths:"
 done
-for changed in .github/standards/other.json CODEOWNERS.md docs/gitmodules.md .github/actions/check-trusted-trigger-x/a.mjs .github/actions/check-wip-cap/action.yml; do
+for changed in .github/standards/other.json CODEOWNERS.md docs/gitmodules.md .github/actions/check-trusted-trigger-x/a.mjs .github/actions/check-wip-cap/action.yml .github/scripts/pr-merge/gate.mjs; do
   STUB_FILES="$(files "$changed")" STUB_CHANGED=1
   AUTHOR_ID=300666570 expect "an exempt author changing $changed passes" 0 "no trust-gate path changed"
 done
