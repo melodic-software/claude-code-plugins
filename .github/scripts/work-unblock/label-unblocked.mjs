@@ -42,9 +42,11 @@
 // pull request merge), which starts no close run, is still picked up. A
 // swept close counts only when a listed human or a merge made it. Overlapping
 // windows are harmless: an issue already labeled is left alone, and one whose
-// label was ever removed (by a person, or by a lane's pushback) is never
-// labeled again. A removal by the lanes App that follows the App's own
-// limited marker is a restart, not a stop, and does not count.
+// label was removed (by a person, or by a lane's pushback) is not labeled
+// again until the lanes App or a listed human adds `status: ready` after the
+// newest removal (admit.mjs removalStands). A removal by the lanes App that
+// follows the App's own limited marker is a restart, not a stop, and does
+// not count.
 //
 // The sweep also restarts issues the usage limit stopped: an open agent-ready
 // issue whose newest lanes-App outcome marker is `limited`, past its reset,
@@ -134,7 +136,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { admissionFacts, decide, loadRules, NEEDS_DECISION, openPullsFor, READY, refusalText, sayWhy } from "../intake-triage/admit.mjs";
+import { admissionFacts, decide, loadRules, NEEDS_DECISION, openPullsFor, READY, refusalText, removalStands, sayWhy } from "../intake-triage/admit.mjs";
 
 const LABEL = "agent-ready";
 const HUMAN_LABEL = "needs-human";
@@ -281,12 +283,14 @@ async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base
   if (pending > 0) {
     return `${pending} blocker(s) not closed as completed by a listed human or a merge`;
   }
-  // Removing the label by hand stops the lane; a person adds it to restart.
+  // Removing the label by hand stops the lane until a person adds it back,
+  // or the App or a listed human marks the issue `status: ready` again.
   const comments = await paginate(github, `${base}/comments`);
   const markers = appMarkers(comments, bot);
   const events = await paginate(github, `${base}/events`);
-  if (events.some((event, index) => isLabel(event, "unlabeled") && !isRestart(events, index, markers, bot))) {
-    return `${LABEL} was removed before`;
+  const stopped = (event, index) => isLabel(event, "unlabeled") && !isRestart(events, index, markers, bot);
+  if (removalStands(events, stopped, (event) => trustedLabeler(event, { bot, humans }))) {
+    return `${LABEL} was removed and ${READY} not added since`;
   }
   return null;
 }

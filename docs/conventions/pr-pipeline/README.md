@@ -1233,8 +1233,10 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   when the newest round marker the lanes App posted on it
   (`<!-- pr-unblock:review-dependency-round head=<sha> verdict=merge run=<id>-<attempt> -->`)
   names the current head with `verdict=merge`. A marker from any other author is ignored. The
-  review's verdict job posts no merge marker on a pull request that changes a workflow or action
-  file (`dependency-workflow-held`), so a person merges those. A `fix` verdict lands only when
+  review's verdict job posts no merge marker on a pull request whose change to a workflow or
+  action file is anything but a full-SHA pin swap (each `uses:` line keeps its action path and
+  moves from one full SHA to another, with only the trailing comment otherwise changing), and
+  escalates `dependency-workflow-unpinned`. A `fix` verdict lands only when
   its commits change nothing but npm or pip manifest and lock files outside `.github/`, in a
   directory `.github/dependabot.yml` lists for that ecosystem, each modified in place as a regular
   `100644` file and changed only by a version (the **fix rule**: in `package.json` only an
