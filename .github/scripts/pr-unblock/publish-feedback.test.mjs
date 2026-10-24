@@ -908,7 +908,7 @@ test("with no VALID reply, a branch that moved onto .github/ or another path pos
   for (const filename of [".github/actions/x/action.yml", "src/other.js"]) {
     const api = fakeApi({ compare: { status: "ahead", commits: [fixCommit()], files: [{ filename }] } });
     const result = await run(api, lines(reply()));
-    assert.equal(result.escalationReason, "feedback-disputed", filename);
+    assert.equal(result.escalationReason, "feedback-unadjudicated", filename);
     assert.equal(api.posted().length, 1, filename);
   }
 });
