@@ -1396,7 +1396,8 @@ account type, `verdict`, `summary`, `notes` and `run_id`. The head SHA is the on
 ran on, never the pull request's live head. A model error, an output that fails the schema, a
 summary or note matching a shared credential pattern (`findSecret` in `lib/publish-gate.mjs`), or a run with any permission denial
 uploads nothing, and the run fails. A head that already has a counted verdict from a completed run (a `fail` under any
-pull request number) is not judged again. The resolver first looks up the names without issues;
+pull request number) is not judged again, unless its only verdicts are passes the spec has since
+changed under (below). The resolver first looks up the names without issues;
 only when none holds a counted verdict does it read the pull request's linked issues, which the
 spec needs anyway, and look up its own `fail` under the name with `-i`. A `fail` another pull request
 left at the same head names issues it never reads, and that head is judged again. So is a head
@@ -1416,13 +1417,28 @@ is skipped with `author-not-lane-or-owner`. pr-verify runs when `pr-require-chec
 judges a person's pull request at each ready head, before it is idle. A pull request closing no
 issue is judged against its own title and body only as [Adoption](#adoption) says. Work the spec
 does not ask for passes with a note (`pass-notes`) unless it is also a correctness or safety
-problem, changes what the code is for, or touches a hold the owner keeps; then it fails the
-verdict. `any` judges every author's. Any other
+problem, changes what the code is for, or loosens a hold the owner keeps; then it fails the
+verdict, as does unasked-for work on secret values or organization or repository settings.
+Changes to workflows, CI, hooks, scripts, agent instructions and package manifests are judged
+like any other code; a change to the takeover set (the merge gate's HIGH floor) fails whatever
+the spec says. `any` judges every author's. Any other
 value judges none (`verify-authors-invalid`). The trusted-spec rule below does not depend on who
 opened the pull request: a spec written by a trusted human counts, so an adopted owner pull
 request whose closing issue the owner wrote is judged against that issue as its spec. A spec the
 lanes App or any other Bot or App wrote, or one an untrusted account wrote or last edited, still
 reads `verify:untrusted-spec`, so a lane pull request never supplies its own spec.
+
+A trusted edit to the spec after a pass, an issue body edit or a spec comment added or edited,
+makes the gate refuse that pass `verify:spec-changed`. The resolver then judges the head again:
+when every counted pass at the head started before the spec's last change, it proceeds with the
+reason `spec-changed` instead of skipping. Nothing re-runs pr-verify on an issue event, so the
+lost-run reconciler does it: for an open pull request whose head's `pr-require-checks` run passed
+at attempt 1 and holds such a pass, it re-runs that run with a record, and pr-verify judges the
+head against the spec as it is now. The gate and the resolver both weigh the passes of the
+pr-verify run that started last, so the new verdict replaces the old one. Each passed checks run
+is re-run this way once (attempt 2 is never re-run; a later edit or label starts a new attempt-1
+run), and a changed closing set or a removed spec comment leaves no time to
+compare, so those heads still wait for a person.
 
 With `merge.require-verifier-verdict: true` the pr-merge lane reads the artifacts through their
 run records, since only steps of a run can upload its artifacts. A run is of verifier origin when
