@@ -9,8 +9,8 @@
 # bytes. A worst-case file, every field at its limit in 6-byte-escaped
 # characters, fits the 32768-byte carry cap in both lanes, with the oldest
 # stderr entries dropped first. The write file's step writes the summary itself; the read
-# file's writes none, and its summary steps (the scan job's, after the leak
-# scan, and issue mode's) render the act-turns.json it wrote. Runs each step's
+# file's writes none, and its scan job's summary step, after the leak scan
+# and in both modes, renders the act-turns.json it wrote. Runs each step's
 # github-script body against a canned execution file with a stub `core` whose
 # summary records its code blocks.
 # test-scope: .github/workflows/pr-run-activity-write.yml .github/workflows/pr-run-activity-read.yml .github/standards/runner-policy/package.json
@@ -83,12 +83,13 @@ const runActTurns = async (lane, wf, messages) => {
   } catch {}
   return { dir, blocks, error, turns };
 };
-// The summary views of a run: the write step's own, else the read file's two
-// summary steps rendering the act-turns.json in `dir`.
+// The summary views of a run: the write step's own, else the read file's scan
+// job summary step rendering the act-turns.json in `dir`; its run job shows none.
 const views = async (lane, wf, dir, blocks) => {
   if (lane === "write") return [["the act-turns step", blocks.join("\n")]];
   const out = [];
-  for (const [job, steps] of [["scan", wf.jobs.scan.steps], ["run (issue mode)", wf.jobs.run.steps]]) {
+  say(!wf.jobs.run.steps.some((s) => s.name === "Show the skill's run in the step summary"), "read: the run job shows no skill run in its summary");
+  for (const [job, steps] of [["scan", wf.jobs.scan.steps]]) {
     const show = steps.find((s) => s.name === "Show the skill's run in the step summary");
     if (!show?.with?.script) {
       say(false, `read: the ${job} job has a summary step with a script`);
