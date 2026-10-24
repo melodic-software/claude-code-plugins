@@ -399,6 +399,78 @@
         }
       ],
       "why": "su -c inside a quoted message"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "rg \"require('./workers/export')\" src || node --version",
+            "description": "Find imports, else show the node version"
+          }
+        }
+      ],
+      "why": "require text in a search, then || node"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -c \"require('./workers/export')\" src/a.js | node -e \"process.stdin.pipe(process.stdout)\"",
+            "description": "Count imports"
+          }
+        }
+      ],
+      "why": "require text piped into node -e, which runs its own script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n eval \"sudo.txt\"",
+            "description": "Search a file for eval"
+          }
+        }
+      ],
+      "why": "wrapper word as a search pattern"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn ssh docs \"sudo\"",
+            "description": "Search docs for ssh"
+          }
+        }
+      ],
+      "why": "wrapper word earlier in the command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"gdb\" --version",
+            "description": "Show the gdb version"
+          }
+        }
+      ],
+      "why": "quoted tool name with --version"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf \"a\\nperf record\\n\"",
+            "description": "Print text"
+          }
+        }
+      ],
+      "why": "a shell-level backslash-n, not a JSON newline"
     }
   ],
   "fail": [
@@ -1040,6 +1112,66 @@
         }
       ],
       "why": "0x through yarn dlx"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "script -qc \"gdb -p 1\" /dev/null",
+            "description": "Attach a debugger under script"
+          }
+        }
+      ],
+      "why": "debugger through script -c"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /w\n\tgdb -p 1",
+            "description": "Attach a debugger"
+          }
+        }
+      ],
+      "why": "debugger after a newline and a tab"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "watch -n 1 \"strace -c -p 1\"",
+            "description": "Trace system calls"
+          }
+        }
+      ],
+      "why": "watch with a spaced interval"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash --login -c \"gdb -p 1\"",
+            "description": "Attach a debugger"
+          }
+        }
+      ],
+      "why": "long shell flag before -c"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node -e \"const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; const a = process.argv[2] || 'default'; require('./workers/export').run()\"",
+            "description": "Run the worker"
+          }
+        }
+      ],
+      "why": "require late in a long one-liner"
     }
   ]
 }
