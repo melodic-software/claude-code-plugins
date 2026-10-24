@@ -30,11 +30,17 @@
 //             limited marker naming when the limit resets, keeps agent-ready
 //             and adds no label, so work-unblock restarts it after the reset.
 //   turn-cap  a run that wrote no readable outcome file and whose lane.json
-//             carries class max-turns: comments with the turn-cap marker,
-//             naming the cap and the branch. While limits.turn-cap-restarts
-//             allows a restart since a person last added agent-ready, it
-//             keeps agent-ready and work-unblock restarts the issue; past
-//             that it hands back like stopped.
+//   timeout   carries class max-turns (turn-cap) or timeout (its model step
+//             ran its whole time budget), and that made progress: its own
+//             lane branch exists with a lanes-App tip, so it committed work.
+//             Comments with the turn-cap or timeout marker naming the
+//             branch, keeps agent-ready and adds no label, so work-unblock
+//             restarts it from that branch. No count bounds these restarts.
+//   no-progress the same stop with no commit of its own: not restarted.
+//             Comments with the no-progress marker, adds admission-deferred
+//             and removes agent-ready, so work-unblock's next sweep re-admits
+//             it through the queue; no needs-human. A stop whose patch
+//             apply-issue-patch refused hands back like stopped instead.
 //   reused   the resolve-issue run skipped the work for a lane branch an
 //             earlier run left with commits and no report (REUSE_BRANCH):
 //             the earlier outcome counts only when this run's artifact names
@@ -50,8 +56,10 @@
 //             patch-empty changes nothing, as the run committed nothing.
 //   dimension the issue's dimensions skipped the run before any model turn
 //             (DIMENSION_SKIP): comments the next step with an
-//             outcome=<reason> marker, adds the human-gated label, removes
-//             agent-ready. No outcome file is read.
+//             outcome=<reason> marker and removes agent-ready. A
+//             split-required issue goes back to intake (needs-triage) to be
+//             split; research-first and probe-first add the human-gated
+//             label. No outcome file is read.
 //
 // Run from the base copy. It reads only the outcome directory and the GitHub
 // API, and never writes to a branch.
@@ -67,7 +75,8 @@
 //   ISSUE_NUMBER        the issue the lane worked
 //   WORK_OUTCOME_DIR    holds work-outcome.json (written by the skill, so
 //                       untrusted) and lane.json (written by the runner: the
-//                       lane branch, the run's failure `class`, its limit
+//                       lane branch, the run's failure `class` (max-turns
+//                       and timeout are the resumable stops), its limit
 //                       `resets`, its `max-turns` and the `resume` branch
 //                       a resumed run continued). Code the model started can
 //                       rewrite this artifact, so check results are never
@@ -188,8 +197,8 @@ export const limitedMarker = ({ resets, runId, onResumed = false }) =>
   `<!-- work-resolve-issue outcome=limited resets=${resets} run=${runId || 0}${resumedTag(onResumed)} -->`;
 
 // The marker a run that reached its turn cap leaves, restarted or handed back.
-export const turnCapMarker = ({ cap, runId, onResumed = false }) =>
-  `<!-- work-resolve-issue outcome=turn-cap${cap ? ` cap=${cap}` : ""}${runId ? ` run=${runId}` : ""}${resumedTag(onResumed)} -->`;
+export const turnCapMarker = ({ cap, runId, onResumed = false, outcome = "turn-cap" }) =>
+  `<!-- work-resolve-issue outcome=${outcome}${cap ? ` cap=${cap}` : ""}${runId ? ` run=${runId}` : ""}${resumedTag(onResumed)} -->`;
 
 // The marker of a refs-hold comment: the App's needs-human hold on the issue
 // of a Refs PR, which work-unblock lifts once that PR merges. report-outcome
@@ -382,7 +391,8 @@ export const PATCH_REASONS = {
 // The step that must come before the lane can run an issue its dimensions
 // skipped, as triage's apply-outcome rule names it.
 export const DIMENSION_STEPS = {
-  "split-required": "Its Size is too large for one run: split it into smaller issues with `/work-items:decompose`.",
+  "split-required":
+    "Its Size is too large for one run: intake splits it into smaller dependent issues before any run picks it up, so it goes back to triage.",
   "research-first": "Its Uncertainty says research comes first: plan or research the approach, then set Uncertainty to Known.",
   "probe-first": "Its Uncertainty says only an experiment answers it: run a probe or spike first, then set Uncertainty to Known.",
 };
@@ -391,9 +401,31 @@ export const DIMENSION_STEPS = {
 // that ran nothing, so prior() passes them over like a dimension skip.
 const RETIRED_SKIPS = new Set(["not-assessed"]);
 
-// A run its issue dimensions skipped before any model turn: the issue goes to
-// a person with the next step, and agent-ready comes off.
+// The label that hands an issue back to intake triage.
+export const TRIAGE_LABEL = "needs-triage";
+
+// A run its issue dimensions skipped before any model turn: agent-ready comes
+// off, and the comment names the next step. A split-required issue goes back
+// to intake (needs-triage), which splits large work before a run picks it up;
+// no person is asked. The other skips go to a person.
 function dimensionSkipPlan({ reason, issueNumber, humanLabel, runUrl, runId }) {
+  if (reason === "split-required") {
+    const lines = [
+      `<!-- work-resolve-issue outcome=${reason}${runId ? ` run=${runId}` : ""} -->`,
+      `The work-resolve-issue lane did not start this issue (\`${reason}\`). ${DIMENSION_STEPS[reason]} It removed \`agent-ready\` and added \`${TRIAGE_LABEL}\`.`,
+    ];
+    if (runUrl) {
+      lines.push("", `Run: ${runUrl}`);
+    }
+    return {
+      action: "hand-back",
+      exit: reason,
+      issueNumber,
+      comment: lines.join("\n"),
+      addLabels: [TRIAGE_LABEL],
+      removeLabels: ["agent-ready"],
+    };
+  }
   const lines = escalated([
     `<!-- work-resolve-issue outcome=${reason}${runId ? ` run=${runId}` : ""} -->`,
     `The work-resolve-issue lane did not start this issue (\`${reason}\`). ${DIMENSION_STEPS[reason]}`,
@@ -448,38 +480,48 @@ function fundingPlan({ issueNumber, branch, regain, runId, runUrl, onResumed }) 
   return { action: "funding", exit: "funding", issueNumber, runId, comment: lines.join("\n"), addLabels: [], removeLabels: [] };
 }
 
-// A run that reached its turn cap: the marker names the cap, and the comment
-// names the cause and the branch. With restarts left, agent-ready stays and
-// work-unblock starts the issue again; otherwise it goes to a person.
-function turnCapPlan({ issueNumber, branch, cap, restart, humanLabel, runId, runUrl, onResumed }) {
-  const reached = cap ? `turn cap ${cap} reached` : "turn cap reached";
+// The queue label work-unblock's sweep re-admits from.
+export const DEFERRED_LABEL = "admission-deferred";
+
+const stopText = (stop) =>
+  stop.cause === "timeout" ? "its time limit for one job reached" : stop.cap ? `turn cap ${stop.cap} reached` : "turn cap reached";
+
+// A run that stopped at its turn cap or its job's time limit. With progress
+// (a commit of its own) the marker names the cause, agent-ready stays and
+// work-unblock starts the issue again from the branch, whatever the count.
+// Without it the run is not restarted: the issue goes back to the admission
+// queue (admission-deferred), which the next sweep revisits, and no person
+// is asked.
+function stopPlan({ issueNumber, branch, stop, progress, runId, runUrl, onResumed }) {
+  const reached = stopText(stop);
+  if (!progress) {
+    const lines = [
+      turnCapMarker({ runId, onResumed, outcome: "no-progress" }),
+      `The work-resolve-issue lane stopped on this issue: ${reached}, with no new commit, so it is not restarted. It removed \`agent-ready\` and added \`${DEFERRED_LABEL}\`, so work-unblock's next sweep admits it again through the queue.`,
+    ];
+    if (runUrl) {
+      lines.push("", `Run: ${runUrl}`);
+    }
+    return {
+      action: "no-progress",
+      exit: "no-progress",
+      issueNumber,
+      runId,
+      comment: lines.join("\n"),
+      addLabels: [DEFERRED_LABEL],
+      removeLabels: ["agent-ready"],
+    };
+  }
   const lines = [
-    turnCapMarker({ cap, runId, onResumed }),
-    restart
-      ? `The work-resolve-issue lane stopped on this issue: ${reached}. It keeps \`agent-ready\`, and work-unblock starts it again from the branch, or fresh from the default branch once the branch is behind it.`
-      : `The work-resolve-issue lane stopped on this issue: ${reached}. It has used its restarts, so it needs a person.`,
-  ];
-  lines.push(
+    turnCapMarker({ cap: stop.cause === "turn-cap" ? stop.cap : null, runId, onResumed, outcome: stop.cause }),
+    `The work-resolve-issue lane stopped on this issue: ${reached}. It keeps \`agent-ready\`, and work-unblock starts it again from the branch, or fresh from the default branch once the branch is behind it.`,
     "",
-    branch
-      ? `Partial work is on the branch \`${branch}\`; a restart or retry continues from it while it is not behind the default branch, and otherwise starts fresh. Delete the branch first to always start fresh.`
-      : "The run committed nothing.",
-  );
+    `Partial work is on the branch \`${branch}\`; a restart continues from it while it is not behind the default branch, and otherwise starts fresh. Delete the branch first to always start fresh.`,
+  ];
   if (runUrl) {
     lines.push("", `Run: ${runUrl}`);
   }
-  if (!restart) {
-    lines.push("", `To retry (from the branch while it is not behind the default branch, else fresh), remove \`${humanLabel}\` and add \`agent-ready\` again; a smaller issue, or a larger Size or Complexity field, may fit the cap.`);
-  }
-  return {
-    action: restart ? "turn-cap" : "hand-back",
-    exit: "turn-cap",
-    issueNumber,
-    runId,
-    comment: (restart ? lines : escalated(lines)).join("\n"),
-    addLabels: restart ? [] : [humanLabel],
-    removeLabels: restart ? [] : ["agent-ready"],
-  };
+  return { action: stop.cause, exit: stop.cause, issueNumber, runId, comment: lines.join("\n"), addLabels: [], removeLabels: [] };
 }
 
 // The summary pass's file for a reused branch, or null unless it is bound to
@@ -638,11 +680,11 @@ export function reusePlan({
 
 // What to do on the issue, from the outcome and what the run left. `limit` is
 // the runner's limit record ({resets}, epoch ms or null) when the run hit its
-// usage limit; a missing reset counts from `now`, the run's end. `turnCap` is
-// the runner's record ({cap}) when the run reached its turn cap, and
-// `turnCapRestarts` the restarts already made since a person last added
-// agent-ready. `checks` is readChecks' record for the branch's current tip;
-// null stops a done run.
+// usage limit; a missing reset counts from `now`, the run's end. `stop` is
+// the runner's record ({cause, cap}) when the run reached its turn cap or its
+// time limit, and `progress` whether main found a commit of the run's own on
+// its lane branch. `checks` is readChecks' record for the branch's current
+// tip; null stops a done run.
 export function decide({
   outcome,
   issueNumber,
@@ -655,8 +697,8 @@ export function decide({
   humanLabel = "needs-human",
   runUrl = "",
   limit = null,
-  turnCap = null,
-  turnCapRestarts = 0,
+  stop = null,
+  progress = false,
   funding = null,
   limits = LIMIT_DEFAULTS,
   now = Date.now(),
@@ -678,9 +720,23 @@ export function decide({
     const resets = new Date(clampReset(limit.resets, now, limits)).toISOString().replace(/\.\d+Z$/, "Z");
     return limitedPlan({ issueNumber, branch, resets, runId, runUrl, onResumed });
   }
-  if (turnCap && outcome.unread) {
-    const restart = turnCapRestarts < limits["turn-cap-restarts"];
-    return turnCapPlan({ issueNumber, branch, cap: turnCap.cap, restart, humanLabel, runId, runUrl, onResumed });
+  if (stop && outcome.unread) {
+    // A patch apply-issue-patch refused can never land, so a restart would
+    // only stop again: a person gets it.
+    if (escalation && escalation !== "patch-empty") {
+      return handBack({
+        outcome: stopped(
+          `The run stopped (${stopText(stop)}), and apply-issue-patch did not commit its patch (\`${escalation}\`): ${PATCH_REASONS[escalation]}. The run's log names the path or check.`,
+        ),
+        issueNumber,
+        branch: branch || resumed,
+        humanLabel,
+        runUrl,
+        runId,
+        onResumed,
+      });
+    }
+    return stopPlan({ issueNumber, branch, stop, progress: progress && Boolean(branch), runId, runUrl, onResumed });
   }
   // apply-issue-patch refused the run's patch: its work never landed, so no
   // PR opens, from a resumed branch either.
@@ -864,7 +920,7 @@ function humanLabelFrom(path) {
 }
 
 // The outcomes after which the next run continues the marked run's branch.
-export const RESUMABLE = new Set(["turn-cap", "stopped", "limited", "funding"]);
+export const RESUMABLE = new Set(["turn-cap", "timeout", "no-progress", "stopped", "limited", "funding"]);
 
 // The issue's lane branch name, capturing its run id and attempt.
 const laneBranch = (issueNumber) => new RegExp(`^work-resolve-issue/issue-${issueNumber}-([1-9][0-9]*)-([1-9][0-9]*)$`);
@@ -1035,31 +1091,40 @@ export function readFunding(dir) {
   }
 }
 
-// The runner's turn-cap record in lane.json: {cap} (the run's --max-turns, or
-// null when unreadable) when the run's class is max-turns, else null.
-export function readTurnCap(dir) {
+// The runner's stop record in lane.json: {cause: "turn-cap", cap} (the run's
+// --max-turns, or null when unreadable) when the run's class is max-turns,
+// {cause: "timeout", cap: null} when its model step ran its whole time budget,
+// else null.
+export function readStop(dir) {
   try {
     const lane = JSON.parse(readFileSync(join(dir, "lane.json"), "utf8"));
+    if (lane?.class === "timeout") {
+      return { cause: "timeout", cap: null };
+    }
     if (lane?.class !== "max-turns") {
       return null;
     }
-    return { cap: /^[1-9][0-9]{0,5}$/.test(lane["max-turns"] ?? "") ? Number(lane["max-turns"]) : null };
+    return { cause: "turn-cap", cap: /^[1-9][0-9]{0,5}$/.test(lane["max-turns"] ?? "") ? Number(lane["max-turns"]) : null };
   } catch {
     return null;
   }
 }
 
-// The turn-cap restarts since a listed human last added agent-ready: the lanes
-// App's turn-cap markers after that, other than this run's own. Anyone else's
-// label resets nothing, so it cannot buy restarts.
-export function countTurnCapRestarts({ comments, events, bot, humans, runId }) {
-  const since = events
-    .filter((event) => event?.event === "labeled" && event.label?.name === "agent-ready" && humans.has(event.actor?.id))
-    .reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
-  return comments.filter((comment) => {
-    const marker = comment.user?.login === bot ? parseOutcomeMarker(comment.body) : null;
-    return marker?.outcome === "turn-cap" && marker.run !== runId && Date.parse(comment.created_at) > since;
-  }).length;
+// Whether a stopped run made progress: lane.json can be rewritten by code the
+// model started, so its branch counts only when it is this run's own lane
+// branch, it exists, and its tip is a commit the lanes App made through the
+// API (apply-issue-patch commits only a non-empty patch).
+export async function madeProgress(github, repo, { branch, issueNumber, runId, bot }) {
+  if (!runId || laneBranch(issueNumber).exec(branch)?.[1] !== runId) {
+    return false;
+  }
+  const ref = branch.split("/").map(encodeURIComponent).join("/");
+  const sha = await github("GET", `${repo}/git/ref/heads/${ref}`).then((answer) => answer?.object?.sha, () => "");
+  if (!/^[0-9a-f]{40}$/.test(sha ?? "")) {
+    return false;
+  }
+  const tip = await github("GET", `${repo}/commits/${sha}`).catch(() => null);
+  return laneCommit(tip, bot);
 }
 
 function api({ fetch, apiUrl, token }) {
@@ -1294,7 +1359,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     const checkedBranch = branch || resumed;
     const checked = readChecks(env.RUNNER_CHECKS ?? "", { branch: checkedBranch });
     const limit = readLimit(dir);
-    const turnCap = readTurnCap(dir);
+    const stop = readStop(dir);
     const funding = readFunding(dir);
     const issue = await github("GET", `${repo}/issues/${issueNumber}`);
     const unreported = reuse && (outcome === null || outcome.unread);
@@ -1363,25 +1428,11 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       (await paginate(github, `${repo}/issues/${issueNumber}/events`)
         .then((events) => trustedLabeler(events, HUMAN_MERGE_LABEL, { bot, humans: readHumans(env.TRUSTED_ACTORS ?? "") }))
         .catch(() => true));
-    // Only a turn cap with no outcome of the run's own reads the issue's history.
-    const capped = !unreported && funding === null && turnCap !== null && outcome?.unread === true;
+    // Only a stop with no outcome of the run's own reads the issue's comments
+    // and checks for progress.
+    const capped = !unreported && funding === null && stop !== null && outcome?.unread === true;
     const comments = capped ? await paginate(github, `${repo}/issues/${issueNumber}/comments`) : [];
-    const turnCapRestarts = capped
-      ? countTurnCapRestarts({
-          comments,
-          events: await paginate(github, `${repo}/issues/${issueNumber}/events`),
-          bot,
-          // An unreadable list counts every marker, so it restarts less, never more.
-          humans: (() => {
-            try {
-              return readHumans(env.TRUSTED_ACTORS ?? "");
-            } catch {
-              return new Set();
-            }
-          })(),
-          runId,
-        })
-      : 0;
+    const progress = capped ? await madeProgress(github, repo, { branch, issueNumber, runId, bot }) : false;
     const humanLabel = humanLabelFrom(env.TRACKER_CONFIG ?? ".base/.work-item-tracker.json");
     let plan = unreported
       ? reusePlan({
@@ -1408,8 +1459,8 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           humanLabel,
           runUrl,
           limit,
-          turnCap,
-          turnCapRestarts,
+          stop,
+          progress,
           funding,
           limits: readLimits(resolvedPath),
           now,
@@ -1417,17 +1468,30 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           checks,
           escalation,
         });
-    if (plan.action === "turn-cap") {
+    if (plan.action === "turn-cap" || plan.action === "timeout" || plan.action === "no-progress") {
       // Once per run, like the limited marker: a rerun of this report finds
-      // its own marker and posts nothing.
+      // its own marker and posts nothing. The marker comes before the label
+      // moves, so work-unblock reads the removal as a re-queue, not a stop.
       const posted = comments.some((comment) => {
         const marker = comment.user?.login === bot ? parseOutcomeMarker(comment.body) : null;
-        return marker?.outcome === "turn-cap" && runId !== "" && marker.run === runId;
+        return marker?.outcome === plan.action && runId !== "" && marker.run === runId;
       });
       if (!posted) {
         await github("POST", `${repo}/issues/${issueNumber}/comments`, { body: plan.comment });
       }
-      console.log(`report-outcome: issue #${issueNumber} reached its turn cap; work-unblock restarts it`);
+      if (plan.addLabels.length) {
+        await github("POST", `${repo}/issues/${issueNumber}/labels`, { labels: plan.addLabels });
+      }
+      for (const name of plan.removeLabels) {
+        await github("DELETE", `${repo}/issues/${issueNumber}/labels/${encodeURIComponent(name)}`).catch((error) =>
+          console.log(`report-outcome: could not remove ${name}: ${error.message}`),
+        );
+      }
+      console.log(
+        plan.action === "no-progress"
+          ? `report-outcome: issue #${issueNumber} stopped with no new commit; it goes back to the admission queue`
+          : `report-outcome: issue #${issueNumber} stopped (${plan.action}) with new commits; work-unblock restarts it`,
+      );
       return 0;
     }
     if (plan.action === "limited" || plan.action === "funding") {

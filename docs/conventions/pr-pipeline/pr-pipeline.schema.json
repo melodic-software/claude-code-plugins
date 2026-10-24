@@ -115,13 +115,6 @@
           "default": 60,
           "description": "The issue lane's WIP cap when the lane merge rate cannot be read; otherwise wip.target-lead-time-hours sets it."
         },
-        "turn-cap-restarts": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 5,
-          "default": 0,
-          "description": "Times work-unblock restarts an issue whose run reached its turn cap, since a listed human last added agent-ready; past it the issue goes to a person. 0 never restarts."
-        },
         "fix-ci-per-run": {
           "type": "integer",
           "minimum": 1,
@@ -677,7 +670,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["fields", "sizes", "complexity", "uncertainty"],
-      "description": "The budget of a skill activity with input issue, from the issue's Size, Complexity and Uncertainty org issue fields, read by field and option id. A field with no value, or whose latest setter is neither a listed human nor the lanes App, reads as size small, complexity medium or uncertainty known, which the tables must define; an option no entry maps fails the resolve. The turn cap is the size's base-turns times the complexity factor, rounded up, and replaces the profile's max-turns (README.md, Models).",
+      "description": "The budget of a skill activity with input issue, from the issue's Size, Complexity and Uncertainty org issue fields, read by field and option id. A field with no value, or whose latest setter is neither a listed human nor the lanes App, reads as size small, complexity medium or uncertainty known, which the tables must define; an option no entry maps fails the resolve. The turn cap is the size's base-turns times the complexity factor, rounded up, and replaces the profile's max-turns (README.md, Models). The model step's timeout is the size's timeout-minutes less the minutes resolve-config keeps for saving a stopped run's work.",
       "properties": {
         "fields": {
           "type": "object",
@@ -706,7 +699,7 @@
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 360,
-                    "description": "The run job's timeout-minutes, whatever the complexity."
+                    "description": "The run job's timeout-minutes, whatever the complexity. A run that outlasts it resumes in a new job from its lane branch."
                   }
                 }
               }

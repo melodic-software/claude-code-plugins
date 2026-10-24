@@ -1741,8 +1741,10 @@ listing and re-fires the issue on main's files, once per version of the two file
 `pick-slot`'s resolve skips on its dimensions (`split-required`, `research-first` or
 `probe-first`) takes no model turn and leaves no outcome, so the caller's `report-skip` job,
 which needs `admit` and `pick-slot` only, runs `report-outcome` in the write file with
-`dimension-skip`: it labels the issue `needs-human`, removes `agent-ready`, and comments the next
-step under the escalation marker and an `outcome=<reason>` marker. What changes from the PR flow:
+`dimension-skip`: it removes `agent-ready` and comments the next step under an
+`outcome=<reason>` marker. `split-required` adds `needs-triage`, handing the issue back to intake
+to be split, with no escalation marker; `research-first` and `probe-first` add `needs-human` under
+the escalation marker. What changes from the PR flow:
 
 - Step 1 also fails red unless the event is `issues`, `issue-number` is the event's issue,
   `trusted-base` is `default-tip`, and `pr-number` and `dispatcher-run-id` are empty; in the read
@@ -1775,7 +1777,7 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   made and its report never posted. Branches that fail any of these are passed over, not stopped at, so an older unreported
   branch is reused even when a newer branch's run was handed back or limit-stopped. A branch whose
   own run posted a hand-back or limited marker is never reused. With nothing to reuse, when the
-  newest lanes-App outcome marker is `turn-cap`, `stopped`, `limited` or `funding` (passing over
+  newest lanes-App outcome marker is `turn-cap`, `timeout`, `no-progress`, `stopped`, `limited` or `funding` (passing over
   those markers that carry `branch=resumed`, left by a resumed run that kept no branch of its own)
   and names a run whose newest lane branch passes the same commit, tip and PR checks
   with every commit ahead of the default branch verified, authored by the lanes App and committed
@@ -1838,20 +1840,31 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   `<!-- work-resolve-issue outcome=<exit> run=<run id> -->`, which `issue-prior` matches to the
   branches of that run (a marker naming no run covers every branch whose tip is older than it).
   Comments that keep `agent-ready` open with the outcome marker alone.
-  A run that wrote no readable outcome file and whose lane record has class `max-turns` is a
-  turn-cap stop: the comment's outcome marker is `<!-- work-resolve-issue outcome=turn-cap cap=<n> run=<run id> -->`
-  and says "turn cap <n> reached" and names the branch. While the turn-cap markers since a person
-  listed human last added `agent-ready` are fewer than `limits.turn-cap-restarts`, it keeps `agent-ready` and
-  adds no label, and the work-unblock sweep restarts the issue as it does after a limit stop;
-  otherwise it hands back like `stopped`. `lane.json` carries the run's `max-turns` for the cap,
-  and the `pipeline/resolve-issue` status reads "Stopped at the turn cap.". A run that exited
+  A run that wrote no readable outcome file and whose lane record has class `max-turns` (a
+  turn-cap stop) or `timeout` (its model step ran its whole `run-minutes`, the job timeout less
+  the minutes the save steps need, so the patch and lane record still upload) is a stop. When the
+  stopped job made progress, which report-outcome reads from the API, not from `lane.json`: this
+  run's own lane branch exists and its tip is a lanes-App commit, so apply-issue-patch committed
+  new work. Then the comment's outcome marker is
+  `<!-- work-resolve-issue outcome=turn-cap cap=<n> run=<run id> -->` or
+  `<!-- work-resolve-issue outcome=timeout run=<run id> -->`, it names the branch, keeps
+  `agent-ready` and adds no label, and the work-unblock sweep restarts the issue from that branch
+  as it does after a limit stop, with no count. A stop with no new commit is not restarted: its
+  marker is `outcome=no-progress`, and report-outcome adds `admission-deferred` and removes
+  `agent-ready`, so the next sweep re-admits it through the queue, with no `needs-human` and no
+  escalation marker. A stop whose patch apply-issue-patch refused hands back like `stopped`.
+  `lane.json` carries the run's `max-turns` for the cap, and the `pipeline/resolve-issue` status
+  reads "Stopped at the turn cap." or "Stopped at the job's time limit.". The run keeps its
+  progress note, `.lane-progress.md` at the checkout root, in its change, so it rides the lane
+  branch to the next job; the activity's `scripts/check-lane-progress-note.sh --check` keeps a
+  done run that left it from opening a PR. A run that exited
   non-zero, wrote no readable outcome file, and whose result carries `api_error_status` 400 with
   "regain access on <date>" (a spend limit or no credit) or 401 (a disabled key) is a funding
   stop, whatever its class or turn cap (`lane.json` carries `failed`, `api-error-status` and
   `error-text`, read by the `Read the run's API error` step from the execution file's result
   fields): the comment opens with `<!-- work-resolve-issue outcome=funding resets=<date> run=<run id> -->`
   (no `resets` when no date is readable), it keeps `agent-ready` and adds no label, it counts
-  toward `limits.limit-stops-per-issue` with limit stops (not `turn-cap-restarts`), and work-unblock restarts the issue after the date, held
+  toward `limits.limit-stops-per-issue` with limit stops, and work-unblock restarts the issue after the date, held
   within `limits.reset-clamp-min` and `reset-clamp-max`; with no date a person restarts it. The
   status reads "Stopped on the lane's funding.". The next run resumes a funding-stopped run's
   branch like a `limited` one's.

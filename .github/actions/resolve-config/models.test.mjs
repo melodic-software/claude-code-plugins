@@ -263,15 +263,30 @@ test("live config: an issue with no Complexity keeps the default profile and run
   assert.equal(slot.applies, true);
   assert.equal(slot["issue-dimensions"], "small/medium/known");
   assert.equal(slot.models.profile, "standard");
-  assert.equal(slot.models["max-turns"], 113);
+  assert.equal(slot.models["max-turns"], 75000);
 });
 
-test("live config: an issue with no fields runs at 113 turns for 50 minutes", () => {
+test("live config: an issue with no fields runs a whole hosted job, its model step stopping in time to save its work", () => {
   const slot = liveIssueSlot({});
   assert.equal(slot.applies, true);
   assert.equal(slot["issue-dimensions"], "small/medium/known");
-  assert.equal(slot["timeout-minutes"], 50);
-  assert.equal(slot.models["max-turns"], 113);
+  assert.equal(slot["timeout-minutes"], 360);
+  assert.equal(slot["run-minutes"], 340);
+});
+
+// Owner decision C13: a worker run has no turn cap that binds. Every running
+// size and complexity sets a cap the model step cannot reach in its time even
+// at a turn every second, and one the runner's 6-digit cap record still reads.
+test("live config: no worker run's turn cap binds before its job's time runs out", () => {
+  for (const size of ["small", "medium"]) {
+    for (const complexity of ["low", "medium", "high"]) {
+      const slot = liveIssueSlot({ size, complexity, uncertainty: "known" });
+      assert.equal(slot.applies, true, `${size}/${complexity}`);
+      assert.ok(slot.models["max-turns"] > slot["run-minutes"] * 60, `${size}/${complexity}: ${slot.models["max-turns"]} turns`);
+      assert.ok(slot.models["max-turns"] <= 999999, `${size}/${complexity}`);
+      assert.ok(slot["timeout-minutes"] <= 360, `${size}/${complexity}`);
+    }
+  }
 });
 
 test("live config: a Knowable issue runs", () => {

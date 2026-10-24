@@ -1397,17 +1397,31 @@ jobs:
           MODE: ${{ steps.config.outputs.permission-mode }}
         run: bash "$RUNNER_TEMP/read-patch/check-permission-mode.sh"
 
+      # Issue mode: when the model step starts, so the lane record can tell a
+      # step that ran its whole time budget (class timeout) from another
+      # failure.
+      - name: Record when the skill starts
+        id: skill-start
+        if: >-
+          steps.go.outputs.run == 'true' && steps.config.outputs.kind == 'skill'
+          && inputs.issue-number != ''
+        run: echo "at=$(date +%s)" >>"$GITHUB_OUTPUT"
+
       # Issue mode, on claude-code-action until the issue lane moves to the
       # launcher. A failure does not stop the job here: the next step fails
       # it unless the failure is only the turn cap on a successful result,
       # and a failed run's partial change is still collected, so a resumed
-      # run continues it.
+      # run continues it. Its timeout is resolve-config's run-minutes, the
+      # job timeout less the minutes the steps below need, so a run that
+      # outlasts one job stops here with the job still alive: its work is
+      # collected, pushed to its lane branch, and the next job resumes it.
       - name: Run the skill activity
         id: act-skill
         if: >-
           steps.go.outputs.run == 'true' && steps.config.outputs.kind == 'skill'
           && inputs.issue-number != ''
         continue-on-error: ${{ inputs.issue-number != '' }}
+        timeout-minutes: ${{ fromJSON(steps.config.outputs.run-minutes || '20') }}
         uses: anthropics/claude-code-action@ae68417a745a5df4b2124873632bd73a2255e6f6 # v1.0.259
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
@@ -1717,6 +1731,8 @@ jobs:
           lane-id: ${{ inputs.lane }}
           credential: ${{ steps.credential.outputs.name }}
           max-turns: ${{ steps.config.outputs.max-turns }}
+          step-started-at: ${{ steps.skill-start.outputs.at }}
+          step-timeout-minutes: ${{ steps.config.outputs.run-minutes }}
 
       # PR mode: one lane record per run. A handoff records nothing; the
       # fallback call records the run under a name that says why it ran

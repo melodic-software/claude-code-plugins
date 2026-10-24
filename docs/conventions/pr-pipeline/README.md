@@ -669,8 +669,9 @@ round whose model never ran, so the scan uploaded no replies), `clean-merge` (a 
 round whose base merge left no conflict, so no model ran and the push job commits the merge), or, for an issue run under
 `models.issue-dimensions`, `research-first` or `probe-first` (its Uncertainty), or
 `split-required` (its Size is `split`). Issue mode posts no check, so work-resolve-issue.yml reports those three dimension skips
-on the issue instead: `needs-human`, no `agent-ready`, and a comment naming the next step
-([Issue mode](pr-run-activity.md#issue-mode)). Silence is not a skip, with three exceptions that
+on the issue instead: no `agent-ready`, a comment naming the next step, and `needs-human`, except
+that `split-required` adds `needs-triage` to hand the issue back to intake, which splits large
+work before any run picks it up ([Issue mode](pr-run-activity.md#issue-mode)). Silence is not a skip, with three exceptions that
 post no check: a fork PR, whose read-only token cannot write checks; a `pull_request` event sent
 by the lanes App; and a run on any other event whose run job gated no head SHA.
 
@@ -1842,7 +1843,7 @@ every hour (and on a manual run from `main`) with no model. It reads the signals
 | 6 report-only audit | the newest scheduled run of `maintenance-audit-test-selection` or `maintenance-check-upstream-drift` failed, which each does on findings | `audit:<workflow>` |
 | 7 platform incident | githubstatus.com has an incident naming Actions that is open or began in the window, or shows Actions not operational | `platform:<incident>`, `platform:actions` |
 | 8 throughput | no PR by `merge.agent-identity` merged for 3 hours while pr-merge's newest live sweep, at most 70 minutes old, counts candidates | `throughput-zero` |
-| 9 lane stop | a comment by `merge.agent-identity` created in the window starts with a `<!-- work-resolve-issue outcome=funding\|limited\|turn-cap ... -->` marker, alone or after the attended queue's escalation marker line, one issue per outcome listing each stopped issue | `lane-stop:funding`, `lane-stop:limited`, `lane-stop:turn-cap` |
+| 9 lane stop | a comment by `merge.agent-identity` created in the window starts with a `<!-- work-resolve-issue outcome=funding\|limited\|no-progress ... -->` marker, alone or after the attended queue's escalation marker line, one issue per outcome listing each stopped issue | `lane-stop:funding`, `lane-stop:limited`, `lane-stop:no-progress` |
 
 An issue's first body line is `<!-- factory-monitor key=<key> fp=<fingerprint> -->`; the body names
 the signal, the owning area and the key, and carries the evidence inside a text fence as inert lines.
@@ -1915,8 +1916,11 @@ those keys, and `small` must run. An option no entry maps fails the resolve with
 mode when that is not `run` (`research-first` or `probe-first`), then with `split-required` when
 its Size is `split`. Otherwise its `max-turns` is the size's `base-turns` times the complexity
 factor, rounded up, replacing the profile's, and the size's `timeout-minutes` is the run job's
-timeout; a skip takes the shortest size timeout. resolve-config outputs `issue-dimensions`
-(`<size>/<complexity>/<uncertainty>`) and `timeout-minutes`;
+timeout; a skip takes the shortest size timeout. The model step's timeout (`run-minutes`) is
+that timeout less the minutes resolve-config keeps for the steps that save a stopped run's work,
+so a run that outlasts one job stops with the job alive, its work reaches its lane branch, and
+the next job resumes it. resolve-config outputs `issue-dimensions`
+(`<size>/<complexity>/<uncertainty>`), `timeout-minutes` and `run-minutes`;
 work-resolve-issue.yml resolves them before its run job starts, since a job's timeout is fixed
 then, and passes the dimensions on (`issue-dimensions`), so a field set while the run waits for
 its slot cannot give it more turns than its timeout allows; without `issue-dimensions` the
@@ -1986,7 +1990,6 @@ with defaults.
 | `limit-stops-per-head` | 3 | Limit stops on one PR head after which pr-unblock stops dispatching it again; also the failed `resolve-conflicts` runs, and the failed or `not-applicable` `fix-ci` runs across base moves, one head gets. |
 | `limit-stops-per-issue` | 3 | Limit and funding stops since a person last added `agent-ready` before work-unblock hands the issue to a person. |
 | `wip-cap` | 60 | The issue lane's WIP cap when the lane merge rate cannot be read ([WIP cap](#wip-cap)); at most 500. |
-| `turn-cap-restarts` | 0 | Restarts after a run reaches its turn cap, since a listed human last added `agent-ready`, before report-outcome hands the issue to a person; at most 5, and 0 never restarts. |
 | `fix-ci-per-run` | 2 | fix-ci dispatches one pr-unblock-dispatch run sends; at most 20. |
 | `fix-ci-restarts` | 1 | Further fix-ci dispatches on one PR head after its first fix-ci run failed; 0 to 5. |
 | `fix-docs-per-run` | 2 | fix-docs dispatches one pr-unblock-dispatch run sends; at most 20. |
@@ -1998,6 +2001,11 @@ pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check
 config themselves. A config the resolver refuses fails the two dispatchers before any dispatch;
 the WIP cap check keeps the last known pause ([WIP cap](#wip-cap)). This repository's values are in
 [`pr-pipeline.yaml`](../pr-pipeline.yaml) (`limits` and `wip`).
+
+No leaf bounds how often an issue run that stopped at its turn cap or a job's time limit
+restarts: work-unblock restarts it from its lane branch whenever the stopped job committed new
+work, and a job that committed none goes back to the admission queue (`admission-deferred`)
+without `needs-human` ([Issue mode](pr-run-activity.md#issue-mode)).
 
 ## WIP cap
 

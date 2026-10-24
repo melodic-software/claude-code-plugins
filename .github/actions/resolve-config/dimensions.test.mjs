@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { checkDimensions, dimensionBudget, issueDimensions, parsePin } from "./dimensions.mjs";
+import { checkDimensions, dimensionBudget, issueDimensions, parsePin, SAVE_MINUTES } from "./dimensions.mjs";
 import { Rejection } from "./resolve.mjs";
 
 const HUMAN = 153232337;
@@ -100,10 +100,21 @@ for (const [size, complexity, turns, minutes] of [
       skip: null,
       "max-turns": turns,
       "timeout-minutes": minutes,
+      "run-minutes": Math.max(1, minutes - SAVE_MINUTES),
       pin: `${size}/${complexity}/known`,
     });
   });
 }
+
+// The model step stops SAVE_MINUTES before the job timeout, so the job is
+// still alive to collect and push a stopped run's work; never below 1.
+test("a run's model step keeps SAVE_MINUTES of the job for saving its work", () => {
+  const sized = (minutes) => ({ ...CONFIG, sizes: { ...CONFIG.sizes, small: { "base-turns": 40, "timeout-minutes": minutes } } });
+  const known = { size: "small", complexity: "low", uncertainty: "known" };
+  assert.equal(dimensionBudget(known, sized(360))["run-minutes"], 360 - SAVE_MINUTES);
+  assert.ok(360 - SAVE_MINUTES > 0 && SAVE_MINUTES >= 10, String(SAVE_MINUTES));
+  assert.equal(dimensionBudget(known, sized(SAVE_MINUTES))["run-minutes"], 1);
+});
 
 test("a fractional product rounds up", () => {
   const config = { ...CONFIG, sizes: { ...CONFIG.sizes, small: { "base-turns": 75, "timeout-minutes": 20 } } };
@@ -123,6 +134,7 @@ for (const [why, dims, skip] of [
     assert.equal(budget.skip, skip);
     assert.equal(budget["timeout-minutes"], 20);
     assert.equal(budget["max-turns"], undefined);
+    assert.equal(budget["run-minutes"], undefined);
   });
 }
 

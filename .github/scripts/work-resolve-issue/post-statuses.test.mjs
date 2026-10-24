@@ -35,25 +35,26 @@ test("a run that pushed back or stopped is a failed resolve-issue", () => {
 
 // The plan's fixed text for a run that reached its turn cap: the cause, never
 // the run's words, and only when the run left no outcome of its own.
-test("a run stopped at its turn cap says so in the resolve-issue description", () => {
+test("a run stopped at its turn cap or time limit says so in the resolve-issue description", () => {
   const unread = { exit: "stopped", steps: [], unread: true };
-  const status = (outcome, turnCap) =>
-    plan({ outcome, branch: BRANCH, resolveResult: "failure", reportResult: "success", turnCap }).find(
+  const status = (outcome, stop) =>
+    plan({ outcome, branch: BRANCH, resolveResult: "failure", reportResult: "success", stop }).find(
       (s) => s.context === "pipeline/resolve-issue",
     );
-  assert.deepEqual(status(unread, { cap: 75 }), {
+  assert.deepEqual(status(unread, { cause: "turn-cap", cap: 75 }), {
     context: "pipeline/resolve-issue",
     state: "failure",
     description: "Stopped at the turn cap.",
   });
+  assert.equal(status(unread, { cause: "timeout", cap: null }).description, "Stopped at the job's time limit.");
   assert.equal(status(unread, null).description, "Failed in the work lane run.");
-  assert.equal(status({ exit: "stopped", steps: [] }, { cap: 75 }).description, "Failed in the work lane run.");
+  assert.equal(status({ exit: "stopped", steps: [] }, { cause: "turn-cap", cap: 75 }).description, "Failed in the work lane run.");
 });
 
 // A funding stop names its cause instead of a failure or the turn cap.
 test("a run stopped on the lane's funding says so in the resolve-issue description", () => {
   const unread = { exit: "stopped", steps: [], unread: true };
-  const status = plan({ outcome: unread, branch: BRANCH, resolveResult: "failure", reportResult: "success", turnCap: { cap: 75 }, funding: { regain: null } }).find(
+  const status = plan({ outcome: unread, branch: BRANCH, resolveResult: "failure", reportResult: "success", stop: { cause: "turn-cap", cap: 75 }, funding: { regain: null } }).find(
     (s) => s.context === "pipeline/resolve-issue",
   );
   assert.equal(status.description, "Stopped on the lane's funding.");

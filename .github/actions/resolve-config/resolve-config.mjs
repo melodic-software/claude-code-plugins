@@ -260,7 +260,11 @@ function outputsFor({ lane, selected }) {
     ...(selected.kind === "skill" ? { "permission-mode": selected["permission-mode"] ?? "dontAsk" } : {}),
     ...(selected["issue-dimensions"] === undefined
       ? {}
-      : { "issue-dimensions": selected["issue-dimensions"], "timeout-minutes": String(selected["timeout-minutes"]) }),
+      : {
+          "issue-dimensions": selected["issue-dimensions"],
+          "timeout-minutes": String(selected["timeout-minutes"]),
+          "run-minutes": selected["run-minutes"] === undefined ? "" : String(selected["run-minutes"]),
+        }),
   };
 }
 

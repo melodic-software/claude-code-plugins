@@ -35,7 +35,7 @@ import {
   readChecks,
   readFunding,
   readOutcome,
-  readTurnCap,
+  readStop,
 } from "./report-outcome.mjs";
 
 const PREP_STEPS = new Set(["review", "verify", "checks"]);
@@ -48,15 +48,15 @@ const DESCRIPTION = {
   failure: "Failed in the work lane run.",
   error: "Did not finish, or was not reported, in the work lane run.",
 };
-const TURN_CAP = "Stopped at the turn cap.";
+const STOPS = { "turn-cap": "Stopped at the turn cap.", timeout: "Stopped at the job's time limit." };
 const FUNDING = "Stopped on the lane's funding.";
 
 // The statuses to post, in order; none without a lane branch. A null outcome
 // is a reused branch whose run's report this run never read: only this run's
 // report-outcome posts, so the statuses the earlier run posted on the same
-// head stand. `turnCap` and `funding` are the runner's records, which name the
+// head stand. `stop` and `funding` are the runner's records, which name the
 // cause only for a run that left no outcome of its own; funding wins.
-export function plan({ outcome, branch, resolveResult, reportResult, turnCap = null, funding = null }) {
+export function plan({ outcome, branch, resolveResult, reportResult, stop = null, funding = null }) {
   if (!branch) {
     return [];
   }
@@ -91,7 +91,7 @@ export function plan({ outcome, branch, resolveResult, reportResult, turnCap = n
       }
     }
   }
-  const cause = outcome.unread === true ? (funding !== null ? FUNDING : turnCap !== null ? TURN_CAP : null) : null;
+  const cause = outcome.unread === true ? (funding !== null ? FUNDING : stop !== null ? STOPS[stop.cause] : null) : null;
   return [...states].map(([activity, state]) => ({
     context: `pipeline/${activity}`,
     state,
@@ -164,7 +164,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch } = {})
       branch,
       resolveResult: env.RESOLVE_RESULT,
       reportResult: env.REPORT_RESULT,
-      turnCap: readTurnCap(dir),
+      stop: readStop(dir),
       funding: readFunding(dir),
     });
     if (!statuses.length) {

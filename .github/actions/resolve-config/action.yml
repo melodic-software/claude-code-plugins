@@ -164,6 +164,12 @@ outputs:
   timeout-minutes:
     description: The issue size's job timeout in minutes; empty when issue-dimensions is.
     value: ${{ steps.resolve.outputs.timeout-minutes }}
+  run-minutes:
+    description: >-
+      The model step's timeout in minutes: timeout-minutes less the minutes
+      kept for the steps that save a stopped run's work. Empty when the run
+      skips or issue-dimensions is empty.
+    value: ${{ steps.resolve.outputs.run-minutes }}
   reads-untrusted:
     description: "`true` when the activity reads untrusted text."
     value: ${{ steps.resolve.outputs.reads-untrusted }}

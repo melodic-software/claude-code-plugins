@@ -968,54 +968,74 @@ const withLimits = (limits) => {
   return { RESOLVED_CONFIG: path };
 };
 
-// Restarts after a turn cap (plan: turn-cap resume, PR 2): report-outcome
-// keeps agent-ready and leaves the turn-cap marker while
-// limits.turn-cap-restarts allows one, and the sweep restarts the issue at
-// once, the way it restarts a limit stop, with no reset to wait for. More
-// turn-cap markers since a person added agent-ready than the limit allows
-// (a forged or stale one) restart nothing.
-const capNote = (at, run = 7) => ({
+// Restarts after a turn-cap or timeout stop (owner decision C13):
+// report-outcome keeps agent-ready and leaves the marker only when the stopped
+// run committed new work, and the sweep restarts the issue at once, the way
+// it restarts a limit stop, with no reset to wait for and no count.
+const capNote = (at, run = 7, outcome = "turn-cap") => ({
   id: 33,
-  body: `<!-- work-resolve-issue outcome=turn-cap cap=75 run=${run} -->\nThe work-resolve-issue lane stopped on this issue: turn cap 75 reached.`,
+  body: `<!-- work-resolve-issue outcome=${outcome}${outcome === "turn-cap" ? " cap=75" : ""} run=${run} -->\nThe work-resolve-issue lane stopped on this issue.`,
   user: LANES_BOT,
   created_at: at,
 });
 
-test("an issue the turn cap stopped is restarted while the limit allows it", async () => {
-  const { github, calls } = stopped({ comments: [note(), capNote("2026-10-16T11:55:00Z")] });
-  assert.equal(await sweep({ github }, withLimits({ "turn-cap-restarts": 1 })), 0);
-  assert.deepEqual(writes(calls), restarted(30));
-});
-
-test("turn-cap stops past the limit, or any with the limit at 0, restart nothing", async () => {
-  for (const [limits, comments] of [
-    [{ "turn-cap-restarts": 0 }, [note(), capNote("2026-10-16T11:55:00Z")]],
-    [{ "turn-cap-restarts": 1 }, [note(), capNote("2026-10-16T08:00:00Z", 6), capNote("2026-10-16T11:55:00Z")]],
-  ]) {
-    // An unlisted account's agent-ready between the stops resets nothing.
-    const { github, calls } = stopped({ comments, events: [added("2026-10-16T05:00:00Z", OWNER), added("2026-10-16T09:00:00Z", MAINTAINER)] });
-    assert.equal(await sweep({ github }, withLimits(limits)), 0);
-    assert.deepEqual(writes(calls), [], JSON.stringify(limits));
+test("an issue a turn-cap or timeout stop left with new work is restarted, however many stops came before", async () => {
+  for (const outcome of ["turn-cap", "timeout"]) {
+    const earlier = [1, 2, 3, 4, 5, 6].map((n) => capNote(`2026-10-16T0${n}:30:00Z`, n, outcome));
+    const { github, calls } = stopped({ comments: [note(), ...earlier, capNote("2026-10-16T11:55:00Z", 7, outcome)] });
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writes(calls), restarted(30), outcome);
   }
 });
 
-test("the App's remove-and-re-add after a turn-cap stop is a restart, not a stop", async () => {
-  const unlabeled = { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T07:00:00Z" };
-  const { github, calls } = world({
-    blocking: [issue(20)],
-    issues: { 20: issue(20) },
-    blockedBy: { 20: [issue(10, { state: "closed" })] },
-    comments: { 20: [note(), capNote("2026-10-16T06:00:00Z")] },
-    events: { 20: [unlabeled, added("2026-10-16T07:00:01Z")] },
-  });
-  assert.equal(await main({ env: envFor(), github }), 0);
-  assert.deepEqual(writes(calls), [labeled(20)]);
+test("the App's remove-and-re-add after a turn-cap or timeout stop is a restart, not a stop", async () => {
+  for (const outcome of ["turn-cap", "timeout"]) {
+    const unlabeled = { event: "unlabeled", label: { name: "agent-ready" }, actor: LANES_BOT, created_at: "2026-10-16T07:00:00Z" };
+    const { github, calls } = world({
+      blocking: [issue(20)],
+      issues: { 20: issue(20) },
+      blockedBy: { 20: [issue(10, { state: "closed" })] },
+      comments: { 20: [note(), capNote("2026-10-16T06:00:00Z", 7, outcome)] },
+      events: { 20: [unlabeled, added("2026-10-16T07:00:01Z")] },
+    });
+    assert.equal(await main({ env: envFor(), github }), 0);
+    assert.deepEqual(writes(calls), [labeled(20)], outcome);
+  }
+});
+
+// A stop with no new commit (no-progress): report-outcome took agent-ready
+// off after its marker and added admission-deferred. The sweep re-admits it
+// through the queue, as it would any deferred issue, and adds no needs-human;
+// a person's removal of agent-ready still stops it.
+test("a no-progress stop is re-queued: the deferred sweep admits it again, with no needs-human", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const requeue = (removedBy) =>
+    world({
+      deferred: [issue(25, { labels: ["admission-deferred"] })],
+      issues: { 25: issue(25, { labels: ["admission-deferred"] }) },
+      blockedBy: { 25: [issue(10, { state: "closed" })] },
+      comments: { 25: [note(), capNote("2026-10-16T08:00:00Z", 7, "no-progress")] },
+      events: {
+        25: [
+          added("2026-10-16T05:00:00Z", OWNER),
+          { event: "labeled", label: { name: "admission-deferred" }, actor: LANES_BOT, created_at: "2026-10-16T08:00:01Z" },
+          { event: "unlabeled", label: { name: "agent-ready" }, actor: removedBy, created_at: "2026-10-16T08:00:02Z" },
+        ],
+      },
+    });
+  const app = requeue(LANES_BOT);
+  assert.equal(await sweep({ github: app.github }, PAUSING), 0);
+  assert.deepEqual(writes(app.calls), [labeled(25), undeferred(25)]);
+  assert.ok(!writes(app.calls).some((line) => line.includes("needs-human")));
+  const person = requeue(OWNER);
+  assert.equal(await sweep({ github: person.github }, PAUSING), 0);
+  assert.ok(!writes(person.calls).includes(labeled(25)), writes(person.calls).join("\n"));
 });
 
 // A funding stop (ci-workflows#781): report-outcome keeps agent-ready and
 // leaves a funding marker with the regain date, if one was stated. The sweep
 // restarts the issue after that date, never before, and never without one;
-// funding stops count toward limits.limit-stops-per-issue, not turn-cap-restarts.
+// funding stops count toward limits.limit-stops-per-issue.
 const fundingNote = (resets, at, run = 7) => ({
   id: 34,
   body: `<!-- work-resolve-issue outcome=funding${resets ? ` resets=${resets}` : ""} run=${run} -->\nStopped on the lane's funding.`,

@@ -387,14 +387,17 @@ const stop = (id, outcome, issue = 7677) => ({
   createdAt: "2026-10-19T16:00:00Z",
 });
 
-test("signal 9: funding, limited and turn-cap stops fire one key each", () => {
-  const found = detect({ ...base, laneStops: [stop(1, "funding"), stop(2, "limited"), stop(3, "turn-cap", 42), stop(4, "turn-cap")] });
-  assert.deepEqual(found.map((f) => f.key).sort(), ["lane-stop:funding", "lane-stop:limited", "lane-stop:turn-cap"]);
-  assert.deepEqual(found.find((f) => f.key === "lane-stop:turn-cap").facts.length, 2);
+test("signal 9: funding, limited and no-progress stops fire one key each", () => {
+  const found = detect({ ...base, laneStops: [stop(1, "funding"), stop(2, "limited"), stop(3, "no-progress", 42), stop(4, "no-progress")] });
+  assert.deepEqual(found.map((f) => f.key).sort(), ["lane-stop:funding", "lane-stop:limited", "lane-stop:no-progress"]);
+  assert.deepEqual(found.find((f) => f.key === "lane-stop:no-progress").facts.length, 2);
 });
 
-test("signal 9: done, pushback and stopped outcomes stay quiet", () => {
-  assert.deepEqual(detect({ ...base, laneStops: [stop(1, "done"), stop(2, "pushback"), stop(3, "stopped")] }), []);
+test("signal 9: done, pushback, stopped and progressing turn-cap or timeout stops stay quiet", () => {
+  assert.deepEqual(
+    detect({ ...base, laneStops: [stop(1, "done"), stop(2, "pushback"), stop(3, "stopped"), stop(4, "turn-cap"), stop(5, "timeout")] }),
+    [],
+  );
 });
 
 test("signal 9: the fingerprint holds for the same stops and changes on a new one", () => {

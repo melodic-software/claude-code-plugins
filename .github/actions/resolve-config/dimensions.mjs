@@ -51,11 +51,17 @@ export function issueDimensions(facts, config, trustedActors) {
   return result;
 }
 
+// Minutes of a run job's timeout kept back from its model step, so the steps
+// after it (collect the patch, record the stop, upload both) finish before
+// the job timeout and a stopped run's work reaches its lane branch.
+export const SAVE_MINUTES = 20;
+
 // The shortest run timeout any size sets, for a run that skips.
 const skipTimeout = (config) =>
   Math.min(...Object.values(config.sizes).filter((size) => size !== "split").map((size) => size["timeout-minutes"]));
 
-// The run budget: {skip, pin, timeout-minutes} plus max-turns when it runs.
+// The run budget: {skip, pin, timeout-minutes} plus max-turns and run-minutes
+// (the model step's timeout) when it runs.
 // Not assessed (a slot whose fields were not read), then uncertainty, then a
 // split size skip in that order.
 export function dimensionBudget(dims, config) {
@@ -73,6 +79,7 @@ export function dimensionBudget(dims, config) {
     skip: null,
     "max-turns": Math.ceil(size["base-turns"] * config.complexity[dims.complexity]),
     "timeout-minutes": size["timeout-minutes"],
+    "run-minutes": Math.max(1, size["timeout-minutes"] - SAVE_MINUTES),
     pin,
   };
 }

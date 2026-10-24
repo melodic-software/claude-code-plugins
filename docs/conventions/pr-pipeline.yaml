@@ -277,7 +277,10 @@ activities:
     # the lane branch with the base's scripts/ code and the branch's scripts/
     # data files, and report-outcome stops a done
     # run whose checks failed or did not run, whatever the outcome file says.
-    checks: ["scripts/check-changelog-fragments.sh --check"]
+    # The second check keeps the run's progress note (.lane-progress.md),
+    # which travels on the lane branch between the jobs of a long run, out
+    # of the PR: a done run must have removed it.
+    checks: ["scripts/check-changelog-fragments.sh --check", "scripts/check-lane-progress-note.sh --check"]
     # Runs the diff-scoped lint checks a push would face (markdown,
     # shellcheck, exec bits, changelog fragments, plugin validation) in the
     # run, so the skill fixes what they report before it commits and the PR
@@ -644,8 +647,10 @@ models:
   # A run on an issue (resolve-issue) takes its budget from the issue's Size,
   # Complexity and Uncertainty org issue fields, read by id. An empty field,
   # or one whose latest setter is not a listed human or the lanes App, reads
-  # as small, medium or known; an unmapped option fails the run. Turn cap = base-turns x complexity factor, rounded
-  # up; it replaces the profile's max-turns.
+  # as small, medium or known; an unmapped option fails the run. Turn cap =
+  # base-turns x complexity factor, rounded up; it replaces the profile's
+  # max-turns. The model step's timeout is the size's timeout-minutes less
+  # resolve-config's SAVE_MINUTES.
   issue-dimensions:
     fields:
       size:
@@ -666,25 +671,33 @@ models:
           "85127654": known
           "85127655": knowable
           "85127656": unknown
+    # A worker run has no turn or time cap of its own: it works as long as the
+    # issue takes, across as many jobs as it needs (owner decision C13). Each
+    # job runs up to GitHub's hosted-job maximum, 360 minutes
+    # (https://docs.github.com/en/actions/reference/limits); its model step
+    # stops 20 minutes earlier (resolve-config's SAVE_MINUTES) so the job
+    # saves the work to the lane branch, and work-unblock restarts the issue
+    # from that branch in a new job while each job commits new work.
+    # base-turns never binds before that: 50000 turns, at most 100000 with
+    # the high factor, in a 340-minute step would need a turn every 0.4
+    # seconds; the 6-digit cap record (report-outcome readStop) still holds it.
     sizes:
-      # 75 turns is the cap every lane run had; 50 minutes covers the high
-      # factor at the 20 seconds a turn the old 75-turn, 25-minute run allowed.
       small:
-        base-turns: 75
-        timeout-minutes: 50
-      # Twice small's turns and time.
+        base-turns: 50000
+        timeout-minutes: 360
       medium:
-        base-turns: 150
-        timeout-minutes: 100
-      # Too big for one run: the lane skips it (split-required) before any
-      # model turn, and triage sends it to /work-items:decompose.
+        base-turns: 50000
+        timeout-minutes: 360
+      # Too big for one run: large work is split into dependent issues before
+      # any run picks it up (owner decision Q93). One that reaches the lane is
+      # skipped (split-required) before any model turn and handed back to
+      # intake (needs-triage, agent-ready removed), never to a person.
       large: split
     complexity:
-      # Base turns as they are: a small low-complexity issue runs as before.
+      # Factors on base-turns; with the turn cap out of reach they change
+      # nothing, and complexity-profiles below picks the model.
       low: 1
-      # Half again, for an issue with several moving parts.
       medium: 1.5
-      # Double, the most a size's timeout covers.
       high: 2
     # The profile a run starts on by Complexity, in place of its route's:
     # high runs Opus at effort xhigh; low, medium and an unset field keep the
@@ -721,10 +734,11 @@ limits:
   # The issue lane's WIP cap when the lane merge rate cannot be read; the
   # wip block below derives it otherwise.
   wip-cap: 12
-  # Restarts after a run reaches its turn cap, per agent-ready a person adds.
-  # 1: one capped run resumes from its pushed branch before a person is asked
-  # again. Raise it further only with a security review (#7677).
-  turn-cap-restarts: 1
+  # No leaf bounds restarts of an issue run that stopped at its turn cap or a
+  # job's time limit (owner decision C13): work-unblock restarts it from its
+  # lane branch whenever the stopped job committed new work, and a job that
+  # committed none goes back to the admission queue instead, with no person
+  # asked (report-outcome).
   # Share of the lane's hourly merge rate admitted per hour. The queued cap
   # (check-wip-cap) is the larger of this rate and admission-min-per-hour,
   # times wip.merge-rate-window-hours; at it, past wip.pause-from, new

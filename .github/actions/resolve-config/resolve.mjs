@@ -876,7 +876,11 @@ function resolveSlot(
       }
       runModels = { ...runModels, "max-turns": budget["max-turns"] };
     }
-    sizing = { "issue-dimensions": budget.pin, "timeout-minutes": budget["timeout-minutes"] };
+    sizing = {
+      "issue-dimensions": budget.pin,
+      "timeout-minutes": budget["timeout-minutes"],
+      ...(budget["run-minutes"] === undefined ? {} : { "run-minutes": budget["run-minutes"] }),
+    };
   }
   return {
     name,
@@ -963,7 +967,6 @@ const limitsOf = (limits = {}) => ({
   "limit-stops-per-head": limits["limit-stops-per-head"] ?? 3,
   "limit-stops-per-issue": limits["limit-stops-per-issue"] ?? 3,
   "wip-cap": limits["wip-cap"] ?? 60,
-  "turn-cap-restarts": limits["turn-cap-restarts"] ?? 0,
   "fix-ci-per-run": limits["fix-ci-per-run"] ?? 2,
   "fix-ci-restarts": limits["fix-ci-restarts"] ?? 1,
   "fix-docs-per-run": limits["fix-docs-per-run"] ?? 2,

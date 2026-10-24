@@ -51,9 +51,11 @@
 // with no agent-ready label added since (so no lane run started after the
 // stop), and no hold label gets agent-ready removed and
 // added again by the App, which starts the lane. An issue whose newest marker
-// is `turn-cap` (report-outcome kept agent-ready, so a restart is left) is
-// restarted the same way at once, while its turn-cap markers since a person
-// last added agent-ready are within limits.turn-cap-restarts. At most
+// is `turn-cap` or `timeout` (report-outcome kept agent-ready because the run
+// committed new work) is restarted the same way at once, with no count. A
+// `no-progress` stop is not restarted: report-outcome moved it to
+// admission-deferred, and the App's removal of agent-ready after that marker
+// is a re-queue, not a stop, so the deferred sweep admits it again. At most
 // limits.restarts-per-run issues per run, longest-waiting first.
 //
 // It re-fires the same way an open agent-ready issue whose newest
@@ -211,16 +213,21 @@ const appMarkers = (comments, bot) =>
     .filter((marker) => marker.outcome !== undefined && Number.isFinite(marker.at));
 
 // The App's markers after which its removal of agent-ready is a restart.
-const RESTARTS = new Set(["limited", "refired", "turn-cap", "funding"]);
+const RESTARTS = new Set(["limited", "refired", "turn-cap", "timeout", "funding"]);
 
 // A removal of agent-ready is a restart, not a stop, only when the App made
-// it, the App's newest marker before it is `limited`, `turn-cap` or a re-fire, and the next agent-ready
-// event after it is the App adding the label back. Any other removal stops the
-// lane, a pushback after a restart included.
+// it, the App's newest marker before it is `limited`, `turn-cap`, `timeout`
+// or a re-fire, and the next agent-ready event after it is the App adding the
+// label back. The App's removal after its `no-progress` marker is a re-queue
+// (the issue waits in admission-deferred), so it is no stop either. Any other
+// removal stops the lane, a pushback after a restart included.
 function isRestart(events, index, markers, bot) {
   const removal = events[index];
   const at = Date.parse(removal.created_at);
   const newest = markers.filter((marker) => marker.at <= at).at(-1)?.outcome;
+  if (removal.actor?.login === bot && newest === "no-progress") {
+    return true;
+  }
   if (removal.actor?.login !== bot || !RESTARTS.has(newest)) {
     return false;
   }
@@ -975,19 +982,11 @@ async function restartRefusal({ github, actions, repo, issue, bot, humans, now, 
   const since = events
     .filter((event) => isLabel(event, "labeled") && event.actor?.login !== bot)
     .reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
-  // report-outcome keeps agent-ready after a turn cap only while a restart is
-  // left, and hands the issue back otherwise; the count here bounds a forged
-  // or stale marker the same way.
-  if (marker?.outcome === "turn-cap") {
-    // Only a listed human's agent-ready resets the turn-cap count, so another
-    // labeler cannot buy restarts.
-    const humanSince = events
-      .filter((event) => isLabel(event, "labeled") && humans.has(event.actor?.id))
-      .reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
-    const caps = markers.filter((item) => item.outcome === "turn-cap" && item.at > humanSince).length;
-    return caps > limits["turn-cap-restarts"]
-      ? { reason: `${caps} turn-cap stops since a person last added ${LABEL}` }
-      : { reason: null, resets: marker.at };
+  // report-outcome keeps agent-ready after a turn-cap or timeout stop only
+  // when the run committed new work, so each restart follows progress; a stop
+  // with none is re-queued instead (no-progress), never restarted here.
+  if (marker?.outcome === "turn-cap" || marker?.outcome === "timeout") {
+    return { reason: null, resets: marker.at };
   }
   const funding = marker?.outcome === "funding";
   if (!funding && marker?.outcome !== "limited") {

@@ -291,8 +291,9 @@ export function throughputFindings({ now, sweep = null, laneMerges = null }) {
 }
 
 // work-resolve-issue's stops that need a person to know: out of funding, the
-// usage limit, or the turn cap.
-const LANE_STOPS = new Set(["funding", "limited", "turn-cap"]);
+// usage limit, or a run stopped with no new commit. A turn-cap or timeout stop
+// that committed work restarts on its own, so it is no finding.
+const LANE_STOPS = new Set(["funding", "limited", "no-progress"]);
 
 export function laneStopFindings({ laneStops = [] }) {
   const groups = new Map();

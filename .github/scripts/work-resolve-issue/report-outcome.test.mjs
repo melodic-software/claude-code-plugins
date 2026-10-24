@@ -13,7 +13,6 @@ import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
-  countTurnCapRestarts,
   decide,
   findPrior,
   findPriorMain,
@@ -23,7 +22,7 @@ import {
   readFunding,
   readChecks,
   readOutcome,
-  readTurnCap,
+  readStop,
   reusePlan,
   trustedLabeler,
 } from "./report-outcome.mjs";
@@ -736,8 +735,29 @@ test("main refuses a human-gated label that is agent-ready and writes no label",
 
 // A run its issue dimensions skipped took no model turn, so it left no
 // outcome: report-outcome hands the issue to a person with the next step.
+// Owner decision Q93: large work is split before any run picks it up, so a
+// large issue that reaches the lane goes back to intake (needs-triage), not
+// to a person, and the attended queue does not list it.
+test("main on a split-required skip hands the issue back to intake with no needs-human", async () => {
+  await withDir({}, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["POST", /\/issues\/77\/labels$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "split-required" }, fetch }), 0);
+    assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body, { labels: ["needs-triage"] });
+    assert.ok(calls.some((c) => c.method === "DELETE" && c.path.endsWith("/labels/agent-ready")));
+    const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+    assert.match(comment, /^<!-- work-resolve-issue outcome=split-required run=123 -->/);
+    assert.ok(!comment.includes("work-items:escalation"), comment);
+    assert.ok(!comment.includes("needs-human"), comment);
+    assert.equal(parseOutcomeMarker(comment).outcome, "split-required");
+  });
+});
+
 for (const [reason, step] of [
-  ["split-required", "/work-items:decompose"],
   ["research-first", "research"],
   ["probe-first", "probe"],
 ]) {
@@ -1356,11 +1376,14 @@ test("main does not take another account's copy of the marker as its own", async
   });
 });
 
-// The turn cap (plan: turn-cap resume, PR 2): a run the classifier recorded as
-// class max-turns, with no outcome of its own, names the cause. The marker is
-// `outcome=turn-cap cap=<n> run=<id>` and the comment says "turn cap <n>
-// reached" and names the branch. It restarts while restarts since a person
-// last added agent-ready are under limits.turn-cap-restarts, else hands back.
+// A stopped run (owner decision C13): a run the classifier recorded as class
+// max-turns or timeout, with no outcome of its own. No count bounds its
+// restarts; the one loop guard is progress. A run that committed new work
+// keeps agent-ready, and its marker (`outcome=turn-cap cap=<n> run=<id>` or
+// `outcome=timeout run=<id>`) names the cause and the branch, so work-unblock
+// restarts it from that branch. One that committed nothing is not restarted:
+// `outcome=no-progress`, agent-ready off and admission-deferred on, so the
+// next sweep re-queues it, and no person is asked.
 const capped = (overrides = {}) =>
   decide({
     outcome: readOutcome("/nonexistent/work-outcome.json"),
@@ -1368,14 +1391,14 @@ const capped = (overrides = {}) =>
     issueLabels: ["agent-ready"],
     branch: BRANCH,
     changedFiles: [],
-    turnCap: { cap: 75 },
-    limits: { "turn-cap-restarts": 1 },
+    stop: { cause: "turn-cap", cap: 75 },
+    progress: true,
     runId: "555",
     checks: NO_CHECKS,
     ...overrides,
   });
 
-test("a run at its turn cap with a restart left keeps agent-ready and names the cap and branch", () => {
+test("a run at its turn cap that committed new work keeps agent-ready and names the cap and branch, however often it stopped", () => {
   const plan = capped();
   assert.equal(plan.action, "turn-cap");
   assert.deepEqual(plan.addLabels, []);
@@ -1383,23 +1406,45 @@ test("a run at its turn cap with a restart left keeps agent-ready and names the 
   assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=turn-cap cap=75 run=555 -->\n"), plan.comment);
   assert.match(plan.comment, /turn cap 75 reached/);
   assert.ok(plan.comment.includes(BRANCH));
+  assert.ok(!plan.comment.includes("work-items:escalation"), plan.comment);
 });
 
-test("a run at its turn cap with no restart left hands back, naming the cap", () => {
-  for (const overrides of [{ turnCapRestarts: 1 }, { limits: { "turn-cap-restarts": 0 } }]) {
+test("a run at its job's time limit that committed new work resumes like a turn-cap stop", () => {
+  const plan = capped({ stop: { cause: "timeout", cap: null } });
+  assert.equal(plan.action, "timeout");
+  assert.deepEqual(plan.addLabels, []);
+  assert.deepEqual(plan.removeLabels, []);
+  assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=timeout run=555 -->\n"), plan.comment);
+  assert.match(plan.comment, /time limit/);
+  assert.ok(plan.comment.includes(BRANCH));
+  assert.equal(parseOutcomeMarker(plan.comment).outcome, "timeout");
+});
+
+test("a stopped run with no new commit is re-queued, not restarted, and no person is asked", () => {
+  for (const overrides of [{ progress: false }, { branch: "" }, { stop: { cause: "timeout", cap: null }, progress: false }]) {
     const plan = capped(overrides);
-    assert.equal(plan.action, "hand-back");
-    assert.deepEqual(plan.addLabels, ["needs-human"]);
+    assert.equal(plan.action, "no-progress", JSON.stringify(overrides));
+    assert.deepEqual(plan.addLabels, ["admission-deferred"]);
     assert.deepEqual(plan.removeLabels, ["agent-ready"]);
-    assert.ok(plan.comment.startsWith(ESC + "<!-- work-resolve-issue outcome=turn-cap cap=75 run=555 -->\n"), plan.comment);
-    assert.match(plan.comment, /turn cap 75 reached/);
+    assert.ok(!plan.addLabels.includes("needs-human"));
+    assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=no-progress run=555 -->\n"), plan.comment);
+    assert.ok(!plan.comment.includes("work-items:escalation"), plan.comment);
   }
 });
 
-test("a run at its turn cap that committed nothing names no branch", () => {
-  const plan = capped({ branch: "" });
-  assert.ok(!plan.comment.includes("work-resolve-issue/issue-"), plan.comment);
-  assert.match(plan.comment, /committed nothing/);
+test("a resumed run with no new commit marks its no-progress marker resumed", () => {
+  const plan = capped({ branch: "", resumed: "work-resolve-issue/issue-77-100-1", progress: false });
+  assert.ok(plan.comment.startsWith("<!-- work-resolve-issue outcome=no-progress run=555 branch=resumed -->"), plan.comment);
+  assert.equal(parseOutcomeMarker(plan.comment).onResumed, true);
+});
+
+// A patch apply-issue-patch refused can never land, so restarting would only
+// stop again: it hands back like stopped.
+test("a stopped run whose patch apply-issue-patch refused goes to a person", () => {
+  const plan = capped({ branch: "", progress: false, escalation: "patch-protected-path" });
+  assert.equal(plan.action, "hand-back");
+  assert.deepEqual(plan.addLabels, ["needs-human"]);
+  assert.ok(plan.comment.includes("`patch-protected-path`"), plan.comment);
 });
 
 // Code the run executed can forge lane.json, so a class beside an outcome the
@@ -1410,95 +1455,86 @@ test("a forged turn-cap class beside a readable outcome keeps that outcome", () 
   assert.ok(stoppedPlan.comment.startsWith(ESC + "<!-- work-resolve-issue outcome=stopped run=555 -->"), stoppedPlan.comment);
 });
 
-test("the turn-cap marker reads back with its run", () => {
-  assert.deepEqual(parseOutcomeMarker("<!-- work-resolve-issue outcome=turn-cap cap=150 run=555 -->\ntext"), {
-    outcome: "turn-cap",
-    resets: null,
-    run: "555",
-    onResumed: false,
-  });
-});
-
-test("lane.json's max-turns class is the turn-cap record; any other class is none", () => {
-  for (const [lane, expected] of [
-    [{ branch: "", class: "max-turns", "max-turns": "75" }, { cap: 75 }],
-    [{ branch: "", class: "max-turns", "max-turns": "75; rm" }, { cap: null }],
-    [{ branch: "", class: "rate-limit", "max-turns": "75" }, null],
-  ]) {
-    withDir({ "lane.json": JSON.stringify(lane) }, (dir) => assert.deepEqual(readTurnCap(dir), expected, JSON.stringify(lane)));
+test("the turn-cap, timeout and no-progress markers read back with their run", () => {
+  for (const outcome of ["turn-cap", "timeout", "no-progress"]) {
+    assert.deepEqual(parseOutcomeMarker(`<!-- work-resolve-issue outcome=${outcome} run=555 -->\ntext`), {
+      outcome,
+      resets: null,
+      run: "555",
+      onResumed: false,
+    });
   }
 });
 
-test("restarts count the App's turn-cap markers since a person last added agent-ready, not this run's", () => {
-  const marker = (run, at, login = "melodic-automation-lanes[bot]") => ({
-    user: { login },
-    body: `<!-- work-resolve-issue outcome=turn-cap cap=75 run=${run} -->`,
-    created_at: at,
-  });
-  const comments = [
-    marker("1", "2026-10-17T01:00:00Z"),
-    marker("2", "2026-10-17T03:00:00Z"),
-    marker("3", "2026-10-17T04:00:00Z", "stranger"),
-    marker("555", "2026-10-17T05:00:00Z"),
-  ];
-  const events = [
-    { event: "labeled", label: { name: "agent-ready" }, actor: { login: "kyle-sexton", id: 153232337 }, created_at: "2026-10-17T02:00:00Z" },
-    { event: "labeled", label: { name: "agent-ready" }, actor: { login: "melodic-automation-lanes[bot]", id: 1 }, created_at: "2026-10-17T03:30:00Z" },
-    // An unlisted triager's re-add resets nothing.
-    { event: "labeled", label: { name: "agent-ready" }, actor: { login: "triager", id: 42 }, created_at: "2026-10-17T03:45:00Z" },
-  ];
-  const humans = new Set([153232337]);
-  assert.equal(countTurnCapRestarts({ comments, events, bot: "melodic-automation-lanes[bot]", humans, runId: "555" }), 1);
+test("lane.json's max-turns and timeout classes are the stop record; any other class is none", () => {
+  for (const [lane, expected] of [
+    [{ branch: "", class: "max-turns", "max-turns": "75" }, { cause: "turn-cap", cap: 75 }],
+    [{ branch: "", class: "max-turns", "max-turns": "75; rm" }, { cause: "turn-cap", cap: null }],
+    [{ branch: "", class: "timeout", "max-turns": "75" }, { cause: "timeout", cap: null }],
+    [{ branch: "", class: "rate-limit", "max-turns": "75" }, null],
+  ]) {
+    withDir({ "lane.json": JSON.stringify(lane) }, (dir) => assert.deepEqual(readStop(dir), expected, JSON.stringify(lane)));
+  }
 });
 
-const CAPPED_LANE = JSON.stringify({ branch: BRANCH, class: "max-turns", resets: "", "max-turns": "75" });
+const STOP_TIP = {
+  author: { login: "melodic-automation-lanes[bot]", type: "Bot" },
+  committer: { login: "web-flow" },
+  commit: { verification: { verified: true, reason: "valid" } },
+};
+const stopLane = (cls) => JSON.stringify({ branch: BRANCH, class: cls, resets: "", "max-turns": "75" });
+const STOP_ROUTES = (tip = STOP_TIP, comments = []) => [
+  ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+  ["GET", /\/issues\/77\/comments$/, 200, comments],
+  ["GET", /\/git\/ref\/heads\/work-resolve-issue\/issue-77-123-1$/, 200, { object: { sha: "c".repeat(40) } }],
+  ["GET", /\/commits\/c{40}$/, 200, tip],
+  ["POST", /\/issues\/77\/comments$/, 201, {}],
+  ["POST", /\/issues\/77\/labels$/, 200, []],
+  ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+];
 
-test("main at the turn cap with restarts left comments the marker once and touches no label", async () => {
-  const resolved = JSON.stringify({ limits: { "turn-cap-restarts": 1 } });
-  await withAsyncDir({ "lane.json": CAPPED_LANE, "resolved.json": resolved }, async (dir) => {
-    const { fetch, calls } = fakeFetch([
-      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
-      ["GET", /\/issues\/77\/comments$/, 200, []],
-      ["GET", /\/issues\/77\/events$/, 200, []],
-      ["POST", /\/issues\/77\/comments$/, 201, {}],
-    ]);
-    assert.equal(await main({ env: { ...env(dir), RESOLVED_CONFIG: join(dir, "resolved.json") }, fetch }), 0);
-    const posted = calls.filter((c) => c.method !== "GET");
-    assert.equal(posted.length, 1);
-    assert.ok(posted[0].body.body.startsWith("<!-- work-resolve-issue outcome=turn-cap cap=75 run=123 -->"), posted[0].body.body);
-  });
-});
-
-test("main on a rerun after its turn-cap marker posts nothing again", async () => {
-  const resolved = JSON.stringify({ limits: { "turn-cap-restarts": 1 } });
-  await withAsyncDir({ "lane.json": CAPPED_LANE, "resolved.json": resolved }, async (dir) => {
-    const own = { user: { login: "melodic-automation-lanes[bot]" }, body: "<!-- work-resolve-issue outcome=turn-cap cap=75 run=123 -->", created_at: "2026-10-17T05:00:00Z" };
-    const { fetch, calls } = fakeFetch([
-      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
-      ["GET", /\/issues\/77\/comments$/, 200, [own]],
-      ["GET", /\/issues\/77\/events$/, 200, []],
-    ]);
-    assert.equal(await main({ env: { ...env(dir), RESOLVED_CONFIG: join(dir, "resolved.json") }, fetch }), 0);
-    assert.deepEqual(calls.filter((c) => c.method !== "GET"), []);
-  });
-});
-
-test("main at the turn cap with no restarts configured hands the issue to a person", async () => {
-  await withAsyncDir({ "lane.json": CAPPED_LANE }, async (dir) => {
-    const { fetch, calls } = fakeFetch([
-      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
-      ["GET", /\/issues\/77\/comments$/, 200, []],
-      ["GET", /\/issues\/77\/events$/, 200, []],
-      ["POST", /\/issues\/77\/labels$/, 200, []],
-      ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
-      ["POST", /\/issues\/77\/comments$/, 201, {}],
-    ]);
+test("main on a timeout stop whose own branch holds a lanes-App commit comments once and keeps agent-ready", async () => {
+  await withAsyncDir({ "lane.json": stopLane("timeout") }, async (dir) => {
+    const { fetch, calls } = fakeFetch(STOP_ROUTES());
     assert.equal(await main({ env: env(dir), fetch }), 0);
-    assert.deepEqual(calls.find((c) => c.path.endsWith("/labels")).body, { labels: ["needs-human"] });
-    assert.ok(calls.some((c) => c.method === "DELETE" && c.path.endsWith("/labels/agent-ready")));
+    const writes = calls.filter((c) => c.method !== "GET");
+    assert.equal(writes.length, 1);
+    assert.ok(writes[0].body.body.startsWith("<!-- work-resolve-issue outcome=timeout run=123 -->"), writes[0].body.body);
+  });
+});
+
+test("main on a stop whose branch tip is not the lanes App's re-queues it with no needs-human", async () => {
+  await withAsyncDir({ "lane.json": stopLane("max-turns") }, async (dir) => {
+    const { fetch, calls } = fakeFetch(STOP_ROUTES({ ...STOP_TIP, author: { login: "stranger" } }));
+    assert.equal(await main({ env: env(dir), fetch }), 0);
     const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
-    assert.match(comment, /turn cap 75 reached/);
-    assert.ok(comment.includes(BRANCH));
+    assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=no-progress run=123 -->"), comment);
+    assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body, { labels: ["admission-deferred"] });
+    assert.ok(calls.some((c) => c.method === "DELETE" && c.path.endsWith("/labels/agent-ready")));
+    // The marker comes before the label moves, so work-unblock reads the removal as a re-queue.
+    const order = calls.filter((c) => c.method !== "GET").map((c) => `${c.method} ${c.path.split("/").pop()}`);
+    assert.deepEqual(order, ["POST comments", "POST labels", "DELETE agent-ready"]);
+  });
+});
+
+test("main on a stop that names another run's branch, or none, counts no progress", async () => {
+  for (const branch of ["work-resolve-issue/issue-77-99-1", ""]) {
+    await withAsyncDir({ "lane.json": JSON.stringify({ branch, class: "timeout" }) }, async (dir) => {
+      const { fetch, calls } = fakeFetch(STOP_ROUTES());
+      assert.equal(await main({ env: env(dir), fetch }), 0);
+      const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+      assert.match(comment, /outcome=no-progress run=123/, branch);
+      assert.ok(!calls.some((c) => c.path.includes("/git/ref/")), branch);
+    });
+  }
+});
+
+test("main on a rerun after its stop marker never posts it twice", async () => {
+  await withAsyncDir({ "lane.json": stopLane("max-turns") }, async (dir) => {
+    const own = { user: { login: "melodic-automation-lanes[bot]" }, body: "<!-- work-resolve-issue outcome=turn-cap cap=75 run=123 -->", created_at: "2026-10-17T05:00:00Z" };
+    const { fetch, calls } = fakeFetch(STOP_ROUTES(STOP_TIP, [own]));
+    assert.equal(await main({ env: env(dir), fetch }), 0);
+    assert.deepEqual(calls.filter((c) => c.method !== "GET"), []);
   });
 });
 
@@ -1650,7 +1686,7 @@ const SHA_400 = "4".repeat(40);
 const marked = (outcome, run, at = "2026-10-16T11:00:00Z") => ({ outcome, run, resets: null, at: Date.parse(at) });
 
 test("a turn-cap, stopped, limited or funding marker for a run with an App-tipped branch resumes from it", () => {
-  for (const outcome of ["turn-cap", "stopped", "limited", "funding"]) {
+  for (const outcome of ["turn-cap", "timeout", "stopped", "limited", "funding"]) {
     const branches = [branchFact(lane(400), { sha: SHA_400 })];
     assert.deepEqual(prior({ branches, markers: [marked(outcome, "400")] }), {
       action: "resume",
@@ -1690,8 +1726,10 @@ test("a newer retired not-assessed marker keeps an earlier run's resume", () => 
 // work is still on the run before it.
 test("a newer turn-cap marker for a resumed run that kept no branch resumes the run before it", () => {
   const branches = [branchFact(lane(400), { sha: SHA_400 })];
-  const markers = [marked("turn-cap", "400"), { ...marked("turn-cap", "401", "2026-10-16T12:00:00Z"), onResumed: true }];
-  assert.equal(prior({ branches, markers }).branch, lane(400));
+  for (const outcome of ["turn-cap", "timeout", "no-progress"]) {
+    const markers = [marked("turn-cap", "400"), { ...marked(outcome, "401", "2026-10-16T12:00:00Z"), onResumed: true }];
+    assert.equal(prior({ branches, markers }).branch, lane(400), outcome);
+  }
 });
 
 // Run 401 resumed 400 and committed, so its branch held 400's commits too; a
@@ -2359,7 +2397,7 @@ test("a funding stop with no date leaves a marker with no reset", () => {
 });
 
 test("a funding stop wins over a turn-cap or limit record, so it counts as neither", () => {
-  const plan = decideFunding({ funding: { regain: null }, turnCap: { cap: 75 }, limit: { resets: null }, limits: { "turn-cap-restarts": 0 } });
+  const plan = decideFunding({ funding: { regain: null }, stop: { cause: "turn-cap", cap: 75 }, limit: { resets: null } });
   assert.equal(plan.action, "funding");
 });
 
@@ -2583,7 +2621,7 @@ test("every hand-back opens with the attended queue's escalation marker, and a r
     decide({ ...plain, outcome: { exit: "pushback", reason: "Which file?", title: "", summary: "" } }),
     decide({ ...plain, outcome: { exit: "stopped", reason: "Tests failed.", title: "", summary: "" } }),
     decide({ ...plain, outcome: { exit: "done", reason: "", title: "", summary: "" }, escalation: "patch-protected-path" }),
-    capped({ limits: { "turn-cap-restarts": 0 } }),
+    capped({ branch: "", progress: false, escalation: "patch-protected-path" }),
   ];
   for (const plan of handBacks) {
     assert.deepEqual(plan.addLabels, ["needs-human"], plan.comment);

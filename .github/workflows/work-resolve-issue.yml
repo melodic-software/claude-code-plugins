@@ -11,7 +11,9 @@ name: work-resolve-issue
 # apply-issue-patch, a script in pr-run-activity-write.yml, commits that patch
 # to a new branch. report-outcome then opens a ready PR from that branch, or
 # comments on the issue and labels it needs-human; an issue its dimensions
-# skip gets the same hand-back from report-skip. The agent-ready label alone
+# skip gets a hand-back from report-skip (a large one back to intake). A run
+# that stops at its turn cap or its job's time limit after committing new
+# work keeps agent-ready, and work-unblock resumes it in a new job. The agent-ready label alone
 # admits the issue; the hold labels and the go-live time are in
 # docs/conventions/pr-pipeline.yaml. The kill switch, the labeler check (a
 # listed human, or the lanes App) and the token broker run inside each
@@ -207,8 +209,10 @@ jobs:
   # An issue its Size, Complexity and Uncertainty fields skip (pick-slot's
   # resolve) takes no model turn, so the run leaves no outcome and every job
   # below skips. This job reports it instead: report-outcome, with the
-  # lanes App token, labels the issue needs-human, removes agent-ready and
-  # comments the next step. It needs no slot and runs at the WIP cap too.
+  # lanes App token, removes agent-ready and comments the next step. A large
+  # issue (split-required) goes back to intake with needs-triage, since large
+  # work is split before any run picks it up; research-first and probe-first
+  # get needs-human. It needs no slot and runs at the WIP cap too.
   report-skip:
     needs: [admit, pick-slot]
     if: >-
