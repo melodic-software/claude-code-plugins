@@ -30,13 +30,14 @@
 //   3. merge: the round marker it posts, naming the reviewed head, is the
 //      record the pr-merge lane merges on; this job never merges or enqueues.
 //      A model that saw a truncated files listing escalates
-//      dependency-files-truncated instead, and a pull request that changes a
-//      workflow or action file escalates dependency-workflow-held: a person
-//      merges those. Every commit on the pull request must be Dependabot's
-//      own (its account ids, web-flow, a valid signature), the repository's
-//      version-bump commit changing only plugin.json `version` and
-//      CHANGELOG.md (bumpRefusal), or a single-parent commit whose files pass the
-//      fix rule above against its parent; else dependency-fix-refused, so a
+//      dependency-files-truncated instead, and one whose change to a
+//      workflow or action file is not a full-SHA pin swap (pinSwapRefusal)
+//      escalates dependency-workflow-unpinned. Every commit on the pull request
+//      must be Dependabot's own (its account ids, web-flow, a valid
+//      signature), the repository's version-bump commit changing only
+//      plugin.json `version` and CHANGELOG.md (bumpRefusal), or a
+//      single-parent commit whose files pass the fix rule above against its
+//      parent; else dependency-fix-refused, so a
 //      commit the lanes App pushed outside a fix round is never merged on.
 //      A merge on a review-only dependency whose evidence does not quote each
 //      matched entry's control (context.json `controls`) escalates
@@ -86,8 +87,8 @@ import {
   isActionsCommit,
   isDependabotSigned,
   isSecurityUpdate,
-  isWorkflowFile,
   parseConfig,
+  pinSwapRefusal,
   WEB_FLOW_ID,
 } from "./dependency-classify.mjs";
 import { FILES_CAP, roundLine, rounds, VERDICTS } from "./review-dependency.mjs";
@@ -388,16 +389,18 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
       await record("escalate", { reasons, evidence });
       return { escalationReason: "dependency-files-truncated", skipReason: "" };
     }
-    // A bump that changes a workflow or action file waits for a person.
+    // A workflow or action file change merges only as a full-SHA pin swap:
+    // the verdict read upstream text, so it alone never admits more.
     const files = await api.listPullFiles(pr);
     if (!Array.isArray(files) || files.length >= FILES_CAP) {
       await record("escalate", { reasons, evidence });
       return { escalationReason: "dependency-files-truncated", skipReason: "" };
     }
-    if (files.some((file) => [file.filename, file.previous_filename].filter(Boolean).some(isWorkflowFile))) {
-      log(`#${pr}: the pull request changes a workflow or action file; a person merges it`);
+    const unpinned = pinSwapRefusal(files);
+    if (unpinned) {
+      log(`#${pr}: a workflow or action file change is not a full-SHA pin swap (${unpinned})`);
       await record("escalate", { reasons, evidence });
-      return { escalationReason: "dependency-workflow-held", skipReason: "" };
+      return { escalationReason: "dependency-workflow-unpinned", skipReason: "" };
     }
     // Every commit that is not Dependabot's own: a lanes App commit pushed
     // outside a fix round reaches the head the model reviewed, and pr-merge
