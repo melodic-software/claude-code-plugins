@@ -155,26 +155,32 @@ if [[ $labeled == true ]]; then
   fi
 fi
 
-# For a review that is not converging: the rounds the lanes App recorded
-# (publish-feedback.mjs's round markers) and each open review thread. A path
-# is data: backticks and line breaks are dropped so it stays one code span.
+# For a review that is not converging: each open review thread. The count
+# of rounds is select's (address-feedback.mjs, round markers and model check
+# runs), shown on the neutral checks, so the comment gives none of its own. A
+# path is data: backticks, line breaks and angle brackets are dropped so it
+# stays one code span and cannot open an HTML comment (a marker line).
 details=''
+resume="To resume, deal with the reason above, remove the \`$label\` label (and \`do-not-merge\`, if set), then dispatch the \`pr-unblock\` workflow with \`pr-number=$PR_NUMBER\` and \`activity=$activity\`:"
 if [[ $ESCALATION_REASON == feedback-not-converging ]]; then
-  rounds=$(gh api --paginate "$issue/comments" | jq -s --arg bot "$bot" \
-    '[add[] | select(.user.login == $bot and (((.body // "") | split("\n")[0] | rtrimstr("\r")) == "<!-- pr-unblock:address-feedback-round -->"))] | length') ||
-    die "cannot read the round markers"
   # shellcheck disable=SC2016  # GraphQL variables, not shell expansions
   query='query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, name: $name) { pullRequest(number: $number) {
     reviewThreads(first: 100) { nodes { isResolved path line comments(first: 1) { nodes { url } } } } } } }'
   if threads=$(gh api graphql -f query="$query" -f owner="${GITHUB_REPOSITORY%%/*}" -f name="${GITHUB_REPOSITORY#*/}" -F number="$PR_NUMBER" |
     jq -er '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)
-      | "- `\((.path // "") | gsub("`"; "") | gsub("[\r\n]+"; " "))\(if .line then ":\(.line)" else "" end)`: \(.comments.nodes[0].url // "")"]
+      | "- `\((.path // "") | gsub("[`<>]"; "") | gsub("[\r\n]+"; " "))\(if .line then ":\(.line)" else "" end)`: \(.comments.nodes[0].url // "")"]
       | .[:20] | join("\n")'); then
     [[ -n $threads ]] || threads='- none open now'
   else
     threads='- the open review threads could not be read; see the pull request'"'"'s Files changed tab'
   fi
-  details=$'\n'"The review rounds are not converging after $rounds rounds. Open review threads:"$'\n\n'"$threads"$'\n'
+  details=$'\n'"The review rounds are not converging after the round cap and one fresh fixer round. Open review threads:"$'\n\n'"$threads"$'\n'
+  # The rounds already run keep counting, so removing the label alone would
+  # stop again on the same head; only the threads move it.
+  resume="Removing the \`$label\` label alone does not resume: the rounds already run still count, so the lane stops again on this head. Do one of these instead:
+
+1. Resolve each open review thread yourself (fix it, or decide it stays as it is), then remove the \`$label\` label (and \`do-not-merge\`, if set).
+2. From an account with write access, reply on a thread with a line that starts \`PR-fix lane: please fix this finding\`, then dispatch the \`pr-unblock\` workflow with \`pr-number=$PR_NUMBER\` and \`activity=$activity\`. The lane runs one round on the threads you asked it to fix:"
 fi
 
 body=$(mktemp)
@@ -187,7 +193,7 @@ The pr-unblock lane stopped on this pull request and needs a person: $why.
 - Reason: \`$ESCALATION_REASON\`
 - Resume key: \`$HEAD_SHA\` (the head the lane stopped on)
 $details
-To resume, deal with the reason above, remove the \`$label\` label (and \`do-not-merge\`, if set), then dispatch the \`pr-unblock\` workflow with \`pr-number=$PR_NUMBER\` and \`activity=$activity\`:
+$resume
 
 \`\`\`sh
 gh workflow run pr-unblock.yml -R $GITHUB_REPOSITORY -f pr-number=$PR_NUMBER -f activity=$activity

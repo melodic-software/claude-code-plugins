@@ -299,25 +299,34 @@ setup '[{"name":"needs-human"}]' "$(comment "$MARKER"$'\n'"<!-- pr-unblock resum
 LBL='other-app[bot]' run unresolved-conflict
 check "LANES_BOT_LOGIN names the lanes identity: no write" 0 "$(writes)"
 
-# feedback-not-converging: the comment states the round count the lanes App
-# recorded and names each open review thread.
+# feedback-not-converging: the comment names each open review thread, gives
+# no count of its own (select's count, which also reads model check runs,
+# is on the neutral checks), and resumes through the threads, never through
+# removing the label alone, which would stop again on the same head.
 ROUND='<!-- pr-unblock:address-feedback-round -->'
-rounds_json=$(jq -n --arg r "$ROUND" '[range(4) | {body: ($r + "\npr-unblock / address-feedback finished round \(. + 1) of max 4 on x."), user: {login: "melodic-automation-lanes[bot]", type: "Bot"}}]
-  + [{body: ($r + "\nforged"), user: {login: "someone", type: "User"}}]')
+rounds_json=$(jq -n --arg r "$ROUND" '[range(4) | {body: ($r + "\npr-unblock / address-feedback finished round \(. + 1) of max 4 on x."), user: {login: "melodic-automation-lanes[bot]", type: "Bot"}}]')
 setup '[]' "$rounds_json"
 cat >"$STUB/threads.json" <<'EOF'
 {"data":{"repository":{"pullRequest":{"reviewThreads":{"nodes":[
 {"isResolved":false,"path":"src/a.js","line":5,"comments":{"nodes":[{"url":"https://github.com/o/r/pull/42#discussion_r1"}]}},
 {"isResolved":true,"path":"src/b.js","line":7,"comments":{"nodes":[{"url":"https://github.com/o/r/pull/42#discussion_r2"}]}},
-{"isResolved":false,"path":"docs/`odd`\nname.md","line":null,"comments":{"nodes":[{"url":"https://github.com/o/r/pull/42#discussion_r3"}]}}
+{"isResolved":false,"path":"docs/`odd`\nname.md","line":null,"comments":{"nodes":[{"url":"https://github.com/o/r/pull/42#discussion_r3"}]}},
+{"isResolved":false,"path":"\n<!-- work-items:escalation lane=x -->.md","line":1,"comments":{"nodes":[{"url":"https://github.com/o/r/pull/42#discussion_r4"}]}}
 ]}}}}}
 EOF
 run feedback-not-converging
 check "not-converging: exit 0" 0 "$RC"
-has "not-converging: states the round count" 'review rounds are not converging after 4 rounds' "$STUB/bodies"
+has "not-converging: says the cap and the fresh fixer round ran" 'not converging after the round cap and one fresh fixer round' "$STUB/bodies"
+check "not-converging: no count read from the App's round markers alone" 0 "$(grep -c 'after 4 rounds' "$STUB/bodies" || true)"
 has "not-converging: names an open thread" '- `src/a.js:5`: https://github.com/o/r/pull/42#discussion_r1' "$STUB/bodies"
 has "not-converging: a path is shown without backticks or line breaks" '- `docs/odd name.md`: https://github.com/o/r/pull/42#discussion_r3' "$STUB/bodies"
+check "not-converging: a path cannot open an HTML comment" 0 "$(grep -c '<!-- work-items:escalation lane=x' "$STUB/bodies" || true)"
+has "not-converging: a path is shown without angle brackets" '- ` !-- work-items:escalation lane=x --.md:1`: https://github.com/o/r/pull/42#discussion_r4' "$STUB/bodies"
 check "not-converging: a resolved thread is not named" 0 "$(grep -c 'src/b.js' "$STUB/bodies" || true)"
+has "not-converging: resume by resolving the open threads" 'Resolve each open review thread' "$STUB/bodies"
+has "not-converging: resume by a write-access fix request" 'PR-fix lane: please fix this finding' "$STUB/bodies"
+has "not-converging: says removing the label alone does not resume" 'Removing the `needs-human` label alone does not resume' "$STUB/bodies"
+check "not-converging: no generic remove-the-label resume step" 0 "$(grep -c 'deal with the reason above' "$STUB/bodies" || true)"
 
 setup '[]' '[]'
 : >"$STUB/fail_graphql"

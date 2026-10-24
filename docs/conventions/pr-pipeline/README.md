@@ -2011,9 +2011,10 @@ intent mismatch), a `claude[bot]` finding, whose lane no footer proves, or a per
 hands the PR to a person; any other
 finding goes to one fresh fixer round, a new session like every round. That is the last automatic
 round: once it has run, no sweep, schedule or dispatch starts another, and the next select hands
-the PR to a person as `feedback-not-converging`, a comment that gives the round count and names the
-open threads (a review that does not converge is an intent question). Only a write-access fix
-request still gets its own round. The round marker and the neutral checks show `round <N> of max
+the PR to a person as `feedback-not-converging`, a comment that names the open threads (a review
+that does not converge is an intent question). Removing the label alone does not resume it, since
+the rounds already run still count: a person resolves the open threads, or a write-access fix
+request still gets its own round, as the comment's resume steps say. The round marker and the neutral checks show `round <N> of max
 <M>`, where M is `loop.review-rounds` plus the fresh fixer's round. The default is 2; this
 repository's value is in `docs/conventions/pr-pipeline.yaml` `loop`. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR
 escalates. `loop.fix-ci-rounds` (default 3, at most 10) is the number of fix-ci commits the lanes

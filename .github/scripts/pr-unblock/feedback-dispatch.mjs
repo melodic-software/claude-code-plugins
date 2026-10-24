@@ -594,7 +594,7 @@ export async function resolveFeedbackSlot({ number, head, env, github, settings 
 
 // Writes run-id, the dispatched run, as a step output; the workflow records
 // it with the upstream run id as an artifact on this run.
-export async function main(env, { api, github, resolveSlot, log = (line) => console.log(line), now } = {}) {
+export async function main(env, { api, github, resolveSlot, log = (line) => console.log(line) } = {}) {
   for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_RUN_ID", "GITHUB_OUTPUT", "GITHUB_EVENT_PATH", "APP_SENDER_ID"]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
@@ -623,7 +623,6 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
     humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || `${env.BASE_PATH || ".base"}/.work-item-tracker.json`),
     resolveSlot: resolveSlot ?? (({ number, head }) => resolveFeedbackSlot({ number, head, env, github })),
     log,
-    ...(now === undefined ? {} : { now }),
   };
   const summary = () => {
     if (budget) {
