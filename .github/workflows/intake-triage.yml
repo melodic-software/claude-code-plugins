@@ -271,6 +271,10 @@ jobs:
         A charge a diff shows (IaC resources or SKUs, runner labels or cron schedules in
         workflows, model, effort or turn flags, new secrets) gets no `cost` flag, no `needs-human`
         and no Cost line: the merge-time cost hold catches it after review.
+        Spend drawn from a flat or prepaid source is not a charge either: model runs, lane runs and
+        `claude plugin eval` passes bill the prepaid API keys, which do not auto-refill (owner Q37).
+        They get no `cost` flag, no `needs-human` and no Cost line. Only a new or renewing charge
+        (Actions billing, Azure, a key or plan that renews or auto-recharges) is cost.
 
         ESCALATION. This section replaces the general needs_human rule in your output format ("true
         when a person must decide: a security report, unclear scope, a request to change
