@@ -4,4 +4,4 @@ bump: patch
 
 ### Fixed
 
-- `rule-admit.sh` refuses an issue as a cost hit only when its title or body names a metered or renewing charge: billing, billed, a spending limit, a subscription, a SKU, retention, a larger, hosted or self-hosted runner, or macOS minutes. The bare words cost, spend, spending, pricing, paid and quota no longer refuse, so an issue about a model or eval run is admitted by rule (owner decision 2026-10-24).
+- `rule-admit.sh` no longer refuses Claude, model or eval work for naming its cost: a spend word (cost, spend, spending, pricing, paid, quota) is exempt when the issue is model or eval work and names no other provider or metered service such as GitHub, Azure, Actions, Copilot, LFS, storage or hosting. Charge terms (billing, a spending limit, a subscription, a seat, Codespaces, a paid plan, a top-up, auto-renew, auto-reload, extra usage, retention, a larger or hosted runner, macOS minutes) still refuse every issue (owner decision 2026-10-24).

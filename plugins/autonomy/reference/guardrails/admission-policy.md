@@ -97,11 +97,17 @@ Precedence, top-down, first hit decides:
    work-class, label-provenance, autonomy, security, merge, sandbox, auto mode, binding, trust,
    ci), matched as whole words. Plugin names that contain a term, such as `context-guard`, refuse
    too: a false positive fails closed.
-3. Cost hit → refuse: a term in the title or body that names a metered or renewing charge
-   (billing, billed, spending limit, subscription, SKU, retention, a larger, hosted or
-   self-hosted runner, macOS minutes), matched as whole words. Model and eval spend is no cost
-   hit (owner decision 2026-10-24). Work that adds or raises a charge waits for the owner unless an
-   owner-recorded decision already covers it, and that check is a person's, not the evaluator's.
+3. Cost hit → refuse, terms matched as whole words in the title or body. A charge term always
+   refuses: billing, billed, spending limit, subscription, SKU, retention, a larger, hosted or
+   self-hosted runner, macOS minutes, seat, Codespaces, a paid plan, top-up, auto-renew,
+   auto-reload, extra usage. A spend word (cost, spend, spending, pricing, paid, quota) refuses
+   unless the issue is model or eval work (the model vendor or product name, model, eval, API
+   key or credit) and names no other provider or metered service (the forge, a cloud provider,
+   the forge's CI minutes, code assistant, large-file storage or paid code scanning, storage, a
+   runner, hosting, a domain): spend on the model subscription or the fixed API credit adds no
+   charge (owner decision 2026-10-24). The evaluator script holds the exact term lists. Work
+   that adds or raises a charge waits for the owner unless an owner-recorded decision already
+   covers it, and that check is a person's, not the evaluator's.
 4. Any `work-class:` label present → refuse, label left untouched.
 5. A rule matches → admit; otherwise refuse.
 
