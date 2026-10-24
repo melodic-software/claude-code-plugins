@@ -38,7 +38,6 @@ const FACTS = {
   event: "synchronize",
   changedPaths: ["src/app.js"],
   labels: [],
-  workClasses: [],
 };
 
 const files = (config, overrides = {}) => ({
@@ -513,11 +512,10 @@ test("a paths miss gives not-applicable-paths", () => {
   );
 });
 
-test("a label, event or work-class miss gives not-applicable", () => {
+test("a label or event miss gives not-applicable", () => {
   for (const predicate of [
     { labels: ["security"] },
     { events: ["push"] },
-    { "work-classes": ["C3"] },
   ]) {
     const config = edited((doc) => {
       doc.activities["run-tests"]["applies-when"] = predicate;
@@ -572,11 +570,10 @@ test("with an activity, neededFacts names only what the selected slot reads", ()
 test("with an activity, another slot's undecidable predicate leaves that slot undecided", () => {
   const config = edited((doc) => {
     doc.activities["measure-coverage"]["applies-when"] = {
-      "work-classes": ["C1"],
+      draft: [false],
     };
   });
   const facts = { ...FACTS };
-  delete facts.workClasses;
   const resolved = run(config, { activity: "run-tests", facts });
   assert.deepEqual(
     [resolved.selected.applies, resolved.selected["skip-reason"]],
@@ -586,7 +583,7 @@ test("with an activity, another slot's undecidable predicate leaves that slot un
   assert.deepEqual([other.applies, other["skip-reason"]], [null, null]);
   assert.throws(
     () => run(config, { activity: "measure-coverage", facts }),
-    /work/i,
+    /needs draft/,
   );
 });
 
@@ -1529,7 +1526,6 @@ const EXAMPLE_FACTS = {
   changedPaths: ["README.md"],
   changedTargets: ["README.md"],
   labels: [],
-  workClasses: [],
   mergeable: "conflicting",
   draft: false,
 };

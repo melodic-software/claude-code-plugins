@@ -23,8 +23,10 @@
 // (fix-ci-dispatch.mjs) and pr-refine.yml's fix-docs once per ready PR that
 // changes Markdown (fix-docs-dispatch.mjs), and their run ids join the same
 // record.
-// resolve-conflicts and review-dependency read the one open-PR listing. A head whose check runs handle it for
-// good is kept in DISPATCH_RECORD (dispatch-record.mjs), which the workflow
+// resolve-conflicts and review-dependency read the one open-PR listing, and
+// resolve-conflicts and fix-ci the one pr-unblock.yml run listing; a
+// rate-limited run listing defers that pass, not fails it. A head whose check
+// runs handle it for good is kept in DISPATCH_RECORD (dispatch-record.mjs), which the workflow
 // carries to the next run through the Actions cache; the next run skips that
 // head's check-run read, and its UNKNOWN re-queries.
 
@@ -37,7 +39,7 @@ import { DEPENDABOT_ID, POLICY_PATH } from "./dependency-classify.mjs";
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
 import { emptyRecord, isHandled, markHandled, pruneRecord, readRecord, writeRecord } from "./dispatch-record.mjs";
 import { prHold } from "./gate-source.mjs";
-import { runTitle } from "./feedback-dispatch.mjs";
+import { runTitle, shareWorkflowRuns } from "./feedback-dispatch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel, LIST_QUERY as CI_FIX_QUERY } from "./fix-ci-dispatch.mjs";
 import { dispatchDocsFixes, HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY, LIST_QUERY as DOCS_FIX_QUERY } from "./fix-docs-dispatch.mjs";
 import { anyHandles, permanentlyHandles } from "./limit-stop.mjs";
@@ -163,6 +165,10 @@ export async function dispatchConflicting({
     try {
       active = (await api.listWorkflowRuns(workflow)).filter((run) => run.status !== "completed");
     } catch (error) {
+      if (error.rateLimited) {
+        log(`::warning::${workflow} run listing is rate limited (${error.message}); no ${activity} dispatched, a later run retries`);
+        return { dispatched, failed };
+      }
       log(`::error::could not list ${workflow} runs: ${error.message}`);
       return { dispatched, failed: failed + 1 };
     }
@@ -272,7 +278,7 @@ export function createGitHubApi({
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     if (!response.ok) {
-      throw new Error(`${method} ${url} returned ${response.status}`);
+      throw Object.assign(new Error(`${method} ${url} returned ${response.status}`), { rateLimited: response.rateLimited === true });
     }
     return response.status === 204 ? {} : response.json();
   }
@@ -486,7 +492,7 @@ export async function main(
       fetch: budget.fetch,
     });
   try {
-    return await dispatchAll(env, { client: shareTimeline(wrapRunIds(base, env)), sleep, log, loadLimits, loadAdoption, now });
+    return await dispatchAll(env, { client: shareWorkflowRuns(shareTimeline(wrapRunIds(base, env))), sleep, log, loadLimits, loadAdoption, now });
   } finally {
     if (budget) {
       log(budget.summary());

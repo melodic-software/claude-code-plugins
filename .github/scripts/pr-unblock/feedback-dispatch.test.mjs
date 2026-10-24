@@ -717,6 +717,19 @@ test("a second dispatcher for one head skips while the first one's run is queued
   }
 });
 
+test("a rate-limited run listing defers the dispatch with a warning; any other listing error fails the run", async () => {
+  const limited = fakeApi();
+  limited.listWorkflowRuns = async () => Promise.reject(Object.assign(new Error("GET runs returned 403"), { rateLimited: true }));
+  const { result, lines } = await decide(limited);
+  assert.equal(result, null);
+  assert.deepEqual(limited.calls.dispatch, []);
+  assert.ok(lines.some((line) => line.startsWith("::warning::") && line.includes("rate limited")), lines.join("\n"));
+  const broken = fakeApi();
+  broken.listWorkflowRuns = async () => Promise.reject(new Error("GET runs returned 404"));
+  await assert.rejects(decide(broken), /returned 404/);
+  assert.deepEqual(broken.calls.dispatch, []);
+});
+
 test("a run created before this review started (the round whose push made this head) does not hold the dispatch", async () => {
   const api = fakeApi({
     run: { run_started_at: "2026-10-15T12:10:00Z" },
@@ -1191,6 +1204,24 @@ test("a tick dispatches at most one head, and moves past one dispatchFeedback sk
   const { output } = await sweepMain(t, api);
   assert.deepEqual(api.calls.dispatch.map((request) => request.inputs["pr-number"]), ["43"]);
   assert.equal(output, "run-id=38779200001\nupstream-run-id=14\n");
+});
+
+test("a tick whose run listing is rate limited reads it once, dispatches nothing and ends green", async (t) => {
+  const second = pull({ number: 43, head: { sha: SECOND_HEAD, repo: { full_name: REPOSITORY } } })[0];
+  const api = sweepApi({
+    openPulls: [...pull(), second],
+    checksAt: { [HEAD]: [failedRound, noModelTurn()], [SECOND_HEAD]: [failedRound, noModelTurn()] },
+    reviewRuns: { [HEAD]: [upstreamRun({ id: 13 })], [SECOND_HEAD]: [upstreamRun({ id: 14, head_sha: SECOND_HEAD })] },
+  });
+  let listings = 0;
+  api.listWorkflowRuns = async () => {
+    listings += 1;
+    throw Object.assign(new Error("GET runs returned 403"), { rateLimited: true });
+  };
+  const { output } = await sweepMain(t, api);
+  assert.equal(listings, 1);
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.equal(output, "");
 });
 
 test("a pr-unblock-dispatch.yml run its schedule did not start sweeps nothing", async (t) => {
