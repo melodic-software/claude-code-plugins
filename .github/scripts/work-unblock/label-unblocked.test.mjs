@@ -2453,7 +2453,7 @@ test("a person's admissible mark with no room stays deferred", async (t) => {
 });
 
 const NEEDS_DECISION_WRITE = `POST /repos/${REPO}/issues/25/labels {"labels":["status: needs-decision"]}`;
-// The labels a sweep's writes leave on issue 25, the failed write left out.
+// The labels a sweep's writes leave on the marked fixture, the failed write left out.
 const labelsAfter = (labels, calls, failed) =>
   writes(calls)
     .filter((call) => call !== failed)
