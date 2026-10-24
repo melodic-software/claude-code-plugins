@@ -2,6 +2,8 @@
 # Tests for check-map.sh: one planted defect per rule, a clean control skill that prints nothing.
 set -uo pipefail
 
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHECK="$SCRIPT_DIR/check-map.sh"
 TEST_TMPDIR="$(mktemp -d)"
@@ -129,13 +131,14 @@ assert_equals "usage: missing directory exits 2" "$?" "2"
 bash "$CHECK" "$TEST_TMPDIR" --nope >/dev/null 2>&1
 assert_equals "usage: unknown argument exits 2" "$?" "2"
 
-# Clean: nothing printed, exit 0, and the default root (three levels up) resolves the globs.
+# Clean: nothing printed, exit 0, and the default root resolves the globs.
 new_case
 out="$(run_check)"
 assert_equals "clean: exit 0" "$?" "0"
 assert_equals "clean: prints nothing" "$out" ""
+git init -q "$ROOT"
 out="$(bash "$CHECK" "$SKILL")"
-assert_equals "clean: default root prints nothing" "$out" ""
+assert_equals "clean: git top level as default root prints nothing" "$out" ""
 
 # index-dead, also: exit 0 with a finding and the tree is unchanged.
 new_case
