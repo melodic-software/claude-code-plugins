@@ -11,13 +11,13 @@
 # Runs from the repository root, or from CHECK_DATA_ROOT when the runner sets it.
 set -euo pipefail
 
-if [ "${1:-}" != "--check" ]; then
+if [[ "${1:-}" != "--check" ]]; then
   echo "usage: scripts/check-lane-progress-note.sh --check" >&2
   exit 2
 fi
 
-root=${CHECK_DATA_ROOT:-.}
-if [ -e "$root/.lane-progress.md" ] || [ -L "$root/.lane-progress.md" ]; then
+note="${CHECK_DATA_ROOT:-.}/.lane-progress.md"
+if [[ -e "${note}" || -L "${note}" ]]; then
   echo "check-lane-progress-note: .lane-progress.md is still in the tree; a finished run removes it" >&2
   exit 1
 fi
