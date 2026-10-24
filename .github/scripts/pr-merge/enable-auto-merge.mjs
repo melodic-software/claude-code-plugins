@@ -9,9 +9,9 @@
 // - The lanes App opened it (merge.agent-identity), into main, from a branch
 //   of this repository, and it is not a draft.
 // - It carries no hold: no `do-not-merge` and no human-gated label (the
-//   tracker's role label, `needs-human` by default), and no body hold a
-//   person wrote (merge-holds.mjs personWrote). Labels past the listing's
-//   100 are read whole.
+//   tracker's role label, `needs-human` by default), and no body hold: the
+//   lane's own hold line, or hold text a person wrote (merge-holds.mjs
+//   bodyHolds). Labels past the listing's 100 are read whole.
 // - No member vetoes it (merge-holds.mjs), its discussion read whole page by
 //   page (wholeDiscussion). ci-status fails on both holds too, so one added
 //   after arming stops the merge queue rather than waiting for this job's
@@ -126,7 +126,7 @@ import { pathToFileURL } from "node:url";
 import { createGitHub, errorLabel } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { humanGatedLabelFrom } from "../pr-unblock/address-feedback.mjs";
 import { readHoldPaths } from "../work-resolve-issue/report-outcome.mjs";
-import { BODY_HOLD, costDecision, costHold, humansOf, pathHold, personWrote, vetoers } from "./merge-holds.mjs";
+import { BODY_HOLD, bodyHolds, costDecision, costHold, humansOf, pathHold, personWrote, vetoers } from "./merge-holds.mjs";
 
 export { BODY_HOLD, HUMAN_VETO } from "./merge-holds.mjs";
 
@@ -265,7 +265,7 @@ export function holdReason(pull, humanGated) {
     return `it carries ${label}`;
   }
   const body = String(pull.body ?? "");
-  return BODY_HOLD.test(body) && personWrote(pull) ? "its body holds it" : null;
+  return bodyHolds(body, BODY_HOLD.test(body) && personWrote(pull)) ? "its body holds it" : null;
 }
 
 const whole = (connection) => Array.isArray(connection?.nodes) && connection.totalCount <= connection.nodes.length;
@@ -393,18 +393,21 @@ export function verifyHold(evidence, head) {
 }
 
 // The verifier refusals and risk reason codes a person must clear (owner
-// direction 2026-10-24): untrusted provenance, a security finding, a
-// trusted-actor widening and a cost hold. A risk reason opens the reasons
-// string or follows "; " (babysit_verify_evidence.lane_risk_refusal).
-export const PERSON_REFUSALS = Object.freeze(["verify:untrusted-spec"]);
-const PERSON_RISK = /(?:^|; )(?:security-finding|trust-gate:[a-z-]+|cost-review-required):/;
+// direction 2026-10-24): untrusted provenance, the repeated-FAIL round cap
+// (a kept cap no lane clears), a security finding (a CRITICAL one, or a
+// path that could alias another, a symlink, submodule or mode change:
+// `high-path:**`), a trusted-actor widening and a cost hold. A risk reason
+// opens the reasons string or follows "; "
+// (babysit_verify_evidence.lane_risk_refusal).
+export const PERSON_REFUSALS = Object.freeze(["verify:untrusted-spec", "verify:repeated-fail"]);
+const PERSON_RISK = /(?:^|; )(?:security-finding|trust-gate:[a-z-]+|cost-review-required|high-path:\*\*):/;
 
 // Who clears the refusal verifyHold reads in `evidence` at `head`: `person`
 // for a PERSON_REFUSALS refusal or a risk hold carrying a PERSON_RISK
 // reason, `lane` for every other refusal (an issue link the lane does not
-// take, a FAIL, the repeated-FAIL cap, another risk reason), which gets the
-// comment and no label, and null for an unread answer, which the next run
-// reads again.
+// take, a FAIL, a changed spec, another risk reason), which gets the comment
+// and no label, and null for an unread answer, which the next run reads
+// again.
 export function verifyClears(evidence, head) {
   if (evidence === null || typeof evidence !== "object" || evidence.head !== head) {
     return null;

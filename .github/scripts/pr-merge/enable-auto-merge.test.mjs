@@ -36,9 +36,9 @@ import {
   verifyHold,
 } from "./enable-auto-merge.mjs";
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { COMMENT_DELETED_QUERY, COMMENT_EDITED_QUERY, PULL_OPENED_QUERY, VERIFY_PATH, verdictHold } from "./merge-holds.mjs";
+import { COMMENT_DELETED_QUERY, COMMENT_EDITED_QUERY, LANE_HOLD, PULL_OPENED_QUERY, VERIFY_PATH, verdictHold } from "./merge-holds.mjs";
 import { VERIFY_PATH as RESOLVER_VERIFY_PATH } from "../pr-verify/resolve-pr.mjs";
-import { decide as decideOutcome } from "../work-resolve-issue/report-outcome.mjs";
+import { HOLD_LINE, decide as decideOutcome } from "../work-resolve-issue/report-outcome.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const LANES = { __typename: "Bot", login: "melodic-automation-lanes" };
@@ -274,7 +274,7 @@ test("a refusal a person must clear is commented on and labeled human-gated; a h
   ]);
 });
 
-test("only an untrusted spec is a person's verifier refusal; the rest, the round cap included, are a lane's", async () => {
+test("an untrusted spec and the repeated-FAIL round cap are a person's verifier refusals; the rest are a lane's", async () => {
   const refused = (refusal, needsHuman) => ({ refusal, needsHuman, head: HEAD, ineligible: null, reviews: null });
   const { notes } = await run([
     pull(1, { verdict: refused("verify:untrusted-spec", true) }),
@@ -287,7 +287,8 @@ test("only an untrusted spec is a person's verifier refusal; the rest, the round
     { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(refusing("verify:untrusted-spec")) } },
     { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
     { method: "POST", path: `${ISSUES}/2/comments`, body: { body: laneNote(refusing("verify:spec-changed")) } },
-    { method: "POST", path: `${ISSUES}/3/comments`, body: { body: laneNote(refusing("verify:repeated-fail")) } },
+    { method: "POST", path: `${ISSUES}/3/comments`, body: { body: personNote(refusing("verify:repeated-fail")) } },
+    { method: "POST", path: `${ISSUES}/3/labels`, body: { labels: ["needs-human"] } },
     { method: "POST", path: `${ISSUES}/4/comments`, body: { body: laneNote("pr-merge's lane does not take its issue link (it closes 2 issues)") } },
   ]);
 });
@@ -335,11 +336,16 @@ test("a changed refusal edits the one comment instead of posting another", async
   assert.deepEqual(notes, [{ method: "PATCH", path: `${ISSUES}/comments/77`, body: { body: laneNote(MISSING_REASON) } }]);
 });
 
-test("a risk hold is a person's only for a security finding, a trusted-actor widening or a cost hold", async () => {
+test("a risk hold is a person's only for a security finding, an aliasing path, a trusted-actor widening or a cost hold", async () => {
   const risk = (reviews) => ({ refusal: null, needsHuman: false, head: HEAD, ineligible: null, reviews });
   const holding = (reviews) => `pr-merge's gate holds it on its risk score (${reviews})`;
-  const lane = ["evidence-unbound:claude-review: no-marker", "manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks", "high-path:**: '../x'"];
-  const person = ["security-finding: 1 CRITICAL", "files-incomplete: x; trust-gate:trusted-actors: entries added", "cost-review-required: infra/main.tf"];
+  const lane = ["evidence-unbound:claude-review: no-marker", "manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks", "high-path:docs/**: docs/a.md"];
+  const person = [
+    "security-finding: 1 CRITICAL",
+    "high-path:**: 'a' mode '120000' (symlink)",
+    "files-incomplete: x; trust-gate:trusted-actors: entries added",
+    "cost-review-required: infra/main.tf",
+  ];
   for (const reviews of lane) {
     // A lane's stays a lane's however long its comment has stood.
     const stood = pull(1, { verdict: risk(reviews), discussion: { comments: [lanesSaid(laneNote(holding(reviews)), "2026-01-01T00:00:00Z")] } });
@@ -851,7 +857,7 @@ test("hold paths that cannot be read arm nothing and label nothing", async () =>
   assert.ok(lines.some((line) => line.startsWith("::warning title=enable-auto-merge::the resolved config's hold paths did not read")));
 });
 
-// E26: more than 100 labels is read whole, not refused.
+// More than 100 labels is read whole, not refused.
 test("a label list the listing cut is read whole", async () => {
   const many = Array.from({ length: 150 }, (_, index) => `area-${index}`);
   const cut = (all) => ({ totalCount: all.length, nodes: all.slice(0, 100).map((name) => ({ name })) });
@@ -862,7 +868,7 @@ test("a label list the listing cut is read whole", async () => {
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
 });
 
-// E23: more than 100 comments is read whole, so a veto past the first page
+// More than 100 comments is read whole, so a veto past the first page
 // still holds and none there arms.
 test("a comment list the detail cut is read whole", async () => {
   const chatter = Array.from({ length: 3 }, (_, index) => said("kyle-sexton", `note ${index}`, `2026-10-23T0${index}:00:00Z`));
@@ -876,7 +882,7 @@ test("a comment list the detail cut is read whole", async () => {
   assert.ok(lines.includes("enable-auto-merge: #2 left: kyle-sexton asked not to merge it"), lines.join("\n"));
 });
 
-// E22: the lanes App's own body text holds nothing; a person's edit does.
+// The lanes App's own body text holds nothing; a person's edit does.
 test("a body hold counts only when a person wrote some of the body", async () => {
   const body = "Closes #5\n\nHold: wait for the release.";
   const edits = (...typenames) => ({ totalCount: typenames.length, nodes: typenames.map((__typename) => ({ editor: { __typename } })) });
@@ -893,7 +899,20 @@ test("a body hold counts only when a person wrote some of the body", async () =>
   ]);
 });
 
-// E27: the start moves with the run number, so the pull requests past the
+// report-outcome's own hold line (untrusted-provenance work, a person's
+// `merge: human`, a denied path) holds whoever wrote the body.
+test("the lane's own hold line holds a lanes App body", async () => {
+  assert.equal(`\n${HOLD_LINE}\n`.match(LANE_HOLD)?.[0].trim(), HOLD_LINE);
+  const appOnly = { totalCount: 0, nodes: [] };
+  const { writes } = await run([
+    pull(1, { body: `Closes #5\n\n${HOLD_LINE}`, userContentEdits: appOnly }),
+    pull(2, { body: `Closes #5\n\n${HOLD_LINE}\n\n## Summary`, userContentEdits: appOnly }),
+    pull(3, { body: `Closes #5\n\nquoted: ${HOLD_LINE}`, userContentEdits: appOnly }),
+  ]);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_3", head: HEAD }]);
+});
+
+// The start moves with the run number, so the pull requests past the
 // verify budget differ from run to run.
 test("the run starts at an offset that moves with the run number", async () => {
   assert.deepEqual(rotated([1, 2, 3], 0), [1, 2, 3]);

@@ -250,7 +250,7 @@ test("a pr-merge risk comment at an old head comes off as head-moved", async () 
   assert.equal(w.writes()[0].body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=head-moved head=${HEAD} -->`);
 });
 
-// E30: under merge.lane-prs native, enable-auto-merge judges the new head
+// Under merge.lane-prs native, enable-auto-merge judges the new head
 // once the label is off and labels it again only for a cause a person must
 // clear, so the label comes off under native as under gate.
 test("a pr-merge escalation at an old head comes off under lane-prs native and gate alike", async () => {

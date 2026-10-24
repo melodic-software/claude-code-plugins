@@ -6,8 +6,10 @@
 //
 // - A body hold (babysit_merge_policy.BODY_MERGE_HOLD_RE): a line opening with
 //   `Hold:`, or "do not merge" anywhere, in a body a person wrote
-//   (personWrote): the lanes App's own text holds nothing. Removing that text
-//   lifts it.
+//   (personWrote), or the lane's own hold line (LANE_HOLD, report-outcome's
+//   HOLD_LINE for untrusted-provenance work, a person's `merge: human` and a
+//   denied path) in any body. Other lanes App text holds nothing. Removing
+//   that text lifts it.
 // - A member veto (babysit_merge.human_veto_logins): each OWNER, MEMBER or
 //   COLLABORATOR person's newest comment, review or inline comment with text
 //   decides, and holds when it says "do not merge"
@@ -60,6 +62,11 @@ import { pathToFileURL } from "node:url";
 // text it tries.
 export const BODY_HOLD = /\bdo(?:n['’]?t| not)\s+merge\b|(?:^|\r)[^\S\r\n]*hold:/im;
 export const HUMAN_VETO = /\bdo(?:n['’]?t| not|-not)[\s-]*merge\b/i;
+// report-outcome.mjs HOLD_LINE on a line of its own, which
+// enable-auto-merge.test.mjs checks; it holds whoever wrote the body.
+export const LANE_HOLD = /(?:^|[\r\n])Hold: a human merges this[^\S\r\n]*(?:[\r\n]|$)/;
+// Whether `body` holds: the lane's hold line, or hold text a person wrote.
+export const bodyHolds = (body, byPerson) => LANE_HOLD.test(String(body ?? "")) || (byPerson && BODY_HOLD.test(String(body ?? "")));
 
 // babysit_merge_policy.refs_issue, which test_verify_rules_sync.py keeps equal:
 // the one issue the visible `Refs: #<n>` lines of a pull request body name,
@@ -523,7 +530,7 @@ export function holds(body, items, files, holdPaths, lifters = [], decision = nu
       `${cost}; the owner's unedited comment opening '**Decision recorded.** Cost:' on this pull request, or on its linked issue naming this pull request, linked from the body, lifts it for the head it decided and a later head that only merges the base`,
     );
   }
-  if (byPerson && BODY_HOLD.test(String(body ?? ""))) {
+  if (bodyHolds(body, byPerson)) {
     reasons.push("its body holds it (a line opening with 'Hold:', or 'do not merge'); removing that text lifts it");
   }
   const vetoes = vetoers(items);
@@ -649,7 +656,7 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     if (decision) {
       console.log(`#${number}: ${decision} records the owner's cost decision, which lifts its cost hold.`);
     }
-    const byPerson = BODY_HOLD.test(body) && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo) ? await bodyByPerson(github, repo, Number(number)) : true;
+    const byPerson = BODY_HOLD.test(body) && !LANE_HOLD.test(body) && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo) ? await bodyByPerson(github, repo, Number(number)) : true;
     if (!byPerson) {
       console.log(`#${number}: its body's hold text is the lanes App's own, which holds nothing.`);
     }

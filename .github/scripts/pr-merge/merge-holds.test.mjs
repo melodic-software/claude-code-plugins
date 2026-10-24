@@ -302,7 +302,7 @@ test("ci-status holds no trusted path or manifest change, only a configured deni
   assert.match(held.out, /it changes \.gitmodules, a hold path/);
 });
 
-// E22: a body's hold text counts only when a person wrote some of it.
+// A body's hold text counts only when a person wrote some of it.
 test("a body hold counts only when a person wrote or edited the body", async () => {
   const body = "Closes #40\n\nHold: wait for the release.";
   const bot = { __typename: "Bot" };
@@ -519,7 +519,7 @@ test("linkHold binds a pass to the issue and link kind it judged", () => {
   assert.match(linkHold(record(5, "refs"), "Closes #5", closes(5), "o/r"), /link changed/);
   assert.match(linkHold(record(5, "closes"), "Refs: #5", closes(), "o/r"), /link changed/);
   assert.match(linkHold(record(5, "refs"), "Refs: #6", closes(), "o/r"), /refs #6, and the pass judged #5/);
-  // D:S9: a link of no issue, or of more than one, holds nothing here; the
+  // A link of no issue, or of more than one, holds nothing here; the
   // fix loop rewrites it. Only a link that drops the judged issue holds.
   assert.equal(linkHold(record(5, "refs"), "Refs: #5\nRefs: #6", closes(), "o/r"), null);
   assert.equal(linkHold(record(5, "refs"), "<!-- Refs: #5 -->", closes(), "o/r"), null);

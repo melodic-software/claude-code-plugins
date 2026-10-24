@@ -413,7 +413,7 @@ expect "in the merge queue, a Refs: #1 pass does not merge a body edited to Clos
 STUB_PULL="$(pull 'Closes #1')" STUB_CLOSING='' STUB_RECORD='{"linked_issues":[{"number":1}],"spec_kind":"refs"}'
 expect "in the merge queue, a pass judged as a Refs slice does not cover the issue closed" 1 3 "its link changed since pr-verify passed it"
 STUB_PULL="$(pull $'Refs: #1\nRefs: #3')" STUB_CLOSING="$NO_CLOSING"
-# D:S9: a link of no issue or of several holds nothing; the fix loop
+# A link of no issue or of several holds nothing; the fix loop
 # rewrites it. One that drops the judged issue still holds.
 expect "in the merge queue, a body naming two Refs issues passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
 STUB_PULL="$(pull 'Closes #1')" STUB_RECORD='' STUB_CLOSING='{"totalCount":2,"nodes":[{"number":1,"repository":{"nameWithOwner":"o/r"}},{"number":3,"repository":{"nameWithOwner":"o/r"}}]}'
