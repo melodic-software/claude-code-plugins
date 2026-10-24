@@ -275,8 +275,12 @@ function runtimeDir(platform) {
  * Windows: a named pipe, which any local account could squat under a guessable
  * name, so `launch` records a random suffix in a file only this user reads.
  */
-export function endpoint(session, platform = process.platform, { fresh = false } = {}) {
+const checkSession = (session) => {
   if (!/^[\w-]{1,32}$/.test(session)) throw new UsageError('--session takes 1-32 letters, digits, _ or -');
+};
+
+export function endpoint(session, platform = process.platform, { fresh = false } = {}) {
+  checkSession(session);
   const dir = privateDir(runtimeDir(platform));
   if (platform !== 'win32') {
     const sock = join(dir, `${session}.sock`);
@@ -292,6 +296,57 @@ export function endpoint(session, platform = process.platform, { fresh = false }
   const suffix = readFileSync(nameFile, 'utf8').trim();
   return { sock: `\\\\.\\pipe\\ccd-${user}-${session}-${suffix}`, dir, nameFile };
 }
+
+const lockFile = (session) => {
+  checkSession(session);
+  return join(privateDir(runtimeDir(process.platform)), `${session}.lock`);
+};
+const lockOwner = (lock) => {
+  try {
+    return Number(readFileSync(lock, 'utf8'));
+  } catch {
+    return undefined;
+  }
+};
+const release = (lock, pid) => {
+  if (lockOwner(lock) === pid) rmSync(lock, { force: true });
+};
+
+/**
+ * Reserves a session for this launch by creating its lock file exclusively, so
+ * two launches cannot both start a holder. A lock whose process is gone is
+ * reclaimed; one whose process runs means the session is taken.
+ */
+function reserve(session) {
+  const lock = lockFile(session);
+  const taken = new UsageError(`session '${session}' is already running; run stop first`);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const fd = openSync(lock, 'wx', 0o600);
+      writeFileSync(fd, String(process.pid));
+      closeSync(fd);
+      return lock;
+    } catch (err) {
+      if (err.code !== 'EEXIST') throw err;
+    }
+    const owner = lockOwner(lock);
+    if (!owner || alive(owner)) throw taken;
+    // Re-read before removing, so a lock another launch just reclaimed is left alone.
+    if (lockOwner(lock) === owner) rmSync(lock, { force: true });
+  }
+  throw taken;
+}
+
+/** Whether a process accepts connections on `sock`. */
+const listening = (sock) =>
+  new Promise((done) => {
+    const conn = net.createConnection(sock);
+    conn.on('connect', () => {
+      conn.destroy();
+      done(true);
+    });
+    conn.on('error', () => done(false));
+  });
 
 function request(session, verb, args = {}) {
   const { sock } = endpoint(session);
@@ -355,13 +410,19 @@ async function childExited(terminal) {
 
 async function serve(opts) {
   const { sock, nameFile } = endpoint(opts.session);
+  const lock = lockFile(opts.session);
   const launch = buildLaunch({ pluginDir: opts['plugin-dir'] }, process.env);
   for (const name of UNSET_VARS) delete process.env[name]; // the engine merges onto this env
   const { TuiTest } = await import(pathToFileURL(join(opts.install, 'node_modules', ENGINE, 'dist', 'index.js')).href);
   const terminal = TuiTest.ephemeral(COMPONENT);
   await terminal.run(launch.argv[0], launch.argv.slice(1), { env: launch.env, cols: 120, rows: 40 });
   if (await childExited(terminal)) throw new Error('claude exited as soon as it started');
-  if (process.platform !== 'win32' && existsSync(sock)) unlinkSync(sock);
+  // The launch reserved the session, so a socket left here belongs to a holder that is gone;
+  // one that still answers is refused rather than unlinked.
+  if (process.platform !== 'win32' && existsSync(sock)) {
+    if (await listening(sock)) throw new Error(`another process is serving ${sock}`);
+    unlinkSync(sock);
+  }
   // Half-open: the client ends its side after the request, and the reply may take seconds.
   const server = net.createServer({ allowHalfOpen: true }, (conn) => {
     let buf = '';
@@ -373,7 +434,8 @@ async function serve(opts) {
         const { verb, args } = JSON.parse(buf);
         if (verb === 'stop') {
           await terminal.closeQuiet();
-          conn.end(`${JSON.stringify({ ok: true, result: 'stopped' })}\n`, () => exit());
+          free(); // before the reply, so a launch right after stop finds the session free
+          conn.end(`${JSON.stringify({ ok: true, result: 'stopped' })}\n`, () => process.exit(0));
           return;
         }
         const handler = HANDLERS[verb];
@@ -385,9 +447,13 @@ async function serve(opts) {
       conn.end(`${JSON.stringify(reply)}\n`);
     });
   });
-  const exit = () => {
+  const free = () => {
     server.close();
     rmSync(nameFile ?? sock, { force: true });
+    release(lock, process.pid); // last, so the next launch cannot reserve before the endpoint is gone
+  };
+  const exit = () => {
+    free();
     process.exit(0);
   };
   const closeAndExit = async () => {
@@ -415,22 +481,37 @@ async function launch(opts) {
   if (!/^[1-9]\d*$/.test(opts.ttl) || Number(opts.ttl) > MAX_TTL_S) {
     throw new UsageError(`--ttl takes a whole number of seconds up to ${MAX_TTL_S}`);
   }
+  // Everything from here on, the pipe name and the log included, happens under the reservation.
+  const lock = reserve(opts.session);
+  let install;
+  let log;
+  let holder;
   try {
-    await request(opts.session, 'ping');
-    throw new UsageError(`session '${opts.session}' is already running; run stop first`);
+    try {
+      await request(opts.session, 'ping');
+      throw new UsageError(`session '${opts.session}' is already running; run stop first`);
+    } catch (err) {
+      if (!(err instanceof NoSession)) throw err;
+    }
+    install = ensureInstalled(opts['deps-dir']);
+    const { dir } = endpoint(opts.session, process.platform, { fresh: true });
+    log = join(dir, `${opts.session}.log`);
+    const fd = openSync(log, 'w', 0o600);
+    try {
+      holder = spawn(
+        process.execPath,
+        [fileURLToPath(import.meta.url), 'serve', '--session', opts.session, '--plugin-dir', pluginDir, '--install', install, '--ttl', opts.ttl],
+        { detached: true, stdio: ['ignore', fd, fd], env: buildLaunch({ pluginDir }, process.env).env },
+      );
+    } finally {
+      closeSync(fd);
+    }
+    if (!holder.pid) throw new Error('the session holder did not start');
+    writeFileSync(lock, String(holder.pid));
   } catch (err) {
-    if (!(err instanceof NoSession)) throw err;
+    release(lock, process.pid);
+    throw err;
   }
-  const install = ensureInstalled(opts['deps-dir']);
-  const { dir } = endpoint(opts.session, process.platform, { fresh: true });
-  const log = join(dir, `${opts.session}.log`);
-  const fd = openSync(log, 'w', 0o600);
-  const holder = spawn(
-    process.execPath,
-    [fileURLToPath(import.meta.url), 'serve', '--session', opts.session, '--plugin-dir', pluginDir, '--install', install, '--ttl', opts.ttl],
-    { detached: true, stdio: ['ignore', fd, fd], env: buildLaunch({ pluginDir }, process.env).env },
-  );
-  closeSync(fd);
   let exited = false;
   holder.on('exit', () => {
     exited = true;
@@ -444,6 +525,9 @@ async function launch(opts) {
       await new Promise((r) => setTimeout(r, 250));
     }
   }
+  // A holder that never answered would keep the session reserved where stop cannot reach it.
+  if (!exited) holder.kill();
+  release(lock, holder.pid);
   const text = existsSync(log) ? readFileSync(log, 'utf8') : '';
   const native = NATIVE_LOAD.exec(text)?.[0];
   if (native) throw new Broken(`the installed engine does not load (${native})`, repairLine(install));

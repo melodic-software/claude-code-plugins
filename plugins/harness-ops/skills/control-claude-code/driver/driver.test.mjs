@@ -6,7 +6,7 @@
 // prerequisites checker's probe rule (the pattern is a regular expression run
 // over the probe's output).
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 import { after, test } from 'node:test';
@@ -380,6 +380,79 @@ export const TuiTest = { ephemeral: () => ({
       await new Promise((r) => setTimeout(r, 250));
     }
     assert.equal(code, 3, 'the session is gone once claude has exited');
+  } finally {
+    await main(['stop', '--session', name]).catch(() => {});
+    rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
+const isAlive = (pid) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+test('two concurrent launches of one session start one holder; the other is refused', posixOnly, async () => {
+  // Each holder records its pid when it starts claude, so the test can see every holder that ran.
+  const box = sandbox();
+  const pids = join(box.root, 'holders');
+  mkdirSync(pids);
+  const records = `import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+export const TuiTest = { ephemeral: () => ({
+  run: async () => { writeFileSync(join(${JSON.stringify(pids)}, String(process.pid)), ''); },
+  state: async () => ({ exited: null, exit_signal: null }),
+  close: async () => {},
+  closeQuiet: async () => {},
+}) };
+`;
+  placeEngine(box.target, records, { marked: true });
+  const name = session();
+  const args = ['launch', '--plugin-dir', '/p', '--deps-dir', box.deps, '--session', name, '--ttl', '30'];
+  const holders = () => readdirSync(pids).map(Number);
+  try {
+    const results = await withPath(box.bin, () => Promise.allSettled([main(args), main(args)]));
+    assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1, 'exactly one launch succeeds');
+    const refused = results.find((r) => r.status === 'rejected')?.reason;
+    assert.equal(refused?.code, 2);
+    assert.equal(refused?.message, `session '${name}' is already running; run stop first`);
+    assert.equal(await main(['stop', '--session', name]), 0);
+    let running = holders();
+    for (const deadline = Date.now() + 10_000; Date.now() < deadline && running.some(isAlive); ) {
+      await new Promise((r) => setTimeout(r, 100));
+      running = holders();
+    }
+    assert.deepEqual(running.filter(isAlive), [], 'stop leaves no holder running');
+  } finally {
+    for (const pid of holders().filter(isAlive)) process.kill(pid);
+    rmSync(box.root, { recursive: true, force: true });
+  }
+});
+
+test('a reservation left by a process that is gone is reclaimed, and a launch right after stop is not refused', posixOnly, async () => {
+  const box = sandbox();
+  const runs = `export const TuiTest = { ephemeral: () => ({
+  run: async () => {},
+  state: async () => ({ exited: null, exit_signal: null }),
+  close: async () => {},
+  closeQuiet: async () => {},
+}) };
+`;
+  placeEngine(box.target, runs, { marked: true });
+  const name = session();
+  // 99999999 is above the largest pid Linux (2^22) or macOS (99998) assigns, so no process holds it.
+  mkdirSync(join(RUNTIME, 'ccd'), { recursive: true, mode: 0o700 });
+  writeFileSync(join(RUNTIME, 'ccd', `${name}.lock`), '99999999');
+  const args = ['launch', '--plugin-dir', '/p', '--deps-dir', box.deps, '--session', name, '--ttl', '30'];
+  try {
+    await withPath(box.bin, async () => {
+      assert.equal(await main(args), 0, 'a dead reservation does not block the launch');
+      assert.equal(await main(['stop', '--session', name]), 0);
+      assert.equal(await main(args), 0, 'a launch right after stop is not refused');
+    });
   } finally {
     await main(['stop', '--session', name]).catch(() => {});
     rmSync(box.root, { recursive: true, force: true });
