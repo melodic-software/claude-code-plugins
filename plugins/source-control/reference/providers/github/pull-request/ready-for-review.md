@@ -68,6 +68,9 @@ HEAD_BEFORE=$(gh pr view "$PR_NUMBER" --json headRefOid -q '.headRefOid') || exi
 
 ## Refresh the base with a merge
 
+Never on a Dependabot head: request its rebase instead, as
+[merge.md, Behind-branch exceptions](merge.md#behind-branch-exceptions) says.
+
 ```bash
 BASE=$(gh pr view "$PR_NUMBER" --json baseRefName -q '.baseRefName')
 REMOTE=$(bash "<skill-dir>/scripts/resolve-remote.sh") || exit 1

@@ -1592,3 +1592,108 @@ class BumpRule(unittest.TestCase):
         self.assertEqual(
             dependabot.bump_refusal([], lambda p: None, lambda s, p: ""), "bump-empty"
         )
+
+
+class BaseMergeShape(unittest.TestCase):
+    """`is_base_merge` admits only a merge of the base GitHub made that changes
+    nothing beyond the merge; `rebase_request` reads a forged Dependabot
+    author as someone else's commit."""
+
+    REPO, BASE_REF = "owner/repo", "main"
+    HEAD_PARENT, BASE_PARENT, MERGE = "1" * 40, "2" * 40, "4" * 40
+    C = "repos/owner/repo/compare/"
+
+    def merge(self, **commit: Any) -> dict[str, Any]:
+        fields = {
+            "committer": {"name": "GitHub", "email": "noreply@github.com"},
+            "verification": {"verified": True},
+            **commit,
+        }
+        return {
+            "sha": self.MERGE,
+            "parents": [{"sha": self.HEAD_PARENT}, {"sha": self.BASE_PARENT}],
+            "commit": fields,
+        }
+
+    def answers(self, **overrides: Any) -> dict[str, Any]:
+        base_file = {"filename": "docs/a.md", "status": "modified", "sha": "a1"}
+        lock = {"filename": "package-lock.json", "status": "modified", "sha": "c3"}
+        answers = {
+            f"{self.C}{self.BASE_PARENT}...main": {"status": "ahead"},
+            f"{self.C}{self.HEAD_PARENT}...{self.MERGE}": {"files": [base_file]},
+            f"{self.C}{self.HEAD_PARENT}...{self.BASE_PARENT}": {"files": [base_file]},
+            f"{self.C}{self.BASE_PARENT}...{self.HEAD_PARENT}": {"files": [lock]},
+        }
+        answers.update(overrides)
+        return answers
+
+    def judge(self, item: dict[str, Any], answers: dict[str, Any]) -> bool | None:
+        def get(endpoint: str) -> Any:
+            if endpoint not in answers:
+                raise RuntimeError(f"gh: Not Found (HTTP 404) {endpoint}")
+            return answers[endpoint]
+
+        return dependabot.is_base_merge(item, self.REPO, self.BASE_REF, get)
+
+    def test_a_clean_merge_of_the_base_passes(self) -> None:
+        self.assertIs(self.judge(self.merge(), self.answers()), True)
+
+    def test_a_base_parent_off_the_base_is_not_a_base_merge(self) -> None:
+        for status in ("behind", "diverged"):
+            with self.subTest(status=status):
+                key = f"{self.C}{self.BASE_PARENT}...main"
+                answers = self.answers(**{key: {"status": status}})
+                self.assertIs(self.judge(self.merge(), answers), False)
+
+    def test_a_merge_not_committed_and_signed_by_github_is_not_one(self) -> None:
+        person = {"name": "A Person", "email": "person@example.com"}
+        for commit in ({"committer": person}, {"verification": {"verified": False}}):
+            with self.subTest(commit=commit):
+                self.assertIs(self.judge(self.merge(**commit), self.answers()), False)
+
+    def test_a_file_both_sides_changed_may_differ_from_the_base(self) -> None:
+        # The merge of a lock file both sides changed is neither side's blob.
+        merged = {"filename": "package-lock.json", "status": "modified", "sha": "d4"}
+        both = {"filename": "package-lock.json", "status": "modified", "sha": "e5"}
+        key = f"{self.C}{self.HEAD_PARENT}...{self.MERGE}"
+        base_key = f"{self.C}{self.HEAD_PARENT}...{self.BASE_PARENT}"
+        answers = self.answers(
+            **{key: {"files": [merged]}, base_key: {"files": [both]}}
+        )
+        self.assertIs(self.judge(self.merge(), answers), True)
+        # The same blob mismatch on a file only the base changed is an edit.
+        head_key = f"{self.C}{self.BASE_PARENT}...{self.HEAD_PARENT}"
+        answers[head_key] = {"files": []}
+        self.assertIs(self.judge(self.merge(), answers), False)
+
+    def test_an_unreadable_or_full_compare_is_unknown(self) -> None:
+        key = f"{self.C}{self.HEAD_PARENT}...{self.MERGE}"
+        full = [
+            {"filename": f"f{i}", "status": "modified", "sha": "x"}
+            for i in range(dependabot.COMPARE_FILES_LIMIT)
+        ]
+        missing = self.answers()
+        del missing[key]
+        self.assertIsNone(self.judge(self.merge(), missing))
+        self.assertIsNone(
+            self.judge(self.merge(), self.answers(**{key: {"files": full}}))
+        )
+
+    def test_a_forged_dependabot_author_counts_as_another_writer(self) -> None:
+        # Unsigned, so not Dependabot's: a recreate would drop it.
+        forged = {
+            "sha": "7" * 40,
+            "parents": [{"sha": "3" * 40}],
+            "commit": {
+                "author": {
+                    "name": "dependabot[bot]",
+                    "email": "49699333+dependabot[bot]@users.noreply.github.com",
+                },
+                "committer": {"name": "A Person", "email": "person@example.com"},
+                "verification": {"verified": False},
+            },
+        }
+        hold, body, _ = dependabot.rebase_request(
+            self.REPO, self.BASE_REF, "b" * 40, [], [forged], lambda ep: {}
+        )
+        self.assertEqual((hold, body), ("dependabot-branch-edited", None))

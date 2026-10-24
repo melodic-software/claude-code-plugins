@@ -2324,6 +2324,9 @@ def lane_eligibility(
 # A commit's file list stops at this many entries, so a full one may hide more.
 COMMIT_FILES_LIMIT = 300
 CI_STATUS_CHECK = "ci-status"
+# GitHub Actions, the app the ruleset requires `ci-status` from; another app's
+# run of that name, with any start time it chooses, never decides the gate.
+ACTIONS_APP_ID = 15368
 
 
 def is_dependabot_pull_request(pr: Mapping[str, Any]) -> bool:
@@ -2540,14 +2543,24 @@ def _commit_files(owner: str, name: str) -> Callable[[str], list[str] | None]:
 
 def _ci_status(owner: str, name: str, head: str) -> str:
     """`success`, `pending`, or the conclusion of a finished `ci-status` run on
-    `head` that did not succeed; `unreadable` when the runs cannot be read."""
+    `head` that did not succeed; `unreadable` when the runs cannot be read.
+    `filter=latest` keeps the latest run of each check suite, so a re-triggered
+    workflow leaves an older run beside a newer one: the runs that started last
+    decide, and any failure among them decides, as it does among all runs when
+    one has no readable start time. Only GitHub Actions' runs are read."""
     status, payload = _get(
         f"repos/{owner}/{name}/commits/{head}/check-runs"
-        f"?check_name={CI_STATUS_CHECK}&filter=latest&per_page=100"
+        f"?check_name={CI_STATUS_CHECK}&app_id={ACTIONS_APP_ID}&filter=latest&per_page=100"
     )
     runs = [json_object(r) for r in json_array(json_object(payload).get("check_runs"))]
     if status != 200 or not SHA_RE.fullmatch(head):
         return "unreadable"
+    try:
+        started = [_time(r.get("started_at")) for r in runs]
+    except PolicyReadError:
+        started = []
+    if started:
+        runs = [r for r, s in zip(runs, started, strict=True) if s == max(started)]
     if not runs or any(r.get("status") != "completed" for r in runs):
         return "pending"
     failed = [
@@ -3868,8 +3881,10 @@ SHARED_BINDING_REFUSALS = frozenset(
         "config-unreadable",
     }
 )
-# Runner clocks may run ahead of GitHub's; `since` starts this much earlier.
-SINCE_CLOCK_MARGIN = timedelta(minutes=5)
+# Clock skew alone: a runner clock may run ahead of GitHub's, so `since`
+# starts this much earlier. `computed_at` is stamped before the reads it
+# covers, so no read time needs covering.
+SINCE_CLOCK_MARGIN = timedelta(seconds=60)
 
 
 @dataclass(frozen=True)
@@ -4490,18 +4505,87 @@ class LaneRoom:
         }
 
 
+def _still_current(
+    repo: str,
+    default: str,
+    identity: str,
+    shared: SharedPostMerge,
+    runs_unchanged: Callable[[SharedPostMerge, str], bool],
+) -> bool:
+    """Whether the post-merge check would answer `shared` again, in order:
+    the default branch head is its `main_sha`, the head's config commit is its
+    `config_sha` (with the demotion unchanged, the same floor), no demotion
+    record was filed or changed since (`_demotion_changed`), and
+    `runs_unchanged`: none of its unverified merges' verifying runs reached a
+    conclusion since. Raises `PolicyReadError`."""
+    owner, name = _split_repo(repo)
+    _, head = _default_branch_head(repo, default)
+    return (
+        head == shared.main_sha
+        and newest_config_commit(repo, head) == shared.config_sha
+        and not _demotion_changed(owner, name, shared, identity)
+        and runs_unchanged(shared, default)
+    )
+
+
+def _recompute_shared(
+    repo: str,
+    default: str,
+    identity: str,
+    self_logins: frozenset[str],
+    post_merge: Callable[[datetime, str], PostMergeGate],
+    now: datetime | None,
+) -> SharedPostMerge | None:
+    """The run's shared answer read afresh at the default branch head, as
+    `assess` reads it for a pr-merge candidate: the head, its config commit,
+    the demotion, the floor, then the post-merge check, bound at a
+    `computed_at` taken before them. None when the check is not readable.
+    Raises `PolicyReadError`."""
+    computed_at = now or datetime.now(UTC)
+    _, head = _default_branch_head(repo, default)
+    config_sha = newest_config_commit(repo, head)
+    demotion = read_demotion(
+        repo,
+        agent_identity=identity,
+        self_logins=self_logins,
+        permission=permission_reader(repo),
+    )
+    floor = merged_since_floor(repo, head, demotion, PR_MERGE)
+    gate = post_merge(floor, identity)
+    if gate.report.get("readable") is not True:
+        return None
+    return SharedPostMerge(
+        main_sha=head,
+        config_sha=config_sha,
+        identity=identity,
+        self_logins=self_logins,
+        lane_merges_only=True,
+        computed_at=computed_at,
+        demotion=demotion,
+        floor=floor,
+        gate=gate,
+    )
+
+
 def lane_room(
     repo: str,
     shared: SharedPostMerge | None,
     *,
     lane_rung_cap: str | None,
     now: datetime | None = None,
+    post_merge: Callable[[datetime, str], PostMergeGate] | None = None,
+    runs_unchanged: Callable[[SharedPostMerge, str], bool] | None = None,
 ) -> LaneRoom:
     """Whether the pr-merge lane may merge one more of its own pull requests
     now, for native auto-merge, which skips `assess`: the run-level refusals
     `assess` applies to every lane candidate, read once at the default branch
     head, in its order. `shared` is this run's `babysit_postmerge.py` answer
     (`babysit_postmerge.read_shared`), as the gate's `--postmerge-result`.
+    `post_merge` is `assess`'s: an answer refused only as `unverified-stale`
+    is kept when nothing it was read from has moved (`_still_current`, with
+    `runs_unchanged(shared, branch)` for its unverified merges' runs), else
+    read again as the gate reads it (`_recompute_shared`), and a readable
+    one stands in for `shared`.
 
     - A config naming another authority stops (`enabled_authority`).
     - A post-merge refusal stops (`post-merge:<refusal>`).
@@ -4517,7 +4601,10 @@ def lane_room(
     not be read included, is `unreadable`. So is a `shared` the gate would
     not reuse (`shared_refusal`): too old (a re-run job downloads the run's
     first report, up to a day old), a demotion record filed or changed
-    since, or a lane merge landed since that it does not count."""
+    since, or a lane merge landed since that it does not count. An
+    `unverified-stale` one is kept or read again instead, since a lane
+    merge's verifying run may have passed or failed since; a read that fails
+    or is not readable leaves it `unreadable`."""
     if shared is None:
         return LaneRoom(unreadable="post-merge answer missing or unreadable")
     try:
@@ -4545,6 +4632,25 @@ def lane_room(
         authority=PR_MERGE,
         now=now,
     )
+    if unusable == "unverified-stale" and post_merge is not None:
+        # Kept when nothing it was read from moved, else read again.
+        try:
+            current = runs_unchanged is not None and _still_current(
+                repo, default, identity, shared, runs_unchanged
+            )
+        except (RuntimeError, ValueError, OSError):
+            current = False
+        if not current:
+            try:
+                fresh = _recompute_shared(
+                    repo, default, identity, shared.self_logins, post_merge, now
+                )
+            except (RuntimeError, ValueError, OSError) as exc:
+                return LaneRoom(unreadable=f"post-merge answer {unusable}: {exc}")
+            if fresh is None:
+                return LaneRoom(unreadable=f"post-merge answer {unusable}: unreadable")
+            shared = fresh
+        unusable = None
     if unusable:
         return LaneRoom(unreadable=f"post-merge answer {unusable}")
     if shared.gate.refusal:
