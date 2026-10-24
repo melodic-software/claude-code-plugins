@@ -220,19 +220,21 @@ HEAD SHA for locations no changed line can carry.
 schema defines it, only for these classes, each named by its criterion, with a reason naming the
 files and what they change:
 
-- `cost`: the change can start a real charge: a runner that is not free, or a resource added or
-  resized in infrastructure as code (Pulumi, Terraform, Bicep). Spend inside a subscription or
-  prepaid plan (a new model call or agent run, a raised model, effort, turn or timeout limit, a
-  new schedule or trigger that starts one) is a normal finding naming the spend, never a hold.
+- `cost`: the change can start a real charge, as the wrapper's prompt defines it (pointer below).
+  A change that only spends prepaid credits or subscription usage is neither a hold nor a finding:
+  name what it spends in one summary line, never an inline comment, and leave it out of the
+  findings count.
 - `critical-security`: a security finding of CRITICAL severity, only where no security lane runs
   ("Gotchas").
 
 A hold is not a finding. `cost` belongs to the change, so return it with zero findings too, and no
 hold adds to the findings count. A change to the trusted-actor list, a trust check, a `CODEOWNERS`
-or a `.gitmodules` file is reviewed like any other change and never holds by its path alone. Every other flag, a `manifest <field>: flag`
-line and every blocking or advisory finding included, is a normal finding and never sets `hold`.
-With no `hold` field in the schema, return none. Pointer: the field's shape is the output schema
-in the compose step of
-[ci-workflows `pr-review-cli.yml`](https://github.com/melodic-software/ci-workflows/blob/v0.64.0/.github/workflows/pr-review-cli.yml#L861-L884).
-As of: 2026-10-23. Recheck trigger: a ci-workflows release changes the `hold` schema or its
+or a `.gitmodules` file is reviewed like any other change and never holds by its path alone. Every
+other flag, a `manifest <field>: flag` line and every blocking or advisory finding included, is a
+normal finding and never sets `hold`. With no `hold` field in the schema, return none. Pointer: the
+field's shape is the output schema in the compose step of
+[ci-workflows `pr-review-cli.yml`](https://github.com/melodic-software/ci-workflows/blob/v0.65.7/.github/workflows/pr-review-cli.yml#L958-L971),
+and the hold classes, `cost` included, are in its prompt at
+[#L1011-L1021](https://github.com/melodic-software/ci-workflows/blob/v0.65.7/.github/workflows/pr-review-cli.yml#L1011-L1021).
+As of: 2026-10-24. Recheck trigger: a ci-workflows release changes the `hold` schema or its
 criteria.
