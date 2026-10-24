@@ -114,7 +114,7 @@ for reason in protected-path-conflict workflow-staged unexpected-path-staged rep
   feedback-protected-path feedback-round-cap feedback-uncertain feedback-not-landed feedback-invalid \
   feedback-partial feedback-incomplete feedback-disputed \
   dependency-round-cap dependency-invalid dependency-fix-not-landed dependency-security-close dependency-escalate \
-  dependency-config-unreadable dependency-files-truncated dependency-control-uncited dependency-fix-refused \
+  dependency-config-unreadable dependency-files-truncated dependency-control-uncited dependency-workflow-unpinned dependency-fix-refused \
   ci-fix-round-cap ci-fix-empty ci-fix-invalid ci-fix-protected-path ci-fix-not-applied ci-fix-escalated \
   conflict-patch-invalid conflict-patch-not-applied conflict-patch-protected-path; do
   setup '[]' '[]'
@@ -144,7 +144,7 @@ ALL_REASONS=(protected-path-conflict workflow-staged unexpected-path-staged repe
   feedback-protected-path feedback-round-cap feedback-uncertain feedback-not-landed feedback-invalid
   feedback-partial feedback-incomplete feedback-disputed
   dependency-round-cap dependency-invalid dependency-fix-not-landed dependency-security-close dependency-escalate
-  dependency-config-unreadable dependency-files-truncated dependency-control-uncited dependency-fix-refused
+  dependency-config-unreadable dependency-files-truncated dependency-control-uncited dependency-workflow-unpinned dependency-fix-refused
   ci-fix-round-cap ci-fix-empty ci-fix-invalid ci-fix-protected-path ci-fix-not-applied ci-fix-escalated
   conflict-patch-invalid conflict-patch-not-applied conflict-patch-protected-path)
 

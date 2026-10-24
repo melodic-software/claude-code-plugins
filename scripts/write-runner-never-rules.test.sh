@@ -181,7 +181,7 @@ say(/\?\*:feedback-uncertain \| \?\*:feedback-not-landed \| \?\*:feedback-invali
   "a script escalates only with the reply script's own reasons, and only in review-replies mode");
 say(/:\?\*:dependency-invalid \| :\?\*:dependency-fix-not-landed\)/.test(byId("act-script").run ?? "")
   && /:\?\*:dependency-security-close \| :\?\*:dependency-escalate \| :\?\*:dependency-config-unreadable\)/.test(byId("act-script").run ?? "")
-  && /:\?\*:dependency-files-truncated \| :\?\*:dependency-control-uncited\)/.test(byId("act-script").run ?? "")
+  && /:\?\*:dependency-files-truncated \| :\?\*:dependency-control-uncited \| :\?\*:dependency-workflow-unpinned\)/.test(byId("act-script").run ?? "")
   && /:\?\*:dependency-fix-refused\)/.test(byId("act-script").run ?? ""),
   "a script escalates with the verdict script's reasons only in dependency-verdict mode");
 // dependency-review runs on the read runner, after its caller's select job:

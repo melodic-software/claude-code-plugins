@@ -140,11 +140,12 @@ The verdict job's checks (Decision 3) and the dispatcher (Decision 4) are unchan
 
 ## Addendum (2026-10-24): a workflow change no longer waits for a person
 
-The owner decided to drop the 2026-10-22 addendum's second limit. A `merge` verdict on a pull
-request that changes a workflow or action file now posts the merge marker like any other, and
-`dependency-workflow-held` is retired. The hold added a person to updates the review lanes already
-gate: a security finding still stops the merge there, and the fix rule still keeps every lane fix
-out of `.github/`. Basis:
+The owner decided to drop the 2026-10-22 addendum's second limit, and `dependency-workflow-held`
+is retired. A deterministic backstop replaces it, because the verdict reads upstream text and could
+be steered: a `merge` verdict on a pull request that changes a workflow or action file posts the
+merge marker only when that change is a full-SHA pin swap (each changed line a `uses:` line keeping
+its action path, both refs full SHAs, only the SHA and trailing comment differing), else escalates
+`dependency-workflow-unpinned`. The fix rule still keeps every lane fix out of `.github/`. Basis:
 [`apply-dependency-verdict.mjs`](../../.github/scripts/pr-unblock/apply-dependency-verdict.mjs);
 the lanes App merged [#9388](https://github.com/melodic-software/claude-code-plugins/pull/9388),
 which changed three workflow files.

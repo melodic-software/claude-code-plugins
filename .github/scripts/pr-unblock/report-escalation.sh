@@ -23,6 +23,7 @@
 #                       | dependency-config-unreadable
 #                       | dependency-files-truncated
 #                       | dependency-control-uncited
+#                       | dependency-workflow-unpinned
 #                       | dependency-fix-refused | ci-fix-round-cap
 #                       | ci-fix-empty | ci-fix-invalid
 #                       | ci-fix-protected-path | ci-fix-not-applied
@@ -82,6 +83,7 @@ case ${ESCALATION_REASON:-} in
   dependency-files-truncated) why='the dependency review chose merge, but the files listing it read was cut short, so the lane does not mark this dependency update for merge' ;;
   dependency-fix-refused) why='a commit on the dependency update other than Dependabot'"'"'s changes more than a version of an npm or pip manifest or lock file, as a regular file outside .github/, so the lane does not act on the review' ;;
   dependency-control-uncited) why='the dependency review chose merge for a review-only dependency without quoting its control, so the lane does not mark it for merge' ;;
+  dependency-workflow-unpinned) why='the dependency review chose merge, but the update changes a workflow or action file by more than swapping one full-SHA action pin for another, so the lane does not mark it for merge' ;;
   ci-fix-round-cap) why='the lane has pushed as many CI fixes to this pull request as its cap allows, and CI still fails' ;;
   ci-fix-empty) why='the lane changed nothing that fixes the failing checks' ;;
   ci-fix-invalid) why='the CI fix the lane wrote did not pass validation, so it was not pushed' ;;
