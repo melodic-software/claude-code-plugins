@@ -6,7 +6,7 @@ App: shop, built from `shop/`. Driving tool: playwright-cli.
 
 Integrated apps:
 
-- identity | control-identity | repository: acme/identity | checkout: checkouts.identity
+- identity | control-identity | repository: acme/identity
 
 ## Launch
 
@@ -14,8 +14,7 @@ Integrated apps:
 
 ## Ready
 
-`curl -fsS http://127.0.0.1:8080/health`; its `identity` field is the identity server the app sends
-sign-ins to.
+`curl -fsS http://127.0.0.1:8080/health`
 
 ## Capture
 

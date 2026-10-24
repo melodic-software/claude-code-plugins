@@ -1,14 +1,18 @@
 {
   "pass": [
     {
-      "answer": "1. login-open-login 2. login-fill-user 3. login-submit (control-identity) 4. open-history 5. check-first-order",
-      "why": "prefixed ids"
+      "answer": "```json\n{\"steps\": [\n  {\"id\": \"login-open-login\", \"outcome\": \"done\"},\n  {\"id\": \"login-fill-user\", \"outcome\": \"done\"},\n  {\n    \"outcome\": \"done\",\n    \"id\": \"login-submit\"\n  }\n]}\n```",
+      "why": "prefixed id as a step object, across lines and in any key order"
     }
   ],
   "fail": [
     {
-      "answer": "1. open-login 2. fill-user 3. submit (control-identity) 4. open-history 5. check-first-order",
+      "answer": "```json\n{\"steps\": [{\"id\": \"submit\", \"outcome\": \"done\", \"from\": \"login-\"}]}\n```",
       "why": "drops the include's prefix"
+    },
+    {
+      "answer": "Steps: login-open-login, login-fill-user, login-submit, open-history.",
+      "why": "prose, not the report.json steps entries"
     }
   ]
 }
