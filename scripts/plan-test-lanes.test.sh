@@ -26,7 +26,7 @@ ERR="$scratch/plan.err"
 
 cp "$REPO_ROOT/scripts/affected-tests-no-suite.txt" "$repo/scripts/"
 : >"$repo/scripts/run-plugin-tests-serial.txt"
-printf 'plugins/knowledge/vendor/repo-analysis\n' >"$repo/scripts/outside-node-packages.txt"
+printf 'plugins/knowledge/vendor/repo-analysis\n.github/scripts/pr-verify\n' >"$repo/scripts/outside-node-packages.txt"
 printf 'plugins/fx/evals/fixtures/\n' >"$repo/scripts/outside-node-exclusions.txt"
 
 # mk <path> [<content>]: a fixture file.
@@ -238,8 +238,17 @@ rc=0
 [[ " $(key node_packages) " != *" .github/actions/resolve-config "* ]] || rc=1
 check "a sibling of a trigger file does not run that package" "$rc"
 
+plan -- .github/workflows/pr-verify.yml
+is "$(key node_packages)" ".github/scripts/pr-verify" && is "$(key node)" true
+check "a change to pr-verify.yml alone runs the pr-verify package" $?
+
+plan -- .github/workflows/pr-unblock.yml
+rc=0
+[[ " $(key node_packages) " != *" .github/scripts/pr-verify "* ]] || rc=1
+check "another workflow does not run the pr-verify package" "$rc"
+
 plan -- .node-version
-is "$(key node_packages | wc -w | tr -d ' ')" 6
+is "$(key node_packages | wc -w | tr -d ' ')" 7
 check "a Node pin runs every Node package" $?
 
 plan -- plugins/ps/x.ps1
