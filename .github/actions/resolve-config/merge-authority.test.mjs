@@ -163,6 +163,7 @@ test("a pr-merge rung C2 with no diff-check, or an empty one, validates", () => 
           "max-changed-lines": 400,
           "max-changed-files": 8,
           "high-path-floor": true,
+          "c2-contradictions": true,
         },
       }),
     ),
