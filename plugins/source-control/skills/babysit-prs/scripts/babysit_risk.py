@@ -15,19 +15,14 @@ that override their own behavior are out of scope. A count outside
 0..10**9 is malformed. Each reason code appears once.
 
 The HIGH path floor and the lane table are fixed here, never read from
-configuration. The floor holds only the takeover set, what could hand the
-repository to someone outside the org: the trusted-actor list and the
-trusted-trigger check that enforces it, code owners, submodules, and
-resolve-config, whose code the token broker runs from main in its signer
-process. Everything else, agent permission config, package manifests,
-workflows, this module, the merge gate, the review lanes, hooks, scripts and
-agent instructions included, merges on the two review lanes, which are the
-gate (owner direction 2026-10-23), except the cost and trusted-actor holds
-below. The configured `merge.diff-check.denied-paths` are joined to
-the floor, never in place of it. Every glob matches case-insensitively,
-because a lane host on a case-insensitive filesystem treats `Codeowners` as
-`CODEOWNERS`.
-A plugins/<plugin>/.claude-plugin/plugin.json or the top-level
+configuration. The floor is empty (owner direction 2026-10-24): no path rates
+HIGH for being trusted alone, and the two review lanes, which are the gate,
+judge it, except the cost and trusted-actor holds below. The configured
+`merge.diff-check.denied-paths` rate HIGH. Every glob matches
+case-insensitively, because a lane host on a case-insensitive filesystem
+treats `Codeowners` as `CODEOWNERS`.
+With the floor switch on (`high_floor`), a
+plugins/<plugin>/.claude-plugin/plugin.json or the top-level
 .claude-plugin/marketplace.json is compared base against head instead, and a
 change that installs or runs something new rates HIGH as
 `manifest-review-required`: in plugin.json a differing `_EXECUTABLE_KEYS` value
@@ -39,8 +34,7 @@ or repeats a key, holds; an added plugin.json is compared with `{}`.
 A change that adds or widens an entry in the trusted-actor list
 (`TRUSTED_ACTORS_PATH`) rates HIGH as `trust-gate:trusted-actors` in every
 lane, whatever the floor switch and `floor_exempt` say, and waits for the
-owner. Base and head text are compared: only removing entries passes this
-check, though with the floor on the list's directory holds anyway; an
+owner. Base and head text are compared: only removing entries passes; an
 added or changed entry, any other key changed, a side that cannot be read or
 parsed or repeats a key, and an added, removed, renamed or copied file hold.
 
@@ -53,22 +47,21 @@ trusted-actor widening through `trust-gate:trusted-actors`.
 
 A change that could add or raise a charge rates HIGH as `cost-review-required`
 in every lane, floor or not and whatever `floor_exempt` says (owner rule,
-2026-10-22): any `COST_PATHS` file (Pulumi, Terraform, Bicep, the multi-agent
-role map) or file under a `RiskInput.pulumi_dirs` directory, and every file
-when `pulumi_dirs` is None (the base tree was not listed); a file renamed or
-copied into a workflow or `pr-pipeline.yaml` path from outside one; a
-`.github/workflows/` file whose patch adds a `_COST_WORKFLOW_LINE` (a `cron`
-key in any spelling, `--model`, `--max-turns`), or, unless `RiskInput.public`
-is True, a `runs-on:`, `windows` or `macos` line; that gains a `_SECRET_REF`,
-a `_MODEL_ACTION` or a `_MODEL_PACKAGE` run, counted against the lines it
-removes so a move or repin is not new; that adds a `timeout-minutes` or
-`leg-timeout-minutes` above every one it removes, when its head text
-(`contents`) names a model leg or could not be read; or that gains a runner
-value (head text against base text, and added inline `runs-on:` lines) that
-is not `_FREE_RUNNER` on a public repository, or any on another; and a
-`pr-pipeline.yaml` change with any added or removed line off
-`_SAFE_PIPELINE_LINE`, unless it only edits trailing comments. A workflow or
-pipeline file with no patch holds. Only `RiskInput.cost_decision`, an owner
+2026-10-22): any `COST_PATHS` file (Pulumi, Terraform, Bicep) or file under a
+`RiskInput.pulumi_dirs` directory, and every file when `pulumi_dirs` is None
+(the base tree was not listed); a file renamed or copied into a workflow or
+`pr-pipeline.yaml` path from outside one; a `.github/workflows/` file whose
+patch adds a `_COST_WORKFLOW_LINE` (a `cron` key in any spelling, `--model`,
+`--max-turns`), or, unless `RiskInput.public` is True, a `runs-on:`, `windows`
+or `macos` line; that gains a `_SECRET_REF`, a `_MODEL_ACTION` or a
+`_MODEL_PACKAGE` run, counted against the lines it removes so a move or repin
+is not new; that adds a `timeout-minutes` or `leg-timeout-minutes` above every
+one it removes, when its head text (`contents`) names a model leg or could not
+be read; or that gains a runner value (head text against base text, and added
+inline `runs-on:` lines) that is not `_FREE_RUNNER` on a public repository, or
+any on another; and a `pr-pipeline.yaml` change with any added or removed line
+off `_SAFE_PIPELINE_LINE`, unless it only edits trailing comments. A workflow
+or pipeline file with no patch holds. Only `RiskInput.cost_decision`, an owner
 decision the caller verified, clears it.
 
 Paths are normalized before matching (`\\` to `/`, empty and `.` segments
