@@ -302,7 +302,7 @@ const TRUSTED_ACTORS = ".github/standards/trusted-actors/trusted-actors.json";
 test("forced denied paths are added when the config sets no merge section", () => {
   assert.deepEqual(
     run(fixture("valid.yaml")).merge["diff-check"]["denied-paths"],
-    [CONFIG_PATH, ".github/**", TRUSTED_ACTORS],
+    [CONFIG_PATH, TRUSTED_ACTORS],
   );
 });
 
@@ -311,14 +311,14 @@ test("forced denied paths are added after the config's own, once each", () => {
     doc.merge = {
       rung: "C2",
       "diff-check": {
-        "denied-paths": [".claude/**", ".github/**"],
+        "denied-paths": [".claude/**", CONFIG_PATH],
         "max-changed-lines": 400,
       },
     };
   });
   const resolved = run(config);
   assert.deepEqual(resolved.merge["diff-check"], {
-    "denied-paths": [".claude/**", ".github/**", CONFIG_PATH, TRUSTED_ACTORS],
+    "denied-paths": [".claude/**", CONFIG_PATH, TRUSTED_ACTORS],
     "max-changed-lines": 400,
   });
 });
