@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Settings: tdd_refactor_step=off (docs/conventions/testing.yaml), first_test=user-flow (default)\n\nAll 7 tests pass.",
+      "why": "no checkpoint line"
+    },
+    {
+      "answer": "Settings: tdd_refactor_step=off (docs/conventions/testing.yaml). The Refactor step is off, so there is no Refactor checkpoint: each slice went from green to the next test.",
+      "why": "the phrase mid-line, not as a line of its own"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Settings: tdd_refactor_step=off (docs/conventions/testing.yaml)\n\nRefactor checkpoint: extracted _line_total from total_cents; suite still green",
+      "why": "a checkpoint line despite off"
+    },
+    {
+      "answer": "Refactor checkpoint: nothing to tidy.",
+      "why": "a checkpoint line at the start of the reply"
+    }
+  ]
+}

@@ -605,6 +605,66 @@ bcheck --user browser_driver=another-missing-tool-zz
 assert_eq "a userConfig command not on PATH exits 1" 1 "$rc"
 assert_contains "naming userConfig as the source" "$out" "source: userConfig"
 
+# --- write: /testing:write's keys, repository settings with no userConfig -------
+wrun() {
+  rc=0
+  err="$(mktemp "$T/err.XXXXXX")"
+  out="$(bash "$RESOLVE" write --root "$REPO" "$@" 2>"$err")" || rc=$?
+  err="$(cat "$err")"
+}
+reset
+rm -f "$TY"
+wrun
+assert_eq "write with no layer: both keys at their defaults" \
+  "0:tdd_refactor_step	on	default
+first_test	user-flow	default" "$rc:$out"
+assert_eq "with nothing on stderr" "" "$err"
+printf 'tdd_refactor_step: off\nfirst_test: unit\n' >"$TY"
+wrun
+assert_eq "testing.yaml sets both keys and is the source" \
+  "0:tdd_refactor_step	off	$TY
+first_test	unit	$TY" "$rc:$out"
+printf "tdd_refactor_step: 'on'\n" >"$REPO/.claude/testing.local.yaml"
+wrun
+assert_eq "the overlay wins over testing.yaml, a quoted value as plain" \
+  "tdd_refactor_step	on	$REPO/.claude/testing.local.yaml
+first_test	unit	$TY" "$out"
+rm -f "$REPO/.claude/testing.local.yaml" "$TY"
+printf 'tdd_refactor_step: off\nfirst_test: unit\n' >"$HOME/.claude/testing.yaml"
+wrun
+assert_eq "the user-global file is not read for either key" \
+  "0:tdd_refactor_step	on	default
+first_test	user-flow	default" "$rc:$out"
+assert_contains "and says so for tdd_refactor_step" "$err" \
+  "$HOME/.claude/testing.yaml: tdd_refactor_step is a repository setting; the user-global layer is not read for it"
+assert_contains "and for first_test" "$err" \
+  "$HOME/.claude/testing.yaml: first_test is a repository setting; the user-global layer is not read for it"
+rm -f "$HOME/.claude/testing.yaml"
+printf 'tdd_refactor_step: sometimes\nfirst_test: e2e\n' >"$TY"
+printf 'tdd_refactor_step: off\n' >"$HOME/.claude/testing.yaml"
+wrun
+assert_eq "a rejected value exits 0 and takes the default" \
+  "0:tdd_refactor_step	on	default
+first_test	user-flow	default" "$rc:$out"
+assert_contains "naming the file, key and value for tdd_refactor_step" "$err" "$TY: tdd_refactor_step: unknown value 'sometimes'"
+assert_contains "and for first_test" "$err" "$TY: first_test: unknown value 'e2e'"
+rm -f "$HOME/.claude/testing.yaml"
+printf 'tdd_refactor_step: true\n' >"$TY"
+wrun
+assert_eq "a YAML boolean is not on or off" "tdd_refactor_step	on	default" "$(head -1 <<<"$out")"
+assert_contains "and is named" "$err" "$TY: tdd_refactor_step: unknown value 'true'"
+wrun --user tdd_refactor_step=off
+assert_eq "write has no userConfig level" 2 "$rc"
+printf 'tdd_refactor_step: off\nfirst_test: unit\npaths:\n  exclude: [write-file/**]\n' >"$TY"
+run
+assert_eq "write keys in testing.yaml do not stop the scan config" "0:write-file/**" "$rc:$(records paths.exclude)"
+assert_eq "and print no scan record" "" "$(records tdd_refactor_step)$(records first_test)"
+run --quick
+assert_eq "nor under --quick" "0:write-file/**" "$rc:$(records paths.exclude)"
+erun
+assert_eq "and the e2e mode does not print them" "" "$(grep -E '^(tdd_refactor_step|first_test)	' <<<"$out")"
+rm -f "$TY"
+
 erun --user nonsense
 assert_eq "--user without <key>=<value> is a usage error" 2 "$rc"
 erun --user other_key=x
