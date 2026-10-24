@@ -5,7 +5,7 @@
         {
           "tool": "Read",
           "input": {
-            "file_path": ".claude/skills/control-shop/shared/pick-month/steps.yaml"
+            "file_path": ".claude/skills/control-shop/features/billing/export/pick-month.yaml"
           }
         }
       ],
@@ -22,7 +22,7 @@
           }
         }
       ],
-      "why": "read only the including file, so the ids it expands to were guessed"
+      "why": "read only the including file, so the expansion was guessed"
     }
   ]
 }

@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "The run cannot start: shared/pick-month/steps.yaml is included twice with no prefix, so the step id open-picker is repeated (and so is choose-month). Nothing was launched.",
+      "answer": "The run cannot start: pick-month.yaml is included twice with no prefix, so the step id open-picker is repeated (and so is choose-month). Nothing was launched.",
       "why": "names the repeated id"
     }
   ],

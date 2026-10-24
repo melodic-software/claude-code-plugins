@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: steps-include-prefix-with-resolves
-description: Drive expands a steps file that includes one shared file twice, giving each copy its prefix and its own with values, and launches nothing
+description: Drive expands a steps file that includes one month-picker file twice, giving each copy its prefix and its own with values, and launches nothing
 tags: [drive, steps-files, invented]
 expected_outcome: "The reply lists the expanded step ids in this order: open-billing, from-open-picker, from-choose-month, to-open-picker, to-choose-month, press-export. It gives from-open-picker the field Start and from-choose-month the month 2026-01, and to-open-picker the field End and to-choose-month the month 2026-03. It reports no repeated id and launches nothing."
 context:
@@ -11,10 +11,10 @@ execution:
   max_turns: 20
   timeout_seconds: 600
 graders:
-  - name: reads-shared-steps
+  - name: reads-included-steps
     type: tool_used
     tool: Read
-    input_match: 'shared/pick-month/steps\.yaml'
+    input_match: 'billing/export/pick-month\.yaml'
     min: 1
     arm: both
   - name: names-prefixed-ids
@@ -23,4 +23,4 @@ graders:
     arm: both
   - name: expands-in-order
     type: llm
-    criteria: "PASS only if the reply (1) lists the step ids open-billing, from-open-picker, from-choose-month, to-open-picker, to-choose-month, press-export in that order, (2) pairs from-choose-month with 2026-01 and to-choose-month with 2026-03, and from-open-picker with Start and to-open-picker with End, and (3) does not report a repeated or conflicting step id. FAIL if it lists the unprefixed ids open-picker or choose-month as steps the run performs, swaps or drops a with value, uses the shared file's defaults (Start and current) for the to- copy, or says it launched the app."
+    criteria: "PASS only if the reply (1) lists the step ids open-billing, from-open-picker, from-choose-month, to-open-picker, to-choose-month, press-export in that order, (2) pairs from-choose-month with 2026-01 and to-choose-month with 2026-03, and from-open-picker with Start and to-open-picker with End, and (3) does not report a repeated or conflicting step id. FAIL if it lists the unprefixed ids open-picker or choose-month as steps the run performs, swaps or drops a with value, uses the included file's defaults (Start and current) for the to- copy, or says it launched the app."
