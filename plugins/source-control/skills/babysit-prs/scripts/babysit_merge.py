@@ -3285,16 +3285,9 @@ def assess_unattended(
     the review evidence and the score. Raises `PolicyReadError` when the
     pull request or its pipeline config cannot be read."""
 
-    def post_merge(floor: datetime, identity: str) -> merge_policy.PostMergeGate:
-        verdict = postmerge.check(
-            repo,
-            agent_identity=identity,
-            is_human=postmerge._default_is_human(repo, identity, self_logins),
-            merged_since=floor,
-            pinned_sha=postmerge.pin_reader(repo, identity),
-            lane_merges_only=authority == merge_policy.PR_MERGE,
-        )
-        return postmerge.gate_from_report(verdict.report())
+    post_merge = postmerge.gate_reader(
+        repo, self_logins, lane_merges_only=authority == merge_policy.PR_MERGE
+    )
 
     def promotion(window_start: datetime | None) -> merge_policy.Promotion:
         return merge_policy.read_promotion(

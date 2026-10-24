@@ -303,6 +303,8 @@ class PostMergeVerdict:
     # for a fresh run.
     hold: str | None = None
     recover_dispatch: bool = False
+    # When the earliest quarantine that excused a failing suite expires.
+    excuses_expire_at: datetime | None = None
 
     @property
     def ok(self) -> bool:
@@ -370,6 +372,9 @@ class PostMergeVerdict:
             "needsDispatch": self.needs_dispatch,
             "warnings": list(self.warnings),
             "branch": self.branch,
+            "excusesExpireAt": (
+                self.excuses_expire_at.isoformat() if self.excuses_expire_at else None
+            ),
         }
 
 
@@ -1070,6 +1075,9 @@ class _Context:
     quarantine_issues: dict[str, dict[str, Any]] | None = None
     # Excused failing suites, by (suite, sighting).
     quarantines: dict[tuple[str, str], Quarantine] = field(default_factory=dict)
+    # The earliest time a quarantine that excused a failing suite expires,
+    # after which the same runs judge differently (`excuse_until`).
+    excuses_expire_at: datetime | None = None
     # The branch's dispatch runs at each commit, read by SHA.
     dispatch_at_cache: dict[str, dict[int, Run]] = field(default_factory=dict)
     # The lane records file (`LANE_RECORDS_ENV`), its records once loaded,
@@ -1164,16 +1172,18 @@ class _Context:
             return frozenset()
         issues = self._quarantine_issues()
         days = self._quarantine_days(run.head_sha)
-        return frozenset(
-            check
-            for check, suites in named.items()
-            if any(
-                not is_gate_suite(suite)
-                and (issue := issues.get(suite)) is not None
-                and self.now >= _time(issue.get("created_at")) + timedelta(days=days)
-                for suite in suites
-            )
-        )
+        expired: set[str] = set()
+        for check, suites in named.items():
+            for suite in suites:
+                issue = None if is_gate_suite(suite) else issues.get(suite)
+                if issue is None:
+                    continue
+                ends = _time(issue.get("created_at")) + timedelta(days=days)
+                if self.now >= ends:
+                    expired.add(check)
+                else:
+                    self.excuse_until(ends)
+        return frozenset(expired)
 
     def demoting(
         self, run: Run, attempt: int, checks: frozenset[str]
@@ -1205,16 +1215,26 @@ class _Context:
                         demote.add(check)
                         continue
                     issue = issues.get(suite)
-                    if issue is not None and self.now >= _time(
-                        issue.get("created_at")
-                    ) + timedelta(days=days):
+                    ends = (
+                        None
+                        if issue is None
+                        else _time(issue.get("created_at")) + timedelta(days=days)
+                    )
+                    if ends is not None and self.now >= ends:
                         demote.add(check)
                     else:
+                        if ends is not None:
+                            self.excuse_until(ends)
                         excused.append(Quarantine(suite, sighting, run.head_sha))
         for q in excused:
             self.quarantines[(q.suite, q.run_url)] = q
         self.demoting_cache[key] = frozenset(demote)
         return self.demoting_cache[key]
+
+    def excuse_until(self, ends: datetime) -> None:
+        """Note a quarantine excuse that holds until `ends`."""
+        if self.excuses_expire_at is None or ends < self.excuses_expire_at:
+            self.excuses_expire_at = ends
 
     def failing_suites(
         self, run_id: int, attempt: int, check: str
@@ -2182,6 +2202,7 @@ def check(
         warnings=tuple(warnings),
         branch=branch,
         quarantines=tuple(ctx.quarantines.values()),
+        excuses_expire_at=ctx.excuses_expire_at,
     )
 
 
@@ -3095,6 +3116,92 @@ def gate_from_report(report: dict[str, Any]) -> policy.PostMergeGate:
     return policy.PostMergeGate(
         refusal, report, lambda merge: getattr(merge, "number", None) in verified
     )
+
+
+def gate_reader(
+    repo: str, self_logins: Collection[str], *, lane_merges_only: bool
+) -> Callable[[datetime, str], policy.PostMergeGate]:
+    """The merge gate's `post_merge(floor, identity)`: this check from
+    `floor`, as `gate_from_report` reads it."""
+
+    def post_merge(floor: datetime, identity: str) -> policy.PostMergeGate:
+        verdict = check(
+            repo,
+            agent_identity=identity,
+            is_human=_default_is_human(repo, identity, self_logins),
+            merged_since=floor,
+            pinned_sha=pin_reader(repo, identity),
+            lane_merges_only=lane_merges_only,
+        )
+        return gate_from_report(verdict.report())
+
+    return post_merge
+
+
+VERIFYING_WORKFLOWS = frozenset(
+    f".github/workflows/{w}" for w in (FULL_RUN_WORKFLOW, CANARY_WORKFLOW)
+)
+
+
+def pending_runs_unchanged(
+    repo: str,
+    shared: policy.SharedPostMerge,
+    branch: str,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    """Whether `check` would judge `shared`'s unverified merges as it did,
+    from one run listing: no full or canary run on `branch` created since the
+    earliest of them completed or was re-run since `computed_at` (less
+    `policy.SINCE_CLOCK_MARGIN`), none has passed `DISPATCH_DEADLINE`, after
+    which a missing dispatch or pin is a failure, and no quarantine that
+    excused a failing suite has expired (`excusesExpireAt`; an answer
+    without the field is False). Those are `_judge`'s time-based excuses. A
+    run started since and still running only stays pending. A listing that
+    cannot be read or is not whole, or an entry without a merge time, is
+    False."""
+    pending = [
+        m
+        for m in map(json_object, json_array(shared.gate.report.get("autoMerges")))
+        if m.get("verified") is not True
+    ]
+    report = shared.gate.report
+    if not pending or "excusesExpireAt" not in report:
+        return False
+    now = now or datetime.now(UTC)
+    try:
+        earliest = min(_time(m.get("mergedAt")) for m in pending)
+        excuse = report["excusesExpireAt"]
+        if now > earliest + DISPATCH_DEADLINE or (
+            excuse is not None and now >= _time(excuse)
+        ):
+            return False
+        owner, name = _split_repo(repo)
+        created = quote(
+            f">={earliest.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}", safe=""
+        )
+        payload = json_object(
+            _read(
+                [
+                    "api",
+                    f"repos/{owner}/{name}/actions/runs?branch={quote(branch, safe='')}"
+                    f"&created={created}&per_page=100",
+                ],
+                "verifying runs",
+            )
+        )
+        runs = json_array(payload.get("workflow_runs"))
+        if payload.get("total_count") != len(runs):
+            return False
+        since = shared.computed_at - policy.SINCE_CLOCK_MARGIN
+        return not any(
+            run.get("path") in VERIFYING_WORKFLOWS
+            and run.get("status") == "completed"
+            and _time(run.get("updated_at")) >= since
+            for run in map(json_object, runs)
+        )
+    except PostMergeReadError:
+        return False
 
 
 def read_shared(path: str) -> policy.SharedPostMerge | None:
