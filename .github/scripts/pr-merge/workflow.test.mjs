@@ -242,7 +242,10 @@ test("enable-auto-merge reads the lane's room from this run's post-merge-dispatc
   const keep = /- name: Keep the post-merge report for enable-auto-merge\n([\s\S]*?)(?=\n {6}- name: |\n*$)/.exec(dispatch)?.[1];
   assert.ok(keep, "post-merge-dispatch keeps its report");
   assert.match(keep, /uses: actions\/upload-artifact@[0-9a-f]{40} /);
-  assert.match(keep, /\n {10}name: pr-merge-post-merge-report\n {10}path: \$\{\{ runner\.temp \}\}\/post-merge\.json\n {10}retention-days: 1\n/);
+  // The directory holds post-merge.json, so the download below finds it at
+  // post-merge/post-merge.json.
+  assert.match(keep, /\n {10}name: pr-merge-post-merge-report\n {10}path: \$\{\{ runner\.temp \}\}\/post-merge-report\/\n {10}retention-days: 1\n/);
+  assert.match(dispatch, /\n {10}cp "\$RUNNER_TEMP\/post-merge\.json" "\$kept\/post-merge\.json"\n/);
   const arm = job("enable-auto-merge");
   assert.match(arm, /^ {4}# [\s\S]*?\n {4}needs: \[post-merge-dispatch\]\n/);
   assert.match(/\n {4}if: >-\n([\s\S]*?)\n {4}[a-z-]+:/.exec(arm)[1], /^ {6}!cancelled\(\)\n/);

@@ -1064,6 +1064,93 @@ test("the re-run record is named by run and attempt, uploaded only after a recor
   assert.match(upload, /\n {10}name: pr-merge-rerun-\$\{\{ steps\.post-merge\.outputs\.lane-rerun \}\}-attempt-2\n/);
 });
 
+// The merge job's check, run with this run's post-merge-dispatch report kept
+// in post-merge-kept (or none) and a fake python3 that marks it ran. The rule
+// (pr-merge.yml): reuse a report whose check judged (exit 0, 1 or 5) main at
+// this job's commit under REUSE_MINUTES ago; otherwise run the check.
+const MAIN = execFileSync("git", ["-C", root, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+const runMergeCheck = ({ kept, code = "0", records } = {}) => {
+  const dir = mkdtempSync(join(tmpdir(), "pr-merge-reuse-"));
+  try {
+    const bin = join(dir, "bin");
+    mkdirSync(bin);
+    writeFileSync(join(bin, "python3"), `#!/usr/bin/env bash\ntouch "${dir}/ran"\necho '{"ran": true}'\nexit 3\n`);
+    chmodSync(join(bin, "python3"), 0o755);
+    symlinkSync(root, join(dir, ".base"));
+    writeFileSync(join(dir, "lane-records.json"), "read in");
+    if (kept !== undefined) {
+      mkdirSync(join(dir, "post-merge-kept"));
+      writeFileSync(join(dir, "post-merge-kept/post-merge.json"), JSON.stringify(kept));
+      writeFileSync(join(dir, "post-merge-kept/post-merge-code"), `${code}\n`);
+      if (records !== undefined) writeFileSync(join(dir, "post-merge-kept/lane-records.json"), records);
+    }
+    const output = join(dir, "output");
+    const result = spawnSync("bash", ["-c", runScript("Check earlier lane merges")], {
+      cwd: dir,
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_OUTPUT: output, REPO: "o/r", REUSE_MINUTES: "10" },
+    });
+    return {
+      status: result.status,
+      stdout: result.stdout,
+      ran: existsSync(join(dir, "ran")),
+      output: readFileSync(output, "utf8"),
+      report: JSON.parse(readFileSync(join(dir, "post-merge.json"), "utf8")),
+      records: readFileSync(join(dir, "lane-records.json"), "utf8"),
+    };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+const keptReport = ({ main = MAIN, minutesAgo = 3 } = {}) => ({
+  readable: true,
+  needsDispatch: true,
+  shared: { mainSha: main, computedAt: new Date(Date.now() - minutesAgo * 60_000).toISOString().replace("Z", "+00:00") },
+});
+
+test("the merge job reuses this run's post-merge report for main at its commit, with its code and lane records", () => {
+  for (const code of ["0", "1", "5"]) {
+    const run = runMergeCheck({ kept: keptReport(), code, records: "proved" });
+    assert.equal(run.status, 0, run.stdout);
+    assert.equal(run.ran, false, code);
+    assert.match(run.output, new RegExp(`^code=${code}$`, "m"));
+    assert.match(run.output, /^needs-dispatch=true$/m);
+    assert.equal(run.report.shared.mainSha, MAIN);
+    assert.equal(run.records, "proved");
+    assert.match(run.stdout, /::notice::post-merge-dispatch's check judged main at [0-9a-f]{40} \d+s ago/);
+  }
+  // A report kept with no lane records leaves the ones read in.
+  assert.equal(runMergeCheck({ kept: keptReport() }).records, "read in");
+});
+
+test("the merge job runs the check itself for no report, another main, an old report or a check that could not judge", () => {
+  for (const [why, options] of [
+    ["none", {}],
+    ["another main", { kept: keptReport({ main: "f".repeat(40) }) }],
+    ["11 minutes old", { kept: keptReport({ minutesAgo: 11 }) }],
+    ["from the future", { kept: keptReport({ minutesAgo: -5 }) }],
+    ["no time", { kept: { ...keptReport(), shared: { mainSha: MAIN } } }],
+    ["exit 3", { kept: keptReport(), code: "3" }],
+  ]) {
+    const run = runMergeCheck({ ...options, records: "proved" });
+    assert.equal(run.ran, true, why);
+    assert.match(run.output, /^code=3$/m, why);
+    assert.deepEqual(run.report, { ran: true }, why);
+    assert.equal(run.records, "read in", why);
+  }
+});
+
+test("the merge job reads this run's report only when post-merge-dispatch keeps one", () => {
+  const read = step("Read this run's post-merge report");
+  assert.match(read, /uses: actions\/download-artifact@[0-9a-f]{40} /);
+  assert.match(read, /\n {10}name: pr-merge-post-merge-report\n {10}path: \$\{\{ runner\.temp \}\}\/post-merge-kept\n/);
+  assert.match(read, /\n {8}continue-on-error: true\n/);
+  assert.match(read, /steps\.mode\.outputs\.live == 'true'\n {10}&& \(github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch'\)/);
+  assert.doesNotMatch(read, /run-id|github-token|repository:/);
+  const names = steps.map((s) => s.name);
+  assert.equal(names.indexOf("Read this run's post-merge report") + 1, names.indexOf("Check earlier lane merges"));
+});
+
 test("the lane token request passes the resolved grant's actions, so an actions read grant is compared too", () => {
   const block = step("Request the lane token");
   for (const scope of ["contents", "pull-requests", "issues", "actions"]) {

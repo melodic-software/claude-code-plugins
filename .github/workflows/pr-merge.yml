@@ -212,10 +212,18 @@ jobs:
           echo "needs-dispatch=$needs" >>"$GITHUB_OUTPUT"
           rerun=$(jq -r '[.reruns[]? | select(.laneDispatched == true) | .runId][0] // ""' "$RUNNER_TEMP/post-merge.json" 2>/dev/null || true)
           echo "lane-rerun=$rerun" >>"$GITHUB_OUTPUT"
+          # The report kept below: the check's JSON, its exit code and the
+          # lane records it read and proved.
+          kept=$RUNNER_TEMP/post-merge-report
+          mkdir -p "$kept"
+          cp "$RUNNER_TEMP/post-merge.json" "$kept/post-merge.json"
+          echo "$code" >"$kept/post-merge-code"
+          [ ! -f "$RUNNER_TEMP/lane-records.json" ] || cp "$RUNNER_TEMP/lane-records.json" "$kept/lane-records.json"
 
       # The check's report for this run's enable-auto-merge job, which reads
-      # the lane's room from it instead of running the check again. That job
-      # downloads it from this run only.
+      # the lane's room from it, and its merge job, which reuses it while it
+      # judged main at that job's commit: neither runs the check again. They
+      # download it from this run only.
       - name: Keep the post-merge report for enable-auto-merge
         if: steps.post-merge.conclusion == 'success'
         continue-on-error: true
@@ -223,7 +231,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pr-merge-post-merge-report
-          path: ${{ runner.temp }}/post-merge.json
+          path: ${{ runner.temp }}/post-merge-report/
           retention-days: 1
           if-no-files-found: error
 
@@ -776,6 +784,23 @@ jobs:
       # failed listing nor a long gate loop holds that run back. Read-only,
       # so it reads with this job's own token, off the lane App's quota; only
       # --remediate below needs the lane token.
+      # The same check of this run's post-merge-dispatch job, with the same
+      # inputs, is reused instead when it judged (exit 0, 1 or 5) main at this
+      # job's commit under REUSE_MINUTES ago: its report, exit code and lane
+      # records. That job starts at once and this one waits on its group, so
+      # its report is usually kept by the time this step starts; with none,
+      # or any other, this job runs the check.
+      - name: Read this run's post-merge report
+        if: >-
+          steps.lane-token.outputs.token != '' && steps.mode.outputs.live == 'true'
+          && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: pr-merge-post-merge-report
+          path: ${{ runner.temp }}/post-merge-kept
+
       - name: Check earlier lane merges
         id: post-merge
         if: steps.lane-token.outputs.token != ''
@@ -784,13 +809,32 @@ jobs:
           API_BUDGET_TOKEN: github-token
           BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
           REPO: ${{ github.repository }}
+          REUSE_MINUTES: 10
         run: |
           set -euo pipefail
-          identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
-          code=0
-          python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
-            --repo "$REPO" --agent-identity "$identity" --lane-merges-only \
-            </dev/null >"$RUNNER_TEMP/post-merge.json" || code=$?
+          kept=$RUNNER_TEMP/post-merge-kept
+          code=
+          if [ -f "$kept/post-merge.json" ] && [ -f "$kept/post-merge-code" ]; then
+            kept_code=$(cat "$kept/post-merge-code")
+            kept_main=$(jq -r '.shared.mainSha // ""' "$kept/post-merge.json" 2>/dev/null || true)
+            computed=$(jq -r '.shared.computedAt // ""' "$kept/post-merge.json" 2>/dev/null || true)
+            at=$(date -d "${computed:-unset}" +%s 2>/dev/null || echo 0)
+            age=$(($(date +%s) - at))
+            if [[ $kept_code =~ ^[015]$ ]] && [ "$at" != 0 ] && ((age >= 0 && age < REUSE_MINUTES * 60)) &&
+              [ "$kept_main" = "$(git -C .base rev-parse HEAD)" ]; then
+              cp "$kept/post-merge.json" "$RUNNER_TEMP/post-merge.json"
+              [ ! -f "$kept/lane-records.json" ] || cp "$kept/lane-records.json" "$RUNNER_TEMP/lane-records.json"
+              code=$kept_code
+              echo "::notice::post-merge-dispatch's check judged main at $kept_main ${age}s ago (exit $code); reused, not run again"
+            fi
+          fi
+          if [ -z "$code" ]; then
+            identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
+            code=0
+            python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
+              --repo "$REPO" --agent-identity "$identity" --lane-merges-only \
+              </dev/null >"$RUNNER_TEMP/post-merge.json" || code=$?
+          fi
           echo "::group::post-merge check: exit $code"
           cat "$RUNNER_TEMP/post-merge.json"
           echo "::endgroup::"
