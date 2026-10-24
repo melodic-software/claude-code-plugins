@@ -5,12 +5,12 @@
       "why": "file and input"
     },
     {
-      "answer": "cut-release.yml; it takes a version input.",
-      "why": "file and input"
-    },
-    {
       "answer": "The cut-release workflow with -f version=2.14.0.",
       "why": "names workflow and input"
+    },
+    {
+      "answer": ".github/workflows/cut-release.yml, dispatched with version 2.14.0.",
+      "why": "meets every part of the criterion"
     }
   ],
   "fail": [
@@ -25,6 +25,10 @@
     {
       "answer": "It is done by hand with git tag v2.14.0.",
       "why": "contradicts the decision"
+    },
+    {
+      "answer": "cut-release.yml; it takes a version input.",
+      "why": "does not give the version for this cut (2.14.0)"
     }
   ]
 }

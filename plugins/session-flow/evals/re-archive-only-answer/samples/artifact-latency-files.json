@@ -9,8 +9,8 @@
       "why": "both"
     },
     {
-      "answer": "drain.toml for the setting, drain-latency.md for the record.",
-      "why": "both, short names"
+      "answer": "It changes config/drain.toml (the poll setting) and docs/drain-latency.md (the latency record).",
+      "why": "meets every part of the criterion"
     }
   ],
   "fail": [
@@ -25,6 +25,10 @@
     {
       "answer": "docs/drain-latency.md only.",
       "why": "misses the config"
+    },
+    {
+      "answer": "drain.toml for the setting, drain-latency.md for the record.",
+      "why": "names the files without their directories, so it does not name config/drain.toml"
     }
   ]
 }

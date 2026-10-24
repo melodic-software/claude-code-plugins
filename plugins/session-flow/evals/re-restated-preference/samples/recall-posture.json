@@ -9,8 +9,8 @@
       "why": "the posture"
     },
     {
-      "answer": "Throughput first: no approval round-trips for already-authorized work.",
-      "why": "the posture"
+      "answer": "Lowest friction and highest throughput: on reversible, already-authorized work, act without asking, then report what was done.",
+      "why": "meets every part of the criterion"
     }
   ],
   "fail": [
@@ -25,6 +25,10 @@
     {
       "answer": "Highest throughput.",
       "why": "half: no act-without-asking"
+    },
+    {
+      "answer": "Throughput first: no approval round-trips for already-authorized work.",
+      "why": "leaves out acting on reversible work and reporting after"
     }
   ]
 }

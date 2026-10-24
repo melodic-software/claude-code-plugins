@@ -5,12 +5,12 @@
       "why": "both"
     },
     {
-      "answer": "spend-alarm.yml now uses the shared alarm workflow.",
-      "why": "both, terse"
-    },
-    {
       "answer": "#4231 edits .github/workflows/spend-alarm.yml to call shared-alarm.yml.",
       "why": "both"
+    },
+    {
+      "answer": "#4231 moves the spend alarm into the shared alarm workflow, in .github/workflows/spend-alarm.yml.",
+      "why": "meets every part of the criterion"
     }
   ],
   "fail": [
@@ -25,6 +25,10 @@
     {
       "answer": "It edits .github/workflows/deploy-guard.yml.",
       "why": "wrong file"
+    },
+    {
+      "answer": "spend-alarm.yml now uses the shared alarm workflow.",
+      "why": "does not name the full path .github/workflows/spend-alarm.yml"
     }
   ]
 }
