@@ -1,7 +1,7 @@
 {
   "name": "app-control",
   "version": "0.5.0",
-  "description": "Launches and operates the project's app, observes it and records evidence, and never judges: /app-control:drive finds the project's own control skill (or falls back to the bundled run skill or a project-type recipe), reports what is reachable with ready, records one artifact with capture, stops only what it started with cleanup, and writes a fixed report.md and report.json that a verifier, a debugger or a CI job reads. /app-control:map create generates and proves that control skill: it discovers the repository first, asks only what discovery left open, and writes the hub, feature folders, config and a driver CLI that enforces the safety floors.",
+  "description": "Runs the project's app and records evidence without judging it. /app-control:drive finds the project's control skill (or falls back to the bundled run skill or a project-type recipe), reports what is reachable, captures one artifact, stops only what it started, and writes report.md and report.json. /app-control:map create generates and proves that control skill: discovery first, questions only for what is left, and a driver CLI that enforces the safety floors.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
