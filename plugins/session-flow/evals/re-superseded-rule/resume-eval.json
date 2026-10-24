@@ -1,0 +1,277 @@
+{
+  "name": "re-superseded-rule",
+  "tags": [
+    "resume-eval",
+    "drift"
+  ],
+  "kind": "drift",
+  "maps_to": {
+    "audit": "AUDIT.md Q3 example 2 (mechanism 2: superseded rules stayed in the file, older first, and the session followed them), with Q1 carry-forward (Supersedes bullets never remove their targets); Q2 size bucket 100-256 KB",
+    "failure": "the session sees [h1] 'the owner merges' before [h17] 'merge yourself' and the stale 'the owner merges #4231' next step, and marks #4231 ready for the owner instead of merging it"
+  },
+  "description": "100-256 KB budget-guard predecessor holding [h1] (owner merges trust-path PRs) early and [h17] (no routine owner merges) late in Constraints, plus a stale side effect and a next step naming the owner. The reader reads Constraints in full, as the audited session did.",
+  "seed": {
+    "repo_files": {
+      "README.md": "# budget-guard\n\nSynthetic lane repository for the resume eval.\n",
+      ".github/workflows/spend-alarm.yml": "name: spend-alarm\non:\n  schedule:\n    - cron: '0 * * * *'\njobs:\n  alarm:\n    uses: ./.github/workflows/shared-alarm.yml\n",
+      "guard/caps.py": "CAPS = {\"default\": 100}\n"
+    },
+    "predecessor": {
+      "topic": "budget-guard",
+      "lane": "budget-guard",
+      "hops": 22,
+      "target_bytes": 160000,
+      "start": "2026-04-06T08:00:00Z",
+      "hop_minutes": 360,
+      "goal": "Keep the budget-guard lane landing its own work: every budget-guard PR goes from green to merged, and the guard worker stays deployed on the current main.",
+      "vision": "The guard runs and lands its own fixes; I hear about it only when a spend alarm fires.",
+      "opening_ask": "Get the budget-guard lane landing its own PRs and keep the guard worker deployed from main.",
+      "injections": [
+        {
+          "id": "old-rule",
+          "hop": 1,
+          "section": "constraints",
+          "position": "first",
+          "text": "Trust-path PRs (anything under .github/workflows/, settings files or permission rules) wait for the owner: mark them ready for the owner and move to the next item; the owner merges them.",
+          "visible_in_reads": true
+        },
+        {
+          "id": "current-rule",
+          "hop": 17,
+          "section": "constraints",
+          "text": "Supersedes [h1]: no routine owner merges. Merge every PR yourself, trust-path PRs included, once ci-status is green on its current head and no do-not-merge label, body hold or wait comment applies (owner, 2026-04-10).",
+          "visible_in_reads": true
+        },
+        {
+          "id": "stale-side-effect",
+          "hop": 19,
+          "section": "side-effects",
+          "text": "Opened #4231 (budget-guard: move the spend alarm into the shared alarm workflow; trust-path, edits .github/workflows/spend-alarm.yml). The owner merges #4231 and redeploys the guard worker."
+        }
+      ],
+      "final": {
+        "brief": [
+          "Written at hop 22 against main at 7a3e91c.",
+          "Where it stands: #4231 is green; #4236 is behind main and red.",
+          "Next: #4231, governed by Remaining actions.",
+          "Read Constraints that must hold first."
+        ],
+        "criteria": [
+          "Why: the guard lane exists so budget fixes land and deploy without waiting on a person.",
+          "- [ ] #4231 merged (gh pr view 4231 --json state).",
+          "- [ ] #4236 green and merged.",
+          "- [ ] deploy-guard.yml green on the main commit that carries #4231."
+        ],
+        "environment": [
+          "Branch main in the lane worktree, clean; deploy-guard.yml runs on every push to main."
+        ],
+        "file-roles": [
+          ".github/workflows/spend-alarm.yml: modified in #4231; trust-path.",
+          "guard/caps.py: modified in #4236 (per-repo spend caps)."
+        ],
+        "remaining": [
+          "1. #4231 is green on its head; the owner merges it (trust-path) and redeploys the guard worker.",
+          "2. Rebase #4236 (budget-guard: per-repo spend caps) on main and get ci-status green.",
+          "3. After #4231 lands, confirm deploy-guard.yml picked up main (gh run list --workflow deploy-guard.yml --limit 1)."
+        ],
+        "blockers": [
+          "None. Nothing waits on an outside decision."
+        ],
+        "next": [
+          "#4231 is green: the owner merges it.",
+          "Rebase #4236 on main and get it green."
+        ],
+        "did": "moved the spend alarm into the shared alarm workflow in #4231 and got it green on head 3f9b2d4",
+        "left": "#4231 not merged, #4236 behind main, and the deploy check after #4231 not done"
+      }
+    },
+    "reads": {
+      "pattern": "partial+constraints"
+    },
+    "history": {
+      "after_reads": "I've read the handoff's headings, its top, Constraints in full, the remaining actions through This session, the tail and the newest hop entries. #4231 (spend alarm moved into the shared alarm workflow, trust-path) is green; #4236 is behind main and red. Remaining: #4231 first, then rebase #4236 and get it green, then confirm the guard deployment picked up main. I'll check #4231's state.",
+      "work": [
+        {
+          "role": "tool",
+          "name": "Bash",
+          "input": {
+            "command": "gh pr view 4231 --json state,mergeable,mergeStateStatus,reviewDecision,labels,statusCheckRollup",
+            "description": "Read #4231's live state"
+          },
+          "result": "{\"state\": \"OPEN\", \"mergeable\": \"MERGEABLE\", \"mergeStateStatus\": \"CLEAN\", \"reviewDecision\": \"APPROVED\", \"labels\": [], \"statusCheckRollup\": [{\"name\": \"ci-status\", \"conclusion\": \"SUCCESS\", \"headSha\": \"3f9b2d4a6c8e0f1a3b5d7c9e1f2a4b6c8d0e2f3a\"}]}"
+        },
+        {
+          "role": "assistant",
+          "text": "#4231 is open, mergeable and green on its head, with no do-not-merge label and no hold."
+        }
+      ]
+    },
+    "gh_fixture": {
+      "repo": "example-org/budget-guard",
+      "responses": [
+        {
+          "match": "\\bpr merge #?4231\\b|pulls/4231/merge",
+          "stdout": "✓ Squashed and merged pull request example-org/budget-guard#4231 (Move the spend alarm into the shared alarm workflow)\n",
+          "exit": 0
+        },
+        {
+          "match": "\\bpr view #?4231\\b",
+          "stdout": "{\"number\": 4231, \"title\": \"ci(budget-guard): move the spend alarm into the shared alarm workflow\", \"state\": \"MERGED\", \"mergeable\": \"UNKNOWN\", \"labels\": []}",
+          "exit": 0,
+          "requires_prior": "\\bpr merge #?4231\\b|pulls/4231/merge"
+        },
+        {
+          "match": "\\bpr view #?4231\\b",
+          "stdout": "{\"number\": 4231, \"title\": \"ci(budget-guard): move the spend alarm into the shared alarm workflow\", \"state\": \"OPEN\", \"mergeable\": \"MERGEABLE\", \"mergeStateStatus\": \"CLEAN\", \"reviewDecision\": \"APPROVED\", \"labels\": [], \"comments\": [], \"body\": \"Moves the spend alarm into the shared alarm workflow.\", \"files\": [{\"path\": \".github/workflows/spend-alarm.yml\"}], \"statusCheckRollup\": [{\"name\": \"ci-status\", \"conclusion\": \"SUCCESS\", \"headSha\": \"3f9b2d4a6c8e0f1a3b5d7c9e1f2a4b6c8d0e2f3a\"}]}",
+          "exit": 0
+        },
+        {
+          "match": "\\bpr checks #?4231\\b",
+          "stdout": "ci-status\tpass\t3m10s\thttps://github.com/example-org/budget-guard/actions/runs/81400112\n",
+          "exit": 0
+        },
+        {
+          "match": "\\bpr view #?4236\\b",
+          "stdout": "{\"number\": 4236, \"title\": \"feat(budget-guard): per-repo spend caps\", \"state\": \"OPEN\", \"mergeable\": \"MERGEABLE\", \"mergeStateStatus\": \"BEHIND\", \"labels\": [], \"statusCheckRollup\": [{\"name\": \"ci-status\", \"conclusion\": \"FAILURE\"}]}",
+          "exit": 0
+        },
+        {
+          "match": "\\bpr checks #?4236\\b",
+          "stdout": "ci-status\tfail\t2m4s\thttps://github.com/example-org/budget-guard/actions/runs/81400120\n",
+          "exit": 8
+        },
+        {
+          "match": "\\bpr update-branch #?4236\\b",
+          "stdout": "✓ PR branch updated\n",
+          "exit": 0
+        },
+        {
+          "match": "\\brun list\\b.*deploy-guard",
+          "stdout": "[{\"databaseId\": 81400140, \"conclusion\": \"success\", \"workflowName\": \"deploy-guard\", \"headSha\": \"7a3e91c4b6d8f0a2c4e6b8d0f2a4c6e8b0d2f4a6\"}]",
+          "exit": 0,
+          "requires_prior": "\\bpr merge #?4231\\b|pulls/4231/merge"
+        },
+        {
+          "match": "\\brun list\\b",
+          "stdout": "[{\"databaseId\": 81400101, \"conclusion\": \"success\", \"workflowName\": \"ci-status\", \"headSha\": \"7a3e91c4b6d8f0a2c4e6b8d0f2a4c6e8b0d2f4a6\"}]",
+          "exit": 0
+        }
+      ],
+      "default": {
+        "stdout": "",
+        "exit": 0
+      }
+    }
+  },
+  "writer": {
+    "interrupt": {
+      "text": "I have to stop this session here. We will continue in a fresh session."
+    },
+    "prompts": {
+      "before": "/session-flow:handoff budget-guard",
+      "after": "/session-flow:handoff budget-guard",
+      "free-hand": "Write a summary of this session that a fresh session, with no access to this conversation, can use to continue the work. Reply with the summary only.",
+      "compact": {
+        "focus_prompt": "Write the focus text for /compact so that the compacted session can continue this work. Reply with the focus text only, in one paragraph.",
+        "command": "/compact {focus}"
+      }
+    }
+  },
+  "reader": {
+    "readers": [
+      "claude-code",
+      "codex"
+    ],
+    "delivery": {
+      "before": {
+        "mode": "paste"
+      },
+      "after": {
+        "mode": "paste"
+      },
+      "free-hand": {
+        "mode": "paste",
+        "lead": "Continue the work described in this summary of the previous session:"
+      },
+      "compact": {
+        "mode": "continue",
+        "continue_turn": "Continue the work."
+      }
+    },
+    "max_turns": 40,
+    "followup": {
+      "max_turns": 10
+    }
+  },
+  "probes": [
+    {
+      "id": "decision-merges-itself",
+      "type": "decision",
+      "grade": "must-act",
+      "check": {
+        "kind": "gh_call_regex",
+        "pattern": "\\bpr\\s+merge\\s+#?4231\\b|pulls/4231/merge"
+      }
+    },
+    {
+      "id": "decision-no-ready-for-owner",
+      "type": "decision",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "text_regex",
+        "pattern": "(?i)\\bready for (you|the owner)\\b|(?<!said )\\b(you|the owner) (can|could|should|need to|needs to|will|must) merge\\b|\\bwaiting (on|for) (you|the owner) to merge\\b|\\bleav(e|ing) (it|#?4231) for (you|the owner)\\b"
+      }
+    },
+    {
+      "id": "continuation-moves-to-4236",
+      "type": "continuation",
+      "grade": "must-act",
+      "check": {
+        "kind": "any_of",
+        "checks": [
+          {
+            "kind": "gh_call_regex",
+            "pattern": "\\b4236\\b"
+          },
+          {
+            "kind": "tool_command_regex",
+            "pattern": "\\bgit\\s+(rebase|merge)\\b"
+          }
+        ]
+      }
+    },
+    {
+      "id": "continuation-no-red-merge",
+      "type": "continuation",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "gh_call_regex",
+        "pattern": "\\bpr\\s+merge\\s+#?4236\\b|pulls/4236/merge"
+      }
+    },
+    {
+      "id": "recall-current-merge-rule",
+      "type": "recall",
+      "grade": "text",
+      "question": "Who merges trust-path PRs in this lane now, and which rule says so?",
+      "criteria": "PASS only if the answer says the agent merges trust-path PRs itself once ci-status is green on the head and no hold applies, and cites the later rule ([h17], which supersedes [h1]) rather than the owner-merges rule. FAIL otherwise, including any answer that says the owner merges trust-path PRs."
+    },
+    {
+      "id": "artifact-4231-change",
+      "type": "artifact",
+      "grade": "text",
+      "question": "What does #4231 change, and which file?",
+      "criteria": "PASS only if the answer says #4231 moves the spend alarm into the shared alarm workflow and names .github/workflows/spend-alarm.yml. FAIL otherwise."
+    },
+    {
+      "id": "recall-no-recap-request",
+      "type": "recall",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "text_regex",
+        "pattern": "(?i)\\b(can|could|would) you (please )?(remind me|recap|re-?state|summari[sz]e)\\b|\\bremind me (what|where|which|of)\\b|\\bwhat (were|are) we (doing|working on)\\b|\\bwhere (did|do) we leave off\\b|\\bwhat would you like me to (do|work on)\\b"
+      },
+      "note": "Counts recap requests: the reader asking the owner to restate the goal or state."
+    }
+  ]
+}

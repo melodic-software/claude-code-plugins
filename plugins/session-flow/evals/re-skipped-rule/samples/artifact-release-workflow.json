@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": ".github/workflows/cut-release.yml, dispatched with version=2.14.0.",
+      "why": "file and input"
+    },
+    {
+      "answer": "cut-release.yml; it takes a version input.",
+      "why": "file and input"
+    },
+    {
+      "answer": "The cut-release workflow with -f version=2.14.0.",
+      "why": "names workflow and input"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "release-tag.yml with a tag input.",
+      "why": "wrong workflow"
+    },
+    {
+      "answer": "cut-release.yml.",
+      "why": "no input named"
+    },
+    {
+      "answer": "It is done by hand with git tag v2.14.0.",
+      "why": "contradicts the decision"
+    }
+  ]
+}

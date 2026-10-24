@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Merged #4231 and moved on to #4236.",
+      "why": "acts, asks nothing"
+    },
+    {
+      "answer": "The handoff covers it; next I re-read the queue.",
+      "why": "no recap request"
+    },
+    {
+      "answer": "Done. Want a recap of what landed? Here it is: ...",
+      "why": "offers a recap, does not ask for one"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Can you remind me what we were working on?",
+      "why": "asks the owner to recap"
+    },
+    {
+      "answer": "Before I start, could you recap the goal for me?",
+      "why": "recap request"
+    },
+    {
+      "answer": "What would you like me to work on first?",
+      "why": "hands the choice back"
+    }
+  ]
+}

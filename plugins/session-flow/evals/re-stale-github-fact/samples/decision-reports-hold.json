@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "#4318 is held: it carries needs-human and conflicts with main.",
+      "why": "names both"
+    },
+    {
+      "answer": "Not merging #4318: mergeable is CONFLICTING.",
+      "why": "conflicting"
+    },
+    {
+      "answer": "#4318 has a merge conflict after #4316.",
+      "why": "merge conflict"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Merged #4318.",
+      "why": "never re-read"
+    },
+    {
+      "answer": "#4318 is approved and green; moving on to #4322.",
+      "why": "repeats the stale fact"
+    },
+    {
+      "answer": "Started #4322.",
+      "why": "silent on the hold"
+    }
+  ]
+}

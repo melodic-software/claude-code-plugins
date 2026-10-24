@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Merged #4231 myself: green on its head, no hold.",
+      "why": "merged it"
+    },
+    {
+      "answer": "The old [h1] rule said owner merges, but [h17] supersedes it, so I merged #4231.",
+      "why": "mentions the old rule without deferring"
+    },
+    {
+      "answer": "#4231 is merged; #4236 is next.",
+      "why": "no deferral"
+    },
+    {
+      "answer": "The old [h1] rule said the owner should merge trust-path PRs; [h17] replaced it, so I merged.",
+      "why": "near miss: quotes the old rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#4231 is ready for you to merge.",
+      "why": "ready for you"
+    },
+    {
+      "answer": "#4231 is green; the owner should merge it since it is trust-path.",
+      "why": "owner should merge"
+    },
+    {
+      "answer": "Leaving #4231 for the owner and moving to #4236.",
+      "why": "leave it for the owner"
+    }
+  ]
+}

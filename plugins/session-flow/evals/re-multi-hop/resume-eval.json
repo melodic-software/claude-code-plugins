@@ -1,0 +1,309 @@
+{
+  "name": "re-multi-hop",
+  "tags": [
+    "resume-eval",
+    "design",
+    "multi-hop"
+  ],
+  "kind": "design",
+  "maps_to": {
+    "criterion": "Brief, Scope trail and multi-hop: 'five sequential hops ... with an intentional detour, a return, and one unplanned drift; at hop 5 the intent, vision and an unchanged hop-1 rule are present verbatim, per-hop size growth is measured, and a reader probe must identify where the work started, each intentional detour and return, the unintentional drift, and any lost original scope'; 'Each change of direction is recorded at the hop it happens with its cause'.",
+    "audit_context": "AUDIT.md Q1 growth per hop (every chain only grows) and Q3 class (c) recap requests"
+  },
+  "description": "A two-hop drain-exit predecessor (read whole) starts a five-hop chain the arm writes itself: hop 2 an owner-directed detour, hop 3 an owner-directed return that names only part (2), hop 4 an agent-initiated drift scripted into that hop's session, hop 5 plain continuation. The final reader is probed on the trail.",
+  "seed": {
+    "repo_files": {
+      "README.md": "# drain-exit\n\nSynthetic lane repository for the resume eval.\n",
+      "lane/drain.py": "def should_stop(history):\n    return bool(history) and history[-1] == 0\n",
+      "lane/telemetry.py": "import json\n\n\ndef append(path, row):\n    with open(path, 'a', encoding='utf-8') as fh:\n        fh.write(json.dumps(row) + '\\n')\n",
+      "telemetry/drain.jsonl": "{\"cycle\": 1, \"frontier\": 3, \"exit\": null}\n{\"cycle\": 2, \"frontier\": 1, \"exit\": null}\n{\"cycle\": 3, \"frontier\": 0, \"exit\": null}\n",
+      "docs/work-loop.md": "# Work loop\n\nThe loop drains the frontier each cycle.\n",
+      "tests/test_telemetry.py": "import time\n\n\ndef test_row_timestamp():\n    assert int(time.time()) % 2 in (0, 1)\n",
+      "scripts/legacy/rotate_logs.sh": "#!/usr/bin/env bash\nset -euo pipefail\nfind logs -name '*.log' -mtime +7 -delete\n"
+    },
+    "predecessor": {
+      "topic": "drain-exit",
+      "lane": "drain-exit",
+      "hops": 2,
+      "start": "2026-07-06T08:00:00Z",
+      "hop_minutes": 240,
+      "goal": "Make the work loop's drain exit deterministic: (1) stop when the frontier is empty for two consecutive cycles, (2) record the exit reason in lane telemetry, (3) document the exit rule in docs/work-loop.md.",
+      "vision": "Anyone reading the telemetry can tell why a drain stopped without opening a transcript.",
+      "opening_ask": "Make the drain exit deterministic, record why it stopped, and document the rule.",
+      "injections": [
+        {
+          "id": "hop1-rule",
+          "hop": 1,
+          "section": "constraints",
+          "position": "first",
+          "text": "Lane telemetry rows are append-only JSON lines in telemetry/drain.jsonl; never rewrite, reorder or delete an existing row.",
+          "visible_in_reads": true
+        },
+        {
+          "id": "hop1-decision",
+          "hop": 1,
+          "section": "decisions",
+          "position": "first",
+          "text": "The exit reason is one of a fixed set: frontier-empty, cap-reached, error, owner-stop; free-text reasons are refused.",
+          "visible_in_reads": true
+        }
+      ],
+      "final": {
+        "brief": [
+          "Written at hop 2 against main at 1c5e9b7.",
+          "Where it stands: the goal's three parts are planned; none is done.",
+          "Next: part (1), governed by Remaining actions.",
+          "Read Constraints that must hold first."
+        ],
+        "criteria": [
+          "Why: a drain that stops for a recorded reason can be audited from telemetry alone.",
+          "- [ ] (1) two consecutive empty cycles stop the drain (lane/drain.py).",
+          "- [ ] (2) every stop writes its exit reason to telemetry (lane/telemetry.py).",
+          "- [ ] (3) docs/work-loop.md states the exit rule."
+        ],
+        "file-roles": [
+          "lane/drain.py: still to modify; part (1).",
+          "lane/telemetry.py: still to modify; part (2).",
+          "docs/work-loop.md: still to modify; part (3).",
+          "telemetry/drain.jsonl: data; append only."
+        ],
+        "remaining": [
+          "1. Part (1): stop the drain when the frontier is empty for two consecutive cycles (lane/drain.py).",
+          "2. Part (2): record the exit reason in telemetry (lane/telemetry.py).",
+          "3. Part (3): document the exit rule in docs/work-loop.md."
+        ],
+        "blockers": [
+          "None. Nothing waits on an outside decision."
+        ],
+        "next": [
+          "Part (1): the two-empty-cycles stop in lane/drain.py."
+        ],
+        "did": "planned the three parts of the drain exit and fixed the exit-reason set",
+        "left": "all three parts open"
+      }
+    },
+    "history": {
+      "after_reads": "I've read the handoff whole. The goal has three parts: the two-empty-cycles stop in lane/drain.py, the exit reason in telemetry, and the exit rule in docs/work-loop.md. Telemetry rows are append-only. Part (1) is next.",
+      "work": [
+        {
+          "role": "user",
+          "text": "Start with part (1)."
+        },
+        {
+          "role": "tool",
+          "name": "Read",
+          "input": {
+            "file_path": "{repo}/lane/drain.py"
+          },
+          "result": "     1\tdef should_stop(history):\n     2\t    return bool(history) and history[-1] == 0"
+        },
+        {
+          "role": "assistant",
+          "text": "lane/drain.py stops on the first empty cycle; part (1) needs it to wait for two consecutive empty cycles."
+        }
+      ]
+    },
+    "gh_fixture": {
+      "repo": "example-org/drain-exit",
+      "responses": [
+        {
+          "match": "\\bpr create\\b",
+          "stdout": "https://github.com/example-org/drain-exit/pull/4377\n",
+          "exit": 0
+        },
+        {
+          "match": "\\brun list\\b",
+          "stdout": "[{\"databaseId\": 81800101, \"conclusion\": \"success\", \"workflowName\": \"ci-status\"}]",
+          "exit": 0
+        }
+      ],
+      "default": {
+        "stdout": "",
+        "exit": 0
+      }
+    }
+  },
+  "writer": {
+    "interrupt": {
+      "text": "I have to stop this session here. We will continue in a fresh session."
+    },
+    "prompts": {
+      "before": "/session-flow:handoff drain-exit",
+      "after": "/session-flow:handoff drain-exit",
+      "free-hand": "Write a summary of this session that a fresh session, with no access to this conversation, can use to continue the work. Reply with the summary only.",
+      "compact": {
+        "focus_prompt": "Write the focus text for /compact so that the compacted session can continue this work. Reply with the focus text only, in one paragraph.",
+        "command": "/compact {focus}"
+      }
+    },
+    "hops": [
+      {
+        "hop": 1,
+        "label": "start",
+        "owner_turns": [],
+        "note": "the seeded session writes hop 1"
+      },
+      {
+        "hop": 2,
+        "label": "detour (owner-directed)",
+        "owner_turns": [
+          "Detour: before more drain work, fix the flaky timestamp test in tests/test_telemetry.py; it is blocking CI for everyone. Come back to the drain work after."
+        ]
+      },
+      {
+        "hop": 3,
+        "label": "return (owner-directed)",
+        "owner_turns": [
+          "The flaky test is fixed. Back to the drain exit: do part (2), the exit reason in telemetry."
+        ]
+      },
+      {
+        "hop": 4,
+        "label": "unplanned drift (agent-initiated)",
+        "owner_turns": [
+          "Keep going."
+        ],
+        "scripted_agent_turns": [
+          {
+            "role": "assistant",
+            "text": "While CI runs I'll also convert scripts/legacy/rotate_logs.sh to Python; it is the last shell script in the repo."
+          },
+          {
+            "role": "tool",
+            "name": "Write",
+            "input": {
+              "file_path": "{repo}/scripts/legacy/rotate_logs.py",
+              "content": "from pathlib import Path\nimport time\n\nfor log in Path('logs').glob('*.log'):\n    if time.time() - log.stat().st_mtime > 7 * 86400:\n        log.unlink()\n"
+            },
+            "result": "File created successfully at: {repo}/scripts/legacy/rotate_logs.py"
+          },
+          {
+            "role": "assistant",
+            "text": "Converted scripts/legacy/rotate_logs.sh to scripts/legacy/rotate_logs.py."
+          }
+        ],
+        "effects": {
+          "files": {
+            "scripts/legacy/rotate_logs.py": "from pathlib import Path\nimport time\n\nfor log in Path('logs').glob('*.log'):\n    if time.time() - log.stat().st_mtime > 7 * 86400:\n        log.unlink()\n"
+          }
+        }
+      },
+      {
+        "hop": 5,
+        "label": "continue",
+        "owner_turns": [
+          "Keep going."
+        ]
+      }
+    ]
+  },
+  "reader": {
+    "readers": [
+      "claude-code",
+      "codex"
+    ],
+    "delivery": {
+      "before": {
+        "mode": "paste"
+      },
+      "after": {
+        "mode": "paste"
+      },
+      "free-hand": {
+        "mode": "paste",
+        "lead": "Continue the work described in this summary of the previous session:"
+      },
+      "compact": {
+        "mode": "continue",
+        "continue_turn": "Continue the work."
+      }
+    },
+    "max_turns": 40,
+    "followup": {
+      "max_turns": 10
+    }
+  },
+  "probes": [
+    {
+      "id": "recall-scope-trail",
+      "type": "recall",
+      "grade": "text",
+      "question": "Trace this work: where did it start, what detours and returns happened, did anything drift without a goal behind it, and is any original scope lost?",
+      "criteria": "PASS only if the answer gives all five: the start (the three-part drain-exit goal), the owner-directed detour to the flaky test in tests/test_telemetry.py (hop 2), the return to the drain exit with part (2) (hop 3), the unplanned, agent-initiated conversion of scripts/legacy/rotate_logs.sh to Python (hop 4) as drift serving no recorded goal, and part (3), the docs/work-loop.md exit rule, as not done or at risk of being lost. FAIL otherwise."
+    },
+    {
+      "id": "recall-lost-scope",
+      "type": "recall",
+      "grade": "text",
+      "question": "Is any part of the original goal at risk of being dropped?",
+      "criteria": "PASS only if the answer names part (3), documenting the exit rule in docs/work-loop.md, as not done or at risk. FAIL otherwise."
+    },
+    {
+      "id": "artifact-intent-verbatim",
+      "type": "artifact",
+      "grade": "must-act",
+      "arms": [
+        "before",
+        "after"
+      ],
+      "check": {
+        "kind": "handoff_contains",
+        "text": "Make the work loop's drain exit deterministic: (1) stop when the frontier is empty for two consecutive cycles, (2) record the exit reason in lane telemetry, (3) document the exit rule in docs/work-loop.md."
+      }
+    },
+    {
+      "id": "artifact-vision-verbatim",
+      "type": "artifact",
+      "grade": "must-act",
+      "arms": [
+        "before",
+        "after"
+      ],
+      "check": {
+        "kind": "handoff_contains",
+        "text": "Anyone reading the telemetry can tell why a drain stopped without opening a transcript."
+      }
+    },
+    {
+      "id": "artifact-hop1-rule-verbatim",
+      "type": "artifact",
+      "grade": "must-act",
+      "arms": [
+        "before",
+        "after"
+      ],
+      "check": {
+        "kind": "handoff_contains",
+        "text": "Lane telemetry rows are append-only JSON lines in telemetry/drain.jsonl; never rewrite, reorder or delete an existing row."
+      }
+    },
+    {
+      "id": "continuation-goal-work",
+      "type": "continuation",
+      "grade": "must-act",
+      "check": {
+        "kind": "edited_path_regex",
+        "pattern": "lane/(drain|telemetry)\\.py$|docs/work-loop\\.md$"
+      }
+    },
+    {
+      "id": "decision-telemetry-append-only",
+      "type": "decision",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "file_rewritten",
+        "path": "telemetry/drain.jsonl"
+      }
+    },
+    {
+      "id": "recall-no-recap-request",
+      "type": "recall",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "text_regex",
+        "pattern": "(?i)\\b(can|could|would) you (please )?(remind me|recap|re-?state|summari[sz]e)\\b|\\bremind me (what|where|which|of)\\b|\\bwhat (were|are) we (doing|working on)\\b|\\bwhere (did|do) we leave off\\b|\\bwhat would you like me to (do|work on)\\b"
+      },
+      "note": "Counts recap requests: the reader asking the owner to restate the goal or state."
+    }
+  ]
+}

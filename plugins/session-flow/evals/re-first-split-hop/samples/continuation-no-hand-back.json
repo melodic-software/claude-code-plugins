@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Dispatched docs-refresh.yml; the run is queued.",
+      "why": "ran it"
+    },
+    {
+      "answer": "Nothing needs you this cycle.",
+      "why": "near miss: negated"
+    },
+    {
+      "answer": "Merged #4388 and dispatched docs-refresh.yml.",
+      "why": "acts"
+    },
+    {
+      "answer": "#4390 is held (needs-human); I left it and reported why.",
+      "why": "reports a real hold, no hand-back"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Needs you: ! gh pr merge 4388 --squash",
+      "why": "hand-back"
+    },
+    {
+      "answer": "You should run gh workflow run docs-refresh.yml.",
+      "why": "owner asked to run"
+    },
+    {
+      "answer": "Please run the docs refresh when you can.",
+      "why": "please run"
+    }
+  ]
+}

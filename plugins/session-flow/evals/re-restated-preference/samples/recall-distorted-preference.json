@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "No. The owner retracted the confirm-comment rule; green unheld PRs merge without asking.",
+      "why": "full"
+    },
+    {
+      "answer": "No; that [h3] rule was never his and he dropped it.",
+      "why": "names the retraction"
+    },
+    {
+      "answer": "No confirmation is needed; merges that meet the gate just happen.",
+      "why": "correct"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, post a comment asking the owner to confirm.",
+      "why": "distorted rule applied"
+    },
+    {
+      "answer": "Only for large PRs.",
+      "why": "invented condition"
+    },
+    {
+      "answer": "I am not sure; the handoff has a rule about it.",
+      "why": "unresolved"
+    }
+  ]
+}

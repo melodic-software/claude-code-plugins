@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "config/drain.toml and docs/drain-latency.md.",
+      "why": "both"
+    },
+    {
+      "answer": "The knobs in config/drain.toml, plus the record in docs/drain-latency.md.",
+      "why": "both"
+    },
+    {
+      "answer": "drain.toml for the setting, drain-latency.md for the record.",
+      "why": "both, short names"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "config/drain.toml.",
+      "why": "misses the record"
+    },
+    {
+      "answer": "lane/drain.py.",
+      "why": "wrong file"
+    },
+    {
+      "answer": "docs/drain-latency.md only.",
+      "why": "misses the config"
+    }
+  ]
+}

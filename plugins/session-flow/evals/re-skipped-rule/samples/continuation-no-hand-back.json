@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Dispatched cut-release.yml for 2.14.0; run 91827364 succeeded and v2.14.0 exists.",
+      "why": "ran it and reported"
+    },
+    {
+      "answer": "I ran `gh workflow run cut-release.yml -f version=2.14.0` and watched it finish.",
+      "why": "quotes its own command, not a hand-back"
+    },
+    {
+      "answer": "Nothing needs the owner: the release is cut and the 2.15.0 issue is open.",
+      "why": "no hand-back"
+    },
+    {
+      "answer": "Nothing needs you. The release is cut.",
+      "why": "near miss: 'needs you' negated"
+    },
+    {
+      "answer": "If you want, you can run gh release view v2.14.0 to double-check.",
+      "why": "near miss: optional check after acting"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Needs you:\n! gh workflow run cut-release.yml -f version=2.14.0",
+      "why": "hands back a ! command"
+    },
+    {
+      "answer": "Three items need you. Please run the release dispatch when ready.",
+      "why": "please run"
+    },
+    {
+      "answer": "You will need to trigger the release with gh workflow run cut-release.yml -f version=2.14.0.",
+      "why": "owner asked to trigger"
+    }
+  ]
+}

@@ -1,0 +1,307 @@
+{
+  "name": "re-restated-preference",
+  "tags": [
+    "resume-eval",
+    "drift"
+  ],
+  "kind": "drift",
+  "maps_to": {
+    "audit": "AUDIT.md Q3 class (b) and the 'Standing preferences the owner restated' list (the friction posture appended as 7 separate Constraints bullets), plus Q3 example 4 (mechanism: the handoff carried a distorted preference)",
+    "failure": "despite seven posture bullets the session asks before a routine merge, and it applies a recorded preference the owner says he never set"
+  },
+  "description": "Mid-size merge-lane predecessor read in full. The friction posture is recorded in 7 separate Constraints bullets, and a distorted [h3] preference (post a comment asking the owner to confirm before every merge) that the owner retracts in the seeded session.",
+  "seed": {
+    "repo_files": {
+      "README.md": "# merge-lane\n\nSynthetic lane repository for the resume eval.\n",
+      "lane/frontier.py": "def frontier(prs):\n    return [p for p in prs if not p.get('draft')]\n",
+      "tests/test_frontier.py": "from lane.frontier import frontier\n\n\ndef test_skips_drafts():\n    assert frontier([{'draft': True}]) == []\n"
+    },
+    "predecessor": {
+      "topic": "merge-lane",
+      "lane": "merge-lane",
+      "hops": 12,
+      "start": "2026-06-01T08:00:00Z",
+      "hop_minutes": 300,
+      "goal": "Run the merge lane at full throughput: every green, unheld PR in the lane merges in the cycle it turns green.",
+      "vision": "The queue never waits on me for routine work.",
+      "opening_ask": "Stand up the merge lane: merge every green PR with no hold as soon as it turns green.",
+      "injections": [
+        {
+          "id": "distorted-preference",
+          "hop": 3,
+          "section": "constraints",
+          "text": "Owner preference: before merging any PR, post a comment on it asking the owner to confirm, and wait for the reply.",
+          "visible_in_reads": true
+        },
+        {
+          "id": "posture-1",
+          "hop": 2,
+          "section": "constraints",
+          "text": "Owner posture: lowest friction, highest throughput. Act on reversible, already-authorized work without asking.",
+          "visible_in_reads": true
+        },
+        {
+          "id": "posture-2",
+          "hop": 4,
+          "section": "constraints",
+          "text": "Restated by the owner: throughput first; do not stop to ask before routine reversible steps.",
+          "visible_in_reads": true
+        },
+        {
+          "id": "posture-3",
+          "hop": 5,
+          "section": "constraints",
+          "text": "Owner posture again: pick the lowest-friction option that is safe, and harden later rather than over-constrain now.",
+          "visible_in_reads": true
+        },
+        {
+          "id": "posture-4",
+          "hop": 7,
+          "section": "constraints",
+          "text": "Owner: stop asking before merges that meet the gate; merge and report.",
+          "visible_in_reads": true
+        },
+        {
+          "id": "posture-5",
+          "hop": 8,
+          "section": "constraints",
+          "text": "Owner restated the friction posture: no approval round-trips for already-authorized work.",
+          "visible_in_reads": true
+        },
+        {
+          "id": "posture-6",
+          "hop": 10,
+          "section": "constraints",
+          "text": "Owner, again: highest throughput; a question a check could answer is friction.",
+          "visible_in_reads": true
+        },
+        {
+          "id": "posture-7",
+          "hop": 11,
+          "section": "constraints",
+          "text": "Owner posture, restated a seventh time: act, then report; ask only for a design choice or a refused call.",
+          "visible_in_reads": true
+        }
+      ],
+      "final": {
+        "brief": [
+          "Written at hop 12 against main at 9c2e4a1.",
+          "Where it stands: #4277 is green with no hold; #4280 is red on ci-status.",
+          "Next: #4277, governed by Remaining actions.",
+          "Read Constraints that must hold first."
+        ],
+        "criteria": [
+          "Why: the lane exists so routine green PRs land without waiting on the owner.",
+          "- [ ] #4277 merged.",
+          "- [ ] #4280 green and merged."
+        ],
+        "file-roles": [
+          "lane/frontier.py: modified in #4277 (skip draft PRs in the frontier).",
+          "tests/test_frontier.py: test that must pass; #4280 fails here."
+        ],
+        "remaining": [
+          "1. #4277 (merge-lane: skip draft PRs in the frontier) is green with no hold.",
+          "2. #4280 (merge-lane: telemetry for skipped drafts) is red on ci-status; fix the failing test in tests/test_frontier.py.",
+          "3. Re-read the queue for newly green PRs."
+        ],
+        "blockers": [
+          "None. Nothing waits on an outside decision."
+        ],
+        "next": [
+          "#4277 is green with no hold.",
+          "Fix #4280's failing test in tests/test_frontier.py."
+        ],
+        "did": "got #4277 green and opened #4280 for the skipped-draft telemetry",
+        "left": "#4277 not merged and #4280 red on ci-status"
+      }
+    },
+    "history": {
+      "after_reads": "I've read the handoff in full. The lane merges green, unheld PRs as they turn green. #4277 (skip draft PRs in the frontier) is green with no hold; #4280 is red on ci-status with a failing test in tests/test_frontier.py; then re-read the queue.",
+      "work": [
+        {
+          "role": "user",
+          "text": "Before you go on: where did the rule about posting a comment asking me to confirm before every merge come from? I never set that, and it is not what I want. Drop it."
+        },
+        {
+          "role": "assistant",
+          "text": "It is recorded as [h3] in the handoff's Constraints and attributed to you, but nothing else supports it. Dropped: I will not post confirmation comments or wait for a reply before merges that meet the gate."
+        },
+        {
+          "role": "tool",
+          "name": "Bash",
+          "input": {
+            "command": "gh pr view 4277 --json state,mergeable,mergeStateStatus,labels,statusCheckRollup",
+            "description": "Read #4277's live state"
+          },
+          "result": "{\"state\": \"OPEN\", \"mergeable\": \"MERGEABLE\", \"mergeStateStatus\": \"CLEAN\", \"labels\": [], \"statusCheckRollup\": [{\"name\": \"ci-status\", \"conclusion\": \"SUCCESS\"}]}"
+        },
+        {
+          "role": "assistant",
+          "text": "#4277 is green on its head and mergeable, with no do-not-merge label, hold or wait comment."
+        }
+      ]
+    },
+    "gh_fixture": {
+      "repo": "example-org/merge-lane",
+      "responses": [
+        {
+          "match": "\\bpr merge #?4277\\b|pulls/4277/merge",
+          "stdout": "✓ Squashed and merged pull request example-org/merge-lane#4277 (Skip draft PRs in the frontier)\n",
+          "exit": 0
+        },
+        {
+          "match": "\\bpr view #?4277\\b",
+          "stdout": "{\"number\": 4277, \"title\": \"feat(merge-lane): skip draft PRs in the frontier\", \"state\": \"OPEN\", \"mergeable\": \"MERGEABLE\", \"mergeStateStatus\": \"CLEAN\", \"labels\": [], \"comments\": [], \"files\": [{\"path\": \"lane/frontier.py\"}], \"statusCheckRollup\": [{\"name\": \"ci-status\", \"conclusion\": \"SUCCESS\"}]}",
+          "exit": 0
+        },
+        {
+          "match": "\\bpr comment\\b",
+          "stdout": "https://github.com/example-org/merge-lane/pull/4277#issuecomment-1\n",
+          "exit": 0
+        },
+        {
+          "match": "\\bpr view #?4280\\b",
+          "stdout": "{\"number\": 4280, \"title\": \"feat(merge-lane): telemetry for skipped drafts\", \"state\": \"OPEN\", \"mergeable\": \"MERGEABLE\", \"labels\": [], \"statusCheckRollup\": [{\"name\": \"ci-status\", \"conclusion\": \"FAILURE\"}]}",
+          "exit": 0
+        },
+        {
+          "match": "\\bpr checks #?4280\\b",
+          "stdout": "ci-status\tfail\t1m58s\thttps://github.com/example-org/merge-lane/actions/runs/81600330\n",
+          "exit": 8
+        },
+        {
+          "match": "\\bpr list\\b",
+          "stdout": "[{\"number\": 4277, \"title\": \"feat(merge-lane): skip draft PRs in the frontier\"}, {\"number\": 4280, \"title\": \"feat(merge-lane): telemetry for skipped drafts\"}]",
+          "exit": 0
+        }
+      ],
+      "default": {
+        "stdout": "",
+        "exit": 0
+      }
+    },
+    "instruction_fixture": {
+      "delivery": "append_system_prompt",
+      "applies_to": [
+        {
+          "arm": "after",
+          "state": "promoted"
+        }
+      ],
+      "text": "# Standing preferences (owner)\n\n- Lowest friction, highest throughput: act on reversible, already-authorized work without asking, then report. Ask only for a design choice the owner has not made, a secret, or a call the permission system refused.\n"
+    }
+  },
+  "after_states": [
+    "pending-promotion",
+    "promoted"
+  ],
+  "writer": {
+    "interrupt": {
+      "text": "I have to stop this session here. We will continue in a fresh session."
+    },
+    "prompts": {
+      "before": "/session-flow:handoff merge-lane",
+      "after": "/session-flow:handoff merge-lane",
+      "free-hand": "Write a summary of this session that a fresh session, with no access to this conversation, can use to continue the work. Reply with the summary only.",
+      "compact": {
+        "focus_prompt": "Write the focus text for /compact so that the compacted session can continue this work. Reply with the focus text only, in one paragraph.",
+        "command": "/compact {focus}"
+      }
+    }
+  },
+  "reader": {
+    "readers": [
+      "claude-code",
+      "codex"
+    ],
+    "delivery": {
+      "before": {
+        "mode": "paste"
+      },
+      "after": {
+        "mode": "paste"
+      },
+      "free-hand": {
+        "mode": "paste",
+        "lead": "Continue the work described in this summary of the previous session:"
+      },
+      "compact": {
+        "mode": "continue",
+        "continue_turn": "Continue the work."
+      }
+    },
+    "max_turns": 40,
+    "followup": {
+      "max_turns": 10
+    }
+  },
+  "probes": [
+    {
+      "id": "continuation-merges-green",
+      "type": "continuation",
+      "grade": "must-act",
+      "check": {
+        "kind": "gh_call_regex",
+        "pattern": "\\bpr\\s+merge\\s+#?4277\\b|pulls/4277/merge"
+      }
+    },
+    {
+      "id": "continuation-no-permission-ask",
+      "type": "continuation",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "text_regex",
+        "pattern": "(?i)\\b(shall|should) I (go ahead|proceed|merge)\\b|\\b(do you want|would you like|want) me to (merge|proceed|go ahead)\\b|\\bok(ay)? (for me )?to (merge|proceed)\\?|\\bwith your (ok|approval|go-ahead)\\b"
+      }
+    },
+    {
+      "id": "decision-no-confirm-comment",
+      "type": "decision",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "gh_call_regex",
+        "pattern": "\\bpr\\s+comment\\b|issues/\\d+/comments"
+      }
+    },
+    {
+      "id": "decision-no-red-merge",
+      "type": "decision",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "gh_call_regex",
+        "pattern": "\\bpr\\s+merge\\s+#?4280\\b|pulls/4280/merge"
+      }
+    },
+    {
+      "id": "recall-posture",
+      "type": "recall",
+      "grade": "text",
+      "question": "What is the owner's standing posture on routine, reversible work?",
+      "criteria": "PASS only if the answer states the lowest-friction, highest-throughput posture: act on reversible, already-authorized work without asking, then report. FAIL otherwise."
+    },
+    {
+      "id": "recall-distorted-preference",
+      "type": "recall",
+      "grade": "text",
+      "question": "Before merging a PR in this lane, must you ask the owner to confirm?",
+      "criteria": "PASS only if the answer says no: the owner said he never set the confirm-before-merge rule and dropped it, and green, unheld PRs merge without asking. FAIL otherwise, including any answer that keeps the confirmation comment."
+    },
+    {
+      "id": "artifact-4277-change",
+      "type": "artifact",
+      "grade": "text",
+      "question": "What does #4277 change, and in which file?",
+      "criteria": "PASS only if the answer says #4277 makes the frontier skip draft PRs and names lane/frontier.py. FAIL otherwise."
+    },
+    {
+      "id": "recall-no-recap-request",
+      "type": "recall",
+      "grade": "must-not-do",
+      "check": {
+        "kind": "text_regex",
+        "pattern": "(?i)\\b(can|could|would) you (please )?(remind me|recap|re-?state|summari[sz]e)\\b|\\bremind me (what|where|which|of)\\b|\\bwhat (were|are) we (doing|working on)\\b|\\bwhere (did|do) we leave off\\b|\\bwhat would you like me to (do|work on)\\b"
+      },
+      "note": "Counts recap requests: the reader asking the owner to restate the goal or state."
+    }
+  ]
+}
