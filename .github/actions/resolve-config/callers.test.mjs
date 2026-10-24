@@ -650,8 +650,8 @@ async function postNotRunChecks(job, context) {
 
 // GitHub runs at most one job per concurrency group, and `queue: max` keeps
 // the rest waiting instead of cancelling them (workflow-syntax#concurrency),
-// so the number of distinct slot groups is the cap: 3.
-test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest queued", () => {
+// so the number of distinct slot groups is the cap: 6.
+test("work-resolve-issue.yml: at most 6 resolve-issue runs at once, the rest queued", () => {
   const { concurrency, jobs } = workflow("work-resolve-issue.yml");
   const pick = jobs["pick-slot"];
   const resolve = jobs["resolve-issue"];
@@ -667,7 +667,7 @@ test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest que
     return run.status === 0 ? readFileSync(output, "utf8").trim().replace(/^slot=/, "") : null;
   };
   assert.equal(slotOf("7"), "1");
-  assert.equal(slotOf("9"), "0");
+  assert.equal(slotOf("9"), "3");
   assert.equal(slotOf("3001"), "1");
   assert.equal(slotOf("7 + 1"), null, "an issue number that is not digits picks no slot");
 
@@ -680,7 +680,7 @@ test("work-resolve-issue.yml: at most 3 resolve-issue runs at once, the rest que
       resolve.concurrency.group.replace("${{ needs.pick-slot.outputs.slot }}", slotOf(String(i + 1))),
     ),
   );
-  assert.deepEqual([...groups].sort(), [0, 1, 2].map((n) => `work-resolve-issue-slot-${n}`));
+  assert.deepEqual([...groups].sort(), [0, 1, 2, 3, 4, 5].map((n) => `work-resolve-issue-slot-${n}`));
 
   // A label other than agent-ready starts neither job, so it holds no runner.
   for (const [label, runs] of [["agent-ready", true], ["bug", false]]) {
