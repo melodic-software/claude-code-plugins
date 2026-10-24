@@ -89,9 +89,12 @@ activities:
     # runs only base code, keeps only unresolved threads the reviewer bot
     # opened on a reviewed head, left by it alone or answered by a trusted
     # person after the lane escalated them, hands the pull request to a person
-    # when it changes .github/workflows/ or `loop.review-rounds` rounds already
-    # ran (a write-access fix request newer than the last round still runs one
-    # more round on its threads), and writes the thread file; the read runner
+    # when it changes .github/workflows/ or, once `loop.review-rounds` rounds
+    # ran, a person gated it or a kept thread is a security or intent
+    # finding (a write-access fix
+    # request newer than the last round still runs one more round on its
+    # threads; other findings get one fresh fixer round, then wait), and
+    # writes the thread file; the read runner
     # checks that file and gives the skill the review-thread tool.
     prepare: review-threads
     # Edits head files, so no write token: the change leaves as a patch.
@@ -443,7 +446,8 @@ activities:
     # hands an agent-ready issue whose
     # lanes-App PR merged with `Refs:` or closed unmerged to triage
     # (needs-triage on, agent-ready off), lifting only the needs-human
-    # report-outcome set for a merged Refs PR. A script, no model.
+    # report-outcome set for a Refs PR that merged or closed unmerged. A
+    # script, no model.
     # .github/workflows/work-unblock.yml runs it.
     script: .github/scripts/work-unblock/label-unblocked.mjs
     # Labels, unlabels and comments on issues, and closes as completed the
@@ -483,13 +487,14 @@ activities:
     # to post the criteria as their own decision comment. Not exact: numbered questions with RECOMMENDED
     # answers at `status: needs-decision`. For an issue admission held at the
     # App's needs-decision for some, not all, done-when items a lane run
-    # cannot perform, a split the model judges sound files one needs-human
-    # child issue with those items, rewrites the issue body's done-when to the
-    # rest plus a link to the child, lifts needs-decision and triages once
-    # more. Never agent-ready, and needs-human only on the child. A script, no
-    # model. .github/workflows/intake-triage.yml runs it.
+    # cannot perform, a split the model judges sound lists those items in the
+    # refinement comment as checks a person runs, rewrites the issue body's
+    # done-when to the rest plus a line pointing at that comment, lifts
+    # needs-decision and triages once more. One refinement per body version.
+    # Never agent-ready or needs-human, and no new issue. A script, no model.
+    # .github/workflows/intake-triage.yml runs it.
     script: .github/scripts/intake-triage/refine.mjs
-    # Comments on, labels and edits issues, and files a split's child issue.
+    # Comments on, labels and edits issues.
     effect: mutate-tracker
     gating: advisory
     # Reads the model's output, written while it read issue and web text.
@@ -658,6 +663,10 @@ models:
     triage-issue: triage
     # work-resolve-issue's read-only pass that describes a reused lane branch.
     summarize-reuse: summary
+    # pr-unblock's read-only judge of a finding address-feedback disputed: at
+    # least the review lanes' model, so a weaker model never overrules the
+    # reviewer.
+    adjudicate-feedback: review
   # A run on an issue (resolve-issue) takes its budget from the issue's Size,
   # Complexity and Uncertainty org issue fields, read by id. An empty field,
   # or one whose latest setter is not a listed human or the lanes App, reads

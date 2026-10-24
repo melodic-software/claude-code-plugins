@@ -1,0 +1,15 @@
+{
+  "app": "shop",
+  "control_skill": ".claude/skills/control-shop",
+  "fallback": null,
+  "mode": "interactive",
+  "launch": {"pid": 41873, "uid": 1000, "start_time": 918273, "command_line": "python3 server.py", "command_line_sha256": "3b1f0c6d2a8e4f7091b5c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2"},
+  "ready": {"surfaces": ["http://localhost:8080"], "build": "4f2c9e1", "data": "local", "telemetry": []},
+  "steps": [
+    {"action": "open /signin", "entry_point": "header Sign in link", "observed": "redirected to https://id.dev.example.com/login", "artifacts": ["checkout-signin-01-screenshot.png"]},
+    {"action": "sign in as qa-shared@example.test", "entry_point": "header Sign in link", "observed": "Invalid username or password. 9 attempts remain before this account is locked.", "artifacts": ["checkout-signin-02-screenshot.png"]}
+  ],
+  "capability_gaps": [],
+  "blocked": [],
+  "cleanup": {"stopped": [41873], "evidence": [{"path": "checkout-signin-01-screenshot.png", "exists_not_empty": true}, {"path": "checkout-signin-02-screenshot.png", "exists_not_empty": true}]}
+}

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Settings: tdd_refactor_step=on (default), first_test=user-flow (default)\n\nAll 7 tests pass.",
+      "why": "the exact shape the skill gives"
+    },
+    {
+      "answer": "Settings: `tdd_refactor_step=on` (`default`), `first_test=user-flow` (`default`)",
+      "why": "code spans"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Settings: tdd_refactor_step=on (docs/conventions/testing.yaml)",
+      "why": "names a file the scaffold never staged"
+    },
+    {
+      "answer": "Settings: tdd_refactor_step=off (default)",
+      "why": "the wrong default"
+    },
+    {
+      "answer": "All 7 tests pass.",
+      "why": "no Settings line"
+    }
+  ]
+}

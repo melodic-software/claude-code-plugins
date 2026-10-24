@@ -433,6 +433,10 @@ function workflowJobs(name) {
       job.permissions[entry[1]] = entry[3];
       continue;
     }
+    if (/^ {4}permissions:\s*\{\}\s*(?:#.*)?$/.test(line)) {
+      job.permissions = {};
+      continue;
+    }
     if (/^ {4}permissions:/.test(line)) {
       assert.match(line, /^ {4}permissions:\s*(?:#.*)?$/, `${name}:${index + 1}: inline permissions`);
       job.permissions = {};

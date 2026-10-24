@@ -28,8 +28,8 @@
 // DEPENDENCY_MANAGERS, isDependencyManager and countedBy in step with the gate.
 // It also writes the PR's closing issues, or, when it closes none, the one
 // issue its body's `Refs:` lines name (refsIssue), with their authors and last
-// body editors to SPEC_FILE, and the spec text trusted humans wrote to
-// SPEC_TEXT_FILE (linkedIssues).
+// body editors to SPEC_FILE, and the spec text trusted humans wrote, with
+// intake's refinement on their issues, to SPEC_TEXT_FILE (linkedIssues).
 // The head SHA is the run's, never the PR's live head.
 
 import { appendFileSync, writeFileSync } from "node:fs";
@@ -44,7 +44,7 @@ import {
 } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { headRefDigest, issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { refsIssue } from "../pr-merge/merge-holds.mjs";
-import { SPLIT_CHILD_MARKER, splitChildBody } from "../intake-triage/admit.mjs";
+import { refinementSpec, SPLIT_CHILD_MARKER, splitChildBody } from "../intake-triage/admit.mjs";
 
 export { refsIssue };
 
@@ -64,12 +64,12 @@ const MAX_PAGES = 100;
 
 const ISSUE_FIELDS = `number repository { nameWithOwner } body lastEditedAt
           author { ...actor } editor { ...actor }
-          comments(first: 100) { totalCount nodes { databaseId updatedAt body lastEditedAt author { ...actor } editor { ...actor } } }`;
+          comments(first: 100) { totalCount nodes { databaseId createdAt updatedAt body lastEditedAt author { ...actor } editor { ...actor } } }`;
 const ACTOR = "fragment actor on Actor { __typename login ... on User { databaseId } ... on Bot { databaseId } }";
 const SPEC_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      body lastEditedAt editor { ...actor }
+      createdAt body lastEditedAt editor { ...actor }
       closingIssuesReferences(first: 10) {
         totalCount
         nodes {
@@ -281,11 +281,19 @@ export function specChanged(passStarts, { linkedIssues: issues, specKind, bodyEd
 // none, the one issue its `Refs:` lines name (refsIssue), with their authors
 // and last body editors (`linkedIssues`), and the spec text: each body and comment written,
 // and last edited if ever, by a User on the trusted list's humans, the PR
-// author included (`specText`). Bots and Apps, the lanes App among them, are
-// left out even where select-trusted-text keeps them, except the unedited
-// body of a sub-issue the lanes App (`appId`) filed in a size split, whose
-// lines are its listed-human parent's (admit.mjs splitChildBody).
-async function linkedIssues(github, readRefs, repository, number, humans, appId) {
+// author included, and, on an issue whose body is such text, intake's
+// refinement comment by the lanes App (`laneAppId`), the newest and only
+// while unedited (admit.mjs refinementSpec) and created before the pull
+// request, so nothing the App posts once a lane run has the issue becomes
+// spec (`specText`). Other Bot and App text is left out even where
+// select-trusted-text keeps it, except the body of a sub-issue the lanes App
+// filed in a size split, whose lines are its listed-human parent's
+// (admit.mjs splitChildBody).
+// The merge gate cannot see the refinement: an edit, a hide (isMinimized)
+// or a newer one after a pass leaves that pass standing. An edit only takes
+// the refinement out of spec, so no one gains a spec by it; a person's
+// correction made after a pass waits for the next head.
+async function linkedIssues(github, readRefs, repository, number, humans, laneAppId) {
   const [owner, name] = repository.split("/");
   const data = await github("POST", "/graphql", { query: SPEC_QUERY, variables: { owner, name, number } });
   const refs = data?.data?.repository?.pullRequest?.closingIssuesReferences;
@@ -318,12 +326,12 @@ async function linkedIssues(github, readRefs, repository, number, humans, appId)
   // The split sub-issues' bodies that count, by issue number.
   const childBodies = new Map();
   for (const issue of issues) {
-    if (appId === undefined || issue.author?.__typename !== "Bot" || issue.author.databaseId !== appId || !String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER)) {
+    if (laneAppId === undefined || issue.author?.__typename !== "Bot" || issue.author.databaseId !== laneAppId || !String(issue.body ?? "").startsWith(SPLIT_CHILD_MARKER)) {
       continue;
     }
     const parent = (await github("POST", "/graphql", { query: PARENT_QUERY, variables: { owner, name, number: issue.number } }))?.data?.repository?.issue?.parent;
     const complete = parent?.repository?.nameWithOwner === repository && Array.isArray(parent.comments?.nodes) && parent.comments.totalCount === parent.comments.nodes.length;
-    const body = complete ? splitChildBody({ ...issue, splitParent: { number: parent.number, spec: { ...parent, comments: parent.comments.nodes }, appId } }, humans) : null;
+    const body = complete ? splitChildBody({ ...issue, splitParent: { number: parent.number, spec: { ...parent, comments: parent.comments.nodes }, appId: laneAppId } }, humans) : null;
     if (body !== null) {
       childBodies.set(issue.number, body);
     }
@@ -338,8 +346,9 @@ async function linkedIssues(github, readRefs, repository, number, humans, appId)
       ...actorFields(issue.author, "author"),
       last_edited_at: typeof issue.lastEditedAt === "string" ? issue.lastEditedAt : null,
       ...actorFields(issue.editor, "editor"),
-      // The spec comments the model gets, which the gate recomputes with the
-      // same filter (babysit_verify_evidence._spec_comments).
+      // The humans' spec comments the model gets, which the gate recomputes
+      // with the same filter (babysit_verify_evidence._spec_comments); the
+      // refinement stays out, since that filter is human-only.
       spec_comments: issue.comments.nodes
         .filter(written)
         .map((comment) => ({ id: comment.databaseId, updated_at: comment.updatedAt })),
@@ -347,12 +356,16 @@ async function linkedIssues(github, readRefs, repository, number, humans, appId)
     // How the spec was linked: `closes` for closing issues, `refs` for the one
     // issue a `Refs:` line names, which the verifier judges as a partial slice.
     specKind: issues.length === 0 ? "none" : named !== null ? "refs" : "closes",
-    specText: issues.map((issue) => ({
-      number: issue.number,
-      spec_kind: named !== null ? "refs" : "closes",
-      body: written(issue) && typeof issue.body === "string" ? issue.body : (childBodies.get(issue.number) ?? null),
-      comments: issue.comments.nodes.filter(written).map((comment) => String(comment.body ?? "")),
-    })),
+    specText: issues.map((issue) => {
+      const newest = written(issue) ? refinementSpec(issue.comments.nodes, laneAppId) : undefined;
+      const refinement = Date.parse(newest?.createdAt ?? "") < Date.parse(pullRequest.createdAt ?? "") ? newest : undefined;
+      return {
+        number: issue.number,
+        spec_kind: named !== null ? "refs" : "closes",
+        body: written(issue) && typeof issue.body === "string" ? issue.body : (childBodies.get(issue.number) ?? null),
+        comments: issue.comments.nodes.filter((comment) => written(comment) || comment === refinement).map((comment) => String(comment.body ?? "")),
+      };
+    }),
   };
 }
 
@@ -486,7 +499,8 @@ export async function main(env = process.env, { github, fetchImpl } = {}) {
     // pr-verify.yml reads both from main's pr-pipeline.yaml; unset is `lane`.
     verifyAuthors: env.VERIFY_AUTHORS ?? "lane",
     laneIdentity: env.LANE_IDENTITY,
-    // The lanes App's id on the trusted list, for a size split's sub-issues.
+    // The lanes App's id: merge.agent-identity's entry on the trusted list,
+    // with or without its [bot] suffix.
     laneAppId: trusted.logins.get(`${loginKey(env.LANE_IDENTITY)}[bot]`),
     ownerIds: [...trusted.ids],
     specFromBodyApps: specFromBodyApps(env.SPEC_FROM_BODY_APPS),
