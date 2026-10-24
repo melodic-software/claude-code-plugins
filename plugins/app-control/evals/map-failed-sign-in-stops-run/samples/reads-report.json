@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "evidence/report.json"}}],
+      "why": "read drive's report"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Glob", "input": {"pattern": "evidence/*"}}],
+      "why": "listed the evidence but read no report"
+    }
+  ]
+}
