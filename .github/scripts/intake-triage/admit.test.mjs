@@ -799,16 +799,22 @@ describe("size split sub-issues", () => {
   // shape them: a trusted child is admitted at its Size, Large included; an
   // untrusted one is refused at Small and at Large.
   const actorOf = (actor) => (actor ? { __typename: actor.type, databaseId: actor.id } : null);
-  const vectorSpec = ({ child, parent }) => ({
-    body: child.body,
-    lastEditedAt: child.last_edited_at,
-    author: actorOf(child.author),
-    editor: actorOf(child.editor),
-    comments: [],
-    ...(child.parent === null
-      ? {}
-      : { splitParent: { number: child.parent, spec: { ...written(actorOf(VECTORS.parents[parent].author), { body: VECTORS.parents[parent].body }), comments: VECTORS.parents[parent].comments }, appId: VECTORS.app_id } }),
-  });
+  // admissionFacts sets splitParent only for a native parent in this
+  // repository, with the lanes App id it was given (none when null).
+  const vectorSpec = ({ child, parent, ...rest }) => {
+    const appId = ("app_id" in rest ? rest.app_id : VECTORS.app_id) ?? undefined;
+    const here = child.parent !== null && (child.parent.repo ?? "o/r") === "o/r";
+    return {
+      body: child.body,
+      lastEditedAt: child.last_edited_at,
+      author: actorOf(child.author),
+      editor: actorOf(child.editor),
+      comments: [],
+      ...(here
+        ? { splitParent: { number: child.parent.number, spec: { ...written(actorOf(VECTORS.parents[parent].author), { body: VECTORS.parents[parent].body }), comments: VECTORS.parents[parent].comments }, appId } }
+        : {}),
+    };
+  };
   for (const vector of VECTORS.cases) {
     test(`split-child vector: ${vector.name}`, () => {
       assert.deepEqual([VECTORS.app_id, VECTORS.humans], [APP, [...humans]]);

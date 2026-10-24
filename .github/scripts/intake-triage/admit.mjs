@@ -480,16 +480,21 @@ export const splitChildHeader = (parent, part, parts) =>
 // is {number, spec, appId}: the issue's native parent, its text as specOf
 // reads it, and the lanes App's id, set only by the reader that read the
 // parent link (admissionFacts, resolve-pr.mjs). It counts when the lanes App
-// wrote the body and nobody edited it since, the parent was filed by a listed
-// human, and the body is exactly splitChildHeader for that parent followed by
-// lines each equal to a line of the parent's trusted text. Pure.
+// wrote the body, the parent was filed by a listed human, the body opens
+// with splitChildHeader for that parent, and either nobody edited it since
+// and every line after the header is a line of the parent's trusted text, or
+// a listed human last edited it (ticking a task box is an edit), which makes
+// it that human's text as trustedSpecTexts reads any body. An edit by anyone
+// else, the App included, leaves it untrusted. Pure.
 export function splitChildBody(spec, humans) {
   const parent = spec?.splitParent;
   const author = spec?.author;
-  if (parent?.appId === undefined || !Number.isInteger(parent.number) || author?.__typename !== "Bot" || author.databaseId !== parent.appId || spec.lastEditedAt != null) {
+  if (parent?.appId === undefined || !Number.isInteger(parent.number) || author?.__typename !== "Bot" || author.databaseId !== parent.appId) {
     return null;
   }
-  if (!(parent.spec?.author?.__typename === "User" && humans.has(parent.spec.author.databaseId))) {
+  const human = (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
+  const edited = spec.lastEditedAt != null;
+  if (!human(parent.spec?.author) || (edited && !human(spec.editor))) {
     return null;
   }
   const body = String(spec.body ?? "");
@@ -497,6 +502,9 @@ export function splitChildBody(spec, humans) {
   const header = part ? `${splitChildHeader(parent.number, Number(part[1]), Number(part[2]))}\n` : null;
   if (header === null || !body.startsWith(header)) {
     return null;
+  }
+  if (edited) {
+    return body;
   }
   const allowed = new Set(trustedSpecTexts(parent.spec, humans).flatMap((text) => text.split("\n")));
   const lines = body.slice(header.length).split("\n");

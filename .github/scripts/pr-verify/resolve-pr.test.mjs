@@ -823,7 +823,7 @@ const childNode = ({ child }) => ({
 const parentNode = ({ child, parent }) =>
   child.parent === null
     ? null
-    : { ...ISSUE, number: child.parent, body: VECTORS.parents[parent].body, author: actorOf(VECTORS.parents[parent].author), comments: { totalCount: VECTORS.parents[parent].comments.length, nodes: VECTORS.parents[parent].comments } };
+    : { ...ISSUE, number: child.parent.number, repository: { nameWithOwner: child.parent.repo ?? REPO }, body: VECTORS.parents[parent].body, author: actorOf(VECTORS.parents[parent].author), comments: { totalCount: VECTORS.parents[parent].comments.length, nodes: VECTORS.parents[parent].comments } };
 const withParent = (setup, parent) => {
   const github = fake(setup);
   return async (method, apiPath, body) =>
@@ -835,12 +835,8 @@ const specBody = async (...args) => (await resolveChild(...args)).specText.map((
 
 for (const vector of VECTORS.cases) {
   test(`split-child vector: ${vector.name}`, async () => {
-    assert.deepEqual(await specBody(childNode(vector), parentNode(vector)), [[8, vector.expect.trusted ? vector.child.body : null]], vector.expect.reason);
+    const appId = "app_id" in vector ? vector.app_id : VECTORS.app_id;
+    const body = await specBody(childNode(vector), parentNode(vector), appId === null ? {} : { laneAppId: appId });
+    assert.deepEqual(body, [[8, vector.expect.trusted ? vector.child.body : null]], vector.expect.reason);
   });
 }
-
-test("a trusted sub-issue's parent in another repository, or no lanes App id, gives no spec text", async () => {
-  const trusted = VECTORS.cases.find((vector) => vector.expect.trusted);
-  assert.deepEqual(await specBody(childNode(trusted), { ...parentNode(trusted), repository: { nameWithOwner: "someone/else" } }), [[8, null]]);
-  assert.deepEqual(await specBody(childNode(trusted), parentNode(trusted), {}), [[8, null]]);
-});
