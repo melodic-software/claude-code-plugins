@@ -3,7 +3,15 @@
 import json
 import os
 
-import resume_eval
+# The suite builds throwaway git repositories. Under an inherited absolute
+# GIT_DIR (or GIT_WORK_TREE / GIT_CONFIG) git would write into the caller's
+# repository instead, so clear the ambient git environment once, before any
+# fixture is built (scripts/check-fixture-git-isolation.sh).
+for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
+    os.environ.pop(_leaked_git_var, None)
+del _leaked_git_var
+
+import resume_eval  # noqa: E402
 
 
 def test_history_renders_a_parent_chained_transcript():
