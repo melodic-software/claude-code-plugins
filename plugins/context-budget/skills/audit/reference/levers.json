@@ -204,7 +204,7 @@
       "emittedConfig": null,
       "caveats": [
         "Listed chiefly so it is never mistaken for the prompt lever; recommending it for token savings would trade away core behavior.",
-        "Source conflict: the headless bare-mode section, the cli-reference --bare row and the env-vars CLAUDE_CODE_SIMPLE row differ on what bare mode limits. Pointer: when deciding what bare mode drops, fetch https://code.claude.com/docs/en/headless#start-faster-with-bare-mode, https://code.claude.com/docs/en/cli-reference#cli-flags and https://code.claude.com/docs/en/env-vars live. As of 2026-10-10. Recheck: the three sections agree on what bare mode limits, or any of them changes it."
+        "Source conflict: the headless bare-mode section, the cli-reference --bare row and the env-vars CLAUDE_CODE_SIMPLE row differ on what bare mode limits. Pointer: when deciding what bare mode drops, fetch https://code.claude.com/docs/en/headless#start-faster-with-bare-mode, https://code.claude.com/docs/en/cli-reference#cli-flags and https://code.claude.com/docs/en/env-vars live. As of 2026-10-24: the headless section still alone lists the run-time limits (MCP servers named on the command line, no system reminders, no background tasks, from 2.1.286); the cli-reference --bare row and the env-vars CLAUDE_CODE_SIMPLE row list only the discovery skips and the tool set. Recheck: the three sections agree on what bare mode limits, or any of them changes it."
       ],
       "citations": [
         "https://code.claude.com/docs/en/headless#start-faster-with-bare-mode",
@@ -212,7 +212,7 @@
         "https://code.claude.com/docs/en/cli-reference#cli-flags",
         "https://code.claude.com/docs/en/changelog"
       ],
-      "verified": "2026-10-10",
+      "verified": "2026-10-24",
       "recheckTrigger": "headless#start-faster-with-bare-mode or the env-vars CLAUDE_CODE_SIMPLE row changes what simple mode drops."
     },
     {
@@ -390,7 +390,7 @@
       "categoryBasis": "Deferral semantics documented: it controls what enters the context window, not what is sent. The category is with respect to the REQUEST ledger; on the context-window ledger deferral is a real reasoning-space gain.",
       "conditions": "Present deferral as context-window headroom, never as request/billing savings. The honest request-side lever for a deferred tool is still removal (bare-name deny or the owning feature's disable switch).",
       "posture": "disclose-only",
-      "scope": "ENABLE_TOOL_SEARCH env var (unset/true/auto/auto:N/false); per-server or per-tool alwaysLoad opt-outs. Neither has a settings.json key, so no persistent config can be emitted.",
+      "scope": "ENABLE_TOOL_SEARCH env var (unset/true/auto/auto:N/false), which the settings.json env field can also carry; per-server or per-tool alwaysLoad opt-outs in the MCP server entry. Neither has a dedicated settings.json key, and this lever emits no config (emittedConfig stays null).",
       "detection": "ENABLE_TOOL_SEARCH in the environment; the deferred bucket in the baseline; deferral status is measured per session, never assumed from documentation.",
       "measurement": "The baseline snapshot's System tools (deferred) bucket is the deferral observation; differencing a specific tool shows which pool it leaves from.",
       "emittedConfig": null,
@@ -399,11 +399,12 @@
       ],
       "citations": [
         "https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool#deferred-tool-loading",
-        "https://code.claude.com/docs/en/agent-sdk/tool-search",
+        "https://code.claude.com/docs/en/mcp#configure-tool-search",
+        "https://code.claude.com/docs/en/agent-sdk/tool-search#configure-tool-search",
         "https://code.claude.com/docs/en/env-vars"
       ],
-      "verified": "2026-08-17",
-      "recheckTrigger": "Deferral semantics change to affect the request body, or a settings key appears for either knob."
+      "verified": "2026-10-24",
+      "recheckTrigger": "Deferral semantics change to affect the request body, a settings key appears for either knob, or mcp#configure-tool-search changes the ENABLE_TOOL_SEARCH values or where they can be set."
     },
     {
       "id": "exclude-dynamic-sections",
@@ -464,9 +465,9 @@
       ],
       "citations": [
         "https://code.claude.com/docs/en/env-vars",
-        "https://code.claude.com/docs/en/agent-sdk/tool-search"
+        "https://code.claude.com/docs/en/agent-sdk/tool-search#configure-tool-search"
       ],
-      "verified": "2026-08-17",
+      "verified": "2026-10-24",
       "recheckTrigger": "The env-vars row changes, or deferral stops being beta-gated."
     },
     {

@@ -53,7 +53,13 @@
 //   lane's unverified merges and the armed pull requests not yet queued, it
 //   arms; at the cap it arms nothing more. A room that cannot be read (no
 //   post-merge report, a failed read) holds as a refusal does: nothing is
-//   armed and every armed lanes App pull request is disarmed.
+//   armed and every armed lanes App pull request is disarmed. A report past
+//   its reuse age only for a lane merge still unverified is kept while
+//   nothing it was read from has moved, else checked again as the gate
+//   does. A held room raises one warning annotation and step-summary line
+//   naming why and each lane pull request left unarmed or, report-only,
+//   that a disarm would have turned off, and one error and summary line
+//   naming each one still armed because its disarm failed.
 // - pr-merge's gate would not hold it on its risk score: `evidence
 //   --lane-reviews --rung <the room's rung>` runs the gate's scorer
 //   (babysit_risk.score, holding) over the inputs the gate builds, the
@@ -108,7 +114,7 @@
 //                        run cache, as the gate's
 //   GITHUB_API_URL
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -464,7 +470,7 @@ export function pythonVerify(env) {
 // `lane-room`), read with the reader's Actions token when it has one, as the
 // merge job reads the post-merge check, so the reads stay off the lane App's
 // quota.
-export function pythonRoom(env) {
+export function pythonRoom(env, spawn = spawnSync) {
   return async () => {
     const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "lane-room", "--repo", env.GITHUB_REPOSITORY, "--postmerge-result", env.POSTMERGE_RESULT ?? ""];
     if (env.RUNG_CAP !== undefined) {
@@ -472,7 +478,7 @@ export function pythonRoom(env) {
     }
     const token = env.BABYSIT_VERIFY_GH_TOKEN;
     const roomEnv = token ? { ...env, GH_TOKEN: token, API_BUDGET_TOKEN: "github-token" } : env;
-    const done = spawnSync("python3", args, { encoding: "utf8", env: roomEnv, timeout: VERIFY_TIMEOUT_MS });
+    const done = spawn("python3", args, { encoding: "utf8", env: roomEnv, timeout: LANE_ROOM_TIMEOUT_MS });
     if (done.status !== 0) {
       throw new Error(`babysit_verify_evidence.py lane-room exited ${done.status ?? done.signal}: ${String(done.stderr ?? "").trim().split("\n").at(-1)}`);
     }
@@ -506,11 +512,14 @@ export function readRoom(answer) {
 // stuck.
 export const READER_EVENTS = Object.freeze(["schedule", "workflow_dispatch"]);
 // The reader's per pull request limit, and when the run stops starting one:
-// the room read (at most VERIFY_TIMEOUT_MS) comes first, then a read started
-// at the budget ends by VERIFY_BUDGET_MS + VERIFY_TIMEOUT_MS, 13 minutes in
-// all, inside the step's 14 (pr-merge.yml), so no read is cut off and the
-// rest of the pull requests are left for the next run.
+// the room read (at most LANE_ROOM_TIMEOUT_MS) comes first, then a read
+// started at the budget ends by VERIFY_BUDGET_MS + VERIFY_TIMEOUT_MS, 17
+// minutes in all, inside the step's 18 (pr-merge.yml), so no read is cut off
+// and the rest of the pull requests are left for the next run.
 export const VERIFY_TIMEOUT_MS = 4 * 60_000;
+// Longer than a verifier read: the room may run a full post-merge check. A
+// timeout still reads as unreadable, which holds the lane.
+export const LANE_ROOM_TIMEOUT_MS = 8 * 60_000;
 export const VERIFY_BUDGET_MS = 5 * 60_000;
 
 // What to do with one listed pull request: { action: arm | disarm | none, reason }.
@@ -619,22 +628,26 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
     let inFlight = lane === null ? 0 : lane.count + pulls.filter((pull) => lanes(pull) && pull.autoMergeRequest != null && !lane.queued.includes(pull.number)).length;
     // Why the room keeps `pull` from arming, with `disarm` when it also turns
     // an armed one off; null when it has room.
+    // An unknown room holds as a refusal does: unknown holds.
+    const laneHeld =
+      lane?.refusal != null ? `pr-merge's gate holds its lane off (${lane.refusal})` : lane?.unreadable != null ? `the lane's room could not be read (${lane.unreadable})` : null;
     const roomHold = (pull) => {
       if (lane === null || !lanes(pull)) {
         return null;
       }
-      if (lane.refusal !== null) {
-        return { disarm: true, reason: `pr-merge's gate holds its lane off (${lane.refusal})` };
-      }
-      // An unknown room holds as a refusal does: unknown holds.
-      if (lane.unreadable !== null) {
-        return { disarm: true, reason: `the lane's room could not be read (${lane.unreadable})` };
+      if (laneHeld !== null) {
+        return { disarm: true, reason: laneHeld };
       }
       if (pull.autoMergeRequest != null) {
         return null;
       }
       return inFlight >= lane.cap ? { disarm: false, reason: `merge.max-in-flight is ${lane.cap} and ${inFlight} merges are in flight` } : null;
     };
+    // Each lane pull request the room's refusal or unread room holds, by
+    // what became of it: unarmed (never armed, or disarmed), armed (its
+    // disarm failed, so the hold is not enforced) or report-only (a disarm
+    // would have run).
+    const roomHeld = new Map();
     let failed = 0;
     const minutes = riskEscalationMinutes(env.RESOLVED_CONFIG ?? "");
     // A reader run's per pull request refusal (a hold path or cost hold, or
@@ -684,6 +697,9 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
       let detail = null;
       // Checked before the reads, so a held lane spends none.
       const held = ["read", "verify", "arm"].includes(action) ? roomHold(pull) : null;
+      if (held?.disarm) {
+        roomHeld.set(pull.number, pull.autoMergeRequest != null ? "armed" : "unarmed");
+      }
       if (held !== null) {
         ({ action, reason } = { action: held.disarm && pull.autoMergeRequest != null ? "disarm" : "none", reason: held.reason });
       }
@@ -736,6 +752,9 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
         continue;
       }
       if (!write) {
+        if (roomHeld.get(pull.number) === "armed") {
+          roomHeld.set(pull.number, "report-only");
+        }
         console.log(`enable-auto-merge: #${pull.number} would ${action} (report-only): ${escapeCommand(reason)}`);
         await note(pull, detail, { clears, reason });
         continue;
@@ -757,6 +776,9 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
           console.log(`enable-auto-merge: #${pull.number} armed at ${pull.headRefOid}`);
         } else {
           await github("POST", "/graphql", { query: DISARM_MUTATION, variables: { id: pull.id } });
+          if (roomHeld.has(pull.number)) {
+            roomHeld.set(pull.number, "unarmed");
+          }
           console.log(`enable-auto-merge: #${pull.number} disarmed: ${escapeCommand(reason)}`);
         }
       } catch (error) {
@@ -767,6 +789,31 @@ export async function main({ env = process.env, github, verify, room, sleep = (m
       }
       if (action === "disarm") {
         await note(pull, detail, { clears, reason });
+      }
+    }
+    // One warning (and an error while a disarm failed) and their summary
+    // lines per run, not a comment per pull request: the room is read again
+    // every scheduled run.
+    const held = (state) => [...roomHeld].filter(([, outcome]) => outcome === state).map(([number]) => `#${number}`).join(", ");
+    const lines = [];
+    const warned = [
+      ["left unarmed", held("unarmed")],
+      ["report-only, a disarm would have run", held("report-only")],
+    ].filter(([, numbers]) => numbers);
+    if (warned.length > 0) {
+      lines.push(["warning", escapeCommand(`${laneHeld}; ${warned.map(([what, numbers]) => `${what}: ${numbers}`).join("; ")}`)]);
+    }
+    if (held("armed")) {
+      lines.push(["error", escapeCommand(`${laneHeld}; still armed, its disarm failed, so the hold is not enforced: ${held("armed")}`)]);
+    }
+    for (const [level, text] of lines) {
+      console.log(`::${level} title=enable-auto-merge::${text}`);
+    }
+    if (lines.length > 0 && env.GITHUB_STEP_SUMMARY) {
+      try {
+        appendFileSync(env.GITHUB_STEP_SUMMARY, lines.map(([, text]) => `enable-auto-merge: ${text}\n`).join(""));
+      } catch (error) {
+        console.log(`enable-auto-merge: the step summary was not written: ${describe(error)}`);
       }
     }
     return failed === 0 ? 0 : 1;

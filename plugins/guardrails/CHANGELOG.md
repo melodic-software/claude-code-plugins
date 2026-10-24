@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.56.1] - 2026-10-24
+
+### Fixed
+
+- The commit-msg convention hook no longer rejects the subjects git writes itself: `Merge ...` from `git merge` and `Revert "..."` from `git revert` now pass before the team pattern check. Every other subject is still checked.
+
 ## [0.56.0] - 2026-10-24
 
 ### Added

@@ -67,10 +67,17 @@ export const DEFAULTS = Object.freeze({
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
 const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
 
+// A merge commit on a Dependabot head stops Dependabot's own rebases, which
+// resolve its conflicts, and breaks the pr-merge Dependabot tier.
+function isDependabotHead(node) {
+  return String(node.headRefName ?? "").startsWith("dependabot/") && node.author?.databaseId === DEPENDABOT_ID;
+}
+
 function isCandidate(node, base) {
   return (
     node.isDraft === false &&
     node.isCrossRepository === false &&
+    !isDependabotHead(node) &&
     node.baseRefName === base &&
     node.mergeable === "CONFLICTING"
   );
@@ -79,6 +86,7 @@ function isCandidate(node, base) {
 function isPending(node, base) {
   return (
     node.isDraft === false &&
+    !isDependabotHead(node) &&
     node.isCrossRepository === false &&
     node.baseRefName === base &&
     node.mergeable === "UNKNOWN"

@@ -595,7 +595,7 @@ test("pr-unblock.yml: fix-ci is reported neutral when fix-ci-context skips, and 
                   },
                 ]
                   .map((run) => ({ __typename: "CheckRun", checkSuite: { app: { databaseId: 15368 } }, ...run }))
-                  .concat({ __typename: "StatusContext", context: "ci-lanes", state: "FAILURE", creator: { login: "github-actions[bot]" } }),
+                  .concat({ __typename: "StatusContext", context: "ci-lanes", state: "FAILURE", creator: { __typename: "Bot", login: "github-actions", databaseId: 41898282 } }),
                 pageInfo: { hasNextPage: false },
               },
             },
@@ -3677,7 +3677,7 @@ test("report job: fix-ci-dispatch reads the neutral not-assessed post as the hea
               contexts: {
                 nodes: [{ name: "ci-status", status: "COMPLETED", conclusion: "FAILURE" }, ...runs]
                   .map((run) => ({ __typename: "CheckRun", checkSuite: { app: { databaseId: 15368 } }, ...run }))
-                  .concat({ __typename: "StatusContext", context: "ci-lanes", state: "FAILURE", creator: { login: "github-actions[bot]" } }),
+                  .concat({ __typename: "StatusContext", context: "ci-lanes", state: "FAILURE", creator: { __typename: "Bot", login: "github-actions", databaseId: 41898282 } }),
                 pageInfo: { hasNextPage: false },
               },
             },
@@ -5049,7 +5049,7 @@ test("pr-unblock.yml: a fix-ci round with no posted check posts fix-ci failure o
                   })),
                 ]
                   .map((run) => ({ __typename: "CheckRun", checkSuite: { app: { databaseId: 15368 } }, ...run }))
-                  .concat({ __typename: "StatusContext", context: "ci-lanes", state: "FAILURE", creator: { login: "github-actions[bot]" } }),
+                  .concat({ __typename: "StatusContext", context: "ci-lanes", state: "FAILURE", creator: { __typename: "Bot", login: "github-actions", databaseId: 41898282 } }),
                 pageInfo: { hasNextPage: false },
               },
             },

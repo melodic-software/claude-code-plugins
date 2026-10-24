@@ -100,6 +100,20 @@ value and its unset fallback.
   cannot re-arm. `refresh_pr_branch.py` refuses it, and the unattended enqueue skips its update
   from the base (`checkInputs.updateSkipped`) and enqueues as after a refused update. An
   unreadable label refuses the refresh and holds the enqueue.
+- Never update a Dependabot head (a `dependabot/` branch Dependabot opened) from its base: the
+  Dependabot merge tier's commit check refuses a merge of the base by anyone else, so Dependabot
+  does the update. `refresh_pr_branch.py` and the unattended enqueue (only when the base changed a
+  check input since the merge base) instead post one comment per base tip and hold the PR as
+  `dependabot-rebase-requested`: `@dependabot rebase` when every commit is Dependabot's, or
+  `@dependabot recreate` when the only other commits are base merges GitHub made. The unattended
+  enqueue posts at most one an hour unless the head conflicts. A head carrying any other commit
+  gets no comment and holds as `dependabot-branch-edited`: a recreate would discard it.
+  - **Pointer**: the rebase and recreate commands, in
+    [Dependabot pull request comment commands](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-pull-request-comment-commands#commands-for-dependabot-pull-requests); correlate with
+    [allowing Dependabot to rebase over extra commits](https://docs.github.com/en/code-security/dependabot/working-with-dependabot/managing-pull-requests-for-dependency-updates#allowing-dependabot-to-rebase-and-force-push-over-extra-commits).
+  - **As of**: 2026-10-24.
+  - **Recheck trigger**: either section changes what rebase or recreate does to a branch that
+    carries another author's commits.
 - Head-ref uniqueness guard: two open PRs sharing one head repository/branch is a stop-and-ask.
   Escalate, never guess which PR a push would update.
 - Lease-protected removal: never remove a worktree without holding that PR's worker lease

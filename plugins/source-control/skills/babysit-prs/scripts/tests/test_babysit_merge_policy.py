@@ -2247,6 +2247,65 @@ class Assess(unittest.TestCase):
         self.assertIs(result.promoted, True)
         self.assertEqual(result.report()["credentials"], "identity-only")
 
+    def test_a_merged_pull_request_stops_before_the_post_merge_reads(self) -> None:
+        gh = self.readable()
+        gh.rest[f"repos/{REPO}/pulls/1"].update(state="closed", merged=True)
+        later = mock.Mock(side_effect=AssertionError("read after the refusal"))
+        with (
+            mock.patch.object(policy, "read_demotion", later),
+            mock.patch.object(policy, "in_flight", later),
+            mock.patch.object(policy, "eligibility", later),
+        ):
+            result = self.assess(
+                post_merge=later, promotion=later, stop_when_closed=True
+            )
+        later.assert_not_called()
+        # The gate's own blocker for a pull request that is not open.
+        self.assertEqual(result.reason, "state=MERGED (not OPEN)")
+        self.assertIs(result.enabled, False)
+        self.assertIs(result.report()["reportOnly"], False)
+        # What the queue sweep reads: the identity, branch and readers.
+        for key in ("identity", "branch", "config", "permission", "self_logins"):
+            self.assertIn(key, result.inputs)
+
+    def test_a_closed_unmerged_pull_request_is_read_in_full_with_the_stop(
+        self,
+    ) -> None:
+        # Closed but not merged can reopen before the gate's own state read,
+        # so only a merge, which is final, stops early.
+        gh = self.readable()
+        gh.rest[f"repos/{REPO}/pulls/1"].update(state="closed", merged=False)
+        self.all_clear()
+        seen: list[Any] = []
+        self.assess(
+            post_merge=lambda floor, who: seen.append(who) or gate(),
+            promotion=lambda s: PROMOTED,
+            stop_when_closed=True,
+        )
+        self.assertEqual(seen, [IDENTITY])
+
+    def test_a_closed_pull_request_is_read_in_full_without_the_stop(self) -> None:
+        gh = self.readable()
+        gh.rest[f"repos/{REPO}/pulls/1"].update(state="closed", merged=True)
+        self.all_clear()
+        seen: list[Any] = []
+        self.assess(
+            post_merge=lambda floor, who: seen.append(who) or gate(),
+            promotion=lambda s: PROMOTED,
+        )
+        self.assertEqual(seen, [IDENTITY])
+
+    def test_an_open_pull_request_is_read_in_full_with_the_stop(self) -> None:
+        gh = self.readable()
+        gh.rest[f"repos/{REPO}/pulls/1"].update(state="open", merged=False)
+        self.all_clear()
+        result = self.assess(
+            post_merge=lambda floor, who: gate(),
+            promotion=lambda s: PROMOTED,
+            stop_when_closed=True,
+        )
+        self.assertIsNone(result.reason)
+
     def test_config_is_read_at_the_pull_requests_base_sha(self) -> None:
         gh = self.readable()
         self.all_clear()
@@ -5103,6 +5162,28 @@ class SharedPostMergeAnswer(unittest.TestCase):
         result = self.lane_assess(post_merge=never, shared=self.shared(gate()))
         self.assertEqual(result.details["postMergeShared"], "used")
 
+    def test_a_fresh_filer_issue_without_the_marker_leaves_the_answer_bound(
+        self,
+    ) -> None:
+        # `read_demotion` never counts it: no marker, and never touched since
+        # it was opened, so no earlier revision could carry one.
+        gh = self.bound()
+        gh.rest[self.issues_since()] = [
+            {
+                "number": 93,
+                "user": {"login": "github-actions[bot]"},
+                "body": "Scheduled report",
+                "state": "open",
+                "created_at": "2026-10-24T07:00:33Z",
+                "updated_at": "2026-10-24T07:00:33Z",
+            }
+        ]
+        self.flight()
+        never = mock.Mock(side_effect=AssertionError("read fresh"))
+        with mock.patch.object(policy, "read_demotion", never):
+            result = self.lane_assess(post_merge=never, shared=self.shared(gate()))
+        self.assertEqual(result.details["postMergeShared"], "used")
+
     def test_a_demoted_answer_needs_no_re_read(self) -> None:
         # Already demoted, the answer is the conservative one.
         gh = self.bound()
@@ -5179,6 +5260,74 @@ def lane_gate(verified: bool, failed: bool = False) -> policy.PostMergeGate:
             "failures": [{"signal": "full-run", "number": 8040}] if failed else [],
         }
     )
+
+
+class DemotionChanged(unittest.TestCase):
+    """`_demotion_changed`: an issue updated since the answer counts only
+    when `read_demotion` could count it as a record. That is a known record,
+    or a record filer's issue whose body carries the marker now, or that may
+    have been edited since it was opened (`updated_at` differs from
+    `created_at`, or either is unreadable), so an earlier revision could."""
+
+    OPENED = "2026-10-24T07:00:33Z"
+
+    def changed(self, issue: dict[str, Any], records: tuple[int, ...] = ()) -> bool:
+        answer = policy.SharedPostMerge(
+            main_sha=MAIN_SHA,
+            config_sha=CONFIG_SHA,
+            identity=IDENTITY,
+            self_logins=frozenset(),
+            lane_merges_only=True,
+            computed_at=policy.datetime.fromisoformat(self.OPENED),
+            demotion=policy.Demotion(False, None, records),
+            floor=policy.datetime.fromisoformat(ENABLED_AT),
+            gate=gate(),
+        )
+        with mock.patch.object(policy, "_get", return_value=(200, [issue])):
+            return policy._demotion_changed("owner", "repo", answer, IDENTITY)
+
+    def filed(self, **fields: Any) -> dict[str, Any]:
+        """A fresh, unedited issue `github-actions[bot]` opened, no marker."""
+        issue = {
+            "number": 93,
+            "user": {"login": "github-actions[bot]"},
+            "body": "Scheduled report",
+            "state": "open",
+            "created_at": self.OPENED,
+            "updated_at": self.OPENED,
+        }
+        issue.update(fields)
+        return {k: v for k, v in issue.items() if v is not None}
+
+    def test_a_fresh_unedited_filer_issue_without_the_marker_is_unchanged(
+        self,
+    ) -> None:
+        self.assertFalse(self.changed(self.filed()))
+        self.assertFalse(self.changed(self.filed(user={"login": IDENTITY})))
+        self.assertFalse(self.changed(self.filed(body="")))
+
+    def test_a_filer_issue_with_the_marker_is_changed(self) -> None:
+        self.assertTrue(self.changed(self.filed(body=DEMOTION_BODY)))
+
+    def test_a_filer_issue_touched_since_it_was_opened_is_changed(self) -> None:
+        self.assertTrue(self.changed(self.filed(updated_at="2026-10-24T07:05:00Z")))
+
+    def test_a_filer_issue_without_readable_timestamps_is_changed(self) -> None:
+        for fields in (
+            {"created_at": None},
+            {"updated_at": None},
+            {"created_at": None, "updated_at": None},
+            {"updated_at": "not a time"},
+            {"created_at": "2026-10-24T07:00:33"},
+        ):
+            with self.subTest(fields=fields):
+                self.assertTrue(self.changed(self.filed(**fields)))
+
+    def test_a_known_record_updated_is_changed(self) -> None:
+        known = self.filed(user={"login": OPERATOR}, number=12)
+        self.assertTrue(self.changed(known, records=(12,)))
+        # Its author and its timestamps do not matter.
+        self.assertTrue(self.changed(self.filed(number=12), records=(12,)))
 
 
 class AStaleSharedAnswerIsRefreshed(unittest.TestCase):
@@ -5688,7 +5837,7 @@ class DependabotEligibility(unittest.TestCase):
     )
     CI = (
         f"repos/{REPO}/commits/{'e' * 40}/check-runs"
-        "?check_name=ci-status&filter=latest&per_page=100"
+        "?check_name=ci-status&app_id=15368&filter=latest&per_page=100"
     )
 
     def fake(
@@ -6385,6 +6534,79 @@ class DependabotEligibility(unittest.TestCase):
             result.reason, "dependabot-review:ci-status-red;review-verdict-missing"
         )
         self.assertEqual(result.dependabot.tier, "review")
+
+    def test_the_ci_status_run_that_started_last_decides(self) -> None:
+        # `filter=latest` keeps the latest run of each check suite, so a
+        # re-triggered workflow leaves an older red run beside a newer one.
+        red = {"status": "completed", "conclusion": "failure"}
+        green = {"status": "completed", "conclusion": "success"}
+        running = {"status": "in_progress", "conclusion": None}
+        cases = [
+            ("green after red", [red, green], "success"),
+            ("red after green", [green, red], "failure"),
+            ("running after green", [green, running], "pending"),
+        ]
+        for label, (older, newer), expected in cases:
+            pair = [
+                {**newer, "started_at": "2026-10-24T05:40:00Z"},
+                {**older, "started_at": "2026-10-23T21:56:00Z"},
+            ]
+            for listed in (pair, pair[::-1]):
+                with self.subTest(label, newer_listed_first=listed is pair):
+                    self.fake(ci=listed)
+                    self.assertEqual(
+                        policy._ci_status(*REPO.split("/"), self.HEAD), expected
+                    )
+
+    def test_ci_status_runs_that_started_together_keep_any_failure(self) -> None:
+        at = "2026-10-24T05:40:00Z"
+        red = {"status": "completed", "conclusion": "failure", "started_at": at}
+        green = {"status": "completed", "conclusion": "success", "started_at": at}
+        for listed in ([red, green], [green, red]):
+            with self.subTest(listed=listed):
+                self.fake(ci=listed)
+                self.assertEqual(
+                    policy._ci_status(*REPO.split("/"), self.HEAD), "failure"
+                )
+
+    def test_ci_status_runs_without_start_times_keep_any_failure(self) -> None:
+        green = {"status": "completed", "conclusion": "success"}
+        red = {"status": "completed", "conclusion": "failure"}
+        queued = {"status": "queued", "conclusion": None, "started_at": None}
+        cases = [
+            (
+                "neither has a start time",
+                [green, {**red, "started_at": None}],
+                "failure",
+            ),
+            (
+                "newer green beside an unstarted red",
+                [
+                    {**green, "started_at": "2026-10-24T05:40:00Z"},
+                    {**red, "started_at": None},
+                ],
+                "failure",
+            ),
+            (
+                "unstarted re-run beside an older red",
+                [{**red, "started_at": "2026-10-23T21:56:00Z"}, queued],
+                "pending",
+            ),
+            (
+                "unreadable start time",
+                [
+                    {**green, "started_at": "2026-10-24T05:40:00Z"},
+                    {**red, "started_at": "soon"},
+                ],
+                "failure",
+            ),
+        ]
+        for label, runs, expected in cases:
+            with self.subTest(label):
+                self.fake(ci=runs)
+                self.assertEqual(
+                    policy._ci_status(*REPO.split("/"), self.HEAD), expected
+                )
 
     def test_a_running_or_missing_ci_status_waits_at_tier_auto(self) -> None:
         for runs in ([], [{"status": "in_progress", "conclusion": None}]):

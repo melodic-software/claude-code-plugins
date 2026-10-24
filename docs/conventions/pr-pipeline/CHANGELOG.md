@@ -1,5 +1,50 @@
 # Changelog for the PR pipeline convention
 
+## [4.19.5] - 2026-10-24
+
+### Fixed
+
+- `enable-auto-merge` checks out the default branch with full history, as the post-merge check and the merge job do, so the room's post-merge recompute decides containment locally instead of making a compare API call per lane record. The lane-room read also has its own 8 minute timeout, apart from the verifier reads' 4 minutes, and a timeout still holds the lane. The arm step's timeout is now 18 minutes and the job's 30.
+
+- `fix-ci` dispatch trusts a `ci-lanes` commit status by its creator's type and id (the GitHub Actions bot, `Bot` 41898282) instead of the login `github-actions[bot]`, which GraphQL never returns (it reports `github-actions`); no pull request was dispatched while the login check stood. A status set by any other actor, or with no creator, is still ignored.
+- The dispatcher logs why it skips a listed pull request whose `ci-lanes` status failed or errored, so a skip of that kind is no longer silent; a failed status the GitHub Actions bot did not set is named as such.
+
+## [4.19.4] - 2026-10-24
+
+### Fixed
+
+- The work-resolve-issue lane no longer opens a `Refs:` PR for an issue its run delivered whole. `report-outcome` derives the link line from the outcome's `remaining` list and ignores the run's `link` field: a non-empty list opens a `Refs:` PR with a `## Remaining work` section naming each part, which is the remaining work pr-verify's Refs rule asks the body to name. A `remaining` that is not 1 to 20 strings, each with text in the bullet it renders as, counts as empty, so the PR closes the issue. The run text the lane quotes in a PR body or comment also drops C1 control characters now.
+
+## [4.19.3] - 2026-10-24
+
+### Fixed
+
+- A pending lane merge no longer makes `enable-auto-merge` disarm every armed lanes App pull request. The post-merge step takes about as long as the gate's two-minute reuse age, so the lane's room read the report as too old. It now keeps the report while nothing it was read from has moved, and otherwise checks again as the gate does, with the lane records the last run kept, so that check reads them without an artifact or run read each. When the room is held, by a refusal or because it cannot be read, the run raises one warning annotation and step-summary line naming the reason and each lanes App pull request it left unarmed or, in report-only mode, that a disarm would have turned off. A pull request still armed because its disarm failed gets an error annotation and summary line instead. It posts no comment on the pull requests.
+
+## [4.19.2] - 2026-10-24
+
+### Fixed
+
+- The pr-unblock dispatcher no longer sends resolve-conflicts to a Dependabot head (a `dependabot/` branch Dependabot opened): its merge commit stopped Dependabot's own rebases, which resolve the conflict.
+
+## [4.19.1] - 2026-10-24
+
+### Fixed
+
+- The pr-unblock `review-dependency` round cap counts only round markers at the pull request's current commits, so a `@dependabot recreate` or force push no longer carries the replaced head's rounds into the new one. A marker that names no head still counts.
+
+## [4.19.0] - 2026-10-24
+
+### Added
+
+- A listed human adding `admission-deferred` to a decided issue with `status: ready` now has the hourly work-unblock sweep run intake's admission rules on its own work-class label and Size, Complexity and Uncertainty fields, each counting only when a listed human or the lanes App added or set it, admitting it when there is room and refusing it to `status: needs-decision` with a comment otherwise.
+- The sweep now re-fires an `agent-ready` issue left with no run and no report for 3 hours, once per version of the lane workflow files, and then hands it to a person with `needs-human` and a comment.
+
+### Changed
+
+- Intake admission now reads the `- [ ]` acceptance criteria only from text a listed human wrote, in the body or a comment of their own, since pr-verify judges a lane pull request only against that text (owner decision Q9). The lanes App's refinement comment no longer satisfies the criteria check; a person who confirms it posts the criteria as their own comment.
+- Intake admission now refuses an issue with more than 100 comments, since pr-verify reads only the first 100 and stops on such an issue.
+
 ## [4.18.0] - 2026-10-24
 
 ### Changed

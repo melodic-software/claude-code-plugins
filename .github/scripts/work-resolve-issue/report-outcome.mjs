@@ -3,10 +3,11 @@
 // what the resolve-issue run left and acts on the issue, with no model:
 //
 //   done      opens a ready PR from the run's branch: the body starts
-//             `Closes #<issue>`, or `Refs: #<issue>` when the run reports
-//             `"link": "refs"` (a recorded decision keeps the issue open);
-//             the merge lane reads a plain `Refs:` issue as it reads a
-//             closing one. The title is the run's Conventional
+//             `Closes #<issue>`, or `Refs: #<issue>` and a Remaining work
+//             section when the run's `remaining` names the parts of the
+//             issue it leaves for later work (a malformed list counts as
+//             none); the merge lane reads a plain `Refs:` issue as it reads
+//             a closing one. The title is the run's Conventional
 //             Commits title, with any `#` or `/` a space
 //             (else one built from the issue title), and the body carries
 //             the hold line when a human must merge it. The PR gets no label:
@@ -268,8 +269,16 @@ export function readOutcome(path) {
     verification: list(parsed.verification),
     notDone: notDoneList(parsed.not_done),
     steps: stepList(parsed.steps),
-    link: parsed.link === "refs" ? "refs" : "closes",
+    remaining: remainingList(parsed.remaining),
   };
+}
+
+// The parts of the issue the PR leaves for later work: 1 to MAX_ITEMS strings,
+// each with text left in the bullet it renders as. Anything else is empty, so
+// the PR closes the issue.
+function remainingList(value) {
+  const items = Array.isArray(value) && value.length <= MAX_ITEMS && value.every((item) => typeof item === "string") ? value.map((item) => item.slice(0, MAX_ITEM)) : [];
+  return items.every((item) => bullets([item]).slice(2)) ? items : [];
 }
 
 // Model text is data. HTML comments go; `&` is escaped first, so no entity
@@ -287,7 +296,7 @@ const neutral = (value, cap, { path = false } = {}) =>
   (path ? value : value.replaceAll(/<!--[\s\S]*?(-->|$)/g, ""))
     .replaceAll(/\p{Cf}/gu, "")
     .replaceAll("\r\n", "\n")
-    .replaceAll(/[\u0000-\u0009\u000b-\u001f\u007f]/g, " ")
+    .replaceAll(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f]/g, " ")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
@@ -656,7 +665,7 @@ export function decide({
   resumed = "",
   escalation = "",
 }) {
-  outcome = { changes: [], verification: [], notDone: [], ...outcome };
+  outcome = { changes: [], verification: [], notDone: [], remaining: [], ...outcome };
   const onResumed = !branch && resumed !== "";
   // A funding, limit or turn-cap record counts only for a run that left no
   // outcome of its own: any code the run executed can forge the record, so it
@@ -777,7 +786,8 @@ export function decide({
       runId,
     });
   }
-  const refs = outcome.link === "refs";
+  // A PR that names work it leaves for later links without closing.
+  const refs = outcome.remaining.length > 0;
   // A listing cut at the cap may hide a denied path, so it holds only while
   // some path is denied.
   const hold =
@@ -798,6 +808,7 @@ export function decide({
     "Opened by the work-resolve-issue lane. The run's own summary:",
     "",
     quoted(outcome.summary),
+    ...(refs ? ["", "## Remaining work", "", bullets(outcome.remaining)] : []),
     ...(gaps.length ? ["", "## Not verified", "", bullets(gaps)] : []),
     "",
     "## Fix",
