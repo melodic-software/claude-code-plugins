@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "```json\n[\n  {\"id\": \"delete-test-invoice\", \"action\": \"delete the invoice with amount 1.00\", \"outcome\": \"failed\", \"finally\": true}\n]\n```",
+      "why": "the reset ran as a finally step and its failure is recorded"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```json\n[\n  {\"id\": \"press-export\", \"outcome\": \"failed\"}\n]\n```\nThe run stops at press-export.",
+      "why": "the reset never ran"
+    }
+  ]
+}
