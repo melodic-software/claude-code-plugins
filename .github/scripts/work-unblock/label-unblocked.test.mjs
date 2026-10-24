@@ -2562,7 +2562,7 @@ test("a person's mark waiting on an open blocker loses admission-deferred with t
   const log = t.mock.method(console, "log", () => {});
   const { github, calls } = markedWorld({ blockers: [issue(10)] });
   assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
-  const why = "blocker #10 is not closed as completed by a listed human or a merge";
+  const why = "blocker #10 is not closed by a listed human or a merge";
   assert.deepEqual(writes(calls), [
     `POST /repos/${REPO}/issues/25/comments ${JSON.stringify({ body: `${ADMIT_MARKER}\nNot admitted to the issue lane yet: ${why}.` })}`,
     undeferred(25),

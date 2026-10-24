@@ -371,10 +371,14 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   const wait = [];
   for (const blocker of blockers) {
     const done =
-      blocker.state === "closed" && (blocker.pull_request ? Boolean(blocker.pull_request.merged_at) : trustedCloses.has(blockerKey(blocker, repository)));
+      blocker.state === "closed" &&
+      // A merge counts only here: another repository's merge carries no trust check.
+      (blocker.pull_request
+        ? here(blocker.repository_url, repository) && Boolean(blocker.pull_request.merged_at)
+        : trustedCloses.has(blockerKey(blocker, repository)));
     if (!done) {
       const name = here(blocker.repository_url, repository) ? `#${blocker.number}` : blockerKey(blocker, repository);
-      wait.push(`blocker ${name} is not closed as completed by a listed human or a merge`);
+      wait.push(`blocker ${name} is not closed by a listed human or a merge`);
     }
   }
   for (const pull of pulls) {
@@ -546,7 +550,11 @@ export async function admissionFacts({ github, repository, number, issue, rules,
 
 // Whether an open issue created before `issue` carries admission-deferred:
 // one search. An unreadable or incomplete answer counts as one, since the
-// sweep admits deferred issues oldest first anyway.
+// sweep admits deferred issues oldest first anyway. It counts every older
+// deferred issue, including one the sweep keeps deferred for an open pull
+// request or an untrusted label; that costs a newer issue at most one hourly
+// sweep's wait, never a stall, and reading each one's events to tell them
+// apart would cost a call per deferred issue.
 async function deferredAhead(github, repository, issue) {
   const created = Date.parse(issue.created_at);
   if (!Number.isFinite(created)) {

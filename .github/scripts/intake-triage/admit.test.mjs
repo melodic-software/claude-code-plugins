@@ -296,7 +296,7 @@ describe("decide", () => {
   test("a blocker closed as completed without a trusted close holds it", () => {
     const result = decide(facts({ blockers: [completed] }));
     assert.equal(result.verdict, "wait");
-    assert.match(result.reasons.join(), /#5 is not closed as completed by a listed human or a merge/);
+    assert.match(result.reasons.join(), /#5 is not closed by a listed human or a merge/);
   });
 
   // A blocker closed as not planned or a duplicate leaves nothing to wait
@@ -687,6 +687,14 @@ describe("admit", () => {
     const unreadable = await go(fakeGitHub({ blockers: [blocker] }));
     assert.equal(unreadable.outcome, "waiting");
     assert.match(unreadable.reasons.join(), /o\/other#5/);
+  });
+
+  test("a merged pull request blocker counts only in this repository", () => {
+    const merged = (repo) => ({ number: 5, state: "closed", pull_request: { merged_at: "2026-10-24T00:00:00Z" }, repository_url: `https://api.github.com/repos/${repo}` });
+    assert.deepEqual(decide(facts({ blockers: [merged("o/r")] })), { verdict: "admit", reasons: [] });
+    const elsewhere = decide(facts({ blockers: [merged("o/other")] }));
+    assert.equal(elsewhere.verdict, "wait");
+    assert.match(elsewhere.reasons.join(), /o\/other#5 is not closed by a listed human or a merge/);
   });
 
   test("a caller's isTrusted answers only this repository's blockers", async () => {
