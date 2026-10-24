@@ -26,8 +26,8 @@ checkbox that drives behavior. Runtime proposals accumulate in `<StateBase>/TODO
 ## Writing approvals and mutes
 
 `approvals.json` and `mutes.json` have one writer, `Set-ApprovalState`, which
-`/machine-health:setup apply` runs (`approve=`, `revoke=`, `unmute=`). The one-time TODO.md migration below is the only other path that writes `approvals.json`,
-and it never overwrites an existing file. Both go through the same atomic replace.
+`/machine-health:setup apply` runs (`approve=`, `revoke=`, `unmute=`), through an atomic replace.
+No `TODO.md` text, checked box or not, ever becomes an approval.
 
 What a write guarantees:
 
@@ -67,20 +67,8 @@ Default state: both shipped remediations start as `approved: false`. Enable one 
 
 The orchestrator reads this on every run. No restart, no cache invalidation: the file is re-read per invocation.
 
-## Migration from `TODO.md` checkboxes (one-time)
-
-When `approvals.json` is **missing or empty** and a `<StateBase>/TODO.md` contains
-`[x]` checkboxes, the orchestrator:
-
-1. Parses TODO.md for checked approvals (best-effort, recognizing only the two known remediation names).
-2. Writes `approvals.json` with migrated approvals and a `migration.migrated_from_todo_md: true` marker plus a checksum of the source TODO.md.
-3. Logs the migration to `<StateBase>/logs/run-YYYY-MM-DD.log`.
-4. Continues the run normally using migrated approvals.
-
-On subsequent runs, TODO.md checkboxes are ignored entirely. The `migration` block is informational only.
-
-This path exists only to carry a checkbox-era approval forward once. Retiring it is a plugin
-change recorded in `CHANGELOG.md`, not a condition this file predicts.
+An `approvals.json` an older build migrated from `TODO.md` checkboxes keeps its `migration`
+block, which the schema still accepts and nothing reads.
 
 ## First-run behavior
 
@@ -140,10 +128,12 @@ Pester tests in `tests/windows/lib/Get-ApprovalState.Tests.ps1` cover:
 - Empty file - returns defaults
 - Schema-invalid file - logs warning, returns defaults, does not throw
 - Valid file - returns parsed approvals
-- Migration path: TODO.md `[x]` present, no approvals.json - migrates, writes file, logs
+- A checked `TODO.md` beside the state folder and no approvals.json - returns defaults, writes nothing
 - Revocation: edit file, re-read, respects new state
 - Shared read: succeeds while another handle holds the file for write
-- The migration writes through `Write-StateFile` and never overwrites a file that appeared meanwhile
+
+`tests/windows/Invoke-MachineHealthCheck.Tests.ps1` runs the orchestrator over a checked `TODO.md`
+with no approvals.json and asserts that no approvals.json appears.
 
 `tests/windows/lib/Write-StateFile.Tests.ps1` covers the replace recipe and its sharing and
 first-write cases; `tests/windows/lib/Set-ApprovalState.Tests.ps1` covers each action, the

@@ -67,7 +67,7 @@ case ${ESCALATION_REASON:-} in
   repeat-cap) why='the lane has resolved conflicts on this branch as many times in a row as its cap allows' ;;
   unresolved-conflict) why='the lane could not resolve every conflict' ;;
   feedback-protected-path) why='the pull request changes .github/workflows/, which the lane token cannot push, so the lane does not address its review threads' ;;
-  feedback-round-cap) why='the lane has addressed review threads on this pull request as many rounds as its cap allows' ;;
+  feedback-round-cap) why='the lane has addressed review threads on this pull request as many rounds as its cap allows, and an open thread is a security or intent finding or a person holds the pull request, so a person decides' ;;
   feedback-uncertain) why='a review finding is uncertain or deferred, so a person decides it' ;;
   feedback-not-landed) why='a fix the lane recorded did not reach the branch, so none of its review replies was posted' ;;
   feedback-invalid) why='the review replies the lane recorded did not pass validation, so none was posted' ;;

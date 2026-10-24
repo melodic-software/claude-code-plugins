@@ -49,6 +49,8 @@ const HUMANS = new Set([100]);
 const LANE = "melodic-automation-lanes[bot]";
 // A verify run's start, after every edit the fixtures below make.
 const JUDGED_AT = "2026-10-21T00:00:00Z";
+// When the pull request was opened: after every fixture comment but those a test posts later.
+const PR_OPENED = "2026-10-20T00:00:00Z";
 
 const upstream = (overrides = {}) => ({
   id: RUN,
@@ -112,7 +114,7 @@ function fake({ run = upstream(), pulls = [pull()], artifacts = [], runs = {}, o
       return refs[n]?.answer ?? { data: { repository: { issueOrPullRequest: refs[n] } } };
     }
     if (apiPath === "/graphql") {
-      return { data: { repository: { pullRequest: { ...edit, body: prBody, closingIssuesReferences: { totalCount: issues.length, nodes: issues } } } } };
+      return { data: { repository: { pullRequest: { createdAt: PR_OPENED, ...edit, body: prBody, closingIssuesReferences: { totalCount: issues.length, nodes: issues } } } } };
     }
     const named = /\/actions\/artifacts\?name=([^&]+)&per_page=100&page=(\d+)$/.exec(apiPath);
     if (named) {
@@ -669,6 +671,88 @@ test("the spec text keeps only what trusted humans wrote and last edited", async
     { number: 7, spec_kind: "closes", body: null, comments: [] },
     "an untrusted PR author's own text",
   );
+});
+
+test("on an issue a listed human wrote, intake's newest unedited refinement comment by the lanes App is spec", async () => {
+  const human = { __typename: "User", login: "maintainer", databaseId: 100 };
+  const lanes = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };
+  const actions = { __typename: "Bot", login: "github-actions", databaseId: 41898282 };
+  const impostor = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 4242 };
+  const MARKER = "<!-- intake-triage refinement -->";
+  let next = 0;
+  const comment = (body, author, extra = {}) => {
+    next += 1;
+    const at = `2026-10-1${next}T00:00:00Z`;
+    return { databaseId: next, createdAt: at, updatedAt: at, body, author, lastEditedAt: null, editor: null, ...extra };
+  };
+  const on = (nodes, overrides = {}) => ({ ...ISSUE, ...overrides, comments: { totalCount: nodes.length, nodes } });
+  const comments = async (issue) => (await resolve({ issues: [issue] }, { laneAppId: 337595936 })).specText[0].comments;
+
+  const refinement = comment(`${MARKER}\n- [ ] Line 3 says nineteen.`, lanes);
+  const kept = comment("kept", human);
+  const issue = on([kept, refinement]);
+  assert.deepEqual(await comments(issue), ["kept", refinement.body]);
+  // The gate's filter is human-only, so the record it compares holds no App comment.
+  assert.deepEqual((await resolve({ issues: [issue] }, { laneAppId: 337595936 })).linkedIssues[0].spec_comments, [
+    { id: kept.databaseId, updated_at: kept.updatedAt },
+  ]);
+  // Without the lanes App's id nothing the App wrote counts.
+  assert.deepEqual((await resolve({ issues: [issue] })).specText[0].comments, ["kept"]);
+
+  const edited = comment(`${MARKER}\nedited`, lanes, { lastEditedAt: "2026-10-20T00:00:00Z", editor: lanes });
+  assert.deepEqual(await comments(on([edited])), [], "an edited refinement");
+
+  const older = comment(`${MARKER}\nolder`, lanes);
+  const newer = comment(`${MARKER}\nnewer`, lanes);
+  assert.deepEqual(await comments(on([older, kept, newer])), ["kept", newer.body], "the newest supersedes an older one");
+  assert.deepEqual(await comments(on([older, edited])), [], "an edited newest one leaves no older one in its place");
+
+  assert.deepEqual(await comments(on([refinement], { author: lanes })), [], "an issue the lanes App filed");
+  const otherEdit = { lastEditedAt: "2026-10-14T00:00:00Z", editor: lanes };
+  assert.deepEqual(await comments(on([refinement], otherEdit)), [], "a body the lanes App last edited");
+
+  for (const body of [`${MARKER.toUpperCase()}\nx`, ` ${MARKER}\nx`, `<!-- intake-triage refinements -->\nx`, `note\n${MARKER}`, "<!-- intake-triage admission -->\nx"]) {
+    assert.deepEqual(await comments(on([comment(body, lanes)])), [], `marker mismatch: ${JSON.stringify(body)}`);
+  }
+  // pr-verify counts only a refinement posted before the pull request opened.
+  const late = comment(`${MARKER}\nposted after the pull request opened`, lanes, { createdAt: "2026-10-20T00:00:01Z", updatedAt: "2026-10-20T00:00:01Z" });
+  assert.deepEqual(await comments(on([refinement, late])), [], "a refinement posted after the pull request opened");
+  assert.deepEqual(await comments(on([late])), [], "the only refinement, posted after the pull request opened");
+  const early = comment(`${MARKER}\nposted just before`, lanes, { createdAt: "2026-10-19T23:59:59Z", updatedAt: "2026-10-19T23:59:59Z" });
+  assert.deepEqual(await comments(on([early])), [early.body], "a refinement posted before the pull request opened");
+  const undated = comment(`${MARKER}\nno creation time`, lanes, { createdAt: undefined });
+  assert.deepEqual(await comments(on([undated])), [], "a refinement with no readable creation time");
+  const opened = (createdAt) => resolve({ issues: [on([early])], edit: { lastEditedAt: null, editor: null, createdAt } }, { laneAppId: 337595936 });
+  assert.deepEqual((await opened(undefined)).specText[0].comments, [], "a pull request with no readable creation time");
+
+  for (const [who, author] of [["github-actions", actions], ["a Bot with the App's login and another id", impostor], ["the App as a User", { ...lanes, __typename: "User" }]]) {
+    assert.deepEqual(await comments(on([comment(`${MARKER}\nx`, author)])), [], who);
+  }
+});
+
+test("main identifies the lanes App by merge.agent-identity's id on the trusted list", async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "pr-verify-"));
+  const actors = path.join(dir, "trusted-actors.json");
+  writeFileSync(
+    actors,
+    JSON.stringify({ version: 1, actors: [{ id: 100, login: "maintainer", kind: "human" }, { id: 337595936, login: "melodic-automation-lanes[bot]", kind: "bot" }] }),
+  );
+  const lanes = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };
+  const body = "<!-- intake-triage refinement -->\n- [ ] Line 3 says nineteen.";
+  const issue = { ...ISSUE, comments: { totalCount: 1, nodes: [{ databaseId: 1, createdAt: "2026-10-11T00:00:00Z", updatedAt: "2026-10-11T00:00:00Z", body, author: lanes, lastEditedAt: null, editor: null }] } };
+  const run = async (identity) => {
+    const files = { out: path.join(dir, `out-${identity}`), spec: path.join(dir, "spec.json"), text: path.join(dir, `text-${identity}.json`) };
+    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: REPO, GITHUB_OUTPUT: files.out, UPSTREAM_RUN_ID: String(RUN), SPEC_FILE: files.spec, SPEC_TEXT_FILE: files.text, TRUSTED_ACTORS_PATH: actors, LANE_IDENTITY: identity };
+    const log = console.log;
+    console.log = () => {};
+    try {
+      await main(env, { github: fake({ issues: [issue] }) });
+    } finally {
+      console.log = log;
+    }
+    return JSON.parse(readFileSync(files.text, "utf8"))[0].comments;
+  };
+  assert.deepEqual(await run(LANE), [body]);
 });
 
 test("a pass judged before the spec last changed is judged again at the same head", async () => {

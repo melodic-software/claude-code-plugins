@@ -149,10 +149,11 @@ function prTitle(runTitle, issueTitle, issueNumber) {
   }
   return (match && conventionalFrom(runTitle)) || conventionalFrom(issueTitle) || `fix: resolve issue ${issueNumber}`;
 }
-// Work a human merges: untrusted-provenance work, and any diff
-// that touches a path the merge lane refuses (merge.diff-check.denied-paths in the base
-// pr-pipeline.yaml), so the two lists cannot drift apart.
-const HOLD_CLASSES = new Set(["work-class: untrusted-provenance"]);
+// Work a human merges: an issue labeled untrusted-provenance, a trust hold
+// and the one label read here, and any diff that touches a path the merge
+// lane refuses (merge.diff-check.denied-paths in the base pr-pipeline.yaml),
+// so the two lists cannot drift apart. No other work class holds.
+const UNTRUSTED_PROVENANCE = "work-class: untrusted-provenance";
 // An owner decision that a person merges the issue's PR. It holds only when the
 // lane's labeler check passes: the newest `labeled` event is a listed human's
 // (by id) or the lanes App's, so no one else can add the hold or stand in for it.
@@ -795,7 +796,7 @@ export function decide({
   // some path is denied.
   const hold =
     humanMerge ||
-    issueLabels.some((name) => HOLD_CLASSES.has(name)) ||
+    issueLabels.includes(UNTRUSTED_PROVENANCE) ||
     holdPaths === null ||
     (holdPaths.length > 0 && changedFiles.length >= COMPARE_FILES_CAP) ||
     changedFiles.some((path) => holdPaths.some((glob) => posix.matchesGlob(path, glob)));
