@@ -116,9 +116,9 @@ export function classify({ url, status, headers, body }, { now = Date.now(), rea
   // message (https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api#exceeding-the-rate-limit),
   // so for a GraphQL call any status counts.
   const messages = [parsed?.message, ...(poolOf(url) === "graphql" ? errors.map((error) => error?.message) : [])].map((text) => String(text ?? ""));
-  const signalled = SIGNALS.statuses.includes(status) || poolOf(url) === "graphql";
-  const message = signalled && messages.some((text) => SIGNALS.message.test(text));
-  const secondary = signalled && messages.some((text) => SIGNALS.secondary.test(text));
+  const flagged = SIGNALS.statuses.includes(status) || poolOf(url) === "graphql";
+  const message = flagged && messages.some((text) => SIGNALS.message.test(text));
+  const secondary = flagged && messages.some((text) => SIGNALS.secondary.test(text));
   const graphql = errors.some((error) => error?.type === SIGNALS.graphqlErrorType);
   const tooMany = status === 429;
   const latched = remaining === 0 || retryAfter !== null || message || graphql || tooMany;

@@ -193,9 +193,9 @@ API_BUDGET_CLASSIFY='def num: if type == "string" and test("^[0-9]{1,12}$") then
   | ($in.pool == "graphql") as $gq
   | ((if ($b | type) == "object" then [$b.message] + (if $gq and (($b.errors // null) | type) == "array" then [$b.errors[] | if type == "object" then .message else null end] else [] end) else [] end)
       | map(. // "" | tostring)) as $texts
-  | ($in.status == 403 or $in.status == 429 or $gq) as $signalled
-  | ($signalled and any($texts[]; test("rate limit|abuse detection"; "i"))) as $msg
-  | ($signalled and any($texts[]; test("secondary rate limit|abuse detection"; "i"))) as $secondary
+  | ($in.status == 403 or $in.status == 429 or $gq) as $flagged
+  | ($flagged and any($texts[]; test("rate limit|abuse detection"; "i"))) as $msg
+  | ($flagged and any($texts[]; test("secondary rate limit|abuse detection"; "i"))) as $secondary
   | ($in.status == 429) as $many
   | ((if ($b | type) == "object" then ($b.errors // []) else [] end)
       | if type == "array" then any(.[]; type == "object" and .type == "RATE_LIMITED") else false end) as $gql

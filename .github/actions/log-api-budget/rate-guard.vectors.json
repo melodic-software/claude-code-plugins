@@ -47,7 +47,7 @@
       "expect": { "latched": true, "low": false, "reset_source": "retry-after", "reset": 1792748030, "pool": "*" }
     },
     {
-      "name": "retry-after on any status is honoured",
+      "name": "retry-after on any status is honored",
       "input": { "url": "https://api.github.com/repos/o/r", "status": 503, "headers": { "retry-after": "5" }, "body": "" },
       "expect": { "latched": true, "low": false, "reset_source": "retry-after", "reset": 1792748005, "pool": "*" }
     },

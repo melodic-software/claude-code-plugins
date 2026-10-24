@@ -125,7 +125,7 @@ test("a limited response sends no second request, and the error names the reset"
   assert.ok(failed() >= 1);
 });
 
-test("retry-after is honoured: refused before it ends, sent after", async () => {
+test("retry-after is honored: refused before it ends, sent after", async () => {
   const gh = fakeGitHub([[403, { "retry-after": "120" }, { message: "You have exceeded a secondary rate limit." }], [200]]);
   const { latch, clock } = latchFor();
   const fetch = latch.guard(gh.fetch);
@@ -166,7 +166,7 @@ test("under the read floor: one warning, no failure, calls still go, belowFloor 
   assert.equal(latch.belowFloor("https://api.github.com/graphql"), false);
 });
 
-test("a 403 Resource not accessible keeps its old behaviour: returned, no latch, no failure", async () => {
+test("a 403 Resource not accessible keeps its old behavior: returned, no latch, no failure", async () => {
   const refused = [403, { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4000" }, { message: "Resource not accessible by integration" }];
   const gh = fakeGitHub([refused, [200]]);
   const { latch, lines, failed } = latchFor();
@@ -275,7 +275,9 @@ test("every lane script that calls fetch goes through the rate guard, or is list
     .filter((file) => file && !/\.test\.[cm]?js$/.test(file) && !file.includes("/node_modules/") && !file.includes("/fixtures/") && !file.includes("/probe/"));
   const raw = files.filter((file) => {
     const text = readFileSync(join(root, file), "utf8");
-    return /(^|[^\w.])fetch\(/m.test(text) && !text.includes("log-api-budget/rate-guard.mjs") && !file.endsWith("log-api-budget/rate-guard.mjs");
+    // An import of the guard counts; the path named in a string does not.
+    const imports = /from\s+["'][^"']*log-api-budget\/rate-guard\.mjs["']/.test(text);
+    return /(^|[^\w.])fetch\(/m.test(text) && !imports && !file.endsWith("log-api-budget/rate-guard.mjs");
   });
   assert.deepEqual(raw.filter((file) => !(file in UNGUARDED)), []);
   assert.deepEqual(Object.keys(UNGUARDED).filter((file) => !raw.includes(file)), [], "a listed file no longer needs its exception");
