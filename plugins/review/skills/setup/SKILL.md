@@ -36,6 +36,19 @@ layer of its settings (keys, values and layers:
 when the operator names a key or asks to change a setting, as described under
 [Repository settings](#repository-settings).
 
+The plugin owns a second tracked file, `docs/conventions/review-digest.yaml`, the team layer of the
+review-digest concern that `/review:explain-change` reads (schema:
+`${CLAUDE_PLUGIN_ROOT}/schemas/review-digest.schema.json`; keys and layers: the review-digest
+convention in the marketplace repository). The shared `setup-apply.mjs` writer does not check list
+keys (`blast_radius`, `risk_paths`), so `apply` writes this file itself, only when the operator asks
+to change a digest setting: create it at `<convention home>/review-digest.yaml` (default
+`docs/conventions/`) with only the keys the operator names, values taken from the schema's allowed
+values, list globs in double quotes, or edit the named lines of the existing file and show the diff
+first. Then read it back with
+`node "${CLAUDE_PLUGIN_ROOT}/skills/explain-change/scripts/digest-policy.mjs" < facts.json` on a
+pull request's facts and report any `warnings` line naming the file. The old `json config` block and
+`.claude/review-digest.json` are never written.
+
 ## Repository settings
 
 **`check` row.** Run `node "${CLAUDE_SKILL_DIR}/scripts/setup-apply.mjs" --check` from the project

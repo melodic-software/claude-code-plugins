@@ -590,7 +590,7 @@ conformance.
 | `instruction-placement` | team on conflict (policy-floor) | per-key |
 | `overengineering` | team on conflict for protected keys | per-key |
 | `multi-agent` | later layer; the docs block over `.claude/multi-agent.yaml` in the team layer | per-key |
-| `review-digest` | later layer; the docs block over `.claude/review-digest.json` in the team layer; `--policy` over every layer | per-key (lists replace) |
+| `review-digest` | later layer; `docs/conventions/review-digest.yaml` over the docs block over `.claude/review-digest.json` in the team layer (the old two are read only while the YAML is absent); `--policy` over every layer | per-key (lists replace) |
 | `playbooks` | later layer | per-key |
 | `implementation` | `true` in any layer (policy floor) | per-key |
 | `education` | later layer | per-key |
