@@ -334,6 +334,37 @@ async page => { // the question page itself: choices, chips, banners, header and
     const q12 = (await (await page.request.get(base + "api/state")).json()).questions.questions.find(q => q.id === "Q12") || {};
     ok("#9709: deciding the prerequisite marks the out-of-order answer stale", q12.state === "stale", q12.state);
   }
+  if (PHASE === 15) { // #9714: the shell set frontierLock back to confirm and added Q13, unanswered, on Q11; the page changes Q11's answer
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
+    await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
+    await post({id: "Q11", kind: "alt", alt: "a", text: ""}); await page.waitForTimeout(900);
+    const qs = (await (await page.request.get(base + "api/state")).json()).questions.questions, q13 = qs.find(q => q.id === "Q13") || {}, q12 = qs.find(q => q.id === "Q12") || {};
+    ok("#9714: a changed answer marks the undecided dependent upstream-changed and keeps the decided one stale", q13.state === "upstream-changed" && JSON.stringify(q13.changedBy) === '["Q11"]' && q12.state === "stale", q13.state + " " + JSON.stringify(q13.changedBy) + " / " + q12.state);
+    const chip = await page.$eval('.qbtn[data-q="Q13"] .qmeta', el => ({text: el.textContent, lock: !!el.querySelector(".upchip svg.padlock")})).catch(e => ({error: String(e)}));
+    ok("#9714: the dependent's rail card says the upstream change is not handled yet, with a padlock", chip.lock && /Upstream changed, not handled yet/.test(chip.text), JSON.stringify(chip));
+    await pick("Q13");
+    const ban = await text("#upstreamChanged");
+    ok("#9714: its detail pane names the changed question and says Save stays locked", /^Upstream changed, not handled yet: the answer to Q11.* changed or was reopened, and Claude has not revised or reconfirmed Q13 yet\. Save stays locked until it does/.test(ban), ban);
+    await page.click("#choices .choice.rec"); await page.fill("#note", "Does this still hold?"); await page.waitForTimeout(150);
+    const ctl = await page.evaluate(() => { const on = s => { const e = document.querySelector(s); return e ? !e.disabled : null; }; return {save: on("[data-save]"), ask: on('#talkRow [data-act="ask"]'), rephrase: on('#talkRow [data-act="rephrase"]'), hint: document.getElementById("saveHint").textContent}; });
+    ok("#9714: under confirm, Save is disabled and names the change while Ask and Rephrase stay enabled", ctl.save === false && ctl.ask === true && ctl.rephrase === true && ctl.hint === "Locked: Claude reviews it after Q11 changed", JSON.stringify(ctl));
+    const n0 = (await events()).length;
+    await page.click("#note"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(400);
+    const t = await text("#toast");
+    ok("#9714: Ctrl+Enter sends nothing and says why", (await events()).length === n0 && /^Not saved: The answer to Q11 changed or was reopened/.test(t) && !(await page.evaluate(() => document.getElementById("dlg").open)), t);
+    const res = await post({id: "Q13", kind: "accept", alt: null, text: ""}), body = await res.json();
+    ok("#9714: the server answers a decision on it 409 upstream-changed, naming the changed question", res.status() === 409 && body.error === "upstream-changed" && JSON.stringify(body.changedBy) === '["Q11"]', res.status() + " " + JSON.stringify(body));
+  }
+  if (PHASE === 16) { // #9714: the shell reconfirmed Q13
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
+    await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
+    await pick("Q13");
+    const q13 = (await (await page.request.get(base + "api/state")).json()).questions.questions.find(q => q.id === "Q13") || {};
+    ok("#9714: a reconfirm clears the state, the banner and the rail mark", q13.state === "open" && !q13.changedBy && !(await page.$("#upstreamChanged")) && !(await page.$('.qbtn[data-q="Q13"] .upchip')), q13.state + " " + JSON.stringify(q13.changedBy));
+    ok("#9714: the thread shows Claude's reconfirm line", /Reconfirmed after Q11 changed: The rollback owner does not turn on the rollout width\./.test(await text("#thread")), await text("#thread"));
+    await page.click("#choices .choice.rec"); await page.waitForTimeout(150);
+    ok("#9714: Save is enabled again", await page.$eval("[data-save]", el => !el.disabled), await text("#saveHint"));
+  }
   ok("zero console errors in phase " + PHASE, errors.length === 0, errors.join(" | "));
   } catch (e) { R.push("ERROR " + e.message.split("\n")[0]); }
   return R.join("\n");

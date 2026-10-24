@@ -669,6 +669,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const isOpen = st => st === "open" || st === "need";
   const live = q => !["sup", "arch"].includes(stateOf(q));
   const isStale = q => q.state === "stale" && stateOf(q) !== "arch";
+  const upChanged = q => q.state === "upstream-changed" && stateOf(q) !== "arch"; // an answer it depends on changed or was reopened, and Claude has not revised or reconfirmed it yet
+  const changedBy = q => upChanged(q) ? q.changedBy || [] : [];
   const summaryStale = g => {
     if (!g.summary || !Array.isArray(g.summaryOf)) return false;
     const now = S.doc.questions.filter(q => q.group === g.id).map(q => q.id).sort();
@@ -736,7 +738,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const waitingReply = q => events().some(e => e.id === q.id && (e.kind === "ask" || e.kind === "rephrase") && !e.withdrawn && !answered(q, e.seq)); // your ask or rephrase has no later reply from Claude
   const afterText = h => h.kind === "revise" ? "Revised after your answer - review" : "Replied after your answer " + fmtT(h.at);
   const answerLine = q => { const d = counted(q); return d ? "You answered " + LABEL[d.decision] + (d.decision === "alt" ? " (" + d.alt + ")" : "") + " at " + fmtT(d.updatedAt) : ""; };
-  const needsYou = q => isOpen(stateOf(q)) || isStale(q) || (live(q) && (unansweredReply(q) || !!afterAnswer(q)));
+  const needsYou = q => (isOpen(stateOf(q)) && !upLock(q).length) || isStale(q) || (live(q) && (unansweredReply(q) || !!afterAnswer(q))); // a locked upstream-changed question waits on Claude
   const parentMet = p => { const st = stateOf(Q[p]); return isAnswered(st) || st === "arch"; }; // an archived parent left the path, so nothing waits on it
   const blocked = q => stateOf(q) === "need" || upOf(q).some(p => !parentMet(p)); // answerable questions sort before these
   const openPrereqs = q => upOf(q).filter(p => !parentMet(p)); // what the frontier lock waits on; the server's open_prereqs reads the same
@@ -748,6 +750,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     return lockMode() === "hard" ? "Answer " + them + " first; Ask, Rephrase and Research this still work." : "Answer " + them + " first, or Save asks before answering this one anyway.";
   }
   const lockText = q => "Locked: waits on " + joinIds(openPrereqs(q)) + ", still open. " + lockAdvice(q);
+  const upLock = q => lockMode() === "off" ? [] : changedBy(q); // the server refuses a decision on it under confirm and hard
+  const upText = q => "The answer to " + joinIds(changedBy(q)) + " changed or was reopened, and Claude has not revised or reconfirmed " + q.id + " yet." + (upLock(q).length ? " Save stays locked until it does; Ask, Rephrase and Research this still work." : " You can still answer.");
   const settled = q => isAnswered(stateOf(q)) && !needsYou(q);
   function wrapFreeze(){ // ms left in the wrap-up freeze on decision saves
     const w = events().filter(e => e.kind === "wrapup" && !e.withdrawn).pop();
@@ -761,7 +765,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const groupTitle = gid => (groupById(gid) || {}).title || gid;
   const basisLabel = q => { const m = String(q.basis || "").match(/^\s*(?:basis\s*:\s*)?\**(verified|judgment)\b|(?:^|[.!?;(\n]|\s-)\s*\**(?:basis\s*:\s*)?(verified|judgment)\**(?:\s*:[^\n]*)?[.)]*\s*$/i); return m ? (m[1] || m[2]).toLowerCase() : ""; }; // the outcome label recommendation-basis.md defines, leading or trailing the basis
   const withheld = q => q.withheld === true; // the server derives it: no recommendation to accept, the field names the evidence that would settle it
-  const eligible = q => stateOf(q) === "open" && !!q.recommendation && !withheld(q) && !(q.group && lockedBy(q.group).length) && upOf(q).every(p => parentMet(p) && !isStale(Q[p]));
+  const eligible = q => stateOf(q) === "open" && !upChanged(q) && !!q.recommendation && !withheld(q) && !(q.group && lockedBy(q.group).length) && upOf(q).every(p => parentMet(p) && !isStale(Q[p]));
   function carryOver(){
     const max = {}, out = {};
     S.doc.questions.forEach(q => { const s = q.stage || ""; max[s] = Math.max(max[s] || 0, q.round || 1); });
@@ -775,7 +779,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const passes = q => passesShow(q) && matchesSearch(q);
   function passesShow(q){
     const st = stateOf(q);
-    return S.filter === "all" || (S.filter === "open" && needsYou(q) && !isAnswered(st)) || (S.filter === "review" && needsYou(q) && isAnswered(st)) || (S.filter === "pending" && (st === "wait" || st === "need" || q.state === "upstream-pending" || waitingReply(q))) || (S.filter === "answered" && isAnswered(st));
+    return S.filter === "all" || (S.filter === "open" && needsYou(q) && !isAnswered(st)) || (S.filter === "review" && needsYou(q) && isAnswered(st)) || (S.filter === "pending" && (st === "wait" || st === "need" || q.state === "upstream-pending" || upChanged(q) || waitingReply(q))) || (S.filter === "answered" && isAnswered(st));
   }
   const opened = () => new Set(lsGet("opened", []));
 
@@ -817,7 +821,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     }
     const landed = landedIds();
     secs.forEach(s => { // open or waiting sections start expanded; a stored toggle applies only while its default holds; a new round's section opens
-      s.open = s.items.filter(q => !isAnswered(stateOf(q)) && (stateOf(q) === "wait" || needsYou(q))).length;
+      s.open = s.items.filter(q => !isAnswered(stateOf(q)) && (stateOf(q) === "wait" || upChanged(q) || needsYou(q))).length;
       s.review = s.items.filter(q => isAnswered(stateOf(q)) && needsYou(q)).length;
       s.done = s.items.length > 0 && s.open === 0 && s.review === 0;
       s.fresh = s.items.some(q => landed.has(q.id));
@@ -852,6 +856,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       : '<span class="chip s-blocked lockchip" title="' + esc(lockText(q)) + '">' + LOCK_SVG + "Locked</span>");
     else chips.push('<span class="chip s-' + esc(st) + '">' + LABEL[st] + (st === "alt" && d ? " (" + esc(d.alt) + ")" : "") + "</span>");
     if (isStale(q)) chips.push('<span class="chip hot">' + ((q.upstreamChanged || []).length ? "Upstream changed" : "Stale") + "</span>");
+    if (upChanged(q)) chips.push('<span class="chip hot upchip" title="' + esc(upText(q)) + '">' + (upLock(q).length ? LOCK_SVG : "") + "Upstream changed, not handled yet</span>");
     if (up) chips.push('<span class="chip plain" title="' + esc("Reconfirm " + waitOn(q).join(", ") + " (under Review), or answer this one anyway") + '">Waiting on ' + esc(waitOn(q).join(", ")) + "</span>");
     if (q.revising && st !== "arch") chips.push('<span class="chip hot" title="Claude has not handled your answer to this question yet.">Answer not handled yet</span>');
     if (q.claudeRevising && st !== "arch") chips.push('<span class="chip hot" title="' + esc("Claude is revising this: " + q.claudeRevising.why) + '">Claude is revising this: ' + esc(trunc(q.claudeRevising.why, 60)) + "</span>");
@@ -1225,6 +1230,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (links) h += '<div class="links">' + links + "</div>";
     if (st === "arch") h += '<div class="sup-banner"><b>Archived:</b> ' + (q.supersededBy ? "superseded by " + refHtml(q.supersededBy) + ". Answer that one instead." : inline((q.archived || {}).why || "off the current path")) + "</div>"; // a replacement named here is the one banner for a superseded, archived card
     if (isStale(q)) h += '<div class="banner"><b>' + ((q.upstreamChanged || []).length ? "Upstream changed:</b> the recommendation of " + staleBy(q).map(refHtml).join(" ") + " was revised. " : "Stale:</b> " + staleBy(q).map(p => refHtml(p) + (firstDecided(p, q) ? " was decided after you answered this" : " changed")).join("; ") + ". ") + (reconfirmOf(q) ? "Your decision is kept: Reconfirm it (key a) or pick again." : "Pick an answer.") + "</div>";
+    else if (upChanged(q)) h += '<div class="lockban" id="upstreamChanged">' + (upLock(q).length ? LOCK_SVG : "") + "<b>Upstream changed, not handled yet:</b> the answer to " + changedBy(q).map(refHtml).join(" ") + " changed or was reopened, and Claude has not revised or reconfirmed " + esc(q.id) + " yet. " + (upLock(q).length ? "Save stays locked until it does; Ask, Rephrase and Research this still work." : "You can still answer.") + "</div>";
     else if (q.state === "upstream-pending" && st !== "arch") h += '<div class="lockban"><b>Waiting on ' + waitOn(q).map(refHtml).join(" ") + ":</b> an earlier answer on this path changed. Reconfirm " + esc(waitOn(q).join(", ")) + " (under Review), or answer this one anyway.</div>";
     if (st === "wait") h += '<div class="waitban"><b>Pending research:</b> ' + inline(q.waitsOn) + ". Research in progress" + (fmtT(q.waitingSince) ? ", started " + esc(fmtT(q.waitingSince)) : "") + ". You can answer anyway; it counts once the research returns.</div>";
     if (st === "need") h += '<div class="waitban need"><b>Needs your answer:</b> ' + inline(q.waitsOn) + ".</div>";
@@ -1300,10 +1306,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     $("choices").innerHTML = cs.map(c => '<label class="choice' + (!c.re && !c.wn && c.kind === "accept" ? " rec" : "") + (armed === c || (!armed && cur === c) ? " armed" : "") + (cur === c ? " current" : "") + '" title="' + esc(c.text) + '">' +
       '<input type="radio" name="choice" value="' + c.n + '" aria-keyshortcuts="' + (c.n <= 9 ? c.n : "") + letter(c) + '"' + (armed === c || (!armed && cur === c) ? " checked" : "") + (can ? "" : " disabled") + '><span class="t">' + (cur === c ? '<span class="yours">Your answer</span>' : "") + "<b>" + inline(c.label) + "</b> " + inline(c.text) + "</span></label>").join("");
     const needText = armed && needsNote(armed) && !(armed.who ? named(text) : text), frozen = wrapFreeze() > 0;
-    const hardLock = lockMode() === "hard" ? openPrereqs(q) : []; // only a decision waits; Ask, Rephrase and Research this stay enabled
+    const hardLock = lockMode() === "hard" ? openPrereqs(q) : [], ul = upLock(q); // only a decision waits; Ask, Rephrase and Research this stay enabled
     const label = armed ? (st === "wait" ? "Answer anyway: " : "Save: ") + (armed.kind === "accept" && !armed.re && (armed.wn || withNote(q, armed)) ? "Accept with note" : armed.label) : "Save";
     const asks = armed && armed.kind === "own" && /\?$/.test(text), cut = !asks && midSentence(text);
-    $("decideRow").innerHTML = '<button class="act primary" data-save="1" data-submit="1" aria-keyshortcuts="Control+Enter Meta+Enter"' + (can && armed && !needText && !frozen && !hardLock.length ? "" : " disabled") + ">" + esc(label) + '</button><span class="kbd" id="saveHint">' + (shut ? closedWhy() : frozen ? "Wrapping up" : hardLock.length ? "Locked: answer " + esc(joinIds(hardLock)) + " first" : needText ? (armed.kind === "hedged" ? "Hedged needs a condition" : armed.wn ? "Accept with note needs a note" : armed.who ? "Name who decides in the note" : "Own answer needs a note") : QuestionShape.keyHint("save")) + "</span>" +
+    $("decideRow").innerHTML = '<button class="act primary" data-save="1" data-submit="1" aria-keyshortcuts="Control+Enter Meta+Enter"' + (can && armed && !needText && !frozen && !hardLock.length && !ul.length ? "" : " disabled") + ">" + esc(label) + '</button><span class="kbd" id="saveHint">' + (shut ? closedWhy() : frozen ? "Wrapping up" : hardLock.length ? "Locked: answer " + esc(joinIds(hardLock)) + " first" : ul.length ? "Locked: Claude reviews it after " + esc(joinIds(ul)) + " changed" : needText ? (armed.kind === "hedged" ? "Hedged needs a condition" : armed.wn ? "Accept with note needs a note" : armed.who ? "Name who decides in the note" : "Own answer needs a note") : QuestionShape.keyHint("save")) + "</span>" +
       (asks ? '<span class="nudge-q" id="askNudge">This reads as a question. Ask Claude instead?<button class="act soft" data-act="ask" data-submit="1"' + (can ? "" : " disabled") + ">Ask Claude</button></span>" : "") +
       (cut ? '<span class="nudge-q" id="cutNudge">This note looks cut off. Finish it before saving?</span>' : "") +
       (d && d.decision && !d.aside ? '<span style="flex:1"></span><button class="act" data-act="reopen" data-submit="1" aria-keyshortcuts="r"' + (can && !frozen ? "" : " disabled") + ' title="Keeps your note (r)">Reopen</button>' : "");
@@ -1766,7 +1772,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const order = railOrder(), need = order.filter(id => needsYou(Q[id]));
     return need.find(id => !blocked(Q[id])) || need[0] || order[0] || null;
   }
-  function staleNow(){ const qs = S.doc.questions; return {stale: qs.filter(isStale).map(q => q.id), up: qs.filter(q => q.state === "upstream-pending").map(q => q.id)}; }
+  function staleNow(){ const qs = S.doc.questions; return {stale: qs.filter(isStale).map(q => q.id), up: qs.filter(q => q.state === "upstream-pending").map(q => q.id), changed: qs.filter(upChanged).map(q => q.id)}; }
   function depthOf(id, memo, path = []){ // the longest prerequisite chain above id
     if (!Q[id] || path.includes(id)) return 0;
     if (memo[id] == null) memo[id] = 1 + Math.max(0, ...(Q[id].dependsOn || []).map(p => depthOf(p, memo, [...path, id])));
@@ -1927,6 +1933,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const text = keep !== undefined ? keep : $("note").value.trim(), isDec = DEC.has(kind);
     if (kind === "ask") { const r = await resolveRef(q, text, "Send as a question"); if (r === false) return; if (r) { await send(r.kind, r.alt, undefined, undefined, r.kind === "accept"); return; } }
     if (isDec && wrapFreeze() > 0) { toast("Wrapping up. Saves resume once Claude handles the wrap-up.", true); return; }
+    if (isDec && kind !== "reopen" && upLock(q).length) { toast("Not saved: " + upText(q), true); return; } // Save is disabled; this catches the keyboard
     const waits = isDec && kind !== "reopen" && lockMode() !== "off" ? openPrereqs(q) : [];
     if (waits.length && !(ahead && waits.every(p => ahead.includes(p)))) { // the frontier lock: Save on a question whose prerequisite is open asks first
       const a = await askLock(q, waits);
@@ -1950,6 +1957,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
         const w = (data.waitsOn || []).map(String);
         S.busy = false; toast("Not saved: " + q.id + " waits on " + joinIds(w) + ", still open. Answer " + (w.length > 1 ? "them" : "it") + " first.", true); renderAnswer(); return;
       }
+      if (res.status === 409 && data.error === "upstream-changed") { // the server's lock: Claude has not revised or reconfirmed it since an upstream answer changed
+        S.busy = false; toast("Not saved: the answer to " + joinIds((data.changedBy || []).map(String)) + " changed, and Claude has not revised or reconfirmed " + q.id + " yet.", true); await refresh().catch(() => {}); renderAll(); return;
+      }
       if (!res.ok) throw new Error(data.error || res.status);
       saved = true; S.conflict = null;
       lsSet("draft:" + q.id, null);
@@ -1962,11 +1972,12 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
         return;
       }
       S.armed = null;
-      if (kind === "reopen") { toast("Reopened. Your note is kept under Your earlier answer."); fillNote(); renderAll(); return; }
-      offerUndo(data.seq, q.id, typed);
-      const now = staleNow(), fresh = now.stale.filter(id => !was.stale.includes(id)), more = now.up.filter(id => !was.up.includes(id)).length;
+      const now = staleNow(), fresh = now.stale.filter(id => !was.stale.includes(id)), more = now.up.filter(id => !was.up.includes(id)).length, onClaude = now.changed.filter(id => !was.changed.includes(id));
       const dm = {}; fresh.sort((a, b) => depthOf(a, dm) - depthOf(b, dm) || byIdCmp(Q[a], Q[b])); // dependency order
-      const sm = fresh.length ? " " + (fresh.length > 1 ? fresh.slice(0, -1).join(", ") + " and " + fresh[fresh.length - 1] + " need" : fresh[0] + " needs") + " review" + (more ? "; " + more + " more wait on " + (fresh.length > 1 ? "them" : "it") : "") + "." : "";
+      const sm = (fresh.length ? " " + (fresh.length > 1 ? fresh.slice(0, -1).join(", ") + " and " + fresh[fresh.length - 1] + " need" : fresh[0] + " needs") + " review" + (more ? "; " + more + " more wait on " + (fresh.length > 1 ? "them" : "it") : "") + "." : "") +
+        (onClaude.length ? " " + joinIds(onClaude) + (onClaude.length > 1 ? " wait" : " waits") + " on Claude to revise or reconfirm " + (onClaude.length > 1 ? "them" : "it") + "." : "");
+      if (kind === "reopen") { toast("Reopened. Your note is kept under Your earlier answer." + sm); fillNote(); renderAll(); return; }
+      offerUndo(data.seq, q.id, typed);
       if (held || noted) { // stays on the question: the answer waits on research, or Claude answers the note
         toast((held ? "Saved. Counts once Claude's research on " + q.id + " returns." : "Saved " + q.id + " as Accept with note. Claude's reply lands in its thread.") + sm + (held ? "" : queued()), false, true);
         fillNote(); renderAll(); return;
