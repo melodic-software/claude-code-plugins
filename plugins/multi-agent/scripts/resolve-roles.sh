@@ -201,6 +201,9 @@ valid_value() { # valid_value <field> <value>
   frontier_guard | declared) [[ "$2" == true || "$2" == false ]] ;;
   frontier)
     local a parts=()
+    # read drops one trailing empty field, so a trailing comma is refused here,
+    # as the schema's pattern refuses it.
+    [[ "$2" != *, ]] || return 1
     IFS=',' read -ra parts <<<"$2"
     ((${#parts[@]})) || return 1
     for a in "${parts[@]}"; do [[ "$ALIASES" == *" $a "* ]] || return 1; done

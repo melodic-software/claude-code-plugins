@@ -89,6 +89,18 @@ assert_contains "team with no file creates the concern YAML" "$out" "wrote: $T/t
 out="$(run team check session=opus)"
 assert_contains "the new YAML is the team layer" "$out" '"layer":"team","path":"'"$T/team/repo/docs/conventions/multi-agent.yaml"'","state":"read"'
 
+# A bound convention home moves the team YAML apply writes.
+fixture bound
+mkdir -p "$T/bound/repo/team-docs"
+printf '<!-- BEGIN GENERATED: convention-home -->\nConventions live in `team-docs`.\n<!-- END GENERATED: convention-home -->\n' >"$T/bound/repo/AGENTS.md"
+out="$(run bound apply --layer team --write roles.verifier.effort=xhigh)"
+assert_contains "bound home: team writes the YAML under the home" "$out" "wrote: $T/bound/repo/team-docs/multi-agent.yaml"
+state=absent
+[[ -e "$T/bound/repo/docs/conventions/multi-agent.yaml" ]] && state=present
+assert_eq "bound home: nothing is written under docs/conventions" absent "$state"
+out="$(run bound check session=opus)"
+assert_contains "bound home: the written YAML is the team layer" "$out" '"layer":"team","path":"'"$T/bound/repo/team-docs/multi-agent.yaml"'","state":"read"'
+
 # The legacy docs block seeds the YAML and is left as it was.
 fixture docs
 mkdir -p "$T/docs/repo/docs/conventions"

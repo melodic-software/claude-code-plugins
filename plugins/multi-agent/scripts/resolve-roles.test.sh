@@ -282,6 +282,13 @@ else
 fi
 assert_contains "rejected keys fall back to the layer below" "$out" '"worker":{"role":"worker","single":{"model":"inherit","omit_model":true,"effort":"medium"'
 
+# The frontier list takes what the schema's pattern takes: no empty alias.
+fixture frontiercomma
+printf 'schema: 1\nfrontier: opus,\n' >"$T/frontiercomma/repo/.claude/multi-agent.yaml"
+out="$(run frontiercomma worker --session-model opus)"
+assert_contains "trailing comma in frontier rejected" "$out" "frontier rejected: 'opus,'"
+assert_contains "rejected frontier keeps the bundled list" "$out" '"session_frontier":false'
+
 # Team and overlay are not read at a home root.
 mkdir -p "$T/homeroot/.claude"
 git -C "$T/homeroot" init -q
