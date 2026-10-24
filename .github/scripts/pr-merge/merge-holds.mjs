@@ -22,8 +22,8 @@
 //   for being trusted alone: the review lanes judge it.
 // - A trusted-actor list widening (actorsHold, the rule of
 //   babysit_risk._actors_widened): TRUSTED_ACTORS_PATH read at the base commit
-//   (BASE_SHA) and the head and compared; only removing entries passes. No
-//   approval lifts it: the owner merges it.
+//   (BASE_SHA) and the head and compared; only removing entries passes. The
+//   approval of the head that lifts a hold path lifts it.
 // - A cost path (COST_PATHS): a changed file the gate holds for the owner's
 //   cost decision. An approval does not lift it; only the decision the gate
 //   reads does (costDecision), linked from the body: on the pull request, or
@@ -680,13 +680,13 @@ export function pathLifters(items, humans, head) {
 // Why the pull request's `body`, discussion `items` and changed `files` hold
 // it; empty when nothing does. `lifters` approved the head, which lifts a
 // hold path but not an unreadable file list or hold-path list, nor a cost
-// path, which only the owner's `decision` lifts, nor `widened` (actorsHold's
-// reason), which the owner merges. `byPerson` (personWrote) says whether the
-// body can hold.
+// path, which only the owner's `decision` lifts. It lifts `widened`
+// (actorsHold's reason) too. `byPerson` (personWrote) says whether the body
+// can hold.
 export function holds(body, items, files, holdPaths, lifters = [], decision = null, byPerson = true, widened = null) {
   const reasons = [];
-  if (widened) {
-    reasons.push(`${widened}; an approval does not lift it: the owner merges it`);
+  if (widened && !lifters.length) {
+    reasons.push(`${widened}; an approving review of this head by a person on the trusted-actor list lifts it, then re-run ci-status`);
   }
   const pathReason = pathHold(files, holdPaths);
   const readable = Array.isArray(files) && Array.isArray(holdPaths);
@@ -838,6 +838,9 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     const held = pathHold(files, holdPaths);
     if (held && lifters.length && Array.isArray(holdPaths)) {
       console.log(`#${number}: ${lifters.join(", ")} approved this head, which lifts its hold path (${escape(held)}).`);
+    }
+    if (widened && lifters.length) {
+      console.log(`#${number}: ${lifters.join(", ")} approved this head, which lifts its trusted-actor list hold (${escape(widened)}).`);
     }
     if (verdictsFile) {
       const unverified = verdictHold(lines(verdictsFile).map((line) => JSON.parse(line)), env.GITHUB_REPOSITORY);

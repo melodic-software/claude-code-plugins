@@ -581,8 +581,8 @@ Every row refuses `.github/workflows/**` in any case and through any `..` segmen
 token has no `workflows` permission), `CODEOWNERS` at the root, in `.github/` or in `docs/`,
 `.gitmodules`, `**/settings*.json`, a symbolic link, a gitlink, and a rename into any of those.
 The rest of `.github/`, `.claude/`, `.mcp.json`, plugin hooks, `.claude-plugin/`, `lib/`,
-`scripts/`, `CLAUDE.md`, `AGENTS.md` and an executable bit reach review, and merge on it: the
-[HIGH path floor](#merge-authority) holds for a human merge only the takeover set: the
+`scripts/`, `CLAUDE.md`, `AGENTS.md` and an executable bit reach review, and merge on it: no path
+is held for being trusted ([merge authority](#merge-authority)), so the security lane judges the
 trusted-actor list, the trusted-trigger check, `CODEOWNERS`, `.gitmodules`, and `resolve-config`,
 whose code the token broker runs from main. The `ci-context`, `default`, `issue` and `merge-base` rows cap a patch at 300 paths, and the
 `merge-base` row a merge commit at 300 new blobs.
@@ -791,7 +791,9 @@ and its queued entries leave; two different identities, or an unreadable head co
   says and whatever an adopted author's own paths leave off the floor. The gate compares the
   base and head entries: a change that only removes entries merges; an added or changed entry,
   any other key changed, a side that cannot be read or parsed or repeats a key, and an added,
-  removed, renamed or copied list hold. An owner cost decision does not clear it.
+  removed, renamed or copied list hold. An owner cost decision does not clear it. `ci-status`
+  holds the same widening on a lanes App pull request pushed after auto-merge is armed
+  (`merge-holds.mjs` `actorsHold`), lifted by a trusted person's approval of the head.
 - **Security findings.** The security lane flags; only a CRITICAL finding, its top tier, holds the
   merge, as `security-finding`. Its inline comments and summary carry the severity lines
   `/review:security-review` defines, and a finding whose severity the gate cannot read counts as

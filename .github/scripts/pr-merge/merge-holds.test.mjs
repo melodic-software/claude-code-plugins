@@ -315,16 +315,24 @@ test("ci-status holds no trusted path or manifest change, only a configured deni
 
 // The trust gate (babysit_risk._actors_widened, owner direction 2026-10-24):
 // a change that adds or widens an entry of the trusted-actor list waits for
-// the owner, and one that only removes entries does not.
+// the owner, and one that only removes entries does not. ci-status has no
+// bypass, so the owner's approval of the head lifts it, as it lifts a hold
+// path.
 const ACTORS = ".github/standards/trusted-actors/trusted-actors.json";
 const KYLE = { id: 1, login: "kyle", kind: "human" };
 const LANES = { id: 2, login: "lanes[bot]", kind: "bot" };
 const listOf = (...actors) => `${JSON.stringify({ version: 1, actors }, null, 2)}\n`;
-test("ci-status holds a trusted-actor list widening that an approval does not lift, and passes a removal", async () => {
+test("ci-status holds a trusted-actor list widening until a trusted person approves the head, and passes a removal", async () => {
   const modified = [{ filename: ACTORS, status: "modified" }];
-  const widened = await ci(modified, { list: { [BASE]: listOf(KYLE), [HEAD]: listOf(KYLE, LANES) }, reviews: [approve] });
+  const list = { [BASE]: listOf(KYLE), [HEAD]: listOf(KYLE, LANES) };
+  const widened = await ci(modified, { list });
   assert.equal(widened.code, 1, widened.out);
-  assert.match(widened.out, /it widens the trusted-actor list \(\.github\/standards\/trusted-actors\/trusted-actors\.json: entries added or changed: .*lanes\[bot\].*\); an approval does not lift it/);
+  assert.match(widened.out, /it widens the trusted-actor list \(\.github\/standards\/trusted-actors\/trusted-actors\.json: entries added or changed: .*lanes\[bot\].*\); an approving review of this head/);
+  const approved = await ci(modified, { list, reviews: [approve] });
+  assert.equal(approved.code, 0, approved.out);
+  assert.match(approved.out, /owner-person approved this head, which lifts its trusted-actor list hold/);
+  const stranger = { ...approve, user: { login: "stranger", id: 9, type: "User" } };
+  assert.equal((await ci(modified, { list, reviews: [stranger] })).code, 1);
   const changed = await ci(modified, { list: { [BASE]: listOf(KYLE, LANES), [HEAD]: listOf(KYLE, { ...LANES, kind: "human" }) } });
   assert.equal(changed.code, 1, changed.out);
   const removed = await ci(modified, { list: { [BASE]: listOf(KYLE, LANES), [HEAD]: listOf(KYLE) } });
