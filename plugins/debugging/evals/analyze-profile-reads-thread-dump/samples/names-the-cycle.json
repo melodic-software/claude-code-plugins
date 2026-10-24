@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Cause: a lock-order deadlock in inventory/sync.py. stock-writer is stopped at sync.py:16 in post_ledger_entry, waiting for ledger_lock, while it still holds stock_lock taken at sync.py:10 in reserve_stock. ledger-reconciler is stopped at sync.py:27 in adjust_stock, waiting for stock_lock, while it holds ledger_lock taken at sync.py:21 in reconcile_ledger. Each holds what the other waits for. MainThread waits in join at sync.py:42. Status: likeliest explanation from one dump; a second dump a few seconds later with the same frames would settle it. No file was changed, and no temporary directory was made.",
+      "why": "both threads, both held and waited locks, the cycle"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The main thread is blocked in threading.py:1133 join, so the program hangs waiting for its workers. The heartbeat thread sleeps at sync.py:33. Add a timeout to join().",
+      "why": "misses both lock waits and the cycle, proposes a fix"
+    },
+    {
+      "answer": "stock-writer is waiting at sync.py:16 for ledger_lock. ledger-reconciler is waiting at sync.py:27 for stock_lock. Both threads are idle.",
+      "why": "names the waits but not which lock each thread holds"
+    }
+  ]
+}

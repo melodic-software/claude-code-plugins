@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "Planned mode. stable branch: drop: use main, which already blocks direct pushes and requires review plus the ci / consumer-e2e check (docs/branch-protection.md:5-7). Fast-forward workflow: drop, it only serves the branch. Ruleset on stable: drop: use the rule on main. Bot app: drop, it only pushes past the stable ruleset. Fewest moving parts: consumers keep installing from main, zero new mechanisms; the PR job in .github/workflows/ci.yml already installs into a sample consumer and runs its lint. Nothing persisted."}
+  ],
+  "fail": [
+    {"answer": "The stable branch and its workflow are reasonable for safety. Drop the bot app; a deploy key is simpler.", "why": "keeps two mechanisms"},
+    {"answer": "All four can go. Consumers should track main.", "why": "names no existing control"},
+    {"answer": "stable: drop: use main's protection rule. workflow: drop. ruleset: drop. app: drop.", "why": "no fewest-parts option"}
+  ]
+}

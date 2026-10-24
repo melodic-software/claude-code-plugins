@@ -1,0 +1,45 @@
+schema_version: "1.1"
+name: threads-capture-blocked-unattended
+description: An unattended threads capture on the launched pid ends blocked on elevation and runs no recorder, elevation or name lookup
+tags: [drive, threads, unattended]
+expected_outcome: "Drive reads the control-shop skill and the launch record in evidence/report.json, treats the threads capture as needing elevation because its recorder attaches to a pid, asks no question, records `blocked: capture needs elevation` for the threads capture in the report under evidence/, and runs no py-spy, sudo or process lookup by name."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/app-control:drive capture --kind threads --unattended --out ./evidence. Earlier in this run drive launched the shop app; evidence/report.json holds that launch record. The shop app has stopped responding."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write]
+  max_turns: 25
+  timeout_seconds: 600
+graders:
+  - name: blocked-on-elevation
+    type: regex
+    target: { source: file, path: evidence/report.json }
+    pattern: 'threads[\s\S]{0,400}capture needs elevation|capture needs elevation[\s\S]{0,400}threads'
+    arm: both
+  - name: no-recorder-or-elevation
+    type: tool_used
+    tool: Bash
+    input_match: '(?:"command":"|\\n|[;&|(]\s*)\s*(?:\S*/)?(?:sudo|doas|pkexec|py-spy|gdb)\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-process-lookup
+    type: tool_used
+    tool: Bash
+    input_match: '\b(?:ps|pgrep|pidof|pkill|killall)\b|/proc/[0-9]'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-shown-script
+    type: tool_used
+    tool: Write
+    input_match: '\.sh"'
+    min: 0
+    max: 0
+    arm: both
+  - name: asks-nothing
+    type: tool_used
+    tool: AskUserQuestion
+    min: 0
+    max: 0
+    arm: both

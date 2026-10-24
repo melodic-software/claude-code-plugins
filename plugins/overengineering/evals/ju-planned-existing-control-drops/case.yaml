@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: ju-planned-existing-control-drops
+description: Justify given a proposal (a long-lived branch, a workflow to move it, a ruleset to protect it, a bot app to push past the ruleset) drops each mechanism for the existing control on main and names tracking main as the fewest-parts option, writing nothing
+tags: [overengineering, justify, outcome, planned-mode, read-only]
+runs: 3
+expected_outcome: The run judges the proposal in planned mode. Each of the four mechanisms is dropped, citing the existing control that covers the same risk (main's protection rule with its required review and required consumer-e2e check, and the pull request CI job that installs the settings into a sample consumer). It names consumers tracking main, which adds no mechanism, as the option with the fewest moving parts. It makes no Write or Edit call.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/overengineering:justify Proposal, so consumers always get the latest settings without ever picking up a broken commit: add a long-lived `stable` branch that consumers install from, a workflow that fast-forwards `stable` to `main` after each merge, a ruleset that blocks direct pushes to `stable`, and a dedicated bot app the workflow authenticates as so it can push past that ruleset."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+  - name: says-drop-use
+    type: regex
+    pattern: '(?<!not )(?<!n''t )(?<!never )\bdrop(?:ped)?\b[`:,\s]*(?:use|covered by|already covered)\b'
+    flags: i
+  - name: drops-for-existing-controls
+    type: llm
+    focus: last_message
+    criteria: "PASS only if all hold: (1) none of the four proposed mechanisms (the stable branch, the fast-forward workflow, the ruleset on stable, the bot app) is kept as needed; each is dropped or falls with the mechanism it serves; (2) the reason given is an existing control that already covers the same risk, naming at least one of: the protection rule on main (blocked direct pushes, required review, required consumer-e2e check) or the pull request CI job that installs the settings into a sample consumer and runs its lint; (3) it names consumers installing from main, adding no new mechanism, as the option with the fewest moving parts or as the recommendation. FAIL if any of the four is kept as needed, if no existing control is named, or if no fewest-parts option is named."
