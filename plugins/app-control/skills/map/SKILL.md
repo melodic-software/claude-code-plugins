@@ -1,5 +1,5 @@
 ---
-description: "Generate a project's control skill (control-<app>) to the app-control contract: discover the repository first, ask only what discovery left open, write the hub, feature folders, config and driver CLI, then prove it once through /app-control:drive. Use when: 'create a control skill', 'map the features of this app', 'write a feature map', 'set up app control for this repo'."
+description: "Generate a project's control skill (its control-* skill) to the app-control contract: discover the repository first, ask only what discovery left open, write the hub, feature folders, config and driver CLI, then prove it once through /app-control:drive. Use when: 'create a control skill', 'map the features of this app', 'write a feature map', 'set up app control for this repo'."
 argument-hint: "[create] [<app>] [--dir <path>] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
