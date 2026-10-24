@@ -227,7 +227,7 @@ setup skills are class (ii) by contract; the 141
 | `harness-ops:lanes` | (i) machine-level session mutation, manual timing | KEEP `true` |
 | `harness-ops:plugins` | (i) mutating fleet sync | KEEP `true` |
 | `discipline:wait-what` | (i) trigger is human-internal | KEEP `true` |
-| `disk-hygiene:clean` | (i) destructive-capable, manual-only by design | KEEP `true` |
+| `disk-hygiene:clean` | (i) destructive-capable, manual-only by design | KEEP `true` (re-graded 2026-10-18 under D3 on [#6458](https://github.com/melodic-software/claude-code-plugins/issues/6458): still KEEP, the Windows/macOS manual deletion step and the opt-in elevated script do not stop for a person unattended; evidence in [the re-grade below](#re-grade-disk-hygieneclean-under-the-2026-10-18-decision-9706)) |
 | `dometrain:sync` | (iii) maintainer-only | KEEP `true` |
 | `education:teach` | (i) deliberate mode-entry, persistent coaching state | KEEP `true` |
 | `firecrawl:update` | (iii) maintainer-only | KEEP `true` |
@@ -360,6 +360,32 @@ Result: one KEEP (`discipline:be-ambitious`, class (i)) and five FLIPs. Fleet-wi
 `true` population after the 2026-08-21 grade (9) plus these six is 15 skills, of which this section
 grades the six that had no recorded class; the five flips take effect when the sibling item edits
 their frontmatter, and until then they remain `true`.
+
+## Re-grade: `disk-hygiene:clean` under the 2026-10-18 decision (#9706)
+
+Rule, from the owner's 2026-10-18 decision on
+[#6458](https://github.com/melodic-software/claude-code-plugins/issues/6458) (D3, option b): a
+destructive-capable skill becomes model-invocable only if every destructive step provably stops for a
+person even when it runs unattended. A stop that is a model-passable flag or a prose instruction does
+not hold. Read: `plugins/disk-hygiene/skills/clean/SKILL.md`, `reference/safety-model.md`,
+`reference/unsupported-platform-handoff.md`, and the guard's dispatch in
+`scripts/destructive_guard.py` (`_decide`, `_MUTATING_ENGINE_SUBCOMMANDS`).
+
+| Destructive step | The line that stops it | Holds unattended? |
+|---|---|---|
+| `hygiene.py apply --execute` (Linux engine lane, SKILL.md §6) | Guard: `command_kind in _MUTATING_ENGINE_SUBCOMMANDS and enabled` returns hook `ask`. Safety model: "in each mode its `ask` reaches a person or is denied", probed headless default (denied), `--bg` (parked at the prompt), headless `bypassPermissions` and auto (call listed in `permission_denials`, target intact), interactive bypass (prompt shown) | Yes. Not the `--execute`, `--confirm-tier` or `--approval-token` arguments: the model can read the preview's token and pass all three, and SKILL.md's "A tick is a policy-file default, not a user message" and "Take the user's own answer" are prose |
+| `hygiene.py handoff-apply` (Linux standalone-checkout deletion, SKILL.md §Arguments) | Same guard branch (`_MUTATING_ENGINE_SUBCOMMANDS`, `_HANDOFF_APPLY_ASK_REASON`) | By the same code path, but the probe above names only `apply`; `handoff-apply` is unprobed, so it is not proven |
+| Manual deletion on Windows/macOS (SKILL.md §6, `unsupported-platform-handoff.md`) | "The PowerShell guard lane turns deletion spellings into a hook-issued `ask`"; but "The lane is a raised bar, not fail-closed; its flagged set is enumerated, so an unflagged mutation spelling passes it" (SKILL.md Gotchas), and the probe record says "Not probed: the Windows PowerShell tool", with upstream [anthropics/claude-code#79356](https://github.com/anthropics/claude-code/issues/79356) (hook `ask` not enforced on the PowerShell tool in default mode) | **No.** An unflagged spelling runs with no prompt; the approval gate is prose only |
+| Opt-in elevated script, `Start-Process -Verb RunAs -Wait` (SKILL.md "Arguments and boundaries") | "show its full contents, launch it with `Start-Process -Verb RunAs -Wait`"; the safety model says the engine's authority holds "except inside the opt-in elevated script, which no guard sees" | **No.** No hook sees it; the stop is the UAC prompt and prose |
+| Confirmation gate (large-scan, root-children, removal approval) | "Take the user's own answer, given in this interactive session. Never supply, infer, or fabricate it"; "Automated, scheduled, remote, unattended, or no-human-in-loop sessions always audit and stop." | No. Instructions to the model, not a mechanism; only the `apply` hook `ask` above backs them |
+
+Verdict: **KEEP `true`.** The Linux `apply` lane holds, but the skill is graded as a whole and two
+destructive steps (the Windows/macOS manual deletion lane and the opt-in elevated script) have no
+deterministic stop that survives an unattended run. `handoff-apply` is unproven for want of a probe.
+`disable-model-invocation: true` stays in `SKILL.md`, so `git show HEAD:plugins/disk-hygiene/skills/clean/SKILL.md | grep -c '^disable-model-invocation: true'`
+prints 1. What would flip it: a probed fail-closed stop on the PowerShell deletion lane (or removing
+that lane and the elevated script), plus a `handoff-apply` probe row. No `SKILL.md` or changelog
+change follows from a KEEP.
 
 ## Cross-references
 
