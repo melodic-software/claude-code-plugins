@@ -4,7 +4,8 @@
 # gate's own cases (scripts/check-changelog-fragments.test.sh) cover what it
 # counts as current.
 # Canned gh responses follow the shapes the script reads: `gh pr list --json`
-# rows, GraphQL PullRequest.isInMergeQueue, and the REST check-runs list.
+# rows, GraphQL PullRequest.isInMergeQueue, and the REST check-runs list
+# (FAKE_RUNS, else one GitHub Actions run concluding FAKE_CI).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -42,7 +43,11 @@ case "$1 $2" in
 'api graphql')
   if [[ $FAKE_QUEUED == fail ]]; then exit 1; fi
   json="{\"data\":{\"node\":{\"isInMergeQueue\":$FAKE_QUEUED}}}" ;;
-api\ repos/*) json="{\"check_runs\":[{\"started_at\":\"2026-10-18T01:00:00Z\",\"conclusion\":\"$FAKE_CI\"}]}" ;;
+api\ repos/*)
+  runs=${FAKE_RUNS:-"[{\"started_at\":\"2026-10-18T01:00:00Z\",\"status\":\"completed\",\"conclusion\":\"$FAKE_CI\",\"app\":{\"id\":15368}}]"}
+  # Filter on app_id as the API does, when the query asks for it.
+  app=$(sed -n 's/.*[?&]app_id=\([0-9]*\).*/\1/p' <<<"$2")
+  json=$(jq -c --arg app "$app" '{check_runs: [.[] | select($app == "" or (.app.id | tostring) == $app)]}' <<<"$runs") ;;
 *) exit 9 ;;
 esac
 jq -r "$jq_expr" <<<"$json"
@@ -144,6 +149,42 @@ echo '# not queued, base behind main, ci-status passed'
 new_fixture yes
 FAKE_PRS="$(pr_json MERGEABLE)" run_decide GATE_RC=0 FAKE_CI=success
 check 'behind+passed: no rebuild' false "$(val rebuild)"
+
+# run <started_at|null> <conclusion> [app id]: one completed ci-status run.
+run() { printf '{"started_at":%s,"status":"completed","conclusion":"%s","app":{"id":%s}}' "$1" "$2" "${3:-15368}"; }
+t1='"2026-10-18T01:00:00Z"' t2='"2026-10-18T02:00:00Z"'
+
+echo '# base behind main: another app posts a later ci-status success'
+new_fixture yes
+FAKE_PRS="$(pr_json MERGEABLE)" run_decide GATE_RC=0 FAKE_RUNS="[$(run "$t1" failure),$(run "$t2" success 99)]"
+check 'other app: its later success does not decide (rebuild)' true "$(val rebuild)"
+check 'other app: reads only GitHub Actions runs' 1 "$(grep -c 'check_name=ci-status&app_id=15368' "$TMP/gh.log" || true)"
+
+echo '# base behind main: two runs start at the same time, one failed'
+new_fixture yes
+FAKE_PRS="$(pr_json MERGEABLE)" run_decide GATE_RC=0 FAKE_RUNS="[$(run "$t1" failure),$(run "$t1" success)]"
+check 'tie: the failure decides (rebuild)' true "$(val rebuild)"
+
+echo '# base behind main: a failed run with no start time beside a later success'
+new_fixture yes
+FAKE_PRS="$(pr_json MERGEABLE)" run_decide GATE_RC=0 FAKE_RUNS="[$(run "$t2" success),$(run null failure)]"
+check 'no start time: the failure decides (rebuild)' true "$(val rebuild)"
+
+echo '# base behind main: an earlier failure, then a later success'
+new_fixture yes
+FAKE_PRS="$(pr_json MERGEABLE)" run_decide GATE_RC=0 FAKE_RUNS="[$(run "$t1" failure),$(run "$t2" success)]"
+check 'later success: no rebuild' false "$(val rebuild)"
+
+# ci_status <runs>: what ci-status.sh, which the queue step also reads, prints.
+ci_status() { env PATH="$TMP/bin:$PATH" GH_LOG=/dev/null GITHUB_REPOSITORY=o/r FAKE_RUNS="$1" bash "$SCRIPT_DIR/ci-status.sh" "$HEAD_SHA"; }
+echo '# ci-status.sh'
+check 'ci-status: no run is pending' pending "$(ci_status '[]')"
+check 'ci-status: only another app ran, pending' pending "$(ci_status "[$(run "$t2" success 99)]")"
+check 'ci-status: a running run is pending' pending "$(ci_status "[$(run "$t1" success),{\"started_at\":$t2,\"status\":\"in_progress\",\"conclusion\":null,\"app\":{\"id\":15368}}]")"
+check 'ci-status: a later success passes' success "$(ci_status "[$(run "$t1" failure),$(run "$t2" success)]")"
+check 'ci-status: a tied cancel and failure is failure' failure "$(ci_status "[$(run "$t1" cancelled),$(run "$t1" failure)]")"
+check 'ci-status: a tied failure and cancel is failure' failure "$(ci_status "[$(run "$t1" failure),$(run "$t1" cancelled)]")"
+check 'ci-status: a lone cancel is cancelled' cancelled "$(ci_status "[$(run "$t1" cancelled)]")"
 
 echo '# gate error'
 new_fixture no

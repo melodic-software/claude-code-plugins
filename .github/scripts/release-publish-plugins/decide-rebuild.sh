@@ -9,8 +9,8 @@
 #   rebuild  false while it is in the merge queue; otherwise true when none is
 #            open, when it has a merge conflict, when main changed a file it
 #            changes (a fragment it consumed, a CHANGELOG.md, a plugin.json)
-#            since its build base, or when its ci-status failed on a base behind
-#            main. Fragments main added since the build base do not count: they
+#            since its build base, or when its GitHub Actions ci-status failed
+#            (ci-status.sh) on a base behind main. Fragments main added since the build base do not count: they
 #            ride the next release (ADR 0048, The release pull request and the
 #            2026-10-20 amendment)
 #   deferred true when a push run would have rebuilt an open one: a push never
@@ -21,6 +21,8 @@
 # else an error.
 set -euo pipefail
 : "${GITHUB_REPOSITORY:?}" "${GITHUB_OUTPUT:?}" "${GITHUB_EVENT_NAME:?}"
+# Resolved before the checkouts below move the tree; the read runs on main's.
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # rebuild <annotation> <why>: rebuild, or on a push leave it to the next scheduled run.
 rebuild() {
@@ -74,21 +76,20 @@ decide() {
   env -u GH_TOKEN scripts/check-changelog-fragments.sh --check-release "$main_sha" || rc=$?
   git checkout -q -f --detach "$main_sha"
   case "$rc" in
-  0)
-    # A failed check on a base behind main never clears on a re-run; rebuild on main's tip.
-    if ! git merge-base --is-ancestor "$main_sha" "$head" &&
-      [[ "$(gh api "repos/$GITHUB_REPOSITORY/commits/$head/check-runs?check_name=ci-status" \
-        --jq '.check_runs | sort_by(.started_at) | last | .conclusion // "pending"')" == failure ]]; then
-      rebuild ::warning:: "ci-status failed on release pull request #$number and its base is behind main"
-    else
-      echo "Release pull request #$number changes no file main changed since its build base."
-      echo "rebuild=false" >>"$GITHUB_OUTPUT"
-    fi
-    ;;
-  1)
-    rebuild ::warning:: "Main changed a file release pull request #$number changes since its build base"
-    ;;
-  *) return "$rc" ;;
+    0)
+      # A failed check on a base behind main never clears on a re-run; rebuild on main's tip.
+      if ! git merge-base --is-ancestor "$main_sha" "$head" &&
+        [[ "$("$here/ci-status.sh" "$head")" == failure ]]; then
+        rebuild ::warning:: "ci-status failed on release pull request #$number and its base is behind main"
+      else
+        echo "Release pull request #$number changes no file main changed since its build base."
+        echo "rebuild=false" >>"$GITHUB_OUTPUT"
+      fi
+      ;;
+    1)
+      rebuild ::warning:: "Main changed a file release pull request #$number changes since its build base"
+      ;;
+    *) return "$rc" ;;
   esac
 }
 
