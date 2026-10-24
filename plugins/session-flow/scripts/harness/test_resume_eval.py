@@ -988,3 +988,11 @@ def test_multi_hop_writes_one_handoff_per_hop_and_applies_scripted_turns(tmp_pat
             for turn in hop["scripted_turns"]:
                 if turn["role"] == "user":
                     assert turn["text"] not in sent
+
+
+def test_removing_one_run_leaves_runs_whose_index_shares_its_prefix(tmp_path):
+    arm = tmp_path / "runs" / "case" / "before"
+    for name in ("1", "1-claude", "1-codex", "10", "10-codex", "11", "2"):
+        (arm / name).mkdir(parents=True)
+    resume_eval.remove_run_dirs(arm / "1")
+    assert sorted(p.name for p in arm.iterdir()) == ["10", "10-codex", "11", "2"]

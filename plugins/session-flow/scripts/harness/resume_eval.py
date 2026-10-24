@@ -1390,9 +1390,17 @@ def run_once(
         (keep_root / "graded.json").write_text(
             json.dumps(results, indent=2, default=str) + "\n", encoding="utf-8"
         )
-        for path in run_dir.parent.glob(f"{index}*"):
-            shutil.rmtree(path, ignore_errors=True)
+        remove_run_dirs(run_dir)
     return results
+
+
+def remove_run_dirs(run_dir: Path) -> None:
+    """Remove one run's directory and its per-reader copies (`<index>-<reader>`),
+    never a sibling run whose index starts with the same digits."""
+    import shutil
+
+    for path in [run_dir, *run_dir.parent.glob(f"{run_dir.name}-*")]:
+        shutil.rmtree(path, ignore_errors=True)
 
 
 # --- command line ------------------------------------------------------------------
