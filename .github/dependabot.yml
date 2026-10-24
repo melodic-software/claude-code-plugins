@@ -141,6 +141,25 @@ updates:
         update-types:
           - "minor"
           - "patch"
+  # The harness-ops control-claude-code driver's terminal engine (@microsoft/tui-test).
+  # Nothing is vendored: the committed lockfile is what `npm ci` installs on first use
+  # (docs/conventions/on-demand-dependencies/), so a bump here is the release.
+  - package-ecosystem: npm
+    directory: /plugins/harness-ops/skills/control-claude-code/driver
+    labels:
+      - dependencies
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 3
+    groups:
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
   # The testing check-visual-parity skill's pixelmatch and pngjs. Nothing is
   # vendored: the committed lockfile is what `npm ci` installs on first use
   # (docs/conventions/on-demand-dependencies/), so a bump here is the release.
