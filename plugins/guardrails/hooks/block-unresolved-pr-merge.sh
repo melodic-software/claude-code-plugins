@@ -65,10 +65,14 @@
 # more than one merge is blocked as well, so each merge runs, and is checked,
 # as its own command. ALSO FAILS CLOSED: a GraphQL merge,
 # auto-merge or merge-queue mutation whose PR cannot be resolved (an id from a
-# variable or `$(...)`, an unreadable node, no gh) is blocked, because a
-# scripted mutation almost always takes its id that way. In a Claude Code
-# cloud session GraphQL is refused and no cloud route resolves a node id, so
-# every GraphQL merge mutation is blocked there, literal id or not; merge with
+# variable or `$(...)`, an unreadable node) is blocked, because a
+# scripted mutation almost always takes its id that way. A literal `PR_...` id
+# with gh missing or unauthenticated fails open with the notice (#7376, the
+# owner's decision on #6463); a non-literal id is blocked whether or not gh is
+# there. In a Claude Code
+# cloud session GraphQL is refused (HTTP 403, not an auth failure) and no cloud
+# route resolves a node id, so every GraphQL merge mutation is blocked there
+# when gh answers, literal id or not; merge with
 # `gh pr merge <number>` or the REST route, which the guard can check.
 #
 # COMMAND POSITION. Leading assignments, a reserved word the tokenizer leaves
@@ -625,7 +629,6 @@ _bupm_refuse_target() {
 # resolve; see the fail-closed note below.
 if [[ "$BUPM_FORM" == graphql ]]; then
   [[ -n "$BUPM_NODE" ]] || _bupm_refuse "the mutation's pull request id is not a literal PR_ node id in the command"
-  command -v gh >/dev/null 2>&1 || _bupm_refuse "gh is not on PATH to resolve node $BUPM_NODE"
 fi
 command -v gh >/dev/null 2>&1 || _bupm_unchecked "gh is not on PATH"
 
@@ -638,8 +641,15 @@ command -v gh >/dev/null 2>&1 || _bupm_unchecked "gh is not on PATH"
 if [[ "$BUPM_FORM" == graphql ]]; then
   # shellcheck disable=SC2016  # GraphQL variables, not shell expansions
   _bupm_api graphql -f query='query($id:ID!){node(id:$id){... on PullRequest{number repository{nameWithOwner}}}}' \
-    -f id="$BUPM_NODE" --jq '.data.node | "\(.repository.nameWithOwner) \(.number)"' ||
+    -f id="$BUPM_NODE" --jq '.data.node | "\(.repository.nameWithOwner) \(.number)"' || {
+    # A literal id with gh unauthenticated fails open like the other paths (#7376);
+    # any other failed read of the node still fails closed. Only gh's own
+    # not-logged-in phrasings match: a 403 that merely mentions authentication
+    # (SSO, SAML, a proxy) is not a missing login.
+    [[ "$BUPM_ERR" =~ (Bad\ credentials|HTTP\ 401|gh\ auth\ login|not\ logged\ in) ]] &&
+      _bupm_unchecked "node $BUPM_NODE: $BUPM_ERR"
     _bupm_refuse "node $BUPM_NODE could not be read: $BUPM_ERR"
+  }
   read -r BUPM_REPO BUPM_NUM <<<"$BUPM_OUT"
   [[ "$BUPM_NUM" =~ ^[0-9]+$ ]] || _bupm_refuse "node $BUPM_NODE is not a pull request"
 fi

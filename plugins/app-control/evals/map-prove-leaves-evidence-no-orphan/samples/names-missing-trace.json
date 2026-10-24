@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "cart-header-02-trace.zip is listed in drive's report but is not in ./evidence, so the proof is not complete.",
+      "why": "names the missing artifact"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "All evidence paths exist; the control skill is proven.",
+      "why": "never names the missing trace"
+    }
+  ]
+}
