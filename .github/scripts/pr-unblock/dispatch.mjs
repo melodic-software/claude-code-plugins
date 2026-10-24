@@ -7,11 +7,14 @@
 // It lists open PRs into main, keeps the non-draft, same-repository ones
 // whose mergeable state is CONFLICTING (re-querying UNKNOWN a bounded number
 // of times), skips a PR whose resolve-conflicts run is still queued or going,
-// or whose current head already carries a pr-unblock check run (one the usage
-// limit stopped stops counting once its limit resets, see limit-stop.mjs),
-// and dispatches pr-unblock.yml on main for at most maxDispatch of them,
-// lowest PR number first. Labels and authors are left to the lane's own
-// config and gate. Logs carry PR numbers, SHAs and run ids only. The run ids
+// a held PR (do-not-merge, or the human-gated label unless another lane's
+// escalation put it on: gate-source.mjs prHold), or one whose current head
+// already carries a pr-unblock check run that handles it (limit-stop.mjs: a
+// limit stop stops counting once its limit resets, a failed run until
+// limit-stops-per-head failures stand on the head, and a skip while held
+// once the hold is gone), and dispatches pr-unblock.yml on main for at most
+// maxDispatch of them, lowest PR number first. Authors are left to the lane's
+// own config and gate. Logs carry PR numbers, SHAs and run ids only. The run ids
 // it dispatched become the step output run-ids, which the workflow records.
 // The same run then starts review-dependency for review-tier Dependabot PRs
 // (dependency-dispatch.mjs), fix-ci for lanes App PRs and, with an
@@ -33,6 +36,7 @@ import { testedRun } from "../maintenance-reconcile-lost-runs/infra-failure.mjs"
 import { DEPENDABOT_ID, POLICY_PATH } from "./dependency-classify.mjs";
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
 import { emptyRecord, isHandled, markHandled, pruneRecord, readRecord, writeRecord } from "./dispatch-record.mjs";
+import { prHold } from "./gate-source.mjs";
 import { runTitle } from "./feedback-dispatch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel, LIST_QUERY as CI_FIX_QUERY } from "./fix-ci-dispatch.mjs";
 import { dispatchDocsFixes, HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY, LIST_QUERY as DOCS_FIX_QUERY } from "./fix-docs-dispatch.mjs";
@@ -54,16 +58,26 @@ export const DEFAULTS = Object.freeze({
   // at about a minute (judgment).
   unknownRetries: 5,
   unknownDelayMs: 10_000,
+  // resolve-conflicts's applies-when labels-absent and the human-gated label
+  // (docs/conventions/pr-pipeline.yaml), checked before its check runs are read.
+  holdLabels: Object.freeze(["do-not-merge", "needs-human"]),
 });
 
 // The run id form the record's readers accept.
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
 const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
 
+// A merge commit on a Dependabot head stops Dependabot's own rebases, which
+// resolve its conflicts, and breaks the pr-merge Dependabot tier.
+function isDependabotHead(node) {
+  return String(node.headRefName ?? "").startsWith("dependabot/") && node.author?.databaseId === DEPENDABOT_ID;
+}
+
 function isCandidate(node, base) {
   return (
     node.isDraft === false &&
     node.isCrossRepository === false &&
+    !isDependabotHead(node) &&
     node.baseRefName === base &&
     node.mergeable === "CONFLICTING"
   );
@@ -72,6 +86,7 @@ function isCandidate(node, base) {
 function isPending(node, base) {
   return (
     node.isDraft === false &&
+    !isDependabotHead(node) &&
     node.isCrossRepository === false &&
     node.baseRefName === base &&
     node.mergeable === "UNKNOWN"
@@ -108,6 +123,9 @@ export async function dispatchConflicting({
   limits,
   listed,
   record = emptyRecord(),
+  holdLabels = DEFAULTS.holdLabels,
+  gateLabel = "needs-human",
+  appSenderId,
 }) {
   const nodes = listed ?? (await listAll(api, base));
   // A recorded head is skipped whatever its mergeable state, so it is neither
@@ -164,15 +182,30 @@ export async function dispatchConflicting({
     }
     let handled;
     try {
+      const { held, why } = await prHold({
+        labels: (node.labels?.nodes ?? []).map((label) => label?.name),
+        holdLabels,
+        gateLabel,
+        head: node.headRefOid,
+        activity,
+        appId: appSenderId,
+        readTimeline: () => api.listTimeline(node.number),
+      });
+      // Not recorded: the hold can come off with the head unchanged.
+      if (held) {
+        log(`skip #${node.number}: ${why}`);
+        continue;
+      }
       const existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
-      handled = anyHandles(existing, { now, limits });
-      if (permanentlyHandles(existing)) {
+      const options = { limits, failuresRetry: true, heldSkipsRelease: true };
+      handled = anyHandles(existing, { now, ...options });
+      if (permanentlyHandles(existing, options)) {
         markHandled(record, checkName, node.headRefOid);
       }
     } catch (error) {
       failed += 1;
       log(
-        `::error::#${node.number}: could not read check runs for ${node.headRefOid}: ${error.message}`,
+        `::error::#${node.number}: could not read its holds or check runs for ${node.headRefOid}: ${error.message}`,
       );
       continue;
     }
@@ -274,7 +307,7 @@ export function createGitHubApi({
     // fix-ci-dispatch.mjs's listing: one query per page, with its cost.
     async listCiFixCandidates({ base, after }) {
       const data = await graphql(CI_FIX_QUERY, { owner, name, base, after: after ?? null });
-      return { rateLimit: data.rateLimit, pullRequests: data.repository.pullRequests };
+      return { rateLimit: data.rateLimit, pullRequests: data.repository.pullRequests, baseCommittedAt: data.repository.ref?.target?.committedDate };
     },
     // fix-docs-dispatch.mjs's listing and its per-PR check-run history.
     async listDocsFixCandidates({ base, after }) {
@@ -307,6 +340,8 @@ export function createGitHubApi({
     async getCommit(sha) {
       return request(`${apiUrl}/repos/${owner}/${name}/commits/${encodeURIComponent(sha)}`);
     },
+    // A held PR's issue timeline (gate-source.mjs reads its REST shape).
+    listTimeline: (number) => paginate(`issues/${Number(number)}/timeline`),
     async listCheckRuns({ sha, checkName, appId }) {
       const query = new URLSearchParams({
         check_name: checkName,
@@ -409,6 +444,19 @@ function wrapRunIds(base, env) {
   };
 }
 
+// A held PR's timeline is read at most once a run, however many dispatchers
+// ask.
+export function shareTimeline(base) {
+  const seen = new Map();
+  const listTimeline = (number) => {
+    if (!seen.has(number)) {
+      seen.set(number, base.listTimeline(number));
+    }
+    return seen.get(number);
+  };
+  return { ...base, listTimeline };
+}
+
 // Writes the dispatched run ids, lowest PR first, as the step output run-ids,
 // which the workflow records as an artifact on this run.
 export async function main(
@@ -438,7 +486,7 @@ export async function main(
       fetch: budget.fetch,
     });
   try {
-    return await dispatchAll(env, { client: wrapRunIds(base, env), sleep, log, loadLimits, loadAdoption, now });
+    return await dispatchAll(env, { client: shareTimeline(wrapRunIds(base, env)), sleep, log, loadLimits, loadAdoption, now });
   } finally {
     if (budget) {
       log(budget.summary());
@@ -452,7 +500,17 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
   const listed = await listAll(client, DEFAULTS.base);
   const { record, text } = readRecord(env.DISPATCH_RECORD);
   pruneRecord(record, new Set(listed.map((node) => node.headRefOid)));
-  const conflicts = await dispatchConflicting({ api: client, runId: env.GITHUB_RUN_ID, sleep, log, limits, now, listed, record });
+  // The human-gated label another lane's escalation may leave on for
+  // resolve-conflicts, fix-ci and fix-docs; null when unreadable, so it holds.
+  const appSenderId = /^[1-9][0-9]*$/.test(env.APP_SENDER_ID ?? "") ? Number(env.APP_SENDER_ID) : undefined;
+  let gateLabel = null;
+  try {
+    gateLabel = baseHumanGatedLabel(env);
+  } catch (error) {
+    log(`::warning::cannot read the human-gated label from the base .work-item-tracker.json (${error.message}); it holds every PR it is on`);
+  }
+  const gate = { gateLabel, appSenderId };
+  const conflicts = await dispatchConflicting({ api: client, runId: env.GITHUB_RUN_ID, sleep, log, limits, now, listed, record, ...gate });
   const reviews = await dispatchDependencyReviews({
     api: client,
     runId: env.GITHUB_RUN_ID,
@@ -492,8 +550,10 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
       appSenderId: Number(env.APP_SENDER_ID),
       maxDispatch: limits["fix-ci-per-run"] ?? 2,
       restarts: limits["fix-ci-restarts"] ?? 1,
+      maxRunsPerHead: limits["limit-stops-per-head"] ?? CI_FIX_DEFAULTS.maxRunsPerHead,
       adoption: { ownerIds, idleHours: adoption["idle-hours"], held: ownersHeld },
       holdLabels,
+      gateLabel,
       now,
     });
     fixes.failed += ownersHeld === "" ? 0 : 1;
@@ -506,6 +566,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
     log,
     record,
     maxDispatch: limits["fix-docs-per-run"] ?? 2,
+    ...gate,
   });
   const dispatched = [...conflicts.dispatched, ...reviews.dispatched, ...fixes.dispatched, ...docs.dispatched];
   const failed = conflicts.failed + reviews.failed + fixes.failed + docs.failed;

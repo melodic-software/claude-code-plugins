@@ -20,8 +20,10 @@ pull requests"):
 
 The updates come from the `updated-dependencies` metadata in Dependabot's
 verified commit message when it is there, and from the title (`bump <name>
-from <a> to <b>`) or a group's body `Updates` lines otherwise. When both read,
-they must name the same dependencies and agree on which are major.
+from <a> to <b>`) or a group's body `Updates` lines otherwise. An entry with no
+`update-type` (a security update writes none) takes its jump from the same
+verified commit's subject, never the PR title. When both read, they must name
+the same dependencies and agree on which are major.
 
 The lane merges a tier `auto` pull request, and a tier `review` one only when
 the newest review-dependency round marker the lanes App posted names the
@@ -52,9 +54,9 @@ import base64
 import json
 import posixpath
 import re
-from collections.abc import Callable, Collection, Sequence
+from collections.abc import Callable, Collection, Iterable, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import quote
 
@@ -171,6 +173,215 @@ def is_dependabot(login: Any) -> bool:
     return str(login or "").strip().casefold() in DEPENDABOT_LOGINS
 
 
+# A Dependabot head is never updated from its base: the Dependabot merge
+# tier's commit check refuses a merge of the base by anyone else. Its rebase is asked for instead,
+# once per base tip; a head another writer has only merged the base into is
+# recreated.
+#   Pointer: <https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-pull-request-comment-commands#commands-for-dependabot-pull-requests>
+#   As-of: 2026-10-24.
+#   Recheck trigger: that section changes what rebase or recreate does to a
+#   branch that carries another author's commits.
+REBASE_HOLD = "dependabot-rebase-requested"
+EDITED_HOLD = "dependabot-branch-edited"
+REBASE_COMMAND = "@dependabot rebase"
+RECREATE_COMMAND = "@dependabot recreate"
+# The most files the compare endpoint lists; a full list may hide more.
+#   Pointer: <https://docs.github.com/en/rest/commits/commits#compare-two-commits>
+#   As-of: 2026-10-24.
+#   Recheck trigger: that section changes how many files a comparison returns.
+COMPARE_FILES_LIMIT = 300
+# Who may have posted a request that counts: a writer, or the caller's own
+# identity (a lane App's association does not show write access). Anyone can
+# comment on a public repository, so another author's marker suppresses nothing.
+TRUSTED_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
+Get = Callable[[str], Any]
+
+
+def is_dependabot_head(head_ref: Any, author_login: Any) -> bool:
+    """Whether a pull request's head is Dependabot's own branch."""
+    return str(head_ref or "").startswith("dependabot/") and is_dependabot(author_login)
+
+
+def rebase_marker(base_sha: str) -> str:
+    return f"<!-- babysit-dependabot-rebase base={base_sha} -->"
+
+
+def rebase_body(base_sha: str, command: str = REBASE_COMMAND) -> str:
+    """The request: the command alone on its first line, then the marker
+    naming the base tip it was asked against."""
+    return f"{command}\n{rebase_marker(base_sha)}"
+
+
+_REQUEST_MARKER = re.compile(
+    r"^<!-- babysit-dependabot-rebase base=([0-9a-f]{40}) -->$"
+)
+# At most one request per pull request in this window, so a head that stays
+# behind does not collect a comment at every base tip (judgment). A conflict
+# still gets its request, once per base tip.
+REQUEST_COOLDOWN = timedelta(hours=1)
+
+
+def counted_requests(
+    comments: Iterable[Any], identities: Collection[str] = ()
+) -> list[tuple[str, datetime | None]]:
+    """(base tip, posted at) of each request that counts: from a writer
+    (`TRUSTED_ASSOCIATIONS`) or one of `identities`, with the command on its
+    first line and the marker on its second. Anyone can comment on a public
+    repository, so another author's marker counts for nothing."""
+    own = {i.casefold() for i in identities}
+    found = []
+    for item in comments:
+        comment = json_object(item)
+        login = str(json_object(comment.get("user")).get("login") or "").casefold()
+        if (
+            comment.get("author_association") not in TRUSTED_ASSOCIATIONS
+            and login not in own
+        ):
+            continue
+        lines = str(comment.get("body") or "").replace("\r", "").split("\n")
+        marker = _REQUEST_MARKER.match(lines[1] if len(lines) > 1 else "")
+        if marker and lines[0] in (REBASE_COMMAND, RECREATE_COMMAND):
+            found.append((marker.group(1), _when_utc(comment.get("created_at"))))
+    return found
+
+
+def _when_utc(text: Any) -> datetime | None:
+    try:
+        return datetime.fromisoformat(str(text).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def rebase_requested(
+    comments: Iterable[Any], base_sha: str, identities: Collection[str] = ()
+) -> bool:
+    """Whether a counted request (`counted_requests`) names `base_sha`."""
+    return any(base == base_sha for base, _ in counted_requests(comments, identities))
+
+
+def is_signed_dependabot_commit(item: Any) -> bool:
+    """A commit authored by Dependabot and committed and signed by GitHub, as
+    Dependabot's own commits are; an author line alone is text anyone sets."""
+    commit = json_object(json_object(item).get("commit"))
+    return (
+        is_dependabot_commit(item)
+        and json_object(commit.get("committer")).get("email") == GITHUB_COMMITTER_EMAIL
+        and json_object(commit.get("verification")).get("verified") is True
+    )
+
+
+def _compare_files(get: Get, repo: str, old: str, new: str) -> dict[str, Any] | None:
+    """Each file `compare/old...new` changed, to its new blob (None when
+    removed); None when unreadable or possibly truncated."""
+    files = json_object(get(f"repos/{repo}/compare/{old}...{new}")).get("files")
+    if not isinstance(files, list) or len(files) >= COMPARE_FILES_LIMIT:
+        return None
+    return {
+        str(json_object(f).get("filename")): None
+        if json_object(f).get("status") == "removed"
+        else json_object(f).get("sha")
+        for f in files
+    }
+
+
+def is_base_merge(item: Any, repo: str, base_ref: str, get: Get) -> bool | None:
+    """Whether a pull request commit (REST `pulls/{n}/commits` entry) is a
+    merge of the base GitHub made and nothing more: two parents, the second
+    on the base branch, committed and signed by GitHub, and every file it
+    changes against the head parent reads as the base parent has it, unless
+    the head side changed that file too. None when a read fails."""
+    commit = json_object(json_object(item).get("commit"))
+    parents = json_object(item).get("parents")
+    if not isinstance(parents, list) or len(parents) != 2:
+        return False
+    committer = json_object(commit.get("committer")).get("email")
+    if committer != GITHUB_COMMITTER_EMAIL or not json_object(
+        commit.get("verification")
+    ).get("verified"):
+        return False
+    sha = str(json_object(item).get("sha") or "")
+    head, base = (str(json_object(p).get("sha") or "") for p in parents)
+    try:
+        status = json_object(
+            get(f"repos/{repo}/compare/{base}...{quote(base_ref, safe='')}")
+        ).get("status")
+        if status not in {"ahead", "identical", "behind", "diverged"}:
+            return None
+        if status not in {"ahead", "identical"}:
+            return False
+        merged = _compare_files(get, repo, head, sha)
+        from_base = _compare_files(get, repo, head, base)
+        head_side = _compare_files(get, repo, base, head)
+    except (RuntimeError, ValueError):
+        return None
+    if merged is None or from_base is None or head_side is None:
+        return None
+    return all(
+        path in from_base and (blob == from_base[path] or path in head_side)
+        for path, blob in merged.items()
+    )
+
+
+def rebase_request(
+    repo: str,
+    base_ref: str,
+    base_sha: str,
+    comments: Iterable[Any],
+    commits: Sequence[Any],
+    get: Get,
+    identities: Collection[str] = (),
+    conflicting: bool = False,
+    now: datetime | None = None,
+) -> tuple[str, str | None, str]:
+    """(hold, comment body to post or None, why) for a behind Dependabot
+    head. One request per base tip, and none within `REQUEST_COOLDOWN` of
+    the newest counted one unless the head conflicts with its base (an
+    unreadable time counts as recent). Every commit Dependabot's: a rebase. The others all base merges
+    GitHub made (a stray update-branch): a recreate, which drops only them.
+    Any other commit holds as edited and posts nothing, since a recreate
+    would discard it. One request per base tip."""
+    requests = counted_requests(comments, identities)
+    if any(base == base_sha for base, _ in requests):
+        return (
+            REBASE_HOLD,
+            None,
+            f"a Dependabot request at base {base_sha} was already posted",
+        )
+    now = now or datetime.now(UTC)
+    if not conflicting and any(
+        at is None or now - at < REQUEST_COOLDOWN for _, at in requests
+    ):
+        return (
+            REBASE_HOLD,
+            None,
+            "a Dependabot request was posted within the last hour; the next "
+            "waits for it unless the head conflicts",
+        )
+    others = [c for c in commits if not is_signed_dependabot_commit(c)]
+    for item in others:
+        sha = str(json_object(item).get("sha") or "")[:12]
+        merge = is_base_merge(item, repo, base_ref, get)
+        if merge is None:
+            return (
+                REBASE_HOLD,
+                None,
+                f"commit {sha} could not be read, so nothing was asked",
+            )
+        if not merge:
+            return (
+                EDITED_HOLD,
+                None,
+                f"commit {sha} is not Dependabot's or a base merge GitHub made; "
+                "a recreate would discard it, so a person decides",
+            )
+    command = RECREATE_COMMAND if others else REBASE_COMMAND
+    return (
+        REBASE_HOLD,
+        rebase_body(base_sha, command),
+        f"asked `{command}` at base {base_sha}",
+    )
+
+
 def _parts(version: str) -> tuple[int, int | None] | None:
     found = _VERSION.match(str(version))
     if not found:
@@ -242,6 +453,25 @@ def parse_title(title: str, body: str) -> list[Update] | None:
     return None
 
 
+def subject_major(message: str, update: Update) -> bool | None:
+    """The jump a metadata entry with no `update-type` (a security update
+    writes none) reads from its own Dependabot commit's subject, never the
+    editable PR title: only when the subject opens with `Bump <pkg> from <a>
+    to <b>` for the same package and the entry's version is `<b>`; None
+    otherwise, a group subject included."""
+    subject = _PREFIX.sub("", str(message).split("\n", 1)[0], count=1)
+    if update.version is None or _GROUP.search(subject):
+        return None
+    single = _SINGLE.match(subject)
+    if (
+        not single
+        or single.group(1) != update.name
+        or single.group(3) != update.version
+    ):
+        return None
+    return is_major(single.group(2), single.group(3))
+
+
 def classify(
     title: str,
     body: str,
@@ -259,9 +489,15 @@ def classify(
         commit = json_object(json_object(item).get("commit"))
         author = json_object(commit.get("author"))
         if (author.get("name"), author.get("email")) == DEPENDABOT_AUTHOR:
-            entries = parse_metadata(str(commit.get("message") or ""))
+            message = str(commit.get("message") or "")
+            entries = parse_metadata(message)
             if entries is not None:
-                metadata = (metadata or []) + entries
+                metadata = (metadata or []) + [
+                    u
+                    if u.major is not None
+                    else Update(u.name, subject_major(message, u), u.version)
+                    for u in entries
+                ]
     titled = parse_title(title, body)
     reasons: list[str] = []
     updates = metadata if metadata else titled

@@ -54,13 +54,16 @@ describe("searchTerms", () => {
 });
 
 // A fake GitHub recording every call.
-function fakeGitHub({ issue, comments = [], events = [], timeline = [], search = { items: [] } } = {}) {
+function fakeGitHub({ issue, comments = [], events = [], timeline = [], search = { items: [] }, spec = specOf() } = {}) {
   const calls = [];
   const github = async (method, path, body) => {
     calls.push({ method, path, body });
     const base = "/repos/o/r/issues/7";
     if (method === "POST" && path === "/graphql" && body.query.includes("issueTypes")) {
       return { data: { repository: { issueTypes: { nodes: [{ id: "IT_bug", name: "Bug", isEnabled: true }, { id: "IT_task", name: "Task", isEnabled: true }] } } } };
+    }
+    if (method === "POST" && path === "/graphql" && body.query.includes("comments(first")) {
+      return { data: { repository: { issue: spec } } };
     }
     if (method === "POST" && path === "/graphql") {
       return { data: { nodes: (body.variables.ids ?? []).map((id) => ({ id, lastEditedAt: null })) } };
@@ -90,6 +93,18 @@ function fakeGitHub({ issue, comments = [], events = [], timeline = [], search =
   };
   return { github, calls };
 }
+// The issue's text as admit.mjs specOf reads it: the body a listed human
+// wrote (`body`), and comments, each [authorId, body] (APP is a Bot).
+const actor = (id) => (id === APP ? { __typename: "Bot", databaseId: APP } : { __typename: "User", databaseId: id });
+const specOf = (body = "The README is wrong.", comments = []) => ({
+  body,
+  lastEditedAt: null,
+  author: actor(HUMAN),
+  editor: null,
+  comments: { totalCount: comments.length, nodes: comments.map(([id, text]) => ({ body: text, lastEditedAt: null, author: actor(id), editor: null })) },
+});
+const CONFIRMED = specOf("The README is wrong.", [[HUMAN, "**Decision recorded.**\n\n- [ ] The README count matches the plugin count"]]);
+const APP_ONLY = specOf("The README is wrong.", [[APP, `${REFINE_MARKER}\n- [ ] The README count matches the plugin count`]]);
 const writes = (calls) => calls.filter((call) => call.method !== "GET" && call.path !== "/graphql");
 
 const issueOf = (overrides = {}) => ({
@@ -250,11 +265,11 @@ describe("render", () => {
 describe("applyRefinement", () => {
   const labeledBy = (actor) => [{ event: "labeled", label: { name: NEEDS_DECISION }, actor: { id: actor } }];
   const apply = (fake, output) =>
-    applyRefinement({ github: fake.github, repository: "o/r", number: 7, appId: APP, rules, output: validateOutput(output, new Set([3])), context, log: () => {} });
+    applyRefinement({ github: fake.github, repository: "o/r", number: 7, appId: APP, humans, rules, output: validateOutput(output, new Set([3])), context, log: () => {} });
   const context = { issue: { title: issueOf().title, body: issueOf().body } };
 
   test("an exact refinement posts the comment, lifts the App's needs-decision, and asks for re-triage", async () => {
-    const fake = fakeGitHub({ issue: issueOf(), comments: [laneComment()], events: labeledBy(APP) });
+    const fake = fakeGitHub({ issue: issueOf(), comments: [laneComment()], events: labeledBy(APP), spec: CONFIRMED });
     const result = await apply(fake, EXACT);
     assert.equal(result.redispatch, true);
     const done = writes(fake.calls).map(({ method, path, body }) => `${method} ${path} ${JSON.stringify(body)}`);
@@ -272,7 +287,7 @@ describe("applyRefinement", () => {
   });
 
   test("an exact refinement of a status: ready issue admission refused asks for re-triage, once", async () => {
-    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "status: ready" }] }), comments: [laneComment()], events: [] });
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "status: ready" }] }), comments: [laneComment()], events: [], spec: CONFIRMED });
     const result = await apply(fake, EXACT);
     assert.equal(result.redispatch, true);
     const done = writes(fake.calls).map(({ method, path, body }) => `${method} ${path} ${JSON.stringify(body)}`);
@@ -311,7 +326,7 @@ describe("applyRefinement", () => {
   });
 
   test("a failed label update posts no marker, so the next refinement can finish the labels", async () => {
-    const fake = fakeGitHub({ issue: issueOf(), comments: [laneComment()], events: labeledBy(APP) });
+    const fake = fakeGitHub({ issue: issueOf(), comments: [laneComment()], events: labeledBy(APP), spec: CONFIRMED });
     const github = async (method, path, body) => {
       if (method === "POST" && path.endsWith("/labels")) {
         fake.calls.push({ method, path, body });
@@ -323,7 +338,7 @@ describe("applyRefinement", () => {
     assert.ok(!writes(fake.calls).some(({ path }) => path.endsWith("/comments")), "no marker comment was posted");
     assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"), "the issue keeps needs-decision when adding needs-triage fails");
     // The retry sees the labels the failed run left: the App's needs-decision, no marker.
-    const retry = fakeGitHub({ issue: issueOf(), comments: [laneComment()], events: labeledBy(APP) });
+    const retry = fakeGitHub({ issue: issueOf(), comments: [laneComment()], events: labeledBy(APP), spec: CONFIRMED });
     const result = await apply(retry, EXACT);
     assert.equal(result.redispatch, true);
     assert.ok(
@@ -331,6 +346,39 @@ describe("applyRefinement", () => {
       "the retry adds needs-triage",
     );
   });
+
+  // Owner decision Q9: admission reads criteria only from a listed human's
+  // text, so a re-triage on the App's text alone would only refuse again.
+  for (const [branch, setup] of [
+    ["the App's needs-decision", { issue: issueOf(), events: labeledBy(APP) }],
+    ["a status: ready issue awaiting admission", { issue: issueOf({ labels: [{ name: "status: ready" }] }), events: [] }],
+  ]) {
+    test(`an exact refinement of ${branch} whose only task list is the App's keeps the labels and asks for no re-triage`, async () => {
+      const fake = fakeGitHub({ ...setup, comments: [laneComment()], spec: APP_ONLY });
+      const result = await apply(fake, EXACT);
+      assert.deepEqual(result, { outcome: "exact", redispatch: false });
+      const done = writes(fake.calls);
+      assert.equal(done.length, 1, "the comment only: no needs-triage, needs-decision kept");
+      assert.match(done[0].body.body, /post them as your own comment whose first line is `\*\*Decision recorded\.\*\*`/);
+      assert.doesNotMatch(done[0].body.body, /triages the issue again/);
+    });
+
+    test(`an exact refinement of ${branch} reads the spec before its first label write and re-triages on a listed human's task list`, async () => {
+      const fake = fakeGitHub({ ...setup, comments: [laneComment()], spec: specOf("The README is wrong.\n\n- [ ] The README count matches the plugin count") });
+      const result = await apply(fake, EXACT);
+      assert.deepEqual(result, { outcome: "exact", redispatch: true });
+      const specRead = fake.calls.findIndex(({ path, body }) => path === "/graphql" && body.query.includes("comments(first"));
+      const labelWrite = fake.calls.findIndex(({ method, path }) => method === "POST" && path.endsWith("/labels"));
+      assert.ok(specRead !== -1 && specRead < labelWrite, "the spec is read before needs-triage is added");
+      assert.match(writes(fake.calls).at(-1).body.body, /triages the issue again/);
+    });
+
+    test(`an exact refinement of ${branch} whose spec read comes back malformed throws before any label write`, async () => {
+      const fake = fakeGitHub({ ...setup, comments: [laneComment()], spec: { body: 7 } });
+      await assert.rejects(apply(fake, EXACT), /unexpected shape/);
+      assert.deepEqual(writes(fake.calls), []);
+    });
+  }
 
   const untouched = [
     ["an issue whose body changed while the model ran", { issue: issueOf({ body: "Rewritten while the model ran." }), comments: [laneComment()], events: labeledBy(APP) }],

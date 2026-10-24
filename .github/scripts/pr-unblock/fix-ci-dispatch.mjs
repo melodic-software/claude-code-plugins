@@ -11,10 +11,13 @@
 // The listing is one GraphQL query per page of 50 pull requests: each one's
 // author, labels, body, last update, and its last commit's date and check
 // rollup. Its rateLimit.cost
-// is logged, the baseline for what the listing spends. A head is dispatched
-// when it has no pr-unblock / fix-ci check run from the GitHub Actions app,
-// or when every such run failed and there are at most `fix-ci-restarts` of
-// them; at most `fix-ci-per-run` per dispatcher run, lowest PR number first.
+// is logged, the baseline for what the listing spends; the same query reads
+// when the base tip was committed. A head is dispatched when it has no
+// pr-unblock / fix-ci check run from the GitHub Actions app, or when every
+// such run failed or found no failing check, fewer than
+// `limit-stops-per-head` of them stand on it, and since the base tip at most
+// `fix-ci-restarts` failed and none found nothing; at most `fix-ci-per-run`
+// per dispatcher run, lowest PR number first.
 // A head whose lanes passed but whose pr-test-windows run failed is a
 // candidate too. A head is skipped while the lost-run reconciler still re-runs
 // its failed run (infra-failure.mjs reconcilerOwns: an infra-only failure for
@@ -25,6 +28,7 @@
 
 import { reconcilerOwns } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { runTitle } from "./feedback-dispatch.mjs";
+import { prHold } from "./gate-source.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -41,7 +45,16 @@ export const DEFAULTS = Object.freeze({
   holdLabels: Object.freeze(["do-not-merge", "needs-human"]),
   // No owner is adopted unless the config lists one.
   adoption: Object.freeze({ ownerIds: Object.freeze([]), idleHours: 24 }),
+  // Failed or not-applicable fix-ci runs one head gets across base moves:
+  // limits.limit-stops-per-head's default, which dispatch.mjs passes resolved.
+  maxRunsPerHead: 3,
 });
+
+// The neutral check fix-ci-not-run posts when fix-ci-context found no failing
+// check to fix (report-check-run's `Skipped: <reason>` title).
+const NOT_APPLICABLE = "Skipped: not-applicable";
+// The neutral check a run skipped on a held PR posts.
+const HELD_SKIP = "Skipped: awaiting-human";
 
 const RUN_ID = /^[1-9][0-9]{0,14}$/;
 const MAX_PAGES = 20;
@@ -64,6 +77,7 @@ export function humanGatedLabel(text) {
 export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!, $after: String) {
   rateLimit { cost remaining }
   repository(owner: $owner, name: $name) {
+    ref(qualifiedName: $base) { target { ... on Commit { committedDate } } }
     pullRequests(states: OPEN, baseRefName: $base, first: 50, after: $after) {
       nodes {
         number isDraft isCrossRepository baseRefName headRefOid updatedAt body
@@ -77,8 +91,8 @@ export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!
                 contexts(first: 100) {
                   nodes {
                     __typename
-                    ... on CheckRun { name status conclusion title checkSuite { app { databaseId } } }
-                    ... on StatusContext { context state creator { login } }
+                    ... on CheckRun { name status conclusion title completedAt checkSuite { app { databaseId } } }
+                    ... on StatusContext { context state creator { __typename ... on Bot { databaseId } } }
                   }
                   pageInfo { hasNextPage }
                 }
@@ -116,17 +130,26 @@ function ownerIdle(node, idleHours, now) {
   return commit?.oid === node.headRefOid && Date.parse(node.updatedAt) <= since && Date.parse(commit.committedDate) <= since;
 }
 
-// The head's `ci-lanes` commit status when github-actions[bot] wrote it, as
-// ci-status's aggregate step does: the lanes' verdict alone. ci-status itself
-// also fails on a hold label, a pending or missing review and the PR
-// contract, none of which a CI fix mends.
-function lanesState(node) {
+// The GitHub Actions bot's user id. GraphQL reports its login as
+// `github-actions`, REST as `github-actions[bot]`; the id is the same in both.
+const ACTIONS_BOT_ID = 41898282;
+
+// The head's `ci-lanes` commit status, whoever set it.
+function lanesStatus(node) {
   const contexts = node.commits?.nodes?.[0]?.commit?.statusCheckRollup?.contexts?.nodes ?? [];
-  const status = contexts.find((context) => context?.__typename === "StatusContext" && context.context === "ci-lanes");
-  return status?.creator?.login === "github-actions[bot]" ? status.state : null;
+  return contexts.find((context) => context?.__typename === "StatusContext" && context.context === "ci-lanes");
 }
 
-const lanesFailed = (node) => ["FAILURE", "ERROR"].includes(lanesState(node));
+// The ci-lanes state when the GitHub Actions bot set it, else null: the
+// lanes' verdict alone. ci-status itself also fails on a hold label, a
+// pending or missing review and the PR contract, none of which a CI fix mends.
+function lanesState(node) {
+  const status = lanesStatus(node);
+  return status?.creator?.__typename === "Bot" && status.creator.databaseId === ACTIONS_BOT_ID ? status.state : null;
+}
+
+const failedState = (state) => ["FAILURE", "ERROR"].includes(state);
+const lanesFailed = (node) => failedState(lanesState(node));
 
 // The lanes passed and another check failed: an advisory lane's, if any.
 const advisoryFailed = (node, checks, checkName) =>
@@ -134,7 +157,22 @@ const advisoryFailed = (node, checks, checkName) =>
   checks.some((run) => run.name !== checkName && run.name !== "ci-status" && run.status === "COMPLETED" && run.conclusion === "FAILURE");
 
 // Why a listed PR is not dispatched, or "" when it is a candidate.
-export function skipReason(node, { base, appSenderId, actionsAppId, checkName, holdLabels, restarts, adoption = DEFAULTS.adoption, now = Date.now() }) {
+export function skipReason(
+  node,
+  {
+    base,
+    appSenderId,
+    actionsAppId,
+    checkName,
+    holdLabels,
+    gateLabel = null,
+    restarts,
+    maxRunsPerHead = DEFAULTS.maxRunsPerHead,
+    baseAt = NaN,
+    adoption = DEFAULTS.adoption,
+    now = Date.now(),
+  },
+) {
   if (node.isDraft !== false || node.isCrossRepository !== false || node.baseRefName !== base) {
     return "not a ready same-repository PR into the base";
   }
@@ -146,8 +184,15 @@ export function skipReason(node, { base, appSenderId, actionsAppId, checkName, h
   if (owner && adoption.held) {
     return adoption.held;
   }
-  if ((node.labels?.nodes ?? []).some((label) => holdLabels.includes(label?.name))) {
+  // The human-gated gateLabel holds only as node.laneGate says (gate-source.mjs
+  // prHold, attached by dispatchCiFixes just before it would dispatch); every
+  // other hold label holds.
+  const labels = (node.labels?.nodes ?? []).map((label) => label?.name);
+  if (labels.some((name) => holdLabels.includes(name) && name !== gateLabel)) {
     return "held";
+  }
+  if (gateLabel !== null && labels.includes(gateLabel) && node.laneGate !== undefined && node.laneGate !== "") {
+    return node.laneGate;
   }
   // The lanes App's own PRs carry `Hold: a human merges this`, which holds the
   // merge, not a CI fix; an owner's Hold: line holds the lane off entirely.
@@ -163,7 +208,7 @@ export function skipReason(node, { base, appSenderId, actionsAppId, checkName, h
   }
   const advisory = advisoryFailed(node, checks, checkName);
   if (!lanesFailed(node) && !advisory) {
-    return "ci-lanes has not failed";
+    return failedState(lanesStatus(node)?.state) ? "ci-lanes failed but the GitHub Actions bot did not set it" : "ci-lanes has not failed";
   }
   // node.requiredRun, the head's tested pr-require-checks run (pr-test-windows
   // when only an advisory check failed) and its latest jobs, is attached by
@@ -185,10 +230,26 @@ export function skipReason(node, { base, appSenderId, actionsAppId, checkName, h
   if (runs.length === 0) {
     return "";
   }
-  if (runs.some((run) => run.status !== "COMPLETED" || run.conclusion !== "FAILURE")) {
+  // A run that failed, found no failing check to fix, or skipped on a PR held
+  // then (a held PR stopped above) may be retried; any other run (going,
+  // pushed a fix, escalated) handles the head. All of them count toward the
+  // per-head cap, so a hold the run reads and this dispatcher does not stops
+  // there.
+  const held = (run) => run.conclusion === "NEUTRAL" && run.title === HELD_SKIP;
+  const retryable = (run) => run.status === "COMPLETED" && (run.conclusion === "FAILURE" || held(run) || (run.conclusion === "NEUTRAL" && run.title === NOT_APPLICABLE));
+  if (!runs.every(retryable)) {
     return `head already has a ${checkName} check run`;
   }
-  return runs.length <= restarts ? "" : `head's ${checkName} failed ${runs.length} time(s), past ${restarts} restart(s)`;
+  if (runs.length >= maxRunsPerHead) {
+    return `head's ${checkName} ran ${runs.length} time(s), the most one head gets`;
+  }
+  // Only a run on the current base tip counts: one that ended before the tip
+  // was committed ran against an older base (an unreadable time counts).
+  const current = runs.filter((run) => !held(run) && !(Date.parse(run.completedAt ?? "") < baseAt));
+  if (current.some((run) => run.conclusion !== "FAILURE")) {
+    return `head's ${checkName} found no failing check on this base`;
+  }
+  return current.length <= restarts ? "" : `head's ${checkName} failed ${current.length} time(s) on this base, past ${restarts} restart(s)`;
 }
 
 export async function dispatchCiFixes({
@@ -198,12 +259,14 @@ export async function dispatchCiFixes({
   appSenderId,
   maxDispatch,
   restarts,
+  maxRunsPerHead = DEFAULTS.maxRunsPerHead,
   base = DEFAULTS.base,
   workflow = DEFAULTS.workflow,
   activity = DEFAULTS.activity,
   checkName = DEFAULTS.checkName,
   actionsAppId = DEFAULTS.actionsAppId,
   holdLabels = DEFAULTS.holdLabels,
+  gateLabel = null,
   adoption = DEFAULTS.adoption,
   now = Date.now(),
 }) {
@@ -212,12 +275,21 @@ export async function dispatchCiFixes({
   }
   const candidates = [];
   let after;
+  // When the base tip was committed, from the first page: a fix-ci run that
+  // ended before it ran against an older base.
+  let baseAt;
   for (let page = 1; ; page += 1) {
-    const { rateLimit, pullRequests } = await api.listCiFixCandidates({ base, after });
+    const { rateLimit, pullRequests, baseCommittedAt } = await api.listCiFixCandidates({ base, after });
     log(`fix-ci listing page ${page}: rateLimit.cost=${rateLimit?.cost} remaining=${rateLimit?.remaining}`);
+    baseAt ??= Date.parse(baseCommittedAt ?? "");
     for (const node of pullRequests.nodes) {
-      if (skipReason(node, { base, appSenderId, actionsAppId, checkName, holdLabels, restarts, adoption, now }) === "") {
+      const reason = skipReason(node, { base, appSenderId, actionsAppId, checkName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, now });
+      if (reason === "") {
         candidates.push(node);
+      } else if (failedState(lanesStatus(node)?.state)) {
+        // A head whose lanes failed, whoever set the status, is the one a
+        // silent skip would hide.
+        log(`skip fix-ci #${node.number}: ${reason}`);
       }
     }
     if (!pullRequests.pageInfo.hasNextPage) {
@@ -256,6 +328,25 @@ export async function dispatchCiFixes({
       log(`defer fix-ci #${node.number}: ${maxDispatch} fix-ci dispatches this run; left for a later run`);
       continue;
     }
+    // The human-gated label holds unless another lane's escalation put it on.
+    let laneGate;
+    try {
+      const labels = (node.labels?.nodes ?? []).map((label) => label?.name);
+      const hold = await prHold({
+        labels,
+        holdLabels,
+        gateLabel,
+        head: node.headRefOid,
+        activity,
+        appId: appSenderId,
+        readTimeline: () => api.listTimeline(node.number),
+      });
+      laneGate = hold.held ? hold.why : "";
+    } catch (error) {
+      failed += 1;
+      log(`::error::#${node.number}: could not read where its ${gateLabel} label came from (${error.message}); left for a later run`);
+      continue;
+    }
     // A failure an outside outage explains, or a first failure, is the
     // lost-run reconciler's to re-run before a model run fixes it.
     const path = lanesFailed(node) ? DEFAULTS.requiredWorkflow : DEFAULTS.advisoryWorkflow;
@@ -266,7 +357,7 @@ export async function dispatchCiFixes({
       log(`::warning::#${node.number}: could not read its required run's jobs (${error.message}); left for a later run`);
       continue;
     }
-    const reason = skipReason({ ...node, requiredRun }, { base, appSenderId, actionsAppId, checkName, holdLabels, restarts, adoption, now });
+    const reason = skipReason({ ...node, requiredRun, laneGate }, { base, appSenderId, actionsAppId, checkName, holdLabels, gateLabel, restarts, maxRunsPerHead, baseAt, adoption, now });
     if (reason !== "") {
       log(`skip fix-ci #${node.number}: ${reason}`);
       continue;

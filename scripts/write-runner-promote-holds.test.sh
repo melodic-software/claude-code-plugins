@@ -166,8 +166,8 @@ const holdLabelsFor = (fixRequested, labelsAbsent) => {
     rmSync(dir, { recursive: true, force: true });
   }
 };
-say(String(holdStep?.env?.FIX_REQUESTED) === "${{ inputs.patch-prepare == 'review-threads' && inputs.patch-fix-requested || '' }}",
-  "the hold-label step reads the select job's fix-requested only for a patch under the review-threads row");
+say(String(holdStep?.env?.FIX_REQUESTED) === "${{ steps.config.outputs.prepare == 'apply-patch' && inputs.patch-fix-requested || '' }}",
+  "the hold-label step reads the caller's base-code verdict (fix-requested or lane-escalated) only for an apply-patch run");
 let holds = holdLabelsFor("true", ["do-not-merge"]);
 say(JSON.stringify(holds) === '["do-not-merge"]',
   `a write-access fix request on a needs-human PR lifts only the human-gated hold (${JSON.stringify(holds)})`);

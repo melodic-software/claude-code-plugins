@@ -29,11 +29,12 @@ Every row export_ledger writes has one resolution grammar: named fields in this 
 present only when it has a value, each value escaped on its own (esc_field), joined with `; `:
   hold:: claude|user E(waitsOn)   the hold, by Claude (waits on) or the user (awaiting user)
   proposal:: E(new)               a plan's proposal and the answer it displaced; always a pair,
-  was[ plain|answer]:: E(old)     written on every row whose question the plan superseded;
-                                  `plain` or `answer` names the form the displaced resolution
-                                  had (a plain cell, or an `answer` field), so restoring the row
-                                  gives that form back; a bare `was::`, as older ledgers and a
-                                  reconfirmed row hold it, records no form
+  was[ plain|answer|named]:: E(old)  written on every row whose question the plan superseded;
+                                  `plain`, `answer` or `named` names the form the displaced
+                                  resolution had (a plain cell, an `answer` field alone, or
+                                  several named fields, which `was` then holds whole), so
+                                  restoring the row gives that form back; a bare `was::`, as
+                                  older ledgers and a reconfirmed row hold it, records no form
   answer:: E(answer)              the decision that counts, on any status: `accepted: <rec>`,
                                   `hedged: <rec>`, `alt <key>: <text>` (`alt <key>` for a key the
                                   question does not list), `free-text: <text>`,
@@ -130,7 +131,7 @@ CONFIRMED = re.compile(r"^(?:; )?confirmed:(:?)(?: |$)(.*)$", re.DOTALL)
 TAIL = re.compile(r"; confirmed::(?=[ ;]|$)")
 ANSWER_MARK = re.compile(r"^answer::(?: |$)(.*)$", re.DOTALL)
 FIELDS = ("hold", "proposal", "was", "answer", "note", "aside", "commitments")
-WAS_FORMS = ("plain", "answer")
+WAS_FORMS = ("plain", "answer", "named")
 NAMED = re.compile(
     rf"^({'|'.join(FIELDS)})(?: ({'|'.join(WAS_FORMS)}))?::(?: |$)(.*)$", re.DOTALL
 )
@@ -941,7 +942,7 @@ def export_brief(d, text=None):
     superseded = count["superseded-by-plan"]
     out = ["## Brief", "", "### TLDR", ""]
     out.append(
-        f"- {len(rows)} questions: {count['answered']} answered, {count['deferred']} deferred, "
+        f"- {len(rows)} question{'' if len(rows) == 1 else 's'}: {count['answered']} answered, {count['deferred']} deferred, "
         f"{count['blocked']} blocked, {count['withdrawn']} withdrawn, {count['open']} open"
         + (f", {superseded} superseded-by-plan" if superseded else "")
     )
@@ -1333,19 +1334,16 @@ ANSWER_FIELD = re.compile(r"\b(?:hold|answer|note|aside|commitments)::")
 
 
 def displaced_answer(old, qid, where):
-    """(the bare answer a superseded row's `was` holds, as export_ledger writes it, and its form):
-    `old` itself and `plain` for a plain resolution, the `answer` field and `answer` for a
-    named-field one. A named row carrying more than its answer is refused, since `was` has no
-    place for it."""
+    """(what a superseded row's `was` holds, as export_ledger writes it, and its form): `old`
+    itself and `plain` for a plain resolution, the `answer` field and `answer` for a row of that
+    field alone, `old` whole and `named` for a row carrying more (a note, an earlier
+    reconfirm's proposal and `was`)."""
     named = parse_named(old, where)
     if not named:
         return old, "plain"
     fields, marked = named
     if set(fields) != {"answer"} or marked:
-        raise SystemExit(
-            f"refused: {qid} carries more than an answer ({', '.join(fields)}), which the "
-            f"superseded row cannot hold; edit it by hand in {where}"
-        )
+        return old, "named"
     return fields["answer"], "answer"
 
 
@@ -1421,13 +1419,22 @@ def resolve_row(text, qid, how, note, where):
             if form == "answer":
                 return "answered", lead + encode({"answer": old}, None)
             return "answered", lead + old
+        marked, kept = None, note
+        if form == "named":
+            # `was` holds the whole displaced row; the reconfirmed row keeps its answer, its note
+            # when no --note replaces it, and its commitments. An earlier reconfirm's proposal and
+            # `was` have no field left to go in, so they are dropped.
+            held = parse_named(old, where)
+            if held:
+                old, marked = held[0].get("answer", old), held[1]
+                kept = kept or held[0].get("note")
         fields = {
             "proposal": new,
             "was": old,
             "answer": f"accepted: {new}",
-            "note": note or None,
+            "note": kept or None,
         }
-        return "answered", lead + encode(fields, None)
+        return "answered", lead + encode(fields, marked)
 
     return edit_row(text, qid, where, change)
 

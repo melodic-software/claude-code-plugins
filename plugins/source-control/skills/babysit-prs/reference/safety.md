@@ -100,6 +100,20 @@ value and its unset fallback.
   cannot re-arm. `refresh_pr_branch.py` refuses it, and the unattended enqueue skips its update
   from the base (`checkInputs.updateSkipped`) and enqueues as after a refused update. An
   unreadable label refuses the refresh and holds the enqueue.
+- Never update a Dependabot head (a `dependabot/` branch Dependabot opened) from its base: the
+  Dependabot merge tier's commit check refuses a merge of the base by anyone else, so Dependabot
+  does the update. `refresh_pr_branch.py` and the unattended enqueue (only when the base changed a
+  check input since the merge base) instead post one comment per base tip and hold the PR as
+  `dependabot-rebase-requested`: `@dependabot rebase` when every commit is Dependabot's, or
+  `@dependabot recreate` when the only other commits are base merges GitHub made. The unattended
+  enqueue posts at most one an hour unless the head conflicts. A head carrying any other commit
+  gets no comment and holds as `dependabot-branch-edited`: a recreate would discard it.
+  - **Pointer**: the rebase and recreate commands, in
+    [Dependabot pull request comment commands](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-pull-request-comment-commands#commands-for-dependabot-pull-requests); correlate with
+    [allowing Dependabot to rebase over extra commits](https://docs.github.com/en/code-security/dependabot/working-with-dependabot/managing-pull-requests-for-dependency-updates#allowing-dependabot-to-rebase-and-force-push-over-extra-commits).
+  - **As of**: 2026-10-24.
+  - **Recheck trigger**: either section changes what rebase or recreate does to a branch that
+    carries another author's commits.
 - Head-ref uniqueness guard: two open PRs sharing one head repository/branch is a stop-and-ask.
   Escalate, never guess which PR a push would update.
 - Lease-protected removal: never remove a worktree without holding that PR's worker lease
@@ -1105,8 +1119,18 @@ Named residuals:
   its own and files a new record.
 - After a dispatch deadline with no unedited pin comment, an identity merge fails the read-back and
   a demotion record is filed. A native auto-merge the identity armed on its own same-repository
-  pull request no later than its enqueue, and did not disarm since, posts no pin and needs no
-  read-back: it verifies on the dispatch and canary runs alone.
+  pull request no later than its enqueue, and did not disarm since, needs no read-back: it
+  verifies on the dispatch and canary runs alone.
+- Arming a pull request that is already mergeable enqueues it at once, and GitHub records only
+  the identity's `AddedToMergeQueueEvent`, no auto-merge event. `enable-auto-merge.mjs` therefore
+  posts the gate's pin for the head before it arms, and arms nothing when the pin fails to post,
+  so such a merge reads back against its pin, and a push after the arm fails the read-back. A
+  merge of that shape with no pin is still native when every enqueue on the pull request is the
+  identity's, the read holds the whole enqueue history, and `merge.lane-prs` is `native` at the
+  merge commit's first parent; a config that cannot be read there keeps the read-back. Even then,
+  an unedited identity pin that stands is read back: a match verifies and a mismatch fails. Only
+  a merge of that shape with no unedited pin skips the read-back, and since pin-before-arm that
+  means one armed before it shipped, or one whose pin was edited or deleted after the enqueue.
 - A native merge's head is compared with no vetted head: a writer's push after the arm (the
   pr-unblock writers above) leaves auto-merge armed, and that head merges natively with no
   read-back. `ci-status` still runs the hold rules on the merge-group head. The pending

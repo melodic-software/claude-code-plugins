@@ -47,7 +47,7 @@ const LANES_APP = 337595936;
 const ciFixPull = (number) => {
   const head = String(number).padStart(40, "c");
   const ciStatus = { __typename: "CheckRun", name: "ci-status", status: "COMPLETED", conclusion: "FAILURE", checkSuite: { app: { databaseId: 15368 } } };
-  const ciLanes = { __typename: "StatusContext", context: "ci-lanes", state: "FAILURE", creator: { login: "github-actions[bot]" } };
+  const ciLanes = { __typename: "StatusContext", context: "ci-lanes", state: "FAILURE", creator: { __typename: "Bot", login: "github-actions", databaseId: 41898282 } };
   return {
     number,
     isDraft: false,
@@ -95,6 +95,8 @@ const api = (dispatched, ciFixPulls = [], docsPulls = []) => ({
   listCheckRuns: async () => [STOPPED],
   listWorkflowRuns: async () => [],
   readRequiredRun: async () => ({ run: null, jobs: [] }),
+  // No label event names the lanes App, so a human-gated label holds.
+  listTimeline: async () => [],
   dispatchWorkflow: async ({ inputs }) => {
     dispatched.push(inputs["pr-number"]);
     return { workflowRunId: 9040 };

@@ -51,6 +51,8 @@ or force-pushes.
 The step writes its outputs before the escalation. It exits 0 once the check ran, whatever it
 found, and any escalation was posted. It exits 1 with no outputs when the check could not run, and
 exits 1 with the outputs already written (`all-verified` `false`) when an escalation write fails.
+One exception: when no commit was found unverified (the commits could only not be verified) and
+GitHub refuses an escalation write, it logs a warning and exits 0 with those outputs.
 
 ## Job contract
 

@@ -8,7 +8,7 @@
 // the parity tests read their verdicts from Python.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import process from "node:process";
@@ -28,11 +28,13 @@ import {
   READER_EVENTS,
   main,
   pythonRoom,
+  LANE_ROOM_TIMEOUT_MS,
+  VERIFY_TIMEOUT_MS,
   readRoom,
   verifyHold,
 } from "./enable-auto-merge.mjs";
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { COMMENT_EDITED_QUERY, PULL_OPENED_QUERY, VERIFY_PATH, verdictHold } from "./merge-holds.mjs";
+import { COMMENT_DELETED_QUERY, COMMENT_EDITED_QUERY, PULL_OPENED_QUERY, VERIFY_PATH, verdictHold } from "./merge-holds.mjs";
 import { VERIFY_PATH as RESOLVER_VERIFY_PATH } from "../pr-verify/resolve-pr.mjs";
 import { decide as decideOutcome } from "../work-resolve-issue/report-outcome.mjs";
 
@@ -85,7 +87,7 @@ const COST_COMMENT = {
   issue_url: `https://api.github.com/repos/${REPO}/issues/1040`,
   user: { login: "kyle-sexton", id: 5, type: "User" },
   performed_via_github_app: null,
-  body: "**Decision recorded.** Cost: approve it.",
+  body: "**Decision recorded.** Cost: approve it for #40.",
   node_id: "IC_7",
   created_at: "2026-10-22T12:00:00Z",
 };
@@ -96,7 +98,8 @@ const labels = (...names) => ({ totalCount: names.length, nodes: names.map((name
 
 // armErrors: per pull request id, the errors its arm sends throw, in order.
 // filesError: what every changed-files GET throws.
-function world(pulls, { failArm = false, armErrors = {}, filesError = null, noteErrors = [], disarmError = null } = {}) {
+function world(pulls, { failArm = false, armErrors = {}, filesError = null, noteErrors = [], disarmError = null, pinError = null } = {}) {
+  const pins = [];
   const noteThrows = [...noteErrors];
   const armThrows = Object.fromEntries(Object.entries(armErrors).map(([id, errors]) => [id, [...errors]]));
   const calls = [];
@@ -117,6 +120,18 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
     if (method === "GET" && path === "/repos/melodic-software/claude-code-plugins/issues/comments/7") {
       return COST_COMMENT;
     }
+    // Its decided head: a review lane's cost hold marker at the head, before it.
+    if (method === "GET" && /^\/repos\/melodic-software\/claude-code-plugins\/issues\/[0-9]+\/comments\?per_page=100&page=1$/.test(path)) {
+      return [{ user: { login: "github-actions[bot]", type: "Bot" }, created_at: "2026-10-22T11:00:00Z", body: `<!-- claude-lane-hold lane=claude-review sha=${HEAD} criteria=cost -->` }];
+    }
+    // The read-back pin, posted before an arm.
+    if (method === "POST" && String(body?.body ?? "").startsWith("<!-- babysit-merge-pin ")) {
+      pins.push({ path, body: body.body });
+      if (pinError) {
+        throw pinError;
+      }
+      return {};
+    }
     // The refusal note: a comment posted or edited, and the label.
     const note = /^\/repos\/melodic-software\/claude-code-plugins\/issues\/(?:([0-9]+)\/(comments|labels)|comments\/([0-9]+))$/.exec(path);
     if (note && (method === "POST" || method === "PATCH")) {
@@ -133,6 +148,9 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
     }
     if (body.query === COMMENT_EDITED_QUERY) {
       return { data: { node: { lastEditedAt: null } } };
+    }
+    if (body.query === COMMENT_DELETED_QUERY) {
+      return { data: { repository: { pullRequest: { timelineItems: { filteredCount: 0, nodes: [] } } } } };
     }
     if (body.query === PULLS_QUERY) {
       assert.deepEqual(body.variables, { owner: "melodic-software", name: "claude-code-plugins", after: null });
@@ -170,20 +188,20 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
   };
   const writes = () =>
     calls
-      .filter(({ method, path, body }) => method === "POST" && path === "/graphql" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY, UNLABELED_QUERY].includes(body.query))
+      .filter(({ method, path, body }) => method === "POST" && path === "/graphql" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY, COMMENT_DELETED_QUERY, UNLABELED_QUERY].includes(body.query))
       .map(({ body }) => ({ mutation: body.query === ARM_MUTATION ? "arm" : body.query === DISARM_MUTATION ? "disarm" : "?", ...body.variables }));
-  return { github, writes, verify, verified, calls, notes };
+  return { github, writes, verify, verified, calls, notes, pins };
 }
 
 async function run(pulls, env = {}, options = {}, lane = ROOM) {
-  const { github, writes, verify, verified, calls, notes } = world(pulls, options);
+  const { github, writes, verify, verified, calls, notes, pins } = world(pulls, options);
   const lines = [];
   const slept = [];
   const log = console.log;
   console.log = (line) => lines.push(line);
   try {
     const code = await main({ env: { ...ENV, ...env }, github, verify, room: room(lane), sleep: async (ms) => slept.push(ms), random: options.random, now: options.now });
-    return { code, writes: writes(), lines, verified, slept, calls, notes };
+    return { code, writes: writes(), lines, verified, slept, calls, notes, pins };
   } finally {
     console.log = log;
   }
@@ -339,6 +357,50 @@ test("a lanes App pull request with no hold is armed, squash, at the head it rea
   assert.equal(code, 0);
   assert.deepEqual(writes, [{ mutation: "arm", id: "PR_7", head: HEAD }]);
   assert.match(ARM_MUTATION, /mergeMethod: SQUASH, expectedHeadOid: \$head/);
+});
+
+// babysit_postmerge.PIN_RE, written out: the read-back takes the head from the
+// first line of the lanes App's newest unedited pin comment.
+const PIN_LINE = `<!-- babysit-merge-pin sha=${HEAD} -->`;
+
+test("the head is pinned in the read-back's format before the arm", async () => {
+  const { code, writes, pins, calls } = await run([pull(7)]);
+  assert.equal(code, 0);
+  assert.deepEqual(pins.map((pin) => [pin.path, pin.body.split("\n")[0]]), [[`${ISSUES}/7/comments`, PIN_LINE]]);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_7", head: HEAD }]);
+  const order = calls.map((call) => (call.body?.query === ARM_MUTATION ? "arm" : String(call.body?.body ?? "").startsWith(PIN_LINE) ? "pin" : null)).filter(Boolean);
+  assert.deepEqual(order, ["pin", "arm"]);
+});
+
+test("an unedited pin for the same head is not posted again", async () => {
+  const pin = { ...lanesSaid(`${PIN_LINE}\nArmed.`), lastEditedAt: null };
+  const { writes, pins } = await run([pull(7, { discussion: { comments: [pin] } })]);
+  assert.deepEqual(pins, []);
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_7", head: HEAD }]);
+});
+
+test("a pin for another head, an edited pin or another author's pin is posted again", async () => {
+  const other = { ...lanesSaid(`<!-- babysit-merge-pin sha=${"c".repeat(40)} -->`), lastEditedAt: null };
+  const edited = { ...lanesSaid(`${PIN_LINE}\nArmed.`), lastEditedAt: "2026-10-23T11:00:00Z" };
+  const person = { ...said("kyle-sexton", PIN_LINE, "2026-10-23T10:00:00Z"), lastEditedAt: null };
+  const stale = [{ ...lanesSaid(PIN_LINE), lastEditedAt: null }, { ...other, createdAt: "2026-10-23T12:00:00Z" }];
+  for (const comments of [[other], [edited], [person], stale]) {
+    const { pins } = await run([pull(7, { discussion: { comments } })]);
+    assert.equal(pins.length, 1);
+  }
+});
+
+test("a pin that fails to post leaves it unarmed and fails the run", async () => {
+  const { code, writes, pins, lines } = await run([pull(7), pull(8)], {}, { pinError: new Error("POST comments failed with status 502") });
+  assert.equal(code, 1);
+  assert.equal(pins.length, 2);
+  assert.deepEqual(writes, []);
+  assert.ok(lines.some((line) => line.startsWith("::error title=enable-auto-merge::#7 pin, so not armed")));
+});
+
+test("report-only posts no pin", async () => {
+  const { pins } = await run([pull(7)], { REPORT_ONLY: "true" });
+  assert.deepEqual(pins, []);
 });
 
 test("a Hold: line, do-not-merge or the human-gated label leaves it unarmed", async () => {
@@ -562,7 +624,9 @@ test("report-outcome's own Closes and Refs pull request bodies arm, and its hold
   assert.deepEqual(verdict({}), { action: "arm", reason: "no hold" });
   assert.equal(verdict({ humanMerge: true }).action, "none");
   assert.equal(verdict({ changedFiles: [".github/workflows/x.yml"] }).action, "none");
-  assert.deepEqual(verdict({ outcome: { exit: "done", reason: "", title: "t", summary: "s", link: "refs" } }), { action: "arm", reason: "no hold" });
+  const refs = { outcome: { exit: "done", reason: "", title: "t", summary: "s", remaining: ["Part B"] } };
+  assert.ok(plan(refs).body.startsWith("Refs: #77\n"));
+  assert.deepEqual(verdict(refs), { action: "arm", reason: "no hold" });
 });
 
 // The gate's human veto (babysit_merge.human_veto_logins): each member's
@@ -1061,6 +1125,71 @@ test("a room that cannot be read arms nothing and disarms every armed lane pull 
   assert.deepEqual(writes(), [{ mutation: "disarm", id: "PR_2" }]);
 });
 
+// A held room that logs only to the console leaves nothing on the run
+// saying why nothing armed. One annotation and one summary
+// line per run, naming the reason and every lane pull request left unarmed.
+test("a held room raises one warning and one step-summary line naming why and each pull request left unarmed", async () => {
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  const pulls = [pull(1), pull(2, { autoMergeRequest: armed }), pull(3, { author: { __typename: "User", login: "kyle-sexton" } }), pull(4, { isDraft: true })];
+  const cases = [
+    [{ ...ROOM, unreadable: "post-merge answer unverified-stale" }, "the lane's room could not be read (post-merge answer unverified-stale); left unarmed: #1, #2"],
+    [{ ...ROOM, refusal: "rung-off:demotion" }, "pr-merge's gate holds its lane off (rung-off:demotion); left unarmed: #1, #2"],
+  ];
+  for (const [lane, expected] of cases) {
+    const summary = join(mkdtempSync(join(tmpdir(), "enable-auto-merge-summary-")), "summary.md");
+    writeFileSync(summary, "");
+    const { lines } = await run(pulls, { GITHUB_STEP_SUMMARY: summary }, {}, lane);
+    assert.deepEqual(
+      lines.filter((line) => line.startsWith("::warning")),
+      [`::warning title=enable-auto-merge::${expected}`],
+    );
+    assert.equal(readFileSync(summary, "utf8"), `enable-auto-merge: ${expected}\n`);
+  }
+  // A lane with room raises neither.
+  const summary = join(mkdtempSync(join(tmpdir(), "enable-auto-merge-summary-")), "summary.md");
+  writeFileSync(summary, "");
+  const { lines, writes } = await run(pulls, { GITHUB_STEP_SUMMARY: summary });
+  assert.deepEqual(writes, [{ mutation: "arm", id: "PR_1", head: HEAD }]);
+  assert.deepEqual(
+    lines.filter((line) => line.startsWith("::warning")),
+    [],
+  );
+  assert.equal(readFileSync(summary, "utf8"), "");
+});
+
+// A pull request whose disarm failed, or that report-only left armed, is
+// still armed: naming it "left unarmed" would say the hold was enforced when
+// it was not.
+test("a held room names a pull request whose disarm failed as still armed, at error level", async () => {
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  const summary = join(mkdtempSync(join(tmpdir(), "enable-auto-merge-summary-")), "summary.md");
+  writeFileSync(summary, "");
+  const lane = { ...ROOM, refusal: "rung-off:demotion" };
+  const { lines, code } = await run([pull(1), pull(2, { autoMergeRequest: armed })], { GITHUB_STEP_SUMMARY: summary }, { disarmError: new Error("POST /graphql failed with status 502") }, lane);
+  assert.equal(code, 1);
+  const why = "pr-merge's gate holds its lane off (rung-off:demotion)";
+  assert.deepEqual(
+    lines.filter((line) => /^::(warning|error) title=enable-auto-merge::pr-merge/.test(line)),
+    [`::warning title=enable-auto-merge::${why}; left unarmed: #1`, `::error title=enable-auto-merge::${why}; still armed, its disarm failed, so the hold is not enforced: #2`],
+  );
+  assert.equal(readFileSync(summary, "utf8"), `enable-auto-merge: ${why}; left unarmed: #1\nenable-auto-merge: ${why}; still armed, its disarm failed, so the hold is not enforced: #2\n`);
+});
+
+test("a held room in report-only names the armed pull request a disarm would have turned off, not as unarmed", async () => {
+  const armed = { enabledAt: "2026-10-23T10:00:00Z" };
+  const summary = join(mkdtempSync(join(tmpdir(), "enable-auto-merge-summary-")), "summary.md");
+  writeFileSync(summary, "");
+  const lane = { ...ROOM, unreadable: "post-merge answer missing or unreadable" };
+  const { lines, writes } = await run([pull(1), pull(2, { autoMergeRequest: armed })], { GITHUB_STEP_SUMMARY: summary, REPORT_ONLY: "true" }, {}, lane);
+  assert.deepEqual(writes, []);
+  const expected = "the lane's room could not be read (post-merge answer missing or unreadable); left unarmed: #1; report-only, a disarm would have run: #2";
+  assert.deepEqual(
+    lines.filter((line) => line.startsWith("::warning") || line.startsWith("::error")),
+    [`::warning title=enable-auto-merge::${expected}`],
+  );
+  assert.equal(readFileSync(summary, "utf8"), `enable-auto-merge: ${expected}\n`);
+});
+
 // An event run reads no room, so it never disarms on one.
 test("an event run leaves an armed lane pull request armed whatever the room", async () => {
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
@@ -1112,6 +1241,18 @@ print(json.dumps({"argv": sys.argv[1:], "token": os.environ.get("GH_TOKEN"), "bu
     budget: "github-token",
   });
   assert.deepEqual((await pythonRoom(env)()).argv, ["lane-room", "--repo", REPO, "--postmerge-result", "/tmp/post-merge.json"]);
+});
+
+test("pythonRoom gives the lane-room read its own 8 minute timeout and reads a kill as unreadable", async () => {
+  const seen = [];
+  const killed = (_cmd, _args, options) => {
+    seen.push(options.timeout);
+    return { status: null, signal: "SIGTERM", stdout: "", stderr: "" };
+  };
+  await assert.rejects(pythonRoom({ GITHUB_REPOSITORY: REPO }, killed)(), /lane-room exited SIGTERM/);
+  assert.deepEqual(seen, [8 * 60_000]);
+  assert.equal(LANE_ROOM_TIMEOUT_MS, 8 * 60_000);
+  assert.equal(VERIFY_TIMEOUT_MS, 4 * 60_000);
 });
 
 // The gate holds on the security lane's open CRITICAL findings

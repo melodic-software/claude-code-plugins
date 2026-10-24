@@ -1,5 +1,91 @@
 # Changelog for the PR pipeline convention
 
+## [4.19.6] - 2026-10-24
+
+### Changed
+
+- The eval lane runs on a new `maintenance` funding role, `MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN`. The judge lane stays on `automations`, which remains the default role for any lane without a dedicated one. `.github/lane-funding.json` lists both, and the [pr-pipeline README, Funding](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#funding) names them.
+
+### Fixed
+
+- The pr-merge gate no longer holds a pull request at `verify:earlier-fail` after its link changed from `Refs:` to closing the issue and the verifier passed the new head. An earlier FAIL at a head of the same change now clears when every counted FAIL at that head records `spec_kind` `refs` for this pull request and every counted pass at the head records `spec_kind` `closes` with exactly the linked issues the FAIL records: a closing pass is judged against the whole spec, which includes the slice that failed. A `refs` pass after a `closes` FAIL, two verdicts of the same kind, a missing or unknown `spec_kind`, a pass that closes another issue or more issues than the FAIL named, linked issues that cannot be read, and a FAIL record that cannot be read or records another pull request, head or verdict all keep the refusal. Every other refusal is unchanged.
+
+## [4.19.5] - 2026-10-24
+
+### Fixed
+
+- `enable-auto-merge` checks out the default branch with full history, as the post-merge check and the merge job do, so the room's post-merge recompute decides containment locally instead of making a compare API call per lane record. The lane-room read also has its own 8 minute timeout, apart from the verifier reads' 4 minutes, and a timeout still holds the lane. The arm step's timeout is now 18 minutes and the job's 30.
+
+- `fix-ci` dispatch trusts a `ci-lanes` commit status by its creator's type and id (the GitHub Actions bot, `Bot` 41898282) instead of the login `github-actions[bot]`, which GraphQL never returns (it reports `github-actions`); no pull request was dispatched while the login check stood. A status set by any other actor, or with no creator, is still ignored.
+- The dispatcher logs why it skips a listed pull request whose `ci-lanes` status failed or errored, so a skip of that kind is no longer silent; a failed status the GitHub Actions bot did not set is named as such.
+
+## [4.19.4] - 2026-10-24
+
+### Fixed
+
+- The work-resolve-issue lane no longer opens a `Refs:` PR for an issue its run delivered whole. `report-outcome` derives the link line from the outcome's `remaining` list and ignores the run's `link` field: a non-empty list opens a `Refs:` PR with a `## Remaining work` section naming each part, which is the remaining work pr-verify's Refs rule asks the body to name. A `remaining` that is not 1 to 20 strings, each with text in the bullet it renders as, counts as empty, so the PR closes the issue. The run text the lane quotes in a PR body or comment also drops C1 control characters now.
+
+## [4.19.3] - 2026-10-24
+
+### Fixed
+
+- A pending lane merge no longer makes `enable-auto-merge` disarm every armed lanes App pull request. The post-merge step takes about as long as the gate's two-minute reuse age, so the lane's room read the report as too old. It now keeps the report while nothing it was read from has moved, and otherwise checks again as the gate does, with the lane records the last run kept, so that check reads them without an artifact or run read each. When the room is held, by a refusal or because it cannot be read, the run raises one warning annotation and step-summary line naming the reason and each lanes App pull request it left unarmed or, in report-only mode, that a disarm would have turned off. A pull request still armed because its disarm failed gets an error annotation and summary line instead. It posts no comment on the pull requests.
+
+## [4.19.2] - 2026-10-24
+
+### Fixed
+
+- The pr-unblock dispatcher no longer sends resolve-conflicts to a Dependabot head (a `dependabot/` branch Dependabot opened): its merge commit stopped Dependabot's own rebases, which resolve the conflict.
+
+## [4.19.1] - 2026-10-24
+
+### Fixed
+
+- The pr-unblock `review-dependency` round cap counts only round markers at the pull request's current commits, so a `@dependabot recreate` or force push no longer carries the replaced head's rounds into the new one. A marker that names no head still counts.
+
+## [4.19.0] - 2026-10-24
+
+### Added
+
+- A listed human adding `admission-deferred` to a decided issue with `status: ready` now has the hourly work-unblock sweep run intake's admission rules on its own work-class label and Size, Complexity and Uncertainty fields, each counting only when a listed human or the lanes App added or set it, admitting it when there is room and refusing it to `status: needs-decision` with a comment otherwise.
+- The sweep now re-fires an `agent-ready` issue left with no run and no report for 3 hours, once per version of the lane workflow files, and then hands it to a person with `needs-human` and a comment.
+
+### Changed
+
+- Intake admission now reads the `- [ ]` acceptance criteria only from text a listed human wrote, in the body or a comment of their own, since pr-verify judges a lane pull request only against that text (owner decision Q9). The lanes App's refinement comment no longer satisfies the criteria check; a person who confirms it posts the criteria as their own comment.
+- Intake admission now refuses an issue with more than 100 comments, since pr-verify reads only the first 100 and stops on such an issue.
+
+## [4.18.0] - 2026-10-24
+
+### Changed
+
+- This repository sets `merge.dependabot.majors: review`: a Dependabot major, unreadable or disagreeing update merges on the pr-unblock review's `verdict=merge`, as any tier `review` update does, instead of waiting for a person (owner direction 2026-10-24; ADR 0073 addendum).
+- `dependency-classify.mjs` reads a security update's version jump from its verified commit subject when the metadata has no `update-type`, matching the pr-merge classifier.
+- `clear-escalations.mjs` clears a pr-merge Dependabot-major escalation when the head moves, like pr-merge's other escalations.
+
+## [4.17.1] - 2026-10-24
+
+### Changed
+
+- A lane escalation's `needs-human` no longer stops the other fixers that could clear its cause. `resolve-conflicts`, `apply-conflict-patch`, `fix-ci`, `apply-patch` and `fix-docs` drop `needs-human` from their `labels-absent` (they keep `do-not-merge`); their dispatchers and base-code jobs (`resolve-conflicts-select` and `fix-docs-head` through the new `lane-hold.mjs`, and `fix-ci-context`) hold the human-gated label unless `gate-source.mjs` reads it as a lane escalation whose reasons, from report-escalation's `- Reason:` line, are another activity's. A person's label, a person's comment or review since the label went on (read from the REST issue timeline the way `clear-escalations.mjs` reads one, now one shared `spoken`), an escalation reason report-escalation.sh does not list, a review-lane hold or anything ambiguous still holds as `awaiting-human`. The dispatchers read a held PR's timeline once per run between them, and fix-docs reads it only for a PR not yet refined. When they work past the label, the write runner's `patch-fix-requested` lifts only the human-gated hold for that push, under any patch row. The label stays on, so `pr-merge` still refuses the PR. The verdict is read before the model turn, so a hold that lands during a run stops the next dispatch, not that run's push; `do-not-merge` still stops it.
+- `report-escalation.sh` is idempotent per resume key and reason: a second activity escalating on the same head while the label is on posts its own comment, so that activity's own escalation holds it.
+
+### Fixed
+
+- A failed `pr-unblock / resolve-conflicts` run no longer marks its head handled for good: the dispatcher retries it until `limits.limit-stops-per-head` failures (limit stops included) stand on the head.
+- A resolve-conflicts run skipped while the pull request was held (`Skipped: awaiting-human`) no longer marks its head handled: the dispatcher skips a held pull request itself, without recording it, and the next sweep after the hold comes off dispatches it. Held skips count toward `limits.limit-stops-per-head` with failures, for resolve-conflicts and fix-ci alike, so a hold the run reads and the dispatcher does not stops there. The dispatch record's version is now 4, so heads recorded under the old rule are read again.
+- fix-ci no longer leaves a head for good after a run that found no failing check (`not-applicable`) or `fix-ci-restarts` failed runs: once the base tip moves past those runs the dispatcher dispatches the head again, until `limits.limit-stops-per-head` such runs stand on it. A new head starts with none.
+
+- `enable-auto-merge` posts the gate's `<!-- babysit-merge-pin sha=<head> -->` comment before it arms a lanes App pull request, unless the App's newest pin already names that head unedited. When the pin fails to post, the pull request stays unarmed and the run fails. Arming a pull request that is already mergeable enqueues it at once with no auto-merge event, so the post-merge check now reads that head back against the pin.
+
+## [4.17.0] - 2026-10-24
+
+### Changed
+
+- A trusted spec edit after a pass no longer strands the head at `verify:spec-changed`. `resolve-pr.mjs` judges a head again, with reason `spec-changed`, when every counted pass there started before the spec's last change (an issue body edit, a spec comment added or edited, or a body edit of a pull request that is its own spec), and the lost-run reconciler re-runs, once and with a record, the passed `pr-require-checks` run of such a head so pr-verify starts. The gate decides on the passes of the pr-verify run that started last, so the new verdict replaces the stale one. Each passed checks run is re-run once; a changed closing set and a removed spec comment still wait for a person.
+- The verifier prompt no longer fails a pull request for touching workflows, CI, hooks, scripts, agent instructions, package manifests, lockfiles, path or file-type refusals, a `merge: human` setting, deploys, cloud, releases or other repositories; those are judged as ordinary code. It fails a change to the takeover set (the trusted-actor list, the `check-trusted-trigger`, `check-kill-switch`, `request-lane-token` and `resolve-config` actions, `CODEOWNERS`, submodules) whatever the spec says, unrequested work that loosens a hold the owner keeps (outside-organization work, cost and billing, rate, capacity, work-in-progress and round caps), and unrequested work on secret values or organization or repository settings.
+- Spec trust is unchanged: text the lanes App wrote, an issue it filed or intake triage's refinement comment included, is still not spec. Trusting it is held for an owner decision.
+
 ## [4.16.0] - 2026-10-24
 
 ### Added

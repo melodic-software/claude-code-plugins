@@ -28,6 +28,16 @@ it started needs a new session. To resolve the key from a secret store instead, 
 - **Recheck trigger**: that page changes how `headers` variables expand or how `headersHelper`
   runs.
 
+A same-named `dometrain` server defined at another scope can win over this user-scope one, so the
+skills may reach a different definition than the one registered above.
+
+- **Pointer**: for which definition wins when a server is defined in more than one place, fetch
+  [Scope hierarchy and precedence](https://code.claude.com/docs/en/mcp#scope-hierarchy-and-precedence)
+  live.
+- **As of**: 2026-10-24
+- **Recheck trigger**: that section changes the precedence order of local, project and user scope
+  or how duplicates are matched.
+
 ## Enabling
 
 The plugin **installs disabled** (`defaultEnabled: false`). Enable it with

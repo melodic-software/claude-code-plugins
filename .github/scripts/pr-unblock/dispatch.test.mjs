@@ -73,8 +73,10 @@ function fakeApi({
   workflowRuns = [],
   ciFixPulls = [],
   docsPulls = [],
+  comments = new Map(),
+  labelEvents = new Map(),
 } = {}) {
-  const calls = { list: [], get: [], checks: [], dispatch: [], runs: [] };
+  const calls = { list: [], get: [], checks: [], dispatch: [], runs: [], timeline: [] };
   let round = 0;
   return {
     calls,
@@ -122,6 +124,11 @@ function fakeApi({
     },
     async readRequiredRun() {
       return { run: null, jobs: [] };
+    },
+    // The REST issue timeline: its comments, then its label events.
+    async listTimeline(number) {
+      calls.timeline.push(number);
+      return [...(comments.get(number) ?? []).map((comment) => ({ event: "commented", ...comment })), ...(labelEvents.get(number) ?? [])];
     },
     async listWorkflowRuns(workflow) {
       calls.runs.push(workflow);
@@ -177,6 +184,24 @@ test("dispatches only open, non-draft, same-repo CONFLICTING PRs into main", asy
   await run();
   assert.deepEqual(dispatchedNumbers(api), ["1"]);
   assert.deepEqual(api.calls.list, [{ base: "main", after: undefined }]);
+});
+
+test("never dispatches resolve-conflicts on a Dependabot head", async () => {
+  // Dependabot's user id (dependency-classify.mjs DEPENDABOT_ID).
+  const dependabot = { login: "dependabot", databaseId: 49699333 };
+  const { api, run } = harness({
+    pages: [
+      [
+        pr(1, { headRefName: "dependabot/npm_and_yarn/x-1.2.3", author: dependabot }),
+        pr(2, { headRefName: "dependabot/npm_and_yarn/x-1.2.3", author: { login: "octocat", databaseId: 583231 } }),
+        pr(3, { headRefName: "feature/x", author: dependabot }),
+        pr(4, { headRefName: "dependabot/pip/y-2.0.0", author: dependabot, mergeable: "UNKNOWN" }),
+      ],
+    ],
+  });
+  await run();
+  assert.deepEqual(dispatchedNumbers(api), ["2", "3"]);
+  assert.deepEqual(api.calls.get, []);
 });
 
 test("follows the listing past the first 100 PRs", async () => {
@@ -252,18 +277,15 @@ test("an untrusted-trigger neutral skip does not count as handled", async () => 
   assert.deepEqual(dispatchedNumbers(api), ["13"]);
 });
 
-test("an in-progress run or any other completed conclusion counts as handled", async () => {
+test("an in-progress run or any other completed conclusion but a failure counts as handled", async () => {
   const running = pr(14);
-  const failed = pr(15);
   const otherNeutral = pr(16);
   const mixed = pr(17);
-  const sameTitleFailed = pr(18);
   const sameTitleRunning = pr(19);
   const { api, run } = harness({
-    pages: [[running, failed, otherNeutral, mixed, sameTitleFailed, sameTitleRunning]],
+    pages: [[running, otherNeutral, mixed, sameTitleRunning]],
     checked: new Map([
       [running.headRefOid, [{ status: "in_progress", conclusion: null, output: { title: null } }]],
-      [failed.headRefOid, [{ status: "completed", conclusion: "failure", output: { title: "x" } }]],
       [
         otherNeutral.headRefOid,
         [
@@ -275,7 +297,6 @@ test("an in-progress run or any other completed conclusion counts as handled", a
         ],
       ],
       [mixed.headRefOid, [UNTRUSTED_SKIP, SUCCESS_RUN]],
-      [sameTitleFailed.headRefOid, [{ ...UNTRUSTED_SKIP, conclusion: "failure" }]],
       [
         sameTitleRunning.headRefOid,
         [{ ...UNTRUSTED_SKIP, status: "in_progress", conclusion: null }],
@@ -288,7 +309,7 @@ test("an in-progress run or any other completed conclusion counts as handled", a
 
 // A run the usage limit stopped (FINAL-DESIGN C5) stops counting as handled
 // once its limit resets: at its `resets=` time, else five hours after it
-// ended. Until then, and for any failure with no lane record, it still counts.
+// ended. Until then it still counts; a failure with no lane record is retried.
 test("a limit-stopped run counts as handled only until its limit resets", async () => {
   const now = Date.parse("2026-10-17T12:00:00Z");
   const [statedPast, statedFuture, fallbackPast, fallbackFuture, noRecord] = [pr(21), pr(22), pr(23), pr(24), pr(25)];
@@ -306,7 +327,7 @@ test("a limit-stopped run counts as handled only until its limit resets", async 
     { now, maxDispatch: 10 },
   );
   await run();
-  assert.deepEqual(dispatchedNumbers(api), ["21", "23"]);
+  assert.deepEqual(dispatchedNumbers(api), ["21", "23", "25"]);
 });
 
 test("the resolved limits set how many reset limit stops hold a head", async () => {
@@ -319,6 +340,110 @@ test("the resolved limits set how many reset limit stops hold a head", async () 
   const one = harness(apiOptions, { now, limits: { ...LIMIT_DEFAULTS, "limit-stops-per-head": 1 } });
   await one.run();
   assert.deepEqual(dispatchedNumbers(one.api), []);
+});
+
+// A failed resolve-conflicts run is retried on the same head until
+// limits.limit-stops-per-head (3 by default) failures stand on it.
+test("a failed run is retried until three failures stand on the head", async () => {
+  const once = pr(31);
+  const twice = pr(32);
+  const thrice = pr(33);
+  const failed = failedRun("2026-10-17T10:00:00Z", null);
+  const record = emptyRecord();
+  const { api, run } = harness(
+    {
+      pages: [[once, twice, thrice]],
+      checked: new Map([
+        [once.headRefOid, [failed]],
+        [twice.headRefOid, [failed, failed]],
+        [thrice.headRefOid, [failed, failed, failed]],
+      ]),
+    },
+    { record, maxDispatch: 9 },
+  );
+  await run();
+  assert.deepEqual(dispatchedNumbers(api), ["31", "32"]);
+  assert.deepEqual([...(record.handled.get(CHECK_NAME) ?? [])], [thrice.headRefOid]);
+});
+
+// The neutral check a select job posts when it skipped a held PR.
+const HELD_SKIP = { status: "completed", conclusion: "neutral", output: { title: "Skipped: awaiting-human" } };
+const LABELS = (...names) => ({ labels: { nodes: names.map((name) => ({ name })) } });
+const OWNER = { login: "kyle-sexton", id: 153232337, type: "User" };
+const APP_USER = { login: "melodic-automation-lanes[bot]", id: LANES_APP, type: "Bot" };
+const labeledBy = (actor) => [{ event: "labeled", actor, label: { name: "needs-human" }, created_at: "2026-10-18T10:00:00Z" }];
+// report-escalation.sh's comment, with the reason it names.
+const escalationComment = (reason) => [
+  {
+    user: APP_USER,
+    created_at: "2026-10-18T10:00:05Z",
+    body: `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${"b".repeat(40)} -->\nStopped.\n\n- Reason: \`${reason}\``,
+  },
+];
+
+test("a head skipped while held is dispatched once no hold label is on, and not recorded while held", async () => {
+  const released = pr(41);
+  const personHeld = pr(42, LABELS("needs-human"));
+  const doNotMerge = pr(43, LABELS("do-not-merge"));
+  const record = emptyRecord();
+  const { api, run } = harness(
+    {
+      pages: [[released, personHeld, doNotMerge]],
+      checked: new Map([
+        [released.headRefOid, [HELD_SKIP]],
+        [personHeld.headRefOid, [HELD_SKIP]],
+        [doNotMerge.headRefOid, [HELD_SKIP]],
+      ]),
+      labelEvents: new Map([[42, labeledBy(OWNER)]]),
+    },
+    { record, appSenderId: LANES_APP, maxDispatch: 9 },
+  );
+  await run();
+  assert.deepEqual(dispatchedNumbers(api), ["41"]);
+  assert.deepEqual(api.calls.checks.map((call) => call.sha), [released.headRefOid], "a held PR's check runs are not read");
+  assert.deepEqual([...(record.handled.get(CHECK_NAME) ?? [])], []);
+});
+
+test("another lane's escalation does not hold resolve-conflicts; its own does", async () => {
+  const disputed = pr(51, LABELS("needs-human"));
+  const unresolved = pr(52, LABELS("needs-human"));
+  const { api, run } = harness(
+    {
+      pages: [[disputed, unresolved]],
+      labelEvents: new Map([
+        [51, labeledBy(APP_USER)],
+        [52, labeledBy(APP_USER)],
+      ]),
+      comments: new Map([
+        [51, escalationComment("feedback-disputed")],
+        [52, escalationComment("unresolved-conflict")],
+      ]),
+    },
+    { appSenderId: LANES_APP, maxDispatch: 9 },
+  );
+  await run();
+  assert.deepEqual(dispatchedNumbers(api), ["51"]);
+  const noApp = harness({ pages: [[disputed]], labelEvents: new Map([[51, labeledBy(APP_USER)]]), comments: new Map([[51, escalationComment("feedback-disputed")]]) });
+  await noApp.run();
+  assert.deepEqual(dispatchedNumbers(noApp.api), [], "with no lanes App id the label holds");
+});
+
+test("main reads a held PR's timeline once, however many dispatchers ask", async () => {
+  const held = pr(61, LABELS("needs-human"));
+  const ci = { ...ciFixPull(61), labels: { nodes: [{ name: "needs-human" }] } };
+  const docs = { ...docsPull(61), labels: { nodes: [{ name: "needs-human" }] } };
+  const api = fakeApi({ pages: [[held]], ciFixPulls: [ci], docsPulls: [docs], labelEvents: new Map([[61, labeledBy(OWNER)]]) });
+  const dir = mkdtempSync(join(tmpdir(), "pr-unblock-dispatch-"));
+  try {
+    await main(
+      { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
+      { api, sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}) },
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  assert.deepEqual(api.calls.dispatch, [], "a person's label holds all three");
+  assert.deepEqual(api.calls.timeline, [61]);
 });
 
 test("skips a PR while a resolve-conflicts run for it is queued or going", async () => {
@@ -600,7 +725,7 @@ const ciFixPull = (number) => {
               contexts: {
                 nodes: [
                   { __typename: "CheckRun", name: "ci-status", status: "COMPLETED", conclusion: "FAILURE", checkSuite: { app: { databaseId: 15368 } } },
-                  { __typename: "StatusContext", context: "ci-lanes", state: "FAILURE", creator: { login: "github-actions[bot]" } },
+                  { __typename: "StatusContext", context: "ci-lanes", state: "FAILURE", creator: { __typename: "Bot", login: "github-actions", databaseId: 41898282 } },
                 ],
               },
             },
@@ -872,12 +997,13 @@ test("only a finished run that handles the head for good is recorded", async () 
     [pr(2).headRefOid, [{ status: "in_progress", conclusion: null }]],
     [pr(3).headRefOid, [failedRun("2026-10-17T10:00:00Z", " resets=2026-10-17T12:00:00Z")]],
     [pr(4).headRefOid, [failedRun("2026-10-17T10:00:00Z", null)]],
+    [pr(5).headRefOid, [SUCCESS_RUN]],
   ]);
   const record = emptyRecord();
-  const { run } = harness({ pages: [[pr(1), pr(2), pr(3), pr(4)]], checked: runs }, { record, maxDispatch: 9 });
+  const { run } = harness({ pages: [[pr(1), pr(2), pr(3), pr(4), pr(5)]], checked: runs }, { record, maxDispatch: 9 });
   await run();
-  // #4 failed for a reason other than the usage limit: handled for good.
-  assert.deepEqual([...(record.handled.get(CHECK_NAME) ?? [])], [pr(4).headRefOid]);
+  // #4 failed once, so it is retried; #5 finished: handled for good.
+  assert.deepEqual([...(record.handled.get(CHECK_NAME) ?? [])], [pr(5).headRefOid]);
 });
 
 test("main carries the record in DISPATCH_RECORD and writes it only when it changed", async () => {
@@ -893,13 +1019,13 @@ test("main carries the record in DISPATCH_RECORD and writes it only when it chan
     DISPATCH_RECORD: path,
   };
   // A recorded head no open PR carries any more is dropped.
-  writeFileSync(path, JSON.stringify({ version: 3, handled: { [CHECK_NAME]: ["f".repeat(40)] }, dispatched: {} }));
+  writeFileSync(path, JSON.stringify({ version: 4, handled: { [CHECK_NAME]: ["f".repeat(40)] }, dispatched: {} }));
   const options = () => ({ api: fakeApi({ pages: [[pr(1)]], checked: new Set([pr(1).headRefOid]) }), sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}) });
   try {
     writeFileSync(output, "");
     assert.equal(await main(env, options()), 0);
     assert.equal(readFileSync(output, "utf8"), "record-changed=true\n");
-    assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), { version: 3, handled: { [CHECK_NAME]: [pr(1).headRefOid] }, dispatched: {} });
+    assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), { version: 4, handled: { [CHECK_NAME]: [pr(1).headRefOid] }, dispatched: {} });
     writeFileSync(output, "");
     assert.equal(await main(env, options()), 0);
     assert.equal(readFileSync(output, "utf8"), "");

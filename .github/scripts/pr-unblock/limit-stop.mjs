@@ -58,19 +58,35 @@ const untrustedSkip = (run) =>
   run.conclusion === "neutral" &&
   String(run.output?.title ?? "").startsWith("Skipped: untrusted-trigger");
 
+// The neutral check a run skipped on a held PR posts (report-check-run's
+// `Skipped: <reason>` title).
+const heldSkip = (run) => run.status === "completed" && run.conclusion === "neutral" && run.output?.title === "Skipped: awaiting-human";
+
+// Two opt-ins, for a dispatcher that checks the PR's holds itself before it
+// reads the check runs: with `heldSkipsRelease` a held skip stops handling the
+// head, so a head skipped while held is dispatched once the hold is gone; with
+// `failuresRetry` a failed run of any kind does too. Either way the head is
+// handled once `limit-stops-per-head` of them, limit stops included, stand on
+// it, so a dispatcher and a run that disagree about a hold stop there.
+const released = (run, heldSkipsRelease) => heldSkipsRelease && heldSkip(run);
+
 // Whether `runs` handle the head: any run that is not an untrusted skip or a
 // reset limit stop does, and so do `limit-stops-per-head` limit stops.
-export function anyHandles(runs, { now, limits = LIMIT_DEFAULTS }) {
+export function anyHandles(runs, { now, limits = LIMIT_DEFAULTS, failuresRetry = false, heldSkipsRelease = false }) {
   let stops = 0;
   for (const run of runs) {
     if (untrustedSkip(run)) {
+      continue;
+    }
+    if (released(run, heldSkipsRelease)) {
+      stops += 1;
       continue;
     }
     if (run.status !== "completed" || run.conclusion !== "failure") {
       return true;
     }
     const resets = limitResetsAt(run, limits);
-    if (resets === null || now < resets) {
+    if ((resets === null && !failuresRetry) || now < resets) {
       return true;
     }
     stops += 1;
@@ -79,8 +95,15 @@ export function anyHandles(runs, { now, limits = LIMIT_DEFAULTS }) {
 }
 
 // Whether `runs` hold a run that handles the head for good: completed, not an
-// untrusted skip, and not a limit stop. anyHandles is true for such a run
-// whatever `now` and `limits` are, so a dispatcher may record the head and
-// skip reading its check runs again.
-export const permanentlyHandles = (runs) =>
-  runs.some((run) => run.status === "completed" && !untrustedSkip(run) && limitResetsAt(run) === null);
+// untrusted skip, and not a limit stop (with failuresRetry: not a failure, or
+// the cap of failures). anyHandles is true then whatever `now` is, so a
+// dispatcher may record the head and skip reading its check runs again.
+// Without an opt-in, limit stops never handle the head for good, however many:
+// anyHandles holds it at the cap, and a head recorded at one cap would stay
+// recorded under a higher one.
+export function permanentlyHandles(runs, { limits = LIMIT_DEFAULTS, failuresRetry = false, heldSkipsRelease = false } = {}) {
+  const done = runs.filter((run) => run.status === "completed" && !untrustedSkip(run));
+  const retryable = (run) => released(run, heldSkipsRelease) || (failuresRetry ? run.conclusion === "failure" : limitResetsAt(run, limits) !== null);
+  const capped = (failuresRetry || heldSkipsRelease) && done.length > 0 && done.filter(retryable).length >= limits["limit-stops-per-head"];
+  return done.some((run) => !retryable(run)) || capped;
+}

@@ -16,8 +16,8 @@ dispatch run by the identity on a SHA containing the merge, a green canary
 run on such a SHA, and a matching read-back all exist, and no red full run or
 canary run counted against it first. Only an enqueue by the identity has a
 pinned SHA to read back; any other enqueue, and the identity's own native
-auto-merge (`native_auto_merge`), verifies on the dispatch and canary runs
-alone. A red full run is attributed after one `rerun-failed-jobs` the
+auto-merge (`native_auto_merge`, an immediate enqueue on arm included),
+verifies on the dispatch and canary runs alone. A red full run is attributed after one `rerun-failed-jobs` the
 wrapper triggers: red again is a failure, green is a flake. A red full run the
 pr-merge lane dispatched gets that one re-run from pr-merge.yml's own
 `post-merge-dispatch` job, which records it (`_Context.lane_rerun`); with
@@ -303,6 +303,8 @@ class PostMergeVerdict:
     # for a fresh run.
     hold: str | None = None
     recover_dispatch: bool = False
+    # When the earliest quarantine that excused a failing suite expires.
+    excuses_expire_at: datetime | None = None
 
     @property
     def ok(self) -> bool:
@@ -370,6 +372,9 @@ class PostMergeVerdict:
             "needsDispatch": self.needs_dispatch,
             "warnings": list(self.warnings),
             "branch": self.branch,
+            "excusesExpireAt": (
+                self.excuses_expire_at.isoformat() if self.excuses_expire_at else None
+            ),
         }
 
 
@@ -488,13 +493,19 @@ def _graphql(
     return payload["data"]
 
 
+# The enqueues the merged read returns per pull request, newest last: an
+# immediate-enqueue native arm counts only when every one is the identity's
+# (`native_auto_merge`), and a longer history reads as not native.
+ENQUEUE_EVENTS = 10
 MERGED_QUERY = (
     "query PostMergeMerged($o:String!,$r:String!,$b:String!,$c:String){"
     "repository(owner:$o,name:$r){pullRequests(baseRefName:$b,states:MERGED,"
     f"first:{MERGED_PAGE_SIZE},after:$c,orderBy:{{field:UPDATED_AT,direction:DESC}}){{"
     "pageInfo{hasNextPage endCursor} nodes{number url mergedAt updatedAt headRefOid "
     "mergedBy{__typename login} author{__typename login} isCrossRepository "
-    "mergeCommit{oid} timelineItems(itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT],last:1){nodes{"
+    "mergeCommit{oid parents(first:1){nodes{oid}}} "
+    f"timelineItems(itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT],last:{ENQUEUE_EVENTS}){{"
+    "pageInfo{hasPreviousPage} nodes{"
     "... on AddedToMergeQueueEvent{createdAt actor{__typename login} enqueuer{__typename login}}}} "
     "autoMerge:timelineItems(itemTypes:[AUTO_MERGE_ENABLED_EVENT,AUTO_MERGE_DISABLED_EVENT],last:1){nodes{"
     "__typename ... on AutoMergeEnabledEvent{createdAt actor{__typename login}} "
@@ -520,15 +531,34 @@ DISARM_MUTATION = (
 )
 
 
-def native_auto_merge(pr: dict[str, Any], merge: AutoMerge, identity: str) -> bool:
+def native_auto_merge(
+    pr: dict[str, Any],
+    merge: AutoMerge,
+    identity: str,
+    lane_prs_at: Callable[[str], str | None] | None = None,
+) -> bool:
     """Whether the identity's merge landed through GitHub's native auto-merge
-    (`enable-auto-merge.mjs` arms it), which posts no pin: the identity opened
-    the pull request from a branch of this repository, as that script requires,
-    and the newest auto-merge enable or disable event is the identity's enable,
-    made no later than the merge-queue enqueue. An arm under the identity token
-    on anyone else's pull request keeps the pin read-back. The gate disarms an
-    armed auto-merge before it pins and enqueues, and an arm after its enqueue
-    is not what queued the head, so either keeps the pin read-back.
+    (`enable-auto-merge.mjs` arms it), which posts no pin. The identity opened
+    the pull request from a branch of this repository, as that script
+    requires, and either:
+
+    - the newest auto-merge enable or disable event is the identity's enable,
+      made no later than the merge-queue enqueue; or
+    - there is no auto-merge event, every enqueue on the pull request is the
+      identity's (`actor` the identity, `enqueuer` null or the identity), and
+      `merge.lane-prs` was `native` at the merge commit's first parent
+      (`lane_prs_at`). Arming a pull request that is already mergeable in a
+      merge-queue repository enqueues it at once, and GitHub records only the
+      `AddedToMergeQueueEvent`. Under native the gate neither lists nor
+      enqueues the identity's pull requests, so its pin is not missing.
+
+    An arm under the identity token on anyone else's pull request keeps the
+    pin read-back. The gate disarms an armed auto-merge before it pins and
+    enqueues, and an arm after its enqueue is not what queued the head, so
+    either keeps the pin read-back. Any human enqueue, a longer enqueue
+    history than the read returns, an unknown merge parent (read as "",
+    which `read_config_at` refuses), and a config that
+    cannot be read keep it too.
 
     Residuals: nothing compares a native merge's head with any vetted head.
     `expectedHeadOid` binds only the head at arm time, and a writer's push
@@ -536,7 +566,14 @@ def native_auto_merge(pr: dict[str, Any], merge: AutoMerge, identity: str) -> bo
     the later head merges natively. An arm that lands between the gate's
     disarm check and its enqueue also reads as native and skips that merge's
     read-back, and so does an arm in the same second as the enqueue: event
-    times have one-second resolution, so the comparison is at or before."""
+    times have one-second resolution, so the comparison is at or before.
+    In the case with no auto-merge event, `check` still reads an unedited
+    identity pin back when one stands (`enable-auto-merge.mjs` pins the head
+    before it arms): a match verifies and a mismatch is a read-back failure.
+    Only a merge with no unedited pin skips the read-back, which pin-before-
+    arm leaves to merges armed before it shipped, such as #9554, and to a
+    pin edited or deleted after the enqueue. Such a merge still verifies only
+    on a green dispatch run and a green canary run."""
     if not merge.by_identity:
         return False
     if (
@@ -548,7 +585,7 @@ def native_auto_merge(pr: dict[str, Any], merge: AutoMerge, identity: str) -> bo
     if not is_json_object(connection) or not is_json_array(connection.get("nodes")):
         raise PostMergeReadError(f"#{merge.number}: no auto-merge events")
     if not connection["nodes"]:
-        return False
+        return _immediate_enqueue(pr, merge, identity, lane_prs_at)
     event = json_object(connection["nodes"][-1])
     if event.get("__typename") != "AutoMergeEnabledEvent":
         return False
@@ -560,6 +597,41 @@ def native_auto_merge(pr: dict[str, Any], merge: AutoMerge, identity: str) -> bo
     return _time(event.get("createdAt")) <= _time(
         json_object(queued[-1]).get("createdAt")
     )
+
+
+def _immediate_enqueue(
+    pr: dict[str, Any],
+    merge: AutoMerge,
+    identity: str,
+    lane_prs_at: Callable[[str], str | None] | None,
+) -> bool:
+    """`native_auto_merge`'s case with no auto-merge event: at least one
+    enqueue, every one the identity's, the read holds all of them, and
+    `merge.lane-prs` was native at the merge commit's first parent."""
+    if lane_prs_at is None:
+        return False
+    timeline = json_object(pr.get("timelineItems"))
+    if json_object(timeline.get("pageInfo")).get("hasPreviousPage") is not False:
+        return False
+    # No enqueue recorded is no evidence of one, so the loop below must not
+    # pass with nothing in it.
+    enqueues = json_array(timeline.get("nodes"))
+    if not enqueues:
+        return False
+    for item in enqueues:
+        event = json_object(item)
+        if _actor_key(event.get("actor")) != identity:
+            return False
+        if event.get("enqueuer") is not None and (
+            _actor_key(event.get("enqueuer")) != identity
+        ):
+            return False
+    parents = json_array(
+        json_object(json_object(pr.get("mergeCommit")).get("parents")).get("nodes")
+    )
+    # No parent reads as "", which `read_config_at` refuses, so it is not native.
+    parent = json_object(parents[0]).get("oid") if parents else None
+    return lane_prs_at(parent if isinstance(parent, str) else "") == "native"
 
 
 def _default_branch(owner: str, name: str) -> str:
@@ -980,6 +1052,9 @@ class _Context:
     checks_cache: dict[tuple[int, int], frozenset[str]] = field(default_factory=dict)
     # Full-history clones `contains` asks first; None until first resolved.
     local_clones: list[Path] | None = None
+    # Per live branch tip, the clone's copy of the branch when the compare
+    # API read it as that tip's ancestor, else None (`_tip_bridge`).
+    bridge_cache: dict[str, str | None] = field(default_factory=dict)
     baseline_cache: dict[tuple[str, datetime], frozenset[str] | None] = field(
         default_factory=dict
     )
@@ -1003,6 +1078,9 @@ class _Context:
     quarantine_issues: dict[str, dict[str, Any]] | None = None
     # Excused failing suites, by (suite, sighting).
     quarantines: dict[tuple[str, str], Quarantine] = field(default_factory=dict)
+    # The earliest time a quarantine that excused a failing suite expires,
+    # after which the same runs judge differently (`excuse_until`).
+    excuses_expire_at: datetime | None = None
     # The branch's dispatch runs at each commit, read by SHA.
     dispatch_at_cache: dict[str, dict[int, Run]] = field(default_factory=dict)
     # The lane records file (`LANE_RECORDS_ENV`), its records once loaded,
@@ -1097,16 +1175,18 @@ class _Context:
             return frozenset()
         issues = self._quarantine_issues()
         days = self._quarantine_days(run.head_sha)
-        return frozenset(
-            check
-            for check, suites in named.items()
-            if any(
-                not is_gate_suite(suite)
-                and (issue := issues.get(suite)) is not None
-                and self.now >= _time(issue.get("created_at")) + timedelta(days=days)
-                for suite in suites
-            )
-        )
+        expired: set[str] = set()
+        for check, suites in named.items():
+            for suite in suites:
+                issue = None if is_gate_suite(suite) else issues.get(suite)
+                if issue is None:
+                    continue
+                ends = _time(issue.get("created_at")) + timedelta(days=days)
+                if self.now >= ends:
+                    expired.add(check)
+                else:
+                    self.excuse_until(ends)
+        return frozenset(expired)
 
     def demoting(
         self, run: Run, attempt: int, checks: frozenset[str]
@@ -1138,16 +1218,26 @@ class _Context:
                         demote.add(check)
                         continue
                     issue = issues.get(suite)
-                    if issue is not None and self.now >= _time(
-                        issue.get("created_at")
-                    ) + timedelta(days=days):
+                    ends = (
+                        None
+                        if issue is None
+                        else _time(issue.get("created_at")) + timedelta(days=days)
+                    )
+                    if ends is not None and self.now >= ends:
                         demote.add(check)
                     else:
+                        if ends is not None:
+                            self.excuse_until(ends)
                         excused.append(Quarantine(suite, sighting, run.head_sha))
         for q in excused:
             self.quarantines[(q.suite, q.run_url)] = q
         self.demoting_cache[key] = frozenset(demote)
         return self.demoting_cache[key]
+
+    def excuse_until(self, ends: datetime) -> None:
+        """Note a quarantine excuse that holds until `ends`."""
+        if self.excuses_expire_at is None or ends < self.excuses_expire_at:
+            self.excuses_expire_at = ends
 
     def failing_suites(
         self, run_id: int, attempt: int, check: str
@@ -1597,26 +1687,71 @@ class _Context:
         """Whether `sha` is `ancestor` or has it in its history: from a local
         full-history clone when one holds both commits, else from the compare
         API, whose `ahead` or `identical` status means `ancestor` is reachable
-        from `sha`, which is what `git merge-base --is-ancestor` tests."""
+        from `sha`, which is what `git merge-base --is-ancestor` tests. For the
+        branch tip the clone lacks (the branch moved after it was made), an
+        ancestor of the clone's copy of the branch is an ancestor of the tip
+        when that copy is (`_tip_bridge`), so one compare answers them all."""
         key = (ancestor, sha)
         if key not in self.contains_cache:
             if ancestor == sha:
                 self.contains_cache[key] = True
             elif (local := self._local_contains(ancestor, sha)) is not None:
                 self.contains_cache[key] = local
+            elif (
+                sha == self.branch_tip
+                and (bridge := self._tip_bridge(sha)) is not None
+                and self._local_contains(ancestor, bridge) is True
+            ):
+                self.contains_cache[key] = True
             else:
-                compare = _read(
-                    [
-                        "api",
-                        f"repos/{self.owner}/{self.name}/compare/{ancestor}...{sha}",
-                    ],
-                    f"compare {ancestor[:12]}...{sha[:12]}",
-                )
-                self.contains_cache[key] = json_object(compare).get("status") in (
-                    "ahead",
-                    "identical",
-                )
+                self.contains_cache[key] = self._compare(ancestor, sha)
         return self.contains_cache[key]
+
+    def _compare(self, ancestor: str, sha: str) -> bool:
+        """The compare API's answer to `contains`; a failed read raises."""
+        compare = _read(
+            ["api", f"repos/{self.owner}/{self.name}/compare/{ancestor}...{sha}"],
+            f"compare {ancestor[:12]}...{sha[:12]}",
+        )
+        return json_object(compare).get("status") in ("ahead", "identical")
+
+    def _tip_bridge(self, tip: str) -> str | None:
+        """The first full-history clone's copy of the branch, read from
+        `refs/remotes/origin/<branch>` or else `refs/heads/<branch>`, when the
+        compare API reads it as an ancestor of `tip`; else None. Read once per
+        tip. A failed compare is None, not an error: each record then gets
+        its own compare, which raises on its own failure."""
+        if tip not in self.bridge_cache:
+            bridge = None
+            if self.local_clones is None:
+                self.local_clones = _full_history_clones()
+            refs = (f"refs/remotes/origin/{self.branch}", f"refs/heads/{self.branch}")
+            local = next(
+                (
+                    out.strip()
+                    for root in self.local_clones
+                    for ref in refs
+                    if (
+                        out := policy._git(
+                            root,
+                            "rev-parse",
+                            "--verify",
+                            "--quiet",
+                            f"{ref}^{{commit}}",
+                        )
+                    )
+                    and _FULL_SHA.fullmatch(out.strip())
+                ),
+                None,
+            )
+            # A local tip leaves only the record's commit missing: no bridge.
+            if local is not None and local != tip:
+                try:
+                    bridge = local if self._compare(local, tip) else None
+                except PostMergeReadError:
+                    bridge = None
+            self.bridge_cache[tip] = bridge
+        return self.bridge_cache[tip]
 
     def _local_contains(self, ancestor: str, sha: str) -> bool | None:
         """`git merge-base --is-ancestor` in the first local clone that can
@@ -1778,7 +1913,7 @@ def _judge(
             )
         else:
             pending.append("read-back-unrecorded")
-    elif pin_required and pinned != merge.head_ref_oid:
+    elif pinned is not None and pinned != merge.head_ref_oid:
         failures.append(
             Failure(
                 SIGNAL_READ_BACK,
@@ -1995,8 +2130,23 @@ def check(
         # The identity's merges with a pin to read back: not its native
         # auto-merges, which verify on the dispatch and canary runs alone.
         pinned_merges: set[int] = set()
+        # Its immediate-enqueue native merges: a pin, when one stands, is read
+        # back; with none the read-back is excused.
+        optional_pins: set[int] = set()
         warnings: list[str] = []
         identity = _login_key(agent_identity)
+        lane_prs: dict[str, str | None] = {}
+
+        def lane_prs_at(sha: str) -> str | None:
+            # An unreadable config keeps the pin read-back for that merge
+            # alone rather than making the whole verdict unreadable.
+            if sha not in lane_prs:
+                try:
+                    lane_prs[sha] = policy.read_config_at(repo, sha).lane_prs
+                except policy.PolicyReadError:
+                    lane_prs[sha] = None
+            return lane_prs[sha]
+
         for pr in _merged_since(owner, name, branch, merged_since):
             derived = policy.derive_auto_merge(
                 pr, is_human, identity, lane_merges_only=lane_merges_only
@@ -2005,8 +2155,11 @@ def check(
                 warnings.append(derived)
             elif derived is not None:
                 merges.append(derived)
-                if derived.by_identity and not native_auto_merge(pr, derived, identity):
-                    pinned_merges.add(derived.number)
+                if derived.by_identity:
+                    if not native_auto_merge(pr, derived, identity, lane_prs_at):
+                        pinned_merges.add(derived.number)
+                    elif not json_object(pr.get("autoMerge")).get("nodes"):
+                        optional_pins.add(derived.number)
         merges.sort(key=lambda m: (str(m.merged_at), m.number))
         ctx = _Context(
             owner,
@@ -2066,7 +2219,7 @@ def check(
                 full_runs=full_runs,
                 canary_runs=canary_runs,
                 pinned=pinned_sha(merge)
-                if pinned_sha and merge.number in pinned_merges
+                if pinned_sha and merge.number in pinned_merges | optional_pins
                 else None,
                 pin_required=merge.number in pinned_merges,
                 now=now,
@@ -2097,6 +2250,7 @@ def check(
         warnings=tuple(warnings),
         branch=branch,
         quarantines=tuple(ctx.quarantines.values()),
+        excuses_expire_at=ctx.excuses_expire_at,
     )
 
 
@@ -3010,6 +3164,92 @@ def gate_from_report(report: dict[str, Any]) -> policy.PostMergeGate:
     return policy.PostMergeGate(
         refusal, report, lambda merge: getattr(merge, "number", None) in verified
     )
+
+
+def gate_reader(
+    repo: str, self_logins: Collection[str], *, lane_merges_only: bool
+) -> Callable[[datetime, str], policy.PostMergeGate]:
+    """The merge gate's `post_merge(floor, identity)`: this check from
+    `floor`, as `gate_from_report` reads it."""
+
+    def post_merge(floor: datetime, identity: str) -> policy.PostMergeGate:
+        verdict = check(
+            repo,
+            agent_identity=identity,
+            is_human=_default_is_human(repo, identity, self_logins),
+            merged_since=floor,
+            pinned_sha=pin_reader(repo, identity),
+            lane_merges_only=lane_merges_only,
+        )
+        return gate_from_report(verdict.report())
+
+    return post_merge
+
+
+VERIFYING_WORKFLOWS = frozenset(
+    f".github/workflows/{w}" for w in (FULL_RUN_WORKFLOW, CANARY_WORKFLOW)
+)
+
+
+def pending_runs_unchanged(
+    repo: str,
+    shared: policy.SharedPostMerge,
+    branch: str,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    """Whether `check` would judge `shared`'s unverified merges as it did,
+    from one run listing: no full or canary run on `branch` created since the
+    earliest of them completed or was re-run since `computed_at` (less
+    `policy.SINCE_CLOCK_MARGIN`), none has passed `DISPATCH_DEADLINE`, after
+    which a missing dispatch or pin is a failure, and no quarantine that
+    excused a failing suite has expired (`excusesExpireAt`; an answer
+    without the field is False). Those are `_judge`'s time-based excuses. A
+    run started since and still running only stays pending. A listing that
+    cannot be read or is not whole, or an entry without a merge time, is
+    False."""
+    pending = [
+        m
+        for m in map(json_object, json_array(shared.gate.report.get("autoMerges")))
+        if m.get("verified") is not True
+    ]
+    report = shared.gate.report
+    if not pending or "excusesExpireAt" not in report:
+        return False
+    now = now or datetime.now(UTC)
+    try:
+        earliest = min(_time(m.get("mergedAt")) for m in pending)
+        excuse = report["excusesExpireAt"]
+        if now > earliest + DISPATCH_DEADLINE or (
+            excuse is not None and now >= _time(excuse)
+        ):
+            return False
+        owner, name = _split_repo(repo)
+        created = quote(
+            f">={earliest.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}", safe=""
+        )
+        payload = json_object(
+            _read(
+                [
+                    "api",
+                    f"repos/{owner}/{name}/actions/runs?branch={quote(branch, safe='')}"
+                    f"&created={created}&per_page=100",
+                ],
+                "verifying runs",
+            )
+        )
+        runs = json_array(payload.get("workflow_runs"))
+        if payload.get("total_count") != len(runs):
+            return False
+        since = shared.computed_at - policy.SINCE_CLOCK_MARGIN
+        return not any(
+            run.get("path") in VERIFYING_WORKFLOWS
+            and run.get("status") == "completed"
+            and _time(run.get("updated_at")) >= since
+            for run in map(json_object, runs)
+        )
+    except PostMergeReadError:
+        return False
 
 
 def read_shared(path: str) -> policy.SharedPostMerge | None:

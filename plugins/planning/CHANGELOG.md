@@ -3,6 +3,26 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.97.0] - 2026-10-24
+
+### Changed
+
+- `round.sh supersede` and `resolve ... restore` now handle an answered register row with more than an answer (`answer:: ...; note:: ...`, or a row an earlier reconfirm wrote). The superseded row holds the displaced resolution whole in `was named::`, `restore` gives it back byte for byte, and `reconfirm` keeps the displaced answer as `was`, with its note (unless `--note` gives a new one) and its commitments. An earlier reconfirm's proposal and `was` are dropped: the reconfirmed row has room for one of each. Before, such a row was refused and had to be edited by hand.
+
+- The interview server marks a plain accept (no text) and a plain confirm handled when it saves them, so the watcher wakes only for events that need a reply. The responses document, `sync-ledger` and `export-brief` record them as before. The accept that settles the last open question of a round stays unhandled, so the agent learns the round is complete. Undo of an auto-handled accept still works until the agent handles a later event; the "Claude already handled it" refusal applies to agent-handled events. The interview surface reference lists which events are auto-handled.
+
+## [0.96.1] - 2026-10-24
+
+### Fixed
+
+- The brief's TLDR line reads `- 1 question: ...` for a brief with exactly one question; before, it read `- 1 questions: ...`. A brief with zero or two or more questions is unchanged.
+
+## [0.96.0] - 2026-10-24
+
+### Added
+
+- `/planning:plan` and `/planning:interview` name, before presenting a plan step or an option that adds a mechanism (a branch, workflow, ruleset, app, service, dependency or check), the existing control that already covers the same risk, and say whether they read its enforcing source or only a document. They drop the mechanism, or recommend dropping it, when such a control exists. A security control is never dropped without the user's decision. An abstraction for a stated, known repetition stays when it passes the standards index's `reference-dont-duplicate` tests. A non-trivial new mechanism goes to `/overengineering:justify` on the proposal. One interview eval case covers each side.
+
 ## [0.95.1] - 2026-10-23
 
 ### Fixed

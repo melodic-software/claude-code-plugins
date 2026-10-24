@@ -620,6 +620,13 @@ class PipelineConfig:
     # (`babysit_postmerge`). Absent, or anything but a whole number from 0 to
     # `MAX_CONFIRM_WAIT_MINUTES`, is `CONFIRM_WAIT_MINUTES`.
     confirm_wait_minutes: int = CONFIRM_WAIT_MINUTES
+    # `merge.lane-prs`: `native` (absent from a readable pipeline file, as
+    # resolve-config resolves it) or `gate`; None for no file, a parse error
+    # or any other value (`babysit_postmerge.native_auto_merge`).
+    lane_prs: str | None = None
+
+
+LANE_PRS_MODES = ("native", "gate")
 
 
 # The most `merge.max-queue-ejections` may be, and the timeline items the
@@ -761,6 +768,7 @@ def read_config_at(
             ("adoption.spec-from-body-apps", True),
             ("merge.quarantine-days", False),
             ("red-main.confirm-wait-minutes", False),
+            ("merge.lane-prs", False),
         ],
     )
     if values is None:
@@ -884,6 +892,10 @@ def read_config_at(
             f"from 0 to {MAX_CONFIRM_WAIT_MINUTES}"
         )
         confirm_wait = None
+    lane_prs: str | None = scalar("merge.lane-prs") or "native"
+    if lane_prs not in LANE_PRS_MODES:
+        notes.append(f"merge.lane-prs {lane_prs!r} is not native or gate")
+        lane_prs = None
     return PipelineConfig(
         base_sha=base_sha,
         rung=rung,
@@ -913,6 +925,7 @@ def read_config_at(
         confirm_wait_minutes=int(confirm_wait)
         if confirm_wait is not None
         else CONFIRM_WAIT_MINUTES,
+        lane_prs=lane_prs,
     )
 
 
@@ -1962,11 +1975,165 @@ DECISION_LINE = re.compile(r"^\*\*Decision recorded\.\*\*[ \t]+Cost:")
 # one is hidden from a reader, so it cites nothing.
 HTML_COMMENT = re.compile(r"<!--.*?(?:-->|\Z)", re.DOTALL)
 COMMENT_EDITED = "query PolicyCommentEdited($id:ID!){node(id:$id){... on IssueComment{lastEditedAt}}}"
+COMMENT_DELETED = (
+    "query PolicyCommentDeleted($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name)"
+    "{pullRequest(number:$number){timelineItems(itemTypes:[COMMENT_DELETED_EVENT],last:100)"
+    "{filteredCount nodes{... on CommentDeletedEvent{createdAt}}}}}}"
+)
+
+
+def names_pull(text: Any, number: Any) -> bool:
+    """Whether `text` names pull request `number` as `#<number>`: not part of
+    a longer number, and not after a letter, digit, `_`, `#`, `&`, `/`, `.`
+    or `-`, so neither `owner/repo#<number>` (another repository's) nor an
+    `&#<number>` entity counts. ASCII classes only, as merge-holds.mjs
+    `namesPull` and ci-status read it."""
+    if not isinstance(number, int) or isinstance(number, bool):
+        return False
+    return (
+        re.search(
+            rf"(?:^|[^A-Za-z0-9_#&/.-])#{number}(?:[^0-9]|$)", str(text or "")
+        )
+        is not None
+    )
 
 
 def _after(value: Any, opened: datetime | None) -> bool:
     made = parse_timestamp(value)
     return made is not None and opened is not None and made > opened
+
+
+# A review lane's cost hold marker, as ci-workflows apply-review-hold writes
+# it on the first line of its hold comment: the head it held and its
+# criteria. The base branch name a compare takes, as the hold step reads it.
+COST_MARKER = re.compile(
+    r"<!-- claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) "
+    r"criteria=([a-z,-]+) -->(?:\n|\Z)"
+)
+BASE_BRANCH = re.compile(r"(?!-)(?!.*\.\.)[A-Za-z0-9._/-]{1,255}")
+_NEVER = datetime.min.replace(tzinfo=UTC)
+
+
+def cost_marker(comments: Any, at: Any) -> tuple[str, str, Any] | None:
+    """The newest cost hold marker github-actions[bot] posted among the pull
+    request's `comments` before a decision made at `at`, as (the head it
+    held, its comment's node id, its created_at), else None (merge-holds.mjs
+    `costMarker`; the first of two at one time wins, as in the review lanes'
+    hold step). It decides a head only while never edited and while no
+    comment was deleted since it was posted, which the caller reads."""
+    when = parse_timestamp(at)
+    found: tuple[datetime, str, str] | None = None
+    for row in json_array(comments):
+        row = json_object(row)
+        made = parse_timestamp(row.get("created_at"))
+        marker = (
+            COST_MARKER.match(str(row.get("body") or ""))
+            if json_object(row.get("user")).get("login") == "github-actions[bot]"
+            else None
+        )
+        if (
+            marker
+            and "cost" in marker[2].split(",")
+            and made is not None
+            and when is not None
+            and made < when
+            and (found is None or made > found[0])
+        ):
+            found = (made, marker[1], str(row.get("node_id") or ""), row.get("created_at"))
+    return (found[1], found[2], found[3]) if found else None
+
+
+def deleted_since(answer: Any, at: Any) -> bool:
+    """Whether a `COMMENT_DELETED` answer (its `data`) shows a comment on the
+    pull request deleted at or after `at`, or cannot show that none was: no
+    readable list, more deletions than it lists, or a time that does not
+    parse (merge-holds.mjs `deletedSince`). A deleted newer marker would
+    otherwise make an older one the decided head."""
+    when = parse_timestamp(at)
+    items = json_object(
+        json_object(json_object(json_object(answer).get("repository")).get("pullRequest")).get(
+            "timelineItems"
+        )
+    )
+    nodes, count = items.get("nodes"), items.get("filteredCount")
+    if when is None or not is_json_array(nodes) or not isinstance(count, int) or isinstance(count, bool) or count > len(nodes):
+        return True
+    for node in nodes:
+        made = parse_timestamp(json_object(node).get("createdAt"))
+        if made is None or made >= when:
+            return True
+    return False
+
+
+def same_net_change(decided: Any, current: Any) -> bool:
+    """Whether two compare answers (base...head) show the same net change of
+    the pull request: the same filenames, each with the same status,
+    previous_filename and patch. A list of 300 files or more (the compare
+    API's cap), a file with no patch, a filename listed twice, or an answer
+    with no file list is not the same (merge-holds.mjs `sameNetChange`)."""
+
+    def net(compare: Any) -> dict[str, tuple[Any, Any, str]] | None:
+        files = json_object(compare).get("files")
+        if not is_json_array(files) or len(files) >= 300:
+            return None
+        by_name: dict[str, tuple[Any, Any, str]] = {}
+        for f in files:
+            f = json_object(f)
+            name, patch = f.get("filename"), f.get("patch")
+            if not isinstance(name, str) or not isinstance(patch, str) or name in by_name:
+                return None
+            by_name[name] = (f.get("status"), f.get("previous_filename"), patch)
+        return by_name
+
+    then, now = net(decided), net(current)
+    return then is not None and now is not None and then == now
+
+
+def _carries(repo: str, pr: Mapping[str, Any], comment: Mapping[str, Any]) -> bool:
+    """Whether the decision `comment` covers the pull request at its head
+    (owner decisions Q17 c and Q18 d on #9436): its decided head
+    (`cost_marker`, never edited, so no one with write access moved its sha)
+    is the head, with no compare read, or every change since is a merge of the
+    base branch, so the net change against it is the same at both
+    (`same_net_change`). No marker, an edited or unreadable newest marker (no
+    older one stands in), a comment deleted since that marker was posted
+    (`deleted_since`, read before the head check, so deleting a newer marker
+    cannot promote an older head), an unusable base name or a read that fails
+    carries nothing."""
+    sha = str(json_object(pr.get("head")).get("sha") or "")
+    base = json_object(pr.get("base")).get("ref")
+    owner, name = _split_repo(repo)
+    try:
+        marker = cost_marker(
+            _paginated(
+                f"repos/{owner}/{name}/issues/{pr.get('number')}/comments?per_page=100",
+                "cost hold markers",
+            ),
+            comment.get("created_at"),
+        )
+        if marker is None:
+            return False
+        node = _graphql(COMMENT_EDITED, "cost hold marker", id=marker[1]).get("node")
+        if not (is_json_object(node) and "lastEditedAt" in node and node["lastEditedAt"] is None):
+            return False
+        deleted = _graphql(
+            COMMENT_DELETED, "deleted comments", owner=owner, name=name, number=pr.get("number")
+        )
+    except PolicyReadError:
+        return False
+    if deleted_since(deleted, marker[2]):
+        return False
+    decided = marker[0]
+    if decided == sha:
+        return True
+    if not isinstance(base, str) or not BASE_BRANCH.fullmatch(base):
+        return False
+    reads = [
+        _get(f"repos/{owner}/{name}/compare/{base}...{each}") for each in (decided, sha)
+    ]
+    if any(status != 200 for status, _ in reads):
+        return False
+    return same_net_change(reads[0][1], reads[1][1])
 
 
 def cost_decision(
@@ -1978,21 +2145,28 @@ def cost_decision(
     agent_identity: str | None,
     self_logins: Collection[str] = frozenset(),
 ) -> str | None:
-    """The first comment link in the body that is an owner decision covering
-    this pull request, else None: a comment on its closing issue or on the
-    pull request itself in `repo`, by a User with admin permission who is not
-    the agent identity, not posted through an App, never edited, and whose
-    first line starts `**Decision recorded.** Cost:`. One on the closing issue
-    counts only when created after the pull request was, so an older decision
-    on the issue cannot cover new work (an author can forge commit dates, not
-    these); one on the pull request postdates it already. A link inside an HTML
-    comment, and a comment by a `self_logins` account, count for nothing. A
-    read that fails clears nothing."""
+    """The comment link in the body that is an owner decision covering this
+    pull request at its head, else None: a comment on the pull request itself
+    or on `issue` (its linked issue, `_linked_issue`) in `repo`, by a User
+    with admin permission who is not the agent identity, not posted through
+    an App, never edited, and whose first line starts `**Decision recorded.**
+    Cost:`. One on the pull request counts as it is; one on the issue counts
+    only when its text names this pull request (`names_pull`) and it was
+    created after the pull request was, so a decision recorded on the issue
+    for another change does not cover a pull request that links the issue
+    later (an author can forge commit dates, not these). Of those, the
+    decision is the newest on the pull request, else the newest on the issue,
+    as the review lanes' hold step picks it; it covers the head it decided and
+    a later head only when every change since is a base merge (`_carries`,
+    owner decisions Q17 c and Q18 d on #9436). A link inside an HTML comment,
+    and a comment by a `self_logins` account, count for nothing. A read that
+    fails clears nothing."""
     owner, name = _split_repo(repo)
     covered = {pr.get("number"), issue} - {None}
     opened = parse_timestamp(pr.get("created_at"))
     excluded = {_login_key(agent_identity)} | {_login_key(x) for x in self_logins}
     body = HTML_COMMENT.sub("", str(pr.get("body") or ""))
+    decisions: list[tuple[bool, str, dict[str, Any]]] = []
     for link in COST_DECISION_LINK.finditer(body):
         if f"{link[1]}/{link[2]}".casefold() != repo.casefold():
             continue
@@ -2012,7 +2186,10 @@ def cost_decision(
             or not DECISION_LINE.match(str(comment.get("body") or "").lstrip())
             or (
                 int(link[3]) != pr.get("number")
-                and not _after(comment.get("created_at"), opened)
+                and not (
+                    _after(comment.get("created_at"), opened)
+                    and names_pull(comment.get("body"), pr.get("number"))
+                )
             )
         ):
             continue
@@ -2029,7 +2206,15 @@ def cost_decision(
             and "lastEditedAt" in node
             and node["lastEditedAt"] is None
         ):
-            return link[0]
+            decisions.append((int(link[3]) == pr.get("number"), link[0], comment))
+    for own in (True, False):
+        mine = [d for d in decisions if d[0] is own]
+        if mine:
+            _, link, comment = max(
+                mine,
+                key=lambda d: parse_timestamp(d[2].get("created_at")) or _NEVER,
+            )
+            return link if _carries(repo, pr, comment) else None
     return None
 
 
@@ -2311,6 +2496,9 @@ def lane_eligibility(
 # A commit's file list stops at this many entries, so a full one may hide more.
 COMMIT_FILES_LIMIT = 300
 CI_STATUS_CHECK = "ci-status"
+# GitHub Actions, the app the ruleset requires `ci-status` from; another app's
+# run of that name, with any start time it chooses, never decides the gate.
+ACTIONS_APP_ID = 15368
 
 
 def is_dependabot_pull_request(pr: Mapping[str, Any]) -> bool:
@@ -2527,14 +2715,24 @@ def _commit_files(owner: str, name: str) -> Callable[[str], list[str] | None]:
 
 def _ci_status(owner: str, name: str, head: str) -> str:
     """`success`, `pending`, or the conclusion of a finished `ci-status` run on
-    `head` that did not succeed; `unreadable` when the runs cannot be read."""
+    `head` that did not succeed; `unreadable` when the runs cannot be read.
+    `filter=latest` keeps the latest run of each check suite, so a re-triggered
+    workflow leaves an older run beside a newer one: the runs that started last
+    decide, and any failure among them decides, as it does among all runs when
+    one has no readable start time. Only GitHub Actions' runs are read."""
     status, payload = _get(
         f"repos/{owner}/{name}/commits/{head}/check-runs"
-        f"?check_name={CI_STATUS_CHECK}&filter=latest&per_page=100"
+        f"?check_name={CI_STATUS_CHECK}&app_id={ACTIONS_APP_ID}&filter=latest&per_page=100"
     )
     runs = [json_object(r) for r in json_array(json_object(payload).get("check_runs"))]
     if status != 200 or not SHA_RE.fullmatch(head):
         return "unreadable"
+    try:
+        started = [_time(r.get("started_at")) for r in runs]
+    except PolicyReadError:
+        started = []
+    if started:
+        runs = [r for r, s in zip(runs, started, strict=True) if s == max(started)]
     if not runs or any(r.get("status") != "completed" for r in runs):
         return "pending"
     failed = [
@@ -3855,8 +4053,10 @@ SHARED_BINDING_REFUSALS = frozenset(
         "config-unreadable",
     }
 )
-# Runner clocks may run ahead of GitHub's; `since` starts this much earlier.
-SINCE_CLOCK_MARGIN = timedelta(minutes=5)
+# Clock skew alone: a runner clock may run ahead of GitHub's, so `since`
+# starts this much earlier. `computed_at` is stamped before the reads it
+# covers, so no read time needs covering.
+SINCE_CLOCK_MARGIN = timedelta(seconds=60)
 
 
 @dataclass(frozen=True)
@@ -3907,11 +4107,15 @@ def _demotion_changed(
 ) -> bool:
     """Whether anything `read_demotion` reads may differ from the shared
     answer, in one REST call: an issue updated since the answer was computed
-    (which precedes its demotion read), less `SINCE_CLOCK_MARGIN`, that a
-    record filer opened, or that is a known record. Creating, editing,
-    closing or reopening an issue updates it, so no new or changed record
-    escapes. A full page or an unreadable
-    one counts as changed."""
+    (which precedes its demotion read), less `SINCE_CLOCK_MARGIN`, that is a
+    known record, or that a record filer opened and `read_demotion` could
+    count as one: its body carries the marker now, or it may have been edited
+    since it was opened (`updated_at` differs from `created_at`, or either is
+    unreadable), so an earlier revision could. Creating, editing, closing or
+    reopening an issue updates it. REST timestamps are whole seconds, so a
+    marker stripped within the second its issue was opened escapes until the
+    next fresh `read_demotion`; no code here edits a record's body. A full
+    page or an unreadable one counts as changed."""
     since = (
         (shared.computed_at - SINCE_CLOCK_MARGIN)
         .astimezone(UTC)
@@ -3926,8 +4130,16 @@ def _demotion_changed(
     for issue in map(json_object, issues):
         if "pull_request" in issue:
             continue
-        author = _login_key(json_object(issue.get("user")).get("login"))
-        if author in filers or issue.get("number") in shared.demotion.records:
+        if issue.get("number") in shared.demotion.records:
+            return True
+        if _login_key(json_object(issue.get("user")).get("login")) not in filers:
+            continue
+        if DEMOTION_MARKER in str(issue.get("body") or ""):
+            return True
+        try:
+            if _time(issue.get("updated_at")) != _time(issue.get("created_at")):
+                return True
+        except PolicyReadError:
             return True
     return False
 
@@ -4041,6 +4253,11 @@ def shared_refusal(
     return None
 
 
+def not_open_refusal(state: object) -> str:
+    """The gate's blocker for a pull request whose GraphQL state is not OPEN."""
+    return f"state={state} (not OPEN)"
+
+
 def assess(
     repo: str,
     number: int,
@@ -4055,6 +4272,7 @@ def assess(
     shared: SharedPostMerge | None = None,
     share: Callable[[SharedPostMerge], object] | None = None,
     human_gated: str | None = None,
+    stop_when_closed: bool = False,
 ) -> UnattendedPolicy:
     """The policy readers for one pull request, in the wiring order.
 
@@ -4093,8 +4311,11 @@ def assess(
     adopted pull request in the lane (`adoption_refusal`); None adopts none.
     `promotion(window_start)` reads the promotion evidence with the newest
     demotion record's creation as the window restart; without it nothing is
-    promoted. `self_logins` names only lane or bot self identities (see
-    `is_human`). Raises `PolicyReadError` when the pull request or either
+    promoted. With `stop_when_closed`, a pull request the REST record reads
+    as merged refuses (`not_open_refusal`) once the identity and the readers
+    the queue sweep needs are read, before the demotion and post-merge
+    reads: the gate holds it on the same blocker.
+    `self_logins` names only lane or bot self identities (see `is_human`). Raises `PolicyReadError` when the pull request or either
     pipeline config cannot be read, because the agent identity is then
     unknown. A default branch head config that cannot be parsed, or names
     another identity, is a stop (`StopReadError`).
@@ -4208,6 +4429,10 @@ def assess(
         "permission": permission,
     }
     inputs.update(permission=permission, self_logins=self_logins)
+    if stop_when_closed and pr.get("state") == "closed" and pr.get("merged") is True:
+        # The queue sweep still runs on what is read so far: this may be the
+        # run's last candidate. A merge is final; a closed one can reopen.
+        return replace(stopped, reason=not_open_refusal("MERGED"))
     # The run's shared answer stands in for the demotion, floor and post-merge
     # reads when it is bound to this run; otherwise they are read here.
     reuse = None
@@ -4477,18 +4702,87 @@ class LaneRoom:
         }
 
 
+def _still_current(
+    repo: str,
+    default: str,
+    identity: str,
+    shared: SharedPostMerge,
+    runs_unchanged: Callable[[SharedPostMerge, str], bool],
+) -> bool:
+    """Whether the post-merge check would answer `shared` again, in order:
+    the default branch head is its `main_sha`, the head's config commit is its
+    `config_sha` (with the demotion unchanged, the same floor), no demotion
+    record was filed or changed since (`_demotion_changed`), and
+    `runs_unchanged`: none of its unverified merges' verifying runs reached a
+    conclusion since. Raises `PolicyReadError`."""
+    owner, name = _split_repo(repo)
+    _, head = _default_branch_head(repo, default)
+    return (
+        head == shared.main_sha
+        and newest_config_commit(repo, head) == shared.config_sha
+        and not _demotion_changed(owner, name, shared, identity)
+        and runs_unchanged(shared, default)
+    )
+
+
+def _recompute_shared(
+    repo: str,
+    default: str,
+    identity: str,
+    self_logins: frozenset[str],
+    post_merge: Callable[[datetime, str], PostMergeGate],
+    now: datetime | None,
+) -> SharedPostMerge | None:
+    """The run's shared answer read afresh at the default branch head, as
+    `assess` reads it for a pr-merge candidate: the head, its config commit,
+    the demotion, the floor, then the post-merge check, bound at a
+    `computed_at` taken before them. None when the check is not readable.
+    Raises `PolicyReadError`."""
+    computed_at = now or datetime.now(UTC)
+    _, head = _default_branch_head(repo, default)
+    config_sha = newest_config_commit(repo, head)
+    demotion = read_demotion(
+        repo,
+        agent_identity=identity,
+        self_logins=self_logins,
+        permission=permission_reader(repo),
+    )
+    floor = merged_since_floor(repo, head, demotion, PR_MERGE)
+    gate = post_merge(floor, identity)
+    if gate.report.get("readable") is not True:
+        return None
+    return SharedPostMerge(
+        main_sha=head,
+        config_sha=config_sha,
+        identity=identity,
+        self_logins=self_logins,
+        lane_merges_only=True,
+        computed_at=computed_at,
+        demotion=demotion,
+        floor=floor,
+        gate=gate,
+    )
+
+
 def lane_room(
     repo: str,
     shared: SharedPostMerge | None,
     *,
     lane_rung_cap: str | None,
     now: datetime | None = None,
+    post_merge: Callable[[datetime, str], PostMergeGate] | None = None,
+    runs_unchanged: Callable[[SharedPostMerge, str], bool] | None = None,
 ) -> LaneRoom:
     """Whether the pr-merge lane may merge one more of its own pull requests
     now, for native auto-merge, which skips `assess`: the run-level refusals
     `assess` applies to every lane candidate, read once at the default branch
     head, in its order. `shared` is this run's `babysit_postmerge.py` answer
     (`babysit_postmerge.read_shared`), as the gate's `--postmerge-result`.
+    `post_merge` is `assess`'s: an answer refused only as `unverified-stale`
+    is kept when nothing it was read from has moved (`_still_current`, with
+    `runs_unchanged(shared, branch)` for its unverified merges' runs), else
+    read again as the gate reads it (`_recompute_shared`), and a readable
+    one stands in for `shared`.
 
     - A config naming another authority stops (`enabled_authority`).
     - A post-merge refusal stops (`post-merge:<refusal>`).
@@ -4504,7 +4798,10 @@ def lane_room(
     not be read included, is `unreadable`. So is a `shared` the gate would
     not reuse (`shared_refusal`): too old (a re-run job downloads the run's
     first report, up to a day old), a demotion record filed or changed
-    since, or a lane merge landed since that it does not count."""
+    since, or a lane merge landed since that it does not count. An
+    `unverified-stale` one is kept or read again instead, since a lane
+    merge's verifying run may have passed or failed since; a read that fails
+    or is not readable leaves it `unreadable`."""
     if shared is None:
         return LaneRoom(unreadable="post-merge answer missing or unreadable")
     try:
@@ -4532,6 +4829,25 @@ def lane_room(
         authority=PR_MERGE,
         now=now,
     )
+    if unusable == "unverified-stale" and post_merge is not None:
+        # Kept when nothing it was read from moved, else read again.
+        try:
+            current = runs_unchanged is not None and _still_current(
+                repo, default, identity, shared, runs_unchanged
+            )
+        except (RuntimeError, ValueError, OSError):
+            current = False
+        if not current:
+            try:
+                fresh = _recompute_shared(
+                    repo, default, identity, shared.self_logins, post_merge, now
+                )
+            except (RuntimeError, ValueError, OSError) as exc:
+                return LaneRoom(unreadable=f"post-merge answer {unusable}: {exc}")
+            if fresh is None:
+                return LaneRoom(unreadable=f"post-merge answer {unusable}: unreadable")
+            shared = fresh
+        unusable = None
     if unusable:
         return LaneRoom(unreadable=f"post-merge answer {unusable}")
     if shared.gate.refusal:

@@ -67,7 +67,8 @@ permissions, and passes no App key.
 | `review-replies-attempt` | `''` | Write file only: with `review-replies`, the read file's `feedback-attempt` output, which names the scanned replies artifact |
 | `review-replies-sha256`, `review-patch-state` | `''` | Write file only: with `review-replies`, the same read call's `feedback-sha256` and `scan-patch-state` outputs, which bind the replies' bytes and, with the scan refusal marker, decide whether missing replies are a `no-model-turn` skip |
 | `feedback-context-attempt`, `feedback-context-sha256` | `''` | Read file only: for [`prepare: review-threads`](#prepare-review-threads), the attempt naming the select job's `feedback-context-<attempt>` artifact and its thread file's SHA-256 |
-| `patch-threads-attempt`, `patch-threads-sha256`, `patch-fix-requested` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch) under the `review-threads` row, the select job's artifact attempt, its thread file's SHA-256 and its `fix-requested` output |
+| `patch-threads-attempt`, `patch-threads-sha256` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch) under the `review-threads` row, the select job's artifact attempt and its thread file's SHA-256 |
+| `patch-fix-requested` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), a base-code job's verdict that lifts the human-gated hold of this push: the review-threads select job's `fix-requested`, or `lane-escalated` from `fix-ci-context`, `resolve-conflicts-select` or `fix-docs-head` when another lane's escalation put the label on |
 | `merge-base-sha`, `merge-conflict-tree` | `''` | Read file only: for [`prepare: merge-base`](#prepare-merge-base), the base the caller's select job pinned and the conflict tree its merge reached; this run's merge must reach the same tree, and the scan job then reads the patch as text only |
 | `patch-merge-base-sha`, `patch-merge-state`, `patch-conflict-tree` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch) under the `merge-base` row, the select job's pinned base, merge state and conflict tree, which this run's merge must reach |
 | `dependency-context-attempt`, `dependency-context-sha256` | `''` | Read file only: for [`prepare: dependency-review`](#prepare-dependency-review), the attempt naming the select job's `dependency-context-<attempt>` artifact and its context file's SHA-256 |
@@ -1140,10 +1141,12 @@ warns of a [classifier gap](README.md#classifier-gaps).
      at the current head and through its own gate. With `config_unreadable` it posts no merge
      marker and escalates `dependency-config-unreadable`; with `files_truncated` it posts no
      merge marker and escalates `dependency-files-truncated`; when the pull request's files
-     (re-read here) change a workflow or action file (`.github/workflows/**` or an
-     `action.yml`), either side of a rename, it posts no merge marker and escalates
-     `dependency-workflow-held`, so a person merges it; a listing at its 3,000-file limit
-     escalates `dependency-files-truncated`; unless the pull request's commits are listed whole
+     (re-read here; a listing at its 3,000-file limit escalates `dependency-files-truncated`)
+     change a workflow or action file (`.github/workflows/**` or an `action.yml`, either side of
+     a rename) by anything but a full-SHA pin swap, it posts no merge marker and escalates
+     `dependency-workflow-unpinned`. A pin swap is a modification whose every change block
+     replaces `uses:` lines one for one, each keeping its indent and action path with both refs
+     full 40-hex SHAs, so only the SHA and the trailing comment differ; unless the pull request's commits are listed whole
      (fewer than 250, the pull request's count, the last one the head) and each is Dependabot's
      own (author id 49699333, committer `web-flow`, a valid signature, Dependabot's name and
      email), the version-bump commit (only plugins' `plugin.json` `version` and `CHANGELOG.md`
@@ -1820,8 +1823,10 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   checked (the compare reads that SHA, and a new PR whose head is another commit is closed), and every commit on it ahead of the default branch is verified, authored by the lanes App
   and committed by `web-flow`; the PR body's Verification section says so. Otherwise it hands the issue to a person,
   naming the resumed branch. On `done` it opens a ready (not draft) PR from the branch whose
-  body starts `Closes #<n>` (or `Refs: #<n>` when the outcome sets
-  `"link": "refs"` because a recorded decision keeps the issue open), puts no label on it (the work class stays on the issue), and adds
+  body starts `Closes #<n>` (or `Refs: #<n>`, with a `## Remaining work` section listing them,
+  when the outcome's `remaining` names parts of the issue the PR leaves for later work; a
+  `remaining` that is not 1 to 20 strings with text counts as none, and the run's `link` field
+  decides nothing), puts no label on it (the work class stays on the issue), and adds
   `Hold: a human merges this` for untrusted-provenance work, for a diff that
   touches a path the merge lane refuses (`merge.diff-check.denied-paths`, read from the run's
   resolved config; unreadable holds every PR), or, while some path is denied, for one too large

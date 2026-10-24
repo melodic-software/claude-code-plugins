@@ -67,6 +67,12 @@ def commit(
     }
 
 
+def security(subject: str, name: str, version: str) -> dict[str, Any]:
+    """A security update's commit: its metadata carries no update-type."""
+    body = metadata((name, None, version)).split("\n", 1)[1]
+    return commit(f"{subject}\n{body}")
+
+
 def no_files(sha: str) -> list[str] | None:
     raise AssertionError(f"files read for a Dependabot commit {sha}")
 
@@ -173,6 +179,76 @@ class Classify(unittest.TestCase):
         self.assertEqual(
             tier("bump x", commits=[unknown]).reasons, ("unparsed-version:x",)
         )
+
+    def test_security_metadata_without_update_type_reads_the_commit_subject(
+        self,
+    ) -> None:
+        # A security update's metadata names the package and version but no
+        # update-type (#9511): its own verified commit subject gives the jump.
+        title = "build: Bump fast-uri from 3.1.8 to 3.1.9 in /plugins/miro/server"
+        result = tier(title, commits=[security(title, "fast-uri", "3.1.9")])
+        self.assertEqual((result.tier, result.reasons), ("auto", ()))
+        major = "bump x from 1.9.0 to 2.0.0"
+        result = tier(major, commits=[security(major, "x", "2.0.0")])
+        self.assertEqual(result.reasons, ("major:x",))
+
+    def test_an_edited_title_cannot_hide_a_major_jump(self) -> None:
+        # The subject is signed with the commit; the title is not.
+        signed = security("bump x from 1.9.0 to 2.0.0", "x", "2.0.0")
+        for title in (
+            "bump x from 2.0.0 to 2.0.0",
+            "chore: please do not bump x from 2.0.0 to 2.0.0",
+        ):
+            with self.subTest(title=title):
+                result = tier(title, commits=[signed])
+                self.assertEqual(result.tier, "review")
+                self.assertIn("major:x", result.reasons)
+
+    def test_the_subject_fallback_keeps_the_0x_rule(self) -> None:
+        zero = "bump x from 0.3.1 to 0.4.0"
+        self.assertEqual(
+            tier(zero, commits=[security(zero, "x", "0.4.0")]).reasons, ("major:x",)
+        )
+        patch = "bump x from 0.3.1 to 0.3.2"
+        self.assertEqual(
+            tier(patch, commits=[security(patch, "x", "0.3.2")]).tier, "auto"
+        )
+
+    def test_the_subject_fallback_needs_the_same_package_and_version(self) -> None:
+        subject = "bump x from 1.0.0 to 1.0.1"
+        result = tier(subject, commits=[security(subject, "y", "1.0.1")])
+        self.assertIn("unparsed-version:y", result.reasons)
+        self.assertIn("sources-disagree", result.reasons)
+        result = tier(subject, commits=[security(subject, "x", "1.0.2")])
+        self.assertEqual(result.tier, "review")
+        self.assertIn("unparsed-version:x", result.reasons)
+
+    def test_metadata_with_no_version_holds(self) -> None:
+        message = (
+            "bump x from 9.0.0 to 9.0.1\n\n---\nupdated-dependencies:\n"
+            "- dependency-name: x\n  dependency-type: indirect\n...\n"
+        )
+        result = tier("bump x from 9.0.0 to 9.0.1", commits=[commit(message)])
+        self.assertIn("unparsed-version:x", result.reasons)
+
+    def test_a_subject_not_opening_with_bump_holds(self) -> None:
+        subject = "chore: please do not bump x from 1.0.0 to 1.0.1"
+        result = tier(subject, commits=[security(subject, "x", "1.0.1")])
+        self.assertIn("unparsed-version:x", result.reasons)
+
+    def test_a_group_subject_never_fills_a_missing_update_type(self) -> None:
+        group = "bump the g group with 1 update"
+        result = tier(
+            group,
+            body="Updates `a` from 1.0.0 to 1.0.1\n",
+            commits=[security(group, "a", "1.0.1")],
+        )
+        self.assertIn("unparsed-version:a", result.reasons)
+
+    def test_an_unreadable_subject_version_still_holds(self) -> None:
+        subject = "bump x from 0a1b2c3d4e5f to 9f8e7d6c5b4a"
+        result = tier(subject, commits=[security(subject, "x", "9f8e7d6c5b4a")])
+        self.assertIn("unparsed-version:x", result.reasons)
 
     def test_real_group_metadata_and_body_agree(self) -> None:
         message = metadata(
@@ -1516,3 +1592,108 @@ class BumpRule(unittest.TestCase):
         self.assertEqual(
             dependabot.bump_refusal([], lambda p: None, lambda s, p: ""), "bump-empty"
         )
+
+
+class BaseMergeShape(unittest.TestCase):
+    """`is_base_merge` admits only a merge of the base GitHub made that changes
+    nothing beyond the merge; `rebase_request` reads a forged Dependabot
+    author as someone else's commit."""
+
+    REPO, BASE_REF = "owner/repo", "main"
+    HEAD_PARENT, BASE_PARENT, MERGE = "1" * 40, "2" * 40, "4" * 40
+    C = "repos/owner/repo/compare/"
+
+    def merge(self, **commit: Any) -> dict[str, Any]:
+        fields = {
+            "committer": {"name": "GitHub", "email": "noreply@github.com"},
+            "verification": {"verified": True},
+            **commit,
+        }
+        return {
+            "sha": self.MERGE,
+            "parents": [{"sha": self.HEAD_PARENT}, {"sha": self.BASE_PARENT}],
+            "commit": fields,
+        }
+
+    def answers(self, **overrides: Any) -> dict[str, Any]:
+        base_file = {"filename": "docs/a.md", "status": "modified", "sha": "a1"}
+        lock = {"filename": "package-lock.json", "status": "modified", "sha": "c3"}
+        answers = {
+            f"{self.C}{self.BASE_PARENT}...main": {"status": "ahead"},
+            f"{self.C}{self.HEAD_PARENT}...{self.MERGE}": {"files": [base_file]},
+            f"{self.C}{self.HEAD_PARENT}...{self.BASE_PARENT}": {"files": [base_file]},
+            f"{self.C}{self.BASE_PARENT}...{self.HEAD_PARENT}": {"files": [lock]},
+        }
+        answers.update(overrides)
+        return answers
+
+    def judge(self, item: dict[str, Any], answers: dict[str, Any]) -> bool | None:
+        def get(endpoint: str) -> Any:
+            if endpoint not in answers:
+                raise RuntimeError(f"gh: Not Found (HTTP 404) {endpoint}")
+            return answers[endpoint]
+
+        return dependabot.is_base_merge(item, self.REPO, self.BASE_REF, get)
+
+    def test_a_clean_merge_of_the_base_passes(self) -> None:
+        self.assertIs(self.judge(self.merge(), self.answers()), True)
+
+    def test_a_base_parent_off_the_base_is_not_a_base_merge(self) -> None:
+        for status in ("behind", "diverged"):
+            with self.subTest(status=status):
+                key = f"{self.C}{self.BASE_PARENT}...main"
+                answers = self.answers(**{key: {"status": status}})
+                self.assertIs(self.judge(self.merge(), answers), False)
+
+    def test_a_merge_not_committed_and_signed_by_github_is_not_one(self) -> None:
+        person = {"name": "A Person", "email": "person@example.com"}
+        for commit in ({"committer": person}, {"verification": {"verified": False}}):
+            with self.subTest(commit=commit):
+                self.assertIs(self.judge(self.merge(**commit), self.answers()), False)
+
+    def test_a_file_both_sides_changed_may_differ_from_the_base(self) -> None:
+        # The merge of a lock file both sides changed is neither side's blob.
+        merged = {"filename": "package-lock.json", "status": "modified", "sha": "d4"}
+        both = {"filename": "package-lock.json", "status": "modified", "sha": "e5"}
+        key = f"{self.C}{self.HEAD_PARENT}...{self.MERGE}"
+        base_key = f"{self.C}{self.HEAD_PARENT}...{self.BASE_PARENT}"
+        answers = self.answers(
+            **{key: {"files": [merged]}, base_key: {"files": [both]}}
+        )
+        self.assertIs(self.judge(self.merge(), answers), True)
+        # The same blob mismatch on a file only the base changed is an edit.
+        head_key = f"{self.C}{self.BASE_PARENT}...{self.HEAD_PARENT}"
+        answers[head_key] = {"files": []}
+        self.assertIs(self.judge(self.merge(), answers), False)
+
+    def test_an_unreadable_or_full_compare_is_unknown(self) -> None:
+        key = f"{self.C}{self.HEAD_PARENT}...{self.MERGE}"
+        full = [
+            {"filename": f"f{i}", "status": "modified", "sha": "x"}
+            for i in range(dependabot.COMPARE_FILES_LIMIT)
+        ]
+        missing = self.answers()
+        del missing[key]
+        self.assertIsNone(self.judge(self.merge(), missing))
+        self.assertIsNone(
+            self.judge(self.merge(), self.answers(**{key: {"files": full}}))
+        )
+
+    def test_a_forged_dependabot_author_counts_as_another_writer(self) -> None:
+        # Unsigned, so not Dependabot's: a recreate would drop it.
+        forged = {
+            "sha": "7" * 40,
+            "parents": [{"sha": "3" * 40}],
+            "commit": {
+                "author": {
+                    "name": "dependabot[bot]",
+                    "email": "49699333+dependabot[bot]@users.noreply.github.com",
+                },
+                "committer": {"name": "A Person", "email": "person@example.com"},
+                "verification": {"verified": False},
+            },
+        }
+        hold, body, _ = dependabot.rebase_request(
+            self.REPO, self.BASE_REF, "b" * 40, [], [forged], lambda ep: {}
+        )
+        self.assertEqual((hold, body), ("dependabot-branch-edited", None))

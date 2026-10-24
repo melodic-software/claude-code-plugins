@@ -107,6 +107,23 @@ export function parseMetadata(message) {
   });
 }
 
+// The jump a metadata entry with no `update-type` (a security update writes
+// none) reads from its own Dependabot commit's subject, never the editable PR
+// title: only when the subject opens with `Bump <pkg> from <a> to <b>` for the
+// same package and the entry's version is `<b>`; null otherwise, a group
+// subject included.
+export function subjectMajor(message, update) {
+  const subject = String(message ?? "").split("\n", 1)[0].replace(PREFIX, "");
+  if (update.version === null || update.version === undefined || GROUP.test(subject)) {
+    return null;
+  }
+  const single = SINGLE.exec(subject);
+  if (!single || single.index !== 0 || single[1] !== update.name || single[3] !== update.version) {
+    return null;
+  }
+  return isMajor(single[2], single[3]);
+}
+
 // The updates the title names, or a group's body `Updates` lines when they add
 // up to its count; null when neither reads.
 export function parseTitle(title, body) {
@@ -176,11 +193,51 @@ export const MANIFESTS = Object.freeze({
 });
 const WORKFLOW = /^\.github\/workflows\/[^/]+\.ya?ml$/;
 const ACTION = /^(.+\/)?action\.ya?ml$/;
-// A workflow or action file. A reviewed Dependabot pull request that changes
-// one waits for a person, whatever the verdict says. pr-unblock only, like
-// inFixScope below.
-export const isWorkflowFile = (path) => /^\.github\/workflows\//i.test(String(path ?? "")) || ACTION.test(String(path ?? ""));
 const USES_LINE = /^[+-]\s*(-\s+)?uses:\s*[^\s#]+(\s+#.*)?\s*$/;
+// A pinned `uses:` line: its indent and key, the action path, the full SHA.
+const PINNED_USES = /^[+-](\s*(?:-\s+)?uses:\s*)([^\s#@]+)@([0-9a-f]{40})(?:\s+#.*)?\s*$/;
+
+// Why a Dependabot change to a workflow or action file (either side of a
+// rename) is not a pin swap, or null. Each change block in its patch must
+// remove and add the same number of lines, and each removed line pairs in
+// order with an added `uses:` line that keeps its indent and action path,
+// both pinned to a full SHA: only the SHA and the trailing comment differ.
+// `files` is the REST pull-request files listing with patches.
+export function pinSwapRefusal(files) {
+  const isWorkflow = (path) => /^\.github\/workflows\//i.test(path) || ACTION.test(path);
+  for (const file of files) {
+    const paths = [file.filename, file.previous_filename].filter(Boolean).map(String);
+    if (!paths.some(isWorkflow)) continue;
+    const where = paths.find(isWorkflow);
+    if (!["modified", "renamed"].includes(file.status) || typeof file.patch !== "string") return `${where}:not-a-modification`;
+    const blocks = [];
+    let block = null;
+    for (const line of file.patch.split("\n")) {
+      if (/^[+-]/.test(line)) {
+        block ??= { removed: [], added: [] };
+        if (line[0] === "-" && block.added.length) return `${where}:interleaved`;
+        (line[0] === "-" ? block.removed : block.added).push(line);
+      } else if (!line.startsWith("\\")) {
+        if (block) blocks.push(block);
+        block = null;
+      }
+    }
+    if (block) blocks.push(block);
+    if (blocks.length === 0) return `${where}:no-pin-change`;
+    for (const { removed, added } of blocks) {
+      if (removed.length !== added.length) return `${where}:lines-added-or-removed`;
+      for (const [i, before] of removed.entries()) {
+        const after = added[i];
+        if (!USES_LINE.test(before) || !USES_LINE.test(after)) return `${where}:not-a-uses-line`;
+        const [, oldKey, oldPath, oldSha] = PINNED_USES.exec(before) ?? [];
+        const [, newKey, newPath, newSha] = PINNED_USES.exec(after) ?? [];
+        if (!oldSha || !newSha) return `${where}:not-a-full-sha`;
+        if (oldKey !== newKey || oldPath !== newPath) return `${where}:action-changed`;
+      }
+    }
+  }
+  return null;
+}
 const CONFIG_ENTRY = /^\s*-\s+package-ecosystem:\s*["']?([A-Za-z0-9_-]+)/;
 const CONFIG_DIR = /^\s+directory:\s*["']?([^"'#\s]+)/;
 const CONFIG_DIRS = /^\s+directories:\s*$/;
@@ -658,9 +715,10 @@ export function classify(pr) {
   let metadata = null;
   for (const item of pr.commits ?? []) {
     if (isDependabotCommit(item)) {
-      const entries = parseMetadata(String(item.commit?.message ?? ""));
+      const message = String(item.commit?.message ?? "");
+      const entries = parseMetadata(message);
       if (entries !== null) {
-        metadata = [...(metadata ?? []), ...entries];
+        metadata = [...(metadata ?? []), ...entries.map((u) => (u.major === null ? { ...u, major: subjectMajor(message, u) } : u))];
       }
     }
   }

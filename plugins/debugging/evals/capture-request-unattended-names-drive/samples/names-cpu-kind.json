@@ -12,6 +12,14 @@
     },
     {
       "answer": "/app-control:drive capture --kind cpu (not --kind heap: memory is flat)"
+    },
+    {
+      "answer": "Run `/app-control:drive capture` with `--kind cpu`, then come back with the file.",
+      "why": "command and kind in two code spans"
+    },
+    {
+      "answer": "Run `/app-control:drive capture`, passing `--kind cpu`.",
+      "why": "punctuation after the closing backtick"
     }
   ],
   "fail": [
@@ -37,6 +45,10 @@
     {
       "answer": "Use --kind cpu with your profiler.\n/app-control:drive capture is the command.",
       "why": "kind not on the capture command"
+    },
+    {
+      "answer": "Run /app-control:drive capture --kind heap, not --kind cpu.",
+      "why": "the first kind on the command is heap"
     }
   ]
 }
