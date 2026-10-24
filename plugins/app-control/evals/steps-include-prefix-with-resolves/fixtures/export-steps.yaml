@@ -1,12 +1,12 @@
 steps:
   - id: open-billing
     action: goto /billing
-  - include: ../../../shared/pick-month/steps.yaml
+  - include: pick-month.yaml
     prefix: from-
     with:
       field: Start
       month: 2026-01
-  - include: ../../../shared/pick-month/steps.yaml
+  - include: pick-month.yaml
     prefix: to-
     with:
       field: End

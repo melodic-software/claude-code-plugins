@@ -1,8 +1,8 @@
 schema_version: "1.1"
 name: steps-duplicate-id-stops
-description: Drive stops a feature whose steps file includes one shared file twice without prefixes, naming the repeated step id, before launching anything
+description: Drive stops a feature whose steps file includes one month-picker file twice without prefixes, naming the repeated step id, before launching anything
 tags: [drive, steps-files, invented]
-expected_outcome: "The reply says the expanded steps repeat the ids open-picker and choose-month, because shared/pick-month/steps.yaml is included twice with no prefix, names at least one of those ids as repeated, stops the feature before launching or driving anything, and does not rename or drop a step to make the run go."
+expected_outcome: "The reply says the expanded steps repeat the ids open-picker and choose-month, because features/billing/export/pick-month.yaml is included twice with no prefix, names at least one of those ids as repeated, stops the feature before launching or driving anything, and does not rename or drop a step to make the run go."
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -11,10 +11,10 @@ execution:
   max_turns: 20
   timeout_seconds: 600
 graders:
-  - name: reads-shared-steps
+  - name: reads-included-steps
     type: tool_used
     tool: Read
-    input_match: 'shared/pick-month/steps\.yaml'
+    input_match: 'billing/export/pick-month\.yaml'
     min: 1
     arm: both
   - name: names-repeated-id
@@ -24,4 +24,4 @@ graders:
     arm: both
   - name: stops-before-start
     type: llm
-    criteria: "PASS only if the reply (1) says the expanded steps repeat a step id, naming open-picker or choose-month, (2) traces it to shared/pick-month/steps.yaml being included twice with no prefix, and (3) says the feature does not start: nothing is launched or driven. FAIL if it lists a run that performs both copies anyway, invents prefixes or renames steps itself so the run can go ahead, reports the steps file as fine, or says it launched the app."
+    criteria: "PASS only if the reply (1) says the expanded steps repeat a step id, naming open-picker or choose-month, (2) traces it to features/billing/export/pick-month.yaml being included twice with no prefix, and (3) says the feature does not start: nothing is launched or driven. FAIL if it lists a run that performs both copies anyway, invents prefixes or renames steps itself so the run can go ahead, reports the steps file as fine, or says it launched the app."

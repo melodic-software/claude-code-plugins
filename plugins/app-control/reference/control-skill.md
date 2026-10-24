@@ -141,7 +141,9 @@ own folder, and `/app-control:map check` reports it. Each item says why it is sh
 A feature may keep its Drive steps in a machine-readable steps file in its own folder, or in
 `shared/` when two or more features use it. The format, the file name and the field names are the
 project's choice; the contract fixes only what they mean. The feature's `## Drive` names the file,
-and its prose names steps by id and never repeats a selector the file holds.
+and its prose names steps by id and never repeats a selector the file holds. A feature whose steps
+include a `shared/` item names `shared/<item>` in its feature file, which is how Shared items counts
+its users.
 
 - **Step ids.** Every step has an id, unique among all the steps a run expands to, includes
   included. The prose, the evidence file names and the write grants name steps by those ids. A
