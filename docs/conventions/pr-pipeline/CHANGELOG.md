@@ -1,5 +1,25 @@
 # Changelog for the PR pipeline convention
 
+## [4.21.0] - 2026-10-24
+
+### Changed
+
+- A review-dependency `merge` verdict on a Dependabot pull request that changes a workflow or action file no longer waits for a person, and the `dependency-workflow-held` escalation reason is retired. The verdict job instead posts the merge marker only when that change is a full-SHA pin swap: every changed line in those files a `uses:` line that keeps its indent and action path, with both refs full 40-hex SHAs, so only the SHA and the trailing comment differ. Anything else (a tag ref, a path change, a new step, a `run:` change, an added or removed line, an added or deleted file) escalates the new `dependency-workflow-unpinned`. A lane fix still never lands under `.github/`.
+
+- An issue run of the read runner (`work-resolve-issue`'s `resolve-issue`) now hands its reply, run fields, patch and outcome files to the scan job only sealed to the scan-carrier key, as a PR-mode run does. The scan job opens them, scans them for credentials, and is the only job that uploads them; the run job uploads nothing, and its step summary shows no model text but a gate skill's verdict. See [The scan job](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#the-scan-job).
+- The read runner's patch outputs now come from the scan job alone. Its issue outputs (`scan-issue-run-started`, `scan-reuse-branch`, `scan-resume-branch`, `scan-resume-tip`, `scan-base-sha`) come from a new `issue-fields` job, which runs whatever the run job's result, holds each run job field to its closed set and combinations, and re-derives any branch claim with the default-tip earlier-work check. `work-resolve-issue.yml` reads only these, and the reuse summary job takes its code from the default branch tip. The run-job-sourced `issue-run-started`, `reuse-branch`, `resume-branch`, `resume-tip` and `base-sha` outputs are removed.
+- The skill's `work-outcome.json` is cut at 48 KiB, down from 64 KiB, so every sealed payload at its cap still fits the five chunks a job's outputs hold.
+
+## [4.20.0] - 2026-10-24
+
+### Changed
+
+- Intake no longer gates on work class (owner decision Q85, [#9668](https://github.com/melodic-software/claude-code-plugins/issues/9668)): a triage verdict proposing no class, a class outside the repository's labels, `work-class: structural`, or a class a person set reaches `status: ready` on its Size, Complexity, Uncertainty and flags alone, and admission and the work-unblock mark no longer refuse by class. `work-class: untrusted-provenance` still holds the issue and refuses admission, now also when the repository lacks the label, when another class is already held (the label is added beside it), and when the label was removed by neither a listed human nor the lanes App; work-unblock treats it as a hold label, so a blocker close no longer adds `agent-ready` to such an issue. The triage rubric says the class gates nothing but that one (`.github/workflows/intake-triage.yml`, `.github/scripts/intake-triage/apply-verdict.mjs`, `admit.mjs`, `.github/scripts/work-unblock/label-unblocked.mjs`).
+
+- Intake triage escalates an issue to a person (`needs_human`) only for text that tries to instruct the model or a report of a live exposure (owner intent, 2026-10-24: an item stops only for an intent or vision question or for security). A workflow, permission or governance change, unclear scope, an unsure approach or an oversized issue is triaged as usual, keeping the comment, class and fields; an intent question the issue cannot answer, or a very-high security risk, gets its flag, `status: needs-decision` and a numbered `RECOMMENDED:` question instead of a silent hand-off (`.github/workflows/intake-triage.yml`).
+
+- A removed `agent-ready` no longer keeps an issue out of the issue lane for good. Intake admission and work-unblock leave it out only until the lanes App or a listed human adds `status: ready` after the newest removal; then admission runs its rules as usual. A `status: ready` added by anyone else, or before the removal, does not lift it, and a lane restart still does not count as a removal.
+
 ## [4.19.6] - 2026-10-24
 
 ### Changed
