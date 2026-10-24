@@ -1,0 +1,14 @@
+{
+  "environment": "local",
+  "environments": {
+    "local": {
+      "url": "http://127.0.0.1:9100"
+    }
+  },
+  "credentials": {
+    "shopper": {
+      "password": "IDP_SHOPPER_PASSWORD"
+    }
+  },
+  "safety": {}
+}

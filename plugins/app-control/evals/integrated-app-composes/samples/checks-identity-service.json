@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Ready: shop at http://127.0.0.1:8080/health; identity service at http://127.0.0.1:9100/health.",
+      "why": "checks the identity service url"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Ready: shop at http://127.0.0.1:8080/health.",
+      "why": "checks only the shop"
+    }
+  ]
+}

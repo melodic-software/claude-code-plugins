@@ -18,7 +18,7 @@ only, before any question. A row ends `found`, with the file or command that sho
 | Harnesses | Existing end-to-end specs, test accounts, selector conventions |
 | Evidence | Logs, a log server, telemetry endpoints, and what each capture tier (browser, server) can record |
 | Team vs personal | What is committed and team-wide, what is per user, and where per-user values live |
-| Related repositories | Systems whose pages a journey crosses but live elsewhere, and whether this checkout can reach them |
+| Related repositories | Systems whose pages a journey crosses but live elsewhere, each one's repository and control skill, and whether this machine has a checkout of it (the contract's `checkouts.<app>`) |
 
 A row the repository cannot answer becomes a question in step 3, or, under `--unattended`, an
 open question in the dry run's report.

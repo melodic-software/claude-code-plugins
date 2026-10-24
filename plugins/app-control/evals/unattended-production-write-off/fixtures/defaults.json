@@ -1,0 +1,13 @@
+{
+  "environment": "prod",
+  "environments": {
+    "prod": {
+      "url": "https://shop.example.invalid",
+      "production": true,
+      "writes": {
+        "issue-refund": "unattended"
+      }
+    }
+  },
+  "safety": {}
+}

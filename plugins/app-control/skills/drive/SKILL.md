@@ -32,7 +32,7 @@ keep going.
 |---|---|
 | bare `[<app>] [<feature>]` | Launch unless the app is already running and fit, run `ready`, then perform the feature's Drive steps and save evidence after each step |
 | `ready` | Run the control skill's Ready command (read-only) and report what is reachable |
-| `capture --kind <kind>` | Record one artifact with the tool the control skill's `## Capture` section names for that kind; `threads` (a stack of every thread, for a hang) binds to the launched pid ([Pid binding](#pid-binding)) |
+| `capture --kind <kind>` | Record the kind with the tool the control skill's `## Capture` section names for it, one artifact per tier row; `threads` (a stack of every thread, for a hang) binds to the launched pid ([Pid binding](#pid-binding)) |
 | `cleanup` | Stop only what this run started, then confirm every evidence path in the report still exists and is not empty |
 | `--attach` | Interactive only: drive or capture against a process already running that the person names, which this run did not start (see [Attach](#attach)) |
 | `--unattended` | With any action: ask nothing, attach to nothing, mark each step that needs a person `blocked` |
@@ -86,6 +86,9 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    the chosen skill's base directory: `features/<id>/README.md` when it exists, and then never open
    the legacy `features/<id>.md`; only without that README, the legacy file. Neither exists: say so
    and stop that feature rather than guess a file.
+9. An include from an integrated app resolves through the contract's "Integrated apps", and its
+   control skill is read from disk at that app's checkout like any other: a missing checkout stops
+   that feature before launching, naming the setting and the repository to clone.
 
 The bundled `run` skill and how it defers to a project skill:
 <https://code.claude.com/docs/en/skills#run-and-verify-your-app> (as of 2026-10-21; recheck when
@@ -110,12 +113,16 @@ All as of 2026-10-25; recheck when any of them changes.
 - **Ready means usable.** A port answering is not enough: the surface answers, the build is the one
   expected when the app exposes one, and it uses the expected data. Report each surface (URL, port,
   command), the build, the data and the telemetry the app exposes (log files, an OTLP endpoint, a
-  dashboard). A signal the app does not expose is listed as a capability gap.
+  dashboard). A signal the app does not expose is listed as a capability gap. Ready also checks
+  each dependency service of the selected environment (contract "Environments"): it answers, and,
+  where the app exposes its target (a sign-in redirect, a health field), the app sends to its url.
 - **Read-only by default.** A step that would write outside the app's own data, or needs a grant the
-  run lacks, is not performed. The report names the narrowest grant that would allow it. A capture
+  run lacks, is not performed. The report names the narrowest grant that would allow it. Pass
+  `--attended` only with a person present and `--yes` only after that person said yes in this
+  session; exit 4 is `blocked:` with the floor it names, never retried. A capture
   that needs elevation follows "Elevated captures go through a shown script" instead.
 - **Name the tool, never substitute.** Capture uses the tool the control skill names for the kind,
-  one tool per run. Drive implements no capture and picks no tool of its own. When no tool is named,
+  one tool per tier. Drive implements no capture and picks no tool of its own. When no tool is named,
   report the kind as a capability gap and use no stand-in. An interactive run may offer to research
   tools to install; an unattended run only reports.
 - **Unattended limits.** Never attach to a process this run did not start. Never drive a tool that

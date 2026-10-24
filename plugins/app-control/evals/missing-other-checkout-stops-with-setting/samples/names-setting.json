@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Stopped before launch: missing checkout for identity. Set checkouts.identity to a checkout of acme/identity.",
+      "why": "names the setting"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Stopped: the identity steps could not be found. Clone acme/identity.",
+      "why": "never names the setting"
+    }
+  ]
+}

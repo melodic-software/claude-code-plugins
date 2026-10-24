@@ -72,7 +72,8 @@ Ask only the `open` rows and the choices only a person makes: which three to fiv
 the write policy per environment and per external system; the test accounts, and which must never
 be locked out; the recipient allowlist per side-effect channel, or never send; a flat map or one
 grouped by module; which journeys this repository owns and which belong to a related system's
-control skill; the driver CLI's language, recommending the one the repository already uses.
+control skill, with that system's repository; which environment is production; the driver CLI's
+language, recommending the one the repository already uses.
 
 When `/planning:interview` is available in this session, invoke it through the Skill tool with
 these questions. Otherwise ask inline, one question at a time, each with a recommendation. A
@@ -93,7 +94,11 @@ drive finds a control skill by its hub.
   command, never a click.
 - **Config**, per the contract's Config section: `config/defaults.json` with its fields and every
   safety floor at its safe value, credential variable names only, and `config/.gitignore` holding
-  `local.json`.
+  `local.json`. Environment entries come from the Environments and Dependencies rows and the
+  answers, per the contract's "Environments".
+- **Integrated apps**, per the contract's section: a hub line each, steps included by reference,
+  never copied, and nothing written into another checkout. One with no control skill is reported
+  with `/app-control:map create` to run in its repository.
 - **Driver CLI**, per the contract's "Writing the driver CLI", and required when a seeded feature
   has a send, sign-in or write step. The CLI enforces the safety floors and refuses a loosening
   from the local, environment or flag layers with exit 4. When `/developer-experience:build-cli` is

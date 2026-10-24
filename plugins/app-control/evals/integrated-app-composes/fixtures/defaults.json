@@ -1,0 +1,20 @@
+{
+  "environment": "local",
+  "environments": {
+    "local": {
+      "url": "http://127.0.0.1:8080",
+      "services": {
+        "identity": {
+          "app": "identity",
+          "environment": "local"
+        }
+      }
+    }
+  },
+  "credentials": {
+    "shopper": {
+      "password": "SHOP_SHOPPER_PASSWORD"
+    }
+  },
+  "safety": {}
+}

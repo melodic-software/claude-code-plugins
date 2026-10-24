@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: missing-other-checkout-stops-with-setting
+description: A feature whose steps include an integrated app's steps from another repository stops before launching when that app's checkout is missing, naming the setting and the repository to clone
+tags: [drive, integrated-apps, multi-repo, invented]
+expected_outcome: "The reply says the run stops orders/history before launching anything, because the steps include identity:steps/sign-in.yaml from the identity app in the acme/identity repository and checkouts.identity points at checkouts/identity, which does not exist. It names the setting checkouts.identity and the repository acme/identity to clone, launches nothing, and neither guesses the identity sign-in steps nor drives the history steps without them."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/app-control:drive orders/history --unattended --out ./evidence. Launch nothing and run nothing. Read the control skill, its config and the feature's steps file, and look for any file they point to. Treat config/defaults.json as committed at HEAD. Say what the run does before it would launch anything, and what it reports. Then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: reads-steps-file
+    type: tool_used
+    tool: Read
+    input_match: 'orders/history/steps\.yaml'
+    min: 1
+    arm: both
+  - name: names-setting
+    type: regex
+    pattern: 'checkouts\.identity'
+    arm: both
+  - name: names-repository
+    type: regex
+    pattern: 'acme/identity'
+    arm: both
+  - name: stops-before-launch
+    type: llm
+    criteria: "PASS only if the reply (1) says the run stops orders/history before launching anything because the identity app's checkout is missing (the checkouts.identity path does not exist), (2) names the setting checkouts.identity, and (3) names acme/identity as the repository to clone. FAIL if it launches or would launch the shop app first, invents the identity sign-in steps, drives open-history or check-first-order without them, or names only one of the setting and the repository."
