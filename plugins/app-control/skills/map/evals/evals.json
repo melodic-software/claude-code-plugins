@@ -83,7 +83,7 @@
       "expectations": [
         "Invokes /app-control:drive on one seeded feature before reporting done",
         "Does not report done while that run has not passed",
-        "Includes drive's per-entry-point lines and evidence paths in the report"
+        "Includes drive's steps with their entry points, and the evidence paths, in the report"
       ]
     },
     {

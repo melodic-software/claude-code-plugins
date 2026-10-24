@@ -110,9 +110,11 @@ drive finds a control skill by its hub.
 ### 5. Prove
 
 Invoke `/app-control:drive` via the Skill tool on one seeded feature, naming the feature and the
-control skill. It runs the hub's Ready first and drives every entry point that feature lists.
-Report done only after that run passes. When a step fails because the control skill is wrong (a
-handle, a route, a missing precondition), fix the control skill and run again. When the run fails
+control skill. It runs the hub's Ready first and drives the feature's steps, recording each step's
+entry point. Report done only after that run passes. Never repeat a sign-in step for an account
+that already submitted an attempt in this run. When a step fails because the control skill is
+wrong (a handle, a route, a missing precondition), fix the control skill and run again, once; a
+second failure leaves it written but unproven. When the run fails
 against a healthy app, report the control skill as written but unproven, with drive's evidence; do
 not call it done. When the tool the hub names cannot run on this host, the outcome is
 `blocked: driver unavailable` with drive's gap report; do not edit the hub or switch tools.
@@ -132,8 +134,8 @@ calls, and the evidence and no-orphan checks that follow the run.
 - each credential as its variable name, layer and `set` or `unset`, never its value;
 - that the driver CLI enforces the safety floors (drive does not), and the run kept the sign-in
   count;
-- drive's per-entry-point lines copied from its report, each not-driven entry point included, every
-  evidence path drive wrote, and the process check;
+- drive's steps copied from its report, each with its entry point, what it observed and its
+  artifact paths, plus drive's capability gaps, `blocked:` lines and the process check;
 - what each stand-in did that the target will not;
 - the features found but not seeded.
 
