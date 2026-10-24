@@ -392,7 +392,7 @@ export const PATCH_REASONS = {
 // skipped, as triage's apply-outcome rule names it.
 export const DIMENSION_STEPS = {
   "split-required":
-    "Its Size is too large for one run: intake splits it into smaller dependent issues before any run picks it up, so it goes back to triage.",
+    "Its Size is too large for one run: large work is split into smaller dependent issues before a run picks it up, so it goes back to triage to be split (`/work-items:decompose`) and re-admitted.",
   "research-first": "Its Uncertainty says research comes first: plan or research the approach, then set Uncertainty to Known.",
   "probe-first": "Its Uncertainty says only an experiment answers it: run a probe or spike first, then set Uncertainty to Known.",
 };
@@ -514,9 +514,9 @@ function stopPlan({ issueNumber, branch, stop, progress, runId, runUrl, onResume
   }
   const lines = [
     turnCapMarker({ cap: stop.cause === "turn-cap" ? stop.cap : null, runId, onResumed, outcome: stop.cause }),
-    `The work-resolve-issue lane stopped on this issue: ${reached}. It keeps \`agent-ready\`, and work-unblock starts it again from the branch, or fresh from the default branch once the branch is behind it.`,
+    `The work-resolve-issue lane stopped on this issue: ${reached}. It keeps \`agent-ready\`, and work-unblock starts it again from the branch in a new job.`,
     "",
-    `Partial work is on the branch \`${branch}\`; a restart continues from it while it is not behind the default branch, and otherwise starts fresh. Delete the branch first to always start fresh.`,
+    `Partial work is on the branch \`${branch}\`, and the restart continues from it. Delete the branch first to start fresh.`,
   ];
   if (runUrl) {
     lines.push("", `Run: ${runUrl}`);
@@ -921,6 +921,8 @@ function humanLabelFrom(path) {
 
 // The outcomes after which the next run continues the marked run's branch.
 export const RESUMABLE = new Set(["turn-cap", "timeout", "no-progress", "stopped", "limited", "funding"]);
+// The stops of one long run, resumed from a branch behind main too.
+const CONTINUES = new Set(["turn-cap", "timeout"]);
 
 // The issue's lane branch name, capturing its run id and attempt.
 const laneBranch = (issueNumber) => new RegExp(`^work-resolve-issue/issue-${issueNumber}-([1-9][0-9]*)-([1-9][0-9]*)$`);
@@ -978,7 +980,9 @@ export function readBranch(dir, issueNumber, key = "branch") {
 //          continues the work instead of starting from the default branch.
 //          A branch behind the default branch would carry its stale base into
 //          the runner's whole-branch checks, so it starts fresh instead
-//          (`stale` names it) and is left as it is;
+//          (`stale` names it) and is left as it is, except after a turn-cap
+//          or timeout stop: one long run continues across jobs while main
+//          moves on, so its branch resumes behind main too;
 //   run    otherwise.
 // `branches` are {name, sha, aheadBy, behindBy, tip, tipAt, pulls, commits} (commits
 // from GET /compare, null when the listing is cut short; tip from GET
@@ -1035,7 +1039,10 @@ export function findPrior({ issueNumber, repo, bot, humans, branches, closing, m
     RESUMABLE.has(decisive?.outcome) && decisive.run !== ""
       ? lane.find((branch) => branch.match[1] === decisive.run && usable(branch) && allLane(branch))
       : null;
-  if (resume && resume.behindBy !== 0) {
+  // A run that stopped at its turn cap or a job's time limit continues in the
+  // next job even when main moved on meanwhile, as it does during any long
+  // run; the PR's base update integrates main. Any other stop starts fresh.
+  if (resume && resume.behindBy !== 0 && !CONTINUES.has(decisive.outcome)) {
     return { action: "run", stale: { branch: resume.name, behindBy: resume.behindBy } };
   }
   return resume ? { action: "resume", branch: resume.name, tip: resume.sha, cause: decisive.outcome } : { action: "run" };

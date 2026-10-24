@@ -1787,6 +1787,25 @@ test("a marked run's branch behind main starts fresh instead of resuming", () =>
   }
 });
 
+// Owner decision C13: a run that outlasts a job continues in the next one,
+// and main moves on during a several-hour job, so a turn-cap or timeout
+// stop's branch resumes even when it is behind; the PR's own base update
+// integrates main later. Any other resumable stop still starts fresh.
+test("a turn-cap or timeout stop's branch behind main still resumes", () => {
+  for (const outcome of ["turn-cap", "timeout"]) {
+    const branches = [branchFact(lane(400), { sha: SHA_400, behindBy: 31 })];
+    assert.deepEqual(
+      prior({ branches, markers: [marked(outcome, "400")] }),
+      { action: "resume", branch: lane(400), tip: SHA_400, cause: outcome },
+      outcome,
+    );
+  }
+  for (const outcome of ["stopped", "limited", "funding"]) {
+    const branches = [branchFact(lane(400), { sha: SHA_400, behindBy: 31 })];
+    assert.equal(prior({ branches, markers: [marked(outcome, "400")] }).action, "run", outcome);
+  }
+});
+
 test("a lanes-App PR open from a lane branch behind main still stops the run", () => {
   const branches = [branchFact(lane(400), { sha: SHA_400, behindBy: 865, pulls: [pullBy(BOT)] })];
   assert.equal(prior({ branches, markers: [marked("stopped", "400")] }).action, "stop");

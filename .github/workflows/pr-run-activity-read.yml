@@ -818,7 +818,8 @@ jobs:
       # marker is turn-cap, timeout, stopped, limited or funding for a run whose lane branch
       # passes the same tip check and is not behind the default branch, the
       # model runs on that branch's tip instead (resume-branch, resume-tip,
-      # resume-cause); a branch behind it starts fresh from the default tip.
+      # resume-cause); a branch behind it starts fresh from the default tip,
+      # except after a turn-cap or timeout stop, which resumes it behind.
       - name: Check for an earlier run's work on the issue
         id: issue-prior
         if: >-
