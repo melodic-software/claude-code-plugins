@@ -1,10 +1,9 @@
 {
   "pass": [
     {"answer": [], "why": "no calls"},
-    {"answer": [{"tool": "Grep", "input": {"pattern": "main", "path": "/w"}}], "why": "search only"}
+    {"answer": [{"tool": "Grep", "input": {"pattern": "send", "path": "/w"}}], "why": "search only"}
   ],
   "fail": [
-    {"answer": [{"tool": "Edit", "input": {"file_path": "/w/src/orders.py", "old_string": "    # TODO(R1): send the order confirmation", "new_string": "    notifier.send(order.email, msg)"}}], "why": "implemented the proposal"},
-    {"answer": [{"tool": "Edit", "input": {"file_path": "/w/docs/consuming.md", "old_string": "`main`", "new_string": "`stable`"}}], "why": "edited a doc"}
+    {"answer": [{"tool": "Edit", "input": {"file_path": "/w/src/orders.py", "old_string": "    # TODO(R1): send the order confirmation", "new_string": "    notifier.send(order.email, msg)"}}], "why": "implemented the proposal"}
   ]
 }

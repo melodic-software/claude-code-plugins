@@ -3,7 +3,7 @@ name: ju-planned-known-repetition-keeps
 description: Justify given a proposal to add an interface whose second consumer is a stated requirement with the same namable shape keeps it, rather than calling it speculative generality, writing nothing
 tags: [overengineering, justify, outcome, planned-mode, read-only]
 runs: 3
-expected_outcome: The run judges the proposal in planned mode. The Notifier interface is kept, citing the stated second consumer (R2, SMS, in docs/requirements.md) and the shared send(recipient, message) shape as namable and stable. It is not dropped as speculative generality or YAGNI, and the run does not demand a third occurrence first. It makes no Write or Edit call.
+expected_outcome: The run judges the proposal in planned mode. The Notifier interface is judged needed (kept), citing the stated second consumer (R2, SMS, in docs/requirements.md) and the shared send(recipient, message) shape as namable and stable. It is not dropped as speculative generality or YAGNI, and the run does not demand a third occurrence first. It makes no Write or Edit call.
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -25,4 +25,4 @@ graders:
   - name: keeps-known-repetition
     type: llm
     focus: last_message
-    criteria: "PASS only if all hold: (1) the verdict on the Notifier interface is keep (or an equivalent: needed, justified, not overengineering); (2) the reason cites the stated second consumer, the SMS requirement R2 in docs/requirements.md, as a requirement that already exists rather than a someday one; (3) it treats the shared send(recipient, message) shape as namable or stable. FAIL if the interface is dropped or called speculative generality, YAGNI or premature abstraction, if the run asks for a third occurrence before extracting, or if it keeps the interface without citing the stated second consumer."
+    criteria: "PASS only if all hold: (1) the verdict on the Notifier interface is needed or keep (or an equivalent: justified, not overengineering); (2) the reason cites the stated second consumer, the SMS requirement R2 in docs/requirements.md, as a requirement that already exists rather than a someday one; (3) it treats the shared send(recipient, message) shape as namable or stable. FAIL if the interface is dropped or called speculative generality, YAGNI or premature abstraction, if the run asks for a third occurrence before extracting, or if it keeps the interface without citing the stated second consumer."

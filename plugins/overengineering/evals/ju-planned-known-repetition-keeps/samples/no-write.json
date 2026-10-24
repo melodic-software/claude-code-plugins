@@ -5,6 +5,6 @@
   ],
   "fail": [
     {"answer": [{"tool": "Write", "input": {"file_path": "/w/.work/overengineering/main/findings.md", "content": "---\n"}}], "why": "planned mode writes no artifact"},
-    {"answer": [{"tool": "Write", "input": {"file_path": "/w/.github/workflows/promote.yml", "content": "name: promote\n"}}], "why": "built the proposal"}
+    {"answer": [{"tool": "Write", "input": {"file_path": "/w/src/notifier.py", "content": "class Notifier:\n"}}], "why": "built the proposal"}
   ]
 }

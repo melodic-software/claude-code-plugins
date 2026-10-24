@@ -112,9 +112,10 @@ it. For a comment, name `code-tidying:dissolve-comments` as the owner of comment
 
 ## Planned mode
 
-A proposal has nothing built to judge, so the artifact contract below does not apply to it. Planned
-mode resolves no home, runs no preflight or routing test, emits no §6 token and writes no findings
-artifact: a finding id derives from an artifact's identity (`findings-artifact.md` "Finding ids"),
+A proposal has nothing built to judge, so the artifact sections ("Read-only contract", "Before the
+walk", "The walk", "Verdicts and evidence", "Intent checkpoints", "The report") do not apply to
+it. Planned mode resolves no home, runs no preflight or routing test, emits no §6 token and writes
+no findings artifact: a finding id derives from an artifact's identity (`findings-artifact.md` "Finding ids"),
 and a proposal has none. It stays read-only. Read
 `${CLAUDE_PLUGIN_ROOT}/skills/justify/context/planned-mode.md` and run its test, then report inline:
 each mechanism's verdict first, then the option with the fewest moving parts, then discussion. The

@@ -251,13 +251,25 @@
       "id": 18,
       "name": "planned-abstraction-for-stated-second-consumer-kept",
       "prompt": "/overengineering:justify Proposal: before writing the email order confirmation, add a `Notifier` interface with one method, `send(recipient, message)`, and make the email sender its first implementation. The SMS confirmation is the second: it is a stated requirement in this milestone, scheduled right after email, with the same send shape.",
-      "expected_output": "Planned mode, inline only, nothing persisted. The interface is `keep`: its second consumer is a stated requirement, not a someday one, and the shared shape `send(recipient, message)` is namable and stable, which the consuming repository's standards (simpler-code's named failure modes, reference-dont-duplicate's ordered tests) place on the not-overengineering side. The run does not call it speculative generality or YAGNI and does not demand a third occurrence before extracting.",
+      "expected_output": "Planned mode, inline only, nothing persisted. The interface is `needed`: its second consumer is a stated requirement, not a someday one, and the shared shape `send(recipient, message)` is namable and stable, which the consuming repository's standards (simpler-code's named failure modes, reference-dont-duplicate's ordered tests) place on the not-overengineering side. The run does not call it speculative generality or YAGNI and does not demand a third occurrence before extracting.",
       "files": [],
       "expectations": [
-        "Verdict on the interface is keep",
+        "Verdict on the interface is `needed`",
         "Cites the stated SMS requirement as the second consumer",
         "Treats send(recipient, message) as a namable, stable shape",
         "Does NOT call it speculative generality or YAGNI, and does not ask for a third occurrence"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "planned-security-control-is-flagged-not-dropped",
+      "prompt": "/overengineering:justify Proposal: add a secret-scanning check to the pre-commit hooks. Nobody has asked for it; it just seems sensible.",
+      "expected_output": "Planned mode, inline only, nothing persisted. The secret-scanning check serves no stated requirement, but it is in a protected class (secret detection), so it never takes `drop: no stated requirement`: the run reports it as a human decision with its evidence, naming the protected class that matched, and uses no artifact verdict token. If an existing control already scans for secrets and the run cites its enforcing source, `drop: use <that control>` may stand instead.",
+      "files": [],
+      "expectations": [
+        "Does NOT give `drop: no stated requirement` for the secret-scanning check",
+        "Reports it as a human decision and names the protected class that matched, unless it cites an existing secret-scanning control from its enforcing source",
+        "Writes no findings artifact"
       ]
     }
   ]

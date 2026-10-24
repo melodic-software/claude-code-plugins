@@ -2,7 +2,7 @@
   "skill": "overengineering:justify",
   "plugin": "overengineering",
   "skill_dir": "plugins/overengineering/skills/justify",
-  "ranking_note": "Authored from the before descriptions at commit c67216035c, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin siblings and nearby model-invoked skills, as near-miss targets.",
+  "ranking_note": "Authored from the before descriptions at commit c67216035c, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin siblings and nearby model-invoked skills, as near-miss targets. Queries pos-train-07, pos-train-08, pos-val-05, neg-train-06 and neg-val-04 were written alongside the planned-mode description, not before it.",
   "competitors": [
     "overengineering:audit",
     "overengineering:delta",
@@ -10,7 +10,8 @@
     "discovery:trace-intent",
     "docs-hygiene:audit-derivability",
     "code-tidying:audit-dead-code",
-    "planning:devils-advocate"
+    "planning:devils-advocate",
+    "planning:plan"
   ],
   "competitor_dirs": {
     "overengineering:audit": "plugins/overengineering/skills/audit",
@@ -19,7 +20,8 @@
     "discovery:trace-intent": "plugins/discovery/skills/trace-intent",
     "docs-hygiene:audit-derivability": "plugins/docs-hygiene/skills/audit-derivability",
     "code-tidying:audit-dead-code": "plugins/code-tidying/skills/audit-dead-code",
-    "planning:devils-advocate": "plugins/planning/skills/devils-advocate"
+    "planning:devils-advocate": "plugins/planning/skills/devils-advocate",
+    "planning:plan": "plugins/planning/skills/plan"
   },
   "queries": [
     {

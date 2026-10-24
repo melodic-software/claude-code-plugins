@@ -8,7 +8,8 @@
   "fail": [
     {"answer": ""},
     {"answer": "Keep the stable branch; it is the safe path.", "why": "kept"},
-    {"answer": "I would not drop it: use the stable branch.", "why": "negated"},
+    {"answer": "I would not drop: use the stable branch.", "why": "negated"},
+    {"answer": "Don't drop, use it as the release line.", "why": "negated contraction"},
     {"answer": "Drop the bot app into its own repository.", "why": "drop without an existing control"}
   ]
 }

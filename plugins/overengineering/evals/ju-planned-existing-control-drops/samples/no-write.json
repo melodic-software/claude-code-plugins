@@ -1,7 +1,7 @@
 {
   "pass": [
     {"answer": [], "why": "no calls"},
-    {"answer": [{"tool": "Read", "input": {"file_path": "/w/docs/requirements.md"}}], "why": "read only"}
+    {"answer": [{"tool": "Read", "input": {"file_path": "/w/docs/branch-protection.md"}}], "why": "read only"}
   ],
   "fail": [
     {"answer": [{"tool": "Write", "input": {"file_path": "/w/.work/overengineering/main/findings.md", "content": "---\n"}}], "why": "planned mode writes no artifact"},
