@@ -96,6 +96,41 @@ assert_contains "declared workload named in the output" "$out" '"workload":"deep
 out="$(run declared worker --session-model opus --workload mechanical)"
 assert_contains "declaring a workload keeps the bundled ones" "$out" '"single":{"model":"sonnet"'
 
+# The team layer is docs/conventions/multi-agent.yaml; the old locations are
+# read only while it is absent.
+fixture concern
+mkdir -p "$T/concern/repo/docs/conventions"
+printf 'schema: 1\nroles:\n  worker:\n    effort: high\n' >"$T/concern/repo/docs/conventions/multi-agent.yaml"
+out="$(run concern worker --session-model opus)"
+assert_contains "concern YAML: its value resolves from the team layer" "$out" '"single":{"model":"inherit","omit_model":true,"effort":"high","guarded":false}'
+assert_contains "concern YAML: the layer names the source of each value" "$out" '"source":{"model":"bundled","effort":"team"}'
+assert_contains "concern YAML: the team row names the YAML path" "$out" '"layer":"team","path":"'"$T/concern/repo/docs/conventions/multi-agent.yaml"'","state":"read"'
+
+# The YAML wins when the legacy block and the .claude file both exist.
+printf '```yaml config\nschema: 1\nroles:\n  worker:\n    effort: low\n```\n' >"$T/concern/repo/docs/conventions/multi-agent.md"
+printf 'schema: 1\nroles:\n  worker:\n    effort: max\n' >"$T/concern/repo/.claude/multi-agent.yaml"
+out="$(run concern worker --session-model opus)"
+assert_contains "both exist: the YAML value wins" "$out" '"effort":"high","guarded":false}'
+assert_contains "both exist: the block is named as ignored" "$out" 'both exist; using the YAML file, ignoring the block'
+assert_contains "both exist: the .claude file is named as ignored" "$out" 'both exist; using the YAML file, ignoring the .claude file'
+
+# With the YAML absent the old locations are read, the docs block first.
+rm "$T/concern/repo/docs/conventions/multi-agent.yaml"
+out="$(run concern worker --session-model opus)"
+assert_contains "YAML absent: the docs block is read" "$out" '"source":{"model":"bundled","effort":"team"}'
+assert_contains "YAML absent: the block's value resolves" "$out" '"effort":"low","guarded":false}'
+rm "$T/concern/repo/docs/conventions/multi-agent.md"
+out="$(run concern worker --session-model opus)"
+assert_contains "YAML and block absent: the .claude file is read" "$out" '"effort":"max","guarded":false}'
+
+# A bound convention home moves the team YAML with it.
+fixture bound
+mkdir -p "$T/bound/repo/team-docs"
+printf '<!-- BEGIN GENERATED: convention-home -->\nConventions live in `team-docs`.\n<!-- END GENERATED: convention-home -->\n' >"$T/bound/repo/AGENTS.md"
+printf 'schema: 1\nroles:\n  worker:\n    effort: xhigh\n' >"$T/bound/repo/team-docs/multi-agent.yaml"
+out="$(run bound worker --session-model opus)"
+assert_contains "bound home: the YAML under the home is the team layer" "$out" '"effort":"xhigh","guarded":false}'
+
 # A declaration in one layer covers values set in another.
 fixture crosslayer
 printf 'schema: 1\nworkloads:\n  deep: true\n' >"$T/crosslayer/home/.claude/multi-agent.yaml"
