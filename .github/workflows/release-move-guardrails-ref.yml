@@ -10,6 +10,10 @@ name: release-move-guardrails-ref
 # - Moves only by fast-forward: .github/scripts/guardrails-release-ref/move.sh refuses a target off
 #   main or one that does not descend from the branch's current tip, and the push carries no force.
 #   The first run creates the branch.
+# - Tests the target first: plugins/guardrails/git-hooks/lefthook-remote.test.sh runs with the
+#   pinned lefthook against the target commit's own files, end to end, and a failure stops the
+#   run before the push. A broken lefthook-remote.yml on the branch would block every
+#   consumer's commits.
 # - Pushes with this job's GITHUB_TOKEN, so the push starts no workflow; that is intended, since
 #   nothing runs on guardrails-release.
 
@@ -70,6 +74,25 @@ jobs:
             exit 1
           fi
           bash .github/scripts/guardrails-release-ref/move.sh "$MAIN" "$TARGET" "$current" >>"$GITHUB_OUTPUT"
+
+      - name: Set up Node
+        if: steps.decide.outputs.action != 'unchanged'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+
+      - name: Install pinned lefthook
+        if: steps.decide.outputs.action != 'unchanged'
+        run: bash .github/scripts/guardrails-release-ref/install-lefthook.sh
+
+      - name: Test the target's lefthook remote end to end
+        if: steps.decide.outputs.action != 'unchanged'
+        env:
+          SHA: ${{ steps.decide.outputs.sha }}
+          GUARDRAILS_REQUIRE_LEFTHOOK: "1"
+        run: |
+          git checkout --quiet --detach "$SHA"
+          bash plugins/guardrails/git-hooks/lefthook-remote.test.sh
 
       - name: Push guardrails-release
         if: steps.decide.outputs.action != 'unchanged'

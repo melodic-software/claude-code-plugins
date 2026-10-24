@@ -8,7 +8,7 @@
 # repository, verifies ok and blocks an off-convention subject, a staged secret and (with jq)
 # a pushed citation of a deleted path, reading the consumer's own files; the consumer fetches
 # the release branch, so a commit on main reaches it only once that branch moves.
-# test-scope: plugins/guardrails/git-hooks/lefthook-remote.yml plugins/guardrails/git-hooks/entries.json plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/git-hooks/commit-msg-convention.sh plugins/guardrails/git-hooks/pre-commit-content.sh plugins/guardrails/git-hooks/reference-verify.sh .lefthook/commit-msg/guardrails-commit-msg-convention.sh .lefthook/pre-commit/guardrails-pre-commit-content.sh .lefthook/pre-push/guardrails-reference-verify.sh
+# test-scope: plugins/guardrails/git-hooks/lefthook-remote.yml plugins/guardrails/git-hooks/entries.json plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/git-hooks/commit-msg-convention.sh plugins/guardrails/git-hooks/pre-commit-content.sh plugins/guardrails/git-hooks/reference-verify.sh .lefthook/commit-msg/guardrails-commit-msg-convention.sh .lefthook/pre-commit/guardrails-pre-commit-content.sh .lefthook/pre-push/guardrails-reference-verify.sh .github/scripts/guardrails-release-ref/install-lefthook.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT CLAUDE_PLUGIN_ROOT CLAUDE_PLUGIN_DATA LEFTHOOK
 
@@ -52,6 +52,11 @@ expect "entries.json's remote names this config" "plugins/guardrails/git-hooks/l
   "$(jq -r '.remote.config' "$HERE/entries.json" 2>/dev/null || sed -n 's/.*"config": "\(.*\)".*/\1/p' "$HERE/entries.json")"
 
 if ! command -v lefthook >/dev/null 2>&1; then
+  # CI sets this, so the end-to-end cases fail there rather than skip green.
+  if [[ "${GUARDRAILS_REQUIRE_LEFTHOOK:-}" == 1 ]]; then
+    echo "FAIL: lefthook not on PATH, and GUARDRAILS_REQUIRE_LEFTHOOK=1 requires the end-to-end cases" >&2
+    exit 1
+  fi
   echo "SKIP: lefthook not on PATH -- remote end-to-end cases skipped"
   echo "lefthook-remote: $PASS passed, $FAIL failed"
   ((FAIL == 0))
@@ -123,6 +128,8 @@ if command -v jq >/dev/null 2>&1; then
   err="$(git -C "$REPO" push origin main 2>&1)"
   expect "pre-push: a pushed citation of a deleted path blocks, from the refs on stdin" yes \
     "$(grep -q 'README.md:1: stale-path-verify' <<<"$err" && echo yes)"
+elif [[ "${GUARDRAILS_REQUIRE_LEFTHOOK:-}" == 1 ]]; then
+  expect "jq is on PATH for the pre-push case" yes no
 else
   echo "SKIP: jq not on PATH -- the pre-push case skipped"
 fi

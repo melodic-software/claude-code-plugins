@@ -15,7 +15,8 @@
 #   bash_needs, python_needs  a JSON object from leg number to the optional toolchains
 #                             its suites need: animation (the animation and
 #                             speech suites), inventory, duckdb, visualcheck, browser
-#                             (the shared-page UI suite, which drives Chromium)
+#                             (the shared-page UI suite, which drives Chromium), lefthook
+#                             (the guardrails remote's end-to-end suite)
 #   node_packages             the Node packages to install and test, space-separated
 #   windows_jobs              the pr-test-windows.yml jobs to run, a JSON list
 #   windows_steps             the pr-test-windows.yml steps to run, a JSON list of the keys
@@ -349,6 +350,7 @@ pack() {
         if (p ~ /^plugins\/harness-ops\//) s = s " duckdb"
         if (p ~ /^plugins\/testing\/skills\/check-visual-parity\//) s = s " visualcheck"
         if (p == "plugins/planning/shared/tests/ui.test.sh") s = s " browser"
+        if (p == "plugins/guardrails/git-hooks/lefthook-remote.test.sh") s = s " lefthook"
         return s
       }
       {
@@ -384,6 +386,7 @@ pack() {
           if ((l, "duckdb") in has) s = s " duckdb"
           if ((l, "visualcheck") in has) s = s " visualcheck"
           if ((l, "browser") in has) s = s " browser"
+          if ((l, "lefthook") in has) s = s " lefthook"
           sub(/^ /, "", s)
           legsj = legsj (l ? "," : "") l
           planj = planj (l ? "," : "") "\"" l "\":[" items[l] "]"
