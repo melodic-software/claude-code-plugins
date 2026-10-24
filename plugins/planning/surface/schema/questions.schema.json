@@ -130,7 +130,18 @@
         "pluginVersion": {"description": "The planning plugin version that first wrote this file; `round.sh doctor` compares it with the running version.", "type": "string"},
         "emojiMarkers": {"type": "boolean"},
         "displayName": {"type": "string"},
-        "seededFrom": {"$ref": "#/$defs/seededFrom"}
+        "seededFrom": {"$ref": "#/$defs/seededFrom"},
+        "ledgerSync": {"$ref": "#/$defs/ledgerSync"}
+      }
+    },
+    "ledgerSync": {
+      "description": "What `ledger-check` last found when it compared the page with the ledger the data dir was seeded from; the page header reads it. A file without it shows no ledger line.",
+      "type": "object",
+      "required": ["rev", "rows"],
+      "additionalProperties": false,
+      "properties": {
+        "rev": {"description": "The questions.json rev the check was written at.", "type": "integer"},
+        "rows": {"description": "The register rows (`Q<N>`, or `order` when only the register's row order differs) the ledger and the page disagree on; empty when they match.", "type": "array", "items": {"type": "string"}}
       }
     },
     "seededFrom": {
