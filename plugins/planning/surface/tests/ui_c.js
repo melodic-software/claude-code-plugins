@@ -577,6 +577,15 @@ async page => {
     const r = await page.request.get(base + "api/wait?after=handled&timeout=1&watcher=w1", {headers: {"X-Interview-Token": await token()}});
     const back = await page.waitForFunction(() => /Sent to Claude/.test(document.querySelector('.qbtn[data-q="D1"]').textContent), null, {timeout: 12000}).then(() => true).catch(() => false);
     ok("once a watcher holds the lease the chip goes back to Sent to Claude", r.ok() && back, r.status() + " " + await chip());
+    // Lease held, no waiter (the 1 s wait ended): the header shows the working state, never Live or Not listening.
+    const hdr = await page.waitForFunction(() => document.getElementById("pill").className === "pill working", null, {timeout: 5000}).then(() => true).catch(() => false);
+    const pw = await page.evaluate(() => ({cls: document.getElementById("pill").className, text: document.getElementById("pill").textContent}));
+    ok("lease held with no waiter: the header reads Claude is working, not Live or Not listening", hdr && /^Claude is working/.test(pw.text) && !/Live|Not listening/.test(pw.text), JSON.stringify(pw));
+    // A waiter arrives: Live.
+    const live = page.request.get(base + "api/wait?after=handled&timeout=6&watcher=w1", {headers: {"X-Interview-Token": await token()}}).catch(() => null);
+    const isLive = await page.waitForFunction(() => document.getElementById("pill").textContent === "Live", null, {timeout: 5000}).then(() => true).catch(() => false);
+    ok("a waiter present: the header reads Live", isLive, await page.textContent("#pill"));
+    await live;
     const gone = await page.waitForFunction(() => !/Sent to Claude|No session is listening/.test(document.querySelector('.qbtn[data-q="D1"]').textContent), null, {timeout: 20000}).then(() => true).catch(() => false);
     ok("a handle-only apply clears the chip on the open page, no reload", gone && await page.evaluate(() => window.__marker === "same page"), await chip());
   }
