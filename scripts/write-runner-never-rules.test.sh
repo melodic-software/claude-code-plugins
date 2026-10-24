@@ -271,14 +271,14 @@ say(rsteps.filter(writesOutcome).length === 0 && outcomeWriters.length === 1 && 
 // token, and a stop or reuse skips the model.
 const prior = rById("issue-prior");
 const priorAt = rat((s) => s.id === "issue-prior");
-say(priorAt >= 0 && priorAt < rat((s) => s.id === "go") && priorAt < rat((s) => s.id === "act-skill") && prior.env?.GH_TOKEN === "${{ github.token }}"
+say(priorAt >= 0 && priorAt < rat((s) => s.id === "go") && priorAt < rat((s) => s.id === "act-key") && prior.env?.GH_TOKEN === "${{ github.token }}"
   && !/lane-token/.test(JSON.stringify(prior)),
   "the earlier-work check runs before the run decides to start and before the model, with the job's read-only token and no lane token");
 say(/steps\.config\.outputs\.kind == 'skill'/.test(String(prior.if ?? "")) && /inputs\.issue-number != ''/.test(String(prior.if ?? ""))
   && /\.base\/\.github\/scripts\/work-resolve-issue\/report-outcome\.mjs --find-prior/.test(prior.run ?? ""),
   "the earlier-work check runs only for an issue-mode skill, from the base copy");
 say(rById("go").env?.PRIOR === "${{ steps.issue-prior.outputs.proceed }}" && /PRIOR" = false/.test(rById("go").run ?? "")
-  && /steps\.go\.outputs\.run == 'true'/.test(String(rById("act-skill").if ?? "")),
+  && /steps\.go\.outputs\.run == 'true'/.test(String(rById("key-present").if ?? "")) && /steps\.go\.outputs\.run == 'true'/.test(String(rById("token-present").if ?? "")),
   "an earlier run's work skips the model");
 say(rwf.jobs.run.outputs["reuse-branch"] === "${{ steps.issue-prior.outputs.reuse-branch }}",
   "the reuse-branch output comes only from the runner's earlier-work check");
@@ -295,9 +295,9 @@ say(byId("act-script").env?.REUSE_BRANCH === "${{ inputs.reuse-branch }}", "the 
 const sjob = rwf.jobs.summary ?? {};
 const ssteps = sjob.steps ?? [];
 const sById = (id) => ssteps.find((s) => s.id === id) ?? {};
-const summaryIds = ["summary-data", "summary-models", "summary-prompt", "summary-run", "summary-collect"];
-say(!rsteps.some((s) => summaryIds.includes(s.id) || /claude-code-action/.test(s.uses ?? "") && s.id !== "act-skill"),
-  "the run job runs no summary step and no model step but the skill");
+const summaryIds = ["summary-data", "summary-models", "summary-prompt", "summary-key", "summary-token", "summary-collect"];
+say(!rsteps.some((s) => summaryIds.includes(s.id) || /claude-code-action/.test(s.uses ?? "")),
+  "the run job runs no summary step and no claude-code-action step");
 say(JSON.stringify(sjob.needs) === '["run","issue-fields"]' && /needs\.issue-fields\.outputs\.reuse-branch != ''/.test(String(sjob.if ?? ""))
   && /needs\.issue-fields\.outputs\.checked == 'true'/.test(String(sjob.if ?? "")) && /!cancelled\(\)/.test(String(sjob.if ?? "")),
   "the summary job runs after the run and issue-fields jobs, only on the checked reuse branch");
@@ -318,19 +318,24 @@ say(summaryData.env?.GITHUB_TOKEN === "${{ github.token }}" && /GIT_CONFIG_GLOBA
   && /--filter=blob:none/.test(summaryData.run ?? "")
   && /diff --no-ext-diff --no-textconv/.test(summaryData.run ?? "") && !/checkout|worktree|npm |bash "\$SRC|node "\$SRC/.test(summaryData.run ?? ""),
   "the summary data step fetches the branch as objects with the read-only token and diffs it without running anything from it");
-const summaryRun = sById("summary-run");
-const summaryArgs = String(sById("summary-prompt").run ?? "");
-say(String(summaryRun.uses ?? "") === String(rById("act-skill").uses ?? "") && summaryRun.with?.github_token === "${{ github.token }}"
-  && !("use_commit_signing" in (summaryRun.with ?? {})) && !("plugins" in (summaryRun.with ?? {}))
-  && !("plugin_marketplaces" in (summaryRun.with ?? {})) && sById("isolate").uses === "./.base/.github/actions/setup-runner-isolation"
-  && String(summaryRun.if ?? "") === "steps.isolate.outcome == 'success'",
-  "the summary model step runs only after runner isolation, with the job's read-only token, no commit signing and no plugins");
-say(summaryRun.with?.allowed_bots === "melodic-automation-lanes[bot]",
-  `the summary model step admits only the lanes App bot (got ${JSON.stringify(summaryRun.with?.allowed_bots)})`);
-say(/--setting-sources user/.test(String(summaryRun.with?.claude_args ?? "")) && /--permission-mode dontAsk/.test(String(summaryRun.with?.claude_args ?? ""))
-  && /--allowedTools \\"Read\(\/\$DATA\/\*\*\)\\"/.test(summaryArgs) && /denied="Bash,Edit,Write,/.test(summaryArgs)
-  && /mcp__github_file_ops/.test(summaryArgs) && /--json-schema/.test(summaryArgs) && /openssl rand -hex/.test(summaryArgs),
-  "the summary model reads the data directory and nothing else, under dontAsk, and returns structured output");
+// One launcher step per secret: the first call's pass on the API key, a
+// fallback call's on the OAuth token.
+const summaryLegs = [["summary-key", "api-key", "claude-api-key", "inputs.fallback == ''"], ["summary-token", "subscription-token", "claude-code-oauth-token", "inputs.fallback != ''"]];
+say(summaryLegs.every(([id, input, secret, when]) => {
+  const leg = sById(id);
+  return String(leg.uses ?? "") === String(rById("act-key").uses ?? "") && leg.with?.[input] === "${{ secrets." + secret + " }}"
+    && ["api-key", "subscription-token"].filter((name) => name in (leg.with ?? {})).length === 1
+    && String(leg.if ?? "") === "steps.isolate.outcome == 'success' && " + when;
+}) && sById("isolate").uses === "./.base/.github/actions/setup-runner-isolation" && /\/apply-claude-managed-settings@/.test(sById("summary-settings").uses ?? "")
+  && String(sById("isolate").if ?? "") === "steps.summary-settings.outcome == 'success'",
+  "the summary model steps run on the launcher, each on one Claude secret, only after the managed settings and runner isolation");
+say(summaryLegs.every(([id]) => {
+  const w = sById(id).with ?? {};
+  return w["permission-mode"] === "dontAsk" && w.tools === "Read" && w["allowed-tools"] === "Read(./.summary/**)"
+    && /^Read\(\.\/\.base\/\*\*\)$/m.test(w["disallowed-tools"] ?? "") && /reuse-summary-schema\.json$/.test(w["json-schema-file"] ?? "")
+    && !("plugin-dirs" in w) && !("add-dirs" in w);
+}) && summaryData.env?.DATA === "${{ github.workspace }}/.summary",
+  "the summary model reads the data directory under the workspace and nothing else, under dontAsk, and returns structured output");
 const summaryCollect = sById("summary-collect");
 say(summaryCollect.env?.REUSE_BRANCH === "${{ needs.issue-fields.outputs.reuse-branch }}"
   && summaryCollect.env?.TIP === "${{ steps.summary-data.outputs.tip }}" && /try fromjson catch null/.test(summaryCollect.run ?? ""),

@@ -1201,7 +1201,7 @@ jobs:
       # run-claude-cli reads only inside the checkout, so the stage the base
       # copy left goes to .lane/, which a head may not hold. The plugin, the
       # CI context, the dependency context, the trusted context, the check
-      # and verify-script copies, the prompt, the review-thread files and
+      # and verify-script copies, the git-read wrapper, the prompt, the review-thread files and
       # .lane/ itself are read-only, so a script the skill runs writes only
       # in .lane/scratch and the review-thread tool only in
       # .lane/feedback/state, which the stage made before the copy; git
@@ -1232,7 +1232,7 @@ jobs:
           if [ -d .lane/merge ]; then
             chmod -R a-w .lane/merge
           fi
-          for dir in .lane/checks .lane/verify; do
+          for dir in .lane/checks .lane/verify .lane/git; do
             if [ -d "$dir" ]; then
               chmod -R a-w "$dir"
             fi
@@ -1322,7 +1322,7 @@ jobs:
         id: act-key
         if: steps.key-present.outputs.present == 'true'
         continue-on-error: true
-        timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes) }}
+        timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
         env:
           # No work may outlive the result message the launcher reads.
@@ -1374,7 +1374,7 @@ jobs:
         id: act-token
         if: steps.token-present.outputs.present == 'true'
         continue-on-error: true
-        timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes) }}
+        timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@d02b8697e092705153f0996549b05f95a446bb52 # v0.65.0
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"

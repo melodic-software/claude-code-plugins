@@ -137,7 +137,7 @@ for (const [size, complexity, turns, minutes] of [
     assert.equal(slot.applies, true);
     assert.equal(slot["issue-dimensions"], `${size}/${complexity}/known`);
     assert.equal(slot["timeout-minutes"], minutes);
-    assert.equal(modelArgs(slot.models), `--max-turns ${turns}`);
+    assert.equal(slot.models["max-turns"], turns);
   });
 }
 
@@ -153,7 +153,7 @@ for (const [why, dims, options] of [
     assert.equal(slot.applies, true);
     assert.equal(slot["issue-dimensions"], "small/medium/known");
     assert.equal(slot["timeout-minutes"], 7);
-    assert.equal(modelArgs(slot.models), "--max-turns 17");
+    assert.equal(slot.models["max-turns"], 17);
   });
 }
 
@@ -190,7 +190,7 @@ test("live config: pinned dimensions win over fields changed since", () => {
   const slot = issueSlot({ size: "medium", complexity: "high", uncertainty: "known" }, { pinnedDimensions: "small/low/known" });
   assert.equal(slot["issue-dimensions"], "small/low/known");
   assert.equal(slot["timeout-minutes"], 7);
-  assert.equal(modelArgs(slot.models), "--max-turns 11");
+  assert.equal(slot.models["max-turns"], 11);
 });
 
 test("live config: a pinned not-assessed still refuses the run", () => {
@@ -214,15 +214,20 @@ test("live config: no size label is read", () => {
   assert.ok(!neededFacts(LIVE, request).includes("labelers"));
 });
 
-test("live config: resolve-issue keeps the standard profile's model, its turns from its dimensions", () => {
+// run-claude-cli needs a model alias, so resolve-issue routes to code-fix: a
+// worker on code, Opus at the verifier's effort from the role map.
+test("live config: resolve-issue runs its route's model alias, its turns from its dimensions", () => {
   const slot = issueSlot({ size: "small", complexity: "low", uncertainty: "known" });
-  assert.deepEqual(slot.models, { profile: "standard", ...DEFAULT_RUN, "max-turns": 11 });
-  assert.equal(modelSettings(slot.models), "");
+  assert.equal(slot.models.profile, "code-fix");
+  assert.equal(slot.models.model, "opus");
+  assert.equal(slot.models.effort, "high");
+  assert.equal(slot.models["max-turns"], 11);
+  assert.equal(modelArgs(slot.models), "--model opus --max-turns 11 --effort high");
 });
 
 // An issue's Complexity picks the starting
 // profile. High runs Opus at effort xhigh; low, medium and unset keep the
-// activity's default (resolve-issue has no route, so standard). The turn cap
+// activity's own route (code-fix for resolve-issue). The turn cap
 // still comes from the dimensions.
 const liveIssueSlot = (dims, pinnedDimensions) =>
   resolve(LIVE, {
@@ -249,20 +254,20 @@ test("live config: pinned high-Complexity dimensions pick the same Opus xhigh pr
 });
 
 for (const complexity of ["low", "medium"]) {
-  test(`live config: a ${complexity}-Complexity issue keeps resolve-issue's default profile`, () => {
+  test(`live config: a ${complexity}-Complexity issue keeps resolve-issue's routed profile`, () => {
     const slot = liveIssueSlot({ size: "small", complexity, uncertainty: "known" });
     assert.equal(slot.applies, true);
-    assert.equal(slot.models.profile, "standard");
-    assert.equal(slot.models.model, "default");
-    assert.equal(slot.models.effort, null);
+    assert.equal(slot.models.profile, "code-fix");
+    assert.equal(slot.models.model, "opus");
+    assert.equal(slot.models.effort, "high");
   });
 }
 
-test("live config: an issue with no Complexity keeps the default profile and runs at medium's turns", () => {
+test("live config: an issue with no Complexity keeps the routed profile and runs at medium's turns", () => {
   const slot = liveIssueSlot({ size: "small", uncertainty: "known" });
   assert.equal(slot.applies, true);
   assert.equal(slot["issue-dimensions"], "small/medium/known");
-  assert.equal(slot.models.profile, "standard");
+  assert.equal(slot.models.profile, "code-fix");
   assert.equal(slot.models["max-turns"], 113);
 });
 
@@ -892,7 +897,7 @@ test("main on an issue set Medium, High, Known writes its turn cap, dimensions a
     fieldEvent("IssueFieldAddedEvent", 48625721, LISTED),
   ]);
   assert.equal(code, 0);
-  assert.equal(outputs["claude-args"], "--max-turns 50");
+  assert.equal(outputs["max-turns"], "50");
   assert.equal(outputs["issue-dimensions"], "medium/high/known");
   assert.equal(outputs["timeout-minutes"], "9");
   const read = calls.find((call) => call.path.endsWith("/issue-field-values"));
@@ -909,7 +914,7 @@ test("main reads a Size an unlisted account set last as small", async () => {
   assert.equal(code, 0);
   assert.equal(outputs.applies, "true");
   assert.equal(outputs["issue-dimensions"], "small/high/known");
-  assert.equal(outputs["claude-args"], "--max-turns 28");
+  assert.equal(outputs["max-turns"], "28");
 });
 
 test("main fails when the field events answer with GraphQL errors", async () => {

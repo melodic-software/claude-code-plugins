@@ -478,6 +478,59 @@ runs:
                 ;;
             esac
             preamble="$preamble Run every step the skill instructions name. Your scratchpad directory is $lane/scratch: put every temporary or state file there. Leave every change uncommitted in the working tree: the runner turns it into a patch that a later job pushes. Run each shell command as one plain command per call, a script by the absolute path the skill names: no variables, cd, ;, &&, a pipe, a command substitution or an interpreter, and redirect output only into $lane/scratch."
+            # An issue lane's skill reads the work it resumes and checks its
+            # own change with git, through git-read, a wrapper staged under
+            # .lane/git that runs only git status, diff, log and show, with
+            # no system, global, fsmonitor, hook, pager, external-diff or
+            # textconv program. It refuses the options that write a file or
+            # read one outside the checkout (--output, --no-index, -O and
+            # their prefixes) and any path argument that resolves outside the
+            # checkout, since git diff on such a path reads it as --no-index.
+            # Bash(git *) stays denied, so git runs only through it.
+            if [ -n "${ISSUE_NUMBER:-}" ]; then
+              mkdir -p "$STAGE/git"
+              {
+                printf '#!/usr/bin/env bash\nworkspace=%q\n' "$WORKSPACE"
+                printf '%s\n' \
+                  'cd "$workspace" && workspace=$(pwd -P) || exit 2' \
+                  'case ${1:-} in status | diff | log | show) ;; *) echo "refused: git-read runs git status, diff, log or show" >&2 && exit 2 ;; esac' \
+                  'for arg in "${@:2}"; do' \
+                  '  case $arg in' \
+                  '    -O*) echo "refused: $arg" >&2 && exit 2 ;;' \
+                  '    --?*)' \
+                  '      name=${arg%%=*}' \
+                  '      name=${name#--}' \
+                  '      for bad in output no-index ext-diff textconv open-files-in-pager paginate exec-path git-dir work-tree; do' \
+                  '        if [ "${#name}" -ge 2 ] && [ "${bad#"$name"}" != "$bad" ] || [ "${name#"$bad"}" != "$name" ]; then' \
+                  '          echo "refused: $arg" >&2 && exit 2' \
+                  '        fi' \
+                  '      done' \
+                  '      ;;' \
+                  '  esac' \
+                  '  for path in "$arg" "${arg#*=}" "${arg#*:}"; do' \
+                  '    [ -e "$path" ] || [ -L "$path" ] || continue' \
+                  '    real=$(realpath -e -- "$path") || exit 2' \
+                  '    case $real in' \
+                  '      "$workspace" | "$workspace"/*) ;;' \
+                  '      *) echo "refused: $path is outside the checkout" >&2 && exit 2 ;;' \
+                  '    esac' \
+                  '  done' \
+                  'done' \
+                  'unset GH_TOKEN GITHUB_TOKEN' \
+                  'export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_PAGER=cat PAGER=cat GIT_EXTERNAL_DIFF=' \
+                  'export GIT_CONFIG_COUNT=3 GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false GIT_CONFIG_KEY_1=core.hooksPath GIT_CONFIG_VALUE_1=/dev/null GIT_CONFIG_KEY_2=core.pager GIT_CONFIG_VALUE_2=cat' \
+                  'command=$1' \
+                  'shift' \
+                  'case $command in' \
+                  '  status) exec git --no-pager status "$@" ;;' \
+                  '  *) exec git --no-pager "$command" --no-ext-diff --no-textconv "$@" ;;' \
+                  'esac'
+              } >"$STAGE/git/git-read"
+              chmod +x "$STAGE/git/git-read"
+              allowed+=("Bash($lane/git/git-read *)")
+              denied+=("Edit(./.lane/git/**)" "Write(./.lane/git/**)" "NotebookEdit(./.lane/git/**)")
+              preamble="$preamble Read the repository's state and history only with $lane/git/git-read status, diff, log or show and their arguments, each as one plain command; it refuses --output, --no-index and a path outside the checkout, and no other git command runs."
+            fi
             # The check and verify-script copies go to .lane/checks and
             # .lane/verify, which the runner makes read-only, and are denied
             # to the file tools.
@@ -708,8 +761,8 @@ runs:
             fi
             if ((${#verify[@]})); then
               stage_verify "$VERIFY_DIR" "$VERIFY_DIR"
-              for wrapper in "${verify_wrappers[@]}"; do
-                allowed="$allowed,Bash($wrapper *)"
+              for verifier in "${verify_wrappers[@]}"; do
+                allowed="$allowed,Bash($verifier *)"
               done
               chmod -R a-w "$VERIFY_DIR"
               disallowed="${disallowed:+$disallowed,}Edit(/$VERIFY_DIR/**),Write(/$VERIFY_DIR/**)"

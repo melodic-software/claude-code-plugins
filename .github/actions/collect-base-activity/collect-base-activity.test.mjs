@@ -5,7 +5,7 @@
 // instruction to commit; a merge-base skill runs on run-claude-cli alone.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, test } from "node:test";
@@ -1336,6 +1336,69 @@ test("run-claude-cli: an issue lane's patch skill stages its check and verify-sc
   assert.ok(run.preamble.includes(`with the script's own arguments and paths inside the checkout: ${lane}/verify/bin/scan <arguments>.`), run.preamble);
   assert.ok(run.preamble.startsWith("You run unattended as a CI lane activity on an issue,"), run.preamble);
   assert.equal(run.promptFile, "Call the Skill tool with skill source-control:pull-request and args --issue 7 fix, then follow the skill instructions to the end.\n");
+  // The skill's Bash: the check, verify-script and git-read wrappers,
+  // nothing else; every other command matches no allow rule under dontAsk,
+  // and all of git stays denied, so git runs only through git-read.
+  assert.deepEqual(run.allowedTools.filter((rule) => rule.startsWith("Bash")).toSorted(), [
+    `Bash(${lane}/checks/bin/check-x)`,
+    `Bash(${lane}/git/git-read *)`,
+    `Bash(${lane}/verify/bin/scan *)`,
+  ]);
+  assert.ok(run.deniedTools.includes("Bash(git *)"));
+  for (const tool of ["Edit", "Write", "NotebookEdit"]) assert.ok(run.deniedTools.includes(`${tool}(./.lane/git/**)`), tool);
+  assert.ok(run.preamble.includes(`only with ${lane}/git/git-read status, diff, log or show`), run.preamble);
+  // A PR lane's patch skill keeps all of git denied.
+  const pr = launch({ SKILL: "source-control:pull-request", RESOLVED: launchResolved(PATCH) });
+  assert.ok(pr.deniedTools.includes("Bash(git *)") && !pr.allowedTools.some((rule) => rule.includes("git")));
+});
+
+// git-read, run against a real checkout: the four read commands run with
+// fsmonitor, hooks and external diff programs off, and every option that
+// writes a file or reads one outside the checkout is refused before git runs.
+test("run-claude-cli: an issue lane's git-read runs only git's read commands, and refuses --output, --no-index and outside paths", () => {
+  const dir = mkdtempSync(path.join(root, "git-read-"));
+  const workspace = path.join(dir, "workspace");
+  mkdirSync(workspace);
+  const git = (...args) => spawnSync("git", ["-C", workspace, ...args], { encoding: "utf8" });
+  git("init", "-q");
+  writeFileSync(path.join(workspace, "a.txt"), "one\n");
+  git("add", "a.txt");
+  git("-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", "commit", "-qm", "c");
+  writeFileSync(path.join(workspace, "a.txt"), "two\n");
+  // A planted fsmonitor and external diff in the checkout's own config.
+  const marker = path.join(dir, "ran");
+  git("config", "core.fsmonitor", `touch ${marker}; false`);
+  git("config", "diff.external", `touch ${marker}`);
+  writeFileSync(path.join(dir, "outside.txt"), "secret\n");
+  const run = launch({ ISSUE_NUMBER: "7", SKILL: "source-control:pull-request", RESOLVED: launchResolved(PATCH), WORKSPACE: workspace });
+  assert.equal(run.status, 0, run.stdout);
+  const wrapper = path.join(run.stageDir, "git", "git-read");
+  const read = (...args) => spawnSync(wrapper, args, { cwd: dir, encoding: "utf8", env: { PATH: process.env.PATH } });
+  for (const args of [["status", "--short"], ["diff"], ["log", "--oneline", "-1"], ["show", "--stat", "HEAD"], ["show", "HEAD:a.txt"]]) {
+    const result = read(...args);
+    assert.equal(result.status, 0, `${args.join(" ")}: ${result.stderr}`);
+  }
+  assert.match(read("diff").stdout, /-one\n\+two/);
+  assert.equal(existsSync(marker), false, "no planted fsmonitor or external diff ran");
+  for (const args of [
+    ["log", "--output=x"],
+    ["log", "--outp=x"],
+    ["show", "--output", "x"],
+    ["diff", "--no-index", "a.txt", path.join(dir, "outside.txt")],
+    ["diff", path.join(dir, "outside.txt"), "a.txt"],
+    ["diff", "-Ofile"],
+    ["diff", "--ext-diff"],
+    ["log", "--textconv"],
+    ["commit", "-m", "x"],
+    ["push"],
+    ["-c", "core.pager=sh", "log"],
+    [],
+  ]) {
+    const result = read(...args);
+    assert.equal(result.status, 2, `${JSON.stringify(args)} is refused`);
+    assert.match(result.stderr, /^refused: /, JSON.stringify(args));
+  }
+  assert.equal(existsSync(path.join(workspace, "x")), false, "nothing was written");
 });
 
 test("run-claude-cli: a staged plugin with no .mcp.json gets an empty server list, and one that ships its own keeps it", () => {

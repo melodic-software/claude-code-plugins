@@ -1485,7 +1485,7 @@ test("pr-run-activity-read.yml: the run job can only read, and each launcher ste
     assert.equal(launch.with[input === "api-key" ? "subscription-token" : "api-key"], undefined, id);
     assert.equal(launch.with["permission-mode"], "${{ steps.config.outputs.permission-mode }}", id);
     assert.equal(launch["continue-on-error"], true, id);
-    assert.equal(launch["timeout-minutes"], "${{ fromJSON(steps.launch.outputs.step-minutes) }}", id);
+    assert.equal(launch["timeout-minutes"], "${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}", id);
     assert.equal(launch.with["leg-timeout-minutes"], "${{ steps.launch.outputs.leg-minutes }}", id);
     for (const list of ["tools", "allowed-tools", "disallowed-tools", "plugin-dirs", "preamble"]) {
       assert.equal(launch.with[list], `\${{ steps.stage.outputs.${list} }}`, `${id} ${list}`);
@@ -3371,8 +3371,11 @@ test("pr-run-activity-read.yml: the reuse summary job takes code from the defaul
 test("work-resolve-issue.yml: every resolve-issue output a job reads is the read runner's scan or issue-fields job's", () => {
   const { jobs } = workflow("work-resolve-issue.yml");
   const outputs = workflow("pr-run-activity-read.yml").on.workflow_call.outputs;
-  const names = [...new Set([...JSON.stringify(jobs).matchAll(/needs\.resolve-issue\.outputs\.([\w-]+)/g)].map((m) => m[1]))].sort();
+  const read = (call) => [...new Set([...JSON.stringify(jobs).matchAll(new RegExp(`needs\\.${call}\\.outputs\\.([\\w-]+)`, "g"))].map((m) => m[1]))].sort();
+  const names = read("resolve-issue");
   assert.deepEqual(names, ["scan-base-sha", "scan-issue-run-started", "scan-outcome-uploaded", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-reply-attempt", "scan-resume-branch", "scan-resume-tip", "scan-reuse-branch"]);
+  // The subscription call's are the same outputs, read in the same picks.
+  assert.deepEqual(read("resolve-issue-subscription"), names);
   for (const name of names) assert.match(outputs[name].value, /^\$\{\{ jobs\.(scan|issue-fields)\.outputs\.[\w-]+ \}\}$/, name);
 });
 
@@ -5530,4 +5533,235 @@ test("pr-unblock.yml: address-feedback's, review-dependency's and resolve-confli
     assert.notEqual(failed.status, 0);
     assert.deepEqual(failed.outputs, {});
   }
+});
+
+// --- resolve-issue on run-claude-cli: the key call, then the OAuth call on a handoff ---
+
+// A job listing for work-resolve-issue.yml in the shape jobListing above
+// takes: `broker` is the first call's broker step conclusion, `run` and
+// `scan` its run and scan jobs' conclusions; a scan of null is left out of
+// the listing. The subscription call's own jobs are listed too, and no read
+// may count them.
+function issueListing({ broker = "success", run = "success", scan = "skipped" } = {}) {
+  const jobs = [
+    { name: "admit", conclusion: "success", steps: [] },
+    { name: "resolve-issue / broker-check", conclusion: broker === "failure" ? "failure" : "success", steps: [{ name: "Ask the broker whether the lane may run", conclusion: broker }] },
+    { name: "resolve-issue / run", conclusion: run, steps: [] },
+    { name: "resolve-issue / issue-fields", conclusion: "success", steps: [] },
+    { name: "resolve-issue-subscription / run", conclusion: "success", steps: [] },
+    { name: "resolve-issue-subscription / scan", conclusion: "skipped", steps: [] },
+  ];
+  if (scan !== null) jobs.push({ name: "resolve-issue / scan", conclusion: scan, steps: [] });
+  return { total_count: jobs.length, jobs };
+}
+
+// Runs the handoff step with a gh stub that answers the listing through the
+// step's own --jq filter, as readPosted does.
+function readHandoff(t, step, listing, { fail = false } = {}) {
+  const root = mkdtempSync(join(tmpdir(), "issue-handoff-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(join(root, "bin"));
+  writeFileSync(join(root, "listing.json"), JSON.stringify(listing));
+  writeFileSync(
+    join(root, "bin", "gh"),
+    `#!/bin/bash\nprintf '%s\\n' "$*" >>"${join(root, "calls")}"\n${fail ? "exit 1\n" : ""}` +
+      `while [ $# -gt 0 ]; do if [ "$1" = --jq ]; then filter=$2; fi; shift; done\njq -r "$filter" "${join(root, "listing.json")}"\n`,
+    { mode: 0o755 },
+  );
+  const output = join(root, "out");
+  writeFileSync(output, "");
+  const result = runStep(step, root, {
+    PATH: `${join(root, "bin")}:${process.env.PATH}`,
+    GITHUB_REPOSITORY: "o/r",
+    GITHUB_RUN_ID: "99",
+    GH_TOKEN: "x",
+    GITHUB_OUTPUT: output,
+    CALL: step.env.CALL,
+  });
+  const calls = existsSync(join(root, "calls")) ? readFileSync(join(root, "calls"), "utf8") : "";
+  return { status: result.status, outputs: outputLines(output), calls };
+}
+
+// The plan's handoff rule (#9624's follow-up, phase 6b): the read runner
+// skips the scan job only on a handoff, so the subscription call starts when
+// the broker allowed the first call, its run job succeeded, and its scan job
+// never ran. A stale-workflow stop, an earlier run's work and a reuse still
+// run the scan job, so none of them starts a second call.
+test("work-resolve-issue.yml: resolve-issue-subscription starts on resolve-issue-handoff's jobs-API read of a handoff, never on a resolve-issue output", (t) => {
+  const { jobs } = workflow("work-resolve-issue.yml");
+  const sub = jobs["resolve-issue-subscription"];
+  const handoff = jobs["resolve-issue-handoff"];
+  assert.doesNotMatch(sub.if, /needs\.resolve-issue\.outputs\./, "the start reads no resolve-issue output");
+  const starts = (handedOff, overrides = {}) =>
+    evaluate(sub.if, {
+      "github.event.label.name": "agent-ready",
+      "needs.admit.outputs.proceed": "true",
+      "needs.pick-slot.outputs.capped": "false",
+      "needs.resolve-issue-handoff.outputs.handed-off": handedOff,
+      ...overrides,
+    });
+  assert.equal(starts("true"), true, "a handoff");
+  assert.equal(starts("false"), false, "a call that did the work");
+  assert.equal(starts(""), false, "a failed read starts no second call");
+  assert.equal(starts("true", { "needs.admit.outputs.proceed": "false" }), false, "an unadmitted label");
+  assert.equal(starts("true", { "needs.pick-slot.outputs.capped": "true" }), false, "at the WIP cap");
+  assert.equal(sub.with.fallback, "handoff");
+  const { fallback, ...same } = sub.with;
+  assert.deepEqual(same, jobs["resolve-issue"].with, "the fallback call runs the same activity on the same inputs");
+  assert.deepEqual(sub.concurrency, jobs["resolve-issue"].concurrency, "in the same slot");
+  // The handoff job: one shell step on a read-only token, no secret, no checkout.
+  assert.equal(handoff.needs, "resolve-issue");
+  for (const [result, runs] of [["success", true], ["failure", true], ["skipped", false]]) {
+    assert.equal(evaluate(handoff.if, { "needs.resolve-issue.result": result }), runs, result);
+  }
+  assert.deepEqual(handoff.permissions, { actions: "read" });
+  assert.deepEqual(handoff.outputs, { "handed-off": "${{ steps.handoff.outputs.handed-off }}" });
+  assert.equal(handoff.steps.length, 1);
+  assert.equal(handoff.steps[0].uses, undefined);
+  assert.deepEqual(stepSecrets(handoff), []);
+  assert.doesNotMatch(JSON.stringify(handoff), /needs\.resolve-issue\.outputs\./);
+  const step = handoff.steps[0];
+  assert.deepEqual(step.env, { GH_TOKEN: "${{ github.token }}", CALL: "resolve-issue" });
+  for (const [name, listing, handedOff] of [
+    ["a handoff, its scan job listed as skipped", issueListing(), "true"],
+    ["a handoff, its scan job not listed", issueListing({ scan: null }), "true"],
+    ["a skill run, or a stale-workflow, earlier-work or reuse stop, which still scans", issueListing({ scan: "success" }), "false"],
+    ["a scan that failed its leak scan", issueListing({ scan: "failure" }), "false"],
+    ["a kill switch, which skips the broker step", issueListing({ broker: "skipped" }), "false"],
+    ["a broker refusal, which skips the run job", issueListing({ broker: "failure", run: "skipped" }), "false"],
+    ["a run job that failed or timed out", issueListing({ run: "failure", scan: "success" }), "false"],
+    ["a cancelled run job", issueListing({ run: "cancelled" }), "false"],
+  ]) {
+    const read = readHandoff(t, step, listing);
+    assert.equal(read.status, 0, name);
+    assert.deepEqual(read.outputs, { "handed-off": handedOff }, name);
+  }
+  assert.match(readHandoff(t, step, issueListing()).calls, /^api --paginate repos\/o\/r\/actions\/runs\/99\/jobs\?filter=latest&per_page=100 --jq /);
+  const failed = readHandoff(t, step, issueListing(), { fail: true });
+  assert.notEqual(failed.status, 0);
+  assert.deepEqual(failed.outputs, {});
+});
+
+// The brief's rule: every job references exactly one Claude secret.
+test("work-resolve-issue.yml: the key call reads only the API key and the subscription call only the OAuth token", () => {
+  const read = [...claudeSecretJobs(["work-resolve-issue.yml"])].map(([key, { names }]) => [key, names]);
+  assert.deepEqual(read, [
+    ["work-resolve-issue.yml resolve-issue", ["ISSUE_LANE_CLAUDE_API_KEY"]],
+    ["work-resolve-issue.yml resolve-issue-subscription", ["ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN"]],
+  ]);
+});
+
+// One report-outcome and at most one PR per run: every job after the two
+// calls takes each resolve-issue value from the call that ran the activity,
+// the subscription call when it ran, else the first.
+test("work-resolve-issue.yml: every job after the calls takes each resolve-issue value from the call that ran", () => {
+  const { jobs } = workflow("work-resolve-issue.yml");
+  const after = ["apply-issue-patch", "run-checks", "report-outcome", "report-statuses"];
+  for (const id of after) {
+    const needs = [jobs[id].needs].flat();
+    assert.ok(needs.includes("resolve-issue") && needs.includes("resolve-issue-subscription"), id);
+  }
+  // Each with or env value that reads the calls, filled from one of them.
+  const leg = (from) => (expression) => {
+    const context = {};
+    for (const [ref, call, rest] of String(expression).matchAll(/needs\.(resolve-issue(?:-subscription)?)\.(result|outputs\.[\w-]+)/g)) {
+      if (rest === "result") context[ref] = call === "resolve-issue-subscription" && from === "resolve-issue" ? "skipped" : `${call}-result`;
+      else context[ref] = call === from ? `${call}:${rest.slice("outputs.".length)}` : "";
+    }
+    return evaluate(expression, context);
+  };
+  let values = 0;
+  for (const id of after) {
+    const job = jobs[id];
+    const entries = [...Object.entries(job.with ?? {}), ...(job.steps ?? []).flatMap((step) => Object.entries(step.env ?? {}))];
+    for (const [name, expression] of entries) {
+      if (!/needs\.resolve-issue/.test(String(expression))) continue;
+      values += 1;
+      for (const from of ["resolve-issue", "resolve-issue-subscription"]) {
+        const value = leg(from)(expression);
+        assert.ok(new RegExp(`^${from}(:|-result$)`).test(value), `${id} ${name} after ${from}: ${value}`);
+      }
+    }
+  }
+  assert.ok(values >= 10, `${values} values read`);
+  // The started and reuse gates follow the call that ran too.
+  const gate = (id, sub, first) =>
+    evaluate(jobs[id].if, {
+      "needs.resolve-issue-subscription.result": sub === null ? "skipped" : "success",
+      "needs.resolve-issue-subscription.outputs.scan-issue-run-started": sub?.started ?? "",
+      "needs.resolve-issue-subscription.outputs.scan-outcome-uploaded": sub?.uploaded ?? "",
+      "needs.resolve-issue-subscription.outputs.scan-reuse-branch": "",
+      "needs.resolve-issue-subscription.outputs.scan-patch-state": sub?.patch ?? "",
+      "needs.resolve-issue.outputs.scan-issue-run-started": first.started ?? "",
+      "needs.resolve-issue.outputs.scan-outcome-uploaded": first.uploaded ?? "",
+      "needs.resolve-issue.outputs.scan-reuse-branch": "",
+      "needs.resolve-issue.outputs.scan-patch-state": first.patch ?? "",
+    });
+  const handedOff = { started: "true" };
+  const ran = { started: "true", uploaded: "true", patch: "written" };
+  for (const id of after) {
+    assert.equal(gate(id, ran, handedOff), true, `${id} after the subscription call ran`);
+    assert.equal(gate(id, null, ran), true, `${id} after the first call ran`);
+    assert.equal(gate(id, { started: "false" }, ran), false, `${id}: the first call's values are not taken once the subscription call ran`);
+  }
+});
+
+// The launcher step's timeout and its leg's come from the run job's: 10 and
+// 15 minutes under it. PR callers pass 60, which keeps the 50-minute step and
+// 45-minute leg they ran on; the issue lane's 25-minute fallback gives 15
+// and 10.
+test("pr-run-activity-read.yml: the launcher step and leg timeouts derive from the run job's timeout", () => {
+  const launch = workflow("pr-run-activity-read.yml").jobs.run.steps.find((s) => s.id === "launch");
+  assert.equal(launch.env.TIMEOUT, "${{ inputs.timeout-minutes }}");
+  const run = (timeout) => {
+    const dir = mkdtempSync(join(tmpdir(), "launch-timeout-"));
+    const output = join(dir, "out");
+    writeFileSync(output, "");
+    const result = spawnSync("bash", ["-e", "-c", launch.run], {
+      env: { PATH: process.env.PATH, TIMEOUT: timeout, ROLE: "issue-lane", MODEL: "opus", GATING: "advisory", GITHUB_OUTPUT: output },
+      encoding: "utf8",
+    });
+    const outputs = outputLines(output);
+    rmSync(dir, { recursive: true, force: true });
+    return { status: result.status, outputs };
+  };
+  assert.deepEqual(run("60").outputs, { "step-minutes": "50", "leg-minutes": "45", "key-name": "ISSUE_LANE_CLAUDE_API_KEY" });
+  assert.deepEqual(run("25").outputs, { "step-minutes": "15", "leg-minutes": "10", "key-name": "ISSUE_LANE_CLAUDE_API_KEY" });
+  assert.deepEqual(run("100").outputs, { "step-minutes": "90", "leg-minutes": "85", "key-name": "ISSUE_LANE_CLAUDE_API_KEY" });
+  for (const timeout of ["15", "0", "", "6x"]) assert.notEqual(run(timeout).status, 0, JSON.stringify(timeout));
+});
+
+// Owner decision 2026-10-24: the issue lane runs in dontAsk with an explicit
+// allow list, as fix-ci and fix-docs do; the launcher forces default mode, so
+// auto is unreachable. Issue mode takes the launcher's inputs check, the
+// staging for run-claude-cli, and a fallback only as handoff.
+test("pr-run-activity-read.yml: an issue run takes the launcher in dontAsk, and only handoff as its fallback", () => {
+  const steps = workflow("pr-run-activity-read.yml").jobs.run.steps;
+  const launch = steps.find((s) => s.id === "launch");
+  assert.equal(evaluate(launch.if, { "steps.config.outcome": "success", "steps.config.outputs.kind": "skill" }), true, "issue and PR mode alike");
+  assert.equal(steps.find((s) => s.id === "stage").with.launcher, "run-claude-cli");
+  const config = parse(read("../../../docs/conventions/pr-pipeline.yaml"));
+  assert.equal(config.activities["resolve-issue"]["permission-mode"], undefined, "resolve-config's default, dontAsk");
+  for (const id of ["act-key", "act-token"]) {
+    assert.equal(steps.find((s) => s.id === id).with["permission-mode"], "${{ steps.config.outputs.permission-mode }}", id);
+  }
+  const first = steps[0];
+  const status = (fallback) =>
+    spawnSync("bash", ["-c", first.run], {
+      env: {
+        PATH: process.env.PATH,
+        APP_SENDER_ID: "1",
+        DEFAULT_BRANCH: "main",
+        ISSUE_NUMBER: "7",
+        EVENT_NAME: "issues",
+        EVENT_ISSUE: "7",
+        PR_NUMBER: "",
+        DISPATCHER_RUN_ID: "",
+        TRUSTED_BASE: "default-tip",
+        FALLBACK: fallback,
+      },
+    }).status;
+  assert.equal(status(""), 0);
+  assert.equal(status("handoff"), 0);
+  for (const fallback of ["credit-stop", "no-key"]) assert.equal(status(fallback), 1, fallback);
 });

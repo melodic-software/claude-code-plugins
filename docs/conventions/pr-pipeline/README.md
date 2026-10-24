@@ -1955,7 +1955,10 @@ leg hands off (`run-claude-cli`'s `handoff` output: a credit stop, or class `aut
 401 or 402; a 403 hands nothing off). `pr-verify` holds one credential per job: `check-intent`
 runs on the key, and `check-intent-subscription` runs on the token, on a new runner, only after
 `check-intent`'s handoff with no permission denial or when the key is empty; its lane record is
-`pr-verify` with `fallback-reason` `credit-stop`, `auth` or `no-key`. Each lane's workflow names
+`pr-verify` with `fallback-reason` `credit-stop`, `auth` or `no-key`. The read runner's callers
+do the same in two calls, the second started by a job that reads this run's jobs: `pr-unblock`'s
+and `pr-refine`'s lanes, and `issue-lane`'s `resolve-issue` and `resolve-issue-subscription`
+([pr-run-activity.md, Issue mode](pr-run-activity.md#issue-mode)). Each lane's workflow names
 its role as a literal, and the runner policy admits it. A lane on pr-run-activity-write.yml passes
 its role as the `role` input, and the lane record names that role's token as the run's credential.
 
