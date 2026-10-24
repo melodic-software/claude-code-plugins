@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [4.19.2] - 2026-10-24
+
+### Fixed
+
+- The pr-unblock dispatcher no longer sends resolve-conflicts to a Dependabot head (a `dependabot/` branch Dependabot opened): its merge commit stopped Dependabot's own rebases, which resolve the conflict.
+
 ## [4.19.1] - 2026-10-24
 
 ### Fixed
