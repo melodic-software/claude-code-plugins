@@ -1,7 +1,7 @@
 {
   "remote": {
     "git_url": "https://github.com/melodic-software/claude-code-plugins",
-    "ref": "guardrails-release",
+    "ref": "main",
     "config": "plugins/guardrails/git-hooks/lefthook-remote.yml"
   },
   "entries": [

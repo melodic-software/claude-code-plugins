@@ -141,8 +141,8 @@ with your own edit tools. Never runs from bare `apply`.
 
 1. **Scope.** Use the argument when given. Otherwise, when the user is present, ask: `local`
    (this clone only, nothing committed) or `shared` (committed, so every teammate and agent
-   gets it; with lefthook, every clone then runs the hooks the plugin's repository releases,
-   fetched daily, rather than a copy the repository reviewed). When nobody can answer, use
+   gets it; with lefthook, every clone then runs the hooks on the plugin repository's `main`
+   branch, fetched daily, rather than a copy the repository reviewed). When nobody can answer, use
    `local`.
 2. **Plan.** For `local`, run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" plan
    --scope local`. For `shared`, run `plan --scope remote` first: with lefthook, or no hook

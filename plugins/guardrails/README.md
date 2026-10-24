@@ -111,12 +111,11 @@ hooks) under the check-placement convention's contract
 (`docs/conventions/check-placement/README.md` in the marketplace repository): local
 scope is this clone only. Shared scope with lefthook adds one `remotes:` entry to the
 committed `lefthook.yml`, so every clone runs the hooks from this marketplace repository's
-`guardrails-release` branch, which moves to each guardrails release, refetched daily
+`main` branch, refetched daily
 (`git-hooks/lefthook-remote.yml`); with husky or plain hooks it commits copies under
 `.githooks/guardrails/`. A clone whose fetched remote no longer parses (every commit and
-`lefthook install` then fail with a YAML error) recovers, once the fix is released, with
-`rm -rf "$(git rev-parse --git-path info)/lefthook-remotes/claude-code-plugins-guardrails--release" && lefthook install`
-(lefthook 2.2.2 writes each `-` of the ref as `--` in that directory name).
+`lefthook install` then fail with a YAML error) recovers, once the fix is on `main`, with
+`rm -rf "$(git rev-parse --git-path info)/lefthook-remotes/claude-code-plugins-main" && lefthook install`.
 Each entry blocks only on what the commit or push adds. A clone that does not want an
 entry declines it through `/guardrails:setup` (`install.mjs decline --entry <name>`),
 which also removes the entry's registration when it is already installed.

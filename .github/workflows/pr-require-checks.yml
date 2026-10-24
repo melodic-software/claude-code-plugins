@@ -2692,15 +2692,14 @@ jobs:
       # The guardrails remote's end-to-end suite runs real lefthook against a
       # stand-in remote; a broken lefthook-remote.yml would block every
       # consumer's commits, so it fails here instead of skipping
-      # (GUARDRAILS_REQUIRE_LEFTHOOK). The pin is shared with
-      # release-move-guardrails-ref.yml.
+      # (GUARDRAILS_REQUIRE_LEFTHOOK).
       - name: Install pinned lefthook
         run: |
           if [[ "$(jq -r --arg leg "$LEG" '.[$leg] // ""' <<<"$LEG_PLAN")" != *lefthook* ]]; then
             echo "No suite on this leg runs lefthook."
             exit 0
           fi
-          bash .github/scripts/guardrails-release-ref/install-lefthook.sh
+          bash .github/scripts/pr-require-checks/install-lefthook.sh
       - name: Save the pinned tool downloads
         if: github.ref == 'refs/heads/main' && steps.tools_cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

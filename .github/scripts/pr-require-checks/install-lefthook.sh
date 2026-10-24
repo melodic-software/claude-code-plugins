@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Install the pinned lefthook on a Linux x86_64 runner, checksum-verified, into ~/.local/bin and
 # onto $GITHUB_PATH: the lefthook the guardrails remote's end-to-end test
-# (plugins/guardrails/git-hooks/lefthook-remote.test.sh) runs, in pr-require-checks.yml's
-# test-bash lane and in release-move-guardrails-ref.yml before it moves guardrails-release.
+# (plugins/guardrails/git-hooks/lefthook-remote.test.sh) runs in pr-require-checks.yml's
+# test-bash lane.
 # The version is the one the fleet runs; the hash is the release's published SHA-256 for
 # lefthook_<version>_Linux_x86_64. A cached download under ~/.cache/ci-tools is reused and
 # checked the same way.
